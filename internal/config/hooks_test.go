@@ -11,16 +11,19 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
+// Invariant: a persisted AGENT.md whose hooks carry the retired compaction matcher keys loads with
+// those keys ignored and its bytes unchanged, while other matcher keys stay strict (#1618; shim
+// removal: v0.7.0). Owner: AGENT.md frontmatter decode.
 func TestAgentHookRetiredMatcherCompatibility(t *testing.T) {
 	t.Parallel()
 	for _, format := range []string{"YAML", "TOML"} {
 		for _, matcherCase := range []struct {
 			name, yaml, toml string
-			wantError        bool
+			wantError        string // names the offending matcher key in the load error
 		}{
 			{name: "Should retain hooks and ignore retired matcher keys", yaml: "workspace_id: ws-1", toml: "workspace_id = 'ws-1'"},
-			{name: "Should reject unknown matcher keys alongside retired keys", yaml: "unknown_matcher: value", toml: "unknown_matcher = 'value'", wantError: true},
-			{name: "Should reject malformed retained matcher values", yaml: "workspace_id: [invalid]", toml: "workspace_id = ['invalid']", wantError: true},
+			{name: "Should reject unknown matcher keys alongside retired keys", yaml: "unknown_matcher: value", toml: "unknown_matcher = 'value'", wantError: "unknown_matcher"},
+			{name: "Should reject malformed retained matcher values", yaml: "workspace_id: [invalid]", toml: "workspace_id = ['invalid']", wantError: "workspace_id"},
 		} {
 			t.Run(matcherCase.name+" in "+format, func(t *testing.T) {
 				t.Parallel()
@@ -31,9 +34,10 @@ func TestAgentHookRetiredMatcherCompatibility(t *testing.T) {
 				file := filepath.Join(t.TempDir(), AgentDefinitionFileName)
 				writeFile(t, file, body)
 				agent, err := LoadAgentDefFile(file)
-				if matcherCase.wantError {
-					if err == nil {
-						t.Fatal("LoadAgentDefFile() error = nil, want strict matcher error")
+				if matcherCase.wantError != "" {
+					if err == nil || !strings.Contains(err.Error(), matcherCase.wantError) {
+						t.Fatalf("LoadAgentDefFile() error = %v, want strict matcher error naming %q",
+							err, matcherCase.wantError)
 					}
 				} else {
 					if err != nil {

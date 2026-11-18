@@ -1,0 +1,98 @@
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
+
+  # CompozyOS daemon slog JSON. Only the live file; rotated files are timestamped copies.
+  filelog/compozy:
+    include: [/var/log/compozy/compozy.log]
+    start_at: end
+    operators:
+      # Most lines are slog JSON; a few subsystems still write "2026/11/11 23:13:21 INFO msg k=v".
+      - type: router
+        routes:
+          - output: json
+            expr: 'body matches "^\\{"'
+          - output: text
+            expr: 'body matches "^\\d{4}/\\d{2}/\\d{2} "'
+        default: done
+      - id: json
+        type: json_parser
+        timestamp:
+          {
+            parse_from: attributes.time,
+            layout_type: gotime,
+            layout: "2006-01-02T15:04:05.999999999Z07:00",
+          }
+        severity: { parse_from: attributes.level }
+        output: body
+      - id: body
+        type: move
+        if: "attributes.msg != nil"
+        from: attributes.msg
+        to: body
+        output: done
+      - id: text
+        type: regex_parser
+        regex: '^(?P<time>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) (?P<level>[A-Z]+) (?P<msg>.*)$'
+        timestamp:
+          {
+            parse_from: attributes.time,
+            layout_type: gotime,
+            layout: "2006/01/02 15:04:05",
+            location: "${env:COMPOZY_LOG_TZ}",
+          } # text lines carry no zone
+        severity: { parse_from: attributes.level }
+        output: textbody
+      - id: textbody
+        type: move
+        from: attributes.msg
+        to: body
+        output: done
+      - id: done
+        type: noop
+    resource:
+      service.name: compozy-daemon
+      service.namespace: compozy
+
+processors:
+  memory_limiter: { check_interval: 1s, limit_mib: 512 }
+  batch: {}
+  # Prometheus needs cumulative metrics; this converts any delta-temporality OTLP client.
+  deltatocumulative: {}
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls: { insecure: true }
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+  otlphttp/prometheus:
+    endpoint: http://prometheus:9090/api/v1/otlp
+    tls: { insecure: true }
+
+extensions:
+  health_check: { endpoint: 0.0.0.0:13133 }
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, deltatocumulative, batch]
+      exporters: [otlphttp/prometheus]
+    logs:
+      receivers: [otlp, filelog/compozy]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/loki]
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus: { host: 0.0.0.0, port: 8888 }

@@ -11,12 +11,24 @@ func (r *reducer) deleteDesktop(snapshot *Snapshot, command DeleteDesktopCommand
 		return false, ErrFinalDesktop
 	}
 	source := snapshot.Desktops[index]
-	if !desktopEmpty(source) && command.DestinationID == nil {
+	if !desktopEmpty(snapshot, source) && command.DestinationID == nil {
 		return false, ErrDestinationRequired
 	}
 	if command.DestinationID != nil && *command.DestinationID == command.DesktopID {
 		return false, fmt.Errorf("destination must differ from source: %w", ErrDestinationRequired)
 	}
+	retained := source.Tabs[:0]
+	for _, tab := range source.Tabs {
+		if !placeholderTab(snapshot, tab) {
+			retained = append(retained, tab)
+			continue
+		}
+		id := nodeWindowIDs(tab.Root)[0]
+		delete(snapshot.Windows, id)
+		r.changes.window(id)
+		r.changes.tab(tab.ID)
+	}
+	source.Tabs = retained
 	if command.DestinationID != nil {
 		if err := r.transferDesktopContents(snapshot, source, *command.DestinationID); err != nil {
 			return false, err
@@ -28,41 +40,20 @@ func (r *reducer) deleteDesktop(snapshot *Snapshot, command DeleteDesktopCommand
 	return true, nil
 }
 
-// transferDesktopContents moves every island, floating frame, and floating
-// window of the source onto the destination; arriving windows drop their zoom
-// so the destination keeps whatever it was already showing.
 func (r *reducer) transferDesktopContents(snapshot *Snapshot, source Desktop, destinationID DesktopID) error {
-	destinationIndex, found := desktopIndexByID(snapshot, destinationID)
-	if !found {
-		return fmt.Errorf("desktop %q: %w", destinationID, ErrDesktopNotFound)
+	index, ok := desktopIndexByID(snapshot, destinationID)
+	if !ok {
+		return ErrDesktopNotFound
 	}
-	destination := &snapshot.Desktops[destinationIndex]
-	transferred := cloneDesktop(source)
-	destination.Groups = append(destination.Groups, transferred.Groups...)
-	for _, group := range transferred.Groups {
-		r.changes.group(group.ID)
-	}
-	if layoutGroupsOverlap(destination.Groups) {
-		reflowLayoutGroupFrames(destination.Groups)
-		for _, group := range destination.Groups {
-			r.changes.group(group.ID)
+	d := &snapshot.Desktops[index]
+	for _, tab := range source.Tabs {
+		insertTab(d, tab, len(d.Tabs))
+		assignTabWindows(snapshot, d, tab)
+		r.changes.tab(tab.ID)
+		for _, id := range nodeWindowIDs(tab.Root) {
+			r.changes.window(id)
 		}
 	}
-	destination.Floating = append(destination.Floating, transferred.Floating...)
-	destination.FloatingStacks = append(destination.FloatingStacks, transferred.FloatingStacks...)
-	for _, stack := range transferred.FloatingStacks {
-		r.changes.node(stack.ID)
-	}
-	for windowID, window := range snapshot.Windows {
-		if window.DesktopID != source.ID {
-			continue
-		}
-		window.DesktopID = destination.ID
-		window.Zoomed = false
-		window.ReturnAnchor = nil
-		snapshot.Windows[windowID] = window
-		r.changes.window(windowID)
-	}
-	r.changes.desktop(destination.ID)
+	r.changes.desktop(d.ID)
 	return nil
 }

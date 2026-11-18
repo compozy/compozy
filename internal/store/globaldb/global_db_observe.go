@@ -51,11 +51,17 @@ func (g *ObserveRepo) WriteEventSummaries(
 }
 
 func (g *ObserveRepo) prepareEventSummary(ctx context.Context, summary *store.EventSummary) error {
-	if err := g.populateEventSummaryProjections(ctx, summary); err != nil {
+	userSession, err := g.populateEventSummaryProjections(ctx, summary)
+	if err != nil {
 		return err
 	}
 	redactEventSummary(summary)
-	if err := summary.Validate(); err != nil {
+	if userSession {
+		err = summary.ValidateUserSession()
+	} else {
+		err = summary.Validate()
+	}
+	if err != nil {
 		return err
 	}
 	if strings.TrimSpace(summary.ID) == "" {
@@ -235,7 +241,12 @@ func sqlInClause(column string, count int) string {
 	return column + " IN (" + strings.Join(placeholders, ", ") + ")"
 }
 
-func (g *ObserveRepo) populateEventSummaryProjections(ctx context.Context, summary *store.EventSummary) error {
+// populateEventSummaryProjections fills session-owned fields from the session catalog and reports
+// whether the catalog records the session in the User scope.
+func (g *ObserveRepo) populateEventSummaryProjections(
+	ctx context.Context,
+	summary *store.EventSummary,
+) (bool, error) {
 	summary.WorkspaceID = strings.TrimSpace(summary.WorkspaceID)
 	summary.Provider = strings.TrimSpace(summary.Provider)
 	summary.Outcome = strings.TrimSpace(summary.Outcome)
@@ -243,15 +254,15 @@ func (g *ObserveRepo) populateEventSummaryProjections(ctx context.Context, summa
 		summary.Outcome = string(eventspkg.OutcomeFor(summary.Type))
 	}
 	if strings.TrimSpace(summary.SessionID) == "" {
-		return nil
+		return false, nil
 	}
 
 	row, err := g.readQueries.GetEventSummarySessionProjection(ctx, strings.TrimSpace(summary.SessionID))
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return fmt.Errorf("store: resolve event summary projections: %w", err)
+		return false, fmt.Errorf("store: resolve event summary projections: %w", err)
 	}
 	workspaceID := strings.TrimSpace(row.WorkspaceID)
 	provider := strings.TrimSpace(row.Provider)
@@ -260,18 +271,18 @@ func (g *ObserveRepo) populateEventSummaryProjections(ctx context.Context, summa
 		worktreeID = strings.TrimSpace(row.WorktreeID.String)
 	}
 	if err := confirmEventSummaryProjection("workspace_id", summary.WorkspaceID, workspaceID); err != nil {
-		return err
+		return false, err
 	}
 	if err := confirmEventSummaryProjection("provider", summary.Provider, provider); err != nil {
-		return err
+		return false, err
 	}
 	if err := confirmEventSummaryProjection("worktree_id", summary.WorktreeID, worktreeID); err != nil {
-		return err
+		return false, err
 	}
 	summary.WorkspaceID = workspaceID
 	summary.Provider = provider
 	summary.WorktreeID = worktreeID
-	return nil
+	return workspaceID == "", nil
 }
 
 func confirmEventSummaryProjection(field, supplied, projected string) error {

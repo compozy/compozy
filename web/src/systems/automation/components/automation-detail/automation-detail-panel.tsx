@@ -198,7 +198,10 @@ function AutomationDetailLoaded({
     overflow: (
       <AutomationDetailOverflow
         onDelete={() => onDeleteOpenChange(true)}
+        onEdit={onEdit}
         onInspect={() => onInspectOpenChange(true)}
+        onRunNow={onRunNow}
+        runNow={{ disabled: state.isRunNowDisabled, pending: state.isRunNowPending }}
         view={view}
       />
     ),

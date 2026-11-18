@@ -11,7 +11,7 @@ bug_ids: BUG-20260727-runtime-legacy-identity;BUG-20260910-idle-session-high-cpu
 fix_status: fixed
 retest_status: pass
 fix_commits: e4df8634;ed2f523b8c5e85b54f0be70accf81ff011255ff3;4368ae4a6078fe16f50a528a687a70726fba9a61;0308fe9617f08ce8c6de8ace9ffca4659ee00b6f;b75ab2c2bb54ba7a7ce5b6c6cafe73a6b0b337a4;e016417aac4fbef9f79a025743b54d98b57b55dd;3b5a22ee3287316afd213bad3afc7dd6e0a2f852;66100544f88d6ce9b0c2b5a8affec78a2a2fb9c9
-evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-info-skill-list.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-list.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-view.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-20260910-162426-604899-lab/qa-artifacts/qa/logs/final-policy-go1264-clean-state-canary-canary.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-20260910-162426-604899-lab/qa-artifacts/qa/logs/final-policy-go1264-clean-state-representative-metrics.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-20260910-162426-604899-lab/qa-artifacts/qa/qa-audit-report.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-20260910-162426-604899-lab/qa-artifacts/qa/teardown.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-review-20260910-181815-323329-lab/qa-artifacts/qa/logs/watcher-final-clean-state-canary-canary.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-review-20260910-181815-323329-lab/qa-artifacts/qa/logs/watcher-final-clean-state-representative-metrics.json
+evidence: unpublished-local-artifact/qa/skill-sources/tool-info-skill-list.json;unpublished-local-artifact/qa/skill-sources/tool-skill-list.json;unpublished-local-artifact/qa/skill-sources/tool-skill-view.json;unpublished-local-artifact/qa/logs/final-policy-go1264-clean-state-canary-canary.json;unpublished-local-artifact/qa/logs/final-policy-go1264-clean-state-representative-metrics.json;unpublished-local-artifact/qa/qa-audit-report.json;unpublished-local-artifact/qa/teardown.json;unpublished-local-artifact/qa/logs/watcher-final-clean-state-canary-canary.json;unpublished-local-artifact/qa/logs/watcher-final-clean-state-representative-metrics.json
 last_report: docs/qa/reports/2026-09-10-beta24-daemon-cpu.md
 overlaps: ET-native-tool-approval-grants; ET-workspace-host-api-mcp
 ---
@@ -112,3 +112,58 @@ records canonical before/after CPU and allocation measurements, plus descriptor
 ownership and approval boundary checks. Focused race verification passed for the canonical descriptor and approval
 suites; real terminal/transport execution and current-head CI remain root-owned
 pending work. This impact note preserves all historical scenario verdicts.
+
+QA impact 2026-11-09 (harness token efficiency): hosted descriptions keep the tool's authored
+instructions and canonical ID, with search tags, hints and toolset names in search metadata and
+`tool_info`. Existing MCP names, schemas, approvals, hook identities and routing remain unchanged.
+Verify search by an alias/tag still finds the tool and invoking it has the same result.
+
+QA scope for bounded reads: seed more than 50 automation runs for a job and trigger. Walk native
+and HTTP/UDS histories using `page.next_cursor`; assert every matching ID appears once, page sizes
+stay bounded, and changing filters/profile/workspace rejects a cursor from another population.
+Search a tool catalog larger than 100 entries; follow `next_offset` under the same query and
+confirm every diagnostic descriptor appears once. Check zero, negative and oversized page inputs.
+Verify CLI JSON retains history/search continuation metadata and its continuation flags round-trip.
+
+QA impact 2026-11-13 (#1628 / #1629): keep multiple hosted MCP sessions open in one
+workspace, including peers with different tool policies, and a peer in another
+workspace/profile. Repeated stream wakes within one refresh window must discover
+each provider listing scope once while retaining each peer's policy and availability.
+Change an upstream tool without advancing the epoch; both early and late projection
+builds must refresh at the end of the original listing window. Also exercise epoch
+advances, bind release, concurrent discovery, waiter cancellation and leader failure;
+failed listings must never be reused. Compare CPU and allocation profiles with the
+same sessions and providers before and after, checking that discovery scales with
+listing scopes rather than sessions. Canonical automated coverage is in
+`TestHostedServiceProjectionGenerationCache`, `TestRuntimeRegistryProjections` and
+`TestDaemonExtensionToolProvider`. This follow-up has no local QA or performance
+verdict: the operator forbids local verification on the saturated machine, so CI
+owns automated validation and the live profile remains unmeasured. Historical
+scenario verdicts above are unchanged.
+
+QA impact #1545 (CI-only verification; no local runtime walk): tool info/search must describe
+`compozy__task_recover` as operator-only before approval. A bound-session refusal names
+`compozy task recover`. Native terminal exec/open reject a whitespace-only `worktree` before
+approval/root resolution. Heartbeat wake accepts omitted `source` as manual and exact documented
+enum members; explicit empty/padded native values fail schema validation. For legacy scheduler
+and harness wakes, edit policy A→B→A and then remove it: each wake follows the current policy,
+reuses A's immutable snapshot, and stops policy dispatch after deletion. Dry run reuses an existing
+matching snapshot ID without writing any snapshot or revision.
+Scheduler batches with mixed resolved limits use one shared sent count: a lower target limit
+blocks excess wakes, and a higher target limit cannot exceed the daemon cap. Rate-limited
+requests retain their ordered decision and persisted audit state without dispatching a prompt.
+
+QA impact 2026-11-16 (#1772): with 1 and 16 equivalent hosted peers, exercise the production
+native authority resolver re-entering dynamic listing. Require one expensive provider listing per
+scope/epoch/refresh window, unchanged catalogs, isolated permissions, and live revocation/build
+race fences. Cancellation must remain retryable and a released bind must remain inaccessible.
+
+Verification (#1772): the canonical hosted projection-generation suite and production native
+policy-resolver regression exercise the dynamic authority/listing interaction, 1/16 equivalent
+peers, policy isolation, revocation, invalidation, cancellation and released binds. The focused
+suites passed; the benchmark measured 3/33 provider listings per epoch before and 1/1 after.
+The full end-to-end journey remains owned by CI.
+
+QA impact 2026-11-17 (#1794, daemon CPU hot paths):
+Known read-only native calls do not wake unrelated hosted streams. Invoked potentially mutating or external backends retain conservative invalidation, including partial failures. The targeted real hosted transport invokes `compozy__session_spawn`; focused registry suites cover admission, policy and invalidation.
+See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).

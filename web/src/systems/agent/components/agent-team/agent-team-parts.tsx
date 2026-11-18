@@ -26,7 +26,7 @@ function PlaceChip({ place }: { place: AgentTeamPlace }) {
     <Pill
       className="max-w-40 min-w-0 shrink"
       size="sm"
-      tone={place.state === "needs-you" ? "brand" : "neutral"}
+      tone={place.state === "needs-you" ? "attn" : "neutral"}
     >
       {tone ? <StatusDot size="sm" tone={tone} /> : null}
       <span className="truncate">{place.label}</span>
@@ -72,7 +72,6 @@ export function AgentAddPlaceButton({
   member: AgentTeamMember;
   add: AgentAddPlaceActions;
 }) {
-  if (!member.agent) return null;
   const taken = new Set(member.places.map(place => place.scope));
   return (
     <AgentScopePicker

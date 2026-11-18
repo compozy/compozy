@@ -185,14 +185,9 @@ func (m *Manager) executeStep(ctx context.Context, opID string, step lifecycleSt
 		}
 		return compozyconfig.RewriteProfileSecretRefs(newPath, filepath.Base(oldPath), filepath.Base(newPath))
 	case stepRemoveProfile:
-		path, err := m.containedProfilePath(step.PathOld)
-		if err != nil {
-			return err
-		}
-		if err := os.RemoveAll(path); err != nil {
-			return fmt.Errorf("profile: remove profile directory %q: %w", path, err)
-		}
-		return nil
+		return m.removeProfileDirectory(step.PathOld)
+	case stepRemoveUserToolArtifacts:
+		return m.removeUserToolArtifacts(ctx, opID)
 	case stepRemoveAgentMemory:
 		return m.removeAgentMemory(ctx, opID)
 	case stepRemoveUserJournal:
@@ -202,6 +197,17 @@ func (m *Manager) executeStep(ctx context.Context, opID string, step lifecycleSt
 	default:
 		return fmt.Errorf("profile: unsupported lifecycle step action %q", step.Action)
 	}
+}
+
+func (m *Manager) removeProfileDirectory(profilePath string) error {
+	path, err := m.containedProfilePath(profilePath)
+	if err != nil {
+		return err
+	}
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("profile: remove profile directory %q: %w", path, err)
+	}
+	return nil
 }
 
 // removeDesktopPartitions purges the deleted profile's window arrangements.

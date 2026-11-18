@@ -23,7 +23,7 @@ func validateSchemaEnum(path string, raw json.RawMessage, value any) error {
 			return nil
 		}
 	}
-	return schemaViolation(path, "value is not allowed")
+	return schemaViolation(path, "value is not allowed; accepted values: %s", bytes.TrimSpace(raw))
 }
 
 func (v schemaValidator) validateSchemaAllOf(path string, raw json.RawMessage, value any) error {

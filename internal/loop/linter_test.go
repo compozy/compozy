@@ -3,6 +3,8 @@ package loop_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/tools/builtin"
 )
 
 func TestLinterShouldRejectDeletedNoProgressParameters(t *testing.T) {
@@ -1568,7 +1571,7 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 							Kind:  string(dsl.ActionRunAgent),
 							Params: dsl.NodeParams{
 								"agent":  "codex",
-								"prompt": "Summarize {{ .nodes.nested_load.output.type }}",
+								"prompt": "Summarize {{ .nodes.nested_load.output }}",
 								"output_schema": map[string]any{
 									"summary": "string",
 								},
@@ -2746,4 +2749,819 @@ func mustJSON(t *testing.T, value map[string]any) json.RawMessage {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
 	return data
+}
+
+// Invariant: references and produces are checked against each node's literal view.
+func TestLinterResultViewReferences(t *testing.T) {
+	t.Parallel()
+	t.Run("Should compose tool declarations with result views", testToolProducesReferences)
+	const compact = `{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`
+	const full = `{"type":"object","properties":{"id":{"type":"string"},"details":{"type":"object","properties":{"name":{"type":"string"}},"additionalProperties":false},"scalar":{"type":"string"}},"additionalProperties":false}`
+	for _, tc := range []struct {
+		name          string
+		view          any
+		compact       string
+		full          string
+		path          string
+		produces      bool
+		override      dsl.Schema
+		want          string
+		warning       bool
+		prefix        string
+		consumerError bool
+	}{
+		{name: "Should reject annotated scalar schema metadata", view: "full", full: `{"type":"string","$comment":"scalar"}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should reject annotated closed-object metadata", view: "full", full: `{"type":"object","additionalProperties":false,"$comment":"empty"}`, path: "additionalProperties", want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata with extension annotations", view: "full", full: `{"type":"string","x-compozy-free-form":true}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata with a schema reference", view: "full", full: `{"type":"string","$ref":"#/$defs/value","$defs":{"value":{"type":"string"}}}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata with pattern properties", view: "full", full: `{"type":"object","additionalProperties":false,"patternProperties":{"^x":{"type":"string"}}}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata with conditional schemas", view: "full", full: `{"type":"string","else":{}}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should reject undeclared paths despite an open tool declaration from current", prefix: "", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata despite a closed tool declaration from current", prefix: "", view: nil, path: "type", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}, "additionalProperties": false}, want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata despite an open tool declaration from current", prefix: "", view: nil, path: "type", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
+		{name: "Should preserve a narrowing tool declaration from current", prefix: "", view: "full", path: "details.name", override: dsl.Schema{"id": "string"}, want: refs.CodeUnresolvablePath},
+		{name: "Should accept declared compact fields with a tool declaration from current", prefix: "", view: nil, path: "id", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}}, want: ""},
+		{name: "Should reject undeclared paths despite an open tool declaration from previous.", prefix: "previous.", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata despite a closed tool declaration from previous.", prefix: "previous.", view: nil, path: "type", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}, "additionalProperties": false}, want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata despite an open tool declaration from previous.", prefix: "previous.", view: nil, path: "type", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
+		{name: "Should preserve a narrowing tool declaration from previous.", prefix: "previous.", view: "full", path: "details.name", override: dsl.Schema{"id": "string"}, want: refs.CodeUnresolvablePath},
+		{name: "Should accept declared compact fields with a tool declaration from previous.", prefix: "previous.", view: nil, path: "id", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}}, want: ""},
+		{name: "Should reject undeclared paths despite an open tool declaration from best.", prefix: "best.", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata despite a closed tool declaration from best.", prefix: "best.", view: nil, path: "type", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}, "additionalProperties": false}, want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata despite an open tool declaration from best.", prefix: "best.", view: nil, path: "type", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
+		{name: "Should preserve a narrowing tool declaration from best.", prefix: "best.", view: "full", path: "details.name", override: dsl.Schema{"id": "string"}, want: refs.CodeUnresolvablePath},
+		{name: "Should accept declared compact fields with a tool declaration from best.", prefix: "best.", view: nil, path: "id", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}}, want: ""},
+		{name: "Should bound a declared moved field at its consumer from current", prefix: "", path: "details.name", override: dsl.Schema{"details": map[string]any{"name": "string"}}, want: loop.CodeResultViewFieldRequiresFull, consumerError: true},
+		{name: "Should bound declared keyword data at its consumer from current", prefix: "", path: "type", override: dsl.Schema{"type": "string", "id": "string"}, want: refs.CodeUnresolvablePath, consumerError: true},
+		{name: "Should bound a declared moved field at its consumer from previous.", prefix: "previous.", path: "details.name", override: dsl.Schema{"details": map[string]any{"name": "string"}}, want: loop.CodeResultViewFieldRequiresFull, consumerError: true},
+		{name: "Should bound declared keyword data at its consumer from previous.", prefix: "previous.", path: "type", override: dsl.Schema{"type": "string", "id": "string"}, want: refs.CodeUnresolvablePath, consumerError: true},
+		{name: "Should bound a declared moved field at its consumer from best.", prefix: "best.", path: "details.name", override: dsl.Schema{"details": map[string]any{"name": "string"}}, want: loop.CodeResultViewFieldRequiresFull, consumerError: true},
+		{name: "Should bound declared keyword data at its consumer from best.", prefix: "best.", path: "type", override: dsl.Schema{"type": "string", "id": "string"}, want: refs.CodeUnresolvablePath, consumerError: true},
+		{name: "Should accept compact fields", path: "id"},
+		{name: "Should reject schema keywords on a closed compact node", path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should reject schema keywords on a closed full node", view: "full", path: "properties.id", want: refs.CodeUnresolvablePath},
+		{name: "Should reject keywords on a typeless closed object", view: "full", full: `{"additionalProperties":false}`, path: "additionalProperties", want: refs.CodeUnresolvablePath},
+		{name: "Should accept explicitly declared keyword-named fields", view: "full", full: `{"type":"object","properties":{"type":{"type":"string"}},"additionalProperties":false}`, path: "type"},
+		{name: "Should reject schema keywords on scalar full nodes", view: "full", full: `{"type":"string"}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should warn for keyword-named fields on an open full node", view: "full", full: `{"type":"object"}`, path: "type", warning: true},
+		{name: "Should preserve produces restrictions on compact references", path: "details.name", override: dsl.Schema{"id": "string"}, want: refs.CodeUnresolvablePath},
+		{name: "Should reject moved fields from previous generations", prefix: "previous.", path: "details.name", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should warn for open full fields from the best generation", prefix: "best.", view: "full", full: `{"type":"object"}`, path: "details.name", warning: true},
+		{name: "Should require full for a moved field", path: "details.name", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should require full with an empty compact schema", compact: `{}`, path: "details.name", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should accept a declared full field", view: "full", path: "details.name"},
+		{name: "Should accept open full fields with a warning", view: "full", full: `{"type":"object"}`, path: "details.name", warning: true},
+		{name: "Should accept typeless open full fields with a warning", view: "full", full: `{}`, path: "details.name", warning: true},
+		{name: "Should accept object union full fields with a warning", view: "full", full: `{"type":["object","null"]}`, path: "details.name", warning: true},
+		{name: "Should require full for open full fields", full: `{"type":"object"}`, path: "details.name", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject unknown closed compact fields", path: "details.typo", want: refs.CodeUnresolvablePath},
+		{name: "Should reject unknown closed full fields", view: "full", path: "details.typo", want: refs.CodeUnresolvablePath},
+		{name: "Should reject children of a scalar full field", view: "full", path: "scalar.typo", want: refs.CodeUnresolvablePath},
+		{name: "Should reject children of a scalar root", view: "full", full: `{"type":"string"}`, path: "typo", want: refs.CodeUnresolvablePath},
+		{name: "Should reject children of an untyped array", view: "full", full: `{"type":"array"}`, path: "typo", want: refs.CodeUnresolvablePath},
+		{name: "Should check produced shorthand array fields against compact", compact: `{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","additionalProperties":false}}},"additionalProperties":false}`, full: `{"type":"object"}`, path: "items.details", produces: true, override: dsl.Schema{"items": []any{map[string]any{"details": "string"}}}, want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject produced shorthand array fields absent from full", compact: `{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","additionalProperties":false}}},"additionalProperties":false}`, full: `{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","additionalProperties":false}}},"additionalProperties":false}`, path: "items.details", produces: true, override: dsl.Schema{"items": []any{map[string]any{"details": "string"}}}, want: refs.CodeUnresolvablePath},
+		{name: "Should require full for produced moved fields", path: "details.name", produces: true, want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject produced fields absent from both views", path: "details.typo", produces: true, want: refs.CodeUnresolvablePath},
+		{name: "Should reject produced fields absent from full", view: "full", path: "details.typo", produces: true, want: refs.CodeUnresolvablePath},
+		{name: "Should accept produced open full fields with a warning", view: "full", full: `{"type":"object"}`, path: "details.name", produces: true, warning: true},
+		{name: "Should reject a templated selector", view: "{{ .inputs.view }}", path: "id", want: loop.CodeResultViewNotLiteral},
+		{name: "Should reject a non-string selector", view: true, path: "id", want: "schema_invalid"},
+		{name: "Should reject an unknown selector", view: "summary", path: "id", want: "schema_invalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fullSchema := tc.full
+			if fullSchema == "" {
+				fullSchema = full
+			}
+			compactSchema := tc.compact
+			if compactSchema == "" {
+				compactSchema = compact
+			}
+			snapshot := loop.ToolSchemaSnapshot{
+				ToolID:                 "compozy__fixture",
+				OutputSchema:           json.RawMessage(compactSchema),
+				FullOutputSchema:       json.RawMessage(fullSchema),
+				FullOutputSchemaDigest: "full",
+			}
+			inspect := dsl.Node{
+				ID:     "inspect",
+				Class:  dsl.NodeClassAction,
+				Kind:   snapshot.ToolID,
+				Params: dsl.NodeParams{},
+			}
+			if tc.view != nil {
+				inspect.Params["result_view"] = tc.view
+			}
+			if tc.produces {
+				var value any = "string"
+				parts := strings.Split(tc.path, ".")
+				for _, part := range slices.Backward(parts) {
+					value = map[string]any{part: value}
+				}
+				inspect.Produces = dsl.Schema(value.(map[string]any))
+			}
+			if tc.override != nil {
+				inspect.Produces = tc.override
+			}
+			def := singleNodeDefinition(inspect)
+			def.Inputs = map[string]dsl.Input{"view": {Type: dsl.InputTypeString}}
+			if !tc.produces {
+				def.Graph.Nodes = append(
+					def.Graph.Nodes,
+					dsl.Node{
+						ID:    "report",
+						Class: dsl.NodeClassAction,
+						Kind:  "run-agent",
+						Params: dsl.NodeParams{
+							"agent":  "codex",
+							"prompt": "Read {{ ." + tc.prefix + "nodes.inspect.output." + tc.path + " }}",
+						},
+					},
+				)
+				def.Graph.Edges = []dsl.Edge{{From: "inspect", To: "report"}}
+			}
+			diagnostics := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{snapshot.ToolID: snapshot})).
+				Lint(def)
+			var codes []string
+			warned := false
+			consumerRejected := false
+			for _, diagnostic := range diagnostics {
+				if diagnostic.Severity == loop.SeverityWarning {
+					warned = warned || strings.Contains(diagnostic.Message, "cannot be proven")
+					continue
+				}
+				codes = append(codes, diagnostic.Code)
+				if diagnostic.NodeID == "report" && diagnostic.Code == tc.want {
+					consumerRejected = true
+				}
+				if diagnostic.Code == loop.CodeResultViewFieldRequiresFull &&
+					(!strings.Contains(diagnostic.Path, "nodes.inspect.output."+tc.path) || !strings.Contains(diagnostic.Message, snapshot.ToolID) || !strings.Contains(diagnostic.Message, "params of node \"inspect\"")) {
+					t.Fatalf("missing source metadata: %#v", diagnostic)
+				}
+			}
+			if tc.want == "" && len(codes) > 0 || tc.want != "" && !slices.Contains(codes, tc.want) {
+				t.Fatalf("diagnostics = %#v, want %q", diagnostics, tc.want)
+			}
+			if tc.want == refs.CodeUnresolvablePath && slices.Contains(codes, loop.CodeResultViewFieldRequiresFull) {
+				t.Fatal(diagnostics)
+			}
+			if tc.consumerError && !consumerRejected {
+				t.Fatalf("consumer escaped selected view: %#v", diagnostics)
+			}
+			if tc.warning && !warned {
+				t.Fatalf("missing open schema warning: %#v", diagnostics)
+			}
+		})
+	}
+	t.Run("Should reject selectors on native single-result tools", func(t *testing.T) {
+		t.Parallel()
+		node := dsl.Node{
+			ID:     "inspect",
+			Class:  dsl.NodeClassAction,
+			Kind:   "compozy__fixture",
+			Params: dsl.NodeParams{"result_view": "full"},
+		}
+		diagnostics := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{node.Kind: {ToolID: node.Kind, OutputSchema: json.RawMessage(compact)}})).
+			Lint(singleNodeDefinition(node))
+		requireLintMessageContains(
+			t,
+			diagnostics,
+			"schema_invalid",
+			`tool "compozy__fixture" returns a single result and does not accept "result_view"`,
+		)
+	})
+	t.Run("Should select views independently for two nodes on one tool", func(t *testing.T) {
+		t.Parallel()
+		snapshot := loop.ToolSchemaSnapshot{
+			ToolID:                 "compozy__fixture",
+			OutputSchema:           json.RawMessage(compact),
+			FullOutputSchema:       json.RawMessage(full),
+			FullOutputSchemaDigest: "full",
+		}
+		def := singleNodeDefinition(
+			dsl.Node{
+				ID:     "full",
+				Class:  dsl.NodeClassAction,
+				Kind:   snapshot.ToolID,
+				Params: dsl.NodeParams{"result_view": "full"},
+			},
+		)
+		def.Graph.Nodes = append(
+			def.Graph.Nodes,
+			dsl.Node{ID: "compact", Class: dsl.NodeClassAction, Kind: snapshot.ToolID},
+			dsl.Node{
+				ID:    "report",
+				Class: dsl.NodeClassAction,
+				Kind:  "run-agent",
+				Params: dsl.NodeParams{
+					"agent":  "codex",
+					"prompt": "{{ .nodes.full.output.details.name }} {{ .nodes.compact.output.details.name }}",
+				},
+			},
+		)
+		def.Graph.Edges = []dsl.Edge{{From: "full", To: "compact"}, {From: "compact", To: "report"}}
+		diagnostics := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{snapshot.ToolID: snapshot})).Lint(def)
+		count := 0
+		for _, diagnostic := range diagnostics {
+			if diagnostic.Severity == loop.SeverityError {
+				count++
+				if diagnostic.Code != loop.CodeResultViewFieldRequiresFull ||
+					diagnostic.Path != "nodes.compact.output.details.name" {
+					t.Fatal(diagnostic)
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("diagnostics = %#v", diagnostics)
+		}
+	})
+}
+
+func TestLinterOutputShapeRuntimeAgreement(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve inferred non-tool references", testInferredNonToolReferences)
+	t.Run("Should report full paths for list shorthand warnings", func(t *testing.T) {
+		t.Parallel()
+		for _, prompt := range []string{"{{ .nodes.origin.output.issues.title }}", "{{ range .nodes.origin.output.issues }}{{ .title }}{{ end }}"} {
+			node := dsl.Node{
+				ID:       "origin",
+				Class:    dsl.NodeClassAction,
+				Kind:     "transform",
+				Produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}},
+				Params: dsl.NodeParams{
+					"map": map[string]any{"issues": map[string]any{"value": []any{map[string]any{"title": "issue"}}}},
+				},
+			}
+			def := singleNodeDefinition(node)
+			def.Graph.Nodes = append(
+				def.Graph.Nodes,
+				dsl.Node{
+					ID:     "read",
+					Class:  dsl.NodeClassAction,
+					Kind:   "run-agent",
+					Params: dsl.NodeParams{"agent": "codex", "prompt": prompt},
+				},
+			)
+			def.Graph.Edges = []dsl.Edge{{From: "origin", To: "read"}}
+			warned := false
+			for _, d := range loop.NewLinter().Lint(def) {
+				if d.Severity == loop.SeverityError {
+					t.Fatal(d)
+				}
+				if d.Severity == loop.SeverityWarning && strings.Contains(d.Message, "cannot be proven") {
+					warned = true
+					if !strings.Contains(d.Message, "nodes.origin.output.issues.title") {
+						t.Fatalf("relative warning: %#v", d)
+					}
+				}
+			}
+			if !warned {
+				t.Fatal("missing list warning")
+			}
+		}
+	})
+
+	t.Run("Should preserve baseline acceptance for generated keyword fields", func(t *testing.T) {
+		t.Parallel()
+		keys := []string{"type", "title", "properties", "items", "id"}
+		for mask := 1; mask < 1<<len(keys); mask++ {
+			schema := dsl.Schema{}
+			prompt := ""
+			for index, key := range keys {
+				if mask&(1<<index) != 0 {
+					schema[key] = "string"
+					prompt += "{{ .nodes.origin.output." + key + " }} "
+				}
+			}
+			baseline := refs.Namespace{
+				Nodes: map[string]refs.NodeSchema{"origin": {Output: refs.Schema(schema), HasOutput: true}},
+			}
+			for key := range schema {
+				if err := baseline.ValidatePath([]string{"nodes", "origin", "output", key}); err != nil {
+					t.Fatalf("baseline field %s: %v", key, err)
+				}
+			}
+			for _, source := range []string{"produces", "output_schema", "expect", "tool-single", "tool-compact", "tool-full"} {
+				producer := dsl.Node{
+					ID:     "origin",
+					Class:  dsl.NodeClassAction,
+					Kind:   "run-agent",
+					Params: dsl.NodeParams{"agent": "codex", "prompt": "Return"},
+				}
+				switch source {
+				case "produces":
+					producer.Produces = schema
+				case "output_schema":
+					producer.Params["output_schema"] = map[string]any(schema)
+				case "expect":
+					producer.Class = dsl.NodeClassControl
+					producer.Kind = "ask"
+					producer.Params = dsl.NodeParams{"prompt": "Return", "expect": map[string]any(schema)}
+				default:
+					producer.Kind = "ext__fixture"
+					producer.Params = dsl.NodeParams{}
+					producer.Produces = schema
+				}
+				snapshot := loop.ToolSchemaSnapshot{
+					ToolID:       "ext__fixture",
+					OutputSchema: json.RawMessage(`{"type":"object","additionalProperties":false}`),
+				}
+				if source == "tool-compact" || source == "tool-full" {
+					properties := map[string]any{}
+					for _, key := range keys {
+						properties[key] = map[string]any{"type": "string"}
+					}
+					snapshot.OutputSchema = mustJSON(
+						t,
+						map[string]any{"type": "object", "properties": properties, "additionalProperties": false},
+					)
+					snapshot.FullOutputSchema = json.RawMessage(`{"type":"object"}`)
+					snapshot.FullOutputSchemaDigest = "full"
+					if source == "tool-full" {
+						producer.Params["result_view"] = "full"
+					}
+				}
+				def := singleNodeDefinition(producer)
+				def.Graph.Nodes = append(
+					def.Graph.Nodes,
+					dsl.Node{
+						ID:     "read",
+						Class:  dsl.NodeClassAction,
+						Kind:   "run-agent",
+						Params: dsl.NodeParams{"agent": "codex", "prompt": prompt},
+					},
+				)
+				def.Graph.Edges = []dsl.Edge{{From: "origin", To: "read"}}
+				for _, diagnostic := range loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{snapshot.ToolID: snapshot})).Lint(def) {
+					if diagnostic.Severity == loop.SeverityError {
+						t.Fatalf("source=%s schema=%#v lost baseline acceptance: %#v", source, schema, diagnostic)
+					}
+				}
+			}
+		}
+	})
+
+	for _, tc := range []struct {
+		name, source, schema, payload string
+		valid, invalid, unproven      []string
+		warning                       bool
+	}{
+		{name: "Should retain a keyword-only transform", source: "map", payload: `{"type":"bug"}`, valid: []string{"type"}, invalid: []string{"missing"}},
+		{name: "Should retain all keyword-named transform fields", source: "map", payload: `{"type":"bug","title":"title","description":"detail"}`, valid: []string{"type", "title", "description"}},
+		{name: "Should retain a properties-named transform field", source: "map", payload: `{"properties":"value","name":"name"}`, valid: []string{"properties", "name"}},
+		{name: "Should normalize a properties shorthand field", schema: `{"properties":"object","name":"string"}`, payload: `{"properties":{},"name":"name"}`, valid: []string{"properties", "name"}, invalid: []string{"missing"}},
+		{name: "Should normalize nested properties shorthand", schema: `{"properties":{"a":"string"},"id":"string"}`, payload: `{"properties":{"a":"a"},"id":"id"}`, valid: []string{"properties", "properties.a", "id", "a"}, unproven: []string{"a"}},
+		{name: "Should normalize an array-named shorthand field", schema: `{"type":"array","items":"string","name":"string"}`, payload: `{"type":[],"items":"items","name":"name"}`, valid: []string{"type", "items", "name"}},
+		{name: "Should allow an explicit open object with a warning", schema: `{"type":"object"}`, payload: `{"type":"value"}`, valid: []string{"type"}, warning: true},
+		{name: "Should warn for children of an explicit string", schema: `{"type":"string"}`, payload: `"value"`, valid: []string{"type"}, unproven: []string{"type"}},
+		{name: "Should warn for children of an annotated explicit string", schema: `{"type":"string","description":"string"}`, payload: `"value"`, valid: []string{"type", "description"}, unproven: []string{"type", "description"}},
+		{name: "Should warn for metadata of an authored closed object", schema: `{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`, payload: `{"id":"id"}`, valid: []string{"id", "type", "properties", "additionalProperties"}, unproven: []string{"type", "properties", "additionalProperties"}, invalid: []string{"missing"}},
+		{name: "Should warn for metadata of a nested authored string", schema: `{"user":{"type":"string"},"id":"string"}`, payload: `{"user":"value","id":"id"}`, valid: []string{"user", "id", "user.type"}, unproven: []string{"user.type"}},
+		{name: "Should warn for authored array metadata", schema: `{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}}`, payload: `[{"id":"id"}]`, valid: []string{"type", "items.type"}, unproven: []string{"type", "items.type"}},
+		{name: "Should preserve keyword collisions in authored properties", schema: `{"type":"object","properties":{"type":{"type":"string"}},"additionalProperties":false}`, payload: `{"type":"value"}`, valid: []string{"type", "type.type"}, unproven: []string{"type.type"}},
+		{name: "Should retain Goal authored compatibility", source: "goal-output_schema", schema: `{"status":{"type":"string","enum":["complete","blocked"]},"user":{"type":"string"}}`, payload: `{"status":"complete","user":"value"}`, valid: []string{"status", "user", "user.type"}, unproven: []string{"user.type"}},
+	} {
+		sources := []string{tc.source}
+		if tc.source == "" {
+			sources = []string{"produces", "output_schema", "expect"}
+		}
+		for _, source := range sources {
+			t.Run(tc.name+" from "+source, func(t *testing.T) {
+				t.Parallel()
+				node := dsl.Node{
+					ID:     "shape",
+					Class:  dsl.NodeClassAction,
+					Kind:   "run-agent",
+					Params: dsl.NodeParams{"agent": "codex", "prompt": "Return output"},
+				}
+				var schema dsl.Schema
+				if source == "map" {
+					var values map[string]any
+					if err := json.Unmarshal([]byte(tc.payload), &values); err != nil {
+						t.Fatal(err)
+					}
+					fields := map[string]any{}
+					for key, value := range values {
+						fields[key] = map[string]any{"value": value}
+					}
+					node.Kind = "transform"
+					node.Params = dsl.NodeParams{"map": fields}
+					raw, err := (loop.TransformActionExecutor{}).Execute(t.Context(), node, loop.ActionExecutionInput{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					expected, err := json.Marshal(values)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !bytes.Equal(raw.Structured, expected) {
+						t.Fatalf("runtime output=%s want %s", raw.Structured, expected)
+					}
+				} else {
+					if err := json.Unmarshal([]byte(tc.schema), &schema); err != nil {
+						t.Fatal(err)
+					}
+					if _, err := loop.ValidateActionStructured(
+						schema,
+						loop.ActionPromptResult{Structured: json.RawMessage(tc.payload)},
+					); err != nil {
+						t.Fatalf("runtime rejected payload: %v", err)
+					}
+					if strings.HasPrefix(tc.payload, `"`) {
+						if _, err := loop.ValidateActionStructured(
+							schema,
+							loop.ActionPromptResult{Structured: json.RawMessage(`{"type":"value"}`)},
+						); err == nil {
+							t.Fatal("runtime accepted an object for a string schema")
+						}
+					}
+					switch source {
+					case "produces":
+						node.Produces = schema
+					case "output_schema":
+						node.Params[source] = map[string]any(schema)
+					case "goal-output_schema":
+						node.Kind = "goal"
+						node.Params = dsl.NodeParams{
+							"agent":         "codex",
+							"objective":     "Return output",
+							"max_turns":     1,
+							"judge":         []any{map[string]any{"id": "verify", "type": "command", "check": "true"}},
+							"output_schema": map[string]any(schema),
+						}
+					case "expect":
+						node.Class = dsl.NodeClassControl
+						node.Kind = "ask"
+						node.Params = dsl.NodeParams{"prompt": "Return output", "expect": map[string]any(schema)}
+					}
+				}
+				for _, field := range append(slices.Clone(tc.valid), tc.invalid...) {
+					if slices.Contains(tc.unproven, field) {
+						var output any
+						if err := json.Unmarshal([]byte(tc.payload), &output); err != nil {
+							t.Fatal(err)
+						}
+						namespace := map[string]any{"nodes": map[string]any{"shape": map[string]any{"output": output}}}
+						expression := "{{ .nodes.shape.output." + field + " }}"
+						if rendered, err := refs.RenderTemplateString(
+							"authored-output",
+							expression,
+							namespace,
+						); err == nil ||
+							rendered != "" {
+							t.Fatalf("runtime rendered=%q err=%v, want failed evaluation", rendered, err)
+						}
+						for _, mapping := range []map[string]any{{"template": expression}, {"from": "nodes.shape.output." + field}} {
+							consumer := dsl.Node{
+								ID:     "consume",
+								Class:  dsl.NodeClassAction,
+								Kind:   "transform",
+								Params: dsl.NodeParams{"map": map[string]any{"value": mapping}},
+							}
+							if _, err := (loop.TransformActionExecutor{}).Execute(
+								t.Context(),
+								consumer,
+								loop.ActionExecutionInput{Namespace: namespace},
+							); !errors.Is(
+								err,
+								loop.ErrActionMaterialization,
+							) {
+								t.Fatalf("runtime consumer error=%v", err)
+							}
+						}
+						if field == "a" {
+							values := output.(map[string]any)
+							values["a"] = "root"
+							extra, err := json.Marshal(values)
+							if err != nil {
+								t.Fatal(err)
+							}
+							if _, err := loop.ValidateActionStructured(
+								schema,
+								loop.ActionPromptResult{Structured: extra},
+							); err != nil {
+								t.Fatalf("additional root field rejected: %v", err)
+							}
+							if rendered, err := refs.RenderTemplateString(
+								"authored-output",
+								expression,
+								namespace,
+							); err != nil ||
+								rendered != "root" {
+								t.Fatalf("runtime root a=%q err=%v", rendered, err)
+							}
+						}
+					}
+					for _, prefix := range []string{"", "previous.", "best."} {
+						def := singleNodeDefinition(node)
+						def.Graph.Nodes = append(
+							def.Graph.Nodes,
+							dsl.Node{
+								ID:    "read",
+								Class: dsl.NodeClassAction,
+								Kind:  "run-agent",
+								Params: dsl.NodeParams{
+									"agent":  "codex",
+									"prompt": "{{ ." + prefix + "nodes.shape.output." + field + " }}",
+								},
+							},
+						)
+						def.Graph.Edges = []dsl.Edge{{From: "shape", To: "read"}}
+						diagnostics := loop.NewLinter().Lint(def)
+						rejected, warned := false, false
+						for _, d := range diagnostics {
+							if d.Severity == loop.SeverityError {
+								if d.Code != refs.CodeUnresolvablePath {
+									t.Fatalf("unexpected diagnostic: %#v", d)
+								}
+								rejected = true
+								if field == "a" && !strings.Contains(d.Message, "available fields: id, properties") {
+									t.Errorf("lost declared field names: %#v", d)
+								}
+							}
+							if d.Severity == loop.SeverityWarning && strings.Contains(d.Message, "cannot be proven") {
+								warned = true
+							}
+						}
+						t.Logf(
+							"source=%s prefix=%s schema=%s field=%s rejected=%t warning=%t",
+							source,
+							prefix,
+							tc.schema,
+							field,
+							rejected,
+							warned,
+						)
+						if rejected != slices.Contains(tc.invalid, field) {
+							t.Errorf("field=%s diagnostics=%#v", field, diagnostics)
+						}
+						if (tc.warning || slices.Contains(tc.unproven, field)) && !warned {
+							t.Errorf("field=%s missing open-object warning: %#v", field, diagnostics)
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+func testInferredNonToolReferences(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	for _, kind := range []string{"direct-string", "direct-number", "direct-boolean", "direct-file", "direct-agent", "direct-ref", "direct-runtime", "source-input", "await-loop", "detach-loop"} {
+		t.Run("Should retain "+kind+" reference acceptance", func(t *testing.T) {
+			t.Parallel()
+			input := dsl.Input{Type: dsl.InputTypeString}
+			field := "type"
+			switch kind {
+			case "direct-number":
+				input.Type = dsl.InputTypeNumber
+			case "direct-boolean":
+				input.Type = dsl.InputTypeBoolean
+			case "direct-file":
+				input.Type = dsl.InputTypeFile
+			case "direct-agent":
+				input.Type = dsl.InputTypeAgent
+			case "direct-ref":
+				input.Type = dsl.InputTypeRef
+				input.Ref = &dsl.InputRef{Kind: dsl.InputRefKindSkill}
+			case "direct-runtime":
+				input.Type = dsl.InputTypeRuntime
+				field = "provider.type"
+			case "detach-loop":
+				field = "loop_run_id"
+			}
+			for _, prefix := range []string{"", "previous.", "best."} {
+				producer := dsl.Node{
+					ID:       "origin",
+					Class:    dsl.NodeClassSource,
+					Kind:     string(dsl.SourceInput),
+					InputRef: "subject",
+				}
+				if kind == "await-loop" || kind == "detach-loop" {
+					mode := "await"
+					if kind == "detach-loop" {
+						mode = "detach"
+					}
+					producer = dsl.Node{
+						ID:     "origin",
+						Class:  dsl.NodeClassAction,
+						Kind:   "run-loop",
+						Params: dsl.NodeParams{"loop": "child", "mode": mode, "inputs": map[string]any{}},
+					}
+				}
+				path := prefix + "nodes.origin.output." + field
+				if strings.HasPrefix(kind, "direct-") {
+					if prefix != "" {
+						continue
+					}
+					path = "inputs.subject." + field
+				}
+				def := singleNodeDefinition(producer)
+				def.Inputs = map[string]dsl.Input{"subject": input}
+				def.Graph.Nodes = append(
+					def.Graph.Nodes,
+					dsl.Node{
+						ID:     "read",
+						Class:  dsl.NodeClassAction,
+						Kind:   "run-agent",
+						Params: dsl.NodeParams{"agent": "codex", "prompt": "{{ ." + path + " }}"},
+					},
+				)
+				def.Graph.Edges = []dsl.Edge{{From: "origin", To: "read"}}
+				diagnostics := loop.NewLinter().Lint(def)
+				warned := false
+				for _, diagnostic := range diagnostics {
+					if diagnostic.Severity == loop.SeverityError {
+						t.Errorf("path=%s unexpected error=%#v", path, diagnostic)
+					}
+					if diagnostic.Severity == loop.SeverityWarning &&
+						strings.Contains(diagnostic.Message, "cannot be proven") {
+						warned = true
+					}
+				}
+				if kind != "detach-loop" && !warned {
+					t.Errorf("path=%s missing warning: %#v", path, diagnostics)
+				}
+				if kind == "detach-loop" && warned {
+					t.Errorf("proven handle warned: %#v", diagnostics)
+				}
+			}
+		})
+	}
+}
+
+func testToolProducesReferences(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	const closed = `{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`
+	const lists = `{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}},"issues":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"}},"additionalProperties":false}},"type":{"type":"string"},"properties":{"type":"string"},"id":{"type":"string"},"extra":{"type":"string"}},"additionalProperties":false}`
+	for _, tc := range []struct {
+		name, toolID, compact, full, path, want string
+		produces                                dsl.Schema
+		warning, fullView, rawReject            bool
+	}{
+		{name: "Should accept single-result list declarations", compact: closed, produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", warning: true},
+		{name: "Should accept single-result keyword lists", compact: closed, produces: dsl.Schema{"items": []any{map[string]any{"id": "string"}}}, path: "items", warning: true},
+		{name: "Should traverse single-result keyword lists", compact: closed, produces: dsl.Schema{"items": []any{map[string]any{"id": "string"}}}, path: "items.id", warning: true},
+		{name: "Should accept single-result keyword fields", compact: closed, produces: dsl.Schema{"type": "string", "properties": "string", "id": "string"}, path: "type"},
+		{name: "Should replace a closed single-result descriptor", compact: closed, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra"},
+		{name: "Should replace a closed MCP descriptor", toolID: "mcp__fixture", compact: closed, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra"},
+		{name: "Should replace a closed native single-result descriptor", toolID: "compozy__fixture", compact: closed, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra"},
+		{name: "Should accept a declared extra field in compact", compact: lists, full: lists, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra"},
+		{name: "Should require full for a declared extra field", compact: closed, full: lists, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject extra fields in a pinned closed full view", compact: closed, full: closed, fullView: true, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra", want: refs.CodeUnresolvablePath},
+		{name: "Should accept declarations without a descriptor schema", produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", warning: true},
+		{name: "Should accept declarations over an open single-result descriptor", compact: `{"type":"object"}`, produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", warning: true},
+		{name: "Should accept pinned compact list fields", compact: lists, full: lists, produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", warning: true},
+		{name: "Should accept pinned compact keyword lists", compact: lists, full: lists, produces: dsl.Schema{"items": []any{map[string]any{"id": "string"}}}, path: "items", warning: true},
+		{name: "Should traverse pinned compact keyword lists", compact: lists, full: lists, produces: dsl.Schema{"items": []any{map[string]any{"id": "string"}}}, path: "items.id", warning: true},
+		{name: "Should require full for declared list fields", compact: closed, full: lists, produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject list fields absent from closed full", compact: closed, full: closed, produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", want: refs.CodeUnresolvablePath},
+		{name: "Should warn for descriptor-open keyword fields", fullView: true, compact: closed, full: `{"type":"object"}`, produces: dsl.Schema{"type": "string", "id": "string"}, path: "type", warning: true},
+		{name: "Should reject paths absent from the raw declaration", rawReject: true, compact: closed, full: lists, produces: dsl.Schema{"type": "object"}, path: "issues.title", want: refs.CodeUnresolvablePath},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, prefix := range []string{"", "previous.", "best."} {
+				for _, form := range []string{"template", "from", "range"} {
+					base, leaf, nested := strings.Cut(tc.path, ".")
+					if form == "range" && !nested {
+						continue
+					}
+					toolID := tc.toolID
+					if toolID == "" {
+						toolID = "ext__fixture"
+					}
+					snapshot := loop.ToolSchemaSnapshot{
+						ToolID:           toolID,
+						OutputSchema:     json.RawMessage(tc.compact),
+						FullOutputSchema: json.RawMessage(tc.full),
+					}
+					if tc.full != "" {
+						snapshot.FullOutputSchemaDigest = "full"
+					}
+					producer := dsl.Node{
+						ID:       "inspect",
+						Class:    dsl.NodeClassAction,
+						Kind:     snapshot.ToolID,
+						Produces: tc.produces,
+						Params:   dsl.NodeParams{},
+					}
+					if tc.fullView {
+						producer.Params["result_view"] = "full"
+					}
+					path := prefix + "nodes.inspect.output." + tc.path
+					baseline := refs.Namespace{
+						Nodes: map[string]refs.NodeSchema{
+							"inspect": {Output: refs.Schema(tc.produces), HasOutput: true},
+						},
+					}
+					if err := baseline.ValidatePath(strings.Split(path, ".")); (err != nil) != tc.rawReject {
+						t.Fatalf("baseline declaration %s: %v", path, err)
+					}
+					consumer := dsl.Node{
+						ID:     "report",
+						Class:  dsl.NodeClassAction,
+						Kind:   "run-agent",
+						Params: dsl.NodeParams{"agent": "codex", "prompt": "{{ ." + path + " }}"},
+					}
+					if form == "from" {
+						consumer.Kind = "transform"
+						consumer.Params = dsl.NodeParams{"map": map[string]any{"value": map[string]any{"from": path}}}
+					}
+					if form == "range" {
+						consumer.Params["prompt"] = "{{ range ." + prefix + "nodes.inspect.output." + base + " }}{{ ." + leaf + " }}{{ end }}"
+					}
+					def := singleNodeDefinition(producer)
+					def.Graph.Nodes = append(def.Graph.Nodes, consumer)
+					def.Graph.Edges = []dsl.Edge{{From: "inspect", To: "report"}}
+					diagnostics := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{snapshot.ToolID: snapshot})).
+						Lint(def)
+					consumerError, warned := false, false
+					for _, diagnostic := range diagnostics {
+						if diagnostic.Severity == loop.SeverityError {
+							if tc.want == "" || diagnostic.Code != tc.want {
+								t.Fatalf("%s %s: %#v", path, form, diagnostics)
+							}
+							consumerError = consumerError || diagnostic.NodeID == "report"
+						}
+						warned = warned ||
+							diagnostic.NodeID == "report" && diagnostic.Severity == loop.SeverityWarning &&
+								strings.Contains(diagnostic.Message, "cannot be proven")
+					}
+					if consumerError != (tc.want != "") || tc.want == "" && warned != tc.warning {
+						t.Fatalf("%s %s: %#v", path, form, diagnostics)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestLinterBuiltinComposedResultViews(t *testing.T) {
+	t.Parallel()
+	for _, descriptor := range builtin.NativeDescriptors() {
+		path := ""
+		var produces dsl.Schema
+		switch descriptor.ID.String() {
+		case "compozy__goal_get":
+			path = "goal.run_id"
+			produces = dsl.Schema{"goal": map[string]any{"run_id": "string"}}
+		case "compozy__agent_list":
+			path = "agents.name"
+			produces = dsl.Schema{"agents": []any{map[string]any{"name": "string"}}}
+		default:
+			continue
+		}
+		views := descriptor.ResultViews()
+		for _, view := range []string{"compact", "full"} {
+			for _, declared := range []bool{false, true} {
+				for _, prefix := range []string{"", "previous.", "best."} {
+					t.Run(
+						fmt.Sprintf("Should accept %s %s produces %v %s", descriptor.ID, view, declared, prefix),
+						func(t *testing.T) {
+							t.Parallel()
+							snapshot := loop.ToolSchemaSnapshot{
+								ToolID:                 descriptor.ID.String(),
+								OutputSchema:           views.Compact.Schema,
+								FullOutputSchema:       views.Full.Schema,
+								FullOutputSchemaDigest: "full",
+							}
+							node := dsl.Node{
+								ID:     "inspect",
+								Class:  dsl.NodeClassAction,
+								Kind:   snapshot.ToolID,
+								Params: dsl.NodeParams{"result_view": view},
+							}
+							if declared {
+								node.Produces = produces
+							}
+							def := singleNodeDefinition(node)
+							def.Graph.Nodes = append(
+								def.Graph.Nodes,
+								dsl.Node{
+									ID:    "report",
+									Class: dsl.NodeClassAction,
+									Kind:  "run-agent",
+									Params: dsl.NodeParams{
+										"agent":  "codex",
+										"prompt": "{{ ." + prefix + "nodes.inspect.output." + path + " }}",
+									},
+								},
+							)
+							def.Graph.Edges = []dsl.Edge{{From: "inspect", To: "report"}}
+							for _, d := range loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{snapshot.ToolID: snapshot})).Lint(def) {
+								if d.Severity == loop.SeverityError {
+									t.Error(d)
+								}
+							}
+						},
+					)
+				}
+			}
+		}
+	}
 }

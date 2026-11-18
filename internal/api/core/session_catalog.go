@@ -99,19 +99,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
-	skipTotal, err := parseBoolQuery(c, "skip_total")
-	if err != nil {
-		return session.ListQuery{}, false, err
-	}
-	includeHealth, err := parseBoolQuery(c, "include_health")
-	if err != nil {
-		return session.ListQuery{}, false, err
-	}
-	resumable, err := parseBoolQuery(c, "resumable")
-	if err != nil {
-		return session.ListQuery{}, false, err
-	}
-	attentionOnly, err := parseBoolQuery(c, "attention")
+	flags, err := parseSessionListFlags(c)
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
@@ -137,11 +125,12 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	}
 	query := session.ListQuery{
 		ExcludeFinishedAutomation: board.excludeFinishedAutomation,
+		ExcludeAutomation:         board.excludeAutomation,
 
 		Columns:         board.columns,
 		HideChildren:    board.hideChildren,
 		Subagents:       subagents,
-		SkipTotal:       skipTotal,
+		SkipTotal:       flags.skipTotal,
 		ReadScope:       readScope,
 		WorkspaceID:     workspaceID,
 		AllWorkspaces:   allWorkspaces,
@@ -152,24 +141,54 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		AgentName:       strings.TrimSpace(c.Query("agent")),
 		ParentSessionID: strings.TrimSpace(c.Query("parent")),
 		RootSessionID:   strings.TrimSpace(c.Query("root")),
-		SearchFields:    strings.TrimSpace(c.Query("search_fields")),
-		Search:          strings.TrimSpace(c.Query("q")),
-		Resumable:       resumable,
-		AttentionOnly:   attentionOnly,
-		Badges:          badges,
-		Archive:         store.SessionArchiveFilter(strings.TrimSpace(c.Query("archive"))),
-		Later:           store.SessionLaterFilter(strings.TrimSpace(c.Query("later"))),
-		Sort:            strings.TrimSpace(c.Query("sort")),
-		Cursor:          strings.TrimSpace(c.Query("cursor")),
-		Limit:           limit,
+		// Lists every session outside one tree, such as the parents a session may move under.
+		ExcludeRootSessionID: strings.TrimSpace(c.Query("exclude_root")),
+		SearchFields:         strings.TrimSpace(c.Query("search_fields")),
+		Search:               strings.TrimSpace(c.Query("q")),
+		Resumable:            flags.resumable,
+		AttentionOnly:        flags.attentionOnly,
+		Badges:               badges,
+		Archive:              store.SessionArchiveFilter(strings.TrimSpace(c.Query("archive"))),
+		Later:                store.SessionLaterFilter(strings.TrimSpace(c.Query("later"))),
+		Sort:                 strings.TrimSpace(c.Query("sort")),
+		Cursor:               strings.TrimSpace(c.Query("cursor")),
+		Limit:                limit,
 	}
-	return query, includeHealth, nil
+	return query, flags.includeHealth, nil
+}
+
+type sessionListFlags struct {
+	skipTotal     bool
+	includeHealth bool
+	resumable     bool
+	attentionOnly bool
+}
+
+func parseSessionListFlags(c *gin.Context) (sessionListFlags, error) {
+	var flags sessionListFlags
+	for _, flag := range []struct {
+		name   string
+		target *bool
+	}{
+		{"skip_total", &flags.skipTotal},
+		{"include_health", &flags.includeHealth},
+		{"resumable", &flags.resumable},
+		{"attention", &flags.attentionOnly},
+	} {
+		value, err := parseBoolQuery(c, flag.name)
+		if err != nil {
+			return sessionListFlags{}, err
+		}
+		*flag.target = value
+	}
+	return flags, nil
 }
 
 type sessionListBoardFilters struct {
 	columns                   []string
 	hideChildren              bool
 	excludeFinishedAutomation bool
+	excludeAutomation         bool
 }
 
 func parseSessionListBoardFilters(c *gin.Context) (sessionListBoardFilters, error) {
@@ -185,7 +204,11 @@ func parseSessionListBoardFilters(c *gin.Context) (sessionListBoardFilters, erro
 	if err != nil {
 		return sessionListBoardFilters{}, err
 	}
-	return sessionListBoardFilters{columns, hideChildren, excludeFinished}, nil
+	excludeAutomation, err := parseBoolQuery(c, "exclude_automation")
+	if err != nil {
+		return sessionListBoardFilters{}, err
+	}
+	return sessionListBoardFilters{columns, hideChildren, excludeFinished, excludeAutomation}, nil
 }
 
 // parseSessionListWorkspaceIDs resolves the All projects narrowing, mapping the legacy global alias.

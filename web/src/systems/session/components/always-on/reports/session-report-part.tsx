@@ -1,4 +1,7 @@
-/** One `session.report` in the transcript. It starts no turn; its choices send ordinary prompts. */
+/**
+ * One `session.report` in the transcript. It starts no turn; a pick goes through the daemon, and
+ * the other actions send ordinary prompts.
+ */
 import { useAuiState } from "@assistant-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -12,16 +15,14 @@ import {
   agentInstancePausedUnattended,
   agentInstanceCheckInsOptions,
   agentInstanceIndeterminateReportsOptions,
-  checkInSourceRefTitle,
-  useAgentInstances,
-  useHeartbeatSourceCatalog,
   type AgentInstancePayload,
 } from "@/systems/agent";
 
 import { useReportSource } from "../../../hooks/use-report-source";
-import { countWord, deriveAwayDigest, reportClock } from "../../../lib/session-away";
+import { deriveAwayDigest, reportClock } from "../../../lib/session-away";
 import { SessionReportSendContext } from "../../../lib/session-report-send";
-import { isLostWake, pickedProposal, reportPayload } from "../../../lib/session-report";
+import { useProjectedReport } from "../../../hooks/use-projected-report";
+import { isLostWake, reportPayload } from "../../../lib/session-report";
 import type { SessionReportData } from "../../../types";
 import { CheckTicks } from "../always-on-hover-card";
 import { AwayDigest } from "./away-digest";
@@ -33,15 +34,13 @@ import {
   WakeLostReport,
 } from "./pause-reports";
 import { ResumeAction, UnattendedPauseReport } from "./unattended-pause-report";
-import { Notice, SettledAsk, ShoulderTap } from "./report-entry";
+import { ActivityReport, ProposalReport } from "./proposal-report";
+import { Notice, SettledAsk } from "./report-entry";
 import { RotatedMarker } from "./rotated-marker";
-import { ReportEventSourceLine, ReportItemSourcesLine } from "./report-event-source";
 import { SkillReviewCard } from "./skill-review-card";
 
 const NO_INSTANCE = { id: "", profile_name: "" };
 
-const MAYBE_NOT_PICKED = (label: string) =>
-  `This may not have reached ${label}. If you picked one earlier, check its reply first.`;
 const MAYBE_NOT_RECEIVED = (label: string) => `This may not have reached ${label}.`;
 
 function AskButton({ prompt, children }: { prompt: string; children: ReactNode }) {
@@ -51,70 +50,6 @@ function AskButton({ prompt, children }: { prompt: string; children: ReactNode }
     <Button onClick={() => send(prompt)} size="sm" type="button" variant="secondary">
       {children}
     </Button>
-  );
-}
-
-/** Where a proposal came from: the event behind it, or the check-in source items it cites. */
-function ProposalSource({
-  data,
-  instance,
-}: {
-  data: SessionReportData;
-  instance: AgentInstancePayload | undefined;
-}) {
-  const { source, itemSources } = reportPayload(data);
-  const catalog = useHeartbeatSourceCatalog(
-    instance?.agent_name ?? "",
-    instance?.workspace_id || null,
-    instance?.profile_name || "default",
-    itemSources.length > 0
-  );
-  if (itemSources.length > 0) {
-    return (
-      <ReportItemSourcesLine
-        sources={itemSources}
-        titleOf={group => checkInSourceRefTitle(group.sourceRef, group.sourceId, catalog)}
-      />
-    );
-  }
-  return source ? <ReportEventSourceLine source={source} /> : null;
-}
-
-function Proposal({
-  agent,
-  data,
-  instance,
-  unsure,
-}: {
-  agent: ReportAgent;
-  data: SessionReportData;
-  instance: AgentInstancePayload | undefined;
-  unsure: boolean;
-}) {
-  const send = use(SessionReportSendContext);
-  const { proposals, source, itemSources } = reportPayload(data);
-  const picked = useAuiState(state =>
-    pickedProposal(state.thread.messages, proposals, data.created_at)
-  );
-  return (
-    <ShoulderTap
-      agent={agent}
-      ask={
-        proposals.length > 1
-          ? `I found ${countWord(proposals.length).toLowerCase()} things worth doing. Which one first?`
-          : "I found something worth doing. Should I?"
-      }
-      choices={proposals}
-      chosen={picked}
-      footnote={unsure ? MAYBE_NOT_PICKED(agent.label) : undefined}
-      onChoose={send ? choice => send(choice.title) : undefined}
-      source={
-        source || itemSources.length > 0 ? (
-          <ProposalSource data={data} instance={instance} />
-        ) : undefined
-      }
-      when={reportClock(data.created_at)}
-    />
   );
 }
 
@@ -310,9 +245,11 @@ function ReportBody({
           when={reportClock(data.created_at)}
         />
       ) : (
-        <Proposal agent={agent} data={data} instance={instance} unsure={unsure} />
+        <ProposalReport agent={agent} data={data} instance={instance} unsure={unsure} />
       );
     }
+    case "activity":
+      return <ActivityReport agent={agent} data={data} instance={instance} />;
     case "failure":
       return <FailureBody agent={agent} data={data} instance={instance} />;
     case "approval_expired":
@@ -358,9 +295,8 @@ function ReportBody({
   }
 }
 
-export function SessionReportPart({ data }: { data: SessionReportData }) {
-  const instances = useAgentInstances();
-  const instance = instances.find(candidate => candidate.id === data.instance_id);
+export function SessionReportPart({ data: published }: { data: SessionReportData }) {
+  const { data, instance, instances } = useProjectedReport(published);
   const agent = reportAgent(instance, "Your agent");
   const { data: away } = useQuery({
     ...agentInstanceAwayOptions(instance ?? NO_INSTANCE),

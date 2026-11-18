@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -52,6 +53,7 @@ func advanceLineageUnattended(
 	return advanceInstanceUnattended(ctx, q, id, entry.ID, limit, now)
 }
 
+// advanceInstanceUnattended counts admitted autonomous turns and applies the lineage spend brake.
 func advanceInstanceUnattended(
 	ctx context.Context,
 	q *sqlcgen.Queries,
@@ -67,11 +69,21 @@ func advanceInstanceUnattended(
 	if limit == 0 || turns < limit {
 		return nil, nil
 	}
-	changed, err := q.PauseAgentInstance(
+	changed, err := q.TripInstanceUnattendedPause(
 		ctx,
-		sqlcgen.PauseAgentInstanceParams{ID: id, PauseReason: "unattended", UpdatedAt: stamp},
+		sqlcgen.TripInstanceUnattendedPauseParams{ID: id, Now: stamp},
 	)
 	if err != nil || changed == 0 {
+		return nil, err
+	}
+	if err := q.CancelInstanceAutoPicks(
+		ctx,
+		sqlcgen.CancelInstanceAutoPicksParams{
+			CanceledAt: sql.NullString{String: store.FormatTimestamp(now), Valid: true},
+			UpdatedAt:  store.FormatTimestamp(now),
+			InstanceID: id,
+		},
+	); err != nil {
 		return nil, err
 	}
 	if err := q.CancelInstanceWake(ctx, id); err != nil {

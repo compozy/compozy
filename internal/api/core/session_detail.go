@@ -12,6 +12,7 @@ import (
 
 // GetSessionByID returns one session snapshot without requiring the caller to know its workspace.
 func (h *BaseHandlers) GetSessionByID(c *gin.Context) {
+	c.Request = c.Request.WithContext(h.toolReadContext(c.Request.Context()))
 	readScope, err := h.resolveProfileReadScope(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
@@ -44,6 +45,10 @@ func (h *BaseHandlers) GetSessionByID(c *gin.Context) {
 		return
 	}
 	h.withSessionWorkingDir(c.Request.Context(), &payload)
+	if err := h.withSessionMCPSummary(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
 
 	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
 }

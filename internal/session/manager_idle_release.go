@@ -62,10 +62,11 @@ func idleRuntimeReleaseDueLocked(
 	return !now.Before(target.supervisionIdleSince.Add(after))
 }
 
+// runtimeWorkPending excludes passive monitors and blocked inputs that can safely survive idle release.
 func runtimeWorkPending(signals []WorkSignal) bool {
 	for _, signal := range signals {
 		switch signal.Kind {
-		case WorkSignalActiveMonitor:
+		case WorkSignalActiveMonitor, WorkSignalHeldInput:
 		default:
 			return true
 		}
@@ -265,5 +266,38 @@ func (m *Manager) rebindReleasedRuntime(
 	}
 	routePlan.spec.fallbackAttempt = routePlan.attempt
 	routePlan.reloadACPSessionID = snapshot.runtimeRelease.acpSessionID
-	return m.replacePromptRuntime(ctx, session, snapshot, routePlan)
+	process, err := m.replacePromptRuntime(ctx, session, snapshot, routePlan)
+	plan.replayed = routePlan.replayed
+	return process, err
+}
+
+// releaseBoundRuntime verifies the old writer has exited before a worktree move
+// or MCP refresh loads the same native session in a replacement process.
+func (m *Manager) releaseBoundRuntime(ctx context.Context, target *Session) error {
+	target.mu.Lock()
+	release := target.runtimeRelease
+	if target.process != nil {
+		target.captureProcessCapabilitiesLocked()
+		release = &runtimeRelease{acpSessionID: target.ACPSessionID, process: target.process, done: make(chan struct{})}
+		target.process = nil
+		target.runtimeRelease = release
+		target.RuntimeStatus = RuntimeStatusUnbound
+		target.RuntimeTransition = RuntimeTransitionNone
+		target.mu.Unlock()
+		if err := m.persistSessionLifecycleState(ctx, target, false); err != nil {
+			return errors.Join(err, m.stopReleasedRuntime(target, release))
+		}
+		if err := m.stopReleasedRuntime(target, release); err != nil {
+			return err
+		}
+	} else {
+		target.mu.Unlock()
+		if err := m.waitRuntimeRelease(ctx, target, release); err != nil {
+			return err
+		}
+	}
+	if release != nil && target.clearReleasedRuntimeIdentity(release) {
+		return m.persistSessionLifecycleState(ctx, target, false)
+	}
+	return nil
 }

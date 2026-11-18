@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -16,10 +18,12 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -31,7 +35,6 @@ func TestSessionStartDropsUnrestrictedAgentModeUnderRestrictedPermissions(t *tes
 			t.Parallel()
 			h := newHarness(t)
 			h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
-			h.cfg.Permissions.ProviderFullAccess = true
 			workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 			if err != nil {
 				t.Fatalf("Resolve() error = %v", err)
@@ -107,7 +110,8 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		h := newHarness(t)
 		db := openManagerInputQueueStore(t)
 		registerManagerInputQueueWorkspace(t, db, h)
-		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db), WithEventLedger(db))
+		catalog := &statusReadCatalog{GlobalDB: db}
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog), WithEventLedger(db))
 		cleanupTestManager(t, h.manager)
 		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
 			ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: "coder",
@@ -126,9 +130,14 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		if err != nil || caller.InstanceID != instance.ID {
 			t.Fatalf("instance binding: %#v, %v", caller, err)
 		}
+		listsBefore := catalog.keyedLists(created.ID)
 		status, statusErr := h.manager.Status(t.Context(), created.ID)
 		if statusErr != nil || status.InstanceID != instance.ID || created.InstanceID != instance.ID {
 			t.Fatalf("instance status: %#v, %v", status, statusErr)
+		}
+		// Status is on many per-session hot paths; its binding read must stay keyed.
+		if lists := catalog.keyedLists(created.ID) - listsBefore; lists != 0 {
+			t.Fatalf("Status read the session catalog list %d times, want a keyed binding read", lists)
 		}
 		rows, listErr := db.ListSessions(t.Context(), store.SessionListQuery{
 			ID:        created.ID,
@@ -415,6 +424,124 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 	})
 }
 
+// Invariant: internal retries discard only selected unaccepted starts and retain terminal or cleanup diagnostics.
+func TestCreateConditionalStartupFailureRetention(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		discard          bool
+		accepted         bool
+		cleanupFailure   bool
+		directoryFailure bool
+	}{
+		{name: "Should remove intermediate retry session artifacts", discard: true},
+		{name: "Should retain terminal startup failure diagnostics"},
+		{name: "Should retain failures after provider acceptance", discard: true, accepted: true},
+		{name: "Should prevent a retry when cleanup retains the failed session", discard: true, cleanupFailure: true},
+		{name: "Should prevent a retry and release active ownership when directory commit fails", discard: true, directoryFailure: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cleanupErr := errors.New("catalog deletion unavailable")
+			var h *deriveHarness
+			var failedSessionID, stagedPath string
+			h = newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
+				if tc.directoryFailure {
+					return WithSessionCatalog(&triageDeleteCatalog{
+						GlobalDB: db, beforeDelete: func(_ context.Context, id string) error {
+							failedSessionID = id
+							entries, err := os.ReadDir(h.homePaths.SessionsDir)
+							if err != nil {
+								return err
+							}
+							for _, entry := range entries {
+								if !strings.HasPrefix(entry.Name(), sessionDeleteStagedPrefix) {
+									continue
+								}
+								stagedPath = filepath.Join(h.homePaths.SessionsDir, entry.Name())
+								committedName := strings.Replace(
+									entry.Name(), sessionDeleteStagedPrefix, sessionDeleteCommittedPrefix, 1,
+								)
+								// A nonempty destination makes the real commit rename fail.
+								committedPath := filepath.Join(h.homePaths.SessionsDir, committedName)
+								if err := os.Mkdir(committedPath, 0o700); err != nil {
+									return err
+								}
+								return os.WriteFile(filepath.Join(committedPath, "collision"), nil, 0o600)
+							}
+							return errors.New("staged session directory missing")
+						},
+					})
+				}
+				if tc.cleanupFailure {
+					return WithSessionCatalog(&triageDeleteCatalog{
+						GlobalDB: db, beforeDelete: func(context.Context, string) error { return cleanupErr },
+					})
+				}
+				return WithSessionCatalog(db)
+			})
+			startErr := acp.WrapFailure(store.FailureHandshake, "ACP initialize failed", context.DeadlineExceeded)
+			if tc.accepted {
+				startErr = acp.WrapAcceptedStart("provider-session", startErr)
+			}
+			h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) { return nil, startErr }
+			_, err := h.manager.Create(t.Context(), &CreateOpts{
+				AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+				DiscardStartFailureWhen: func(err error) bool {
+					if !errors.Is(err, startErr) {
+						t.Fatalf("startup policy error = %v", err)
+					}
+					return tc.discard
+				},
+			})
+			if !errors.Is(err, startErr) {
+				t.Fatalf("Create error = %v, want startup failure", err)
+			}
+			if tc.cleanupFailure && (!errors.Is(err, ErrRecoveryPersistence) || !errors.Is(err, cleanupErr)) {
+				t.Fatalf("cleanup ownership lost: %v", err)
+			}
+			startupErr := err
+			rows, err := h.db.ListSessions(t.Context(), store.SessionListQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, Archive: store.SessionArchiveInclude,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.directoryFailure {
+				if !errors.Is(startupErr, ErrRecoveryPersistence) {
+					t.Fatalf("directory cleanup allowed retry: %v", startupErr)
+				}
+				if len(rows) != 0 {
+					t.Fatalf("deleted catalog rows = %+v", rows)
+				}
+				if _, active := h.manager.Get(failedSessionID); active {
+					t.Fatal("failed directory commit retained active start")
+				}
+				if h.manager.sessionStartRun(failedSessionID) != nil {
+					t.Fatal("failed directory commit retained start owner")
+				}
+				if _, err := os.Stat(store.SessionDBFile(stagedPath)); err != nil {
+					t.Fatalf("recovery tombstone lost its database: %v", err)
+				}
+				return
+			}
+			if tc.discard && !tc.accepted && !tc.cleanupFailure {
+				if len(rows) != 0 {
+					t.Fatalf("intermediate failed sessions = %+v", rows)
+				}
+				entries, err := os.ReadDir(h.homePaths.SessionsDir)
+				if err != nil || len(entries) != 0 {
+					t.Fatalf("intermediate session artifacts = %v, error = %v", entries, err)
+				}
+				return
+			}
+			if len(rows) != 1 || rows[0].Failure == nil || rows[0].Failure.Kind != store.FailureHandshake ||
+				rows[0].Failure.Summary == "" || rows[0].State != string(StateStopped) {
+				t.Fatalf("retained startup diagnostics = %+v", rows)
+			}
+		})
+	}
+}
+
 // Invariant: provider launch filters secrets, preserves CLI profile names and exports stable process ownership.
 // Owner: session launch environment; canonical session start environment suite.
 func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
@@ -463,6 +590,41 @@ func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 		}
 		if got := envValue(env, "COMPOZY_AGENT_NAME"); got != "coder" {
 			t.Fatalf("COMPOZY_AGENT_NAME = %q, want coder", got)
+		}
+	})
+
+	t.Run("Should never pass internal daemon handoff variables to the agent", func(t *testing.T) {
+		t.Parallel()
+
+		for _, policy := range []compozyconfig.ProviderEnvPolicy{
+			compozyconfig.ProviderEnvPolicyFiltered,
+			compozyconfig.ProviderEnvPolicyIsolated,
+		} {
+			env := sessionStartEnvForProvider(
+				[]string{
+					"PATH=/usr/bin",
+					"COMPOZY_HOME=/tmp/compozy",
+					"COMPOZY_INTERNAL_RESTART_OPERATION_ID=restart-1",
+					"COMPOZY_INTERNAL_LOG_MIRROR_STDERR=false",
+				},
+				&Session{ID: "sess-1", AgentName: "coder"},
+				policy,
+				"",
+			)
+
+			for _, key := range []string{
+				"COMPOZY_INTERNAL_RESTART_OPERATION_ID",
+				"COMPOZY_INTERNAL_LOG_MIRROR_STDERR",
+			} {
+				for _, entry := range env {
+					if strings.HasPrefix(entry, key+"=") {
+						t.Fatalf("%s policy: %s present as %q, want absent", policy, key, entry)
+					}
+				}
+			}
+			if got := envValue(env, "COMPOZY_HOME"); got != "/tmp/compozy" {
+				t.Fatalf("%s policy: COMPOZY_HOME = %q, want /tmp/compozy", policy, got)
+			}
 		}
 	})
 }
@@ -562,6 +724,32 @@ func TestCreatePreallocatedSessionIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+// statusReadCatalog counts catalog list reads filtered to one session.
+type statusReadCatalog struct {
+	*globaldb.GlobalDB
+	mu    sync.Mutex
+	lists map[string]int
+}
+
+func (c *statusReadCatalog) ListSessions(
+	ctx context.Context,
+	query store.SessionListQuery,
+) ([]store.SessionInfo, error) {
+	c.mu.Lock()
+	if c.lists == nil {
+		c.lists = make(map[string]int)
+	}
+	c.lists[query.ID]++
+	c.mu.Unlock()
+	return c.GlobalDB.ListSessions(ctx, query)
+}
+
+func (c *statusReadCatalog) keyedLists(sessionID string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lists[sessionID]
 }
 
 func persistedSessionMetas(t *testing.T, h *harness) []store.SessionMeta {
@@ -724,6 +912,42 @@ func TestCreateFallbackChain(t *testing.T) {
 		}
 		if got := markers[2].Evidence["provider_command_fingerprint"]; got != providerCommandFingerprint(codexCommand) {
 			t.Fatalf("failed-start marker fingerprint = %v, want the last refused route", got)
+		}
+	})
+
+	t.Run("Should skip a disabled fallback route and log the skip", func(t *testing.T) {
+		t.Parallel()
+		logs := newCaptureLogHandler()
+		h, db := newLedgerHarness(t, WithLogger(slog.New(logs)))
+		setHarnessProviderEnabled(t, h, "codex", false)
+		codexCommand := h.cfg.Providers["codex"].Command
+		refuseStartCommands(h, map[string]error{
+			fallbackSeatZero: rateLimitRefusal(),
+			fallbackSeatOne:  rateLimitRefusal(),
+		})
+		_, err := h.manager.Create(
+			testutil.Context(t),
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
+		)
+		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 2 attempt(s)") {
+			t.Fatalf("Create() error = %v, want exhaustion over the two enabled routes", err)
+		}
+		if slices.Contains(startCommands(h), codexCommand) {
+			t.Fatalf("start commands = %v, want the disabled codex route never launched", startCommands(h))
+		}
+		if got := ledgerRows(t, db); got != 1 {
+			t.Fatalf("ledger rows = %d, want only the enabled fallback attempt", got)
+		}
+		var skipped []capturedLogRecord
+		for _, record := range logs.Records() {
+			if record.Message == "fallback.route_skipped" {
+				skipped = append(skipped, record)
+			}
+		}
+		if len(skipped) != 1 || skipped[0].Attrs["provider"] != "codex" ||
+			skipped[0].Attrs["reason"] != "provider_disabled" || skipped[0].Attrs["route_index"] != "2" ||
+			skipped[0].Attrs["owner"] != "agent_chain" {
+			t.Fatalf("fallback.route_skipped records = %#v, want one codex agent_chain skip at route 2", skipped)
 		}
 	})
 
@@ -977,4 +1201,304 @@ func TestInstanceRotationAdmissionGuard(t *testing.T) {
 			t.Fatalf("publication = %v, called %v", err, called)
 		}
 	})
+}
+
+func TestCheckInHostedLaunch(t *testing.T) {
+	for _, tc := range []struct {
+		name                                   string
+		disabled, providerOff, launcherMissing bool
+		status                                 string
+		servers                                int
+	}{
+		{name: "Should launch only hosted MCP", status: "enabled", servers: 1},
+		{name: "Should honor kill switch", disabled: true, status: "disabled"},
+		{name: "Should report provider MCP unavailable", providerOff: true, status: "unavailable"},
+		{name: "Should report missing launcher", launcherMissing: true, status: "unavailable"},
+	} {
+		t.Run(tc.name+" [UT-022]", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.manager.checkInToolsDisabled = tc.disabled
+			launcher := &recordingHostedMCPLauncher{
+				server: compozyconfig.MCPServer{
+					Name:    "compozy-hosted-tools",
+					Command: "compozy",
+					Args:    []string{"--bind-nonce", "fixture"},
+				},
+			}
+			if !tc.launcherMissing {
+				h.manager.hostedMCP = launcher
+			}
+			spec := &sessionStartSpec{sessionType: SessionTypeTriage, sessionID: "fixture-triage"}
+			servers, err := h.manager.sessionMCPServers(
+				t.Context(),
+				spec,
+				compozyconfig.ResolvedAgent{
+					Name:       "coder",
+					Provider:   "codex",
+					SessionMCP: !tc.providerOff,
+					MCPServers: []compozyconfig.MCPServer{{Name: "raw", Command: "raw"}},
+				},
+				compozyconfig.AgentDef{},
+			)
+			if err != nil || len(servers) != tc.servers || spec.checkInToolsStatus != tc.status {
+				t.Fatalf("servers=%+v status=%s err=%v", servers, spec.checkInToolsStatus, err)
+			}
+			if tc.servers == 1 && servers[0].Name != "compozy-hosted-tools" {
+				t.Fatal("raw MCP server escaped")
+			}
+		})
+	}
+}
+
+func TestSessionLeanEnvironment(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []Type{SessionTypeSystem, SessionTypeTriage, SessionTypeUser, SessionTypeSpawned} {
+		t.Run("Should choose a lean default for role "+string(kind), func(t *testing.T) {
+			t.Parallel()
+			automatic := kind == SessionTypeSystem || kind == SessionTypeTriage
+			if sessionLeanEnvironment(kind, nil) != automatic || !sessionLeanEnvironment(kind, new(true)) ||
+				sessionLeanEnvironment(kind, new(false)) != automatic {
+				t.Fatal("incorrect role or explicit setting")
+			}
+		})
+	}
+	t.Run("Should isolate provider MCP for always-on agents unless lean is authored", func(t *testing.T) {
+		t.Parallel()
+		if !sessionIsolatesProviderMCP(compozyconfig.AgentKindAlwaysOn, nil) ||
+			sessionIsolatesProviderMCP(compozyconfig.AgentKindAlwaysOn, new(false)) ||
+			sessionIsolatesProviderMCP(compozyconfig.AgentKindAlwaysOn, new(true)) ||
+			sessionIsolatesProviderMCP(compozyconfig.AgentKindOnDemand, nil) {
+			t.Fatal("incorrect provider MCP isolation default")
+		}
+	})
+}
+
+// Invariant: launch switches preserve isolation and use the session inventory.
+// Owner: session startup; canonical suite: manager start (UT-070, UT-071, UT-073, UT-075).
+func TestRuntimeMCPStartup(t *testing.T) {
+	t.Parallel()
+	// Invariant: session inventory identities come from the injected installation key, never a fallback.
+	// Owner: session runtime inventory boundary; canonical suite: manager start.
+	t.Run("Should require an inventory dependency for a native runtime", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{}
+		_, err := manager.readRuntimeMCP(t.Context(), runtimemcp.Request{Runtime: "claude"})
+		if err == nil || !strings.Contains(err.Error(), "inventory is not configured") {
+			t.Fatalf("missing inventory dependency = %v", err)
+		}
+	})
+	t.Run("Should preserve injected inventory digests across manager recreation", func(t *testing.T) {
+		t.Parallel()
+		root, systemRoot := t.TempDir(), t.TempDir()
+		writeRuntimeMCPFixture(t, filepath.Join(root, ".claude.json"),
+			`{"mcpServers":{"native":{"command":"echo"}}}`)
+		key := []byte("installation-runtime-mcp-test-key")
+		request := runtimemcp.Request{
+			Runtime: "claude",
+			Context: runtimemcp.ReadContext{Home: root, CWD: root, SystemRoot: systemRoot},
+		}
+		reader, err := runtimemcp.NewReader(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, _, err := reader.List(t.Context(), request)
+		if err != nil || len(expected.Runtimes) != 1 || len(expected.Runtimes[0].Servers) != 1 {
+			t.Fatalf("keyed inventory = %+v, %v", expected, err)
+		}
+		want := expected.Runtimes[0]
+		if want.ActivationDigest == "" || want.Servers[0].DefinitionDigest == "" {
+			t.Fatalf("keyed inventory lacks identity: %+v", want)
+		}
+		for range 2 {
+			recreated, err := runtimemcp.NewReader(key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			manager := &Manager{}
+			WithRuntimeMCPReader(recreated)(manager)
+			got, err := manager.readRuntimeMCP(t.Context(), request)
+			if err != nil || len(got.Servers) != 1 || got.ActivationDigest != want.ActivationDigest ||
+				got.Servers[0].DefinitionDigest != want.Servers[0].DefinitionDigest {
+				t.Fatalf("session inventory = %+v, %v; want keyed identity %+v", got, err, want)
+			}
+		}
+	})
+	// Invariant: absent native-inventory support never scans another runtime's files or changes launch options.
+	// Owner: session runtime capability boundary; canonical suite: manager start.
+	for _, provider := range []string{"", "custom-acp"} {
+		t.Run("Should leave native inventory empty for provider "+provider, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeRuntimeMCPFixture(t, filepath.Join(root, ".claude.json"),
+				`{"mcpServers":{"unrelated":{"command":"must-never-start"}}}`)
+			calls := 0
+			manager := &Manager{runtimeMCPInventory: runtimeMCPFileInventory{systemRoot: t.TempDir(), calls: &calls}}
+			snapshot, err := manager.readRuntimeMCP(t.Context(), runtimemcp.Request{
+				Runtime: provider, Context: runtimemcp.ReadContext{Home: root},
+			})
+			if err != nil || snapshot.Runtime != provider || snapshot.DisplayName != provider ||
+				snapshot.ReadState != "ok" || snapshot.RuntimeMCP.CanDisable || len(snapshot.Servers) != 0 || calls != 0 {
+				t.Fatalf("unsupported inventory = %+v, %v", snapshot, err)
+			}
+			cfg := runtimeMCPTestConfig(t)
+			cfg.Providers[provider] = compozyconfig.ProviderConfig{RuntimeMCP: "off"}
+			runtime := &sessionStartRuntime{agent: compozyconfig.ResolvedAgent{Provider: provider}}
+			opts, err := manager.prepareRuntimeMCPStartup(t.Context(),
+				&sessionStartSpec{workspace: workspaceForRuntimeMCP(root, &cfg)}, runtime,
+				acp.StartOpts{Command: "accepted-driver --acp", Cwd: root})
+			if err != nil || opts.Command != "accepted-driver --acp" || opts.IsolateProviderMCP ||
+				runtime.activationRequest != nil || runtime.activationDigest != "" || calls != 0 {
+				t.Fatalf("unsupported launch = %+v, %+v, %v", opts, runtime, err)
+			}
+		})
+	}
+	for _, provider := range []string{"claude", "copilot", "qwen"} {
+		t.Run("Should disable native servers for "+provider, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			systemRoot := t.TempDir()
+			writeRuntimeMCPFixture(
+				t,
+				filepath.Join(root, ".copilot", "mcp-config.json"),
+				`{"mcpServers":{"native one":{"command":"echo"},"native-two":{"command":"echo","enabled":false}}}`,
+			)
+			writeRuntimeMCPFixture(
+				t,
+				filepath.Join(root, ".qwen", "settings.json"),
+				`{"mcpServers":{"native one":{"command":"echo"},"native-two":{"command":"echo"}}}`,
+			)
+			cfg := runtimeMCPTestConfig(t)
+			cfg.Providers[provider] = compozyconfig.ProviderConfig{RuntimeMCP: "off"}
+			runtime := &sessionStartRuntime{
+				agent: compozyconfig.ResolvedAgent{Provider: provider, Harness: compozyconfig.ProviderHarnessACP},
+			}
+			manager := &Manager{runtimeMCPInventory: runtimeMCPFileInventory{systemRoot: systemRoot}}
+			spec := &sessionStartSpec{cwd: root, workspace: workspaceForRuntimeMCP(root, &cfg)}
+			opts, err := manager.prepareRuntimeMCPStartup(
+				t.Context(),
+				spec,
+				runtime,
+				acp.StartOpts{Command: "accepted-driver --acp", Cwd: root, Env: []string{"HOME=" + root}},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if runtime.activationDigest == "" || runtime.activationRequest.Context.Home != root ||
+				runtime.activationRequest.Context.CWD != root {
+				t.Fatalf("activation context = %+v", runtime)
+			}
+			if provider == "claude" {
+				if !opts.IsolateProviderMCP || opts.ManagedProviderMCP {
+					t.Fatalf("Claude launch = %+v", opts)
+				}
+				return
+			}
+			parsed, err := compozyconfig.ParseLaunchCommand(opts.Command)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []string{"--acp"}
+			if provider == "copilot" {
+				want = append(want, "--disable-builtin-mcps")
+			}
+			want = append(want, "--disable-mcp-server", "native one", "--disable-mcp-server", "native-two")
+			if parsed.Executable != "accepted-driver" || !slices.Equal(parsed.Args, want) {
+				t.Fatalf("launch = %+v, want args %v", parsed, want)
+			}
+		})
+	}
+	t.Run("Should keep always-on isolation with runtime MCP load [UT-073]", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		cfg := runtimeMCPTestConfig(t)
+		spec := &sessionStartSpec{
+			workspace:   workspaceForRuntimeMCP(h.workspace, &cfg),
+			cwd:         h.workspace,
+			sessionType: SessionTypeUser,
+		}
+		active := &Session{agentDef: compozyconfig.AgentDef{Kind: compozyconfig.AgentKindAlwaysOn}}
+		resolved := compozyconfig.ResolvedAgent{
+			Provider: "claude",
+			Command:  "accepted-driver",
+			Harness:  compozyconfig.ProviderHarnessACP,
+		}
+		opts, err := h.manager.sessionStartOpts(spec, active, resolved, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts.Env = []string{"HOME=" + t.TempDir()}
+		h.manager.runtimeMCPInventory = runtimeMCPFileInventory{systemRoot: t.TempDir()}
+		opts, err = h.manager.prepareRuntimeMCPStartup(t.Context(), spec, &sessionStartRuntime{agent: resolved}, opts)
+		if err != nil || !opts.IsolateProviderMCP {
+			t.Fatalf("always-on isolation = %v, %v", opts.IsolateProviderMCP, err)
+		}
+	})
+	t.Run("Should leave stored off inert under managed Claude policy [UT-075]", func(t *testing.T) {
+		t.Parallel()
+		root, systemRoot := t.TempDir(), t.TempDir()
+		writeRuntimeMCPFixture(
+			t,
+			filepath.Join(systemRoot, "ClaudeCode", "managed-mcp.json"),
+			`{"mcpServers":{"managed":{"command":"echo"}}}`,
+		)
+		cfg := runtimeMCPTestConfig(t)
+		cfg.Providers["claude"] = compozyconfig.ProviderConfig{RuntimeMCP: "off"}
+		if err := cfg.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		manager := &Manager{runtimeMCPInventory: runtimeMCPFileInventory{systemRoot: systemRoot}}
+		spec := &sessionStartSpec{workspace: workspaceForRuntimeMCP(root, &cfg)}
+		runtime := &sessionStartRuntime{agent: compozyconfig.ResolvedAgent{Provider: "claude"}}
+		opts, err := manager.prepareRuntimeMCPStartup(
+			t.Context(),
+			spec,
+			runtime,
+			acp.StartOpts{Command: "accepted-driver", Cwd: root, Env: []string{"HOME=" + root}},
+		)
+		if err != nil || opts.IsolateProviderMCP || !opts.ManagedProviderMCP || runtime.activationMode != "off" {
+			t.Fatalf("managed launch = %+v, %v", opts, err)
+		}
+		snapshot, err := manager.readRuntimeMCP(t.Context(), *runtime.activationRequest)
+		if err != nil || snapshot.RuntimeMCP.CanDisable || len(snapshot.Notes) < 2 {
+			t.Fatalf("managed inventory = %+v, %v", snapshot, err)
+		}
+	})
+}
+
+type runtimeMCPFileInventory struct {
+	systemRoot string
+	calls      *int
+}
+
+var _ RuntimeMCPInventory = runtimeMCPFileInventory{}
+
+func (i runtimeMCPFileInventory) List(ctx context.Context, req runtimemcp.Request) (runtimemcp.Inventory, error) {
+	if i.calls != nil {
+		*i.calls++
+	}
+	req.Context.SystemRoot = i.systemRoot
+	result, _, err := (runtimemcp.Reader{}).List(ctx, req)
+	return result, err
+}
+func writeRuntimeMCPFixture(t *testing.T, path, contents string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+func workspaceForRuntimeMCP(root string, cfg *compozyconfig.Config) workspacepkg.ResolvedWorkspace {
+	return workspacepkg.ResolvedWorkspace{RootDir: root, Config: *cfg}
+}
+
+func runtimeMCPTestConfig(t *testing.T) compozyconfig.Config {
+	t.Helper()
+	home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return compozyconfig.DefaultWithHome(home)
 }

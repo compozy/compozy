@@ -1,9 +1,6 @@
-export { Hero } from "./hero";
-export { SupportedAgents } from "./supported-agents";
-export { BentoSection } from "./bento-section";
-export { AutonomyKernelSection } from "./autonomy-kernel-section";
-export { FeaturesSection } from "./features-section";
-export { ExtensibilitySection } from "./extensibility-section";
-export { InstallSection } from "./install-section";
-export { Comparison } from "./comparison";
-export { FinalCta } from "./final-cta";
+export { BuiltIn } from "./built-in";
+export { Comparison, FinalCta, Install } from "./sections-close";
+export { Hero, Providers } from "./sections-open";
+export { Community, Orchestrate, Supervise, UseCases } from "./sections-proof";
+export { Automations, Extensibility, Loops } from "./sections-run";
+export { AlwaysOn, Problem } from "./sections-story";

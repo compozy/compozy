@@ -137,6 +137,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 			tools.Scope{WorkspaceID: "ws-1"},
 			toolID.String(),
 			expected,
+			tools.ResultViewCompact,
 		)
 		if err != nil {
 			t.Fatalf("ResolvePinned() error = %v", err)
@@ -169,6 +170,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 			tools.Scope{WorkspaceID: "ws-1"},
 			toolID.String(),
 			expected,
+			tools.ResultViewCompact,
 		)
 		if !errors.Is(err, loop.ErrActionInvalidOutput) {
 			t.Fatalf("ResolvePinned() error = %v, want ErrActionInvalidOutput", err)
@@ -1006,6 +1008,80 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			t.Fatalf("repair prompt = %#v, want classified escalated context", prompts)
 		}
 	})
+
+	for _, tc := range []struct {
+		name    string
+		intent  []loop.ACPOptionSelection
+		applied []loop.ACPOptionSelection
+		sources map[string]loop.RuntimeSource
+	}{
+		{
+			name:   "Should retain node provenance and attribute an added option to the agent",
+			intent: []loop.ACPOptionSelection{{ID: "fast_mode", BoolValue: new(false)}},
+			applied: []loop.ACPOptionSelection{
+				{ID: "fast_mode", BoolValue: new(false)},
+				{ID: "mode", ValueID: "agent-full-access"},
+			},
+			sources: map[string]loop.RuntimeSource{"fast_mode": loop.RuntimeSourceNode, "mode": loop.RuntimeSourceAgent},
+		},
+		{
+			name: "Should prune skipped option provenance and preserve a surviving node option",
+			intent: []loop.ACPOptionSelection{
+				{ID: "fast_mode", BoolValue: new(false)},
+				{ID: "mode", ValueID: "bypassPermissions"},
+			},
+			applied: []loop.ACPOptionSelection{{ID: "fast_mode", BoolValue: new(false)}},
+			sources: map[string]loop.RuntimeSource{"fast_mode": loop.RuntimeSourceNode},
+		},
+		{
+			name:   "Should omit option provenance when every requested option is skipped",
+			intent: []loop.ACPOptionSelection{{ID: "mode", ValueID: "bypassPermissions"}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			binder := &fakeActionSessionBinder{
+				binding: loop.ActionSessionBinding{
+					SessionID: "sess-options", Handle: "main",
+					AppliedRuntime: loop.RuntimeSpec{Provider: "mock", Model: "agent-model", ACPOptions: tc.applied},
+				},
+				promptResults: []loop.ActionPromptResult{{Text: "done"}},
+			}
+			actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
+			executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunAgent))
+			if err != nil {
+				t.Fatalf("Resolve(run-agent) error = %v", err)
+			}
+			runtimeValue, err := json.Marshal(loop.RuntimeSpec{ACPOptions: tc.intent})
+			if err != nil {
+				t.Fatalf("json.Marshal(runtime) error = %v", err)
+			}
+			var runtimeParams map[string]any
+			if err := json.Unmarshal(runtimeValue, &runtimeParams); err != nil {
+				t.Fatalf("json.Unmarshal(runtime) error = %v", err)
+			}
+			raw, err := executor.Execute(t.Context(), dsl.Node{
+				ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+				Params: dsl.NodeParams{"agent": "planner", "prompt": "Work", "runtime": runtimeParams},
+			}, loop.ActionExecutionInput{WorkspaceID: "ws-1"})
+			if err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if !reflect.DeepEqual(raw.ResolvedRuntime.Runtime.ACPOptions, tc.applied) ||
+				!maps.Equal(raw.ResolvedRuntime.Source.ACPOptions, tc.sources) {
+				t.Fatalf(
+					"applied runtime = %#v, want options %#v with sources %#v",
+					raw.ResolvedRuntime,
+					tc.applied,
+					tc.sources,
+				)
+			}
+			if got := binder.mustSingleBind(t).Runtime.ACPOptions; !reflect.DeepEqual(got, tc.intent) {
+				t.Fatalf("requested options = %#v, want unchanged intent %#v", got, tc.intent)
+			}
+		})
+	}
 
 	t.Run("Should mark runtime fields completed by the agent definition", func(t *testing.T) {
 		t.Parallel()
@@ -2010,4 +2086,105 @@ func TestActionTimeoutShouldCompleteQuickly(t *testing.T) {
 			t.Fatal("Start context had no deadline, want node timeout deadline")
 		}
 	})
+}
+
+// Invariant: a pinned tool executes only its selected contract; pre-view snapshots are stale.
+func TestActionRegistryResultViewPins(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		view         tools.ResultView
+		preView      bool
+		staleInput   bool
+		staleFull    bool
+		staleCompact bool
+		removeViews  bool
+		wantStale    bool
+	}{
+		{name: "Should ignore compact drift for a full node", view: tools.ResultViewFull, staleCompact: true},
+		{name: "Should reject full drift for a full node", view: tools.ResultViewFull, staleFull: true, wantStale: true},
+		{name: "Should ignore full drift for a compact node", view: tools.ResultViewCompact, staleFull: true},
+		{name: "Should reject compact drift for a compact node", view: tools.ResultViewCompact, staleCompact: true, wantStale: true},
+		{name: "Should compare the full pin when live views disappear", view: tools.ResultViewFull, removeViews: true, wantStale: true},
+		{name: "Should default to the compact pin"},
+		{name: "Should reject a pre-view snapshot", preView: true, wantStale: true},
+		{name: "Should reject a pre-view snapshot selecting full", preView: true, view: tools.ResultViewFull, wantStale: true},
+		{name: "Should reject stale input for a full node", view: tools.ResultViewFull, staleInput: true, wantStale: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			const id tools.ToolID = "compozy__fixture"
+			descriptor := tools.Descriptor{ID: id, InputSchemaDigest: "input-views", OutputSchemaDigest: "compact"}
+			descriptor.SetResultViews(&tools.ResultViews{
+				Compact: tools.ResultViewContract{Digest: "compact"}, Full: tools.ResultViewContract{Digest: "full"},
+			})
+			expected := loop.ToolSchemaSnapshot{ToolID: id.String(), InputSchemaDigest: "input-views",
+				OutputSchemaDigest: "compact", FullOutputSchemaDigest: "full"}
+			wantView := tc.view
+			if wantView == "" {
+				wantView = tools.ResultViewCompact
+			}
+			if tc.preView {
+				expected.InputSchemaDigest = "pre-view-input"
+				expected.OutputSchemaDigest = "full"
+				expected.FullOutputSchemaDigest = ""
+			}
+			if tc.staleInput {
+				expected.InputSchemaDigest = "stale-input"
+			}
+			if tc.staleFull {
+				views := descriptor.ResultViews()
+				views.Full.Digest = "full-changed"
+				descriptor.SetResultViews(views)
+			}
+			if tc.staleCompact {
+				descriptor.OutputSchemaDigest = "compact-changed"
+			}
+			if tc.removeViews {
+				descriptor.SetResultViews(nil)
+			}
+			registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{id: {Descriptor: descriptor}},
+				callResult: tools.ToolResult{Structured: json.RawMessage(`{"ok":true}`)}}
+			actions := newActionRegistryForTest(t, registry)
+			executor, err := actions.ResolvePinned(t.Context(), tools.Scope{}, id.String(), &expected, tc.view)
+			if tc.wantStale {
+				reason, ok := errors.AsType[*loop.ReasonError](err)
+				if !ok || reason.Code != loop.ReasonCodeActionContractStale {
+					t.Fatalf("error = %v, want stale", err)
+				}
+				if reason.Meta["expected_output_schema_digest"] == "" ||
+					reason.Meta["current_output_schema_digest"] == "" {
+					t.Fatalf("missing digests: %#v", reason.Meta)
+				}
+				if tc.staleFull && reason.Meta["current_output_schema_digest"] != "full-changed" {
+					t.Fatal(reason.Meta)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			node := dsl.Node{ID: "inspect", Class: dsl.NodeClassAction, Kind: id.String(), Params: dsl.NodeParams{}}
+			if tc.view != "" {
+				node.Params[tools.ResultViewInputKey] = string(tc.view)
+			}
+			_, err = executor.Execute(
+				t.Context(),
+				node,
+				loop.ActionExecutionInput{AdmittedParams: dsl.NodeParams{"id": "edited", "result_view": "edited-view"}},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			call := registry.mustSingleCall(t)
+			var input map[string]any
+			if err := json.Unmarshal(call.Input, &input); err != nil {
+				t.Fatal(err)
+			}
+			if call.PinnedView != wantView || input[tools.ResultViewInputKey] != string(wantView) ||
+				input["id"] != "edited" {
+				t.Fatalf("call = %#v input = %s, want pinned %s after edit", call, call.Input, wantView)
+			}
+		})
+	}
 }

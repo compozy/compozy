@@ -11,7 +11,7 @@ const record: WindowManagerLayoutResourceRecord = {
   kind: "window_layout",
   id: "two-up-review",
   version: 4,
-  scope: { kind: "global", id: "" },
+  scope: { kind: "user", id: "" },
   spec: {
     version: 1,
     id: "two-up-review",
@@ -19,7 +19,10 @@ const record: WindowManagerLayoutResourceRecord = {
     aspectVariant: "landscape",
     participantSlots: [],
     overflowPolicy: "reject",
-    document: { version: 5, workspaceId: "", desktops: [], windows: {}, overrides: {} },
+    source: {
+      kind: "current",
+      document: { version: 6, workspaceId: "", desktops: [], windows: {}, overrides: {} },
+    },
   },
   createdAt: "2026-07-22T00:00:00Z",
   updatedAt: "2026-07-22T00:00:00Z",

@@ -27,6 +27,17 @@ export {
 } from "./fixtures";
 export { settingsHooksCollectionFixture, settingsPersonaSectionFixture } from "./layered-fixtures";
 export {
+  claudeOffRuntimeMCPFixture,
+  claudeRuntimeMCPFixture,
+  codexRuntimeMCPFixture,
+  geminiNotInstalledRuntimeMCPFixture,
+  manyRuntimeMCPFixture,
+  opencodeUnreadableRuntimeMCPFixture,
+  piRuntimeMCPFixture,
+  runtimeMCPInventoryFixture,
+  runtimeMCPServerFixture,
+} from "./runtime-mcp-fixtures";
+export {
   rolesStatusFixture,
   rolesStatusWithDiagnosticFixture,
   settingsRolesConfigFixture,

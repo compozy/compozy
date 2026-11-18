@@ -7,12 +7,12 @@ INSERT OR IGNORE INTO transcript_projection_state (
 INSERT INTO token_usage (
     turn_id, input_tokens, output_tokens, total_tokens, thought_tokens,
     cache_read_tokens, cache_write_tokens, context_used, context_size,
-    cost_amount, cost_currency, timestamp
+    cost_amount, reported_cost_amount, cost_currency, timestamp
 ) VALUES (
     sqlc.arg(turn_id), sqlc.narg(input_tokens), sqlc.narg(output_tokens),
     sqlc.narg(total_tokens), sqlc.narg(thought_tokens), sqlc.narg(cache_read_tokens),
     sqlc.narg(cache_write_tokens), sqlc.narg(context_used), sqlc.narg(context_size),
-    sqlc.narg(cost_amount), sqlc.narg(cost_currency), sqlc.arg(timestamp)
+    sqlc.narg(cost_amount), sqlc.narg(reported_cost_amount), sqlc.narg(cost_currency), sqlc.arg(timestamp)
 )
 ON CONFLICT(turn_id) DO UPDATE SET
     input_tokens = COALESCE(excluded.input_tokens, token_usage.input_tokens),
@@ -24,13 +24,14 @@ ON CONFLICT(turn_id) DO UPDATE SET
     context_used = COALESCE(excluded.context_used, token_usage.context_used),
     context_size = COALESCE(excluded.context_size, token_usage.context_size),
     cost_amount = COALESCE(excluded.cost_amount, token_usage.cost_amount),
+    reported_cost_amount = COALESCE(excluded.reported_cost_amount, token_usage.reported_cost_amount),
     cost_currency = COALESCE(excluded.cost_currency, token_usage.cost_currency),
     timestamp = excluded.timestamp;
 
 -- name: ListTokenUsage :many
 SELECT turn_id, input_tokens, output_tokens, total_tokens, thought_tokens,
        cache_read_tokens, cache_write_tokens, context_used, context_size,
-       cost_amount, cost_currency, timestamp
+       cost_amount, reported_cost_amount, cost_currency, timestamp
 FROM token_usage
 ORDER BY timestamp ASC, turn_id ASC;
 

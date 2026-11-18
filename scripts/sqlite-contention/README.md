@@ -23,7 +23,8 @@ Each measured phase also sweeps the first six hours of retained synthetic
 summaries (at least 20,000 rows), while the streams and interactive routes run.
 The report records exact eligible/deleted counts. The whole sweep has a one-minute
 deadline, with a stricter 30-second acceptance ceiling on every untraced head sweep; each interactive operation retains its two-second deadline. The sweep
-must complete and each individual write transaction must remain below one second.
+must complete. Write holds retain the one-second budget, with the narrowly paired
+COMMIT-pause decision described below.
 
 Four 30-second pairs follow five-second warmups, alternating baseline/head
 order equally (AB, BA, AB, BA). Every trial starts from a fresh copy of the same fixture. Each fixture
@@ -32,19 +33,79 @@ SQLite's first commit. The stop
 boundary stops admission and waits for requests, health flush and checkpoints;
 it never cancels accepted work to manufacture clean latency results. Each
 request has a two-second deadline. Failed operations and long-lock/contention
-messages remain in the output and fail untraced head acceptance. The checkpoint worker retains a 200 ms admission budget, but its
+messages remain in the output. They fail untraced head acceptance except for
+the measured COMMIT pauses explained by their own baseline pair below. The checkpoint worker retains a 200 ms admission budget, but its
 I/O runs under the owned worker lifetime so it can advance the WAL backfill
 pointer. It has a dedicated connection and never reserves the foreground writer.
 Shutdown cancels and joins it; non-deadline I/O errors remain warnings. The family lease still serializes
 physical connection opens with checkpoint I/O, so a cold pool open can wait on a
 slow sync until its own request deadline. A short SQLite deadline cannot interrupt
 a filesystem sync already in progress; interrupting backfill does not provide
-that cold-open guarantee. Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
+that cold-open guarantee. Final session shutdown also retains the family lease
+through backfill and last-connection close, which can itself checkpoint. Caller
+expiry bounds the close wait while owned cleanup finishes after an in-flight
+physical open releases the lease; reopening must preserve the committed events.
+Failed temporary-session starts close their recorder before acquiring the deletion
+lease. If catalog deletion fails, restore the directory and reopen the recorder
+without clearing history before persisting the startup diagnostic and terminal event.
+A failed first close is joined with a fresh cleanup budget before reopening;
+reopening depends on cleanup completion rather than a historical drain error.
+Incomplete cleanup retains its resources and every close error remains explicit.
+The existing start run stays tracked until that cleanup finishes, then reopens the
+recorder and settles failure history. A concurrent stop detaching the session's
+handle does not discard startup's captured recorder or bypass its cleanup.
+Both synchronous and deferred settlement acquire the existing launch gate before
+reopening or deleting storage, then honor any accepted stop through normal
+canceled-start finalization. A stalled stop projection cannot expire the cleanup
+owner or leave a reopened recorder behind. Cleanup survives manager cancellation,
+joins recorders without optional wait methods through bounded Close attempts, and
+retries an unavailable reopen before publishing stopped state or failure events.
+The existing start run owns these retries and shutdown still bounds its wait.
+A Stop that waited behind successful deletion revalidates the live session before
+persistence, so it cannot recreate deleted metadata or catalog rows. If rollback
+leaves the original directory missing, cleanup ends with ErrRecoveryPersistence
+and leaves the staged directory to existing tombstone recovery instead of retrying
+an impossible reopen. Retained failure persistence reserves stable event identities and retries unfinished
+appends and metadata before releasing its owner. A write error reported after commit
+cannot duplicate the diagnostic or terminal event. Once the batch is prepared,
+a later Stop or shutdown joins its original failure outcome instead of appending
+another terminal event or replacing its classification. The same owner joins the reopened
+recorder through final cleanup, honoring completion even without an optional waiter.
+Retained retries confirm committed event identities through the recorder's existing
+query capability, including wrappers without an optional idempotent appender. The
+batch completes its pending publication and post-record hooks once. A joining Stop
+waits for persistence and cleanup, then receives its post-stop hook and notification.
+Final settlement wakes the catalog even if attention hydration failed after commit.
+Process exit is verified separately from recorder completion; a failed Stop keeps
+the tracked start owner until the process can be stopped and verified.
+Plain discard verifies that same process exit before staging, even when catalog
+deletion would succeed.
+Activation remains startup-owned until its durable commit. The existing launch
+gate transfers Stop to normal finalization before post-create hooks run. Failed
+activation still shares the discard gate; successful logical and ACP activation
+can finalize a concurrent Stop while those hooks are pending. This preserves the terminal event, post-stop hook
+and notification. Creation callbacks are serialized against terminal callbacks,
+so a completed Stop cannot be followed by a delayed creation notification.
+Status and paginated catalog filtering share the same pending-start projection;
+cached verified stop results wait for any newer startup cleanup owner. Deferred
+retained finalization takes the launch gate before removing its active projection.
+Asynchronous failed activation also verifies process exit before final settlement.
+Incomplete session-manager shutdown retains the daemon lock
+and shared persistence until cleanup joins on retry or the old process exits,
+including the foreground-start replacement path.
+Shutdown retries retain daemon discovery; a terminal return from Run removes it
+without releasing persistence or the singleton before owned cleanup finishes.
+That extra withdrawal belongs only to the exact incomplete Shutdown attempt while
+it still owns the singleton; an old Run never removes replacement discovery after
+successful teardown has released the lock.
+Canceled checkpoints restore their connection's busy timeout. Only canceled BEGIN
+operations discard an ambiguous transaction connection.
+Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
 TRUNCATE attempt stays on the writer with the existing 200 ms I/O budget. Oversized WALs
 attempt TRUNCATE first (which also backfills), scheduling PASSIVE only on deferral.
 A below-limit idle PASSIVE deferred by a family guard retries on the next activity
 or close; no data or size guarantee depends on a new timer. Foreground deadlines and
-one-second write holds remain failures.
+other one-second write holds remain failures.
 
 The modernc commit hook counts write commit attempts by core and telemetry
 database. Session connectors own a separate driver, so session commit counts are
@@ -83,6 +144,69 @@ items prioritize interactive work, which has no errors on head. This intentional
 count-1 throughput metric cannot measure sweep duration. The baseline remains fixed deliberately to
 retain the pre-change upgrade fixture and historical contention comparison.
 
+COMMIT-pause acceptance also uses the four same-run pairs. Transcript writes
+provide the shared-storage control on both binaries. For each pair,
+the budget is `max(1000 ms, baseline transcript_write max_ms)`, with no added
+relative margin. The median of the four head-max/budget ratios must be at most
+`1`. An individual long-hold warning can pass only when it names either the session
+`append session events and transcript` transaction or the telemetry
+`coalesced background writes` transaction, has a callback below one second and a
+COMMIT of at least one second, and its entire elapsed time fits **its own pair's**
+budget. A large baseline in another pair or a favorable median cannot excuse that
+warning. Missing/nonfinite/nonpositive tail samples and baseline transcript
+operation errors fail calibration. When that control is unusable, the pair uses
+the unchanged absolute 1,000 ms budget instead: every such head maximum must
+meet that ceiling, even if the median passes, and no COMMIT warning in that pair
+is eligible for an exemption. Missing or invalid head samples still fail. An
+expired historical control cannot itself prove a regression when the head meets
+the absolute budget without calibration. All four head ratios remain in the
+median; none is dropped. `budget_basis` records the decision for each pair.
+Head operation errors, other warnings,
+retention and upgrade correctness remain strict. `results.json` and `report.md`
+retain every raw warning in JSON and every head warning with its individual
+decision in Markdown, alongside paired maxima, budgets and ratios.
+
+This is a conservative paired order-statistic decision, not a confidence interval
+or a guarantee about individual production latency. The one-second floor retains
+the original budget on fast runners. It accounts only for the transcript and telemetry COMMIT
+signatures measured in #1324. The telemetry layout differs from the fixed baseline,
+so the common transcript workload controls shared-storage variance rather than
+comparing unlike telemetry transactions. Core holds, background callback holds
+and checkpoint errors are not exempted. The [eight-run investigation](../../docs/qa/reports/2026-11-03-sqlite-contention.md#paired-transcript-commit-tail-investigation-2026-11-06)
+records shared-runner fsync evidence and residual attribution limits.
+
+The core database's checkpoint worker also owns WAL restart. A retained read
+transaction prevents foreground commits from reusing a fully backfilled WAL.
+Each maintenance tick advances that read mark with overlapping snapshots before
+running PASSIVE outside writer admission. Backfill keeps advancing during busy
+application writes. Restart is attempted at 1000 WAL frames, rather than every
+tick, and idle maintenance never adds a frame. The restart obtains background
+writer admission (at most 200 ms per attempt); after three deferrals it reserves
+the next writer slot, cancelable by worker shutdown. It releases its read mark,
+completes any remaining PASSIVE tail, and commits the existing `user_version`
+unchanged. This writes one header page and synchronizes the new WAL header on
+the maintenance connection before pinning a new read mark. Application writes
+queue before `BEGIN IMMEDIATE` during restart I/O; existing reads use their
+independent pool. Startup admission timeouts and a BUSY initial writer probe
+defer priming to the worker. If an external writer takes the lock after that
+probe, restart retains admission while retrying; cancellation of the startup
+context can then abort database open. Long-lived external readers can defer
+reuse as usual.
+
+`synchronous=NORMAL`, the one-second maintenance cadence, shutdown backfill,
+and every acceptance threshold remain unchanged. This moves the filesystem
+pause out of application transactions; it does not guarantee a wall-clock
+deadline for writes queued behind slow storage. The extra unchanged header-page
+write per size-triggered restart and two read connections during snapshot
+handover are the cost. A restart's remaining PASSIVE tail can also synchronize
+the WAL and database while admission is held, before the new header sync;
+queued writers can therefore span up to three sync barriers per restart.
+No persisted version, schema,
+application row, migration, or public contract changes. Session and telemetry
+durability policies are unchanged. WAL salts in `TestStoreSQLiteHelpers` prove
+the old foreground-restart control and maintenance-owned reuse over repeated
+cycles; CI owns repeated paired-load and public daemon validation.
+
 The runner's decision suite is `python3 -m unittest discover -s
 scripts/sqlite-contention -p '*_test.py' -v`, also run by the workflow before the
 experiment. It owns pairing, relative budgets, missing operations and strict
@@ -94,6 +218,19 @@ workload regions and scheduling, GC, lock and syscall events for diagnosis. It
 is uploaded as `head-diagnostic.trace`; `go tool trace` can inspect it or produce
 `-pprof=sync`, `-pprof=syscall` and `-pprof=sched` profiles. This replay never
 replaces a measurement or turns the original failure into a passing job.
+
+For pauses that do not recur in a replay, manually dispatch the same workflow
+with `runtime_trace_trials=true`. Both binaries record Go traces during each
+original trial, buffered in memory and written only after the workload drains.
+The per-trial `.trace`, JSON and log files then describe the same execution.
+`results.json` identifies these diagnostic timings with `runtime_trace_trials`;
+they cannot replace the required uninstrumented acceptance runs. All failed
+samples and the unchanged acceptance decisions remain in the artifact.
+The workflow uses a separate `SQLite traced diagnostic (not acceptance)` check
+name for this mode. Recording still changes CPU/GC behavior: the heap buffer
+can grow to tens of megabytes, affect GC pacing and incur copying/page faults.
+An abrupt process kill loses the buffered trace. These recordings can identify
+syscall stacks during a pause; they are not an undisturbed GC/latency control.
 
 For a dedicated Linux lab, build the harness in each checkout, then run:
 

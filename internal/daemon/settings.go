@@ -20,6 +20,9 @@ import (
 )
 
 type settingsRuntimeSurface struct {
+	mcpStatusCache    settingsMCPStatusCache
+	digestKey         []byte
+	state             *bootState
 	config            compozyconfig.Config
 	startedAt         time.Time
 	sessions          SessionManager
@@ -29,6 +32,7 @@ type settingsRuntimeSurface struct {
 	mcpAuthManager    *mcpauth.Manager
 	mcpAuthGeneration *mcpauth.MutationGeneration
 	mcpStatusTimeout  time.Duration
+	mcpStatusMaxAge   time.Duration
 	mcpHealthRegistry *mcppkg.RuntimeHealthRegistry
 	mcpStdioPool      *mcppkg.StdioSessionPool
 	mcpHealthKey      func(context.Context, mcpauth.Target) (mcppkg.RuntimeHealthKey, error)
@@ -60,9 +64,19 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		return &settingsRuntimeSurface{}, nil
 	}
 
+	if state.mcpDigestKeys == nil {
+		return nil, errors.New("daemon: MCP digest key provider is required")
+	}
+	digestKey, err := state.mcpDigestKeys.Key()
+	if err != nil {
+		return nil, err
+	}
+	if len(digestKey) == 0 {
+		return nil, errors.New("daemon: MCP digest key is required")
+	}
 	now, pid, info := settingsRuntimeFunctions(d)
 	mcpAuthStore, mcpAuthRegistrations, secretResolver, secretRefs := settingsMCPAuthDependencies(state)
-	mcpAuthManager, err := newSettingsMCPAuthManagerWithConfig(
+	mcpAuthManager, err := newSettingsMCPAuthManagerWithAuthorization(
 		mcpAuthStore,
 		&daemonMCPAuthNotifier{
 			writer: state.registry,
@@ -72,6 +86,9 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		mcpAuthRegistrations,
 		secretResolver,
 		state.cfg.MCP.OAuth,
+		func(ctx context.Context, cfg mcpauth.ServerConfig) error {
+			return authorizeMCPAuthNetwork(ctx, state, cfg)
+		},
 		state.mcpAuthGeneration,
 	)
 	if err != nil {
@@ -83,6 +100,8 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 	}
 
 	return &settingsRuntimeSurface{
+		digestKey:         digestKey,
+		state:             state,
 		config:            state.cfg,
 		startedAt:         state.startedAt,
 		sessions:          state.sessions,
@@ -289,6 +308,10 @@ func (c settingsRestartController) RequestRestart(ctx context.Context) (core.Set
 
 	operation, err := c.daemon.RequestRestart(ctx)
 	if err != nil {
+		if errors.Is(err, ErrRestartPreflightFailed) || errors.Is(err, ErrRestartInProgress) {
+			// The request conflicts with the installed runtime's state, and the reason must reach the caller.
+			return core.SettingsRestartOperation{}, core.NewSettingsConflictError(err)
+		}
 		return core.SettingsRestartOperation{}, err
 	}
 	return settingsRestartOperationFromDaemon(operation), nil

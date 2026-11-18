@@ -27,7 +27,7 @@ function TabBarItem({
 }) {
   const preload = useCallback(() => onPreload?.(item.id), [item.id, onPreload]);
   const intent = useIntentPreload(preload, !!onPreload && !disabled);
-  const state = item.minimized ? "minimized" : item.running ? "running" : "closed";
+  const state = item.running ? "running" : "closed";
   return (
     <button
       {...intent}
@@ -51,7 +51,7 @@ function TabBarItem({
       }}
       onClick={() => onSelect(item.id)}
     >
-      <DockIcon name={item.icon} className={cn("size-4.5", item.minimized && "opacity-50")} />
+      <DockIcon name={item.icon} className="size-4.5" />
       {item.badge ? (
         <PillCount
           data-slot="os-dock-badge"
@@ -65,9 +65,8 @@ function TabBarItem({
         className={cn(
           "absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full transition-opacity duration-base",
           state === "closed" ? "opacity-0" : "opacity-100",
-          state === "minimized"
-            ? "size-1.25 border border-subtle bg-transparent"
-            : cn("size-1", item.active ? "bg-fg" : "bg-muted-foreground")
+          "size-1",
+          item.active ? "bg-fg" : "bg-muted-foreground"
         )}
       />
     </button>

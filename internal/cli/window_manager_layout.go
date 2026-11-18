@@ -19,6 +19,7 @@ func newLayoutCommand(deps commandDeps) *cobra.Command {
 		Args:  cobra.NoArgs,
 	}
 	cmd.AddCommand(newLayoutGetCommand(deps))
+	cmd.AddCommand(newLayoutMigrationCommand(deps))
 	cmd.AddCommand(newLayoutPreviewCommand(deps))
 	cmd.AddCommand(newLayoutArrangeCommand(deps))
 	cmd.AddCommand(newLayoutResizeCommand(deps))
@@ -94,7 +95,8 @@ func newLayoutPreviewCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerPreviewBundle(preview))
+			warnWindowManagerDeprecations(cmd, preview.Deprecations)
+			return writeCommandOutput(cmd, windowManagerPreviewBundle(&preview))
 		},
 	}
 	flags.add(cmd)
@@ -192,7 +194,7 @@ func newLayoutApplyCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)

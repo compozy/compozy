@@ -39,14 +39,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Agent: DefaultAgentName,
 		},
 		Agents: AgentsConfig{
-			AlwaysOn: AlwaysOnConfig{
-				UnattendedTurnLimit: 300,
-				RotationThreshold:   0.8,
-				MaxActiveInstances:  10,
-				ApprovalTimeout:     12 * time.Hour,
-				MaxProposals:        2,
-				TriageTimeout:       10 * time.Minute,
-			},
+			AlwaysOn:  DefaultAlwaysOnConfig(),
 			Soul:      DefaultSoulConfig(),
 			Heartbeat: DefaultHeartbeatConfig(),
 		},
@@ -80,7 +73,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Enabled:       true,
 			Sources:       []string{SkillSourceAgents},
 			CustomSources: []string{},
-			PollInterval:  3 * time.Second,
+			PollInterval:  defaultSkillsPollInterval,
 		},
 		Extensions: defaultExtensionsConfig(),
 		Tools:      DefaultToolsConfig(),
@@ -102,6 +95,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Scheduler:            DefaultSchedulerConfig(),
 		},
 		Worktrees: DefaultWorktreesConfig(),
+		Client:    DefaultClientConfig(),
 	}
 }
 
@@ -113,6 +107,15 @@ func defaultObservabilityConfig() ObservabilityConfig {
 		AgentProbeTimeout: DefaultObservabilityAgentProbeTimeout,
 		Transcripts: ObservabilityTranscriptConfig{
 			Enabled: true, SegmentBytes: 1 << 20, MaxBytesPerSession: 256 << 20,
+		},
+		OTel: ObservabilityOTelConfig{
+			Protocol:       OTelProtocolHTTPProtobuf,
+			Traces:         true,
+			Metrics:        true,
+			SampleRatio:    1,
+			MetricInterval: time.Minute,
+			ServiceName:    "compozy-daemon",
+			SlowDBWriteMS:  50,
 		},
 	}
 }

@@ -59,6 +59,7 @@ type Event struct {
 	ProfileName string
 	TerminalID  ID
 	Actor       Actor
+	Origin      Actor
 	Info        *Info
 	Exit        *Exit
 	Reason      string

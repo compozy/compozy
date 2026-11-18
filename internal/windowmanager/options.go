@@ -20,6 +20,8 @@ type managerOptions struct {
 	globalShortcutObserver GlobalShortcutFailureObserver
 	workspaceConfig        WorkspaceConfigResolver
 	appDeprecationObserver AppDeprecationObserver
+	registeredApp          func(string) bool
+	deprecationObserver    DeprecationObserver
 	lifecycleContext       context.Context
 }
 
@@ -43,6 +45,17 @@ type GlobalShortcutFailureObserver func(
 // WorkspaceConfigResolver overlays workspace-scoped behavior onto active defaults.
 type WorkspaceConfigResolver interface {
 	ResolveWindowManagerConfig(context.Context, WorkspaceID, Config) (Config, error)
+}
+
+// WithRegisteredApps validates new windows against the composition root's app inventory.
+func WithRegisteredApps(registered func(string) bool) Option {
+	return func(options *managerOptions) error {
+		if registered == nil {
+			return errors.New("window manager app registry is required")
+		}
+		options.registeredApp = registered
+		return nil
+	}
 }
 
 // WithClock injects deterministic commit and client timestamps.

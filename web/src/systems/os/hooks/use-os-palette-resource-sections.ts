@@ -3,6 +3,7 @@ import { useMarketplaceCatalog } from "@/systems/marketplace";
 import { useVaultSecrets } from "@/systems/vault";
 
 import {
+  extensionRowDetail,
   marketplaceEntryRoute,
   projectVaultRows,
   rowSeed,
@@ -124,7 +125,7 @@ function useExtensionSection(
       rowSeed("Extensions", {
         key: `extension:${workspaceId ?? "published"}:${extension.name}`,
         label: extension.name,
-        detail: extension.health,
+        detail: extensionRowDetail(extension),
         workspaceLabel: workspaceLabel(context.scope, workspaceId, context.workspaceNames),
         app: "marketplace",
         route: marketplaceEntryRoute({

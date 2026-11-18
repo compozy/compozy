@@ -12,6 +12,7 @@ import type {
   WindowManagerLayoutAspect,
   WindowManagerLayoutDocument,
   WindowManagerLayoutOverflow,
+  WindowManagerLayoutProfileSource,
   WindowManagerLayoutResourceRecord,
   WindowManagerLayoutScopeKind,
 } from "../lib/window-manager-layout-types";
@@ -31,7 +32,8 @@ export function useWindowManagerLayoutProfiles({
   document: WindowManagerLayoutDocument;
   profiles: readonly WindowManagerLayoutResourceRecord[];
   draftDirty: boolean;
-  onLoad: (document: WindowManagerLayoutDocument) => void;
+  /** Opens the saved layout in the editor; earlier versions are converted by the daemon. */
+  onLoad: (source: WindowManagerLayoutProfileSource) => void;
 }) {
   const store = useStore(windowManagerLayoutProfileEditorLogic);
   const context = useSelector(store, snapshot => snapshot.context);
@@ -49,7 +51,7 @@ export function useWindowManagerLayoutProfiles({
       );
     });
     const loaded = store.on("profileLoadAccepted", event => {
-      onLoad({ ...structuredClone(event.record.spec.document), workspaceId });
+      onLoad(event.record.spec.source);
     });
     const saved = store.on("profileSaved", event => {
       const previousKey = event.previous ? layoutProfileResourceKey(event.previous) : null;

@@ -54,7 +54,7 @@ func (c *daemonClient) MutateAgentInstance(
 	switch action {
 	case workspaceArchiveAction:
 		method = http.MethodDelete
-	case "show":
+	case configShowKey:
 		method = http.MethodGet
 	default:
 		path += "/" + action
@@ -116,4 +116,32 @@ func (c *daemonClient) SetAgentInstanceChecks(
 		&result,
 	)
 	return result, err
+}
+
+// agentInstanceMainClearer clears one session conversation in its workspace scope.
+type agentInstanceMainClearer interface {
+	ClearSessionConversation(ctx context.Context, workspaceRef, sessionID string) (SessionRecord, error)
+}
+
+var _ agentInstanceMainClearer = (*daemonClient)(nil)
+
+// ClearSessionConversation restarts a session with a fresh conversation under the same id.
+func (c *daemonClient) ClearSessionConversation(
+	ctx context.Context,
+	workspaceRef, sessionID string,
+) (SessionRecord, error) {
+	workspace, err := requirePathValue("workspace_id", workspaceRef)
+	if err != nil {
+		return SessionRecord{}, err
+	}
+	target, err := requirePathValue("session_id", sessionID)
+	if err != nil {
+		return SessionRecord{}, err
+	}
+	var response contract.SessionResponse
+	path := "/api/workspaces/" + url.PathEscape(workspace) + "/sessions/" + url.PathEscape(target) + "/clear"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+		return SessionRecord{}, err
+	}
+	return response.Session, nil
 }

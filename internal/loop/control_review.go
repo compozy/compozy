@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 const reviewBypassedOutputRef = "review:bypassed"
@@ -39,6 +40,9 @@ func evaluateActionReview(
 	rendered, err := materializeReviewProposal(node, namespace)
 	if err != nil {
 		return GenerationOutput{}, fmt.Errorf("loop: render review proposal %q: %w", node.ID, err)
+	}
+	if snapshot, ok := eval.resolved.ToolSchemas[node.Kind]; ok && snapshot.FullOutputSchemaDigest != "" {
+		delete(rendered, tools.ResultViewInputKey)
 	}
 	proposed, err := json.Marshal(rendered)
 	if err != nil {
@@ -222,7 +226,11 @@ func reviewSchemas(
 				if !ok || len(snapshot.InputSchema) == 0 {
 					return nil, nil, fmt.Errorf("%w: review input schema for %q is missing", ErrValidation, node.ID)
 				}
-				editSchema = cloneRawMessage(snapshot.InputSchema)
+				var err error
+				editSchema, err = reviewToolInputSchema(snapshot)
+				if err != nil {
+					return nil, nil, err
+				}
 			} else {
 				schema := inferredReviewSchema(rendered)
 				encoded, err := json.Marshal(schema)
@@ -248,10 +256,11 @@ func actionOutputSchemaRaw(resolved *ResolvedDefinition, node dsl.Node) (json.Ra
 	}
 	if !dsl.IsReservedActionKind(node.Kind) {
 		snapshot, ok := resolved.ToolSchemas[node.Kind]
-		if !ok || len(snapshot.OutputSchema) == 0 {
+		raw, _ := snapshot.OutputSchemaFor(nodeResultView(node))
+		if !ok || len(raw) == 0 {
 			return nil, fmt.Errorf("%w: review output schema for %q is missing", ErrValidation, node.ID)
 		}
-		return cloneRawMessage(snapshot.OutputSchema), nil
+		return cloneRawMessage(raw), nil
 	}
 	switch dsl.ActionKind(node.Kind) {
 	case dsl.ActionRunAgent:

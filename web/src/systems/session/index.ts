@@ -305,6 +305,7 @@ export type {
   SessionTranscriptThreadStatus,
 } from "./lib/session-transcript-thread-context-value";
 export { SessionCreateProvider } from "./contexts/session-create-context";
+export { ProjectMenuHostProvider } from "./components/project-menu-host-provider";
 export type { SessionCreateOpenOptions } from "./lib/session-create-target";
 export { createSessionCreateStore, type SessionCreateStore } from "./stores/session-create-store";
 
@@ -334,10 +335,8 @@ export {
   type SessionStopAttention,
 } from "./lib/session-stop-attention";
 export { SessionPanelToggle } from "./components/session-panel-toggle";
-export {
-  SessionThinkingRow,
-  type SessionThinkingRowProps,
-} from "./components/session-thinking-row";
+export { SessionReviewPanel } from "./components/session-review-panel";
+export { SessionThinkingRow } from "./components/session-thinking-row";
 export {
   agentCountLabel,
   deriveWorkingStatus,
@@ -489,6 +488,7 @@ export * from "./context";
 
 export { SessionComposerSubagents } from "./components/session-composer-subagents";
 export { SessionComposerMonitors } from "./components/session-composer-monitors";
+export { SessionComposerMCP } from "./components/session-composer-mcp";
 
 export { SessionDraftRuntimeProvider } from "./contexts/session-draft-runtime-provider";
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";

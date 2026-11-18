@@ -7,11 +7,11 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 )
 
-func (p *AgentProcess) promptDeliveryManifest(
+func promptDeliveryManifest(
 	req PromptRequest,
 	sections []DeliveredSpan,
 	attachments []acpsdk.ContentBlock,
-	startup bool,
+	startup StartupManifest,
 	delivery SystemPromptDeliveryMode,
 ) DeliveryManifest {
 	manifest := DeliveryManifest{
@@ -21,14 +21,8 @@ func (p *AgentProcess) promptDeliveryManifest(
 		Spans:    make([]DeliveredSpan, 0),
 		Mentions: deliveredMentions(req),
 	}
-	if startup {
-		p.systemPromptMu.Lock()
-		source := CloneStartupManifest(p.startupManifest)
-		if len(source.Spans) == 0 {
-			source = OpaqueStartupManifest(strings.TrimSpace(p.systemPrompt), false)
-		}
-		p.systemPromptMu.Unlock()
-		for _, span := range source.Spans {
+	if delivery != "" {
+		for _, span := range startup.Spans {
 			span.Delivery = string(delivery)
 			manifest.Spans = append(manifest.Spans, span)
 		}

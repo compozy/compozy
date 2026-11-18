@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
+	"maps"
 	"slices"
 	"strings"
 
@@ -115,20 +116,24 @@ func cloneResourceRecord[T any](record resources.Record[T], cloneSpec func(T) T)
 
 func cloneDaemonMCPServer(src compozyconfig.MCPServer) compozyconfig.MCPServer {
 	return compozyconfig.MCPServer{
-		Name:           src.Name,
-		Owner:          src.Owner,
-		RuntimeName:    src.RuntimeName,
-		CatalogEntry:   src.CatalogEntry,
-		CatalogVersion: src.CatalogVersion,
-		Transport:      src.Transport,
-		Command:        src.Command,
-		CWD:            src.CWD,
-		Args:           slices.Clone(src.Args),
-		Env:            cloneStringMap(src.Env),
-		SecretEnv:      cloneStringMap(src.SecretEnv),
-		URL:            src.URL,
-		Headers:        cloneStringMap(src.Headers),
-		SecretHeaders:  cloneStringMap(src.SecretHeaders),
+		AgentPlugin:      src.AgentPlugin,
+		Name:             src.Name,
+		DefinitionSource: src.DefinitionSource,
+		Reference:        src.Reference,
+		Owner:            src.Owner,
+		RuntimeName:      src.RuntimeName,
+		CatalogEntry:     src.CatalogEntry,
+		CatalogVersion:   src.CatalogVersion,
+		Transport:        src.Transport,
+		Command:          src.Command,
+		CWD:              src.CWD,
+		Args:             slices.Clone(src.Args),
+		Env:              cloneStringMap(src.Env),
+		SecretEnv:        cloneStringMap(src.SecretEnv),
+		URL:              src.URL,
+		Headers:          cloneStringMap(src.Headers),
+		SecretHeaders:    cloneStringMap(src.SecretHeaders),
+		InputValues:      maps.Clone(src.InputValues),
 		Auth: compozyconfig.MCPAuthConfig{
 			Registration:    src.Auth.Registration,
 			IssuerURL:       src.Auth.IssuerURL,

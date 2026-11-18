@@ -33,13 +33,11 @@ import {
  * before it discards unapplied edits.
  */
 function LayoutSections({
-  config,
   initial,
   profileName,
   profiles,
   workspaceId,
 }: {
-  config: WindowManagerConfig;
   initial: WindowManagerLayoutState;
   profileName: string;
   profiles: readonly WindowManagerLayoutResourceRecord[];
@@ -53,7 +51,7 @@ function LayoutSections({
     document: editor.draft,
     profiles,
     draftDirty: editor.dirty,
-    onLoad: editor.updateDraft,
+    onLoad: source => void editor.loadSource(source),
   });
 
   const exportDocument = () => {
@@ -110,11 +108,11 @@ function LayoutSections({
           </>
         }
         bare
-        help="Drag tiles, dividers and group edges."
+        help="Pick a desktop and a tab, then rearrange its windows. Files from earlier versions open as tabs."
         description="CompozyOS checks the result before anything is applied."
         title="Project layout"
       >
-        <LayoutStage config={config} editor={editor} />
+        <LayoutStage editor={editor} />
       </SettingsGroup>
 
       <SettingsGroup
@@ -204,7 +202,6 @@ function LayoutsSettingsView({
         </SettingsGroup>
       ) : (
         <LayoutSections
-          config={config}
           initial={layout}
           key={`${workspaceId}:${profileName}`}
           profileName={profileName}

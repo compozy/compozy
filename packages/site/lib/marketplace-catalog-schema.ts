@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MARKETPLACE_CATEGORY_IDS } from "@/lib/marketplace-cards";
 
 const ENTRY_ID_PATTERN = /^[A-Za-z0-9._~-]+$/;
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -92,9 +93,32 @@ const entryCommon = {
   updated_at: rfc3339.optional(),
 };
 
+export { MARKETPLACE_CATEGORY_IDS };
+
+/** Curated `<source>/<entry_id>` reference to a plugin entry this extension replaces. */
+const supersededEntry = z.string().refine(
+  value => {
+    const segments = value.split("/");
+    return (
+      segments.length === 2 &&
+      segments.every(
+        segment => segment !== "." && segment !== ".." && ENTRY_ID_PATTERN.test(segment)
+      )
+    );
+  },
+  { message: "must be <source>/<entry_id>" }
+);
+
+const curationSchema = z.strictObject({
+  category: z.enum(MARKETPLACE_CATEGORY_IDS),
+  featured: z.boolean().optional(),
+  supersedes: z.array(supersededEntry).optional(),
+});
+
 const baseExtensionEntrySchema = z
   .strictObject({
     ...entryCommon,
+    "x-compozy": curationSchema.optional(),
     version: nonBlankString,
     install_slug: nonBlankString,
     artifact_url: nonBlankString,

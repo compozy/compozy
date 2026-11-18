@@ -37,7 +37,7 @@ export function usePermissionDock({
   onResolved,
   blockedDecisions = [],
 }: UsePermissionDockOptions) {
-  const { decide, isResolved, isSubmitting } = useSessionPermissionDecision({
+  const { decide, isResolved, isSubmitting, isUnavailable } = useSessionPermissionDecision({
     workspaceId,
     sessionId,
     permission,
@@ -49,7 +49,7 @@ export function usePermissionDock({
   );
 
   const handleDecisionKey = useEffectEvent((event: KeyboardEvent) => {
-    if (isSubmitting || isResolved) return;
+    if (isSubmitting || isResolved || isUnavailable) return;
     if (isEditableTarget(event.target)) return;
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     const decision = DECISION_KEYS[event.key];
@@ -67,6 +67,7 @@ export function usePermissionDock({
   return {
     decide,
     isResolved,
+    isUnavailable,
     isSubmitting,
     decisionOptions,
     subject: permissionSubject(permission),

@@ -7,6 +7,13 @@ description: "List resolved hooks in pipeline order"
 
 List resolved hooks in pipeline order
 
+### Synopsis
+
+List resolved hooks in pipeline order.
+
+The daemon scopes a user-config hook to each registered workspace. Without --workspace the table
+shows such a hook once, at its lowest order; JSON, JSONL and TOON keep every scoped entry.
+
 ```
 compozy hooks list [flags]
 ```

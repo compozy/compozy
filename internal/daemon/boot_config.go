@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -12,15 +13,6 @@ import (
 )
 
 func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) (err error) {
-	// The daemon logger depends on the config, so alias deprecation warnings from the first load
-	// wait in memory and replay into the daemon log once it exists. A failed boot replays them to
-	// slog.Default instead of dropping them.
-	compozyconfig.BufferDeprecationWarnings()
-	defer func() {
-		if err != nil {
-			compozyconfig.RouteDeprecationWarnings(nil)
-		}
-	}()
 	cfg, err := d.loadConfig()
 	if err != nil {
 		return err
@@ -60,7 +52,6 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) (err error) 
 	}
 
 	compozyconfig.RouteRetiredProviderWarnings(logger)
-	compozyconfig.RouteDeprecationWarnings(logger)
 	cfg.WarnRetiredProviderReferences()
 
 	state.cfg = cfg
@@ -77,8 +68,15 @@ func loadConfigFromHome(
 	getenv func(string) string,
 ) (compozyconfig.Config, error) {
 	cfg := compozyconfig.DefaultWithHome(homePaths)
+	compozyconfig.ApplyOTelEnvironment(&cfg, getenv)
 	if err := compozyconfig.ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
 		return compozyconfig.Config{}, fmt.Errorf("daemon: load global config: %w", err)
+	}
+	if err := compozyconfig.ApplyConfigMCPSidecarFile(
+		filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName),
+		&cfg,
+	); err != nil {
+		return compozyconfig.Config{}, fmt.Errorf("daemon: load global MCP JSON: %w", err)
 	}
 	compozyconfig.ApplyMarketplaceCatalogEnvironment(&cfg, getenv)
 

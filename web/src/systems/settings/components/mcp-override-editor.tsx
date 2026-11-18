@@ -1,4 +1,4 @@
-import { Cable, Plus, RotateCcw, Trash2 } from "@compozy/ui/icons";
+import { KeyRound, Puzzle, RotateCcw } from "@compozy/ui/icons";
 import { useId } from "react";
 
 import {
@@ -7,27 +7,28 @@ import {
   Button,
   Dialog,
   DialogContent,
-  Empty,
   dialogShellClass,
+  Disclosure,
   EntityDialogBody,
   EntityDialogFooter,
   EntityDialogHeader,
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
   FormSection,
-  ImmutableIdentity,
   Input,
+  MetadataList,
+  MetadataListRow,
 } from "@compozy/ui";
 
-import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
-
-import type {
-  MCPOverrideDraft,
-  MCPOverrideErrors,
-  MCPOverridePair,
-} from "../lib/mcp-override-model";
-import { mcpManagementScopeLabel } from "../lib/mcp-management-target";
+import type { MCPOverrideDraft, MCPOverrideErrors } from "../lib/mcp-override-model";
 import type { SettingsMCPServerEntry } from "../types";
 
-import { MCPFieldLabel } from "./mcp-editor-fields";
+import { MCPOverridePairsEditor } from "./mcp-override-pairs-editor";
+import { formatCommandLine } from "../lib/mcp-editor-paste";
+import { isOAuthCapable } from "../lib/mcp-status-view-model";
+import { mcpAddedByWords, mcpEntryScopeWords, mcpOwnerExtensionName } from "./mcp-server-labels";
 
 export interface MCPOverrideEditorProps {
   open: boolean;
@@ -48,11 +49,11 @@ export interface MCPOverrideEditorProps {
 }
 
 /**
- * Edit configuration for an extension-provided MCP server. The package declaration — name,
- * owner, runtime name, command or URL, auth — is read-only identity; the dialog edits only the
- * override record the daemon applies on top of it: environment for a local process, headers and
- * an optional endpoint for a remote one. A blank URL inherits the manifest. Reset deletes the
- * override, never the extension.
+ * "Set up <server>" for an extension-provided MCP server. The package declaration — name, owner,
+ * runtime name, command or URL, auth — is read-only and sits under "Technical details"; the
+ * dialog edits only the override record the daemon applies on top of it: settings for a local
+ * program, headers and an optional address for a remote one. A blank address inherits the
+ * manifest. Reset deletes the override, never the extension.
  */
 export function MCPOverrideEditor({
   open,
@@ -75,7 +76,9 @@ export function MCPOverrideEditor({
       Object.keys(entry.override.headers ?? {}).length > 0 ||
       entry.override.url?.trim())
   );
-  const ownerName = entry.owner?.replace(/^extension:/, "") ?? "";
+  const extension = mcpOwnerExtensionName(entry.owner) ?? entry.owner ?? "";
+  // The runtime reports when the server can't start as declared; nothing else claims "missing".
+  const needsSetup = entry.runtime_status?.configured === false;
 
   return (
     <Dialog
@@ -85,7 +88,7 @@ export function MCPOverrideEditor({
       }}
     >
       <DialogContent
-        className={`grid-rows-[auto_minmax(0,1fr)_auto] text-fg ${dialogShellClass("md")}`}
+        className={`grid-rows-[auto_minmax(0,1fr)_auto] text-fg ${dialogShellClass("sm")}`}
         data-identity={identity}
         data-testid="settings-mcp-override-editor"
         data-transport={entry.transport}
@@ -94,34 +97,28 @@ export function MCPOverrideEditor({
       >
         <EntityDialogHeader
           description={
-            <>
-              Provided by the <b className="font-medium text-muted-foreground">{ownerName}</b>{" "}
-              extension. Values here are stored as an override on top of the package; the package
-              itself never changes.
-            </>
+            needsSetup
+              ? `The ${extension} extension added this server. It needs something from you before sessions can use it.`
+              : `The ${extension} extension added this server. What you set here sits on top of the extension's own settings.`
           }
-          eyebrow="System · MCP server"
-          icon={Cable}
+          icon={Puzzle}
           onClose={isSaving ? undefined : onClose}
-          title={
-            <span data-testid="settings-mcp-override-editor-title">
-              Edit configuration · {entry.name}
-            </span>
-          }
+          title={<span data-testid="settings-mcp-override-editor-title">Set up {entry.name}</span>}
         />
 
         <EntityDialogBody className="flex flex-col" data-testid="settings-mcp-override-editor-body">
-          <MCPPackageDeclaration entry={entry} />
           <MCPOverrideFields
-            entry={entry}
             draft={draft}
+            entry={entry}
             errors={errors}
             isSaving={isSaving}
+            needsSetup={needsSetup}
             onChange={onChange}
           />
-
+          <MCPTechnicalDetails entry={entry} />
           {saveError ? (
             <Alert
+              className="mt-6"
               data-testid="settings-mcp-override-editor-error"
               role="alert"
               variant="destructive"
@@ -134,11 +131,11 @@ export function MCPOverrideEditor({
         <EntityDialogFooter
           cancelDisabled={isSaving}
           cancelTestId="settings-mcp-override-editor-cancel"
-          hint="Secrets never live here — declare them as extension inputs."
           isSaving={isSaving}
           leading={
             hasStoredOverride ? (
               <Button
+                className="-ml-2"
                 data-testid="settings-mcp-override-editor-reset"
                 disabled={isSaving}
                 onClick={onReset}
@@ -146,8 +143,8 @@ export function MCPOverrideEditor({
                 type="button"
                 variant="ghost"
               >
-                <RotateCcw aria-hidden="true" />
-                Reset override
+                <RotateCcw data-icon="inline-start" />
+                Reset to extension defaults
               </Button>
             ) : undefined
           }
@@ -155,7 +152,7 @@ export function MCPOverrideEditor({
           onCancel={onClose}
           onPrimary={onSave}
           primaryDisabled={!isValid || isSaving}
-          primaryLabel={isSaving ? "Saving..." : "Save override"}
+          primaryLabel={isSaving ? "Saving..." : "Save"}
           primaryTestId="settings-mcp-override-editor-save"
         />
       </DialogContent>
@@ -163,176 +160,37 @@ export function MCPOverrideEditor({
   );
 }
 
-function MCPOverridePairsEditor({
-  field,
-  label,
-  keyPlaceholder,
-  addLabel,
-  pairs,
-  errors,
-  disabled,
-  onChange,
-}: {
-  field: "env" | "headers";
-  label: string;
-  keyPlaceholder: string;
-  addLabel: string;
-  pairs: MCPOverridePair[];
-  errors?: Record<number, string>;
-  disabled: boolean;
-  onChange: (next: MCPOverridePair[]) => void;
-}) {
-  const rowKeys = useLocalRowKeys(pairs, `mcp-override-${field}`);
-  const testPrefix = `settings-mcp-override-editor-${field}`;
-  const noun = field === "env" ? "variable" : "header";
-  return (
-    <div>
-      <MCPFieldLabel hint="name / value">{label}</MCPFieldLabel>
-      <div className="flex flex-col gap-1.5" data-testid={`${testPrefix}-list`}>
-        {pairs.length === 0 ? (
-          <Empty
-            data-testid={`${testPrefix}-empty`}
-            description="The extension's own values apply."
-            size="compact"
-            title="No changes yet"
-          />
-        ) : null}
-        {pairs.map((pair, index) => {
-          const rowError = errors?.[index];
-          const errorId = rowError ? `${rowKeys.keys[index]}-error` : undefined;
-          return (
-            <div key={rowKeys.keys[index]}>
-              <div className="flex items-center gap-2">
-                <Input
-                  aria-describedby={errorId}
-                  aria-invalid={rowError ? true : undefined}
-                  aria-label={`${label} ${noun} name ${index + 1}`}
-                  className="w-40 font-mono"
-                  data-testid={`${testPrefix}-key-${index}`}
-                  disabled={disabled}
-                  onChange={event => {
-                    const next = [...pairs];
-                    next[index] = { ...pair, key: event.target.value };
-                    onChange(next);
-                  }}
-                  placeholder={keyPlaceholder}
-                  value={pair.key}
-                />
-                <Input
-                  aria-describedby={errorId}
-                  aria-invalid={rowError ? true : undefined}
-                  aria-label={`${label} ${noun} value ${index + 1}`}
-                  className="flex-1 font-mono"
-                  data-testid={`${testPrefix}-value-${index}`}
-                  disabled={disabled}
-                  onChange={event => {
-                    const next = [...pairs];
-                    next[index] = { ...pair, value: event.target.value };
-                    onChange(next);
-                  }}
-                  placeholder="value"
-                  value={pair.value}
-                />
-                <Button
-                  aria-label={`Remove ${noun} ${index + 1}`}
-                  data-testid={`${testPrefix}-remove-${index}`}
-                  disabled={disabled}
-                  onClick={() => {
-                    rowKeys.remove(index);
-                    onChange(pairs.filter((_, i) => i !== index));
-                  }}
-                  size="icon-sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <Trash2 aria-hidden="true" />
-                </Button>
-              </div>
-              {rowError ? (
-                <p className="mt-1 text-caption text-destructive" id={errorId} role="alert">
-                  {rowError}
-                </p>
-              ) : null}
-            </div>
-          );
-        })}
-        <Button
-          className="self-start"
-          data-testid={`${testPrefix}-add`}
-          disabled={disabled}
-          onClick={() => {
-            rowKeys.append();
-            onChange([...pairs, { key: "", value: "" }]);
-          }}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <Plus aria-hidden="true" />
-          {addLabel}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function MCPPackageDeclaration({ entry }: Pick<MCPOverrideEditorProps, "entry">) {
-  const isRemote = entry.transport !== "stdio";
-  const scopeLabel = mcpManagementScopeLabel(entry) ?? entry.scope;
-  return (
-    <FormSection
-      description="These fields come from the extension package and cannot be edited here."
-      title="Package declaration"
-    >
-      <ImmutableIdentity
-        data-testid="settings-mcp-override-editor-identity"
-        rows={[
-          { label: "Server", mono: true, value: entry.name },
-          { label: "Owner", mono: true, value: entry.owner ?? "" },
-          ...(entry.runtime_name?.trim()
-            ? [{ label: "Runtime name", mono: true, value: entry.runtime_name }]
-            : []),
-          { label: "Scope", mono: true, value: scopeLabel },
-          isRemote
-            ? { label: "URL", mono: true, value: entry.url ?? "—" }
-            : {
-                label: "Command",
-                mono: true,
-                value: [entry.command, ...(entry.args ?? [])].filter(Boolean).join(" ") || "—",
-              },
-          { label: "Auth", value: entry.auth ? "OAuth (from the package)" : "None" },
-        ]}
-      />
-    </FormSection>
-  );
-}
+/** "What it needs": the override values, the only part of the server this dialog writes. */
 function MCPOverrideFields({
   entry,
   draft,
   errors,
   isSaving,
+  needsSetup,
   onChange,
-}: Pick<MCPOverrideEditorProps, "entry" | "draft" | "errors" | "isSaving" | "onChange">) {
+}: Pick<MCPOverrideEditorProps, "entry" | "draft" | "errors" | "isSaving" | "onChange"> & {
+  needsSetup: boolean;
+}) {
   const urlId = useId();
   const isRemote = entry.transport !== "stdio";
   return (
     <FormSection
+      data-testid="settings-mcp-override-editor-fields"
       description={
         isRemote
-          ? "Headers are sent on every request. Leave the endpoint blank to keep the package URL."
-          : "Environment variables are added to the process the package declares."
+          ? "Headers go with every request. Secrets don't belong here; the extension asks for those itself."
+          : "Settings are added to the program the extension runs. Secrets don't belong here; the extension asks for those itself."
       }
-      rightLabel={isRemote ? "remote endpoint" : "local process"}
-      title="Override"
+      icon={KeyRound}
+      rightLabel={needsSetup ? "Not set up yet" : undefined}
+      title="What it needs"
     >
       {isRemote ? (
         <>
-          <div>
-            <MCPFieldLabel hint="optional" htmlFor={urlId}>
-              Endpoint
-            </MCPFieldLabel>
+          <Field data-invalid={errors.url ? "true" : undefined}>
+            <FieldLabel htmlFor={urlId}>Address</FieldLabel>
             <Input
-              aria-describedby={errors.url ? `${urlId}-error` : undefined}
+              aria-describedby={errors.url ? `${urlId}-error` : `${urlId}-description`}
               aria-invalid={errors.url ? true : undefined}
               className="font-mono"
               data-testid="settings-mcp-override-editor-url"
@@ -343,15 +201,13 @@ function MCPOverrideFields({
               value={draft.url}
             />
             {errors.url ? (
-              <p
-                className="mt-1.5 text-caption text-destructive"
-                id={`${urlId}-error`}
-                role="alert"
-              >
-                {errors.url}
-              </p>
-            ) : null}
-          </div>
+              <FieldError id={`${urlId}-error`}>{errors.url}</FieldError>
+            ) : (
+              <FieldDescription id={`${urlId}-description`}>
+                Leave it blank to use the extension's address.
+              </FieldDescription>
+            )}
+          </Field>
           <MCPOverridePairsEditor
             addLabel="Add header"
             disabled={isSaving}
@@ -365,16 +221,59 @@ function MCPOverrideFields({
         </>
       ) : (
         <MCPOverridePairsEditor
-          addLabel="Add variable"
+          addLabel="Add setting"
           disabled={isSaving}
           errors={errors.env}
           field="env"
           keyPlaceholder="KEY"
-          label="Environment"
+          label="Settings"
           pairs={draft.env}
           onChange={env => onChange({ ...draft, env })}
         />
       )}
     </FormSection>
+  );
+}
+
+const CODE_VALUE = { className: "truncate font-mono" };
+
+/** The package declaration, read-only: where it runs, how agents call it, which version. */
+function MCPTechnicalDetails({ entry }: { entry: SettingsMCPServerEntry }) {
+  const address =
+    entry.transport === "stdio"
+      ? formatCommandLine(entry.command ?? "", entry.args ?? [])
+      : (entry.url ?? "");
+  const version =
+    entry.catalog_entry && entry.catalog_version
+      ? `${entry.catalog_entry}@${entry.catalog_version}`
+      : entry.catalog_version;
+  return (
+    <Disclosure className="mt-6" label="Technical details" variant="framed">
+      <MetadataList className="p-4" data-testid="settings-mcp-override-editor-identity">
+        <MetadataListRow
+          label={entry.transport === "stdio" ? "Command" : "Address"}
+          valueProps={CODE_VALUE}
+        >
+          {address || "—"}
+        </MetadataListRow>
+        <MetadataListRow label="Agents call it" valueProps={CODE_VALUE}>
+          {`mcp__${entry.runtime_name?.trim() || entry.name}__*`}
+        </MetadataListRow>
+        <MetadataListRow label="Added by">{mcpAddedByWords(entry.owner)}</MetadataListRow>
+        <MetadataListRow label="Used in">{mcpEntryScopeWords(entry)}</MetadataListRow>
+        <MetadataListRow label="Sign-in">
+          {entry.auth
+            ? "OAuth, from the extension"
+            : isOAuthCapable(entry)
+              ? "OAuth, discovered from the server"
+              : "None"}
+        </MetadataListRow>
+        {version ? (
+          <MetadataListRow label="Version" valueProps={CODE_VALUE}>
+            {version}
+          </MetadataListRow>
+        ) : null}
+      </MetadataList>
+    </Disclosure>
   );
 }

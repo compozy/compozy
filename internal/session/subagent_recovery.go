@@ -36,14 +36,14 @@ func (s *subagentService) Recover(ctx context.Context) error {
 		return err
 	}
 	s.recoveryResult(ctx, "", "child_activity", s.recoverChildActivity(ctx))
+	s.recoveryResult(ctx, "", "native_results", s.recoverNativeResults(ctx))
 	native, err := s.store.ListUnfinalizedNative(ctx)
 	if err != nil {
 		return err
 	}
-	for _, turn := range groupNativeTurns(native) {
+	for _, turn := range groupNativeReplayRows(native, true) {
 		s.recoveryResult(ctx, turn[0].ParentTurnID, "native_interrupted", s.recoverNative(ctx, turn))
 	}
-	s.recoveryResult(ctx, "", "native_results", s.recoverNativeResults(ctx))
 	if err := s.recoverWakes(ctx); err != nil {
 		return err
 	}
@@ -66,7 +66,25 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 		return err
 	}
 	for _, row := range rows {
-		if row.ChildSessionID == nil || row.Status == store.SubagentStatusQueued {
+		if row.Status == store.SubagentStatusQueued {
+			continue
+		}
+		if row.ChildSessionID == nil {
+			if s.inFlight(row.ID) {
+				continue
+			}
+			// The delegation never linked a child session: the start failed after the
+			// reservation and the settlement was lost. Nothing can resume it, so settle
+			// the row instead of leaving it running for the life of the daemon. Isolated
+			// rows keep their own path, which also releases the worktree and wakes the
+			// parent.
+			if row.Isolation == SubagentIsolationWorktree {
+				if err := s.recoverOrphanedIsolation(ctx, row); err != nil {
+					s.recoveryResult(ctx, row.ID, "orphaned_isolation", err)
+				}
+				continue
+			}
+			s.recoveryResult(ctx, row.ID, "orphaned_delegation", s.failRecovered(ctx, row, ""))
 			continue
 		}
 		if row.Isolation == SubagentIsolationWorktree {
@@ -74,6 +92,26 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 			continue
 		}
 		s.recoveryResult(ctx, row.ID, "child_reconciled", s.recoverChild(ctx, row))
+	}
+	return nil
+}
+
+// recoverOrphanedIsolation settles an isolated row whose start never linked a
+// child. A failed rollback must not keep the row running until the next boot:
+// the row still settles and the parent still wakes, while the checkout stays
+// queued for recoverIsolationCleanup, which retries the rollback from disk.
+func (s *subagentService) recoverOrphanedIsolation(ctx context.Context, row store.SessionSubagent) error {
+	if err := s.recoverIsolation(ctx, row); err != nil {
+		s.recoveryResult(ctx, row.ID, "orphaned_isolation_compensation", err)
+		// The cleanup recovery only selects rows marked pending, so the marker has
+		// to be durable before the row becomes terminal. When it cannot be written,
+		// keep the row running for the next boot instead of finalizing a checkout
+		// nobody will collect.
+		if markErr := s.markWorktreeCleanupPending(ctx, row.ID); markErr != nil {
+			s.recoveryResult(ctx, row.ID, "orphaned_isolation_cleanup_marker", markErr)
+			return nil
+		}
+		return s.settleRecoveredIsolation(ctx, row, subagentRecoveredInterrupted)
 	}
 	return nil
 }
@@ -136,12 +174,14 @@ func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSub
 // live delegate call, no caller is left to receive the failure, so the parent
 // is told through an ordinary wake (always, whatever the original wait policy).
 func (s *subagentService) failRecovered(ctx context.Context, row store.SessionSubagent, child string) error {
-	failed, err := s.failDelegation(ctx, row, child, errors.New("delegation interrupted"))
+	failed, err := s.failDelegation(ctx, row, child, errors.New(subagentRecoveredInterrupted))
 	if err != nil {
 		return err
 	}
+	wakeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
 	if failed.WakePolicy != store.SubagentWakePolicyAlways {
-		upgraded, err := s.store.UpgradeWakePolicy(ctx, failed.ID)
+		upgraded, err := s.store.UpgradeWakePolicy(wakeCtx, failed.ID)
 		if err != nil {
 			return err
 		}
@@ -149,7 +189,7 @@ func (s *subagentService) failRecovered(ctx context.Context, row store.SessionSu
 	}
 	unlock := s.lock(row.ParentSessionID)
 	defer unlock()
-	return s.planDelivery(ctx, failed.SessionSubagent)
+	return s.planDelivery(wakeCtx, failed.SessionSubagent)
 }
 
 func (s *subagentService) inFlight(id string) bool {
@@ -256,7 +296,18 @@ func (s *subagentService) recoverPending(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// A successor claims every pending row for its parent in one batch. Save all
+	// retained checkout facts before composing any parent's completion message.
 	seen := make(map[string]bool)
+	for _, row := range pending {
+		factsErr := s.recoverDeletedChildFacts(ctx, row)
+		if factsErr != nil && !errors.Is(factsErr, store.ErrSubagentNotFound) {
+			s.recoveryResult(ctx, row.ID, "deleted_child_facts", factsErr)
+			// Keep this parent's batch pending, without blocking other recovery or boot.
+			s.retryWakeAfter(row.ParentSessionID, s.recoveryRetryDelay)
+			seen[row.ParentSessionID] = true
+		}
+	}
 	for _, row := range pending {
 		if seen[row.ParentSessionID] {
 			continue
@@ -271,6 +322,33 @@ func (s *subagentService) recoverPending(ctx context.Context) error {
 			continue
 		}
 		s.recoveryResult(ctx, row.ID, "pending_claimed", s.OnParentTurnSettled(ctx, row.ParentSessionID, ""))
+	}
+	return nil
+}
+
+func (s *subagentService) recoverDeletedChildFacts(ctx context.Context, row store.SessionSubagent) error {
+	if row.ChildSessionID != nil || !store.IsSubagentStatusTerminal(row.Status) ||
+		row.WorktreeState().ID == "" || row.WorktreeState().Facts.PRStatus != "" {
+		return nil
+	}
+	observed := s.observeSettledWorktree(ctx, row)
+	unlock := s.lock(row.ParentSessionID)
+	defer unlock()
+	_, err := s.persistTerminalWorktreeFacts(ctx, observed, row)
+	return err
+}
+
+// A retry must save every retained checkout's facts before successor composes the
+// parent's batch. Observation stays outside the parent lock, as it does at boot.
+func (s *subagentService) recoverPendingFacts(ctx context.Context, parent string) error {
+	pending, err := s.store.ListPending(ctx, parent)
+	if err != nil {
+		return err
+	}
+	for _, row := range pending {
+		if err := s.recoverDeletedChildFacts(ctx, row); err != nil && !errors.Is(err, store.ErrSubagentNotFound) {
+			return err
+		}
 	}
 	return nil
 }

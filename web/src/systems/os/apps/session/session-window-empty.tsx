@@ -13,22 +13,17 @@ import {
 } from "@/systems/session";
 
 const SessionProcessChoiceDialog = lazy(() =>
-  import("@/systems/session/components/session-process-choice-dialog").then(module => ({
+  import("@/systems/session").then(module => ({
     default: module.SessionProcessChoiceDialog,
   }))
 );
-const SessionDeleteDialog = lazy(() =>
-  import("@/systems/session/components/session-delete-dialog").then(module => ({
-    default: module.SessionDeleteDialog,
-  }))
-);
 const SessionLaterDialog = lazy(() =>
-  import("@/systems/session/components/session-later-dialog").then(module => ({
+  import("@/systems/session").then(module => ({
     default: module.SessionLaterDialog,
   }))
 );
 const SessionRenameDialog = lazy(() =>
-  import("@/systems/session/components/session-rename-dialog").then(module => ({
+  import("@/systems/session").then(module => ({
     default: module.SessionRenameDialog,
   }))
 );
@@ -41,7 +36,7 @@ export function SessionWindowEmpty({ windowId }: { windowId: string }) {
   useTopbarSlot({
     crumb: <span className="text-muted-foreground">Sessions</span>,
     overflow: <SessionViewToggle onValueChange={view.setView} value={view.view} />,
-    actions: <SessionPanelToggle panel="sidebar" open={sidebar.open} onToggle={sidebar.toggle} />,
+    start: <SessionPanelToggle panel="sidebar" open={sidebar.open} onToggle={sidebar.toggle} />,
   });
 
   return (
@@ -84,21 +79,6 @@ export function SessionWindowEmpty({ windowId }: { windowId: string }) {
           />
         </div>
       </SessionSidebarLayout>
-      {sidebar.rowDeleteDialog.open && sidebar.rowDeleteDialog.session ? (
-        <Suspense fallback={null}>
-          <SessionDeleteDialog
-            open
-            onOpenChange={sidebar.rowDeleteDialog.onOpenChange}
-            session={sidebar.rowDeleteDialog.session}
-            sessions={sidebar.rowDeleteDialog.sessions}
-            results={sidebar.rowDeleteDialog.results}
-            onRetry={sidebar.rowDeleteDialog.onRetry}
-            isDeleting={sidebar.rowDeleteDialog.isDeleting}
-            childSessions={sidebar.rowDeleteDialog.childSessions}
-            onConfirm={sidebar.rowDeleteDialog.onConfirm}
-          />
-        </Suspense>
-      ) : null}
       {sidebar.rowProcessDialog.open ? (
         <Suspense fallback={null}>
           <SessionProcessChoiceDialog {...sidebar.rowProcessDialog} />

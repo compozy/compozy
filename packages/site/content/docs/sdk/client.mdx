@@ -1,0 +1,173 @@
+---
+title: Client
+description: Discover the daemon, verify its identity, and get a connected client.
+---
+
+<SdkLangBar />
+
+## Connect
+
+Construct a connected client. Both clients check the daemon's identity before they return one. A local process outside the browser does not need an app token.
+
+<SdkSymbol lang="ts">
+
+```ts title="Signature"
+Compozy.connect(options?: ConnectOptions): Promise<Compozy>
+```
+
+In Node, Bun, and Deno, discovery checks `baseUrl`, then `COMPOZY_URL`, then the `daemon.json` in the daemon home, then `http://127.0.0.1:2123`. In a browser, the client uses `baseUrl` or `http://localhost:2123`.
+
+<SdkFields title="Options">
+  <SdkField name="baseUrl" type="string">
+    Selects a daemon ahead of `COMPOZY_URL` and local discovery. An HTTP(S) URL without credentials,
+    query, or fragment.
+  </SdkField>
+  <SdkField name="token" type="string">
+    App token, sent as a bearer token. In Node, Bun, and Deno, `COMPOZY_APP_TOKEN` is used when this
+    is unset.
+  </SdkField>
+  <SdkField name="home" type="string">
+    Daemon home ahead of `COMPOZY_HOME` and `~/.compozy`. Browsers do not read it.
+  </SdkField>
+  <SdkField name="timeoutMs" type="number">
+    Timeout of the identity check. Defaults to 5000.
+  </SdkField>
+  <SdkField name="fetch" type="typeof fetch">
+    A fetch implementation for runtimes that do not provide one.
+  </SdkField>
+  <SdkField name="clientId" type="string">
+    Sent as `X-Compozy-Client-ID`. Defaults to `sdk-ts`.
+  </SdkField>
+  <SdkField name="onVersionMismatch" type="(versions: { client: string; daemon: string }) => void">
+    Called when the daemon's major or minor version differs from the client's. The client still
+    connects. Without it, the client logs a warning.
+  </SdkField>
+</SdkFields>
+
+```ts title="Example"
+import { Compozy } from "@compozy/client";
+
+const compozy = await Compozy.connect({ baseUrl: "http://127.0.0.1:2123" });
+console.log(`Connected to CompozyOS ${compozy.daemon.version}`);
+```
+
+</SdkSymbol>
+
+<SdkSymbol lang="go">
+
+```go title="Signature"
+func New(ctx context.Context, opts ...Option) (*Client, error)
+```
+
+Discovery checks `WithBaseURL`, then `COMPOZY_URL`, then the unix socket (`WithSocket`, or `daemon.sock` in the daemon home), then the TCP address in the home's `daemon.json`. A daemon major or minor version that differs from the client's logs a warning; the client still connects.
+
+<SdkFields title="Fields">
+  <SdkField name="WithBaseURL" type="string">
+    Selects an HTTP origin ahead of environment and local discovery.
+  </SdkField>
+  <SdkField name="WithSocket" type="string">
+    Selects the unix socket tried before the home directory's TCP record.
+  </SdkField>
+  <SdkField name="WithHome" type="string">
+    Selects the daemon home ahead of `COMPOZY_HOME` and `~/.compozy`.
+  </SdkField>
+  <SdkField name="WithToken" type="string">
+    Sets the bearer token sent on every request. Defaults to `COMPOZY_APP_TOKEN`.
+  </SdkField>
+  <SdkField name="WithHTTPClient" type="*http.Client">
+    Uses a caller-configured HTTP client without mutating it.
+  </SdkField>
+  <SdkField name="WithLogger" type="*slog.Logger">
+    Selects the logger for daemon version warnings. Defaults to `slog.Default()`.
+  </SdkField>
+  <SdkField name="WithClientID" type="string">
+    Sets the `X-Compozy-Client-ID` header. Defaults to `sdk-go`.
+  </SdkField>
+</SdkFields>
+
+```go title="Example"
+import "github.com/compozy/compozy/sdk/go/client"
+
+c, err := client.New(ctx, client.WithBaseURL("http://127.0.0.1:2123"))
+if err != nil {
+    return err
+}
+fmt.Println(c.DaemonVersion())
+```
+
+</SdkSymbol>
+
+## Daemon identity
+
+The identity the daemon reported when the client connected.
+
+<SdkSymbol lang="ts">
+
+```ts title="Signature"
+compozy.daemon: DaemonIdentity
+```
+
+<SdkFields title="Options">
+  <SdkField name="version" type="string" />
+  <SdkField name="httpHost" type="string" />
+  <SdkField name="httpPort" type="number" />
+  <SdkField name="pid" type="number" />
+  <SdkField name="userHomeDir" type="string">
+    Empty when the daemon does not report it.
+  </SdkField>
+  <SdkField name="startedAt" type="string">
+    Empty when the daemon does not report it.
+  </SdkField>
+</SdkFields>
+
+</SdkSymbol>
+
+<SdkSymbol lang="go">
+
+```go title="Signature"
+func (c *Client) DaemonVersion() string
+```
+
+The Go client keeps only the version.
+
+</SdkSymbol>
+
+## Start a private daemon
+
+The Node-only `@compozy/client/node` entry adds `Compozy.start()`. It connects to the daemon already running in that home, or starts one when the home has none. `close({ stopDaemon: true })` stops only the daemon this client started, and only while the home's `daemon.json` still names that process. The binary lookup is `binaryPath`, `COMPOZY_BIN`, installed `@compozy/cli`, then `PATH`.
+
+<SdkSymbol lang="ts">
+
+```ts title="Signature"
+Compozy.start(options?: StartOptions): Promise<Compozy>
+compozy.close(options?: { stopDaemon?: boolean }): Promise<void>
+```
+
+<SdkFields title="Options">
+  <SdkField name="home" type="string">
+    The daemon home, created when missing. Defaults to `COMPOZY_HOME`, then `~/.compozy`.
+  </SdkField>
+  <SdkField name="timeoutMs" type="number">
+    Start timeout. Defaults to 30000.
+  </SdkField>
+  <SdkField name="binaryPath" type="string">
+    Path to the `compozy` binary.
+  </SdkField>
+</SdkFields>
+
+`StartOptions` also takes `token`, `fetch`, `clientId`, and `onVersionMismatch`, as `connect()` does.
+
+```ts title="Example"
+import { Compozy } from "@compozy/client/node";
+
+const compozy = await Compozy.start({
+  home: "/tmp/my-app-home",
+  timeoutMs: 30000,
+});
+console.log(compozy.daemon.version);
+await compozy.close({ stopDaemon: true });
+```
+
+</SdkSymbol>
+
+<SdkSymbol lang="go" none />

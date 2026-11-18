@@ -55,6 +55,22 @@ func beginApplyTransaction(
 }
 
 func (a *applyTransaction) apply(index int, op Op) error {
+	if op.Kind == OpCopy {
+		source, exists, err := a.currentEntry(op.SourceKey)
+		if err != nil {
+			return err
+		}
+		if !exists || source.Deleted {
+			return fmt.Errorf("copy source %q: %w", op.SourceKey, ErrNotFound)
+		}
+		if source.Rev != op.SourceRev {
+			return fmt.Errorf("copy source %q: %w", op.SourceKey, ErrRevConflict)
+		}
+		if len(source.Value) > a.limits.MaxValueBytes {
+			return ErrValueTooLarge
+		}
+		op.Kind, op.Value = OpPut, source.Value
+	}
 	current, exists, err := a.currentEntry(op.Key)
 	if err != nil {
 		return err

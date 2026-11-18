@@ -25,6 +25,14 @@ type extensionSearchCatalogStub struct {
 	browseFn func(context.Context, string, int, int) (marketplacepkg.BrowseResult, error)
 }
 
+func (c extensionSearchCatalogStub) BrowseFiltered(
+	ctx context.Context,
+	filter marketplacepkg.BrowseFilter,
+	offset, limit int,
+) (marketplacepkg.BrowseResult, error) {
+	return c.Browse(ctx, filter.Query, offset, limit)
+}
+
 func (s extensionSearchCatalogStub) Browse(
 	ctx context.Context,
 	query string,

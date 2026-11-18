@@ -31,6 +31,7 @@ func (e *Evaluator) evaluateCommand(
 	}
 	expect = normalizeCommandExpectation(expect)
 	req := CommandRequest{
+		LoopRunID:   in.LoopRunID,
 		WorkspaceID: in.ToolScope.WorkspaceID,
 		ProfileID:   in.ToolScope.ProfileID,
 		GateID:      gate.ID,

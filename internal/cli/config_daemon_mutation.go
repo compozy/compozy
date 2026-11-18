@@ -314,6 +314,7 @@ func maybeReloadConfigAfterLocalWrite(
 	}
 	record.RestartRequired = result.RestartRequired
 	record.RestartScope = result.RestartScope
+	record.Warnings = append([]string(nil), result.Warnings...)
 	return &record, nil
 }
 
@@ -374,11 +375,10 @@ func parseDottedConfigPath(raw string) ([]string, error) {
 	if strings.ContainsAny(trimmed, "[]") {
 		return nil, fmt.Errorf("cli: config set does not support array paths: %q", trimmed)
 	}
-	parts := strings.Split(trimmed, ".")
-	for _, part := range parts {
+	for part := range strings.SplitSeq(trimmed, ".") {
 		if strings.TrimSpace(part) == "" {
 			return nil, fmt.Errorf("cli: config path %q contains an empty segment", trimmed)
 		}
 	}
-	return parts, nil
+	return compozyconfig.ParseDottedConfigPath(trimmed)
 }

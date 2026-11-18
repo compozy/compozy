@@ -13,6 +13,9 @@ const (
 
 // MarketplaceListingPayload is one extension catalog discovery row.
 type MarketplaceListingPayload struct {
+	Category         string                       `json:"category"`
+	CategoryLabel    string                       `json:"category_label"`
+	Featured         bool                         `json:"featured"`
 	SourceRef        string                       `json:"source_ref,omitempty"`
 	Icon             string                       `json:"icon,omitempty"`
 	Layout           string                       `json:"layout,omitempty"`
@@ -97,6 +100,7 @@ type ExtensionContentsPayload struct {
 
 // MarketplaceListResponse preserves the source and cursor metadata of the catalog page.
 type MarketplaceListResponse struct {
+	Categories []MarketplaceCategoryCount  `json:"categories"`
 	Refreshing bool                        `json:"refreshing,omitzero"`
 	Total      int                         `json:"total"`
 	NextCursor string                      `json:"next_cursor,omitempty"`
@@ -157,4 +161,29 @@ type ExtensionInputStatePayload struct {
 	Type   string `json:"type"`
 	Set    bool   `json:"set"`
 	Active bool   `json:"active"`
+}
+
+type MarketplaceCategoryCount struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+type MarketplaceSection struct {
+	ID    string                      `json:"id"`
+	Label string                      `json:"label"`
+	Total int                         `json:"total"`
+	Items []MarketplaceListingPayload `json:"items"`
+}
+type MarketplaceSectionsResponse struct {
+	Sections   []MarketplaceSection       `json:"sections"`
+	Revision   string                     `json:"revision"`
+	Stale      bool                       `json:"stale"`
+	Refreshing bool                       `json:"refreshing,omitzero"`
+	ErrorClass string                     `json:"error_class,omitempty"`
+	Error      string                     `json:"error,omitempty"`
+	Sources    []MarketplaceSourceSummary `json:"sources"`
+}
+type MarketplaceCategoriesResponse struct {
+	Revision   string                     `json:"revision"`
+	Categories []MarketplaceCategoryCount `json:"categories"`
 }

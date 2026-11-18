@@ -8,16 +8,32 @@ import (
 
 func sessionOrchestrationDescriptors() []toolspkg.Descriptor {
 	return []toolspkg.Descriptor{
-		orchestrationDescriptor(toolspkg.ToolIDSessionCompact, "session_compact", "Session Compact",
-			"Request advertised native agent compaction on an idle same-workspace session (experimental).",
-			sessionTargetInputSchema, sessionCompactOutputSchema, toolspkg.RiskMutating, false, false),
 		orchestrationDescriptor(
-			toolspkg.ToolIDSessionWait, "session_wait", "Session Wait",
-			"Wait for one bounded badge transition on a same-workspace session. To end your turn and be woken when "+
-				"one or more sessions settle, use compozy__monitor_create with kind=session.",
-			sessionWaitInputSchema, sessionWaitOutputSchema, toolspkg.RiskRead, true, false,
+			toolspkg.ToolIDSessionCompact,
+			"session_compact",
+			"Session Compact",
+			"Request advertised native agent compaction on an idle session authorized by workspace access policy "+
+				"(experimental).",
+			sessionTargetInputSchema,
+			sessionCompactOutputSchema,
+			toolspkg.RiskMutating,
+			false,
+			false,
 		),
 		orchestrationDescriptor(
+			toolspkg.ToolIDSessionWait,
+			"session_wait",
+			"Session Wait",
+			"Wait for one bounded badge transition on a session authorized by workspace access policy. "+
+				"To end your turn and be woken when one or more sessions settle, use compozy__monitor_create "+
+				"with kind=session.",
+			sessionWaitInputSchema,
+			sessionWaitOutputSchema,
+			toolspkg.RiskRead,
+			true,
+			false,
+		),
+		withResultViews(orchestrationDescriptor(
 			toolspkg.ToolIDSessionSpawn,
 			"session_spawn",
 			"Session Spawn",
@@ -28,25 +44,25 @@ func sessionOrchestrationDescriptors() []toolspkg.Descriptor {
 			toolspkg.RiskMutating,
 			false,
 			false,
-		),
+		), sessionSpawnCompactOutputSchema, sessionSpawnOutputSchema),
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionStop, "session_stop", "Session Stop",
-			"Stop one same-workspace session other than the caller.",
+			"Stop one session other than the caller, subject to workspace access policy.",
 			sessionStopInputSchema, sessionStopOutputSchema, toolspkg.RiskDestructive, false, true,
 		),
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionApprove, "session_approve", "Session Approve",
-			"Resolve one pending permission request on another same-workspace session.",
+			"Resolve one pending permission request on another session authorized by workspace access policy.",
 			sessionApproveInputSchema, sessionApproveOutputSchema, toolspkg.RiskMutating, false, false,
 		),
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionClarifyAnswer, "session_clarify_answer", "Session Clarify Answer",
-			"Answer one pending clarification on another same-workspace session.",
+			"Answer one pending clarification on another session authorized by workspace access policy.",
 			sessionClarifyAnswerInputSchema, sessionClarifyAnswerOutputSchema, toolspkg.RiskMutating, false, false,
 		),
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionPromptCancel, "session_prompt_cancel", "Session Prompt Cancel",
-			"Cancel one in-flight prompt on another same-workspace session without stopping it.",
+			"Cancel one in-flight prompt on another session without stopping it, subject to workspace access policy.",
 			sessionTargetInputSchema, sessionPromptCancelOutputSchema, toolspkg.RiskMutating, false, false,
 		),
 	}

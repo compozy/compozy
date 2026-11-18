@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type activePromptState struct {
@@ -36,6 +37,12 @@ type activePromptState struct {
 
 	usageMu sync.Mutex
 	usage   TokenUsage
+
+	// traceCtx is the span context of the turn that sent the prompt; it is set before the state is published and
+	// never changes, so readers take only promptMu.RLock.
+	traceCtx trace.SpanContext
+	// firstOutputAt is the Unix nano time of the provider's first message chunk, 0 until it arrives.
+	firstOutputAt atomic.Int64
 }
 
 type toolCallProjection struct {
@@ -57,18 +64,11 @@ type toolCallProjection struct {
 
 const maxPendingToolResults = 128
 
-func (p *AgentProcess) beginPrompt(
-	turnID string,
-	bufferSize int,
-	cancelFns ...context.CancelFunc,
-) (*activePromptState, error) {
-	return p.beginPromptState(turnID, "", 0, bufferSize, cancelFns...)
-}
-
 func (p *AgentProcess) beginPromptForRun(
 	turnID string,
 	runID string,
 	generation int64,
+	traceCtx trace.SpanContext,
 	bufferSize int,
 	cancelFns ...context.CancelFunc,
 ) (*activePromptState, error) {
@@ -76,13 +76,14 @@ func (p *AgentProcess) beginPromptForRun(
 	if runID == "" || generation <= 0 {
 		return nil, errors.New("acp: prompt run identity is incomplete")
 	}
-	return p.beginPromptState(turnID, runID, generation, bufferSize, cancelFns...)
+	return p.beginPromptState(turnID, runID, generation, traceCtx, bufferSize, cancelFns...)
 }
 
 func (p *AgentProcess) beginPromptState(
 	turnID string,
 	runID string,
 	generation int64,
+	traceCtx trace.SpanContext,
 	bufferSize int,
 	cancelFns ...context.CancelFunc,
 ) (*activePromptState, error) {
@@ -105,6 +106,7 @@ func (p *AgentProcess) beginPromptState(
 		turnID:               turnID,
 		runID:                runID,
 		generation:           generation,
+		traceCtx:             traceCtx,
 		events:               make(chan AgentEvent, bufferSize),
 		ingest:               NewIngestGate(defaultIngestCapacity, defaultIngestMaxBytes),
 		activity:             make(chan struct{}, 1),
@@ -159,33 +161,40 @@ func (p *AgentProcess) cancelCurrentPrompt() bool {
 	return true
 }
 
-func (p *AgentProcess) nextPromptText(message string, maintenance bool) (string, bool, SystemPromptDeliveryMode) {
-	if maintenance {
-		return message, false, ""
+func (p *AgentProcess) nextPromptText(
+	message string,
+	req PromptRequest,
+) (string, bool, SystemPromptDeliveryMode, StartupManifest) {
+	if req.BypassesContext() {
+		return message, false, "", StartupManifest{}
 	}
 	userMessage := strings.TrimSpace(message)
 
 	p.systemPromptMu.Lock()
 	defer p.systemPromptMu.Unlock()
 
-	systemPrompt := strings.TrimSpace(p.systemPrompt)
-	if p.systemPromptSent || systemPrompt == "" {
-		return userMessage, false, ""
+	systemPrompt, manifest := p.startupPromptForRequest(req)
+	systemPrompt = strings.TrimSpace(systemPrompt)
+	if p.systemPromptSent || strings.TrimSpace(p.systemPrompt) == "" {
+		return userMessage, false, "", StartupManifest{}
+	}
+	if len(manifest.Spans) == 0 && systemPrompt != "" {
+		manifest = OpaqueStartupManifest(systemPrompt, false)
 	}
 
 	delivery := p.systemPromptDelivery
 	if delivery == "" {
 		delivery = SystemPromptDeliveryFirstTurnPrefix
 	}
-	if delivery == SystemPromptDeliveryNative {
-		return userMessage, true, delivery
+	if delivery == SystemPromptDeliveryNative || systemPrompt == "" {
+		return userMessage, true, delivery, manifest
 	}
 	return strings.TrimSpace(
 		"Session instructions (treat as system guidance for this conversation):\n\n" +
 			systemPrompt +
 			"\n\nUser request:\n\n" +
 			userMessage,
-	), true, delivery
+	), true, delivery, manifest
 }
 
 // ReplacePendingStartupPrompt swaps startup guidance that has not reached the provider:
@@ -211,29 +220,34 @@ func (p *AgentProcess) markSystemPromptSent() {
 	p.systemPromptSent = true
 }
 
-func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
+func (p *AgentProcess) emitPromptEvent(event AgentEvent) bool {
 	p.promptMu.RLock()
 	active := p.activePrompt
 	p.promptMu.RUnlock()
 	if active == nil {
-		return
+		return false
 	}
 
+	if event.Type == EventTypeAgentMessage && active.firstOutputAt.Load() == 0 {
+		active.firstOutputAt.CompareAndSwap(0, event.Timestamp.UnixNano())
+	}
 	active.sendMu.Lock()
 	defer active.sendMu.Unlock()
 	if active.closed {
-		return
+		return false
 	}
 	if active.deferToolResultLocked(event) {
-		return
+		return true
 	}
 	if active.shouldSuppressToolCallLocked(event) {
-		return
+		return true
 	}
 	if event.Type == EventTypeDone {
 		active.flushDeferredToolResultsLocked()
 	}
-	active.sendEventLocked(event)
+	if !active.sendEventLocked(event) {
+		return false
+	}
 	if event.Type == EventTypeToolCall {
 		active.flushDeferredToolResultsForToolLocked(event.ToolCallID)
 		projection := active.seenToolCalls[strings.TrimSpace(event.ToolCallID)]
@@ -246,6 +260,7 @@ func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
 			active.sendEventLocked(event)
 		}
 	}
+	return true
 }
 
 func (a *activePromptState) deferToolResultLocked(event AgentEvent) bool {
@@ -389,23 +404,23 @@ func (a *activePromptState) flushDeferredToolResultsLocked() {
 	}
 }
 
-func (a *activePromptState) sendEventLocked(event AgentEvent) {
+func (a *activePromptState) sendEventLocked(event AgentEvent) bool {
 	if a == nil {
-		return
+		return false
 	}
 	event = a.stampAsyncToolResultLocked(event)
 	if event.Type == EventTypeToolResult {
 		projection := a.seenToolCalls[strings.TrimSpace(event.ToolCallID)]
 		if projection.syntheticResult && projection.hasResult {
 			if !toolResultHasOutput(event) {
-				return
+				return true
 			}
 			event = event.WithToolResultUpdate()
 		}
 	}
 	if err := a.ingest.Admit(event); err != nil {
 		a.failIngest(err)
-		return
+		return false
 	}
 	if event.Type == EventTypeToolResult {
 		id := strings.TrimSpace(event.ToolCallID)
@@ -417,6 +432,7 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	case a.activity <- struct{}{}:
 	default:
 	}
+	return true
 }
 
 func toolResultHasOutput(event AgentEvent) bool {

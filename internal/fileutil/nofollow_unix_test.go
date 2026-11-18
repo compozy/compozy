@@ -3,7 +3,9 @@
 package fileutil
 
 import (
+	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -221,4 +223,55 @@ func TestDirectoryRejectsSymlinkAndFIFOChildren(t *testing.T) {
 			t.Fatal("OpenRegularFile(config.fifo) blocked")
 		}
 	})
+}
+
+func TestMaterializedTarRejectsFIFOReplacement(t *testing.T) {
+	t.Parallel()
+	for _, entry := range []string{"file", "directory"} {
+		t.Run("Should reject a "+entry+" swapped for a FIFO without blocking", func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			path := filepath.Join(root, "entry")
+			if entry == "directory" {
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(path, []byte("payload"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			swapped := false
+			writer := archiveWriteFunc(func(raw []byte) (int, error) {
+				if !swapped {
+					swapped = true
+					if err := os.Remove(path); err != nil {
+						return 0, err
+					}
+					if err := unix.Mkfifo(path, 0o600); err != nil {
+						return 0, err
+					}
+				}
+				return io.Discard.Write(raw)
+			})
+			result := make(chan error, 1)
+			go func() {
+				_, err := WriteTarDirectory(ctx, writer, root, nil, TarLimits{MaterializeSymlinks: true})
+				result <- err
+			}()
+			select {
+			case err := <-result:
+				want := ErrNotRegular
+				if entry == "directory" {
+					want = ErrNotDirectory
+				}
+				if !errors.Is(err, want) {
+					t.Fatalf("FIFO replacement = %v, want %v", err, want)
+				}
+			case <-time.After(time.Second):
+				cancel()
+				t.Fatal("materialized tar blocked opening a FIFO")
+			}
+		})
+	}
 }

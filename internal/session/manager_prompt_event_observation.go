@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+// observeRecordAndNotifyPromptEvent makes the tool boundary durable before cancellation or notification.
 func (m *Manager) observeRecordAndNotifyPromptEvent(
 	ctx context.Context,
 	session *Session,
@@ -27,6 +28,15 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 	session.mu.RLock()
 	sessionType := session.Type
 	session.mu.RUnlock()
+	if normalized.Type == acp.EventTypeError && normalized.ProviderError != nil &&
+		normalized.ProviderError.Code == acp.ProviderErrorAuthRequired && normalized.Failure != nil {
+		normalized.Failure = store.CloneSessionFailure(normalized.Failure)
+		normalized.Failure.Kind = store.FailureProviderAuth
+		session.setFailure(normalized.Failure)
+		if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
+			return err
+		}
+	}
 	decorateHandoffAction(sessionType, session.ID, &normalized)
 	if err := m.recordEvent(ctx, session, normalized); err != nil {
 		return fmt.Errorf("session: record prompt event: %w", err)
@@ -34,6 +44,7 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 	if m.discardStoppedPromptEvent(ctx, session, normalized.TurnID, normalized.Type) {
 		return errPromptEventDiscardedAfterStop
 	}
+	m.observeSteerToolBoundary(ctx, session, normalized)
 	loop.fileMutations.Observe(normalized)
 	m.emitFileMutationMarkerBeforeTerminalNotification(ctx, session, turnState, loop, normalized)
 	m.notifyManagedPromptEvent(ctx, session, turnState, normalized)

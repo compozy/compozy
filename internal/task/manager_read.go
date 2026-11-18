@@ -12,6 +12,7 @@ import (
 
 // GetTask returns one expanded task view after enforcing read authority.
 func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*View, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -26,11 +27,10 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 		return nil, err
 	}
 
-	children, err := m.listTaskSummaries(ctx, Query{ReadScope: actor.ReadScope, ParentTaskID: trimmedID})
+	children, err := m.listTaskSummaries(ctx, Query{ReadScope: actor.ReadScope, ParentTaskID: trimmedID}, actor)
 	if err != nil {
 		return nil, err
 	}
-	children = m.filterAuthorizedTaskSummaries(ctx, actor, children)
 	dependencies, err := m.store.ListDependencies(ctx, trimmedID)
 	if err != nil {
 		return nil, err
@@ -64,14 +64,8 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 		return nil, err
 	}
 	summary.ChildCount = ClampSummaryCount(len(children))
-	summary.DependencyCount = ClampSummaryCount(len(visibleDependencies))
-	summary.Dependencies = dependencyReferences
-	summary.ActiveRun = activeRunSummary(visibleRuns, record.MaxAttempts)
-	summary.BlockedReasons = filterAuthorizedBlockedReasons(summary.BlockedReasons, visibleDependencies)
-	if strings.TrimSpace(record.CurrentRunID) != "" && !containsRunID(visibleRuns, record.CurrentRunID) {
-		record.CurrentRunID = ""
-		summary.CurrentRunID = ""
-	}
+	filterTaskSummaryRelations(&summary, visibleDependencies, visibleRuns, dependencyReferences)
+	record.CurrentRunID = summary.CurrentRunID
 
 	view := &View{
 		Summary:              summary,
@@ -121,6 +115,7 @@ func (m *Service) ListTaskRuns(
 	query RunQuery,
 	actor ActorContext,
 ) ([]Run, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -292,37 +287,26 @@ func (m *Service) ListTasks(
 	query Query,
 	actor ActorContext,
 ) ([]Summary, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
 	if actor.ReadScope != (store.ReadScope{}) {
 		query.ReadScope = actor.ReadScope
 	}
-	summaries, err := m.listTaskSummaries(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	if canBypassTaskReadAuthorization(actor) {
-		return summaries, nil
-	}
-	visible := make([]Summary, 0, len(summaries))
-	for idx := range summaries {
-		if err := m.authorizeTaskResource(ctx, actor, taskRecordFromSummary(&summaries[idx])); err == nil {
-			visible = append(visible, summaries[idx])
-		}
-	}
-	return visible, nil
+	return m.listTaskSummaries(ctx, query, actor)
 }
 
-func (m *Service) listTaskSummaries(ctx context.Context, query Query) ([]Summary, error) {
+func (m *Service) listTaskSummaries(ctx context.Context, query Query, actor ActorContext) ([]Summary, error) {
 	summaries, err := m.store.ListTasks(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
+	summaries = m.filterAuthorizedTaskSummaries(ctx, actor, summaries)
 	enriched := make([]Summary, 0, len(summaries))
 	for idx := range summaries {
-		item, err := m.enrichTaskSummary(ctx, &summaries[idx])
+		item, err := m.enrichTaskSummary(ctx, &summaries[idx], actor)
 		if err != nil {
 			return nil, err
 		}
@@ -331,8 +315,8 @@ func (m *Service) listTaskSummaries(ctx context.Context, query Query) ([]Summary
 	return enriched, nil
 }
 
-func (m *Service) enrichTaskSummary(ctx context.Context, summary *Summary) (Summary, error) {
-	childCount, err := m.store.CountDirectChildren(ctx, summary.ID)
+func (m *Service) enrichTaskSummary(ctx context.Context, summary *Summary, actor ActorContext) (Summary, error) {
+	childCount, err := m.authorizedChildCount(ctx, summary.ID, actor)
 	if err != nil {
 		return Summary{}, err
 	}
@@ -344,18 +328,55 @@ func (m *Service) enrichTaskSummary(ctx context.Context, summary *Summary) (Summ
 	if err != nil {
 		return Summary{}, err
 	}
+	record := taskRecordFromSummary(summary)
 	events, err := m.store.ListTaskEvents(ctx, EventQuery{TaskID: summary.ID, Limit: 1})
 	if err != nil {
 		return Summary{}, err
 	}
-	return m.enrichTaskSummaryFromState(
+	enriched, err := m.enrichTaskSummaryFromState(
 		ctx,
-		taskRecordFromSummary(summary),
+		record,
 		childCount,
 		dependencies,
 		runs,
 		events,
 	)
+	if err != nil {
+		return Summary{}, err
+	}
+	visibleDependencies, visibleRuns, _, references, err :=
+		m.authorizedTaskViewRelations(ctx, actor, record, dependencies, runs, nil)
+	if err != nil {
+		return Summary{}, err
+	}
+	filterTaskSummaryRelations(&enriched, visibleDependencies, visibleRuns, references)
+	return enriched, nil
+}
+
+func (m *Service) authorizedChildCount(ctx context.Context, taskID string, actor ActorContext) (int, error) {
+	if canBypassTaskReadAuthorization(actor) {
+		return m.store.CountDirectChildren(ctx, taskID)
+	}
+	children, err := m.store.ListTasks(ctx, Query{ReadScope: actor.ReadScope, ParentTaskID: taskID})
+	if err != nil {
+		return 0, err
+	}
+	return len(m.filterAuthorizedTaskSummaries(ctx, actor, children)), nil
+}
+
+func filterTaskSummaryRelations(
+	summary *Summary,
+	dependencies []Dependency,
+	runs []Run,
+	references []DependencyReference,
+) {
+	summary.DependencyCount = ClampSummaryCount(len(dependencies))
+	summary.Dependencies = references
+	summary.ActiveRun = activeRunSummary(runs, summary.MaxAttempts)
+	summary.BlockedReasons = filterAuthorizedBlockedReasons(summary.BlockedReasons, dependencies)
+	if !containsRunID(runs, summary.CurrentRunID) {
+		summary.CurrentRunID = ""
+	}
 }
 
 func (m *Service) enrichTaskSummaryFromState(

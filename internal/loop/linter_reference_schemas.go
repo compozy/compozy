@@ -6,7 +6,10 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/tools"
 )
+
+const schemaAnyType = "any"
 
 func inputSchema(input dsl.Input) refs.Schema {
 	switch input.Type {
@@ -83,7 +86,7 @@ func (c *lintContext) sourceOutputSchema(node dsl.Node) (refs.Schema, bool) {
 
 func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	if !dsl.IsReservedActionKind(node.Kind) {
-		return c.toolOutputSchema(node.Kind)
+		return c.toolOutputSchema(node)
 	}
 	switch dsl.ActionKind(node.Kind) {
 	case dsl.ActionGoal:
@@ -124,7 +127,7 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 		}
 		schema := refs.Schema{}
 		for key := range params.Map {
-			schema[key] = "any"
+			schema[key] = schemaAnyType
 		}
 		return schema, true
 	default:
@@ -132,15 +135,16 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	}
 }
 
-func (c *lintContext) toolOutputSchema(kind string) (refs.Schema, bool) {
+func (c *lintContext) toolOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	if c.linter.tools == nil {
 		return nil, false
 	}
-	snapshot, ok := c.linter.tools.Snapshot(kind)
-	if !ok || len(snapshot.OutputSchema) == 0 {
+	snapshot, ok := c.linter.tools.Snapshot(node.Kind)
+	raw, _ := snapshot.OutputSchemaFor(nodeResultView(node))
+	if !ok || len(raw) == 0 {
 		return nil, false
 	}
-	schema, err := schemaFromJSON(snapshot.OutputSchema)
+	schema, err := schemaFromJSON(raw)
 	// An invalid tool schema cannot safely participate in downstream reference checks.
 	if err != nil {
 		return nil, false
@@ -193,4 +197,67 @@ func schemaFromJSON(raw json.RawMessage) (refs.Schema, error) {
 		return nil, fmt.Errorf("decode JSON schema: %w", err)
 	}
 	return refs.Schema(decoded), nil
+}
+
+func normalizedReferenceSchema(schema dsl.Schema) (refs.Schema, bool) {
+	normalized, err := normalizeLoopSchema(schema)
+	return refs.Schema(normalized), err == nil
+}
+
+func referenceFieldSchema(fields refs.Schema) refs.Schema {
+	properties := make(map[string]any, len(fields))
+	for key, value := range fields {
+		if value == schemaAnyType {
+			properties[key] = map[string]any{}
+		} else {
+			properties[key] = shorthandPropertySchema(value)
+		}
+	}
+	return refs.Schema{"type": "object", "properties": properties, "additionalProperties": false}
+}
+
+func outputIsJSONSchema(node dsl.Node) bool {
+	return node.Class != dsl.NodeClassSource ||
+		(len(node.Produces) == 0 && dsl.SourceKind(node.Kind) == dsl.SourceInput)
+}
+
+func isActionKind(node dsl.Node, kind dsl.ActionKind) bool {
+	return node.Class == dsl.NodeClassAction && dsl.ActionKind(node.Kind) == kind
+}
+
+func isToolAction(node dsl.Node) bool {
+	return node.Class == dsl.NodeClassAction && !dsl.IsReservedActionKind(node.Kind)
+}
+
+func (c *lintContext) referenceNodeSchema(node dsl.Node) refs.NodeSchema {
+	raw, ok := c.outputSchema(node)
+	result := refs.NodeSchema{
+		Output:           raw,
+		FallbackOutput:   raw,
+		HasOutput:        ok,
+		OutputJSONSchema: outputIsJSONSchema(node),
+		HasProgress:      isControlKind(node, dsl.ControlFanOut),
+	}
+	if isToolAction(node) && len(node.Produces) == 0 {
+		result.FallbackOutput = nil
+		if c.linter.tools != nil {
+			snapshot, found := c.linter.tools.Snapshot(node.Kind)
+			result.ResultViewOutput = found && snapshot.FullOutputSchemaDigest != ""
+			result.AllowOpenOutput = result.ResultViewOutput &&
+				nodeResultView(node) == tools.ResultViewFull
+		}
+		return result
+	}
+	if !ok || node.Class == dsl.NodeClassSource {
+		return result
+	}
+	if len(node.Produces) > 0 || isActionKind(node, dsl.ActionRunAgent) || isActionKind(node, dsl.ActionGoal) ||
+		isControlKind(node, dsl.ControlAsk) {
+		result.Output, _ = normalizedReferenceSchema(dsl.Schema(raw))
+		result.AllowOpenOutput = !isToolAction(node) && isFullJSONSchema(map[string]any(raw))
+	} else if isActionKind(node, dsl.ActionTransform) ||
+		(isActionKind(node, dsl.ActionRunLoop) && raw[jsonSchemaTypeKey] == nil) {
+		result.Output = referenceFieldSchema(raw)
+	}
+	return result
 }

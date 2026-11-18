@@ -173,7 +173,7 @@ func cmdPaletteContextSnapshot(client windowmanager.ClientView) cmdpalette.Conte
 		Values: map[cmdpalette.ContextKey]any{
 			cmdpalette.ContextWindowFocused:      paletteContext.WindowFocused,
 			cmdpalette.ContextWindowFloating:     paletteContext.WindowFloating,
-			cmdpalette.ContextWindowStacked:      paletteContext.WindowStacked,
+			cmdpalette.ContextWindowStacked:      paletteContext.WindowInSplit,
 			cmdpalette.ContextDesktopWindowCount: paletteContext.DesktopWindowCount,
 			cmdpalette.ContextScopeGlobal:        paletteContext.ScopeGlobal,
 			cmdpalette.ContextShellDesktop:       paletteContext.ShellDesktop,

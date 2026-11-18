@@ -175,8 +175,8 @@ func (m *Manager) bindWithFallback[T any](
 			return zero, index, err
 		}
 		causes = append(causes, err)
-		if context.Cause(ctx) != nil {
-			// Cancellation abandons the sequence: no marker, no further route.
+		if context.Cause(ctx) != nil || errors.Is(err, ErrDaemonShuttingDown) {
+			// Cancellation and daemon shutdown abandon the sequence: no marker, no further route.
 			return zero, index, err
 		}
 		if index+1 >= len(all) {

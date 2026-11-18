@@ -17,13 +17,15 @@ import (
 )
 
 type CheckTarget struct {
-	DefinitionDir, RootDir string
-	UntrustedScripts       bool
-	Instance               agentinstance.Instance
-	Policy                 ResolvedPolicy
-	Scope                  CollectorScope
-	Gate                   string
-	MainPrompting          bool
+	TriageProvider, TriageModel string
+	ReadOnlyTools               map[string][]string
+	DefinitionDir, RootDir      string
+	UntrustedScripts            bool
+	Instance                    agentinstance.Instance
+	Policy                      ResolvedPolicy
+	Scope                       CollectorScope
+	Gate                        string
+	MainPrompting               bool
 }
 type CheckEnvironment interface {
 	ResolveCheck(context.Context, string) (CheckTarget, error)
@@ -31,6 +33,7 @@ type CheckEnvironment interface {
 	Collect(context.Context, string, CollectorScope, []string, string, string) (CheckDigest, error)
 }
 type TriageOutcome struct {
+	ToolsStatus            string
 	Result, Reason, Detail string
 	DeniedCalls            int64
 	Report                 *agentinstance.ReportInput
@@ -40,6 +43,7 @@ type TriageDispatcher interface {
 	Stop(context.Context, string) error
 }
 type CheckConfig struct {
+	AutoAcceptPerDay, QueueCap                             int
 	Sources                                                compozyconfig.HeartbeatSourcesConfig
 	UnattendedTurnLimit                                    int64
 	QuietBackoffCap                                        time.Duration
@@ -65,6 +69,7 @@ type CheckService struct {
 	collecting         map[string]context.CancelFunc
 	pollSem            chan struct{}
 	recoveryMu         sync.Mutex
+	afterPicks         func(context.Context, []agentinstance.Pick) error
 	afterPause         func(context.Context, agentinstance.Instance) error
 	running            map[string]checkRun
 	store              InstanceWakeStore

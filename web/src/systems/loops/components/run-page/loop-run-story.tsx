@@ -59,6 +59,7 @@ interface LoopRunStoryProps {
 const TONE_RING = {
   neutral: "ring-line text-muted-foreground",
   brand: "ring-brand text-brand",
+  attn: "ring-attn text-attn",
   success: "ring-line text-muted-foreground",
   warning: "ring-warning text-warning",
   destructive: "ring-destructive text-destructive",

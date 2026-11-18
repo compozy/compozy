@@ -1,4 +1,5 @@
 import { useActiveWorkspace } from "./use-active-workspace";
+import { useUserHomeDir } from "./use-user-home-dir";
 import type { DataScope } from "../lib/destination";
 import { DESTINATION_COPY } from "../lib/workspace-scope-copy";
 
@@ -25,6 +26,7 @@ function labelFor(dataScope: DataScope | null, workspaceName: string): string {
 export function useCreateDestination(): CreateDestination {
   const active = useActiveWorkspace();
   const project = active.dataScope?.kind === "project";
+  const userHomeDir = useUserHomeDir({ enabled: !project });
   const workspaceName = active.activeWorkspace?.name ?? "";
 
   return {
@@ -34,6 +36,6 @@ export function useCreateDestination(): CreateDestination {
     workspaceName: project ? workspaceName || null : null,
     destinationLabel: labelFor(active.dataScope, workspaceName),
     runtimeWorkspaceId: active.runtimeWorkspaceId,
-    sessionRoot: project ? (active.activeWorkspace?.root_dir ?? "") : (active.userHomeDir ?? "~"),
+    sessionRoot: project ? (active.activeWorkspace?.root_dir ?? "") : (userHomeDir ?? "~"),
   };
 }

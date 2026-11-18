@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -1120,6 +1121,61 @@ func TestExecutorShouldFenceBudgetAroundCompaction(t *testing.T) {
 }
 
 func TestExecutorShouldRecoverWithoutAnAdvertisedCompactionCommand(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		ownership BindingOwnership
+		requested string
+		want      string
+	}{
+		{name: "Should retain empty requested reasoning when rotating a run owned binding", ownership: BindingOwnershipRunOwned},
+		{name: "Should retain explicit requested reasoning when rotating a run owned binding", ownership: BindingOwnershipRunOwned, requested: "high", want: "high"},
+		{name: "Should retain observed reasoning when rotating a borrowed origin", ownership: BindingOwnershipOriginBorrowed, want: "medium"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			store := newFakeExecutorStore()
+			binder := newFakeManagedBinder(store)
+			executor := newTestExecutor(t, store, binder, &fakeJudge{}, &fakeBudgetGuard{})
+			segment := directSegmentForTest(t, store)
+			segment.binding.Ownership = string(tc.ownership)
+			segment.binding.RequestedRuntime.Reasoning = tc.requested
+			segment.resolvedRuntime.Runtime.Reasoning = "medium"
+			if err := executor.rotateBinding(t.Context(), segment); err != nil {
+				t.Fatalf("rotateBinding() error = %v", err)
+			}
+			if len(binder.binds) != 1 || binder.binds[0].TargetBindingEpoch != 2 {
+				t.Fatalf("rotation binds = %#v, want one epoch 2 request", binder.binds)
+			}
+			if got := binder.binds[0].RuntimeValue().Reasoning; got != tc.want {
+				t.Fatalf("rebind reasoning = %q, want %q", got, tc.want)
+			}
+		})
+	}
+
+	t.Run("Should retain requested ACP options when rotating a confirmed subset", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store)
+		executor := newTestExecutor(t, store, binder, &fakeJudge{}, &fakeBudgetGuard{})
+		segment := directSegmentForTest(t, store)
+		segment.binding.RequestedRuntime.ACPOptions = []dsl.ACPOptionSelection{
+			{ID: "mode", ValueID: "bypassPermissions"},
+			{ID: "thinking", BoolValue: new(true)},
+		}
+		segment.resolvedRuntime.Runtime.ACPOptions = []dsl.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		if err := executor.rotateBinding(t.Context(), segment); err != nil {
+			t.Fatalf("rotateBinding() error = %v", err)
+		}
+		if len(binder.binds) != 1 || binder.binds[0].TargetBindingEpoch != 2 {
+			t.Fatalf("rotation binds = %#v, want one epoch 2 request", binder.binds)
+		}
+		options := binder.binds[0].RuntimeValue().ACPOptions
+		if len(options) != 2 || options[0].ID != "mode" || options[0].ValueID != "bypassPermissions" ||
+			options[1].ID != "thinking" || options[1].BoolValue == nil || !*options[1].BoolValue {
+			t.Fatalf("rebind options = %#v, want full requested mode and thinking", options)
+		}
+	})
+
 	t.Run("Should enter reseed approval without sending a compaction prompt", func(t *testing.T) {
 		t.Parallel()
 		store := newFakeExecutorStore()
@@ -3801,4 +3857,65 @@ func TestExecutorShouldDeferCompactionDuringWait(t *testing.T) {
 			}
 		})
 	})
+}
+
+func TestAppliedGoalRuntime(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		sources map[string]loop.RuntimeSource
+		applied []dsl.ACPOptionSelection
+		want    map[string]loop.RuntimeSource
+	}{
+		{
+			name:    "Should attribute binder defaults to the agent without intent options",
+			applied: []dsl.ACPOptionSelection{{ID: "mode", ValueID: "agent-full-access"}},
+			want:    map[string]loop.RuntimeSource{"mode": loop.RuntimeSourceAgent},
+		},
+		{
+			name:    "Should preserve surviving origins and attribute binder additions with other intent options",
+			sources: map[string]loop.RuntimeSource{"thinking": loop.RuntimeSourceNode, "effort": loop.RuntimeSourceInput, "style": loop.RuntimeSourceRun},
+			applied: []dsl.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}, {ID: "effort", ValueID: "high"}, {ID: "style", ValueID: "concise"}, {ID: "mode", ValueID: "agent-full-access"}},
+			want:    map[string]loop.RuntimeSource{"thinking": loop.RuntimeSourceNode, "effort": loop.RuntimeSourceInput, "style": loop.RuntimeSourceRun, "mode": loop.RuntimeSourceAgent},
+		},
+		{
+			name:    "Should prune skipped options while retaining surviving provenance",
+			sources: map[string]loop.RuntimeSource{"thinking": loop.RuntimeSourceNode, "mode": loop.RuntimeSourceInput},
+			applied: []dsl.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
+			want:    map[string]loop.RuntimeSource{"thinking": loop.RuntimeSourceNode},
+		},
+		{
+			name:    "Should omit provenance when all options are skipped",
+			sources: map[string]loop.RuntimeSource{"mode": loop.RuntimeSourceInput},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			intent := loop.ResolvedRuntime{Source: loop.RuntimeProvenance{ACPOptions: maps.Clone(tc.sources)}}
+			for id := range tc.sources {
+				intent.Runtime.ACPOptions = append(
+					intent.Runtime.ACPOptions, dsl.ACPOptionSelection{ID: id, ValueID: "requested"},
+				)
+			}
+			resolved := appliedGoalRuntime(intent, loop.RuntimeSpec{ACPOptions: tc.applied}, nil)
+			if !maps.Equal(resolved.Source.ACPOptions, tc.want) {
+				t.Fatalf("applied ACP origins = %#v, want %#v", resolved.Source.ACPOptions, tc.want)
+			}
+			if len(tc.applied) == 0 && resolved.Source.ACPOptions != nil {
+				t.Fatalf("empty applied origins = %#v, want nil", resolved.Source.ACPOptions)
+			}
+			if len(resolved.Source.ACPOptions) > 0 {
+				resolved.Source.ACPOptions[tc.applied[0].ID] = loop.RuntimeSourceAgent
+			}
+			if !maps.Equal(intent.Source.ACPOptions, tc.sources) {
+				t.Fatalf("intent origins mutated = %#v, want %#v", intent.Source.ACPOptions, tc.sources)
+			}
+			if intent.Source.ACPOptions != nil {
+				intent.Source.ACPOptions["caller-only"] = loop.RuntimeSourceInput
+				if _, exists := resolved.Source.ACPOptions["caller-only"]; exists {
+					t.Fatal("caller mutation leaked into applied origins")
+				}
+			}
+		})
+	}
 }

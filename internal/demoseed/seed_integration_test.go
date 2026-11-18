@@ -4,9 +4,11 @@ package demoseed
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +50,67 @@ func TestSeed(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a conflicting project before deleting any other project", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		now := time.Date(2026, 7, 27, 20, 0, 0, 0, time.UTC)
+		homeDir := filepath.Join(t.TempDir(), "home")
+		first, err := Seed(ctx, Options{HomeDir: homeDir, Now: now})
+		if err != nil {
+			t.Fatalf("Seed(first) error = %v", err)
+		}
+		// The docs project is cleaned last, so without validation the others would already be gone.
+		docsRoot := filepath.Join(homeDir, "workspaces", "northstar-pay", workspaceKeyDocs)
+		if err := writeSeedMarker(docsRoot, "someone-elses-project"); err != nil {
+			t.Fatalf("writeSeedMarker() error = %v", err)
+		}
+		_, err = Seed(ctx, Options{HomeDir: homeDir, Replace: true, Now: now})
+		if err == nil || !strings.Contains(err.Error(), "does not match") {
+			t.Fatalf("Seed(replace) error = %v, want the marker conflict", err)
+		}
+		db, err := globaldb.OpenGlobalDB(ctx, first.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		defer func() {
+			if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		}()
+		if _, err := db.GetWorkspace(ctx, first.WorkspaceIDs[0]); err != nil {
+			t.Fatalf("GetWorkspace(first project) after refused replace error = %v", err)
+		}
+	})
+
+	t.Run("Should refuse to overwrite a feed the seed does not own", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		now := time.Date(2026, 7, 27, 20, 0, 0, 0, time.UTC)
+		homeDir := filepath.Join(t.TempDir(), "home")
+		if _, err := Seed(ctx, Options{HomeDir: homeDir, Now: now}); err != nil {
+			t.Fatalf("Seed(first) error = %v", err)
+		}
+		root := filepath.Join(homeDir, "workspaces", "northstar-pay", workspaceKeyRisk)
+		marker, err := readSeedMarker(root)
+		if err != nil {
+			t.Fatalf("readSeedMarker() error = %v", err)
+		}
+		marker.Manifest = slices.DeleteFunc(marker.Manifest, func(path string) bool { return path == riskAlertsFeed })
+		raw, err := json.Marshal(marker)
+		if err != nil {
+			t.Fatalf("Marshal(marker) error = %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(seedMarkerRelative)), raw, 0o600); err != nil {
+			t.Fatalf("WriteFile(marker) error = %v", err)
+		}
+		_, err = Seed(ctx, Options{HomeDir: homeDir, Replace: true, Now: now})
+		if err == nil || !strings.Contains(err.Error(), "unowned feed") {
+			t.Fatalf("Seed(replace) error = %v, want the unowned feed refusal", err)
+		}
+	})
+
 	t.Run("Should persist one coherent scenario and replace it without duplication", func(t *testing.T) {
 		t.Parallel()
 
@@ -59,9 +122,9 @@ func TestSeed(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Seed(first) error = %v", err)
 		}
-		if first.Counts.Workspaces != 2 || first.Counts.Sessions != 12 || first.Counts.Tasks != 23 ||
+		if first.Counts.Workspaces != 6 || first.Counts.Sessions != len(first.SessionIDs) || first.Counts.Tasks != 23 ||
 			first.Counts.GoalTurns != 2 ||
-			first.Counts.Worktrees != 1 {
+			first.Counts.Worktrees != 2 {
 			t.Fatalf("Seed(first).Counts = %#v, want the complete multi-surface scenario", first.Counts)
 		}
 		obsoleteFixture := filepath.Join(first.WorkspaceRoot, "obsolete-seed-fixture.md")
@@ -203,8 +266,8 @@ func assertCompleteSeedSurfaces(
 	result Result,
 ) {
 	t.Helper()
-	if len(result.WorkspaceIDs) != 2 {
-		t.Fatalf("WorkspaceIDs = %#v, want two workspaces", result.WorkspaceIDs)
+	if len(result.WorkspaceIDs) != 6 {
+		t.Fatalf("WorkspaceIDs = %#v, want six workspaces", result.WorkspaceIDs)
 	}
 	var runCount int
 	readScope := store.ReadScope{ProfileID: store.DefaultProfileID}
@@ -258,12 +321,18 @@ func assertCompleteSeedSurfaces(
 	if err != nil {
 		t.Fatalf("WorktreeStore.List() error = %v", err)
 	}
-	if len(worktrees) != 1 || worktrees[0].State != worktree.StateReady {
-		t.Fatalf("WorktreeStore.List() = %#v, want one ready Git worktree", worktrees)
+	if len(worktrees) != len(seedWorktreeFixtures()) {
+		t.Fatalf("WorktreeStore.List() = %#v, want every seeded Git worktree", worktrees)
 	}
-	if _, err := os.Stat(worktrees[0].Path); err != nil {
-		t.Fatalf("Stat(seed worktree) error = %v", err)
+	for index := range worktrees {
+		if worktrees[index].State != worktree.StateReady {
+			t.Fatalf("worktree %q state = %s, want ready", worktrees[index].Name, worktrees[index].State)
+		}
+		if _, err := os.Stat(worktrees[index].Path); err != nil {
+			t.Fatalf("Stat(seed worktree) error = %v", err)
+		}
 	}
+	assertExportRenameBinding(t, ctx, db, paths, result.WorkspaceIDs[1], worktrees)
 	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Join(paths.SessionsDir, sessionRollbackDrillID)))
 	if err != nil {
 		t.Fatalf("ReadSessionMeta(checkout engineer) error = %v", err)
@@ -285,17 +354,19 @@ func assertWorkspaceRecords(t *testing.T, ctx context.Context, db *globaldb.Glob
 	sessions, err := db.ListSessions(ctx, store.SessionListQuery{
 		ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 		WorkspaceID: result.WorkspaceID,
+		SessionType: "user",
 		Limit:       20,
 	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
-	if len(sessions) != 6 {
-		t.Fatalf("len(ListSessions()) = %d, want 6 launch sessions", len(sessions))
+	if len(sessions) != 12 {
+		t.Fatalf("len(ListSessions()) = %d, want 12 launch sessions (scenario, board, tree root, always-on mains)", len(sessions))
 	}
 	for _, sessionRecord := range sessions {
-		if sessionRecord.WorkspaceID != result.WorkspaceID || sessionRecord.State != "stopped" {
-			t.Fatalf("session %q = %#v, want stopped and workspace-scoped", sessionRecord.ID, sessionRecord)
+		wantState := "stopped"
+		if sessionRecord.WorkspaceID != result.WorkspaceID || sessionRecord.State != wantState {
+			t.Fatalf("session %q = %#v, want %s and workspace-scoped", sessionRecord.ID, sessionRecord, wantState)
 		}
 	}
 }
@@ -360,19 +431,12 @@ func assertTaskStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, w
 
 func assertAutomationStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB) {
 	t.Helper()
-	job, err := db.GetJob(ctx, launchAutomationID)
-	if err != nil {
-		t.Fatalf("GetJob() error = %v", err)
-	}
-	if job.Enabled || job.AgentName != "product-lead" || !strings.Contains(job.Name, "Brazil canary") {
-		t.Fatalf("GetJob() = %#v, want paused Brazil canary digest owned by product-lead", job)
-	}
 	run, err := db.GetRun(ctx, launchAutomationRun)
 	if err != nil {
 		t.Fatalf("GetRun() error = %v", err)
 	}
-	if run.Status != automation.RunCompleted || run.TaskID != "task_northstar_support_handoff" {
-		t.Fatalf("GetRun() = %#v, want completed support preflight", run)
+	if run.Status != automation.RunCompleted || run.JobID != launchAutomationID || run.Attribution != "recorded" {
+		t.Fatalf("GetRun() = %#v, want a recorded completed Brazil canary digest", run)
 	}
 }
 
@@ -440,5 +504,38 @@ func assertLoopDefinition(t *testing.T, workspaceRoot string) {
 	if resolved.Definition.Meta.Name != loopLaunchReadiness ||
 		!strings.Contains(resolved.Definition.Contract.Goal, "rollout decision") {
 		t.Fatalf("compiled Loop = %#v, want launch-readiness rollout contract", resolved.Definition)
+	}
+}
+
+// assertExportRenameBinding keeps a resumed executor in its worktree, not the project checkout.
+func assertExportRenameBinding(
+	t *testing.T,
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	paths config.HomePaths,
+	workspaceID string,
+	worktrees []worktree.Worktree,
+) {
+	t.Helper()
+	path := ""
+	for index := range worktrees {
+		if worktrees[index].ID == exportRenameWorktreeID {
+			path = worktrees[index].Path
+		}
+	}
+	sessions, err := db.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspaceID, ID: sessionExportRenameID,
+		Archive: store.SessionArchiveInclude,
+	})
+	if err != nil || len(sessions) != 1 || sessions[0].WorktreeID != exportRenameWorktreeID {
+		t.Fatalf("export rename session = %#v, %v, want it bound to its worktree", sessions, err)
+	}
+	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Join(paths.SessionsDir, sessionExportRenameID)))
+	if err != nil {
+		t.Fatalf("ReadSessionMeta(export rename) error = %v", err)
+	}
+	if meta.WorktreeIDValue() != exportRenameWorktreeID || meta.CWDValue() != path {
+		t.Fatalf("export rename meta worktree=%q cwd=%q, want %q at %q",
+			meta.WorktreeIDValue(), meta.CWDValue(), exportRenameWorktreeID, path)
 	}
 }

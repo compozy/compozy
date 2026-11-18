@@ -116,6 +116,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/workspaces/:workspace_id/window-manager/layout-profiles/:profile_id",
 			"GET /api/workspaces/:workspace_id/window-manager",
 			"GET /api/workspaces/:workspace_id/window-manager/clients",
+			"GET /api/workspaces/:workspace_id/window-manager/migration",
+			"POST /api/workspaces/:workspace_id/window-manager/migration",
 			"GET /api/workspaces/:workspace_id/window-manager/layout",
 			"GET /api/workspaces/:workspace_id/window-manager/layout-profiles",
 			"GET /api/workspaces/:workspace_id/window-manager/stream",
@@ -130,6 +132,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/agents/catalog",
 			"GET /api/agents/:name/heartbeat",
 			"GET /api/agents/:name/heartbeat/sources",
+			"GET /api/agents/:name/heartbeat/authority",
+			"POST /api/agents/:name/heartbeat/authority/approve",
+			"DELETE /api/agents/:name/heartbeat/authority/approve",
+			"POST /api/agent-instances/:id/reports/:report_id/pick",
 			"POST /api/agents/:name/heartbeat/scripts/:script/approve",
 			"DELETE /api/agents/:name/heartbeat/scripts/:script/approve",
 			"GET /api/agents/:name/heartbeat/history",
@@ -179,6 +185,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/logs",
 			"GET /api/logs/stream",
 			"GET /api/marketplace",
+			"GET /api/marketplace/sections",
 			"GET /api/marketplace/entries/:entry_id",
 			"GET /api/marketplace/sources",
 			"POST /api/marketplace/sources",
@@ -247,6 +254,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/sessions",
 			"GET /api/sessions/attention-summary",
 			"GET /api/sessions/facets",
+			"GET /api/sessions/history-cleanup",
 			"GET /api/sessions/catalog-stream",
 			"GET /api/sessions/:session_id",
 			"GET /api/sessions/:session_id/owner",
@@ -254,6 +262,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/subagents",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/monitors",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/monitors/:monitor_id/cancel",
+			"DELETE /api/workspaces/:workspace_id/subagents/:subagent_id",
 			"GET /api/workspaces/:workspace_id/subagents/:subagent_id",
 			"POST /api/workspaces/:workspace_id/subagents/:subagent_id/cancel",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id",
@@ -261,6 +270,21 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/commands",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/files",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/files/entries",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/files/content",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/files/raw/*path",
+			"GET /api/workspaces/:workspace_id/files/entries",
+			"GET /api/workspaces/:workspace_id/files/content",
+			"GET /api/workspaces/:workspace_id/files/raw/*path",
+			"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/files/raw/*path",
+			"GET /api/workspaces/:workspace_id/files/find",
+			"GET /api/workspaces/:workspace_id/files/search",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/files/find",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/files/search",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/changes",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/changes/patches",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/changes/contents",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/changes/bases",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/goal",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/goal",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
@@ -294,12 +318,19 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/settings/update",
 			"GET /api/settings/hooks",
 			"GET /api/settings/hooks-extensions",
+			"GET /api/settings/runtime-mcp-servers",
+			"POST /api/settings/runtime-mcp-servers/:runtime/:name/import",
+			"PUT /api/settings/mcp-servers/:name/approval",
+			"DELETE /api/settings/mcp-servers/:name/approval",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/mcp",
+			"POST /api/workspaces/:workspace_id/sessions/:session_id/mcp/servers/:name/check",
 			"GET /api/settings/mcp-servers",
 			"GET /api/settings/mcp-servers/:name",
 			"GET /api/settings/mcp-servers/:name/auth/status",
 			"POST /api/settings/mcp-servers/:name/auth/begin",
 			"POST /api/settings/mcp-servers/:name/auth/exchange",
 			"POST /api/settings/mcp-servers/:name/auth/logout",
+			"POST /api/settings/mcp-servers/:name/check",
 			"GET /api/settings/attention",
 			"GET /api/settings/shell",
 			"GET /api/settings/provider-usage",
@@ -393,10 +424,12 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/workspaces/:workspace_id/sessions/:session_id",
 			"POST /api/automation/jobs",
 			"POST /api/automation/jobs/:id/trigger",
+			"POST /api/automation/runs/:id/cancel",
 			"POST /api/automation/triggers",
 			"POST /api/workspaces/:workspace_id/worktrees",
 			"POST /api/workspaces/:workspace_id/worktrees/adopt",
 			"POST /api/workspaces/:workspace_id/worktrees/discovered/remove",
+			"POST /api/workspaces/:workspace_id/worktrees/remove",
 			"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/cancel",
 			"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/dismiss",
 			"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/actions",
@@ -427,6 +460,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/extensions/dev",
 			"POST /api/extensions/update",
 			"POST /api/notifications/attention/acknowledge",
+			"POST /api/internal/hosted-mcp/served",
 			"POST /api/internal/hosted-mcp/bind",
 			"POST /api/internal/hosted-mcp/release",
 			"POST /api/internal/hosted-mcp/tools/call",
@@ -461,6 +495,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/loops/:name/run",
 			"POST /api/workspaces/:workspace_id/loops/:name/validate",
 			"POST /api/sessions",
+			"POST /api/sessions/history-cleanup",
+			"POST /api/sessions/history-cleanup/stop",
 			"POST /api/sessions/:session_id/pull-request/refresh",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/approve",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer",
@@ -574,6 +610,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PUT /api/settings/hooks/:name",
 			"PUT /api/settings/mcp-servers/:name",
 			"PUT /api/settings/providers/:name",
+			"PATCH /api/settings/providers/:name/enabled",
 			"PUT /api/tool-approval-grants",
 			"PUT /api/resources/:kind/:id",
 			"PUT /api/workspaces/:workspace_id/loops/:name/annotations",
@@ -1701,6 +1738,52 @@ func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
 	recorder := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNoContent, recorder.Body.String())
+	}
+}
+
+func TestDeleteWorkspaceHandlerReturnsUnavailableWhileLayoutHoldsRemoval(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	calls := 0
+	workspaces := stubWorkspaceService{
+		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+			// The held removal already deleted the registration; only its pending deletion remains.
+			if calls > 0 {
+				return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
+		},
+		UnregisterFn: func(_ context.Context, id string) error {
+			if id != "ws_alpha" {
+				t.Fatalf("Unregister() id = %q, want ws_alpha", id)
+			}
+			calls++
+			if calls == 1 {
+				return fmt.Errorf("daemon: reconcile profile %q partition %q: %w",
+					"prof_1", "ws_beta", windowmanager.ErrUnavailable)
+			}
+			return nil
+		},
+	}
+	engine := newTestRouter(
+		t,
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+	)
+
+	recorder := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusServiceUnavailable, recorder.Body.String())
+	}
+	var payload contract.ErrorPayload
+	decodeJSONResponse(t, recorder, &payload)
+	if payload.Code != string(contract.WindowManagerErrorUnavailable) ||
+		!strings.Contains(payload.Error, `"prof_1"`) ||
+		!strings.Contains(payload.Error, `"ws_beta"`) ||
+		!strings.Contains(payload.Error, "finishes when it is retried") {
+		t.Fatalf("payload = %+v, want window_manager_unavailable naming the layout and the retry", payload)
+	}
+	retry := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if retry.Code != http.StatusNoContent {
+		t.Fatalf("retry status = %d, want %d; body=%s", retry.Code, http.StatusNoContent, retry.Body.String())
 	}
 }
 

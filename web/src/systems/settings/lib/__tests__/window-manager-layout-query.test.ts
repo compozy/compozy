@@ -19,8 +19,9 @@ describe("windowManagerLayoutOptions", () => {
     expect(options.select?.(snapshot)).toMatchObject({
       revision: snapshot.revision,
       document: {
-        version: snapshot.version,
+        version: 6,
         workspaceId: snapshot.workspaceId,
+        desktops: snapshot.desktops,
       },
     });
   });

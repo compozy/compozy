@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -405,6 +406,89 @@ func TestHooksRunsCommandParsesSinceAndRendersFormats(t *testing.T) {
 		}
 		if !strings.Contains(toonOut, "runs[1]{hook_name,event,outcome,duration_ms,error,recorded_at}:") {
 			t.Fatalf("toon output = %q, want TOON header", toonOut)
+		}
+	})
+}
+
+func TestHooksListCollapsesWorkspaceScopedCopies(t *testing.T) {
+	t.Parallel()
+	t.Run("Should show one table row per user-config hook while JSON keeps every scoped copy", func(t *testing.T) {
+		t.Parallel()
+		copies := []HookCatalogRecord{
+			{
+				Order: 3, Name: "user-guard", Event: "tool.pre_call", Source: "config", Mode: "sync",
+				Matcher: hookspkg.HookMatcher{WorkspaceID: "ws-a", WorkspaceRoot: "/a"},
+			},
+			{
+				Order: 1, Name: "user-guard", Event: "tool.pre_call", Source: "config", Mode: "sync",
+				Matcher: hookspkg.HookMatcher{WorkspaceID: "ws-b", WorkspaceRoot: "/b"},
+			},
+		}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			hookCatalogFn: func(_ context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
+				if query.Workspace == "" {
+					return copies, nil
+				}
+				return copies[:1], nil
+			},
+		})
+
+		humanOut, _, err := executeRootCommand(t, deps, "hooks", "list", "-o", "human")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Count(humanOut, "user-guard"); got != 1 {
+			t.Fatalf("human rows for user-guard = %d, want 1; output=%q", got, humanOut)
+		}
+		if !regexp.MustCompile(`(?m)^\s*1\s+user-guard\b`).MatchString(humanOut) {
+			t.Fatalf("human output = %q, want the collapsed row at the lowest order", humanOut)
+		}
+
+		jsonOut, _, err := executeRootCommand(t, deps, "hooks", "list", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded []HookCatalogRecord
+		if err := json.Unmarshal([]byte(jsonOut), &decoded); err != nil || len(decoded) != 2 {
+			t.Fatalf("json entries = %d err=%v, want 2", len(decoded), err)
+		}
+
+		scopedOut, _, err := executeRootCommand(t, deps, "hooks", "list", "--workspace", "alpha", "-o", "human")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Count(scopedOut, "user-guard"); got != 1 {
+			t.Fatalf("scoped human rows = %d, want 1; output=%q", got, scopedOut)
+		}
+	})
+}
+
+// IT-015: hooks list owns stderr warnings while preserving the catalog JSON.
+func TestHooksListRetiredWindowEvents(t *testing.T) {
+	t.Run("Should warn once per retired event and preserve catalog JSON", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{hookCatalogFn: func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error) {
+				return []HookCatalogRecord{
+					{Name: "old-group", Event: "window_manager.stack.grouped"},
+					{Name: "old-group-2", Event: "window_manager.stack.grouped"},
+					{Name: "old-ungroup", Event: "window_manager.stack.ungrouped"},
+				}, nil
+			}},
+		)
+		stdout, stderr, err := executeRootCommand(t, deps, "hooks", "list", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var records []HookCatalogRecord
+		if err := json.Unmarshal([]byte(stdout), &records); err != nil || len(records) != 3 {
+			t.Fatalf("stdout=%s err=%v", stdout, err)
+		}
+		for _, event := range []string{"window_manager.stack.grouped", "window_manager.stack.ungrouped"} {
+			if strings.Count(stderr, "warning: "+event+" is retired and never fires;") != 1 {
+				t.Fatalf("stderr=%s", stderr)
+			}
 		}
 	})
 }

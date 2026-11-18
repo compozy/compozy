@@ -29,6 +29,23 @@ const { countTasksByStatus } = await import("../../lib/task-formatters");
 type TaskRecordsFilter = import("../../types").TaskRecordsFilter;
 type TaskStatus = import("../../types").TaskStatus;
 
+function mockInlineSize(width: number) {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class implements ResizeObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        this.callback(
+          [{ target, contentRect: new DOMRectReadOnly(0, 0, width, 38) } as ResizeObserverEntry],
+          this
+        );
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+  );
+}
+
 function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
     id: "task_001",
@@ -327,15 +344,13 @@ describe("TasksListSurface", () => {
     unmount();
 
     // A strip too narrow for the pills hands the status back to the Filter chip.
-    const measure = vi
-      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
-      .mockReturnValue(DOMRect.fromRect({ width: 400, height: 38 }));
+    mockInlineSize(400);
     try {
       render(toolbar("in_progress"));
       expect(screen.queryByTestId("tasks-quick-status")).toBeNull();
       expect(statusChip()).toBeVisible();
     } finally {
-      measure.mockRestore();
+      vi.unstubAllGlobals();
     }
   });
 
@@ -360,16 +375,15 @@ describe("TasksListSurface", () => {
         />
       </UIProvider>
     );
-    const measure = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
     try {
       // Narrow enough for the icon strip, still wide enough for the field.
-      measure.mockReturnValue(DOMRect.fromRect({ width: 400, height: 38 }));
+      mockInlineSize(400);
       const wide = render(toolbar(""));
       expect(screen.getByTestId("tasks-list-search-input")).toBeVisible();
       wide.unmount();
 
       // Below the field's usable floor: a named toggle, never a clipped field.
-      measure.mockReturnValue(DOMRect.fromRect({ width: 300, height: 38 }));
+      mockInlineSize(300);
       const narrow = render(toolbar(""));
       expect(screen.queryByTestId("tasks-list-search-input")).toBeNull();
       expect(screen.getByRole("button", { name: "Search tasks" })).toBeVisible();
@@ -379,7 +393,7 @@ describe("TasksListSurface", () => {
       render(toolbar("deploy"));
       expect(screen.getByTestId("tasks-list-search-input")).toHaveValue("deploy");
     } finally {
-      measure.mockRestore();
+      vi.unstubAllGlobals();
     }
   });
 

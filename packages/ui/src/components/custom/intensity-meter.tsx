@@ -6,7 +6,7 @@ import { cn } from "../../lib/utils";
  * Discrete intensity meter — seven ascending bars. `position` (1..7) fills bars
  * with the `fg` ink over `line-strong` rests; `hollow` renders every bar at the
  * quieter `line` for a default/unset state. A generic signal-strength primitive
- * (reasoning effort, confidence, load, …). Orange stays reserved for needs-you,
+ * (reasoning effort, confidence, load, …). Amber stays reserved for needs-you,
  * so a level is never painted with the accent.
  */
 const BAR_HEIGHTS = ["h-px", "h-0.5", "h-1", "h-1.5", "h-2", "h-2.5", "h-3"] as const;

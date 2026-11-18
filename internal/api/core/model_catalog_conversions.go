@@ -1,8 +1,11 @@
 package core
 
 import (
+	"slices"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/modelcatalogprojection"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
@@ -74,4 +77,15 @@ func sourceIDsFromRefs(refs []modelcatalog.SourceRef) []string {
 		ids = append(ids, ref.SourceID)
 	}
 	return ids
+}
+
+// SelectableProviderModels drops models whose provider the operator disabled; catalog
+// selection surfaces list enabled providers only (BR-9).
+func SelectableProviderModels(cfg *compozyconfig.Config, models []modelcatalog.Model) []modelcatalog.Model {
+	if cfg == nil {
+		return models
+	}
+	return slices.DeleteFunc(models, func(model modelcatalog.Model) bool {
+		return cfg.IsProviderDisabled(model.ProviderID)
+	})
 }

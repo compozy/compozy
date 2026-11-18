@@ -21,10 +21,11 @@ import {
 } from "@/systems/agent";
 import {
   providerNeedsAuth,
+  restrictReasoningEfforts,
   type RuntimeCatalogProvider,
   useRuntimeModelCatalog,
 } from "@/systems/model-catalog";
-import { type ProviderSummary, useProviders } from "@/systems/providers";
+import { isProviderEnabled, type ProviderSummary, useProviders } from "@/systems/providers";
 import {
   normalizeRuntimeACPSelections,
   type RuntimeProviderOption,
@@ -75,21 +76,39 @@ function snapshotFromSelection(
   };
 }
 
-/** Combine workspace provider availability with current authentication status. */
+/**
+ * Combine workspace provider availability with the profile inventory's auth and enabled state.
+ * The workspace list is not profile-scoped, so the inventory marks a profile-disabled provider
+ * there; a session still bound to a provider the workspace dropped gets it back, marked disabled.
+ * The picker shows a disabled provider only as the current value and refuses new picks.
+ */
 function runtimeProviderOptions(
   providers: SessionProviderOption[] | undefined,
-  globalProviders: ProviderSummary[] | undefined
+  globalProviders: ProviderSummary[] | undefined,
+  selectedProvider: string
 ): RuntimeProviderOption[] {
-  const needsAuthByProvider = new Map(
-    (globalProviders ?? []).map(provider => [
-      provider.name,
-      providerNeedsAuth(provider.auth_status?.state),
-    ])
-  );
-  return (providers ?? []).map(provider => ({
-    ...workspaceProviderToOption(provider),
-    needs_auth: needsAuthByProvider.get(provider.name) ?? false,
-  }));
+  const inventory = new Map((globalProviders ?? []).map(provider => [provider.name, provider]));
+  const options: RuntimeProviderOption[] = (providers ?? []).map(provider => {
+    const summary = inventory.get(provider.name);
+    return {
+      ...workspaceProviderToOption(provider),
+      needs_auth: summary ? providerNeedsAuth(summary.auth_status?.state) : false,
+      ...(summary && !isProviderEnabled(summary) ? { disabled: true } : {}),
+    };
+  });
+  const selected = selectedProvider.trim();
+  if (selected.length === 0 || options.some(option => option.id === selected)) return options;
+  const disabled = inventory.get(selected);
+  if (!disabled || isProviderEnabled(disabled)) return options;
+  return [
+    ...options,
+    {
+      id: disabled.name,
+      name: disabled.display_name?.trim() || disabled.name,
+      ...(disabled.runtime_strategy ? { runtime_strategy: disabled.runtime_strategy } : {}),
+      disabled: true,
+    },
+  ];
 }
 
 /**
@@ -134,12 +153,12 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   );
   const providers = runtimeProviderOptions(
     workspace.data?.providers,
-    globalProviders.data?.providers
+    globalProviders.data?.providers,
+    value.provider
   );
-  const catalogProviders: RuntimeCatalogProvider[] = providers.map(provider => ({
-    id: provider.id,
-    needsAuth: provider.needs_auth,
-  }));
+  const catalogProviders: RuntimeCatalogProvider[] = providers.flatMap(provider =>
+    provider.disabled ? [] : [{ id: provider.id, needsAuth: provider.needs_auth }]
+  );
   const availabilityError = workspace.error
     ? describeWorkspaceProvidersError(workspace.error)
     : globalProviders.error
@@ -150,7 +169,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
       input.canPrompt &&
       !globalProviders.isLoading &&
       availabilityError === null &&
-      providers.length > 0,
+      catalogProviders.length > 0,
   });
   const canSelectRuntime =
     input.canPrompt &&
@@ -289,7 +308,7 @@ function promptRuntimeDefaults(
   };
 }
 
-/** Overlay acknowledged options only on their effective model, respecting provider policy and matrices. */
+/** Overlay acknowledged options only on their effective model, respecting provider policy, the model's advertised effort ceiling, and matrices. */
 function sessionModelCapabilities(
   models: RuntimeModelOption[],
   runtime: SessionRuntimePayload | undefined
@@ -305,11 +324,10 @@ function sessionModelCapabilities(
         option.id === "reasoning_effort")
   );
   // ACP config_options is a complete snapshot: removing thought_level revokes stale levels.
-  const effortSet = new Set<string>();
+  const acpEfforts: string[] = [];
   for (const value of reasoning?.values ?? []) {
-    if (value.value !== "default" && isReasoningEffort(value.value)) effortSet.add(value.value);
+    if (value.value !== "default" && isReasoningEffort(value.value)) acpEfforts.push(value.value);
   }
-  const efforts = [...effortSet];
   return models.map<RuntimeModelOption>(model => {
     // Catalog eligibility enforces the provider apply strategy and explicit matrices.
     // Live options belong only to the effective model, never pending prompt intent.
@@ -321,12 +339,15 @@ function sessionModelCapabilities(
       model.configurations
     )
       return model;
+    // The model's advertised levels cap the live list: ACP can narrow (or, when
+    // the catalog is silent, introduce) levels but never advertise one the model
+    // does not honor.
+    const efforts = restrictReasoningEfforts(model.efforts, acpEfforts);
+    const current = reasoning?.current_value_id ?? "";
     return {
       ...model,
       efforts,
-      default_effort: effortSet.has(reasoning?.current_value_id ?? "")
-        ? reasoning?.current_value_id
-        : "",
+      default_effort: isReasoningEffort(current) && efforts.includes(current) ? current : "",
       reasoning_source: "acp",
       reasoning_known: true,
     };

@@ -5,6 +5,9 @@
 // into that remembered choice (issue #792). A window pinned to one profile reads only that profile,
 // whatever the shell shows (issue #1183). A switch moves the remembered choice the aggregate acts as
 // at once, so X → Y → All never acts as X while the persist and reread are in flight (issue #1194).
+// Leaving All profiles keeps it for a reload after a failure only when the daemon refused the write
+// (issue #1436). A cached choice is entered only once its reread lands; once a view is entered, a
+// reread that leaves the choice unchanged wakes no caller (#1736).
 // Owning layer: useActiveProfileView / useSwitchProfile / useProfileReadScope.
 // Boundary IN: the real profile view and active workspace stores.
 // Boundary OUT: profile HTTP adapters (mocked I/O).
@@ -24,6 +27,7 @@ import {
 import {
   fetchProfileSelection,
   fetchProfiles,
+  ProfileApiError,
   putProfileSelection,
 } from "../../adapters/profiles-api";
 import {
@@ -106,6 +110,97 @@ describe("global profile selection", () => {
     expect(result.current.aggregate).toBe(true);
     expect(result.current.scopeLabel).toBeNull();
     await waitFor(() => expect(result.current.destinationOwner?.name).toBe("marketing"));
+  });
+
+  it("Should enter a cached choice only once its reread lands, even when the answer is unchanged [#1736]", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    queryClient.setQueryData(["profiles", "selection", "global"], {
+      scope: "global",
+      profile: "marketing",
+    });
+    let answer: (selection: { scope: "global"; profile: string }) => void = () => undefined;
+    vi.mocked(fetchProfileSelection).mockImplementationOnce(
+      () => new Promise(resolve => (answer = resolve))
+    );
+
+    renderHook(() => useActiveProfileView(), { wrapper });
+    await act(() => new Promise(resolve => setTimeout(resolve, 20)));
+    expect(localProfileView()).toBeNull();
+
+    await act(async () => answer({ scope: "global", profile: "marketing" }));
+
+    await waitFor(() =>
+      expect(localProfileView()).toEqual({ kind: "profile", profile: "marketing" })
+    );
+  });
+
+  it("Should enter the remembered choice again when the view clears after an unwatched reread [#1736]", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    renderHook(() => useActiveProfileView(), { wrapper });
+    await waitFor(() =>
+      expect(localProfileView()).toEqual({ kind: "profile", profile: "marketing" })
+    );
+    let answer: (selection: { scope: "global"; profile: string }) => void = () => undefined;
+    vi.mocked(fetchProfileSelection).mockImplementationOnce(
+      () => new Promise(resolve => (answer = resolve))
+    );
+    let reread: Promise<void> = Promise.resolve();
+    act(() => {
+      reread = queryClient.refetchQueries({ queryKey: ["profiles", "selection", "global"] });
+    });
+
+    // The reread lands while the view is held, so it never wakes the hook; then the view clears.
+    await act(async () => {
+      answer({ scope: "global", profile: "marketing" });
+      await reread;
+    });
+    act(() => resetProfileViews());
+
+    await waitFor(() =>
+      expect(localProfileView()).toEqual({ kind: "profile", profile: "marketing" })
+    );
+  });
+
+  it("Should not wake the caller for a reread that leaves the entered choice unchanged [#1736]", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    let renders = 0;
+    const { result } = renderHook(
+      () => {
+        renders += 1;
+        return useActiveProfileView();
+      },
+      { wrapper }
+    );
+    await waitFor(() =>
+      expect(localProfileView()).toEqual({ kind: "profile", profile: "marketing" })
+    );
+    await waitFor(() =>
+      expect(queryClient.getQueryState(["profiles", "selection", "global"])?.fetchStatus).toBe(
+        "idle"
+      )
+    );
+    const settled = renders;
+    let answer: (selection: { scope: "global"; profile: string }) => void = () => undefined;
+    vi.mocked(fetchProfileSelection).mockImplementationOnce(
+      () => new Promise(resolve => (answer = resolve))
+    );
+
+    let reread: Promise<void> = Promise.resolve();
+    act(() => {
+      reread = queryClient.refetchQueries({ queryKey: ["profiles", "selection", "global"] });
+    });
+    await act(() => new Promise(resolve => setTimeout(resolve, 20)));
+    expect(queryClient.getQueryState(["profiles", "selection", "global"])?.fetchStatus).toBe(
+      "fetching"
+    );
+    await act(async () => {
+      answer({ scope: "global", profile: "marketing" });
+      await reread;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    });
+
+    expect(renders).toBe(settled);
+    expect(result.current).toEqual({ kind: "profile", profile: "marketing" });
   });
 
   it("Should read a pinned window in its own profile under All profiles [#1183]", async () => {
@@ -277,6 +372,79 @@ describe("global profile selection", () => {
     // The failed write stops counting as the remembered choice once it settles.
     await waitFor(() => expect(result.current.read.destination).toBe("marketing"));
   });
+
+  it("Should enter the reread choice, not the cached one, after an unknown switch failure empties the view [#1736]", async () => {
+    const { wrapper } = createWrapper();
+    const answers: Array<(selection: { scope: "global"; profile: string }) => void> = [];
+    vi.mocked(fetchProfileSelection).mockImplementation(
+      () => new Promise(resolve => answers.push(resolve))
+    );
+    let failWrite: (error: Error) => void = () => undefined;
+    vi.mocked(putProfileSelection).mockImplementationOnce(
+      () => new Promise((_resolve, reject) => (failWrite = reject))
+    );
+    const { result } = renderHook(
+      () => ({ view: useActiveProfileView(), switchProfile: useSwitchProfile() }),
+      { wrapper }
+    );
+    await waitFor(() => expect(answers).toHaveLength(1));
+
+    let write: Promise<unknown> = Promise.resolve();
+    act(() => {
+      write = result.current.switchProfile
+        .mutateAsync({ kind: "profile", profile: "open-design" })
+        .catch(() => undefined);
+    });
+    // The boot read lands while the switch is shown, caching the choice from before the write.
+    await act(async () => answers[0]!({ scope: "global", profile: "marketing" }));
+    expect(localProfileView()).toEqual({ kind: "profile", profile: "open-design" });
+
+    await act(async () => {
+      failWrite(new Error("daemon unavailable"));
+      await write;
+    });
+    expect(localProfileView()).toBeNull();
+
+    await waitFor(() => expect(answers.length).toBeGreaterThan(1));
+    await act(async () => answers.at(-1)!({ scope: "global", profile: "open-design" }));
+
+    await waitFor(() =>
+      expect(localProfileView()).toEqual({ kind: "profile", profile: "open-design" })
+    );
+  });
+
+  it.each([
+    {
+      label: "refused",
+      error: new ProfileApiError("profile is archived", 409, "", ""),
+      kept: true,
+    },
+    { label: "lost its answer", error: new TypeError("Failed to fetch"), kept: false },
+    {
+      label: "sent a gateway error for",
+      error: new ProfileApiError("bad gateway", 502, "", ""),
+      kept: false,
+    },
+  ])(
+    "Should keep All profiles for a reload only when the daemon $label the switch [#1436]",
+    async ({ error, kept }) => {
+      const { wrapper } = createWrapper();
+      vi.mocked(putProfileSelection).mockRejectedValue(error);
+      const { result } = renderHook(() => useSwitchProfile(), { wrapper });
+      act(() => setProfileView({ kind: "aggregate" }));
+
+      await act(async () => {
+        await result.current
+          .mutateAsync({ kind: "profile", profile: "marketing" })
+          .catch(() => undefined);
+      });
+
+      expect(localProfileView()).toEqual({ kind: "aggregate" });
+      flushStorage(profileViewStore);
+      const persisted = JSON.parse(window.localStorage.getItem("compozy:profile-view") ?? "{}");
+      expect(persisted.context.view).toEqual(kept ? { kind: "aggregate" } : null);
+    }
+  );
 
   it("Should keep All profiles across a reload and resolve a concrete view from the daemon", async () => {
     setProfileView({ kind: "aggregate" });

@@ -8,11 +8,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,6 +30,8 @@ import (
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/procutil"
+	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/resources"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
@@ -269,17 +273,15 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 			}
 		}()
 
-		manager, err := newSettingsMCPAuthManagerWithConfig(
-			reopened,
-			nil,
-			nil,
-			nil,
-			compozyconfig.MCPOAuthConfig{},
-		)
+		manager, err := newSettingsMCPAuthManagerWithConfig(reopened, nil)
 		if err != nil {
 			t.Fatalf("newSettingsMCPAuthManagerWithConfig() error = %v", err)
 		}
-		surface := &settingsRuntimeSurface{mcpAuthStore: reopened, mcpAuthManager: manager}
+		surface := &settingsRuntimeSurface{
+			digestKey:      []byte("test installation key"),
+			mcpAuthStore:   reopened,
+			mcpAuthManager: manager,
+		}
 		status, err := surface.MCPAuthStatus(ctx, target, server)
 		if err != nil {
 			t.Fatalf("MCPAuthStatus() error = %v", err)
@@ -297,7 +299,79 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 }
 
 func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
-	t.Run("Should discover operator configured OAuth metadata on loopback", func(t *testing.T) {
+	// Invariant: successful login and call-time renewal clear only the server's auth-related dead mark.
+	// Owner: daemon OAuth/reliability composition; canonical suite: operator-loopback auth, real SQLite/HTTP.
+	for _, manual := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should recover durable auth failures with manual exchange %t", manual), func(t *testing.T) {
+			t.Parallel()
+			testSettingsMCPAuthRecovery(t, manual)
+		})
+	}
+	t.Run("Should discover and complete OAuth for optional plugin header credentials", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(t, mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{MCPPath: "/v1/mcp"})
+		db := openDaemonTestGlobalDB(t)
+		secrets, err := vault.NewService(db, compozyconfig.NewVaultKeyProvider(filepath.Dir(db.Path()), nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager, err := newSettingsMCPAuthManagerWithAuthorization(
+			db, nil, db, secrets.ResolveRef, compozyconfig.MCPOAuthConfig{}, nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			digestKey: []byte("test installation key"), mcpAuthManager: manager, mcpAuthStore: db,
+			secretResolver: secrets.ResolveRef, secretRefs: secrets,
+		}
+		target := globalMCPTestTarget("mcp")
+		target.Owner = "extension:fixture"
+		server := compozyconfig.MCPServer{
+			AgentPlugin: true,
+			Name:        target.ServerName, Owner: target.Owner, Transport: compozyconfig.MCPServerTransportHTTP,
+			URL: fixture.Endpoints.MCPURL + "?referrer_ide=claude-code-plugin&plugin_version=0.7.17",
+			Headers: map[string]string{
+				"DD_API_KEY": "${DD_API_KEY:-}", "DD_APPLICATION_KEY": "${DD_APPLICATION_KEY:-}",
+				"X-Datadog-MCP-Toolsets": "${DD_MCP_TOOLSETS:-}",
+			},
+			InputValues: map[string]compozyconfig.MCPInputValue{
+				"DD_API_KEY": {}, "DD_APPLICATION_KEY": {}, "DD_MCP_TOOLSETS": {},
+			},
+		}
+		ctx := t.Context()
+		status, err := surface.MCPServerRuntimeStatus(ctx, target, server)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateAuthRequired {
+			t.Fatalf("runtime state = %q, err = %v, want OAuth challenge", status.State, err)
+		}
+		const callback = "http://127.0.0.1:2123/api/mcp/oauth/callback"
+		begin, err := surface.MCPAuthBegin(ctx, target, server, callback)
+		if err != nil {
+			t.Fatal(err)
+		}
+		loginURL, err := url.Parse(begin.AuthorizationURL)
+		if err != nil || loginURL.Query().Get("resource") != fixture.Endpoints.MCPURL {
+			t.Fatal("sign-in did not use the advertised query-free resource")
+		}
+		auth, err := surface.MCPAuthExchange(ctx, target, server, mcpauth.ExchangeInput{
+			RedirectURL: callback + "?state=" + url.QueryEscape(begin.State) + "&code=" + mcpfixture.AuthorizationCode,
+		})
+		if err != nil || auth.Status != mcpauth.StatusAuthenticated {
+			t.Fatalf("exchange status = %q, err = %v", auth.Status, err)
+		}
+		status, err = surface.MCPServerRuntimeStatus(ctx, target, server)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateReady || status.ToolCount == 0 {
+			t.Fatalf("authenticated runtime = %#v, err = %v", status, err)
+		}
+		for _, headers := range fixture.Requests().MCPHeaders {
+			if headers.Values("DD_API_KEY") != nil || headers.Values("DD_APPLICATION_KEY") != nil {
+				t.Fatal("an unset credential header reached the MCP server")
+			}
+		}
+	})
+
+	t.Run("Should render template inputs through OAuth begin status and callback", func(t *testing.T) {
 		t.Parallel()
 
 		var requests atomic.Int32
@@ -306,6 +380,14 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 			writer http.ResponseWriter,
 			request *http.Request,
 		) {
+			if request.URL.Path == "/token" {
+				writer.Header().Set("Content-Type", "application/json")
+				payload := []byte(`{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`)
+				if _, err := writer.Write(payload); err != nil {
+					t.Error(err)
+				}
+				return
+			}
 			requests.Add(1)
 			if request.URL.Path != "/.well-known/oauth-authorization-server" {
 				http.NotFound(writer, request)
@@ -336,29 +418,24 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 				t.Fatalf("Close() error = %v", err)
 			}
 		}()
-		manager, err := newSettingsMCPAuthManagerWithConfig(
-			database,
-			nil,
-			database,
-			nil,
-			compozyconfig.MCPOAuthConfig{},
-		)
+		manager, err := newSettingsMCPAuthManagerWithConfig(database, database)
 		if err != nil {
 			t.Fatalf("newSettingsMCPAuthManagerWithConfig() error = %v", err)
 		}
 		target := globalMCPTestTarget("local-oauth")
 		server := compozyconfig.MCPServer{
-			Name:      target.ServerName,
-			Transport: compozyconfig.MCPServerTransportHTTP,
-			URL:       authorizationServer.URL + "/mcp",
+			Name:        target.ServerName,
+			Transport:   compozyconfig.MCPServerTransportHTTP,
+			URL:         "${BASE}/mcp",
+			InputValues: map[string]compozyconfig.MCPInputValue{"BASE": {Value: authorizationServer.URL}},
 			Auth: compozyconfig.MCPAuthConfig{
 				Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
-				IssuerURL:    authorizationServer.URL,
+				IssuerURL:    "${BASE}",
 				ClientID:     "compozy-local",
 			},
 		}
 
-		surface := &settingsRuntimeSurface{mcpAuthManager: manager}
+		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key"), mcpAuthManager: manager}
 		result, err := surface.MCPAuthBegin(
 			ctx,
 			target,
@@ -371,24 +448,202 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 		if !strings.HasPrefix(result.AuthorizationURL, authorizationServer.URL+"/authorize?") {
 			t.Fatalf("AuthorizationURL = %q, want local authorization endpoint", result.AuthorizationURL)
 		}
+		status, err := surface.MCPAuthStatus(ctx, target, server)
+		if err != nil || status.RemoteURL != authorizationServer.URL+"/mcp" {
+			t.Fatalf("status = %+v, error = %v", status, err)
+		}
+		authorize, err := url.Parse(result.AuthorizationURL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		callback := "http://127.0.0.1:2123/api/mcp/oauth/callback?code=test-code&state=" + url.QueryEscape(
+			authorize.Query().Get("state"),
+		)
+		status, err = surface.MCPAuthCompleteCallback(ctx, target, server, callback)
+		if err != nil || status.Status != mcpauth.StatusAuthenticated {
+			t.Fatalf("callback status = %+v, error = %v", status, err)
+		}
+		if server.URL != "${BASE}/mcp" || server.Auth.IssuerURL != "${BASE}" {
+			t.Fatalf("auth mutated published templates: %+v", server)
+		}
 		if got := requests.Load(); got != 1 {
 			t.Fatalf("authorization metadata requests = %d, want 1", got)
 		}
 	})
 }
 
+func testSettingsMCPAuthRecovery(t *testing.T, manual bool) {
+	t.Helper()
+	ctx := t.Context()
+	fixture := mcpfixture.StartOAuthHTTP(t, mcpfixture.MustNew(mcpfixture.ProfileModern2026), mcpfixture.OAuthConfig{})
+	db := openDaemonTestGlobalDB(t)
+	now := time.Now().UTC()
+	for _, id := range []string{"ws-auth-recovery", "ws-other"} {
+		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID: id, Name: id, RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	generation := mcpauth.NewMutationGeneration()
+	manager, err := newSettingsMCPAuthManagerWithAuthorization(db, nil, db, nil,
+		compozyconfig.MCPOAuthConfig{}, nil, generation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	surface := &settingsRuntimeSurface{
+		digestKey: []byte("test installation key"), mcpAuthStore: db, mcpAuthManager: manager,
+		mcpAuthGeneration: generation, deadEntities: deadentity.New(db, deadentity.WithPermanentFailureThreshold(1)),
+	}
+	target := mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "ws-auth-recovery", ServerName: "fixture"}
+	server := compozyconfig.MCPServer{Name: target.ServerName, Transport: "http", URL: fixture.Endpoints.MCPURL,
+		Auth: compozyconfig.MCPAuthConfig{Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+			IssuerURL: fixture.Endpoints.IssuerURL, ClientID: "fixture-client"}}
+	key, tracked, err := surface.settingsMCPDeadEntityKey(ctx, target, server.Name)
+	if err != nil || !tracked {
+		t.Fatalf("dead entity key: %v, tracked=%t", err, tracked)
+	}
+	other := key
+	other.WorkspaceID = "ws-other"
+	mark := func(key store.DeadEntityKey, reason string) {
+		t.Helper()
+		if err := surface.deadEntities.RecordFailure(ctx, key, deadentity.FailurePermanent, reason); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertDead := func(key store.DeadEntityKey, want bool) {
+		t.Helper()
+		status, err := surface.deadEntities.Status(ctx, key)
+		if err != nil || status.Dead != want {
+			t.Fatalf("dead status=%+v, err=%v, want dead=%t", status, err, want)
+		}
+	}
+	mark(key, "mcp_auth_expired")
+	mark(other, "mcp_auth_expired")
+	login := func() {
+		t.Helper()
+		begin, err := surface.MCPAuthBegin(ctx, target, server, "http://127.0.0.1:2123/api/mcp/oauth/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		callback := begin.CallbackURL + "?state=" + url.QueryEscape(
+			begin.State,
+		) + "&code=" + mcpfixture.AuthorizationCode
+		var status mcpauth.Status
+		if manual {
+			status, err = surface.MCPAuthExchange(ctx, target, server, mcpauth.ExchangeInput{RedirectURL: callback})
+		} else {
+			status, err = surface.MCPAuthCompleteCallback(ctx, target, server, callback)
+		}
+		if err != nil || status.Status != mcpauth.StatusAuthenticated {
+			t.Fatalf("login status=%+v, %v", status, err)
+		}
+	}
+	login()
+	assertDead(key, false)
+	assertDead(other, true)
+	mark(key, "connection refused")
+	login()
+	assertDead(key, true)
+	if err := surface.deadEntities.RecordSuccess(ctx, key); err != nil {
+		t.Fatal(err)
+	}
+	mark(key, "mcp auth refresh failed")
+	token, err := db.GetMCPAuthToken(ctx, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token.ExpiresAt = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	if err := db.SaveMCPAuthToken(ctx, token); err != nil {
+		t.Fatal(err)
+	}
+	executor, err := surface.newMCPProbeExecutor(target, server)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+	if tools, err := executor.ListTools(ctx, source); err != nil || len(tools) == 0 {
+		t.Fatalf("real discovery across expiry: %d tools, %v", len(tools), err)
+	}
+	assertDead(key, false)
+	assertDead(other, true)
+	requests := fixture.Requests().Token
+	if len(requests) != 3 || requests[2].Get("grant_type") != "refresh_token" {
+		t.Fatal("expected two sign-ins followed by one call-time refresh")
+	}
+}
+
 func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T) {
 	// Invariant: unavailable auth status preserves normalized definition ownership.
 	// Owner: daemon settings runtime surface; canonical suite: settings_test.go.
+	t.Run("Should keep bare status available after the token database closes", func(t *testing.T) {
+		t.Parallel()
+		database := openDaemonTestGlobalDB(t)
+		manager, err := newSettingsMCPAuthManagerWithConfig(database, database)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := database.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key"), mcpAuthManager: manager}
+		target := globalMCPTestTarget("bare-remote")
+		server := compozyconfig.MCPServer{
+			Name: target.ServerName, Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.com",
+		}
+		status, err := surface.MCPAuthStatus(t.Context(), target, server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status.Status != mcpauth.StatusUnconfigured || status.AuthType != "" || status.Diagnostic != "" ||
+			status.TokenPresent {
+			t.Fatalf("bare remote was gated by a token read failure: %#v", status)
+		}
+		if status.Owner != target.Normalize().Owner || status.ServerName != target.ServerName ||
+			status.Scope != target.Scope || status.WorkspaceID != target.WorkspaceID {
+			t.Fatalf("storage failure lost target identity: %#v", status)
+		}
+		server.Auth = compozyconfig.MCPAuthConfig{Registration: compozyconfig.MCPAuthRegistrationAuto}
+		if _, err := surface.MCPAuthStatus(
+			t.Context(),
+			target,
+			server,
+		); err == nil ||
+			!strings.Contains(err.Error(), "closed") {
+			t.Fatalf("explicit OAuth lost its database error: %v", err)
+		}
+	})
+
+	t.Run("Should leave a bare remote unconfigured when the token store is unavailable", func(t *testing.T) {
+		t.Parallel()
+		target := globalMCPTestTarget("bare-remote")
+		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key")}
+		status, err := surface.MCPAuthStatus(t.Context(), target, compozyconfig.MCPServer{
+			Name: target.ServerName, Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.com",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status.Status != mcpauth.StatusUnconfigured || status.AuthType != "" || status.Diagnostic != "" ||
+			status.TokenPresent {
+			t.Fatalf("bare remote was incorrectly gated by unavailable OAuth storage: %#v", status)
+		}
+		if status.Owner != target.Normalize().Owner || status.ServerName != target.ServerName ||
+			status.Scope != target.Scope || status.WorkspaceID != target.WorkspaceID {
+			t.Fatalf("unconfigured status lost target identity: %#v, want %#v", status, target.Normalize())
+		}
+	})
+
 	for _, owner := range []string{"", "manual", "extension:remote-docs"} {
 		t.Run("Should retain auth owner when the token store is unavailable "+owner, func(t *testing.T) {
 			t.Parallel()
 			target := globalMCPTestTarget("remote-docs")
 			target.Owner = owner
-			surface := &settingsRuntimeSurface{}
+			surface := &settingsRuntimeSurface{digestKey: []byte("test installation key")}
 			status, err := surface.MCPAuthStatus(t.Context(), target, compozyconfig.MCPServer{
 				Name: "remote-docs", Owner: owner,
 				Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.com",
+				Auth: compozyconfig.MCPAuthConfig{Registration: compozyconfig.MCPAuthRegistrationAuto},
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -418,7 +673,7 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 			t.Fatal(err)
 		}
 		called := false
-		surface := &settingsRuntimeSurface{
+		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key"),
 			secretResolver: func(_ context.Context, ref string) (string, error) {
 				called = true
 				if ref != canonicalRef {
@@ -456,6 +711,281 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 }
 
 func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
+	t.Run(
+		"Should refuse to present sign-in for a plugin header rejection without a resource challenge",
+		func(t *testing.T) {
+			t.Parallel()
+			endpoint := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+				writer.WriteHeader(http.StatusUnauthorized)
+			}))
+			t.Cleanup(endpoint.Close)
+			target := globalMCPTestTarget("fixture")
+			target.Owner = "extension:fixture"
+			server := compozyconfig.MCPServer{
+				AgentPlugin: true,
+				Name:        target.ServerName, Owner: target.Owner, Transport: compozyconfig.MCPServerTransportHTTP,
+				URL: endpoint.URL, Headers: map[string]string{"DD_API_KEY": "${DD_API_KEY:-}"},
+				InputValues: map[string]compozyconfig.MCPInputValue{"DD_API_KEY": {}},
+			}
+			surface := &settingsRuntimeSurface{digestKey: []byte("test installation key")}
+			status, err := surface.MCPServerRuntimeStatus(t.Context(), target, server)
+			if err != nil || status.State != settingspkg.MCPServerRuntimeStatePermissionDenied {
+				t.Fatalf("runtime state = %q, err = %v, want connection failure", status.State, err)
+			}
+		},
+	)
+
+	// Invariant: passive MCP status never probes and only reuses fresh observations of the same identity.
+	// Owner: daemon Settings runtime; canonical suite: MCPServerRuntimeStatus.
+	t.Run("Should reuse bounded observations without network and invalidate changed identities", func(t *testing.T) {
+		t.Parallel()
+		var requests atomic.Int64
+		handler := mcp.NewStreamableHTTPHandler(
+			func(*http.Request) *mcp.Server { return newSettingsMCPTestServer() },
+			&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
+		)
+		server := httptest.NewServer(
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests.Add(1); handler.ServeHTTP(w, r) }),
+		)
+		t.Cleanup(server.Close)
+		now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+		health := mcppkg.NewRuntimeHealthRegistry()
+		runtime := mcppkg.RuntimeHealthKey{InstanceName: "docs", BundleGeneration: "one", ServerName: "docs"}
+		surface := &settingsRuntimeSurface{
+			digestKey:         []byte("test installation key"),
+			now:               func() time.Time { return now },
+			mcpStatusMaxAge:   2 * defaultSettingsMCPStatusMaxAge,
+			mcpAuthGeneration: mcpauth.NewMutationGeneration(),
+			mcpHealthRegistry: health,
+			mcpHealthKey: func(context.Context, mcpauth.Target) (mcppkg.RuntimeHealthKey, error) {
+				return health.ResolveKey(runtime), nil
+			},
+		}
+		target := globalMCPTestTarget("docs")
+		definition := compozyconfig.MCPServer{
+			Name:      "docs",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       server.URL,
+		}
+		passive := func(want settingspkg.MCPServerRuntimeState) {
+			t.Helper()
+			before := requests.Load()
+			status, err := surface.MCPServerCachedRuntimeStatus(t.Context(), target, definition)
+			if err != nil || status.State != want || requests.Load() != before {
+				t.Fatalf("passive status=%+v, %v, requests=%d -> %d", status, err, before, requests.Load())
+			}
+		}
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+		status, err := surface.MCPServerRuntimeStatus(t.Context(), target, definition)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateReady || requests.Load() == 0 {
+			t.Fatalf("explicit status=%+v, %v", status, err)
+		}
+		passive(settingspkg.MCPServerRuntimeStateReady)
+		observation := health.Begin(health.ResolveKey(runtime))
+		health.RecordFailure(observation, errors.New("live discovery failed"))
+		passive(settingspkg.MCPServerRuntimeStateRuntimeUnavailable)
+		health.RecordSuccess(health.Begin(health.ResolveKey(runtime)))
+		passive(settingspkg.MCPServerRuntimeStateReady)
+		now = now.Add(defaultSettingsMCPStatusMaxAge)
+		passive(settingspkg.MCPServerRuntimeStateReady)
+		now = now.Add(defaultSettingsMCPStatusMaxAge)
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+		if _, err := surface.MCPServerRuntimeStatus(t.Context(), target, definition); err != nil {
+			t.Fatal(err)
+		}
+		passive(settingspkg.MCPServerRuntimeStateReady)
+		original := definition.URL
+		definition.URL += "/changed"
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+		definition.URL = original
+		if _, err := surface.mcpAuthGeneration.Advance(target); err != nil {
+			t.Fatal(err)
+		}
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+		if _, err := surface.MCPServerRuntimeStatus(t.Context(), target, definition); err != nil {
+			t.Fatal(err)
+		}
+		runtime.BundleGeneration = "two"
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+		runtime.BundleGeneration = "one"
+		target.Owner = "extension:other"
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+	})
+
+	t.Run("Should discard skipped approval states after consent is granted", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		surface := &settingsRuntimeSurface{state: state, digestKey: testMCPDigestKey(t, state)}
+		target := mcpauth.Target{
+			Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: req.Server.Name,
+		}
+		waiting, err := surface.MCPServerRuntimeStatus(t.Context(), target, req.Server)
+		if err != nil || waiting.State != mcpWaitingApproval {
+			t.Fatalf("waiting=%+v, %v", waiting, err)
+		}
+		digest, err := state.mcpDefinitionDigest(req.Server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		consent := settingsMCPConsent{state: state}
+		if _, err := consent.ApproveMCP(t.Context(), req, digest, false); err != nil {
+			t.Fatal(err)
+		}
+		status, err := surface.MCPServerCachedRuntimeStatus(t.Context(), target, req.Server)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateUnknown {
+			t.Fatalf("approved passive status=%+v, %v", status, err)
+		}
+		if _, err := consent.ApproveMCP(t.Context(), req, "", true); err != nil {
+			t.Fatal(err)
+		}
+		status, err = surface.MCPServerCachedRuntimeStatus(t.Context(), target, req.Server)
+		if err != nil || status.State != mcpWaitingApproval {
+			t.Fatalf("revoked=%+v, %v", status, err)
+		}
+	})
+
+	t.Run("Should discard an observation superseded while its probe runs", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		started, release := make(chan struct{}), make(chan struct{})
+		releaseProbe := sync.OnceFunc(func() { close(release) })
+		var first atomic.Bool
+		handler := mcp.NewStreamableHTTPHandler(
+			func(*http.Request) *mcp.Server { return newSettingsMCPTestServer() },
+			&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
+		)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if first.CompareAndSwap(false, true) {
+				close(started)
+				select {
+				case <-release:
+				case <-r.Context().Done():
+					return
+				}
+			}
+			handler.ServeHTTP(w, r)
+		}))
+		t.Cleanup(server.Close)
+		surface := &settingsRuntimeSurface{
+			digestKey:         []byte("test installation key"),
+			mcpAuthGeneration: mcpauth.NewMutationGeneration(),
+		}
+		target := globalMCPTestTarget("docs")
+		definition := compozyconfig.MCPServer{
+			Name:      "docs",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       server.URL,
+		}
+		done := make(chan error, 1)
+		joined := make(chan struct{})
+		go func() {
+			defer close(joined)
+			_, err := surface.MCPServerRuntimeStatus(ctx, target, definition)
+			done <- err
+		}()
+		t.Cleanup(func() {
+			cancel()
+			releaseProbe()
+			<-joined
+		})
+		select {
+		case <-started:
+		case err := <-done:
+			t.Fatalf("probe completed before request started: %v", err)
+		case <-ctx.Done():
+			t.Fatalf("probe did not start: %v", ctx.Err())
+		}
+		_, err := surface.mcpAuthGeneration.Advance(target)
+		releaseProbe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		status, err := surface.MCPServerCachedRuntimeStatus(t.Context(), target, definition)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateUnknown {
+			t.Fatalf("superseded status=%+v, %v", status, err)
+		}
+	})
+	t.Run("Should isolate workspace failures by the resolved profile", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		profile, err := state.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "work"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{state: state}
+		target := mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: "docs"}
+		ctx := mcpauth.WithConsentScope(t.Context(), mcpauth.ConsentScope{ProfileName: "work"})
+		key, tracked, err := surface.settingsMCPDeadEntityKey(ctx, target, "docs")
+		if err != nil || !tracked || key.ProfileID != profile.ID || key.WorkspaceID != req.WorkspaceID {
+			t.Fatalf("key=%+v tracked=%v err=%v", key, tracked, err)
+		}
+		defaultKey, tracked, err := surface.settingsMCPDeadEntityKey(t.Context(), target, "docs")
+		if err != nil || !tracked || defaultKey.ProfileID != store.DefaultProfileID || defaultKey == key {
+			t.Fatalf("default key=%+v tracked=%v err=%v", defaultKey, tracked, err)
+		}
+	})
+
+	t.Run("Should retry a dead server through real MCP discovery and clear its durable failure", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		server := httptest.NewServer(
+			mcp.NewStreamableHTTPHandler(
+				func(*http.Request) *mcp.Server { return newSettingsMCPTestServer() },
+				&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
+			),
+		)
+		t.Cleanup(server.Close)
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 7, 15, 18, 30, 0, 0, time.UTC)
+		if err := db.InsertWorkspace(
+			ctx,
+			workspacepkg.Workspace{ID: "ws-retry", Name: "retry", RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now},
+		); err != nil {
+			t.Fatal(err)
+		}
+		auth, err := newSettingsMCPAuthManagerWithConfig(db, db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			digestKey:      []byte("test installation key"),
+			mcpAuthStore:   db,
+			mcpAuthManager: auth,
+			deadEntities:   deadentity.New(db, deadentity.WithPermanentFailureThreshold(1)),
+		}
+		target := mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "ws-retry", ServerName: "docs"}
+		key, tracked, err := surface.settingsMCPDeadEntityKey(ctx, target, "docs")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !tracked {
+			t.Fatal("untracked server")
+		}
+		if err := surface.deadEntities.RecordFailure(ctx, key, deadentity.FailurePermanent, "offline"); err != nil {
+			t.Fatal(err)
+		}
+		definition := compozyconfig.MCPServer{
+			Name:      "docs",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       server.URL,
+		}
+		suppressed, err := surface.MCPServerRuntimeStatus(ctx, target, definition)
+		if err != nil || suppressed.State != settingspkg.MCPServerRuntimeStateDead {
+			t.Fatalf("suppressed = %+v, %v", suppressed, err)
+		}
+		status, err := surface.CheckMCPServerRuntime(ctx, target, definition)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateReady || status.ToolCount != 1 {
+			t.Fatalf("retry = %+v, %v", status, err)
+		}
+		marks, err := db.ListDeadEntities(ctx, store.ReadScope{AllProfiles: true}, "ws-retry")
+		if err != nil || len(marks) != 0 {
+			t.Fatalf("marks = %+v, %v", marks, err)
+		}
+	})
+
 	t.Run("Should classify permission failures by error identity", func(t *testing.T) {
 		t.Parallel()
 
@@ -483,11 +1013,21 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		surface := &settingsRuntimeSurface{config: compozyconfig.Config{
-			Observability: compozyconfig.ObservabilityConfig{
-				AgentProbeTimeout: time.Nanosecond,
+		store := openDaemonTestGlobalDB(t)
+		manager, err := newSettingsMCPAuthManagerWithConfig(store, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			digestKey:      []byte("test installation key"),
+			mcpAuthStore:   store,
+			mcpAuthManager: manager,
+			config: compozyconfig.Config{
+				Observability: compozyconfig.ObservabilityConfig{
+					AgentProbeTimeout: time.Nanosecond,
+				},
 			},
-		}}
+		}
 		// Invariant: allocated extension names remain probeable through the real MCP HTTP transport.
 		// Owner: daemon Settings runtime; canonical suite: settings_test.go.
 		for _, owner := range []string{"manual", "extension:docs"} {
@@ -531,7 +1071,10 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			}
 		}))
 		t.Cleanup(blockingServer.Close)
-		surface := &settingsRuntimeSurface{mcpStatusTimeout: 20 * time.Millisecond}
+		surface := &settingsRuntimeSurface{
+			digestKey:        []byte("test installation key"),
+			mcpStatusTimeout: 20 * time.Millisecond,
+		}
 
 		startedAt := time.Now()
 		status, err := surface.MCPServerRuntimeStatus(
@@ -574,7 +1117,11 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 				t.Errorf("Close() error = %v", err)
 			}
 		})
-		surface := &settingsRuntimeSurface{mcpStdioPool: pool, mcpStatusTimeout: 5 * time.Second}
+		surface := &settingsRuntimeSurface{
+			digestKey:        []byte("test installation key"),
+			mcpStdioPool:     pool,
+			mcpStatusTimeout: 5 * time.Second,
+		}
 		status, err := surface.MCPServerRuntimeStatus(
 			t.Context(),
 			globalMCPTestTarget("crashing"),
@@ -601,7 +1148,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 	t.Run("Should skip probing when remote MCP auth needs login", func(t *testing.T) {
 		t.Parallel()
 
-		surface := &settingsRuntimeSurface{}
+		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key")}
 		status, err := surface.MCPServerRuntimeStatus(
 			t.Context(),
 			globalMCPTestTarget("linear"),
@@ -633,7 +1180,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 	t.Run("Should report config errors without fabricating a probe", func(t *testing.T) {
 		t.Parallel()
 
-		surface := &settingsRuntimeSurface{}
+		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key")}
 		status, err := surface.MCPServerRuntimeStatus(
 			t.Context(),
 			globalMCPTestTarget("broken"),
@@ -680,7 +1227,10 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("InsertWorkspace() error = %v", err)
 		}
-		surface := &settingsRuntimeSurface{deadEntities: deadentity.New(globalDB)}
+		surface := &settingsRuntimeSurface{
+			digestKey:    []byte("test installation key"),
+			deadEntities: deadentity.New(globalDB),
+		}
 		target := mcpauth.Target{
 			Scope:       mcpauth.ScopeWorkspace,
 			WorkspaceID: workspaceID,
@@ -1543,4 +2093,311 @@ func daemonSettingsOperationRequest(
 		}
 	}
 	return request
+}
+
+func TestSettingsMCPSecretURLStatus(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain URL secrets only in private auth requests", func(t *testing.T) {
+		t.Parallel()
+		db, err := openDaemonTestGlobalDBAtPath(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		manager, err := newSettingsMCPAuthManagerWithConfig(db, db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key"),
+			mcpAuthManager: manager,
+			secretResolver: func(context.Context, string) (string, error) { return "private-api-key", nil },
+		}
+		target := globalMCPTestTarget("secret-url")
+		server := compozyconfig.MCPServer{
+			Name:      target.ServerName,
+			Owner:     "extension:client",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       "https://example.com/mcp?key=${API_KEY}",
+			InputValues: map[string]compozyconfig.MCPInputValue{
+				"API_KEY": {SecretRef: "vault:extensions/global/client/env/API_KEY"},
+			},
+		}
+		cfg, err := surface.mcpAuthServerConfig(t.Context(), target, server)
+		if err != nil || cfg.RemoteURL != "https://example.com/mcp?key=private-api-key" {
+			t.Fatal("private auth URL was not rendered", err)
+		}
+		for _, available := range []bool{true, false} {
+			if !available {
+				surface.mcpAuthManager = nil
+			}
+			status, err := surface.MCPAuthStatus(t.Context(), target, server)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(status)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if status.RemoteURL != server.URL || strings.Contains(string(encoded), "private-api-key") {
+				t.Fatal("public auth status exposed a secret")
+			}
+		}
+	})
+}
+
+func TestDaemonMCPCloneInputs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve isolated input values through runtime rendering", func(t *testing.T) {
+		t.Parallel()
+		original := compozyconfig.MCPServer{
+			Headers:     map[string]string{"X-Tenant": "${TENANT}"},
+			InputValues: map[string]compozyconfig.MCPInputValue{"TENANT": {Value: "tenant-a"}},
+		}
+		cloned := cloneDaemonMCPServer(original)
+		original.InputValues["TENANT"] = compozyconfig.MCPInputValue{Value: "tenant-b"}
+		rendered, _, err := cloned.RenderInputs(nil)
+		if err != nil || rendered.Headers["X-Tenant"] != "tenant-a" {
+			t.Fatalf("clone rendering failed: %v", err)
+		}
+	})
+}
+
+// Invariant (UT-110/037): no OAuth/probe network call precedes digest-bound consent;
+// passive status remains readable. Owner: daemon Settings auth boundary; canonical suite: settings.
+func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
+	t.Parallel()
+	state, req := newMCPConsentFixture(t)
+	var requests atomic.Int64
+	var unapproved atomic.Bool
+	listener := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		decision, err := (settingsMCPConsent{state: state}).MCPConsent(r.Context(), req)
+		if err != nil || !decision.Admitted {
+			unapproved.Store(true)
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer listener.Close()
+	req.Server.Command = ""
+	req.Server.Transport = "http"
+	req.Server.URL = listener.URL + "/mcp"
+	req.Server.Auth = compozyconfig.MCPAuthConfig{Registration: compozyconfig.MCPAuthRegistrationAuto}
+	encoded, err := json.Marshal(
+		map[string]any{
+			"mcpServers": map[string]any{
+				"sentry": map[string]any{
+					"transport": "http",
+					"url":       req.Server.URL,
+					"auth":      map[string]any{"registration": "auto"},
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(req.Server.DefinitionSource, encoded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Use the canonical parser's normalized definition in both publisher and Settings.
+	servers, err := compozyconfig.LoadMCPServersJSONFile(req.Server.DefinitionSource)
+	if err != nil || len(servers) != 1 {
+		t.Fatalf("servers=%+v %v", servers, err)
+	}
+	req.Server = servers[0]
+	state.mcpServerCatalog.Replace(
+		2,
+		[]resources.Record[compozyconfig.MCPServer]{
+			{
+				ID:    "workspace-server",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: req.WorkspaceID},
+				Spec:  req.Server,
+			},
+		},
+	)
+	tokens := state.registry.(mcpauth.TokenStore)
+	manager, err := newSettingsMCPAuthManagerWithAuthorization(
+		tokens,
+		nil,
+		nil,
+		nil,
+		compozyconfig.MCPOAuthConfig{},
+		func(ctx context.Context, cfg mcpauth.ServerConfig) error {
+			return authorizeMCPAuthNetwork(ctx, state, cfg)
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	surface := &settingsRuntimeSurface{
+		digestKey:      testMCPDigestKey(t, state),
+		state:          state,
+		mcpAuthManager: manager,
+		mcpAuthStore:   tokens,
+	}
+	service, err := settingspkg.NewService(
+		testHomePaths(t),
+		settingspkg.Dependencies{
+			WorkspaceResolver:       state.workspaceResolver,
+			ProfileResolver:         state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPConsent:              settingsMCPConsent{state: state},
+			MCPAuth:                 surface,
+			MCPRuntime:              surface,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := settingspkg.MCPAuthTargetRequest{
+		Scope:       settingspkg.ScopeWorkspace,
+		WorkspaceID: req.WorkspaceID,
+		Name:        "sentry",
+	}
+	if _, err = service.GetMCPAuthStatus(t.Context(), target); err != nil {
+		t.Fatalf("passive status blocked: %v", err)
+	}
+	if status, err := surface.MCPServerRuntimeStatus(
+		t.Context(),
+		mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: "sentry"},
+		req.Server,
+	); err != nil ||
+		status.Probe != settingspkg.MCPServerProbeSkipped {
+		t.Fatalf("waiting probe=%+v %v", status, err)
+	}
+
+	collection, err := service.ListCollection(t.Context(), settingspkg.CollectionRequest{
+		Collection: settingspkg.CollectionMCPServers, Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID,
+		SkipRuntimeStatus: true,
+	})
+	if err != nil || len(collection.MCPServers) != 1 {
+		t.Fatalf("listing=%+v %v", collection.MCPServers, err)
+	}
+	digest := collection.MCPServers[0].Approval.DefinitionDigest
+	cfgBeforeLogin, err := surface.mcpAuthServerConfig(t.Context(), mcpauth.Target{
+		Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: "sentry",
+	}, req.Server)
+	if err != nil || cfgBeforeLogin.DefinitionDigest != digest {
+		t.Fatalf("list and sign-in digests differ: %v", err)
+	}
+
+	for _, tc := range []struct{ digest, code string }{{"", "mcp_server_waiting_approval"}, {"stale", "mcp_approval_definition_changed"}} {
+		_, err := service.BeginMCPAuth(
+			t.Context(),
+			settingspkg.MCPAuthBeginRequest{
+				MCPAuthTargetRequest: target,
+				DefinitionDigest:     tc.digest,
+				CallbackURL:          "http://127.0.0.1:7777/callback",
+			},
+		)
+		approvalErr, ok := errors.AsType[*settingspkg.MCPApprovalError](err)
+		if !ok || approvalErr.Code != tc.code || requests.Load() != 0 {
+			t.Fatalf("begin digest=%q error=%v requests=%d", tc.digest, err, requests.Load())
+		}
+	}
+	_, _ = service.BeginMCPAuth(
+		t.Context(),
+		settingspkg.MCPAuthBeginRequest{
+			MCPAuthTargetRequest: target,
+			DefinitionDigest:     digest,
+			CallbackURL:          "http://127.0.0.1:7777/callback",
+		},
+	)
+	if requests.Load() == 0 || unapproved.Load() {
+		t.Fatalf("requests=%d unapproved=%t", requests.Load(), unapproved.Load())
+	}
+	if _, err = (settingsMCPConsent{state: state}).ApproveMCP(t.Context(), req, "", true); err != nil {
+		t.Fatal(err)
+	}
+	before := requests.Load()
+	cfg, err := surface.mcpAuthServerConfig(
+		t.Context(),
+		mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: "sentry"},
+		req.Server,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := authorizeMCPAuthNetwork(t.Context(), state, cfg); err == nil || requests.Load() != before {
+		t.Fatalf("continued auth escaped revoke: %v", err)
+	}
+	status, err := surface.MCPServerCachedRuntimeStatus(t.Context(), cfg.Target, req.Server)
+	if err != nil || status.State != mcpWaitingApproval || requests.Load() != before {
+		t.Fatalf("revoked passive status=%+v, %v", status, err)
+	}
+	// Invariant: signing out while waiting for consent deletes local credentials without server I/O; owner: Settings auth.
+	fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tokens.SaveMCPAuthToken(
+		t.Context(),
+		mcpauth.TokenRecord{
+			Target:                cfg.Target,
+			DefinitionFingerprint: fingerprint,
+			ClientID:              "test-client",
+			Issuer:                req.Server.URL,
+			AccessToken:           "local-test-token",
+			TokenType:             "Bearer",
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.LogoutMCPAuth(t.Context(), target); err != nil {
+		t.Fatalf("waiting sign-out: %v", err)
+	}
+	if _, err := tokens.GetMCPAuthToken(t.Context(), cfg.Target); !errors.Is(err, mcpauth.ErrTokenNotFound) {
+		t.Fatalf("credential retained: %v", err)
+	}
+	if requests.Load() != before {
+		t.Fatal("sign-out contacted the server")
+	}
+}
+
+// Invariant: OAuth credential ownership does not select the approval profile.
+// Owner: daemon auth consent boundary; canonical Settings auth suite.
+func TestMCPAuthNetworkUsesActiveConsentProfile(t *testing.T) {
+	t.Parallel()
+	state, req := newMCPConsentFixture(t)
+	work, err := state.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	consent := settingsMCPConsent{state: state}
+	digest, err := state.mcpDefinitionDigest(req.Server)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := consent.ApproveMCP(t.Context(), req, digest, false); err != nil {
+		t.Fatal(err)
+	}
+	cfg := mcpauth.ServerConfig{
+		Target: mcpauth.Target{
+			Scope:       mcpauth.ScopeWorkspace,
+			WorkspaceID: req.WorkspaceID,
+			ServerName:  req.Server.Name,
+		},
+		DefinitionDigest: digest,
+		ConsentScope:     mcpauth.ConsentScope{ProfileID: work.ID, WorkspaceID: req.WorkspaceID},
+	}
+	if err := authorizeMCPAuthNetwork(t.Context(), state, cfg); err == nil {
+		t.Fatal("default profile consent leaked to work")
+	}
+	req.ProfileName = "work"
+	if _, err := consent.ApproveMCP(t.Context(), req, digest, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := authorizeMCPAuthNetwork(t.Context(), state, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := consent.ApproveMCP(t.Context(), req, "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := authorizeMCPAuthNetwork(t.Context(), state, cfg); err == nil {
+		t.Fatal("work OAuth remained authorized after revoke")
+	}
 }

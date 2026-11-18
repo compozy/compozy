@@ -51,6 +51,195 @@ import (
 // Invariant: real daemon wiring reserves, launches ACP, persists a result and delivers one wake.
 // Owner: daemon orchestration; canonical suite for the new subagent journey (IT-001/IT-013 queue and replay halves).
 func TestSubagentDaemonIntegration(t *testing.T) {
+	// Invariant: deleting child history retains one terminal result and wakes its parent once.
+	for _, deletion := range []string{"running", "stopped", "missing history", "store recovery", "wait recovery"} {
+		t.Run("Should settle and deliver a deleted child with "+deletion, func(t *testing.T) {
+			t.Parallel()
+			d, manager, workspace := newSubagentDaemonIntegration(t)
+			ctx := t.Context()
+			parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+			service := d.SubagentService()
+			row, err := service.Delegate(ctx, session.SubagentRequest{
+				Caller: caller, Task: "hold parent", Title: "Deleted child",
+			})
+			if err != nil || row.ChildSessionID == nil {
+				t.Fatal(row, err)
+			}
+			childID := *row.ChildSessionID
+			waitForRuntimeCondition(t, "child active before deletion", 10*time.Second, func() bool {
+				child, ok := manager.Get(childID)
+				return ok && child.IsPrompting() && child.CurrentTurnID() != ""
+			})
+			if deletion != "running" {
+				// Model a lost stop callback without changing the real daemon, store or ACP boundary.
+				manager.SetSubagentService(nil)
+				t.Cleanup(func() { manager.SetSubagentService(service) })
+				if err := manager.Stop(ctx, childID); err != nil {
+					t.Fatal(err)
+				}
+				manager.SetSubagentService(service)
+			}
+			if deletion == "missing history" {
+				if err := os.RemoveAll(filepath.Join(d.homePaths.SessionsDir, childID)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if deletion == "wait recovery" {
+				if _, err := d.registry.(*globaldb.GlobalDB).DB().ExecContext(ctx,
+					`UPDATE session_subagents SET wake_policy = ? WHERE id = ?`, store.SubagentWakePolicySettledOnly, row.ID,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if deletion == "store recovery" || deletion == "wait recovery" {
+				if err := d.registry.(store.SessionCatalog).DeleteSession(ctx, childID); err != nil {
+					t.Fatal(err)
+				}
+				manager.SetSubagentService(nil)
+				if _, err := manager.CancelPromptWithCause(
+					ctx,
+					parent.ID,
+					session.PromptCancelSyntheticAdmission,
+				); err != nil {
+					t.Fatal(err)
+				}
+				waitForRuntimeCondition(t, "parent idle before recovery", 10*time.Second, func() bool {
+					return !parent.IsPrompting() && parent.CurrentTurnID() == ""
+				})
+				manager.SetSubagentService(service)
+				if err := service.Recover(ctx); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := manager.Delete(ctx, childID); err != nil {
+				t.Fatal(err)
+			}
+			current, err := service.Get(ctx, workspace, row.ID)
+			if err != nil || !store.IsSubagentStatusTerminal(current.Status) ||
+				current.WorkState != store.SubagentWorkStateResultAvailable || current.ChildSessionID != nil ||
+				current.ChildActivity != store.SubagentChildActivityStopped || current.SettledAt == nil ||
+				(current.Delivery != store.SubagentDeliveryClaimed && current.Delivery != store.SubagentDeliveryDelivered) ||
+				current.WakeMessageID == nil {
+				t.Fatalf("deleted child delegation = %+v, %v", current, err)
+			}
+			if deletion != "running" && (current.Status != store.SubagentStatusInterrupted ||
+				current.Error == nil || *current.Error != "delegation interrupted: child session deleted" ||
+				current.Result != nil || current.ResultTruncated) {
+				t.Fatalf("unsettled delete lost its interruption: %+v", current)
+			}
+			summary, err := service.Summaries(ctx, []string{parent.ID})
+			if err != nil || summary[parent.ID].Live != 0 {
+				t.Fatal(summary, err)
+			}
+			if deletion != "store recovery" && deletion != "wait recovery" {
+				if _, err := manager.CancelPromptWithCause(
+					ctx,
+					parent.ID,
+					session.PromptCancelSyntheticAdmission,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			waitForRuntimeCondition(t, "deleted child wake delivered", 10*time.Second, func() bool {
+				current, err := service.Get(ctx, workspace, row.ID)
+				return err == nil && current.Delivery == store.SubagentDeliveryDelivered && !parent.IsPrompting()
+			})
+			if err := service.Recover(ctx); err != nil {
+				t.Fatal(err)
+			}
+			pending, err := d.registry.(goalSubagentWakeReader).HasPendingSubagentWake(ctx, workspace, parent.ID)
+			if err != nil || pending {
+				t.Fatalf("pending wake after delivery = %v, %v", pending, err)
+			}
+			events, err := manager.Events(ctx, parent.ID, store.EventQuery{Limit: 100})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wakes := 0
+			for _, event := range events {
+				if event.Type == acp.EventTypeSyntheticReentry {
+					wakes++
+				}
+			}
+			if wakes != 1 {
+				t.Fatalf("deleted child wake count = %d, want 1", wakes)
+			}
+		})
+	}
+	// Invariant: a wait-mode caller receives deletion interruption without a later wake.
+	t.Run("Should return a deleted child to its waiting caller without a second wake", func(t *testing.T) {
+		t.Parallel()
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+		service := d.SubagentService()
+		type result struct {
+			row session.Subagent
+			err error
+		}
+		done := make(chan result, 1)
+		go func() {
+			row, err := service.Delegate(ctx, session.SubagentRequest{
+				Caller: caller, Task: "hold parent", Title: "Deleted waiting child",
+				Mode: session.SubagentModeWait, Timeout: 30 * time.Second,
+			})
+			done <- result{row, err}
+		}()
+		var childID string
+		waitForRuntimeCondition(t, "wait-mode child active", 10*time.Second, func() bool {
+			page, err := service.List(ctx, store.SubagentListQuery{
+				WorkspaceID: workspace, ParentSessionID: parent.ID, Limit: 10,
+			})
+			if err != nil || len(page.Items) != 1 || page.Items[0].ChildSessionID == nil {
+				return false
+			}
+			childID = *page.Items[0].ChildSessionID
+			child, ok := manager.Get(childID)
+			return ok && child.IsPrompting() && child.CurrentTurnID() != ""
+		})
+		// A missed stop callback makes deletion itself own terminalization and wait notification.
+		manager.SetSubagentService(nil)
+		t.Cleanup(func() { manager.SetSubagentService(service) })
+		if err := manager.Stop(ctx, childID); err != nil {
+			t.Fatal(err)
+		}
+		manager.SetSubagentService(service)
+		if err := manager.Delete(ctx, childID); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case got := <-done:
+			if got.err != nil || got.row.Status != store.SubagentStatusInterrupted ||
+				got.row.Delivery != store.SubagentDeliveryAcknowledged || got.row.WakeMessageID != nil || got.row.WaitTimedOut ||
+				got.row.Result != nil || got.row.ResultTruncated || got.row.Error == nil {
+				t.Fatalf("wait-mode result = %+v, %v", got.row, got.err)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "wait-mode parent settled", 10*time.Second, func() bool {
+			return !parent.IsPrompting() && parent.CurrentTurnID() == ""
+		})
+		if err := service.Recover(ctx); err != nil {
+			t.Fatal(err)
+		}
+		pending, err := d.registry.(goalSubagentWakeReader).HasPendingSubagentWake(ctx, workspace, parent.ID)
+		if err != nil || pending {
+			t.Fatalf("wait-mode pending wake = %v, %v", pending, err)
+		}
+		events, err := manager.Events(ctx, parent.ID, store.EventQuery{Limit: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, event := range events {
+			if event.Type == acp.EventTypeSyntheticReentry {
+				t.Fatal("wait-mode result produced a second synthetic wake")
+			}
+		}
+	})
 	// IT-018: boot must publish the subagent service to both public transports.
 	t.Run("Should expose subagent routes over HTTP and UDS after boot", func(t *testing.T) {
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
@@ -380,8 +569,8 @@ agent = "designer"
 				id    toolspkg.ToolID
 				input string
 			}{
-				{toolspkg.ToolIDSessionStatus, fmt.Sprintf(`{"session_id":%q}`, parent.ID)},
-				{toolspkg.ToolIDSessionList, `{}`},
+				{toolspkg.ToolIDSessionStatus, fmt.Sprintf(`{"session_id":%q,"result_view":"full"}`, parent.ID)},
+				{toolspkg.ToolIDSessionList, `{"result_view":"full"}`},
 			} {
 				result, err := d.toolRegistry.Call(
 					t.Context(),
@@ -486,6 +675,14 @@ func newSubagentDaemonWithSetup(
 						Steps: []acpmock.Step{
 							{Kind: acpmock.StepKindAssistant, Text: "Continue the interrupted delegated task."},
 						},
+					},
+					{
+						Name: "conflict-wake",
+						Match: acpmock.TurnMatch{
+							TurnSource:       acp.PromptTurnSourceSynthetic,
+							UserTextContains: "PR #7 now conflicts with main; rebase",
+						},
+						Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "conflict wake received"}},
 					},
 					{
 						Name:  "wake",
@@ -641,6 +838,11 @@ func newSubagentDaemonWithSetup(
 	}
 	fixture.Agents[0].Turns = append(
 		fixture.Agents[0].Turns,
+		acpmock.TurnFixture{
+			Name:  "native-resume",
+			Match: acpmock.TurnMatch{UserText: "native resumed work"},
+			Steps: nativeResumeSteps(t),
+		},
 		acpmock.TurnFixture{Name: "native", Match: acpmock.TurnMatch{UserText: "native work"}, Steps: nativeSteps},
 		acpmock.TurnFixture{
 			Name:  "native-background",
@@ -795,8 +997,91 @@ func nativeBackgroundSteps(t *testing.T) []acpmock.Step {
 	)
 }
 
+func nativeResumeSteps(t *testing.T) []acpmock.Step {
+	t.Helper()
+	steps := nativeBackgroundSteps(t)
+	steps = steps[:len(steps)-2]
+	for _, message := range []string{
+		`{"type":"system","subtype":"task_started","task_id":"agent-resume","run_id":"0001","tool_use_id":"toolu_background","task_type":"local_agent","is_backgrounded":true}`,
+		`{"type":"system","subtype":"task_notification","task_id":"agent-resume","run_id":"0001","tool_use_id":"toolu_background","status":"completed","summary":"First answer"}`,
+		`{"type":"system","subtype":"task_started","task_id":"agent-resume","run_id":"0002","tool_use_id":"toolu_send_message","task_type":"local_agent","is_backgrounded":true}`,
+		`{"type":"system","subtype":"task_updated","task_id":"agent-resume","run_id":"0002","patch":{"status":"running"}}`,
+		`{"type":"system","subtype":"task_notification","task_id":"agent-resume","run_id":"0002","tool_use_id":"toolu_send_message","status":"completed","summary":"Second answer"}`,
+	} {
+		steps = append(
+			steps,
+			acpmock.Step{Kind: acpmock.StepKindDriverControl, DriverControl: &acpmock.DriverControlStep{
+				Action:     acpmock.DriverControlWriteRawJSONRPC,
+				RawJSONRPC: `{"jsonrpc":"2.0","method":"_claude/sdkMessage","params":{"sessionId":"subagent-test-session-1","message":` + message + `}}`,
+			}},
+			acpmock.Step{
+				Kind:          acpmock.StepKindDriverControl,
+				DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlDelay, DelayMS: 750},
+			},
+		)
+	}
+	return append(steps, acpmock.Step{Kind: acpmock.StepKindAssistant, Text: "Resumed work finished."})
+}
+
 // IT-020: committed ACP Agent/Task traffic creates readable native rows without creating child sessions or wakes.
 func TestSubagentNativeDaemonIntegration(t *testing.T) {
+	t.Run("Should project a resumed background task through its second completion", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
+			provider := cfg.Providers[acpmock.ProviderName]
+			provider.SessionMCP = new(false)
+			cfg.Providers[acpmock.ProviderName] = provider
+		}, "", func(d *Daemon) {
+			alias := filepath.Join(t.TempDir(), "claude-agent-acp")
+			driver := acpmock.RequireDriver(t)
+			if err := os.Symlink(driver, alias); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(strings.ReplaceAll(string(data), driver, alias)), 0600); err != nil {
+				t.Fatal(err)
+			}
+		})
+		parent, err := manager.Create(
+			t.Context(),
+			new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := manager.SendPrompt(
+			t.Context(),
+			parent.ID,
+			session.SendPromptOpts{Message: "native resumed work"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, phase := range []struct{ status, result string }{{"completed", "First answer"}, {"running", ""}, {"completed", "Second answer"}} {
+			waitForRuntimeCondition(t, "native phase "+phase.status+phase.result, 10*time.Second, func() bool {
+				page, err := d.SubagentService().
+					List(t.Context(), store.SubagentListQuery{WorkspaceID: workspace, ParentSessionID: parent.ID, Limit: 20})
+				if err != nil || len(page.Items) != 1 {
+					return false
+				}
+				row := page.Items[0]
+				if row.Status != phase.status {
+					return false
+				}
+				if phase.status == "running" {
+					return row.Result == nil && row.SettledAt == nil
+				}
+				return row.Result != nil && *row.Result == phase.result && row.SettledAt != nil
+			})
+		}
+		for range response.Events {
+			continue
+		}
+	})
+
 	// Issue #766: the launch receipt arrives at once; the row runs until the provider answers the turn.
 	t.Run("Should run background native work until the turn ends", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
@@ -1420,7 +1705,7 @@ func TestSubagentRecoveryDaemonIntegration(t *testing.T) {
 		}
 		orphan, err := manager.Spawn(
 			t.Context(),
-			session.SpawnOpts{
+			&session.SpawnOpts{
 				ParentSessionID:  parent.ID,
 				ParentTurnID:     caller.TurnID,
 				AgentName:        "subagent-test",
@@ -1652,7 +1937,7 @@ func TestSubagentFirstAdmissionRestartDaemonIntegration(t *testing.T) {
 		if _, _, err := db.ReserveSubagent(t.Context(), row); err != nil {
 			t.Fatal(err)
 		}
-		child, err := manager.Spawn(t.Context(), session.SpawnOpts{
+		child, err := manager.Spawn(t.Context(), &session.SpawnOpts{
 			ParentSessionID:  parent.ID,
 			ParentTurnID:     caller.TurnID,
 			AgentName:        "subagent-test",
@@ -3139,7 +3424,7 @@ func TestIsolatedSubagentRecoveryIntegration(t *testing.T) {
 				stage == "indeterminate" {
 				child, err := manager.Spawn(
 					t.Context(),
-					session.SpawnOpts{
+					&session.SpawnOpts{
 						ParentSessionID:    parent.ID,
 						ParentTurnID:       caller.TurnID,
 						AgentName:          "subagent-test",
@@ -4608,7 +4893,9 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		heldSettled := make(chan struct{})
 		go func() {
+			defer close(heldSettled)
 			for range held.Events {
 			}
 		}()
@@ -4636,9 +4923,9 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 		db := d.registry.(*globaldb.GlobalDB)
 		id := store.ReplyWatchID(target.ID, "long-question")
 
-		// Several quiet episodes past QuietAfter + StopGrace (2s ticks): the armed watch on a working target
-		// is the sender's only work, so without it the sender would be stopped well inside this window.
-		time.Sleep(15 * time.Second)
+		// Several quiet episodes past QuietAfter + StopGrace: the armed watch on a working target is the
+		// sender's only work, so without it the sender would be stopped well inside this window.
+		superviseQuietWindow(t, m, 12*time.Second)
 		if info, err := m.Status(t.Context(), sender.ID); err != nil || info.State != session.StateActive {
 			t.Fatalf("waiting orchestrator = %+v, %v; want active", info, err)
 		}
@@ -4648,7 +4935,8 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 		if err := m.Stop(t.Context(), target.ID); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(10 * time.Second)
+		testutil.Receive(t, "stopped target turn settled", 15*time.Second, heldSettled)
+		superviseQuietWindow(t, m, 8*time.Second)
 		if info, err := m.Status(t.Context(), sender.ID); err != nil || info.State != session.StateActive ||
 			info.StopReason != "" || info.Supervision.QuietWarning != nil {
 			t.Fatalf("idle orchestrator = %+v, %v; want active without a quiet warning", info, err)
@@ -4675,6 +4963,21 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 			return err == nil && len(rows) == 1
 		})
 	})
+}
+
+// superviseQuietWindow runs the daemon's supervision pass synchronously at every second of a
+// window instead of sleeping through it, so each quiet episode the periodic worker would inspect is
+// inspected even when -race starves the worker. The window stays inside the work-signal freshness
+// bound (2 x toolruntime.SweepInterval), so every pass sees the same signals a real-time pass would.
+func superviseQuietWindow(t *testing.T, m *session.Manager, window time.Duration) {
+	t.Helper()
+	start := time.Now()
+	for offset := time.Duration(0); offset <= window; offset += time.Second {
+		// Production logs supervision errors without failing; the caller asserts the session outcome.
+		if err := m.Supervise(t.Context(), start.Add(offset)); err != nil {
+			t.Logf("supervision pass at +%s: %v", offset, err)
+		}
+	}
 }
 
 // Invariant: a queue lease a previous daemon process left in dispatching settles as failed with the
@@ -4821,7 +5124,9 @@ func TestInstanceNativeCreateJourney(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			outcome := <-created
+			// A creation that never observes the answer above would otherwise block on its approval until the
+			// go test deadline aborts the whole package with no label.
+			outcome := testutil.Receive(t, "native instance creation result", 30*time.Second, created)
 			result, err := outcome.result, outcome.err
 			if err != nil {
 				t.Fatalf(
@@ -4938,43 +5243,64 @@ func TestInstanceNativeCreateJourney(t *testing.T) {
 }
 
 // IT-019/IT-020: full boot preserves expiry and reports interrupted decisions once.
+// assertB4CrashRecovery checks terminal decisions and exactly-once reports after daemon restart.
 func assertB4CrashRecovery(t *testing.T, d *Daemon, checkpoint subagentCrashCheckpoint) {
 	t.Helper()
 	db := d.registry.(*globaldb.GlobalDB)
 	rows, err := db.ListPendingInteractions(
 		t.Context(),
 		*checkpoint.Row.ChildSessionID,
-		[]string{store.PendingInteractionStatusTimedOut, store.PendingInteractionStatusCanceled},
+		[]string{
+			store.PendingInteractionStatusTimedOut,
+			store.PendingInteractionStatusCanceled,
+			store.PendingInteractionStatusResolved,
+		},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	found := map[string]bool{}
 	for _, row := range rows {
+		var wantErr error
 		switch row.InteractionID {
 		case "b4-expired":
-			if row.Status != store.PendingInteractionStatusTimedOut || row.Resolution != "reject_once" {
+			if row.Status != store.PendingInteractionStatusTimedOut || row.Resolution != "reject_once" ||
+				row.ResolvedBy != "timeout" || row.ResolvedAt == nil {
 				t.Fatalf("expiry = %#v", row)
 			}
+			wantErr = session.ErrPendingPermissionExpired
 		case "b4-pending":
-			if row.Status != store.PendingInteractionStatusCanceled || row.Resolution != "failed-by-restart" {
+			if row.Status != store.PendingInteractionStatusCanceled || row.Resolution != "failed-by-restart" ||
+				row.ResolvedBy != "system" || row.ResolvedAt == nil {
 				t.Fatalf("restart = %#v", row)
+			}
+			wantErr = session.ErrPendingPermissionCanceled
+		case "b4-resolved":
+			if row.Status != store.PendingInteractionStatusResolved || row.Resolution != "reject-once" ||
+				row.ResolvedBy != "operator" || row.ResolvedAt == nil {
+				t.Fatalf("resolved decision = %#v", row)
 			}
 		default:
 			continue
 		}
 		found[row.InteractionID] = true
-		result, err := d.sessions.ApprovePermission(
-			t.Context(),
-			row.SessionID,
-			acp.ApproveRequest{RequestID: row.ProviderRequestID, Decision: "allow-once"},
-		)
-		if err != nil || result.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
-			result.ResolvedDecision != row.Resolution {
-			t.Fatalf("late approval = %#v, %v; want existing terminal decision %s", result, err, row.Resolution)
+		for range 2 {
+			result, err := d.sessions.ApprovePermission(
+				t.Context(),
+				row.SessionID,
+				acp.ApproveRequest{RequestID: row.ProviderRequestID, Decision: "allow-once"},
+			)
+			if wantErr != nil {
+				if !errors.Is(err, wantErr) {
+					t.Fatalf("late approval for %s = %#v, %v; want %v", row.InteractionID, result, err, wantErr)
+				}
+			} else if err != nil || result.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
+				result.ResolvedDecision != row.Resolution {
+				t.Fatalf("repeated approval = %#v, %v; want existing decision %s", result, err, row.Resolution)
+			}
 		}
 	}
-	if len(found) != 2 {
+	if len(found) != 3 {
 		t.Fatalf("recovered interactions = %#v", rows)
 	}
 	reports, err := db.InstanceReports().
@@ -5089,6 +5415,7 @@ func TestInstanceApprovalCrashRestartDaemonIntegration(t *testing.T) {
 	})
 }
 
+// runInstanceApprovalCrashProcess retains the permission fixtures while a real child turn runs.
 func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
 	t.Helper()
 	// This journey owns mock ACP processes only. Persist discovery opt-outs so
@@ -5150,7 +5477,7 @@ func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
 	// Persist both sides of the crash boundary while a real child turn is running.
 	db := d.registry.(*globaldb.GlobalDB)
 	now := time.Now().UTC()
-	for _, id := range []string{"b4-expired", "b4-pending"} {
+	for _, id := range []string{"b4-expired", "b4-pending", "b4-resolved"} {
 		_, err := db.CreatePendingInteraction(
 			t.Context(),
 			store.PendingInteractionCreate{
@@ -5166,6 +5493,18 @@ func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+	if _, err := db.TransitionPendingInteraction(
+		t.Context(),
+		store.PendingInteractionTransition{
+			InteractionID: "b4-resolved",
+			Status:        store.PendingInteractionStatusResolved,
+			At:            now,
+			Resolution:    "reject-once",
+			ResolvedBy:    "operator",
+		},
+	); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := db.TransitionPendingInteraction(
 		t.Context(),
@@ -5655,9 +5994,142 @@ func assertInstanceMainGoalTransports(t *testing.T, d *Daemon, workspace string,
 	}
 }
 
+type monitorCheckRoundSource struct{ passed int }
+
+func (s monitorCheckRoundSource) ResolvePullRequest(
+	_ context.Context,
+	spec monitorpkg.Spec,
+) (monitorpkg.PullRequestTarget, error) {
+	return monitorpkg.PullRequestTarget{
+		WorkspaceID: spec.WorkspaceID,
+		RepoKey:     "example/repo",
+		Branch:      spec.Branch,
+	}, nil
+}
+
+func (s monitorCheckRoundSource) ReadPullRequest(
+	context.Context,
+	monitorpkg.PullRequestTarget,
+) (monitorpkg.PullRequestObservation, error) {
+	return monitorpkg.PullRequestObservation{
+		Lookup: monitorpkg.PullRequestFound, Number: 7, State: "open", Head: "same-head",
+		Checks: &monitorpkg.PullRequestChecks{Passed: s.passed},
+	}, nil
+}
+
 // Invariant: daemon monitors survive process release and their wake reloads the same ACP session.
 // Owner: session lifecycle through real daemon wiring (B3 IT-014).
 func TestMonitorIdleReleaseIntegration(t *testing.T) {
+	t.Run("Should deliver a later same-head completion to the same ACP session", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonConfigured(t, nil)
+		target, err := manager.Create(t.Context(), new(session.CreateOpts{
+			AgentName: "subagent-test", Workspace: workspace,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		waker := &monitorSessionWaker{sessions: func() monitorSessionManager { return manager }}
+		startMonitorService := func(t *testing.T, passed int) *monitorpkg.Service {
+			t.Helper()
+			service, err := monitorpkg.NewService(t.Context(), nil, waker,
+				monitorpkg.WithStore(d.registry.(*globaldb.GlobalDB)),
+				monitorpkg.WithOwners(monitorSessionOwners{sessions: func() any { return manager }}),
+				monitorpkg.WithPullRequests(monitorCheckRoundSource{passed: passed}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := service.Shutdown(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			return service
+		}
+		before := startMonitorService(t, 2)
+		mon, err := before.Create(t.Context(), monitorpkg.Spec{
+			SessionID: target.ID, WorkspaceID: workspace, ProfileID: target.ProfileID,
+			Kind: monitorpkg.KindPullRequest, Branch: "topic", Description: "inspect completed checks",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		awaitCompletion := func(t *testing.T, passed, turns int) {
+			t.Helper()
+			counts := fmt.Sprintf("checks: %d passed, 0 failed, 0 pending", passed)
+			waitForRuntimeCondition(t, "completion reaches the session", 20*time.Second, func() bool {
+				rows, err := manager.Events(t.Context(), target.ID,
+					store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 10, Forward: true})
+				if err != nil || len(rows) != turns {
+					return false
+				}
+				event, err := transcript.UnmarshalAgentEvent(rows[turns-1].Content)
+				return err == nil && event.Synthetic != nil && event.Synthetic.WakeEventID == mon.ID &&
+					strings.Contains(
+						event.Text,
+						counts,
+					) && strings.Contains(event.Text, "all checks finished on this head")
+			})
+			if err := manager.WaitForPromptDrains(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		awaitCompletion(t, 2, 1)
+		before.SuspendSession(target.ID)
+		if err := before.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		after := startMonitorService(t, 3)
+		if err := after.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		awaitCompletion(t, 3, 2)
+	})
+	t.Run("Should deliver a conflict wake through the durable session queue", func(t *testing.T) {
+		_, manager, workspace := newSubagentDaemonConfigured(t, nil)
+		target, err := manager.Create(t.Context(), new(session.CreateOpts{
+			AgentName: "subagent-test", Workspace: workspace,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		events, err := manager.Prompt(t.Context(), target.ID, "child work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for event := range events {
+			if event.Type == acp.EventTypeError {
+				t.Fatalf("initial turn: %+v", event)
+			}
+		}
+		waker := &monitorSessionWaker{sessions: func() monitorSessionManager { return manager }}
+		wake := monitorpkg.Notification{
+			Monitor: monitorpkg.Monitor{
+				ID: "mon-0123456789ab", SessionID: target.ID, Kind: monitorpkg.KindPullRequest,
+				Branch: "topic", FireCount: 1, Description: "resolve conflicts on wake",
+			},
+			Outcome: monitorpkg.Outcome{Reason: monitorpkg.ReasonPullRequestChanged},
+			PullRequest: &monitorpkg.PullRequestChanges{
+				Wake: true, Number: 7, State: "open", Head: "abc", Base: "main", Conflict: true,
+			},
+		}
+		if err := waker.WakeSession(t.Context(), wake); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "conflict wake reaches ACP", 20*time.Second, func() bool {
+			rows, err := manager.Events(t.Context(), target.ID,
+				store.EventQuery{Type: acp.EventTypeAgentMessage, Limit: 100})
+			if err != nil {
+				return false
+			}
+			for _, row := range rows {
+				if strings.Contains(row.Content, "conflict wake received") {
+					return true
+				}
+			}
+			return false
+		})
+	})
 	t.Run("Should release a monitor-only runtime and reload its ACP session", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
 			cfg.Session.Supervision.IdleReleaseAfter = time.Second

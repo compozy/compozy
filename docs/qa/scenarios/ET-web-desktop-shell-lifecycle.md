@@ -4,7 +4,7 @@ area: ET
 title: Operate the desktop shell across workspaces and connection states
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: A fresh workspace renders one persistent desktop with the full-width topbar, the dock as a left rail, and a flat desk whose empty-desktop card names the desktop and offers ⌘K and New session; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision; a saved layout naming an app that is no longer registered (the retired `knowledge` window) drops that window, keeps the session window rendered with no console error, and stays stable across reload.
+expected: A fresh workspace renders one persistent desktop with the full-width topbar, the dock as a left rail, and a flat desk on an empty desktop with no tabs ("This desktop is empty", **Choose a destination**, "or press ⌘K"; #1799); local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision; a saved layout naming an app that is no longer registered (the retired `knowledge` window) drops that window, keeps the session window rendered with no console error, and stays stable across reload.
 entry_points: web desktop root; workspace trigger; window-manager WebSocket stream
 qa_status: untested
 bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
@@ -15,6 +15,43 @@ evidence: /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-2026090
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-web-window-routing-lifecycle; ET-web-menubar-menu-set
 ---
+
+qa-impact: 2026-11-16 CI flakiness decisions relocate E2E-023 to the nightly performance
+census. Five independent, unretried eleven-tab runs retain every envelope; both the
+switch and peer median must be <=50 ms. The lane runs nightly or on explicit
+ci:full PRs, is informational outside merge-gating aggregators, and updates one
+performance tracking issue on rejection. Each run still asserts restore <500 ms and
+functional convergence. A missing/failed sample fails the census with an annotation.
+The census analysis counted 24 intermittent performance failures (51–73 ms), so five
+samples and the median tolerate isolated spikes while failing a majority breach;
+this is not evidence of a production root cause or per-frame headroom. The ordinary
+merge/release browser lanes exclude `@perf`; nightly and explicit `ci:full` PRs
+exercise the dedicated census. Validation receipts belong to the delivery PR; no local E2E
+walk is claimed under the overloaded-host restriction.
+
+qa-impact: 2026-11-15 accepted window-manager commands retain workspace authorization and
+finish their durable commit within a separate 30-second lifetime after a browser disconnect.
+Pin a tab and immediately reload; its pin and leftmost position must survive. Repeat with
+another layout change. Tabs-split E2E-004 remains unchanged and CI owns the real-browser check;
+the shared handler suite cancels the request after body admission and reads committed state.
+
+qa-impact: 2026-11-13 (#1660) ordinary tab/head clicks below the 5 px drag threshold must
+not prepare drop geometry or publish an active drag view. Verify click activation and
+head controls, then drag across the threshold (including a release without an intermediate
+move), reorder, split, cancel, and converge from a second client. Retained tab trees observe
+their own members and projection; sibling focus changes must preserve hidden app state, while
+member updates/removal and split topology still propagate. Merging or splitting tabs must not
+invalidate the desktop indicators; desktop rename, order, membership and attention still update.
+E2E-023 owns real-browser acceptance
+with eleven tabs, the unchanged 500 ms restore budget and both 50 ms switch/convergence bounds.
+CI owns verification; local runs and screenshots are waived by the v0.6.3 release dispatch.
+
+qa-impact: 2026-11-12 (#1543) a client-side window-manager stream failure (a frame that cannot be
+parsed or applied, a throwing subscriber, a failed socket write or resync) now reconnects the
+stream with backoff instead of leaving the layout degraded while heartbeats keep the socket open.
+The fresh fence snapshot clears the "Can't save window layout — retrying" pill and re-enables the
+dock without a reload; the pill's tooltip names the underlying error. Re-walk dock ⌥-click "Open in
+split" after a forced stream failure. Flag only; the next QA cycle owns live retesting.
 
 qa-impact: 2026-11-03 (#1180) each queued window-manager command now carries an 8 s deadline from
 the click: a command still queued past it resolves unapplied and its in-flight request aborts,
@@ -185,3 +222,46 @@ real-daemon walk observed startup status reads 6→2 and Tasks data/code before 
 focused dock/auth suites cover compact and failure boundaries. This slice does not
 re-certify the complete lifecycle/peer envelope. See
 `docs/qa/reports/2026-10-28-tanstack-data-loading.md`.
+
+QA impact 2026-11-10 (#1448): an unchanged workspace-catalog poll must not re-render the
+shell. Each 10 s refresh used to re-render every `useActiveWorkspace` caller (the hook
+spread the whole query result), every worktree listing (it read the catalog's refresh
+time), and callers that read no catalog field; on a CI peer that render landed in the
+E2E-023 convergence window as a 54 ms long task. Keep the 50 ms convergence limit and
+measurement unchanged. Verify that a catalog whose rows change still updates the project
+rail, palette, and worktree listings, and that a listing parked on a gone root (410)
+recovers on the next catalog observation even when the rows are unchanged. With the peer
+CPU throttled 6x, a 20 s idle window on both peers recorded 6 and 4 long tasks of
+71–130 ms before the change and none after. The workspace hook suites cover both
+behaviors; repeated unmodified E2E-023 runs passed with 0 ms peer-convergence tasks.
+
+QA impact 2026-11-14 (#1700, third pass): a retained window's live-data lease (enabled
+reads, live streams such as the home activity stream, app preload) now follows focus only
+after the new lease has held for 500 ms. Click quickly through several tabs and confirm the
+tabs show at once with their cached content, then rest on one: within about half a second
+its live data resumes (a session tab's live tail follows new turns again, the home
+dashboard's activity stream reconnects) and the tab left behind pauses. A burst that only passes
+through a tab must not start that tab's streams or reads. Hiding the browser document still
+pauses every window immediately. The OS interaction-hook suite owns the settle and
+pass-through invariants; E2E-023 keeps the 11-tab fixture and the 50 ms switch/convergence
+and 500 ms restore limits.
+
+QA impact 2026-11-14 (#1700): keep the command palette closed during the 11-tab
+switch burst, then open it on a session tab. Its focused-session commands and worktree
+selection must target that current window, including after another close/switch/reopen.
+Closed palettes must ignore focus publications rather than rebuilding their entity and
+ranking tree on each switch. The OS interaction-hook suite owns this subscription and
+reopening invariant; E2E-023 retains the 50 ms switch/convergence and 500 ms restore
+limits and the 11-tab fixture. Runtime identity refreshes must not wake destination-only
+workspace readers or multiply their polling timers. Home-path labels and User session
+roots still follow the daemon home through the dedicated home-directory hook; the
+workspace hook suite owns this separation.
+
+QA impact 2026-11-13 (window-tabs-split S9): the topbar pager was replaced by the desktop
+indicators. On boot and during stream loss confirm the dots render, switching is
+`aria-disabled` and the dot menu does not open until a registered client is live, and that
+reconnect re-enables both without a remount of the desk.
+
+qa-impact: 2026-11-13 window-tabs-split S10. The empty-desktop card and composer were removed: a fresh workspace's desktop shows one tab with a New tab window. Earlier walks above that mention the card or the composer are history. Walk the boot step on a fresh home and confirm the New tab window instead of a card; the rest of the expectation is unchanged.
+
+qa-impact: 2026-11-17 #1799. A fresh workspace's desktop has no tabs and shows the empty-desktop prompt instead of a New tab window; walk the boot step once.

@@ -19,7 +19,10 @@ import (
 	"testing"
 	"time"
 
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
@@ -37,6 +40,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -119,6 +123,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/workspaces/:workspace_id/window-manager/layout-profiles/:profile_id",
 		"GET /api/workspaces/:workspace_id/window-manager",
 		"GET /api/workspaces/:workspace_id/window-manager/clients",
+		"GET /api/workspaces/:workspace_id/window-manager/migration",
+		"POST /api/workspaces/:workspace_id/window-manager/migration",
 		"GET /api/workspaces/:workspace_id/window-manager/layout",
 		"GET /api/workspaces/:workspace_id/window-manager/layout-profiles",
 		"GET /api/workspaces/:workspace_id/window-manager/stream",
@@ -153,6 +159,10 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/agents/:name",
 		"GET /api/agents/:name/heartbeat",
 		"GET /api/agents/:name/heartbeat/sources",
+		"GET /api/agents/:name/heartbeat/authority",
+		"POST /api/agents/:name/heartbeat/authority/approve",
+		"DELETE /api/agents/:name/heartbeat/authority/approve",
+		"POST /api/agent-instances/:id/reports/:report_id/pick",
 		"POST /api/agents/:name/heartbeat/scripts/:script/approve",
 		"DELETE /api/agents/:name/heartbeat/scripts/:script/approve",
 		"GET /api/agents/:name/activity",
@@ -203,6 +213,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/logs/stream",
 		"GET /api/mcp/oauth/callback",
 		"GET /api/marketplace",
+		"GET /api/marketplace/sections",
 		"GET /api/marketplace/entries/:entry_id",
 		"GET /api/marketplace/sources",
 		"POST /api/marketplace/sources",
@@ -253,6 +264,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/sessions",
 		"GET /api/sessions/attention-summary",
 		"GET /api/sessions/facets",
+		"GET /api/sessions/history-cleanup",
 		"GET /api/sessions/catalog-stream",
 		"GET /api/sessions/:session_id",
 		"GET /api/sessions/:session_id/owner",
@@ -260,6 +272,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/subagents",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/monitors",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/monitors/:monitor_id/cancel",
+		"DELETE /api/workspaces/:workspace_id/subagents/:subagent_id",
 		"GET /api/workspaces/:workspace_id/subagents/:subagent_id",
 		"POST /api/workspaces/:workspace_id/subagents/:subagent_id/cancel",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id",
@@ -267,6 +280,21 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/commands",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/files",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/files/entries",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/files/content",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/files/raw/*path",
+		"GET /api/workspaces/:workspace_id/files/entries",
+		"GET /api/workspaces/:workspace_id/files/content",
+		"GET /api/workspaces/:workspace_id/files/raw/*path",
+		"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/files/raw/*path",
+		"GET /api/workspaces/:workspace_id/files/find",
+		"GET /api/workspaces/:workspace_id/files/search",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/files/find",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/files/search",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/changes",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/changes/patches",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/changes/contents",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/changes/bases",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/goal",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/goal",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
@@ -300,12 +328,19 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/settings/update",
 		"GET /api/settings/hooks",
 		"GET /api/settings/hooks-extensions",
+		"GET /api/settings/runtime-mcp-servers",
+		"POST /api/settings/runtime-mcp-servers/:runtime/:name/import",
+		"PUT /api/settings/mcp-servers/:name/approval",
+		"DELETE /api/settings/mcp-servers/:name/approval",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/mcp",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/mcp/servers/:name/check",
 		"GET /api/settings/mcp-servers",
 		"GET /api/settings/mcp-servers/:name",
 		"GET /api/settings/mcp-servers/:name/auth/status",
 		"POST /api/settings/mcp-servers/:name/auth/begin",
 		"POST /api/settings/mcp-servers/:name/auth/exchange",
 		"POST /api/settings/mcp-servers/:name/auth/logout",
+		"POST /api/settings/mcp-servers/:name/check",
 		"GET /api/settings/attention",
 		"GET /api/settings/shell",
 		"GET /api/settings/provider-usage",
@@ -422,10 +457,12 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/agents/:name/memory/validate",
 		"POST /api/automation/jobs",
 		"POST /api/automation/jobs/:id/trigger",
+		"POST /api/automation/runs/:id/cancel",
 		"POST /api/automation/triggers",
 		"POST /api/workspaces/:workspace_id/worktrees",
 		"POST /api/workspaces/:workspace_id/worktrees/adopt",
 		"POST /api/workspaces/:workspace_id/worktrees/discovered/remove",
+		"POST /api/workspaces/:workspace_id/worktrees/remove",
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/cancel",
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/dismiss",
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/actions",
@@ -468,6 +505,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/extensions/update",
 		"POST /api/notifications/attention/acknowledge",
 		"POST /api/sessions",
+		"POST /api/sessions/history-cleanup",
+		"POST /api/sessions/history-cleanup/stop",
 		"POST /api/sessions/:session_id/pull-request/refresh",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/approve",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer",
@@ -578,6 +617,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
 		"PUT /api/settings/providers/:name",
+		"PATCH /api/settings/providers/:name/enabled",
 		"PUT /api/tool-approval-grants",
 		"PUT /api/workspaces/:workspace_id/loops/:name/annotations",
 		"PUT /api/workspaces/:workspace_id/loops/:name/config",
@@ -3692,6 +3732,33 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name    string
+		err     error
+		message string
+	}{
+		{"Should report an expired permission", session.ErrPendingPermissionExpired, "permission request expired"},
+		{"Should report a canceled permission", session.ErrPendingPermissionCanceled, "permission request canceled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
+				ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
+					return session.ApprovalResult{}, tc.err
+				},
+			}, stubObserver{}, homePaths))
+			recorder := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-1/approve",
+				[]byte(`{"request_id":"stale","decision":"allow-once"}`),
+			)
+			if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), tc.message) {
+				t.Fatalf("late permission response = %d %s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
 	t.Run("Should pending permission missing", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 			ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
@@ -4194,8 +4261,95 @@ func (s retainedProcessProfileService) ListIdentities(context.Context) ([]profil
 
 // Session monitors are operator-visible: the session payload reports active
 // monitors, and the operator lists and cancels them without waking the session.
+type retainedHandlerMonitor struct{ monitor monitorpkg.Monitor }
+
+func (s retainedHandlerMonitor) List(string) []monitorpkg.Monitor {
+	return []monitorpkg.Monitor{s.monitor}
+}
+
+func (s retainedHandlerMonitor) Cancel(string, string) (monitorpkg.Monitor, error) {
+	return s.monitor, nil
+}
+
+func (retainedHandlerMonitor) ActiveCounts([]string) map[string]int { return nil }
+
 func TestSessionMonitorHandlers(t *testing.T) {
 	t.Parallel()
+	// Invariant: authenticated HTTP/UDS reads and cancel responses recheck retained foreign targets.
+	// Owning layer: shared monitor handlers; canonical suite: TestSessionMonitorHandlers.
+	t.Run("Should recheck retained session monitor targets for authenticated viewers", func(t *testing.T) {
+		t.Parallel()
+		manager := &stubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			workspaceID := "ws-workspace"
+			if id == "sess-foreign" {
+				workspaceID = "ws-foreign"
+			}
+			return &session.Info{ID: id, AgentName: "coder", WorkspaceID: workspaceID,
+				ProfileID: store.DefaultProfileID, State: session.StateActive}, nil
+		}}
+		handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+		handlers.SessionMonitors = retainedHandlerMonitor{monitor: monitorpkg.Monitor{
+			ID: "mon-retained", SessionID: "sess-owner", Kind: monitorpkg.KindSession,
+			Reason: monitorpkg.ReasonConditionMet, Status: monitorpkg.StatusFired,
+			Targets: []monitorpkg.TargetStatus{{SessionID: "sess-foreign", Name: "foreign work",
+				State: monitorpkg.TargetStateStopped, Matched: true, OccurrenceID: "occ-foreign"}},
+		}}
+		allowed := false
+		handlers.WorkspaceAccess = apitestutil.StubWorkspaceAccessPolicy{
+			AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				if req.Target.WorkspaceID == "ws-foreign" {
+					if req.Actor.SessionID != "sess-viewer" || !req.ReadOnly {
+						t.Fatalf("retained target request = %#v, want viewer read authority", req)
+					}
+					return workspaceaccess.Decision{Allowed: allowed}, nil
+				}
+				return workspaceaccess.Decision{Allowed: true}, nil
+			},
+		}
+		engine := newTestRouter(t, handlers)
+		base := "/api/workspaces/ws-workspace/sessions/sess-owner/monitors"
+		headers := map[string]string{agentidentity.HeaderSessionID: "sess-viewer", agentidentity.HeaderAgent: "coder"}
+		for _, test := range []struct {
+			name   string
+			allow  bool
+			method string
+		}{
+			{"Should redact denied targets when listing", false, http.MethodGet},
+			{"Should redact denied targets when canceling", false, http.MethodPost},
+			{"Should retain allowed targets when listing", true, http.MethodGet},
+			{"Should retain allowed targets when canceling", true, http.MethodPost},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				allowed = test.allow
+				path := base
+				if test.method == http.MethodPost {
+					path += "/mon-retained/cancel"
+				}
+				response := performRequestWithHeaders(t, engine, test.method, path, nil, headers)
+				if response.Code != http.StatusOK {
+					t.Fatalf("%s status=%d body=%s", test.method, response.Code, response.Body.String())
+				}
+				body := response.Body.String()
+				if test.allow {
+					if !strings.Contains(body, "foreign work") || !strings.Contains(body, `"state":"stopped"`) {
+						t.Fatalf("authorized target missing: %s", body)
+					}
+				} else if strings.Contains(body, "foreign work") || strings.Contains(body, "occ-foreign") ||
+					strings.Contains(body, `"state":"stopped"`) || strings.Contains(body, `"matched":true`) ||
+					!strings.Contains(
+						body,
+						`"reason":"access_denied"`,
+					) || !strings.Contains(body, `"state":"unknown"`) {
+					t.Fatalf("retained target escaped revocation: %s", body)
+				}
+			})
+		}
+		allowed = false
+		operator := performRequest(t, engine, http.MethodGet, base, nil)
+		if operator.Code != http.StatusOK || !strings.Contains(operator.Body.String(), "foreign work") {
+			t.Fatalf("operator retained read: status=%d body=%s", operator.Code, operator.Body.String())
+		}
+	})
 	monitors, err := monitorpkg.NewService(t.Context(), nil, discardMonitorWaker{})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
@@ -4244,8 +4398,8 @@ func TestSessionMonitorHandlers(t *testing.T) {
 		}
 		var canceled contract.SessionMonitorResponse
 		decodeJSONResponse(t, response, &canceled)
-		if canceled.Monitor.Status != string(monitorpkg.StatusCanceled) || canceled.Monitor.FiredAt == nil {
-			t.Fatalf("canceled=%#v", canceled.Monitor)
+		if canceled.Monitor.Status != string(monitorpkg.StatusCanceled) || canceled.Monitor.FiredAt != nil {
+			t.Fatalf("canceled=%#v, want canceled without a firing timestamp", canceled.Monitor)
 		}
 		if counts := monitors.ActiveCounts([]string{"sess-123"}); len(counts) != 0 {
 			t.Fatalf("active after cancel=%v", counts)
@@ -4924,4 +5078,61 @@ func (s *disconnectedProcessStopManager) Stop(ctx context.Context, _ string) err
 	}
 	s.awaitErr = ctx.Err()
 	return s.awaitErr
+}
+
+func TestExtensionEnablementValidationFailure(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name   string
+		err    error
+		status int
+		mask   bool
+	}{
+		{"Should preserve manifest validation issues", fmt.Errorf("%w: invalid MCP declaration", extensionpkg.ErrManifestInvalid), http.StatusBadRequest, true},
+		{"Should preserve missing inputs and environment", &extensionpkg.InputsRequiredError{MissingInputs: []string{"HOST"}, MissingEnv: []string{"TOKEN"}}, http.StatusUnprocessableEntity, true},
+		{"Should mask internal enablement failures", errors.New("private registry path"), http.StatusInternalServerError, true},
+		{"Should respect disabled internal masking", errors.New("private registry path"), http.StatusInternalServerError, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			handlers := newTestHandlersWithSettingsAndExtensions(t, "127.0.0.1",
+				&stubSettingsService{}, &stubSettingsRestartController{}, stubExtensionService{
+					SetEnablementFn: func(context.Context, string, contract.SetExtensionEnablementRequest, taskpkg.ActorContext) (contract.ExtensionEnablementPayload, error) {
+						return contract.ExtensionEnablementPayload{}, test.err
+					},
+				}, newTestHomePaths(t))
+			handlers.MaskInternalErrors = test.mask
+			response := performRequest(t, newTestRouter(t, handlers), http.MethodPut,
+				"/api/extensions/demo/enablement", []byte(`{"profile":"default","enabled":true}`))
+			var payload struct {
+				contract.ExtensionOperationErrorPayload
+				Issues []contract.ValidationIssue `json:"issues"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != test.status || payload.Error == "" {
+				t.Fatalf("response = %d %s", response.Code, response.Body)
+			}
+			switch test.status {
+			case http.StatusBadRequest:
+				if len(payload.Issues) != 1 || !strings.Contains(payload.Issues[0].Message, "invalid MCP declaration") {
+					t.Fatalf("missing validation issues: %s", response.Body)
+				}
+			case http.StatusUnprocessableEntity:
+				if payload.Code != "extension_inputs_required" || !slices.Equal(payload.Inputs, []string{"HOST"}) ||
+					!slices.Equal(payload.MissingEnv, []string{"TOKEN"}) {
+					t.Fatalf("missing input details: %s", response.Body)
+				}
+			case http.StatusInternalServerError:
+				want := "private registry path"
+				if test.mask {
+					want = http.StatusText(http.StatusInternalServerError)
+				}
+				if payload.Error != want {
+					t.Fatalf("error = %q, want %q", payload.Error, want)
+				}
+			}
+		})
+	}
 }

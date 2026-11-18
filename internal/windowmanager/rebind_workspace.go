@@ -33,16 +33,21 @@ func RebindWorkspace(snapshot *Snapshot, from string, to string) bool {
 			windows[id] = window
 		}
 	}
-	rebindWindows(snapshot.Windows)
-	for i := range snapshot.ClosedEntries {
-		for j := range snapshot.ClosedEntries[i].Windows {
-			rebindWindow(&snapshot.ClosedEntries[i].Windows[j])
+	rebindClosedEntries := func(entries []ClosedEntry) {
+		for i := range entries {
+			for j := range entries[i].Windows {
+				rebindWindow(&entries[i].Windows[j])
+			}
 		}
 	}
+	rebindWindows(snapshot.Windows)
+	rebindClosedEntries(snapshot.ClosedEntries)
 	for _, entries := range [][]HistoryEntry{snapshot.History.Undo, snapshot.History.Redo} {
 		for i := range entries {
 			rebindWindows(entries[i].Before.Windows)
+			rebindClosedEntries(entries[i].Before.ClosedEntries)
 			rebindWindows(entries[i].After.Windows)
+			rebindClosedEntries(entries[i].After.ClosedEntries)
 		}
 	}
 	return changed

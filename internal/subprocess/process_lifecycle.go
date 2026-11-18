@@ -55,6 +55,7 @@ func (p *Process) waitForExit(ctx context.Context) {
 	}
 
 	if p.transport != nil {
+		waitErr = errors.Join(waitErr, p.waitForStdout(p.transport.readerDone))
 		p.transport.shutdown(waitErr)
 	}
 	p.stopHealthMonitor()

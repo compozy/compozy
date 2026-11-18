@@ -299,6 +299,12 @@ func (e *Executor) actionSessionBindRequest(
 		policySpecDigest = strings.TrimSpace(provenance.OriginPolicySpecDigest)
 	}
 	runtimeRequest := segment.resolvedRuntime.Runtime
+	if segment.binding.Ownership == string(BindingOwnershipRunOwned) {
+		runtimeRequest.Reasoning = segment.binding.RequestedRuntime.Reasoning
+	}
+	if len(segment.binding.RequestedRuntime.ACPOptions) > 0 {
+		runtimeRequest.ACPOptions = dsl.CloneACPOptionSelections(segment.binding.RequestedRuntime.ACPOptions)
+	}
 	return loop.ActionSessionBindRequest{
 		GrantCeiling:                   segment.input.GrantCeiling,
 		ProfileID:                      segment.input.ToolScope.ProfileID,
@@ -400,6 +406,17 @@ func appliedGoalRuntime(
 	}
 	if strings.TrimSpace(string(intent.Runtime.Speed)) == "" && applied.Speed != "" {
 		resolved.Source.Speed = loop.RuntimeSourceAgent
+	}
+	resolved.Source.ACPOptions = nil
+	if len(applied.ACPOptions) > 0 {
+		resolved.Source.ACPOptions = make(map[string]loop.RuntimeSource, len(applied.ACPOptions))
+		for _, option := range applied.ACPOptions {
+			source, exists := intent.Source.ACPOptions[option.ID]
+			if !exists {
+				source = loop.RuntimeSourceAgent
+			}
+			resolved.Source.ACPOptions[option.ID] = source
+		}
 	}
 	return resolved
 }

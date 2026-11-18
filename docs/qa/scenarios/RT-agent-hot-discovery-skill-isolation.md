@@ -35,3 +35,7 @@ without editing its definition or provenance. `TestDiscoverReusesParsedDefinitio
 exercises this sequence against real filesystem permissions; the daemon sync suite uses real SQLite
 to verify healthy publication and preservation of both projection and subsequent sync/trigger errors.
 A public CLI/browser re-walk is not part of this host-limited review validation.
+
+QA impact 2026-11-17 (#1794, daemon CPU hot paths):
+Daemon agent configuration is revalidated within one second, independently of `skills.poll_interval`. A stat-only observer publishes changed authored agents; explicit invalidation remains immediate. The targeted hosted-MCP walk checks a `deny_tools` edit; skill-isolation browser/provider coverage retains its existing status.
+See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).

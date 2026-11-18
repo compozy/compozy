@@ -17,11 +17,17 @@ const (
 	retiredMemoryConsolidatedEvent = "memory.consolidated"
 )
 
-// This boundary archive is removed in v0.6.0.
+// Restored by #1618: v0.6.1 removed this shim while v0.6.0 homes still carried the values it
+// handles, which stopped the daemon from starting. One shim generation; remove it, its call
+// sites and their tests in v0.7.0.
+//
+// archiveRetiredMemorySettings moves retired memory and compaction settings into an inactive
+// comment archive at the end of the same document. A document that does not parse is returned
+// unchanged, so the config decoder reports the syntax error with its position.
 func archiveRetiredMemorySettings(contents []byte, source string) ([]byte, []string, error) {
 	var values map[string]any
 	if _, err := burnttoml.Decode(string(contents), &values); err != nil {
-		return nil, nil, err
+		return contents, nil, nil
 	}
 	_, retired, names := splitRetiredMemoryValues(values, nil)
 	if len(names) == 0 {
@@ -46,6 +52,12 @@ func archiveRetiredMemorySettings(contents []byte, source string) ([]byte, []str
 	result.WriteString(retiredMemoryArchiveHeader)
 	for line := range strings.SplitSeq(strings.TrimRight(archive.String(), "\n"), "\n") {
 		result.WriteString("# " + line + "\n")
+	}
+	// A layout the removal cannot rewrite cleanly must never be published: the file stays as it is
+	// and the load reports the failure instead of leaving a document that no longer parses.
+	var rewritten map[string]any
+	if _, err := burnttoml.Decode(result.String(), &rewritten); err != nil {
+		return nil, nil, fmt.Errorf("archive retired memory settings: rewritten %s does not parse: %w", source, err)
 	}
 	slices.Sort(names)
 	names = slices.Compact(names)
@@ -220,11 +232,25 @@ func removeRetiredMemorySettings(editor *OverlayEditor) error {
 	if err := parser.Error(); err != nil {
 		return err
 	}
-	slices.SortFunc(edits, func(a, b retiredMemoryEdit) int { return a.start - b.start })
-	for _, edit := range slices.Backward(edits) {
+	for _, edit := range slices.Backward(mergeRetiredMemoryEdits(edits)) {
 		editor.content = replaceOffsets(editor.content, edit.start, edit.end, edit.replacement)
 	}
 	return nil
+}
+
+// mergeRetiredMemoryEdits orders the removals and joins the ones that overlap, so a separator
+// claimed by two neighboring removals is deleted once.
+func mergeRetiredMemoryEdits(edits []retiredMemoryEdit) []retiredMemoryEdit {
+	slices.SortFunc(edits, func(a, b retiredMemoryEdit) int { return a.start - b.start })
+	merged := make([]retiredMemoryEdit, 0, len(edits))
+	for _, edit := range edits {
+		if last := len(merged) - 1; last >= 0 && edit.start < merged[last].end {
+			merged[last].end = max(merged[last].end, edit.end)
+			continue
+		}
+		merged = append(merged, edit)
+	}
+	return merged
 }
 
 func retiredMemoryInlineEdits(source []byte, node *tomlast.Node, path []string) ([]retiredMemoryEdit, error) {
@@ -273,27 +299,36 @@ func retiredMemoryInlineEdits(source []byte, node *tomlast.Node, path []string) 
 		for i+1 < len(children) && removed[i+1] {
 			i++
 		}
-		start := rangeStart(expressionRange(children[first]))
-		end := retiredMemoryNodeEnd(source, children[i])
-		switch {
-		case i+1 < len(children):
-			nextStart := rangeStart(expressionRange(children[i+1]))
-			if comma := retiredMemorySeparator(source[end:nextStart]); comma >= 0 {
-				end += comma + 1
-			}
-		case first > 0:
-			previousEnd := retiredMemoryNodeEnd(source, children[first-1])
-			if comma := retiredMemorySeparator(source[previousEnd:start]); comma >= 0 {
-				start = previousEnd + comma
-			}
-		default:
-			if comma := retiredMemorySeparator(source[end:]); comma >= 0 {
-				end += comma + 1
-			}
-		}
+		start, end, separator := retiredMemoryRemovalRange(source, children, first, i)
 		edits = append(edits, retiredMemoryEdit{start: start, end: end})
+		if separator >= 0 {
+			edits = append(edits, retiredMemoryEdit{start: separator, end: separator + 1})
+		}
 	}
 	return edits, nil
+}
+
+// retiredMemoryRemovalRange returns the byte range that removes children[first..last] together with
+// the one separator that belongs to them, so the surrounding array or inline table stays valid.
+// When a comment sits between the removed elements and their separator, the comment is kept and
+// the separator is reported as its own offset; it is -1 otherwise.
+func retiredMemoryRemovalRange(source []byte, children []*tomlast.Node, first, last int) (int, int, int) {
+	start := rangeStart(expressionRange(children[first]))
+	end := retiredMemoryNodeEnd(source, children[last])
+	if first > 0 && last+1 == len(children) {
+		previousEnd := retiredMemoryNodeEnd(source, children[first-1])
+		if comma := retiredMemorySeparator(source[previousEnd:start]); comma >= 0 {
+			return previousEnd + comma, end, -1
+		}
+	}
+	trailing := retiredMemorySeparator(source[end:])
+	if trailing < 0 {
+		return start, end, -1
+	}
+	if bytes.IndexByte(source[end:end+trailing], '#') >= 0 {
+		return start, end, end + trailing
+	}
+	return start, end + trailing + 1, -1
 }
 
 func retiredMemoryNodeEnd(source []byte, node *tomlast.Node) int {

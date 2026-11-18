@@ -26,6 +26,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// TestDaemonE2EAttentionTruthJourneys verifies public attention and durable decision outcomes.
 func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	acpmock.RequireDriver(t)
 
@@ -126,28 +127,34 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		restartOptions.HomePaths = harness.HomePaths
 		restartOptions.Workspace = e2etest.WorkspaceSeedOptions{Root: harness.WorkspaceRoot}
 		restarted := e2etest.StartRuntimeHarness(t, &restartOptions)
-		// Boot reconciliation expires the pre-restart decision: the agent process
-		// that asked is gone, so no answer could ever reach it. The decision leaves
-		// the open-interaction list with restart attribution, attention clears, and
-		// a late answer changes nothing (invariant 12, US-009).
+		// The lost turn's settled permission must refuse late answers and clear attention.
 		waitForAttentionInteractionAbsent(t, ctx, restarted, target.ID, interaction.InteractionID)
 		waitForAttentionStatusOutsideNeedsYou(t, ctx, restarted, target.ID)
 		assertAttentionListEmpty(t, ctx, restarted)
+		settled := readAttentionCanceledInteraction(t, ctx, restarted, target.ID, interaction.InteractionID)
 
-		var approval compozycontract.SessionApprovalResponse
-		if err := restarted.CLI.RunJSONInDir(
+		_, stderr, err := restarted.CLI.RunInDir(
 			ctx,
 			restarted.WorkspaceRoot,
-			&approval,
 			"session", "approve", target.ID,
 			"--request-id", interaction.ProviderRequestID,
 			"--decision", "allow-once",
 			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI late permission approval after restart error = %v", err)
+		)
+		assertAttentionCLIExitCode(t, err, 65, stderr)
+		var refusal struct {
+			Error string `json:"error"`
 		}
-		if approval.Outcome != store.PendingInteractionOutcomeAlreadyResolved {
-			t.Fatalf("CLI late permission approval after restart = %#v, want already resolved", approval)
+		if err := json.Unmarshal([]byte(stderr), &refusal); err != nil {
+			t.Fatalf("decode CLI late permission refusal: %v; stderr=%s", err, stderr)
+		}
+		if refusal.Error != session.ErrPendingPermissionCanceled.Error() {
+			t.Fatalf("CLI late permission refusal = %q, want %q", refusal.Error, session.ErrPendingPermissionCanceled)
+		}
+		after := readAttentionCanceledInteraction(t, ctx, restarted, target.ID, interaction.InteractionID)
+		if after.Resolution != settled.Resolution || after.ResolvedBy != settled.ResolvedBy ||
+			!after.ResolvedAt.Equal(*settled.ResolvedAt) {
+			t.Fatalf("late approval changed cancellation: before %#v, after %#v", settled, after)
 		}
 		waitForAttentionInteractionAbsent(t, ctx, restarted, target.ID, interaction.InteractionID)
 		assertAttentionListEmpty(t, ctx, restarted)
@@ -962,6 +969,40 @@ func waitForAttentionStatusOutsideNeedsYou(
 		case <-time.After(25 * time.Millisecond):
 		}
 	}
+}
+
+// readAttentionCanceledInteraction verifies the public terminal row and its cancellation attribution.
+func readAttentionCanceledInteraction(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID, interactionID string,
+) compozycontract.PendingInteractionPayload {
+	t.Helper()
+	var response compozycontract.SessionInteractionsResponse
+	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/sessions/" +
+		url.PathEscape(sessionID) + "/interactions?status=canceled"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("read canceled permission: %v", err)
+	}
+	index := slices.IndexFunc(response.Interactions, func(row compozycontract.PendingInteractionPayload) bool {
+		return row.InteractionID == interactionID
+	})
+	if index < 0 {
+		t.Fatalf("canceled permission %q missing: %#v", interactionID, response)
+	}
+	row := response.Interactions[index]
+	if row.Status != store.PendingInteractionStatusCanceled || row.ResolvedAt == nil {
+		t.Fatalf("canceled permission attribution = %#v", row)
+	}
+	// Provider cancellation during stop may win before disconnect or daemon finalization.
+	providerCanceled := row.ResolvedBy == "provider" && row.Resolution == "canceled"
+	systemCanceled := row.ResolvedBy == "system" &&
+		slices.Contains([]string{"canceled", "session-stopped", "failed-by-restart"}, row.Resolution)
+	if !providerCanceled && !systemCanceled {
+		t.Fatalf("canceled permission attribution = %#v", row)
+	}
+	return row
 }
 
 func waitForAttentionInteraction(

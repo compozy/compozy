@@ -13,6 +13,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
 )
 
@@ -130,10 +131,19 @@ func TestProviderAuthStatusDiagnostics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveProvider(local) error = %v", err)
 		}
-		verdicts.Record("local", provider, authproviders.Classification{
+		authenticated := authproviders.Classification{
 			State:   authproviders.ProviderAuthStateAuthenticated,
 			Message: "Provider status command completed successfully.",
-		}, time.Now())
+		}
+		verdicts.Record("local", provider, []string{"HOME=/another-seat"}, authenticated, time.Now())
+		if local := list(); local.AuthStatus.State != "unknown" || !local.AuthStatus.CheckedAt.IsZero() {
+			t.Fatalf("AuthStatus for another auth home = %#v, want unverified", local.AuthStatus)
+		}
+		probeEnv, err := providerauth.DiagnosticCommandEnv(homePaths, "local", provider, os.Environ())
+		if err != nil {
+			t.Fatalf("DiagnosticCommandEnv(local) error = %v", err)
+		}
+		verdicts.Record("local", provider, probeEnv, authenticated, time.Now())
 
 		local := list()
 		if got, want := local.AuthStatus.State, "authenticated"; got != want {

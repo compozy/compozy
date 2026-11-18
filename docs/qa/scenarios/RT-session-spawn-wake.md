@@ -145,3 +145,212 @@ lookup failure also leaves the turn unflagged. Owning automated evidence:
 `TestManagerEarlyStopSupervision` in `internal/session/spawn_wake_test.go`, the early-stop cases in
 `TestCanonicalBadgeAttentionPrecedence`, the idle-release case in
 `TestSupervisionReleasesIdleRuntime`, and `TestSessionAttentionEndedEarlyMarkDrivesDurableCatalog`.
+
+QA impact 2026-11-08: when acknowledgement clears a child's last question, configure the creator's
+synchronous input.pre_submit hook to call child presence. Verify the attention edge arrives first,
+the hook completes successfully, and the creator wake is delivered after the child's attention
+lock is released. Session-layer SQLite and synchronous wake-boundary regression coverage lives in
+TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen. CI owns the live daemon journey;
+this change does not claim a new local E2E run.
+
+QA impact 2026-11-09 (harness token efficiency): replay the same child's attention revision
+after its first wake was admitted, including after daemon restart. The durable message identity
+must prevent a second turn. A new revision still wakes the parent, and failure to read the ledger
+must be reported rather than acknowledged as delivered. Monitor batching, reply-watch coverage
+and informative child events keep their existing behavior.
+
+QA impact 2026-11-09 (lifecycle baseline ordering): repeat the synchronous creator-to-child
+presence callback for lifecycle publication as well as ordinary and reconciled interaction
+publication. The callback must finish after the child publication lock is released. The canonical
+attention hook suite owns this boundary check; completed-wake suppression for canceled turns
+remains covered by `TestFinishPromptPumpSpawnWakeCancelSuppression`.
+
+QA impact 2026-11-09 (native settlement callback): complete a parent turn with unfinished
+provider-native work. Native interruption and parent attention settlement must finish before
+lifecycle publication takes its attention lock. Verify the native row becomes interrupted and
+the parent receives a durable settled revision without waiting for cancellation. The canonical
+attention hook suite covers this with the real subagent service, SQLite store, and manager runtime.
+
+QA impact 2026-11-09 (direct attention publication): delay clarification resolution publication
+until after an early-stop dismissal. Require exactly one waiting-for-input-to-idle event/hook,
+with no creator wake. Repeat with a first dismissal and delayed presence publication to ensure
+the clearing edge is retained once. Reconcile a padded session ID together with its canonical
+ID, retry it, then remove the session; require one edge and no retained baseline. Close worker
+admission before a transient ordinary publication read failure and require bounded synchronous
+recovery with one hook and one creator wake after unlock. The existing attention ordering and
+hook suites verify these SQLite schedules; CI owns the full transport/extension journey.
+
+QA impact 2026-11-10 (dismissal response read failure): let the initial Status and fenced
+dismissal succeed, then fail the final Status read. Require the canonical SQLite projection
+to be cleared and exactly one truthful clearing catalog event and attention hook before retry.
+Repeat mark-seen and require no duplicate event/hook or creator wake, including a child with
+notify_creator enabled and a return from Later. The existing Manager dismissal/ordering suite
+executes these SQLite schedules with an injected store read failure. The response still reports
+the read error; CI owns the broader transport/extension journey.
+
+QA impact 2026-11-10 (native parent settlement): capture parent turn-end snapshots while a
+permission keeps both badges at `waiting-for-auth`, resolve the permission, then publish the
+delayed lifecycle snapshots. Unfinished native work must become interrupted exactly once;
+canonical parent attention must settle and catalog/hook edges must agree without duplicate
+permission-clearing edges. Owning SQLite/manager regression: the native-work cases in
+`TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen`. Retain canceled-turn wake
+suppression, unrelated-session progress, and shutdown lock cancellation. CI owns the full
+public-surface walkthrough; focused daemon integration uses real ACP subprocesses and SQLite.
+
+QA impact 2026-11-10 (delayed native cancellation): cancel turn N while a follow-up prompt
+is queued, and delay N's native cleanup until N+1 records its background Agent calls and
+early task observations. N's unfinished native rows become interrupted exactly once;
+N+1 retains task-result stitching and completes on its own terminal evidence or turn-end
+fallback. Repeating N's interruption must not affect N+1 or emit a completed wake for N.
+The existing native service, native ACP daemon integration, and canceled-turn spawn-wake
+suites own these checks; CI owns the full public-surface journey.
+
+QA impact 2026-11-10 — Native result views: inspect the default compact result and
+repeat with `result_view: "full"`. Reuse identity, follow-up fences and TTL values;
+permission policy and diagnostic detail require full. The bounded result-view walk
+is recorded in [the S10 report](../reports/2026-11-10-native-result-views.md); it does
+not replace this scenario's broader historical redaction/wake matrix.
+
+QA impact 2026-11-11 (native call turn identity): launch a background Agent call in turn A,
+then deliver a non-task update for the same call with turn B or no turn. Interrupt B twice,
+then finish A twice. The row must retain A, complete once through the background fallback,
+and produce no delegated-child wake. Repeat with an empty persisted turn and a named update;
+the empty identity remains authoritative. `TestSubagentNativeRecoveryEdges` owns this
+deterministic service regression. The existing native daemon integration exercises real ACP
+subprocesses and SQLite; CI owns the full transport journey. ET-042's hook contract and
+attention lock ordering are unchanged; its native-settlement coverage remains applicable.
+After A completes and its tracking is retired, send a late Agent update in B and settle B.
+Metadata may refresh, but a later nested heartbeat must not recreate tracking or read storage.
+
+QA impact 2026-11-12 (foreign native state and retired summaries): launch a foreground Agent
+in turn A, then send a background or failed update for that call in B. A's own result must
+still settle it with its answer. A tool update with no turn may enrich metadata and settle
+the same call while retaining A's stored identity; task observations still require an exact
+turn match. A foreign task observation must not background A either.
+Complete background work without a summary, retire tracking through turn settlement,
+interruption or parent cleanup, then commit its matching terminal summary. The result must
+appear immediately, respecting status, identity and result limits, without reopening tracking,
+changing delivery or emitting another settled hook/wake. A committed summary whose projection
+fails must remain recoverable from the ledger; provider output rejected at the stop boundary
+is not a committed observation. The native lifecycle and Manager persistence suites own these
+deterministic checks; the native daemon integration uses real ACP subprocesses and SQLite.
+CI owns the full transport journey; these schedules do not claim a live-provider occurrence.
+
+QA impact 2026-11-12 (issue #1566): create a child with `notify_creator: false` and let its
+parent register a session monitor covering the child and `needs-attention`. When the child
+ends with no open work, require one monitor wake and no additional early-stop session wake.
+A monitor owned by another session, watching another child or another state, or canceled before
+settlement must not suppress the alarm. Repeat with a monitor that fires before creator-wake
+dispatch; its already-admitted outcome still covers that same attention occurrence.
+For investigation/report children, the alarm asks the parent to review the final answer and does
+not assume a pull request deliverable. Queue an alarm behind a busy parent, start a newer child
+turn, then release the parent: the old alarm must be marked stale/failed before provider dispatch.
+The current revision's alarm must still run. Owning regressions extend
+`TestManagerEarlyStopSupervision`, `TestSessionWorkSourcesMonitors`, and `TestSessionWakeBridge`.
+Validation is CI-only by operator instruction; no local tests, lint, builds or live QA were run.
+
+Review-round coverage for #1566: deliver the alarm synchronously while the child's settling
+turn is still registered and its creator is idle; that current-turn alarm must reach the
+provider. Advance the child from an input hook, prompt augmenter and turn-start hook in turn;
+final provider dispatch must discard each old alarm. A transient durable child lookup returns
+the input to the queue for retry; intentional stale drops retain an explicit suppression reason.
+The same suites cover admitted and retrying monitor outcomes against newer attention timestamps.
+
+The final extension-boundary check runs before the first restart checkpoint and prompt-input
+record. Discarded alarms leave neither a replayable input nor a checkpoint for AutoContinue.
+Once a valid creator turn reaches the provider, runtime recovery replays that admitted turn even
+if the creator has since prompted its child. `TestPromptRuntimeRecovery` owns this regression;
+the stale extension cases in the spawn-wake suite also assert no persisted restart input.
+
+Viewing the child while its alarm waits must advance the operator's seen revision without canceling
+the creator's alarm for that same ended-early turn. The alarm identity is fenced by transcript epoch
+and ended-early turn, rather than the operator's seen revision. The canonical spawn-wake suite
+covers presence acknowledgement before queued delivery as well as actual child advancement.
+
+## Child wake fairness regression
+
+Keep a parent busy beyond `session.messaging.queue_promote_after`, with four children.
+Queue a reply from every child and two successive needs-attention revisions per child
+while terminal monitors fire. With injection support, every reply and only the current
+attention revision reaches the live turn. Otherwise they dispatch at the next boundary.
+A waiting operator input retains precedence. Add a covering session monitor and confirm
+its child's queued attention wake is discarded. Inspect `session.input_queue.synthetic_age`
+for `oldest_queued_synthetic_age_ms` and the session correlation fields.
+
+Verification: covered by the owning session queue/promotion and spawn-wake regressions;
+execution is pending CI. Local tests and scenario labs are prohibited for this dispatch.
+
+While the parent is busy, open two permission requests (repeat with clarifications),
+then resolve just one. Confirm each advancing attention revision queues a replacement
+wake even though the badge stays unchanged; only the latest revision reaches the parent.
+
+Attention is validated immediately before handing steering to the provider. A provider-accepted
+asynchronous injection is no longer a queued wake; later attention changes enqueue a new revision.
+For promoted `PromptSynthetic` calls, the admission stream stays open during pending injection
+and closes without a projection failure after confirmation.
+
+## Review child follow-up delivery
+
+Send a review-only child its brief with `notify_on_complete: true`, and let it answer
+without opening a PR. Send a follow-up from its creator with `notify_on_complete: false`.
+After its answer, confirm no `ended_early` attention badge or needs-attention wake occurs.
+Then send another creator message and end the child turn without an answer: this turn
+must still raise `ended_early`; the earlier answers cannot satisfy the new message.
+Owning regression: `TestManagerEarlyStopSupervision`. Execution pending CI.
+
+Also inject an unwatched creator follow-up into an active child turn and persist its
+answer before the steering input receipt. It still counts as delivered: the daemon
+uses the handoff sequence, not the later receipt order, to locate the answer.
+
+QA impact #1545 (CI-only verification; public-surface re-walk not run locally): pause a newer
+child prompt after `turn.start` installs its current turn ID but before clearing its old early-stop
+mark. Release the parent's queued alarm: it is dropped without provider input or restart checkpoint.
+For a current occurrence whose answer cannot be read, the wake explicitly reports the unavailable
+answer and points to session history/events before a prompt/stop decision.
+
+Durable lookup assessment: a transient child catalog failure releases the same queued input and
+reselects after one second, preserving admission identity and FIFO order. Repeated asynchronous
+lookup failures restart that one-second delay; exponential 1–30 second backoff applies only to
+selection contention. Following creator inputs can wait behind this row during an outage. Retain
+this ordering rather than silently bypassing the alarm or dropping it; a different fairness policy
+would need an explicit ordering contract. Lifecycle catalog absence is typed `ErrSessionNotFound`:
+the alarm discards a deleted child, while storage errors remain retryable. Lifecycle persistence
+and recovery propagate either failure without publishing a fabricated transition; API not-found
+classification remains available through wrapping.
+
+QA impact 2026-11-15 — With a parent agent whose tool allowlist or deny patterns exclude an
+otherwise admitted extension or MCP tool, spawn a less restricted child using default inheritance.
+The spawn succeeds and its effective tools stay within the parent's ceiling. Repeat with an
+explicit request for the excluded tool: the spawn is refused with a subset error. Existing
+inheritance without a tool-policy difference keeps its live intent. Automated owner:
+`TestManagerSpawnResolvesPermissionSelection`; execution and the public-surface walk remain
+unrun locally under release-mode instructions.
+
+QA impact 2026-11-17 (issue #1784): an always-on instance main receives one queued
+turn for each settled revision of an ordinary provenance child created through
+`session_create`, even with default `notify_creator: false`. In an isolated home,
+create three children, send each a parent-origin assignment without a reply watch,
+and finish them at different times. Require a main turn for each final report,
+and repeat with stopped and failed children. Register an idle session monitor
+before one completion and require only its monitor wake. Restart before delivery,
+after delivery, and after monitor coverage: require no lost or duplicate wake.
+Exercise a transient bridge failure and require retry on the next 15-second
+mechanical sweep. Pending child input or an active prompt must postpone settlement;
+archive, Later, explicit stop, and governed `notify_creator: false` must remain
+respected. Ordinary non-main provenance creators keep existing behavior. Heartbeat
+`[~]` entries and unchanged-digest skipping remain unchanged and triage stays
+proposal-only. Automated evidence lives in `TestAlwaysOnChildSettleWake`,
+`TestSessionWorkSourcesMonitors`, `TestWorkLogDigest`,
+`TestSourceDigestGateAndFolding`, and the real ACP child-settle journey in
+`session_wake_bridge_test.go`. Historical children without creation enrollment
+and adopted conversations must not wake on boot. Clear and rewind must not emit
+a completion; subsequent new work must still wake once. Automatic completions
+stay queued through long main turns instead of being promoted to steering.
+Stop an interrupted child at daemon restart and refuse its continuation; its
+main must receive one stopped wake. Hold delivery through a main rotation and
+archive the predecessor and require one turn on the successor. A declined
+conversation reset must not suppress a subsequent real stop. Complete another
+turn while the child's done badge stays unchanged: a transient eligibility lookup
+failure must retry, and a reply watch on an older turn must not cover the newer
+completion. Retry injection must fail the first notifier attempt for each child,
+independently of whether the stop caller or process watcher finalizes it.

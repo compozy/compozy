@@ -47,6 +47,33 @@ export const BRANCH_SESSIONS: SessionPayload[] = [
   ),
 ];
 
+/**
+ * Issue #1732: a parent with ten children in list order, where the 8th is working and the 9th
+ * needs you — both past the six-row cap.
+ */
+export const ACTIVE_CHILD_SESSIONS: SessionPayload[] = [
+  minutesAgo(sidebarSession("sess-release", "Cut the v0.8 release", "claude", "running"), 0),
+  ...(
+    [
+      ["Bump the changelog", "done"],
+      ["Tag the release candidate", "done"],
+      ["Audit open pull requests", "idle"],
+      ["Refresh the screenshots", "done"],
+      ["Check the migration notes", "done"],
+      ["Update the docs site", "idle"],
+      ["Verify installer checksums", "done"],
+      ["Fix the flaky tab-switch test", "running"],
+      ["Confirm the migration window", "waiting-for-input"],
+      ["Smoke-test the desktop app", "done"],
+    ] as const
+  ).map(([name, badge], index) =>
+    minutesAgo(
+      sidebarSession(`sess-release-${index + 1}`, name, "codex", badge, "sess-release"),
+      index + 1
+    )
+  ),
+];
+
 const TITLES = [
   "Map webhook retry paths",
   "Check idempotency keys",

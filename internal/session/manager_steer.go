@@ -52,6 +52,9 @@ func (m *Manager) activateSteeringInputText(
 	*entry = reserved
 	entry.SupersededIDs = superseded
 	if !claimed {
+		if entry.Status == store.SessionInputQueueStatusCanceled && entry.SupersededBy != "" {
+			return nil
+		}
 		switch entry.Status {
 		case store.SessionInputQueueStatusDispatching, store.SessionInputQueueStatusSent:
 			return nil
@@ -71,6 +74,9 @@ func (m *Manager) activateSteeringInputText(
 	if err != nil {
 		return err
 	}
+	if delivery == store.SteerDeliveryInterruptFallback {
+		delivery = m.boundarySteerDelivery(session, entry)
+	}
 	entry.SteerDelivery = delivery
 	resolved, err := m.persistSteerDelivery(session, entry, completion)
 	if err != nil {
@@ -78,12 +84,15 @@ func (m *Manager) activateSteeringInputText(
 	}
 	*entry = resolved
 	entry.SupersededIDs = superseded
+	if entry.SupersededBy != "" {
+		return nil
+	}
 	session.mu.Lock()
 	session.steerDelivery = delivery
 	session.mu.Unlock()
 	m.emitSteerMarker(ctx, session, entry)
 	if completion != nil {
-		m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, false)
+		m.watchSteerCompletion(session, entry.ID, completion, false)
 	}
 	return m.activateSteerFallback(ctx, session, entry)
 }
@@ -101,12 +110,22 @@ func (m *Manager) injectSteeringInput(
 		session.CurrentTurnID() == entry.TargetTurnID &&
 		!m.agentSteerYieldsToOperator(ctx, session, entry) {
 		steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)
-		origin, originErr := decodePromptOrigin(entry.Origin)
-		if originErr != nil {
-			cancel()
-			return "", nil, originErr
+		request, err := m.injectedSteerInputRequest(session, entry)
+		if err == nil {
+			err = m.validateSpawnWake(ctx, session.ID, request.meta.Synthetic)
 		}
-		session.raiseTurnHop(entry.TargetTurnID, originHop(origin))
+		if err != nil {
+			cancel()
+			return "", nil, err
+		}
+		origin := request.meta.Origin
+		if err := m.trackCreatorSteerInput(steerCtx, session, entry, origin); err != nil {
+			cancel()
+			m.sessionLogger(session).WarnContext(ctx, "session: creator steering deferred before provider handoff",
+				"entry_id", entry.ID, "error", err)
+			return store.SteerDeliveryInterruptFallback, nil, nil
+		}
+		session.raiseTurnHop(entry.TargetTurnID, promptMetaHop(request.meta))
 		text := entry.Text
 		if providerText != "" {
 			text = providerText
@@ -131,13 +150,25 @@ func (m *Manager) injectSteeringInput(
 			m.sessionLogger(session).
 				Warn("session: live steer failed; falling back", "entry_id", entry.ID, "error", steerErr)
 		}
+		if delivery == store.SteerDeliveryInterruptFallback {
+			session.forgetCreatorSteerInput(entry.ID)
+		}
 	}
 	return delivery, completion, nil
 }
 
+// activateSteerFallback dispatches the persisted policy, preserving boundary and after-turn waits.
 func (m *Manager) activateSteerFallback(
 	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
 ) error {
+	if entry.SteerDelivery == store.SteerDeliveryAfterTurn {
+		m.startNextQueuedInputPrompt(session.ID)
+		return nil
+	}
+	if entry.SteerDelivery == store.SteerDeliveryPendingBoundary {
+		m.watchSteerBoundary(session, entry)
+		return nil
+	}
 	if entry.SteerDelivery != store.SteerDeliveryInterruptFallback {
 		return nil
 	}
@@ -190,6 +221,7 @@ func (m *Manager) injectedSteerer(proc *AgentProcess) (AgentSteerer, bool) {
 	return steerer, true
 }
 
+// emitSteerMarker records supersession and selected delivery without claiming an unconfirmed injection.
 func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *store.SessionInputQueueEntry) {
 	for _, id := range entry.SupersededIDs {
 		evidence := map[string]any{"queue_entry_id": id, "replacement_entry_id": entry.ID}
@@ -212,6 +244,10 @@ func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *
 	switch {
 	case entry.SteerDelivery == store.SteerDeliveryInjected:
 		message = "Steering delivered into the live turn."
+	case entry.SteerDelivery == store.SteerDeliveryPendingBoundary:
+		message = "Steering is waiting for the active tool to finish."
+	case entry.SteerDelivery == store.SteerDeliveryAfterTurn:
+		message = "Steering will be delivered after the active turn."
 	case entry.SteerDelivery == store.SteerDeliveryPendingInjection:
 		message = "Steering is waiting for the active tool to finish."
 	case steerFallbackWaitsForTurn(entry):
@@ -229,8 +265,10 @@ func (m *Manager) persistSteerDelivery(
 	session *Session, entry *store.SessionInputQueueEntry, completion <-chan error,
 ) (store.SessionInputQueueEntry, error) {
 	ctx := m.fallbackLifecycleContext()
-	if entry.SteerDelivery == store.SteerDeliveryInterruptFallback {
-		return m.inputQueue.ResolveSteer(ctx, session.ID, entry.ID, entry.SteerDelivery)
+	if entry.SteerDelivery == store.SteerDeliveryInterruptFallback ||
+		entry.SteerDelivery == store.SteerDeliveryPendingBoundary ||
+		entry.SteerDelivery == store.SteerDeliveryAfterTurn {
+		return m.resolveAcceptedSteer(ctx, session.ID, entry.ID, entry.SteerDelivery)
 	}
 	var resolved store.SessionInputQueueEntry
 	err := m.recordAcceptedSteerInput(ctx, session, entry)
@@ -240,7 +278,7 @@ func (m *Manager) persistSteerDelivery(
 	if err != nil {
 		if entry.SteerDelivery == store.SteerDeliveryPendingInjection && completion != nil {
 			// The provider still owes the outcome: a later rejection must restore after-turn delivery.
-			m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, true)
+			m.watchSteerCompletion(session, entry.ID, completion, true)
 		}
 		return store.SessionInputQueueEntry{}, errors.Join(errSteerDeliveredUnresolved, err)
 	}
@@ -261,6 +299,14 @@ func (m *Manager) recordAcceptedSteerInput(
 		return err
 	}
 	for range steerPersistAttempts {
+		latest, lookupErr := m.inputQueue.Get(ctx, session.ID, entry.ID)
+		if lookupErr != nil {
+			err = lookupErr
+			continue
+		}
+		if latest.SupersededBy != "" {
+			return nil
+		}
 		if err = m.recordPromptInputEvent(ctx, session, &req); err == nil {
 			return nil
 		}
@@ -268,6 +314,7 @@ func (m *Manager) recordAcceptedSteerInput(
 	return err
 }
 
+// resolveAcceptedSteer retries persistence and treats committed supersession as a terminal outcome.
 func (m *Manager) resolveAcceptedSteer(
 	ctx context.Context, sessionID, entryID string, delivery store.SteerDeliveryMode,
 ) (store.SessionInputQueueEntry, error) {
@@ -278,6 +325,12 @@ func (m *Manager) resolveAcceptedSteer(
 	for range steerPersistAttempts {
 		if resolved, err = m.inputQueue.ResolveSteer(ctx, sessionID, entryID, delivery); err == nil {
 			return resolved, nil
+		}
+		if errors.Is(err, store.ErrSessionInputQueueEntryNotQueued) {
+			latest, lookupErr := m.inputQueue.Get(ctx, sessionID, entryID)
+			if lookupErr == nil && latest.SupersededBy != "" && latest.Status == store.SessionInputQueueStatusCanceled {
+				return latest, nil
+			}
 		}
 	}
 	return store.SessionInputQueueEntry{}, err

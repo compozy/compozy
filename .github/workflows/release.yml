@@ -8,7 +8,9 @@ on:
   pull_request:
     types:
       - opened
+      - reopened
       - synchronize
+      - labeled
     branches:
       - main
       - "release/v*"
@@ -49,15 +51,18 @@ on:
 # cancel an in-flight publication. Actions cannot interpolate YAML aliases inside
 # expressions, and workflow concurrency/job if cannot read env. Keep the inline
 # subject predicates aligned through the release workflow contract test.
+# Unrelated label events skip all jobs and use a unique group so they cannot
+# cancel an active PR validation run.
 concurrency:
   group: >-
-    release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ (github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):') || startsWith(github.event.head_commit.message, 'build: release ') || startsWith(github.event.head_commit.message, 'build: prepare release '))) && '-publish' || '' }}
+    release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ (github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):') || startsWith(github.event.head_commit.message, 'build: release ') || startsWith(github.event.head_commit.message, 'build: prepare release '))) && '-publish' || '' }}${{ github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name != 'ci:full' && format('-ignored-label-{0}', github.run_id) || '' }}
   cancel-in-progress: >-
     ${{ !(github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):') || startsWith(github.event.head_commit.message, 'build: release ') || startsWith(github.event.head_commit.message, 'build: prepare release '))) }}
 
 env:
   CGO_ENABLED: 0
   GO_VERSION: "1.27.3"
+  COMPOZY_GO_TEST_JSONFILE_DIR: /tmp/gotest-json
   NODE_VERSION: "22"
   NPM_VERSION: "11.9.0"
   COSIGN_VERSION: "v3.1.3"
@@ -134,6 +139,7 @@ jobs:
     name: Resolve Dry-Run Release Identity
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
@@ -160,9 +166,10 @@ jobs:
   # Run the GoReleaser dry-run on every release PR.
   dry-run:
     name: Dry-Run Build Validation
-    needs: dry-run-identity
+    needs: [dry-run-identity, integration]
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
@@ -249,6 +256,7 @@ jobs:
 
       - uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
 
       - &validate-release-workflow-contract
@@ -256,9 +264,17 @@ jobs:
         env:
           CGO_ENABLED: "1"
         run: |
-          go test -race ./internal/config \
+          mkdir -p /tmp/gotest-json
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 \
+            --jsonfile /tmp/gotest-json/gotest-release-contract.json --packages ./internal/config -- -race \
             -run '^TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast$' \
             -count=1
+
+      - &report-release-contract-flakes
+        uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: ${{ github.job }}
 
       - uses: ./.github/actions/setup-node
         with:
@@ -409,6 +425,7 @@ jobs:
     needs: dry-run-identity
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     strategy:
@@ -449,6 +466,7 @@ jobs:
       - name: Install Linux desktop dependencies
         if: matrix.platform == 'linux'
         run: |
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get update
           sudo apt-get install -y \
             libasound2 \
@@ -527,6 +545,7 @@ jobs:
       - name: Install Linux desktop smoke dependencies
         if: matrix.platform == 'linux'
         run: |
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get update
           sudo apt-get remove --yes libfuse2
           sudo apt-get install -y \
@@ -579,6 +598,7 @@ jobs:
     name: E2E Nightly Lane
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
@@ -607,6 +627,7 @@ jobs:
         run: |
           test -f /etc/apt/sources.list.d/ubuntu.sources
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get "${apt_sources[@]}" update
           sudo apt-get "${apt_sources[@]}" install --no-install-recommends --yes zsh
           # Runner-provided completion directories can be group/world writable.
@@ -625,6 +646,11 @@ jobs:
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: make test-e2e-nightly
 
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: e2e-nightly
+
       - name: Upload E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -642,6 +668,7 @@ jobs:
     timeout-minutes: 120
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     steps:
@@ -665,6 +692,7 @@ jobs:
       - name: Allow the Chromium user namespace sandbox
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes openbox
 
@@ -691,6 +719,11 @@ jobs:
           CGO_ENABLED: 0
           CI: "true"
 
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: e2e-desktop-nightly
+
       - name: Upload desktop E2E artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -702,84 +735,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Run the full integration suite on a fresh runner: on release PRs, and on
-  # every routine push to main so integration regressions surface when they
-  # merge instead of at release time. Release-merge pushes are skipped (their
-  # release PR already ran it); superseded main pushes cancel via concurrency.
+  # Release PRs use the same integration lane as CI. Only this caller runs it
+  # for release PRs, and dry-run cannot start until every shard has succeeded.
   integration:
-    name: Full Integration Suite (${{ matrix.shard_index }})
+    name: Release integration
     if: |
-      (github.event_name == 'pull_request' &&
-       (startsWith(github.event.pull_request.title, 'build: release ') ||
-        startsWith(github.base_ref, 'release/v'))) ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-       !startsWith(github.event.head_commit.message, 'release:') &&
-       !startsWith(github.event.head_commit.message, 'ci(release):') &&
-       !(startsWith(github.event.head_commit.message, 'build: release ') ||
-         startsWith(github.event.head_commit.message, 'build: prepare release ')))
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
-    strategy:
-      fail-fast: false
-      matrix:
-        shard_index: [0, 1, 2, 3, 4, 5, 6, 7]
-    env:
-      COMPOZY_GO_TEST_P: "1"
-      COMPOZY_GO_TEST_SHARD_INDEX: ${{ matrix.shard_index }}
-      COMPOZY_GO_TEST_SHARD_TOTAL: "8"
-      COMPOZY_GO_TEST_JSONFILE_DIR: /tmp/integration-results
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Install ripgrep
-        run: |
-          # Only Ubuntu supplies this dependency; unrelated runner repositories
-          # must not block preflight when their indexes are inconsistent.
-          test -f /etc/apt/sources.list.d/ubuntu.sources
-          apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
-          sudo apt-get "${apt_sources[@]}" update
-          sudo apt-get "${apt_sources[@]}" install --yes ripgrep
-          rg --version
-
-      - name: Prepare Go temporary directory
-        env:
-          GOTMPDIR: ${{ runner.temp }}/go-tmp
-        run: mkdir -p "$GOTMPDIR"
-
-      - uses: ./.github/actions/setup-go
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          install-gotestsum: "true"
-
-      - uses: ./.github/actions/setup-bun
-        with:
-          install-playwright: "false"
-
-      - name: Build integration fixture dependencies
-        run: bun run turbo run build --filter=@compozy/extension-react --filter=@compozy/client
-
-      - name: Run full integration suite
-        env:
-          CI: "true"
-          CGO_ENABLED: 0
-          GOTMPDIR: ${{ runner.temp }}/go-tmp
-        run: make test-integration
-
-      - name: Upload integration artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: integration-artifacts-${{ matrix.shard_index }}
-          path: |
-            /tmp/integration-results
-            coverage.out
-            test-results.xml
-            /tmp/compozy-e2e-*
-          if-no-files-found: ignore
-          retention-days: 14
+      github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
+      (startsWith(github.event.pull_request.title, 'build: release ') ||
+       startsWith(github.base_ref, 'release/v'))
+    uses: ./.github/workflows/go-integration.yml
 
   # Resolve the explicit release identity exactly once.
   release-plan:
@@ -822,9 +787,11 @@ jobs:
 
       - uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
 
       - *validate-release-workflow-contract
+      - *report-release-contract-flakes
 
       - uses: ./.github/actions/setup-node
         with:
@@ -1348,6 +1315,7 @@ jobs:
       - name: Install Linux desktop dependencies
         if: matrix.platform == 'linux' && steps.reuse.outputs.available != 'true'
         run: |
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get update
           sudo apt-get install -y \
             libasound2 \
@@ -1604,6 +1572,7 @@ jobs:
       - name: Install Linux desktop smoke dependencies
         if: matrix.platform == 'linux'
         run: |
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get update
           sudo apt-get remove --yes libfuse2
           sudo apt-get install -y \
@@ -1906,3 +1875,13 @@ jobs:
             @compozy/cli \
             @compozy/extension-sdk \
             @compozy/client
+
+  flake-census:
+    name: Collect recovered release test flakes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [dry-run, release-plan, e2e-nightly, e2e-desktop-nightly, integration]
+    if: always() && !cancelled()
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/collect-flakes

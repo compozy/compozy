@@ -29,6 +29,7 @@ import {
   triggerSettingsRestart,
 } from "../../adapters/settings-api";
 import { settingsKeys } from "../../lib/query-keys";
+import { settingsRestartPresentation } from "../../lib/restart-presentation";
 import { settingsApplyRecordsFixture } from "../../mocks/fixtures";
 import { resetSettingsRestartStore } from "../../stores/use-settings-restart-store";
 import {
@@ -346,6 +347,131 @@ describe("useSettingsRestart", () => {
     expect(result.current.status).toBeNull();
   });
 
+  // Invariant: the daemon is unreachable while it restarts; that outage keeps the operation
+  // polling as "Restarting…" until the replacement reports a terminal status.
+  it("Should keep the restart operation while the restarting daemon is unreachable", async () => {
+    settingsRestartStore.trigger.restartOperationStarted({ operationId: "op_outage" });
+    const stopping = {
+      operation_id: "op_outage",
+      status: "stopping" as const,
+      old_pid: 1000,
+      old_socket_path: "/tmp/compozy.sock",
+      old_started_at: "2026-04-17T10:00:00Z",
+      active_session_count: 0,
+      started_at: "2026-04-17T10:05:00Z",
+      updated_at: "2026-04-17T10:05:01Z",
+    };
+    vi.mocked(getSettingsRestartStatus).mockResolvedValue(stopping);
+    const { wrapper, queryClient } = createWrapper();
+    const { result } = renderHook(() => useSettingsRestart(), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe("stopping"));
+
+    vi.mocked(getSettingsRestartStatus).mockRejectedValue(new TypeError("Failed to fetch"));
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: settingsKeys.restartStatus("op_outage") });
+    });
+    await waitFor(() => expect(result.current.statusQueryError).toBeTruthy());
+    expect(result.current.operationId).toBe("op_outage");
+    expect(result.current.status).toBe("stopping");
+    expect(result.current.isOutageProlonged).toBe(false);
+
+    // The poll interval, not a manual refetch, carries the notice to the replacement's status.
+    vi.mocked(getSettingsRestartStatus).mockResolvedValue({
+      ...stopping,
+      status: "ready",
+      new_pid: 2000,
+      updated_at: "2026-04-17T10:05:09Z",
+    });
+    await waitFor(() => expect(result.current.status).toBe("ready"), { timeout: 5_000 });
+    expect(result.current.operationId).toBe("op_outage");
+  });
+
+  // Invariant: guidance for a prolonged outage counts from the restart's start, so a page
+  // refreshed mid-outage (no successful status read yet) still shows it.
+  it("Should show prolonged-outage guidance after a refresh during a long restart", async () => {
+    settingsRestartStore.trigger.restartOperationStarted({
+      operationId: "op_long",
+      startedAt: Date.now() - 60_000,
+    });
+    vi.mocked(getSettingsRestartStatus).mockRejectedValue(new TypeError("Failed to fetch"));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsRestart(), { wrapper });
+
+    await waitFor(() => expect(result.current.statusQueryError).toBeTruthy(), { timeout: 5_000 });
+    expect(result.current.operationId).toBe("op_long");
+    expect(result.current.isOutageProlonged).toBe(true);
+  });
+
+  // Invariant: a restart persisted before the start time existed is upgraded on rehydration, so
+  // its prolonged-outage guidance still appears and polling continues.
+  it("Should time a restart rehydrated from the previous persisted version", async () => {
+    window.sessionStorage.setItem(
+      settingsRestartStorageKey,
+      JSON.stringify({
+        context: {
+          operationId: "op_upgraded",
+          lastMutation: null,
+          mutationGeneration: 1,
+          snoozedMutationGeneration: null,
+          snoozedApplyRecordId: null,
+        },
+        version: 1,
+      })
+    );
+    const rehydratedAt = Date.now() - 60_000;
+    const now = vi.spyOn(Date, "now").mockReturnValue(rehydratedAt);
+    await act(async () => {
+      await rehydrateStore(settingsRestartStore);
+    });
+    now.mockRestore();
+    expect(settingsRestartStore.getSnapshot().context.operationStartedAt).toBe(rehydratedAt);
+
+    vi.mocked(getSettingsRestartStatus).mockRejectedValue(new TypeError("Failed to fetch"));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsRestart(), { wrapper });
+
+    await waitFor(() => expect(result.current.isOutageProlonged).toBe(true), { timeout: 5_000 });
+    const polls = vi.mocked(getSettingsRestartStatus).mock.calls.length;
+    await waitFor(
+      () => expect(vi.mocked(getSettingsRestartStatus).mock.calls.length).toBeGreaterThan(polls),
+      { timeout: 5_000 }
+    );
+    expect(result.current.operationId).toBe("op_upgraded");
+  });
+
+  it("Should fall back to the restart action when the status endpoint returns an HTTP error", async () => {
+    settingsRestartStore.trigger.settingsMutationRecorded({
+      mutation: {
+        section: "general",
+        restartRequired: true,
+        warnings: [],
+        completedAt: "2026-04-17T10:05:00Z",
+      },
+    });
+    settingsRestartStore.trigger.restartOperationStarted({ operationId: "op_broken" });
+    vi.mocked(getSettingsRestartStatus).mockRejectedValue(
+      new SettingsApiError("Failed to load restart status", 500)
+    );
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsRestart(), { wrapper });
+
+    await waitFor(() => expect(result.current.statusQueryError).toBeTruthy(), { timeout: 5_000 });
+    expect(result.current.operationId).toBeNull();
+    expect(result.current.isNoticeSnoozed).toBe(false);
+    const presentation = settingsRestartPresentation({
+      isVisible: result.current.isRestartRequired && !result.current.isNoticeSnoozed,
+      isRestartRequired: result.current.isRestartRequired,
+      operationId: result.current.operationId,
+      status: result.current.status,
+      activeSessionCount: result.current.activeSessionCount,
+      isTriggerPending: result.current.isTriggerPending,
+      isOutageProlonged: result.current.isOutageProlonged,
+      trigger: () => undefined,
+      dismiss: () => undefined,
+    });
+    expect(presentation).toMatchObject({ phase: "required", triggerLabel: "Restart CompozyOS" });
+  });
+
   it("Should reset the restart singleton to its exact initial snapshot", () => {
     settingsRestartStore.trigger.settingsMutationRecorded({
       mutation: {
@@ -361,6 +487,7 @@ describe("useSettingsRestart", () => {
 
     expect(settingsRestartStore.getSnapshot().context).toEqual({
       operationId: null,
+      operationStartedAt: null,
       lastMutation: null,
       mutationGeneration: 0,
       snoozedMutationGeneration: null,

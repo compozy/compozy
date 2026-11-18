@@ -36,7 +36,8 @@ func (m *Manager) enqueueDurableSyntheticPrompt(
 
 // This observer owns only delivery completion. Durable rows and the common pump
 // own admission and execution, including when this caller or daemon disappears.
-func (m *Manager) waitSyntheticPromptPersistence(session *Session, admitted *store.SessionInputQueueEntry) {
+// A promoted wake completes its admission stream after confirmed injection into the live turn.
+func (m *Manager) waitSyntheticPromptPersistence(session *Session, admitted *store.SessionInputQueueEntry) bool {
 	ctx := m.fallbackLifecycleContext()
 	ticker := time.NewTicker(promptDeliveryCatchUpInterval)
 	defer ticker.Stop()
@@ -45,22 +46,28 @@ func (m *Manager) waitSyntheticPromptPersistence(session *Session, admitted *sto
 		if err != nil {
 			m.sessionLogger(session).
 				WarnContext(ctx, "session: observe synthetic input failed", "entry_id", admitted.ID, "error", err)
-			return
+			return false
 		}
 		switch entry.Status {
 		case store.SessionInputQueueStatusFailed, store.SessionInputQueueStatusCanceled:
-			return
+			return false
 		case store.SessionInputQueueStatusSent:
+			if entry.SteerDelivery == store.SteerDeliveryPendingInjection {
+				break
+			}
+			if entry.SteerDelivery == store.SteerDeliveryInjected && entry.TurnID != admitted.TurnID {
+				return true
+			}
 			if session.CurrentTurnID() != admitted.TurnID {
-				return
+				return false
 			}
 		}
 		if session.Info().State != StateActive {
-			return
+			return false
 		}
 		select {
 		case <-ctx.Done():
-			return
+			return false
 		case <-ticker.C:
 		}
 	}

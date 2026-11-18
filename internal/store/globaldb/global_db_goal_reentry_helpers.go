@@ -26,6 +26,21 @@ type goalReentryRow struct {
 	parkedAt      time.Time
 }
 
+func goalReentryClearsOperation(ctx context.Context, exec taskSQLExecutor, current goalReentryRow) (bool, error) {
+	if current.state.Cause == looppkg.ReasonCodeGoalRecoveryAmbiguous {
+		return true, nil
+	}
+	if current.state.OpenTurn || current.state.QueueEntryID == "" || current.state.PromptID == "" {
+		return false, nil
+	}
+	row, err := loadGoalPromptRow(ctx, exec, current.state.LoopRunID, current.state.PromptID)
+	if err != nil {
+		return false, err
+	}
+	// A pause can own the boundary after ambiguity has already terminalized its operation.
+	return row.terminalAt != nil && row.terminalKind.String == string(looppkg.ActionPromptOutcomeAmbiguous), nil
+}
+
 func goalReentryStillAwaiting(current goalReentryRow, expected looppkg.GoalControlState) bool {
 	return current.state.ControlEpoch == expected.ControlEpoch &&
 		current.state.RunStatus == expected.RunStatus &&

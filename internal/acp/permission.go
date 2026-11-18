@@ -16,6 +16,7 @@ const (
 	permissionSourcePolicy  = "policy"
 	permissionSourceRule    = "rule"
 	permissionActorProvider = "provider"
+	permissionActorTimeout  = "timeout"
 	// permissionActorSystem marks daemon-originated Compozy tool approvals.
 	permissionActorSystem = "system"
 	// PermissionRequestIDMetaKey pins the externally addressable permission request ID in ACP metadata.
@@ -33,6 +34,7 @@ var (
 	ErrPathOutsideWorkspace = errors.New("acp: path outside session workspace")
 	// ErrPendingPermissionNotFound reports that no waiting permission request matched the approval request.
 	ErrPendingPermissionNotFound = errors.New("acp: pending permission not found")
+	ErrPendingPermissionExpired  = fmt.Errorf("%w: permission request expired", ErrPendingPermissionNotFound)
 	// ErrPendingPermissionConflict reports that a fallback lookup by turn ID matched multiple pending requests.
 	ErrPendingPermissionConflict = errors.New("acp: pending permission lookup is ambiguous")
 	// ErrPermissionDecisionUnsupported reports a persisted decision that the provider did not offer.

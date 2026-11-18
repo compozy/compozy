@@ -97,11 +97,11 @@ describe("useSessionListPreferences", () => {
     fetcher.mockRestore();
   });
 
-  it("Should default an unset sort to Created and grouping to none", async () => {
+  it("Should default an unset sort to Created and grouping to project", async () => {
     const { result } = renderPreferences();
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.sort).toBe("created");
-    expect(result.current.groupBy).toBe("none");
+    expect(result.current.groupBy).toBe("project");
   });
 
   it.each(["created", "name", "last_activity", "attention", "manual"] as const)(
@@ -114,9 +114,10 @@ describe("useSessionListPreferences", () => {
   );
 
   it.each([
+    ["none", "none"],
     ["project", "project"],
     ["profile", "profile"],
-    ["galaxy", "none"],
+    ["galaxy", "project"],
   ] as const)("Should read stored grouping %s as %s", async (stored, groupBy) => {
     daemon.sessions = { group_by: stored };
     const { result } = renderPreferences();

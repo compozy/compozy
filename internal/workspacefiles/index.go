@@ -64,6 +64,7 @@ type GitRunner interface {
 // Index searches files and folders under a directory root.
 type Index interface {
 	Search(ctx context.Context, root string, query string, limit int) (Result, error)
+	Paths(ctx context.Context, root string) ([]Entry, bool, error)
 }
 
 // Option customizes an index. Options exist for tests.
@@ -274,4 +275,21 @@ func redactRoot(root string, err error) string {
 func rootHash(root string) string {
 	sum := sha256.Sum256([]byte(root))
 	return hex.EncodeToString(sum[:8])
+}
+
+// Paths returns a copy of the cached file and derived folder list.
+func (idx *index) Paths(ctx context.Context, root string) ([]Entry, bool, error) {
+	canonical, err := fileutil.CanonicalExistingDirectory(root)
+	if err != nil {
+		return nil, false, err
+	}
+	snap, err := idx.snapshotFor(ctx, canonical)
+	if err != nil {
+		return nil, false, err
+	}
+	entries := make([]Entry, len(snap.entries))
+	for i, entry := range snap.entries {
+		entries[i] = entry.entry
+	}
+	return entries, snap.truncated, nil
 }

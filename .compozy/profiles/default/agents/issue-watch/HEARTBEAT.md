@@ -1,6 +1,6 @@
 ---
 version: 1
-enabled: true
+enabled: false
 preferences:
   min_interval: "60m"
   active_hours:

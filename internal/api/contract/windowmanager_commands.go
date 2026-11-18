@@ -30,6 +30,8 @@ const (
 	WindowManagerCommandWindowStackGroup     WindowManagerCommandID = "window.stack.group"
 	WindowManagerCommandWindowStackReorder   WindowManagerCommandID = "window.stack.reorder"
 	WindowManagerCommandWindowStackSetActive WindowManagerCommandID = "window.stack.set_active"
+	WindowManagerCommandWindowTabReorder     WindowManagerCommandID = "window.tab.reorder"
+	WindowManagerCommandWindowTabActivate    WindowManagerCommandID = "window.tab.activate"
 	WindowManagerCommandWindowPin            WindowManagerCommandID = "window.pin"
 	WindowManagerCommandWindowReopen         WindowManagerCommandID = "window.reopen"
 	WindowManagerCommandLayoutArrange        WindowManagerCommandID = "layout.arrange"
@@ -44,26 +46,42 @@ const (
 // WindowManagerCommandIDValues returns every supported semantic command id.
 func WindowManagerCommandIDValues() []string {
 	return []string{
-		string(WindowManagerCommandDesktopCreate), string(WindowManagerCommandDesktopUpdate),
-		string(WindowManagerCommandDesktopReorder), string(WindowManagerCommandDesktopSwitch),
-		string(WindowManagerCommandDesktopDelete), string(WindowManagerCommandWindowOpen),
-		string(WindowManagerCommandWindowNavigate), string(WindowManagerCommandWindowClose),
+		string(WindowManagerCommandDesktopCreate),
+		string(WindowManagerCommandDesktopUpdate),
+		string(WindowManagerCommandDesktopReorder),
+		string(WindowManagerCommandDesktopSwitch),
+		string(WindowManagerCommandDesktopDelete),
+		string(WindowManagerCommandWindowOpen),
+		string(WindowManagerCommandWindowNavigate),
+		string(WindowManagerCommandWindowClose),
 		string(WindowManagerCommandWindowFocus),
-		string(WindowManagerCommandWindowMove), string(WindowManagerCommandWindowResize),
+		string(WindowManagerCommandWindowMove),
+		string(WindowManagerCommandWindowResize),
 		string(WindowManagerCommandWindowSwap),
-		string(WindowManagerCommandWindowToggleFloating), string(WindowManagerCommandWindowZoom),
-		string(WindowManagerCommandWindowStackGroup), string(WindowManagerCommandWindowStackReorder),
-		string(WindowManagerCommandWindowStackSetActive), string(WindowManagerCommandWindowPin),
-		string(WindowManagerCommandWindowReopen),
-		string(WindowManagerCommandLayoutArrange), string(WindowManagerCommandLayoutResize),
+		string(WindowManagerCommandWindowToggleFloating),
+		string(WindowManagerCommandWindowZoom),
+		string(WindowManagerCommandWindowStackGroup),
+		string(WindowManagerCommandWindowStackReorder),
+		string(WindowManagerCommandWindowStackSetActive),
+		string(WindowManagerCommandWindowPin),
+		string(
+			WindowManagerCommandWindowReopen,
+		),
+		string(WindowManagerCommandWindowTabReorder),
+		string(WindowManagerCommandWindowTabActivate),
+		string(WindowManagerCommandLayoutArrange),
+		string(WindowManagerCommandLayoutResize),
 		string(WindowManagerCommandLayoutFrameResize),
-		string(WindowManagerCommandLayoutBalance), string(WindowManagerCommandLayoutUndo),
-		string(WindowManagerCommandLayoutRedo), string(WindowManagerCommandLayoutReplace),
+		string(WindowManagerCommandLayoutBalance),
+		string(WindowManagerCommandLayoutUndo),
+		string(WindowManagerCommandLayoutRedo),
+		string(WindowManagerCommandLayoutReplace),
 	}
 }
 
 // WindowManagerRebaseGuard proves stale source and target identities remain unambiguous.
 type WindowManagerRebaseGuard struct {
+	TabID         *windowmanager.TabID    `json:"tab_id,omitzero"`
 	WindowID      *windowmanager.WindowID `json:"window_id,omitzero"`
 	SourceNodeID  *windowmanager.NodeID   `json:"source_node_id,omitzero"`
 	TargetNodeID  *windowmanager.NodeID   `json:"target_node_id,omitzero"`
@@ -113,7 +131,7 @@ func (request WindowManagerCommandRequest) Domain(
 	var rebase *windowmanager.RebaseGuard
 	if request.Rebase != nil {
 		rebase = &windowmanager.RebaseGuard{
-			WindowID: request.Rebase.WindowID, SourceNodeID: request.Rebase.SourceNodeID,
+			TabID: request.Rebase.TabID, WindowID: request.Rebase.WindowID, SourceNodeID: request.Rebase.SourceNodeID,
 			TargetNodeID: request.Rebase.TargetNodeID, SplitID: request.Rebase.SplitID,
 			BoundaryIndex: request.Rebase.BoundaryIndex,
 		}
@@ -170,7 +188,7 @@ func decodeKnownWindowManagerCommandPayload(
 		WindowManagerCommandDesktopDelete:
 		command, err := decodeDesktopCommandPayload(commandID, raw)
 		return command, true, err
-	case WindowManagerCommandWindowOpen,
+	case WindowManagerCommandWindowTabReorder, WindowManagerCommandWindowTabActivate, WindowManagerCommandWindowOpen,
 		WindowManagerCommandWindowNavigate,
 		WindowManagerCommandWindowClose,
 		WindowManagerCommandWindowFocus,
@@ -229,6 +247,18 @@ func decodeWindowCommandPayload(
 	raw json.RawMessage,
 ) (windowmanager.Command, error) {
 	switch commandID {
+	case WindowManagerCommandWindowTabReorder:
+		var payload WindowManagerReorderStackPayload
+		if err := decodeStrictContractJSON(raw, &payload); err != nil {
+			return nil, err
+		}
+		return windowmanager.ReorderTabCommand{WindowID: payload.WindowID, Index: payload.Index}, nil
+	case WindowManagerCommandWindowTabActivate:
+		var payload WindowManagerSetStackActivePayload
+		if err := decodeStrictContractJSON(raw, &payload); err != nil {
+			return nil, err
+		}
+		return windowmanager.ActivateTabCommand{WindowID: payload.WindowID}, nil
 	case WindowManagerCommandWindowOpen:
 		return decodeOpenWindowPayload(raw)
 	case WindowManagerCommandWindowNavigate:

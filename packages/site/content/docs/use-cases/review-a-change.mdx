@@ -41,6 +41,31 @@ compozy session events sess_1234 --follow
 compozy session history sess_1234
 ```
 
+## Read the diff yourself
+
+The session window's **Review panel** shows the same change the agent is reviewing. Open its
+**Changes** tab, or choose **Review changes** from the pull request chip's menu:
+
+- **Branch** compares the session's worktree with the merge base of its base branch, including
+  uncommitted and untracked files. **Uncommitted** shows only what is not committed yet.
+- The `head → base` selector compares against another branch or any ref Git resolves, such as
+  `main~1`.
+- A file path in the agent's findings opens the file at that line in the viewer. In the desktop app,
+  **Open in** sends it to your editor.
+- Changes refreshes as the agent's tool calls settle, so a fix the agent makes shows up without
+  reloading.
+
+Read the same summary and patches from the terminal, or give them to another agent through the
+`compozy__session_changes` native tool:
+
+```bash
+compozy session changes sess_1234 --base main
+compozy session changes sess_1234 --patch internal/server/handler.go -o json
+```
+
+Sensitive files such as `.env` stay hidden unless you add `--reveal`. See
+[Files and changes](/docs/files) for the panel, the viewer, and search.
+
 ## Evidence to keep
 
 | Evidence                    | Command                                      | Why it matters                                                 |
@@ -48,6 +73,7 @@ compozy session history sess_1234
 | Session identity and status | `compozy session status sess_1234 -o json`   | Shows workspace, agent, status, and failure details.           |
 | Tool and model activity     | `compozy session events sess_1234 --last 50` | Shows whether the agent actually inspected the right surfaces. |
 | Review output by turn       | `compozy session history sess_1234`          | Gives a durable transcript to paste into a PR or release note. |
+| The reviewed diff           | `compozy session changes sess_1234 -o json`  | Records the exact files, counts, and base the review covered.  |
 
 ## Failure path
 

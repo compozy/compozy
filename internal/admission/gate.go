@@ -18,6 +18,12 @@ const (
 // ErrDraining reports that the daemon is temporarily refusing new work.
 var ErrDraining = errors.New("daemon is draining; new work admission is closed")
 
+// StartingCode identifies temporary boot admission refusals on public surfaces.
+const StartingCode = "daemon_starting"
+
+// ErrStarting reports that recovery has not yet published daemon readiness.
+var ErrStarting = errors.New("daemon starting, retry when ready")
+
 // Checker is the read-only admission surface injected into work owners.
 type Checker interface {
 	Check(context.Context) error
@@ -107,8 +113,11 @@ func (g *Gate) checkState(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if g != nil && (g.draining.Load() || (g.booting.Load() && ctx.Value(bootOwnerKey{}) != g)) {
+	if g != nil && g.draining.Load() {
 		return ErrDraining
+	}
+	if g != nil && g.booting.Load() && ctx.Value(bootOwnerKey{}) != g {
+		return ErrStarting
 	}
 	return nil
 }

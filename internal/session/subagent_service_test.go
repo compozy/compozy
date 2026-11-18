@@ -599,6 +599,63 @@ func TestSubagentLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	// Invariant: deleting history preserves an inline result's completed delivery policy.
+	t.Run("Should preserve a completed wait result after deleting its child", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		current := db.rows[row.ID]
+		current.WakePolicy = store.SubagentWakePolicySettledOnly
+		db.rows[row.ID] = current
+		settleTestChild(t, s, runtime, &row)
+		before := db.rows[row.ID]
+		parent := runtime.snapshots[row.ParentSessionID]
+		parent.Active = false
+		runtime.snapshots[row.ParentSessionID] = parent
+		current = before
+		current.ChildSessionID = nil
+		current.ChildActivity = store.SubagentChildActivityStopped
+		db.rows[row.ID] = current
+		if err := s.onChildSessionDeleted(t.Context(), before); err != nil {
+			t.Fatal(err)
+		}
+		if got := db.rows[row.ID]; got.Delivery != store.SubagentDeliveryNone ||
+			got.Status != before.Status || got.Result == nil || *got.Result != *before.Result || len(db.wakes) != 0 {
+			t.Fatalf("completed wait result changed or woke parent: %+v, %+v", got, db.wakes)
+		}
+	})
+	// Invariant: deletion cannot dispatch a second settled hook when another finalizer won.
+	t.Run("Should preserve a concurrent finalizer when child history is deleted", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			hook := &subagentTestHook{}
+			s.settled = hook
+			row := requireSubagent(t, s, subagentTestRequest())
+			before := db.rows[row.ID]
+			runtime.snapshots[*row.ChildSessionID] = subagentSnapshot{
+				Info: &Info{ID: *row.ChildSessionID, State: StateStopped, StopReason: store.StopAgentCrashed},
+			}
+			if err := s.OnChildSettled(t.Context(), *row.ChildSessionID); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			if hook.calls != 1 {
+				t.Fatalf("initial settled hooks = %d, want 1", hook.calls)
+			}
+			current := db.rows[row.ID]
+			current.ChildSessionID = nil
+			current.ChildActivity = store.SubagentChildActivityStopped
+			db.rows[row.ID] = current
+			if err := s.onChildSessionDeleted(t.Context(), before); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			if hook.calls != 1 {
+				t.Fatalf("delete repeated settled hook: %d", hook.calls)
+			}
+		})
+	})
 	// Invariant: a settled delegation keeps its terminal outcome while child_activity follows the child session.
 	t.Run("Should track child activity after settlement without changing the outcome", func(t *testing.T) {
 		t.Parallel()
@@ -676,6 +733,65 @@ func TestSubagentLifecycle(t *testing.T) {
 			}
 		})
 	})
+	// Invariant: a deleted child session cannot leave a settled row reporting a
+	// live cached activity.
+	t.Run("Should record stopped when the child session is gone", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			row := requireSubagent(t, s, subagentTestRequest())
+			settleTestChild(t, s, runtime, &row)
+			if got := db.rows[row.ID]; got.Status != store.SubagentStatusCompleted ||
+				got.ChildActivity != store.SubagentChildActivityIdle {
+				t.Fatal(got)
+			}
+			if err := s.recordChildActivity(
+				t.Context(),
+				db.rows[row.ID],
+				store.SubagentChildActivityWorking,
+			); err != nil {
+				t.Fatal(err)
+			}
+			settled := db.rows[row.ID]
+			if settled.Status != store.SubagentStatusCompleted ||
+				settled.ChildActivity != store.SubagentChildActivityWorking {
+				t.Fatal(settled)
+			}
+			updates, cancel, err := s.SubscribeSubagentUpdates(t.Context(), "parent")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cancel()
+			before := len(runtime.publishes)
+			child := *row.ChildSessionID
+			runtime.mu.Lock()
+			delete(runtime.snapshots, child)
+			runtime.mu.Unlock()
+			if err := s.OnChildSettled(t.Context(), child); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			got := db.rows[row.ID]
+			if got.ChildActivity != store.SubagentChildActivityStopped ||
+				got.Status != settled.Status ||
+				!got.SettledAt.Equal(*settled.SettledAt) ||
+				*got.Result != *settled.Result {
+				t.Fatalf("row=%+v", got)
+			}
+			select {
+			case update := <-updates:
+				if update.Subagent.ChildActivity != store.SubagentChildActivityStopped ||
+					update.Subagent.Status != settled.Status {
+					t.Fatalf("update=%+v", update)
+				}
+			default:
+				t.Fatal("stopped child activity was not published")
+			}
+			if len(runtime.publishes) != before+1 {
+				t.Fatalf("parent catalog publishes = %d, want %d", len(runtime.publishes), before+1)
+			}
+		})
+	})
 	t.Run("Should coalesce progress to latest value UT-060", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
@@ -718,6 +834,101 @@ func (h *subagentTestHook) DispatchSubagentSettled(context.Context, store.Sessio
 // Invariant: boot repairs every interrupted boundary from durable inputs; owner: service recovery (IT-031).
 func TestSubagentRecovery(t *testing.T) {
 	t.Parallel()
+	// Invariant: a lost row or failed fact write cannot block unrelated parent wakes or orphan cleanup.
+	for _, failure := range []string{"row removed", "fact write failed"} {
+		t.Run("Should continue recovery when deleted child facts have "+failure, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s, db, runtime := newSubagentTestService(t)
+				WithSubagentRecoveryRetryDelay(2 * time.Second)(s)
+				wt := &subagentWorktreeStub{facts: SubagentWorktreeFacts{PRStatus: "none"}}
+				s.worktrees = wt
+				parent := runtime.snapshots["parent"]
+				parent.Active = false
+				runtime.snapshots["parent"] = parent
+				other := parent
+				info := *parent.Info
+				info.ID = "other"
+				other.Info = &info
+				runtime.snapshots["other"] = other
+				for _, parentID := range []string{"parent", "other"} {
+					db.rows[parentID] = store.SessionSubagent{
+						ID:              parentID,
+						WorkspaceID:     "ws",
+						ParentSessionID: parentID,
+						Title:           parentID,
+						Origin:          store.SubagentOriginDelegated,
+						Status:          store.SubagentStatusInterrupted,
+						ChildActivity:   store.SubagentChildActivityStopped,
+						WorkState:       store.SubagentWorkStateResultAvailable,
+						WakePolicy:      store.SubagentWakePolicyAlways,
+						Delivery:        store.SubagentDeliveryPending,
+					}
+				}
+				row := db.rows["parent"]
+				row.Worktree = &store.SubagentWorktreeState{ID: "wt", Branch: "pending-facts"}
+				row.Isolation = SubagentIsolationWorktree
+				db.rows[row.ID] = row
+				if failure == "row removed" {
+					wt.observe = func() { delete(db.rows, row.ID) }
+				} else {
+					db.worktreeFactsErrIDs = map[string]error{row.ID: errors.New("fact write unavailable")}
+				}
+				db.orphans = []string{"orphan"}
+				runtime.snapshots["orphan"] = subagentSnapshot{Info: &Info{ID: "orphan", State: StateActive}}
+				if err := s.Recover(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				healthy, err := db.GetSubagent(t.Context(), "ws", "other")
+				if err != nil {
+					t.Fatal(err)
+				}
+				runtime.mu.Lock()
+				queued, orphanStopped := len(runtime.queues), slices.Contains(runtime.stopped, "orphan")
+				runtime.mu.Unlock()
+				if healthy.Delivery != store.SubagentDeliveryClaimed || queued != 1 || !orphanStopped {
+					t.Fatalf("unrelated recovery blocked: row=%+v queues=%d orphanStopped=%v",
+						healthy, queued, orphanStopped)
+				}
+				if failure == "fact write failed" {
+					got, err := db.GetSubagent(t.Context(), "ws", row.ID)
+					if err != nil || got.Delivery != store.SubagentDeliveryPending {
+						t.Fatalf("failed fact write lost pending batch: %+v, %v", got, err)
+					}
+					synctest.Wait()
+					db.mu.Lock()
+					delete(db.worktreeFactsErrIDs, row.ID)
+					db.mu.Unlock()
+					time.Sleep(s.recoveryRetryDelay - time.Nanosecond)
+					synctest.Wait()
+					got, err = db.GetSubagent(t.Context(), "ws", row.ID)
+					runtime.mu.Lock()
+					queued = len(runtime.queues)
+					runtime.mu.Unlock()
+					if err != nil || got.Delivery != store.SubagentDeliveryPending || queued != 1 {
+						t.Fatalf("fact recovery ignored the configured retry delay: %+v, queues=%d, %v",
+							got, queued, err)
+					}
+					time.Sleep(time.Nanosecond)
+					synctest.Wait()
+					got, err = db.GetSubagent(t.Context(), "ws", row.ID)
+					if err != nil || got.Delivery != store.SubagentDeliveryClaimed || got.WakeMessageID == nil ||
+						got.WorktreeState().Facts.PRStatus != "none" {
+						t.Fatalf("transient fact failure did not recover without a parent turn: %+v, %v", got, err)
+					}
+					runtime.mu.Lock()
+					text := runtime.queues[*got.WakeMessageID]
+					queued = len(runtime.queues)
+					runtime.mu.Unlock()
+					if queued != 2 || !strings.Contains(text, "Branch pending-facts") ||
+						strings.Contains(text, "PR status unknown") {
+						t.Fatalf("retry composed wake before saving checkout facts: queues=%d text=%q", queued, text)
+					}
+				}
+			})
+		})
+	}
+
 	t.Run("Should recover reservation admission wake and orphan boundaries IT-031 service", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)
@@ -928,7 +1139,7 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			t.Fatal(db.rows[row.ID])
 		}
 	})
-	t.Run("Should cancel descendants first and continue after stop errors UT-034 IT-028 service", func(t *testing.T) {
+	t.Run("Should cancel descendants first and surface a child stop error UT-034 IT-028 service", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			s, db, runtime := newSubagentTestService(t)
@@ -941,10 +1152,12 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 				Status:          "running",
 				Delivery:        "none",
 			}
-			runtime.errorStop = testSubagentError()
+			stopErr := testSubagentError()
+			runtime.errorStop = stopErr
 			got, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
 			synctest.Wait()
-			if err != nil || got.Status != "cancel_requested" || db.rows[row.ID].Delivery != "disposed" {
+			if !errors.Is(err, stopErr) || got.Status != "cancel_requested" ||
+				db.rows[row.ID].Delivery != "disposed" {
 				t.Fatal(got, err)
 			}
 			if db.rows[row.ID].Status != store.SubagentStatusCanceled ||
@@ -958,8 +1171,9 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			row.Status = "completed"
 			db.rows[row.ID] = row.SessionSubagent
 			got, err = s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
-			if err != nil || got.Status != "completed" || len(runtime.stopped) != 2 {
-				t.Fatal(got, err)
+			if !errors.Is(err, stopErr) || got.Status != "completed" || len(runtime.stopped) != 4 ||
+				runtime.stopped[3] != *row.ChildSessionID {
+				t.Fatal(got, err, runtime.stopped)
 			}
 		})
 	})
@@ -1032,6 +1246,76 @@ func TestSubagentModelValidation(t *testing.T) {
 
 // UT-036/UT-037 lifecycle half: native tool identity owns one row and never owns a wake.
 func TestSubagentNativeLifecycle(t *testing.T) {
+	t.Run("Should reopen completed background work and settle its next result", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "toolu_resume",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		apply := func(ev NativeSubagentEvent) {
+			t.Helper()
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		apply(launch)
+		done := nativeTaskEvent(
+			"toolu_resume",
+			acp.NativeTaskKindState,
+			acp.NativeTaskStatusCompleted,
+			new("first answer"),
+		)
+		done.At = at.Add(time.Second)
+		apply(done)
+		id := subagentID("parent", "toolu_resume")
+		if db.rows[id].Status != "completed" {
+			t.Fatal(db.rows[id])
+		}
+		// A delayed activity frame from before completion cannot reopen the row.
+		resume := nativeTaskEvent("toolu_resume", acp.NativeTaskKindState, acp.NativeTaskStatusRunning, nil)
+		resume.At = at
+		apply(resume)
+		if db.rows[id].Status != "completed" {
+			t.Fatal(db.rows[id])
+		}
+		delete(s.nativeKnown, "parent")
+		resume.At = at.Add(2 * time.Second)
+		resume.ParentTurnID = "next-turn"
+		snap := runtime.snapshots["parent"]
+		snap.TurnID = "next-turn"
+		runtime.snapshots["parent"] = snap
+
+		apply(resume)
+		row := db.rows[id]
+		if row.Status != "running" || row.WorkState != "working" || row.SettledAt != nil || row.Result != nil ||
+			row.ParentTurnID != "next-turn" {
+			t.Fatal(row)
+		}
+		done.ParentTurnID = "next-turn"
+		done.At = at.Add(3 * time.Second)
+		done.Task.Summary = new("second answer")
+		apply(done)
+		apply(done)
+		row = db.rows[id]
+		if row.Status != "completed" || row.Result == nil || *row.Result != "second answer" || row.SettledAt == nil ||
+			!row.SettledAt.Equal(done.At) ||
+			len(runtime.queues) != 0 {
+			t.Fatal(row, runtime.queues)
+		}
+		if err := s.OnParentTurnInterrupted(t.Context(), "parent", "next-turn"); err != nil {
+			t.Fatal(err)
+		}
+		if len(s.nativeKnown["parent"]) != 0 {
+			t.Fatal("finished resume retained native call tracking", s.nativeKnown["parent"])
+		}
+	})
+
 	// Invariant: the launching call's input streams in, so a later event of the same call fills
 	// the model and subagent type the first one lacked, without erasing them afterwards.
 	t.Run("Should record the model and type a later streamed event names", func(t *testing.T) {
@@ -1959,6 +2243,631 @@ func TestSubagentWakeFailureLimit(t *testing.T) {
 // Invariant: interrupted native work stops contributing live children, and terminal-first calls produce results.
 // Owner: session native lifecycle and recovery.
 func TestSubagentNativeRecoveryEdges(t *testing.T) {
+	// Invariant: one row's projection failure does not stop independent rows or hide its error.
+	t.Run("Should apply independent native rows after a replay failure", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		var rows []store.SessionSubagent
+		for index, call := range []string{"broken", "healthy"} {
+			launch := NativeSubagentEvent{WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call,
+				ToolName: "Agent", Status: "in_progress", Background: true}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			rows = append(rows, db.rows[subagentID("parent", call)])
+			event := acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: call}.WithNativeTask(
+				&acp.NativeTaskObservation{Kind: acp.NativeTaskKindState, TaskID: call, ToolCallID: call,
+					Status: acp.NativeTaskStatusCompleted, Summary: new("saved answer")})
+			content, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.nativeTasks = append(runtime.nativeTasks, store.SessionEvent{
+				Sequence: int64(index + 1), TurnID: "turn", Type: acp.EventTypeNativeTask,
+				Content: content, Timestamp: s.now().Add(time.Second),
+			})
+		}
+		failure := errors.New("row read unavailable")
+		s.store = &countingNativeSubagentStore{SubagentStore: db, failID: rows[0].ID, lookupErr: failure}
+		if err := s.replayNativeTurn(t.Context(), rows, false); !errors.Is(err, failure) ||
+			!strings.Contains(err.Error(), rows[0].ID) {
+			t.Fatalf("replay error = %v, want the failed row and original cause", err)
+		}
+		if row := db.rows[rows[1].ID]; row.Status != store.SubagentStatusCompleted ||
+			row.Result == nil || *row.Result != "saved answer" {
+			t.Fatalf("independent row = %+v, want committed terminal result", row)
+		}
+	})
+
+	// Invariant: another turn cannot background or settle a native call; owner: native lifecycle.
+	for _, status := range []string{"in_progress", "failed", "task"} {
+		t.Run("Should reject foreign-turn native state "+status, func(t *testing.T) {
+			t.Parallel()
+			s, db, runtime := newSubagentTestService(t)
+			launch := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "foreground",
+				ToolName: "Agent", Status: "in_progress",
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			foreign := launch
+			foreign.ParentTurnID, foreign.Background, foreign.Status = "other-turn", true, status
+			foreign.Result, foreign.Error = "foreign result", "foreign failure"
+			if status == "task" {
+				foreign.Task = &NativeSubagentTask{Kind: acp.NativeTaskKindSpawn, Background: new(true)}
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", foreign); err != nil {
+				t.Fatal(err)
+			}
+			if row := db.rows[subagentID("parent", launch.ProviderToolCallID)]; row.Status != store.SubagentStatusRunning {
+				t.Fatalf("foreign event settled native work: %#v", row)
+			}
+			launch.Status, launch.Result = "completed", "own answer"
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", time.Time{}); err != nil {
+				t.Fatal(err)
+			}
+			row := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+			if row.Status != store.SubagentStatusCompleted || row.Result == nil || *row.Result != "own answer" ||
+				row.Error != nil || row.ParentTurnID != "turn" || len(runtime.queues) != 0 {
+				t.Fatalf("foreign event displaced own result: %#v", row)
+			}
+		})
+	}
+	// Invariant: a missing turn on a late tool result retains call ownership and metadata enrichment.
+	t.Run("Should accept an empty-turn foreground result for its persisted call", func(t *testing.T) {
+		t.Parallel()
+		s, db, _ := newSubagentTestService(t)
+		ev := NativeSubagentEvent{
+			WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "foreground", ToolName: "Agent",
+		}
+		if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+			t.Fatal(err)
+		}
+		ev.ParentTurnID, ev.Status, ev.Result, ev.Title, ev.Model = "", "completed", "own answer", "Late title", "sonnet-5.5"
+		if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+			t.Fatal(err)
+		}
+		row := db.rows[subagentID("parent", ev.ProviderToolCallID)]
+		if row.ParentTurnID != "turn" || row.Status != store.SubagentStatusCompleted ||
+			row.Result == nil || *row.Result != ev.Result || row.Title != ev.Title || row.RuntimeModel != ev.Model {
+			t.Fatal(row)
+		}
+	})
+	// Invariant: matching terminal evidence enriches retired calls without a second settlement or tracking.
+	for _, edge := range []string{"settled", "interrupted", "stopped"} {
+		t.Run("Should enrich a retired native result after "+edge, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s, db, runtime := newSubagentTestService(t)
+				hook := &subagentRecordingHook{}
+				s.settled = hook
+				s.resultLimit = func(context.Context, string) (int, error) { return 4, nil }
+				launch := NativeSubagentEvent{
+					WorkspaceID:        "ws",
+					ParentTurnID:       "turn",
+					ProviderToolCallID: "retired",
+					ToolName:           "Agent",
+					Background:         true,
+				}
+				if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", time.Time{}); err != nil {
+					t.Fatal(err)
+				}
+				var err error
+				switch edge {
+				case "settled":
+					err = s.OnParentTurnSettled(t.Context(), "parent", "turn")
+				case "interrupted":
+					err = s.OnParentTurnInterrupted(t.Context(), "parent", "turn")
+				case "stopped":
+					err = s.OnParentStopped(t.Context(), "parent")
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				before := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+				settles := runtime.settles
+				launch.ParentTurnID = ""
+				if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+					t.Fatal(err)
+				}
+				for _, turn := range []string{"other-turn", ""} {
+					foreign := nativeTaskEvent(
+						launch.ProviderToolCallID,
+						acp.NativeTaskKindState,
+						acp.NativeTaskStatusCompleted,
+						new("wrong answer"),
+					)
+					foreign.ParentTurnID = turn
+					if err := s.OnNativeToolEvent(t.Context(), "parent", foreign); err != nil {
+						t.Fatal(err)
+					}
+				}
+				conflict := nativeTaskEvent(
+					launch.ProviderToolCallID,
+					acp.NativeTaskKindState,
+					acp.NativeTaskStatusFailed,
+					new("wrong outcome"),
+				)
+				if err := s.OnNativeToolEvent(t.Context(), "parent", conflict); err != nil {
+					t.Fatal(err)
+				}
+				if row := db.rows[before.ID]; row.Result != nil || row.Status != before.Status {
+					t.Fatalf("unmatched task enriched retired work: %#v", row)
+				}
+				for range 2 {
+					if err := s.OnNativeToolEvent(
+						t.Context(),
+						"parent",
+						nativeTaskEvent(
+							launch.ProviderToolCallID,
+							acp.NativeTaskKindState,
+							acp.NativeTaskStatusCompleted,
+							new("late answer"),
+						),
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+				synctest.Wait()
+				row := db.rows[before.ID]
+				if row.Result == nil || *row.Result != "late" || !row.ResultTruncated || row.Status != before.Status ||
+					!row.SettledAt.Equal(
+						*before.SettledAt,
+					) || row.Delivery != before.Delivery || runtime.settles != settles ||
+					len(
+						runtime.queues,
+					) != 0 || len(hook.recorded()) != 1 || len(s.nativeKnown["parent"]) != 0 || len(s.nativeQueued["parent"]) != 0 {
+					t.Fatalf("late summary lost or resettled retired work: %#v", row)
+				}
+			})
+		})
+	}
+	for _, turn := range []string{"turn", "resumed-turn"} {
+		t.Run("Should recover a committed resume beyond an existing answer in "+turn, func(t *testing.T) {
+			t.Parallel()
+			s, db, runtime := newSubagentTestService(t)
+			at := s.now()
+			launch := NativeSubagentEvent{
+				WorkspaceID:        "ws",
+				ParentTurnID:       "turn",
+				ProviderToolCallID: "saved-resume",
+				ToolName:           "Agent",
+				Background:         true,
+				At:                 at,
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			done := nativeTaskEvent(
+				launch.ProviderToolCallID,
+				acp.NativeTaskKindState,
+				acp.NativeTaskStatusCompleted,
+				new("old answer"),
+			)
+			done.At = at.Add(time.Second)
+			if err := s.OnNativeToolEvent(t.Context(), "parent", done); err != nil {
+				t.Fatal(err)
+			}
+			for i, task := range []*acp.NativeTaskObservation{
+				{Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusRunning, TaskID: "saved-resume", ToolCallID: launch.ProviderToolCallID},
+				{Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusCompleted, Summary: new("new answer"), TaskID: "saved-resume", ToolCallID: launch.ProviderToolCallID},
+			} {
+				content, err := transcript.MarshalAgentEvent(
+					acp.AgentEvent{
+						Type:       acp.EventTypeNativeTask,
+						ToolCallID: launch.ProviderToolCallID,
+						TurnID:     turn,
+					}.WithNativeTask(
+						task,
+					),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				runtime.nativeTasks = append(
+					runtime.nativeTasks,
+					store.SessionEvent{
+						Sequence:  int64(i + 1),
+						TurnID:    turn,
+						Type:      acp.EventTypeNativeTask,
+						Timestamp: at.Add(time.Duration(i+2) * time.Second),
+						Content:   content,
+					},
+				)
+			}
+			if err := s.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			row := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+			if row.Result == nil || *row.Result != "new answer" || row.ParentTurnID != turn ||
+				row.Status != store.SubagentStatusCompleted {
+				t.Fatal(row)
+			}
+		})
+	}
+
+	t.Run("Should retain a saved terminal summary when later activity is stale", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "stale-active",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+			t.Fatal(err)
+		}
+		done := nativeTaskEvent(launch.ProviderToolCallID, acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, nil)
+		done.At = at.Add(2 * time.Second)
+		if err := s.OnNativeToolEvent(t.Context(), "parent", done); err != nil {
+			t.Fatal(err)
+		}
+		for i, task := range []*acp.NativeTaskObservation{
+			{Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusCompleted, Summary: new("saved answer")},
+			{Kind: acp.NativeTaskKindProgress, Description: "late activity"},
+		} {
+			content, err := transcript.MarshalAgentEvent(
+				acp.AgentEvent{
+					Type:       acp.EventTypeNativeTask,
+					ToolCallID: launch.ProviderToolCallID,
+					TurnID:     "turn",
+				}.WithNativeTask(
+					task,
+				),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.nativeTasks = append(
+				runtime.nativeTasks,
+				store.SessionEvent{
+					Sequence:  int64(i + 1),
+					TurnID:    "turn",
+					Type:      acp.EventTypeNativeTask,
+					Content:   content,
+					Timestamp: at.Add(time.Duration(3-i) * time.Second),
+				},
+			)
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		row := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+		if row.Result == nil || *row.Result != "saved answer" || row.Status != store.SubagentStatusCompleted {
+			t.Fatal(row)
+		}
+	})
+
+	t.Run("Should keep settled native tracking retired after a late update", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, _ := newSubagentTestService(t)
+			counted := &countingNativeSubagentStore{SubagentStore: db}
+			s.store = counted
+			launch := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "native",
+				ToolName: "Agent", Status: "in_progress", Background: true,
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", time.Time{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnParentTurnSettled(t.Context(), "parent", "turn"); err != nil {
+				t.Fatal(err)
+			}
+			late := launch
+			late.ParentTurnID, late.Status, late.Title = "other-turn", "completed", "Late title"
+			if err := s.OnNativeToolEvent(t.Context(), "parent", late); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnParentTurnSettled(t.Context(), "parent", "other-turn"); err != nil {
+				t.Fatal(err)
+			}
+			before := counted.lookups
+			if err := s.OnNativeToolEvent(t.Context(), "parent", NativeSubagentEvent{
+				WorkspaceID: "ws", ProviderToolCallID: "native", Progress: "late heartbeat",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Second)
+			synctest.Wait()
+			if counted.lookups != before {
+				t.Fatalf("retired native heartbeat read storage: %d additional reads", counted.lookups-before)
+			}
+			if row := db.rows[subagentID("parent", "native")]; row.Status != store.SubagentStatusCompleted ||
+				row.ParentTurnID != "turn" || row.Title != "Late title" {
+				t.Fatalf("late metadata update changed terminal ownership: %#v", row)
+			}
+		})
+	})
+	// Invariant: later tool updates retain the persisted turn's background completion and interruption scope.
+	for _, tc := range []struct {
+		name, rowTurn, eventTurn string
+	}{
+		{"Should retain the persisted turn after a different-turn update", "turn", "other-turn"},
+		{"Should retain the persisted turn after an empty-turn update", "turn", ""},
+		{"Should retain an empty persisted turn after a named-turn update", "", "other-turn"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s, db, r := newSubagentTestService(t)
+				launch := NativeSubagentEvent{
+					WorkspaceID: "ws", ParentTurnID: tc.rowTurn, ProviderToolCallID: "native",
+					ToolName: "Agent", Status: "in_progress", Background: true,
+				}
+				if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+					t.Fatal(err)
+				}
+				update := launch
+				update.ParentTurnID, update.Status, update.Background = tc.eventTurn, "completed", false
+				if err := s.OnNativeToolEvent(t.Context(), "parent", update); err != nil {
+					t.Fatal(err)
+				}
+				for range 2 {
+					if err := s.OnParentTurnInterrupted(t.Context(), "parent", "other-turn"); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if row := db.rows[subagentID("parent", "native")]; row.ParentTurnID != tc.rowTurn ||
+					row.Status != store.SubagentStatusRunning {
+					t.Fatalf("unrelated interruption changed native work: %#v", row)
+				}
+				for range 2 {
+					if err := s.OnNativeTurnDone(t.Context(), "parent", tc.rowTurn, time.Time{}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				row := db.rows[subagentID("parent", "native")]
+				if row.Status != store.SubagentStatusCompleted || row.ParentTurnID != tc.rowTurn ||
+					row.Delivery != store.SubagentDeliveryNone || row.Result != nil || len(r.queues) != 0 {
+					t.Fatalf("persisted turn lost background completion: %#v, wakes: %#v", row, r.queues)
+				}
+			})
+		})
+	}
+	t.Run("Should interrupt a resume recovered after its parent turn disappeared", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "crash-resume",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+			t.Fatal(err)
+		}
+		done := nativeTaskEvent(launch.ProviderToolCallID, acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, nil)
+		done.At = at.Add(time.Second)
+		if err := s.OnNativeToolEvent(t.Context(), "parent", done); err != nil {
+			t.Fatal(err)
+		}
+		content, err := transcript.MarshalAgentEvent(
+			acp.AgentEvent{
+				Type:       acp.EventTypeNativeTask,
+				ToolCallID: launch.ProviderToolCallID,
+				TurnID:     "turn",
+			}.WithNativeTask(
+				&acp.NativeTaskObservation{
+					Kind:       acp.NativeTaskKindState,
+					TaskID:     "crash-resume",
+					ToolCallID: launch.ProviderToolCallID,
+					Status:     acp.NativeTaskStatusRunning,
+				},
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime.nativeTasks = []store.SessionEvent{
+			{
+				Sequence:  1,
+				TurnID:    "turn",
+				Type:      acp.EventTypeNativeTask,
+				Timestamp: at.Add(2 * time.Second),
+				Content:   content,
+			},
+		}
+		snap := runtime.snapshots["parent"]
+		snap.Active = false
+		runtime.snapshots["parent"] = snap
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if row := db.rows[subagentID("parent", launch.ProviderToolCallID)]; row.Status != store.SubagentStatusInterrupted {
+			t.Fatal(row)
+		}
+	})
+
+	t.Run("Should recover a saved summary before a later turn fallback", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "fallback-summary",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+			t.Fatal(err)
+		}
+		content, err := transcript.MarshalAgentEvent(
+			acp.AgentEvent{
+				Type:       acp.EventTypeNativeTask,
+				ToolCallID: launch.ProviderToolCallID,
+				TurnID:     "turn",
+			}.WithNativeTask(
+				&acp.NativeTaskObservation{
+					Kind:       acp.NativeTaskKindState,
+					TaskID:     "agent-fallback",
+					ToolCallID: launch.ProviderToolCallID,
+					Status:     acp.NativeTaskStatusCompleted,
+					Summary:    new("saved answer"),
+				},
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime.nativeTasks = []store.SessionEvent{
+			{
+				Sequence:  1,
+				TurnID:    "turn",
+				Type:      acp.EventTypeNativeTask,
+				Timestamp: at.Add(time.Second),
+				Content:   content,
+			},
+		}
+		if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", at.Add(2*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		row := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+		if row.Result == nil || *row.Result != "saved answer" {
+			t.Fatal(row)
+		}
+	})
+
+	t.Run("Should recover only the resumed run summary after its completion patch", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "resumed",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+			t.Fatal(err)
+		}
+		events := []NativeSubagentEvent{
+			nativeTaskEvent("resumed", acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, new("first answer")),
+			nativeTaskEvent("resumed", acp.NativeTaskKindState, acp.NativeTaskStatusRunning, nil),
+			nativeTaskEvent("resumed", acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, nil),
+			nativeTaskEvent("resumed", acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, new("second answer")),
+		}
+		for i, ev := range events {
+			ev.At = at.Add(time.Duration(i+1) * time.Second)
+			if i < len(events)-1 {
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+			}
+			content, err := transcript.MarshalAgentEvent(
+				acp.AgentEvent{
+					Type:       acp.EventTypeNativeTask,
+					ToolCallID: "resumed",
+					TurnID:     "turn",
+				}.WithNativeTask(
+					&acp.NativeTaskObservation{
+						Kind:       ev.Task.Kind,
+						TaskID:     "agent-resumed",
+						ToolCallID: "resumed",
+						Status:     ev.Task.Status,
+						Summary:    ev.Task.Summary,
+					},
+				),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.nativeTasks = append(
+				runtime.nativeTasks,
+				store.SessionEvent{
+					Sequence:  int64(i + 1),
+					TurnID:    "turn",
+					Type:      acp.EventTypeNativeTask,
+					Timestamp: ev.At,
+					Content:   content,
+				},
+			)
+		}
+		id := subagentID("parent", "resumed")
+		if db.rows[id].Result != nil {
+			t.Fatal(db.rows[id])
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if row := db.rows[id]; row.Result == nil || *row.Result != "second answer" || row.SettledAt == nil ||
+			!row.SettledAt.Equal(at.Add(3*time.Second)) {
+			t.Fatal(row)
+		}
+	})
+
+	// Invariant: a delayed cancellation only retires its own turn's native tracking; owner: native lifecycle.
+	t.Run("Should preserve newer native tracking after delayed interruption", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, _ := newSubagentTestService(t)
+			old := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "old",
+				ToolName: "Agent", Status: "in_progress", Background: true,
+			}
+			newer := old
+			newer.ParentTurnID, newer.ProviderToolCallID = "next-turn", "newer"
+			queued := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "next-turn", ProviderToolCallID: "queued",
+				Task: &NativeSubagentTask{
+					Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusCompleted,
+					Summary: new("queued result"),
+				},
+			}
+			for _, ev := range []NativeSubagentEvent{old, newer, queued} {
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for range 2 {
+				if err := s.OnParentTurnInterrupted(t.Context(), "parent", "turn"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if row := db.rows[subagentID("parent", "old")]; row.Status != store.SubagentStatusInterrupted {
+				t.Fatal(row)
+			}
+			launch := newer
+			launch.ProviderToolCallID = "queued"
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			if row := db.rows[subagentID("parent", "queued")]; row.Status != store.SubagentStatusCompleted ||
+				row.Result == nil || *row.Result != "queued result" {
+				t.Fatalf("newer turn lost queued task evidence: %#v", row)
+			}
+			if err := s.OnNativeTurnDone(t.Context(), "parent", "next-turn", time.Time{}); err != nil {
+				t.Fatal(err)
+			}
+			if row := db.rows[subagentID("parent", "newer")]; row.Status != store.SubagentStatusCompleted {
+				t.Fatalf("newer turn lost background tracking: %#v", row)
+			}
+		})
+	})
 	for _, edge := range []string{"settled", "interrupted", "stopped", "recovery", "terminal-first"} {
 		t.Run("Should finalize native work at "+edge, func(t *testing.T) {
 			t.Parallel()
@@ -2181,14 +3090,15 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 			}
 		}
 	})
-	// Invariant: result recovery reads a parent turn's transcript once for all of that turn's rows.
-	t.Run("Should read each parent turn once when recovering missing results", func(t *testing.T) {
+	// Invariant: result recovery reads a parent's transcript once per candidate page across distinct turns.
+	t.Run("Should read each parent once across turns when recovering missing results", func(t *testing.T) {
 		t.Parallel()
 		s, db, r := newSubagentTestService(t)
 		calls := []string{"toolu_a", "toolu_b", "toolu_c"}
 		for i, call := range calls {
+			turn := fmt.Sprintf("turn-%d", i)
 			launch := NativeSubagentEvent{
-				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call, ToolName: "Agent",
+				WorkspaceID: "ws", ParentTurnID: turn, ProviderToolCallID: call, ToolName: "Agent",
 				Status: "in_progress", Background: true,
 			}
 			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
@@ -2199,7 +3109,7 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			event := acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: call}.WithNativeTask(
+			event := acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: turn, ToolCallID: call}.WithNativeTask(
 				&acp.NativeTaskObservation{
 					Kind: acp.NativeTaskKindState, TaskID: call, ToolCallID: call,
 					Status: acp.NativeTaskStatusCompleted, Summary: new(call + " summary"),
@@ -2210,7 +3120,7 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 				t.Fatal(err)
 			}
 			r.nativeTasks = append(r.nativeTasks,
-				store.SessionEvent{Sequence: int64(i + 1), TurnID: "turn", Type: event.Type, Content: payload})
+				store.SessionEvent{Sequence: int64(i + 1), TurnID: turn, Type: event.Type, Content: payload})
 		}
 		if err := s.Recover(t.Context()); err != nil {
 			t.Fatal(err)
@@ -2298,6 +3208,419 @@ func TestSubagentRecoveryIsolation(t *testing.T) {
 	}
 }
 
+// An orphaned delegation is a row that reached running without ever linking a
+// child session: the start failed after the reservation and the failure
+// settlement was lost to storage contention. Nothing can resume it.
+func orphanedDelegationRow() store.SessionSubagent {
+	return store.SessionSubagent{
+		ID:              "orphan",
+		WorkspaceID:     "ws",
+		ParentSessionID: "parent",
+		ParentTurnID:    "turn",
+		Origin:          store.SubagentOriginDelegated,
+		Status:          store.SubagentStatusRunning,
+		WakePolicy:      store.SubagentWakePolicyAlways,
+		Delivery:        store.SubagentDeliveryPending,
+		StartedAt:       new(time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)),
+	}
+}
+
+func TestRecoverFinalizesOrphanedDelegation(t *testing.T) {
+	t.Run("Should settle an orphaned delegation the recovery can never resume", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		db.rows["orphan"] = orphanedDelegationRow()
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		row := db.rows["orphan"]
+		if row.Status != store.SubagentStatusFailed {
+			t.Fatalf("status = %q, want %q", row.Status, store.SubagentStatusFailed)
+		}
+		if row.SettledAt == nil {
+			t.Fatal("settled_at = nil, want the recovery instant")
+		}
+		if row.Error == nil || !strings.Contains(*row.Error, "delegation interrupted") {
+			t.Fatalf("error = %v, want the delegation-interrupted summary", row.Error)
+		}
+	})
+}
+
+func TestRecoverWakesParentAfterCallerCancellation(t *testing.T) {
+	for _, policy := range []string{store.SubagentWakePolicyAlways, store.SubagentWakePolicySettledOnly} {
+		t.Run("Should wake the parent after recovery cancellation with "+policy, func(t *testing.T) {
+			t.Parallel()
+			s, db, r := newSubagentTestService(t)
+			row := orphanedDelegationRow()
+			row.WakePolicy = policy
+			db.rows[row.ID] = row
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			r.publishParent = func(context.Context, string) { cancel() }
+
+			if err := s.failRecovered(ctx, row, ""); err != nil {
+				t.Fatalf("failRecovered() error = %v", err)
+			}
+			settled := db.rows[row.ID]
+			if settled.Status != store.SubagentStatusFailed || settled.WakePolicy != store.SubagentWakePolicyAlways {
+				t.Fatalf("row = %+v, want failed with an unconditional wake", settled)
+			}
+			if len(db.wakes) != 1 || len(r.queues) != 1 {
+				t.Fatalf("wakes = %+v queues = %+v, want one recovery wake", db.wakes, r.queues)
+			}
+		})
+	}
+}
+
+func TestRecoverFinalizesOrphanedIsolatedDelegation(t *testing.T) {
+	t.Run("Should settle an orphaned isolated delegation and wake the parent", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		// The isolated recovery path compensates through the worktree service, which the
+		// daemon always wires; an empty stub means the reservation never got a worktree.
+		s.worktrees = &subagentWorktreeStub{}
+		row := orphanedDelegationRow()
+		row.Isolation = SubagentIsolationWorktree
+		db.rows["orphan"] = row
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		settled := db.rows["orphan"]
+		if settled.Status != store.SubagentStatusFailed {
+			t.Fatalf("status = %q, want %q", settled.Status, store.SubagentStatusFailed)
+		}
+		if settled.WakePolicy != store.SubagentWakePolicyAlways {
+			t.Fatalf("wake policy = %q, want the parent woken for an orphaned isolated lane", settled.WakePolicy)
+		}
+		if settled.SettledAt == nil {
+			t.Fatal("settled_at = nil, want the recovery instant")
+		}
+	})
+}
+
+// A rollback that fails cannot keep the row running until the next boot: the
+// row still settles and the parent still wakes, while the checkout keeps its
+// pending cleanup so recoverIsolationCleanup retries it.
+func TestRecoverSettlesOrphanedIsolationWhenCompensationFails(t *testing.T) {
+	t.Run("Should settle an orphaned isolated row when the worktree compensation fails", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, r := newSubagentTestService(t)
+		s.worktrees = &subagentWorktreeStub{lookupErr: errors.New("worktree lookup unavailable")}
+		var logs strings.Builder
+		s.logger = slog.New(slog.NewTextHandler(&logs, nil))
+		row := orphanedDelegationRow()
+		row.Isolation = SubagentIsolationWorktree
+		row.WakePolicy = store.SubagentWakePolicySettledOnly
+		db.rows["orphan"] = row
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		settled := db.rows["orphan"]
+		if settled.Status != store.SubagentStatusFailed {
+			t.Fatalf("status = %q, want %q even when the rollback failed", settled.Status, store.SubagentStatusFailed)
+		}
+		if settled.WakePolicy != store.SubagentWakePolicyAlways {
+			t.Fatalf(
+				"wake policy = %q, want %q for a failed orphan",
+				settled.WakePolicy,
+				store.SubagentWakePolicyAlways,
+			)
+		}
+		if got := settled.WorktreeState().Cleanup; got != "pending" {
+			t.Fatalf("worktree cleanup = %q, want %q for recoverIsolationCleanup to retry", got, "pending")
+		}
+		if len(db.wakes) != 1 || len(r.queues) != 1 {
+			t.Fatalf("wakes = %+v queues = %+v, want one planned wake", db.wakes, r.queues)
+		}
+		// Both failures surface: the settle result is not allowed to swallow the
+		// compensation error that made the fallback necessary.
+		if !strings.Contains(logs.String(), "orphaned_isolation_compensation") ||
+			!strings.Contains(logs.String(), "worktree lookup unavailable") {
+			t.Fatalf("logs = %q, want the compensation error reported", logs.String())
+		}
+	})
+}
+
+// A checkout is only collectable when the row is marked pending, so a fallback
+// that cannot write the marker must not finalize the delegation.
+func TestRecoverKeepsOrphanRunningWhenCleanupMarkerFails(t *testing.T) {
+	t.Run("Should keep the orphan running when the cleanup marker cannot be written", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		row := orphanedDelegationRow()
+		row.Isolation = SubagentIsolationWorktree
+		db.rows["orphan"] = row
+		markerErr := errors.New("cleanup marker unavailable")
+		db.worktreeCleanupErr = markerErr
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		if got := db.rows["orphan"].Status; got != store.SubagentStatusRunning {
+			t.Fatalf("status = %q, want the row left for the next boot", got)
+		}
+	})
+}
+
+func TestRecoverSkipsInFlightOrphan(t *testing.T) {
+	t.Run("Should skip an orphan whose delegation is still in flight", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		db.rows["orphan"] = orphanedDelegationRow()
+		s.mu.Lock()
+		s.flights["orphan"] = &subagentFlight{}
+		s.mu.Unlock()
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		if row := db.rows["orphan"]; row.Status != store.SubagentStatusRunning {
+			t.Fatalf("status = %q, want the live delegation untouched", row.Status)
+		}
+	})
+}
+
+// failWakePolicyOnce makes the first settlement fail its wake-policy upgrade
+// after the terminal write already landed, forcing the orphaned fallback to
+// settle the row a second time.
+type failWakePolicyOnce struct {
+	store.SubagentStore
+	mu    sync.Mutex
+	calls int
+}
+
+func (d *failWakePolicyOnce) UpgradeWakePolicy(
+	ctx context.Context,
+	id string,
+) (store.SessionSubagent, error) {
+	d.mu.Lock()
+	d.calls++
+	fail := d.calls == 1
+	d.mu.Unlock()
+	if fail {
+		return store.SessionSubagent{}, errors.New("wake policy store unavailable")
+	}
+	return d.SubagentStore.UpgradeWakePolicy(ctx, id)
+}
+
+// The fallback settles again when the first settlement already made the row
+// terminal but lost the wake. Settling twice must still leave one wake and one
+// delivery: the status guard skips the second publish and the wake join reuses
+// the pending message.
+func TestRecoverSettlesOrphanedIsolationOnceWhenTailFails(t *testing.T) {
+	t.Run("Should settle an orphaned isolated row once when the settlement tail fails", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, r := newSubagentTestService(t)
+		s.worktrees = &subagentWorktreeStub{}
+		row := orphanedDelegationRow()
+		row.Isolation = SubagentIsolationWorktree
+		row.WakePolicy = store.SubagentWakePolicySettledOnly
+		db.rows["orphan"] = row
+		failing := &failWakePolicyOnce{SubagentStore: db}
+		s.store = failing
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		settled := db.rows["orphan"]
+		if settled.Status != store.SubagentStatusFailed || settled.WakePolicy != store.SubagentWakePolicyAlways {
+			t.Fatalf("row = %+v, want a settled row with the parent woken", settled)
+		}
+		if failing.calls != 2 {
+			t.Fatalf("wake policy calls = %d, want the fallback to settle a second time", failing.calls)
+		}
+		if len(db.wakes) != 1 || len(r.queues) != 1 {
+			t.Fatalf("wakes = %+v queues = %+v, want exactly one wake and one delivery", db.wakes, r.queues)
+		}
+		if len(r.publishes) != 1 {
+			t.Fatalf("parent publishes = %d, want one terminal publication", len(r.publishes))
+		}
+	})
+}
+
+// A terminal write that loses writer admission must be retried: surfacing it once
+// leaves the delegation running forever with no settlement. The retry has to
+// outlive the caller budget that the first attempt already spent.
+func TestFinalizeSubagentRetryOutlivesExpiredCallerContext(t *testing.T) {
+	t.Run("Should retry a terminal write past the expired caller context", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		db.rows["orphan"] = orphanedDelegationRow()
+		db.finalizeFailures = 1
+		s.store = slowFinalizeSubagents{SubagentStore: db}
+
+		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
+		defer cancel()
+		<-ctx.Done()
+
+		settled, changed, err := s.finalizeSubagentWithRetry(ctx, store.SubagentFinalize{
+			ID:        "orphan",
+			Status:    store.SubagentStatusFailed,
+			WorkState: store.SubagentWorkStateResultAvailable,
+			SettledAt: time.Date(2026, 10, 8, 0, 1, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("finalizeSubagentWithRetry() error = %v", err)
+		}
+		if !changed || settled.Status != store.SubagentStatusFailed {
+			t.Fatalf("settled = %+v changed = %v, want a failed terminal write", settled, changed)
+		}
+		if stored := db.rows["orphan"]; stored.Status != store.SubagentStatusFailed {
+			t.Fatalf("stored row = %+v, want a failed terminal write", stored)
+		}
+	})
+}
+
+func TestFinalizeSubagentRetriesWriterContention(t *testing.T) {
+	t.Run("Should retry a terminal write that lost writer admission", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		db.rows["orphan"] = orphanedDelegationRow()
+		db.finalizeFailures = 2
+
+		settled, changed, err := s.finalizeSubagentWithRetry(t.Context(), store.SubagentFinalize{
+			ID:        "orphan",
+			Status:    store.SubagentStatusFailed,
+			WorkState: store.SubagentWorkStateResultAvailable,
+			Error:     new("delegation interrupted"),
+			SettledAt: time.Date(2026, 10, 8, 0, 1, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("finalizeSubagentWithRetry() error = %v", err)
+		}
+		if !changed {
+			t.Fatal("changed = false, want the terminal write to apply")
+		}
+		if settled.Status != store.SubagentStatusFailed {
+			t.Fatalf("status = %q, want %q", settled.Status, store.SubagentStatusFailed)
+		}
+		if want := 3; db.finalizeCalls != want {
+			t.Fatalf("finalize calls = %d, want %d after two contention failures", db.finalizeCalls, want)
+		}
+	})
+}
+
+// A permanent store error is not contention and must surface immediately.
+func TestFinalizeSubagentDoesNotRetryPermanentErrors(t *testing.T) {
+	t.Run("Should surface a permanent store error without retrying", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+
+		_, _, err := s.finalizeSubagentWithRetry(t.Context(), store.SubagentFinalize{
+			ID:        "missing",
+			Status:    store.SubagentStatusFailed,
+			SettledAt: time.Date(2026, 10, 8, 0, 1, 0, 0, time.UTC),
+		})
+		if !errors.Is(err, store.ErrSubagentNotFound) {
+			t.Fatalf("error = %v, want the missing-row error", err)
+		}
+		if want := 1; db.finalizeCalls != want {
+			t.Fatalf("finalize calls = %d, want %d", db.finalizeCalls, want)
+		}
+	})
+}
+
+// slowFinalizeSubagents makes each terminal write spend fake time, so a retry
+// can outlive the caller's cleanup context without slowing the suite down.
+type slowFinalizeSubagents struct {
+	store.SubagentStore
+	delay time.Duration
+}
+
+func (d slowFinalizeSubagents) FinalizeSubagent(
+	ctx context.Context,
+	in store.SubagentFinalize,
+) (store.SessionSubagent, bool, error) {
+	time.Sleep(d.delay)
+	if err := ctx.Err(); err != nil {
+		return store.SessionSubagent{}, false, err
+	}
+	return d.SubagentStore.FinalizeSubagent(ctx, in)
+}
+
+func publishContextProbe(r *subagentTestRuntime) (published *int, publishErr *error) {
+	published, publishErr = new(int), new(error)
+	r.publishParent = func(ctx context.Context, _ string) {
+		*published++
+		*publishErr = ctx.Err()
+	}
+	return published, publishErr
+}
+
+// The retry owns a 30 s budget while the caller's cleanup context lasts 5 s.
+// Publishing the settled row on that spent context silently drops the parent
+// catalog refresh, so the publication needs a bounded context of its own.
+func TestFailDelegationPublishesTerminalWithLiveContext(t *testing.T) {
+	t.Run("Should publish a failed delegation on a live context", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			s, db, r := newSubagentTestService(t)
+			db.rows["orphan"] = orphanedDelegationRow()
+			db.finalizeFailures = 2
+			s.store = slowFinalizeSubagents{SubagentStore: db, delay: 3 * time.Second}
+			published, publishErr := publishContextProbe(r)
+
+			if _, err := s.failDelegation(t.Context(), db.rows["orphan"], "", testSubagentError()); err != nil {
+				t.Fatalf("failDelegation() error = %v", err)
+			}
+			if *published != 1 {
+				t.Fatalf("PublishParent calls = %d, want 1", *published)
+			}
+			if *publishErr != nil {
+				t.Fatalf("PublishParent context error = %v, want a live publication context", *publishErr)
+			}
+		})
+	})
+}
+
+func TestFailIsolatedDelegationPublishesTerminalWithLiveContext(t *testing.T) {
+	t.Run("Should publish a failed isolated delegation on a live context", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			s, db, r := newSubagentTestService(t)
+			row := orphanedDelegationRow()
+			row.Isolation = SubagentIsolationWorktree
+			row.Worktree = &store.SubagentWorktreeState{ID: "wt-1", BaseSHA: "base"}
+			db.rows["orphan"] = row
+			db.finalizeFailures = 2
+			s.worktrees = &subagentWorktreeStub{worktree: SubagentWorktree{ID: "wt-1"}}
+			s.store = slowFinalizeSubagents{SubagentStore: db, delay: 3 * time.Second}
+			published, publishErr := publishContextProbe(r)
+
+			cause := testSubagentError()
+			if _, err := s.failIsolatedDelegation(t.Context(), db.rows["orphan"], "", cause); !errors.Is(err, cause) {
+				t.Fatalf("failIsolatedDelegation() error = %v, want %v", err, cause)
+			}
+			if *published != 1 {
+				t.Fatalf("PublishParent calls = %d, want 1", *published)
+			}
+			if *publishErr != nil {
+				t.Fatalf("PublishParent context error = %v, want a live publication context", *publishErr)
+			}
+		})
+	})
+}
+
 func TestSubagentUserSteerSlot(t *testing.T) {
 	t.Run("Should queue without displacing user steer UT-057", func(t *testing.T) {
 		t.Parallel()
@@ -2321,11 +3644,16 @@ func TestSubagentUserSteerSlot(t *testing.T) {
 
 type countingNativeSubagentStore struct {
 	store.SubagentStore
-	lookups int
+	lookups   int
+	failID    string
+	lookupErr error
 }
 
 func (s *countingNativeSubagentStore) GetSubagent(ctx context.Context, ws, id string) (store.SessionSubagent, error) {
 	s.lookups++
+	if id == s.failID && s.lookupErr != nil {
+		return store.SessionSubagent{}, s.lookupErr
+	}
 	return s.SubagentStore.GetSubagent(ctx, ws, id)
 }
 
@@ -2498,22 +3826,22 @@ func TestSubagentRecoveryCorruptChild(t *testing.T) {
 	})
 }
 
-// N2: accepting cancellation finalizes the row before an independent lifecycle-owned stop.
+// N2: cancellation finalizes the row, then retires the child session before returning.
 // Owner: service cancellation; canonical subagent service suite.
-type blockedSubagentStop struct {
+type cancelStopRuntime struct {
 	*subagentTestRuntime
-	entered chan context.Context
-	release chan struct{}
+	onStop  func(context.Context, string)
+	stopErr error
 }
 
-func (r blockedSubagentStop) Stop(ctx context.Context, id string) error {
-	r.entered <- ctx
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-r.release:
-		return r.subagentTestRuntime.Stop(ctx, id)
+func (r cancelStopRuntime) Stop(ctx context.Context, id string) error {
+	if r.onStop != nil {
+		r.onStop(ctx, id)
 	}
+	if r.stopErr != nil {
+		return r.stopErr
+	}
+	return r.subagentTestRuntime.Stop(ctx, id)
 }
 
 // cancelReadBarrier signals the first row read of a Cancel so a test can link
@@ -2592,7 +3920,7 @@ func TestSubagentCancelLifetime(t *testing.T) {
 			}
 		})
 	})
-	t.Run("Should leave a row that settled while cancel waited", func(t *testing.T) {
+	t.Run("Should stop the residual child of a row that settled while cancel waited", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			s, db, runtime := newSubagentTestService(t)
@@ -2600,62 +3928,202 @@ func TestSubagentCancelLifetime(t *testing.T) {
 			read := make(chan struct{})
 			s.store = cancelReadBarrier{SubagentStore: db, read: read, once: &sync.Once{}}
 			unlock := s.lock("parent")
-			done := make(chan SubagentCancelOutcome, 1)
+			type cancelResult struct {
+				out SubagentCancelOutcome
+				err error
+			}
+			done := make(chan cancelResult, 1)
 			go func() {
-				out, _ := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
-				done <- out
+				out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+				done <- cancelResult{out: out, err: err}
 			}()
 			<-read
 			settled := db.rows[row.ID]
 			settled.Status = store.SubagentStatusCompleted
 			db.rows[row.ID] = settled
 			unlock()
-			out := <-done
+			result := <-done
 			synctest.Wait()
+			if result.err != nil {
+				t.Fatal(result.err)
+			}
+			out := result.out
 			if out.Status != store.SubagentStatusCompleted ||
-				db.rows[row.ID].Delivery == store.SubagentDeliveryDisposed ||
-				len(runtime.stopped) != 0 {
-				t.Fatal(out, db.rows[row.ID], runtime.stopped)
+				db.rows[row.ID].Delivery == store.SubagentDeliveryDisposed {
+				t.Fatal(out, db.rows[row.ID])
+			}
+			if !slices.Contains(runtime.stopped, *row.ChildSessionID) {
+				t.Fatal("residual child session was not stopped", runtime.stopped)
 			}
 		})
 	})
-	t.Run("Should finalize synchronously and keep stopping after the request is canceled", func(t *testing.T) {
+	t.Run("Should stop the child with a bounded context that survives request cancellation", func(t *testing.T) {
 		t.Parallel()
-		synctest.Test(t, func(t *testing.T) {
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		runtime.terminationBudget = 30 * time.Second
+		var stopCtx context.Context
+		var stopCtxErr error
+		s.runtime = cancelStopRuntime{
+			subagentTestRuntime: runtime,
+			onStop: func(ctx context.Context, _ string) {
+				stopCtx, stopCtxErr = ctx, ctx.Err()
+				if got := db.rows[row.ID].Status; got != store.SubagentStatusCanceled {
+					t.Errorf("row status at stop = %q, want canceled", got)
+				}
+			},
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		out, err := s.Cancel(ctx, SubagentActor{Kind: "operator"}, row.ID, "")
+		if err != nil || out.Status != "cancel_requested" ||
+			db.rows[row.ID].Status != store.SubagentStatusCanceled ||
+			db.rows[row.ID].Delivery != store.SubagentDeliveryDisposed {
+			t.Fatal(out, db.rows[row.ID], err)
+		}
+		if stopCtx == nil {
+			t.Fatal("child session was not stopped")
+		}
+		if stopCtxErr != nil {
+			t.Fatal("stop inherited request cancellation", stopCtxErr)
+		}
+		deadline, ok := stopCtx.Deadline()
+		if !ok {
+			t.Fatal("stop context has no deadline")
+		}
+		// A shorter bound would return before the cooperative ladder reaches
+		// forced termination.
+		if remaining := time.Until(deadline); remaining < 25*time.Second {
+			t.Fatalf("stop deadline in %s, want the 30s termination budget", remaining)
+		}
+		if !slices.Contains(runtime.stopped, *row.ChildSessionID) {
+			t.Fatal(runtime.stopped)
+		}
+	})
+}
+
+func TestSubagentCancelStopsChild(t *testing.T) {
+	for _, edge := range []string{"cancel", "parent stop"} {
+		t.Run("Should freeze descendants through a terminal intermediary on "+edge, func(t *testing.T) {
+			t.Parallel()
 			s, db, runtime := newSubagentTestService(t)
-			row := requireSubagent(t, s, subagentTestRequest())
-			blocked := blockedSubagentStop{runtime, make(chan context.Context), make(chan struct{})}
-			s.runtime = blocked
-			start := make(chan struct{})
-			launch := s.launch
-			s.launch = func(f func()) {
-				launch(func() {
-					select {
-					case <-start:
-						f()
-					case <-s.ctx.Done():
+			root := requireSubagent(t, s, subagentTestRequest())
+			terminal := db.rows[root.ID]
+			terminal.ID, terminal.ParentSessionID = "terminal", *root.ChildSessionID
+			terminal.ChildSessionID = new("terminal-session")
+			terminal.Status = store.SubagentStatusCompleted
+			terminal.SettledAt = new(s.now().Add(-time.Minute))
+			terminal.Result = new("retained result")
+			db.rows[terminal.ID] = terminal
+			live := db.rows[root.ID]
+			live.ID, live.ParentSessionID = "nested", *terminal.ChildSessionID
+			live.ChildSessionID = new("nested-session")
+			db.rows[live.ID] = live
+			runtime.snapshots[*terminal.ChildSessionID] = subagentSnapshot{
+				Info: &Info{ID: *terminal.ChildSessionID, State: StateStopped},
+			}
+			s.runtime = cancelStopRuntime{
+				subagentTestRuntime: runtime,
+				onStop: func(context.Context, string) {
+					if got := db.rows[live.ID].Status; got != store.SubagentStatusCanceled {
+						t.Errorf("descendant status at stop = %q, want canceled", got)
 					}
-				})
+				},
 			}
-			ctx, cancel := context.WithCancel(t.Context())
-			out, err := s.Cancel(ctx, SubagentActor{Kind: "operator"}, row.ID, "")
-			cancel()
-			if err != nil || out.Status != "cancel_requested" ||
-				db.rows[row.ID].Status != store.SubagentStatusCanceled ||
-				db.rows[row.ID].Delivery != store.SubagentDeliveryDisposed {
-				t.Fatal(out, db.rows[row.ID], err)
+			var err error
+			if edge == "cancel" {
+				_, err = s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, root.ID, "")
+			} else {
+				err = s.OnParentStopped(t.Context(), *root.ChildSessionID)
 			}
-			close(start)
-			stopCtx := <-blocked.entered
-			if stopCtx.Err() != nil {
-				t.Fatal("stop inherited request cancellation", stopCtx.Err())
+			if err != nil {
+				t.Fatal(err)
 			}
-			close(blocked.release)
-			synctest.Wait()
-			if len(runtime.stopped) != 1 {
-				t.Fatal(runtime.stopped)
+			if got := db.rows[live.ID].Status; got != store.SubagentStatusCanceled {
+				t.Fatalf("descendant status = %q, want canceled", got)
+			}
+			if got := db.rows[terminal.ID]; got.Status != terminal.Status ||
+				got.Result == nil || *got.Result != *terminal.Result ||
+				got.SettledAt == nil || !got.SettledAt.Equal(*terminal.SettledAt) {
+				t.Fatalf("terminal result changed: %+v", got)
 			}
 		})
+	}
+
+	t.Run("Should stop the child session of a live subagent", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		child := *row.ChildSessionID
+		out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+		if err != nil || out.Status != "cancel_requested" ||
+			db.rows[row.ID].Status != store.SubagentStatusCanceled {
+			t.Fatal(out, err, db.rows[row.ID])
+		}
+		if !slices.Contains(runtime.stopped, child) {
+			t.Fatalf("child session %s was not stopped: %v", child, runtime.stopped)
+		}
+		if snap := runtime.snapshots[child]; snap.Active || snap.Info == nil || snap.Info.State != StateStopped {
+			t.Fatalf("child snapshot = %+v", snap)
+		}
+	})
+	t.Run("Should accept a child session that is already retired", func(t *testing.T) {
+		t.Parallel()
+		for _, stopErr := range []error{ErrSessionNotActive, ErrSessionNotFound} {
+			s, db, runtime := newSubagentTestService(t)
+			row := requireSubagent(t, s, subagentTestRequest())
+			s.runtime = cancelStopRuntime{subagentTestRuntime: runtime, stopErr: stopErr}
+			out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+			if err != nil || out.Status != "cancel_requested" ||
+				db.rows[row.ID].Status != store.SubagentStatusCanceled {
+				t.Fatal(stopErr, out, err, db.rows[row.ID])
+			}
+		}
+	})
+	t.Run("Should stop the residual child of a terminal row", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		settledAt := s.now().Add(-time.Minute)
+		settled := db.rows[row.ID]
+		settled.Status, settled.SettledAt = store.SubagentStatusCompleted, &settledAt
+		db.rows[row.ID] = settled
+		out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+		if err != nil || out.Status != store.SubagentStatusCompleted {
+			t.Fatal(out, err)
+		}
+		if !slices.Contains(runtime.stopped, *row.ChildSessionID) {
+			t.Fatalf("residual child session was not stopped: %v", runtime.stopped)
+		}
+		if got := db.rows[row.ID]; got.Status != store.SubagentStatusCompleted ||
+			got.SettledAt == nil || !got.SettledAt.Equal(settledAt) {
+			t.Fatalf("terminal row changed by cancel: %+v", got)
+		}
+	})
+	t.Run("Should stop the child when descendant cleanup fails", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		descendant := db.rows[row.ID]
+		descendant.ID = "grandchild"
+		descendant.ParentSessionID = *row.ChildSessionID
+		descendant.ChildSessionID = new("grandchild-session")
+		db.rows[descendant.ID] = descendant
+		cleanupErr := errors.New("descendant cleanup unavailable")
+		db.finalizeErrIDs = map[string]error{"grandchild": cleanupErr}
+		var stoppedIDs []string
+		s.runtime = cancelStopRuntime{
+			subagentTestRuntime: runtime,
+			onStop:              func(_ context.Context, id string) { stoppedIDs = append(stoppedIDs, id) },
+		}
+
+		out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+		if !errors.Is(err, cleanupErr) || out.Status != "cancel_requested" {
+			t.Fatalf("Cancel() = %+v, %v; want the cleanup error surfaced", out, err)
+		}
+		if !slices.Contains(stoppedIDs, *row.ChildSessionID) {
+			t.Fatalf("child stop was not attempted after a cleanup error: %v", stoppedIDs)
+		}
 	})
 }
 
@@ -3058,13 +4526,13 @@ func TestSubagentIsolationRecoveryMatrix(t *testing.T) {
 // Owner: subagent lifecycle; canonical suite (UT-031, UT-035).
 func TestSubagentIsolationRetention(t *testing.T) {
 	t.Parallel()
-	for _, outcome := range []string{"completed", "failed", "canceled", "cascade"} {
+	for _, outcome := range []string{"completed", "failed", "canceled", "cascade", "deleted", "deleted recovery"} {
 		t.Run("Should retain checkout after "+outcome, func(t *testing.T) {
 			t.Parallel()
 			s, db, runtime := newSubagentTestService(t)
 			s.launch = func(run func()) { run() }
 			wt := &subagentWorktreeStub{
-				worktree: SubagentWorktree{ID: "wt"},
+				worktree: SubagentWorktree{ID: "wt", Branch: "first-branch"},
 				facts:    SubagentWorktreeFacts{PRStatus: "none"},
 			}
 			s.worktrees = wt
@@ -3073,7 +4541,52 @@ func TestSubagentIsolationRetention(t *testing.T) {
 			req := subagentTestRequest()
 			req.Isolation = "worktree"
 			row := requireSubagent(t, s, req)
+			wantHooks := 1
 			switch outcome {
+			case "deleted", "deleted recovery":
+				if err := runtime.Stop(t.Context(), *row.ChildSessionID); err != nil {
+					t.Fatal(err)
+				}
+				before := db.rows[row.ID]
+				if outcome == "deleted" {
+					before = s.observeSettledWorktree(t.Context(), before)
+				}
+				current := db.rows[row.ID]
+				current.Status = store.SubagentStatusInterrupted
+				current.ChildActivity = store.SubagentChildActivityStopped
+				current.ChildSessionID = nil
+				current.Delivery = store.SubagentDeliveryPending
+				db.rows[row.ID] = current
+				if outcome == "deleted" {
+					if err := s.onChildSessionDeleted(t.Context(), before); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					wantHooks = 0 // Recovery does not replay best-effort settled hooks.
+					// Both rows must carry facts before the shared parent wake is composed.
+					second := current
+					second.ID += "-second"
+					second.Title = "Second deleted child"
+					checkout := current.WorktreeState()
+					checkout.ID, checkout.Branch = "wt-second", "second-branch"
+					second.Worktree = &checkout
+					db.rows[second.ID] = second
+					parent := runtime.snapshots["parent"]
+					parent.Active = false
+					runtime.snapshots["parent"] = parent
+					if err := s.Recover(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+					if len(runtime.queues) != 1 || db.rows[second.ID].WorktreeState().Facts.PRStatus != "none" {
+						t.Fatalf("batched recovery lost checkout facts: %+v, %+v", runtime.queues, db.rows[second.ID])
+					}
+					for _, text := range runtime.queues {
+						if !strings.Contains(text, "first-branch") || !strings.Contains(text, "second-branch") ||
+							strings.Contains(text, "PR status unknown") {
+							t.Fatalf("wake composed before all checkout facts were saved: %s", text)
+						}
+					}
+				}
 			case "failed":
 				runtime.turnErrors[*row.ChildSessionID] = "failed turn"
 				settleTestChild(t, s, runtime, &row)
@@ -3100,8 +4613,9 @@ func TestSubagentIsolationRetention(t *testing.T) {
 				t.Fatal(got, err, wt.rollbacks)
 			}
 			// The once-only settled hook carries the final worktree facts, including after a cancel.
-			if rows := hook.recorded(); len(rows) != 1 || rows[0].WorktreeState().Facts.PRStatus != "none" {
-				t.Fatalf("settled hooks = %d %+v, want one carrying the final facts", len(rows), rows)
+			if rows := hook.recorded(); len(rows) != wantHooks ||
+				(wantHooks > 0 && rows[0].WorktreeState().Facts.PRStatus != "none") {
+				t.Fatalf("settled hooks = %d %+v, want %d carrying final facts", len(rows), rows, wantHooks)
 			}
 		})
 	}
@@ -3188,6 +4702,46 @@ func TestSubagentFingerprintCompatibility(t *testing.T) {
 		}
 		if shared == worktree || worktree == based {
 			t.Fatalf("fingerprints shared=%s worktree=%s based=%s must differ", shared, worktree, based)
+		}
+	})
+}
+
+func TestSubagentCapabilitiesOmitDisabledProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should omit disabled providers from capabilities", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		setHarnessProviderEnabled(t, h, "codex", false)
+		runtime := managerSubagentRuntime{h.manager}
+		parent := &Info{WorkspaceID: h.workspaceID, AgentName: "coder", Provider: "claude"}
+		_, options, err := runtime.Capabilities(t.Context(), parent)
+		if err != nil {
+			t.Fatalf("Capabilities() error = %v", err)
+		}
+		for _, option := range options {
+			if option.Provider == "codex" {
+				t.Fatalf("Capabilities() listed disabled codex: %#v", option)
+			}
+		}
+	})
+
+	t.Run("Should refuse a disabled target with provider_disabled before probing it", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.cfg.Providers["absent"] = compozyconfig.ProviderConfig{
+			Command: "compozy-test-nonexistent-provider", AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
+		}
+		setHarnessProviderEnabled(t, h, "absent", false)
+		setHarnessProviderEnabled(t, h, "codex", false)
+		runtime := managerSubagentRuntime{h.manager}
+		parent := &Info{WorkspaceID: h.workspaceID, AgentName: "coder", Provider: "claude"}
+		for _, provider := range []string{"codex", "absent"} {
+			_, err := runtime.Resolve(t.Context(), parent, SubagentTarget{Provider: provider})
+			detail, ok := errors.AsType[*SubagentError](err)
+			if !ok || detail.Code != "provider_disabled" || !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+				t.Fatalf("Resolve(%s) error = %v, want a provider_disabled subagent error", provider, err)
+			}
 		}
 	})
 }

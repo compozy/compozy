@@ -1,5 +1,7 @@
 import { vi } from "vitest";
 
+import { createEventRecorder } from "@/test/event-recorder";
+
 import type { TerminalSocket } from "../../adapters/terminal-socket";
 import type { TerminalStreamSink } from "../terminal-protocol-client";
 import {
@@ -53,27 +55,44 @@ export interface FakeTerminalSocket extends TerminalSocket {
 export function createFakeSocketFactory(): {
   factory: (path: string) => TerminalSocket;
   sockets: FakeTerminalSocket[];
+  waitForSocket(count: number): Promise<void>;
   last(): FakeTerminalSocket;
 } {
   const sockets: FakeTerminalSocket[] = [];
+  const ready = createEventRecorder<void>();
   return {
     sockets,
+    waitForSocket: ready.waitForCount,
     last: () => {
       const socket = sockets.at(-1);
       if (!socket) throw new Error("no socket was opened");
       return socket;
     },
     factory: (path: string) => {
+      let onclose: TerminalSocket["onclose"] = null;
+      let observed = false;
+      const markReady = () => {
+        if (observed) return;
+        observed = true;
+        ready.record();
+      };
       const socket: FakeTerminalSocket = {
         path,
         sent: [],
         closed: false,
         onopen: null,
         onmessage: null,
-        onclose: null,
+        get onclose() {
+          return onclose;
+        },
+        set onclose(handler) {
+          onclose = handler;
+          if (handler) markReady();
+        },
         onerror: null,
         close: () => {
           socket.closed = true;
+          markReady();
         },
         send: data => {
           socket.sent.push(data);
@@ -104,25 +123,30 @@ export interface FakeSink extends TerminalStreamSink {
   /** Releases the pending parse for the write at `index`. */
   completeWrite(index: number): void;
   writeCount(): number;
+  waitForWrite(count: number): Promise<void>;
+  waitForParse(count: number): Promise<void>;
 }
 
 /** A sink whose parse completion is under the test's control. */
 export function createFakeSink(options: { autoParse?: boolean } = {}): FakeSink {
-  const pending: Array<() => void> = [];
+  const writes = createEventRecorder<() => void>();
+  const parsed = createEventRecorder<string>();
   const decoder = new TextDecoder();
   const sink: FakeSink = {
-    parsed: [],
+    parsed: parsed.events,
+    waitForWrite: writes.waitForCount,
+    waitForParse: parsed.waitForCount,
     dimensions: [],
     resets: 0,
     write: data =>
       new Promise<void>(resolve => {
         const text = typeof data === "string" ? data : decoder.decode(data);
         const settle = () => {
-          sink.parsed.push(text);
+          parsed.record(text);
           resolve();
         };
         if (options.autoParse === false) {
-          pending.push(settle);
+          writes.record(settle);
           return;
         }
         settle();
@@ -133,8 +157,8 @@ export function createFakeSink(options: { autoParse?: boolean } = {}): FakeSink 
     applyDimensions: dimensions => {
       sink.dimensions.push(dimensions);
     },
-    completeWrite: index => pending[index]?.(),
-    writeCount: () => pending.length,
+    completeWrite: index => writes.events[index]?.(),
+    writeCount: () => writes.events.length,
   };
   return sink;
 }
@@ -174,6 +198,12 @@ export interface TerminalFetchStub {
   ): void;
   /** How many screen reads are waiting to be released. */
   pendingScreenReads(): number;
+  waitForScreenRead(count: number): Promise<void>;
+  waitForTicket(count: number): Promise<void>;
+  /** Mints held open by `deferTicket`, in request order, with their abort state. */
+  heldTickets(): Array<{ aborted: boolean }>;
+  /** Answers the held mint at `index` with `ticket`, even if it was aborted. */
+  resolveTicket(index: number, ticket: string): void;
   restore(): void;
 }
 
@@ -190,8 +220,20 @@ export function stubTerminalFetch(handlers: {
   ticketResponse?: () => { body: unknown; status: number };
   screen?: () => TerminalScreenFixture;
   deferScreen?: boolean;
+  /**
+   * Holds every mint open until the test answers it. The request's signal is
+   * recorded rather than honoured, so a test can also deliver a late answer to
+   * a mint the client already gave up on.
+   */
+  deferTicket?: boolean;
 }): TerminalFetchStub {
   const calls: string[] = [];
+  const tickets = createEventRecorder<{
+    signal: AbortSignal | null;
+    resolve: (body: unknown) => void;
+  }>();
+  const screenReads = createEventRecorder<void>();
+  const heldTickets = tickets.events;
   const pendingScreens: Array<(body: unknown) => void> = [];
   const original = globalThis.fetch;
   const defaultScreen = {
@@ -201,9 +243,15 @@ export function stubTerminalFetch(handlers: {
     busy: false,
     untrusted: true,
   };
-  const stub = vi.fn(async (input: RequestInfo | URL) => {
+  const stub = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
     calls.push(url);
+    if (url.includes("/attach-ticket") && handlers.deferTicket) {
+      const body = await new Promise<unknown>(resolve =>
+        tickets.record({ signal: init?.signal ?? null, resolve })
+      );
+      return jsonResponse(body, 201);
+    }
     if (url.includes("/attach-ticket")) {
       if (handlers.ticketResponse) {
         const response = handlers.ticketResponse();
@@ -217,7 +265,10 @@ export function stubTerminalFetch(handlers: {
     }
     if (url.includes("/read")) {
       if (handlers.deferScreen) {
-        const body = await new Promise<unknown>(resolve => pendingScreens.push(resolve));
+        const body = await new Promise<unknown>(resolve => {
+          pendingScreens.push(resolve);
+          screenReads.record();
+        });
         return jsonResponse(body, 200);
       }
       return jsonResponse(handlers.screen?.() ?? defaultScreen, 200);
@@ -227,7 +278,12 @@ export function stubTerminalFetch(handlers: {
   globalThis.fetch = stub as unknown as typeof globalThis.fetch;
   return {
     calls,
+    waitForScreenRead: screenReads.waitForCount,
+    waitForTicket: tickets.waitForCount,
     pendingScreenReads: () => pendingScreens.length,
+    heldTickets: () => heldTickets.map(held => ({ aborted: held.signal?.aborted ?? false })),
+    resolveTicket: (index, ticket) =>
+      heldTickets[index]?.resolve({ ticket, expires_at: "2026-08-25T12:00:30Z" }),
     resolveScreen: body => {
       const resolve = pendingScreens.shift();
       resolve?.({ ...defaultScreen, ...body });

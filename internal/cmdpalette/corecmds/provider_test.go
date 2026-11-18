@@ -2,6 +2,7 @@ package corecmds
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -21,8 +22,18 @@ func TestProviderAbsorption(t *testing.T) {
 		for _, command := range commands {
 			counts[command.ID]++
 		}
+		retired := map[cmdpalette.CommandID]bool{
+			"window.toggle_floating": true, "window.zoom": true, "window.resize": true, "layout.frame_resize": true,
+			"window.stack.group": true, "window.stack.reorder": true, "window.stack.set_active": true,
+		}
 		for _, windowManagerID := range windowmanager.CommandIDs() {
 			id := cmdpalette.CommandID(windowManagerID)
+			if retired[id] {
+				if counts[id] != 0 {
+					t.Errorf("retired command %q remains visible", id)
+				}
+				continue
+			}
 			if counts[id] != 1 {
 				t.Errorf("command %q count = %d, want 1", id, counts[id])
 			}
@@ -66,6 +77,25 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 	})
 
+	t.Run("Should register Files as the navigable Open project files app", func(t *testing.T) {
+		t.Parallel()
+		commands := mustCommands(t)
+		index := slices.IndexFunc(commands, func(command cmdpalette.Descriptor) bool {
+			return command.ID == "app.open.files"
+		})
+		if index < 0 {
+			t.Fatal("app.open.files is missing")
+		}
+		files := commands[index]
+		if files.Title != "Open project files" || files.Action.Kind != cmdpalette.ActionKindNavigate ||
+			files.Action.App != "files" {
+			t.Fatalf("app.open.files = %#v, want Open project files navigating the files app", files)
+		}
+		if !RegisteredApp("files") {
+			t.Fatal("RegisteredApp(files) = false, want the daemon to keep Files windows")
+		}
+	})
+
 	t.Run("Should open the Automations editor with each start preselected [UT-112]", func(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)
@@ -106,8 +136,6 @@ func TestProviderAbsorption(t *testing.T) {
 		expected := map[cmdpalette.CommandID]string{
 			"shell.sessions.toggle":  "",
 			"processes.left_running": "",
-			"window.merge_all":       "needs two windows on this desktop",
-			"window.tab.detach":      "needs a tab in a stack",
 		}
 		for id, reason := range expected {
 			command, ok := byID[id]
@@ -157,16 +185,35 @@ func TestProviderAbsorption(t *testing.T) {
 			}
 			// A preset has nothing to lay out without a peer: it reads disabled
 			// with the reason instead of running as a no-op.
-			if len(command.When) != 2 || command.When[0].Key != cmdpalette.ContextWindowFocused ||
-				command.When[1].Key != cmdpalette.ContextDesktopWindowCount ||
-				command.When[1].Operator != cmdpalette.PredicateGreaterThanOrEqual ||
-				command.When[1].Value != 2 || command.When[1].Reason != "needs two windows on this desktop" {
-				t.Errorf("command %q when = %#v, want focused window + two windows on this desktop", id, command.When)
+			if len(command.When) != 1 || command.When[0].Key != cmdpalette.ContextDesktopWindowCount ||
+				command.When[0].Operator != cmdpalette.PredicateGreaterThanOrEqual ||
+				command.When[0].Value != 2 || command.When[0].Reason != "needs two windows on this desktop" {
+				t.Errorf("command %q when = %#v, want two windows on this desktop", id, command.When)
 			}
 		}
 	})
 
-	t.Run("Should give every desktop slot a focus-gated move-window command", func(t *testing.T) {
+	t.Run("Should require a split member for unsplit, root-edge moves and swaps", func(t *testing.T) {
+		t.Parallel()
+		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor)
+		for _, command := range mustCommands(t) {
+			byID[command.ID] = command
+		}
+		want := []cmdpalette.Predicate{
+			{Key: cmdpalette.ContextWindowStacked, Value: true, Reason: "needs a window in a split"},
+		}
+		for _, id := range []cmdpalette.CommandID{
+			"window.unsplit", "window.tile.left", "window.tile.right", "window.tile.top", "window.tile.bottom",
+			"window.swap.left", "window.swap.right", "window.swap.up", "window.swap.down",
+		} {
+			command, ok := byID[id]
+			if !ok || !reflect.DeepEqual(command.When, want) {
+				t.Errorf("command %q predicates = %#v, want %#v", id, command.When, want)
+			}
+		}
+	})
+
+	t.Run("Should give every desktop slot a move-window command gated only on an attached shell", func(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)
 		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
@@ -187,8 +234,10 @@ func TestProviderAbsorption(t *testing.T) {
 			if command.Action.Kind != cmdpalette.ActionKindClientOp || command.Action.Op != string(id) {
 				t.Errorf("command %q action = %#v, want client_op %q", id, command.Action, id)
 			}
-			if len(command.When) != 1 || command.When[0].Key != cmdpalette.ContextWindowFocused {
-				t.Errorf("command %q when = %#v, want the focused-window requirement", id, command.When)
+			// An attached client always has a focused window, so no predicate narrows it further.
+			if len(command.When) != 0 || command.AvailabilityExempt {
+				t.Errorf("command %q when = %#v exempt = %t, want only the attached-shell gate",
+					id, command.When, command.AvailabilityExempt)
 			}
 			if binding, bindable := keymap[string(id)]; !bindable || len(binding) != 0 {
 				t.Errorf("DefaultKeymap()[%q] = %v (bindable %t), want unbound", id, binding, bindable)
@@ -384,5 +433,31 @@ func TestAllProjectsCommand(t *testing.T) {
 			}
 		}
 		t.Fatal("scope command missing")
+	})
+}
+
+// Canonical suite: core command catalog; invariant: public aliases resolve to the shipped tab actions.
+func TestWindowTabCommandAliases(t *testing.T) {
+	t.Run("Should expose live tab commands and resolve retired aliases", func(t *testing.T) {
+		t.Parallel()
+		for old, current := range map[cmdpalette.CommandID]cmdpalette.CommandID{"window.stack.reorder": "window.tab.reorder", "window.stack.set_active": "window.tab.activate"} {
+			replacement, retired := RetiredCommandID(old)
+			if !retired || replacement != current || RetiredCommandRemovalRelease(old) != "v0.8.0" {
+				t.Fatalf("%s alias=%s retired=%v", old, replacement, retired)
+			}
+		}
+		commands := mustCommands(t)
+		for _, id := range []cmdpalette.CommandID{"window.unsplit", "window.tab.move_left", "window.tab.move_right", "window.tile.left", "window.tile.right", "window.tile.top", "window.tile.bottom", "window.swap.left", "window.swap.right", "window.swap.up", "window.swap.down"} {
+			index := slices.IndexFunc(commands, func(command cmdpalette.Descriptor) bool { return command.ID == id })
+			if index < 0 || commands[index].Action.Kind != cmdpalette.ActionKindClientOp ||
+				commands[index].Action.Op != string(id) {
+				t.Fatalf("missing client action %s", id)
+			}
+		}
+		for _, id := range []cmdpalette.CommandID{"window.merge_all", "window.tab.detach", "window.minimize", "window.zoom", "window.toggle_floating", "window.tile.top-left", "window.tile.top-right", "window.tile.bottom-left", "window.tile.bottom-right"} {
+			if slices.ContainsFunc(commands, func(command cmdpalette.Descriptor) bool { return command.ID == id }) {
+				t.Fatalf("retired action %s visible", id)
+			}
+		}
 	})
 }

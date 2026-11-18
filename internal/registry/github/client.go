@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/retry"
@@ -46,6 +47,9 @@ type Client struct {
 	maxRetries     int
 	logger         *slog.Logger
 	token          string
+	credentials    *githubauth.Resolver
+	rateLimits     *githubauth.RateLimitGate
+	now            func() time.Time
 	closeOnce      sync.Once
 	networkPolicy  outboundpolicy.Policy
 	networkErr     error
@@ -104,6 +108,9 @@ func NewClient(baseURL string, opts ...Option) *Client {
 		maxRetries:     defaultMaxRetries,
 		logger:         slog.Default(),
 		token:          strings.TrimSpace(os.Getenv("GITHUB_TOKEN")),
+		credentials:    githubauth.NewResolver(nil),
+		rateLimits:     &githubauth.RateLimitGate{},
+		now:            time.Now,
 	}
 	if client.baseURL == "" {
 		client.baseURL = defaultBaseURL
@@ -155,6 +162,9 @@ func newGitHubNetworkPolicy(baseURL string) (outboundpolicy.Policy, error) {
 	base, err := url.Parse(baseURL)
 	if err != nil {
 		return outboundpolicy.Policy{}, fmt.Errorf("github: parse API base URL: %w", err)
+	}
+	if err := githubauth.ValidateCredentialTransport(base); err != nil {
+		return outboundpolicy.Policy{}, err
 	}
 	defaultBase, err := url.Parse(defaultBaseURL)
 	if err != nil {
@@ -213,6 +223,31 @@ func WithLogger(logger *slog.Logger) Option {
 func WithToken(token string) Option {
 	return func(client *Client) {
 		client.token = strings.TrimSpace(token)
+		client.credentials = nil
+	}
+}
+
+func WithCredentials(resolver *githubauth.Resolver) Option {
+	return func(client *Client) {
+		client.token = ""
+		client.credentials = resolver
+	}
+}
+
+func WithRateLimitGate(gate *githubauth.RateLimitGate) Option {
+	return func(client *Client) {
+		if gate != nil {
+			client.rateLimits = gate
+		}
+	}
+}
+
+// WithNow injects the clock used for upstream quota deadlines.
+func WithNow(now func() time.Time) Option {
+	return func(client *Client) {
+		if now != nil {
+			client.now = now
+		}
 	}
 }
 

@@ -26,6 +26,10 @@ import type { ReportAgent } from "../../../lib/session-report-identity";
 export interface ProposalChoice {
   title: string;
   body: string;
+  /** Ran without a pick: the declared action it ran as. Such a choice offers no Pick. */
+  autoAccepted?: { action: string };
+  /** Why it still waits, such as the daily auto-accept limit. */
+  note?: string;
 }
 
 function Face({
@@ -51,6 +55,35 @@ function Face({
   );
 }
 
+function ChoiceText({ choice }: { choice: ProposalChoice }) {
+  return (
+    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <span className="text-item-title font-medium text-fg-strong">{choice.title}</span>
+      <span className="text-small-body text-muted-foreground">{choice.body}</span>
+      {choice.note ? <span className="text-small-body text-warning">{choice.note}</span> : null}
+    </span>
+  );
+}
+
+/** A choice the agent already ran as a declared action: a record, not a button. */
+function AutoAcceptedChoice({ choice, index }: { choice: ProposalChoice; index: number }) {
+  return (
+    <div
+      className="flex min-h-0 items-start gap-3 rounded-lg bg-card px-3.5 py-3 shadow-card"
+      data-testid="auto-accepted-choice"
+    >
+      <ChoiceKey>{index + 1}</ChoiceKey>
+      <ChoiceText choice={choice} />
+      <span className="flex shrink-0 flex-col items-end gap-1">
+        <Pill size="sm" tone="success">
+          Auto-accepted
+        </Pill>
+        <span className="text-meta text-subtle">{choice.autoAccepted?.action}</span>
+      </span>
+    </div>
+  );
+}
+
 /** The agent asks, in a sentence, and you answer with one click. */
 export function ShoulderTap({
   agent,
@@ -59,7 +92,10 @@ export function ShoulderTap({
   choices,
   onChoose,
   chosen,
+  picking,
+  error,
   footnote,
+  footer,
   source,
 }: {
   agent: ReportAgent;
@@ -69,16 +105,25 @@ export function ShoulderTap({
   source?: ReactNode;
   choices: readonly ProposalChoice[];
   /** Absent where nothing can be sent, such as a conversation that moved on. */
-  onChoose?: (choice: ProposalChoice) => void;
+  onChoose?: (choice: ProposalChoice, index: number) => void;
   /** The title that was picked; the ask folds down to a record of it. */
   chosen?: string;
+  /** The choice whose pick is on its way. */
+  picking?: number;
+  /** A pick that failed, said inline under the choices. */
+  error?: ReactNode;
   footnote?: ReactNode;
+  /** What the check-in did with its tools, under the ask or the record. */
+  footer?: ReactNode;
 }) {
   if (chosen) {
     return (
-      <Receipt icon={<Check aria-hidden="true" />} tone="allowed">
-        You picked <b>{chosen}</b>
-      </Receipt>
+      <div className="flex flex-col gap-2">
+        <Receipt icon={<Check aria-hidden="true" />} tone="allowed">
+          You picked <b>{chosen}</b>
+        </Receipt>
+        {footer}
+      </div>
     );
   }
   return (
@@ -94,28 +139,36 @@ export function ShoulderTap({
         </div>
         {source}
         <ChoiceList className="mt-0 gap-1.5">
-          {choices.map((choice, index) => (
-            <ChoiceRow
-              className="group/choice min-h-0 gap-3 rounded-lg bg-card px-3.5 py-3 shadow-card"
-              disabled={!onChoose}
-              key={choice.title}
-              onClick={() => onChoose?.(choice)}
-            >
-              <ChoiceKey>{index + 1}</ChoiceKey>
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-item-title font-medium text-fg-strong">{choice.title}</span>
-                <span className="text-small-body text-muted-foreground">{choice.body}</span>
-              </span>
-              <ArrowRight
-                aria-hidden="true"
-                className="size-4 shrink-0 text-subtle transition-transform duration-base group-hover/choice:translate-x-0.5 motion-reduce:transition-none"
-              />
-            </ChoiceRow>
-          ))}
+          {choices.map((choice, index) =>
+            choice.autoAccepted ? (
+              <AutoAcceptedChoice choice={choice} index={index} key={choice.title} />
+            ) : (
+              <ChoiceRow
+                aria-busy={picking === index || undefined}
+                className="group/choice min-h-0 gap-3 rounded-lg bg-card px-3.5 py-3 shadow-card"
+                disabled={!onChoose || picking !== undefined}
+                key={choice.title}
+                onClick={() => onChoose?.(choice, index)}
+              >
+                <ChoiceKey>{index + 1}</ChoiceKey>
+                <ChoiceText choice={choice} />
+                <ArrowRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-subtle transition-transform duration-base group-hover/choice:translate-x-0.5 motion-reduce:transition-none"
+                />
+              </ChoiceRow>
+            )
+          )}
         </ChoiceList>
+        {error ? (
+          <p className="text-small-body text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
         <p className="text-small-body text-subtle">
           {footnote ?? "Nothing happens until you pick one. You can also just reply below."}
         </p>
+        {footer}
       </div>
     </article>
   );

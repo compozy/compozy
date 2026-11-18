@@ -12,6 +12,8 @@ import (
 
 const stopEventScopeSession = "session"
 
+func sessionStopEventID(turnID string) string { return "session-stop:" + turnID }
+
 type stopEventPayload struct {
 	WorkspaceID string    `json:"workspace_id"`
 	SessionID   string    `json:"session_id"`

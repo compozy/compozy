@@ -11,7 +11,7 @@ const profileConfigKeyDeniedCode = "profile_config_key_denied"
 
 var profileOverlayDeniedRoots = []string{
 	"http", "daemon", "log", "database", GatewayDirName, toolSurfaceShellKey, desktopConfigKey,
-	toolSurfaceMarketplaceKey, "observability", vaultConfigKey, ProviderUsageConfigKey,
+	toolSurfaceMarketplaceKey, "observability", vaultConfigKey, ProviderUsageConfigKey, "client",
 }
 
 var profileOverlayDeniedPaths = [][]string{
@@ -37,7 +37,7 @@ func loadProfileConfigOverlayForWrite(path string, target WriteTarget, rendered 
 	if target.isConfigTarget() && samePath(target.path, path) {
 		return loadProfileConfigOverlayBytes(rendered, path)
 	}
-	return loadPersistedConfigOverlay(path, loadProfileConfigOverlayBytes)
+	return loadPersistedConfigOverlayLocked(path, loadProfileConfigOverlayBytes)
 }
 
 func loadProfileConfigOverlayBytes(contents []byte, source string) (configOverlay, error) {

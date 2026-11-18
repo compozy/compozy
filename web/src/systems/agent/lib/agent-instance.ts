@@ -37,6 +37,11 @@ export function agentUnattendedSteps({
   return limit || turns || 0;
 }
 
+/** Standing check-in consent that waits for the operator; empty once approved or not needed. */
+export function agentAuthorityCopy(instance: { authority_status?: string }) {
+  return instance.authority_status === "unapproved" ? "Check-in changes need your approval" : "";
+}
+
 /** Why it's paused, with the limit the daemon applied. Empty when it isn't paused. */
 export function agentPauseCopy(instance: AgentPauseFacts) {
   const reason = instance.pause_reason;
@@ -71,6 +76,18 @@ export function agentNextWakeLine(
   return when ? `${what}, ${when}` : what;
 }
 
+/**
+ * The always-on instance whose current main is this session, if any. The daemon's
+ * `main_session_id` pointer is the always-on main flag; agent names never decide it.
+ */
+export function alwaysOnMainInstance(
+  instances: readonly AgentInstancePayload[],
+  sessionId: string
+): AgentInstancePayload | undefined {
+  if (!sessionId) return undefined;
+  return instances.find(instance => instance.main_session_id === sessionId);
+}
+
 /** Keeps a link in the instance's own scope, whatever window it opens from. */
 export function agentInstanceBinding(
   instance: Pick<AgentInstancePayload, "workspace_id" | "profile_name">
@@ -86,6 +103,11 @@ export function agentInstancePausedUnattended(
   instance: Pick<AgentInstancePayload, "state" | "pause_reason"> | undefined
 ) {
   return instance?.state === "paused" && instance.pause_reason === "unattended";
+}
+
+/** Its definition was deleted, so it has no agent page to open; only its session and Archive remain. */
+export function agentInstanceDefinitionGone(instance: Pick<AgentInstancePayload, "pause_reason">) {
+  return instance.pause_reason === "definition_missing";
 }
 
 /** These reasons resume only once the definition is back, so Resume stays disabled. */

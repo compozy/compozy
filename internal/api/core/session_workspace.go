@@ -152,6 +152,12 @@ func statusForWorkspaceError(err error) int {
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
 func statusForSessionError(err error) int {
+	if errors.Is(err, context.Canceled) {
+		return statusClientClosedRequest
+	}
+	if _, ok := errors.AsType[*session.MCPReloadError](err); ok {
+		return http.StatusConflict
+	}
 	if errors.Is(err, store.ErrWorkspaceArchived) {
 		return http.StatusConflict
 	}
@@ -161,7 +167,7 @@ func statusForSessionError(err error) int {
 	switch {
 	case errors.Is(err, context.Canceled):
 		return statusClientClosedRequest
-	case errors.Is(err, admission.ErrDraining):
+	case errors.Is(err, admission.ErrDraining), errors.Is(err, admission.ErrStarting):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, session.ErrSessionMessageRateLimited):
 		return http.StatusTooManyRequests
@@ -215,6 +221,8 @@ func statusForSessionLookupError(err error) (int, bool) {
 
 func statusForSessionValidationError(err error) (int, bool) {
 	switch {
+	case errors.Is(err, compozyconfig.ErrProviderDisabled):
+		return http.StatusConflict, true
 	case errors.Is(err, workspacepkg.ErrUserScopeWorkDirInvalid),
 		errors.Is(err, workspacepkg.ErrUserScopeWorktreeUnsupported),
 		errors.Is(err, workspacepkg.ErrAgentNotAvailable),

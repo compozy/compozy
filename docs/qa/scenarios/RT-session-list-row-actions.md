@@ -50,6 +50,11 @@ Issue #832 extension verified on 2026-10-19: focused E2E-032 proves owner-groupe
 QA impact 2026-10-22 (issue #904): both row menus add Copy session ID and Copy title, and a
 nested provenance child adds Make top-level. Walked in ET-web-session-list-aggregate-parity.
 
+QA impact 2026-11-13 (issue #1645): both row menus replace the loaded-rows "Nest under…" submenu
+with "Move under…", which opens a searchable parent picker (also reachable from the command
+palette for the focused session). Continued and forked sessions get the action with a refusal
+reason instead of parents. Walked in ET-web-session-list-aggregate-parity step 5.
+
 QA impact 2026-10-24 (issue #952): the session window head no longer carries a per-session `…`
 menu. Rename, Continue, Fork, and Delete were already row verbs; Clear conversation, the only
 verb unique to the head menu, is now a row verb offered only on the row of the session that
@@ -70,3 +75,52 @@ after their success receipts. Switching to a project while confirmation was open
 closed the session window without deleting its target; returning to All projects
 showed that target intact. This current shell transition cannot retain the dialog
 across the switch; the mutation hooks independently use captured ownership.
+
+## Grouped session menus (2026-11-13)
+
+One menu tree per session and one per selection. A list row and a Kanban card render the same
+tree on right-click (and Shift+F10) and behind `…`; a host drops a verb only when it cannot
+apply there. Walk in the session window sidebar, the Sessions modal and the Kanban board.
+
+1. Open a top-level user session's `…` and its right-click menu: both read, in order, Rename
+   session; Copy ▸ (Copy session ID, Copy title, Copy branch name when the session has a branch,
+   Copy pull request link, or links with their count, when it has linked PRs); New from this ▸
+   (Continue with another agent…, Fork session…; absent for archived, spawned, coordinator and
+   system rows); the linked work submenu; Move ▸; Mark as seen when the Needs you is
+   dismissible; Stop session, Move to Later… or Back from Later, Archive or Stop and archive
+   session or Unarchive session; then Clear conversation (the window's own session only) and
+   Delete session last.
+2. Move ▸ holds the Folder group (every folder, the current one checked and inert, Remove from
+   folder when filed), Move under… (opens the parent picker), Make top-level or Take over
+   session, Move to profile ▸, and,
+   in the list's Manual sort only, Move up and Move down. A verb the session cannot take is
+   absent, and Move ▸ disappears when nothing is left in it. A Kanban card offers the same Move ▸
+   without Move up and Move down (columns order the board); its folders are the card's own
+   project and profile's.
+3. A session with one linked item shows `Pull request #N ▸` (or `Branch x ▸`): Open PR,
+   Refresh with the last check time, Copy pull request link (or Copy branch name), Link another…
+   (opens the session and its link dialog) and Unlink from this session (absent for a rolled-up
+   item). With two or more it shows `Linked work N ▸`, one submenu per item with its status as
+   the hint, grouped by Needs you / In progress / Done from five items, at most eight items, then
+   Show all N… (opens the session) and Link another…. The full list is read when the menu opens.
+4. Select several sessions: More actions and a selected row's or card's right-click show the
+   same tree minus single-session verbs: Copy ▸ (Copy session IDs, Copy titles, Copy branch
+   names with a count), Move ▸ (Folder group with New folder…, or the reason the selection
+   cannot move; Move under ▸ with the count that can move and the listed sessions they can move
+   under; Make top-level with its count), Mark as seen, Stop · N active, Move to Later…, Back
+   from Later · N in Later, Archive / Stop and archive, Unarchive · N archived, and Delete N
+   sessions (⌘⌫ on the bar only). A verb no selected session can take is absent.
+
+Not offered from a list row or card (they need the session's window): the pull request agent
+prompts (Fix failing checks, Address review comments) and the exit actions; the selection has
+no Move to profile.
+
+QA impact 2026-11-14: rail single and batch deletes ask the OS shell's persistent lifecycle host to
+show the shared confirmation through an xstate request store; the dialog therefore survives the daemon
+removing the session window before the DELETE answers. The window keeps its rename, Later and
+process-choice dialogs but no longer hosts a delete confirmation. `SessionDeleteDialog` and its plural
+set keep the dismissal guard while pending and preserve the window-scoped pointer-dismissal default
+when idle. Automated coverage: `session-delete-request-host.test.tsx` (request lifecycle and
+single/batch forwarding), `use-session-window-sidebar.test.tsx` (rail delegation), and
+`session-delete-dialog.test.tsx` (pending dismissal guard). Reset for a focused live re-walk of the
+window rail's delete confirmation with a slow DELETE.

@@ -1,50 +1,51 @@
 import { useState } from "react";
 
-import { findLayoutNode } from "../lib/window-manager-layout-tree";
-import type { WindowManagerLayoutDesktop } from "../lib/window-manager-layout-types";
+import { findLayoutLeaf } from "../lib/window-manager-layout-tree";
+import type {
+  WindowManagerLayoutDesktop,
+  WindowManagerLayoutTab,
+} from "../lib/window-manager-layout-types";
 
-export type LayoutSelection =
-  | { kind: "group"; id: string }
-  | { kind: "node"; id: string }
-  | { kind: "window"; id: string }
-  | null;
+interface LayoutSelectionState {
+  tabId: string | null;
+  windowId: string | null;
+}
 
 export interface LayoutCanvasSelectionModel {
-  selection: LayoutSelection;
-  select: (next: LayoutSelection) => void;
-  clear: () => void;
+  /** The tab on the canvas: the one picked, else the desktop's default tab. */
+  tab: WindowManagerLayoutTab | null;
+  /** The window open in the inspector; always a member of `tab`. */
+  windowId: string | null;
+  selectTab: (tabId: string) => void;
+  selectWindow: (windowId: string | null) => void;
+  /** Shows a tab and one of its windows together, as after a move. */
+  reveal: (tabId: string, windowId: string | null) => void;
 }
 
 /**
- * Selection survives edits but not deletions: converting a split to a stack
- * replaces the node ids underneath it, and pointing the inspector at something
- * the document no longer contains is how an editor starts lying.
+ * Selection survives edits but not deletions: closing a tab, or moving a
+ * window out of the one on screen, drops back to what still exists rather than
+ * pointing the inspector at something the document no longer contains.
  */
 export function useLayoutCanvasSelection(
-  desktop: WindowManagerLayoutDesktop
+  desktop: WindowManagerLayoutDesktop | undefined
 ): LayoutCanvasSelectionModel {
-  const [selection, setSelection] = useState<LayoutSelection>(null);
-
-  const resolved = resolveSelection(selection, desktop);
-  if (resolved !== selection) setSelection(resolved);
+  const [state, setState] = useState<LayoutSelectionState>({ tabId: null, windowId: null });
+  const tab =
+    desktop?.tabs.find(candidate => candidate.id === state.tabId) ??
+    desktop?.tabs.find(candidate => candidate.id === desktop.activeTabId) ??
+    desktop?.tabs[0] ??
+    null;
+  const windowId =
+    tab !== null && state.windowId !== null && findLayoutLeaf(tab.root, state.windowId) !== null
+      ? state.windowId
+      : null;
 
   return {
-    selection: resolved,
-    select: setSelection,
-    clear: () => setSelection(null),
+    tab,
+    windowId,
+    selectTab: tabId => setState({ tabId, windowId: null }),
+    selectWindow: next => setState({ tabId: tab?.id ?? null, windowId: next }),
+    reveal: (tabId, next) => setState({ tabId, windowId: next }),
   };
-}
-
-function resolveSelection(
-  selection: LayoutSelection,
-  desktop: WindowManagerLayoutDesktop
-): LayoutSelection {
-  if (selection === null) return null;
-  if (selection.kind === "node") {
-    return findLayoutNode(desktop, selection.id) === null ? null : selection;
-  }
-  if (selection.kind === "group") {
-    return desktop.groups.some(group => group.id === selection.id) ? selection : null;
-  }
-  return desktop.floating.includes(selection.id) ? selection : null;
 }

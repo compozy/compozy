@@ -9,438 +9,433 @@ import (
 	"strings"
 )
 
-// RenameSessionParams carries the path, query, and header parameters.
-type RenameSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RenameSession Rename one user session
-func (c *Client) RenameSession(ctx context.Context, params RenameSessionParams, body RenameSessionRequest) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RenameSessionFolderParams carries the path, query, and header parameters.
-type RenameSessionFolderParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	FolderID    string  `url:"folder_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RenameSessionFolder Rename a session folder
-func (c *Client) RenameSessionFolder(ctx context.Context, params RenameSessionFolderParams, body RenameSessionFolderRequest) (*SessionFolderResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-folders/{folder_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFolderResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RenameWorkspaceFolderParams carries the path, query, and header parameters.
-type RenameWorkspaceFolderParams struct {
-	FolderID string  `url:"folder_id"`
-	Profile  *string `url:"profile"`
-}
-
-// RenameWorkspaceFolder Rename a workspace folder
-func (c *Client) RenameWorkspaceFolder(ctx context.Context, params RenameWorkspaceFolderParams, body RenameWorkspaceFolderRequest) (*WorkspaceFolderResponse, error) {
-	path := "/api/workspace-folders/{folder_id}"
-	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkspaceFolderResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReorderSessionFoldersParams carries the path, query, and header parameters.
-type ReorderSessionFoldersParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ReorderSessionFolders Set the complete session folder order
-func (c *Client) ReorderSessionFolders(ctx context.Context, params ReorderSessionFoldersParams, body ReorderSessionFoldersRequest) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-order/folders"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReorderSessionsParams carries the path, query, and header parameters.
-type ReorderSessionsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ReorderSessions Set the manual session order in a folder or the workspace root
-func (c *Client) ReorderSessions(ctx context.Context, params ReorderSessionsParams, body ReorderSessionsRequest) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-order/sessions"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReorderWorkspaceFoldersParams carries the path, query, and header parameters.
-type ReorderWorkspaceFoldersParams struct {
-	Profile *string `url:"profile"`
-}
-
-// ReorderWorkspaceFolders Set the complete workspace folder order
-func (c *Client) ReorderWorkspaceFolders(ctx context.Context, params ReorderWorkspaceFoldersParams, body ReorderWorkspaceFoldersRequest) (*WorkspaceLayoutResponse, error) {
-	path := "/api/workspace-order/folders"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkspaceLayoutResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReorderWorkspacesParams carries the path, query, and header parameters.
-type ReorderWorkspacesParams struct {
-	Profile *string `url:"profile"`
-}
-
-// ReorderWorkspaces Set the manual workspace order in a folder or the root
-func (c *Client) ReorderWorkspaces(ctx context.Context, params ReorderWorkspacesParams, body ReorderWorkspacesRequest) (*WorkspaceLayoutResponse, error) {
-	path := "/api/workspace-order/workspaces"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkspaceLayoutResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RepairSessionParams carries the path, query, and header parameters.
-type RepairSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	DryRun      *bool   `url:"dry_run"`
-	Force       *bool   `url:"force"`
-	Profile     *string `url:"profile"`
-}
-
-// RepairSession Inspect and repair an interrupted session transcript
-func (c *Client) RepairSession(ctx context.Context, params RepairSessionParams) (*SessionRepairResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/repair"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.DryRun != nil {
-		query.Set("dry_run", strconv.FormatBool(*params.DryRun))
-	}
-	if params.Force != nil {
-		query.Set("force", strconv.FormatBool(*params.Force))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionRepairResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReplaceAgentMemoryParams carries the path, query, and header parameters.
-type ReplaceAgentMemoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// ReplaceAgentMemory Replace matching memory text (experimental) Experimental: pin the exact SDK version.
-func (c *Client) ReplaceAgentMemory(ctx context.Context, params ReplaceAgentMemoryParams, body AgentMemoryReplaceRequest) (*AgentMemoryDocument, error) {
-	path := "/api/agents/{name}/memory/entries"
+// PutSettingsMCPServer Replace a manual MCP server or its extension override
+func (c *Client) PutSettingsMCPServer(ctx context.Context, params PutSettingsMCPServerParams, body PutSettingsMCPServerRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/mcp-servers/{name}"
 	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
 	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
 	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if params.Target != nil {
+		query.Set("target", *params.Target)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutSettingsProviderParams carries the path, query, and header parameters.
+type PutSettingsProviderParams struct {
+	Name string `url:"name"`
+}
+
+// PutSettingsProvider Create or replace one settings-backed provider overlay
+func (c *Client) PutSettingsProvider(ctx context.Context, params PutSettingsProviderParams, body PutSettingsProviderRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/providers/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutVaultSecret Create or update one write-only vault secret
+func (c *Client) PutVaultSecret(ctx context.Context, body PutVaultSecretRequest) (*VaultSecretResponse, error) {
+	path := "/api/vault/secrets"
+	var out VaultSecretResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutWindowManagerLayoutProfileParams carries the path, query, and header parameters.
+type PutWindowManagerLayoutProfileParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ProfileID   string  `url:"profile_id"`
+	Profile     *string `url:"profile"`
+}
+
+// PutWindowManagerLayoutProfile Create or replace one workspace-visible layout profile
+func (c *Client) PutWindowManagerLayoutProfile(ctx context.Context, params PutWindowManagerLayoutProfileParams, body PutResourceRequest) (*ResourceResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{profile_id}", url.PathEscape(params.ProfileID))
+	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out AgentMemoryDocument
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+	var out ResourceResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// ReplaceSessionInputParams carries the path, query, and header parameters.
-type ReplaceSessionInputParams struct {
+// QueryTerminalJournalParams carries the path, query, and header parameters.
+type QueryTerminalJournalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Actor       *string `url:"actor"`
+	Since       *string `url:"since"`
+	Failed      *bool   `url:"failed"`
+	TerminalID  *string `url:"terminal_id"`
+	Limit       *int    `url:"limit"`
+	Cursor      *string `url:"cursor"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// QueryTerminalJournal Query terminal command history
+func (c *Client) QueryTerminalJournal(ctx context.Context, params QueryTerminalJournalParams) (*TerminalJournalResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/journal"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Actor != nil {
+		query.Set("actor", *params.Actor)
+	}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Failed != nil {
+		query.Set("failed", strconv.FormatBool(*params.Failed))
+	}
+	if params.TerminalID != nil {
+		query.Set("terminal_id", *params.TerminalID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalJournalResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReadFileBytesParams carries the path, query, and header parameters.
+type ReadFileBytesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Path        string  `url:"path"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ReadFileBytes Stream project file bytes
+func (c *Client) ReadFileBytes(ctx context.Context, params ReadFileBytesParams) (*[]byte, error) {
+	path := "/api/workspaces/{workspace_id}/files/raw/{path}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{path}", url.PathEscape(params.Path))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReadFileContentParams carries the path, query, and header parameters.
+type ReadFileContentParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	WorktreeID  *string `url:"worktree_id"`
+	Path        string  `url:"path"`
+	Reveal      *bool   `url:"reveal"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ReadFileContent Read project file content
+func (c *Client) ReadFileContent(ctx context.Context, params ReadFileContentParams) (*FileContentResponse, error) {
+	path := "/api/workspaces/{workspace_id}/files/content"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.WorktreeID != nil {
+		query.Set("worktree_id", *params.WorktreeID)
+	}
+	query.Set("path", params.Path)
+	if params.Reveal != nil {
+		query.Set("reveal", strconv.FormatBool(*params.Reveal))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FileContentResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReadSessionAttachmentBytesParams carries the path, query, and header parameters.
+type ReadSessionAttachmentBytesParams struct {
 	WorkspaceID  string  `url:"workspace_id"`
 	SessionID    string  `url:"session_id"`
-	QueueEntryID string  `url:"queue_entry_id"`
+	AttachmentID string  `url:"attachment_id"`
 	Profile      *string `url:"profile"`
+	AllProfiles  *bool   `url:"all_profiles"`
 }
 
-// ReplaceSessionInput Replace queued session input atomically
-func (c *Client) ReplaceSessionInput(ctx context.Context, params ReplaceSessionInputParams, body ReplaceSessionInputRequest) (*SessionInputResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}"
+// ReadSessionAttachmentBytes Read session attachment bytes
+func (c *Client) ReadSessionAttachmentBytes(ctx context.Context, params ReadSessionAttachmentBytesParams) (*[]byte, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	path = strings.ReplaceAll(path, "{queue_entry_id}", url.PathEscape(params.QueueEntryID))
+	path = strings.ReplaceAll(path, "{attachment_id}", url.PathEscape(params.AttachmentID))
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out SessionInputResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// ReplaceWindowManagerLayoutParams carries the path, query, and header parameters.
-type ReplaceWindowManagerLayoutParams struct {
+// ReadSessionFileBytesParams carries the path, query, and header parameters.
+type ReadSessionFileBytesParams struct {
 	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Path        string  `url:"path"`
 	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
-// ReplaceWindowManagerLayout Replace one declarative window layout
-func (c *Client) ReplaceWindowManagerLayout(ctx context.Context, params ReplaceWindowManagerLayoutParams, body WindowManagerLayoutReplaceRequest) (*WindowManagerResult, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/layout"
+// ReadSessionFileBytes Stream session file bytes
+func (c *Client) ReadSessionFileBytes(ctx context.Context, params ReadSessionFileBytesParams) (*[]byte, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/raw/{path}"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{path}", url.PathEscape(params.Path))
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out WindowManagerResult
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// RequestTaskRunReviewParams carries the path, query, and header parameters.
-type RequestTaskRunReviewParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
+// ReadSessionFileContentParams carries the path, query, and header parameters.
+type ReadSessionFileContentParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Path        string  `url:"path"`
+	Reveal      *bool   `url:"reveal"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
-// RequestTaskRunReview Request review for one terminal task run
-func (c *Client) RequestTaskRunReview(ctx context.Context, params RequestTaskRunReviewParams, body RunReviewRequest) (*TaskRunReviewRequestResponse, error) {
-	path := "/api/task-runs/{id}/reviews"
+// ReadSessionFileContent Read project file content
+func (c *Client) ReadSessionFileContent(ctx context.Context, params ReadSessionFileContentParams) (*FileContentResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	query.Set("path", params.Path)
+	if params.Reveal != nil {
+		query.Set("reveal", strconv.FormatBool(*params.Reveal))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FileContentResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReadTaskRunResultParams carries the path, query, and header parameters.
+type ReadTaskRunResultParams struct {
+	ID          string  `url:"id"`
+	Offset      *int    `url:"offset"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ReadTaskRunResult Read one exact byte page from a task-run result
+func (c *Client) ReadTaskRunResult(ctx context.Context, params ReadTaskRunResultParams) (*TaskRunResultPageResponse, error) {
+	path := "/api/task-runs/{id}/result"
 	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
 	query := url.Values{}
+	if params.Offset != nil {
+		query.Set("offset", strconv.Itoa(*params.Offset))
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out TaskRunReviewRequestResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+	var out TaskRunResultPageResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// RequeueLoopNodeParams carries the path, query, and header parameters.
-type RequeueLoopNodeParams struct {
+// ReadTerminalParams carries the path, query, and header parameters.
+type ReadTerminalParams struct {
 	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	NodeID      string  `url:"node_id"`
+	ID          string  `url:"id"`
+	View        *string `url:"view"`
+	MaxBytes    *int    `url:"max_bytes"`
+	Grep        *string `url:"grep"`
+	SinceSeq    *string `url:"since_seq"`
+	From        *int    `url:"from"`
+	To          *int    `url:"to"`
 	Profile     *string `url:"profile"`
 }
 
-// RequeueLoopNode Requeue one Loop node
-func (c *Client) RequeueLoopNode(ctx context.Context, params RequeueLoopNodeParams, body LoopNodeMutationRequest) (*LoopMutationResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/requeue"
+// ReadTerminal Read bounded untrusted terminal output
+func (c *Client) ReadTerminal(ctx context.Context, params ReadTerminalParams) (*TerminalReadResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}/read"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopMutationResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RerunLoopRunParams carries the path, query, and header parameters.
-type RerunLoopRunParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RerunLoopRun Rerun a Loop from one settled node
-func (c *Client) RerunLoopRun(ctx context.Context, params RerunLoopRunParams, body RerunLoopRequest) (*RerunLoopResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/rerun"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RerunLoopResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResetCmdPalettePersonalizationParams carries the path, query, and header parameters.
-type ResetCmdPalettePersonalizationParams struct {
-	Workspace string  `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// ResetCmdPalettePersonalization Reset command palette personalization
-func (c *Client) ResetCmdPalettePersonalization(ctx context.Context, params ResetCmdPalettePersonalizationParams) (*CmdPalettePersonalizationResetResponse, error) {
-	path := "/api/cmd-palette/personalization"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPalettePersonalizationResetResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResetOnboarding Clear the onboarding completion flag
-func (c *Client) ResetOnboarding(ctx context.Context) (*OnboardingStatusResponse, error) {
-	path := "/api/onboarding"
-	var out OnboardingStatusResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResolvePendingToolApprovalParams carries the path, query, and header parameters.
-type ResolvePendingToolApprovalParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ResolvePendingToolApproval Approve or deny one pending tool approval
-func (c *Client) ResolvePendingToolApproval(ctx context.Context, params ResolvePendingToolApprovalParams, body ResolveToolApprovalRequest) (*ToolApprovalStatusResponse, error) {
-	path := "/api/tools/approvals/{id}/resolve"
 	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
 	query := url.Values{}
+	if params.View != nil {
+		query.Set("view", *params.View)
+	}
+	if params.MaxBytes != nil {
+		query.Set("max_bytes", strconv.Itoa(*params.MaxBytes))
+	}
+	if params.Grep != nil {
+		query.Set("grep", *params.Grep)
+	}
+	if params.SinceSeq != nil {
+		query.Set("since_seq", *params.SinceSeq)
+	}
+	if params.From != nil {
+		query.Set("from", strconv.Itoa(*params.From))
+	}
+	if params.To != nil {
+		query.Set("to", strconv.Itoa(*params.To))
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out ToolApprovalStatusResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+	var out TerminalReadResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// ResolveWorkspace Resolve or register a workspace from a path
-func (c *Client) ResolveWorkspace(ctx context.Context, body ResolveWorkspaceRequest) (*WorkspaceResponse, error) {
-	path := "/api/workspaces/resolve"
-	var out WorkspaceResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RespondLoopRequestParams carries the path, query, and header parameters.
-type RespondLoopRequestParams struct {
+// ReadToolArtifactParams carries the path, query, and header parameters.
+type ReadToolArtifactParams struct {
 	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	NodeID      string  `url:"node_id"`
+	ArtifactID  string  `url:"artifact_id"`
+	Offset      *int64  `url:"offset"`
+	Limit       *int64  `url:"limit"`
 	Profile     *string `url:"profile"`
+}
+
+// ReadToolArtifact Read one retained oversized tool-result page
+func (c *Client) ReadToolArtifact(ctx context.Context, params ReadToolArtifactParams) (*ToolArtifactPageResponse, error) {
+	path := "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{artifact_id}", url.PathEscape(params.ArtifactID))
+	query := url.Values{}
+	if params.Offset != nil {
+		query.Set("offset", strconv.FormatInt(*params.Offset, 10))
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.FormatInt(*params.Limit, 10))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolArtifactPageResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReadWorktreeFileBytesParams carries the path, query, and header parameters.
+type ReadWorktreeFileBytesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	WorktreeID  string  `url:"worktree_id"`
+	Path        string  `url:"path"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }

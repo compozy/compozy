@@ -27,13 +27,19 @@ type subagentRuntime interface {
 	Resolve(context.Context, *Info, SubagentTarget) (SubagentTarget, error)
 	PermissionLimit(context.Context, *Info, SubagentTarget) (SubagentPermissionLimit, error)
 	Capabilities(context.Context, *Info) ([]SubagentAgentOption, []SubagentProviderOption, error)
-	Spawn(context.Context, SpawnOpts) (string, error)
+	Spawn(context.Context, *SpawnOpts) (string, error)
 	// Admit sends the first prompt. resume revives a stopped child (recovery
 	// only); delegation never resumes one, since only a cancel can stop it.
 	Admit(ctx context.Context, row store.SessionSubagent, text string, resume bool) error
 	HasAdmission(context.Context, store.SessionSubagent) (bool, error)
 	ResumeChild(context.Context, store.SessionSubagent) error
 	Stop(context.Context, string) error
+	// DeleteSession permanently removes a child session and its persisted history.
+	// A session that is already gone is reported as success.
+	DeleteSession(context.Context, string) error
+	// TerminationBudget covers every phase of the cooperative stop ladder, so a
+	// caller that bounds a stop never fires its deadline before forced termination.
+	TerminationBudget() time.Duration
 	Result(context.Context, string) (subagentTurnResult, error)
 	QueueWake(context.Context, store.SessionSubagentWake, []store.SessionSubagent) (string, error)
 	CancelWake(context.Context, store.SessionSubagentWake) error
@@ -76,6 +82,15 @@ func WithSubagentSettledDispatcher(d SubagentSettledDispatcher) SubagentOption {
 	return func(s *subagentService) { s.settled = d }
 }
 
+// WithSubagentRecoveryRetryDelay overrides the recovery delay; nonpositive values retain the default.
+func WithSubagentRecoveryRetryDelay(delay time.Duration) SubagentOption {
+	return func(s *subagentService) {
+		if delay > 0 {
+			s.recoveryRetryDelay = delay
+		}
+	}
+}
+
 type subagentParentLock struct {
 	mu   sync.Mutex
 	refs int
@@ -87,29 +102,35 @@ type subagentFlight struct {
 }
 
 type subagentService struct {
-	worktrees    SubagentWorktrees
-	store        store.SubagentStore
-	runtime      subagentRuntime
-	ctx          context.Context
-	now          func() time.Time
-	newID        IDGenerator
-	launch       func(func())
-	logger       *slog.Logger
-	resultLimit  func(context.Context, string) (int, error)
-	settled      SubagentSettledDispatcher
-	mu           sync.Mutex
-	parents      map[string]*subagentParentLock
-	flights      map[string]*subagentFlight
-	subscribers  map[string]map[*subagentSubscription]struct{}
-	progress     map[string]*subagentProgress
-	nativeMisses map[string]bool
-	nativeKnown  map[string]map[string]nativeCall
-	nativeQueued map[string]map[string][]NativeSubagentEvent
-	steerTurns   map[string]string
-	wakeRetries  map[string]bool
+	worktrees          SubagentWorktrees
+	store              store.SubagentStore
+	runtime            subagentRuntime
+	ctx                context.Context
+	now                func() time.Time
+	newID              IDGenerator
+	launch             func(func())
+	logger             *slog.Logger
+	resultLimit        func(context.Context, string) (int, error)
+	recoveryRetryDelay time.Duration
+	settled            SubagentSettledDispatcher
+	mu                 sync.Mutex
+	parents            map[string]*subagentParentLock
+	flights            map[string]*subagentFlight
+	subscribers        map[string]map[*subagentSubscription]struct{}
+	progress           map[string]*subagentProgress
+	nativeMisses       map[string]bool
+	nativeKnown        map[string]map[string]nativeCall
+	nativeQueued       map[string]map[string][]NativeSubagentEvent
+	steerTurns         map[string]string
+	wakeRetries        map[string]bool
 	// awaitingFacts holds canceled isolated rows whose subagent.settled hook waits for the final Git and PR
 	// snapshot, which is observed outside the parent lock once the child stops.
 	awaitingFacts sync.Map
+	// deletingChildren holds child sessions whose deletion owns their settlement, so the
+	// OnChildSettled callback that a delete triggers never finalizes or hooks the row it removes.
+	deletingChildrenMu sync.Mutex
+	deletingChildren   map[string]int
+	deletingDeliveries map[string]int
 }
 
 var _ SubagentService = (*subagentService)(nil)
@@ -123,7 +144,8 @@ func NewSubagentService(db store.SubagentStore, manager *Manager, opts ...Subage
 		store: db, runtime: managerSubagentRuntime{manager}, ctx: manager.fallbackLifecycleContext(),
 		now: manager.now, newID: newULIDGenerator("wake"), launch: manager.startTrackedPromptTask,
 		logger: manager.logger, resultLimit: func(context.Context, string) (int, error) { return 60000, nil },
-		parents: make(map[string]*subagentParentLock), flights: make(map[string]*subagentFlight),
+		recoveryRetryDelay: defaultSubagentRecoveryRetryDelay,
+		parents:            make(map[string]*subagentParentLock), flights: make(map[string]*subagentFlight),
 		subscribers: make(map[string]map[*subagentSubscription]struct{}), progress: make(map[string]*subagentProgress),
 	}
 	if s.logger == nil {

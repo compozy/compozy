@@ -14,6 +14,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/githubauth"
 )
 
 var _ CoordinatorManager = (*Manager)(nil)
@@ -43,19 +45,20 @@ func NewManager(cfg *Config) (*Manager, error) {
 	}
 
 	manager := &Manager{
-		homePaths:      cfg.HomePaths,
-		currentVersion: strings.TrimSpace(cfg.CurrentVersion),
-		executablePath: resolvedExecutable,
-		getenv:         dependencies.getenv,
-		now:            dependencies.now,
-		httpClient:     dependencies.httpClient,
-		runtimeOS:      strings.TrimSpace(cfg.RuntimeOS),
-		runtimeArch:    strings.TrimSpace(cfg.RuntimeArch),
-		lookPath:       dependencies.lookPath,
-		runCommand:     dependencies.runCommand,
-		binaryApplier:  cfg.BinaryApplier,
-		artifactPolicy: artifactPolicy,
-		releaseTrack:   releaseTrack,
+		homePaths:         cfg.HomePaths,
+		currentVersion:    strings.TrimSpace(cfg.CurrentVersion),
+		executablePath:    resolvedExecutable,
+		getenv:            dependencies.getenv,
+		now:               dependencies.now,
+		httpClient:        dependencies.httpClient,
+		githubCredentials: githubauth.NewResolver(dependencies.getenv),
+		runtimeOS:         strings.TrimSpace(cfg.RuntimeOS),
+		runtimeArch:       strings.TrimSpace(cfg.RuntimeArch),
+		lookPath:          dependencies.lookPath,
+		runCommand:        dependencies.runCommand,
+		binaryApplier:     cfg.BinaryApplier,
+		artifactPolicy:    artifactPolicy,
+		releaseTrack:      releaseTrack,
 	}
 	if manager.runtimeOS == "" {
 		manager.runtimeOS = runtime.GOOS
@@ -207,8 +210,8 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 		}
 		m.lastCheckAttempt = attemptedAt
 		m.lastCheckError = err
-		if limited, ok := errors.AsType[*releaseRateLimitError](err); ok {
-			m.checkBackoffUntil = limited.retryAt
+		if limited, ok := errors.AsType[*githubauth.RateLimitError](err); ok {
+			m.checkBackoffUntil = limited.RetryAt
 		}
 		if err != nil {
 			return m.checkResult(install, latest, checkedAt, opts)

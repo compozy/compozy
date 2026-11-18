@@ -22,6 +22,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -177,6 +178,36 @@ func TestLocalLauncherPrepareLaunchForwardsLeadingEnvironment(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should keep internal daemon handoff variables out of the agent launch", func(t *testing.T) {
+		t.Parallel()
+
+		keys := []string{
+			"COMPOZY_INTERNAL_RESTART_OPERATION_ID",
+			"COMPOZY_INTERNAL_LOG_MIRROR_STDERR",
+			procutil.InternalHandoffEnvPrefix + "TEST_HANDOFF",
+		}
+		command := "sh -c true"
+		env := []string{"PATH=" + os.Getenv("PATH")}
+		for _, key := range keys {
+			command = key + "=from-command " + command
+			env = append(env, key+"=from-daemon")
+		}
+		launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+		spec, err := launcher.PrepareLaunch(testutil.Context(t), LaunchSpec{
+			Command: command,
+			Cwd:     t.TempDir(),
+			Env:     env,
+		})
+		if err != nil {
+			t.Fatalf("PrepareLaunch(handoff assignment) error = %v", err)
+		}
+		for _, key := range keys {
+			if got, ok := envValue(spec.Env, key); ok {
+				t.Fatalf("PrepareLaunch() env %s = %q, want absent", key, got)
+			}
+		}
+	})
 }
 
 func TestLocalLauncherLaunchHonorsCanceledContext(t *testing.T) {
@@ -1419,4 +1450,61 @@ func TestLocalLauncherNPXResolution(t *testing.T) {
 			t.Fatalf("failure = %#v", failure)
 		}
 	})
+}
+
+func TestLocalLauncherEnvironmentInheritance(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses POSIX shell to report child environment")
+	}
+	t.Setenv("ACP_OPERATOR_TOKEN", "operator-credential")
+	t.Setenv("COMPOZY_INTERNAL_TEST_HANDOFF", "internal")
+	for _, tc := range []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{name: "Should inherit only when unspecified", want: "operator-credential"},
+		{name: "Should preserve explicitly empty environment", env: []string{}},
+		{name: "Should preserve environment emptied when executable discovery fails", env: daemonMatchedEnv([]string{"COMPOZY_INTERNAL_TEST_HANDOFF=explicit"}, func() (string, error) { return "", errors.New("executable unavailable") })},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			opts, err := normalizeStartOpts(
+				StartOpts{
+					AgentName: "env-test",
+					Command:   "/bin/sh -c 'printf %s:%s \"$ACP_OPERATOR_TOKEN\" \"$COMPOZY_INTERNAL_TEST_HANDOFF\"'",
+					Cwd:       t.TempDir(),
+					Env:       tc.env,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			spec := cloneLaunchSpec(launchSpecFromStartOpts(opts))
+			opts = applyLaunchSpecToStartOpts(opts, spec)
+			spec = launchSpecFromStartOpts(opts)
+			if (spec.Env == nil) != (tc.env == nil) {
+				t.Fatal("launch preparation changed environment presence")
+			}
+			launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+			handle, err := launcher.Launch(t.Context(), spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := handle.Stop(t.Context()); err != nil {
+					t.Errorf("stop child: %v", err)
+				}
+			})
+			output, err := io.ReadAll(handle.Stdout())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := handle.Wait(); err != nil {
+				t.Fatal(err)
+			}
+			if string(output) != tc.want+":" {
+				t.Fatalf("child environment = %q, want %q", output, tc.want+":")
+			}
+		})
+	}
 }

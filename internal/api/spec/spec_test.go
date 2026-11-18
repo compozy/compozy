@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/admission"
+
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/agentidentity"
@@ -363,6 +365,35 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 		name  string
 		check func(t *testing.T, doc *openapi3.T)
 	}{
+		{
+			name: "Should keep harness controls optional with their declared scalar types",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+				for _, name := range []string{
+					"AgentEffectiveRuntimePayload", "AgentPayload", "CreateAgentPayload", "DuplicateAgentOverrides",
+					"SettingsProviderSettingsPayload", "SettingsProviderWritePayload",
+				} {
+					schema := componentSchema(t, doc, name)
+					fields := map[string]string{"auto_compact_window": "integer"}
+					if !strings.HasPrefix(name, "SettingsProvider") {
+						fields["lean_environment"] = "boolean"
+					}
+					for field, kind := range fields {
+						value := propertySchema(t, schema, field)
+						if value.Type == nil || !value.Type.Is(kind) || slices.Contains(schema.Required, field) {
+							t.Fatalf(
+								"%s.%s must be optional %s: schema=%+v required=%v",
+								name,
+								field,
+								kind,
+								value,
+								schema.Required,
+							)
+						}
+					}
+				}
+			},
+		},
 
 		{
 			name: "Should describe the inactive-session native compaction refusal",
@@ -505,14 +536,23 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
-			name: "ShouldDescribeLogProfileReadModes",
+			name: "ShouldDescribeLogAndWorkspaceProfileReadModes",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
-				for _, path := range []string{"/api/logs", "/api/logs/stream"} {
+				for _, path := range []string{"/api/logs", "/api/logs/stream", "/api/workspaces/{id}"} {
 					operation := operationFor(t, doc, path, http.MethodGet)
 					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
 					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
+				}
+				workspace := operationFor(t, doc, "/api/workspaces/{id}", http.MethodGet)
+				missing := jsonResponseSchema(t, workspace, http.StatusNotFound)
+				if len(missing.OneOf) != 2 {
+					t.Fatalf("workspace 404 variants = %d, want workspace and profile errors", len(missing.OneOf))
+				}
+				if !propertySchema(t, missing.OneOf[0].Value, "error").Type.Is("string") ||
+					!propertySchema(t, missing.OneOf[1].Value, "error").Type.Is("object") {
+					t.Fatal("workspace 404 lost its string or structured profile error")
 				}
 			},
 		},
@@ -587,6 +627,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive", method: http.MethodPost},
 					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}", method: http.MethodPatch},
 					{path: "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel", method: http.MethodPost},
+					{path: "/api/workspaces/{workspace_id}/subagents/{subagent_id}", method: http.MethodDelete},
 				}
 				for _, endpoint := range profileMutations {
 					operation := operationFor(t, doc, endpoint.path, endpoint.method)
@@ -1108,7 +1149,13 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"auto",
 					"approve-all",
 				)
-				assertPropertyAbsent(t, agentSchema, "mcp_servers")
+				assertNotRequired(t, agentSchema, "mcp_servers")
+				assertRequired(t, propertySchema(t, agentSchema, "mcp_servers").Items.Value, "name")
+				for _, name := range []string{"secret_header_values", "secret_env_values"} {
+					if !propertySchema(t, propertySchema(t, agentSchema, "mcp_servers").Items.Value, name).WriteOnly {
+						t.Fatalf("create MCP %s must be write-only", name)
+					}
+				}
 				assertPropertyAbsent(t, agentSchema, "hooks")
 
 				responseSchema := jsonResponseSchema(t, createAgent, 201)
@@ -1139,7 +1186,16 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				updateSchema := jsonRequestSchema(t, update)
 				assertRequired(t, updateSchema, "agent", "expected_digest")
 				updateAgentSchema := propertySchema(t, updateSchema, "agent")
-				assertPropertyAbsent(t, updateAgentSchema, "mcp_servers")
+				assertNotRequired(t, updateAgentSchema, "mcp_servers")
+				for _, name := range []string{"secret_header_values", "secret_env_values"} {
+					if !propertySchema(
+						t,
+						propertySchema(t, updateAgentSchema, "mcp_servers").Items.Value,
+						name,
+					).WriteOnly {
+						t.Fatalf("update MCP %s must be write-only", name)
+					}
+				}
 
 				deleteAgent := operationFor(t, doc, "/api/agents/{name}", "DELETE")
 				assertResponseStatus(t, deleteAgent, 403)
@@ -1729,6 +1785,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, artifactRead, "artifact_id", openapi3.ParameterInPath, true)
 				assertParameter(t, artifactRead, "offset", openapi3.ParameterInQuery, false)
 				assertParameter(t, artifactRead, "limit", openapi3.ParameterInQuery, false)
+				assertParameter(t, artifactRead, "profile", openapi3.ParameterInQuery, false)
 				artifactPage := jsonResponseSchema(t, artifactRead, 200)
 				assertRequired(
 					t,
@@ -2704,7 +2761,7 @@ func TestExtensionAuthoringComponentSchemas(t *testing.T) {
 		if severity == nil || severity.Value == nil {
 			t.Fatal("IssueSeverity component is missing")
 		}
-		if got, want := severity.Value.Enum, []any{"error", "warning", "warn"}; !reflect.DeepEqual(got, want) {
+		if got, want := severity.Value.Enum, []any{"error", "warning", "warn", "info"}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("IssueSeverity enum = %v, want %v", got, want)
 		}
 		payload := document.Components.Schemas["ExtensionValidatePayload"]
@@ -3237,10 +3294,24 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		if addMCPReloadErrorFields(baseline) == 0 {
+			t.Fatal("approved MCP reload error fields: no historical error schemas found")
+		}
+		addNativeReadPagingSchemas(t, baseline)
+		addManualJobWaitParameters(t, baseline)
+		if addNativeResultViewSchemas(baseline) == 0 {
+			t.Fatal("approved output_views addition: no historical tool descriptors found")
+		}
+		addSettingsMCPHeaderPresence(t, baseline)
+		deprecateRetiredWindowManagerSettings(t, baseline)
+		deprecateRetiredWindowManagerWireFields(t, baseline)
+		addWindowManagerValidationDocument(t, baseline)
+		addWindowManagerTabHookSchemas(t, baseline)
 		if addSessionLinkedWorkSchemas(baseline) == 0 {
 			t.Fatal("approved linked_work addition: no historical session schemas found")
 		}
 		addAgentIdentitySchemas(t, baseline)
+		addAgentMCPAttachmentSchemas(t, baseline)
 		addInstanceReadSchemas(t, baseline)
 		addProfileRemovalInstanceCounts(t, baseline)
 		addAttentionTerminalApprovalSchema(t, baseline)
@@ -3264,11 +3335,37 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addAgentEffectivePermissions(baseline) == 0 {
 			t.Fatal("approved effective_runtime permissions addition: no historical agent runtime schema found")
 		}
+		// #1424: agent effective runtime names the inherited ACP options permission policy excludes.
+		if addAgentPolicyExcludedACPOptions(baseline) == 0 {
+			t.Fatal("approved policy_excluded_acp_options addition: no historical agent runtime schema found")
+		}
 		// #1251: restart status reports a replacement daemon's data-migration progress.
 		addRestartProgressComponent(baseline)
 		if addRestartMigrationProgress(baseline) == 0 {
 			t.Fatal("approved restart progress addition: no historical restart status schema found")
 		}
+		// #1292: fallback steering exposes its boundary wait and after-turn queue decisions.
+		if addBoundarySteerDelivery(baseline) == 0 {
+			t.Fatal("approved boundary delivery addition: no historical steering schemas found")
+		}
+		// #1388: attention notification session rows carry the session's origin.
+		if addAttentionNotificationSessionOrigin(baseline) == 0 {
+			t.Fatal("approved notification session origin addition: no historical notification schema found")
+		}
+		// #1326: provider inventory and settings payloads report the always-present enabled state.
+		if addProviderEnabledFields(baseline) == 0 {
+			t.Fatal("approved provider enabled addition: no historical provider payload schemas found")
+		}
+		// #1326: launches on a disabled provider return their own tool error code.
+		if addToolErrorCode(baseline, string(tools.ErrorCodeProviderDisabled)) == 0 {
+			t.Fatal("approved provider_disabled tool error: no historical tool error enums found")
+		}
+		// #1778: boot admission adds a retryable code without changing draining errors.
+		if addToolErrorCode(baseline, admission.StartingCode) == 0 {
+			t.Fatal("approved daemon_starting tool error: no historical tool error enums found")
+		}
+		// otel-telemetry-export: status reports per-signal OpenTelemetry export health.
+		addOTelStatusSchema(t, baseline)
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -3282,8 +3379,101 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			t.Fatalf("unmarshal: %v", err)
 		}
 		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
-		assertAlwaysOnHardeningFields(t, current)
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
+		addMCPHotActivationSchemas(t, baseline, current)
+		addMarketplacePluginCatalogSchemas(baseline)
+		oldComponents["ExtensionValidatePayload"].(map[string]any)["properties"].(map[string]any)["inputs"] = map[string]any{
+			"type": "array",
+			"items": map[string]any{
+				"type": "object", "required": []any{"binding", "id", "prompt", "required", "type"},
+				"properties": map[string]any{
+					"binding": map[string]any{
+						"type":     "object",
+						"required": []any{"name", "type"},
+						"properties": map[string]any{
+							"name": map[string]any{"type": "string"},
+							"type": map[string]any{"type": "string"},
+						},
+					},
+					"default": map[string]any{}, "id": map[string]any{"type": "string"},
+					"prompt": map[string]any{"type": "string"}, "required": map[string]any{"type": "boolean"},
+					"type": map[string]any{"type": "string"},
+				},
+			},
+		}
+		// The install and preview requests gain the optional replace flag.
+		replaceProperty := map[string]any{
+			"type": "boolean",
+			"description": "Replace the installed extension of the same name. Applies to local_path installs only, " +
+				"since published sources replace implicitly. The previous version stays installed only when the " +
+				"replacement fails before the reinstall transaction completes; a failure after it returns, such as " +
+				"enable failing, does not restore it. A marketplace-owned name is refused with " +
+				"extension_name_conflict. Replacing a package attached outside the caller's workspace requires " +
+				"operator authority.",
+		}
+		for _, path := range []string{"/api/extensions", "/api/extensions/preview-install"} {
+			requestProperties := baseline
+			for _, key := range []string{
+				"paths", path, "post", "requestBody", "content", "application/json", "schema", "properties",
+			} {
+				requestProperties = requestProperties[key].(map[string]any)
+			}
+			requestProperties["replace"] = replaceProperty
+		}
+
+		// Only the installation response gains the optional enable outcome.
+		installProperties := baseline
+		for _, key := range []string{
+			"paths", "/api/extensions", "post", "responses", "201", "content", "application/json", "schema", "properties",
+		} {
+			installProperties = installProperties[key].(map[string]any)
+		}
+		installProperties["enable_error"] = map[string]any{
+			"type":     "object",
+			"nullable": true,
+			"properties": map[string]any{
+				"error": map[string]any{"type": "string"},
+				"code":  map[string]any{"type": "string"},
+			},
+			"required": []any{"code", "error"},
+		}
+
+		oldBrowse := baseline["paths"].(map[string]any)["/api/marketplace"].(map[string]any)["get"].(map[string]any)
+		newBrowse := current["paths"].(map[string]any)["/api/marketplace"].(map[string]any)["get"].(map[string]any)
+		for index, parameter := range newBrowse["parameters"].([]any) {
+			if parameter.(map[string]any)["name"] == "category" {
+				oldBrowse["parameters"] = slices.Insert(oldBrowse["parameters"].([]any), index, parameter)
+			}
+		}
+
+		browseSchema := oldBrowse
+		for _, key := range []string{"responses", "200", "content", "application/json", "schema"} {
+			browseSchema = browseSchema[key].(map[string]any)
+		}
+		browseSchema["properties"].(map[string]any)["categories"] = map[string]any{
+			"type": "array", "items": map[string]any{
+				"type": "object", "properties": map[string]any{
+					"count": map[string]any{"type": "integer"},
+					"id":    map[string]any{"type": "string"},
+					"label": map[string]any{"type": "string"},
+				}, "required": []any{"count", "id", "label"},
+			},
+		}
+		browseSchema["required"] = append([]any{"categories"}, browseSchema["required"].([]any)...)
+
+		addCheckInToolSchemaFields(baseline)
+		addSessionCatalogExcludeRootParameter(baseline, current)
+		addDaemonReadinessSchema(t, baseline, current)
+		addSubagentRemovedStreamEvent(t, baseline, current)
+		// #1644: session payloads name the parent a continued child is listed under.
+		if addSessionTreeParentSchema(baseline) == 0 {
+			t.Fatal("approved tree_parent_session_id addition: no historical session schemas found")
+		}
+		// Loop run outcomes explain a terminal decision with optional reason_code, node_id, and message.
+		if addLoopRunOutcomeDiagnosticSchemas(baseline) == 0 {
+			t.Fatal("approved Loop run outcome diagnostics: no historical outcome schemas found")
+		}
+		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
 			compareSchemaContract(
@@ -3297,6 +3487,96 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			)
 		}
 	})
+}
+
+// Marketplace catalog metadata and discovery notices are approved additive contracts.
+func addMarketplacePluginCatalogSchemas(value any) {
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			addMarketplacePluginCatalogSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			addMarketplacePluginCatalogSchemas(child)
+		}
+		if reflect.DeepEqual(node["enum"], []any{"error", "warning", "warn"}) {
+			node["enum"] = []any{"error", "warning", "warn", "info"}
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["allow_unverified"] != nil && properties["ref"] != nil && properties["source"] != nil {
+			properties["enable"] = map[string]any{"type": "boolean", "default": false,
+				"description": "Enable after installation under the same operation lock. " +
+					"Activation failure returns 201 with enable_error and retains the installed package and inputs."}
+		}
+		if ok && properties["severity"] != nil && properties["message"] != nil && properties["path"] != nil {
+			properties["code"] = map[string]any{"type": "string"}
+		}
+		if !ok || properties["install_slug"] == nil || properties["entry_id"] == nil {
+			return
+		}
+		properties["category"] = map[string]any{"type": "string"}
+		properties["category_label"] = map[string]any{"type": "string"}
+		properties["featured"] = map[string]any{"type": "boolean"}
+		required, _ := node["required"].([]any)
+		required = append(required, "category", "category_label", "featured")
+		slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+		node["required"] = required
+	}
+}
+
+func addBoundarySteerDelivery(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addBoundarySteerDelivery(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addBoundarySteerDelivery(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			return count
+		}
+		delivery, ok := properties["steer_delivery"].(map[string]any)
+		if ok && reflect.DeepEqual(delivery["enum"], []any{"injected", "pending_injection", "interrupt_fallback"}) {
+			delivery["enum"] = []any{
+				"injected",
+				"pending_injection",
+				"pending_boundary",
+				"after_turn",
+				"interrupt_fallback",
+			}
+			count++
+		}
+	}
+	return count
+}
+
+func addAttentionNotificationSessionOrigin(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAttentionNotificationSessionOrigin(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAttentionNotificationSessionOrigin(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["source_id"] == nil || properties["request_kind"] == nil ||
+			properties["terminal_id"] == nil {
+			return count
+		}
+		// Optional fields; the required set stays unchanged.
+		properties["session_type"] = map[string]any{"type": "string"}
+		properties["instance_id"] = map[string]any{"type": "string"}
+		count++
+	}
+	return count
 }
 
 func addAttentionTerminalApprovalSchema(t *testing.T, baseline map[string]any) {
@@ -3330,9 +3610,72 @@ func addAttentionTerminalApprovalSchema(t *testing.T, baseline map[string]any) {
 	}
 }
 
+func addOTelStatusSchema(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	properties := baseline
+	for _, key := range []string{
+		"paths", "/api/status", "get", "responses", "200", "content", "application/json", "schema", "properties",
+	} {
+		next, ok := properties[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved status otel addition: missing object %q", key)
+		}
+		properties = next
+	}
+	if _, exists := properties["otel"]; exists {
+		t.Fatal("otel already exists in the historical status baseline")
+	}
+	signal := func() map[string]any {
+		return map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"enabled":          map[string]any{"type": "boolean"},
+				"last_export_at":   map[string]any{"type": "string", "format": "date-time"},
+				"last_error_class": map[string]any{"type": "string"},
+				"failed_exports":   map[string]any{"type": "integer", "format": "int64"},
+			},
+			"required": []any{"enabled", "failed_exports"},
+		}
+	}
+	// Optional and absent from older daemons; existing fields and the required set remain unchanged.
+	properties["otel"] = map[string]any{
+		"type":     "object",
+		"nullable": true,
+		"properties": map[string]any{
+			"state":                map[string]any{"type": "string"},
+			"protocol":             map[string]any{"type": "string"},
+			"endpoint_host":        map[string]any{"type": "string"},
+			"sample_ratio":         map[string]any{"type": "number", "format": "double"},
+			"forward_to_providers": map[string]any{"type": "boolean"},
+			"traces":               signal(),
+			"metrics":              signal(),
+			"dropped_spans":        map[string]any{"type": "integer", "format": "int64"},
+		},
+		"required": []any{"dropped_spans", "forward_to_providers", "metrics", "sample_ratio", "state", "traces"},
+	}
+}
+
 func readSchemaBaseline(t *testing.T) map[string]any {
 	t.Helper()
-	compressed, err := os.ReadFile("testdata/openapi-pre-components.json.gz")
+	baseline := readSchemaBaselineFile(t, "testdata/openapi-pre-components.json.gz")
+	// window-tabs-split ADR-004 approves the v6 output break. Requests remain
+	// decodable, while this versioned fixture freezes the replacement contract.
+	v6 := readSchemaBaselineFile(t, "testdata/window-manager-v6.json.gz")
+	paths := baseline["paths"].(map[string]any)
+	maps.Copy(paths, v6["paths"].(map[string]any))
+	schemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	for name := range schemas {
+		if strings.HasPrefix(name, "WindowManager") {
+			delete(schemas, name)
+		}
+	}
+	maps.Copy(schemas, v6["components"].(map[string]any)["schemas"].(map[string]any))
+	return baseline
+}
+
+func readSchemaBaselineFile(t *testing.T, path string) map[string]any {
+	t.Helper()
+	compressed, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read schema baseline: %v", err)
 	}
@@ -3582,8 +3925,59 @@ func addSessionRouteProfileSelectors(t *testing.T, baseline map[string]any) {
 	}
 }
 
+// #1467: approved read controls and page metadata; existing row schemas stay unchanged.
+func addNativeReadPagingSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	parameter := func(name, kind string) map[string]any {
+		return map[string]any{"in": "query", "name": name, "schema": map[string]any{"type": kind}}
+	}
+	for _, path := range []string{"/api/automation/jobs/{id}/runs", "/api/automation/triggers/{id}/runs"} {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		index := slices.IndexFunc(parameters, func(value any) bool { return value.(map[string]any)["name"] == "limit" })
+		if index < 0 {
+			t.Fatalf("approved history cursor: no limit parameter at %s", path)
+		}
+		operation["parameters"] = slices.Insert(parameters, index, any(parameter("cursor", "string")))
+	}
+	worktrees := paths["/api/workspaces/{workspace_id}/worktrees"].(map[string]any)["get"].(map[string]any)
+	worktrees["parameters"] = append(worktrees["parameters"].([]any), parameter("include_removed", "boolean"))
+	workspace := paths["/api/workspaces/{id}"].(map[string]any)["get"].(map[string]any)
+	workspace["parameters"] = append(workspace["parameters"].([]any),
+		parameter("profile", "string"), parameter("all_profiles", "boolean"))
+	workspace404 := workspace["responses"].(map[string]any)["404"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	profile404 := paths["/api/profiles/{name}"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)["404"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	workspace404["schema"] = map[string]any{"oneOf": []any{workspace404["schema"], profile404["schema"]}}
+
+	for _, endpoint := range []struct{ path, method string }{
+		{"/api/tools", "get"}, {"/api/tools/search", "post"},
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}/tools", "get"},
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search", "post"},
+	} {
+		operation := paths[endpoint.path].(map[string]any)[endpoint.method].(map[string]any)
+		response := operation["responses"].(map[string]any)["200"].(map[string]any)
+		body := response["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		properties := body["properties"].(map[string]any)
+		for _, field := range []string{"offset", "count", "total", "next_offset"} {
+			properties[field] = map[string]any{"type": "integer"}
+		}
+		properties["has_more"] = map[string]any{"type": "boolean"}
+		body["required"] = []any{"count", "has_more", "tools", "total"}
+		if endpoint.method == "post" {
+			request := operation["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+			request["properties"].(map[string]any)["offset"] = map[string]any{"type": "integer"}
+		}
+	}
+}
+
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	artifactRead := baseline["paths"].(map[string]any)["/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}"].(map[string]any)["get"].(map[string]any)
+	parameters := artifactRead["parameters"].([]any)
+	artifactRead["parameters"] = append(parameters, map[string]any{
+		"in": "query", "name": "profile", "schema": map[string]any{"type": "string"},
+	})
 	// #1195: terminal detail, catalog stream and downloads document the owner-labeled aggregate.
 	addAllProfilesReadParameter(baseline, []string{
 		terminalPath + "/{id}", terminalPath + "/stream",
@@ -3688,6 +4082,7 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addTerminalCreateWorktree(baseline) == 0 {
 		t.Fatal("approved worktree terminal create: no historical terminal create schemas found")
 	}
+	addTerminalExecWorktree(t, baseline)
 	// #1072: optional inherited marker on MCP auth status; existing fields and required sets stay unchanged.
 	if addMCPAuthStatusInherited(baseline) == 0 {
 		t.Fatal("approved MCP auth inherited addition: no historical MCP auth status schemas found")
@@ -3980,6 +4375,17 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			},
 		)
 	}
+	for path, item := range paths {
+		if !strings.HasSuffix(path, "/heartbeat") {
+			continue
+		}
+		put, ok := item.(map[string]any)["put"].(map[string]any)
+		if !ok {
+			continue
+		}
+		body := put["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		body["properties"].(map[string]any)["approve_authority_sha256"] = map[string]any{"type": "string"}
+	}
 	addAlwaysOnAdditiveSchemas(baseline)
 }
 
@@ -4255,6 +4661,24 @@ func addTerminalErrorCode(value any, code string) int {
 		}
 	}
 	return count
+}
+
+func addTerminalExecWorktree(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	properties := baseline
+	for _, key := range []string{
+		"paths", terminalPath + "/exec", "post", "requestBody", "content", "application/json", "schema", "properties",
+	} {
+		next, ok := properties[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved terminal exec worktree addition: missing object %q", key)
+		}
+		properties = next
+	}
+	if _, exists := properties["worktree"]; exists {
+		t.Fatal("approved terminal exec worktree addition: property already exists in historical baseline")
+	}
+	properties["worktree"] = map[string]any{"type": "string"}
 }
 
 // addTerminalCreateWorktree adds the optional worktree reference to every
@@ -4713,6 +5137,37 @@ func correctProviderSettingsCommandAuthorship(t *testing.T, baseline map[string]
 	addInherited(provider["fallback"].(map[string]any)["properties"].(map[string]any)["settings"])
 }
 
+// addSubagentRemovedStreamEvent records the parent stream's deleted-subagent event, which
+// follows subagent_updated so a client can drop a row it can no longer read.
+func addSubagentRemovedStreamEvent(t *testing.T, baseline, current map[string]any) {
+	t.Helper()
+	newSchemas := current["components"].(map[string]any)["schemas"].(map[string]any)
+	event, ok := newSchemas["SubagentRemovedEvent"].(map[string]any)
+	if !ok {
+		t.Fatal("approved subagent_removed event: no current component schema")
+	}
+	oldSchemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	if _, exists := oldSchemas["SubagentRemovedEvent"]; exists {
+		t.Fatal("approved subagent_removed event: component already in the historical baseline")
+	}
+	oldSchemas["SubagentRemovedEvent"] = event
+	streamSchema := func(document map[string]any, path string) map[string]any {
+		operation := document["paths"].(map[string]any)[path].(map[string]any)["get"].(map[string]any)
+		return operation["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)[specContentTypeEventStream].(map[string]any)["schema"].(map[string]any)
+	}
+	for _, path := range []string{
+		"/api/sessions/{session_id}/stream",
+		"/api/workspaces/{workspace_id}/sessions/{session_id}/stream",
+	} {
+		oldSchema, newSchema := streamSchema(baseline, path), streamSchema(current, path)
+		oldVariants, newVariants := oldSchema["anyOf"].([]any), newSchema["anyOf"].([]any)
+		if len(newVariants) != len(oldVariants)+1 {
+			t.Fatalf("%s: stream variants = %d, want %d", path, len(newVariants), len(oldVariants)+1)
+		}
+		oldSchema["anyOf"] = slices.Insert(oldVariants, 2, newVariants[2])
+	}
+}
+
 func correctLegacySessionStreamSchemas(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	// The old pseudo-envelope described fields that the SSE writer never puts on the wire.
@@ -4747,8 +5202,8 @@ func TestSessionStreamRawFrameContract(t *testing.T) {
 				200,
 				specContentTypeEventStream,
 			)
-			if len(schema.AnyOf) != 10 {
-				t.Fatalf("%s frame alternatives = %d, want 10", path, len(schema.AnyOf))
+			if len(schema.AnyOf) != 11 {
+				t.Fatalf("%s frame alternatives = %d, want 11", path, len(schema.AnyOf))
 			}
 			snapshot := streamVariantSchema(t, schema, "TranscriptSnapshotPayload")
 			frame := map[string]any{
@@ -4932,7 +5387,9 @@ func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
 	if err := json.Unmarshal([]byte(`{"oneOf":[
 		{"type":"object","additionalProperties":false,"properties":{
 			"ui_font":{"type":"string","nullable":true,"maxLength":128},
-			"mono_font":{"type":"string","nullable":true,"maxLength":128}
+			"mono_font":{"type":"string","nullable":true,"maxLength":128},
+			"text_size":{"type":"string","nullable":true,"enum":["small","default","large","larger"]},
+			"letter_spacing":{"type":"string","nullable":true,"enum":["tight","default","relaxed","wide"]}
 		}},
 		{"enum":[null],"nullable":true}
 	]}`), &appearance); err != nil {
@@ -5288,6 +5745,29 @@ func addSessionLaterSchemas(value any) int {
 	return count
 }
 
+// addSessionTreeParentSchema adds the optional tree_parent_session_id to every session payload
+// (the schemas carrying parent_title); existing fields and required sets stay unchanged.
+func addSessionTreeParentSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionTreeParentSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionTreeParentSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["parent_title"] == nil || properties["badge"] == nil {
+			return count
+		}
+		properties["tree_parent_session_id"] = map[string]any{"type": "string"}
+		count++
+	}
+	return count
+}
+
 func addSessionAttentionDismissibleSchema(value any) int {
 	count := 0
 	switch node := value.(type) {
@@ -5480,7 +5960,7 @@ func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
 				} else {
 					props["display_name"].(map[string]any)["nullable"] = true
 					props["description"].(map[string]any)["nullable"] = true
-					// Request kinds list the deprecated stays_on alias through v0.5.1 (#1199).
+					// Request kinds list only the supported values.
 					props["kind"] = agentKindRequestSchemaForTest()
 					if props["name"] != nil {
 						props["display_name"].(map[string]any)["maxLength"] = float64(80)
@@ -5594,7 +6074,7 @@ func addAlwaysOnAdditiveSchemas(value any) {
 					values = insertReasonCode(values, event)
 				}
 			}
-			node["enum"] = values
+			node["enum"] = append(values, "agent.instance.proposal.picked")
 		}
 		if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("agent_progress")) {
 			node["enum"] = insertReasonCode(values, "held_permission")
@@ -5614,6 +6094,184 @@ func addAlwaysOnAdditiveSchemas(value any) {
 			)
 		}
 	}
+}
+
+// addDaemonReadinessSchema accepts the additive optional readiness phase on status and identity reads.
+// The baseline predates components, so the current schema is dereferenced before it is copied in.
+func addDaemonReadinessSchema(t *testing.T, baseline, current map[string]any) {
+	t.Helper()
+	components, _ := current["components"].(map[string]any)
+	schemas, _ := components["schemas"].(map[string]any)
+	var deref func(value any, depth int) any
+	deref = func(value any, depth int) any {
+		if depth > 32 {
+			t.Fatal("status daemon schema references nest too deeply")
+		}
+		switch node := value.(type) {
+		case map[string]any:
+			if ref, ok := node["$ref"].(string); ok {
+				return deref(schemas[strings.TrimPrefix(ref, "#/components/schemas/")], depth+1)
+			}
+			resolved := make(map[string]any, len(node))
+			for key, child := range node {
+				resolved[key] = deref(child, depth+1)
+			}
+			return resolved
+		case []any:
+			resolved := make([]any, len(node))
+			for index, child := range node {
+				resolved[index] = deref(child, depth+1)
+			}
+			return resolved
+		default:
+			return value
+		}
+	}
+	daemonProperties := func(document map[string]any, path string, resolve bool) map[string]any {
+		var node any = document
+		for _, key := range []string{
+			"paths", path, "get", "responses", "200", "content", "application/json", "schema",
+			"properties", "daemon", "properties",
+		} {
+			object, ok := node.(map[string]any)
+			if ok && resolve {
+				if ref, isRef := object["$ref"].(string); isRef {
+					object, ok = schemas[strings.TrimPrefix(ref, "#/components/schemas/")].(map[string]any)
+				}
+			}
+			if !ok || object[key] == nil {
+				t.Fatalf("status daemon schema is missing %q", key)
+			}
+			node = object[key]
+		}
+		properties, ok := node.(map[string]any)
+		if !ok {
+			t.Fatal("status daemon schema properties are not an object")
+		}
+		return properties
+	}
+	readiness, ok := daemonProperties(current, "/api/status", true)["readiness"]
+	if !ok {
+		t.Fatal("status daemon schema is missing the readiness property")
+	}
+	for _, path := range []string{"/api/status", "/api/status/identity"} {
+		// Keep the historical required sets: identity readiness is optional and matches full status.
+		daemonProperties(baseline, path, false)["readiness"] = deref(readiness, 0)
+	}
+}
+
+// addSessionCatalogExcludeRootParameter admits the additive exclude_root query
+// parameter on every session catalog route that gained it, at its current index.
+func addSessionCatalogExcludeRootParameter(baseline, current map[string]any) {
+	oldPaths := baseline["paths"].(map[string]any)
+	for path, item := range current["paths"].(map[string]any) {
+		oldItem, ok := oldPaths[path].(map[string]any)
+		if !ok {
+			continue
+		}
+		newGet, ok := item.(map[string]any)["get"].(map[string]any)
+		if !ok {
+			continue
+		}
+		oldGet, ok := oldItem["get"].(map[string]any)
+		if !ok {
+			continue
+		}
+		newParameters, _ := newGet["parameters"].([]any)
+		for index, parameter := range newParameters {
+			if parameter.(map[string]any)["name"] != "exclude_root" {
+				continue
+			}
+			oldParameters, _ := oldGet["parameters"].([]any)
+			if index > len(oldParameters) {
+				index = len(oldParameters)
+			}
+			oldGet["parameters"] = slices.Insert(oldParameters, index, parameter)
+		}
+	}
+}
+
+func addCheckInToolSchemaFields(value any) {
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			addCheckInToolSchemaFields(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			addCheckInToolSchemaFields(child)
+		}
+		addCheckInToolSchemaProperties(node)
+	}
+}
+
+func addCheckInToolSchemaProperties(node map[string]any) {
+	props, ok := node["properties"].(map[string]any)
+	if !ok {
+		return
+	}
+	if props["name"] != nil && props["transport"] != nil && props["command"] != nil && props["auth"] != nil {
+		props["read_only_tools"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+	}
+	if props["tool_id"] != nil && props["input_schema_digest"] != nil && props["risk"] != nil &&
+		props["access"] == nil {
+		props["access"] = map[string]any{"type": "string"}
+		props["check_in_writable"] = map[string]any{"type": "boolean"}
+		required := append(node["required"].([]any), "access", "check_in_writable")
+		slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+		node["required"] = required
+	}
+	if props["checks_enabled"] != nil && props["main_session_id"] != nil && props["pause_reason"] != nil &&
+		props["authority_status"] == nil {
+		props["authority_status"] = map[string]any{"type": "string"}
+		required := append(node["required"].([]any), "authority_status")
+		slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+		node["required"] = required
+	}
+	policy := props["frontmatter"] != nil && props["config_provenance"] != nil && props["prompt"] != nil
+	frontmatter := props["version"] != nil && props["context"] != nil && props["preferences"] != nil
+	if (!policy && !frontmatter) || props["actions"] != nil {
+		return
+	}
+	actions := map[string]any{
+		"type": "array", "items": map[string]any{
+			"type": "object", "properties": map[string]any{
+				"auto_accept":  map[string]any{"type": "boolean"},
+				"id":           map[string]any{"type": "string"},
+				"instructions": map[string]any{"type": "string"},
+				"title":        map[string]any{"type": "string"},
+			}, "required": []any{"auto_accept", "id", "instructions", "title"},
+		},
+	}
+	checkIns := map[string]any{
+		"type": "object", "properties": map[string]any{
+			"allow_writes":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"max_tool_calls":  map[string]any{"type": "integer", "nullable": true},
+			"max_write_calls": map[string]any{"type": "integer", "nullable": true},
+		},
+	}
+	props["actions"] = actions
+	required := append(node["required"].([]any), "actions")
+	if frontmatter {
+		props["check_ins"] = checkIns
+		required = append(required, "check_ins")
+	} else {
+		props["authority"] = map[string]any{
+			"type": "object", "properties": map[string]any{
+				"actions": actions, "check_ins": checkIns,
+				"digest": map[string]any{"type": "string"},
+				"status": map[string]any{"type": "string"},
+				"read_only_tools": map[string]any{
+					"type": "object", "additionalProperties": map[string]any{
+						"type": "array", "items": map[string]any{"type": "string"},
+					},
+				},
+			}, "required": []any{"actions", "check_ins", "digest", "status"},
+		}
+		required = append(required, "authority")
+	}
+	slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+	node["required"] = required
 }
 
 func addProfileRemovalInstanceCounts(t *testing.T, baseline map[string]any) {
@@ -5668,6 +6326,41 @@ func addSettingsProviderLastProbeAt(value any) int {
 	return count
 }
 
+// addProviderEnabledFields adds the required enabled boolean to provider summary and settings
+// provider payloads.
+func addProviderEnabledFields(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addProviderEnabledFields(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addProviderEnabledFields(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["enabled"] != nil {
+			return count
+		}
+		summary := properties["reviewer_mode"] != nil && properties["runtime_strategy"] != nil &&
+			properties["auth_status"] != nil
+		settings := properties["command_inherited"] != nil && properties["credential_slots"] != nil
+		if !summary && !settings {
+			return count
+		}
+		properties["enabled"] = map[string]any{"type": "boolean"}
+		required, _ := node["required"].([]any)
+		required = append(slices.Clone(required), "enabled")
+		slices.SortFunc(required, func(left, right any) int {
+			return strings.Compare(left.(string), right.(string))
+		})
+		node["required"] = required
+		count++
+	}
+	return count
+}
+
 func addAgentEffectivePermissions(value any) int {
 	count := 0
 	switch node := value.(type) {
@@ -5690,6 +6383,31 @@ func addAgentEffectivePermissions(value any) int {
 			properties["permissions"] = map[string]any{"type": "string"}
 			count++
 		}
+	}
+	return count
+}
+
+func addAgentPolicyExcludedACPOptions(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAgentPolicyExcludedACPOptions(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAgentPolicyExcludedACPOptions(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["sources"] == nil || properties["session_env_status"] == nil {
+			return count
+		}
+		acpOptions, ok := properties["acp_options"].(map[string]any)
+		if !ok || properties["policy_excluded_acp_options"] != nil {
+			return count
+		}
+		properties["policy_excluded_acp_options"] = maps.Clone(acpOptions)
+		count++
 	}
 	return count
 }
@@ -5759,6 +6477,19 @@ func addRuntimeRecoveryReason(baseline map[string]any) {
 	walk(baseline)
 }
 
+func automationParameter() map[string]any {
+	return automationParameterWith(automationParamDescription)
+}
+
+func automationParameterWith(description string) map[string]any {
+	return map[string]any{
+		"name":        "exclude_automation",
+		"in":          "query",
+		"description": description,
+		"schema":      map[string]any{"type": "boolean"},
+	}
+}
+
 func finishedAutomationParameter() map[string]any {
 	return map[string]any{
 		"name":        "exclude_finished_automation",
@@ -5781,6 +6512,7 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 				"schema":      map[string]any{"type": "boolean"},
 			},
 			finishedAutomationParameter(),
+			automationParameterWith(automationFacetsParamDescription),
 		},
 		facets["parameters"].([]any)...)
 
@@ -5803,7 +6535,8 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 				"description": "Exclude always-on main sessions from the page and its total",
 				"schema":      map[string]any{"type": "boolean"},
 			}
-			get["parameters"] = slices.Insert(parameters, index+1, any(addition), any(finishedAutomationParameter()))
+			get["parameters"] = slices.Insert(parameters, index+1, any(addition), any(finishedAutomationParameter()),
+				any(automationParameter()))
 			break
 		}
 	}
@@ -6006,12 +6739,11 @@ func addSessionLinkedWorkSchemas(value any) int {
 	return count
 }
 
-// agentKindRequestSchemaForTest is the approved request kind schema: on_demand, always_on, and the
-// deprecated v0.5.0 stays_on alias (removal v0.5.2).
+// agentKindRequestSchemaForTest describes the two supported request kinds.
 func agentKindRequestSchemaForTest() map[string]any {
 	return map[string]any{
 		"type":        "string",
-		"enum":        []any{"on_demand", "always_on", "stays_on"},
+		"enum":        []any{"on_demand", "always_on"},
 		"description": agentKindRequestDescription,
 	}
 }
@@ -6035,4 +6767,250 @@ func addApprovalAccessScope(value any) int {
 		}
 	}
 	return count
+}
+
+// #1305: approve only the additive agent MCP input and response fields.
+// addAgentMCPAttachmentSchemas applies only approved additive shapes before historical comparison.
+func addAgentMCPAttachmentSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	doc, err := Document()
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var current map[string]any
+	if err := json.Unmarshal(encoded, &current); err != nil {
+		t.Fatal(err)
+	}
+	components := current["components"].(map[string]any)["schemas"].(map[string]any)
+	oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	input := components["CreateAgentPayload"].(map[string]any)["properties"].(map[string]any)["mcp_servers"]
+	response := components["AgentMCPServerJSON"].(map[string]any)["properties"].(map[string]any)
+	count := 0
+	var visit func(any)
+	visit = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				visit(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				visit(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if properties["name"] != nil && properties["prompt"] != nil && properties["appearance"] != nil &&
+				properties["definition_digest"] == nil && properties["mcp_servers"] == nil {
+				properties["mcp_servers"] = input
+				count++
+			}
+			if properties["secret_env"] != nil && properties["transport"] != nil && properties["name"] != nil &&
+				properties["url"] != nil && len(properties) == 8 {
+				for _, name := range []string{"reference", "broken_reference", "secret_headers"} {
+					if properties[name] != nil {
+						t.Fatalf("historical MCP response already contains %s", name)
+					}
+					properties[name] = response[name]
+				}
+				count++
+			}
+		}
+	}
+	// Walk historical definitions before adding the new input component.
+	if oldComponents["AgentMCPServerInput"] != nil {
+		t.Fatal("historical baseline already contains AgentMCPServerInput")
+	}
+	visit(baseline)
+	oldComponents["AgentMCPServerInput"] = components["AgentMCPServerInput"]
+	if oldComponents["SettingsMCPAuthConfigPayload"] == nil {
+		oldComponents["SettingsMCPAuthConfigPayload"] = components["SettingsMCPAuthConfigPayload"]
+	}
+	if count == 0 {
+		t.Fatal("no historical agent MCP schemas found")
+	}
+}
+
+func addNativeResultViewSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addNativeResultViewSchemas(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addNativeResultViewSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["tool_id"] != nil && properties["input_schema_digest"] != nil && properties["risk"] != nil {
+			view := map[string]any{
+				"type":       "object",
+				"required":   []any{"schema"},
+				"properties": map[string]any{"schema": map[string]any{}, "digest": map[string]any{"type": "string"}},
+			}
+			properties["output_views"] = map[string]any{"oneOf": []any{
+				map[string]any{
+					"type":       "object",
+					"required":   []any{"compact", "full"},
+					"properties": map[string]any{"compact": view, "full": view},
+				},
+				map[string]any{"enum": []any{nil}, "nullable": true},
+			}}
+			count++
+		}
+	}
+	return count
+}
+
+func addManualJobWaitParameters(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	operation := paths["/api/automation/jobs/{id}/trigger"].(map[string]any)["post"].(map[string]any)
+	parameters := operation["parameters"].([]any)
+	idIndex := -1
+	for index, raw := range parameters {
+		parameter := raw.(map[string]any)
+		if parameter["in"] == "path" && parameter["name"] == "id" {
+			idIndex = index
+		}
+		if parameter["name"] == "wait" || parameter["name"] == "timeout" {
+			t.Fatal("historical trigger already defines completion wait parameters")
+		}
+	}
+	if idIndex < 0 {
+		t.Fatal("historical trigger has no job id parameter")
+	}
+	operation["parameters"] = slices.Insert(parameters, idIndex+1,
+		any(map[string]any{"in": "query", "name": "wait", "schema": map[string]any{"type": "boolean"}}),
+		any(map[string]any{"in": "query", "name": "timeout", "schema": map[string]any{"type": "string"}}),
+	)
+}
+
+// window-tabs-split adds three tab events without removing the deprecated stack events.
+func addWindowManagerTabHookSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	changes := 0
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case map[string]any:
+			if values, ok := node["enum"].([]any); ok {
+				if index := slices.Index(values, any("window_manager.layout.applied")); index >= 0 {
+					node["enum"] = slices.Insert(
+						values,
+						index,
+						any(
+							"window_manager.tab.split",
+						),
+						any("window_manager.tab.unsplit"),
+						any("window_manager.tab.activated"),
+					)
+					changes++
+				}
+			}
+			for _, child := range node {
+				walk(child)
+			}
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		}
+	}
+	walk(baseline)
+	if changes != 5 {
+		t.Fatalf("approved window-manager tab hooks: updated %d historical enums, want 5", changes)
+	}
+}
+
+// MCP reload failures return retry information before prompt acceptance.
+func addMCPReloadErrorFields(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addMCPReloadErrorFields(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addMCPReloadErrorFields(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok &&
+			((properties["error"] != nil && properties["current_turn_id"] != nil && properties["unknown_keys"] != nil) ||
+				(properties["tool_id"] != nil && properties["reason_codes"] != nil && properties["partial_result"] != nil)) {
+			properties["retryable"] = map[string]any{"type": "boolean"}
+			properties["client_message_id"] = map[string]any{"type": "string"}
+			properties["provider_error"] = map[string]any{"type": "string"}
+			count++
+		}
+	}
+	return count
+}
+
+// These additions expose MCP status without changing any historical field.
+func addMCPHotActivationSchemas(t *testing.T, baseline, current map[string]any) {
+	t.Helper()
+	components := current["components"].(map[string]any)["schemas"].(map[string]any)
+	sessionProperties := components["SessionPayload"].(map[string]any)["properties"].(map[string]any)
+	serverProperties := components["SettingsMCPServerItemPayload"].(map[string]any)["properties"].(map[string]any)
+	var visit func(any)
+	visit = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				visit(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				visit(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if len(properties) == 1 && properties["agent"] != nil {
+				properties["warnings"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+			}
+			if properties["approve_scope_escalation"] != nil && properties["approved_scopes"] != nil &&
+				properties["mode"] != nil {
+				properties["definition_digest"] = map[string]any{"type": "string"}
+			}
+			if properties["lineage"] != nil && properties["runtime"] != nil && properties["queue"] != nil {
+				properties["mcp_summary"] = sessionProperties["mcp_summary"]
+			}
+			if properties["auth_acp_method"] != nil && properties["runtime_provider"] != nil &&
+				properties["session_env"] != nil {
+				properties["runtime_mcp"] = map[string]any{"type": "string"}
+			}
+			if properties["transport"] != nil && properties["source_metadata"] != nil && properties["env_keys"] != nil {
+				for _, name := range []string{"approval", "callable_in_sessions"} {
+					if serverProperties[name] == nil {
+						t.Fatalf("missing approved MCP field %s", name)
+					}
+					properties[name] = serverProperties[name]
+				}
+				node["required"] = append([]any{"approval", "callable_in_sessions"}, node["required"].([]any)...)
+				// MCP redesign: the optional project file a server came from, for the Allow panel.
+				if serverProperties["definition_source"] == nil {
+					t.Fatal("missing approved MCP field definition_source")
+				}
+				properties["definition_source"] = serverProperties["definition_source"]
+			}
+		}
+	}
+	visit(baseline)
+	baselineComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	for _, name := range []string{"MCPSummary", "SettingsMCPApprovalStatePayload"} {
+		if baselineComponents[name] != nil || components[name] == nil {
+			t.Fatalf("unexpected historical or missing approved MCP schema %s", name)
+		}
+		baselineComponents[name] = components[name]
+	}
 }

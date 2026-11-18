@@ -24,7 +24,7 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 				func(ctx context.Context) (contract.SessionAggregatePayload, error) {
 					infos, err := loadSessions(ctx)
 					return aggregateSessionInfos(infos), err
-				},
+				}, true,
 			)
 			if err != nil {
 				return nil, err

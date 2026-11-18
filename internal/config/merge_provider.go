@@ -1,6 +1,9 @@
 package config
 
 func (o providerOverlay) Apply(dst *ProviderConfig) {
+	if o.AutoCompactWindow != nil {
+		dst.AutoCompactWindow = new(*o.AutoCompactWindow)
+	}
 	if o.ReviewerMode != nil {
 		dst.ReviewerMode = *o.ReviewerMode
 	}
@@ -36,12 +39,7 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	if o.EnvPolicy != nil {
 		dst.EnvPolicy = *o.EnvPolicy
 	}
-	if o.HomePolicy != nil {
-		dst.HomePolicy = *o.HomePolicy
-	}
-	if o.NoneSecurity != nil {
-		dst.NoneSecurity = *o.NoneSecurity
-	}
+	o.applyRuntimePolicy(dst)
 	if o.AuthStatusCmd != nil {
 		dst.AuthStatusCmd = *o.AuthStatusCmd
 	}
@@ -66,6 +64,9 @@ func (o providerOverlay) applySessionMCP(dst *ProviderConfig) {
 	}
 	if o.SessionMCPTransport != nil {
 		dst.SessionMCPTransport = *o.SessionMCPTransport
+	}
+	if o.Enabled != nil {
+		dst.Enabled = new(*o.Enabled)
 	}
 }
 
@@ -125,4 +126,16 @@ func applyProviderCredentialOverlays(overlays []providerCredentialOverlay) []Pro
 		slots = append(slots, slot)
 	}
 	return slots
+}
+
+func (o providerOverlay) applyRuntimePolicy(dst *ProviderConfig) {
+	if o.RuntimeMCP != nil {
+		dst.RuntimeMCP = *o.RuntimeMCP
+	}
+	if o.HomePolicy != nil {
+		dst.HomePolicy = *o.HomePolicy
+	}
+	if o.NoneSecurity != nil {
+		dst.NoneSecurity = *o.NoneSecurity
+	}
 }

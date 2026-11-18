@@ -4,7 +4,7 @@ import toolspkg "github.com/compozy/compozy/internal/tools"
 
 func automationSuggestionDescriptors() []toolspkg.Descriptor {
 	return []toolspkg.Descriptor{
-		nativeAutomationDescriptor(
+		withResultViews(nativeAutomationDescriptor(
 			toolspkg.ToolIDAutomationSuggestionsList,
 			"automation_suggestions_list",
 			"Automation Suggestions List",
@@ -15,8 +15,8 @@ func automationSuggestionDescriptors() []toolspkg.Descriptor {
 			false,
 			[]string{automationAutomationKey, automationSuggestionsKey, descriptorKeywordCatalog},
 			[]string{"automation suggestions", "suggested jobs"},
-		),
-		nativeAutomationDescriptor(
+		), automationSuggestionsListCompactOutputSchema, `{"type":"object"}`),
+		withResultViews(nativeAutomationDescriptor(
 			toolspkg.ToolIDAutomationSuggestionsAccept,
 			"automation_suggestions_accept",
 			"Automation Suggestions Accept",
@@ -27,8 +27,8 @@ func automationSuggestionDescriptors() []toolspkg.Descriptor {
 			false,
 			[]string{automationAutomationKey, automationSuggestionsKey, automationMutationKey},
 			[]string{"accept automation suggestion", "create suggested job"},
-		),
-		nativeAutomationDescriptor(
+		), automationSuggestionAcceptCompactOutputSchema, `{"type":"object"}`),
+		withResultViews(nativeAutomationDescriptor(
 			toolspkg.ToolIDAutomationSuggestionsDismiss,
 			"automation_suggestions_dismiss",
 			"Automation Suggestions Dismiss",
@@ -39,7 +39,7 @@ func automationSuggestionDescriptors() []toolspkg.Descriptor {
 			true,
 			[]string{automationAutomationKey, automationSuggestionsKey, automationMutationKey},
 			[]string{"dismiss automation suggestion", "reject suggested job"},
-		),
+		), automationSuggestionCompactOutputSchema, `{"type":"object"}`),
 	}
 }
 

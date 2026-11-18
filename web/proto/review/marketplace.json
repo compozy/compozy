@@ -1,0 +1,140 @@
+{
+    "version": 3,
+    "key": "marketplace",
+    "sequence": 2,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "marketplace-1",
+            "slug": "marketplace",
+            "status": "resolved",
+            "createdAt": "2026-11-09T23:18:48.496Z",
+            "updatedAt": "2026-11-09T23:19:59.145Z",
+            "resolvedAt": "2026-11-09T23:19:59.145Z",
+            "context": {
+                "commit": "5a212dac4a710e4e3343c230bb78822ee9612786",
+                "state": "browse",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1440,
+                    "height": 715
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section:nth-of-type(2)",
+                "testId": null,
+                "tag": "section",
+                "text": "All 358 Productivity 31 Communication 9 Design 15 Development 93 Data & Analytics 61 Cloud & Infrastructure 33 Finance …",
+                "source": "src/drafts/marketplace/browser.tsx:54:5",
+                "sourceChain": [
+                    "src/drafts/marketplace/browser.tsx:54:5",
+                    "src/drafts/marketplace/index.proto.tsx:76:7",
+                    "src/drafts/marketplace/index.proto.tsx:89:9",
+                    "src/drafts/marketplace/index.proto.tsx:88:7",
+                    "src/drafts/marketplace/index.proto.tsx:86:5"
+                ],
+                "rect": {
+                    "x": 80,
+                    "y": 230.953125,
+                    "width": 1280,
+                    "height": 1952
+                },
+                "rectNormalized": {
+                    "x": 0.05555555555555555,
+                    "y": 0.3230113636363636,
+                    "width": 0.8888888888888888,
+                    "height": 2.7300699300699303
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "e3228525-a0c2-4ebe-bf93-8ee56334bb7f",
+                    "at": "2026-11-09T23:18:48.521Z",
+                    "editedAt": null,
+                    "body": "pouco espaço no page content, pode dar mais respiro no padding de cima",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "7bd2e3e2-e959-40b6-ab16-33899932cc88",
+                    "at": "2026-11-09T23:19:59.144Z",
+                    "editedAt": null,
+                    "body": "Aumentei o padding superior do catálogo para 96px no desktop e 64px no mobile (browser.tsx, section#catalog). Ajustei também o scroll para o título não ficar sob o header. Conferido em 1440 (Browse e Category) e 390 (Category), sem overflow nem erros de JavaScript; proto check e typecheck passaram.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "marketplace-2",
+            "slug": "marketplace",
+            "status": "resolved",
+            "createdAt": "2026-11-09T23:24:36.792Z",
+            "updatedAt": "2026-11-09T23:26:11.088Z",
+            "resolvedAt": "2026-11-09T23:26:11.088Z",
+            "context": {
+                "commit": "5a212dac4a710e4e3343c230bb78822ee9612786",
+                "state": "browse",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1440,
+                    "height": 945
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section:nth-of-type(3)",
+                "testId": null,
+                "tag": "section",
+                "text": "All 358 Productivity 31 Communication 9 Design 15 Development 93 Data & Analytics 61 Cloud & Infrastructure 33 Finance …",
+                "source": "src/drafts/marketplace/browser.tsx:54:5",
+                "sourceChain": [
+                    "src/drafts/marketplace/browser.tsx:54:5",
+                    "src/drafts/marketplace/index.proto.tsx:76:7",
+                    "src/drafts/marketplace/index.proto.tsx:89:9",
+                    "src/drafts/marketplace/index.proto.tsx:88:7",
+                    "src/drafts/marketplace/index.proto.tsx:86:5"
+                ],
+                "rect": {
+                    "x": 80,
+                    "y": 349.546875,
+                    "width": 1280,
+                    "height": 5104
+                },
+                "rectNormalized": {
+                    "x": 0.05555555555555555,
+                    "y": 0.36989087301587303,
+                    "width": 0.8888888888888888,
+                    "height": 5.401058201058201
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "828ac853-f8f3-4901-8235-cda32fcb1293",
+                    "at": "2026-11-09T23:24:36.811Z",
+                    "editedAt": null,
+                    "body": "como o feature já tem um padding bottom bom, não precisava, era só na pagina de categoria que essa parte ficava quase colada no header",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "b2ddd11e-7e84-4ab5-aaa5-ba2cc09e2a41",
+                    "at": "2026-11-09T23:26:11.087Z",
+                    "editedAt": null,
+                    "body": "Removi o padding extra no Browse: ali o espaço volta a ser só o do Featured. O respiro de 96px (64px no mobile) ficou apenas nas telas sem Featured, Category e Search (browser.tsx, section#catalog). Conferido em navegador real em 1440 (Browse, Category e Search) e 390 (Category), sem overflow nem erros de JavaScript; proto check e typecheck passaram.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        }
+    ]
+}

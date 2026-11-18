@@ -1,6 +1,7 @@
 // Suite: session-hierarchy
 // Invariant: sessions nest under their loaded hierarchy parent (orphans stay roots;
-// continued and forked sessions are top-level, their source is provenance only),
+// forked sessions and continuations of top-level sessions are top-level, while a
+// continuation takes its predecessor's place under the catalog-resolved tree parent),
 // thread collection flattens descendants in list order, and collapsed-thread
 // signals surface the most urgent child state.
 // Owning layer: unit (systems/session/lib)
@@ -24,9 +25,11 @@ function treeSession(
     kind?: NonNullable<SessionPayload["lineage"]>["kind"];
     badge?: SessionPayload["badge"];
     sessionType?: SessionPayload["type"];
+    treeParent?: string;
   } = {}
 ): SessionPayload {
   return {
+    ...(options.treeParent ? { tree_parent_session_id: options.treeParent } : {}),
     supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
@@ -124,6 +127,45 @@ describe("buildSessionTree", () => {
     expect(tree.childrenByParent.get("sess-continued")?.map(session => session.id)).toEqual([
       "sess-worker",
     ]);
+  });
+
+  it("Should nest repeated continuations of a child in its original parent's thread", () => {
+    const conductor = treeSession("sess-conductor");
+    const interrupted = treeSession("sess-worker", {
+      parent: "sess-conductor",
+      kind: "provenance",
+    });
+    const continued = treeSession("sess-worker-2", {
+      parent: "sess-worker",
+      kind: "continue",
+      treeParent: "sess-conductor",
+    });
+    const continuedAgain = treeSession("sess-worker-3", {
+      parent: "sess-worker-2",
+      kind: "continue",
+      treeParent: "sess-conductor",
+    });
+
+    const tree = buildSessionTree([conductor, interrupted, continued, continuedAgain]);
+
+    expect(tree.roots.map(session => session.id)).toEqual(["sess-conductor"]);
+    expect(tree.childrenByParent.get("sess-conductor")?.map(session => session.id)).toEqual([
+      "sess-worker",
+      "sess-worker-2",
+      "sess-worker-3",
+    ]);
+  });
+
+  it("Should keep a continuation a root when its tree parent is not loaded", () => {
+    const continued = treeSession("sess-worker-2", {
+      parent: "sess-worker",
+      kind: "continue",
+      treeParent: "sess-conductor",
+    });
+
+    const tree = buildSessionTree([continued]);
+
+    expect(tree.roots.map(session => session.id)).toEqual(["sess-worker-2"]);
   });
 
   it("Should keep a self-parented session as a root", () => {

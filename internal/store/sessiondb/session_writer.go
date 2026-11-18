@@ -137,7 +137,7 @@ func (s *SessionDB) executeWrite(req sessionWriteRequest) sessionWriteResult {
 		events, err := s.writeEventBatch(req.ctx, req.events)
 		return sessionWriteResult{events: events, err: err}
 	case sessionWriteUsage:
-		return sessionWriteResult{err: s.writeTokenUsage(req.ctx, req.usage)}
+		return sessionWriteResult{err: s.writeTokenUsage(req.ctx, *req.usage)}
 	case sessionWriteHookRun:
 		return sessionWriteResult{err: s.writeHookRun(req.ctx, req.hook)}
 	case sessionWriteArchive:

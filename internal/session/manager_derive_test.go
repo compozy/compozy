@@ -226,6 +226,54 @@ func TestDeriveSourceProfileFence(t *testing.T) {
 func TestContinueSession(t *testing.T) {
 	t.Parallel()
 
+	// #1644: a worker a daemon restart stopped, continued by its orchestrator, stays listed in
+	// the orchestrator's thread while its lineage keeps naming the stopped worker as the source.
+	t.Run("Should list a child continued after a restart stop under its original parent", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		ctx := testutil.Context(t)
+		conductor := h.newDeriveSource(t)
+		worker, err := h.manager.CreateAccepted(ctx, new(CreateAcceptedOpts{Session: CreateOpts{
+			AgentName: "coder", Name: "Worker", Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{ParentSessionID: conductor.ID, Kind: store.LineageKindProvenance},
+		}}))
+		if err != nil {
+			t.Fatalf("CreateAccepted(worker) error = %v", err)
+		}
+		events, err := h.manager.Prompt(ctx, worker.ID, "Build the tab bar")
+		if err != nil {
+			t.Fatalf("Prompt(worker) error = %v", err)
+		}
+		collectEvents(t, events)
+		cause, detail := DaemonShutdownStopCause(true)
+		if err := h.manager.StopWithCause(ctx, worker.ID, cause, detail); err != nil {
+			t.Fatalf("StopWithCause(worker) error = %v", err)
+		}
+		result, err := h.manager.ContinueSession(ctx, ContinueSessionOpts{
+			SourceSessionID: worker.ID, WorkspaceID: h.workspaceID, AgentName: "coder",
+			IdempotencyKey: "restart-continue",
+		})
+		if err != nil || result.Child == nil {
+			t.Fatalf("ContinueSession(worker) = %+v, %v", result, err)
+		}
+		page, err := h.manager.ListPage(ctx, ListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("ListPage() error = %v", err)
+		}
+		var listed *Info
+		for _, info := range page.Sessions {
+			if info.ID == result.Child.ID {
+				listed = info
+			}
+		}
+		if listed == nil || listed.TreeParentSessionID != conductor.ID || listed.Lineage == nil ||
+			listed.Lineage.Kind != store.LineageKindContinue || listed.Lineage.ParentSessionID != worker.ID {
+			t.Fatalf("continued worker row = %+v, want listed under %s with source %s", listed, conductor.ID, worker.ID)
+		}
+	})
+
 	t.Run("Should continue a large transcript into another agent with its source history pointer", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)
@@ -525,6 +573,10 @@ func TestContinueSession(t *testing.T) {
 		if _, err := h.manager.ContinueSession(testutil.Context(t), fenced); !errors.Is(err, ErrDeriveFenceConflict) {
 			t.Fatalf("ContinueSession(stale fences) error = %v, want ErrDeriveFenceConflict", err)
 		}
+		unknown.Fences = fenced.Fences
+		if _, err := h.manager.ContinueSession(testutil.Context(t), unknown); !errors.Is(err, ErrDeriveAgentNotFound) {
+			t.Fatalf("ContinueSession(nope with stale fences) error = %v, want agent not found", err)
+		}
 		for _, key := range []string{"idem_unknown", "idem_fenced"} {
 			if _, found, err := h.db.SessionDerivationReceipt(
 				testutil.Context(t),
@@ -546,13 +598,74 @@ func TestContinueSession(t *testing.T) {
 		}
 	})
 
+	for _, firstMessage := range []string{"", "continue now"} {
+		t.Run(
+			"Should run the chosen cross-provider runtime with first message "+fmt.Sprintf("%q", firstMessage),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newDeriveHarness(t)
+				source := h.newDeriveSource(t)
+				opts := h.continueOpts(source, "idem_explicit_runtime")
+				opts.AgentName = "coder"
+				opts.Message = firstMessage
+				opts.Runtime = &DeriveRuntime{
+					Provider:        "codex",
+					Model:           "gpt-6-astra",
+					ReasoningEffort: "high",
+					Speed:           "normal",
+				}
+				result, err := h.manager.ContinueSession(t.Context(), opts)
+				if err != nil {
+					t.Fatalf("ContinueSession() error = %v", err)
+				}
+				if firstMessage == "" {
+					sendDeriveChildPrompt(t, h, result.Child.ID, "first", "msg_explicit_first", "idem_explicit_first")
+				} else {
+					h.waitForPromptCount(t, 3)
+					waitForDeriveConsumption(t, h, result.Child.ID)
+					child, _ := h.manager.Get(result.Child.ID)
+					waitForCondition(t, "first derived turn settled", func() bool { return !child.IsPrompting() })
+				}
+				sendDeriveChildPrompt(t, h, result.Child.ID, "second", "msg_explicit_second", "idem_explicit_second")
+				child, _ := h.manager.Get(result.Child.ID)
+				info := child.Info()
+				for _, runtime := range []RuntimeSelection{info.RequestedRuntime(), info.EffectiveRuntime()} {
+					if runtime.Provider != "codex" || runtime.Model != "gpt-6-astra" ||
+						runtime.ReasoningEffort != "high" || runtime.Speed != "normal" {
+						t.Fatalf("child runtime = %+v, want codex/gpt-6-astra/high/normal", runtime)
+					}
+				}
+				userEvents := 0
+				for _, event := range readStoredEvents(t, child) {
+					if event.Type != string(acp.EventTypeUserMessage) {
+						continue
+					}
+					var payload struct {
+						Runtime *acp.PromptRuntime `json:"prompt_runtime"`
+					}
+					if err := json.Unmarshal([]byte(event.Content), &payload); err != nil {
+						t.Fatalf("Unmarshal(user event) error = %v", err)
+					}
+					if runtime := payload.Runtime; runtime == nil || runtime.Provider != "codex" ||
+						runtime.Model != "gpt-6-astra" || runtime.ReasoningEffort != "high" || runtime.Speed != "normal" {
+						t.Fatalf("prompt_runtime = %+v, want codex/gpt-6-astra/high/normal", runtime)
+					}
+					userEvents++
+				}
+				if userEvents != 2 {
+					t.Fatalf("user events = %d, want first and second turns", userEvents)
+				}
+			},
+		)
+	}
+
 	t.Run("Should select the chosen runtime on the unbound child and bind it", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)
 		source := h.newDeriveSource(t)
 		opts := h.continueOpts(source, "idem_runtime")
 		opts.AgentName = compozyconfig.DefaultAgentName
-		opts.Runtime = &DeriveRuntime{Provider: "codex", ReasoningEffort: "high"}
+		opts.Runtime = &DeriveRuntime{Provider: "codex", Model: "gpt-6-astra", ReasoningEffort: "high", Speed: "normal"}
 		result, err := h.manager.ContinueSession(testutil.Context(t), opts)
 		if err != nil {
 			t.Fatalf("ContinueSession(runtime codex) error = %v", err)
@@ -586,6 +699,115 @@ func TestContinueSession(t *testing.T) {
 		}
 	})
 
+	// Invariant: continuation overlays merge with agent defaults at the first bind.
+	// Owning layer and canonical suite: TestContinueSession, with driver I/O captured here.
+	t.Run("Should retain inherited ACP mode when a continuation overrides thinking", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		for index := range workspace.Agents {
+			if workspace.Agents[index].Name == "b" {
+				workspace.Agents[index].Permissions = string(compozyconfig.PermissionModeApproveAll)
+				workspace.Agents[index].SetACPOptions([]compozyconfig.ACPOptionSelection{
+					{ID: "mode", ValueID: "agent-full-access"},
+					{ID: "thinking", BoolValue: new(true)},
+				})
+			}
+		}
+		h.resolver.upsert(&workspace)
+		opts := h.continueOpts(source, "idem_acp_overlay")
+		opts.Runtime = &DeriveRuntime{
+			Provider: "codex",
+			ACPOptions: []acp.SessionConfigOptionSelection{
+				{ID: "thinking", BoolValue: new(false)},
+			},
+		}
+		result, err := h.manager.ContinueSession(t.Context(), opts)
+		if err != nil {
+			t.Fatalf("ContinueSession() error = %v", err)
+		}
+		startsBefore := len(h.driver.startCalls)
+		sendDeriveChildPrompt(t, h, result.Child.ID, "go", "msg_acp_overlay", "idem_acp_prompt")
+		h.driver.mu.Lock()
+		options := h.driver.startCalls[startsBefore].ACPOptions
+		h.driver.mu.Unlock()
+		if len(options) != 2 || options[0].ID != "mode" || options[0].ValueID != "agent-full-access" ||
+			options[1].ID != "thinking" || options[1].BoolValue == nil || *options[1].BoolValue {
+			t.Fatalf("launch ACP options = %+v, want inherited mode and explicit thinking=false", options)
+		}
+	})
+
+	for _, choice := range []string{"runtime", "route"} {
+		t.Run(
+			"Should refuse an unstartable chosen "+choice+" without falling back to the source provider",
+			func(t *testing.T) {
+				t.Parallel()
+				h := newDeriveHarness(t)
+				source := h.newDeriveSource(t)
+				setDeriveAgentB(
+					t,
+					h.harness,
+					[]compozyconfig.RoleFallback{
+						{Provider: "codex", Model: "gpt-6-astra", ReasoningEffort: "high", Speed: "normal"},
+						{Provider: "claude", Model: source.Info().Model},
+					},
+				)
+				opts := h.continueOpts(source, "idem_runtime_refused")
+				if choice == "route" {
+					opts.Route = 1
+				} else {
+					opts.Runtime = &DeriveRuntime{
+						Provider:        "codex",
+						Model:           "gpt-6-astra",
+						ReasoningEffort: "high",
+						Speed:           "normal",
+					}
+				}
+				result, err := h.manager.ContinueSession(t.Context(), opts)
+				if err != nil {
+					t.Fatalf("ContinueSession() error = %v", err)
+				}
+				refusal := errors.New("chosen provider cannot start")
+				h.driver.mu.Lock()
+				startsBefore := len(h.driver.startCalls)
+				h.driver.startHook = func(start acp.StartOpts, sequence int) (*fakeProcess, error) {
+					if start.ProviderName == "codex" {
+						return nil, refusal
+					}
+					return newFakeProcess(
+						start.AgentName, start.Command, start.Cwd, fmt.Sprintf("acp-%d", sequence),
+					), nil
+				}
+				h.driver.mu.Unlock()
+				_, err = h.manager.SendPrompt(t.Context(), result.Child.ID, SendPromptOpts{Message: "go"})
+				if !errors.Is(err, refusal) {
+					t.Fatalf("SendPrompt() error = %v, want chosen runtime refusal", err)
+				}
+				h.driver.mu.Lock()
+				starts := append([]acp.StartOpts(nil), h.driver.startCalls[startsBefore:]...)
+				h.driver.mu.Unlock()
+				if len(starts) != 1 || starts[0].ProviderName != "codex" {
+					t.Fatalf("start attempts = %+v, want only the chosen codex runtime", starts)
+				}
+				child, _ := h.manager.Get(result.Child.ID)
+				info := child.Info()
+				if info.RuntimeFailure == "" || info.RuntimeStatus != RuntimeStatusUnbound ||
+					info.RequestedRuntime().Provider != "codex" || info.SelectedRuntime.Provider != "codex" ||
+					info.ACPSessionID != "" {
+					t.Fatalf("child after refusal = %+v, want visible failure and unbound chosen codex", info)
+				}
+				for _, event := range readStoredEvents(t, child) {
+					if event.Type == string(acp.EventTypeUserMessage) {
+						t.Fatal("refused runtime dispatched a user message")
+					}
+				}
+			},
+		)
+	}
 	t.Run("Should record the declared route and bind the first prompt on its command", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)

@@ -18,6 +18,8 @@ import (
 )
 
 func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
+	// Boot is past its discovery-heavy steps: workspace snapshots go back to their normal age bound.
+	defer state.workspaceResolver.ReleaseSnapshots()
 	if state.resourceReconcile != nil {
 		if err := state.resourceReconcile.RunBoot(ctx); err != nil {
 			return fmt.Errorf("daemon: boot resource reconcile: %w", err)
@@ -86,12 +88,18 @@ func startSkillsWatcher(
 	return cancel, done
 }
 
+// workspaceSkillsConfigReader returns skills settings that are reloaded only after their config files change.
+type workspaceSkillsConfigReader interface {
+	SkillsConfig(ws workspacepkg.Workspace, profileName string) (compozyconfig.SkillsConfig, error)
+}
+
 func workspaceSkillWatcherRoots(
 	homePaths compozyconfig.HomePaths,
 	registry workspaceRegistryReader,
 	profiles extensionProfileCatalog,
+	configs workspaceSkillsConfigReader,
 ) func(context.Context) ([]string, error) {
-	if registry == nil {
+	if registry == nil || configs == nil {
 		return nil
 	}
 
@@ -114,8 +122,7 @@ func workspaceSkillWatcherRoots(
 				); err != nil {
 					return nil, err
 				}
-				cfg, err := compozyconfig.LoadForHome(homePaths,
-					compozyconfig.WithWorkspaceRoot(workspace.RootDir), compozyconfig.WithProfile(profileName))
+				skillsConfig, err := configs.SkillsConfig(workspace, profileName)
 				if err != nil {
 					return nil, fmt.Errorf(
 						"daemon: load skill watcher roots for workspace %q profile %q: %w",
@@ -128,7 +135,7 @@ func workspaceSkillWatcherRoots(
 					if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 						continue
 					}
-					for _, skillRoot := range root.SkillsDirs(&cfg.Skills) {
+					for _, skillRoot := range root.SkillsDirs(&skillsConfig) {
 						if _, exists := seen[skillRoot.Dir]; exists {
 							continue
 						}

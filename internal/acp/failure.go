@@ -172,6 +172,45 @@ func requestErrorIndicatesSessionLoss(reqErr *acpsdk.RequestError) bool {
 	}
 }
 
+// IsLoadSessionProviderMismatch reports whether session/load was refused because the stored
+// provider thread belongs to a different provider account or backend than the one the agent
+// process runs under now. codex-acp answers this way after `model_provider` changes:
+// "This chat uses openai, but your current provider is <name>. Switch to openai to continue."
+// The refusal is permanent for the current configuration: the same thread never loads again,
+// so a retry only repeats the failure.
+func IsLoadSessionProviderMismatch(err error) bool {
+	if !errors.Is(err, ErrLoadSessionFailed) {
+		return false
+	}
+	reqErr, ok := errors.AsType[*acpsdk.RequestError](err)
+	if !ok || reqErr == nil {
+		return false
+	}
+	return requestErrorIndicatesProviderMismatch(reqErr)
+}
+
+// LoadSessionRequiresFreshThread reports the classified session/load failures after which the
+// stored provider session id can never be loaded again: the agent has no session/load, the
+// provider no longer knows the id, or the id belongs to another provider account or backend.
+// Only these failures may clear the stored id and fall back to a fresh provider thread with
+// replayed context; every other load failure keeps the id and stays retryable.
+func LoadSessionRequiresFreshThread(err error) bool {
+	return errors.Is(err, ErrAgentDoesNotSupportSession) ||
+		IsLoadSessionResourceMissing(err) ||
+		IsLoadSessionProviderMismatch(err)
+}
+
+// requestErrorIndicatesProviderMismatch is the single matcher for the provider's
+// account/backend mismatch wording. Both phrases must be present so an unrelated error that
+// merely mentions a provider is never classified as permanent.
+func requestErrorIndicatesProviderMismatch(reqErr *acpsdk.RequestError) bool {
+	if reqErr == nil {
+		return false
+	}
+	text := strings.ToLower(strings.TrimSpace(requestErrorDiagnosticText(reqErr)))
+	return strings.Contains(text, "this chat uses ") && strings.Contains(text, "but your current provider is ")
+}
+
 func requestErrorIndicatesPeerDisconnect(reqErr *acpsdk.RequestError) bool {
 	if reqErr == nil {
 		return false

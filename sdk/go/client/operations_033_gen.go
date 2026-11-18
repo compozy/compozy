@@ -4,173 +4,115 @@ package client
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
 
-// StreamLogs Stream runtime logs
-func (c *Client) StreamLogs(ctx context.Context, params StreamLogsParams) (*Stream[LogEventPayload], error) {
-	path := "/api/logs/stream"
+// RevokeAgentHeartbeatScript Revoke a source script approval (operator only)
+func (c *Client) RevokeAgentHeartbeatScript(ctx context.Context, params RevokeAgentHeartbeatScriptParams) error {
+	path := "/api/agents/{name}/heartbeat/scripts/{script}/approve"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	path = strings.ReplaceAll(path, "{script}", url.PathEscape(params.Script))
 	query := url.Values{}
 	if params.WorkspaceID != nil {
 		query.Set("workspace_id", *params.WorkspaceID)
 	}
-	if params.SessionID != nil {
-		query.Set("session_id", *params.SessionID)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.Run != nil {
-		query.Set("run", *params.Run)
-	}
-	if params.Actor != nil {
-		query.Set("actor", *params.Actor)
-	}
-	if params.ActorKind != nil {
-		query.Set("actor_kind", *params.ActorKind)
-	}
-	if params.ActorID != nil {
-		query.Set("actor_id", *params.ActorID)
-	}
-	if params.Provider != nil {
-		query.Set("provider", *params.Provider)
-	}
-	if params.Outcome != nil {
-		query.Set("outcome", *params.Outcome)
-	}
-	if params.Component != nil {
-		query.Set("component", *params.Component)
-	}
-	if params.ErrorOnly != nil {
-		query.Set("error_only", strconv.FormatBool(*params.ErrorOnly))
-	}
-	if params.AfterSeq != nil {
-		query.Set("after_seq", strconv.Itoa(*params.AfterSeq))
-	}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Replay != nil {
-		query.Set("replay", strconv.FormatBool(*params.Replay))
-	}
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	if params.LastEventIDQuery != nil {
-		query.Set("last_event_id", *params.LastEventIDQuery)
-	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	return newStream[LogEventPayload](ctx, c, "GET", path, headers, nil, "streamLogs")
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }
 
-// StreamLoopRunEventsParams carries the path, query, and header parameters.
-type StreamLoopRunEventsParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	RunID         string  `url:"run_id"`
-	AfterSequence *string `url:"after_sequence"`
-	LastEventID   *string `url:"Last-Event-ID"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
+// RevokeAppTokenParams carries the path, query, and header parameters.
+type RevokeAppTokenParams struct {
+	AppTokenID string `url:"app_token_id"`
 }
 
-// StreamLoopRunEventsFrame preserves each response payload; select its variant using the event name or HTTP status.
-type StreamLoopRunEventsFrame struct {
-	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamLoopRunEventsFrame)(nil)
-
-var _ json.Marshaler = StreamLoopRunEventsFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamLoopRunEventsFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamLoopRunEventsFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-// AsLoopGenerationStartedRunEventPayload decodes this payload as LoopGenerationStartedRunEventPayload.
-func (f StreamLoopRunEventsFrame) AsLoopGenerationStartedRunEventPayload() (*LoopGenerationStartedRunEventPayload, error) {
-	var out LoopGenerationStartedRunEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+// RevokeAppToken Revoke an app token and cancel its active streams Experimental: pin the exact SDK version.
+func (c *Client) RevokeAppToken(ctx context.Context, params RevokeAppTokenParams) (*AppTokenRevokeResponse, error) {
+	path := "/api/app-tokens/{app_token_id}"
+	path = strings.ReplaceAll(path, "{app_token_id}", url.PathEscape(params.AppTokenID))
+	var out AppTokenRevokeResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsLoopGateVerdictRunEventPayload decodes this payload as LoopGateVerdictRunEventPayload.
-func (f StreamLoopRunEventsFrame) AsLoopGateVerdictRunEventPayload() (*LoopGateVerdictRunEventPayload, error) {
-	var out LoopGateVerdictRunEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+// RevokeGatewayDeviceParams carries the path, query, and header parameters.
+type RevokeGatewayDeviceParams struct {
+	ID string `url:"id"`
+}
+
+// RevokeGatewayDevice Revoke one paired gateway device and its live streams
+func (c *Client) RevokeGatewayDevice(ctx context.Context, params RevokeGatewayDeviceParams) (*GatewayRevokePayload, error) {
+	path := "/api/gateway/devices/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out GatewayRevokePayload
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsLoopRunEventPayload decodes this payload as LoopRunEventPayload.
-func (f StreamLoopRunEventsFrame) AsLoopRunEventPayload() (*LoopRunEventPayload, error) {
-	var out LoopRunEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+// RevokeToolApprovalGrantParams carries the path, query, and header parameters.
+type RevokeToolApprovalGrantParams struct {
+	ID          string `url:"id"`
+	WorkspaceID string `url:"workspace_id"`
 }
 
-// StreamLoopRunEvents Stream Loop run events
-func (c *Client) StreamLoopRunEvents(ctx context.Context, params StreamLoopRunEventsParams) (*Stream[StreamLoopRunEventsFrame], error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+// RevokeToolApprovalGrant Revoke one remembered native-tool approval decision in one workspace
+func (c *Client) RevokeToolApprovalGrant(ctx context.Context, params RevokeToolApprovalGrantParams) error {
+	path := "/api/tool-approval-grants/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
 	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", *params.AfterSequence)
+	query.Set("workspace_id", params.WorkspaceID)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
 	}
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// RewindSessionConversationParams carries the path, query, and header parameters.
+type RewindSessionConversationParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RewindSessionConversation Rewind a conversation before one durable user message
+func (c *Client) RewindSessionConversation(ctx context.Context, params RewindSessionConversationParams, body SessionConversationRewindRequest) (*SessionConversationRewindResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/rewind"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	return newStream[StreamLoopRunEventsFrame](ctx, c, "GET", path, headers, nil, "streamLoopRunEvents")
+	var out SessionConversationRewindResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
-// StreamProviderUsageParams carries the path, query, and header parameters.
-type StreamProviderUsageParams struct {
+// RollbackAgentHeartbeatParams carries the path, query, and header parameters.
+type RollbackAgentHeartbeatParams struct {
+	Name    string  `url:"name"`
 	Profile *string `url:"profile"`
 }
 
-// StreamProviderUsage Stream provider usage invalidations (experimental) Experimental: pin the exact SDK version.
-func (c *Client) StreamProviderUsage(ctx context.Context, params StreamProviderUsageParams) (*Stream[ProviderUsageStreamEvent], error) {
-	path := "/api/provider-usage/stream"
+// RollbackAgentHeartbeat Rollback HEARTBEAT.md through managed authoring
+func (c *Client) RollbackAgentHeartbeat(ctx context.Context, params RollbackAgentHeartbeatParams, body HeartbeatRollbackByPathRequest) (*HeartbeatMutationResponse, error) {
+	path := "/api/agents/{name}/heartbeat/rollback"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
@@ -178,153 +120,307 @@ func (c *Client) StreamProviderUsage(ctx context.Context, params StreamProviderU
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	return newStream[ProviderUsageStreamEvent](ctx, c, "GET", path, nil, nil, "streamProviderUsage")
-}
-
-// StreamSessionParams carries the path, query, and header parameters.
-type StreamSessionParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	SessionID     string  `url:"session_id"`
-	LastEventID   *string `url:"Last-Event-ID"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Frames        *string `url:"frames"`
-	Epoch         *int64  `url:"epoch"`
-	Generation    *int64  `url:"generation"`
-	Limit         *int    `url:"limit"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// StreamSessionFrame preserves each response payload; select its variant using the event name or HTTP status.
-type StreamSessionFrame struct {
-	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamSessionFrame)(nil)
-
-var _ json.Marshaler = StreamSessionFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamSessionFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamSessionFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-// AsSubagentsSnapshotEvent decodes this payload as SubagentsSnapshotEvent.
-func (f StreamSessionFrame) AsSubagentsSnapshotEvent() (*SubagentsSnapshotEvent, error) {
-	var out SubagentsSnapshotEvent
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+	var out HeartbeatMutationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsSubagentUpdatedEvent decodes this payload as SubagentUpdatedEvent.
-func (f StreamSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEvent, error) {
-	var out SubagentUpdatedEvent
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+// RollbackAgentMemoryParams carries the path, query, and header parameters.
+type RollbackAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// RollbackAgentMemory Restore a memory revision (experimental) Experimental: pin the exact SDK version.
+func (c *Client) RollbackAgentMemory(ctx context.Context, params RollbackAgentMemoryParams, body AgentMemoryRollbackRequest) (*AgentMemoryDocument, error) {
+	path := "/api/agents/{name}/memory/rollback"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentMemoryDocument
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsSessionUsageChangedPayload decodes this payload as SessionUsageChangedPayload.
-func (f StreamSessionFrame) AsSessionUsageChangedPayload() (*SessionUsageChangedPayload, error) {
-	var out SessionUsageChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+// RollbackAgentSoulParams carries the path, query, and header parameters.
+type RollbackAgentSoulParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// RollbackAgentSoul Rollback SOUL.md through managed authoring
+func (c *Client) RollbackAgentSoul(ctx context.Context, params RollbackAgentSoulParams, body AgentSoulRollbackByPathRequest) (*AgentSoulMutationResponse, error) {
+	path := "/api/agents/{name}/soul/rollback"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSoulMutationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsSessionConsumerDegradedPayload decodes this payload as SessionConsumerDegradedPayload.
-func (f StreamSessionFrame) AsSessionConsumerDegradedPayload() (*SessionConsumerDegradedPayload, error) {
-	var out SessionConsumerDegradedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+// RunLoopParams carries the path, query, and header parameters.
+type RunLoopParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Dry         *bool   `url:"dry"`
+	Profile     *string `url:"profile"`
+}
+
+// RunLoop Start or dry-run one Loop
+func (c *Client) RunLoop(ctx context.Context, params RunLoopParams, body RunLoopRequest) (*RunLoopResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/run"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Dry != nil {
+		query.Set("dry", strconv.FormatBool(*params.Dry))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RunLoopResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsSessionEventPayload decodes this payload as SessionEventPayload.
-func (f StreamSessionFrame) AsSessionEventPayload() (*SessionEventPayload, error) {
-	var out SessionEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+// RunWorktreeExitActionParams carries the path, query, and header parameters.
+type RunWorktreeExitActionParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	WorktreeID  string `url:"worktree_id"`
+}
+
+// RunWorktreeExitAction Run a worktree exit action
+func (c *Client) RunWorktreeExitAction(ctx context.Context, params RunWorktreeExitActionParams, body RunWorktreeExitActionRequest) (*WorktreeExitOperationResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/actions"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	var out WorktreeExitOperationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsTranscriptSnapshotPayload decodes this payload as TranscriptSnapshotPayload.
-func (f StreamSessionFrame) AsTranscriptSnapshotPayload() (*TranscriptSnapshotPayload, error) {
-	var out TranscriptSnapshotPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+// SearchAgentMemoryParams carries the path, query, and header parameters.
+type SearchAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// SearchAgentMemory Search agent notes and accessible sessions (experimental) Experimental: pin the exact SDK version.
+func (c *Client) SearchAgentMemory(ctx context.Context, params SearchAgentMemoryParams, body AgentMemorySearchRequest) (*AgentMemorySearchResponse, error) {
+	path := "/api/agents/{name}/memory/search"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentMemorySearchResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsTranscriptDeltaPayload decodes this payload as TranscriptDeltaPayload.
-func (f StreamSessionFrame) AsTranscriptDeltaPayload() (*TranscriptDeltaPayload, error) {
-	var out TranscriptDeltaPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+// SearchFileContentsParams carries the path, query, and header parameters.
+type SearchFileContentsParams struct {
+	WorkspaceID   string    `url:"workspace_id"`
+	WorktreeID    *string   `url:"worktree_id"`
+	Q             string    `url:"q"`
+	Regex         *bool     `url:"regex"`
+	CaseSensitive *bool     `url:"case_sensitive"`
+	WholeWord     *bool     `url:"whole_word"`
+	Include       *[]string `url:"include"`
+	Exclude       *[]string `url:"exclude"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
+// SearchFileContents Search project file contents
+func (c *Client) SearchFileContents(ctx context.Context, params SearchFileContentsParams) (*FileSearchResponse, error) {
+	path := "/api/workspaces/{workspace_id}/files/search"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.WorktreeID != nil {
+		query.Set("worktree_id", *params.WorktreeID)
+	}
+	query.Set("q", params.Q)
+	if params.Regex != nil {
+		query.Set("regex", strconv.FormatBool(*params.Regex))
+	}
+	if params.CaseSensitive != nil {
+		query.Set("case_sensitive", strconv.FormatBool(*params.CaseSensitive))
+	}
+	if params.WholeWord != nil {
+		query.Set("whole_word", strconv.FormatBool(*params.WholeWord))
+	}
+	if params.Include != nil {
+		for _, value := range *params.Include {
+			query.Add("include", value)
+		}
+	}
+	if params.Exclude != nil {
+		for _, value := range *params.Exclude {
+			query.Add("exclude", value)
+		}
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FileSearchResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsGoalSnapshotChangedPayload decodes this payload as GoalSnapshotChangedPayload.
-func (f StreamSessionFrame) AsGoalSnapshotChangedPayload() (*GoalSnapshotChangedPayload, error) {
-	var out GoalSnapshotChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+// SearchGlobalSessionTranscriptParams carries the path, query, and header parameters.
+type SearchGlobalSessionTranscriptParams struct {
+	SessionID   string  `url:"session_id"`
+	Q           string  `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// SearchGlobalSessionTranscript Search retained transcript messages with bounded literal matches for a Global session
+func (c *Client) SearchGlobalSessionTranscript(ctx context.Context, params SearchGlobalSessionTranscriptParams) (*SearchResult, error) {
+	path := "/api/sessions/{session_id}/transcript/search"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	query.Set("q", params.Q)
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SearchResult
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsSessionCommandsChangedPayload decodes this payload as SessionCommandsChangedPayload.
-func (f StreamSessionFrame) AsSessionCommandsChangedPayload() (*SessionCommandsChangedPayload, error) {
-	var out SessionCommandsChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+// SearchSessionFileContentsParams carries the path, query, and header parameters.
+type SearchSessionFileContentsParams struct {
+	WorkspaceID   string    `url:"workspace_id"`
+	SessionID     string    `url:"session_id"`
+	Q             string    `url:"q"`
+	Regex         *bool     `url:"regex"`
+	CaseSensitive *bool     `url:"case_sensitive"`
+	WholeWord     *bool     `url:"whole_word"`
+	Include       *[]string `url:"include"`
+	Exclude       *[]string `url:"exclude"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
 }
 
-// AsErrorPayload decodes this payload as ErrorPayload.
-func (f StreamSessionFrame) AsErrorPayload() (*ErrorPayload, error) {
-	var out ErrorPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamSession Stream raw session events or fenced transcript changes
-func (c *Client) StreamSession(ctx context.Context, params StreamSessionParams) (*Stream[StreamSessionFrame], error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/stream"
+// SearchSessionFileContents Search project file contents
+func (c *Client) SearchSessionFileContents(ctx context.Context, params SearchSessionFileContentsParams) (*FileSearchResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
 	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	query.Set("q", params.Q)
+	if params.Regex != nil {
+		query.Set("regex", strconv.FormatBool(*params.Regex))
 	}
-	if params.Frames != nil {
-		query.Set("frames", *params.Frames)
+	if params.CaseSensitive != nil {
+		query.Set("case_sensitive", strconv.FormatBool(*params.CaseSensitive))
 	}
-	if params.Epoch != nil {
-		query.Set("epoch", strconv.FormatInt(*params.Epoch, 10))
+	if params.WholeWord != nil {
+		query.Set("whole_word", strconv.FormatBool(*params.WholeWord))
 	}
-	if params.Generation != nil {
-		query.Set("generation", strconv.FormatInt(*params.Generation, 10))
+	if params.Include != nil {
+		for _, value := range *params.Include {
+			query.Add("include", value)
+		}
+	}
+	if params.Exclude != nil {
+		for _, value := range *params.Exclude {
+			query.Add("exclude", value)
+		}
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FileSearchResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SearchSessionFilesParams carries the path, query, and header parameters.
+type SearchSessionFilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Q           *string `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// SearchSessionFiles Search files and folders under a session's working directory
+func (c *Client) SearchSessionFiles(ctx context.Context, params SearchSessionFilesParams) (*SessionFilesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
 	}
 	if params.Limit != nil {
 		query.Set("limit", strconv.Itoa(*params.Limit))
@@ -338,113 +434,16 @@ func (c *Client) StreamSession(ctx context.Context, params StreamSessionParams) 
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	return newStream[StreamSessionFrame](ctx, c, "GET", path, headers, nil, "streamSession")
-}
-
-// StreamSessionCatalogParams carries the path, query, and header parameters.
-type StreamSessionCatalogParams struct {
-	WorkspaceID      *string `url:"workspace_id"`
-	AllWorkspaces    *bool   `url:"all_workspaces"`
-	LastEventID      *string `url:"Last-Event-ID"`
-	LastEventIDQuery *string `url:"last_event_id"`
-	Profile          *string `url:"profile"`
-	AllProfiles      *bool   `url:"all_profiles"`
-}
-
-// StreamSessionCatalogFrame preserves each response payload; select its variant using the event name or HTTP status.
-type StreamSessionCatalogFrame struct {
-	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamSessionCatalogFrame)(nil)
-
-var _ json.Marshaler = StreamSessionCatalogFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamSessionCatalogFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamSessionCatalogFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-// AsSessionCatalogEventPayload decodes this payload as SessionCatalogEventPayload.
-func (f StreamSessionCatalogFrame) AsSessionCatalogEventPayload() (*SessionCatalogEventPayload, error) {
-	var out SessionCatalogEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+	var out SessionFilesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsSessionAttentionEventPayload decodes this payload as SessionAttentionEventPayload.
-func (f StreamSessionCatalogFrame) AsSessionAttentionEventPayload() (*SessionAttentionEventPayload, error) {
-	var out SessionAttentionEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsOperatorNotificationEventPayload decodes this payload as OperatorNotificationEventPayload.
-func (f StreamSessionCatalogFrame) AsOperatorNotificationEventPayload() (*OperatorNotificationEventPayload, error) {
-	var out OperatorNotificationEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsAgentInstancePayload decodes this payload as AgentInstancePayload.
-func (f StreamSessionCatalogFrame) AsAgentInstancePayload() (*AgentInstancePayload, error) {
-	var out AgentInstancePayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamSessionCatalog Stream session catalog changes across workspaces
-func (c *Client) StreamSessionCatalog(ctx context.Context, params StreamSessionCatalogParams) (*Stream[StreamSessionCatalogFrame], error) {
-	path := "/api/sessions/catalog-stream"
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	if params.LastEventIDQuery != nil {
-		query.Set("last_event_id", *params.LastEventIDQuery)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[StreamSessionCatalogFrame](ctx, c, "GET", path, headers, nil, "streamSessionCatalog")
-}
-
-// StreamSettingsObservabilityLogTail Stream daemon log output for the observability settings screen
-func (c *Client) StreamSettingsObservabilityLogTail(ctx context.Context) (*Stream[SettingsLogTailEventPayload], error) {
-	path := "/api/settings/observability/log-tail"
-	return newStream[SettingsLogTailEventPayload](ctx, c, "GET", path, nil, nil, "streamSettingsObservabilityLogTail")
-}
-
-// StreamTaskParams carries the path, query, and header parameters.
-type StreamTaskParams struct {
-	ID            string  `url:"id"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
+// SearchSessionToolsParams carries the path, query, and header parameters.
+type SearchSessionToolsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
 }

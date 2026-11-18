@@ -156,3 +156,44 @@ and modifier-click splitting with both sessions visible; no timeouts were increa
 
 Focused verification: E2E-004 completed the full drawer, parent return and
 modifier-click journey on the production bundle (2026-10-29).
+
+QA impact 2026-11-14 (subagent row menu): subagent rows in the sessions rail now carry the row menu.
+Right-click or Shift+F10 opens `Copy ▸` (`Copy subagent ID`, `Copy title`), `Stop subagent` on a live
+delegated row, and `Delete subagent` on a delegated row; a provider-native row offers Copy only, and a
+settled row offers no Stop. Delete asks for confirmation ("Delete subagent", naming the title and the
+permanent loss of the subagent and its session transcript/history), answers the delete route in the
+parent's profile, and the rail drops the row and its branch entry; a failure keeps the dialog open with
+the reason and the row in place. Left click still opens the child. Automated owners: the `SessionList
+subagents` cases in `session-list.test.tsx` (menu shape, confirmation delete, stop), the
+`SubagentDeleteDialog` cases in `subagent-components.test.tsx`, the `deleteSubagent` adapter case, and
+the `subagent_removed` stream case in `use-session-live-tail.test.tsx`. Live walk pending; verdict
+unchanged.
+
+Delete drawer follow-up: open a delegated subagent in the drawer and delete it from the rail. On
+success the matching drawer closes. If another subagent is selected before DELETE answers, that
+selection remains open. Main CI owns release-mode execution.
+
+Follow-up regression walk (#1741): inspect a delegated row, then delete it through the CLI or a
+second window. The selected drawer closes when the complete roster removes that ID, while incomplete
+roster loading keeps inspection open. Change urgency while paging a branch: each ID appears once and
+the remaining count reflects unique rows. Cancel a subagent while disconnecting the caller; it still
+settles. If child deletion succeeds but roster removal fails, the retained row is terminal and can be
+deleted again. E2E-009 captures the drawer state after remote removal in CI; manual walk pending.
+
+Selection confirmation (#1741): after inspecting A and completing its cold roster fetch, select a new
+B under the same parent while the next fetch is held. B stays open until a read for that selection
+confirms its absence. A live roster test keeps its stream observer mounted across stale and removal
+updates; the paged list cannot decide that removal. If roster deletion reaches its deadline after
+child removal, the retained row still settles under a fresh bounded recovery lifetime and remains
+retryable. UT-W16 and `TestSubagentDelete` own these regressions; final-head CI verification is pending.
+
+Reconnect confirmation (#1741): keep a cached empty roster across a stream restart or disconnect.
+Inspection stays open until the new subscription snapshot or a fresh complete list confirms absence.
+A cached continuation must not cancel that confirmation refetch; the subsequent page walk uses its
+new cursor and cannot retain a deleted first-page row. A mid-prompt control poll also waits for its
+current read before replacing the roster with an older cached answer. Disable and re-enable polling
+while that read is held: its aborted response cannot confirm the next activation, which waits for its
+own read. Open the same stopped session in two windows while its roster read is held, then close
+or disable one window: the remaining window receives a replacement read and hydrates its saved child
+states without polling or refocusing. The existing roster, live-tail,
+subagent-wiring and roster-control-poll suites own these regressions.

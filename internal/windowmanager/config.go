@@ -21,7 +21,6 @@ type DragAwayPolicy string
 type DesktopTransition string
 
 const (
-	NewWindowFloating          NewWindowPolicy     = "floating"
 	NewWindowInsert            NewWindowPolicy     = "beside_focus"
 	NewWindowTab               NewWindowPolicy     = "tab"
 	SmallViewportStack         SmallViewportPolicy = "stack"
@@ -38,8 +37,6 @@ const (
 	dragModifierAlt                                = "alt"
 	dragModifierShift                              = "shift"
 	configValueNone                                = "none"
-	bindingReserved                                = "reserved"
-	bindingZoom                                    = "zoom"
 )
 
 // GapsConfig defines the inner and outer layout gaps in CSS pixels.
@@ -72,17 +69,12 @@ type Config struct {
 	FocusPolicy         FocusPolicy                `json:"focus_policy"`
 	FocusWrap           bool                       `json:"focus_wrap"`
 	FocusFollowsPointer bool                       `json:"focus_follows_pointer"`
-	RaiseOnFocus        bool                       `json:"raise_on_focus"`
-	DragAwayPolicy      DragAwayPolicy             `json:"drag_away_policy"`
-	GroupMoveModifier   string                     `json:"group_move_modifier"`
 	SwapModifier        string                     `json:"swap_modifier"`
 	HistoryLimit        int                        `json:"history_limit"`
 	NavStackLimit       int                        `json:"nav_stack_limit"`
 	ClosedEntryLimit    int                        `json:"closed_entry_limit"`
 	DesktopTransition   DesktopTransition          `json:"desktop_transition"`
 	Gaps                GapsConfig                 `json:"gaps"`
-	Snap                SnapConfig                 `json:"snap"`
-	Bindings            BindingsConfig             `json:"bindings"`
 	Shortcuts           map[string]ShortcutBinding `json:"shortcuts,omitempty"`
 }
 
@@ -113,23 +105,13 @@ func DefaultConfig() Config {
 		NewWindowPolicy:     NewWindowTab,
 		SmallViewportPolicy: SmallViewportStack,
 		FocusPolicy:         FocusClickDirectional,
-		RaiseOnFocus:        true,
-		DragAwayPolicy:      DragAwayWindow,
-		GroupMoveModifier:   dragModifierAlt,
 		SwapModifier:        dragModifierShift,
 		HistoryLimit:        50,
 		NavStackLimit:       50,
 		ClosedEntryLimit:    20,
 		DesktopTransition:   DesktopTransitionSlide,
 		Gaps:                GapsConfig{},
-		Snap: SnapConfig{
-			EdgeBand:     32,
-			CornerReach:  150,
-			ExitSlack:    16,
-			RepeatRatios: []float64{0.5, 0.666667, 0.333333},
-		},
-		Bindings:  BindingsConfig{TopCenter: bindingZoom, BottomCenter: bindingZoom},
-		Shortcuts: map[string]ShortcutBinding{},
+		Shortcuts:           map[string]ShortcutBinding{},
 	}
 }
 
@@ -145,7 +127,7 @@ func validateConfig(config Config) error {
 
 func validateBehaviorConfig(config Config) error {
 	switch config.NewWindowPolicy {
-	case NewWindowFloating, NewWindowInsert, NewWindowTab:
+	case NewWindowInsert, NewWindowTab:
 	default:
 		return fmt.Errorf("new window policy %q: %w", config.NewWindowPolicy, ErrInvalidCommand)
 	}
@@ -154,9 +136,6 @@ func validateBehaviorConfig(config Config) error {
 	}
 	if config.FocusPolicy != FocusClickDirectional && config.FocusPolicy != FocusDirectional {
 		return fmt.Errorf("focus policy %q: %w", config.FocusPolicy, ErrInvalidCommand)
-	}
-	if config.DragAwayPolicy != DragAwayWindow && config.DragAwayPolicy != DragAwayGroup {
-		return fmt.Errorf("drag away policy %q: %w", config.DragAwayPolicy, ErrInvalidCommand)
 	}
 	if config.HistoryLimit <= 0 || config.HistoryLimit > 500 {
 		return fmt.Errorf("history limit %d must be between 1 and 500: %w", config.HistoryLimit, ErrInvalidCommand)
@@ -180,9 +159,6 @@ func validateBehaviorConfig(config Config) error {
 	if config.DesktopTransition != DesktopTransitionSlide && config.DesktopTransition != DesktopTransitionCrossfade &&
 		config.DesktopTransition != DesktopTransitionInstant {
 		return fmt.Errorf("desktop transition %q: %w", config.DesktopTransition, ErrInvalidCommand)
-	}
-	if err := validateDragModifier("group move modifier", config.GroupMoveModifier); err != nil {
-		return err
 	}
 	return validateDragModifier("swap modifier", config.SwapModifier)
 }
@@ -209,36 +185,11 @@ func validateGeometryConfig(config Config) error {
 			return fmt.Errorf("gaps must be finite and non-negative: %w", ErrInvalidCommand)
 		}
 	}
-	if !finite(config.Snap.EdgeBand) || config.Snap.EdgeBand <= 0 || !finite(config.Snap.CornerReach) ||
-		config.Snap.CornerReach <= 0 ||
-		!finite(config.Snap.ExitSlack) ||
-		config.Snap.ExitSlack < 0 {
-		return fmt.Errorf("snap thresholds are invalid: %w", ErrInvalidCommand)
-	}
-	if len(config.Snap.RepeatRatios) == 0 {
-		return fmt.Errorf("repeat ratios are required: %w", ErrInvalidCommand)
-	}
-	seen := make(map[float64]struct{}, len(config.Snap.RepeatRatios))
-	for _, ratio := range config.Snap.RepeatRatios {
-		if !finite(ratio) || ratio < 0.1 || ratio > 0.9 {
-			return fmt.Errorf("repeat ratio %v is invalid: %w", ratio, ErrInvalidCommand)
-		}
-		if _, exists := seen[ratio]; exists {
-			return fmt.Errorf("repeat ratio %v is duplicated: %w", ratio, ErrInvalidCommand)
-		}
-		seen[ratio] = struct{}{}
-	}
+
 	return nil
 }
 
 func validateBindingsConfig(config Config) error {
-	for _, binding := range []string{config.Bindings.TopCenter, config.Bindings.BottomCenter} {
-		switch binding {
-		case configValueNone, bindingReserved, bindingZoom:
-		default:
-			return fmt.Errorf("binding %q: %w", binding, ErrInvalidCommand)
-		}
-	}
 	_, err := CanonicalStoredShortcutsV2(config.Shortcuts)
 	return err
 }
@@ -273,15 +224,7 @@ func effectiveConfig(defaults Config, overrides WorkspaceConfig) (Config, error)
 	if overrides.FocusFollowsPointer != nil {
 		result.FocusFollowsPointer = *overrides.FocusFollowsPointer
 	}
-	if overrides.RaiseOnFocus != nil {
-		result.RaiseOnFocus = *overrides.RaiseOnFocus
-	}
-	if overrides.DragAwayPolicy != nil {
-		result.DragAwayPolicy = *overrides.DragAwayPolicy
-	}
-	if overrides.GroupMoveModifier != nil {
-		result.GroupMoveModifier = *overrides.GroupMoveModifier
-	}
+
 	if overrides.SwapModifier != nil {
 		result.SwapModifier = *overrides.SwapModifier
 	}
@@ -300,12 +243,7 @@ func effectiveConfig(defaults Config, overrides WorkspaceConfig) (Config, error)
 	if overrides.Gaps != nil {
 		result.Gaps = *overrides.Gaps
 	}
-	if overrides.Snap != nil {
-		result.Snap = cloneSnapConfig(*overrides.Snap)
-	}
-	if overrides.Bindings != nil {
-		result.Bindings = *overrides.Bindings
-	}
+
 	if overrides.Shortcuts != nil {
 		result.Shortcuts = CloneShortcutMap(overrides.Shortcuts)
 	}

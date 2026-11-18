@@ -13,6 +13,7 @@ import (
 
 // MarketplaceReadScope selects the installed-state projection for Marketplace reads.
 type MarketplaceReadScope struct {
+	Category    string
 	Scope       contract.SettingsLayeredScopeKind
 	WorkspaceID string
 	Profile     string
@@ -56,6 +57,9 @@ func (c *daemonClient) SearchMarketplace(
 	}
 	if trimmed := strings.TrimSpace(cursor); trimmed != "" {
 		values.Set("cursor", trimmed)
+	}
+	if scope.Category != "" {
+		values.Set("category", scope.Category)
 	}
 	var response MarketplaceListRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/marketplace", values, nil, &response); err != nil {

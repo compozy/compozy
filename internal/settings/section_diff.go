@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"maps"
 	"reflect"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -77,6 +78,48 @@ func diffObservabilitySettings(
 	}
 	if current.Transcripts.MaxBytesPerSession != desired.Transcripts.MaxBytesPerSession {
 		changed = append(changed, "observability.transcripts.max_bytes_per_session")
+	}
+	return changed
+}
+
+// diffObservabilityOTelSettings lists [observability.otel] keys, which the Settings form does not edit.
+func diffObservabilityOTelSettings(
+	current compozyconfig.ObservabilityOTelConfig,
+	desired compozyconfig.ObservabilityOTelConfig,
+) []string {
+	var changed []string
+	if current.Enabled != desired.Enabled {
+		changed = append(changed, "observability.otel.enabled")
+	}
+	if current.Protocol != desired.Protocol {
+		changed = append(changed, "observability.otel.protocol")
+	}
+	if current.Endpoint != desired.Endpoint {
+		changed = append(changed, "observability.otel.endpoint")
+	}
+	if !maps.Equal(current.Headers, desired.Headers) {
+		changed = append(changed, "observability.otel.headers")
+	}
+	if current.Traces != desired.Traces {
+		changed = append(changed, "observability.otel.traces")
+	}
+	if current.Metrics != desired.Metrics {
+		changed = append(changed, "observability.otel.metrics")
+	}
+	if current.SampleRatio != desired.SampleRatio {
+		changed = append(changed, "observability.otel.sample_ratio")
+	}
+	if current.MetricInterval != desired.MetricInterval {
+		changed = append(changed, "observability.otel.metric_interval")
+	}
+	if current.ServiceName != desired.ServiceName {
+		changed = append(changed, "observability.otel.service_name")
+	}
+	if current.SlowDBWriteMS != desired.SlowDBWriteMS {
+		changed = append(changed, "observability.otel.slow_db_write_ms")
+	}
+	if current.ForwardToProviders != desired.ForwardToProviders {
+		changed = append(changed, "observability.otel.forward_to_providers")
 	}
 	return changed
 }

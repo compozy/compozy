@@ -6,13 +6,13 @@ persona: Dora
 journey: J-22
 expected: In Settings → Providers, opening a provider presents a centered modal (width 720px token) on the shared entity-dialog shell — gear icon well, "Provider" eyebrow, the provider display name as title with its status and Default pills under it, Overview | Configure lane tabs mapping to inspect/edit, and a ruled footer with one primary action (Edit settings on inspect, Save provider / Create provider while editing). Overview opens on a status summary (state, sign-in, default model, and the next step when the provider is not ready) with the raw configuration in a closed "Technical details" fold. The inspect footer offers "Delete provider" / "Reset to default" only for providers that can be removed. Editing adds a Simple/Advanced toolbar (the config-source badge shows only in Advanced): Simple carries provider basics and auth ownership, Advanced appends runtime and models (harness, runtime provider, transport, base URL, default model, curated models, env and home policy). The provider name renders as locked identity on edit, never a disabled input. Clicking the overlay or pressing Esc dismisses it; Configure seeds the edit draft and Overview returns to inspect without saving.
 entry_points: web Settings window → Providers → row/card click
-qa_status: skipped
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: web/src/systems/settings/components/provider-detail-dialog.tsx;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-10-02-untested.md
+last_report: docs/qa/reports/2026-11-07-provider-enable-toggle.md
 overlaps:
 ---
 
@@ -58,3 +58,8 @@ the request must explicitly clear the current method rather than preserve it.
 
 Validation: covered by the existing provider-page hook suite; rendered application
 walk not run in the overloaded-host repair scope.
+
+QA impact 2026-11-07 (issue #1326, provider enable toggle): The provider detail dialog gains the Enabled switch. The default provider's switch is locked with the hint to change `defaults.provider` first; a 422 `provider_default_disable_rejected` rolls the switch back with a toast. Full edits (PUT) never carry `enabled` and keep it. Status reset to
+`untested`; `RT-provider-enable-toggle` and the spec task_07 own the walk.
+
+QA 2026-11-07 (issue #1326): walked in an isolated lab — see `docs/qa/reports/2026-11-07-provider-enable-toggle.md`.

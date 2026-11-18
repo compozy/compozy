@@ -25,7 +25,14 @@ type publicationSources struct {
 	Entries         []publicationEntry `json:"entries"`
 }
 
+type publicationCuration struct {
+	Category   string   `json:"category"`
+	Featured   bool     `json:"featured"`
+	Supersedes []string `json:"supersedes,omitempty"`
+}
+
 type publicationEntry struct {
+	XCompozy          *publicationCuration     `json:"x-compozy,omitempty"`
 	MinCompozyVersion string                   `json:"-"`
 	EntryID           string                   `json:"entry_id"`
 	Name              string                   `json:"name"`

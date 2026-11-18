@@ -11,6 +11,22 @@ const MAX_BACKOFF_MS = 8_000;
 const BASE_BACKOFF_MS = 500;
 const MAX_BACKOFF_EXPONENT = 4;
 
+/**
+ * How long one attempt may take to reach `ATTACHED`, from minting its pass.
+ *
+ * The daemon answers in milliseconds, so this only fires for a stall it never
+ * sees: a socket that stays in `CONNECTING`, or opens and then stays silent.
+ * Neither ever closes on its own, so without a deadline the pane would wait
+ * forever.
+ */
+export const TERMINAL_ATTACH_DEADLINE_MS = 10_000;
+
+/**
+ * Stalled attempts in a row before the client stops retrying and asks the
+ * person to reconnect, instead of looking like it is still making progress.
+ */
+export const TERMINAL_MAX_STALLED_ATTACHES = 3;
+
 /** Cancels a scheduled run. */
 export type CancelScheduled = () => void;
 export type ScheduleFn = (run: () => void, delayMs: number) => CancelScheduled;

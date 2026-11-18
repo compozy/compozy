@@ -1,0 +1,2 @@
+prompt POST 200 00-15d3048915ff56bdc6413fc4340c28dd-699f122be04cf860-00 jaeger: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":404,"msg":"trace not found"}]}
+

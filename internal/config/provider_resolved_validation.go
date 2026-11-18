@@ -7,6 +7,12 @@ import (
 )
 
 func validateResolvedProvider(name string, provider ProviderConfig) error {
+	if err := ValidateAutoCompactWindow(
+		provider.AutoCompactWindow,
+		"providers."+name+".auto_compact_window",
+	); err != nil {
+		return err
+	}
 	if IsUnrestrictedACPMode(provider.RuntimeProviderName(name), strings.TrimSpace(provider.ReviewerMode)) {
 		return fmt.Errorf("providers.%s.reviewer_mode cannot select unrestricted mode %q", name, provider.ReviewerMode)
 	}
@@ -48,6 +54,9 @@ func validateResolvedProvider(name string, provider ProviderConfig) error {
 		}
 	}
 
+	if err := rejectConfiguredMCPReferences(provider.MCPServers); err != nil {
+		return err
+	}
 	for i, server := range provider.MCPServers {
 		if err := server.Validate(fmt.Sprintf("providers.%s.mcp_servers[%d]", name, i)); err != nil {
 			return err
@@ -103,6 +112,9 @@ func builtinNativeAuthProvider(name string) bool {
 }
 
 func mergeMCPServerInto(merged *MCPServer, override MCPServer) {
+	if override.DefinitionSource != "" {
+		merged.DefinitionSource = override.DefinitionSource
+	}
 	if strings.TrimSpace(override.Name) != "" {
 		merged.Name = override.Name
 	}
@@ -188,6 +200,9 @@ func validateSessionMCPTransport(provider ProviderConfig, path string) error {
 // validateProviderLaunchPolicies checks the environment, home, no-auth, and
 // session MCP delivery policies that shape a provider launch.
 func validateProviderLaunchPolicies(name string, provider ProviderConfig) error {
+	if err := validateRuntimeMCP(name, provider); err != nil {
+		return err
+	}
 	if err := provider.EffectiveEnvPolicy().Validate(fmt.Sprintf("providers.%s.env_policy", name)); err != nil {
 		return err
 	}

@@ -307,7 +307,7 @@ func installExtensionOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.InstallExtensionRequest{},
 		Responses: []ResponseSpec{
-			{Status: 201, Description: specCreatedDescription, Body: contract.ExtensionResponse{}},
+			{Status: 201, Description: specCreatedDescription, Body: contract.InstallExtensionResponse{}},
 			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
 			{
 				Status:      409,

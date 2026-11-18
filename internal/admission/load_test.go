@@ -210,14 +210,14 @@ func TestGateBootRecovery(t *testing.T) {
 		t.Parallel()
 		gate := &Gate{}
 		recovery := gate.BeginBoot(t.Context())
-		if err := gate.Check(t.Context()); !errors.Is(err, ErrDraining) {
+		if err := gate.Check(t.Context()); !errors.Is(err, ErrStarting) {
 			t.Fatalf("external admission during boot = %v", err)
 		}
 		if err := gate.Check(recovery); err != nil {
 			t.Fatalf("recovery admission = %v", err)
 		}
 		gate.Undrain()
-		if err := gate.Check(t.Context()); !errors.Is(err, ErrDraining) {
+		if err := gate.Check(t.Context()); !errors.Is(err, ErrStarting) {
 			t.Fatalf("public undrain bypassed boot recovery: %v", err)
 		}
 		gate.FinishBoot()

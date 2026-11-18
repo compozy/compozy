@@ -39,8 +39,10 @@ type TarGzipStats struct {
 
 // TarLimits bounds raw TAR bytes and entries; nonpositive values disable each limit.
 type TarLimits struct {
-	MaxBytes     int64
-	MaxFileCount int
+	// MaterializeSymlinks copies only targets confined to the archived root.
+	MaterializeSymlinks bool
+	MaxBytes            int64
+	MaxFileCount        int
 }
 
 // TarStats reports raw TAR bytes and counted entries, including partial writes.
@@ -88,6 +90,9 @@ func WriteTarDirectory(
 ) (stats TarStats, err error) {
 	if ctx == nil || destination == nil {
 		return stats, errors.New("fileutil: tar context and destination are required")
+	}
+	if limits.MaterializeSymlinks {
+		return writeMaterializedTar(ctx, destination, root, excludeTopLevel, limits)
 	}
 	bounded := newArchiveLimitWriter(destination, limits.MaxBytes, ErrTarSizeLimit)
 	tarWriter := tar.NewWriter(bounded)

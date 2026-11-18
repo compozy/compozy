@@ -233,7 +233,10 @@ export {
 } from "./lib/restart-presentation";
 // Components
 export {
-  MCPAuthorizeDialog,
+  MCPAllowPanel,
+  MCPAnchoredPanel,
+  MCPIssuePanel,
+  MCPSignInPopover,
   AttentionSystemStateChip,
   attentionSystemStateNote,
   MCPSelectionStrip,
@@ -242,11 +245,16 @@ export {
   MCPOverrideEditor,
   MCPServersTable,
   MCPServersTableSkeleton,
+  MCPServersManagementBody,
+  MCPServersManagementDialogs,
+  MCPServersByRuntimeView,
+  SettingsPageRestartNotice,
   mcpServerRowTestId,
   isExtensionOwnedMCPServer,
   mcpAllocatedRuntimeName,
   mcpOwnerExtensionName,
   mcpServerProvenanceLine,
+  DisabledProvidersGroup,
   ProviderCard,
   ProviderCardGrid,
   ProviderEditForm,
@@ -315,7 +323,11 @@ export type {
   SettingsMarketplaceCatalogSectionProps,
   SettingsMarketplaceSourcesSectionProps,
 } from "./components";
-export type { MCPOverrideEditorProps, MCPServerEditorProps } from "./components";
+export type {
+  MCPOverrideEditorProps,
+  MCPServerEditorProps,
+  MCPServersByRuntimeViewProps,
+} from "./components";
 export { deriveProviderStateLabel, getProviderStateView } from "./lib/provider-state";
 export type { ProviderStateLabel, ProviderStateView } from "./lib/provider-state";
 export { settingsProviderToOption } from "./lib/provider-runtime-option";
@@ -357,7 +369,10 @@ export {
   useSettingsProvider,
   useSettingsProviders,
 } from "./hooks/use-settings-collections";
-
+export { isMCPApprovalWaiting } from "./lib/mcp-runtime-view-model";
+export { mcpAllowPanelLaunch } from "./lib/mcp-allow-launch";
+export { mcpPanelAnchor, type MCPPanelAnchor } from "./lib/mcp-panel-anchor";
+export { useAllowMCPServer } from "./hooks/use-mcp-runtime-mutations";
 // Hooks -- mutations
 export {
   useBeginMCPAuth,
@@ -439,7 +454,11 @@ export type { RolesRuntimeOptions } from "./hooks/use-roles-runtime-options";
 
 export { useMCPEditor } from "./hooks/use-mcp-editor";
 export { useMCPOverrideEditor } from "./hooks/use-mcp-override-editor";
-export { useSettingsMCPPage } from "./hooks/use-settings-mcp-page";
+export {
+  useMCPServerManagement,
+  useSettingsMCPPage,
+  type MCPServerManagement,
+} from "./hooks/use-settings-mcp-page";
 export { mcpDefinitionKey } from "./lib/mcp-management-target";
 export type {
   MCPOverrideDraft,

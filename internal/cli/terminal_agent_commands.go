@@ -32,7 +32,7 @@ func terminalAgentClientAndWorkspace(
 }
 
 func newTerminalExecCommand(deps commandDeps) *cobra.Command {
-	var workspace, cwd, yield, grep string
+	var workspace, worktree, cwd, yield, grep string
 	var env []string
 	var visible bool
 	var tail int
@@ -56,7 +56,8 @@ func newTerminalExecCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			result, err := client.ExecTerminal(cmd.Context(), workspaceID, TerminalExecRequest{
-				Command: args[0], Args: args[1:], Cwd: cwd, Env: environment, YieldMs: yieldMS, Visible: visible,
+				Worktree: strings.TrimSpace(worktree), Command: args[0], Args: args[1:], Cwd: cwd,
+				Env: environment, YieldMs: yieldMS, Visible: visible,
 				Output: terminalpkg.OutputShape{Grep: grep},
 			})
 			if err != nil {
@@ -71,6 +72,7 @@ func newTerminalExecCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addTerminalWorkspaceFlag(command, &workspace)
+	command.Flags().StringVar(&worktree, "worktree", "", "Managed worktree ID or name in this workspace")
 	command.Flags().StringVar(&cwd, "cwd", "", "Working directory under the workspace")
 	command.Flags().StringVar(&yield, "yield", "10s", "Return control while a longer command continues")
 	command.Flags().StringVar(&grep, "grep", "", "Keep matching output lines")

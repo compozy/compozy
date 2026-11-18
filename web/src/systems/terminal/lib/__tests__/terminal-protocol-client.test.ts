@@ -1,4 +1,7 @@
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createDeferred, createEventRecorder } from "@/test/event-recorder";
 
 import { TerminalProtocolClient } from "../terminal-protocol-client";
 import { TERMINAL_CLIENT_OP, TERMINAL_MAX_INPUT_BYTES, TERMINAL_SERVER_OP } from "../terminal-wire";
@@ -32,6 +35,7 @@ afterEach(() => {
   activeClients.clear();
   restoreFetch?.();
   restoreFetch = null;
+  vi.useRealTimers();
 });
 
 function buildClient(
@@ -40,24 +44,30 @@ function buildClient(
     autoParse?: boolean;
     screen?: () => TerminalScreenFixture;
     deferScreen?: boolean;
+    deferTicket?: boolean;
     ticketResponse?: () => { body: unknown; status: number };
+    attachDeadline?: (run: () => void, delayMs: number) => () => void;
   } = {}
 ) {
   const stub = stubTerminalFetch({
     screen: options.screen,
     deferScreen: options.deferScreen,
+    deferTicket: options.deferTicket,
     ...(options.ticketResponse ? { ticketResponse: options.ticketResponse } : {}),
   });
   restoreFetch = stub.restore;
   const sockets = createFakeSocketFactory();
   const sink = createFakeSink({ autoParse: options.autoParse });
   const statuses: string[] = [];
-  const inputEnabled: boolean[] = [];
+  const closed = createDeferred<void>();
+  const inputEnabledEvents = createEventRecorder<boolean>();
+  const inputEnabled = inputEnabledEvents.events;
   const presence: number[] = [];
   const redactedInputs: unknown[] = [];
   const gapsCleared: number[] = [];
   const exits: unknown[] = [];
-  const streamErrors: unknown[] = [];
+  const streamErrorsEvents = createEventRecorder<unknown>();
+  const streamErrors = streamErrorsEvents.events;
   const clientErrors: Error[] = [];
   const client = new TerminalProtocolClient({
     workspaceId: "ws-atlas",
@@ -71,14 +81,18 @@ function buildClient(
       const timer = setTimeout(run, 0);
       return () => clearTimeout(timer);
     },
+    ...(options.attachDeadline ? { attachDeadline: options.attachDeadline } : {}),
     handlers: {
-      onStatus: status => statuses.push(status),
-      onInputEnabledChange: enabled => inputEnabled.push(enabled),
+      onStatus: status => {
+        statuses.push(status);
+        if (status === "closed") closed.resolve();
+      },
+      onInputEnabledChange: enabled => inputEnabledEvents.record(enabled),
       onPresence: frame => presence.push(frame.viewers),
       onRedactedInput: frame => redactedInputs.push(frame),
       onGapCleared: () => gapsCleared.push(1),
       onExit: frame => exits.push(frame),
-      onStreamError: error => streamErrors.push(error),
+      onStreamError: error => streamErrorsEvents.record(error),
       onClientError: error => clientErrors.push(error),
     },
   });
@@ -88,12 +102,15 @@ function buildClient(
     sockets,
     sink,
     statuses,
+    closed: closed.promise,
     inputEnabled,
+    inputEnabledEvents,
     presence,
     redactedInputs,
     gapsCleared,
     exits,
     streamErrors,
+    streamErrorsEvents,
     clientErrors,
     calls: stub.calls,
     fetchStub: stub,
@@ -105,6 +122,27 @@ const GAP_FRAME = serverControlFrame(TERMINAL_SERVER_OP.gap, {
   to_seq: "49252",
   dropped_bytes: 49_152,
 });
+
+/** Attach deadlines the test fires by hand, instead of waiting ten seconds. */
+function manualAttachDeadlines() {
+  const armed: Array<{ run: () => void; delayMs: number; cancelled: boolean }> = [];
+  return {
+    armed,
+    schedule: (run: () => void, delayMs: number) => {
+      const entry = { run, delayMs, cancelled: false };
+      armed.push(entry);
+      return () => {
+        entry.cancelled = true;
+      };
+    },
+    /** Lets the current attempt's deadline pass. */
+    expire: () => {
+      const entry = armed.at(-1);
+      if (!entry || entry.cancelled) throw new Error("no live attach deadline");
+      entry.run();
+    },
+  };
+}
 
 function sentOpcodes(socket: FakeTerminalSocket): number[] {
   return socket.sent.map(frame => frame[0]);
@@ -122,13 +160,15 @@ describe("TerminalProtocolClient", () => {
   it("Should mint a pass, attach, and render output", async () => {
     const { client, sockets, sink, calls } = buildClient({});
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
 
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
     socket.deliver(serverOutputFrame("0", "bun run dev\r\n"));
-    await vi.waitFor(() => expect(sink.parsed).toContain("bun run dev\r\n"));
+    await sink.waitForParse(1);
+    expect(sink.parsed).toContain("bun run dev\r\n");
 
     expect(calls.filter(url => url.includes("/attach-ticket"))).toHaveLength(1);
     expect(socket.path).toContain("ticket=tkt-1");
@@ -142,12 +182,14 @@ describe("TerminalProtocolClient", () => {
   it("Should mint a fresh pass for every reconnect attempt", async () => {
     const { client, sockets, calls } = buildClient({});
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     sockets.last().open();
     sockets.last().deliver(attachedFrame());
 
     sockets.last().drop();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
 
     const ticketCalls = calls.filter(url => url.includes("/attach-ticket"));
     expect(ticketCalls).toHaveLength(2);
@@ -158,10 +200,115 @@ describe("TerminalProtocolClient", () => {
     client.stop();
   });
 
+  it("Should retry an attempt that never reaches ATTACHED instead of waiting forever", async () => {
+    // #1607: a socket stuck in CONNECTING fires neither open nor close.
+    const deadlines = manualAttachDeadlines();
+    const { client, sockets, statuses, calls, streamErrors } = buildClient({
+      attachDeadline: deadlines.schedule,
+    });
+    client.start();
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
+    expect(deadlines.armed[0].delayMs).toBeGreaterThan(0);
+
+    deadlines.expire();
+
+    expect(sockets.sockets[0].closed).toBe(true);
+    expect(statuses.at(-1)).toBe("reconnecting");
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
+    // The stalled pass is never reused: the retry mints its own.
+    expect(calls.filter(url => url.includes("/attach-ticket"))).toHaveLength(2);
+    expect(sockets.sockets[1].path).toContain("ticket=tkt-2");
+
+    sockets.last().open();
+    sockets.last().deliver(attachedFrame());
+    expect(statuses.at(-1)).toBe("connected");
+    // Attached in time: this attempt's deadline can no longer fire.
+    expect(deadlines.armed.at(-1)?.cancelled).toBe(true);
+    expect(streamErrors).toEqual([]);
+    client.stop();
+  });
+
+  it("Should cancel a mint that outlives its deadline and ignore its late pass", async () => {
+    const deadlines = manualAttachDeadlines();
+    const { client, sockets, statuses, fetchStub } = buildClient({
+      attachDeadline: deadlines.schedule,
+      deferTicket: true,
+    });
+    client.start();
+    await fetchStub.waitForTicket(1);
+    expect(fetchStub.heldTickets()).toHaveLength(1);
+
+    deadlines.expire();
+
+    expect(fetchStub.heldTickets()[0].aborted).toBe(true);
+    expect(statuses.at(-1)).toBe("reconnecting");
+    await fetchStub.waitForTicket(2);
+    expect(fetchStub.heldTickets()).toHaveLength(2);
+    expect(fetchStub.heldTickets()[1].aborted).toBe(false);
+
+    // The abandoned mint answers anyway: its socket is closed, never adopted.
+    fetchStub.resolveTicket(0, "tkt-late");
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
+    expect(sockets.sockets[0].path).toContain("ticket=tkt-late");
+    expect(sockets.sockets[0].closed).toBe(true);
+
+    fetchStub.resolveTicket(1, "tkt-retry");
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
+    const retry = sockets.last();
+    expect(retry.path).toContain("ticket=tkt-retry");
+    retry.open();
+    retry.deliver(attachedFrame());
+    expect(retry.closed).toBe(false);
+    expect(statuses.at(-1)).toBe("connected");
+    client.stop();
+  });
+
+  it("Should state a retryable failure after repeated stalled attempts", async () => {
+    const deadlines = manualAttachDeadlines();
+    const { client, sockets, statuses, streamErrors } = buildClient({
+      attachDeadline: deadlines.schedule,
+    });
+    client.start();
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
+    // Never opens.
+    deadlines.expire();
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
+    // Opens, then stays silent: no ATTACHED either.
+    sockets.last().open();
+    deadlines.expire();
+    await sockets.waitForSocket(3);
+    expect(sockets.sockets).toHaveLength(3);
+    expect(streamErrors).toEqual([]);
+    vi.useFakeTimers();
+    deadlines.expire();
+
+    expect(sockets.sockets.every(socket => socket.closed)).toBe(true);
+    expect(streamErrors).toEqual([
+      {
+        error: {
+          code: "attach_timeout",
+          message: "The terminal did not connect after 3 attempts.",
+        },
+      },
+    ]);
+    expect(statuses.at(-1)).toBe("closed");
+    // Give any wrongly scheduled reconnect its chance to fire.
+    await vi.advanceTimersByTimeAsync(5);
+    expect(sockets.sockets).toHaveLength(3);
+    client.stop();
+  });
+
   it("Should resume from the last sequence it rendered", async () => {
     const { client, sockets, sink } = buildClient({});
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     sockets.last().open();
     sockets.last().deliver(attachedFrame({ seq: "1024" }));
     // The replay ends where the attach said it would, however long its payload
@@ -172,10 +319,12 @@ describe("TerminalProtocolClient", () => {
     sockets.last().deliver(serverOutputFrame("1024", "abcdef"));
     // Both are drawn before the socket dies: the cursor may only claim bytes
     // the emulator actually parsed.
-    await vi.waitFor(() => expect(sink.parsed).toHaveLength(2));
+    await sink.waitForParse(2);
+    expect(sink.parsed).toHaveLength(2);
 
     sockets.last().drop();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
 
     expect(sockets.sockets[1].path).toContain("after_seq=1030");
     client.stop();
@@ -185,15 +334,18 @@ describe("TerminalProtocolClient", () => {
     const { client, sockets, sink } = buildClient({});
     const sequence = 9_007_199_254_740_993n;
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame({ seq: (sequence + 1n).toString() }));
     socket.deliver(serverOutputFrame(sequence.toString(), "x"));
-    await vi.waitFor(() => expect(sink.parsed).toEqual(["x"]));
+    await sink.waitForParse(1);
+    expect(sink.parsed).toEqual(["x"]);
 
     socket.drop();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
     expect(sockets.sockets[1].path).toContain(`after_seq=${sequence + 1n}`);
     client.stop();
   });
@@ -205,11 +357,13 @@ describe("TerminalProtocolClient", () => {
     // once from the replay (the take-control / reconnect double-paint).
     const { client, sockets, sink } = buildClient({});
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     sockets.last().open();
     sockets.last().deliver(attachedFrame({ seq: "512" }));
     sockets.last().deliver(serverOutputFrame("0", "replayed screen"));
-    await vi.waitFor(() => expect(sink.parsed).toEqual(["replayed screen"]));
+    await sink.waitForParse(1);
+    expect(sink.parsed).toEqual(["replayed screen"]);
 
     expect(sink.resets).toBe(1);
     client.stop();
@@ -218,31 +372,37 @@ describe("TerminalProtocolClient", () => {
   it("Should leave the screen alone when a from-zero attach has nothing to replay", async () => {
     const { client, sockets, sink } = buildClient({});
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     sockets.last().open();
     // Nothing has ever run: the attach lands exactly on the resume point.
     sockets.last().deliver(attachedFrame({ seq: "0" }));
-    await vi.waitFor(() => expect(sink.dimensions).toHaveLength(1));
+    expect(sink.dimensions).toHaveLength(1);
 
     expect(sink.resets).toBe(0);
     client.stop();
   });
 
   it("Should hold input closed across a gap until the replayed snapshot is parsed", async () => {
-    const { client, sockets, sink, inputEnabled, statuses, gapsCleared } = buildClient({
-      autoParse: false,
-    });
+    const { client, sockets, sink, inputEnabled, inputEnabledEvents, statuses, gapsCleared } =
+      buildClient({
+        autoParse: false,
+      });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
-    await vi.waitFor(() => expect(inputEnabled).toEqual([true]));
+    await inputEnabledEvents.waitForCount(1);
+    expect(inputEnabled).toEqual([true]);
 
     socket.deliver(GAP_FRAME);
-    await vi.waitFor(() => expect(inputEnabled).toEqual([true, false]));
-    await vi.waitFor(() => expect(sink.resets).toBe(1));
-    await vi.waitFor(() => expect(sink.writeCount()).toBe(1));
+    await inputEnabledEvents.waitForCount(2);
+    expect(inputEnabled).toEqual([true, false]);
+    await sink.waitForWrite(1);
+    expect(sink.resets).toBe(1);
+    expect(sink.writeCount()).toBe(1);
     expect(gapsCleared).toEqual([]);
 
     client.sendInput("whoami\r");
@@ -251,7 +411,8 @@ describe("TerminalProtocolClient", () => {
 
     sink.completeWrite(0);
 
-    await vi.waitFor(() => expect(inputEnabled).toEqual([true, false, true]));
+    await inputEnabledEvents.waitForCount(3);
+    expect(inputEnabled).toEqual([true, false, true]);
     expect(gapsCleared).toEqual([1]);
     client.sendInput("whoami\r");
     expect(sentOpcodes(socket)).toContain(TERMINAL_CLIENT_OP.input);
@@ -263,28 +424,35 @@ describe("TerminalProtocolClient", () => {
       screen: () => ({ content: "", seq: "4096", truncated: false, busy: true, untrusted: true }),
     });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
     socket.deliver(GAP_FRAME);
 
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
     expect(gapsCleared).toEqual([]);
     client.stop();
   });
 
   it("Should hold the live tail that arrives before the snapshot resolves", async () => {
-    const { client, sockets, sink, inputEnabled, fetchStub } = buildClient({ deferScreen: true });
+    const { client, sockets, sink, inputEnabled, inputEnabledEvents, fetchStub } = buildClient({
+      deferScreen: true,
+    });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
-    await vi.waitFor(() => expect(inputEnabled).toEqual([true]));
+    await inputEnabledEvents.waitForCount(1);
+    expect(inputEnabled).toEqual([true]);
 
     socket.deliver(GAP_FRAME);
-    await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
+    await fetchStub.waitForScreenRead(1);
+    expect(fetchStub.pendingScreenReads()).toBe(1);
     expect(inputEnabled).toEqual([true, false]);
 
     // The daemon keeps sending while the snapshot is in flight. One frame is
@@ -299,7 +467,8 @@ describe("TerminalProtocolClient", () => {
 
     fetchStub.resolveScreen({ content: "current screen", seq: "4096" });
 
-    await vi.waitFor(() => expect(inputEnabled).toEqual([true, false, true]));
+    await inputEnabledEvents.waitForCount(3);
+    expect(inputEnabled).toEqual([true, false, true]);
     expect(sink.resets).toBe(1);
     // Reset, then the snapshot, then only the uncovered continuation — the
     // covered frame is dropped rather than replayed on top of it.
@@ -308,16 +477,21 @@ describe("TerminalProtocolClient", () => {
   });
 
   it("Should keep input closed until the whole reconciled parse lands", async () => {
-    const { client, sockets, sink, inputEnabled } = buildClient({ autoParse: false });
+    const { client, sockets, sink, inputEnabled, inputEnabledEvents } = buildClient({
+      autoParse: false,
+    });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
-    await vi.waitFor(() => expect(inputEnabled).toEqual([true]));
+    await inputEnabledEvents.waitForCount(1);
+    expect(inputEnabled).toEqual([true]);
 
     socket.deliver(GAP_FRAME);
-    await vi.waitFor(() => expect(sink.writeCount()).toBe(1));
+    await sink.waitForWrite(1);
+    expect(sink.writeCount()).toBe(1);
     expect(inputEnabled).toEqual([true, false]);
 
     // A frame arrives while the snapshot itself is still being parsed.
@@ -325,40 +499,49 @@ describe("TerminalProtocolClient", () => {
     expect(sink.parsed).toEqual([]);
 
     sink.completeWrite(0);
-    await vi.waitFor(() => expect(sink.writeCount()).toBe(2));
+    await sink.waitForWrite(2);
+    expect(sink.writeCount()).toBe(2);
     // The snapshot is on screen, but the tail is not: input stays closed.
     expect(sink.parsed).toEqual(["current screen"]);
     expect(inputEnabled).toEqual([true, false]);
 
     sink.completeWrite(1);
 
-    await vi.waitFor(() => expect(inputEnabled).toEqual([true, false, true]));
+    await inputEnabledEvents.waitForCount(3);
+    expect(inputEnabled).toEqual([true, false, true]);
     expect(sink.parsed).toEqual(["current screen", "tail after parse\r\n"]);
     client.stop();
   });
 
   it("Should reconcile again when more is dropped mid-catch-up", async () => {
-    const { client, sockets, sink, inputEnabled, fetchStub } = buildClient({ deferScreen: true });
+    const { client, sockets, sink, inputEnabled, inputEnabledEvents, fetchStub } = buildClient({
+      deferScreen: true,
+    });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
-    await vi.waitFor(() => expect(inputEnabled).toEqual([true]));
+    await inputEnabledEvents.waitForCount(1);
+    expect(inputEnabled).toEqual([true]);
 
     socket.deliver(GAP_FRAME);
-    await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
+    await fetchStub.waitForScreenRead(1);
+    expect(fetchStub.pendingScreenReads()).toBe(1);
     socket.deliver(GAP_FRAME);
     fetchStub.resolveScreen({ content: "stale screen", seq: "4096" });
 
     // The snapshot in flight was already stale, so a second pass runs before
     // input reopens.
-    await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
+    await fetchStub.waitForScreenRead(2);
+    expect(fetchStub.pendingScreenReads()).toBe(1);
     expect(inputEnabled).toEqual([true, false]);
 
     fetchStub.resolveScreen({ content: "fresh screen", seq: "8192" });
 
-    await vi.waitFor(() => expect(inputEnabled).toEqual([true, false, true]));
+    await inputEnabledEvents.waitForCount(3);
+    expect(inputEnabled).toEqual([true, false, true]);
     expect(sink.parsed).toEqual(["stale screen", "fresh screen"]);
     expect(sink.resets).toBe(2);
     client.stop();
@@ -367,7 +550,8 @@ describe("TerminalProtocolClient", () => {
   it("Should keep an inactive writable renderer on drop flow and recover its ordered output", async () => {
     const { client, sockets, sink } = buildClient({ autoParse: false });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
@@ -377,18 +561,23 @@ describe("TerminalProtocolClient", () => {
     socket.deliver(serverOutputFrame((ACK_GRAIN_BYTES / 2).toString(), half));
     // One write at a time: the emulator is a single screen, and two writes in
     // flight could land in either order.
-    await vi.waitFor(() => expect(sink.writeCount()).toBe(1));
+    await sink.waitForWrite(1);
+    expect(sink.writeCount()).toBe(1);
 
     // Both halves have arrived, but nothing has been parsed yet.
     expect(ackCredits(socket)).toEqual([]);
 
     sink.completeWrite(0);
     // Completing the first write lets the second start.
-    await vi.waitFor(() => expect(sink.writeCount()).toBe(2));
+    await sink.waitForWrite(2);
+    expect(sink.writeCount()).toBe(2);
     expect(ackCredits(socket)).toEqual([]);
 
     sink.completeWrite(1);
-    await vi.waitFor(() => expect(sink.parsed).toEqual([half, half]));
+    await sink.waitForParse(2);
+    expect(sink.parsed).toEqual([half, half]);
+    // The output consumer returns any credit after the sink promise settles.
+    await nextTurn();
     expect(socket.path).toContain("mode=write");
     expect(socket.path).toContain("flow=drop");
     expect(ackCredits(socket)).toEqual([]);
@@ -403,17 +592,19 @@ describe("TerminalProtocolClient", () => {
   ])(
     "Should recover overflowing buffers with $chunkBytes-byte frames during replay=$replaying",
     async ({ replaying, chunkBytes, count, staleSeq }) => {
-      const { client, sockets, sink, inputEnabled, fetchStub } = buildClient({
+      const { client, sockets, sink, inputEnabled, inputEnabledEvents, fetchStub } = buildClient({
         autoParse: false,
         deferScreen: true,
       });
       client.start();
-      await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+      await sockets.waitForSocket(1);
+      expect(sockets.sockets).toHaveLength(1);
       const socket = sockets.last();
       socket.open();
       socket.deliver(attachedFrame({ seq: replaying ? "8" : "0" }));
       socket.deliver(serverOutputFrame("0", "inflight"));
-      await vi.waitFor(() => expect(sink.writeCount()).toBe(1));
+      await sink.waitForWrite(1);
+      expect(sink.writeCount()).toBe(1);
 
       const chunk = "x".repeat(chunkBytes);
       let seq = 8;
@@ -421,29 +612,34 @@ describe("TerminalProtocolClient", () => {
         socket.deliver(serverOutputFrame(String(seq), chunk));
         seq += chunk.length;
       }
-      await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
+      await fetchStub.waitForScreenRead(1);
+      expect(fetchStub.pendingScreenReads()).toBe(1);
       expect(inputEnabled).toEqual(replaying ? [] : [true, false]);
       fetchStub.resolveScreen({ content: "stale snapshot", seq: String(staleSeq) });
       sink.completeWrite(0);
-      await vi.waitFor(() => expect(sink.writeCount()).toBe(2));
+      await sink.waitForWrite(2);
+      expect(sink.writeCount()).toBe(2);
       sink.completeWrite(1);
 
       // The held tail also overflowed while the snapshot was in flight. Fetch
       // again instead of rendering a suffix over a screen that still has a gap.
-      await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
+      await fetchStub.waitForScreenRead(2);
+      expect(fetchStub.pendingScreenReads()).toBe(1);
       expect(inputEnabled).toEqual(replaying ? [] : [true, false]);
       fetchStub.resolveScreen({ content: "current snapshot", seq: String(seq) });
-      await vi.waitFor(() => expect(sink.writeCount()).toBe(3));
+      await sink.waitForWrite(3);
+      expect(sink.writeCount()).toBe(3);
       sink.completeWrite(2);
-      await vi.waitFor(() =>
-        expect(inputEnabled).toEqual(replaying ? [true] : [true, false, true])
-      );
+      await inputEnabledEvents.waitForCount(replaying ? 1 : 3);
+      expect(inputEnabled).toEqual(replaying ? [true] : [true, false, true]);
       expect(sink.parsed).toEqual(["inflight", "stale snapshot", "current snapshot"]);
 
       socket.deliver(serverOutputFrame(String(seq), "live tail"));
-      await vi.waitFor(() => expect(sink.writeCount()).toBe(4));
+      await sink.waitForWrite(4);
+      expect(sink.writeCount()).toBe(4);
       sink.completeWrite(3);
-      await vi.waitFor(() => expect(sink.parsed.at(-1)).toBe("live tail"));
+      expect(sink.parsed.at(-1)).toBe("live tail");
+      await nextTurn();
       expect(sockets.sockets).toHaveLength(1);
       expect(ackCredits(socket)).toEqual([]);
       client.stop();
@@ -453,12 +649,15 @@ describe("TerminalProtocolClient", () => {
   it("Should never return credit while watching", async () => {
     const { client, sockets, sink } = buildClient({ mode: "read" });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
     socket.deliver(serverOutputFrame("0", "y".repeat(ACK_GRAIN_BYTES * 2)));
-    await vi.waitFor(() => expect(sink.parsed).toHaveLength(1));
+    await sink.waitForParse(1);
+    expect(sink.parsed).toHaveLength(1);
+    await nextTurn();
 
     expect(socket.path).toContain("flow=drop");
     expect(ackCredits(socket)).toEqual([]);
@@ -468,7 +667,8 @@ describe("TerminalProtocolClient", () => {
   it("Should report daemon presence frames", async () => {
     const { client, sockets, presence } = buildClient();
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
@@ -481,7 +681,8 @@ describe("TerminalProtocolClient", () => {
   it("Should keep shell marker text as output and trust only REDACTED_INPUT metadata", async () => {
     const { client, sockets, sink, redactedInputs } = buildClient();
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
@@ -496,11 +697,13 @@ describe("TerminalProtocolClient", () => {
       })
     );
 
-    await vi.waitFor(() => expect(sink.parsed).toEqual([marker, marker]));
+    await sink.waitForParse(2);
+    expect(sink.parsed).toEqual([marker, marker]);
     expect(redactedInputs).toEqual([{ seq: BigInt(markerBytes), characters: 6 }]);
 
     socket.drop();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
     expect(sockets.sockets[1].path).toContain(`after_seq=${BigInt(markerBytes) + 1n}`);
     client.stop();
   });
@@ -508,7 +711,8 @@ describe("TerminalProtocolClient", () => {
   it("Should apply only the authoritative size, never its own proposal", async () => {
     const { client, sockets, sink } = buildClient({});
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame({ cols: 96, rows: 28 }));
@@ -530,7 +734,8 @@ describe("TerminalProtocolClient", () => {
   it("Should deliver a size vote made before the socket opened", async () => {
     const { client, sockets } = buildClient({});
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
 
     // The emulator finished its first fit while the upgrade was still opening.
@@ -545,14 +750,16 @@ describe("TerminalProtocolClient", () => {
   it("Should not repeat a vote the upgrade query already carried", async () => {
     const { client, sockets } = buildClient({});
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     sockets.last().open();
     sockets.last().deliver(attachedFrame());
     client.proposeDimensions(220, 50);
     expect(sentOpcodes(sockets.last())).toContain(TERMINAL_CLIENT_OP.resize);
 
     sockets.last().drop();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
     const reconnected = sockets.last();
     expect(reconnected.path).toContain("cols=220");
     expect(reconnected.path).toContain("rows=50");
@@ -565,7 +772,8 @@ describe("TerminalProtocolClient", () => {
   it("Should keep watcher size votes off the wire", async () => {
     const { client, sockets } = buildClient({ mode: "read" });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
@@ -578,7 +786,8 @@ describe("TerminalProtocolClient", () => {
   it("Should surface a stream refusal instead of retrying it as content", async () => {
     const { client, sockets, streamErrors } = buildClient({ mode: "read" });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(
@@ -599,7 +808,8 @@ describe("TerminalProtocolClient", () => {
   it("Should close input and report the exit when the program ends", async () => {
     const { client, sockets, inputEnabled, exits } = buildClient();
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
@@ -620,7 +830,8 @@ describe("TerminalProtocolClient", () => {
   it("Should settle as closed instead of reconnecting after the program exits", async () => {
     const { client, sockets, statuses, exits, calls } = buildClient();
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
@@ -632,26 +843,29 @@ describe("TerminalProtocolClient", () => {
         seq: "16",
       })
     );
-    await vi.waitFor(() => expect(exits).toHaveLength(1));
+    expect(exits).toHaveLength(1);
 
+    vi.useFakeTimers();
     socket.drop();
-    await vi.waitFor(() => expect(statuses.at(-1)).toBe("closed"));
+    expect(statuses.at(-1)).toBe("closed");
     // Give any wrongly scheduled reconnect its chance to fire.
-    await new Promise(resolve => setTimeout(resolve, 5));
+    await vi.advanceTimersByTimeAsync(5);
     expect(sockets.sockets).toHaveLength(1);
     expect(calls.filter(url => url.includes("/attach-ticket"))).toHaveLength(1);
   });
 
   it("Should stop retrying when the daemon says the terminal is gone", async () => {
-    const { client, sockets, statuses, streamErrors, calls } = buildClient({
+    const { client, sockets, statuses, closed, streamErrors, calls } = buildClient({
       ticketResponse: () => ({
         status: 409,
         body: { error: { code: "terminal_exited", message: "terminal has exited" } },
       }),
     });
+    vi.useFakeTimers();
     client.start();
-    await vi.waitFor(() => expect(statuses.at(-1)).toBe("closed"));
-    await new Promise(resolve => setTimeout(resolve, 5));
+    await closed;
+    expect(statuses.at(-1)).toBe("closed");
+    await vi.advanceTimersByTimeAsync(5);
 
     expect(sockets.sockets).toHaveLength(0);
     expect(calls.filter(url => url.includes("/attach-ticket"))).toHaveLength(1);
@@ -660,29 +874,32 @@ describe("TerminalProtocolClient", () => {
   });
 
   it("Should refuse a pipe attachment without opening or retrying a socket", async () => {
-    const { client, statuses, streamErrors, calls, sockets } = buildClient({
+    const { client, statuses, closed, streamErrors, calls, sockets } = buildClient({
       ticketResponse: () => ({
         status: 422,
         body: { error: { code: "terminal_not_interactive", message: "pipe terminal" } },
       }),
     });
+    vi.useFakeTimers();
     client.start();
-    await vi.waitFor(() => expect(statuses.at(-1)).toBe("closed"));
-    await new Promise(resolve => setTimeout(resolve, 30));
+    await closed;
+    expect(statuses.at(-1)).toBe("closed");
+    await vi.advanceTimersByTimeAsync(30);
     expect(calls.filter(url => url.includes("/attach-ticket"))).toHaveLength(1);
     expect(sockets.sockets).toHaveLength(0);
     expect(streamErrors[0]).toMatchObject({ error: { code: "terminal_not_interactive" } });
   });
 
   it("Should surface expiry as a stream refusal and settle closed", async () => {
-    const { client, statuses, streamErrors } = buildClient({
+    const { client, statuses, streamErrors, streamErrorsEvents } = buildClient({
       ticketResponse: () => ({
         status: 404,
         body: { error: { code: "terminal_expired", message: "terminal has expired" } },
       }),
     });
     client.start();
-    await vi.waitFor(() => expect(streamErrors).toHaveLength(1));
+    await streamErrorsEvents.waitForCount(1);
+    expect(streamErrors).toHaveLength(1);
 
     expect(streamErrors[0]).toEqual({
       error: { code: "terminal_expired", message: "terminal has expired" },
@@ -693,22 +910,26 @@ describe("TerminalProtocolClient", () => {
   it("Should reconnect after a binary frame cannot be decoded", async () => {
     const { client, sockets } = buildClient();
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
 
     sockets.last().deliver(new Uint8Array([TERMINAL_SERVER_OP.output]));
 
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
     expect(sockets.sockets[0].closed).toBe(true);
   });
 
   it("Should reject a text frame and reconnect from the binary protocol", async () => {
     const { client, sockets, clientErrors } = buildClient();
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
 
     sockets.last().onmessage?.({ data: "not-binary" } as MessageEvent<unknown>);
 
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
     expect(sockets.sockets[0].closed).toBe(true);
     expect(clientErrors).toEqual([new Error("The terminal stream sent a non-binary frame.")]);
   });
@@ -716,7 +937,8 @@ describe("TerminalProtocolClient", () => {
   it("Should accept an ATTACHED sequence encoded as a JSON number", async () => {
     const { client, sockets, statuses } = buildClient();
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
 
     const socket = sockets.last();
     socket.open();
@@ -724,7 +946,7 @@ describe("TerminalProtocolClient", () => {
       rawServerControlFrame(TERMINAL_SERVER_OP.attached, rawAttachedPayload({ seq: 0 }))
     );
 
-    await vi.waitFor(() => expect(statuses).toContain("connected"));
+    expect(statuses).toContain("connected");
     expect(sockets.sockets).toHaveLength(1);
     client.stop();
   });
@@ -732,7 +954,8 @@ describe("TerminalProtocolClient", () => {
   it("Should stay connecting after the socket opens until ATTACHED arrives", async () => {
     const { client, sockets, statuses } = buildClient();
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
 
     sockets.last().open();
 
@@ -748,23 +971,26 @@ describe("TerminalProtocolClient", () => {
   ])("Should reconnect after an ATTACHED frame has %s", async (_case, payload) => {
     const { client, sockets } = buildClient();
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
 
     sockets.last().deliver(rawServerControlFrame(TERMINAL_SERVER_OP.attached, payload));
 
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
     expect(sockets.sockets[0].closed).toBe(true);
   });
 
   it("Should frame a paste larger than the daemon accepts, byte for byte", async () => {
     const { client, sockets, inputEnabled } = buildClient();
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
     // Input has to be genuinely open, or nothing would be sent at all.
-    await vi.waitFor(() => expect(inputEnabled.at(-1)).toBe(true));
+    expect(inputEnabled.at(-1)).toBe(true);
 
     // A paste is one event of any size; the daemon refuses anything over 64 KiB.
     const paste = "y".repeat(TERMINAL_MAX_INPUT_BYTES + 500);
@@ -782,11 +1008,12 @@ describe("TerminalProtocolClient", () => {
   it("Should never split a character across two input frames", async () => {
     const { client, sockets, inputEnabled } = buildClient();
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
-    await vi.waitFor(() => expect(inputEnabled.at(-1)).toBe(true));
+    expect(inputEnabled.at(-1)).toBe(true);
 
     // A three-byte character straddling the 64 KiB boundary: cutting it would
     // decode to a different string than the one that was pasted.
@@ -811,21 +1038,24 @@ describe("TerminalProtocolClient — teardown and races", () => {
   it("Should wait for a pending parse before deciding where to resume", async () => {
     const { client, sockets, sink, statuses, streamErrors } = buildClient({ autoParse: false });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame({ seq: "100" }));
     socket.deliver(serverOutputFrame("83", "the screen so far"));
-    await vi.waitFor(() => expect(sink.writeCount()).toBe(1));
+    await sink.waitForWrite(1);
+    expect(sink.writeCount()).toBe(1);
 
     // The socket dies while those bytes are still being parsed. They may yet
     // land on the screen, so the resume point cannot be read until they have.
     socket.drop();
-    await vi.waitFor(() => expect(statuses.at(-1)).toBe("reconnecting"));
+    expect(statuses.at(-1)).toBe("reconnecting");
     expect(sockets.sockets).toHaveLength(1);
 
     sink.completeWrite(0);
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
 
     // Drawn, so the reconnection asks for what comes after them.
     expect(sockets.sockets[1].path).toContain("after_seq=100");
@@ -835,7 +1065,7 @@ describe("TerminalProtocolClient — teardown and races", () => {
   });
 
   it("Should hold a truncated attach behind a snapshot before showing anything", async () => {
-    const { client, sockets, sink, inputEnabled, calls } = buildClient({
+    const { client, sockets, sink, inputEnabled, inputEnabledEvents, calls } = buildClient({
       screen: () => ({
         content: "rebuilt screen",
         seq: "4096",
@@ -845,7 +1075,8 @@ describe("TerminalProtocolClient — teardown and races", () => {
       }),
     });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     // The daemon says the resume point missed bytes: the suffix it is about to
@@ -853,13 +1084,15 @@ describe("TerminalProtocolClient — teardown and races", () => {
     socket.deliver(attachedFrame({ seq: "4096", truncated: true }));
     socket.deliver(serverOutputFrame("0", "partial suffix with a synthetic prefix"));
 
-    await vi.waitFor(() => expect(calls.some(url => url.includes("view=screen"))).toBe(true));
-    await vi.waitFor(() => expect(sink.parsed).toContain("rebuilt screen"));
+    await sink.waitForParse(1);
+    expect(calls.some(url => url.includes("view=screen"))).toBe(true);
+    expect(sink.parsed).toContain("rebuilt screen");
     // The truncated replay is never drawn; the snapshot replaced exactly what
     // it would have shown.
     expect(sink.parsed).not.toContain("partial suffix with a synthetic prefix");
     // The keyboard opened once, and only after the rebuilt screen was drawn —
     // never on the strength of the truncated attach alone.
+    await inputEnabledEvents.waitForCount(1);
     expect(inputEnabled).toEqual([true]);
     client.stop();
   });
@@ -870,28 +1103,33 @@ describe("TerminalProtocolClient — teardown and races", () => {
       deferScreen: true,
     });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame({ seq: "100" }));
     socket.deliver(serverOutputFrame("0", "before the gap"));
-    await vi.waitFor(() => expect(sink.writeCount()).toBe(1));
+    await sink.waitForWrite(1);
+    expect(sink.writeCount()).toBe(1);
     sink.completeWrite(0);
 
     socket.deliver(GAP_FRAME);
-    await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
+    await fetchStub.waitForScreenRead(1);
+    expect(fetchStub.pendingScreenReads()).toBe(1);
     // The live tail keeps coming while the snapshot is fetched.
     socket.deliver(serverOutputFrame("49252", "after the gap"));
     fetchStub.resolveScreen({ content: "rebuilt", seq: "49252" });
-    await vi.waitFor(() => expect(sink.writeCount()).toBe(2));
+    await sink.waitForWrite(2);
+    expect(sink.writeCount()).toBe(2);
 
     // The connection dies with the snapshot still being parsed.
     socket.drop();
-    await vi.waitFor(() => expect(statuses.at(-1)).toBe("reconnecting"));
+    expect(statuses.at(-1)).toBe("reconnecting");
     expect(sockets.sockets).toHaveLength(1);
 
     sink.completeWrite(1);
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
     // The snapshot was drawn, so it counts; the held tail behind it was not.
     expect(sockets.sockets[1].path).toContain("after_seq=49252");
     client.stop();
@@ -900,29 +1138,35 @@ describe("TerminalProtocolClient — teardown and races", () => {
   it("Should not open the next connection while a catch-up still holds the screen", async () => {
     const { client, sockets, statuses, fetchStub } = buildClient({ deferScreen: true });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     socket.deliver(attachedFrame());
     socket.deliver(GAP_FRAME);
-    await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
+    await fetchStub.waitForScreenRead(1);
+    expect(fetchStub.pendingScreenReads()).toBe(1);
 
     // The socket dies while the snapshot is still in flight. Reconnecting now
     // would hand the new connection's replay to a buffer the old pass is about
     // to discard, and the screen would never come back.
     socket.drop();
-    await vi.waitFor(() => expect(statuses.at(-1)).toBe("reconnecting"));
+    expect(statuses.at(-1)).toBe("reconnecting");
     expect(sockets.sockets).toHaveLength(1);
 
     fetchStub.resolveScreen({ content: "rebuilt", seq: "49252" });
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
     client.stop();
   });
 
   it("Should keep the keyboard shut until the replay it was promised is drawn", async () => {
-    const { client, sockets, sink, inputEnabled } = buildClient({ autoParse: false });
+    const { client, sockets, sink, inputEnabled, inputEnabledEvents } = buildClient({
+      autoParse: false,
+    });
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     // The attach lands ahead of where this viewer is, so a replay is coming.
@@ -933,10 +1177,12 @@ describe("TerminalProtocolClient — teardown and races", () => {
     expect(sentOpcodes(socket)).not.toContain(TERMINAL_CLIENT_OP.input);
 
     socket.deliver(serverOutputFrame("495", "the screen so far"));
-    await vi.waitFor(() => expect(sink.writeCount()).toBe(1));
+    await sink.waitForWrite(1);
+    expect(sink.writeCount()).toBe(1);
     sink.completeWrite(0);
 
-    await vi.waitFor(() => expect(inputEnabled).toEqual([true]));
+    await inputEnabledEvents.waitForCount(1);
+    expect(inputEnabled).toEqual([true]);
     client.sendInput("whoami\r");
     expect(sentOpcodes(socket)).toContain(TERMINAL_CLIENT_OP.input);
     client.stop();
@@ -945,16 +1191,19 @@ describe("TerminalProtocolClient — teardown and races", () => {
   it("Should treat the first frame of a fresh attach as live, not as a replay", async () => {
     const { client, sockets, sink } = buildClient({});
     client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await sockets.waitForSocket(1);
+    expect(sockets.sockets).toHaveLength(1);
     const socket = sockets.last();
     socket.open();
     // Nothing had run yet, so there is nothing to catch up on.
     socket.deliver(attachedFrame({ seq: "0" }));
     socket.deliver(serverOutputFrame("0", "abcdef"));
-    await vi.waitFor(() => expect(sink.parsed).toHaveLength(1));
+    await sink.waitForParse(1);
+    expect(sink.parsed).toHaveLength(1);
 
     socket.drop();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    await sockets.waitForSocket(2);
+    expect(sockets.sockets).toHaveLength(2);
 
     // Measured by its own length, because it was live output.
     expect(sockets.sockets[1].path).toContain("after_seq=6");

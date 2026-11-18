@@ -99,3 +99,14 @@ queued question opens expanded. Verified 2026-10-30: `web/e2e/__tests__/session-
 (real daemon + hosted MCP `compozy__clarify` with a multi-line question) passed locally, with dock
 and receipt screenshots at 1280×720 and 390×844 in the PR; Storybook geometry probes measured the
 dock at exactly 50% of an 800px and 844px viewport with the question scrolling and choices visible.
+
+QA impact 2026-11-10 (provider elicitation): a provider `question`/`AskUserQuestion`/
+`request_user_input` over ACP `elicitation/create` now reaches the same clarification dock,
+pending projection, and answer surfaces as `compozy__clarify`. Only `user` and `coordinator`
+sessions ask; `system` (automation, Loop), `spawned`, and `triage` sessions decline
+immediately instead of waiting. A form with a multiselect field, a numeric/boolean field, more
+than four choices, or URL mode is declined. Automated evidence: `internal/acp/elicitation_test.go`
+(form mapping, decline, timeout, turn cancel, foreign session, wire envelope) and
+`internal/session/elicitation_test.go` (headless refusal, scope, canceled turn).
+Outstanding walk: answer a real opencode `question` from the dock, and confirm a system session
+declines without a pending interaction.

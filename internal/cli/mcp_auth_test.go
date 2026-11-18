@@ -161,9 +161,10 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 		}
 	})
 
-	t.Run("Should distinguish an existing server without OAuth from a missing server", func(t *testing.T) {
+	t.Run("Should let the daemon discover OAuth for an unconfigured server", func(t *testing.T) {
 		t.Parallel()
 
+		var beginCalls atomic.Int32
 		client := &stubClient{
 			getSettingsMCPAuthStatusFn: func(
 				context.Context,
@@ -172,6 +173,10 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 				return SettingsMCPAuthStatusRecord{
 					ServerName: "filesystem", Scope: "user", Status: string(mcpauth.StatusUnconfigured),
 				}, nil
+			},
+			beginSettingsMCPAuthFn: func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthBeginRequest) (SettingsMCPAuthBeginRecord, error) {
+				beginCalls.Add(1)
+				return SettingsMCPAuthBeginRecord{}, errors.New("remote does not configure OAuth")
 			},
 		}
 
@@ -194,6 +199,9 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 		)
 		if err == nil || !strings.Contains(err.Error(), "does not configure OAuth") {
 			t.Fatalf("mcp auth login error = %v, want OAuth configuration error", err)
+		}
+		if got := beginCalls.Load(); got != 1 {
+			t.Fatalf("begin calls = %d, want 1", got)
 		}
 	})
 }
@@ -1042,4 +1050,89 @@ func executeMCPAuthCommandWithInput(
 	cmd.SetArgs(args)
 	err := cmd.ExecuteContext(t.Context())
 	return stdout.String(), stderr.String(), err
+}
+
+// Invariant: allow fills a missing digest only from the observed definition;
+// explicit stale digests reach the daemon unchanged. Owner: CLI command adapter.
+func TestMCPAllowCommand(t *testing.T) {
+	t.Parallel()
+	for _, digest := range []string{"", "stale"} {
+		for _, format := range []string{"json", "jsonl", "toon"} {
+			t.Run("Should preserve observed digest "+digest+" in "+format, func(t *testing.T) {
+				t.Parallel()
+				client := &mcpApprovalCommandClient{profileAwareStubClient: newDefaultProfileTestClient(&stubClient{
+					getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+						return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-project", Name: "project"}}, nil
+					},
+					listSettingsMCPServersFn: func(_ context.Context, scope contract.SettingsLayeredScopeKind, workspace, profile string) (contract.SettingsMCPServersResponse, error) {
+						if scope != contract.SettingsLayeredScopeProfile || workspace != "ws-project" ||
+							profile != "default" {
+							t.Fatalf("listing identity=%s %s %s", scope, workspace, profile)
+						}
+						return contract.SettingsMCPServersResponse{
+							MCPServers: []contract.SettingsMCPServerItemPayload{
+								{
+									Name:     "sentry",
+									Command:  "fixture",
+									Approval: contract.SettingsMCPApprovalStatePayload{DefinitionDigest: "observed"},
+								},
+							},
+						}, nil
+					},
+				})}
+				args := []string{"mcp", "allow", "sentry", "--workspace", "project", "-o", format}
+				if digest != "" {
+					args = append(args, "--digest", digest)
+				}
+				stdout, _, err := executeRootCommand(t, newTestDeps(t, client), args...)
+				want := digest
+				if want == "" {
+					want = "observed"
+				}
+				if err != nil || client.body.DefinitionDigest != want || client.body.WorkspaceID != "ws-project" ||
+					client.body.Profile != "default" ||
+					!strings.Contains(stdout, "allowed") {
+					t.Fatalf("allow=%+v %s %v", client.body, stdout, err)
+				}
+				_, _, err = executeRootCommand(
+					t,
+					newTestDeps(t, client),
+					"mcp",
+					"allow",
+					"sentry",
+					"--workspace",
+					"project",
+					"--revoke",
+					"-o",
+					"json",
+				)
+				if err != nil || !client.revoke {
+					t.Fatalf("revoke=%t %v", client.revoke, err)
+				}
+			})
+		}
+	}
+}
+
+type mcpApprovalCommandClient struct {
+	*profileAwareStubClient
+	body   contract.SettingsMCPApprovalRequest
+	revoke bool
+}
+
+func (c *mcpApprovalCommandClient) SetSettingsMCPApproval(
+	_ context.Context,
+	name string,
+	body contract.SettingsMCPApprovalRequest,
+	revoke bool,
+) (contract.SettingsMCPApprovalResponse, error) {
+	c.body, c.revoke = body, revoke
+	return contract.SettingsMCPApprovalResponse{
+		Approval: contract.SettingsMCPApprovalPayload{
+			ServerName:  name,
+			WorkspaceID: body.WorkspaceID,
+			Profile:     body.Profile,
+			State:       "allowed",
+		},
+	}, nil
 }

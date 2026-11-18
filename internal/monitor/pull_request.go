@@ -86,13 +86,15 @@ type PullRequestReviews struct {
 type PullRequestObservation struct {
 	Lookup PullRequestLookup
 	// Cause says why a lookup failed.
-	Cause   string
-	Number  int
-	URL     string
-	State   string
-	Head    string
-	Checks  *PullRequestChecks
-	Reviews *PullRequestReviews
+	Cause     string
+	Number    int
+	URL       string
+	State     string
+	Head      string
+	Base      string
+	Mergeable string
+	Checks    *PullRequestChecks
+	Reviews   *PullRequestReviews
 	// ReviewsFailed marks a forge that serves reviews but could not read them this time.
 	ReviewsFailed bool
 }
@@ -123,12 +125,17 @@ type pullRequestWatch struct {
 // progress that needs no wake. Those facts cannot be lost once here, because the fire that carries them
 // is durable in the same write and stays until admission or until the monitor ends undelivered.
 type prCursor struct {
-	Number      int      `json:"number,omitempty"`
-	URL         string   `json:"url,omitempty"`
-	Head        string   `json:"head,omitempty"`
-	Failed      int      `json:"failed,omitempty"`
-	FailedNames []string `json:"failed_names,omitempty"`
-	Finished    bool     `json:"finished,omitempty"`
+	Number        int      `json:"number,omitempty"`
+	URL           string   `json:"url,omitempty"`
+	Head          string   `json:"head,omitempty"`
+	Failed        int      `json:"failed,omitempty"`
+	FailedNames   []string `json:"failed_names,omitempty"`
+	Conflicting   bool     `json:"conflicting,omitzero"`
+	Finished      bool     `json:"finished,omitempty"`
+	FinishedTotal int      `json:"finished_total,omitzero"` // Zero if no round finished or the cursor predates this count.
+	// Smaller snapshots can reveal failures without replacing the finished baseline.
+	SmallerFailed      int      `json:"smaller_failed,omitzero"`
+	SmallerFailedNames []string `json:"smaller_failed_names,omitempty"`
 	// EndedNumber is the last pull request first seen already merged or closed: history, not this watch.
 	EndedNumber      int            `json:"ended_number,omitempty"`
 	ReviewsBaselined bool           `json:"reviews_baselined,omitempty"`
@@ -169,6 +176,8 @@ type PullRequestChanges struct {
 	URL          string              `json:"url,omitempty"`
 	State        string              `json:"state,omitempty"`
 	Head         string              `json:"head,omitempty"`
+	Base         string              `json:"base,omitempty"`
+	Conflict     bool                `json:"conflict,omitzero"`
 	ChecksKnown  bool                `json:"checks_known,omitempty"`
 	Passed       int                 `json:"passed,omitempty"`
 	Failed       int                 `json:"failed,omitempty"`
@@ -192,6 +201,8 @@ type PullRequestChanges struct {
 	ReviewsDown   bool `json:"reviews_down,omitempty"`
 	// EndedNumber names a pull request that had already ended when a timed-out watch saw it.
 	EndedNumber int `json:"ended_number,omitempty"`
+
+	ConflictCleared bool `json:"conflict_cleared,omitzero"`
 }
 
 func (changes PullRequestChanges) reason() string {

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import type { Page } from "@playwright/test";
 
-import { sessionWindow, windowFrame } from "../fixtures/os-navigation";
+import { sessionWindow, windowPane } from "../fixtures/os-navigation";
 import { sessionWindowSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -85,7 +85,7 @@ test("E2E-PROC-001: stopping a session with its processes ends them and clears t
     await appPage.goto(runtime.url(`/agents/${agentName}/sessions/${sessionId}`));
     const win = sessionWindow(appPage, sessionId);
     await expect(win).toBeVisible();
-    const frame = windowFrame(win);
+    const frame = windowPane(win);
 
     const indicator = win.getByTestId("composer-processes-button");
     await expect(indicator).toHaveAccessibleName("Processes, 1 running", {

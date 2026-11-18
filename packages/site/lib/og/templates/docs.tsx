@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import type { CSSProperties } from "react";
 import { loadOGFonts } from "../fonts";
 import { LogoLockup } from "../logo";
-import { COLORS, FONTS, SIZE, truncate } from "../tokens";
+import { BEAM, COLORS, FONTS, SIZE, truncate, GLOW } from "../tokens";
 import { Chip } from "./chip";
 
 export type DocsOGVariant = "docs";
@@ -23,7 +23,8 @@ const canvasStyle: CSSProperties = {
   height: "100%",
   display: "flex",
   flexDirection: "column",
-  background: COLORS.canvas,
+  backgroundColor: COLORS.canvas,
+  backgroundImage: GLOW,
   color: COLORS.textPrimary,
   fontFamily: FONTS.sans,
   padding: "80px",
@@ -41,12 +42,12 @@ const metaStyle: CSSProperties = {
 };
 
 const titleStyle: CSSProperties = {
-  fontFamily: FONTS.sans,
-  fontSize: "64px",
-  lineHeight: 0.98,
-  letterSpacing: "-0.04em",
+  fontFamily: FONTS.display,
+  fontSize: "72px",
+  lineHeight: 1.0,
+  letterSpacing: "-0.03em",
   color: COLORS.textPrimary,
-  fontWeight: 600,
+  fontWeight: 400,
   maxWidth: "1000px",
 };
 
@@ -69,14 +70,18 @@ export async function renderDocsOG({
           flexDirection: "row",
           alignItems: "center",
           paddingBottom: "32px",
-          borderBottom: `1px solid ${COLORS.border}`,
+          borderBottom: `1px solid ${COLORS.hairline}`,
           gap: "24px",
         }}
       >
         <LogoLockup height={42} letteringFill={COLORS.textPrimary} />
         <div style={metaStyle}>
-          <span style={{ color: COLORS.brand, textTransform: "uppercase" }}>{labels.eyebrow}</span>
-          <span style={{ width: "48px", height: "1px", background: COLORS.border }} />
+          <span style={{ color: COLORS.brandText, textTransform: "uppercase" }}>
+            {labels.eyebrow}
+          </span>
+          <span
+            style={{ width: "48px", height: "2px", borderRadius: "2px", backgroundImage: BEAM }}
+          />
           <span style={{ color: COLORS.textTertiary }}>{path}</span>
         </div>
       </div>
@@ -115,7 +120,7 @@ export async function renderDocsOG({
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          borderTop: `1px solid ${COLORS.border}`,
+          borderTop: `1px solid ${COLORS.hairline}`,
           paddingTop: "28px",
         }}
       >

@@ -20,6 +20,7 @@ type ReportInput struct {
 const ReportKindProposal = "proposal"
 
 type Report struct {
+	ToolCalls  CheckInToolSummary
 	ID         string
 	InstanceID string
 	ReportInput
@@ -107,7 +108,7 @@ func (r ReportInput) Validate() error {
 	switch r.Kind {
 	case ReportKindProposal:
 		return validateReportProposals(fields)
-	case "failure":
+	case "failure", "activity":
 		required = []string{"reason", "detail"}
 	case "approval_expired":
 		required = []string{"session_id", "tool", "expired_by"}

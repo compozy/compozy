@@ -27,19 +27,14 @@ func newWorkspaceRuntimeState(resolver *workspacepkg.Resolver) workspaceRuntimeS
 	return workspaceRuntimeState{workspaceResolver: resolver, workspaceFinalizer: resolver}
 }
 
-func shutdownWorkspaceAndTerminals(
-	ctx context.Context,
-	targets *shutdownTargets,
-	errs *[]error,
-) {
+// drainWorkspaceDeletions joins workspace deletion finalization, which stops the sessions it removes,
+// before the daemon takes its own session snapshot.
+func drainWorkspaceDeletions(ctx context.Context, targets *shutdownTargets, errs *[]error) {
 	if targets.workspaceFinalizer != nil {
 		appendWrappedError(
 			errs,
 			"daemon: drain workspace deletion finalization",
 			targets.workspaceFinalizer.DrainUnregisters(ctx),
 		)
-	}
-	if targets.terminals != nil {
-		appendWrappedError(errs, "daemon: shutdown terminal runtime", targets.terminals.Shutdown(ctx))
 	}
 }

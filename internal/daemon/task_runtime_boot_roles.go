@@ -46,7 +46,8 @@ func bootHarnessReentryBridge(
 		reentryStore,
 		reentrySessions,
 		state.logger,
-		withHarnessHeartbeatWake(state.registry, reentrySessions, state.cfg.Agents.Heartbeat),
+		withHarnessHeartbeatWake(state.registry, reentrySessions, state.cfg.Agents.Heartbeat,
+			currentHeartbeatWakeOptions(state)...),
 	)
 }
 
@@ -295,7 +296,9 @@ func newBootLoopCoordinatorRuntime(
 		executions: newLoopJudgeExecutionRegistry(),
 	}
 	gateEvaluator := gate.NewEvaluator(
-		gate.WithCommandRunner(loopGateCommandRunner{workspaceResolver: workspaceResolver}),
+		gate.WithCommandRunner(loopGateCommandRunner{
+			workspaceResolver: workspaceResolver, processRegistry: state.processRegistry,
+		}),
 		gate.WithJudgeRunner(judgeRunner),
 		gate.WithToolCaller(toolRegistry),
 	)

@@ -316,6 +316,10 @@ func nativeLoopDescriptor(
 		toolspkg.ToolIDLoopNodeRequeue:
 		descriptor.OutputSchema = json.RawMessage(loopMutationOutputSchema)
 	}
+	descriptor = withLoopResultViews(descriptor)
+	if id != toolspkg.ToolIDGoalControl {
+		descriptor = withGoalResultViews(descriptor)
+	}
 	if id == toolspkg.ToolIDLoopApprove {
 		return withRequiredCapabilities(descriptor, "loops.approve")
 	}

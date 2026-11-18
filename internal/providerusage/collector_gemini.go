@@ -19,6 +19,9 @@ func NewGeminiCollector(options ...CollectorOption) *GeminiCollector {
 	return &GeminiCollector{newCollectorHTTP("https://cloudcode-pa.googleapis.com", options)}
 }
 func (*GeminiCollector) ProviderID() string { return "gemini" }
+
+// SelectorKey implements AccountSelector.
+func (*GeminiCollector) SelectorKey(env []string) string { return homeSelectorKey(env, "") }
 func (c *GeminiCollector) credential(t Target) (collectorCredential, error) {
 	home, err := collectorHomePath(t, "", ".gemini")
 	if err != nil {

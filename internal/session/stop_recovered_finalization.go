@@ -58,6 +58,9 @@ func (m *Manager) settleRecoveredStop(
 	if err != nil {
 		return errors.Join(ErrRecoveryPersistence, err)
 	}
+	if err := m.cancelRecoveredSessionInteractions(settleCtx, run.recoveredID, outcome.Cause); err != nil {
+		return errors.Join(ErrRecoveryPersistence, err)
+	}
 	info := m.sessionInfoFromMeta(settleCtx, &meta)
 	info.StopCause = outcome.Cause
 	if err := m.stopSessionGoals(settleCtx, info); err != nil {
@@ -73,4 +76,14 @@ func (m *Manager) settleRecoveredStop(
 	run.recoveredSettlement = nil
 	m.mu.Unlock()
 	return m.finishRecoveredStop(ctx, run.recoveredID)
+}
+
+// cancelRecoveredSessionInteractions retains lost-turn attribution without reclassifying explicit stops.
+func (m *Manager) cancelRecoveredSessionInteractions(ctx context.Context, id string, cause StopCause) error {
+	reason := "session-stopped"
+	if cause == CauseProcessExited || cause == CauseShutdown {
+		// Preserve lost-turn attribution before the boot interaction sweep observes terminal rows.
+		reason = "failed-by-restart"
+	}
+	return m.cancelSessionInteractions(ctx, id, reason)
 }

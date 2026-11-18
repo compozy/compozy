@@ -25,9 +25,16 @@ func (m *Manager) handlePromptPumpChunkBatch(
 	}
 	normalized := make([]acp.AgentEvent, 0, len(events))
 	for _, event := range events {
-		next, skip := m.preparePromptPumpEventForDelivery(ctx, session, turnState, loop, event, false, fatal)
+		next, skip := m.preparePromptPumpEventForDelivery(ctx, session, turnState, loop, event, false, false, fatal)
 		if skip {
 			continue
+		}
+		if err := normalizePromptCost(ctx, turnState, &next); err != nil {
+			if m.discardPromptEventAfterStop(ctx, session, turnState.turnID, next.Type, err) {
+				return nil, "", false
+			}
+			failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
+			return failure, errorText, true
 		}
 		normalized = append(normalized, next)
 	}

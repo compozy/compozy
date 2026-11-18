@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type NotifyOnChangeProps,
+} from "@tanstack/react-query";
 
 import {
   createWorkspace,
@@ -22,8 +27,21 @@ interface UseWorkspaceOptions {
   enabled?: boolean;
 }
 
-export function useWorkspaces(options: UseWorkspaceOptions = {}) {
-  return useQuery(workspacesListOptions(options.enabled ?? true));
+interface UseWorkspacesOptions extends UseWorkspaceOptions {
+  /**
+   * The result fields whose change re-renders the caller. The catalog polls, so
+   * a caller that reads nothing during render must say so: with no read field,
+   * every refresh, even an unchanged one, re-renders it.
+   */
+  notifyOnChangeProps?: NotifyOnChangeProps;
+}
+
+/** The registered workspace catalog, polled every 10 s while observed. */
+export function useWorkspaces(options: UseWorkspacesOptions = {}) {
+  return useQuery({
+    ...workspacesListOptions(options.enabled ?? true),
+    notifyOnChangeProps: options.notifyOnChangeProps,
+  });
 }
 
 export function useWorkspace(workspaceID: string, options?: UseWorkspaceOptions) {

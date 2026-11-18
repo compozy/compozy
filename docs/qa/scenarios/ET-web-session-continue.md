@@ -4,7 +4,7 @@ area: ET
 title: Continue a session with another agent from the web
 persona: Bruno
 journey: J-14
-expected: A user session's row menu (sessions modal, window sidebar, agent detail) and its window overflow offer "Continue with another agent…" after "Rename session" (absent for archived, spawned, coordinator, and system rows). The dialog ("Continue with another agent", eyebrow "Operate · Session") preselects the first agent that is not the source's, shows the daemon-measured context line ("Carries over N messages · X KiB", or "Carries over K of N messages · X KiB" plus "M earlier messages omitted to fit the context budget.", "A turn is still in progress; it will not be carried over." for a running source), keeps Continue disabled while measuring and after "Couldn't measure this session's context.", shows a Route select ("Default" + "Route n · provider · model", with an account suffix when two routes collide) only for agents that declare fallback routes and then hides Runtime (route XOR runtime), accepts an optional first message, and defaults Open in to New window. Continue shows "Starting the new session…", creates exactly one child, and opens it in a new window (This window retargets the current window instead; lists outside a session window always open a new window). The child's status line shows the neutral pill "Continued from {source agent}" linking to the source; its transcript starts with the hairline divider "Continued from {source title}" (alone above "Nothing said here yet" before the first message); the inspector shows Origin "continue · from {agent}" and Seed "replay". The source window and transcript are unchanged. A rate-limited or unauthenticated turn whose next step is handoff shows "Continue this session with another agent or route." with a "Continue with another agent…" button that opens the same dialog for that session; nothing is created until Continue. The dead-runtime banner reads "Restart in a new session" and creates a recovery child. No surface in this feature is danger-toned except refusal text.
+expected: A user session's row menu (sessions modal, window sidebar, agent detail) and its window overflow offer "Continue with another agent…" (in the row menu under "New from this ▸") (absent for archived, spawned, coordinator, and system rows). The dialog ("Continue with another agent", eyebrow "Operate · Session") preselects the first agent that is not the source's, shows the daemon-measured context line ("Carries over N messages · X KiB", or "Carries over K of N messages · X KiB" plus "M earlier messages omitted to fit the context budget.", "A turn is still in progress; it will not be carried over." for a running source), keeps Continue disabled while measuring and after "Couldn't measure this session's context.", shows a Route select ("Default" + "Route n · provider · model", with an account suffix when two routes collide) only for agents that declare fallback routes and then hides Runtime (route XOR runtime), accepts an optional first message, and defaults Open in to New window. Continue shows "Starting the new session…", creates exactly one child, and opens it in a new window (This window retargets the current window instead; lists outside a session window always open a new window). The child's status line shows the neutral pill "Continued from {source agent}" linking to the source; its transcript starts with the hairline divider "Continued from {source title}" (alone above "Nothing said here yet" before the first message); the inspector shows Origin "continue · from {agent}" and Seed "replay". The source window and transcript are unchanged. A rate-limited or unauthenticated turn whose next step is handoff shows "Continue this session with another agent or route." with a "Continue with another agent…" button that opens the same dialog for that session; nothing is created until Continue. The dead-runtime banner reads "Restart in a new session" and creates a recovery child. No surface in this feature is danger-toned except refusal text.
 entry_points: web session window overflow (continue-menu-item); session row overflow (session-row-continue-{id}) in the sessions modal, window sidebar, and agent detail; provider-error marker (provider-error-continue); SessionContinueDialog (session-continue-dialog, session-derive-preview, session-continue-route-select, session-derive-placement, session-continue-submit); SessionOriginPill (session-origin-pill); SessionContinueDivider (session-origin-divider); inspector Origin section (ledger-origin, ledger-seed); dead-runtime banner; GET …/derive/preview; POST …/continue
 qa_status: untested
 bug_ids: BUG-20260928-agent-resource-drops-fallback-chain; BUG-20260928-derive-budget-ignores-workspace-overlay; BUG-20260928-derive-retry-creates-second-child; BUG-20260928-derived-child-empty-state-hidden; BUG-20260929-derive-refusal-below-fold; BUG-20261006-derived-child-runtime-not-selected; BUG-20261006-derived-child-nested-under-source
@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pending
 fix_commits: uncommitted (review round 1 QA re-walk)
 evidence: docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-reopen-measuring.png; docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-committed-child-after-fix.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/journey-log.jsonl; docs/qa/evidence/2026-09-28-session-continue-fork-b2/continue-route-child-window.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/dead-runtime-banner.png; .compozy/tasks/session-continue-fork/evidence/visual/task_04/
-last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
+last_report: docs/qa/reports/2026-11-09-issue-1424-continue-preflight.md
 overlaps: ET-cli-session-continue; RT-session-derive-retry; RT-provider-error-handoff; ET-web-session-sidebar-threads; ET-web-sessions-catalog-modal; ET-web-session-context-sidebar
 ---
 
@@ -89,6 +89,36 @@ Regressions: `TestContinueSession` "Should select the chosen runtime on the unbo
 it", `use-session-prompt-runtime.test.tsx` "Should prefer an unbound session's selected runtime over
 the agent default", `session-hierarchy.test.ts` "Should keep continued and forked sessions top-level
 while spawned children nest".
+
+## Displayed runtime selection regression
+
+From a Claude conversation, open Continue and choose a Codex agent whose displayed runtime is
+GPT-6-Astra / High / Normal. Keep the displayed defaults untouched, submit, and confirm the
+request contains all four runtime fields. Repeat by editing the runtime picker, including Fast
+when the provider advertises it, and with/without a first message. The new composer's choice and
+each user event's `prompt_runtime` must agree with the confirmed selection. A target with a
+failing command and a working Claude fallback must show the committed child's launch error
+instead of running Claude. See the [targeted report](../reports/2026-11-09-issue-1414-continue-runtime.md).
+With an inherited ACP permission mode, changing only Fast or reasoning must not send that mode
+as an explicit override. Advanced controls must show inherited values even if the catalog's defaults
+differ; editing an advanced switch submits that difference without copying unchanged inherited values.
+If a model advertises selectable levels and the agent's effort is absent from those choices,
+Continue must explain the refusal and allow choosing a supported effort. A missing model or an
+unobserved level set must preserve the chosen effort and let the daemon validate it.
+If a model advertises only `none` while the agent carries a reasoning level, Continue refuses
+before creating a child and directs the user to choose another model or agent. Choosing a model
+that supports that level then allows submission.
+Cursor's advertised effort/speed pairs are checked together; unknown pair metadata is left to
+the daemon. Correcting an invalid runtime clears its local refusal without clearing an unrelated
+daemon submission error.
+For Cursor models, an omitted effort is checked against the model's advertised default while the
+request keeps it omitted, and an advertised thinking requirement is refused until the Thinking
+control satisfies it. A message-only edit keeps a local refusal visible.
+Provider default on an inherited advanced option launches the displayed advertised default as an
+explicit value; with no advertised default, Continue asks for a value. An inherited unrestricted
+option listed in `effective_runtime.policy_excluded_acp_options` shows the policy-effective value
+and is never submitted. An explicit advanced choice removed by a catalog refresh is refused with
+its name until the model is reselected; a model with no observed descriptors stays daemon-validated.
 
 ## Deleted root ancestor regression
 

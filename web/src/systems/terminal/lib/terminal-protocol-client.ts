@@ -20,7 +20,12 @@ import type { TerminalSignal } from "../types";
 import { decodeTerminalServerFrame, TERMINAL_SERVER_OP } from "./terminal-wire";
 import { TerminalCommandSender } from "./terminal-command-sender";
 import { terminalStreamFatalCode } from "./terminal-stream-fatal";
-import { defaultSchedule, terminalBackoffDelay } from "./terminal-backoff";
+import {
+  defaultSchedule,
+  TERMINAL_ATTACH_DEADLINE_MS,
+  TERMINAL_MAX_STALLED_ATTACHES,
+  terminalBackoffDelay,
+} from "./terminal-backoff";
 import { dispatchTerminalControlFrame } from "./terminal-control-frames";
 import {
   createTerminalFrameConsumers,
@@ -71,6 +76,17 @@ export class TerminalProtocolClient {
   private inputEnabled = false;
   private readonly consumers: TerminalFrameConsumers;
   private cancelReconnect: (() => void) | null = null;
+  /**
+   * The current attempt's deadline for reaching `ATTACHED`.
+   *
+   * A socket can sit in `CONNECTING`, or open and stay silent, without ever
+   * firing `close` — and only `close` schedules a reconnect. The deadline is
+   * what turns that silence into a retry, then into a stated failure.
+   */
+  private cancelAttachDeadline: (() => void) | null = null;
+  /** Aborts the current attempt's pass mint when its deadline passes. */
+  private attemptAbort: AbortController | null = null;
+  private stalledAttempts = 0;
   private readonly abort = new AbortController();
 
   constructor(private readonly options: TerminalProtocolClientOptions) {
@@ -119,6 +135,8 @@ export class TerminalProtocolClient {
     this.connectionEpoch += 1;
     this.cancelReconnect?.();
     this.cancelReconnect = null;
+    this.clearAttachDeadline();
+    this.attemptAbort?.abort();
     this.abort.abort();
     const socket = this.socket;
     this.socket = null;
@@ -179,6 +197,9 @@ export class TerminalProtocolClient {
     // Read once: a vote recorded while the mint is in flight is not in this
     // query, so it must not be marked as carried below.
     const carriedProposal = this.sender.proposed;
+    const attemptAbort = new AbortController();
+    this.attemptAbort = attemptAbort;
+    this.armAttachDeadline(attemptAbort);
     try {
       socket = await openTerminalStream({
         workspaceId: this.options.workspaceId,
@@ -191,10 +212,12 @@ export class TerminalProtocolClient {
         afterSeq: resumedFrom > 0n ? resumedFrom : undefined,
         proposed: carriedProposal,
         ...(this.options.socketFactory ? { socketFactory: this.options.socketFactory } : {}),
-        signal: this.abort.signal,
+        signal: attemptAbort.signal,
       });
     } catch (cause) {
-      if (this.stopped) return;
+      // A mint aborted by its own deadline was already handed to the stall path.
+      if (this.stopped || attemptAbort.signal.aborted) return;
+      this.clearAttachDeadline();
       const fatalCode = terminalStreamFatalCode(cause);
       if (fatalCode !== null) {
         this.ended = true;
@@ -212,7 +235,7 @@ export class TerminalProtocolClient {
       this.scheduleReconnect();
       return;
     }
-    if (this.stopped) {
+    if (this.stopped || attemptAbort.signal.aborted) {
       socket.close(1000, "detached");
       return;
     }
@@ -230,6 +253,7 @@ export class TerminalProtocolClient {
     socket.onerror = () => this.setStatus("reconnecting");
     socket.onclose = () => {
       if (this.stopped || this.socket !== socket) return;
+      this.clearAttachDeadline();
       this.socket = null;
       this.socketOpen = false;
       // Anything still in flight belongs to a connection that no longer exists.
@@ -277,6 +301,7 @@ export class TerminalProtocolClient {
    * is not moved, so the daemon replays whatever was missed.
    */
   private reconnectFromCommitted(): void {
+    this.clearAttachDeadline();
     const socket = this.socket;
     this.socket = null;
     this.socketOpen = false;
@@ -313,7 +338,9 @@ export class TerminalProtocolClient {
   }
 
   private applyAttached(frame: TerminalAttachedFrame): void {
+    this.clearAttachDeadline();
     this.attempt = 0;
+    this.stalledAttempts = 0;
     const replayPlan = this.replay.applyAttached(frame);
     // A client that asked for the whole history cannot vouch for what is
     // already on the screen: the emulator's buffer outlives connections by
@@ -380,6 +407,53 @@ export class TerminalProtocolClient {
       this.cancelReconnect = null;
       void this.connect();
     }, delay);
+  }
+
+  private armAttachDeadline(attemptAbort: AbortController): void {
+    this.clearAttachDeadline();
+    const schedule = this.options.attachDeadline ?? defaultSchedule;
+    this.cancelAttachDeadline = schedule(() => {
+      this.cancelAttachDeadline = null;
+      if (this.stopped || this.attemptAbort !== attemptAbort) return;
+      attemptAbort.abort();
+      this.abandonStalledAttempt();
+    }, TERMINAL_ATTACH_DEADLINE_MS);
+  }
+
+  private clearAttachDeadline(): void {
+    this.cancelAttachDeadline?.();
+    this.cancelAttachDeadline = null;
+  }
+
+  /**
+   * Gives up on an attempt that never reached `ATTACHED`.
+   *
+   * The socket is closed without its handlers, so this is the one place that
+   * decides what happens next: another attempt through the usual backoff, or,
+   * after repeated stalls, a stated failure the person can retry from.
+   */
+  private abandonStalledAttempt(): void {
+    const socket = this.socket;
+    this.socket = null;
+    this.socketOpen = false;
+    this.connectionEpoch += 1;
+    this.setInputEnabled(false);
+    if (socket) {
+      detachTerminalStreamHandlers(socket);
+      socket.close(1000, "attach timed out");
+    }
+    this.stalledAttempts += 1;
+    if (this.stalledAttempts < TERMINAL_MAX_STALLED_ATTACHES) {
+      this.scheduleReconnect();
+      return;
+    }
+    this.options.handlers?.onStreamError?.({
+      error: {
+        code: "attach_timeout",
+        message: `The terminal did not connect after ${TERMINAL_MAX_STALLED_ATTACHES} attempts.`,
+      },
+    });
+    this.setStatus("closed");
   }
 
   private reportClientError(cause: unknown, fallback: string): void {

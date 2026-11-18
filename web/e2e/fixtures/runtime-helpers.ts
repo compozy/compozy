@@ -21,7 +21,7 @@ export interface RuntimeConfigInput {
   includeMockAgentProvider?: boolean;
   modelsDevEnabled?: boolean;
   marketplaceCatalogBaseURL?: string;
-  newWindowPolicy?: "floating" | "beside_focus" | "tab";
+  newWindowPolicy?: "beside_focus" | "tab";
   port: number;
   socketPath: string;
   toolsExternalDefault?: "disabled" | "ask" | "enabled";
@@ -193,6 +193,12 @@ export function buildLaunchRuntimeEnv(repoRoot: string, env: NodeJS.ProcessEnv):
     ...env,
     COMPOZY_WEB_DIST_DIR: path.join(repoRoot, "web", "dist"),
   };
+}
+
+/** Serving HTTP precedes discovery publication and completed boot. */
+export function isLaunchRuntimeReady(info: unknown, pid: number | undefined): boolean {
+  if (info === null || typeof info !== "object" || pid === undefined) return false;
+  return Reflect.get(info, "pid") === pid && Reflect.get(info, "readiness_phase") === "ready";
 }
 
 function tomlString(value: string): string {

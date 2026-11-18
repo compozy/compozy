@@ -3,7 +3,7 @@ import type {
   OnboardingDraftState,
 } from "../stores/use-onboarding-draft-store";
 import { providerNeedsAuth } from "@/systems/model-catalog";
-import type { ProviderSummary } from "@/systems/providers";
+import { isProviderEnabled, type ProviderSummary } from "@/systems/providers";
 import {
   reasoningEffortLabel,
   type RuntimeModelOption,
@@ -27,13 +27,19 @@ export function defaultAuthModeForHarness(harness: string | null): OnboardingAut
 }
 
 export function onboardingRuntimeProviders(providers: ProviderSummary[]): RuntimeProviderOption[] {
-  return providers.map(entry => ({
-    id: entry.name,
-    name: entry.display_name?.trim() || entry.name,
-    runtime_provider: entry.name,
-    runtime_strategy: entry.runtime_strategy,
-    needs_auth: providerNeedsAuth(entry.auth_status?.state),
-  }));
+  return providers.flatMap(entry =>
+    isProviderEnabled(entry)
+      ? [
+          {
+            id: entry.name,
+            name: entry.display_name?.trim() || entry.name,
+            runtime_provider: entry.name,
+            runtime_strategy: entry.runtime_strategy,
+            needs_auth: providerNeedsAuth(entry.auth_status?.state),
+          },
+        ]
+      : []
+  );
 }
 
 type OnboardingRuntimeDraft = Pick<OnboardingDraftState, "provider" | "model" | "reasoning">;

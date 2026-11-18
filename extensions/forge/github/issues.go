@@ -54,6 +54,7 @@ func (p *Provider) pollIssues(
 	ctx context.Context,
 	req compozysdk.HeartbeatSourceRequest,
 ) (compozysdk.HeartbeatSourceResult, error) {
+	ctx = context.WithValue(ctx, forgeSourceKey{}, "heartbeat/issues")
 	ctx, cancel := context.WithTimeout(ctx, githubRequestLimit)
 	defer cancel()
 	params, repo, err := resolveIssuesParams(ctx, req)

@@ -334,6 +334,7 @@ func Document() (*openapi3.T, error) {
 		doc.AddOperation(opSpec.Path, opSpec.Method, operation)
 	}
 	resolveComponentSchemaReferences(doc.Components.Schemas)
+	finalizeWindowManagerConfigSchemas(doc.Components.Schemas)
 	if err := lintDocumentSchemas(doc); err != nil {
 		return nil, fmt.Errorf("lint openapi: %w", err)
 	}

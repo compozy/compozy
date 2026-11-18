@@ -15,6 +15,8 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
+	"github.com/compozy/compozy/internal/projectfiles"
+	"github.com/compozy/compozy/internal/projectfiles/changes"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -49,6 +51,10 @@ type BaseHandlerConfig struct {
 	ToolArtifacts                toolspkg.ToolArtifactStore
 	SessionAttachments           SessionAttachmentStore
 	SessionFiles                 SessionFileSearcher
+	FileTree                     FileTreeReader
+	FileFinder                   projectfiles.Finder
+	FileSearcher                 projectfiles.Searcher
+	SessionChanges               SessionChangesReader
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -105,6 +111,7 @@ type BaseHandlerConfig struct {
 	RuntimeMemory               doctor.RuntimeMemorySnapshotSource
 	HostLoad                    doctor.HostLoadSnapshotSource
 	DeadEntities                doctor.DeadEntitySource
+	TelemetryStatus             TelemetryStatusSource
 	AppTokens                   AppTokenManager
 	OpenAPI                     *OpenAPIDocument
 	Gateway                     GatewayService
@@ -142,6 +149,10 @@ type BaseHandlers struct {
 	ToolArtifacts                toolspkg.ToolArtifactStore
 	SessionAttachments           SessionAttachmentStore
 	SessionFiles                 SessionFileSearcher
+	FileTree                     FileTreeReader
+	FileFinder                   projectfiles.Finder
+	FileSearcher                 projectfiles.Searcher
+	SessionChanges               SessionChangesReader
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -196,6 +207,7 @@ type BaseHandlers struct {
 	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
 	HostLoad                     doctor.HostLoadSnapshotSource
 	DeadEntities                 doctor.DeadEntitySource
+	TelemetryStatus              TelemetryStatusSource
 	AppTokens                    AppTokenManager
 	OpenAPI                      *OpenAPIDocument
 	Gateway                      GatewayService
@@ -227,6 +239,8 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	}
 	defaults := normalizeBaseHandlerConfig(cfg)
 	handlers := baseHandlersFromConfig(cfg, defaults)
+	handlers.SessionChanges = cfg.SessionChanges
+	handlers.TelemetryStatus = cfg.TelemetryStatus
 	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
 	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()
@@ -236,6 +250,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	if cfg.Terminal != nil {
 		handlers.terminalCatalog = newTerminalCatalog(cfg.Terminal)
 	}
+	handlers.FileFinder, handlers.FileSearcher = cfg.FileFinder, cfg.FileSearcher
 	handlers.httpPort.Store(int64(cfg.HTTPPort))
 	return handlers
 }
@@ -261,6 +276,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		ToolArtifacts:                cfg.ToolArtifacts,
 		SessionAttachments:           cfg.SessionAttachments,
 		SessionFiles:                 cfg.SessionFiles,
+		FileTree:                     cfg.FileTree,
 		Toolsets:                     cfg.Toolsets,
 		ToolApprovals:                cfg.ToolApprovals,
 		ApprovalCoordinator:          cfg.ApprovalCoordinator,
@@ -371,6 +387,21 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 	}
 	if cfg.StreamDone == nil {
 		cfg.StreamDone = make(chan struct{})
+	}
+	if cfg.FileFinder == nil || cfg.FileSearcher == nil {
+		search := projectfiles.NewSearch(nil)
+		if cfg.FileFinder == nil {
+			cfg.FileFinder = search
+		}
+		if cfg.FileSearcher == nil {
+			cfg.FileSearcher = search
+		}
+	}
+	if cfg.SessionChanges == nil {
+		cfg.SessionChanges = changes.NewEngine()
+	}
+	if cfg.FileTree == nil {
+		cfg.FileTree = projectfiles.NewReader()
 	}
 	if cfg.SessionFiles == nil {
 		// Without an injected runner the index serves the bounded directory walk only.

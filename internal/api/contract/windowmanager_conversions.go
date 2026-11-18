@@ -1,7 +1,10 @@
 package contract
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -12,26 +15,21 @@ func WindowManagerSnapshotFromDomain(snapshot windowmanager.Snapshot) (WindowMan
 	if err != nil {
 		return WindowManagerSnapshot{}, err
 	}
-	windows, err := windowManagerWindowsFromDomain(snapshot.Windows)
-	if err != nil {
-		return WindowManagerSnapshot{}, err
-	}
+	windows := windowManagerWindowsFromDomain(snapshot.Windows)
 	return WindowManagerSnapshot{
 		Version: snapshot.Version, WorkspaceID: snapshot.WorkspaceID, Revision: revision,
 		Desktops: windowManagerDesktopsFromDomain(snapshot.Desktops), Windows: windows,
-		ClosedEntryCount: len(snapshot.ClosedEntries),
-		Overrides:        cloneWindowManagerWorkspaceConfig(snapshot.Overrides), UpdatedAt: snapshot.UpdatedAt,
+		ClosedEntryCount: len(snapshot.ClosedEntries), Migration: snapshot.Migration,
+		Overrides: cloneWindowManagerWorkspaceConfig(snapshot.Overrides), UpdatedAt: snapshot.UpdatedAt,
 	}, nil
 }
 
 // WindowManagerLayoutFromDomain converts a domain layout to its stable wire form.
 func WindowManagerLayoutFromDomain(document windowmanager.LayoutDocument) (WindowManagerLayoutDocument, error) {
-	windows, err := windowManagerWindowsFromDomain(document.Windows)
-	if err != nil {
-		return WindowManagerLayoutDocument{}, err
-	}
+	windows := windowManagerWindowsFromDomain(document.Windows)
 	return WindowManagerLayoutDocument{
-		Version: document.Version, WorkspaceID: document.WorkspaceID,
+		InputDeprecations: slices.Clone(document.InputDeprecations),
+		Version:           document.Version, WorkspaceID: document.WorkspaceID,
 		Desktops: windowManagerDesktopsFromDomain(document.Desktops),
 		Windows:  windows, Overrides: cloneWindowManagerWorkspaceConfig(document.Overrides),
 	}, nil
@@ -40,7 +38,8 @@ func WindowManagerLayoutFromDomain(document windowmanager.LayoutDocument) (Windo
 // Domain converts a stable wire layout to the authoritative domain document.
 func (document WindowManagerLayoutDocument) Domain() windowmanager.LayoutDocument {
 	return windowmanager.LayoutDocument{
-		Version: document.Version, WorkspaceID: document.WorkspaceID,
+		InputDeprecations: slices.Clone(document.InputDeprecations),
+		Version:           document.Version, WorkspaceID: document.WorkspaceID,
 		Desktops:  windowManagerDesktopsToDomain(document.Desktops),
 		Windows:   windowManagerWindowsToDomain(document.Windows),
 		Overrides: cloneWindowManagerWorkspaceConfig(document.Overrides),
@@ -63,11 +62,11 @@ func WindowManagerClientFromDomain(client windowmanager.ClientView) (WindowManag
 		ContextRevision: contextRevision,
 		FocusedWindowID: cloneWindowManagerPointer(client.FocusedWindowID),
 		FocusOrder:      append([]windowmanager.WindowID{}, client.FocusOrder...),
-		StackActive:     windowManagerStackActiveFromDomain(client.StackActive),
+		StackActive:     map[string]string{}, ActiveTab: windowManagerActiveTabFromDomain(client.ActiveTab),
 		PaletteContext: WindowManagerPaletteContext{
-			WindowFocused:       client.PaletteContext.WindowFocused,
-			WindowFloating:      client.PaletteContext.WindowFloating,
-			WindowStacked:       client.PaletteContext.WindowStacked,
+			WindowFocused:  client.PaletteContext.WindowFocused,
+			WindowFloating: client.PaletteContext.WindowFloating,
+			WindowStacked:  client.PaletteContext.WindowStacked, WindowInSplit: client.PaletteContext.WindowInSplit,
 			DesktopWindowCount:  client.PaletteContext.DesktopWindowCount,
 			ScopeGlobal:         client.PaletteContext.ScopeGlobal,
 			ShellDesktop:        client.PaletteContext.ShellDesktop,
@@ -91,10 +90,10 @@ func cloneWindowManagerRoutePointer(route *windowmanager.RouteIntent) *windowman
 	return new(cloneWindowManagerRoute(*route))
 }
 
-func windowManagerStackActiveFromDomain(values map[windowmanager.NodeID]windowmanager.WindowID) map[string]string {
-	result := make(map[string]string, len(values))
-	for stackID, windowID := range values {
-		result[string(stackID)] = string(windowID)
+func windowManagerActiveTabFromDomain(values map[windowmanager.DesktopID]windowmanager.TabID) map[string]string {
+	result := map[string]string{}
+	for d, t := range values {
+		result[string(d)] = string(t)
 	}
 	return result
 }
@@ -118,13 +117,20 @@ func WindowManagerResultFromDomain(result *windowmanager.Result) (WindowManagerR
 		client = &converted
 	}
 	return WindowManagerResult{
-		Snapshot: snapshot, Applied: result.Applied, Changes: result.Changes,
-		Diagnostics: result.Diagnostics, Client: client, RebasedFrom: rebased,
+		Snapshot: snapshot,
+		Applied:  result.Applied,
+		Changes:  result.Changes,
+		Deprecations: append(
+			[]windowmanager.Deprecation{},
+			result.Deprecations...),
+		Diagnostics: result.Diagnostics,
+		Client:      client,
+		RebasedFrom: rebased,
 	}, nil
 }
 
 // WindowManagerPreviewFromDomain converts a command preview.
-func WindowManagerPreviewFromDomain(preview windowmanager.Preview) (WindowManagerPreview, error) {
+func WindowManagerPreviewFromDomain(preview *windowmanager.Preview) (WindowManagerPreview, error) {
 	snapshot, err := WindowManagerSnapshotFromDomain(preview.Snapshot)
 	if err != nil {
 		return WindowManagerPreview{}, err
@@ -138,73 +144,49 @@ func WindowManagerPreviewFromDomain(preview windowmanager.Preview) (WindowManage
 		client = &converted
 	}
 	return WindowManagerPreview{
-		Snapshot: snapshot, Changed: preview.Changed, Changes: preview.Changes,
-		Diagnostics: preview.Diagnostics, Client: client,
+		Snapshot: snapshot,
+		Changed:  preview.Changed,
+		Changes:  preview.Changes,
+		Deprecations: append(
+			[]windowmanager.Deprecation{},
+			preview.Deprecations...),
+		Diagnostics: preview.Diagnostics,
+		Client:      client,
 	}, nil
 }
 
 func windowManagerWindowsFromDomain(
 	windows map[windowmanager.WindowID]windowmanager.Window,
-) (map[string]WindowManagerWindow, error) {
+) map[string]WindowManagerWindow {
 	result := make(map[string]WindowManagerWindow, len(windows))
-	for id, window := range windows {
-		converted := WindowManagerWindow{
-			ID: window.ID, App: window.App,
-			InstanceKey: cloneWindowManagerPointer(window.InstanceKey),
-			Route:       cloneWindowManagerRoute(window.Route), NavStack: cloneWindowManagerRoutes(window.NavStack),
-			Pinned: window.Pinned, Placement: window.Placement,
-			DesktopID: window.DesktopID, FloatingRect: window.FloatingRect, Minimized: window.Minimized,
-			Zoomed: window.Zoomed,
+	for id, w := range windows {
+		result[string(id)] = WindowManagerWindow{
+			ID:          w.ID,
+			App:         w.App,
+			InstanceKey: cloneWindowManagerPointer(w.InstanceKey),
+			Route:       cloneWindowManagerRoute(w.Route),
+			NavStack:    cloneWindowManagerRoutes(w.NavStack),
+			DesktopID:   w.DesktopID,
+			TabID:       w.TabID,
 		}
-		if window.ReturnAnchor != nil {
-			revision, err := windowManagerRevision(window.ReturnAnchor.SourceRevision)
-			if err != nil {
-				return nil, fmt.Errorf("convert return anchor for window %q: %w", id, err)
-			}
-			converted.ReturnAnchor = &WindowManagerReturnAnchor{
-				DesktopID:      window.ReturnAnchor.DesktopID,
-				GroupID:        cloneWindowManagerPointer(window.ReturnAnchor.GroupID),
-				ParentSplitID:  cloneWindowManagerPointer(window.ReturnAnchor.ParentSplitID),
-				ChildIndex:     cloneWindowManagerPointer(window.ReturnAnchor.ChildIndex),
-				Weight:         cloneWindowManagerPointer(window.ReturnAnchor.Weight),
-				NeighborIDs:    append([]windowmanager.WindowID(nil), window.ReturnAnchor.NeighborIDs...),
-				SourceRevision: revision,
-				SourceGroup:    optionalWindowManagerLayoutGroupFromDomain(window.ReturnAnchor.SourceGroup),
-				Zoomed:         window.ReturnAnchor.Zoomed,
-			}
-		}
-		result[string(id)] = converted
 	}
-	return result, nil
+	return result
 }
 
 func windowManagerWindowsToDomain(
 	windows map[string]WindowManagerWindow,
 ) map[windowmanager.WindowID]windowmanager.Window {
 	result := make(map[windowmanager.WindowID]windowmanager.Window, len(windows))
-	for key, window := range windows {
-		converted := windowmanager.Window{
-			ID: window.ID, App: window.App,
-			InstanceKey: cloneWindowManagerPointer(window.InstanceKey),
-			Route:       cloneWindowManagerRoute(window.Route), NavStack: cloneWindowManagerRoutes(window.NavStack),
-			Pinned: window.Pinned, Placement: window.Placement,
-			DesktopID: window.DesktopID, FloatingRect: window.FloatingRect, Minimized: window.Minimized,
-			Zoomed: window.Zoomed,
+	for id, w := range windows {
+		result[windowmanager.WindowID(id)] = windowmanager.Window{
+			ID:          w.ID,
+			App:         w.App,
+			InstanceKey: cloneWindowManagerPointer(w.InstanceKey),
+			Route:       cloneWindowManagerRoute(w.Route),
+			NavStack:    cloneWindowManagerRoutes(w.NavStack),
+			DesktopID:   w.DesktopID,
+			TabID:       w.TabID,
 		}
-		if window.ReturnAnchor != nil {
-			converted.ReturnAnchor = &windowmanager.ReturnAnchor{
-				DesktopID:      window.ReturnAnchor.DesktopID,
-				GroupID:        cloneWindowManagerPointer(window.ReturnAnchor.GroupID),
-				ParentSplitID:  cloneWindowManagerPointer(window.ReturnAnchor.ParentSplitID),
-				ChildIndex:     cloneWindowManagerPointer(window.ReturnAnchor.ChildIndex),
-				Weight:         cloneWindowManagerPointer(window.ReturnAnchor.Weight),
-				NeighborIDs:    append([]windowmanager.WindowID(nil), window.ReturnAnchor.NeighborIDs...),
-				SourceRevision: windowmanager.Revision(window.ReturnAnchor.SourceRevision),
-				SourceGroup:    optionalWindowManagerLayoutGroupToDomain(window.ReturnAnchor.SourceGroup),
-				Zoomed:         window.ReturnAnchor.Zoomed,
-			}
-		}
-		result[windowmanager.WindowID(key)] = converted
 	}
 	return result
 }
@@ -269,4 +251,54 @@ func optionalWindowManagerRevision(revision *windowmanager.Revision) (*WindowMan
 		return nil, err
 	}
 	return &converted, nil
+}
+
+func (document *WindowManagerLayoutDocument) UnmarshalJSON(raw []byte) error {
+	var domain windowmanager.LayoutDocument
+	if err := json.Unmarshal(raw, &domain); err != nil {
+		return err
+	}
+	converted, err := WindowManagerLayoutFromDomain(domain)
+	if err != nil {
+		return err
+	}
+	*document = converted
+	if len(domain.InputDeprecations) > 0 {
+		var input struct {
+			Overrides json.RawMessage `json:"overrides"`
+		}
+		if err := json.Unmarshal(raw, &input); err != nil {
+			return err
+		}
+		document.inputOverrides = input.Overrides
+	}
+	return nil
+}
+
+// MarshalJSON keeps retired input overrides until the receiving daemon can observe their use.
+// Documents exported from the domain have no input bytes and always encode the effective config.
+func (document WindowManagerLayoutDocument) MarshalJSON() ([]byte, error) {
+	type wire WindowManagerLayoutDocument
+	if len(document.inputOverrides) == 0 {
+		return json.Marshal(wire(document))
+	}
+	input, _, err := windowmanager.DecodeWorkspaceConfigJSON(document.inputOverrides)
+	if err != nil {
+		return nil, err
+	}
+	normalized, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
+	current, err := json.Marshal(document.Overrides)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(normalized, current) {
+		return json.Marshal(wire(document))
+	}
+	return json.Marshal(struct {
+		wire
+		Overrides json.RawMessage `json:"overrides"`
+	}{wire: wire(document), Overrides: document.inputOverrides})
 }

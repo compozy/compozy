@@ -15,6 +15,8 @@ interface UseCodeBlockOptions {
   code: string;
   highlightLines?: readonly number[];
   language?: string;
+  /** The caller renders lines it highlighted itself (at build time): skip the client highlighter. */
+  prerendered?: boolean;
   themeMode: CodeBlockThemeMode;
   truncateLines?: number;
 }
@@ -31,6 +33,7 @@ export function useCodeBlock({
   code,
   highlightLines,
   language,
+  prerendered = false,
   themeMode,
   truncateLines,
 }: UseCodeBlockOptions) {
@@ -58,14 +61,16 @@ export function useCodeBlock({
     highlightResult.language === normalizedLanguage &&
     highlightResult.theme === resolvedTheme;
   const highlightedCode = highlightResultMatches ? highlightResult.lines : null;
-  const highlightState: CodeBlockHighlightState = !normalizedLanguage
-    ? "plain"
-    : highlightResultMatches
-      ? highlightResult.state
-      : "loading";
+  const highlightState: CodeBlockHighlightState = prerendered
+    ? "highlighted"
+    : !normalizedLanguage
+      ? "plain"
+      : highlightResultMatches
+        ? highlightResult.state
+        : "loading";
 
   React.useEffect(() => {
-    if (!normalizedLanguage) return undefined;
+    if (prerendered || !normalizedLanguage) return undefined;
     let cancelled = false;
 
     void import("../../../lib/shiki-highlighter")
@@ -107,7 +112,7 @@ export function useCodeBlock({
     return () => {
       cancelled = true;
     };
-  }, [code, normalizedLanguage, resolvedTheme]);
+  }, [code, normalizedLanguage, prerendered, resolvedTheme]);
 
   return {
     clampedLines,

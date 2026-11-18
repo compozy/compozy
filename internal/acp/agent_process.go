@@ -33,6 +33,7 @@ type AgentProcess struct {
 	capsMu          sync.RWMutex
 	caps            Caps
 	configRevision  uint64
+	configChanged   chan struct{}
 	runtimeConfigMu sync.Mutex
 	managed         *subprocess.Process
 	handle          Handle
@@ -72,10 +73,12 @@ type AgentProcess struct {
 
 	permissionDenials *PermissionDenials
 	reviewerMode      string
-	providerName      string
-	providerAuthMode  compozyconfig.ProviderAuthMode
-	providerFailureMu sync.Mutex
-	providerFailures  map[string]ProviderErrorDiagnostic
+	// Set during startup and immutable after Start returns.
+	unadvertisedStartupMode string
+	providerName            string
+	providerAuthMode        compozyconfig.ProviderAuthMode
+	providerFailureMu       sync.Mutex
+	providerFailures        map[string]ProviderErrorDiagnostic
 
 	logger       *slog.Logger
 	compactionMu sync.Mutex
@@ -85,7 +88,6 @@ type AgentProcess struct {
 	compactionTerminalOrder []string
 	retiredCompactions      map[string]struct{}
 	unknownUpdates          map[string]struct{}
-	usageAliasWarning       sync.Once
 	usageRangeWarning       sync.Once
 	triagePolicyErr         error // Protected by promptMu; a mode violation permanently fences new prompts.
 	promptMu                sync.RWMutex
@@ -96,6 +98,8 @@ type AgentProcess struct {
 	permissionRequestSeq   uint64
 	permissionTimeout      time.Duration
 	permissionWaitResolver PermissionWaitResolver
+	permissionEventHandler func(AgentEvent, bool)
+	elicitationAsker       ElicitationAsker
 	hostedApprovals        hostedApprovals
 	hostedAnnounced        hostedAnnouncements
 	compozySessionID       string
@@ -128,6 +132,7 @@ type pendingPermission struct {
 	response           chan permissionDecision
 	supportedDecisions map[permissionDecision]struct{}
 	resolvedBy         string
+	expiresAt          time.Time
 }
 
 // Done returns a channel that closes when the subprocess exits.
@@ -196,6 +201,26 @@ func (p *AgentProcess) CapsSnapshot() Caps {
 	return caps
 }
 
+// notifyConfigChangedLocked wakes every configuration waiter after a revision bump.
+// Callers hold capsMu.
+func (p *AgentProcess) notifyConfigChangedLocked() {
+	if p.configChanged != nil {
+		close(p.configChanged)
+	}
+	p.configChanged = make(chan struct{})
+}
+
+// configRevisionAndChange returns the current revision and a channel closed by the
+// next bump, so a caller can wait without polling.
+func (p *AgentProcess) configRevisionAndChange() (uint64, <-chan struct{}) {
+	p.capsMu.Lock()
+	defer p.capsMu.Unlock()
+	if p.configChanged == nil {
+		p.configChanged = make(chan struct{})
+	}
+	return p.configRevision, p.configChanged
+}
+
 func (p *AgentProcess) setCaps(caps Caps) {
 	if p == nil {
 		return
@@ -204,6 +229,7 @@ func (p *AgentProcess) setCaps(caps Caps) {
 	defer p.capsMu.Unlock()
 	p.caps = CloneCaps(caps)
 	p.configRevision++
+	p.notifyConfigChangedLocked()
 }
 
 func (p *AgentProcess) setConfigOptions(options []SessionConfigOption) {
@@ -217,6 +243,7 @@ func (p *AgentProcess) setConfigOptions(options []SessionConfigOption) {
 
 func (p *AgentProcess) setConfigOptionsLocked(options []SessionConfigOption) {
 	p.configRevision++
+	p.notifyConfigChangedLocked()
 	p.caps.ConfigOptions = preserveSyntheticModelConfigOption(p.caps.ConfigOptions, options)
 	if resolution := p.caps.SpeedResolution; resolution != nil {
 		p.caps.SpeedResolution = ResolveCurrentSpeed(resolution.Requested, p.caps.ConfigOptions)

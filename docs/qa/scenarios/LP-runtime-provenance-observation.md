@@ -35,3 +35,11 @@ browser journeys were not repeated under this assignment's machine-load restrict
 Review regression #914: after a Fast revocation, adopt/revalidate the Goal binding and prepare its
 next prompt. Report applied normal while the actual queued runtime still requests Fast. The existing
 managed Goal integration suite owns this queue assertion; no live Goal was started.
+
+QA impact #1544: Goal applied ACP provenance retains the origins of surviving options, labels
+binder-added options `agent` even alongside explicit options, and omits skipped options. Reuse the
+Goal executor suite for reconciliation and caller-map independence, and the existing runtime
+selection integration for persisted output and `runtime_applied` replay parity. Foreign-workspace
+native status probes request `result_view: "full"` so compact projection cannot hide a leak.
+Validation for this change is CI-only under the operator's parallel-run restriction; historical
+scenario evidence above does not verify this head.

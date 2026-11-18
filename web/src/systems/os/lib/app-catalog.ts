@@ -1,5 +1,6 @@
 import {
   Bot,
+  FolderTree,
   Gauge,
   KeyRound,
   LayoutDashboard,
@@ -28,12 +29,21 @@ export interface OsAppDescriptor {
   /** Dock strip group, sessions launcher, or null for menubar-only settings. */
   dock: { group: 1 | 2 | 3 | 4 } | "sessions-launcher" | null;
   badge?: "sessions" | "tasks" | "terminal";
-  /** Extracts the multi-instance key from a pathname (session and terminal windows). */
+  /**
+   * The window names its project in its own head (Files' project picker), so the chrome's
+   * All projects badge would repeat it ahead of the app identity.
+   */
+  hidesProjectBadge?: true;
+  /** Extracts the multi-instance key from a pathname (session, terminal, and Files windows). */
   matchInstance?: (pathname: string) => string | null;
 }
 
 const SESSION_PATH_PATTERN = /^\/agents\/[^/]+\/sessions\/([^/]+)/;
 const TERMINAL_PATH_PATTERN = /^\/terminal\/([^/]+)/;
+const FILES_PATH_PATTERN = /^\/files\/([^/]+)/;
+
+/** The Files app's bare route: no project resolved yet (or none registered). */
+export const FILES_APP_PATH = "/files";
 
 /** In-window landing after delete or a session window with no selected session. */
 export const SESSION_EMPTY_PATH = "/sessions";
@@ -46,6 +56,19 @@ export function matchSessionInstance(pathname: string): string | null {
 export function matchTerminalInstance(pathname: string): string | null {
   const match = TERMINAL_PATH_PATTERN.exec(pathname);
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+/** One Files window per project: its instance key is the project's workspace id. */
+export function matchFilesInstance(pathname: string): string | null {
+  const match = FILES_PATH_PATTERN.exec(pathname);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+export function filesAppRoute(workspaceId: string): {
+  pathname: string;
+  search: Record<string, never>;
+} {
+  return { pathname: `${FILES_APP_PATH}/${encodeURIComponent(workspaceId)}`, search: {} };
 }
 
 export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
@@ -88,6 +111,15 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     icon: Bot,
     paths: ["/agents"],
     dock: { group: 2 },
+  },
+  files: {
+    id: "files",
+    title: "Files",
+    icon: FolderTree,
+    paths: [FILES_APP_PATH],
+    dock: { group: 2 },
+    hidesProjectBadge: true,
+    matchInstance: matchFilesInstance,
   },
   tasks: {
     id: "tasks",

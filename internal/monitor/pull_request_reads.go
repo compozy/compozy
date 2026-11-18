@@ -69,6 +69,7 @@ func (s *Service) fetchPullRequest(target PullRequestTarget) PullRequestObservat
 
 // boundPullRequestObservation caps forge-sourced facts before they reach a durable cursor.
 func boundPullRequestObservation(obs PullRequestObservation) PullRequestObservation {
+	obs.Base = boundForgeText(obs.Base)
 	if obs.Checks != nil {
 		checks := *obs.Checks
 		names := make([]string, 0, min(len(checks.FailedNames), maxTrackedFailedNames))

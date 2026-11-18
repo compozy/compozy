@@ -87,9 +87,10 @@ func automationRunAggregateTable(runs []RunRecord, labels map[string]string) fun
 	}
 }
 
-func automationRunListBundle(items []RunRecord) outputBundle {
-	return listBundle(
-		contract.RunsResponse{Runs: items},
+func automationRunListBundle(page AutomationRunListRecord) outputBundle {
+	items := page.Runs
+	bundle := listBundle(
+		page,
 		items,
 		"Automation Runs",
 		[]string{
@@ -150,6 +151,29 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 			}
 		},
 	)
+	if page.Page == nil {
+		return bundle
+	}
+	return withListPageOutput(
+		bundle,
+		page.Page,
+		automationRunPageRows(page.Page),
+		[]string{listReturnedField, listLimitField, listHasMoreField, listNextCursorField},
+		[]string{
+			strconv.Itoa(len(items)),
+			strconv.Itoa(page.Page.Limit),
+			strconv.FormatBool(page.Page.HasMore),
+			page.Page.NextCursor,
+		},
+	)
+}
+
+func automationRunPageRows(page *contract.CursorPagePayload) []keyValue {
+	return []keyValue{
+		{Label: listLimitLabel, Value: strconv.Itoa(page.Limit)},
+		{Label: listHasMoreLabel, Value: strconv.FormatBool(page.HasMore)},
+		{Label: listNextCursorLabel, Value: stringOrDash(page.NextCursor)},
+	}
 }
 
 func automationJobLastScheduledAt(item JobRecord) *time.Time {

@@ -9,10 +9,14 @@ const designPath = join(root, "DESIGN.md");
 const runtimeCss = ["tokens.css", "terminal-tokens.css"]
   .map(file => readFileSync(join(root, "packages/ui/src", file), "utf8"))
   .join("\n");
+const appearanceDefaults = appearanceDefaultsOf(runtimeCss);
 // The light theme re-declares theme-scoped tokens under `[data-theme="light"]:root`;
 // every other value is shared with the (default) dark theme.
 const lightCss = readFileSync(join(root, "packages/ui/src/tokens-light.css"), "utf8");
-const siteCss = readFileSync(join(root, "packages/site/app/global.css"), "utf8");
+// The site's theme lives in global.css; the redesign's shell tokens sit in their own file.
+const siteCss = ["packages/site/app/global.css", "packages/site/app/styles/site-shell.css"]
+  .map(file => readFileSync(join(root, file), "utf8"))
+  .join("\n");
 const design = readFileSync(designPath, "utf8");
 const colorGroups = {
   "surface-ramp":
@@ -21,7 +25,7 @@ const colorGroups = {
   "text-ladder": "fg fg-strong fg-2 fg-3 muted-foreground subtle faint",
   primary: "primary primary-hover primary-foreground",
   brand:
-    "brand brand-hover brand-strong brand-ink brand-tint brand-tint-strong brand-dim brand-glow attn",
+    "brand brand-hover brand-strong brand-ink brand-tint brand-tint-strong brand-dim brand-glow brand-volt brand-sky brand-teal brand-cyan brand-glint brand-deep attn attn-tint",
   "glaze-ladder": "bar-fill",
 };
 const componentSizeTokenPattern =
@@ -60,6 +64,26 @@ function parseTheme(css, label) {
   return matches.flatMap(match => parseDecls(match[1]));
 }
 
+// The Appearance text size and letter spacing (`--user-text-scale`,
+// `--user-tracking-body`) only multiply or replace a token at runtime; the spec
+// shows the built-in value behind them, as it does for the theme adapters.
+function appearanceDefaultsOf(css) {
+  return new Map(
+    Array.from(css.matchAll(/--(user-text-scale|user-tracking-body)\s*:\s*([^;]+);/g), match => [
+      match[1],
+      match[2].trim(),
+    ])
+  );
+}
+
+function resolveAppearanceDefaults(value) {
+  const resolved = value.replace(
+    /var\(--(user-text-scale|user-tracking-body)\)/g,
+    (whole, name) => appearanceDefaults.get(name) ?? whole
+  );
+  return resolved.replace(/^calc\(\s*([0-9.]+rem)\s*\*\s*1\s*\)$/, "$1");
+}
+
 function lightBlock(css) {
   const match = css.match(/\[data-theme="light"\]:root\s*\{([\s\S]*?)\n\}/);
   if (!match) throw new Error('Could not locate [data-theme="light"]:root in tokens-light.css');
@@ -69,7 +93,7 @@ function lightBlock(css) {
 function parseDecls(css) {
   return Array.from(css.matchAll(/--([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g), match => ({
     name: match[1],
-    value: match[2].replace(/\s+/g, " ").trim(),
+    value: resolveAppearanceDefaults(match[2].replace(/\s+/g, " ").trim()),
   }));
 }
 
@@ -83,6 +107,10 @@ function replaceGeneratedSections(text) {
   const sections = [
     ...Object.entries(colorGroups).map(([id, stems]) => [id, themedTable(colorNames(stems))]),
     ["signal", signalTable()],
+    [
+      "gradients",
+      themedTable(namedRows(runtimeDecls, /^gradient-/).map(([name]) => name.slice(2))),
+    ],
     ["owner-avatar", themedTable(prefixNames(runtimeTheme, "color-avatar-"))],
     ["terminal-ansi", themedTable(terminalRampNames())],
     ["fonts", tokenTable(namedRows(runtimeDecls, fontTokenPattern))],

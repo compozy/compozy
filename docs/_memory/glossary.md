@@ -123,6 +123,10 @@ Enforcement is per call against the effective grant, which is the declared list 
 
 The static resources shipped by one extension: skills, agents and their sidecars, Loops, automation, layouts, and MCP sidecars. Marketplace and local installs leave the kit inert; enable publishes resources owned by that extension instance, and disable removes them. The bundled `spec-cycle` extension is enabled on a fresh CompozyOS home, while later boot and update paths preserve the operator's explicit enabled or disabled state. Use **extension kit**, never **Bundle**, for this product concept.
 
+### Marketplace category
+
+One entry of the fixed, CompozyOS-owned taxonomy that groups the Marketplace catalog (ADR-001 of spec `marketplace-plugin-catalog`): `productivity`, `communication`, `design`, `development`, `data`, `cloud`, `finance`, `sales-marketing`, `research`, `security`, `ai-agents`, `more`, plus the reserved `featured` section. Every catalog entry resolves to exactly one category: a CompozyOS-curated source's explicit `x-compozy.category`, else the source's free-text `category` through a case-insensitive alias table, else `more`. Ids and labels come from `internal/marketplace/category.go`; labels are copy reviewed in `COPY.md`. Not a source, a kind, or a tag: Browse never groups by source, and third-party sources cannot set a category or feature their entries.
+
 ### Extension Secret Binding
 
 An instance-scoped link from a manifest-declared environment key to an existing Vault reference. Public reads expose only bound key names, never values or references.
@@ -186,6 +190,18 @@ An agent session reaching a scope other than its own: another [workspace](#works
 
 **Reads reach every profile and All projects (#1169).** Owner decision 2026-11-03 reverses the part of User Scope Work ADR-003 that kept the profile axis and aggregates out of the permission mode: the same mode table applies to reads of another profile and to [All projects](#all-projects) aggregate reads. Writes to another profile, and writes through an aggregate route, still need the [unrestricted grant](#unrestricted-grant). A native session tool named by `session_id` alone is authorized against that session's own workspace and profile; a denied caller gets the same answer whether or not the session exists. Results an agent reads outside its own workspace or profile are secret-redacted at the native dispatch boundary.
 
+**Orchestration and monitors (#1779).** `session_wait`, `session_stop`, `session_approve`,
+`session_clarify_answer`, `session_prompt_cancel`, and `session_compact` authorize the named session's
+workspace and profile through that policy. Session monitors authorize each target as a read at
+registration and recheck before wake delivery and native or authenticated HTTP/UDS monitor results. A later denial hides the
+target's name, state, and match with `unknown` and reports `access_denied`; foreign names are
+secret-redacted. Process tools remain local to the caller workspace/profile. Reparenting preserves
+one workspace and the source profile; profile moves additionally require authorization for the target
+profile write. Pull-request monitors and native terminals use the caller workspace/profile.
+`scope=global/all` reads follow policy; global definition writes retain their unrestricted barrier.
+Extension installation still requires the caller workspace/profile, with global/shared changes
+reserved for the operator. `agent_memory_*` requires the owning always-on-agent main session.
+
 **Operator-authored grant.** User Scope Work ADR-003 supersedes Cross-workspace access ADR-007 §1 only for the [unrestricted grant](#unrestricted-grant) (`workspace_access: unrestricted` in AGENT.md). The effective session grant precedes the permission-mode crossing rules and permits project, User, and profile aggregate access. It does not bypass tool policy or permit global/foreign-profile desktop access. No grants table, `[workspace_access]` config section, or grant-management toolset exists.
 
 The grant is immutable for a session. Creation intersects the target definition with the authenticated creator ceiling; deferred tasks, automations, and Loops persist that ceiling. Agent edits to executable definitions can only narrow it. Legacy records have an empty ceiling. Marketplace and extension definitions cannot supply the grant.
@@ -217,7 +233,7 @@ including agent-local `skills/` overlays and `skills.disabled`. Draft fields suc
 
 The two agent kinds, set by the AGENT.md `kind` field and fixed at creation. Wire values are `on_demand` (the default; runs only when someone starts a session) and `always_on` (keeps a main session per scope and runs its Heartbeat). UI labels are "On-demand" and "Always-on", hyphenated as labels and before nouns ("an always-on agent"). Duplicating is how you switch kind.
 
-`stays_on` is the v0.5.0 spelling of `always_on`. Through v0.5.1 it is accepted on input (AGENT.md, `[agents.stays_on]`, `agents.stays_on.*` config paths, `--kind`, HTTP/UDS, and native tools) with a deprecation warning, and it is never emitted. It is removed in v0.5.2. The kind is a renamed wire value, not a UI alias, so it lives here and not in Surface Names.
+`stays_on` is the retired spelling of `always_on`. The release after v0.5.2 rejects it on every input with `agent_kind_invalid`; use `always_on`. The old config table and paths are removed; use `[agents.always_on]` and `agents.always_on.*`. The kind is a renamed wire value, not a UI alias.
 
 ### `always_on` (skill source preset)
 
@@ -356,7 +372,7 @@ The synthetic turn (`synthetic.kind = "session_reply"`) that brings a target ses
 
 ## OS Shell
 
-The web UI presents as a desktop environment: a menubar, persistent virtual desktops, tiled and floating windows, and a dock. These terms name that presentation model. The runtime object remains the `workspace`; switching a desktop never changes runtime scope.
+The web UI presents as a desktop environment: a menubar, persistent virtual desktops each with one tab bar, windows shown as tabs or split side by side inside a tab, and a dock. These terms name that presentation model. The runtime object remains the `workspace`; switching a desktop never changes runtime scope.
 
 ### Workspace
 
@@ -382,23 +398,27 @@ The AGENT.md field `workspace_access: unrestricted`, the only grant vocabulary i
 
 ### Desktop
 
-One persistent virtual arrangement inside a workspace. A workspace may own multiple ordered desktops. Each desktop owns tiled groups and floating-window order; a window belongs to exactly one desktop. The active desktop and focused window are client-local projections. A desktop carries no sessions or tasks of its own.
+One persistent virtual arrangement inside a workspace. A workspace may own multiple ordered desktops. Each desktop owns one ordered tab bar; a window belongs to exactly one tab of exactly one desktop. The active desktop, active tab and focused window are client-local projections. A desktop carries no sessions or tasks of its own.
 
-### Tiled group
+### Tab
 
-One non-overlapping layout tree inside a desktop. A desktop may contain multiple tiled groups and floating windows. A tiled group uses leaf, split, and stack nodes; resizing acts on a structural split boundary, not on independent window rectangles.
+One entry of a desktop's tab bar. A tab holds one window or a split tree of windows; pinned tabs form a contiguous prefix of the bar. Tabs replaced floating windows, minimize, zoom, tiled islands and per-pane stacks in v0.7.0. The active tab is per client (`active_tab`); `active_tab_id` is only the default for new clients.
+
+### Split
+
+The tree of horizontal and vertical splits inside a tab whose leaves are windows. Shares are weights, not pixels; resizing acts only on the seam between two split members (`layout.resize`). **Move to new tab** (`window.move` with placement `tab`, shortcut `window.unsplit`) takes a window out of a split; there is no maximize, minimize or zoom.
 
 ### Window
 
-A frame hosting one app's durably resumed route subtree. The window head is the route's `<Topbar>` with OS controls injected. Windows are presentation containers; the views inside them are the same `systems/*` views the routes render. A window may be tiled, stacked, or floating; structural placement is distinct from its internal pathname/search route.
+A frame hosting one app's durably resumed route subtree. The window head is the route's `<Topbar>` with the window's controls injected: Close window, plus Move to new tab inside a split. Windows are presentation containers; the views inside them are the same `systems/*` views the routes render. A window is a tab of its own or a member of a split inside a tab; it only opens or closes. Its place in the tab bar or split is distinct from its internal pathname/search route.
 
 ### Desktop pager
 
-The minimal horizontal dot control in the menubar tray for switching the active client's desktop; an orange dot marks an off-screen desktop that needs you. It is navigation, not a persistent management panel. The tray's All desktops button opens Desktops Overview, which owns create, rename, reorder, transfer, and delete operations.
+The desktop indicators in the menubar tray, one dot per desktop, for switching the active client's desktop; an amber dot marks an off-screen desktop that needs you. Each dot has a menu (Rename, Move left, Move right, Close desktop, New desktop) and accepts a dragged tab; past seven desktops, overflow controls open Desktops Overview. The tray's All desktops button opens Desktops Overview, which also owns create, rename, reorder, tab moves, and delete with a destination; Rename and Close desktop from a dot finish on the overview card.
 
 ### Dock
 
-The rail of app launchers along the left edge, below the menubar (a bottom tab bar in compact presentation). It mirrors the app inventory and carries running/focused/minimized indicators and badges bound to runtime projections (waiting sessions, awaiting-approval tasks). Its foot holds the profile switcher, the light/dark toggle, and Settings.
+The rail of app launchers along the left edge, below the menubar (a bottom tab bar in compact presentation). It mirrors the app inventory and carries running/focused indicators and badges bound to runtime projections (waiting sessions, awaiting-approval tasks). Its foot holds the profile switcher, the light/dark toggle, and Settings.
 
 **UI noun:** "dock" (`aria-label="Dock"`, "Open an app from the dock"). See [Rail](#rail) for the shape name.
 
@@ -422,7 +442,7 @@ A window arrangement (`main_stack` in `compozy layout arrange --arrangement`; **
 
 ### Window manager
 
-The daemon-authoritative, workspace-scoped topology and semantic command surface for desktops, tiled groups, and windows. Durable mutations use revision checks and atomic commits. Browser geometry projection, active desktop, focus, and gesture previews remain client-specific where defined by the contract.
+The daemon-authoritative, workspace-scoped topology and semantic command surface for desktops, tabs, splits, and windows. Durable mutations use revision checks and atomic commits. Browser geometry projection, active desktop, active tab, focus, and gesture previews remain client-specific where defined by the contract.
 
 ### Terminal
 
@@ -540,3 +560,30 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 ### Check-in source
 
 Something outside the built-in facts that an always-on check-in asks what is new before any model turn. It is an extension kind (`<extension>/<kind>`) or an operator-approved script in the agent's `sources/` folder. It returns keyed items and opaque state committed only with the check that saw them. It is distinct from a wake source (`timer`, `instance_check`) and from automation events.
+
+### Check-in
+
+One run of an always-on agent's Heartbeat. Collection gates and check-in sources run first; an empty or unchanged digest makes no model call. A check-in that reaches the model runs in a hidden session (internal name `triage`) and may call the agent's read tools, native and MCP, through the CompozyOS gateway, plus write tools listed in the approved check-in authority that the main session would run without asking. Provider built-in tools stay read-only. It never asks anyone anything and never creates an approval or clarify request. It answers with nothing to report or with proposals. `[agents.always_on].check_in_tools = "disabled"` makes check-ins tool-less again. UI: one scheduled run is "a heartbeat" (see Surface Aliases).
+
+### Check-in authority
+
+The part of `HEARTBEAT.md` that grants unattended power: `check_ins.allow_writes`, the call caps, every action (`id`, `title`, `instructions`, `auto_accept`), and the agent's MCP `read_only_tools` overrides. It takes effect only after the operator approves its sha256 digest; agent credentials never approve. Until then the whole block is ignored and check-ins get reads only. UI copy: "Check-in changes need your approval". Not a tool approval (`compozy__tool_approvals_*`) and not a source script approval.
+
+### Check-in action
+
+An operator-declared kind of proposal in `HEARTBEAT.md` `actions`, with instructions the main session follows when a proposal tagged with it is picked. Actions are offered to check-ins only while the check-in authority is approved. Not a CompozyOS command, Loop step or automation.
+
+### Auto-accept
+
+An action flag (`auto_accept: true`; UI "Do it without asking me"). The daemon picks matching proposals without the operator when the check-in authority is approved, bounded by `[agents.always_on].auto_accept_per_day` and the main session's queue. A proposal it does not pick records why (`limit`, `queue_full`, `unapproved`, `no_main`) when the report is published. Not a permission mode and not "auto-approve".
+
+### Pick
+
+The recorded choice of one proposal, by the operator or by auto-accept, which queues one prompt to the instance's main session. Each proposal is picked at most once. Operator picks are operator-only (CLI index is 1-based, wire index 0-based); there is no native pick tool. UI: "Pick", "You picked", "Auto-accepted".
+
+## Result view
+
+A native tool result contract selected by `result_view`: `compact` is the default projection
+and `full` is the complete record. Single-result tools do not accept the selector.
+This differs from registry `ToolView`, which combines a descriptor with availability and
+policy diagnostics; it is not a returned-record selection.

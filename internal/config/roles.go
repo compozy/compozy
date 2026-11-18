@@ -129,6 +129,7 @@ type ResolvedCoordinatorRole struct {
 	Speed                         speedpkg.Speed
 	ACPOptions                    []ACPOptionSelection
 	Fallbacks                     []RoleFallback
+	PrimaryDisabled               bool
 	TTL                           time.Duration
 	MaxChildren                   int
 	MaxActiveSessionsPerWorkspace int

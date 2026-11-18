@@ -83,6 +83,20 @@ describe("settingsRestartPresentation", () => {
       },
     },
     {
+      name: "prolonged outage keeps polling with guidance",
+      state: { operationId: "op_polling", status: "stopping", isOutageProlonged: true },
+      expected: {
+        phase: "polling",
+        tone: "info",
+        title: "Restarting…",
+        body: "CompozyOS is taking longer than usual. If it doesn't come back, run compozy daemon start and check its logs.",
+        role: "status",
+        dismissLabel: null,
+        triggerLabel: null,
+        triggerPending: false,
+      },
+    },
+    {
       name: "successful",
       state: { isRestartRequired: false, operationId: "op_success", status: "ready" },
       expected: {

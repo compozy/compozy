@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -48,6 +49,20 @@ func (g *TaskRunRepo) heartbeatRunLeaseWithExecutor(
 	}
 	if err := g.appendLoopTokenTickForHeartbeat(ctx, exec, updated, heartbeat.TokensUsed); err != nil {
 		return taskpkg.Run{}, err
+	}
+	if updated.RunKind == taskpkg.RunKindCoordinator && updated.LoopRunID != "" {
+		owner, err := getLoopRunByIDWithExecutor(ctx, exec, looppkg.RunID(updated.LoopRunID))
+		if err != nil {
+			return taskpkg.Run{}, err
+		}
+		if owner.Status.Terminal() {
+			return updated, nil
+		}
+		if err := sqlcgen.New(exec).AdvanceLoopRunProgress(ctx, sqlcgen.AdvanceLoopRunProgressParams{
+			ID: updated.LoopRunID, ProgressAt: heartbeat.Now,
+		}); err != nil {
+			return taskpkg.Run{}, fmt.Errorf("store: advance coordinator progress: %w", err)
+		}
 	}
 	return updated, nil
 }

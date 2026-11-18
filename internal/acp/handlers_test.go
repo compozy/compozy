@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/toolruntime"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestDriverOptionsAndNormalization(t *testing.T) {
@@ -506,7 +507,7 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 		}
 		for _, event := range collectEventsUntilCount(t, active.events, 8) {
 			if event.Type != EventTypePermission || event.Decision != "canceled" ||
-				event.ResolvedByValue() != "provider" || event.RequestIDValue() == "" {
+				event.ResolvedByValue() != "system" || event.RequestIDValue() == "" {
 				t.Fatalf("connection death event = %#v, want attributed terminal cancellation", event)
 			}
 		}
@@ -552,7 +553,11 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 				t.Fatalf("initial permission = %#v, want pending", pending)
 			}
 			cancel(test.cause)
-			if err := <-result; err != nil {
+			if err := <-result; test.native && errors.Is(test.cause, context.DeadlineExceeded) {
+				if !errors.Is(err, ErrPermissionExpired) {
+					t.Fatalf("native deadline error = %v, want ErrPermissionExpired", err)
+				}
+			} else if err != nil {
 				t.Fatal(err)
 			}
 			terminal := collectEventsUntilCount(t, active.events, 1)[0]
@@ -568,6 +573,28 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 }
 
 func TestPermissionExpiryOwnership(t *testing.T) {
+	t.Run("Should refuse an elapsed deadline before the timer goroutine runs", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		id, pending, err := proc.registerPendingPermission("turn", acpsdk.RequestPermissionRequest{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pending.expiresAt = time.Unix(1, 0)
+		if err := proc.ResolvePermission(
+			ApproveRequest{RequestID: id, Decision: "allow-once"},
+		); !errors.Is(
+			err,
+			ErrPendingPermissionExpired,
+		) {
+			t.Fatalf("elapsed approval = %v", err)
+		}
+		decision, actor := proc.expirePendingPermission(pending, decisionRejectOnce, "timeout")
+		if decision != decisionRejectOnce || actor != "timeout" {
+			t.Fatalf("winner = %s/%s", decision, actor)
+		}
+	})
+
 	for _, operatorFirst := range []bool{false, true} {
 		name := "Should reject answers after expiry wins"
 		if operatorFirst {
@@ -805,6 +832,28 @@ func TestHandleInboundPermissionRequestHonorsApproveAllWithToolGateway(t *testin
 
 func TestEmitPermissionEvent(t *testing.T) {
 	t.Parallel()
+	t.Run("Should report whether the prompt accepted a permission event", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
+		var deliveries []bool
+		proc.permissionEventHandler = func(_ AgentEvent, delivered bool) { deliveries = append(deliveries, delivered) }
+		emit := func() {
+			proc.emitPermissionEvent("session", "turn", "request", "Approve", "tool", "file", "", "provider", nil)
+		}
+		emit()
+		active, err := proc.beginPrompt("turn", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		emit()
+		active.ingest.Close(ErrIngestSaturated)
+		emit()
+		proc.endPrompt(active)
+		emit()
+		if !slices.Equal(deliveries, []bool{false, true, false, false}) {
+			t.Fatalf("permission deliveries = %v", deliveries)
+		}
+	})
 
 	tests := []struct {
 		name     string
@@ -1010,7 +1059,13 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	proc.terminals.scope.SessionID = "compozy-session"
-	active, err := proc.beginPromptForRun("turn-terminal-lifecycle", "run-terminal-lifecycle", 17, 8)
+	active, err := proc.beginPromptForRun(
+		"turn-terminal-lifecycle",
+		"run-terminal-lifecycle",
+		17,
+		trace.SpanContext{},
+		8,
+	)
 	if err != nil {
 		t.Fatalf("beginPromptForRun() error = %v", err)
 	}
@@ -1219,7 +1274,9 @@ func TestHandleCreateTerminalStopsTerminalOnRegistrationFailure(t *testing.T) {
 			},
 		}
 
-		active, err := proc.beginPromptForRun("turn-terminal-create-failure", "run-terminal-create-failure", 1, 4)
+		active, err := proc.beginPromptForRun(
+			"turn-terminal-create-failure", "run-terminal-create-failure", 1, trace.SpanContext{}, 4,
+		)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -2497,6 +2554,36 @@ func drainCompactionTestEvents(t *testing.T, proc *AgentProcess, active *activeP
 }
 
 func TestClaudeAgentSubagentContract(t *testing.T) {
+	t.Run("Should reject historical runless notifications after a run-identified resume", func(t *testing.T) {
+		t.Parallel()
+		tracker := &claudeTaskTracker{}
+		for _, frame := range []wireClaudeTaskMessage{
+			{Type: "system", Subtype: claudeTaskStarted, TaskID: "agent", RunID: "0001", ToolUseID: "launch", TaskType: "local_agent"},
+			{Type: "system", Subtype: claudeTaskStarted, TaskID: "agent", RunID: "0002", ToolUseID: "send-message", TaskType: "local_agent"},
+		} {
+			if observation, reason := tracker.observe(frame); observation == nil || reason != "" {
+				t.Fatal(observation, reason)
+			}
+		}
+		stale := wireClaudeTaskMessage{
+			Type:      "system",
+			Subtype:   claudeTaskNotification,
+			TaskID:    "agent",
+			ToolUseID: "launch",
+			Status:    NativeTaskStatusCompleted,
+		}
+		if observation, reason := tracker.observe(stale); observation != nil || reason != "stale_run" {
+			t.Fatal(observation, reason)
+		}
+		stale.ToolUseID = "send-message"
+		if observation, reason := tracker.observe(
+			stale,
+		); observation == nil || reason != "" ||
+			observation.ToolCallID != "launch" {
+			t.Fatal(observation, reason)
+		}
+	})
+
 	// UT-040; IT-020 ingest side: replay adapter-produced frames through the prompt pipeline.
 	t.Run("Should preserve native metadata on every adapter fixture frame", func(t *testing.T) {
 		t.Parallel()
@@ -2634,8 +2721,8 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 				hasSummary: true,
 				terminal:   true,
 			},
-			{kind: NativeTaskKindSpawn, call: "toolu_resume", run: "0002"},
-			{kind: NativeTaskKindState, call: "toolu_resume", run: "0002", status: "killed", terminal: true},
+			{kind: NativeTaskKindSpawn, call: "toolu_background", run: "0002"},
+			{kind: NativeTaskKindState, call: "toolu_background", run: "0002", status: "killed", terminal: true},
 		}
 		got := collectEventsUntilCount(t, active.events, len(wants))
 		for i, want := range wants {
@@ -3001,7 +3088,7 @@ func TestExpiredPermissionRepeatSuppression(t *testing.T) {
 		}
 		ctx, cancel := context.WithCancelCause(t.Context())
 		cancel(context.DeadlineExceeded)
-		if _, err := first.resolvePermissionRequest(ctx, request, "system"); err != nil {
+		if _, err := first.resolvePermissionRequest(ctx, request, "system"); !errors.Is(err, ErrPermissionExpired) {
 			t.Fatal(err)
 		}
 		events := collectEventsUntilCount(t, active.events, 2)
@@ -3026,6 +3113,9 @@ func TestExpiredPermissionRepeatSuppression(t *testing.T) {
 		event := collectEventsUntilCount(t, next.events, 1)[0]
 		if event.ResolvedByValue() != "repeat_denied" || replacement.HasPendingPermission() {
 			t.Fatalf("repeat event=%+v pending=%v", event, replacement.HasPendingPermission())
+		}
+		if _, err := replacement.RequestPermission(t.Context(), request); !errors.Is(err, ErrPermissionExpired) {
+			t.Fatalf("daemon approval retry error = %v, want expiration rather than rejection", err)
 		}
 		shared.Clear()
 		if shared.Contains(permissionRequestDigest(request)) {
@@ -3348,11 +3438,20 @@ func TestHostedToolPermissionGates(t *testing.T) {
 				}, timeNowUTC())
 			}
 			response, err := proc.resolvePermissionRequest(t.Context(), request, permissionActorSystem)
-			if err != nil {
-				t.Fatal(err)
+			if !errors.Is(err, ErrPermissionExpired) {
+				t.Fatalf("unanswered daemon gate error = %v, want ErrPermissionExpired", err)
 			}
 			assertOutcome(t, response, "reject-once")
 			collectEventsUntilCount(t, active.events, 2)
 		}
 	})
+}
+
+// beginPrompt starts an untraced prompt outside any run, for tests that drive a prompt directly.
+func (p *AgentProcess) beginPrompt(
+	turnID string,
+	bufferSize int,
+	cancelFns ...context.CancelFunc,
+) (*activePromptState, error) {
+	return p.beginPromptState(turnID, "", 0, trace.SpanContext{}, bufferSize, cancelFns...)
 }

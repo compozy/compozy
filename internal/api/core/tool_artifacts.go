@@ -9,10 +9,11 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
-// ReadToolArtifact returns one retained result page within the resolved workspace.
+// ReadToolArtifact returns one retained result page within the resolved owner scope.
 func (h *BaseHandlers) ReadToolArtifact(c *gin.Context) {
 	if h.ToolArtifacts == nil {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("tool artifact store is not configured"))
@@ -21,6 +22,10 @@ func (h *BaseHandlers) ReadToolArtifact(c *gin.Context) {
 	scope, ok := h.resolveWorkspaceScope(c)
 	if !ok {
 		return
+	}
+	target := workspaceaccess.ScopeTarget(scope.ID, "")
+	if target.Kind == workspaceaccess.TargetUser {
+		target.ProfileID = scope.Resolved.ProfileID
 	}
 	id := strings.TrimSpace(c.Param("artifact_id"))
 	uri := toolspkg.ToolArtifactURIPrefix + id
@@ -42,7 +47,7 @@ func (h *BaseHandlers) ReadToolArtifact(c *gin.Context) {
 		h.respondToolError(c, toolArtifactValidationError(errors.New("offset or limit is outside supported bounds")))
 		return
 	}
-	page, err := h.ToolArtifacts.ReadPage(c.Request.Context(), scope.ID, uri, offset, limit)
+	page, err := h.ToolArtifacts.ReadPage(c.Request.Context(), target, uri, offset, limit)
 	if err != nil {
 		h.respondToolError(c, toolArtifactReadError(err))
 		return

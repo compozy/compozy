@@ -32,6 +32,7 @@ import {
   type RuntimeProviderOption,
   type RuntimeSelectorValue,
 } from "../types";
+import { normalizeRuntimeSelectorValue } from "../runtime-advanced-options-model";
 
 // ---------------------------------------------------------------------------
 // Fixtures + harness
@@ -390,6 +391,97 @@ describe("RuntimeSelector reasoning reset-on-switch", () => {
     });
   });
 
+  it("Should reset a saved effort the advertised ceiling removed even when a matrix lists it", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "with-medium", reasoning_effort: "medium" },
+      models: [
+        model("with-medium", { name: "With Medium", efforts: ["low", "medium", "high"] }),
+        model("narrowed", {
+          name: "Narrowed",
+          efforts: ["low", "high", "max"],
+          configurations: [
+            { reasoning_effort: "low" },
+            { reasoning_effort: "medium" },
+            { reasoning_effort: "high" },
+          ],
+        }),
+      ],
+    });
+
+    await openSelector(user);
+    await user.click(row("narrowed"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "narrowed",
+      reasoning_effort: "",
+    });
+  });
+
+  it("Should not fall back to a configuration coordinate outside the advertised ceiling", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "with-medium", reasoning_effort: "medium" },
+      models: [
+        model("with-medium", { name: "With Medium", efforts: ["low", "medium", "high"] }),
+        model("disjoint", {
+          name: "Disjoint",
+          efforts: ["low"],
+          configurations: [{ reasoning_effort: "medium" }],
+        }),
+      ],
+    });
+
+    await openSelector(user);
+    await user.click(row("disjoint"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "disjoint",
+      reasoning_effort: "",
+    });
+  });
+
+  it("Should clear a saved effort when the model exposes no selectable levels", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "with-medium", reasoning_effort: "medium" },
+      models: [
+        model("with-medium", { name: "With Medium", efforts: ["low", "medium", "high"] }),
+        model("matrix-only", {
+          name: "Matrix Only",
+          efforts: [],
+          configurations: [{ reasoning_effort: "medium" }],
+        }),
+      ],
+    });
+
+    await openSelector(user);
+    await user.click(row("matrix-only"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "matrix-only",
+      reasoning_effort: "",
+    });
+  });
+
+  it("Should normalize a saved effort away when only a matrix coordinate names it", () => {
+    const target = model("matrix-only", {
+      name: "Matrix Only",
+      efforts: [],
+      configurations: [{ reasoning_effort: "medium" }],
+    });
+
+    expect(
+      normalizeRuntimeSelectorValue(
+        { provider: "codex", model: "matrix-only", reasoning_effort: "medium" },
+        target
+      ).reasoning_effort
+    ).toBe("");
+  });
+
   it("Should keep the current reasoning_effort when the picked model still supports it", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
@@ -426,6 +518,33 @@ describe("RuntimeSelector ACP advanced options", () => {
     await openSelector(user);
     await user.click(screen.getByTestId("runtime-selector-advanced-toggle"));
     await user.click(screen.getByTestId("runtime-selector-option-thinking"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "gpt",
+      reasoning_effort: "",
+      acp_options: [{ id: "thinking", bool_value: true }],
+    });
+  });
+
+  it("Should remove only the chosen override when Provider default is selected", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: {
+        provider: "codex",
+        model: "gpt",
+        reasoning_effort: "",
+        acp_options: [
+          { id: "context_window", value_id: "1m" },
+          { id: "thinking", bool_value: true },
+        ],
+      },
+      models: [model("gpt", { acp_options: advancedACPOptions })],
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByTestId("runtime-selector-advanced-toggle"));
+    await user.selectOptions(screen.getByTestId("runtime-selector-option-context_window"), "");
 
     expect(onChange).toHaveBeenLastCalledWith({
       provider: "codex",
@@ -649,6 +768,34 @@ describe("RuntimeSelector reasoning slider", () => {
       "false"
     );
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("Should expose exactly the model's advertised levels when a provider offers more", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "capped", reasoning_effort: "" },
+      models: [model("capped", { name: "Capped", efforts: ["low", "high", "max"] })],
+    });
+
+    await openSelector(user);
+
+    // The slider renders `efforts` untouched: three advertised levels → range
+    // 0..2 with low/max at the edges, so no medium stop can appear.
+    const track = sliderTrack();
+    expect(track).toHaveAttribute("aria-valuemin", "0");
+    expect(track).toHaveAttribute("aria-valuemax", "2");
+    fireEvent.keyDown(track, { key: "Home" });
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "capped",
+      reasoning_effort: "low",
+    });
+    fireEvent.keyDown(track, { key: "End" });
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "capped",
+      reasoning_effort: "max",
+    });
   });
 
   it("Should reflect an explicit wire value on the slider", async () => {
@@ -902,6 +1049,37 @@ describe("RuntimeSelector provider tooltips", () => {
     expect(
       screen.queryByText("Codex", { selector: '[data-slot="tooltip-content"]' })
     ).not.toBeInTheDocument();
+  });
+
+  it("Should reveal the full model name and OpenCode provider label on hover without a tab stop", async () => {
+    const user = userEvent.setup();
+    const longName = "Acme Model With A Very Long Display Name";
+    renderSelector({
+      value: { provider: "opencode", model: "", reasoning_effort: "" },
+      providers: [{ id: "opencode", name: "OpenCode" }],
+      models: [model("openrouter/acme/model", { provider: "opencode", name: longName })],
+    });
+
+    await openSelector(user);
+    const option = row("openrouter/acme/model");
+    const name = within(option).getByText(longName);
+    const providerLabel = within(option).getByText("openrouter");
+    // The tooltip trigger is pointer-only: a focusable trigger inside the
+    // listbox option would add a tab stop and break the combobox pattern.
+    expect(name).not.toHaveAttribute("tabindex");
+    expect(name).not.toHaveAttribute("role", "button");
+    expect(option.querySelector('[tabindex="0"], [role="button"]')).toBeNull();
+
+    await user.hover(name);
+    expect(
+      await screen.findByText(longName, { selector: '[data-slot="tooltip-content"]' })
+    ).toBeInTheDocument();
+    await user.unhover(name);
+
+    await user.hover(providerLabel);
+    expect(
+      await screen.findByText("openrouter", { selector: '[data-slot="tooltip-content"]' })
+    ).toBeInTheDocument();
   });
 
   it("Should show the provider name when a pinned model row glyph is hovered", async () => {
@@ -1989,6 +2167,59 @@ describe("RuntimeSelector provider rail filtering", () => {
     expect(document.activeElement).toBe(document.querySelector('[data-rail="all"]'));
   });
 
+  it("Should page an overflowing chip rail from its pointer-only edge affordances", async () => {
+    const user = userEvent.setup();
+    const manyProviders = [
+      ...twoProviders,
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `overflow-${index}`,
+        name: `Overflow provider ${index}`,
+      })),
+    ];
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      providers: manyProviders,
+      models: railModels,
+    });
+
+    await openSelector(user);
+    const radiogroup = document.querySelector<HTMLElement>('[role="radiogroup"]')!;
+    // jsdom has no layout: give the track a scrollable box and a spyable scrollBy.
+    Object.defineProperty(radiogroup, "scrollWidth", { configurable: true, value: 600 });
+    Object.defineProperty(radiogroup, "clientWidth", { configurable: true, value: 200 });
+    const scrollBy = vi.fn();
+    Object.defineProperty(radiogroup, "scrollBy", { configurable: true, value: scrollBy });
+    fireEvent.scroll(radiogroup);
+
+    const end = await waitFor(() => {
+      const edge = document.querySelector<HTMLElement>('[data-rail-scroll="end"]');
+      expect(edge).not.toBeNull();
+      return edge!;
+    });
+    // At scroll origin only the end edge hides content.
+    expect(document.querySelector('[data-rail-scroll="start"]')).toHaveAttribute(
+      "data-visible",
+      "false"
+    );
+    expect(end).toHaveAttribute("aria-hidden", "true");
+    expect(end).toHaveAttribute("tabindex", "-1");
+
+    await user.click(end);
+    expect(scrollBy).toHaveBeenCalledTimes(1);
+    const scrollOptions = scrollBy.mock.calls[0]?.[0] as ScrollToOptions | undefined;
+    expect(scrollOptions?.left).toBeGreaterThan(0);
+    expect(onChange).not.toHaveBeenCalled();
+
+    radiogroup.scrollLeft = 200;
+    fireEvent.scroll(radiogroup);
+    await waitFor(() =>
+      expect(document.querySelector('[data-rail-scroll="start"]')).toHaveAttribute(
+        "data-visible",
+        "true"
+      )
+    );
+  });
+
   it("Should suppress rail radios while searching (not keyboard-activatable)", async () => {
     const user = userEvent.setup();
     renderSelector({
@@ -2614,5 +2845,188 @@ describe("model list issues", () => {
     await user.click(within(issues).getByText("Cursor"));
     expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
     expect(screen.getByTestId("runtime-selector-catalog-issues-popup")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Providers turned off in Settings (UT-027, UT-030, UT-040)
+// ---------------------------------------------------------------------------
+
+// Invariant: a selector lists only enabled providers, except the provider its current value pins,
+// which stays listed and marked "Disabled" so the saved choice is never rewritten.
+describe("RuntimeSelector disabled providers", () => {
+  const disabledClaude: RuntimeProviderOption = { ...claudeProvider, disabled: true };
+
+  function selector(providers: RuntimeProviderOption[], value: RuntimeSelectorValue) {
+    return (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TooltipProvider delay={0}>
+          <RuntimeSelector
+            value={value}
+            onChange={vi.fn()}
+            providers={providers}
+            models={[model("gpt-a")]}
+            triggerTestId="rt-trigger"
+          />
+        </TooltipProvider>
+      </UIProvider>
+    );
+  }
+
+  it("Should drop a disabled provider from the rail (UT-027)", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "codex", model: "gpt-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a")],
+    });
+
+    const popup = await openSelector(user);
+    expect(within(popup).getByRole("radio", { name: "Codex" })).toBeInTheDocument();
+    expect(within(popup).queryByRole("radio", { name: /Claude/ })).toBeNull();
+    expect(
+      screen.getByTestId("rt-trigger").querySelector("[data-slot='runtime-selector-disabled']")
+    ).toBeNull();
+  });
+
+  it("Should keep a pinned disabled provider, marked Disabled (UT-030)", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "claude", model: "claude-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a")],
+    });
+
+    const trigger = screen.getByTestId("rt-trigger");
+    expect(within(trigger).getByText("Disabled")).toBeInTheDocument();
+    expect(trigger).toHaveAccessibleName(/provider disabled/);
+    const popup = await openSelector(user);
+    expect(within(popup).getByRole("radio", { name: "Claude · disabled" })).toBeInTheDocument();
+  });
+
+  it("Should never offer a disabled provider's cached models in browse, favorites or search", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem(
+      FAVORITES_STORAGE_KEY,
+      JSON.stringify([runtimeModelKey("claude", "claude-b")])
+    );
+    const claudeModel = model("claude-b", { provider: "claude", name: "Claude B" });
+    renderSelector({
+      value: { provider: "codex", model: "gpt-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a"), claudeModel],
+    });
+
+    await openSelector(user);
+    const claudeRows = () => document.querySelectorAll("[data-provider='claude'][data-model]");
+    expect(claudeRows()).toHaveLength(0);
+    await user.keyboard("claude");
+    expect(claudeRows()).toHaveLength(0);
+  });
+
+  it("Should keep only the pinned model of a retained disabled provider", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "claude", model: "claude-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [
+        model("gpt-a"),
+        model("claude-a", { provider: "claude", name: "Claude A" }),
+        model("claude-b", { provider: "claude", name: "Claude B" }),
+      ],
+    });
+
+    await openSelector(user);
+    await user.keyboard("claude");
+    expect(rowFor("claude", "claude-a")).toBeInTheDocument();
+    expect(document.querySelector("[data-provider='claude'][data-model='claude-b']")).toBeNull();
+  });
+
+  it("Should keep the pinned model of a disabled provider unselectable by pointer and keyboard", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "claude", model: "claude-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a"), model("claude-a", { provider: "claude", name: "Claude A" })],
+    });
+
+    await openSelector(user);
+    fireEvent.change(screen.getByTestId("runtime-selector-search"), {
+      target: { value: "Claude A" },
+    });
+    await user.click(rowFor("claude", "claude-a"));
+    const search = screen.getByTestId("runtime-selector-search");
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(within(screen.getByTestId("rt-trigger")).getByText("Disabled")).toBeInTheDocument();
+  });
+
+  it("Should not offer a custom model id for a pinned disabled provider", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "claude", model: "claude-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a")],
+    });
+
+    await openSelector(user);
+    const search = screen.getByTestId("runtime-selector-search");
+    fireEvent.change(search, { target: { value: "claude-unknown" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    expect(screen.queryByTestId("runtime-selector-custom")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("Should reject an exact provider entry that names a disabled provider", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "claude", model: "claude-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a")],
+      props: { allowCustomProvider: true },
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByTestId("runtime-selector-custom"));
+    const exactInput = screen.getByRole("textbox", { name: "Use this exact provider name" });
+    await user.type(exactInput, "claude/claude-b");
+    fireEvent.keyDown(exactInput, { key: "Enter" });
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("Should reject an exact entry naming a disabled provider that is not current", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "", model: "", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a")],
+      props: { allowCustomProvider: true },
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByTestId("runtime-selector-custom"));
+    const exactInput = screen.getByRole("textbox", { name: "Use this exact provider name" });
+    await user.type(exactInput, "claude/claude-b");
+    fireEvent.keyDown(exactInput, { key: "Enter" });
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("Should drop a provider disabled while the selector stays mounted (UT-040)", async () => {
+    const user = userEvent.setup();
+    const value = { provider: "codex", model: "gpt-a", reasoning_effort: "" as const };
+    const { rerender } = render(selector([codexProvider, claudeProvider], value));
+    let popup = await openSelector(user);
+    expect(within(popup).getByRole("radio", { name: "Claude" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("runtime-selector-popup")).toBeNull());
+
+    rerender(selector([codexProvider, disabledClaude], value));
+    popup = await openSelector(user);
+    expect(within(popup).queryByRole("radio", { name: /Claude/ })).toBeNull();
   });
 });

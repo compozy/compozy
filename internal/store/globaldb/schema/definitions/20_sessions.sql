@@ -87,7 +87,8 @@ CREATE TABLE session_health (
 			mode TEXT NOT NULL CHECK (mode IN ('queue', 'steer', 'interrupt')),
 			delivery TEXT NOT NULL DEFAULT 'after_turn'
 				CHECK (delivery IN ('after_turn', 'interrupt_then_prompt')),
-			steer_delivery TEXT CHECK (steer_delivery IN ('injected', 'pending_injection', 'interrupt_fallback')),
+			superseded_by TEXT,
+			steer_delivery TEXT CHECK (steer_delivery IN ('injected', 'pending_injection', 'interrupt_fallback', 'pending_boundary', 'after_turn')),
 			text TEXT NOT NULL,
 			synthetic_prompt_json TEXT CHECK (synthetic_prompt_json IS NULL OR json_valid(synthetic_prompt_json)),
 			skill_invocations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(skill_invocations_json)),
@@ -583,3 +584,9 @@ CREATE INDEX idx_session_subagents_provider_tool ON session_subagents(parent_ses
 CREATE INDEX idx_session_subagents_worktree_cleanup ON session_subagents(worktree_cleanup) WHERE worktree_cleanup = 'pending';
 
 CREATE INDEX idx_token_usage_daily_activity ON token_usage_daily(profile_id, agent_name, workspace_id, day);
+
+-- A one-time, resumable cross-ledger data migration. Fresh databases need no repair.
+CREATE TABLE usage_cost_repair_state (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    pending INTEGER NOT NULL CHECK (pending IN (0, 1))
+);

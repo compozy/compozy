@@ -58,5 +58,5 @@ func (n *daemonNativeTools) agentHeartbeatSources(
 	if err != nil {
 		return tools.ToolResult{}, err
 	}
-	return structuredResult(payload, "Check-in sources")
+	return agentHeartbeatSourcesViews.result(req.View, payload)
 }

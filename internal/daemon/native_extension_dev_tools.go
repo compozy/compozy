@@ -93,7 +93,11 @@ func (n *daemonNativeTools) extensionBuild(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionValidationError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"build": result}, result.GenerationHash)
+	return (resultViews[extensionpkg.BuildResult]{
+		Compact: compactExtensionBuild,
+		Full:    func(p extensionpkg.BuildResult) any { return map[string]any{"build": p} },
+		Preview: func(p extensionpkg.BuildResult) string { return p.GenerationHash },
+	}).result(req.View, *result)
 }
 
 func (n *daemonNativeTools) extensionValidate(
@@ -133,7 +137,10 @@ func (n *daemonNativeTools) extensionDev(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
+	return (resultViews[*contract.InstallExtensionResponse]{
+		Compact: compactExtensionRecord,
+		Preview: func(*contract.InstallExtensionResponse) string { return item.Name },
+	}).result(req.View, &contract.InstallExtensionResponse{Extension: item})
 }
 
 func (n *daemonNativeTools) extensionReload(
@@ -160,7 +167,10 @@ func (n *daemonNativeTools) extensionReload(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
+	return (resultViews[*contract.InstallExtensionResponse]{
+		Compact: compactExtensionRecord,
+		Preview: func(*contract.InstallExtensionResponse) string { return item.Name },
+	}).result(req.View, &contract.InstallExtensionResponse{Extension: item})
 }
 
 func (n *daemonNativeTools) extensionLogs(

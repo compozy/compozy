@@ -36,6 +36,7 @@ func applyCoordinatorBudgetBoundary(
 		completion.Now,
 		snapshot.Generation,
 		nil,
+		nil,
 		payload.BoundaryEffects[budgetStatus],
 	)
 	if err != nil {
@@ -118,6 +119,7 @@ func applyCoordinatorTerminalBoundary(
 		completion.Now,
 		snapshot.Generation,
 		nil,
+		completion.Plan.Terminal,
 		payload.BoundaryEffects[terminalStatus],
 	)
 	if err != nil {

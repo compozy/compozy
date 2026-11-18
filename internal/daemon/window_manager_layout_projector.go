@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -89,7 +90,7 @@ func reconcileStoredWindowLayouts(ctx context.Context, state *bootState) error {
 	if state.resourceKernel == nil {
 		return nil
 	}
-	_, store, err := state.resolveDaemonResourceStore[windowmanager.LayoutResource](
+	codec, store, err := state.resolveDaemonResourceStore[windowmanager.LayoutResource](
 		windowmanager.WindowLayoutResourceKind,
 		"window layout",
 	)
@@ -102,13 +103,31 @@ func reconcileStoredWindowLayouts(ctx context.Context, state *bootState) error {
 		Source:   resources.ResourceSource{Kind: "dynamic", ID: windowLayoutReconcileActorID},
 		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
-	records, err := store.List(ctx, actor, resources.ResourceFilter{Kind: windowmanager.WindowLayoutResourceKind})
+	records, err := state.resourceKernel.ListRaw(ctx, actor, resources.ResourceFilter{
+		Kind: windowmanager.WindowLayoutResourceKind,
+	})
 	if err != nil {
 		return err
 	}
 	for _, record := range records {
-		reconciled, changed := reconcileWindowLayoutResource(record.Spec)
-		if !changed {
+		resource, err := codec.DecodeAndValidate(ctx, record.Scope, record.SpecJSON)
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			state.logger.Warn("window_manager.layout_reconcile_failed", "resource_id", record.ID, "error", err)
+			continue
+		}
+		var stored struct {
+			Document struct {
+				Version uint32 `json:"version"`
+			} `json:"document"`
+		}
+		if err := json.Unmarshal(record.SpecJSON, &stored); err != nil {
+			return fmt.Errorf("daemon: decode stored window layout %q version: %w", record.ID, err)
+		}
+		reconciled, changed := reconcileWindowLayoutResource(resource)
+		if !changed && stored.Document.Version == windowmanager.SnapshotVersion {
 			continue
 		}
 		actor.Source = record.Source

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // Finalize reapplies redaction after hooks, then offloads one oversized canonical result.
@@ -52,7 +54,7 @@ func (l *DefaultResultProcessor) Finalize(
 		}
 		return partial, resultPersistenceError(d.ID, errors.New("artifact store is unavailable"), partial)
 	}
-	ref, err := l.artifacts.Put(ctx, scope.WorkspaceID, canonical)
+	ref, err := l.artifacts.Put(ctx, workspaceaccess.ScopeTarget(scope.WorkspaceID, scope.ProfileID), canonical)
 	if err != nil {
 		partial, partialErr := truncateToolResult(finalized, maxBytes, nil)
 		if partialErr != nil {

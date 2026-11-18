@@ -19,8 +19,10 @@ func newBootLoopActionRegistry(
 	judgeExecutions *loopJudgeExecutionRegistry,
 ) (*looppkg.ActionRegistry, error) {
 	worktrees := executionWorktreesForState(state)
+	traces := installLoopRunTraces(state)
 	actionBinder := &loopActionSessionBinder{
 		sessions: state.sessions,
+		traces:   traces,
 
 		policyGate: policyGate,
 		worktrees:  worktrees,
@@ -51,6 +53,7 @@ func newBootLoopActionRegistry(
 			state.logger,
 			worktrees,
 		)
+		productionRuntime.traces = traces
 		if manager, ok := state.sessions.(*session.Manager); ok {
 			productionRuntime.waitSources = &sessionWorkSources{state: state, manager: manager, now: time.Now}
 		}
@@ -72,4 +75,14 @@ func newBootLoopActionRegistry(
 		return nil, fmt.Errorf("%w: Goal production store ports are incomplete", looppkg.ErrActionDependencyMissing)
 	}
 	return looppkg.NewActionRegistry(toolRegistry, actionOptions...)
+}
+
+// installLoopRunTraces registers the loop.run span registry with the Loop lifecycle observers.
+func installLoopRunTraces(state *bootState) *looppkg.RunTraces {
+	traces := &looppkg.RunTraces{}
+	if state.notifier != nil {
+		state.notifier.AddLoopStartedObserver(traces)
+		state.notifier.AddLoopTerminalObserver(traces)
+	}
+	return traces
 }

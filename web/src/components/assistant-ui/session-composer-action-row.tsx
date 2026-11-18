@@ -39,6 +39,7 @@ interface SessionComposerActionRowProps {
   runtimeControl?: ReactNode;
   environmentControl?: ReactNode;
   contextControl?: ReactNode;
+  mcpControl?: ReactNode;
   subagentControl?: ReactNode;
   monitorControl?: ReactNode;
   processControl?: ReactNode;
@@ -121,6 +122,10 @@ function steerCapabilityTitle(delivery: SessionSteerDelivery | null): string | u
   switch (delivery) {
     case "injected":
       return "Delivered into the live turn";
+    case "pending_boundary":
+      return "Waits for the active tool before replacing the turn";
+    case "after_turn":
+      return "Queued until the current turn ends";
     case "pending_injection":
       return "Delivered when the current tool finishes";
     case "interrupt_fallback":
@@ -285,6 +290,7 @@ export function SessionComposerActionRow({
   runtimeControl,
   environmentControl,
   contextControl,
+  mcpControl,
   subagentControl,
   monitorControl,
   processControl,
@@ -300,6 +306,7 @@ export function SessionComposerActionRow({
       {runtimeControl ||
       environmentControl ||
       contextControl ||
+      mcpControl ||
       subagentControl ||
       monitorControl ||
       processControl ||
@@ -312,6 +319,7 @@ export function SessionComposerActionRow({
           {monitorControl}
           {processControl}
           {attachControl}
+          {mcpControl}
         </div>
       ) : null}
       {canPrompt ? <SessionComposerEnterHintLabel enterHint={actionState.enterHint} /> : null}

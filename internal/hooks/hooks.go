@@ -25,8 +25,9 @@ type DeclarationProvider func(context.Context) ([]HookDecl, error)
 
 // Hooks owns the hot-reloadable registry snapshot and typed dispatch surface.
 type Hooks struct {
-	mu       sync.RWMutex
-	snapshot map[HookEvent][]*ResolvedHook
+	mu                 sync.RWMutex
+	snapshot           map[HookEvent][]*ResolvedHook
+	deprecatedSurfaces sync.Map
 
 	pool *asyncPool
 
@@ -37,6 +38,7 @@ type Hooks struct {
 	now             func() time.Time
 	resolveExecutor ExecutorResolver
 	telemetrySink   TelemetrySink
+	dispatchTracer  DispatchTracer
 	metrics         *hookMetrics
 	debugPatchAudit bool
 

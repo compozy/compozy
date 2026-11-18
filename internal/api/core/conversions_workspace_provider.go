@@ -84,7 +84,7 @@ func sessionProviderOptionPayloadFromConfig(
 	name string,
 ) (contract.SessionProviderOptionPayload, bool) {
 	providerName := compozyconfig.CanonicalProviderName(name)
-	if providerName == "" {
+	if providerName == "" || cfg.IsProviderDisabled(providerName) {
 		return contract.SessionProviderOptionPayload{}, false
 	}
 	var resolved compozyconfig.ProviderConfig

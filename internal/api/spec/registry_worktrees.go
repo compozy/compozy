@@ -26,6 +26,7 @@ func registryWorktreeOperations() []OperationSpec {
 		cancelWorktreeExitActionOperationSpec(),
 		cancelWorktreeOperationSpec(),
 		removeWorktreeOperationSpec(),
+		removeWorktreesOperationSpec(),
 		removeDiscoveredWorktreeOperationSpec(),
 		dismissWorktreeOperationSpec(),
 		streamWorktreeOperationSpec(),
@@ -35,10 +36,18 @@ func registryWorktreeOperations() []OperationSpec {
 
 func listWorktreesOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodGet, Path: specAPIWorktreesPath, AppAccess: AppAccessDenied, OperationID: "listWorktrees",
-		Summary: "List registered and discovered worktrees", Tags: []string{specWorktreesKey},
-		Transports: []Transport{TransportHTTP, TransportUDS},
-		Parameters: append(worktreeWorkspaceParams(), boolQueryParam("refresh", "Refresh Git discovery and status")),
+		Method:      httpMethodGet,
+		Path:        specAPIWorktreesPath,
+		AppAccess:   AppAccessDenied,
+		OperationID: "listWorktrees",
+		Summary:     "List registered and discovered worktrees",
+		Tags:        []string{specWorktreesKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: append(
+			worktreeWorkspaceParams(),
+			boolQueryParam("refresh", "Refresh Git discovery and status"),
+			boolQueryParam("include_removed", "Include removed records (excluded by default)"),
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorktreesResponse{}},
 			{Status: 400, Description: "Invalid worktree list query", Body: contract.ErrorPayload{}},
@@ -389,4 +398,18 @@ func withWorktreeCleanupProfile(params ...ParameterSpec) []ParameterSpec {
 			"authenticated agents remain scoped to their session profile.",
 		false,
 	))
+}
+
+func removeWorktreesOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method: httpMethodPost, Path: specAPIWorktreesPath + "/remove", AppAccess: AppAccessDenied,
+		OperationID: "removeWorktrees", Summary: "Remove multiple worktrees or preview per-target removal risk",
+		Tags: []string{specWorktreesKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withWorktreeCleanupProfile(worktreeWorkspaceParams()...),
+		RequestBody: contract.RemoveWorktreesRequest{},
+		Responses: append(worktreeMutationResponses(), ResponseSpec{
+			Status: 200, Description: "Per-target removal results or dry-run risk; inspect every result",
+			Body: contract.RemoveWorktreesResponse{},
+		}),
+	}
 }

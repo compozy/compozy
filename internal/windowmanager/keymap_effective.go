@@ -25,7 +25,18 @@ func tolerantEffectiveKeymap(
 	known := make(map[string]ShortcutBinding, len(canonical))
 	diagnostics := make([]ShortcutDiagnostic, 0)
 	for commandID, binding := range canonical {
-		if _, exists := bindableIDs[commandID]; !exists {
+		if RetiredShortcut(commandID) {
+			diagnostics = append(
+				diagnostics,
+				ShortcutDiagnostic{
+					CommandID: commandID,
+					Message:   "retired shortcut does nothing; remove it before v0.8.0",
+				},
+			)
+			continue
+		}
+		resolved, _ := CommandAlias(commandID)
+		if _, exists := bindableIDs[resolved]; !exists {
 			diagnostics = append(diagnostics, ShortcutDiagnostic{
 				CommandID: commandID,
 				Message:   "stored shortcut references a command that is no longer registered",

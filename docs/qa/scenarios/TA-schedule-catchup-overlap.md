@@ -44,3 +44,38 @@ one canonical capacity event and needs_attention; recover through the existing t
 and confirm claimability after capacity returns.
 
 QA 2026-09-06 — sessions-stability selected scope: PASS for selected capacity/restart branches: the original deferred one-shot and recurring run IDs completed attempt1 after restart, then the recurring schedule was disabled. Known task capacity advanced one canonical event and needs_attention at four configured cycles; public recovery produced linked attempt2 and task next claimed it. Exhaustive edit/disable/counter cases reuse current task05 integration evidence; prior unrelated catch-up branches retain their historical scope. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.
+
+QA impact 2026-11-08 — automation startup failure settlement:
+
+- Schedule a one-shot agent job with Retry none and a provider that fails ACP initialization.
+  Confirm one failed run at attempt 1, no durable deferral, and no new session or fire on later ticks.
+- Repeat with backoff and two retries: the same run reaches attempt 3 with 1x/2x base delays,
+  then emits one terminal failure hook. Provider timeouts must not become admission deferrals.
+- A genuine admission interruption (draining, cancellation or deadline), including shutdown
+  cancellation during ACP initialization, still preserves the original reservation for restart recovery.
+  An unrelated startup failure concurrent with shutdown settles as failed; an unrelated reservation
+  error retains its delivery diagnostic without rolling back the schedule cursor.
+- Cancel a manual or extension dispatch during startup: the run remains cancelled and emits no
+  failure hook or retry, even when the job has a backoff policy.
+
+Focused verification: `go test -tags integration ./internal/automation -count=1` exercises the
+production scheduler and dispatcher against real SQLite, with session I/O injected at its boundary.
+The startup regression fails before the fix and passes after it. This is backend integration
+coverage; a live-provider/browser walk and daemon restart were not run for this change.
+
+QA impact — host sleep with the daemon still running:
+
+- Register recurring interval and cron jobs for each catch-up policy, then keep the scheduler
+  running while the host clock advances across five fires beyond the misfire grace window.
+- `coalesce` and `run_once_on_catchup` dispatch only the latest missed instant; `replay`
+  dispatches all five in order; `skip_missed` creates one canceled history row with
+  `misfire_grace_exceeded` and creates no session. Within configured grace, `skip_missed` dispatches the latest missed
+  instant once. Each job resumes its original cadence.
+- Manual host-sleep check: preserve an already deferred reservation across the gap; capacity retry must retain its
+  original fire identity rather than replace it with a newly coalesced fire.
+
+Automated owning check: `go test -tags integration ./internal/automation -run
+TestSchedulerIntegrationHostSleepCatchUp -count=1` uses a fake host clock with a running
+production scheduler/dispatcher and real SQLite. It covers recurring interval and cron policy
+behavior and the next normal tick; physical host suspension and a live provider are separate
+manual checks.

@@ -4,7 +4,7 @@ import { useSelector, useStore } from "@xstate/store-react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight } from "@compozy/ui/icons";
 import { Button, ResizableDrawer, Tooltip, TooltipTrigger, TooltipContent } from "@compozy/ui";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import {
   SessionChatRuntimeProvider,
@@ -127,6 +127,26 @@ function SubagentContent({
   );
 }
 
+/** A new selection requires its own cold-read confirmation before absence closes it. */
+function SubagentRemovalGuard({
+  subagent,
+  workspaceId,
+  onClose,
+}: {
+  subagent: SubagentView;
+  workspaceId: string;
+  onClose: () => void;
+}) {
+  const roster = useSessionSubagents(workspaceId, subagent.parent_session_id, {
+    confirmOnMount: true,
+  });
+  const removed = roster.confirmed && !roster.subagents.some(row => row.id === subagent.id);
+  useEffect(() => {
+    if (removed) onClose();
+  }, [removed, onClose]);
+  return null;
+}
+
 /** The selected parent roster owns live status and admission, including pending child IDs. */
 function SubagentDrawerSelection({
   selected,
@@ -199,11 +219,19 @@ function SubagentDrawerSelection({
       }
       content={
         subagent && selected ? (
-          <SubagentContent
-            subagent={subagent}
-            workspaceId={selected.workspaceId}
-            navigation={navigation}
-          />
+          <>
+            <SubagentRemovalGuard
+              key={`${selected.workspaceId}:${subagent.parent_session_id}:${subagent.id}`}
+              subagent={subagent}
+              workspaceId={selected.workspaceId}
+              onClose={onClose}
+            />
+            <SubagentContent
+              subagent={subagent}
+              workspaceId={selected.workspaceId}
+              navigation={navigation}
+            />
+          </>
         ) : null
       }
     >

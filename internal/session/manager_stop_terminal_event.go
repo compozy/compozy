@@ -91,7 +91,7 @@ func (m *Manager) prepareSessionStoppedEvent(session *Session, waitErr error) (a
 		}
 	}
 
-	normalized := m.normalizeEvent(session, stopEvent.TurnID, stopEvent).WithEventID("session-stop:" + turnID)
+	normalized := m.normalizeEvent(session, stopEvent.TurnID, stopEvent).WithEventID(sessionStopEventID(turnID))
 	return m.enrichRecordedAgentEvent(session, normalized), nil
 }
 

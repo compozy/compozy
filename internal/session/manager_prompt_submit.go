@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/mention"
+	"github.com/compozy/compozy/internal/telemetry"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (m *Manager) reservePromptSlot(
@@ -50,6 +53,9 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err != nil {
 		return nil, err
 	}
+	if req.deliveryCtx == nil {
+		req.deliveryCtx = ctx
+	}
 
 	var events <-chan acp.AgentEvent
 	profiling.Do(
@@ -67,16 +73,20 @@ func (m *Manager) submitProfiledPromptRequest(
 	ctx context.Context,
 	req promptRequest,
 	session *Session,
-) (<-chan acp.AgentEvent, error) {
-	if req.deliveryCtx == nil {
-		req.deliveryCtx = ctx
-	}
-	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx, false)
+) (_ <-chan acp.AgentEvent, err error) {
+	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(withActivationAdmission(ctx), false)
 	proc, err := session.beginExclusivePromptSetupForRequest(req, cancelPromptExecution)
 	if err != nil {
 		cancelPromptExecution()
 		return nil, err
 	}
+	promptExecutionCtx, turnTrace := startPromptTurnTrace(promptExecutionCtx, session, req)
+	defer turnTrace.failSetup(session, &err)
+	defer func() {
+		if refusal, ok := errors.AsType[*MCPReloadError](err); ok {
+			refusal.ClientMessageID = req.messageID
+		}
+	}()
 	slotReserved := true
 	stateOwned := true
 	defer func() {
@@ -120,16 +130,38 @@ func (m *Manager) submitProfiledPromptRequest(
 	} else {
 		session.setCurrentSkillInvocations(req.skillInvocations)
 	}
-	dispatchMessage, err := m.requestDispatchMessage(promptExecutionCtx, session, &req, message)
+	events, err := m.dispatchReservedPromptRequest(
+		promptExecutionCtx, session, proc, req, message, resolvedAttachments, turnTrace, cancelPromptExecution,
+	)
+	if err != nil {
+		return nil, err
+	}
+	stateOwned = false
+	return events, nil
+}
+
+// dispatchReservedPromptRequest records turn admission before handing execution to the prompt pump.
+func (m *Manager) dispatchReservedPromptRequest(
+	ctx context.Context,
+	session *Session,
+	proc *AgentProcess,
+	req promptRequest,
+	message string,
+	resolvedAttachments []acp.PromptAttachment,
+	turnTrace *promptTurnTrace,
+	cancelPromptExecution context.CancelFunc,
+) (<-chan acp.AgentEvent, error) {
+	dispatchMessage, err := m.requestDispatchMessage(ctx, session, &req, message)
 	if err != nil {
 		return nil, err
 	}
 	turnState := newPromptRequestDispatchState(session, req, message)
-	if err := m.dispatchTurnStart(promptExecutionCtx, turnState); err != nil {
+	turnState.turnTrace = turnTrace
+	if err := m.dispatchTurnStart(ctx, turnState); err != nil {
 		return nil, err
 	}
-	events, err := m.submitPromptInReservedSlot(
-		promptExecutionCtx,
+	return m.submitPromptInReservedSlot(
+		ctx,
 		session,
 		proc,
 		req,
@@ -139,11 +171,6 @@ func (m *Manager) submitProfiledPromptRequest(
 		turnState,
 		cancelPromptExecution,
 	)
-	if err != nil {
-		return nil, err
-	}
-	stateOwned = false
-	return events, nil
 }
 
 func (m *Manager) preparePromptRequestAttachments(
@@ -176,6 +203,9 @@ func (m *Manager) preparePromptRequestMessage(
 	session *Session,
 	req *promptRequest,
 ) (string, error) {
+	if err := m.validateSpawnWake(ctx, session.ID, req.meta.Synthetic); err != nil {
+		return "", err
+	}
 	if req.delivery == PromptDeliveryMaintenance {
 		return req.message, nil
 	}
@@ -217,6 +247,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	cancelPromptExecution context.CancelFunc,
 ) (<-chan acp.AgentEvent, error) {
 	req.message = message
+	if err := m.validateSpawnWake(ctx, session.ID, req.meta.Synthetic); err != nil {
+		return nil, err
+	}
 	if err := m.recordRestartBoundary(session, req); err != nil {
 		return nil, err
 	}
@@ -238,11 +271,7 @@ func (m *Manager) submitPromptInReservedSlot(
 			m.publishLifecycleAttentionTransition(ctx, running, session.Info())
 		}
 	}()
-	turnState.recovery = &promptRecoveryState{originalMessage: dispatchInput.message}
-	turnState.reportMessageIDs = []string{req.messageID}
-	for _, input := range dispatchInput.batched {
-		turnState.reportMessageIDs = append(turnState.reportMessageIDs, input.request.messageID)
-	}
+	initPromptTurnReport(turnState, req.messageID, dispatchInput)
 	recoveryRequest := m.newDispatchPromptRequest(ctx, session, &req, dispatchMessage, dispatchInput, attachments,
 		activity)
 	source, err := m.startHostedPromptRun(ctx, session, proc, turnState, recoveryRequest)
@@ -258,11 +287,13 @@ func (m *Manager) submitPromptInReservedSlot(
 			m.clearActivePromptRunForState(session, turnState)
 			m.releaseHostedPromptRun(session, turnState)
 			delivery.cancel()
-			m.abortPromptBeforePump(cancelPromptExecution, activity, source)
+			m.abortPromptBeforePump(cancelPromptExecution, activity, source, session, turnState.turnTrace, err)
 			return nil, err
 		}
 	}
-	if err := m.preparePromptDelivery(ctx, session, req, cancelPromptExecution, activity, source); err != nil {
+	if err := m.preparePromptDelivery(
+		ctx, session, req, cancelPromptExecution, activity, source, turnState.turnTrace,
+	); err != nil {
 		m.clearActivePromptRunForState(session, turnState)
 		m.releaseHostedPromptRun(session, turnState)
 		delivery.cancel()
@@ -271,7 +302,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	m.recordBatchedPromptInputs(ctx, session, dispatchInput.batched)
 	m.consumeReservedPromptContext(session, req, replayBlock)
 
-	lifecycleCtx := m.fallbackLifecycleContext()
+	// The pump keeps the lifecycle's cancellation and carries the turn span and write account for the work it persists.
+	lifecycleCtx := trace.ContextWithSpan(m.fallbackLifecycleContext(), trace.SpanFromContext(ctx))
+	lifecycleCtx = turnState.turnTrace.attributeWrites(lifecycleCtx)
 	m.startPromptPersistencePump(
 		lifecycleCtx,
 		session,
@@ -302,6 +335,7 @@ func (m *Manager) newDispatchPromptRequest(
 		TurnID:                    req.turnID,
 		RunID:                     req.runID,
 		Generation:                session.Info().RuntimeGeneration,
+		Model:                     session.Info().Model,
 		Message:                   dispatchMessage,
 		Sections:                  dispatchInput.sections,
 		Attachments:               attachments,
@@ -335,27 +369,36 @@ func (m *Manager) preparePromptDelivery(
 	cancelPromptExecution context.CancelFunc,
 	activity *promptActivitySupervisor,
 	source <-chan acp.AgentEvent,
+	turnTrace *promptTurnTrace,
 ) error {
 	if req.prepareDelivery == nil {
 		return nil
 	}
 	if err := req.prepareDelivery(ctx, PromptDeliveryInfo{SessionID: session.ID, TurnID: req.turnID}); err != nil {
-		m.abortPromptBeforePump(cancelPromptExecution, activity, source)
-		return fmt.Errorf("session: prepare prompt delivery for %q: %w", req.target, err)
+		err = fmt.Errorf("session: prepare prompt delivery for %q: %w", req.target, err)
+		m.abortPromptBeforePump(cancelPromptExecution, activity, source, session, turnTrace, err)
+		return err
 	}
 	return nil
 }
 
+// abortPromptBeforePump cancels a started prompt whose setup failed. The drain task ends session.turn once the source
+// closes, so the ACP prompt span, which ends only when the provider stops, stays inside the turn.
 func (m *Manager) abortPromptBeforePump(
 	cancelPromptExecution context.CancelFunc,
 	activity *promptActivitySupervisor,
 	source <-chan acp.AgentEvent,
+	session *Session,
+	turnTrace *promptTurnTrace,
+	err error,
 ) {
 	cancelPromptExecution()
 	activity.stop()
 	activity.finish(m.now())
+	turnTrace.handOffSetupFailure()
 	m.startTrackedPromptTask(func() {
 		drainPromptSource(source)
+		turnTrace.end(session, telemetry.OutcomeSetupFailed, err)
 	})
 }
 
@@ -408,28 +451,11 @@ func (m *Manager) promptDispatchMessage(
 	}
 	ctx, sections := acp.CollectPromptSections(ctx)
 	augmented, err := m.augmentPromptMessage(ctx, session, message)
+	collected := sections()
 	return preparedPromptInput{
-		message:  promptOriginMessage(session.CurrentPromptMeta().Origin, augmented),
-		sections: sections(),
+		message:  promptOriginMessageAfter(session.CurrentPromptMeta().Origin, augmented, collected),
+		sections: collected,
 	}, err
-}
-
-func (m *Manager) augmentPromptMessage(ctx context.Context, session *Session, message string) (string, error) {
-	expanded, err := m.expandPromptSkillInvocations(ctx, session, message)
-	if err != nil {
-		return "", err
-	}
-	if m.inputAugmenter == nil {
-		return expanded, nil
-	}
-	augmented, err := m.inputAugmenter(ctx, session, expanded)
-	if err != nil {
-		return "", fmt.Errorf("session: augment prompt input: %w", err)
-	}
-	if strings.TrimSpace(augmented) == "" {
-		return expanded, nil
-	}
-	return augmented, nil
 }
 
 func drainPromptSource(source <-chan acp.AgentEvent) {

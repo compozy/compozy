@@ -7,7 +7,7 @@ import { OsRailFoot } from "../os-dock-rail-foot";
 import { OsDockTabBar } from "../os-dock-tab-bar";
 import { OsMenuBar } from "../os-menubar";
 import { OsWallpaper, type OsWallpaperKind } from "../os-wallpaper";
-import { EmptyDesktopPreview } from "./_empty-desktop-preview";
+import { OsWindowSurface } from "../os-window-surface";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 
 const DOCK_DEFS = [
@@ -26,17 +26,15 @@ const DOCK_DEFS = [
 const DEFAULT_BADGES: Record<string, number> = { sessions: 1, tasks: 1 };
 
 /**
- * Build the full rail order, applying running/active/minimized/badge fixtures
+ * Build the full rail order, applying running/active/badge fixtures
  * for the story's open-window set. `active` names the focused window's app.
  */
 export function buildDeskItems(opts?: {
   open?: string[];
   active?: string;
-  minimized?: string[];
   badges?: Record<string, number>;
 }): OsDockItemData[] {
   const open = new Set(opts?.open ?? []);
-  const minimized = new Set(opts?.minimized ?? []);
   const badges = opts?.badges ?? DEFAULT_BADGES;
   return DOCK_DEFS.map(def => ({
     id: def.id,
@@ -44,7 +42,6 @@ export function buildDeskItems(opts?: {
     icon: def.icon,
     running: open.has(def.id) || opts?.active === def.id,
     active: opts?.active === def.id,
-    minimized: minimized.has(def.id),
     badge: badges[def.id],
   }));
 }
@@ -67,8 +64,10 @@ export interface DesktopShellProps {
   workspace?: { name: string };
   /** Menubar approvals count; 0 renders no badge. */
   notifications?: number;
-  /** Show the empty desktop — question and composer (VC-10). */
+  /** Show a resting desk: its one tab holds a New Tab window. */
   deskHint?: boolean;
+  /** The desktop's tab bar, between the topbar and the desk. */
+  tabBar?: React.ReactNode;
   /** Compact (<960px) presentation: the bottom tab bar replaces the rail. */
   compact?: boolean;
   /** Topbar desktop pager slot. */
@@ -97,12 +96,13 @@ export function DesktopShell({
   compact = false,
   pager,
   topbar,
+  tabBar,
 }: DesktopShellProps) {
   // The desk is inset into the chrome only where chrome surrounds it.
   const hasTopbar = menubar || topbar != null;
   const hasRail = dock && !compact;
   return (
-    <div className="relative grid h-screen w-full grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-rail">
+    <div className="relative grid h-screen w-full grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden bg-rail">
       {topbar ? <div className="col-span-full">{topbar}</div> : null}
       {menubar && !topbar ? (
         <OsMenuBar
@@ -117,7 +117,7 @@ export function DesktopShell({
       ) : null}
       {dock && compact ? (
         <OsDockTabBar
-          className={cn("col-span-full row-start-3", dockClassName)}
+          className={cn("col-span-full row-start-4", dockClassName)}
           items={dockItems}
           onSelect={fn()}
           trailing={<OsRailFoot onOpenSettings={fn()} tipSide="top" />}
@@ -125,23 +125,28 @@ export function DesktopShell({
       ) : null}
       {dock && !compact ? (
         <OsDock
-          className={cn("col-start-1 row-start-2", dockClassName)}
+          className={cn("col-start-1 row-span-2 row-start-2", dockClassName)}
           items={dockItems}
           onSelect={fn()}
           foot={<OsRailFoot onOpenSettings={fn()} />}
         />
       ) : null}
+      {tabBar ? (
+        <div className={cn("row-start-2 min-w-0", hasRail ? "col-start-2" : "col-span-full")}>
+          {tabBar}
+        </div>
+      ) : null}
       <div
         data-slot="os-desk"
         className={cn(
-          "relative col-start-2 row-start-2 min-h-0 overflow-hidden border-line",
+          "relative col-start-2 row-start-3 min-h-0 overflow-hidden border-line",
           hasTopbar && "border-t",
           hasRail && "border-l",
           hasTopbar && hasRail && "rounded-tl-lg"
         )}
       >
         <OsWallpaper wallpaper={wallpaper} />
-        {deskHint ? <EmptyDesktopPreview /> : null}
+        {deskHint ? <OsWindowSurface className="absolute inset-0" title="New tab" /> : null}
         {children}
       </div>
     </div>

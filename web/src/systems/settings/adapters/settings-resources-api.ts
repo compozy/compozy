@@ -21,6 +21,7 @@ import type {
   SettingsMutationResult,
   SettingsProviderCollection,
   SettingsProviderDetail,
+  SettingsProviderEnabledResult,
   SettingsProviderRequest,
 } from "../types";
 import { SettingsApiError } from "./settings-api-error";
@@ -94,6 +95,23 @@ export async function putSettingsProvider(
     );
   }
   return requireResponseData(data, response, `Failed to save provider "${name}"`);
+}
+
+/** `PATCH /api/settings/providers/{name}/enabled`: turns one provider on or off. */
+export async function setSettingsProviderEnabled(
+  name: string,
+  enabled: boolean,
+  signal?: AbortSignal
+): Promise<SettingsProviderEnabledResult> {
+  const { data, error, response } = await apiClient.PATCH(
+    "/api/settings/providers/{name}/enabled",
+    { params: { path: { name } }, body: { enabled }, signal }
+  );
+  const failure = `Couldn't ${enabled ? "enable" : "disable"} provider "${name}"`;
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(defaultApiErrorMessage(failure, response, error), response.status);
+  }
+  return requireResponseData(data, response, failure);
 }
 
 export async function deleteSettingsProvider(

@@ -32,3 +32,16 @@ QA clarification 2026-08-26 (main rebase): the bounded catalog contract now pres
 non-suppressed identity and shortens descriptions instead of dropping trailing skills. This scenario
 continues to own deliberate provider-aware omission and retains its 2026-08-25 pass; the separate
 `ET-session-skill-catalog-budget` scenario owns budget preservation.
+
+User-scope regression (#1311): create a managed User session with no registered project and
+invoke `compozy__skill_view` with `{"name":"compozy","file":"references/tools-and-skills.md"}`.
+Repeat with explicit `workspace: "@user"`. Both calls must return the complete bundled resource,
+`owner_scope: "user"`, and `exposures: []`, without a workspace lookup or `skill_exposure_read`
+backend failure. Repeat in a project session as a control. Exposure roots must follow the same
+profile and scope as skill discovery; no home-directory workspace registration is needed.
+
+Verification 2026-11-05 (#1311): the native registry regression passed for inferred User scope and
+explicit `@user`, using the real bundled resource projection and isolated SQLite. The existing
+`TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs/Should_load_a_managed_skill_resource`
+scenario also passed with a real session manager and ACP fixture subprocess under `-race`.
+This focused verification does not repeat the historical full provider walk above.

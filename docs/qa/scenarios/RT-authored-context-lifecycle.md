@@ -21,6 +21,14 @@ and independently re-read distinctive SOUL.md and HEARTBEAT.md bodies through CL
 Confirm the returned digest, revision, source, and scope agree. A stale expected_digest must refuse
 without mutation. Exercise history, rollback, and deletion; package-owned sidecars remain read-only.
 
+With proactive checks enabled, let a timer check finish and run a manual instance check.
+Read heartbeat status with `include_recent_wake_events=true` over HTTP and UDS, and with
+`compozy__agent_heartbeat_status` and `compozy agent heartbeat status coder --json`.
+Use two profiles with the same agent in the same workspace; native and Host API status
+must return only the caller profile audit, including when no session is selected.
+Both `timer` and `instance_check` rows must appear, including quiet, reported, cancelled,
+skipped and failed outcomes. Repeat after reopening the database to cover retained rows.
+
 Start a managed session and inspect its resolved authored context. Refresh Soul, then read it again
 from that session; restarting the daemon must preserve authored bytes and revision history. A foreign
 workspace or profile must not expose those bodies or operate on the session.
@@ -48,4 +56,7 @@ The full scenario remains skipped in this provider-free cycle; the linked report
 steps, retained receipts, and excluded upgrade/provider/runtime legs. This is partial scenario coverage,
 not a full-scenario pass.
 
-QA impact 2026-10-07 (memory removal): a `SOUL.md` carrying the retired `memory_policy` frontmatter key stays valid — `compozy agent soul validate` reports it valid with no diagnostic, the key is not rendered, and the file is not rewritten (the Web editor drops it on the next save). The retired workspace-knowledge refresh-on-wake behavior no longer exists. The upgrade leg is walked by RT-upgrade-memory-removal-home; this scenario's verdict is unchanged.
+QA impact v0.6.1: a SOUL.md carrying the retired memory frontmatter key fails validation with
+an unsupported-field diagnostic; the source is not rewritten. The retired workspace-knowledge
+refresh-on-wake behavior remains absent. Run the archival upgrade leg with v0.6.0 before the
+v0.6.1 rejection checks in RT-upgrade-memory-removal-home. Earlier receipts do not cover this change.

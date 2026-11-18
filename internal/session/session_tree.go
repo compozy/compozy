@@ -47,7 +47,9 @@ func (m *Manager) Descendants(ctx context.Context, workspaceID string, sessionID
 	if err != nil {
 		return nil, err
 	}
-	return sessionInfosFromCatalog(rows), nil
+	infos := sessionInfosFromCatalog(rows)
+	m.decorateMCPAuthorities(ctx, infos, nil)
+	return infos, nil
 }
 
 // ArchiveWithChildren archives a session with its hierarchy descendants in one

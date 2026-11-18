@@ -18,6 +18,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/telemetry"
 )
 
 // WithHomePaths overrides the resolved Compozy home layout.
@@ -196,6 +197,9 @@ func (d *Daemon) applyRuntimeFactoryDefaults() {
 	d.applySessionManagerFactoryDefault()
 
 	d.applyObserverFactoryDefault()
+	if d.initTelemetry == nil {
+		d.initTelemetry = telemetry.Init
+	}
 	d.applyExtensionManagerFactoryDefault()
 	d.applyAutomationManagerFactoryDefault()
 	d.applyResourceReconcileDriverFactoryDefault()

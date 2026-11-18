@@ -1,32 +1,38 @@
 package windowmanager
 
-func layoutGroupsOverlap(groups []LayoutGroup) bool {
-	for left := range groups {
-		for right := left + 1; right < len(groups); right++ {
-			if rectsOverlap(groups[left].Frame, groups[right].Frame) {
-				return true
+import "fmt"
+
+func setDesktopOrders(s *Snapshot) {
+	for i := range s.Desktops {
+		s.Desktops[i].Order = i
+	}
+}
+func placeholderTab(s *Snapshot, tab Tab) bool {
+	ids := nodeWindowIDs(tab.Root)
+	return len(ids) == 1 && s.Windows[ids[0]].App == newTabApp
+}
+
+func desktopEmpty(s *Snapshot, d Desktop) bool {
+	for _, tab := range d.Tabs {
+		if !placeholderTab(s, tab) {
+			return false
+		}
+	}
+	return true
+}
+
+func nextDesktopName(s *Snapshot) string {
+	for n := 1; ; n++ {
+		name := fmt.Sprintf("Desktop %d", n)
+		used := false
+		for _, d := range s.Desktops {
+			if d.Name == name {
+				used = true
+				break
 			}
 		}
-	}
-	return false
-}
-
-func reflowLayoutGroupFrames(groups []LayoutGroup) {
-	if len(groups) == 0 {
-		return
-	}
-	width := 1 / float64(len(groups))
-	for index := range groups {
-		groups[index].Frame = NormalizedRect{
-			X:      float64(index) * width,
-			Width:  width,
-			Height: 1,
+		if !used {
+			return name
 		}
-	}
-}
-
-func setDesktopOrders(snapshot *Snapshot) {
-	for index := range snapshot.Desktops {
-		snapshot.Desktops[index].Order = index
 	}
 }

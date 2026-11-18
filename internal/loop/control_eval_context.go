@@ -24,4 +24,5 @@ type controlEvalContext struct {
 	gateEvaluations    *gateEvaluationCollector
 	history            GenerationHistory
 	now                time.Time
+	clock              func() time.Time
 }

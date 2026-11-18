@@ -49,7 +49,9 @@ function statusView({
       tone: "warning",
       icon: CloudOff,
       label: "Can't save window layout — retrying",
-      detail: diagnostic?.message ?? null,
+      // The error that degraded the stream names the cause; a refused-command
+      // notice only fills in when there is no such error (#1543).
+      detail: loadError?.message || diagnostic?.message || null,
     };
   }
   // `idle`: the stream has not been attempted yet (startup, registration) —

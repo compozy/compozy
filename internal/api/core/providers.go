@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
-	"os"
-	"slices"
 	"strings"
 	"time"
 
@@ -27,7 +24,12 @@ var (
 
 // ListProviders returns the canonical provider inventory and declared auth readiness.
 func (h *BaseHandlers) ListProviders(c *gin.Context) {
-	response, err := h.providerListResponse(c.Request.Context())
+	selection, err := h.resolveProfileReadSelection(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	response, err := h.providerListResponse(c.Request.Context(), selection)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
 		return
@@ -37,7 +39,12 @@ func (h *BaseHandlers) ListProviders(c *gin.Context) {
 
 // GetProvider returns one canonical provider summary.
 func (h *BaseHandlers) GetProvider(c *gin.Context) {
-	cfg, err := h.activeConfig(c.Request.Context())
+	selection, err := h.resolveProfileReadSelection(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	cfg, err := h.profileProviderConfig(c.Request.Context(), selection)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -47,7 +54,7 @@ func (h *BaseHandlers) GetProvider(c *gin.Context) {
 		h.respondProviderResolutionError(c, err, strings.TrimSpace(c.Param("provider_id")))
 		return
 	}
-	payload, err := h.providerSummaryPayload(c.Request.Context(), providerName, provider, cfg.Defaults.Provider)
+	payload, err := h.providerSummaryPayload(c.Request.Context(), &cfg, providerName, provider)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
 		return
@@ -55,9 +62,15 @@ func (h *BaseHandlers) GetProvider(c *gin.Context) {
 	c.JSON(http.StatusOK, payload)
 }
 
-// ProbeProviderAuth runs a live provider auth status command.
+// ProbeProviderAuth runs a live provider auth status command. It resolves the provider the way the
+// list does, so a provider the selected profile defines on its own can be probed too.
 func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
-	cfg, err := h.activeConfig(c.Request.Context())
+	selection, err := h.resolveProfileReadSelection(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	cfg, err := h.profileProviderConfig(c.Request.Context(), selection)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -94,31 +107,28 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		h.respondProviderAuthStatus(c, providerName, provider, declared, &env)
 		return
 	}
-	commandSpec, err := authproviders.PrepareAuthStatusCommand(c.Request.Context(), provider, &env)
-	if err != nil {
-		classification := authproviders.ClassifyError(err)
-		h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
-		return
-	}
-	startedAt := h.nowUTC()
-	result, err := env.Normalize().RunCommand(c.Request.Context(), commandSpec)
+	probe, err := authproviders.RunAuthStatusProbe(c.Request.Context(), provider, &env, h.nowUTC)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
 		return
 	}
-	classification := authproviders.ClassifyProbeResultContext(
+	if !probe.Ran {
+		h.respondProviderAuthStatus(c, providerName, provider, probe.Classification, &env)
+		return
+	}
+	h.observeProviderAuthProbe(
 		c.Request.Context(),
+		providerName,
 		provider,
-		authproviders.ProbeOutcome{
-			ExitCode: result.ExitCode,
-			Stdout:   result.Stdout,
-			Stderr:   result.Stderr,
-		},
-		&env,
+		env.CommandEnv,
+		probe.Classification,
+		probe.StartedAt,
 	)
-	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, classification, startedAt)
+	if probe.Classification.State == authproviders.ProviderAuthStateAuthenticated {
+		h.recoverProviderAuthSessions(c, providerName, provider)
+	}
 	authStatus, err := providerAuthStatusPayload(
-		c.Request.Context(), provider, classification, &env, h.nowUTC(),
+		c.Request.Context(), provider, probe.Classification, &env, h.nowUTC(),
 	)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
@@ -128,10 +138,10 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		Provider:   providerName,
 		AuthStatus: authStatus,
 		Probe: &contract.ProviderAuthProbeResult{
-			ExitCode:   result.ExitCode,
-			Stdout:     authproviders.RedactAuthProbeOutput(result.Stdout, maxDiagnosticPayloadBytes),
-			Stderr:     authproviders.RedactAuthProbeOutput(result.Stderr, maxDiagnosticPayloadBytes),
-			DurationMs: result.DurationMs,
+			ExitCode:   probe.Result.ExitCode,
+			Stdout:     authproviders.RedactAuthProbeOutput(probe.Result.Stdout, maxDiagnosticPayloadBytes),
+			Stderr:     authproviders.RedactAuthProbeOutput(probe.Result.Stderr, maxDiagnosticPayloadBytes),
+			DurationMs: probe.Result.DurationMs,
 		},
 	})
 }
@@ -190,7 +200,21 @@ func (h *BaseHandlers) probeProviderACPAuth(
 		return
 	}
 	classification := acp.ClassifyProbeError(providerName, probeErr)
-	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, classification, startedAt)
+	// A probe that hit its own deadline or a cancellation says nothing reliable about sign-in, even
+	// when an auth-required error is joined to it.
+	if !errors.Is(probeErr, context.DeadlineExceeded) && !errors.Is(probeErr, context.Canceled) {
+		h.observeProviderAuthProbe(
+			c.Request.Context(),
+			providerName,
+			provider,
+			env.CommandEnv,
+			classification,
+			startedAt,
+		)
+		if classification.State == authproviders.ProviderAuthStateAuthenticated {
+			h.recoverProviderAuthSessions(c, providerName, provider)
+		}
+	}
 	h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
 }
 
@@ -200,13 +224,14 @@ func (h *BaseHandlers) observeProviderAuthProbe(
 	ctx context.Context,
 	providerName string,
 	provider compozyconfig.ProviderConfig,
+	env []string,
 	classification authproviders.Classification,
 	startedAt time.Time,
 ) {
 	if ctx.Err() != nil {
 		return
 	}
-	h.ProviderAuthVerdicts.Record(providerName, provider, classification, startedAt)
+	h.ProviderAuthVerdicts.Record(providerName, provider, env, classification, startedAt)
 	if classification.State == authproviders.ProviderAuthStateAuthenticated && h.OnProviderAuthSuccess != nil {
 		h.OnProviderAuthSuccess()
 	}
@@ -247,19 +272,23 @@ func (h *BaseHandlers) respondProviderAuthStatus(
 	})
 }
 
-func (h *BaseHandlers) providerListResponse(ctx context.Context) (contract.ProviderListResponse, error) {
-	cfg, err := h.activeConfig(ctx)
+// providerListResponse reports each provider's enabled state for the selected profile (BR-2).
+func (h *BaseHandlers) providerListResponse(
+	ctx context.Context,
+	selection resolvedProfileReadScope,
+) (contract.ProviderListResponse, error) {
+	cfg, err := h.profileProviderConfig(ctx, selection)
 	if err != nil {
 		return contract.ProviderListResponse{}, err
 	}
-	providerNames := providerInventoryNames(&cfg)
+	providerNames := compozyconfig.ProviderInventoryNames(&cfg)
 	payloads := make([]contract.ProviderSummaryPayload, 0, len(providerNames))
 	for _, providerName := range providerNames {
 		provider, err := cfg.ResolveProvider(providerName)
 		if err != nil {
 			return contract.ProviderListResponse{}, fmt.Errorf("resolve provider %q: %w", providerName, err)
 		}
-		payload, err := h.providerSummaryPayload(ctx, providerName, provider, cfg.Defaults.Provider)
+		payload, err := h.providerSummaryPayload(ctx, &cfg, providerName, provider)
 		if err != nil {
 			return contract.ProviderListResponse{}, err
 		}
@@ -270,9 +299,9 @@ func (h *BaseHandlers) providerListResponse(ctx context.Context) (contract.Provi
 
 func (h *BaseHandlers) providerSummaryPayload(
 	ctx context.Context,
+	cfg *compozyconfig.Config,
 	providerName string,
 	provider compozyconfig.ProviderConfig,
-	defaultProvider string,
 ) (contract.ProviderSummaryPayload, error) {
 	env, err := h.providerProbeEnv(providerName, provider)
 	if err != nil {
@@ -283,7 +312,7 @@ func (h *BaseHandlers) providerSummaryPayload(
 		return contract.ProviderSummaryPayload{}, err
 	}
 	// Reads never run a status command; they report the last live verdict, if any.
-	classification, checkedAt := h.ProviderAuthVerdicts.Apply(providerName, provider, declared)
+	classification, checkedAt := h.ProviderAuthVerdicts.Apply(providerName, provider, env.CommandEnv, declared)
 	authStatus, err := providerAuthStatusPayload(ctx, provider, classification, &env, checkedAt)
 	if err != nil {
 		return contract.ProviderSummaryPayload{}, err
@@ -298,7 +327,8 @@ func (h *BaseHandlers) providerSummaryPayload(
 		Name:             providerName,
 		DisplayName:      strings.TrimSpace(provider.DisplayName),
 		RuntimeStrategy:  providerRuntimeStrategy(providerName, provider.RuntimeProviderName(providerName)),
-		Default:          compozyconfig.CanonicalProviderName(defaultProvider) == providerName,
+		Default:          compozyconfig.CanonicalProviderName(cfg.Defaults.Provider) == providerName,
+		Enabled:          !cfg.IsProviderDisabled(providerName),
 		AuthStatus:       authStatus,
 	}, nil
 }
@@ -307,26 +337,12 @@ func (h *BaseHandlers) providerProbeEnv(
 	providerName string,
 	provider compozyconfig.ProviderConfig,
 ) (authproviders.ProbeEnv, error) {
-	commandEnv, err := providerauth.CommandEnv(h.HomePaths, providerName, provider, os.Environ())
-	if err != nil {
-		return authproviders.ProbeEnv{}, err
-	}
-	// ACP probes need a working directory even when the daemon's launch directory was removed.
-	commandDir, err := os.Getwd()
-	info, statErr := os.Stat(commandDir)
-	if err != nil || statErr != nil || !info.IsDir() {
-		commandDir = os.TempDir()
-	}
-	return authproviders.ProbeEnv{
-		ProviderName:   providerName,
+	return authproviders.DaemonProbeEnv(authproviders.DaemonProbeEnvOptions{
 		HomePaths:      h.HomePaths,
-		LookupEnv:      os.LookupEnv,
 		Vault:          h.Vault,
-		CommandEnv:     commandEnv,
-		CommandDir:     commandDir,
 		ResolveCommand: h.ProviderAuthCommandResolver,
 		RunCommand:     h.ProviderAuthRunner,
-	}, nil
+	}, providerName, provider)
 }
 
 func resolveProvider(
@@ -385,24 +401,6 @@ func (h *BaseHandlers) respondProviderNotFound(c *gin.Context, providerName stri
 	})
 }
 
-func providerInventoryNames(cfg *compozyconfig.Config) []string {
-	seen := make(map[string]struct{})
-	for name := range compozyconfig.BuiltinProviders() {
-		seen[name] = struct{}{}
-	}
-	if cfg != nil {
-		for name := range cfg.Providers {
-			canonical := compozyconfig.CanonicalProviderName(name)
-			if canonical != "" {
-				seen[canonical] = struct{}{}
-			}
-		}
-	}
-	names := slices.AppendSeq(make([]string, 0, len(seen)), maps.Keys(seen))
-	slices.Sort(names)
-	return names
-}
-
 func providerAuthStatusPayload(
 	ctx context.Context,
 	provider compozyconfig.ProviderConfig,
@@ -431,4 +429,21 @@ func providerAuthStatusPayload(
 		),
 		LastProbeAt: optionalTime(lastProbeAt),
 	}, nil
+}
+
+// recoverProviderAuthSessions forwards a successful probe only to its resolved profile and launch route.
+func (h *BaseHandlers) recoverProviderAuthSessions(c *gin.Context, provider string, cfg compozyconfig.ProviderConfig) {
+	recovery, ok := h.Sessions.(ProviderAuthRecoverer)
+	if !ok {
+		return
+	}
+	selection, err := h.resolveProfileReadSelection(c)
+	if err != nil || selection.Scope.AllProfiles {
+		return
+	}
+	recovery.ProviderAuthenticationReady(
+		selection.Scope.ProfileID,
+		provider,
+		authproviders.AuthenticationRouteFingerprint(provider, cfg),
+	)
 }

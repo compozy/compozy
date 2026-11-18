@@ -9,6 +9,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	sessions.GET("/facets", handlers.ListSessionFacets)
 	sessions.GET("/catalog-stream", handlers.StreamSessionCatalog)
 	sessions.GET("/attention-summary", handlers.SessionAttentionSummary)
+	registerSessionHistoryCleanupRoutes(sessions, handlers)
 	sessions.GET("/:session_id", handlers.GetSessionByID)
 	sessions.POST("/:session_id/pull-request/refresh", handlers.RefreshSessionPullRequest)
 	sessions.GET("/:session_id/owner", handlers.GetSessionOwner)
@@ -17,6 +18,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 
 	api.GET("/workspaces/:workspace_id/subagents/:subagent_id", handlers.GetSubagent)
 	api.POST("/workspaces/:workspace_id/subagents/:subagent_id/cancel", handlers.CancelSubagent)
+	api.DELETE("/workspaces/:workspace_id/subagents/:subagent_id", handlers.DeleteSubagent)
 	registerSessionLayoutRoutes(api, handlers)
 	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
 	workspaceSessions.GET("", handlers.ListSessions)
@@ -25,6 +27,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.GET("/:session_id/monitors", handlers.ListSessionMonitors)
 	workspaceSessions.POST("/:session_id/monitors/:monitor_id/cancel", handlers.CancelSessionMonitor)
 	workspaceSessions.GET("/:session_id", handlers.GetSession)
+	registerSessionMCPRoutes(workspaceSessions, handlers)
 	workspaceSessions.PATCH("/:session_id", handlers.RenameSession)
 	registerSessionParentRoutes(workspaceSessions, handlers)
 	workspaceSessions.GET("/:session_id/goal", handlers.GetSessionGoal)
@@ -117,6 +120,15 @@ func registerSessionLayoutRoutes(api gin.IRouter, handlers *Handlers) {
 
 func registerSessionFileRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {
 	workspaceSessions.GET("/:session_id/files", handlers.SearchSessionFiles)
+	workspaceSessions.GET("/:session_id/files/entries", handlers.ListSessionFileEntries)
+	workspaceSessions.GET("/:session_id/files/find", handlers.FindSessionFiles)
+	workspaceSessions.GET("/:session_id/files/search", handlers.SearchSessionFileContents)
+	workspaceSessions.GET("/:session_id/files/content", handlers.ReadSessionFileContent)
+	workspaceSessions.GET("/:session_id/files/raw/*path", sameOriginFetchGuard, handlers.ReadSessionFileBytes)
+	workspaceSessions.GET("/:session_id/changes", handlers.GetSessionChanges)
+	workspaceSessions.GET("/:session_id/changes/patches", handlers.GetSessionChangePatches)
+	workspaceSessions.GET("/:session_id/changes/contents", handlers.GetSessionChangeContents)
+	workspaceSessions.GET("/:session_id/changes/bases", handlers.ListSessionChangeBases)
 	workspaceSessions.POST("/:session_id/attachments", handlers.UploadSessionAttachment)
 	workspaceSessions.GET("/:session_id/attachments/:attachment_id/bytes", handlers.ReadSessionAttachmentBytes)
 	workspaceSessions.DELETE("/:session_id/attachments/:attachment_id", handlers.DeleteSessionAttachment)
@@ -147,4 +159,16 @@ func registerSessionLifecycleRoutes(sessions gin.IRouter, handlers *Handlers) {
 	sessions.POST("/:session_id/resume-later", handlers.ResumeSessionFromLater)
 	sessions.POST("/:session_id/mark-seen", handlers.MarkSessionSeen)
 	sessions.POST("/:session_id/unarchive", handlers.UnarchiveSession)
+}
+
+// registerSessionHistoryCleanupRoutes keeps the archived-history cleanup plan, status and stop together.
+func registerSessionHistoryCleanupRoutes(sessions gin.IRouter, handlers *Handlers) {
+	sessions.GET("/history-cleanup", handlers.GetSessionHistoryCleanup)
+	sessions.POST("/history-cleanup", handlers.PlanSessionHistoryCleanup)
+	sessions.POST("/history-cleanup/stop", handlers.StopSessionHistoryCleanup)
+}
+
+func registerSessionMCPRoutes(sessions gin.IRouter, handlers *Handlers) {
+	sessions.GET("/:session_id/mcp", handlers.GetSessionMCP)
+	sessions.POST("/:session_id/mcp/servers/:name/check", handlers.privilegedMutationGuard(), handlers.CheckSessionMCP)
 }

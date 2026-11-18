@@ -121,6 +121,8 @@ const (
 	CodeProviderClassificationUnknown      = "provider_classification_unknown"
 	CodeProviderCLIMissing                 = "provider_cli_missing"
 	CodeProviderCredentialUnresolved       = "provider_credential_unresolved"
+	CodeProviderDefaultDisableRejected     = "provider_default_disable_rejected"
+	CodeProviderDisabled                   = "provider_disabled"
 	CodeProviderLoginRequiresLocalTTY      = "provider_login_requires_local_tty"
 	CodeProviderAuthenticated              = "provider_authenticated"
 	CodeProviderNotAuthenticated           = "provider_not_authenticated"
@@ -163,6 +165,9 @@ const (
 )
 
 const (
+	CodeExtensionClientPlaceholderInvalid     = "client_placeholder_invalid"
+	CodeExtensionClientFieldIgnored           = "client_field_ignored"
+	CodeExtensionClientMCPDiscovered          = "client_mcp_discovered"
 	CodeExtensionClientComponentIgnored       = "client_component_ignored"
 	CodeExtensionAgentPluginComponentSkipped  = "extension_agent_plugin_component_skipped"
 	CodeExtensionAgentPluginManifestInvalid   = "extension_agent_plugin_manifest_invalid"
@@ -242,6 +247,9 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionMCPServerUnhealthy, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginComponentSkipped, Category: CategoryExtension},
 	{Code: CodeExtensionClientComponentIgnored, Category: CategoryExtension},
+	{Code: CodeExtensionClientPlaceholderInvalid, Category: CategoryExtension},
+	{Code: CodeExtensionClientFieldIgnored, Category: CategoryExtension},
+	{Code: CodeExtensionClientMCPDiscovered, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginManifestInvalid, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginNotManifest, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginSchemaUnsupported, Category: CategoryExtension},
@@ -279,6 +287,8 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeProviderClassificationUnknown, Category: CategoryProvider},
 	{Code: CodeProviderCLIMissing, Category: CategoryProvider},
 	{Code: CodeProviderCredentialUnresolved, Category: CategoryProvider},
+	{Code: CodeProviderDefaultDisableRejected, Category: CategoryProvider},
+	{Code: CodeProviderDisabled, Category: CategoryProvider},
 	{Code: CodeProviderLoginRequiresLocalTTY, Category: CategoryProvider},
 	{Code: CodeProviderAuthenticated, Category: CategoryProvider},
 	{Code: CodeProviderNotAuthenticated, Category: CategoryProvider},

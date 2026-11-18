@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
@@ -85,12 +86,13 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		ext.Info.Checksum = "generation-a"
 		runtime := &inventoryExtensionRuntime{ext: ext}
 		state := &bootState{
+			mcpDigestKeys:    vault.NewMCPDigestKeyProvider(t.TempDir()),
 			mcpServerCatalog: catalog, extensions: runtime,
 			mcpRuntimeHealth: mcppkg.NewRuntimeHealthRegistry(),
 		}
 		service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: extensionpkg.NewRegistry(db.DB()), Runtime: runtime, HomePaths: testHomePaths(t), Logger: discardLogger(), Now: time.Now},
 			withDaemonExtensionMCPAllocations(db.ExtensionMCP),
-			withDaemonExtensionMCPDetails(&extensionMCPDetails{state: state, auth: &settingsRuntimeSurface{}}),
+			withDaemonExtensionMCPDetails(&extensionMCPDetails{state: state, auth: &settingsRuntimeSurface{digestKey: testMCPDigestKey(t, state)}}),
 		).(*daemonExtensionService)
 		before, err := service.Status(ctx, "kit")
 		if err != nil || len(before.MCPServers) != 1 || before.MCPServers[0].Status != "stopped" ||
@@ -98,7 +100,11 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 			t.Fatalf("status launched an unobserved MCP: %#v, %v, requests=%d", before.MCPServers, err, requests.Load())
 		}
 		executor, err := mcppkg.NewMCPCallExecutor(
-			newDaemonMCPServerResolver(state), mcppkg.WithRuntimeHealthRegistry(state.mcpRuntimeHealth),
+			newDaemonMCPServerResolver(state),
+			mcppkg.WithDefinitionDigestKey(
+				testMCPDigestKey(t, state),
+			),
+			mcppkg.WithRuntimeHealthRegistry(state.mcpRuntimeHealth),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -653,14 +659,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		ext := inventoryTestExtension(true)
 		ext.Layouts = []windowmanager.LayoutResource{{
 			Version: windowmanager.LayoutResourceVersion, ID: "two-up", DisplayName: "Two up",
-			Document: windowmanager.LayoutDocument{
-				Version: windowmanager.SnapshotVersion,
-				Desktops: []windowmanager.Desktop{{
-					ID: "desktop-default", Name: "Desktop 1",
-					Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
-				}},
-				Windows: map[windowmanager.WindowID]windowmanager.Window{},
-			},
+			Document: daemonTestLayoutDocument("Main"),
 		}}
 		desired, err := projectExtensionKitItems(t.Context(), ext, codecs, nil, extensionpkg.InputState{})
 		if err != nil {

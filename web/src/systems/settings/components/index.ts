@@ -2,8 +2,11 @@ export { SettingsEditorDialog } from "./settings-editor-dialog";
 export { AttentionSystemStateChip } from "./attention-system-state-chip";
 export { attentionSystemStateNote } from "./attention-system-state-note";
 export type { EditorMode } from "./settings-editor-dialog";
-export { MCPAuthorizeDialog } from "./mcp-authorize-dialog";
-export type { MCPAuthorizeDialogProps } from "./mcp-authorize-dialog";
+export { MCPAllowPanel, type MCPAllowPanelProps } from "./mcp-panels/mcp-allow-panel";
+export { MCPAnchoredPanel, type MCPAnchoredPanelProps } from "./mcp-panels/mcp-anchored-panel";
+export { MCPCopyPanel, type MCPCopyPanelProps } from "./mcp-panels/mcp-copy-panel";
+export { MCPIssuePanel, type MCPIssuePanelProps } from "./mcp-panels/mcp-issue-panel";
+export { MCPSignInPopover, type MCPSignInPopoverProps } from "./mcp-panels/mcp-sign-in-popover";
 export { MCPSelectionStrip } from "./mcp-selection-strip";
 export type { MCPSelectionStripProps } from "./mcp-selection-strip";
 export { MCPServerDeleteDialog } from "./mcp-server-delete-dialog";
@@ -13,6 +16,20 @@ export { MCPOverrideEditor } from "./mcp-override-editor";
 export type { MCPOverrideEditorProps } from "./mcp-override-editor";
 export { MCPServersTable, MCPServersTableSkeleton } from "./mcp-servers-table";
 export type { MCPServersTableProps } from "./mcp-servers-table";
+export { MCPServersManagementBody, MCPServersManagementDialogs } from "./mcp-servers-management";
+export { MCPApprovalCell } from "./mcp-approval-cell";
+export { MCPRuntimeFilter } from "./mcp-runtime-filter";
+export { MCPRuntimeGroup } from "./mcp-runtime-group";
+export type { MCPRuntimeGroupProps } from "./mcp-runtime-group";
+export { MCPRuntimeModeSwitch } from "./mcp-runtime-mode-switch";
+export { MCPRuntimeModeSwitchView } from "./mcp-runtime-mode-switch-view";
+export { MCPRuntimeServerRow } from "./mcp-runtime-server-row";
+export {
+  MCPServersByRuntimeSkeleton,
+  MCPServersByRuntimeView,
+} from "./mcp-servers-by-runtime-view";
+export type { MCPServersByRuntimeViewProps } from "./mcp-servers-by-runtime-view";
+export { SettingsPageRestartNotice } from "./settings-page-restart-notice";
 export {
   isExtensionOwnedMCPServer,
   mcpAllocatedRuntimeName,
@@ -20,6 +37,7 @@ export {
   mcpServerProvenanceLine,
   mcpServerRowTestId,
 } from "./mcp-server-labels";
+export { DisabledProvidersGroup } from "./disabled-providers-group";
 export { ProviderCard, ProviderCardGrid } from "./provider-card";
 export { ProvidersToolbar } from "./providers-toolbar";
 export type { ProvidersToolbarProps } from "./providers-toolbar";

@@ -1,8 +1,6 @@
 import {
   ArrowDownAZ,
   CalendarPlus,
-  ChevronsDownUp,
-  ChevronsUpDown,
   CircleAlert,
   Clock,
   FolderGit2,
@@ -12,6 +10,7 @@ import {
   Rows3,
   SlidersHorizontal,
   UserRound,
+  Zap,
   type LucideIcon,
 } from "@compozy/ui/icons";
 import type * as React from "react";
@@ -22,7 +21,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -33,6 +31,7 @@ import {
 } from "@compozy/ui";
 
 import {
+  DEFAULT_SESSION_LIST_PREFERENCES,
   SESSION_LIST_SORTS,
   type SessionListGroupBy,
   type SessionListSort,
@@ -115,16 +114,17 @@ export interface SessionViewOptionsMenuProps {
   /** The board's "Hide child sessions" filter; absent where a surface has no such filter. */
   hideChildren?: boolean;
   onHideChildrenChange?: (hide: boolean) => void;
-  allCollapsed: boolean;
-  /** Absent where nothing folds: the action is left out. */
-  onAllCollapsedChange?: (collapsed: boolean) => void;
+  /** "Show automation runs" (#1355); absent where a surface has no such filter. */
+  showAutomation?: boolean;
+  onShowAutomationChange?: (show: boolean) => void;
   /** Prefix of every item's test id. */
   testId: string;
   className?: string;
 }
 
 /**
- * How a window shows its sessions, in one menu: order, grouping and the folds. The List and the
+ * How a window shows its sessions, in one menu: order, grouping and filters (the folds have
+ * their own toolbar button, `SessionFoldAllButton`). The List and the
  * Kanban render the same menu over the same window state.
  */
 export function SessionViewOptionsMenu({
@@ -138,14 +138,20 @@ export function SessionViewOptionsMenu({
   onShowEmptyProjectsChange,
   hideChildren = true,
   onHideChildrenChange,
-  allCollapsed,
-  onAllCollapsedChange,
+  showAutomation = false,
+  onShowAutomationChange,
   testId,
   className,
 }: SessionViewOptionsMenuProps) {
   // The filter starts on, so showing child sessions is the choice worth marking.
   const showsChildren = onHideChildrenChange !== undefined && !hideChildren;
-  const marked = groupBy !== "none" || allCollapsed || showsChildren;
+  const showsAutomation = onShowAutomationChange !== undefined && showAutomation;
+  // The default grouping renders where the breadth offers it and flat elsewhere; only a choice
+  // that differs from it is worth marking.
+  const defaultGroupBy = groupByOptions.includes(DEFAULT_SESSION_LIST_PREFERENCES.groupBy)
+    ? DEFAULT_SESSION_LIST_PREFERENCES.groupBy
+    : "none";
+  const marked = groupBy !== defaultGroupBy || showsChildren || showsAutomation;
   return (
     <DropdownMenu>
       {/* No tooltip: focus returns here when the menu closes, and an open tooltip would take
@@ -155,7 +161,12 @@ export function SessionViewOptionsMenu({
         data-testid={`${testId}-view-options-trigger`}
         render={
           <Button
-            className={cn("shrink-0", marked && "bg-surface-2 text-fg", className)}
+            className={cn(
+              "shrink-0",
+              // A non-default view reads as an active toggle: brand ink, no plate (DESIGN.md §9).
+              marked && "text-brand-strong hover:text-brand-strong",
+              className
+            )}
             size="icon-sm"
             type="button"
             variant="quiet"
@@ -198,42 +209,58 @@ export function SessionViewOptionsMenu({
             </ChoiceSection>
           </>
         ) : null}
-        {onHideChildrenChange ? (
-          <>
-            <DropdownMenuSeparator className={SECTION_DIVIDER} />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Filter</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem
-                checked={hideChildren}
-                className={CHOICE_ITEM}
-                data-testid={`${testId}-hide-children`}
-                onCheckedChange={checked => onHideChildrenChange(checked === true)}
-              >
-                <Icon as={ListTree} size="sm" />
-                Hide child sessions
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuGroup>
-          </>
-        ) : null}
-        {onAllCollapsedChange ? (
-          <>
-            <DropdownMenuSeparator className={SECTION_DIVIDER} />
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                data-testid={`${testId}-collapse-all`}
-                onClick={() => onAllCollapsedChange(!allCollapsed)}
-              >
-                <Icon
-                  as={allCollapsed ? ChevronsUpDown : ChevronsDownUp}
-                  className="text-subtle"
-                  size="sm"
-                />
-                {allCollapsed ? "Expand all" : "Collapse all"}
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </>
-        ) : null}
+        <FilterSection
+          hideChildren={hideChildren}
+          onHideChildrenChange={onHideChildrenChange}
+          onShowAutomationChange={onShowAutomationChange}
+          showAutomation={showAutomation}
+          testId={testId}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** The Filter section: each item shows only where its surface passes a handler. */
+function FilterSection({
+  hideChildren,
+  onHideChildrenChange,
+  showAutomation,
+  onShowAutomationChange,
+  testId,
+}: Pick<
+  SessionViewOptionsMenuProps,
+  "onHideChildrenChange" | "onShowAutomationChange" | "testId"
+> & { hideChildren: boolean; showAutomation: boolean }) {
+  if (!onHideChildrenChange && !onShowAutomationChange) return null;
+  return (
+    <>
+      <DropdownMenuSeparator className={SECTION_DIVIDER} />
+      <DropdownMenuGroup>
+        <DropdownMenuLabel>Filter</DropdownMenuLabel>
+        {onHideChildrenChange ? (
+          <DropdownMenuCheckboxItem
+            checked={hideChildren}
+            className={CHOICE_ITEM}
+            data-testid={`${testId}-hide-children`}
+            onCheckedChange={checked => onHideChildrenChange(checked === true)}
+          >
+            <Icon as={ListTree} size="sm" />
+            Hide child sessions
+          </DropdownMenuCheckboxItem>
+        ) : null}
+        {onShowAutomationChange ? (
+          <DropdownMenuCheckboxItem
+            checked={showAutomation}
+            className={CHOICE_ITEM}
+            data-testid={`${testId}-show-automation`}
+            onCheckedChange={checked => onShowAutomationChange(checked === true)}
+          >
+            <Icon as={Zap} size="sm" />
+            Show automation runs
+          </DropdownMenuCheckboxItem>
+        ) : null}
+      </DropdownMenuGroup>
+    </>
   );
 }

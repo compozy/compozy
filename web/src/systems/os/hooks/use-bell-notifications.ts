@@ -48,8 +48,10 @@ export function useBellNotifications(mutedWorkspaceIds: ReadonlySet<string>) {
   const stale = query.isError || query.data === undefined;
   for (const item of query.data?.items ?? []) {
     const row = notificationRow(item, mutedWorkspaceIds, stale);
-    if (item.finished && row.kind === "session") sections.finished.push(row);
-    else sections.needsYou.push(row);
+    // The daemon marks what asks nothing of the operator finished; only those kinds go there.
+    if (item.finished && (row.kind === "session" || row.kind === "layout-upgrade")) {
+      sections.finished.push(row);
+    } else sections.needsYou.push(row);
   }
   return {
     sections,
@@ -85,11 +87,14 @@ function notificationRow(
       return {
         ...common,
         kind: "session",
-        // The daemon titles an untitled session by its id; show it as its window does.
+        // The daemon titles an untitled session by its id; show it as its window does, naming
+        // an automation or always-on origin rather than "New session".
         title: getSessionDisplayTitle({
           id: item.source_id,
           name: item.title,
           agent_name: item.agent_name,
+          type: item.session_type,
+          instance_id: item.instance_id,
         }),
         badge: toSessionBadge(item.badge),
         agentName: item.agent_name ?? "",
@@ -126,6 +131,14 @@ function notificationRow(
         reason: item.detail,
         requestedAt: item.occurred_at,
         redacted: item.redacted,
+        stale,
+      };
+    case "layout-upgrade":
+      return {
+        ...common,
+        kind: "layout-upgrade",
+        reason: item.detail ?? "",
+        occurredAt: item.occurred_at,
         stale,
       };
     default:

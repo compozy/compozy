@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/runtimeoption"
 	speedpkg "github.com/compozy/compozy/internal/speed"
-	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // ErrRuntimeModelRequired identifies providers that cannot resolve a model.
@@ -82,12 +81,6 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 
 func (c *Config) resolveAgentDefinition(agent AgentDef, applied agentOverrideFields) (ResolvedAgent, error) {
 	toolPolicyEnforced := len(agent.Tools) > 0 || len(agent.Toolsets) > 0
-	policy, dropped := toolspkg.DropRetiredToolReferences(toolspkg.ToolPolicy{
-		Tools: agent.Tools, Toolsets: agent.Toolsets, DenyTools: agent.DenyTools,
-	})
-	agent.Tools, agent.Toolsets, agent.DenyTools = policy.Tools, policy.Toolsets, policy.DenyTools
-	owner := "agent:" + cmp.Or(agent.SourcePath, agent.Name)
-	toolspkg.WarnRetiredToolReferences(owner, dropped)
 	if err := agent.Validate(); err != nil {
 		return ResolvedAgent{}, err
 	}
@@ -105,6 +98,9 @@ func (c *Config) resolveAgentDefinition(agent AgentDef, applied agentOverrideFie
 	if err != nil {
 		return ResolvedAgent{}, err
 	}
+
+	configuredMCP := MergeMCPServers(mcpServers, provider.MCPServers)
+	agent.MCPServers = ResolveAgentMCPReferences(agent.MCPServers, configuredMCP)
 
 	resolvedPermissions := cmp.Or(strings.TrimSpace(agent.Permissions), string(permissions.Mode))
 	command := cmp.Or(strings.TrimSpace(agent.Command), strings.TrimSpace(provider.Command))
@@ -141,9 +137,7 @@ func (c *Config) resolveAgentDefinition(agent AgentDef, applied agentOverrideFie
 		Permissions:     permissionsSource(agent.Permissions),
 	}
 	applied.markOverrideSources(&resolved.RuntimeSources)
-	if err := applyProviderFullAccessPreference(&resolved, providerName, provider, permissions); err != nil {
-		return ResolvedAgent{}, err
-	}
+	applyApproveAllProviderMode(&resolved, providerName, provider)
 
 	if err := validateResolvedAgentRuntime(providerName, provider, resolved); err != nil {
 		return ResolvedAgent{}, err
@@ -342,39 +336,26 @@ func resolvedAgentFromProvider(
 		Reasoning:             provider.Models.Reasoning,
 		Prompt:                agent.Prompt,
 	}
+	resolved.setAutoCompactWindow(cmp.Or(agent.AutoCompactWindow, provider.AutoCompactWindow))
+	resolved.setLeanEnvironment(agent.LeanEnvironmentValue())
 	resolved.SetSpeed(speed)
 	resolved.SetACPOptions(agent.ACPOptionsValue())
 	return resolved
 }
 
-func applyProviderFullAccessPreference(
-	resolved *ResolvedAgent,
-	providerName string,
-	provider ProviderConfig,
-	permissions PermissionsConfig,
-) error {
-	if !permissions.ProviderFullAccess || resolved.Permissions != string(PermissionModeApproveAll) {
-		return nil
+// applyApproveAllProviderMode makes approve-all run the provider unrestricted: Codex
+// agent-full-access, Claude Code bypassPermissions, agy yolo, and Copilot allow_all=on. An agent's
+// explicit selection of the same ACP option wins, narrower levels never reach this mapping, and
+// runtimes without a mapping keep their own approve-all mode negotiation.
+func applyApproveAllProviderMode(resolved *ResolvedAgent, providerName string, provider ProviderConfig) {
+	if resolved.Permissions != string(PermissionModeApproveAll) ||
+		provider.EffectiveHarness() != ProviderHarnessACP {
+		return
 	}
-	// Copilot keeps approvals in its own allow_all option; its modes are task modes.
 	optionID := "mode"
-	if providerName == providerCopilotKey {
-		optionID = CopilotAllowAllOptionID
-	}
-	for _, option := range resolved.ACPOptionsValue() {
-		if option.ID == optionID {
-			return nil // The agent explicitly chose this ACP option.
-		}
-	}
-	if provider.EffectiveHarness() != ProviderHarnessACP {
-		return fmt.Errorf(
-			"permissions.provider_full_access requires an ACP provider; %q uses %q",
-			providerName,
-			provider.EffectiveHarness(),
-		)
-	}
 	var valueID string
-	switch providerName {
+	// The mapping names modes of the runtime the provider launches, not of its configured name.
+	switch strings.ToLower(provider.RuntimeProviderName(providerName)) {
 	case providerCodexKey:
 		valueID = "agent-full-access"
 	case "claude":
@@ -382,15 +363,20 @@ func applyProviderFullAccessPreference(
 	case providerAgyKey:
 		valueID = "yolo"
 	case providerCopilotKey:
-		valueID = CopilotAllowAllOn
+		// Copilot keeps approvals in its own allow_all option; its modes are task modes.
+		optionID, valueID = CopilotAllowAllOptionID, CopilotAllowAllOn
 	default:
-		return fmt.Errorf("permissions.provider_full_access is unsupported for provider %q", providerName)
+		return
+	}
+	for _, option := range resolved.ACPOptionsValue() {
+		if option.ID == optionID {
+			return // The agent explicitly chose this ACP option.
+		}
 	}
 	options, _ := runtimeoption.MergeSelections(
 		[]ACPOptionSelection{{ID: optionID, ValueID: valueID}}, resolved.ACPOptionsValue(),
 	)
 	resolved.SetACPOptions(options)
-	return nil
 }
 
 // ResolveSessionAgent resolves a parsed agent definition for one session.

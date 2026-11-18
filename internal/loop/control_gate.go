@@ -30,7 +30,7 @@ func evaluateGateNode(
 	node dsl.Node,
 	outputs *[]GenerationOutput,
 	evaluations *gateEvaluationCollector,
-	evaluatedAt time.Time,
+	clock func() time.Time,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	if err := requireGateEvaluator(evaluator, node.ID); err != nil {
 		return GenerationOutput{}, nil, err
@@ -82,13 +82,14 @@ func evaluateGateNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
+	started := gateEvaluationTime(clock)
 	verdict, err := evaluateGateVerdict(ctx, evaluator, runtimeGate, gateInput)
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	if evaluations != nil {
-		evaluations.recordWithControl(runtimeGate, output.ItemIndex, verdict, control, evaluatedAt)
-	}
+	evaluations.recordCompleted(
+		run, generation, runtimeGate, output.ItemIndex, verdict, control, started, gateEvaluationTime(clock),
+	)
 	return applyGateVerdictRoute(resolved, topology, output, node, outputs, evaluations, verdict)
 }
 

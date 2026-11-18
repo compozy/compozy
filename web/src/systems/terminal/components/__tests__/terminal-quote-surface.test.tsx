@@ -380,6 +380,51 @@ describe("TerminalQuoteBlock", () => {
 
     expect(onRemove).toHaveBeenCalledOnce();
   });
+
+  /**
+   * Invariant (#1680): a selection of any size fits in the composer. A large
+   * quote mounts collapsed to its source and line count, the chevron toggles
+   * the excerpt, and Remove works in both states.
+   */
+  it("Should mount a large quote collapsed and toggle the excerpt", async () => {
+    const lines = Array.from({ length: 500 }, (_, index) => `line ${index + 1}`);
+    const onRemove = vi.fn();
+    render(
+      <TerminalQuoteBlock
+        onRemove={onRemove}
+        quote={buildTerminalQuote({ terminalId: DEV_SERVER_TERMINAL.id, fromLine: 1, lines })}
+      />
+    );
+
+    const block = screen.getByTestId("terminal-quote-block");
+    expect(block).toHaveTextContent(`${DEV_SERVER_TERMINAL.id} · lines 1–500 · 500 lines`);
+    expect(screen.queryByTestId("terminal-quote-lines")).toBeNull();
+
+    const expand = screen.getByRole("button", { name: "Expand quote" });
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(expand);
+
+    const collapse = screen.getByRole("button", { name: "Collapse quote" });
+    expect(collapse).toHaveAttribute("aria-expanded", "true");
+    const excerpt = screen.getByTestId("terminal-quote-lines");
+    expect(excerpt.children).toHaveLength(500);
+    expect(screen.queryByTestId("terminal-quote-line-count")).toBeNull();
+
+    await userEvent.click(collapse);
+    expect(screen.queryByTestId("terminal-quote-lines")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Remove quote" }));
+    expect(onRemove).toHaveBeenCalledOnce();
+  });
+
+  it("Should mount a short quote expanded", () => {
+    render(<TerminalQuoteBlock onRemove={vi.fn()} quote={QUOTE} />);
+
+    expect(screen.getByRole("button", { name: "Collapse quote" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByTestId("terminal-quote-lines")).toHaveTextContent(QUOTE.lines[0]);
+  });
 });
 
 /**

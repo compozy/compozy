@@ -48,6 +48,7 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-038](L-038-qa-scenarios-need-reachability-and-visual-axes.md) | QA scenarios need a reachability and visual-language axis, not only data truth  | Testing / QA / Design system     |
 | [L-039](L-039-self-asserted-quality-and-inverted-goldens.md)    | Self-asserted quality is no gate; a green test can bless the bug                 | Process / Testing / Verification |
 | [L-040](L-040-real-users-end-zero-legacy-posture.md)            | Real users end the zero-legacy posture; compatibility is tiered by contract owner | Project posture / Release / Process |
+| [L-041](L-041-restart-cost-scales-with-change-and-every-phase-is-bounded.md) | Restart work scales with what changed; every boot and shutdown phase has a bound | Runtime lifecycle / Persistence / Process |
 
 ## How to use
 

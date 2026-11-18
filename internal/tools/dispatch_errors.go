@@ -31,6 +31,9 @@ func normalizeBackendError(id ToolID, err error) error {
 	if contextError := contextErrFromError(id, err); contextError != nil {
 		return contextError
 	}
+	if disabled := providerDisabledToolError(id, err); disabled != nil {
+		return disabled
+	}
 	if toolErr, ok := errors.AsType[*ToolError](err); ok {
 		return normalizeToolError(id, toolErr)
 	}
@@ -69,6 +72,9 @@ func normalizeToolError(id ToolID, err error) error {
 	if err == nil {
 		return nil
 	}
+	if disabled := providerDisabledToolError(id, err); disabled != nil {
+		return disabled
+	}
 	if toolErr, ok := errors.AsType[*ToolError](err); ok {
 		if toolErr.ToolID == "" && id != "" {
 			cloned := *toolErr
@@ -97,4 +103,24 @@ func contextErrFromError(id ToolID, err error) error {
 	default:
 		return nil
 	}
+}
+
+// providerDisabledToolError promotes any error chain carrying the provider_disabled diagnostic
+// code, including one a domain mapper already wrapped in another tool error, so every native
+// start tool reports the same stable code.
+func providerDisabledToolError(id ToolID, err error) error {
+	if toolErr, ok := errors.AsType[*ToolError](err); ok && toolErr.Code == ErrorCodeProviderDisabled {
+		return nil
+	}
+	carrier, ok := errors.AsType[interface {
+		error
+		DiagnosticCode() string
+	}](err)
+	if !ok || carrier.DiagnosticCode() != string(ErrorCodeProviderDisabled) {
+		return nil
+	}
+	toolErr := NewToolError(ErrorCodeProviderDisabled, id, carrier.Error(), fmt.Errorf("%w: %w", ErrToolConflict, err))
+	// The message names the provider and how to re-enable it; it carries no secrets.
+	toolErr.PublicMessage = carrier.Error()
+	return toolErr
 }

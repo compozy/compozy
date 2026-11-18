@@ -18,15 +18,7 @@ func (s *CheckService) dispatch(
 	digest CheckDigest,
 	occurrence, source string,
 ) {
-	defer func() {
-		s.mu.Lock()
-		run := s.running[target.Instance.ID]
-		if run.occurrence == occurrence {
-			run.cancel()
-			delete(s.running, target.Instance.ID)
-		}
-		s.mu.Unlock()
-	}()
+	defer s.releaseCheck(target.Instance.ID, occurrence)
 	outcome, err := s.dispatcher.Dispatch(ctx, target, digest, func(sessionID string) error {
 		bound, err := s.store.BindTriage(ctx, target.Instance.ID, occurrence, sessionID)
 		if err != nil {
@@ -46,11 +38,25 @@ func (s *CheckService) dispatch(
 			reason = "triage_interrupted"
 		}
 		deniedCalls := outcome.DeniedCalls
+		toolsStatus := outcome.ToolsStatus
 		outcome = failedTriage(reason)
 		outcome.DeniedCalls = deniedCalls
+		outcome.ToolsStatus = toolsStatus
 	}
 	now := s.now()
+	authorityDigest, digestErr := AuthorityDigest(
+		target.Policy.Frontmatter.CheckIns,
+		AuthorityActions(target.Policy.Frontmatter.Actions), target.ReadOnlyTools,
+	)
+	if digestErr != nil {
+		outcome = failedTriage("triage_failed")
+	}
 	req := FinishRequest{
+		Actions:             target.Policy.Frontmatter.Actions,
+		AuthorityDigest:     authorityDigest,
+		DefinitionDir:       target.DefinitionDir,
+		AutoAcceptPerDay:    s.config.AutoAcceptPerDay,
+		QueueCap:            s.config.QueueCap,
 		HasSources:          len(target.Policy.Preferences.Context.Sources) > 0,
 		SourceMore:          digest.SourceMore,
 		MinInterval:         s.config.MinInterval,
@@ -65,6 +71,7 @@ func (s *CheckService) dispatch(
 		Result:              outcome.Result,
 		Reason:              outcome.Reason,
 		Detail:              outcome.Detail,
+		ToolsStatus:         outcome.ToolsStatus,
 		DeniedCalls:         outcome.DeniedCalls,
 		Digest:              digest.Fingerprint,
 		AutomationCursor:    digest.AutomationCursor,
@@ -244,4 +251,14 @@ func (s *CheckService) CancelInstance(ctx context.Context, id string) error {
 		run.cancel()
 	}
 	return nil
+}
+
+func (s *CheckService) releaseCheck(instanceID, occurrence string) {
+	s.mu.Lock()
+	run := s.running[instanceID]
+	if run.occurrence == occurrence {
+		run.cancel()
+		delete(s.running, instanceID)
+	}
+	s.mu.Unlock()
 }

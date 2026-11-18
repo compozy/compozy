@@ -1,4 +1,10 @@
-import { hashKey, notifyManager, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  hashKey,
+  notifyManager,
+  useInfiniteQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import { cancelSubagent } from "../adapters/subagent-api";
@@ -20,6 +26,8 @@ export interface SessionSubagentsModel {
    * read with every page in.
    */
   complete: boolean;
+  /** A complete answer confirmed by the live stream or a finished read after mounting. */
+  confirmed: boolean;
   /** The list read failed and no stream roster stands in. */
   failed: boolean;
   /** Re-reads the list after a failure. */
@@ -42,6 +50,8 @@ export interface SessionSubagentsOptions {
    * the list once the session reports subagents or the operator asks.
    */
   coldRead?: boolean;
+  /** Confirm cached absence with a new read for this observer. */
+  confirmOnMount?: boolean;
 }
 
 /**
@@ -74,7 +84,8 @@ export function useLiveSubagentRoster(
   const readObservers = useCallback(() => find()?.getObserversCount() ?? 0, [find]);
   const data = useSyncExternalStore(enabled ? subscribe : subscribeIdle, readData);
   const observers = useSyncExternalStore(enabled ? subscribe : subscribeIdle, readObservers);
-  if (!enabled || !data || observers === 0 || data.staleIds.size > 0) return null;
+  if (!enabled || !data || observers === 0 || data.snapshotPending || data.staleIds.size > 0)
+    return null;
   return data.rows.length >= SUBAGENT_LIST_PAGE_SIZE ? null : data;
 }
 
@@ -88,42 +99,71 @@ export function useLiveSubagentRoster(
 export function useSessionSubagents(
   workspaceId: string,
   sessionId: string,
-  { enabled = true, allPages = true, coldRead = true }: SessionSubagentsOptions = {}
+  {
+    enabled = true,
+    allPages = true,
+    coldRead = true,
+    confirmOnMount = false,
+  }: SessionSubagentsOptions = {}
 ): SessionSubagentsModel {
   const queryClient = useQueryClient();
   const scoped = enabled && workspaceId !== "" && sessionId !== "";
   const live = useLiveSubagentRoster(workspaceId, sessionId, scoped);
-  const query = useInfiniteQuery({
-    ...sessionSubagentsOptions(workspaceId, sessionId),
-    enabled: scoped && coldRead && live === null,
+  const query = usePagedSubagents(workspaceId, sessionId, scoped && coldRead && live === null, {
+    allPages,
+    confirmOnMount,
   });
-  const { hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = query;
-  const walk = allPages && coldRead && live === null;
-  useEffect(() => {
-    if (walk && hasNextPage && !isFetchingNextPage && !query.isError)
-      void fetchNextPage().catch(() => undefined);
-  }, [walk, hasNextPage, isFetchingNextPage, fetchNextPage, query.isError]);
+  const complete = query.isSuccess && !query.hasNextPage;
 
   return {
     subagents:
       live?.rows ??
       query.data?.pages.flatMap(page => page.subagents.map(subagentViewFromPayload)) ??
       [],
-    complete: live !== null || (query.isSuccess && !hasNextPage),
+    complete: live !== null || complete,
+    confirmed: live !== null || (complete && query.isFetchedAfterMount && !query.isFetching),
     failed: live === null && query.isError,
-    retry: () => void refetch(),
-    stop: async subagent => {
-      const parent = await queryClient.fetchQuery({
-        ...sessionDetailOptions(workspaceId, sessionId),
-        staleTime: 0,
-      });
-      await cancelSubagent(workspaceId, subagent.id, parent.profile_name);
-      // A live roster settles through the stream; a cold read re-reads the list.
-      if (live === null) {
-        await queryClient.invalidateQueries({
-          queryKey: sessionKeys.subagents(workspaceId, sessionId),
-        });
-      }
-    },
+    retry: () => void query.refetch(),
+    stop: subagent => stopSubagent(queryClient, workspaceId, sessionId, live !== null, subagent),
   };
+}
+
+/** Own the cold list read and its page walk separately from live roster selection. */
+function usePagedSubagents(
+  workspaceId: string,
+  sessionId: string,
+  enabled: boolean,
+  { allPages, confirmOnMount }: SessionSubagentsOptions
+) {
+  const query = useInfiniteQuery({
+    ...sessionSubagentsOptions(workspaceId, sessionId),
+    enabled,
+    ...(confirmOnMount ? { refetchOnMount: "always" as const } : {}),
+  });
+  const { hasNextPage, isFetching, isFetchingNextPage, fetchNextPage, isError } = query;
+  useEffect(() => {
+    if (enabled && allPages && hasNextPage && !isFetching && !isFetchingNextPage && !isError)
+      void fetchNextPage().catch(() => undefined);
+  }, [enabled, allPages, hasNextPage, isFetching, isFetchingNextPage, fetchNextPage, isError]);
+  return query;
+}
+
+/** Resolve the current parent owner before cancellation, then refresh cold readers. */
+async function stopSubagent(
+  queryClient: QueryClient,
+  workspaceId: string,
+  sessionId: string,
+  live: boolean,
+  subagent: SubagentView
+): Promise<void> {
+  const parent = await queryClient.fetchQuery({
+    ...sessionDetailOptions(workspaceId, sessionId),
+    staleTime: 0,
+  });
+  await cancelSubagent(workspaceId, subagent.id, parent.profile_name);
+  if (!live) {
+    await queryClient.invalidateQueries({
+      queryKey: sessionKeys.subagents(workspaceId, sessionId),
+    });
+  }
 }

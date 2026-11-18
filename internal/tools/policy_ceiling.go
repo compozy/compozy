@@ -1,6 +1,9 @@
 package tools
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
 
 func (e *EffectivePolicyEvaluator) applyPermissionCeiling(d Descriptor, decision *EffectiveToolDecision) {
 	switch e.permissionMode() {
@@ -77,7 +80,7 @@ func asksAtEditLevel(id ToolID) bool {
 		ToolIDSessionApprove, ToolIDSessionClarifyAnswer,
 		ToolIDSessionReparent, ToolIDAgentCreate, ToolIDAgentInstanceCreate, ToolIDAgentInstanceEnsureMain,
 		ToolIDAgentInstancePause, ToolIDAgentInstanceResume, ToolIDCmdPaletteInvoke,
-		ToolIDSessionArchive, ToolIDWorkspaceArchive, ToolIDTaskExecutionProfileSet:
+		ToolIDSessionArchive, ToolIDWorkspaceArchive, ToolIDTaskExecutionProfileSet, ToolIDMCPAllow, ToolIDMCPImport:
 		return true
 	}
 	for _, prefix := range selfEscalationToolPrefixes {
@@ -99,4 +102,66 @@ func isOwnAgentMemoryWrite(d Descriptor) bool {
 	default:
 		return false
 	}
+}
+
+// inputSkipsPermissionCeiling reports a call whose input keeps it within what
+// the permission mode lets through without asking, whatever the tool's declared
+// risk: an always-on instance's self-service call at approve-reads, and a
+// session cleanup that only previews or reads its run, or stops it.
+func (e *EffectivePolicyEvaluator) inputSkipsPermissionCeiling(d Descriptor, input json.RawMessage) bool {
+	switch e.permissionMode() {
+	case PermissionModeApproveReads:
+		return isInstanceSelfServiceCall(d, input) || classifySessionCleanupCall(d, input) == sessionCleanupReads
+	case PermissionModeApproveEdits, PermissionModeAuto:
+		return classifySessionCleanupCall(d, input) != sessionCleanupDeletes
+	default:
+		return false
+	}
+}
+
+// Session cleanup actions; the plan action deletes unless dry_run stays true.
+const (
+	SessionCleanupActionPlan   = "plan"
+	SessionCleanupActionStatus = "status"
+	SessionCleanupActionStop   = "stop"
+)
+
+// sessionCleanupCall is what one session_cleanup call does to history.
+type sessionCleanupCall int
+
+const (
+	// sessionCleanupDeletes starts a delete, or is not a session_cleanup call.
+	sessionCleanupDeletes sessionCleanupCall = iota
+	// sessionCleanupReads previews a plan or reads the current run.
+	sessionCleanupReads
+	// sessionCleanupStops ends a delete already approved, as a coordination
+	// mutation does.
+	sessionCleanupStops
+)
+
+// classifySessionCleanupCall reads one session_cleanup call's input. Only a
+// plan with dry_run=false deletes; a call without input (a catalog view)
+// counts as that delete, so the tool advertises its approval.
+func classifySessionCleanupCall(d Descriptor, input json.RawMessage) sessionCleanupCall {
+	if d.Source.Kind != SourceBuiltin || d.ID != ToolIDSessionCleanup || len(input) == 0 {
+		return sessionCleanupDeletes
+	}
+	var call struct {
+		Action string `json:"action"`
+		DryRun *bool  `json:"dry_run"`
+	}
+	if json.Unmarshal(input, &call) != nil {
+		return sessionCleanupDeletes
+	}
+	switch strings.TrimSpace(call.Action) {
+	case SessionCleanupActionStatus:
+		return sessionCleanupReads
+	case SessionCleanupActionStop:
+		return sessionCleanupStops
+	case "", SessionCleanupActionPlan:
+		if call.DryRun == nil || *call.DryRun {
+			return sessionCleanupReads
+		}
+	}
+	return sessionCleanupDeletes
 }

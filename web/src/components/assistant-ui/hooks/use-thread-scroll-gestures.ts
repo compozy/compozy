@@ -1,5 +1,7 @@
 import { type RefObject, useEffect } from "react";
 
+import { isRenderedElement } from "@/lib/scroll-owner";
+
 import {
   FOLLOW_REARM_BAND_PX,
   navigationKeyDirection,
@@ -79,6 +81,9 @@ export function useThreadScrollGestures(
       if (direction) observeNavigation(direction);
     };
     const handleScroll = () => {
+      // A viewport that is not rendered reads as scrolled to its end (every box is 0): it says
+      // nothing about the reader, so following neither arms nor re-pins from it.
+      if (!isRenderedElement(viewport)) return;
       if (heldPointerScrollTop !== null) {
         // A shrinking layout clamps the viewport without a reader gesture.
         const clamped = viewport.scrollHeight < heldPointerScrollHeight;

@@ -56,6 +56,10 @@ func (a *mockAgent) prepareNativeTools(
 		if err != nil {
 			return fmt.Errorf("acpmock: connect hosted native tools: %w", err)
 		}
+		// Providers enumerate tools before dispatch; this also acknowledges the served projection.
+		if _, err := connection.ListTools(ctx, nil); err != nil {
+			return errors.Join(fmt.Errorf("acpmock: list hosted native tools: %w", err), connection.Close())
+		}
 		a.mu.Lock()
 		a.sessions[sessionID].nativeTools = connection
 		a.mu.Unlock()

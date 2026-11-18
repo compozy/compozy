@@ -151,7 +151,11 @@ export function buildExtensionInstallRequest(form: ExtensionInstallForm): Extens
   return {
     ...(form.allowUnverified ? { allow_unverified: true } : {}),
     ...(asset !== "" && form.source === "github" ? { asset } : {}),
+    // A direct install keeps its explicit enable step; only catalog Add enables in the same call.
+    enable: false,
     ref: form.ref.trim(),
+    // The direct install form has no overwrite control, so it never replaces an installed package.
+    replace: false,
     source: form.source,
     ...(version !== "" ? { version } : {}),
   };

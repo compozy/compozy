@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -314,7 +315,17 @@ func (h *BaseHandlers) TriggerAutomationJob(c *gin.Context) {
 		return
 	}
 
-	run, err := manager.TriggerJob(c.Request.Context(), job.ID)
+	wait, err := strconv.ParseBool(c.DefaultQuery("wait", "false"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(errors.New("wait must be a boolean")))
+		return
+	}
+	waitTimeout, err := automationpkg.ParseJobWaitTimeout(wait, c.Query("timeout"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		return
+	}
+	run, err := manager.StartJob(c.Request.Context(), job.ID, waitTimeout)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
@@ -363,15 +374,5 @@ func (h *BaseHandlers) AutomationJobRuns(c *gin.Context) {
 	query.TriggerID = ""
 	query.ReadScope = readScope
 
-	runs, err := manager.ListRuns(c.Request.Context(), query)
-	if err != nil {
-		h.respondError(c, StatusForAutomationError(err), err)
-		return
-	}
-	runPayloads := RunPayloadsFromRuns(runs)
-	if err := h.decorateAutomationRunOwners(c.Request.Context(), runPayloads); err != nil {
-		h.respondError(c, StatusForAutomationError(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.RunsResponse{Runs: runPayloads})
+	h.respondAutomationRuns(c, query)
 }

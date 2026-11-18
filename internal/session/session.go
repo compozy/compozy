@@ -61,6 +61,7 @@ type Info struct {
 	BoardColumn              BoardColumn
 	linkedWork               []LinkedWorkItem
 	ParentTitle              string
+	TreeParentSessionID      string
 	Children                 *store.SessionBoardCounts
 	runtimeStrategy          acp.RuntimeApplicationStrategy
 	VerdictOnly              bool `json:"-"`
@@ -138,6 +139,16 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	creatorSteerTurnID string
+	creatorSteerInputs map[string]creatorSteerInput
+
+	checkInToolsStatus           string
+	interactionLifecycleMu       sync.Mutex
+	lifecycleNotifyMu            sync.Mutex // Orders creation and terminal callbacks across activation hooks.
+	hostedMCPRequiresReload      bool
+	activation                   activationState
+	hostedMCPDigest              string
+	directMCPDigest              string
 	permissionDenials            *acp.PermissionDenials
 	rotationSuperseded           bool
 	InstanceID                   string
@@ -159,8 +170,9 @@ type Session struct {
 	runtimeRelease *runtimeRelease
 	// Claimed finalization owns these fields across persistence retries.
 	stopFinalizationErr     error
-	stopVerifiedOutcome     StopOutcome // Protected by mu.
-	stopStatePending        bool        // Protected by mu.
+	stopVerifiedOutcome     StopOutcome   // Protected by mu.
+	stopVerifiedProcess     *AgentProcess // Protected by mu.
+	stopStatePending        bool          // Protected by mu.
 	stopTerminalEvent       *acp.AgentEvent
 	stopTerminalRecorded    bool
 	stopTurnID              string // Protected by mu.
@@ -168,6 +180,7 @@ type Session struct {
 	postStopOnce            sync.Once
 	followUpMode            func() string
 	steerDelivery           store.SteerDeliveryMode
+	steerBoundaryTimeout    time.Duration
 	mu                      sync.RWMutex
 	persistMu               sync.Mutex
 	// runtimeApplySlot serializes live runtime reconfiguration with prompt runtime admission;
@@ -202,6 +215,7 @@ type Session struct {
 	RuntimeRecovery   *store.SessionRuntimeRecovery
 	// authRecoveryExhausted skips the provider sign-in wait after a turn exhausted it, until a
 	// turn completes or its provider changes, so queued turns fail immediately. Protected by mu.
+	currentPromptRecovery     *promptRecoveryState
 	authRecoveryExhausted     bool
 	SelectedRuntime           *RuntimeSelection
 	RuntimeSelectionRevision  int64
@@ -284,6 +298,9 @@ type Session struct {
 	promptSetupCount           int
 	promptSetupDone            chan struct{}
 	currentTurnID              string
+	openToolCalls              map[string]bool
+	toolEventsObserved         bool
+	hasBoundarySteer           bool
 	currentTurnSource          TurnSource
 	currentPromptMessage       string
 	currentPromptDelivery      PromptDelivery
@@ -299,6 +316,8 @@ type Session struct {
 	providerRedactions         []func()
 	// inputPromotionActive keeps at most one long-turn queue promotion pass running per session.
 	inputPromotionActive atomic.Bool
+	// inputPromotionRerun records a promotion request made while a pass runs, so that pass repeats.
+	inputPromotionRerun atomic.Bool
 	// promotedSteers holds long-turn promotions whose injection is still pending, so an asynchronous
 	// fallback returns the message to after-turn delivery instead of leaving it as a queued steer.
 	promotedSteers sync.Map

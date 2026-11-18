@@ -36,6 +36,7 @@ func clonePromptRecoveryRequest(request acp.PromptRequest) acp.PromptRequest {
 	return cloned
 }
 
+// attemptPromptRecovery spends the existing bounded recovery schedule, waking early on verified sign-in.
 func (m *Manager) attemptPromptRecovery(
 	ctx context.Context,
 	session *Session,
@@ -43,14 +44,15 @@ func (m *Manager) attemptPromptRecovery(
 	loop *promptPumpLoopState,
 	trigger acp.AgentEvent,
 	reason store.SessionRuntimeRecoveryReason,
-) (bool, error) {
+) (bool, *acp.AgentEvent, error) {
 	if m == nil || session == nil || turnState == nil || turnState.recovery == nil {
-		return false, nil
+		return false, nil, nil
 	}
 	recovery := turnState.recovery
+	terminal := trigger
 	delays, budget, ok := m.startablePromptRecovery(session, turnState, reason)
 	if !ok {
-		return false, m.settleStoppedPromptRecovery(ctx, session, reason)
+		return m.stoppedPromptRecovery(ctx, session, turnState, trigger, reason)
 	}
 	maxAttempts := len(delays)
 	for budget.attempts < maxAttempts {
@@ -61,48 +63,40 @@ func (m *Manager) attemptPromptRecovery(
 			break
 		}
 		budget.attempts = attempt
-		if err := session.beginAutomaticRecovery(automaticRecoveryAttempt{
+		if err := m.publishPromptRecoveryAttempt(ctx, session, turnState, loop, trigger, automaticRecoveryAttempt{
 			reason: reason, attempt: attempt, maxAttempts: maxAttempts,
 			startedAt: budget.startedAt, nextAttemptAt: now.Add(delay),
-		}, now); err != nil {
-			return false, err
-		}
-		if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
-			return false, err
-		}
-		if err := m.recordPromptRecoveryEvent(
-			ctx, session, turnState, loop, acp.EventTypeRuntimeRecoveryStarted, trigger, reason, attempt, maxAttempts,
-		); err != nil {
-			return false, err
+		}); err != nil {
+			return false, nil, err
 		}
 		// A stop can claim the turn between startablePromptRecovery and publishing
 		// the recovery state. In that case it did not yet see a daemon-owned wait.
 		// Daemon shutdown may begin during the delay; it must not spawn a replacement runtime.
-		if session.promptCancellationRequested(turnState.turnID) ||
-			waitForPromptRecovery(recovery.executionCtx, delay) != nil || m.daemonShuttingDown() {
-			return false, m.settleStoppedPromptRecovery(ctx, session, reason)
+		if !m.waitForPromptRecovery(session, turnState, delay) {
+			return m.stoppedPromptRecovery(ctx, session, turnState, trigger, reason)
 		}
 		if !budget.expiresAt.IsZero() && !m.now().Before(budget.expiresAt) {
 			break
 		}
 
 		request, message := recoveredPromptPayload(recovery, reason)
-		source, replayBlock, err := m.startRecoveredPrompt(
-			recovery.executionCtx,
-			session,
-			turnState,
-			request,
-			message,
-			budget.expiresAt,
+		source, _, err := m.startRecoveredPrompt(
+			recovery.executionCtx, session, turnState, request, message, budget.expiresAt,
 		)
 		if err != nil {
-			if persistErr := m.persistPromptRecoveryFailure(ctx, session, err); persistErr != nil {
-				return false, persistErr
+			if errors.Is(err, ErrDaemonShuttingDown) {
+				// A spawn the shutdown refused is the interruption, not a spent recovery attempt.
+				return m.stoppedPromptRecovery(ctx, session, turnState, trigger, reason)
 			}
+			if persistErr := m.persistPromptRecoveryFailure(ctx, session, err); persistErr != nil {
+				return false, nil, persistErr
+			}
+			if runtimeRecoveryNeedsSignIn(reason, err) {
+				return m.attemptPromptRecovery(ctx, session, turnState, loop,
+					m.recoveryFailureEvent(session, turnState, err), store.SessionRuntimeRecoveryProviderAuth)
+			}
+			terminal = m.recoveryFailureEvent(session, turnState, err)
 			continue
-		}
-		if !request.BypassesContext() {
-			m.consumeResumeReplay(session.ID, replayBlock)
 		}
 		loop.source = source
 		loop.turnEnded = false
@@ -110,12 +104,21 @@ func (m *Manager) attemptPromptRecovery(
 		if err := m.recordPromptRecoveryEvent(
 			ctx, session, turnState, loop, acp.EventTypeRuntimeRecoverySucceeded, trigger, reason, attempt, maxAttempts,
 		); err != nil {
-			return false, err
+			return false, nil, err
 		}
-		return true, nil
+		return true, nil, nil
 	}
 
-	return false, m.exhaustPromptRecovery(ctx, session, turnState, loop, trigger, reason, budget, maxAttempts)
+	return false, &terminal, m.exhaustPromptRecovery(
+		ctx,
+		session,
+		turnState,
+		loop,
+		terminal,
+		reason,
+		budget,
+		maxAttempts,
+	)
 }
 
 // startablePromptRecovery returns the schedule and budget a turn failure may still spend.
@@ -170,7 +173,7 @@ func (m *Manager) exhaustPromptRecovery(
 	if reason == store.SessionRuntimeRecoveryProviderAuth {
 		session.setAuthRecoveryExhausted(true)
 	}
-	return m.settleStoppedPromptRecovery(ctx, session, reason)
+	return m.settleStoppedPromptRecovery(ctx, session, reason, trigger)
 }
 
 func (m *Manager) persistPromptRecoveryFailure(ctx context.Context, session *Session, recoveryErr error) error {
@@ -189,6 +192,7 @@ func (m *Manager) startRecoveredPrompt(
 	message string,
 	expiresAt time.Time,
 ) (<-chan acp.AgentEvent, string, error) {
+	state.turnTrace.recovery()
 	m.releaseHostedPromptRun(session, state)
 	m.clearActivePromptRunForState(session, state)
 	process, replayBlock, err := m.recoverPromptRuntimeBefore(ctx, session, expiresAt)
@@ -207,10 +211,14 @@ func (m *Manager) startRecoveredPrompt(
 	if err != nil {
 		return nil, "", err
 	}
+	if !request.BypassesContext() {
+		m.consumeResumeReplay(session.ID, replayBlock)
+	}
 	return source, replayBlock, nil
 }
 
-func waitForPromptRecovery(ctx context.Context, delay time.Duration) error {
+// waitForPromptRecoverySignal waits for backoff, verified credentials, or cancellation.
+func waitForPromptRecoverySignal(ctx context.Context, delay time.Duration, ready <-chan struct{}) error {
 	if delay <= 0 {
 		return ctx.Err()
 	}
@@ -220,6 +228,8 @@ func waitForPromptRecovery(ctx context.Context, delay time.Duration) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-timer.C:
+		return nil
+	case <-ready:
 		return nil
 	}
 }
@@ -376,7 +386,7 @@ func (m *Manager) startPromptRecoveryCandidate(
 	if err == nil {
 		return candidate, nil
 	}
-	if !acp.IsLoadSessionResourceMissing(err) && !errors.Is(err, acp.ErrAgentDoesNotSupportSession) {
+	if !acp.LoadSessionRequiresFreshThread(err) {
 		return nil, err
 	}
 
@@ -390,4 +400,35 @@ func (m *Manager) startPromptRecoveryCandidate(
 		return nil, errors.Join(err, fallbackErr)
 	}
 	return candidate, nil
+}
+
+func recoveryNeedsSignIn(err error) bool {
+	diagnostic, ok := acp.ProviderFailureDiagnosticFromError(err)
+	return ok && diagnostic.Action == acp.ProviderFailureActionLogin
+}
+
+func (m *Manager) recoveryFailureEvent(session *Session, state *promptTurnDispatchState, err error) acp.AgentEvent {
+	now := m.now()
+	event := acp.AgentEvent{
+		Type: acp.EventTypeError, TurnID: state.turnID, Timestamp: now,
+		Error: err.Error(), Failure: sessionFailureFromError(err, store.FailureProtocol),
+	}
+	if diagnostic, ok := acp.ProviderFailureDiagnosticFromError(
+		err,
+	); ok &&
+		diagnostic.Action == acp.ProviderFailureActionLogin {
+		event.Failure.Kind = store.FailurePrompt
+		event.ProviderError = &acp.ProviderErrorDiagnostic{
+			Code: acp.ProviderErrorAuthRequired, Provider: session.Info().Provider,
+			NextAction: diagnostic.Action, Guidance: diagnostic.Guidance,
+			OccurrenceCount: 1, FirstSeenAt: now, LastSeenAt: now,
+		}
+	}
+	return event
+}
+
+func (m *Manager) waitForPromptRecovery(session *Session, state *promptTurnDispatchState, delay time.Duration) bool {
+	return !session.promptCancellationRequested(state.turnID) &&
+		waitForPromptRecoverySignal(state.recovery.executionCtx, delay, session.authRecoverySignal()) == nil &&
+		!m.daemonShuttingDown()
 }

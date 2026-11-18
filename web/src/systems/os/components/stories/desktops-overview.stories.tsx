@@ -1,161 +1,84 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import type { OsWindow } from "../../lib/os-types";
-import type { LayoutProjection } from "../../lib/window-manager-types";
-import { DesktopLayoutThumbnail } from "../desktop-layout-thumbnail";
-
-import {
-  DesktopsOverview,
-  type DesktopOverviewItem,
-  type DesktopsOverviewProps,
-} from "../desktops-overview";
+import type { LayoutNode } from "../../lib/window-manager-types";
+import type { DesktopOverviewItem, DesktopOverviewTab } from "../../lib/desktops-overview-model";
+import { DesktopsOverview, type DesktopsOverviewProps } from "../desktops-overview";
 import { DesktopShell } from "./_desktop";
+import { STORY_WINDOWS as W, storySessionOf } from "./_tab-fixtures";
 
-const WORK_AREA = { x: 0, y: 0, w: 1380, h: 848 };
+function leaf(win: OsWindow): LayoutNode {
+  return { id: win.nodeId ?? `node:${win.id}`, kind: "leaf", windowId: win.id };
+}
 
-function storyWindow(
+function split(
   id: string,
-  app: OsWindow["app"],
-  rect: OsWindow["rect"],
-  extra: Partial<OsWindow> = {}
-): OsWindow {
-  return {
-    id,
-    app,
-    instanceKey: null,
-    route: { pathname: `/${app}`, search: {} },
-    navStack: [],
-    pinned: false,
-    desktopId: "story",
-    placement: "tiled",
-    rect,
-    layer: 1,
-    minimized: false,
-    zoomed: false,
-    groupId: null,
-    nodeId: null,
-    stackId: null,
-    stackActive: true,
-    parentAxis: null,
-    ...extra,
-  } as OsWindow;
+  axis: "horizontal" | "vertical",
+  children: LayoutNode[],
+  weights: number[]
+): LayoutNode {
+  return { id, kind: "split", axis, children, weights };
 }
 
-/**
- * A thumbnail over a real-shaped projection: windows sharing a `stackId` tile
- * as one stack; `floating` windows (single or decked) stay out of the tiling.
- */
-function thumbnail(tiled: OsWindow[], floating: OsWindow[] = []) {
-  const stacks = new Map<string, OsWindow[]>();
-  for (const window of tiled) {
-    if (window.stackId) stacks.set(window.stackId, [...(stacks.get(window.stackId) ?? []), window]);
-  }
-  const zone = { x: 0, y: 0, w: 1, h: 1 };
-  const projection: LayoutProjection = {
-    revision: 1,
-    desktopId: "story",
-    workArea: WORK_AREA,
-    windows: tiled.map(window => ({
-      windowId: window.id,
-      nodeId: window.id,
-      groupId: "story",
-      rect: window.rect,
-      zone,
-      stackId: window.stackId,
-      active: window.stackActive,
-      adapted: false,
-      parentAxis: null,
-    })),
-    stacks: [...stacks].map(([nodeId, members]) => ({
-      nodeId,
-      groupId: "story",
-      kind: "explicit" as const,
-      windowIds: members.map(window => window.id),
-      activeWindowId: members.find(window => window.stackActive)?.id ?? members[0].id,
-      rect: members[0].rect,
-      zone,
-    })),
-    seams: [],
-    frameSeams: [],
-    diagnostics: [],
-  };
-  return <DesktopLayoutThumbnail projection={projection} windows={[...tiled, ...floating]} />;
+function tab(id: string, ...members: OsWindow[]): DesktopOverviewTab {
+  return { id, leadWindowId: members[0]!.id, members };
 }
 
-const DESKTOPS: DesktopOverviewItem[] = [
+const CONTROL: DesktopOverviewItem = {
+  id: "control",
+  name: "Main",
+  switchShortcut: "⌃1",
+  tabs: [tab("t-main", W.auth, W.tasks, W.terminal), tab("t-dash", W.dash)],
+  movableTabCount: 2,
+  activeTabId: "t-main",
+  activeRoot: split(
+    "main",
+    "horizontal",
+    [leaf(W.auth), split("side", "vertical", [leaf(W.tasks), leaf(W.terminal)], [0.56, 0.44])],
+    [0.55, 0.45]
+  ),
+};
+
+const REVIEW: DesktopOverviewItem = {
+  id: "review",
+  name: "Review",
+  switchShortcut: "⌃2",
+  needsYou: true,
+  tabs: [tab("t-review", W.review, W.agents), tab("t-files", W.files)],
+  movableTabCount: 2,
+  activeTabId: "t-review",
+  activeRoot: split("review", "horizontal", [leaf(W.review), leaf(W.agents)], [0.62, 0.38]),
+};
+
+const RESEARCH: DesktopOverviewItem = {
+  id: "research",
+  name: "Research",
+  switchShortcut: "⌃3",
+  tabs: [tab("t-docs", W.docs)],
+  movableTabCount: 1,
+  activeTabId: "t-docs",
+  activeRoot: leaf(W.docs),
+};
+
+const DESKTOPS: DesktopOverviewItem[] = [CONTROL, REVIEW, RESEARCH];
+
+/** A desktop with more tabs than its card lists: the rest count as "+N more". */
+const FULL: DesktopOverviewItem[] = [
   {
-    id: "control",
-    name: "Main",
-    aspectRatio: WORK_AREA.w / WORK_AREA.h,
-    switchShortcut: "⌃1",
-    thumbnail: thumbnail([
-      storyWindow(
-        "s1",
-        "session",
-        { x: 0, y: 0, w: 760, h: 848 },
-        { stackId: "st", stackActive: true }
-      ),
-      storyWindow(
-        "s2",
-        "session",
-        { x: 0, y: 0, w: 760, h: 848 },
-        { stackId: "st", stackActive: false }
-      ),
-      storyWindow("tasks", "tasks", { x: 760, y: 0, w: 620, h: 480 }),
-      storyWindow("term", "terminal", { x: 760, y: 480, w: 620, h: 368 }),
-    ]),
-    windows: [
-      { id: "s1", title: "Session" },
-      { id: "s2", title: "Session" },
-      { id: "tasks", title: "Tasks" },
-      { id: "term", title: "Terminal" },
+    ...CONTROL,
+    tabs: [
+      ...CONTROL.tabs,
+      tab("t-tabs", W.tabs),
+      tab("t-agents", W.agents),
+      tab("t-files2", W.files),
+      tab("t-docs2", W.docs),
     ],
+    movableTabCount: 6,
   },
-  {
-    id: "build",
-    name: "Review",
-    aspectRatio: WORK_AREA.w / WORK_AREA.h,
-    switchShortcut: "⌃2",
-    needsYou: true,
-    thumbnail: thumbnail(
-      [
-        storyWindow("agents", "agents", { x: 0, y: 0, w: 860, h: 848 }),
-        storyWindow("loops", "loops", { x: 860, y: 0, w: 520, h: 848 }),
-      ],
-      // A floating tab deck: one tile, its active tab +N.
-      ["t1", "t2", "t3"].map((id, index) =>
-        storyWindow(
-          id,
-          "terminal",
-          { x: 620, y: 420, w: 560, h: 340 },
-          { placement: "stacked", stackId: "deck", stackActive: index === 0, layer: 2 }
-        )
-      )
-    ),
-    windows: [
-      { id: "agents", title: "Agents" },
-      { id: "loops", title: "Loops" },
-      { id: "t1", title: "Terminal" },
-      { id: "t2", title: "Terminal" },
-      { id: "t3", title: "Terminal" },
-    ],
-  },
-  {
-    id: "research",
-    name: "Research",
-    aspectRatio: WORK_AREA.w / WORK_AREA.h,
-    switchShortcut: "⌃3",
-    thumbnail: thumbnail([
-      storyWindow("marketplace", "marketplace", { x: 0, y: 0, w: 1380, h: 424 }),
-      storyWindow("vault", "vault", { x: 0, y: 424, w: 1380, h: 424 }),
-    ]),
-    windows: [
-      { id: "marketplace", title: "Marketplace" },
-      { id: "vault", title: "Vault" },
-    ],
-  },
+  REVIEW,
+  RESEARCH,
 ];
 
 /** Mounts the overview in a desk-sized overlay host, as `DesktopManagerSurfaces` does. */
@@ -179,7 +102,10 @@ const ACTIONS = {
   onRenameDesktop: fn<DesktopsOverviewProps["onRenameDesktop"]>(),
   onReorderDesktop: fn<DesktopsOverviewProps["onReorderDesktop"]>(),
   onDeleteDesktop: fn<DesktopsOverviewProps["onDeleteDesktop"]>(),
-  onMoveWindow: fn<DesktopsOverviewProps["onMoveWindow"]>(),
+  onMoveTab: fn<DesktopsOverviewProps["onMoveTab"]>(),
+  onChooseTab: fn<DesktopsOverviewProps["onChooseTab"]>(),
+  onTabPointerDown: fn<NonNullable<DesktopsOverviewProps["onTabPointerDown"]>>(),
+  sessionOf: storySessionOf,
 };
 
 const meta: Meta<typeof DesktopsOverview> = {
@@ -190,7 +116,7 @@ const meta: Meta<typeof DesktopsOverview> = {
     docs: {
       description: {
         component:
-          "On-demand desktop management over the desk (shell-rail v2 `.ov`): live layout thumbnails, keycaps, needs-you dots, and New desktop; each card's menu renames, reorders, moves a window, or deletes with transfer. Arrows move across cards, Enter switches, Esc closes.",
+          "On-demand desktop management over the desk: one card per desktop with its layout thumbnail, tab count and tabs, rename, and the in-place confirm close that asks where the tabs go. Cards drag to reorder and take a dragged tab; the card's context menu keeps Rename, Move left / Move right and Move a tab. Choosing a tab jumps to it. Arrows move across cards, Enter switches, Esc closes.",
       },
     },
   },
@@ -207,6 +133,57 @@ export const Ready: Story = {
     ...ACTIONS,
   },
   render: args => <InDesk {...args} />,
+};
+
+/** The last desktop has no close control (US-014.EC-2). */
+export const OneDesktop: Story = {
+  args: {
+    open: true,
+    state: { status: "ready", desktops: [CONTROL], activeDesktopId: "control" },
+    ...ACTIONS,
+  },
+  render: args => <InDesk {...args} />,
+};
+
+/** A card lists its first tabs and counts the rest (US-014.EC-3). */
+export const ManyTabs: Story = {
+  args: {
+    open: true,
+    state: { status: "ready", desktops: FULL, activeDesktopId: "control" },
+    ...ACTIONS,
+  },
+  render: args => <InDesk {...args} />,
+};
+
+/** A dragged tab is over the Review card: releasing moves it there. */
+export const TabDropTarget: Story = {
+  args: {
+    open: true,
+    state: { status: "ready", desktops: DESKTOPS, activeDesktopId: "control" },
+    dropTargetDesktopId: "review",
+    ...ACTIONS,
+  },
+  render: args => <InDesk {...args} />,
+};
+
+/** Closing a desktop with tabs asks where they go before the check confirms. */
+export const CloseWithTabs: Story = {
+  tags: ["play-fn"],
+  args: {
+    open: true,
+    state: { status: "ready", desktops: DESKTOPS, activeDesktopId: "control" },
+    ...ACTIONS,
+  },
+  render: args => <InDesk {...args} />,
+  play: async ({ args, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await page.findByRole("button", { name: "Close Review" }));
+    const confirm = page.getByRole("button", { name: "Confirm: Close Review" });
+    await expect(confirm).toBeDisabled();
+    await userEvent.selectOptions(page.getByRole("combobox"), "Main");
+    await userEvent.click(confirm);
+    await expect(args.onDeleteDesktop).toHaveBeenCalledWith("review", "control");
+  },
 };
 
 /** Initial snapshot acquisition keeps the final card geometry stable. */

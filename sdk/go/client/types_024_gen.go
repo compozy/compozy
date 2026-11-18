@@ -2,442 +2,443 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
 
-// SupportBundleOperationResponse is a daemon API value.
-type SupportBundleOperationResponse struct {
-	Operation SupportBundleOperationPayload `json:"operation"`
+// SettingsUpdateApplyResponse is a daemon API value.
+type SettingsUpdateApplyResponse struct {
+	Targets     []SettingsUpdateTarget       `json:"targets"`
+	Status      SettingsUpdateApplyStatus    `json:"status"`
+	OperationID string                       `json:"operation_id,omitempty"`
+	Message     string                       `json:"message"`
+	Holder      *SettingsUpdateHolderPayload `json:"holder,omitzero"`
 }
 
-// TargetKind is a daemon API value.
-type TargetKind string
+// SettingsUpdateApplyStatus is a daemon API value.
+type SettingsUpdateApplyStatus string
 
-// TaskBlockPayload is a daemon API value.
-type TaskBlockPayload struct {
-	ID          string          `json:"id"`
-	TaskID      string          `json:"task_id"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	Kind        BlockKind       `json:"kind"`
-	Reason      string          `json:"reason"`
-	Details     json.RawMessage `json:"details,omitempty"`
-	CreatedAt   time.Time       `json:"created_at"`
-	CreatedBy   ActorIdentity   `json:"created_by"`
-	ExpiresAt   *time.Time      `json:"expires_at,omitempty"`
-	ClearedAt   *time.Time      `json:"cleared_at,omitempty"`
-	ClearedBy   *ActorIdentity  `json:"cleared_by,omitempty"`
-	ClearNote   string          `json:"clear_note,omitempty"`
+// SettingsUpdateCancelResponse is a daemon API value.
+type SettingsUpdateCancelResponse struct {
+	Status      SettingsUpdateStatusKind     `json:"status"`
+	OperationID string                       `json:"operation_id,omitempty"`
+	Message     string                       `json:"message"`
+	Holder      *SettingsUpdateHolderPayload `json:"holder,omitzero"`
 }
 
-// TaskBlockResponse is a daemon API value.
-type TaskBlockResponse struct {
-	Block TaskBlockPayload `json:"block"`
+// SettingsUpdateHolderPayload is a daemon API value.
+type SettingsUpdateHolderPayload struct {
+	PID                int                 `json:"pid"`
+	PIDStartTime       time.Time           `json:"pid_start_time"`
+	Surface            SettingsUpdateActor `json:"surface"`
+	ExecutorGeneration string              `json:"executor_generation"`
+	LeaseExpiresAt     time.Time           `json:"lease_expires_at"`
 }
 
-// TaskBlocksResponse is a daemon API value.
-type TaskBlocksResponse struct {
-	Blocks []TaskBlockPayload `json:"blocks"`
+// SettingsUpdateInstallMethod is a daemon API value.
+type SettingsUpdateInstallMethod string
+
+// SettingsUpdateOperationPayload is a daemon API value.
+type SettingsUpdateOperationPayload struct {
+	ID           string                       `json:"id"`
+	Revision     int64                        `json:"revision"`
+	Targets      []SettingsUpdateTarget       `json:"targets"`
+	ActiveTarget *SettingsUpdateTarget        `json:"active_target,omitzero"`
+	Phase        SettingsUpdatePhase          `json:"phase"`
+	Percent      int                          `json:"percent"`
+	Holder       *SettingsUpdateHolderPayload `json:"holder"`
+	Waiting      SettingsUpdateWaitingState   `json:"waiting"`
+	StartedAt    time.Time                    `json:"started_at"`
+	LastError    string                       `json:"last_error"`
 }
 
-// TaskCatalogFacetsPayload is a daemon API value.
-type TaskCatalogFacetsPayload struct {
-	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
-	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
+// SettingsUpdatePhase is a daemon API value.
+type SettingsUpdatePhase string
+
+// SettingsUpdateResponse is a daemon API value.
+type SettingsUpdateResponse struct {
+	Aggregate SettingsUpdateStatusKind        `json:"aggregate"`
+	Operation *SettingsUpdateOperationPayload `json:"operation"`
+	Runtime   SettingsUpdateRuntimePayload    `json:"runtime"`
+	App       *SettingsUpdateAppPayload       `json:"app"`
 }
 
-// TaskCatalogItemPayload is a daemon API value.
-type TaskCatalogItemPayload struct {
-	ID                   string                 `json:"id"`
-	ProfileID            string                 `json:"profile_id"`
-	ProfileName          string                 `json:"profile_name"`
-	ProfileColor         string                 `json:"profile_color,omitempty"`
-	ProfileIcon          string                 `json:"profile_icon,omitempty"`
-	Identifier           string                 `json:"identifier,omitempty"`
-	Scope                TaskScope              `json:"scope"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	ParentTaskID         string                 `json:"parent_task_id,omitempty"`
-	Title                string                 `json:"title"`
-	Priority             Priority               `json:"priority,omitempty"`
-	MaxAttempts          int                    `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady   bool                   `json:"auto_enqueue_on_ready,omitempty"`
-	Status               TaskStatus             `json:"status"`
-	ApprovalPolicy       ApprovalPolicy         `json:"approval_policy,omitempty"`
-	ApprovalState        ApprovalState          `json:"approval_state,omitempty"`
-	Draft                bool                   `json:"draft,omitempty"`
-	Owner                *Ownership             `json:"owner,omitempty"`
-	CurrentRunID         string                 `json:"current_run_id,omitempty"`
-	LatestEventSeq       int64                  `json:"latest_event_seq"`
-	NeedsAttention       bool                   `json:"needs_attention,omitempty"`
-	NeedsAttentionReason string                 `json:"needs_attention_reason,omitempty"`
-	NeedsAttentionAt     *time.Time             `json:"needs_attention_at,omitempty"`
-	NeedsAttentionBy     *ActorIdentity         `json:"needs_attention_by,omitempty"`
-	WakeCreator          bool                   `json:"wake_creator"`
-	CreatedBy            ActorIdentity          `json:"created_by"`
-	Origin               Origin                 `json:"origin"`
-	CreatedAt            time.Time              `json:"created_at"`
-	UpdatedAt            time.Time              `json:"updated_at"`
-	ClosedAt             *time.Time             `json:"closed_at,omitempty"`
-	ChildCount           int                    `json:"child_count,omitempty"`
-	DependencyCount      int                    `json:"dependency_count,omitempty"`
-	ActiveRun            *TaskCatalogRunPayload `json:"active_run,omitempty"`
-	LastActivityAt       *time.Time             `json:"last_activity_at,omitempty"`
-	Loop                 *LoopProvenance        `json:"loop,omitempty"`
+// SettingsUpdateRuntimePayload is a daemon API value.
+type SettingsUpdateRuntimePayload struct {
+	CheckedAt       *time.Time                  `json:"checked_at,omitempty"`
+	Status          SettingsUpdateStatusKind    `json:"status"`
+	InstallMethod   SettingsUpdateInstallMethod `json:"install_method"`
+	Managed         bool                        `json:"managed"`
+	CurrentVersion  string                      `json:"current_version"`
+	LatestVersion   string                      `json:"latest_version"`
+	ReleaseURL      string                      `json:"release_url"`
+	Recommendation  string                      `json:"recommendation"`
+	RestoredVersion string                      `json:"restored_version"`
+	DaemonRestarted bool                        `json:"daemon_restarted"`
+	Message         string                      `json:"message"`
+	LastError       string                      `json:"last_error"`
 }
 
-// TaskCatalogOwnerFacetPayload is a daemon API value.
-type TaskCatalogOwnerFacetPayload struct {
-	Owner Ownership `json:"owner"`
-	Count int       `json:"count"`
+// SettingsUpdateStatusKind is a daemon API value.
+type SettingsUpdateStatusKind string
+
+// SettingsUpdateTarget is a daemon API value.
+type SettingsUpdateTarget string
+
+// SettingsUpdateWaitingState is a daemon API value.
+type SettingsUpdateWaitingState string
+
+// SettingsUserScopeKind is a daemon API value.
+type SettingsUserScopeKind string
+
+// SettingsWindowBindingAction is a daemon API value.
+type SettingsWindowBindingAction string
+
+// SettingsWindowDesktopTransition is a daemon API value.
+type SettingsWindowDesktopTransition string
+
+// SettingsWindowDragAwayPolicy is a daemon API value.
+type SettingsWindowDragAwayPolicy string
+
+// SettingsWindowDragModifier is a daemon API value.
+type SettingsWindowDragModifier string
+
+// SettingsWindowFocusPolicy is a daemon API value.
+type SettingsWindowFocusPolicy string
+
+// SettingsWindowManagerBindingPayload is a daemon API value.
+type SettingsWindowManagerBindingPayload struct {
+	TopCenter    SettingsWindowBindingAction `json:"top_center"`
+	BottomCenter SettingsWindowBindingAction `json:"bottom_center"`
 }
 
-// TaskCatalogRunPayload is a daemon API value.
-type TaskCatalogRunPayload struct {
-	ID                   string               `json:"id"`
-	TaskID               string               `json:"task_id"`
-	Status               TaskRunStatus        `json:"status"`
-	Attempt              int                  `json:"attempt"`
-	RecoveryCount        int                  `json:"recovery_count"`
-	PreviousRunID        string               `json:"previous_run_id,omitempty"`
-	FailureKind          string               `json:"failure_kind,omitempty"`
-	MaxAttempts          int                  `json:"max_attempts"`
-	SessionID            string               `json:"session_id,omitempty"`
-	WorktreeID           string               `json:"worktree_id,omitempty"`
-	ResolvedWorktreeMode ResolvedWorktreeMode `json:"resolved_worktree_mode"`
-	ResolvedWorktreeRef  string               `json:"resolved_worktree_ref,omitempty"`
-	ClaimedBy            *ActorIdentity       `json:"claimed_by,omitempty"`
-	LeaseUntil           *time.Time           `json:"lease_until,omitempty"`
-	HeartbeatAt          *time.Time           `json:"heartbeat_at,omitempty"`
-	QueuedAt             time.Time            `json:"queued_at"`
-	ClaimedAt            *time.Time           `json:"claimed_at,omitempty"`
-	StartedAt            *time.Time           `json:"started_at,omitempty"`
-	EndedAt              *time.Time           `json:"ended_at,omitempty"`
-	Error                string               `json:"error,omitempty"`
+// SettingsWindowManagerCommandPayload is a daemon API value.
+type SettingsWindowManagerCommandPayload struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Section string `json:"section"`
+	Source  string `json:"source"`
 }
 
-// TaskCatalogStatusFacetPayload is a daemon API value.
-type TaskCatalogStatusFacetPayload struct {
-	Status TaskStatus `json:"status"`
-	Count  int        `json:"count"`
+// SettingsWindowManagerConfigPayload is a daemon API value.
+type SettingsWindowManagerConfigPayload struct {
+	NewWindowPolicy     SettingsWindowNewPolicy             `json:"new_window_policy"`
+	SmallViewportPolicy SettingsWindowSmallViewportPolicy   `json:"small_viewport_policy"`
+	FocusPolicy         SettingsWindowFocusPolicy           `json:"focus_policy"`
+	FocusWrap           bool                                `json:"focus_wrap"`
+	FocusFollowsPointer bool                                `json:"focus_follows_pointer"`
+	RaiseOnFocus        bool                                `json:"raise_on_focus"`
+	DragAwayPolicy      SettingsWindowDragAwayPolicy        `json:"drag_away_policy"`
+	GroupMoveModifier   SettingsWindowDragModifier          `json:"group_move_modifier"`
+	SwapModifier        SettingsWindowDragModifier          `json:"swap_modifier"`
+	HistoryLimit        int                                 `json:"history_limit"`
+	NavStackLimit       int                                 `json:"nav_stack_limit"`
+	ClosedEntryLimit    int                                 `json:"closed_entry_limit"`
+	DesktopTransition   SettingsWindowDesktopTransition     `json:"desktop_transition"`
+	Gaps                SettingsWindowManagerGapsPayload    `json:"gaps"`
+	Snap                SettingsWindowManagerSnapPayload    `json:"snap"`
+	Bindings            SettingsWindowManagerBindingPayload `json:"bindings"`
+	Shortcuts           map[string][]string                 `json:"shortcuts"`
+	GlobalShortcuts     map[string]string                   `json:"global_shortcuts"`
 }
 
-// TaskDashboardActiveRunPayload is a daemon API value.
-type TaskDashboardActiveRunPayload struct {
-	TaskID         string        `json:"task_id"`
-	TaskIdentifier string        `json:"task_identifier,omitempty"`
-	TaskTitle      string        `json:"task_title"`
-	TaskStatus     TaskStatus    `json:"task_status"`
-	TaskPriority   Priority      `json:"task_priority,omitempty"`
-	TaskOwner      *Ownership    `json:"task_owner,omitempty"`
-	Scope          TaskScope     `json:"scope"`
-	WorkspaceID    string        `json:"workspace_id,omitempty"`
-	LatestEventSeq int64         `json:"latest_event_seq"`
-	RunID          string        `json:"run_id"`
-	RunStatus      TaskRunStatus `json:"run_status"`
-	Attempt        int           `json:"attempt"`
-	MaxAttempts    int           `json:"max_attempts"`
-	SessionID      string        `json:"session_id,omitempty"`
-	LastActivityAt time.Time     `json:"last_activity_at"`
-	AgeMilli       int64         `json:"age_ms"`
-	HealthStatus   string        `json:"health_status"`
-	Stuck          bool          `json:"stuck"`
-	Error          string        `json:"error,omitempty"`
+// SettingsWindowManagerDefaultPayload is a daemon API value.
+type SettingsWindowManagerDefaultPayload struct {
+	CommandID    string   `json:"command"`
+	Binding      []string `json:"binding"`
+	Dormant      bool     `json:"dormant"`
+	ConflictWith string   `json:"conflict_with,omitempty"`
 }
 
-// TaskDashboardActiveRunsPayload is a daemon API value.
-type TaskDashboardActiveRunsPayload struct {
-	Total    int                             `json:"total"`
-	Running  int                             `json:"running"`
-	Starting int                             `json:"starting"`
-	Claimed  int                             `json:"claimed"`
-	Queued   int                             `json:"queued"`
-	Items    []TaskDashboardActiveRunPayload `json:"items,omitempty"`
+// SettingsWindowManagerDiagnosticPayload is a daemon API value.
+type SettingsWindowManagerDiagnosticPayload struct {
+	CommandID string `json:"command_id"`
+	Message   string `json:"message"`
 }
 
-// TaskDashboardBlockedCardPayload is a daemon API value.
-type TaskDashboardBlockedCardPayload struct {
-	Tasks                int    `json:"tasks"`
-	AwaitingApproval     int    `json:"awaiting_approval"`
-	AwaitingDependencies int    `json:"awaiting_dependencies"`
-	HealthStatus         string `json:"health_status"`
+// SettingsWindowManagerGapsPayload is a daemon API value.
+type SettingsWindowManagerGapsPayload struct {
+	Inner  int `json:"inner"`
+	Top    int `json:"top"`
+	Right  int `json:"right"`
+	Bottom int `json:"bottom"`
+	Left   int `json:"left"`
 }
 
-// TaskDashboardCardsPayload is a daemon API value.
-type TaskDashboardCardsPayload struct {
-	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
-	Blocked    TaskDashboardBlockedCardPayload    `json:"blocked"`
-	Failed     TaskDashboardFailedCardPayload     `json:"failed"`
-	Latency    TaskDashboardLatencyCardPayload    `json:"latency"`
+// SettingsWindowManagerMutationResponse is a daemon API value.
+type SettingsWindowManagerMutationResponse struct {
+	Section            SettingsSectionName                      `json:"section"`
+	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
+	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
+	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
+	Config             SettingsWindowManagerConfigPayload       `json:"config"`
+	Defaults           map[string][]string                      `json:"defaults"`
+	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
+	Aliases            map[string]string                        `json:"aliases"`
+	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
+	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
+	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
+	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
+	Apply              SettingsApplyResponse                    `json:"apply"`
 }
 
-// TaskDashboardFailedCardPayload is a daemon API value.
-type TaskDashboardFailedCardPayload struct {
-	Tasks        int    `json:"tasks"`
-	FailedRuns   int    `json:"failed_runs"`
-	ForcedStops  int    `json:"forced_stops"`
-	HealthStatus string `json:"health_status"`
+// SettingsWindowManagerResponse is a daemon API value.
+type SettingsWindowManagerResponse struct {
+	Section            SettingsSectionName                      `json:"section"`
+	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
+	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
+	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
+	Config             SettingsWindowManagerConfigPayload       `json:"config"`
+	Defaults           map[string][]string                      `json:"defaults"`
+	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
+	Aliases            map[string]string                        `json:"aliases"`
+	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
+	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
+	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
+	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
 }
 
-// TaskDashboardFreshnessPayload is a daemon API value.
-type TaskDashboardFreshnessPayload struct {
-	ObservedAt       time.Time `json:"observed_at"`
-	LatestActivityAt time.Time `json:"latest_activity_at"`
-	AgeMilli         int64     `json:"age_ms"`
-	StaleAfterMilli  int64     `json:"stale_after_ms"`
-	HasLiveWork      bool      `json:"has_live_work"`
-	Status           string    `json:"status"`
-	Stale            bool      `json:"stale"`
+// SettingsWindowManagerSnapPayload is a daemon API value.
+type SettingsWindowManagerSnapPayload struct {
+	EdgeBand     int       `json:"edge_band"`
+	CornerReach  int       `json:"corner_reach"`
+	ExitSlack    int       `json:"exit_slack"`
+	RepeatRatios []float64 `json:"repeat_ratios"`
 }
 
-// TaskDashboardHealthPayload is a daemon API value.
-type TaskDashboardHealthPayload struct {
-	Status           string `json:"status"`
-	StuckRuns        int    `json:"stuck_runs"`
-	ActiveOrphanRuns int    `json:"active_orphan_runs"`
-	QueueBacklog     bool   `json:"queue_backlog"`
+// SettingsWindowNewPolicy is a daemon API value.
+type SettingsWindowNewPolicy string
+
+// SettingsWindowSmallViewportPolicy is a daemon API value.
+type SettingsWindowSmallViewportPolicy string
+
+// SettingsWorkspaceScopeKind is a daemon API value.
+type SettingsWorkspaceScopeKind string
+
+// SettingsWriteTargetKind is a daemon API value.
+type SettingsWriteTargetKind string
+
+// SignalSourceState is a daemon API value.
+type SignalSourceState struct {
+	Kind  WorkSignalKind `json:"kind"`
+	State string         `json:"state"`
+	Ref   string         `json:"ref,omitempty"`
+	Error string         `json:"error,omitempty"`
 }
 
-// TaskDashboardInProgressCardPayload is a daemon API value.
-type TaskDashboardInProgressCardPayload struct {
-	Tasks        int    `json:"tasks"`
-	ActiveRuns   int    `json:"active_runs"`
-	RunningRuns  int    `json:"running_runs"`
-	StartingRuns int    `json:"starting_runs"`
-	ClaimedRuns  int    `json:"claimed_runs"`
-	QueuedRuns   int    `json:"queued_runs"`
-	HealthStatus string `json:"health_status"`
+// SkillActionResponse is a daemon API value.
+type SkillActionResponse struct {
+	OK bool `json:"ok"`
 }
 
-// TaskDashboardLatencyCardPayload is a daemon API value.
-type TaskDashboardLatencyCardPayload struct {
-	ClaimLatencyMillis TaskLatencyMetricPayload `json:"claim_latency_ms"`
-	StartLatencyMillis TaskLatencyMetricPayload `json:"start_latency_ms"`
+// SkillActivationPayload is a daemon API value.
+type SkillActivationPayload struct {
+	Active  bool                           `json:"active"`
+	Reasons []SkillActivationReasonPayload `json:"reasons,omitempty"`
 }
 
-// TaskDashboardPayload is a daemon API value.
-type TaskDashboardPayload struct {
-	Totals          TaskDashboardTotalsPayload            `json:"totals"`
-	Cards           TaskDashboardCardsPayload             `json:"cards"`
-	StatusBreakdown []TaskDashboardStatusBreakdownPayload `json:"status_breakdown,omitempty"`
-	Queue           TaskDashboardQueuePayload             `json:"queue"`
-	Health          TaskDashboardHealthPayload            `json:"health"`
-	ActiveRuns      TaskDashboardActiveRunsPayload        `json:"active_runs"`
-	Freshness       TaskDashboardFreshnessPayload         `json:"freshness"`
+// SkillActivationReasonCode is a daemon API value.
+type SkillActivationReasonCode string
+
+// SkillActivationReasonPayload is a daemon API value.
+type SkillActivationReasonPayload struct {
+	Gate    string                    `json:"gate"`
+	Code    SkillActivationReasonCode `json:"code"`
+	Missing []string                  `json:"missing,omitempty"`
+	Message string                    `json:"message"`
 }
 
-// TaskDashboardQueueDepthPayload is a daemon API value.
-type TaskDashboardQueueDepthPayload struct {
-	Count               int       `json:"count"`
-	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
-	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
+// SkillContentResponse is a daemon API value.
+type SkillContentResponse struct {
+	Content string `json:"content"`
 }
 
-// TaskDashboardQueuePayload is a daemon API value.
-type TaskDashboardQueuePayload struct {
-	Total                 int                              `json:"total"`
-	Depth                 []TaskDashboardQueueDepthPayload `json:"depth,omitempty"`
-	OldestQueuedAt        time.Time                        `json:"oldest_queued_at"`
-	OldestQueueAgeMilli   int64                            `json:"oldest_queue_age_ms"`
-	BacklogWarning        bool                             `json:"backlog_warning"`
-	BacklogStatus         string                           `json:"backlog_status"`
-	BacklogThresholdMilli int64                            `json:"backlog_threshold_ms"`
+// SkillDiagnosticPayload is a daemon API value.
+type SkillDiagnosticPayload struct {
+	Name               string                            `json:"name"`
+	State              SkillDiagnosticState              `json:"state"`
+	Source             string                            `json:"source,omitempty"`
+	Path               string                            `json:"path,omitempty"`
+	WinningSource      string                            `json:"winning_source,omitempty"`
+	WinningPath        string                            `json:"winning_path,omitempty"`
+	VerificationStatus SkillVerificationStatus           `json:"verification_status"`
+	Warnings           []SkillVerificationWarningPayload `json:"warnings,omitempty"`
+	Failure            *SkillVerificationFailurePayload  `json:"failure,omitzero"`
+	ActivationReasons  []SkillActivationReasonPayload    `json:"activation_reasons,omitempty"`
 }
 
-// TaskDashboardResponse is a daemon API value.
-type TaskDashboardResponse struct {
-	Dashboard TaskDashboardPayload `json:"dashboard"`
+// SkillDiagnosticState is a daemon API value.
+type SkillDiagnosticState string
+
+// SkillExposeResponse is a daemon API value.
+type SkillExposeResponse struct {
+	Name        string                             `json:"name"`
+	WorkspaceID string                             `json:"workspace_id,omitempty"`
+	Results     []SkillExposureTargetResultPayload `json:"results"`
+	RolledBack  bool                               `json:"rolled_back"`
 }
 
-// TaskDashboardStatusBreakdownPayload is a daemon API value.
-type TaskDashboardStatusBreakdownPayload struct {
-	Status       TaskStatus `json:"status"`
-	Count        int        `json:"count"`
-	SharePercent int        `json:"share_percent"`
+// SkillExposureErrorPayload is a daemon API value.
+type SkillExposureErrorPayload struct {
+	Code       string `json:"code"`
+	Message    string `json:"message,omitempty"`
+	OccupiedBy string `json:"occupied_by,omitempty"`
 }
 
-// TaskDashboardTotalsPayload is a daemon API value.
-type TaskDashboardTotalsPayload struct {
-	TasksTotal             int `json:"tasks_total"`
-	RunsTotal              int `json:"runs_total"`
-	DraftTasks             int `json:"draft_tasks"`
-	PendingTasks           int `json:"pending_tasks"`
-	ReadyTasks             int `json:"ready_tasks"`
-	InProgressTasks        int `json:"in_progress_tasks"`
-	BlockedTasks           int `json:"blocked_tasks"`
-	CompletedTasks         int `json:"completed_tasks"`
-	FailedTasks            int `json:"failed_tasks"`
-	CanceledTasks          int `json:"canceled_tasks"`
-	AwaitingApprovalTasks  int `json:"awaiting_approval_tasks"`
-	DependencyBlockedTasks int `json:"dependency_blocked_tasks"`
-	QueuedRuns             int `json:"queued_runs"`
-	ClaimedRuns            int `json:"claimed_runs"`
-	StartingRuns           int `json:"starting_runs"`
-	RunningRuns            int `json:"running_runs"`
-	CompletedRuns          int `json:"completed_runs"`
-	FailedRuns             int `json:"failed_runs"`
-	CanceledRuns           int `json:"canceled_runs"`
-	ActiveRuns             int `json:"active_runs"`
+// SkillExposurePayload is a daemon API value.
+type SkillExposurePayload struct {
+	Target string              `json:"target"`
+	Path   string              `json:"path"`
+	Status SkillExposureStatus `json:"status"`
 }
 
-// TaskDependencyPayload is a daemon API value.
-type TaskDependencyPayload struct {
-	TaskID          string         `json:"task_id"`
-	DependsOnTaskID string         `json:"depends_on_task_id"`
-	Kind            DependencyKind `json:"kind"`
-	CreatedAt       time.Time      `json:"created_at"`
+// SkillExposureRequest is a daemon API value.
+type SkillExposureRequest struct {
+	Targets     []string `json:"targets"`
+	WorkspaceID string   `json:"workspace_id,omitempty"`
 }
 
-// TaskDependencyReferencePayload is a daemon API value.
-type TaskDependencyReferencePayload struct {
-	TaskID          string               `json:"task_id"`
-	DependsOnTaskID string               `json:"depends_on_task_id"`
-	Kind            DependencyKind       `json:"kind"`
-	CreatedAt       time.Time            `json:"created_at"`
-	DependsOn       TaskReferencePayload `json:"depends_on"`
+// SkillExposureStatus is a daemon API value.
+type SkillExposureStatus string
+
+// SkillExposureTargetResultPayload is a daemon API value.
+type SkillExposureTargetResultPayload struct {
+	Target       string                     `json:"target"`
+	OK           bool                       `json:"ok"`
+	Exposure     *SkillExposurePayload      `json:"exposure,omitzero"`
+	Error        *SkillExposureErrorPayload `json:"error,omitzero"`
+	CleanupError *SkillExposureErrorPayload `json:"cleanup_error,omitzero"`
 }
 
-// TaskDesignationRollupPayload is a daemon API value.
-type TaskDesignationRollupPayload struct {
-	DesignationGroupID string          `json:"designation_group_id"`
-	TaskID             string          `json:"task_id"`
-	Summary            json.RawMessage `json:"summary"`
-	CreatedAt          time.Time       `json:"created_at"`
+// SkillPayload is a daemon API value.
+type SkillPayload struct {
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	Version     string                   `json:"version,omitempty"`
+	Source      string                   `json:"source"`
+	Origin      string                   `json:"origin"`
+	OwnerScope  string                   `json:"owner_scope"`
+	OwnerID     string                   `json:"owner_id,omitempty"`
+	Enabled     bool                     `json:"enabled"`
+	Activation  SkillActivationPayload   `json:"activation"`
+	Dir         string                   `json:"dir"`
+	Metadata    map[string]any           `json:"metadata,omitempty"`
+	Provenance  *ProvenancePayload       `json:"provenance,omitzero"`
+	Diagnostics []SkillDiagnosticPayload `json:"diagnostics,omitempty"`
+	Exposures   *[]SkillExposurePayload  `json:"exposures,omitzero"`
 }
 
-// TaskDetailPayload is a daemon API value.
-type TaskDetailPayload struct {
-	Summary              TaskSummaryPayload               `json:"summary"`
-	Task                 TaskPayload                      `json:"task"`
-	Children             []TaskSummaryPayload             `json:"children,omitempty"`
-	Dependencies         []TaskDependencyPayload          `json:"dependencies,omitempty"`
-	DependencyReferences []TaskDependencyReferencePayload `json:"dependency_references,omitempty"`
-	Runs                 []TaskRunPayload                 `json:"runs,omitempty"`
-	DesignationRollups   []TaskDesignationRollupPayload   `json:"designation_rollups,omitempty"`
-	Events               []TaskEventPayload               `json:"events,omitempty"`
+// SkillResponse is a daemon API value.
+type SkillResponse struct {
+	Skill SkillPayload `json:"skill"`
 }
 
-// TaskDetailResponse is a daemon API value.
-type TaskDetailResponse struct {
-	Task TaskDetailPayload `json:"task"`
+// SkillRuntimeStatusPayload is a daemon API value.
+type SkillRuntimeStatusPayload struct {
+	RuntimeAvailable bool                     `json:"runtime_available"`
+	DiscoveredCount  int                      `json:"discovered_count"`
+	DisabledCount    int                      `json:"disabled_count"`
+	Diagnostics      []SkillDiagnosticPayload `json:"diagnostics,omitempty"`
 }
 
-// TaskEventPayload is a daemon API value.
-type TaskEventPayload struct {
-	ID        string          `json:"id"`
-	TaskID    string          `json:"task_id"`
-	RunID     string          `json:"run_id,omitempty"`
-	EventType string          `json:"event_type"`
-	Actor     ActorIdentity   `json:"actor"`
-	Origin    Origin          `json:"origin"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
-	Timestamp time.Time       `json:"timestamp"`
+// SkillShadowEntryPayload is a daemon API value.
+type SkillShadowEntryPayload struct {
+	Path             string    `json:"path"`
+	Tier             string    `json:"tier"`
+	Origin           string    `json:"origin,omitempty"`
+	ResolvedToWinner bool      `json:"resolved_to_winner"`
+	DetectedAt       time.Time `json:"detected_at"`
 }
 
-// TaskExecutionProfileResponse is a daemon API value.
-type TaskExecutionProfileResponse struct {
-	Profile ExecutionProfile `json:"profile"`
+// SkillShadowsResponse is a daemon API value.
+type SkillShadowsResponse struct {
+	Name    string                    `json:"name"`
+	Winner  SkillShadowEntryPayload   `json:"winner"`
+	Shadows []SkillShadowEntryPayload `json:"shadows"`
 }
 
-// TaskExecutionRequest is a daemon API value.
-type TaskExecutionRequest struct {
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+// SkillUnexposeResponse is a daemon API value.
+type SkillUnexposeResponse struct {
+	Name        string                             `json:"name"`
+	WorkspaceID string                             `json:"workspace_id,omitempty"`
+	Results     []SkillExposureTargetResultPayload `json:"results"`
 }
 
-// TaskExecutionResponse is a daemon API value.
-type TaskExecutionResponse struct {
-	Task TaskPayload    `json:"task"`
-	Run  TaskRunPayload `json:"run"`
+// SkillVerificationFailurePayload is a daemon API value.
+type SkillVerificationFailurePayload struct {
+	Code         string `json:"code"`
+	Message      string `json:"message"`
+	ExpectedHash string `json:"expected_hash,omitempty"`
+	ActualHash   string `json:"actual_hash,omitempty"`
 }
 
-// TaskFanOutRunDesignationRequest is a daemon API value.
-type TaskFanOutRunDesignationRequest struct {
-	Brief          string          `json:"brief"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+// SkillVerificationStatus is a daemon API value.
+type SkillVerificationStatus string
+
+// SkillVerificationWarningPayload is a daemon API value.
+type SkillVerificationWarningPayload struct {
+	Severity string `json:"severity"`
+	Pattern  string `json:"pattern,omitempty"`
+	Message  string `json:"message"`
 }
 
-// TaskHealthPayload is a daemon API value.
-type TaskHealthPayload struct {
-	Status                string                    `json:"status"`
-	QueueDepthTotal       int                       `json:"queue_depth_total"`
-	OldestQueuedAt        *time.Time                `json:"oldest_queued_at,omitempty"`
-	OldestQueueAgeMilli   int64                     `json:"oldest_queue_age_ms"`
-	QueueDepth            []TaskQueueDepthPayload   `json:"queue_depth,omitempty"`
-	StuckRuns             []StuckTaskRunPayload     `json:"stuck_runs,omitempty"`
-	ActiveOrphanRuns      int                       `json:"active_orphan_runs"`
-	TaskTotals            []TaskStatusTotalPayload  `json:"task_totals,omitempty"`
-	RunTotals             []TaskRunTotalPayload     `json:"run_totals,omitempty"`
-	OwnerTotals           []TaskOwnerTotalPayload   `json:"owner_totals,omitempty"`
-	ForcedStopsSinceStart int                       `json:"forced_stops_since_start"`
-	RecoverySinceStart    TaskRecoveryTotalsPayload `json:"recovery_since_start"`
+// SkillsResponse is a daemon API value.
+type SkillsResponse struct {
+	Skills []SkillPayload `json:"skills"`
 }
 
-// TaskInboxFacetsPayload is a daemon API value.
-type TaskInboxFacetsPayload struct {
-	Statuses   []TaskInboxStatusFacetPayload   `json:"statuses"`
-	Priorities []TaskInboxPriorityFacetPayload `json:"priorities"`
+// SmallViewportPolicy is a daemon API value.
+type SmallViewportPolicy string
+
+// SnapConfig is a daemon API value.
+type SnapConfig struct {
+	EdgeBand     float64   `json:"edge_band"`
+	CornerReach  float64   `json:"corner_reach"`
+	ExitSlack    float64   `json:"exit_slack"`
+	RepeatRatios []float64 `json:"repeat_ratios"`
 }
 
-// TaskInboxItemPayload is a daemon API value.
-type TaskInboxItemPayload struct {
-	Task             TaskInboxTaskPayload   `json:"task"`
-	Lane             TaskInboxLane          `json:"lane"`
-	ApprovalPolicy   ApprovalPolicy         `json:"approval_policy,omitempty"`
-	ApprovalState    ApprovalState          `json:"approval_state,omitempty"`
-	BlockingReason   string                 `json:"blocking_reason,omitempty"`
-	LatestActivityAt time.Time              `json:"latest_activity_at"`
-	Run              *TaskCatalogRunPayload `json:"run,omitempty"`
-	Triage           TaskTriageStatePayload `json:"triage"`
+// Snapshot is a daemon API value.
+type Snapshot struct {
+	Runtime     string                `json:"runtime"`
+	DisplayName string                `json:"display_name"`
+	Installed   bool                  `json:"installed"`
+	RuntimeMCP  RuntimemcpRuntimeMode `json:"runtime_mcp"`
+	ReadState   string                `json:"read_state"`
+	ReadError   string                `json:"read_error,omitempty"`
+	ConfigFiles []string              `json:"config_files"`
+	Notes       []string              `json:"notes,omitempty"`
+	Servers     []Server              `json:"servers"`
 }
 
-// TaskInboxLane is a daemon API value.
-type TaskInboxLane string
+// SourceErrorCode is a daemon API value.
+type SourceErrorCode string
 
-// TaskInboxLaneGroupPayload is a daemon API value.
-type TaskInboxLaneGroupPayload struct {
-	Lane        TaskInboxLane          `json:"lane"`
-	Count       int                    `json:"count"`
-	UnreadCount int                    `json:"unread_count"`
-	Items       []TaskInboxItemPayload `json:"items,omitempty"`
+// SourceHealth is a daemon API value.
+type SourceHealth string
+
+// SourceKind is a daemon API value.
+type SourceKind string
+
+// SourceOutcome is a daemon API value.
+type SourceOutcome struct {
+	ID         string `json:"id"`
+	Result     string `json:"result"`
+	Items      int    `json:"items"`
+	More       bool   `json:"more"`
+	DurationMS int64  `json:"duration_ms"`
+	Error      *Error `json:"error,omitempty"`
 }
 
-// TaskInboxPayload is a daemon API value.
-type TaskInboxPayload struct {
-	UnreadTotal   int                         `json:"unread_total"`
-	ArchivedTotal int                         `json:"archived_total"`
-	Groups        []TaskInboxLaneGroupPayload `json:"groups"`
-	Page          CountedCursorPagePayload    `json:"page"`
-	Facets        TaskInboxFacetsPayload      `json:"facets"`
+// SourceStatus is a daemon API value.
+type SourceStatus struct {
+	Source string       `json:"source"`
+	Status SourceHealth `json:"status"`
+	Reason string       `json:"reason,omitempty"`
 }
 
-// TaskInboxPriorityFacetPayload is a daemon API value.
-type TaskInboxPriorityFacetPayload struct {
-	Priority Priority `json:"priority"`
-	Count    int      `json:"count"`
-}
-
-// TaskInboxResponse is a daemon API value.
-type TaskInboxResponse struct {
-	Inbox TaskInboxPayload `json:"inbox"`
-}
-
-// TaskInboxStatusFacetPayload is a daemon API value.
-type TaskInboxStatusFacetPayload struct {
-	Status TaskStatus `json:"status"`
-	Count  int        `json:"count"`
-}
-
-// TaskInboxTaskPayload is a daemon API value.
-type TaskInboxTaskPayload struct {
-	ID             string     `json:"id"`
-	Identifier     string     `json:"identifier,omitempty"`
-	Title          string     `json:"title"`
-	Status         TaskStatus `json:"status"`
-	Priority       Priority   `json:"priority,omitempty"`
-	Owner          *Ownership `json:"owner,omitempty"`
-	Scope          TaskScope  `json:"scope"`
-	WorkspaceID    string     `json:"workspace_id,omitempty"`
-	LatestEventSeq int64      `json:"latest_event_seq"`
+// SpawnBudgetPayload is a daemon API value.
+type SpawnBudgetPayload struct {
+	MaxChildren           int   `json:"max_children"`
+	MaxDepth              int   `json:"max_depth"`
+	TTLSeconds            int64 `json:"ttl_seconds"`
+	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
 }

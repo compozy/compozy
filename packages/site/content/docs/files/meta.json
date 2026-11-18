@@ -1,0 +1,5 @@
+{
+    "title": "Files and changes",
+    "icon": "FolderTree",
+    "pages": ["index", "tutorial", "review-panel", "file-viewer", "search", "files-app", "open-in"]
+}

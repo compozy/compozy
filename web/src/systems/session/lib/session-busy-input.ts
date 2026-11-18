@@ -10,7 +10,12 @@ export type SessionBusyInputAction = SessionBusyInputMode | "interrupt";
 export type SessionSendAction = SessionBusyInputAction | "prompt";
 
 /** Public steer delivery vocabulary — exactly the daemon's `SteerDeliveryMode`. */
-export type SessionSteerDelivery = "injected" | "pending_injection" | "interrupt_fallback";
+export type SessionSteerDelivery =
+  | "injected"
+  | "pending_injection"
+  | "pending_boundary"
+  | "after_turn"
+  | "interrupt_fallback";
 
 /** Daemon default when the session resource has not reported one yet. */
 export const DEFAULT_SESSION_BUSY_INPUT_MODE: SessionBusyInputMode = "steer";
@@ -27,15 +32,7 @@ export function sessionBusyInputDefaultMode(session: SessionWithBusyInput): Sess
   return isBusyInputMode(mode) ? mode : DEFAULT_SESSION_BUSY_INPUT_MODE;
 }
 
-/**
- * How a steer would land on this session's agent, answered before any send
- * (US-002.AC-3). The prediction derives from the resolved capability
- * (ADR-010): `steer_ext` injects live, `concurrent_prompt` is accepted and
- * lands when the current tool yields, `none` interrupts and replaces. The
- * capability always wins over `steer_delivery`, which only records the last
- * send and may describe a provider that has since changed; an unknown
- * capability answers `null` rather than guessing.
- */
+/** Predict delivery from the current capability and daemon-owned fallback state. */
 export function sessionSteerDelivery(session: SessionWithBusyInput): SessionSteerDelivery | null {
   switch (session.busy_input?.steer_capability?.trim()) {
     case "steer_ext":
@@ -43,6 +40,12 @@ export function sessionSteerDelivery(session: SessionWithBusyInput): SessionStee
     case "concurrent_prompt":
       return "pending_injection";
     case "none":
+      if (
+        session.busy_input?.steer_delivery === "pending_boundary" ||
+        session.busy_input?.steer_delivery === "after_turn"
+      ) {
+        return session.busy_input.steer_delivery;
+      }
       return "interrupt_fallback";
     default:
       return null;

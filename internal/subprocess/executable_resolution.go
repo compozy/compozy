@@ -38,7 +38,7 @@ func NewExecutableResolution(
 	resolution := ExecutableResolution{
 		command: command,
 		dir:     dir,
-		env:     append([]string(nil), env...),
+		env:     slices.Clone(env),
 	}
 	switch {
 	case cause == nil && filepath.IsAbs(executable):
@@ -60,7 +60,7 @@ func NewExecutableResolution(
 // Clone returns an independent immutable snapshot.
 func (r ExecutableResolution) Clone() ExecutableResolution {
 	clone := r
-	clone.env = append([]string(nil), r.env...)
+	clone.env = slices.Clone(r.env)
 	return clone
 }
 
@@ -87,7 +87,7 @@ func (r ExecutableResolution) Consume(command string, env []string, dir string) 
 	if !r.Valid() {
 		return "", errors.New("subprocess: executable resolution is required")
 	}
-	if r.command != command || r.dir != dir || !slices.Equal(r.env, env) {
+	if r.command != command || r.dir != dir || (r.env == nil) != (env == nil) || !slices.Equal(r.env, env) {
 		return "", errors.New("subprocess: executable resolution does not match final runtime")
 	}
 	if r.state == ExecutableResolutionResolved {

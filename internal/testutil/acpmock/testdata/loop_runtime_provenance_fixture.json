@@ -9,6 +9,12 @@
             "prompt": "You are a Loop runtime provenance probe.",
             "config_options": [
                 {
+                    "id": "mode",
+                    "name": "Mode",
+                    "current": "agent-full-access",
+                    "values": [{ "value": "agent-full-access", "label": "Full access" }]
+                },
+                {
                     "id": "model",
                     "name": "Model",
                     "current": "base-model",

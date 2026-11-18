@@ -11,9 +11,10 @@ import (
 
 // ProviderSettings is the editable provider overlay payload.
 type ProviderSettings struct {
-	SessionEnv      compozyconfig.SessionEnv
-	SteerCapability compozyconfig.SteerCapability
-	Command         string
+	SessionEnv        compozyconfig.SessionEnv
+	AutoCompactWindow *int
+	SteerCapability   compozyconfig.SteerCapability
+	Command           string
 	// CommandInherited reports the inherited builtin default rather than an authored override.
 	CommandInherited bool
 	DisplayName      string
@@ -25,6 +26,7 @@ type ProviderSettings struct {
 	BaseURL          string
 	AuthMode         compozyconfig.ProviderAuthMode
 	EnvPolicy        compozyconfig.ProviderEnvPolicy
+	RuntimeMCP       string
 	HomePolicy       compozyconfig.ProviderHomePolicy
 	AuthStatusCmd    string
 	AuthLoginCmd     string
@@ -79,6 +81,8 @@ type ProviderItem struct {
 	Name             string
 	Settings         ProviderSettings
 	Default          bool
+	// Enabled is the effective providers.<name>.enabled value (read only on full edits).
+	Enabled          bool
 	CommandAvailable bool
 	Credentials      []ProviderCredentialStatus
 	AuthStatus       ProviderAuthStatus

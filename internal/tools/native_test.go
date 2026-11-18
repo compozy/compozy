@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -197,6 +198,14 @@ func TestNativeProviderDispatch(t *testing.T) {
 			if !errors.Is(err, ErrToolInvalidInput) {
 				t.Fatalf("RuntimeRegistry.Call(%s) error = %v, want ErrToolInvalidInput", input, err)
 			}
+		}
+		_, enumErr := registry.Call(t.Context(), Scope{}, CallRequest{
+			ToolID: descriptor.ID, Input: json.RawMessage(`{"surface":"legacy","thread_id":"thread_1"}`),
+		})
+		enumToolErr, ok := errors.AsType[*ToolError](enumErr)
+		if !ok || enumToolErr.Operator == nil ||
+			!strings.Contains(enumToolErr.Operator.Cause, `accepted values: ["thread","direct"]`) {
+			t.Fatalf("enum error = %v, want accepted values", enumErr)
 		}
 		if calls != 0 {
 			t.Fatalf("native handler calls after invalid inputs = %d, want 0", calls)

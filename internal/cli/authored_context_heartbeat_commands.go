@@ -16,6 +16,7 @@ func newAgentHeartbeatCommand(deps commandDeps) *cobra.Command {
 		Short: "Inspect and manage agent HEARTBEAT.md files",
 	}
 	cmd.AddCommand(newAgentHeartbeatSourcesCommand(deps))
+	cmd.AddCommand(newAgentHeartbeatAuthorityCommand(deps))
 	cmd.AddCommand(newAgentHeartbeatInspectCommand(deps))
 	cmd.AddCommand(newAgentHeartbeatValidateCommand(deps))
 	cmd.AddCommand(newAgentHeartbeatWriteCommand(deps))
@@ -90,6 +91,7 @@ func newAgentHeartbeatValidateCommand(deps commandDeps) *cobra.Command {
 }
 
 func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
+	var approveAuthority, yes bool
 	var (
 		input          authoredBodyInput
 		expectedDigest string
@@ -118,12 +120,25 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			approvalHash, err := reviewHeartbeatWriteAuthority(
+				cmd,
+				deps,
+				body,
+				args[0],
+				AgentQuery{Workspace: workspace},
+				approveAuthority,
+				yes,
+			)
+			if err != nil {
+				return err
+			}
 			record, err := client.PutAgentHeartbeat(cmd.Context(), args[0], AgentHeartbeatPutRequest{
-				WorkspaceID:    workspace,
-				AgentName:      args[0],
-				Body:           body,
-				ExpectedDigest: digest,
-				IdempotencyKey: strings.TrimSpace(idempotencyKey),
+				ApproveAuthoritySHA256: approvalHash,
+				WorkspaceID:            workspace,
+				AgentName:              args[0],
+				Body:                   body,
+				ExpectedDigest:         digest,
+				IdempotencyKey:         strings.TrimSpace(idempotencyKey),
 			})
 			if err != nil {
 				return err
@@ -133,6 +148,8 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 	}
 	addWorkspaceFlag(cmd)
 	addAuthoredBodyFlags(cmd, &input)
+	cmd.Flags().BoolVar(&approveAuthority, "approve-authority", false, "Approve the displayed check-in authority")
+	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm authority approval with --approve-authority")
 	cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Expected current Heartbeat digest for CAS")
 	cmd.Flags().StringVar(&ifMatchDigest, "if-match", "", "Alias for --expected-digest")
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")

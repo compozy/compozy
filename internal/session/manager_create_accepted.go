@@ -42,7 +42,9 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 		return errors.New("session: accepted logical session is required")
 	}
 	defer func() {
-		m.finishSessionStartRun(accepted.spec.sessionID, accepted.run, err)
+		if !accepted.cleanupPending {
+			m.finishSessionStartRun(accepted.spec.sessionID, accepted.run, err)
+		}
 	}()
 
 	ctx := accepted.run.ctx
@@ -89,15 +91,17 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 		return m.discardLogicalSessionStart(accepted, err)
 	}
 
+	if err := m.commitSessionStartActivation(ctx, accepted.session); err != nil {
+		return m.discardLogicalSessionStart(accepted, err)
+	}
+
 	switch accepted.spec.postEvent {
 	case hookspkg.HookSessionPostCreate:
 		m.dispatchSessionPostCreate(ctx, accepted.session)
 	case hookspkg.HookSessionPostResume:
 		m.dispatchSessionPostResume(ctx, accepted.session)
 	}
-	if m.notifier != nil {
-		m.notifier.OnSessionCreated(ctx, accepted.session)
-	}
+	m.notifyActivatedSession(ctx, accepted.session)
 	if _, err := m.persistSessionPresence(ctx, accepted.session, m.now()); err != nil {
 		m.sessionLogger(accepted.session).Warn(
 			"session: persist logical session presence failed",

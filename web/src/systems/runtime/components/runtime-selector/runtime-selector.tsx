@@ -45,6 +45,8 @@ export interface RuntimeSelectorProps {
   providerCatalogIssues?: Readonly<Record<string, string>>;
   /** Allows an exact `provider/model` value when the provider catalog has no matching row. */
   allowCustomProvider?: boolean;
+  /** Keep selections the catalog no longer offers until a model pick, for surfaces that refuse them. */
+  retainUnavailableOptions?: boolean;
   onOpenProviderSettings?: () => void;
   /**
    * Session-level ACP speed request (PR #267). Both props together render the
@@ -64,8 +66,8 @@ export interface RuntimeSelectorProps {
 export function RuntimeSelector({
   value,
   onChange,
-  providers,
-  models,
+  providers: providerOptions,
+  models: modelOptions,
   acpOptions,
   variant = "default",
   disabled = false,
@@ -77,6 +79,7 @@ export function RuntimeSelector({
   catalogStatus,
   providerCatalogIssues = NO_PROVIDER_CATALOG_ISSUES,
   allowCustomProvider = false,
+  retainUnavailableOptions = false,
   onOpenProviderSettings,
   speed,
   onSpeedChange,
@@ -85,6 +88,8 @@ export function RuntimeSelector({
   ariaLabelledby,
   className,
 }: RuntimeSelectorProps) {
+  const providers = selectableProviders(providerOptions, value.provider);
+  const models = selectableModels(modelOptions, providerOptions, value);
   const controller = useRuntimeSelector({
     value,
     onChange,
@@ -92,7 +97,9 @@ export function RuntimeSelector({
     models,
     acpOptions,
     allowCustomProvider,
+    disabledProviderIds: disabledProviderIds(providerOptions),
     speed,
+    retainUnavailableOptions,
   });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -241,4 +248,38 @@ export function RuntimeSelector({
       </PopoverContent>
     </Popover>
   );
+}
+
+/** Disabled providers drop out, except the one the current value names (shown marked "Disabled"). */
+/**
+ * Drops models of disabled providers, including stale cached rows, so search, favorites and
+ * recents never offer them. The current value's own model stays so it is never rewritten.
+ */
+function selectableModels(
+  models: RuntimeModelOption[],
+  providers: RuntimeProviderOption[],
+  value: RuntimeSelectorValue
+): RuntimeModelOption[] {
+  const disabled = new Set<string>();
+  for (const provider of providers) if (provider.disabled) disabled.add(provider.id);
+  if (disabled.size === 0) return models;
+  return models.filter(
+    model =>
+      !disabled.has(model.provider) ||
+      (model.provider === value.provider && model.id === value.model)
+  );
+}
+
+function disabledProviderIds(providers: RuntimeProviderOption[]): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const provider of providers) if (provider.disabled) ids.add(provider.id);
+  return ids;
+}
+
+function selectableProviders(
+  providers: RuntimeProviderOption[],
+  current: string
+): RuntimeProviderOption[] {
+  if (!providers.some(provider => provider.disabled)) return providers;
+  return providers.filter(provider => !provider.disabled || provider.id === current);
 }

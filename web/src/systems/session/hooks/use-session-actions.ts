@@ -154,6 +154,16 @@ export function useSessionDeletionPending(sessionId: string | null): boolean {
   );
 }
 
+/** Catalog delivery can precede the archive response; keep only its request owner mounted. */
+export function useSessionArchivePending(requestOwnerId: string): boolean {
+  return (
+    useIsMutating({
+      mutationKey: sessionKeys.archives(),
+      predicate: mutation => mutation.meta?.requestOwnerId === requestOwnerId,
+    }) > 0
+  );
+}
+
 /**
  * True once this client deleted the session: a window still showing it after an
  * operator-owned deletion is retired quietly, never reported as a missing session.
@@ -262,11 +272,13 @@ export interface ArchiveSessionParams extends SessionActionTarget {
 }
 
 /** Archives the supplied row without depending on the currently selected workspace. */
-export function useArchiveSession() {
+export function useArchiveSession(options: { requestOwnerId?: string } = {}) {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();
 
   return useMutation({
+    mutationKey: sessionKeys.archives(),
+    meta: { requestOwnerId: options.requestOwnerId },
     mutationFn: ({
       id,
       workspace_id,

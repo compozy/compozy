@@ -27,6 +27,8 @@ interface UseSessionCreateSubmitOptions {
   environment: SessionEnvironmentModel;
   environmentWorkspaceId: string;
   runtimeWorkspaceId: string | null;
+  /** The workspace the shell acts in; a session created elsewhere switches to its own. */
+  actingWorkspaceId: string | null;
   scope: DestinationKind;
   store: SessionCreateStore;
   /** The inline picks: the profile that owns the session and the All-projects target. */
@@ -58,6 +60,7 @@ export function useSessionCreateSubmit({
   environment,
   environmentWorkspaceId,
   runtimeWorkspaceId,
+  actingWorkspaceId,
   scope,
   store,
   target,
@@ -97,7 +100,7 @@ export function useSessionCreateSubmit({
       navigate: session =>
         openCreatedSession(
           session,
-          { scope, currentWorkspaceId: runtimeWorkspaceId, allProjectsTarget },
+          { scope, currentWorkspaceId: actingWorkspaceId, allProjectsTarget },
           navigate,
           shell
         ),
@@ -109,7 +112,7 @@ export function useSessionCreateSubmit({
     navigate,
     pendingSubmit,
     profile,
-    runtimeWorkspaceId,
+    actingWorkspaceId,
     scope,
     shell,
     store,
@@ -162,7 +165,7 @@ export function useSessionCreateSubmit({
       navigate: session =>
         openCreatedSession(
           session,
-          { scope, currentWorkspaceId: runtimeWorkspaceId, allProjectsTarget },
+          { scope, currentWorkspaceId: actingWorkspaceId, allProjectsTarget },
           navigate,
           shell
         ),

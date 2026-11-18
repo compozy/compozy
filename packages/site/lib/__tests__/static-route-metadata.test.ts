@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
+import { metadata, viewport } from "@/app/layout";
 import { siteConfig } from "../site-config";
 
 vi.mock("next/font/google", () => ({
-  Geist: () => ({ variable: "--font-geist" }),
-  JetBrains_Mono: () => ({ variable: "--font-jetbrains-mono" }),
-  Playfair_Display: () => ({ variable: "--font-playfair" }),
+  Figtree: () => ({ variable: "--font-figtree" }),
+  Geist_Mono: () => ({ variable: "--font-geist-mono" }),
+}));
+
+vi.mock("next/font/local", () => ({
+  default: () => ({ variable: "--font-instrument-sans" }),
 }));
 
 describe("static public route metadata", () => {
@@ -49,40 +53,34 @@ describe("static public route metadata", () => {
     });
   });
 
-  it(
-    "keeps root metadata aligned with site identity and design tokens",
-    { timeout: 60_000 },
-    async () => {
-      const { metadata, viewport } = await import("@/app/layout");
-
-      expect(siteConfig.description).toBe(
-        "The system around the agent, already built. CompozyOS keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble."
-      );
-      expect(metadata.metadataBase?.toString()).toBe("https://compozy.com/");
-      expect(metadata.applicationName).toBe(siteConfig.name);
-      expect(metadata.title).toEqual({
-        default: siteConfig.name,
-        template: "%s | CompozyOS",
-      });
-      expect(metadata.description).toBe(siteConfig.description);
-      expect(metadata.alternates?.canonical).toBe("/");
-      expect(metadata.openGraph).toMatchObject({
-        type: "website",
-        locale: "en_US",
-        url: siteConfig.url,
-        siteName: siteConfig.name,
-        title: siteConfig.name,
-        description: siteConfig.description,
-      });
-      expect(metadata.twitter).toMatchObject({
-        card: "summary_large_image",
-        title: siteConfig.name,
-        description: siteConfig.description,
-        images: ["/opengraph-image"],
-      });
-      expect(metadata.robots).toEqual({ index: true, follow: true });
-      expect(metadata.manifest).toBe("/site.webmanifest");
-      expect(viewport.themeColor).toBe("#E8572A");
-    }
-  );
+  it("keeps root metadata aligned with site identity and design tokens", () => {
+    expect(siteConfig.description).toBe(
+      "The autonomous control plane for your agents. See and steer every Claude Code, Codex, and Cursor session. Always-on agents check in on their own, and you step in only when one needs you."
+    );
+    expect(metadata.metadataBase?.toString()).toBe("https://compozy.com/");
+    expect(metadata.applicationName).toBe(siteConfig.name);
+    expect(metadata.title).toEqual({
+      default: siteConfig.name,
+      template: "%s | CompozyOS",
+    });
+    expect(metadata.description).toBe(siteConfig.description);
+    expect(metadata.alternates?.canonical).toBe("/");
+    expect(metadata.openGraph).toMatchObject({
+      type: "website",
+      locale: "en_US",
+      url: siteConfig.url,
+      siteName: siteConfig.name,
+      title: siteConfig.name,
+      description: siteConfig.description,
+    });
+    expect(metadata.twitter).toMatchObject({
+      card: "summary_large_image",
+      title: siteConfig.name,
+      description: siteConfig.description,
+      images: ["/opengraph-image"],
+    });
+    expect(metadata.robots).toEqual({ index: true, follow: true });
+    expect(metadata.manifest).toBe("/site.webmanifest");
+    expect(viewport.themeColor).toBe("#0a0a0a");
+  });
 });

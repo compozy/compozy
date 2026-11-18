@@ -2,9 +2,9 @@ package tools
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"strings"
+	"sync"
 )
 
 type registryIndex struct {
@@ -17,8 +17,6 @@ type registryEntry struct {
 	provider      Provider
 	providerIndex int
 	conflicts     []ReasonCode
-	// owned marks a descriptor cloned privately for this index; shared native descriptors are not owned.
-	owned bool
 }
 
 func (r *RuntimeRegistry) buildIndex(ctx context.Context, scope Scope) (*registryIndex, error) {
@@ -31,6 +29,34 @@ func (r *RuntimeRegistry) buildIndexMatching(
 	scope Scope,
 	include func(Provider) bool,
 ) (*registryIndex, error) {
+	if cache, ok := ctx.Value(policyResolutionKey{}).(*policyResolutionCache); ok && include == nil {
+		key := policyResolutionScope{registry: r, scope: scope}
+		cache.indexMu.Lock()
+		defer cache.indexMu.Unlock()
+		if index := cache.indexes[key]; index != nil {
+			return index, nil
+		}
+		index, err := r.buildUncachedIndex(ctx, scope, include)
+		if err == nil {
+			if cache.indexes == nil {
+				cache.indexes = make(map[policyResolutionScope]*registryIndex)
+			}
+			cache.indexes[key] = index
+		}
+		return index, err
+	}
+	return r.buildUncachedIndex(ctx, scope, include)
+}
+
+func (r *RuntimeRegistry) buildUncachedIndex(
+	ctx context.Context,
+	scope Scope,
+	include func(Provider) bool,
+) (*registryIndex, error) {
+	inputs, err := r.policyInputsFor(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
 	index := &registryIndex{
 		entries: make([]*registryEntry, 0),
 		byID:    make(map[ToolID]*registryEntry),
@@ -42,23 +68,18 @@ func (r *RuntimeRegistry) buildIndexMatching(
 		if native, ok := provider.(*NativeProvider); ok {
 			// Native descriptors are validated and privately cloned at construction.
 			for _, id := range native.ids {
-				index.add(native.tools[id].Descriptor, provider, providerIndex, false)
+				index.add(native.tools[id].Descriptor, provider, providerIndex)
 			}
 			continue
 		}
-		descriptors, err := provider.List(ctx, scope)
+		descriptors, err := r.listProvider(ctx, provider, providerIndex, scope)
 		if err != nil {
-			return nil, fmt.Errorf("tools: list provider %s: %w", sourceKey(provider.ID()), err)
+			return nil, err
 		}
-		slices.SortFunc(descriptors, func(a Descriptor, b Descriptor) int {
-			return strings.Compare(a.ID.String(), b.ID.String())
-		})
 		for descriptorIndex := range descriptors {
-			descriptor := &descriptors[descriptorIndex]
-			if err := descriptor.Validate(); err != nil {
-				return nil, indexValidationError(descriptor.ID, err)
-			}
-			index.add(cloneDescriptor(*descriptor), provider, providerIndex, true)
+			descriptor := descriptors[descriptorIndex]
+			applyMCPReadAuthority(&descriptor, inputs.MCPReadOnlyTools)
+			index.add(descriptor, provider, providerIndex)
 		}
 	}
 	slices.SortFunc(index.entries, func(a *registryEntry, b *registryEntry) int {
@@ -71,13 +92,13 @@ func (r *RuntimeRegistry) buildIndexMatching(
 }
 
 // add retains the first descriptor for each ID and records conflicts from subsequent providers.
-func (i *registryIndex) add(descriptor Descriptor, provider Provider, providerIndex int, owned bool) {
+func (i *registryIndex) add(descriptor Descriptor, provider Provider, providerIndex int) {
 	if existing, ok := i.byID[descriptor.ID]; ok {
 		reason := conflictReason(&existing.descriptor, &descriptor)
 		existing.conflicts = appendReason(existing.conflicts, reason)
 		return
 	}
-	entry := &registryEntry{descriptor: descriptor, provider: provider, providerIndex: providerIndex, owned: owned}
+	entry := &registryEntry{descriptor: descriptor, provider: provider, providerIndex: providerIndex}
 	i.byID[descriptor.ID] = entry
 	i.entries = append(i.entries, entry)
 }
@@ -97,15 +118,27 @@ func (r *RuntimeRegistry) evaluatorFor(ctx context.Context, scope Scope, ids []T
 }
 
 func (r *RuntimeRegistry) policyInputsFor(ctx context.Context, scope Scope) (PolicyInputs, error) {
+	if cache, ok := ctx.Value(policyResolutionKey{}).(*policyResolutionCache); ok {
+		key := policyResolutionScope{registry: r, scope: scope}
+		cache.mu.Lock()
+		defer cache.mu.Unlock()
+		if value, ok := cache.values[key]; ok {
+			return clonePolicyInputs(value.inputs), value.err
+		}
+		inputs, err := r.resolvePolicyInputs(ctx, scope)
+		cache.values[key] = policyResolution{inputs, err}
+		return inputs, err
+	}
+	return r.resolvePolicyInputs(ctx, scope)
+}
+
+func (r *RuntimeRegistry) resolvePolicyInputs(ctx context.Context, scope Scope) (PolicyInputs, error) {
 	resolver := r.policyResolver
 	if resolver == nil {
 		resolver = NewStaticPolicyInputResolver(r.policyInputs)
 	}
 	inputs, err := resolver.Resolve(ctx, scope)
-	if err != nil {
-		return PolicyInputs{}, err
-	}
-	return clonePolicyInputs(inputs), nil
+	return clonePolicyInputs(inputs), err
 }
 
 func (r *RuntimeRegistry) toolsetView(toolset Toolset, universe []ToolID) ToolsetView {
@@ -170,4 +203,51 @@ func sourceKey(source SourceRef) string {
 	return string(source.Kind) + "\x00" + source.Owner + "\x00" +
 		source.RawServerName + "\x00" + source.RawToolName + "\x00" + source.Scope + "\x00" +
 		source.ProfileID + "\x00" + source.WorkspaceID + "\x00" + source.ResourceID + "\x00" + source.ResourceVersion
+}
+
+type policyResolutionKey struct{}
+type policyResolution struct {
+	inputs PolicyInputs
+	err    error
+}
+type policyResolutionCache struct {
+	externalMu     sync.Mutex
+	externalStamps map[projectionListingKey]string
+	mu             sync.Mutex
+	values         map[policyResolutionScope]policyResolution
+	indexMu        sync.Mutex
+	indexes        map[policyResolutionScope]*registryIndex
+	availabilityMu sync.Mutex
+	availabilities map[policyResolutionScope]map[ToolID]Availability
+	visibilityMu   sync.Mutex
+	visibilities   map[policyResolutionScope]string
+}
+
+// ReadContext shares policy and indexes only for one logical read; mutations require a new context.
+func (r *RuntimeRegistry) ReadContext(ctx context.Context) context.Context {
+	return r.readContext(ctx, false)
+}
+
+// FreshReadContext starts a new read without inheriting any policy, index, or listing memo.
+func (r *RuntimeRegistry) FreshReadContext(ctx context.Context) context.Context {
+	return r.readContext(WithProjectionListings(ctx, NewProjectionListings()), true)
+}
+
+func (r *RuntimeRegistry) readContext(ctx context.Context, fresh bool) context.Context {
+	if fresh || ctx.Value(policyResolutionKey{}) == nil {
+		ctx = context.WithValue(ctx, policyResolutionKey{}, &policyResolutionCache{
+			values: make(map[policyResolutionScope]policyResolution),
+		})
+	}
+	if resolver, ok := r.policyResolver.(interface {
+		PolicyReadContext(context.Context, bool) context.Context
+	}); ok {
+		ctx = resolver.PolicyReadContext(ctx, fresh)
+	}
+	return ctx
+}
+
+type policyResolutionScope struct {
+	registry *RuntimeRegistry
+	scope    Scope
 }

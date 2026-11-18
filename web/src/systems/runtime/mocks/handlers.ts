@@ -8,6 +8,7 @@ const encoder = new TextEncoder();
 const runtimeProvidersFixture = {
   providers: [
     {
+      enabled: true,
       auth_status: {
         env_policy: "inherit",
         home_policy: "operator",
@@ -29,6 +30,7 @@ const runtimeProvidersFixture = {
       reviewer_mode: "auto",
     },
     {
+      enabled: true,
       auth_status: {
         env_policy: "inherit",
         home_policy: "operator",
@@ -50,6 +52,7 @@ const runtimeProvidersFixture = {
       reviewer_mode: "agent",
     },
     {
+      enabled: true,
       auth_status: {
         env_policy: "inherit",
         home_policy: "operator",

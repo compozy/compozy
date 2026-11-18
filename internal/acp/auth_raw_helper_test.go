@@ -164,6 +164,7 @@ func (h *rawAuthHelper) initializeResult() map[string]any {
 		"protocolVersion":   1,
 		"agentCapabilities": caps,
 		"authMethods":       h.authMethods(),
+		"_meta":             map[string]any{"steering": map[string]any{"supported": true}},
 	}
 }
 

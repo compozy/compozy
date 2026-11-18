@@ -72,7 +72,7 @@ func WorktreeInspectionPayload(
 	}
 }
 
-func WorktreesPayloadFromListing(listing *worktree.DetailedListing) contract.WorktreesResponse {
+func WorktreesPayloadFromListing(listing *worktree.DetailedListing, includeRemoved bool) contract.WorktreesResponse {
 	payload := contract.WorktreesResponse{
 		Worktrees:  make([]contract.WorktreePayload, 0),
 		Discovered: make([]contract.DiscoveredWorktreePayload, 0),
@@ -82,6 +82,9 @@ func WorktreesPayloadFromListing(listing *worktree.DetailedListing) contract.Wor
 	}
 	payload.Worktrees = make([]contract.WorktreePayload, 0, len(listing.Worktrees))
 	for _, inspection := range listing.Worktrees {
+		if !includeRemoved && inspection.Worktree.State == worktree.StateRemoved {
+			continue
+		}
 		payload.Worktrees = append(payload.Worktrees, WorktreePayloadFromInspection(inspection))
 	}
 	payload.Discovered = make([]contract.DiscoveredWorktreePayload, 0, len(listing.Discovered))

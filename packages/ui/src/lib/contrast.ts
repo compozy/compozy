@@ -8,15 +8,15 @@ const HEX_PATTERN = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** Parses `#rgb`, `#rrggbb`, or the same without the hash. Returns null when malformed. */
 export function parseHexColor(value: string): Rgb | null {
-  const match = value.trim().match(HEX_PATTERN);
-  if (!match) return null;
+  const hex = value.trim().match(HEX_PATTERN)?.[1];
+  if (!hex) return null;
   const digits =
-    match[1].length === 3
-      ? match[1]
+    hex.length === 3
+      ? hex
           .split("")
           .map(character => character + character)
           .join("")
-      : match[1];
+      : hex;
   const int = Number.parseInt(digits, 16);
   return { r: (int >> 16) & 0xff, g: (int >> 8) & 0xff, b: int & 0xff };
 }

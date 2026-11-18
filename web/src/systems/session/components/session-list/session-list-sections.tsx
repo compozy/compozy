@@ -93,12 +93,7 @@ export function SessionListSections({
       thread.session,
     ])
   );
-  const nestParents = [
-    ...sections.folders.flatMap(section => section.threads),
-    ...sections.root,
-  ].flatMap(thread => [thread.session, ...thread.childSessions]);
   const allFolderIds = layout.folders.map(folder => folder.id);
-  const threadActions = { ...sessionActions, nestParents };
   const renderThreads = (threads: readonly SessionThreadModel[], folderId: string | null) => (
     <SectionThreads
       threads={threads}
@@ -115,7 +110,7 @@ export function SessionListSections({
       onThreadBranchChange={onThreadBranchChange}
       onSelectSession={onSelectSession}
       selection={selection}
-      sessionActions={threadActions}
+      sessionActions={sessionActions}
       testIdPrefix={testIdPrefix}
     />
   );
@@ -155,7 +150,10 @@ export function SessionListSections({
         {...rootZone}
         data-testid={`${testIdPrefix}-root`}
         className={cn(
-          "flex min-h-6 flex-col gap-0.5 rounded-md transition-colors",
+          // `min-h-6` keeps an empty root droppable; it also replaces the flex item's content
+          // minimum, so without `shrink-0` a long list squeezes the zone inside its scroll column
+          // and its rows spill under the paging row that follows (#1724).
+          "flex min-h-6 shrink-0 flex-col gap-0.5 rounded-md transition-colors",
           rootTarget && "bg-brand-tint ring-1 ring-brand ring-inset"
         )}
       >

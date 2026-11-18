@@ -48,7 +48,7 @@ journey:
       expected_observable: "The controls follow the operating system convention inside the product menubar, never overlap Compozy controls, and keep native window behavior"
     - step: 4
       verb: "Scale the product with standard page-zoom shortcuts"
-      expected_observable: "Command or Control plus, minus, and zero change or reset the whole product scale without triggering Compozy's single-window Zoom action"
+      expected_observable: "Command or Control plus, minus, and zero change or reset the whole product scale without changing the desktop's tabs or splits"
     - step: 5
       verb: "Work with app and browser tab side by side"
       expected_observable: "Actions in one surface appear live in the other"
@@ -70,3 +70,8 @@ journey:
       resume: "After an external fix, retry from the same screen succeeds without restarting the app."
   crosses: [daemon-discovery, identity-probe, supervisor, browser-surface, native-window-chrome, window-geometry, quit-contract]
 ```
+
+qa-impact: 2026-11-13 window-tabs-split S10. Compozy's in-product Zoom window action was retired with
+tabs and splits, so step 4 now checks that page zoom leaves tabs and splits unchanged. The native
+close, minimize and zoom controls in step 3 are the operating system's and are unchanged. Walk with
+APP-desktop-page-zoom.

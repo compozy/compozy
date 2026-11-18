@@ -215,6 +215,46 @@ func TestCoordinatorRuntimeEmitsRoleFallbackEvents(t *testing.T) {
 			t.Fatalf("coordinator fallback payload = %#v", payload)
 		}
 	})
+
+	t.Run("Should report the fallback route in the coordinator spawned hook", func(t *testing.T) {
+		t.Parallel()
+
+		store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), coordinatorRuntimeRun())
+		sessions := &coordinatorFallbackSessions{
+			coordinatorRuntimeSessions: &coordinatorRuntimeSessions{},
+			primaryErr:                 errors.New("primary coordinator route unavailable"),
+		}
+		hooks := &recordingCoordinatorHooks{}
+		cfg := coordinatorRuntimeConfig()
+		cfg.Model = ""
+		cfg.Fallbacks = []compozyconfig.RoleFallback{{Provider: "claude", Model: "sonnet"}}
+		runtime, err := newCoordinatorRuntime(
+			t.Context(),
+			store,
+			sessions,
+			&staticCoordinatorRoleResolver{cfg: cfg},
+			hooks,
+			discardLogger(),
+			func() time.Time { return time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC) },
+		)
+		if err != nil {
+			t.Fatalf("newCoordinatorRuntime() error = %v", err)
+		}
+		if _, _, err := runtime.bootstrapRun(
+			t.Context(),
+			store.tasks["task-1"],
+			store.runs["run-1"],
+			coordinator.ReasonRunEnqueued,
+		); err != nil {
+			t.Fatalf("bootstrapRun() error = %v", err)
+		}
+		if hooks.spawnedCount() != 1 {
+			t.Fatalf("spawned hook count = %d, want 1", hooks.spawnedCount())
+		}
+		if got := hooks.spawnedPayload(0); got.Provider != "claude" || got.Model != "sonnet" {
+			t.Fatalf("spawned hook provider/model = %q/%q, want the claude/sonnet fallback", got.Provider, got.Model)
+		}
+	})
 }
 
 func TestCoordinatorRuntimeBootstrapsWithTaskContextOverlay(t *testing.T) {

@@ -1,17 +1,13 @@
-import type { MarketplaceCatalogListing, MarketplaceSource } from "@/systems/marketplace";
+import type { MarketplaceCatalogListing } from "@/systems/marketplace";
 import type { ExtensionEntry } from "@/systems/extensions";
 
+import { storyCatalog, storyMarketplacePlugins, storySources } from "./marketplace-story-data";
+import { installedExtension, installedListing, localExtension } from "../mocks/installed";
 import {
-  installedExtension,
-  installedListing,
-  localExtension,
-  storyCatalog,
   storyContext7Server,
   storyGithubServer,
   storyPostgresServer,
-  storyMarketplacePlugins,
-  storySources,
-} from "./marketplace-story-data";
+} from "./marketplace-story-servers";
 
 export const herdrInstalled = installedListing(storyCatalog.herdrBridge, {
   installedVersion: "0.3.2",
@@ -121,7 +117,7 @@ export const installedPartialUpdateExtensions: ExtensionEntry[] = [
   ),
 ];
 
-/** The feed plus two plugin marketplaces: one section per source, in the daemon's order. */
+/** The feed plus two plugin marketplaces, grouped by the daemon into categories, not sources. */
 export const multiSourceCatalog = [
   ...defaultCatalog,
   storyMarketplacePlugins.featureDev,
@@ -137,6 +133,30 @@ export const multiSourceSources = [
   { ...storySources.customDegraded, error: undefined, error_class: undefined, state: "ok" },
 ];
 
+const setupInstalled = installedListing(storyCatalog.github);
+const readyInstalled = installedListing(storyCatalog.context7);
+const offInstalled = installedListing(storyCatalog.repositoryOrientation);
+
+/** One row per action state (US-007): Add · Set up · Ready · Turn on. */
+export const actionStatesCatalog = [
+  storyCatalog.grafana,
+  setupInstalled,
+  readyInstalled,
+  offInstalled,
+].map(entry => ({ ...entry, category: "productivity", category_label: "Productivity" }));
+
+export const actionStatesExtensions: ExtensionEntry[] = [
+  installedExtension(setupInstalled, {
+    mcp_servers: [
+      storyGithubServer({ runtime_name: "github.github", status: "needs_authorization" }),
+    ],
+  }),
+  installedExtension(readyInstalled, {
+    mcp_servers: [storyContext7Server({ runtime_name: "context7", status: "running" })],
+  }),
+  installedExtension(offInstalled, { enabled: false }),
+];
+
 export const conflictingCatalog: MarketplaceCatalogListing[] = [
   {
     ...storyCatalog.grafana,
@@ -145,19 +165,6 @@ export const conflictingCatalog: MarketplaceCatalogListing[] = [
       source_ref: "github:acme/team-plugins",
       entry_id: "grafana",
     },
-  },
-];
-
-export const zeroPluginSources: MarketplaceSource[] = [
-  storySources.feed,
-  storySources.presetOn,
-  {
-    ...storySources.customDegraded,
-    error: undefined,
-    error_class: undefined,
-    installable: 0,
-    plugins: 0,
-    state: "ok",
   },
 ];
 

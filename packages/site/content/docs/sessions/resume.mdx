@@ -36,6 +36,25 @@ an exhausted retry budget. A completed turn is never continued again. The defaul
 recovery attempts in five minutes; inspect the session before sending a fresh prompt after a pause.
 Subagents and Loops retain their existing recovery owners and apply the same restart safety checks.
 
+Workers created with `compozy__session_spawn` also continue interrupted work and recover their
+monitors. Their TTL, spawn limits, archive state, and `auto_stop_on_parent` still apply. An expired
+worker or one whose required parent cannot resume stays stopped. With `notify_creator`, a shutdown
+stop notice is recovered from the child's durable stop event and admitted to the parent once.
+The notice describes the shutdown; inspect the child's current status before intervening.
+Already admitted notices do not reopen an idle parent. Archived or expired children do not replay
+notices, and an unreadable child receipt is logged without blocking the other sessions' recovery.
+
+An always-on instance's idle main also reopens its saved binding after restart, even with no
+queued input. Its completed turn is not replayed. A refused recovery records its cause in the
+daemon log and, when a saved binding is available, the session's restart history. Worker recovery
+reopens an ordinary idle parent only when an interrupted auto-stop worker, a recovered worker
+monitor or an undelivered shutdown notice needs it. The parent and worker still pass the saved
+binding and restart eligibility checks. Reply watches retain their own wake rules.
+
+During boot recovery, new prompts receive HTTP `503` with code `daemon_starting` and
+`retryable: true`. Retry with the same message identity after the daemon is ready. Continue/fork
+retain their existing `new_work_admission_unavailable` code with the retryable boot guidance.
+
 `compozy daemon stop` and explicit session stops cancel work and never schedule automatic
 continuation. Use `compozy daemon restart` to preserve restart intent. You can opt out in `config.toml`:
 
@@ -249,7 +268,11 @@ are additional evidence, not replacements for earlier events.
 
 A normal prompt on an eligible stopped session first tries ACP `session/load`. When the agent cannot
 load its own conversation, CompozyOS starts a fresh agent session and sends the stored transcript as one
-bounded replay. The same bound applies when a runtime or model replacement, an account fallback, a
+bounded replay. That covers an agent without `session/load`, a provider session the provider no longer
+knows, and a provider session that belongs to another provider account or backend (Codex refuses a
+thread created under a different `model_provider`). In the last case the transcript shows one notice
+that the provider backend changed and a new provider thread was started. Any other `session/load`
+failure keeps the stored provider session and is retried on the next resume. The same bound applies when a runtime or model replacement, an account fallback, a
 prompt recovery, or a conversation rewind starts a new agent session. The bound is
 `[session.derive] max_replay_bytes` (default 131072): the newest messages and the original request are
 kept, older ones are replaced by an omission note, and the agent is told where to read them. See

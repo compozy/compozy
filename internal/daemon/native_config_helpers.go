@@ -61,7 +61,7 @@ func nativeConfigPathPolicy(id toolspkg.ToolID, raw string) (compozyconfig.PathP
 		return compozyconfig.PathPolicy{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput,
 			id,
-			"config path is invalid",
+			err.Error(),
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 			toolspkg.ReasonConfigPathForbidden,
 		)
@@ -71,15 +71,12 @@ func nativeConfigPathPolicy(id toolspkg.ToolID, raw string) (compozyconfig.PathP
 		return compozyconfig.PathPolicy{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput,
 			id,
-			"config path is invalid",
+			err.Error(),
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 			toolspkg.ReasonConfigPathForbidden,
 		)
 	}
 	if policy.Denial == compozyconfig.ConfigPathAllowed {
-		if policy.DeprecatedAlias {
-			compozyconfig.LogConfigPathAlias(policy.Segments)
-		}
 		return policy, nil
 	}
 	return compozyconfig.PathPolicy{}, toolspkg.NewToolError(

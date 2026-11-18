@@ -17,7 +17,11 @@ func newMCPCommand(deps commandDeps) *cobra.Command {
 			return cmd.Help()
 		},
 	}
+	cmd.AddCommand(newMCPListCommand(deps))
+	cmd.AddCommand(newMCPCheckCommand(deps))
 	cmd.AddCommand(newMCPAuthCommand(deps))
+	cmd.AddCommand(newMCPAllowCommand(deps))
+	cmd.AddCommand(newMCPImportCommand(deps))
 	cmd.AddCommand(newMCPServeCommand(deps))
 	return cmd
 }

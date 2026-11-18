@@ -52,3 +52,32 @@ export const GeneratorFailure: Story = {
     );
   },
 };
+
+const ICON_ROOT = "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/";
+
+/** Catalog entries whose feed image is a fixed-ink monochrome mark, beside a colored one. */
+const monochromeBrandCatalog = [
+  { entry_id: "github", name: "GitHub", icon: `${ICON_ROOT}github.svg` },
+  { entry_id: "linear", name: "Linear", icon: `${ICON_ROOT}linear.svg` },
+  { entry_id: "notion", name: "Notion", icon: `${ICON_ROOT}notion.png` },
+];
+
+/**
+ * GitHub and Linear ship white feed images; their theme-following brand marks draw instead, so
+ * both read on the light and the dark logo well. Notion keeps its colored feed image.
+ */
+export const MonochromeBrands: Story = {
+  render: () => (
+    <CenteredSurface className="gap-3">
+      {monochromeBrandCatalog.map(entry => (
+        <MarketplaceEntryLogo entry={entry} key={entry.entry_id} size="lg" />
+      ))}
+    </CenteredSurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const logos = [
+      ...canvasElement.querySelectorAll<HTMLElement>('[data-slot="marketplace-entry-logo"]'),
+    ];
+    expect(logos.map(logo => logo.dataset.rung)).toEqual(["brand", "brand", "icon"]);
+  },
+};

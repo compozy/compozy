@@ -92,7 +92,8 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		toolspkg.ErrorCodeSessionLaterStopFailed,
 		toolspkg.ErrorCodeAttentionRequiresAction,
 		toolspkg.ErrorCodeSessionMessageHopLimit,
-		toolspkg.ErrorCodeAgentInstanceStarting:
+		toolspkg.ErrorCodeAgentInstanceStarting,
+		toolspkg.ErrorCodeProviderDisabled:
 		return http.StatusConflict
 	case toolspkg.ErrorCodeSessionMessageRateLimited:
 		return http.StatusTooManyRequests
@@ -147,6 +148,9 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 		payload.Message = http.StatusText(status)
 	} else if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok {
 		payload.Code = toolErr.Code
+		payload.Retryable = toolErr.Retryable
+		payload.ClientMessageID = toolErr.ClientMessageID
+		payload.ProviderError = toolErr.ProviderError
 		payload.ToolID = toolErr.ToolID
 		payload.ReasonCodes = append([]toolspkg.ReasonCode(nil), toolErr.ReasonCodes...)
 		payload.Message = safeToolErrorMessage(status, toolErr.Code, payload.ReasonCodes)

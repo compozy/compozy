@@ -20,14 +20,23 @@ import (
 
 const defaultSettingsMCPStatusTimeout = compozyconfig.DefaultMCPStatusProbeTimeout
 
-func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
+func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 	ctx context.Context,
 	target mcpauth.Target,
 	server compozyconfig.MCPServer,
 ) (settingspkg.MCPServerRuntimeStatus, error) {
 	status := settingspkg.MCPServerRuntimeStatus{Configured: true}
-	key, tracked := settingsMCPDeadEntityKey(target, server.EffectiveRuntimeName())
-	if suppressed, err := s.suppressedMCPRuntimeStatus(ctx, key, tracked); err != nil {
+	if err := s.requireMCPConsent(ctx, target, server); err != nil {
+		status.State = mcpWaitingApproval
+		status.Probe = settingspkg.MCPServerProbeSkipped
+		status.Reason = mcpWaitingApproval
+		return status, nil
+	}
+	key, tracked, err := s.settingsMCPDeadEntityKey(ctx, target, server.EffectiveRuntimeName())
+	if err != nil {
+		return settingspkg.MCPServerRuntimeStatus{}, err
+	}
+	if suppressed, err := s.suppressedMCPAuthRuntimeStatus(ctx, key, tracked, target, server); err != nil {
 		return settingspkg.MCPServerRuntimeStatus{}, err
 	} else if suppressed != nil {
 		return *suppressed, nil
@@ -40,13 +49,10 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 		status.Diagnostic = diagnostics.Redact(err.Error())
 		return s.recordMCPProbeFailure(ctx, key, tracked, deadentity.FailurePermanent, status)
 	}
-	if server.Auth.Enabled() {
+	if mcpauth.OAuthCapable(server) {
 		authStatus, err := s.MCPAuthStatus(ctx, target, server)
 		if err != nil {
-			status.State = settingspkg.MCPServerRuntimeStateAuthRequired
-			status.Probe = settingspkg.MCPServerProbeSkipped
-			status.Reason = string(toolspkg.ReasonMCPAuthRequired)
-			status.Diagnostic = diagnostics.Redact(err.Error())
+			status = mcpAuthLookupErrorStatus(server, err)
 			return s.recordMCPProbeFailure(ctx, key, tracked, deadentity.FailurePermanent, status)
 		}
 		if mapped, ok := runtimeStateFromMCPAuthStatus(authStatus); ok {
@@ -64,7 +70,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 		return s.recordMCPProbeFailure(ctx, key, tracked, deadentity.FailurePermanent, status)
 	}
 
-	tools, protocolVersion, err := executor.ListToolsWithProtocol(ctx, toolspkg.SourceRef{
+	discovery, err := executor.DiscoverTools(ctx, toolspkg.SourceRef{
 		Kind:          toolspkg.SourceMCP,
 		Owner:         server.EffectiveRuntimeName(),
 		RawServerName: server.EffectiveRuntimeName(),
@@ -89,14 +95,24 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 			return settingspkg.MCPServerRuntimeStatus{}, fmt.Errorf("daemon: record MCP runtime recovery: %w", err)
 		}
 	}
-	return settingspkg.MCPServerRuntimeStatus{
-		Configured:      true,
-		Initialized:     true,
-		State:           settingspkg.MCPServerRuntimeStateReady,
-		Probe:           settingspkg.MCPServerProbeSucceeded,
-		ToolCount:       len(tools),
-		ProtocolVersion: strings.TrimSpace(protocolVersion),
-	}, nil
+	status = readyMCPRuntimeStatus(discovery.ToolCount, discovery.ProtocolVersion)
+	status.Diagnostic = discovery.Diagnostic
+	return status, nil
+}
+
+func mcpAuthLookupErrorStatus(server compozyconfig.MCPServer, err error) settingspkg.MCPServerRuntimeStatus {
+	status := settingspkg.MCPServerRuntimeStatus{
+		Configured: true,
+		State:      settingspkg.MCPServerRuntimeStateAuthRequired,
+		Probe:      settingspkg.MCPServerProbeSkipped,
+		Reason:     string(toolspkg.ReasonMCPAuthRequired),
+		Diagnostic: diagnostics.Redact(err.Error()),
+	}
+	if server.Auth.IsZero() && mcpauth.OAuthWithPluginHeaders(server) {
+		status.State = settingspkg.MCPServerRuntimeStateConfigError
+		status.Reason = string(status.State)
+	}
+	return status
 }
 
 func (s *settingsRuntimeSurface) newMCPProbeExecutor(
@@ -108,7 +124,11 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 			ctx context.Context,
 			_ toolspkg.SourceRef, _ string,
 		) (mcppkg.ResolvedServer, error) {
-			resolved := mcppkg.ResolvedServer{Server: server, Target: target}
+			resolved := mcppkg.ResolvedServer{
+				Server:                 server,
+				Target:                 target,
+				ReadOnlyOverrideOrigin: new(toolspkg.MCPReadOnlyOverrideOperatorConfig),
+			}
 			if s.mcpHealthKey != nil {
 				key, err := s.mcpHealthKey(ctx, target)
 				if err != nil {
@@ -118,9 +138,24 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 			}
 			return resolved, nil
 		}),
+		mcppkg.WithDefinitionDigestKey(s.digestKey),
 		mcppkg.WithRuntimeHealthRegistry(s.mcpHealthRegistry),
+		mcppkg.WithConsentCheck(
+			func(ctx context.Context, _ toolspkg.SourceRef, resolved mcppkg.ResolvedServer) error {
+				return s.requireMCPConsent(ctx, resolved.Target, resolved.Server)
+			},
+		),
+		mcppkg.WithAuthNetworkAuthorization(func(ctx context.Context, cfg mcpauth.ServerConfig) error {
+			if s.state == nil {
+				return nil
+			}
+			return authorizeMCPAuthNetwork(ctx, s.state, cfg)
+		}),
 		mcppkg.WithTokenStore(s.mcpAuthStore),
 		mcppkg.WithAuthMutationGeneration(s.mcpAuthGeneration),
+		mcppkg.WithAuthRecovery(func(ctx context.Context, resolved *mcppkg.ResolvedServer) error {
+			return s.recoverMCPAuthentication(ctx, resolved.Target, resolved.Server)
+		}),
 		mcppkg.WithSecretLookup(s.lookupSecret),
 		mcppkg.WithSecretResolver(s.secretRefs),
 		mcppkg.WithTimeout(s.mcpStatusTimeoutOrDefault()),
@@ -203,18 +238,29 @@ func deadMCPRuntimeStatus(reason string) settingspkg.MCPServerRuntimeStatus {
 	}
 }
 
-func settingsMCPDeadEntityKey(target mcpauth.Target, serverName string) (store.DeadEntityKey, bool) {
+func (s *settingsRuntimeSurface) settingsMCPDeadEntityKey(
+	ctx context.Context, target mcpauth.Target, serverName string,
+) (store.DeadEntityKey, bool, error) {
 	normalizedTarget := target.Normalize()
 	if normalizedTarget.Scope != mcpauth.ScopeWorkspace {
-		return store.DeadEntityKey{}, false
+		return store.DeadEntityKey{}, false, nil
+	}
+	lens := mcpauth.ConsentScopeFromContext(ctx)
+	profileID := lens.ProfileID
+	if profileID == "" {
+		var err error
+		profileID, err = (settingsMCPConsent{state: s.state}).profileID(ctx, lens.ProfileName)
+		if err != nil {
+			return store.DeadEntityKey{}, false, err
+		}
 	}
 	key := store.DeadEntityKey{
-		ProfileID:   store.DefaultProfileID,
+		ProfileID:   profileID,
 		WorkspaceID: normalizedTarget.WorkspaceID,
 		Kind:        store.DeadEntityKindMCPSidecar,
 		EntityID:    serverName,
 	}.Normalize()
-	return key, key.Validate() == nil
+	return key, key.Validate() == nil, nil
 }
 
 func runtimeStateFromMCPAuthStatus(
@@ -224,10 +270,13 @@ func runtimeStateFromMCPAuthStatus(
 	case mcpauth.StatusNeedsLogin:
 		return settingspkg.MCPServerRuntimeStateAuthRequired, true
 	case mcpauth.StatusExpired:
+		if status.TokenPresent && status.Refreshable {
+			return "", false
+		}
 		return settingspkg.MCPServerRuntimeStateAuthExpired, true
 	case mcpauth.StatusInvalid:
 		return settingspkg.MCPServerRuntimeStateAuthInvalid, true
-	case mcpauth.StatusAuthenticated:
+	case mcpauth.StatusAuthenticated, mcpauth.StatusUnconfigured:
 		return "", false
 	default:
 		if strings.TrimSpace(string(status.Status)) == "refresh_failed" {
@@ -269,9 +318,11 @@ func runtimeStatusFromMCPProbeError(err error) settingspkg.MCPServerRuntimeStatu
 	}
 	status.Reason = string(reason)
 	switch reason {
-	case toolspkg.ReasonMCPAuthRequired, toolspkg.ReasonMCPAuthUnconfigured:
+	case toolspkg.ReasonMCPAuthRequired:
 		status.State = settingspkg.MCPServerRuntimeStateAuthRequired
 		status.Probe = settingspkg.MCPServerProbeSkipped
+	case toolspkg.ReasonMCPAuthUnconfigured:
+		status.State = settingspkg.MCPServerRuntimeStatePermissionDenied
 	case toolspkg.ReasonMCPAuthExpired:
 		status.State = settingspkg.MCPServerRuntimeStateAuthExpired
 		status.Probe = settingspkg.MCPServerProbeSkipped
@@ -290,4 +341,15 @@ func runtimeStatusFromMCPProbeError(err error) settingspkg.MCPServerRuntimeStatu
 		status.State = settingspkg.MCPServerRuntimeStateRuntimeUnavailable
 	}
 	return status
+}
+
+func readyMCPRuntimeStatus(toolCount int, protocolVersion string) settingspkg.MCPServerRuntimeStatus {
+	return settingspkg.MCPServerRuntimeStatus{
+		Configured:      true,
+		Initialized:     true,
+		State:           settingspkg.MCPServerRuntimeStateReady,
+		Probe:           settingspkg.MCPServerProbeSucceeded,
+		ToolCount:       toolCount,
+		ProtocolVersion: strings.TrimSpace(protocolVersion),
+	}
 }

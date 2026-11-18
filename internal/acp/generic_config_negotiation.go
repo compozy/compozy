@@ -4,7 +4,28 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
+
+func (d *Driver) applyStartupConfigSelections(
+	ctx context.Context,
+	process *AgentProcess,
+	selections []SessionConfigOptionSelection,
+) error {
+	if _, ok := findConfigOptionByID(process.CapsSnapshot().ConfigOptions, sessionConfigModeKey); !ok &&
+		process.permissions.mode == compozyconfig.PermissionModeApproveAll {
+		for _, selection := range selections {
+			if selection.ID == sessionConfigModeKey &&
+				compozyconfig.IsUnrestrictedACPMode(process.permissionModeProvider(), selection.ValueID) {
+				process.unadvertisedStartupMode = selection.ValueID
+				process.logger.DebugContext(ctx, "acp: skip unadvertised startup mode",
+					"session_id", process.SessionID, "mode", selection.ValueID)
+			}
+		}
+	}
+	return d.applySessionConfigSelections(ctx, process, selections)
+}
 
 func (d *Driver) applySessionConfigSelections(
 	ctx context.Context,
@@ -15,6 +36,12 @@ func (d *Driver) applySessionConfigSelections(
 		options := process.CapsSnapshot().ConfigOptions
 		option, ok := findConfigOptionByID(options, selection.ID)
 		if !ok {
+			// Reapplying skipped startup intent must not break an unrelated runtime change.
+			if process.permissions.mode == compozyconfig.PermissionModeApproveAll &&
+				selection.ID == sessionConfigModeKey &&
+				selection.ValueID != "" && selection.ValueID == process.unadvertisedStartupMode {
+				continue
+			}
 			return fmt.Errorf("acp: config option %q is not uniquely advertised", selection.ID)
 		}
 		if err := validateSessionConfigOptionSelection(selection, option); err != nil {
@@ -23,12 +50,10 @@ func (d *Driver) applySessionConfigSelections(
 		if selection.matches(option) {
 			continue
 		}
+		// applySessionConfigOption returns only after the provider confirmed the value,
+		// including a late config_option_update.
 		if err := d.applySessionConfigOption(ctx, process, selection); err != nil {
 			return fmt.Errorf("acp: apply config option %q: %w", selection.ID, err)
-		}
-		updated, ok := findConfigOptionByID(process.CapsSnapshot().ConfigOptions, selection.ID)
-		if !ok || !selection.matches(updated) {
-			return fmt.Errorf("acp: provider did not confirm config option %q", selection.ID)
 		}
 	}
 	return nil

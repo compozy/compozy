@@ -404,6 +404,16 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 				)
 			}
 		}
+		assertEnumValues(
+			t,
+			propertySchema(t, shellAppearanceSchema, "text_size"),
+			"small", "default", "large", "larger",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, shellAppearanceSchema, "letter_spacing"),
+			"tight", "default", "relaxed", "wide",
+		)
 		assertEnumValues(t, propertySchema(t, shellSessionsSchema, "group_by"), "none", "project", "profile")
 		assertEnumValues(
 			t,
@@ -450,6 +460,14 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"bindings",
 			"shortcuts",
 		)
+		for _, name := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
+			if !propertySchema(t, windowManagerConfigSchema, name).Deprecated {
+				t.Fatalf("retired setting %s lacks its deprecation marker", name)
+			}
+		}
+		if propertySchema(t, windowManagerConfigSchema, "swap_modifier").Deprecated {
+			t.Fatal("kept swap modifier is deprecated")
+		}
 		assertEnumValues(
 			t,
 			propertySchema(t, windowManagerConfigSchema, "new_window_policy"),
@@ -503,10 +521,10 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		gapsSchema := propertySchema(t, windowManagerConfigSchema, "gaps")
 		assertRequired(t, gapsSchema, "inner", "top", "right", "bottom", "left")
 		assertSchemaHasAdditionalProperties(t, gapsSchema, false)
-		snapSchema := propertySchema(t, windowManagerConfigSchema, "snap")
+		snapSchema := propertySchema(t, windowManagerConfigSchema, "snap").AllOf[0].Value
 		assertRequired(t, snapSchema, "edge_band", "corner_reach", "exit_slack", "repeat_ratios")
 		assertSchemaHasAdditionalProperties(t, snapSchema, false)
-		bindingsSchema := propertySchema(t, windowManagerConfigSchema, "bindings")
+		bindingsSchema := propertySchema(t, windowManagerConfigSchema, "bindings").AllOf[0].Value
 		assertRequired(t, bindingsSchema, "top_center", "bottom_center")
 		assertSchemaHasAdditionalProperties(t, bindingsSchema, false)
 		assertEnumValues(
@@ -829,7 +847,10 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		serverSchema := propertySchema(t, putMCPSchema, "server")
 		assertRequired(t, serverSchema, "name")
 		assertNotRequired(t, serverSchema, "transport", "command", "args", "env", "url", "auth")
-		assertNotRequired(t, putMCPSchema, "secret_values", "preserve_secrets", "preserve_env")
+		assertNotRequired(t, putMCPSchema, "secret_values", "preserve_secrets", "preserve_env", "preserve_headers")
+		if !propertySchema(t, putMCPSchema, "preserve_headers").Type.Is("boolean") {
+			t.Fatal("preserve_headers must be a boolean")
+		}
 
 		mcpListSchema := jsonResponseSchema(t, mcpList, 200)
 		assertRequired(t, mcpListSchema, "collection", "scope", "available_scopes", "mcp_servers")
@@ -837,6 +858,12 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertEnumValues(t, propertySchema(t, mcpListSchema, "scope"), "profile", "user", "workspace")
 		mcpItemRootSchema := propertySchema(t, mcpListSchema, "mcp_servers").Items.Value
 		assertRequired(t, mcpItemRootSchema, "name", "transport", "scope", "source_metadata")
+		assertNotRequired(t, mcpItemRootSchema, "headers_configured")
+		if !propertySchema(t, mcpItemRootSchema, "headers_configured").Type.Is("boolean") {
+			t.Fatal("headers_configured must be a boolean")
+		}
+		assertPropertyAbsent(t, mcpItemRootSchema, "headers")
+		assertPropertyAbsent(t, mcpItemRootSchema, "secret_headers")
 		assertNotRequired(
 			t,
 			mcpItemRootSchema,
@@ -1026,4 +1053,76 @@ func assertParameterEnumValues(t *testing.T, operation *openapi3.Operation, name
 	}
 
 	t.Fatalf("parameter %q not found", name)
+}
+
+// #1305: optional presence and preservation flags; values and existing required sets stay unchanged.
+func addSettingsMCPHeaderPresence(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	reads, writes := 0, 0
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				walk(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if properties["secret_env_keys"] != nil && properties["runtime_status"] != nil &&
+				properties["source_metadata"] != nil {
+				properties["headers_configured"] = map[string]any{"type": "boolean"}
+				reads++
+			}
+			if properties["server"] != nil && properties["preserve_env"] != nil &&
+				properties["preserve_secrets"] != nil {
+				properties["preserve_headers"] = map[string]any{"type": "boolean"}
+				writes++
+			}
+		}
+	}
+	walk(baseline)
+	if reads == 0 || writes == 0 {
+		t.Fatalf("approved MCP header additions: found %d read schemas and %d write schemas", reads, writes)
+	}
+}
+
+// window-tabs-split retains the v0.6 Settings shapes, deprecated until v0.8.0.
+func deprecateRetiredWindowManagerSettings(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	for _, path := range [][]string{
+		{"get", "responses", "200", "content", "application/json", "schema"},
+		{"patch", "requestBody", "content", "application/json", "schema"},
+		{"patch", "responses", "200", "content", "application/json", "schema"},
+	} {
+		value := baseline["paths"].(map[string]any)["/api/settings/window-manager"].(map[string]any)
+		for _, key := range path {
+			next, ok := value[key].(map[string]any)
+			if !ok {
+				t.Fatalf("approved window-manager deprecations: missing %v at %s", path, key)
+			}
+			value = next
+		}
+		properties := value["properties"].(map[string]any)["config"].(map[string]any)["properties"].(map[string]any)
+		properties["new_window_policy"].(map[string]any)["description"] =
+			`Deprecated value "floating": translated to "tab"; removed in v0.8.0.`
+		for _, name := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
+			property, ok := properties[name].(map[string]any)
+			if !ok {
+				t.Fatalf("approved window-manager deprecations: missing %s in %v", name, path)
+			}
+			property["deprecated"] = true
+			property["description"] = "Deprecated: accepted and ignored; remove before v0.8.0."
+			if name == "snap" || name == "bindings" {
+				properties[name] = map[string]any{
+					"allOf": []any{property}, "deprecated": true, "description": property["description"],
+				}
+			}
+		}
+	}
 }

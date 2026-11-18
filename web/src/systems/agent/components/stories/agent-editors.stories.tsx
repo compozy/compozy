@@ -143,7 +143,6 @@ function permissionsProps(
 ): AgentPermissionsViewProps {
   return {
     agent: alwaysOnAgent,
-    providerId: "claude",
     providerName: "Claude Code",
     level: "",
     sessionApproval: "",
@@ -183,19 +182,6 @@ export const PermissionsReviewerUnavailable: Story = {
 
 export const PermissionsReviewerDegraded: Story = {
   render: () => <AgentPermissionsView {...permissionsProps({ level: "auto", degraded: true })} />,
-};
-
-export const PermissionsNeverAskCodex: Story = {
-  render: () => (
-    <AgentPermissionsView
-      {...permissionsProps({
-        agent: { ...alwaysOnAgent, provider: "codex" },
-        level: "approve-all",
-        providerId: "codex",
-        providerName: "Codex",
-      })}
-    />
-  ),
 };
 
 export const PermissionsExceptions: Story = {

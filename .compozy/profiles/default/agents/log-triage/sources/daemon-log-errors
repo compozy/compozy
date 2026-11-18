@@ -1,0 +1,500 @@
+#!/usr/bin/env python3
+"""Log Triage check-in source: new error fingerprints in the CompozyOS daemon logs.
+
+Reads the window since the last committed check (the last 24h with no state):
+ERROR lines of the JSON daemon logs (`compozy.log`, rotated `compozy-*.log`
+and `compozy-*.log.gz`, plus plain-text slog lines); `panic:`, `fatal error:`,
+`error:` and ERROR lines of `daemon-stdio.log`; session crash bundles; and WARN
+lines, which only count toward a spike against the previous window.
+
+Each line becomes a fingerprint `<level>|<msg>|<error class>` (`error_code`,
+`reason_code`, the `error` text, or the HTTP route and status), with quoted
+values, IDs, paths, timestamps and numbers stripped. The source emits one item
+per fingerprint keyed `<kind>:<sha256 prefix>`. Key and attributes depend only
+on the fingerprint; count, first/last seen and samples go in the summary.
+
+An ERROR fingerprint is emitted when it is new, last raised more than 7 days
+ago, or at least 3x (and 10) its count when last raised. A WARN fingerprint is
+emitted when its hourly rate is at least 3x the previous window's with 20+
+lines. A clean window emits no items, so no model turn runs. A window with more
+than `max_items` candidates pages with `more`; `state.open` pins its end, stdio
+offset, last emitted key and emitted key suffixes until the last page.
+
+`params.key` returns that one fingerprint, with no dedup or state (picked-proposal
+lookup). Samples carry allowlisted log fields only, never prompt or output bodies,
+with home paths as `~` and secrets redacted. Read-only. Contract: CompozyOS
+check-in source v1 (JSON on stdin, {"items": [...]} on stdout).
+"""
+
+import datetime as dt
+import functools
+import glob
+import gzip
+import hashlib
+import zlib
+import json
+import os
+import re
+import sys
+
+DEFAULT_WINDOW_HOURS = 24
+RECHECK_DAYS = 7
+GROWTH_FACTOR = 3
+WARN_SPIKE_RATIO = 3
+WARN_SPIKE_MIN = 20
+WARN_BASELINE_LIMIT = 80
+ATTRIBUTES_BYTES = 1900
+SAMPLES, SAMPLE_CHARS = 2, 300
+PRIORITY = {"panic": 0, "crash": 1, "error": 2, "warn": 3}
+SAMPLE_FIELDS = (
+    "msg", "error", "error_code", "reason", "reason_code", "status", "method", "path",
+    "provider", "agent", "agent_name", "kind", "stage", "component", "event", "outcome", "phase",
+)
+
+STAMP = re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d) ")
+TEXT_LINE = re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d) (ERROR|WARN) (.*)$")
+TEXT_ATTR = re.compile(r"\s[A-Za-z_][A-Za-z0-9_.]*=")
+TEXT_FIELD = re.compile(r"([A-Za-z_][A-Za-z0-9_.]*)=(\"(?:[^\"\\]|\\.)*\"|\S+)")
+STDIO_ALERT = re.compile(r"^(panic: |fatal error: |error: )(.*)$")
+GO_FRAME = re.compile(r"^(github\.com/compozy/compozy/\S+)\([^()]*\)\s*$")
+
+AUTH_SCHEME = re.compile(r"(?i)\b(bearer|basic)\s+[^\s,;\"']+")
+URL_SECRET = re.compile(r"(?i)(://)[^/@\s:]+:[^/@\s]+@|([?&](?:key|token|access_token|api_key|secret|sig|signature|password)=)[^&\s\"']+")
+SECRET = re.compile(
+    r"(?i)\b([A-Za-z0-9_-]*?(?:token|passw(?:or)?d|passphrase|api[_-]?key|private[_-]?key|secret|credential"
+    r"|authorization|bearer|cookie)[A-Za-z0-9_-]*[\"']?)"
+    r"(\s*[:=]\s*|\s+)(\"[^\"]*\"|'[^']*'|[^\s,;\"'}]+)"
+)
+SECRET_VALUE = re.compile(
+    r"\b(sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
+    r"|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9._-]+)"
+)
+USER_HOME = re.compile(r"/(Users|home)/[^/\s\"']+")
+
+NORMALIZERS = (
+    (re.compile(r"\s*stderr=.*$", re.S), ""),
+    (re.compile(r"\"(?:[^\"\\]|\\.)*\""), "\"*\""),
+    (re.compile(r"'[^'\s]*'"), "'*'"),
+    (re.compile(r"\d{4}-\d\d-\d\d[T ][\d:.]+(?:Z|[+-]\d\d:?\d\d)?"), "<ts>"),
+    (re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"), "<uuid>"),
+    (re.compile(r"(?:~|\.{0,2})/[^\s\"':,;()]+"), "<path>"),
+    (re.compile(r"\b[a-z][a-z0-9_]*[-_.][0-9a-f]{8,}[0-9a-z._:-]*"), "<id>"),
+    (re.compile(r"\b[0-9a-f]{12,}\b"), "<hex>"),
+    (re.compile(r"\d+"), "#"),
+    (re.compile(r"\s+"), " "),
+)
+
+
+def parse_time(value):
+    """Parse RFC 3339 with any fraction length (Go trims zeros); returns aware UTC or None."""
+    if not value:
+        return None
+    text = str(value).strip().replace("Z", "+00:00")
+    match = re.match(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d+))?(.*)$", text)
+    if not match:
+        return None
+    frac = "." + (match.group(2) + "000000")[:6] if match.group(2) else ""
+    try:
+        parsed = dt.datetime.fromisoformat(match.group(1) + frac + match.group(3))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.astimezone()
+    return parsed.astimezone(dt.timezone.utc)
+
+
+def iso(moment):
+    return moment.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def redact(text):
+    text = URL_SECRET.sub(lambda m: (m.group(1) or m.group(2)) + "[REDACTED]" + ("@" if m.group(1) else ""), text)
+    text = AUTH_SCHEME.sub(lambda m: m.group(1) + " [REDACTED]", text)
+    text = SECRET.sub(lambda m: m.group(1) + m.group(2) + "[REDACTED]", text)
+    return SECRET_VALUE.sub("[REDACTED]", text)
+
+
+@functools.lru_cache(maxsize=8192)
+def normalize(text, limit=160):
+    text = redact(str(text or ""))
+    for pattern, replacement in NORMALIZERS:
+        text = pattern.sub(replacement, text)
+    return text.strip()[:limit]
+
+
+def sanitize(text, home):
+    text = re.sub(r"\s*stderr=.*$", " stderr=[omitted]", str(text or ""), flags=re.S)
+    if home:
+        text = text.replace(home, "~")
+    text = redact(USER_HOME.sub("~", text))
+    return re.sub(r"\s+", " ", text).strip()[:SAMPLE_CHARS]
+
+
+@functools.lru_cache(maxsize=8192)
+def error_class(text, limit=160):
+    """Normalized error chain; cancellations collapse to their first segment and leaf."""
+    chain = normalize(text, 600)
+    leaf = re.search(r"(context canceled|context deadline exceeded)$", chain)
+    if leaf and ": " in chain:
+        return f"{chain.split(': ')[0]}: ... {leaf.group(1)}"
+    return chain[:limit]
+
+
+def crash_class(failure):
+    if failure.get("reason_code"):
+        return normalize(str(failure["reason_code"]))
+    summary = str(failure.get("summary") or "")
+    for pattern in (r"provider_failure_kind=(\w+)", r'"errorKind":"(\w+)"'):
+        found = re.search(pattern, summary)
+        if found:
+            return found.group(1)
+    message = summary.startswith("{") and re.search(r'"message":"((?:[^"\\]|\\.)*)"', summary)
+    if message:
+        return normalize(re.split(r" · | — |\. ", message.group(1))[0], 100)
+    return error_class(summary, 100)
+
+
+class Groups:
+    def __init__(self, start, end, home):
+        self.start, self.end, self.home = start, end, home
+        self.groups = {}
+
+    def add(self, kind, level, source, msg, cls, moment, sample):
+        if not self.start <= moment < self.end:
+            return
+        # cls arrives normalized: HTTP routes keep their shape, error text does not.
+        msg = normalize(str(msg), 120)
+        fingerprint = "|".join((level, msg, cls))
+        key = f"{kind}:{hashlib.sha256(fingerprint.encode()).hexdigest()[:16]}"
+        group = self.groups.get(key)
+        if group is None:
+            group = self.groups[key] = {
+                "key": key, "kind": kind, "level": level, "source": source, "msg": msg,
+                "fingerprint": fingerprint, "count": 0, "first": moment, "last": moment, "samples": [],
+            }
+        group["count"] += 1
+        group["first"], group["last"] = min(group["first"], moment), max(group["last"], moment)
+        if len(group["samples"]) < SAMPLES:
+            clean = sanitize(sample() if callable(sample) else sample, self.home)
+            if clean and clean not in group["samples"]:
+                group["samples"].append(clean)
+
+
+def route(path):
+    segments = str(path).split("?")[0].split("/")
+    return "/".join(":id" if re.search(r"\d", seg) and not seg.startswith(":") else seg for seg in segments)
+
+
+def json_class(record):
+    for field in ("error_code", "reason_code"):
+        if record.get(field):
+            return normalize(f"{field}={record[field]}")
+    if record.get("error"):
+        return error_class(str(record["error"]))
+    if record.get("path"):
+        return f"{record.get('method', '')} {route(record['path'])} {record.get('status', '')}"[:160]
+    return normalize(str(record.get("reason") or ""))
+
+
+def json_sample(record):
+    parts = [str(record.get("level", ""))]
+    for field in SAMPLE_FIELDS:
+        value = record.get(field)
+        if value not in (None, ""):
+            value = redact(value if isinstance(value, str) else json.dumps(value))
+            parts.append(f"{field}={json.dumps(value)}")
+    return " ".join(parts)
+
+
+@functools.lru_cache(maxsize=4096)
+def local_stamp(stamp):
+    try:
+        return dt.datetime.strptime(stamp, "%Y/%m/%d %H:%M:%S").astimezone().astimezone(dt.timezone.utc)
+    except ValueError:
+        return None
+
+
+def text_record(line):
+    match = TEXT_LINE.match(line)
+    moment = match and local_stamp(match.group(1))
+    if not moment:
+        return None
+    level, rest = match.group(2), match.group(3)
+    attr = TEXT_ATTR.search(rest)
+    msg = rest[: attr.start()] if attr else rest
+    fields = dict(TEXT_FIELD.findall(rest[len(msg):]))
+    cls = error_class(fields["error"].strip("\"")) if fields.get("error") else ""
+    kept = " ".join(f"{k}={redact(v)}" for k, v in fields.items() if k in SAMPLE_FIELDS)
+    return moment, level, msg, cls, f"{level} {msg} {kept}"
+
+
+def log_record(line):
+    """One ERROR or WARN record of a daemon log line, or None."""
+    if not line.startswith("{"):
+        return text_record(line)
+    if '"ERROR"' not in line and '"WARN"' not in line:
+        return None
+    try:
+        record = json.loads(line)
+    except ValueError:
+        return None
+    level = record.get("level") if isinstance(record, dict) else None
+    moment = parse_time(record.get("time")) if level in ("ERROR", "WARN") else None
+    if moment is None:
+        return None
+    return moment, level, record.get("msg") or "", json_class(record), functools.partial(json_sample, record)
+
+
+def scan_daemon_logs(directory, groups, warns):
+    # Rotated backups are `.log`, or `.log.gz` with `log.compress_backups = true`.
+    paths = sorted(glob.glob(os.path.join(directory, "compozy-*.log")))
+    paths += sorted(glob.glob(os.path.join(directory, "compozy-*.log.gz")))
+    paths.append(os.path.join(directory, "compozy.log"))
+    for path in paths:
+        opener = gzip.open if path.endswith(".gz") else open
+        try:
+            if dt.datetime.fromtimestamp(os.path.getmtime(path), dt.timezone.utc) < groups.start:
+                continue
+            with opener(path, "rt", encoding="utf-8", errors="replace") as handle:
+                for record in filter(None, map(log_record, handle)):
+                    moment, level, msg, cls, sample = record
+                    target, kind = (groups, "error") if level == "ERROR" else (warns, "warn")
+                    target.add(kind, level, "daemon-log", msg, cls, moment, sample)
+        except (OSError, EOFError, zlib.error):
+            continue  # an unreadable or truncated file must not fail the whole check
+
+
+def scan_stdio(directory, groups, committed, end_off=None):
+    """Scan daemon-stdio.log from the committed offset to a whole-line end; returns that offset state."""
+    path = os.path.join(directory, "daemon-stdio.log")
+    try:
+        info = os.stat(path)
+    except OSError:
+        return {}
+    mtime = dt.datetime.fromtimestamp(info.st_mtime, dt.timezone.utc)
+    # With committed state every byte past the offset is new: the same file
+    # resumes at the offset, a replaced or truncated file restarts at zero.
+    resumed = bool(committed)
+    offset = 0
+    if committed.get("ino") == info.st_ino and 0 <= committed.get("off", -1) <= info.st_size:
+        offset = committed["off"]
+    elif not resumed and mtime < groups.start:
+        return {"ino": info.st_ino, "off": info.st_size, "read": False}
+    stop = info.st_size if end_off is None else min(end_off, info.st_size)
+    with open(path, "rb") as handle:
+        handle.seek(offset)
+        data = handle.read(max(0, stop - offset))
+    if end_off is None:
+        data = data[: data.rfind(b"\n") + 1]  # a half-written last line waits for the next window
+    lines = data.decode("utf-8", errors="replace").splitlines()
+
+    def clamp(moment):
+        return min(max(moment, groups.start), groups.end - dt.timedelta(microseconds=1))
+
+    # An untimestamped alert happened before the next slog timestamp, or before
+    # the file's last write when none follows. It is dropped only when that
+    # bound proves it older than the window; with state every new byte counts.
+    pending = []
+
+    def settle(bound):
+        for kind, level, msg, cls, sample in pending:
+            if resumed or bound >= groups.start:
+                groups.add(kind, level, "daemon-stdio", msg, cls, clamp(bound), sample)
+        pending.clear()
+
+    for index, line in enumerate(lines):
+        stamp = STAMP.match(line)
+        if stamp and local_stamp(stamp.group(1)):
+            settle(local_stamp(stamp.group(1)))
+            parsed = text_record(line)
+            if parsed and parsed[1] == "ERROR":
+                moment, level, msg, cls, sample = parsed
+                groups.add("error", level, "daemon-stdio", msg, cls, clamp(moment) if resumed else moment, sample)
+            continue
+        alert = STDIO_ALERT.match(line)
+        if not alert:
+            continue
+        prefix, message = alert.groups()
+        kind, frame = ("error" if prefix == "error: " else "panic"), ""
+        if kind == "panic":
+            for follow in lines[index + 1 : index + 60]:
+                found = GO_FRAME.match(follow)
+                if found:
+                    frame = found.group(1)
+                    break
+        level = "ERROR" if kind == "error" else prefix.rstrip(": ").upper()
+        sample = f"{prefix}{message}" + (f" at {frame}" if frame else "")
+        pending.append((kind, level, prefix + message, frame, sample))
+    settle(mtime)
+    return {"ino": info.st_ino, "off": offset + len(data)}
+
+
+def scan_crash_bundles(directory, groups):
+    for path in sorted(glob.glob(os.path.join(directory, "crash-bundles", "*.json"))):
+        try:
+            mtime = dt.datetime.fromtimestamp(os.path.getmtime(path), dt.timezone.utc)
+            if mtime < groups.start:
+                continue
+            with open(path, encoding="utf-8", errors="replace") as handle:
+                bundle = json.load(handle)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(bundle, dict):
+            continue
+        failure = bundle.get("failure") if isinstance(bundle.get("failure"), dict) else {}
+        kind = str(failure.get("kind") or "crash")
+        sample = " ".join(
+            f"{field}={json.dumps(value) if isinstance(value, str) else value}"
+            for field, value in (
+                ("kind", kind),
+                ("reason_code", failure.get("reason_code")),
+                ("provider", bundle.get("provider")),
+                ("agent", bundle.get("agent_name")),
+                ("state", bundle.get("state")),
+                ("summary", failure.get("summary")),
+            )
+            if value
+        )
+        moment = parse_time(bundle.get("created_at")) or mtime
+        groups.add("crash", "CRASH", "crash-bundle", kind, crash_class(failure), moment, sample)
+
+
+def should_emit(group, known, today):
+    entry = known.get(group["key"])
+    try:
+        emitted, last_count = dt.date.fromisoformat(entry[0]), int(entry[1])
+    except (ValueError, TypeError, IndexError, KeyError):
+        return "new"
+    if (today - emitted).days >= RECHECK_DAYS:
+        return "recurring"
+    if group["count"] >= max(10, GROWTH_FACTOR * last_count):
+        return "growing"
+    return ""
+
+
+def warn_spikes(warns, baseline, hours):
+    spikes = []
+    for group in warns.groups.values():
+        previous = float(baseline.get(group["key"], 0))
+        if group["count"] >= WARN_SPIKE_MIN and group["count"] / hours >= WARN_SPIKE_RATIO * max(previous, 0.01):
+            spikes.append(group)
+    return spikes
+
+
+def to_item(group, reason):
+    lines = [f"{group['count']}x {reason}, first {iso(group['first'])}, last {iso(group['last'])}."]
+    lines += [f"sample: {sample}" for sample in group["samples"]]
+    attributes = {"fingerprint": group["fingerprint"], "kind": group["kind"], "source": group["source"]}
+    # The daemon bounds attributes by encoded bytes; escaped non-ASCII can triple them.
+    while len(json.dumps(attributes)) > ATTRIBUTES_BYTES:
+        attributes["fingerprint"] = attributes["fingerprint"][:-16]
+    return {
+        "key": group["key"],
+        "title": f"{group['level']} {group['msg'] or group['kind']}"[:200],
+        "summary": "\n".join(lines)[:1000],
+        "attributes": attributes,
+    }
+
+
+def bounded_state(state, budget):
+    """Trim the oldest history, then the lowest WARN baselines, to fit the state limit."""
+    known, warn = state.get("known") or {}, state.get("warn") or {}
+    oldest = sorted(known, key=lambda key: known[key][0])
+    lowest = sorted(warn, key=warn.get)
+    while len(json.dumps(state, separators=(",", ":"))) > budget and (oldest or lowest):
+        if oldest:
+            del known[oldest.pop(0)]
+        else:
+            del warn[lowest.pop(0)]
+    return state
+
+
+def emit(result):
+    sys.stdout.write(json.dumps(result, separators=(",", ":")) + "\n")
+
+
+def main():
+    raw = sys.stdin.read()
+    request = json.loads(raw) if raw.strip() else {}
+    params = request.get("params") or {}
+    limits = request.get("limits") or {}
+    max_items, max_state = int(limits.get("max_items") or 20), int(limits.get("max_state_bytes") or 16384)
+    budget = max_state * 3 // 4
+    previous = request.get("state") if isinstance(request.get("state"), dict) else {}
+    lookup = params.get("key")
+    if lookup:
+        previous = {}
+    page = previous.get("open") if isinstance(previous.get("open"), dict) else {}
+
+    home, directory = os.environ.get("HOME", ""), os.path.expanduser(params.get("logs_dir") or "~/.compozy/logs")
+    now = parse_time(request.get("now")) or dt.datetime.now(dt.timezone.utc)
+    # Whole seconds: `end` round-trips through state exactly, so pages and the next cursor match.
+    end = parse_time(page.get("end")) or now.replace(microsecond=0)
+    start = parse_time(previous.get("cursor")) or end - dt.timedelta(hours=float(params.get("window_hours") or DEFAULT_WINDOW_HOURS))
+    start = max(start, end - dt.timedelta(days=RECHECK_DAYS))
+    hours = max((end - start).total_seconds() / 3600, 1 / 60)
+
+    errors, warns = Groups(start, end, home), Groups(start, end, home)
+    scan_daemon_logs(directory, errors, warns)
+    if page.get("stdio_read", True):
+        pinned = (page.get("stdio") or {}).get("off") if page else None
+        stdio = scan_stdio(directory, errors, previous.get("stdio") or {}, pinned)
+    else:
+        stdio = page["stdio"]  # the first page skipped an old file; later pages must too
+    scan_crash_bundles(directory, errors)
+
+    if lookup:
+        # Manual lookup of one fingerprint (the picked-proposal step): no dedup, no state.
+        found = errors.groups.get(lookup) or warns.groups.get(lookup)
+        return emit({"items": [to_item(found, "in window")] if found else []})
+
+    # Pages walk the pinned window in (priority, key) order after the last emitted
+    # key, so a candidate that appears or vanishes between pages shifts nothing;
+    # only emitted keys (tracked by prefix) enter the history when the window closes.
+    known = dict(previous.get("known") or {})
+    spikes = warn_spikes(warns, previous.get("warn") or {}, hours) if "warn" in previous else []
+    candidates = []
+    for group in list(errors.groups.values()) + spikes:
+        reason = should_emit(group, known, end.date())
+        if reason:
+            candidates.append((group, "spike" if group["kind"] == "warn" and reason == "new" else reason))
+    order = lambda pair: [PRIORITY[pair[0]["kind"]], pair[0]["key"]]  # noqa: E731
+    after = page.get("after") or [-1, ""]
+    remaining = sorted((pair for pair in candidates if order(pair) > after), key=order)
+    emitted = remaining[:max_items]
+    # Emitted key suffixes fill the state room the committed state leaves; past it
+    # (`sent: null`) every candidate up to the last emitted key counts as emitted.
+    sent = None if page and page.get("sent") is None else set(page.get("sent") or [])
+    room = max_state - len(json.dumps(previous)) - 512
+    if sent is not None:
+        sent |= {group["key"][-6:] for group, _ in emitted}
+        sent = sent if len(sent) * 9 <= room else None
+
+    if len(remaining) > max_items:
+        state = dict(previous)
+        state["open"] = {
+            "end": iso(end), "after": order(emitted[-1]), "sent": sorted(sent) if sent is not None else None,
+            "stdio": stdio, "stdio_read": page.get("stdio_read", stdio.get("read", True)),
+        }
+        # The committed history stays untouched while the window is open.
+        return emit({"items": [to_item(g, r) for g, r in emitted], "state": state, "more": True})
+
+    for group, _ in candidates:
+        if sent is None or group["key"][-6:] in sent:
+            known[group["key"]] = [end.date().isoformat(), group["count"]]
+    top = sorted(warns.groups.values(), key=lambda group: -group["count"])[:WARN_BASELINE_LIMIT]
+    state = {
+        "v": 1,
+        "cursor": iso(end),
+        "stdio": {"ino": stdio.get("ino"), "off": stdio.get("off")} if stdio else {},
+        "known": known,
+        "warn": {group["key"]: round(group["count"] / hours, 2) for group in top},
+    }
+    emit({"items": [to_item(g, r) for g, r in emitted], "state": bounded_state(state, budget)})
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:  # report a real failure to the daemon
+        print(f"daemon-log-errors: {exc}", file=sys.stderr)
+        sys.exit(1)

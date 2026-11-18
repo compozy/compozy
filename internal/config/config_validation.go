@@ -81,6 +81,9 @@ func (c *Config) validateCore() error {
 	if err := c.Gateway.Validate(); err != nil {
 		return err
 	}
+	if err := rejectConfiguredMCPReferences(c.MCPServers); err != nil {
+		return err
+	}
 	for i, server := range c.MCPServers {
 		if err := server.Validate(fmt.Sprintf("mcp_servers[%d]", i)); err != nil {
 			return err
@@ -91,6 +94,9 @@ func (c *Config) validateCore() error {
 
 func (c *Config) validateProviders() error {
 	for name := range c.Providers {
+		if c.IsProviderDisabled(name) {
+			continue
+		}
 		if _, err := c.ResolveProvider(name); err != nil {
 			return err
 		}
@@ -101,7 +107,7 @@ func (c *Config) validateProviders() error {
 		}
 	}
 
-	return nil
+	return c.validateDefaultProviderEnabled()
 }
 
 // Validate ensures the default agent setting is present and valid, and that

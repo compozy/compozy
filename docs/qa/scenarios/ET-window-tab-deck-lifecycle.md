@@ -1,12 +1,12 @@
 ---
 id: ET-window-tab-deck-lifecycle
 area: ET
-title: Group related work into one persistent tab deck
+title: Open, activate, reorder and close windows as tabs in the desktop tab bar
 persona: Bruno
 journey: J-organize-tabbed-work
-expected: Drag, context-menu, and Command-T grouping each create one ordered frame; dragging a window over a solo window's head shows the accent "Group as tabs" affordance and release folds both into one deck; the deck mounts only at two or more members as a 40px recessed strip of browser-style tabs (208px shrinking to 136px, the active tab a surface plate with concave feet fused with the head, hairlines between inactive tabs, a 28px New tab button, 20px close buttons) with the quiet window controls on the right, keeps hidden bodies mounted, supports reorder and tear-out, and survives reload with the same active member and placement.
-entry_points: web desktop window drag; tab and dock context menus; Command-T; web /new-tab
-qa_status: skipped
+expected: Each desktop shows one tab bar (a tablist named "Tabs") listing every tab; opening an app or pressing ⌘T adds a tab right after the active tab and activates it; a tab shows its lead window's icon and title (a session tab shows its agent's face: an always-on main its instance avatar, another agent its configured icon on its plate, a session with no agent the generic mark), a split tab up to three icon tiles and a member count; clicking a tab activates it, middle-click closes it, the bar is one keyboard stop where Left/Right move between tabs and Home/End jump to the first and last, ⌃Tab/⌃⇧Tab cycle, ⌘1–⌘8 jump and ⌘9 goes to the last tab; dragging a tab along the bar or using the tab menu's Move ▸ Left/Right reorders it within its pinned or unpinned range; the pending-count pill and tooltip trail stay on the tab; a desktop always keeps at least one tab.
+entry_points: desktop tab bar (pointer, keyboard, middle-click); ⌘T; ⌃Tab; ⌘1–9; tab context menu Move ▸ Left/Right; window.tab.move_left|move_right; compozy window open|activate|reorder
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -15,6 +15,8 @@ evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/window-merge
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-layout-gestures; ET-web-desktop-shell-lifecycle
 ---
+
+> The notes and walks below up to the 2026-11-13 qa-impact note describe decks, floating windows, snapping or zoom and are history only; walk the 2026-11-13 note.
 
 Derived from J-organize-tabbed-work steps 1-2. Covers functional grouping, interruption recovery,
 pointer/keyboard consistency, reduced-motion presentation, and reload continuity. Safety hot spots:
@@ -81,3 +83,15 @@ qa-impact: 2026-09-30 shell-rail polish P6 — with the new default `new_window_
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Decks, "Group as tabs" and per-pane tab strips are gone; this scenario now owns tab bar basics. Walk: Preconditions: an isolated lab from `eng-qa-bootstrap` running this build, one workspace open in the Web shell. Open Sessions, Tasks and Terminal from the dock: each appears as a tab right after the active one and becomes active. ⌘T opens a New Tab. Click each tab; Tab into the bar and use ←/→ to move focus, Enter to activate. ⌃Tab and ⌃⇧Tab cycle; ⌘2 jumps to the second tab; ⌘9 to the last. Middle-click a tab: it closes. Drag the last tab to first place; then right-click › Move right. Split two tabs (drag one into the content): the remaining tab shows two icon tiles and the member count "2". Start a session that waits for input: the tab shows its waiting count. `compozy window list` shows TAB, TAB INDEX and MEMBERS matching the bar.
+
+qa-impact: 2026-11-13 window-tabs-split S10 (review fixes). The tab bar now uses roving focus. Walk: Tab into the bar lands on the active tab; Left, Right, Home and End move focus; Tab again leaves the bar.
+
+qa-impact: 2026-11-13 issue #1659 (tab menu grouping). The tab menu now reads Pin tab · Move ▸ (Left, Right, To desktop) · Split with ▸ · Arrange ▸ · Close tab · Close ▸ (Other tabs, Tabs to the right, Tabs to the left, All tabs) · Reopen closed tab; the "right-click › Move right" step of the walk above is now right-click › Move › Right. Walk: right-click a middle tab: the top level lists exactly those items in that order. Move › Left and Move › Right each take it one place. On the first unpinned tab Move offers no Left; on a lone tab with one desktop the Move, Split with and Arrange submenus are absent, not empty. After choosing an item from a submenu by keyboard, focus is back on the tab the menu came from.
+
+qa-impact: 2026-11-14 issue #1709 (session tab agent mark). A session tab's tile now shows its agent's face instead of the provider or generic session mark. Walk: open an always-on agent's main session, a session of a defined agent with a configured icon, and a session of an agent with no configured icon from the sessions list: the first tab shows the same avatar as the session head, the second that agent's icon and plate as its sessions-list row, the third the agent's generated face as in the list. Files, Tasks and Terminal tabs keep their app icons; a split of two sessions shows the lead session's agent on its front tile.
+
+qa-impact: 2026-11-15 issue #1736 — shared shell chrome reads the effective worktree selection while exact focused-window identity is confined to session controls and worktree dialogs. Switch repeatedly between tabs inheriting one selection, then between tabs with different explicit selections. Confirm the worktree chip and New session environment follow the selected tab; toggle each session window’s sidebar independently and create/adopt a worktree for the focused window. Run E2E-023 with its unchanged eleven-tab fixture and 50 ms switch/peer budget. Validation is CI-only; no local scenario walk is claimed.
+
+qa-impact: 2026-11-15 issue #1736 dock follow-up — unchanged launcher values retain their menu render boundary during focus changes and catalog fetching updates. Switch Tasks ↔ Dashboard repeatedly, then open an unaffected launcher’s context menu and activate each destination. Confirm active/running marks, badges, keyboard focus and modifier clicks still follow live state. The existing worktree-adoption E2E also checks that adoption writes the focused window’s own selection and preserves the other window’s own entry; selection gestures still update the ambient shell default.

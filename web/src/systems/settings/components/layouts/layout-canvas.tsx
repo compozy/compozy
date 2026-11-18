@@ -1,158 +1,85 @@
-import { useRef } from "react";
-
 import { cn } from "@compozy/ui";
 
-import type { LayoutSelection } from "../../hooks/use-layout-canvas-selection";
-import {
-  normalizedPercentStyle,
-  overlappingGroupIds,
-} from "../../lib/window-manager-layout-canvas";
+import { OsSplitView, type OsSplitSeamSlot } from "@/systems/os";
+
+import { findLayoutNode } from "../../lib/window-manager-layout-tree";
 import type {
-  WindowManagerLayoutDesktop,
   WindowManagerLayoutDocument,
-  WindowManagerNormalizedRect,
+  WindowManagerLayoutNode,
+  WindowManagerLayoutTab,
 } from "../../lib/window-manager-layout-types";
-import { LayoutCanvasFloating } from "./layout-canvas-floating";
-import { LayoutCanvasGroupEdge } from "./layout-canvas-group-edge";
 import { LayoutCanvasSeam } from "./layout-canvas-seam";
 import { LayoutCanvasTile } from "./layout-canvas-tile";
-import type { LayoutProjection, WindowManagerConfig } from "@/systems/os";
-
-const GROUP_EDGES = ["top", "right", "bottom", "left"] as const;
 
 interface LayoutCanvasProps {
   document: WindowManagerLayoutDocument;
-  desktop: WindowManagerLayoutDesktop;
-  projection: LayoutProjection;
-  config: WindowManagerConfig;
-  selection: LayoutSelection;
-  onSelect: (next: LayoutSelection) => void;
-  onDesktopChange: (next: WindowManagerLayoutDesktop) => void;
-  onFloatingRectChange: (windowId: string, rect: WindowManagerNormalizedRect) => void;
+  tab: WindowManagerLayoutTab;
+  /** The window whose leaf the inspector is showing. */
+  selectedWindowId: string | null;
+  onSelect: (windowId: string | null) => void;
+  onRootChange: (root: WindowManagerLayoutNode) => void;
 }
 
 /**
- * The desktop, at the size of a desktop. Every rect on this surface comes from
- * the runtime projector, so the arrangement shown is the arrangement the shell
- * builds — including where it folds a split into a stack because the windows no
- * longer fit.
+ * The draft lays nothing out on screen, so no split is ever collapsed and no
+ * live window or session backs a tile.
+ */
+const NO_COLLAPSED: [] = [];
+const NO_LIVE_WINDOWS = {};
+const noSession = () => undefined;
+const noShowMember = () => undefined;
+
+/**
+ * One tab's content, laid out by the shell's own split renderer
+ * (`OsSplitView`): each split is a flex row or column whose members grow by
+ * their weights, separated by seams. The editor supplies the tiles and the
+ * seams, which edit the draft instead of the running workspace.
  */
 export function LayoutCanvas({
   document,
-  desktop,
-  projection,
-  config,
-  selection,
+  tab,
+  selectedWindowId,
   onSelect,
-  onDesktopChange,
-  onFloatingRectChange,
+  onRootChange,
 }: LayoutCanvasProps) {
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const overlapping = overlappingGroupIds(desktop);
-  const stacks = new Map(projection.stacks.map(stack => [stack.nodeId, stack]));
-  const empty = desktop.groups.length === 0 && desktop.floating.length === 0;
+  const renderSeam = (slot: OsSplitSeamSlot) => {
+    const split = findLayoutNode(tab.root, slot.splitId);
+    if (split === null || split.kind !== "split") return null;
+    return (
+      <LayoutCanvasSeam
+        index={slot.boundaryIndex}
+        root={tab.root}
+        split={split}
+        onChange={onRootChange}
+      />
+    );
+  };
 
   return (
     <div
       className={cn(
-        "relative aspect-[16/10] overflow-hidden rounded-md border border-line-strong bg-sunken",
+        "relative flex aspect-[16/10] overflow-hidden rounded-md border border-line-strong bg-canvas",
         "shadow-hairline-inset select-none"
       )}
       data-testid="layout-canvas"
-      ref={canvasRef}
+      data-tab-id={tab.id}
     >
-      <button
-        aria-label="Clear layout selection"
-        className="absolute inset-0 cursor-default focus-visible:outline-none focus-visible:shadow-focus-ring"
-        type="button"
-        onClick={() => onSelect(null)}
-      />
-
-      {empty ? (
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-small-body text-subtle">
-          <p className="text-fg">No windows on this desktop</p>
-          <p>Open a window in the project to start tiling.</p>
-        </div>
-      ) : null}
-
-      {desktop.groups.map(group => (
-        <div
-          className={cn(
-            "absolute rounded-sm outline-1 outline-transparent",
-            "transition-[outline-color] duration-base ease-out",
-            selection?.kind === "group" &&
-              selection.id === group.id &&
-              "outline-fg-2 outline-offset-1",
-            overlapping.has(group.id) && "outline-dashed outline-destructive"
-          )}
-          data-overlapping={overlapping.has(group.id) ? "true" : undefined}
-          data-testid={`layout-canvas-group-${group.id}`}
-          key={group.id}
-          style={normalizedPercentStyle(group.frame)}
-        >
-          {GROUP_EDGES.map(edge => (
-            <LayoutCanvasGroupEdge
-              canvasRef={canvasRef}
-              edge={edge}
-              group={group}
-              key={edge}
-              onChange={frame => {
-                onSelect({ kind: "group", id: group.id });
-                onDesktopChange({
-                  ...desktop,
-                  groups: desktop.groups.map(candidate =>
-                    candidate.id === group.id ? { ...candidate, frame } : candidate
-                  ),
-                });
-              }}
-            />
-          ))}
-        </div>
-      ))}
-
-      {projection.windows.map(projected => (
-        <LayoutCanvasTile
-          document={document}
-          key={projected.windowId}
-          projected={projected}
-          selected={selection?.kind === "node" && selection.id === projected.nodeId}
-          stack={
-            projected.stackId !== null && projected.active
-              ? (stacks.get(projected.stackId) ?? null)
-              : null
-          }
-          onSelect={() => onSelect({ kind: "node", id: projected.nodeId })}
-        />
-      ))}
-
-      {projection.seams.map(seam => (
-        <LayoutCanvasSeam
-          canvasRef={canvasRef}
-          desktop={desktop}
-          key={seam.id}
-          seam={seam}
-          onChange={onDesktopChange}
-        />
-      ))}
-
-      {desktop.floating.map(windowId => {
-        const window = document.windows[windowId];
-        if (!window) return null;
-        return (
-          <LayoutCanvasFloating
-            canvasRef={canvasRef}
-            key={windowId}
-            selected={selection?.kind === "window" && selection.id === windowId}
-            window={window}
-            onChange={rect => onFloatingRectChange(windowId, rect)}
-            onSelect={() => onSelect({ kind: "window", id: windowId })}
+      <OsSplitView
+        collapsed={NO_COLLAPSED}
+        renderSeam={renderSeam}
+        renderWindow={windowId => (
+          <LayoutCanvasTile
+            selected={windowId === selectedWindowId}
+            window={document.windows[windowId]}
+            windowId={windowId}
+            onSelect={() => onSelect(windowId)}
           />
-        );
-      })}
-
-      <span className="sr-only">
-        Gaps of {config.gaps.inner} pixels between tiles, shown at the reference screen size.
-      </span>
+        )}
+        root={tab.root}
+        sessionOf={noSession}
+        windows={NO_LIVE_WINDOWS}
+        onShowMember={noShowMember}
+      />
     </div>
   );
 }

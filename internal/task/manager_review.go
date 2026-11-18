@@ -114,6 +114,7 @@ func (m *Service) notifyRunReviewRequestedBestEffort(
 
 // GetRunReview returns one persisted task-run review.
 func (m *Service) GetRunReview(ctx context.Context, reviewID string, actor ActorContext) (RunReview, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return RunReview{}, err
 	}
@@ -239,6 +240,7 @@ func (m *Service) LookupRunReviewForSession(
 	sessionID string,
 	actor ActorContext,
 ) (RunReviewBinding, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return RunReviewBinding{}, err
 	}
@@ -265,6 +267,7 @@ func (m *Service) ListRunReviews(
 	query RunReviewQuery,
 	actor ActorContext,
 ) ([]RunReview, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}

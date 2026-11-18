@@ -105,6 +105,7 @@ type CallerScope struct {
 // ActorContext carries the authenticated principal, ingress origin, resolved task authority, caller scope,
 // and the explicit profile read lens used by task reads.
 type ActorContext struct {
+	readOnly  bool
 	Actor     ActorIdentity   `json:"actor"`
 	Origin    Origin          `json:"origin"`
 	Authority Authority       `json:"authority"`

@@ -80,6 +80,7 @@ CREATE TABLE agent_heartbeat_wake_events (
 			detail TEXT NOT NULL DEFAULT '',
 			denied_calls INTEGER NOT NULL DEFAULT 0 CHECK (denied_calls >= 0),
 			occurrence_id TEXT NOT NULL DEFAULT '',
+ tools_status TEXT NOT NULL DEFAULT 'unavailable',
  instance_id TEXT NOT NULL DEFAULT '',
 			synthetic_prompt_id TEXT,
 			created_at TEXT NOT NULL,

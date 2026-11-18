@@ -30,6 +30,9 @@ func normalizeCallInput(input json.RawMessage) json.RawMessage {
 }
 
 func validateCallInput(d Descriptor, input json.RawMessage) (err error) {
+	if err := checkResultViewSelector(d, input); err != nil {
+		return err
+	}
 	defer func() { err = descriptorInputError(d, input, err) }()
 	normalized := normalizeCallInput(input)
 	if !json.Valid(normalized) {
@@ -99,6 +102,18 @@ func (v schemaValidator) validateSchemaNode(path string, schema map[string]json.
 	if err := validateSchemaEnum(path, schema["enum"], value); err != nil {
 		return err
 	}
+	if err := v.validateSchemaStringNode(path, schema, value); err != nil {
+		return err
+	}
+	if err := v.validateSchemaArrayNode(path, schema, value); err != nil {
+		return err
+	}
+	if slices.Contains(types, schemaTypeObject) || jsonValueType(value) == schemaTypeObject {
+		if err := v.validateSchemaObjectNode(path, schema, value); err != nil {
+			return err
+		}
+	}
+	// Report declared field constraints before generic composition mismatches.
 	if err := v.validateSchemaAllOf(path, schema["allOf"], value); err != nil {
 		return err
 	}
@@ -110,15 +125,6 @@ func (v schemaValidator) validateSchemaNode(path string, schema map[string]json.
 	}
 	if err := v.validateSchemaNot(path, schema["not"], value); err != nil {
 		return err
-	}
-	if err := v.validateSchemaStringNode(path, schema, value); err != nil {
-		return err
-	}
-	if err := v.validateSchemaArrayNode(path, schema, value); err != nil {
-		return err
-	}
-	if slices.Contains(types, schemaTypeObject) || jsonValueType(value) == schemaTypeObject {
-		return v.validateSchemaObjectNode(path, schema, value)
 	}
 	return nil
 }

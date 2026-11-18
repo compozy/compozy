@@ -46,7 +46,7 @@ type ShellSessionsConfig struct {
 func DefaultShellConfig() ShellConfig {
 	return ShellConfig{Sessions: ShellSessionsConfig{
 		Sort:    ShellSessionSortCreated,
-		GroupBy: ShellSessionGroupByNone,
+		GroupBy: ShellSessionGroupByProject,
 		Scope:   ShellSessionScopeWorkspace,
 	}}
 }
@@ -114,12 +114,13 @@ const (
 const ShellScopeDeprecationWarning = "shell.sessions.scope is deprecated; use shell.sessions.group_by for grouping " +
 	"and the topbar globe for All projects (removed in v0.5.0)"
 
+// ResolveGroupBy applies the default grouping while group_by is unset; an
+// explicit value, including "none", always wins. Neither legacy scope value
+// changes it: "all-workspaces" meant the project-grouped list, and
+// "workspace" carried no grouping intent.
 func (c *ShellSessionsConfig) ResolveGroupBy() {
 	if c.GroupByExplicit {
 		return
 	}
-	c.GroupBy = ShellSessionGroupByNone
-	if c.Scope == ShellSessionScopeAllWorkspaces {
-		c.GroupBy = ShellSessionGroupByProject
-	}
+	c.GroupBy = ShellSessionGroupByProject
 }

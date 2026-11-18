@@ -29,6 +29,12 @@ and a waiting session with an open PR stays in **Waiting** until its wake arrive
 before review. A **Waiting** card names what it waits on, such as **Monitoring** or **Waiting**.
 Archived sessions never appear in the columns; they live in the **Archive** bar at the bottom.
 
+PR facts refresh in the background for the session rows on the current page, including
+linked work and child rollups. Column counts and hidden pages use cached facts. If a new
+PR has not appeared in **In review**, show its session in the unfiltered list or run
+`compozy session pr <id> --refresh`. A registered pull-request monitor continues to refresh
+its target independently. A rate-limit hold keeps cached facts until GitHub allows another read.
+
 ## Walkthrough: open the board and act on a card
 
 1. Open a session window. In its header, right after the title, you see a **List | Kanban** switch
@@ -72,7 +78,7 @@ you can do in **List** you can do here, while the board stays visible beside it.
 1. Click a card in **Working**.
 
    **Expected:** the drawer opens with that session. Its header shows the session state, the title,
-   the pull request and status chips, **Stop** while it runs, and the context sidebar toggle. On the
+   the pull request and status chips, **Stop** while it runs, and **Changes**. On the
    right are **Previous session**, **Next session**, **Open full session**, the session's **…** menu,
    and **Close**.
 
@@ -191,14 +197,14 @@ hidden`). Archived cards can be selected while the **Archive** bar is open; clos
 Open **View options** (the sliders icon) in the board header. Use **Group by** to split the board into one swimlane per project (under
 **All projects**) or per profile (under **All profiles**). Each swimlane keeps the four columns, with
 counts for that project or profile only. **Group by** shows only where a grouping applies, and starts
-at **None**. The **Archive** bar stays a single bar.
+at **Project** under **All projects**; a board that shows one project stays ungrouped. The **Archive** bar stays a single bar.
 
 Use **Sort by** to order the cards inside every column: **Created**, **Name**, **Last activity**, or
 **Attention first**. The list's **Manual** order belongs to its folders, so the board reads it as
 **Last activity**.
 
 Click a swimlane's header to fold it to its name and count; the columns come back when you click it again.
-**Collapse all** folds every swimlane at once, and the same item then reads **Expand all**. Grouped by
+**Collapse all**, the button beside **View options**, folds every swimlane at once; the same button then reads **Expand all**. Grouped by
 project, **Show empty projects** adds a swimlane for each project with no sessions.
 
 Sort, grouping, project folds, and **Show empty projects** belong to the window and are shared by its **List** and **Kanban** views: group the
@@ -235,7 +241,8 @@ them needs you. Hover the count to see the children per column.
 
 A forked or continued session is not a child: it is a new top-level session that names its source
 as provenance. Its card shows the fork or continue glyph and the source's title instead of `↳`, and
-the source's child count does not include it.
+the source's child count does not include it. A continuation of a child keeps that child's place: its
+drawer leads back to the same parent.
 
 **Hide child sessions** is on by default in a new window: child sessions (spawned workers, sessions
 created with a parent, subagents and recovery sessions) stay out of the columns and the counts, and
@@ -271,11 +278,11 @@ A fold applies to that column in every swimlane when the board is grouped, so th
 aligned. Each session window remembers its folds across reloads; a new window opens with every column
 expanded. Selected cards in a folded column stay selected and count as hidden.
 
-## Finished automation runs
+## Automation runs
 
-An automation job or trigger session shows on the list and the board while it runs or needs you. When it finishes cleanly, it leaves both, and the counts follow. Nothing is archived or deleted: open it from the Automations run view, or find it with search.
+Sessions an automation job or trigger starts stay off the list and the board, whether they are starting, working, waiting or finished, and the counts leave them out. A new run never appears in the list or takes the selection. Nothing is archived or deleted: open a run from the Automations run view, or find it with search. A run that needs you still reaches you through the attention toasts and notifications.
 
-A run stays visible when it failed, when it or one of its child sessions is waiting on you or still working, or when you prompted it yourself. Opening a run does not keep it on the list. A failed run stays until you archive it. A child session always moves with its parent. Loop and Task sessions keep their place on the list.
+To see them in a window, turn on **Show automation runs** in **View options**. Each window remembers the choice; a new window starts with it off. A run you prompted yourself becomes your work and stays on the list. A child session always moves with its parent. Loop and Task sessions keep their place on the list.
 
 ## Scope and freshness
 

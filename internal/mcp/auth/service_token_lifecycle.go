@@ -75,8 +75,7 @@ func (s *Service) persistTokenAtGeneration(
 	return statusFromToken(cfg, &token, s.now()), nil
 }
 
-// Refresh refreshes a persisted token and updates durable storage.
-func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error) {
+func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenRecord) (Status, error) {
 	if err := cfg.Validate(); err != nil {
 		return Status{}, err
 	}
@@ -103,6 +102,13 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 			"stored token belongs to a different server definition; run login again",
 		), nil
 	}
+	if current.AccessToken != observed.AccessToken || current.RefreshToken != observed.RefreshToken ||
+		!current.UpdatedAt.Equal(observed.UpdatedAt) || !current.ExpiresAt.Equal(observed.ExpiresAt) {
+		return statusFromToken(cfg, &current, s.now()), nil
+	}
+	if !current.ExpiresAt.IsZero() && current.ExpiresAt.After(s.now()) {
+		return statusFromToken(cfg, &current, s.now()), nil
+	}
 	if strings.TrimSpace(current.RefreshToken) == "" {
 		return statusFromTokenWithDiagnostic(
 			cfg,
@@ -116,11 +122,35 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 	if err != nil {
 		return Status{}, err
 	}
+	if !issuersEqual(current.Issuer, metadata.Issuer) {
+		// Keep access material bound to its original issuer, but stop advertising an unusable renewal path.
+		current.RefreshToken = ""
+		if _, err := s.persistTokenAtGeneration(ctx, cfg, current, generation); err != nil {
+			return Status{}, err
+		}
+		return Status{}, ErrTokenBindingInvalid
+	}
 	refreshed, err := s.refreshToken(ctx, refreshConfig, metadata, current)
 	if err != nil {
+		if definitiveRefreshFailure(err) {
+			return s.rejectRefresh(ctx, cfg, generation, err)
+		}
 		return Status{}, err
 	}
 	return s.persistTokenAtGeneration(ctx, cfg, refreshed, generation)
+}
+
+func (s *Service) rejectRefresh(ctx context.Context, cfg ServerConfig, generation uint64, cause error) (Status, error) {
+	committed, err := s.generation.CommitIfCurrent(cfg.Target, generation, func() error {
+		return s.store.DeleteMCPAuthToken(ctx, cfg.Target)
+	})
+	if err != nil {
+		return Status{}, err
+	}
+	if !committed {
+		return Status{}, ErrTokenMutationStale
+	}
+	return statusFromTokenWithDiagnostic(cfg, nil, s.now(), "refresh was rejected; run login again"), cause
 }
 
 // Status returns redacted durable auth state for one server.
@@ -136,7 +166,7 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 			Scope:       cfg.Target.Scope,
 			WorkspaceID: cfg.Target.WorkspaceID,
 			Status:      StatusUnconfigured,
-			RemoteURL:   strings.TrimSpace(cfg.RemoteURL),
+			RemoteURL:   cfg.publicRemoteURL(),
 		}, nil
 	}
 	if err := cfg.Validate(); err != nil {
@@ -145,15 +175,21 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 	token, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
 	if err != nil {
 		if errors.Is(err, ErrTokenNotFound) {
+			if cfg.Implicit {
+				cfg.Type = ""
+			}
 			return statusFromToken(cfg, nil, s.now()), nil
 		}
 		return Status{}, err
 	}
-	matches, err := s.tokenMatchesServerDefinition(ctx, token, cfg)
+	matches, registration, err := s.tokenBinding(ctx, token, cfg)
 	if err != nil {
 		return Status{}, err
 	}
 	if !matches {
+		if cfg.Implicit {
+			cfg.Type = ""
+		}
 		return statusFromTokenWithDiagnostic(
 			cfg,
 			nil,
@@ -161,7 +197,7 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 			"stored token belongs to a different server definition; run login again",
 		), nil
 	}
-	return statusFromToken(cfg, &token, s.now()), nil
+	return s.storedTokenStatus(cfg, token, registration), nil
 }
 
 // AuthorizationToken returns bearer material only after full definition, registration, and scope binding validation.
@@ -199,16 +235,20 @@ func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) 
 	var remoteErr error
 	definitionMatches := false
 	if err == nil {
-		definitionMatches, err = s.tokenMatchesServerDefinition(ctx, token, cfg)
-		if err != nil {
-			return Status{}, err
+		var bindingErr error
+		definitionMatches, bindingErr = s.tokenMatchesServerDefinition(ctx, token, cfg)
+		if bindingErr != nil {
+			remoteErr = fmt.Errorf("mcp auth: validate revocation binding: %w", bindingErr)
 		}
 	}
 	if definitionMatches {
 		metadata, metaErr := s.metadataForConfig(ctx, cfg)
-		if metaErr != nil {
+		switch {
+		case metaErr != nil:
 			remoteErr = fmt.Errorf("mcp auth: discover revocation metadata: %w", metaErr)
-		} else if strings.TrimSpace(metadata.RevocationEndpoint) != "" {
+		case !issuersEqual(token.Issuer, metadata.Issuer):
+			remoteErr = ErrTokenBindingInvalid
+		case strings.TrimSpace(metadata.RevocationEndpoint) != "":
 			if revokeErr := s.revoke(ctx, cfg, metadata, token); revokeErr != nil {
 				remoteErr = fmt.Errorf("mcp auth: revoke remote token: %w", revokeErr)
 			}

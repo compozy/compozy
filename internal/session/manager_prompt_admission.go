@@ -335,6 +335,7 @@ func (m *Manager) enqueueAdmittedBusyPrompt(
 		return SendPromptResult{}, err
 	}
 	if created {
+		m.queuedTurnLinks.remember(ctx, entry.ID)
 		m.settleSupersededQueuedInputs(ctx, session, &entry)
 		m.emitTranscriptMarker(
 			ctx, session, session.CurrentTurnID(), transcript.MarkerPromptQueued,
@@ -426,6 +427,7 @@ func (m *Manager) interruptAdmittedPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	m.queuedTurnLinks.remember(ctx, entry.ID)
 	if err := m.ensureInterruptingInputActivated(ctx, session, &entry); err != nil {
 		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
 		indeterminate := m.promptDispatchIndeterminate(ctx, admission, activationErr)

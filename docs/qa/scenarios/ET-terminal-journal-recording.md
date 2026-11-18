@@ -33,6 +33,7 @@ Walk:
 3. Verify an empty filtered result does not claim the project has no history.
 4. Replay a recording and return to its journal row; compare the CLI and browser record.
 5. Select a bounded terminal range and send it to the active session composer; verify the `<terminal_context>` source terminal, line range, and untrusted marker survive sending.
+   Repeat with a large selection (for example, 500 lines of `seq 1 500` output) on a desktop and a phone-width viewport: the quote mounts collapsed to its source and line count, expands into a body bounded by the viewport that scrolls internally and keeps leading indentation, the composer input and controls stay visible in both states, and Remove works in both states (#1680).
 6. With an isolated `COMPOZY_HOME`, execute terminal commands in two registered workspaces. Verify their databases and SQLite sidecars live under `<home>/workspaces/<registered-id>/`, with no SQLite files created in either project's `.compozy/`. Reopen the stores and verify history and profile isolation; a second daemon home must have independent history. Unregister a workspace after restarting with its project root missing and verify only its home-owned database is removed. A pre-existing project-local database must remain untouched and must not be read.
 
 2026-08-30 CI repair re-walk: passed. Current-tree E2E-001 and E2E-020 proved that Bash prompt
@@ -54,3 +55,12 @@ integration journeys also passed with real terminal processes. This storage slic
 replace the historical browser recording/selection verdict.
 
 PR #973 offline regression: open an uncached journal after the browser goes offline. The unlocked journal must keep its loading region visible while its first read is paused; it must not render a blank panel. Reconnect and verify history replaces the placeholder. A journal that has never been opened remains locked and does not fetch.
+
+CI journey reconciliation (#1547): E2E-003 now holds the approved agent process at a
+stdin barrier until its live window/output are observed, then verifies successful
+exit and retained output via the native wait result. The accepted exit-retirement
+contract removes that agent window; reopen Terminal to read its approved journal
+row. E2E-008 selects the terminal output again after closing the conversation tab,
+since switching tabs remounts the emulator, then checks Choose a session and Copy
+as quoted block. Source and rendered failure evidence are retained in PR #1582;
+current-head CI owns the re-walk, with no local execution claimed.

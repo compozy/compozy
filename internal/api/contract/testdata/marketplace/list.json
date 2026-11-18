@@ -1,4 +1,71 @@
 {
+    "categories": [
+        {
+            "id": "featured",
+            "label": "Featured",
+            "count": 0
+        },
+        {
+            "id": "productivity",
+            "label": "Productivity",
+            "count": 0
+        },
+        {
+            "id": "communication",
+            "label": "Communication",
+            "count": 0
+        },
+        {
+            "id": "design",
+            "label": "Design",
+            "count": 0
+        },
+        {
+            "id": "development",
+            "label": "Development",
+            "count": 0
+        },
+        {
+            "id": "data",
+            "label": "Data \u0026 Analytics",
+            "count": 0
+        },
+        {
+            "id": "cloud",
+            "label": "Cloud \u0026 Infrastructure",
+            "count": 0
+        },
+        {
+            "id": "finance",
+            "label": "Finance \u0026 Payments",
+            "count": 0
+        },
+        {
+            "id": "sales-marketing",
+            "label": "Sales \u0026 Marketing",
+            "count": 0
+        },
+        {
+            "id": "research",
+            "label": "Research \u0026 Learning",
+            "count": 0
+        },
+        {
+            "id": "security",
+            "label": "Security",
+            "count": 0
+        },
+        {
+            "id": "ai-agents",
+            "label": "AI \u0026 Agents",
+            "count": 0
+        },
+        {
+            "id": "more",
+            "label": "More",
+            "count": 1
+        }
+    ],
     "total": 1,
     "revision": "catalog:42",
     "stale": false,
@@ -13,6 +80,9 @@
     ],
     "items": [
         {
+            "category": "more",
+            "category_label": "More",
+            "featured": false,
             "source_ref": "github:acme/plugins",
             "layout": "claude-plugin",
             "installable": true,

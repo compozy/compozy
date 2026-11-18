@@ -18,6 +18,7 @@ func WithWorkspaceIDResolver(resolver WorkspaceIDResolver) RegistryOption {
 	}
 }
 
+// normalizeDispatchCallRequest validates trusted identity before approval or backend dispatch.
 func (r *RuntimeRegistry) normalizeDispatchCallRequest(
 	ctx context.Context,
 	scope Scope,
@@ -30,12 +31,16 @@ func (r *RuntimeRegistry) normalizeDispatchCallRequest(
 	}{
 		{field: "profile_id", trusted: scope.ProfileID, supplied: &req.ProfileID},
 		{field: "session_id", trusted: scope.SessionID, supplied: &req.SessionID},
+		{field: "run_id", trusted: scope.RunID, supplied: &req.RunID},
 		{field: "agent_name", trusted: scope.AgentName, supplied: &req.AgentName},
 		{field: "actor_kind", trusted: scope.ActorKind, supplied: &req.ActorKind},
 	} {
 		if err := bindCallScopeField(req.ToolID, binding.field, binding.trusted, binding.supplied); err != nil {
 			return CallRequest{}, err
 		}
+	}
+	if err := bindCallScopeGeneration(req.ToolID, scope.Generation, &req.Generation); err != nil {
+		return CallRequest{}, err
 	}
 	trustedWorkspaceID := strings.TrimSpace(scope.WorkspaceID)
 	requestedWorkspaceID := strings.TrimSpace(req.WorkspaceID)

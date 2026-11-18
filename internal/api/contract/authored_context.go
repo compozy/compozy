@@ -105,6 +105,8 @@ const (
 	HeartbeatWakeSourceScheduler      HeartbeatWakeSource = "scheduler"
 	HeartbeatWakeSourceManual         HeartbeatWakeSource = "manual"
 	HeartbeatWakeSourceHarnessReentry HeartbeatWakeSource = "harness_reentry"
+	HeartbeatWakeSourceTimer          HeartbeatWakeSource = "timer"
+	HeartbeatWakeSourceInstanceCheck  HeartbeatWakeSource = "instance_check"
 )
 
 // HeartbeatWakeResult classifies the outcome of an advisory Heartbeat wake attempt.
@@ -116,28 +118,48 @@ const (
 	HeartbeatWakeResultCoalesced   HeartbeatWakeResult = "coalesced"
 	HeartbeatWakeResultRateLimited HeartbeatWakeResult = "rate_limited"
 	HeartbeatWakeResultFailed      HeartbeatWakeResult = "failed"
+	HeartbeatWakeResultQuiet       HeartbeatWakeResult = "quiet"
+	HeartbeatWakeResultCancelled   HeartbeatWakeResult = "cancelled" //nolint:misspell // Stored spelling.
+	HeartbeatWakeResultReported    HeartbeatWakeResult = "reported"
 )
 
 // HeartbeatWakeReason is the closed deterministic reason for Heartbeat wake audit.
 type HeartbeatWakeReason string
 
 const (
-	HeartbeatWakeReasonSourcePollInFlight    HeartbeatWakeReason = "source_poll_in_flight"
-	HeartbeatWakeReasonSent                  HeartbeatWakeReason = "wake_sent"
-	HeartbeatWakeReasonDisabled              HeartbeatWakeReason = "heartbeat_disabled"
-	HeartbeatWakeReasonInvalid               HeartbeatWakeReason = "heartbeat_invalid"
-	HeartbeatWakeReasonNoPolicy              HeartbeatWakeReason = "heartbeat_no_policy"
-	HeartbeatWakeReasonRateLimited           HeartbeatWakeReason = "heartbeat_rate_limited"
-	HeartbeatWakeReasonNoEligibleSession     HeartbeatWakeReason = "heartbeat_no_eligible_session"
-	HeartbeatWakeReasonCooldownActive        HeartbeatWakeReason = "cooldown_active"
-	HeartbeatWakeReasonQuietWindow           HeartbeatWakeReason = "quiet_window"
-	HeartbeatWakeReasonSessionNotFound       HeartbeatWakeReason = "session_not_found"
-	HeartbeatWakeReasonSessionUnhealthy      HeartbeatWakeReason = "session_unhealthy"
-	HeartbeatWakeReasonSessionNotAttachable  HeartbeatWakeReason = "session_not_attachable"
-	HeartbeatWakeReasonSessionPromptActive   HeartbeatWakeReason = "session_prompt_active"
-	HeartbeatWakeReasonSessionPromptRace     HeartbeatWakeReason = "session_prompt_active_race"
-	HeartbeatWakeReasonSyntheticPromptFailed HeartbeatWakeReason = "synthetic_prompt_failed"
-	HeartbeatWakeReasonCoalesced             HeartbeatWakeReason = "wake_coalesced"
+	HeartbeatWakeReasonSourcePollInFlight      HeartbeatWakeReason = "source_poll_in_flight"
+	HeartbeatWakeReasonSent                    HeartbeatWakeReason = "wake_sent"
+	HeartbeatWakeReasonDisabled                HeartbeatWakeReason = "heartbeat_disabled"
+	HeartbeatWakeReasonInvalid                 HeartbeatWakeReason = "heartbeat_invalid"
+	HeartbeatWakeReasonNoPolicy                HeartbeatWakeReason = "heartbeat_no_policy"
+	HeartbeatWakeReasonRateLimited             HeartbeatWakeReason = "heartbeat_rate_limited"
+	HeartbeatWakeReasonNoEligibleSession       HeartbeatWakeReason = "heartbeat_no_eligible_session"
+	HeartbeatWakeReasonCooldownActive          HeartbeatWakeReason = "cooldown_active"
+	HeartbeatWakeReasonQuietWindow             HeartbeatWakeReason = "quiet_window"
+	HeartbeatWakeReasonSessionNotFound         HeartbeatWakeReason = "session_not_found"
+	HeartbeatWakeReasonSessionUnhealthy        HeartbeatWakeReason = "session_unhealthy"
+	HeartbeatWakeReasonSessionNotAttachable    HeartbeatWakeReason = "session_not_attachable"
+	HeartbeatWakeReasonSessionPromptActive     HeartbeatWakeReason = "session_prompt_active"
+	HeartbeatWakeReasonSessionPromptRace       HeartbeatWakeReason = "session_prompt_active_race"
+	HeartbeatWakeReasonSyntheticPromptFailed   HeartbeatWakeReason = "synthetic_prompt_failed"
+	HeartbeatWakeReasonCoalesced               HeartbeatWakeReason = "wake_coalesced"
+	HeartbeatWakeReasonQuiet                   HeartbeatWakeReason = "quiet"
+	HeartbeatWakeReasonReported                HeartbeatWakeReason = "reported"
+	HeartbeatWakeReasonCancelled               HeartbeatWakeReason = "cancelled" //nolint:misspell // Stored spelling.
+	HeartbeatWakeReasonDigestEmpty             HeartbeatWakeReason = "digest_empty"
+	HeartbeatWakeReasonDigestUnchanged         HeartbeatWakeReason = "digest_unchanged"
+	HeartbeatWakeReasonPolicyDisabled          HeartbeatWakeReason = "policy_disabled"
+	HeartbeatWakeReasonDefinitionNotAlwaysOn   HeartbeatWakeReason = "definition_not_always_on"
+	HeartbeatWakeReasonDefinitionMissing       HeartbeatWakeReason = "definition_missing"
+	HeartbeatWakeReasonNoSlot                  HeartbeatWakeReason = "no_slot"
+	HeartbeatWakeReasonHookCancelled           HeartbeatWakeReason = "hook_cancelled" //nolint:misspell // Stored spelling.
+	HeartbeatWakeReasonDuplicateSuppressed     HeartbeatWakeReason = "duplicate_suppressed"
+	HeartbeatWakeReasonTriageUnsupported       HeartbeatWakeReason = "triage_unsupported"
+	HeartbeatWakeReasonTriageOutputInvalid     HeartbeatWakeReason = "triage_output_invalid"
+	HeartbeatWakeReasonTriageTimeout           HeartbeatWakeReason = "triage_timeout"
+	HeartbeatWakeReasonTriageInterrupted       HeartbeatWakeReason = "triage_interrupted"
+	HeartbeatWakeReasonTriageConfigUnavailable HeartbeatWakeReason = "triage_config_unavailable"
+	HeartbeatWakeReasonTriageFailed            HeartbeatWakeReason = "triage_failed"
 )
 
 // AuthoredContextDiagnosticPayload is a redacted, deterministic authored-context diagnostic.

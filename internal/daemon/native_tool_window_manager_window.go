@@ -3,7 +3,10 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"strings"
 
+	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -31,6 +34,15 @@ func (n *daemonNativeTools) windowList(
 		Revision:    snapshot.Revision,
 		Windows:     windows,
 	}
+	payload.Deprecations = []windowmanager.Deprecation{}
+	if input.IncludeMinimized {
+		payload.Deprecations = append(
+			payload.Deprecations,
+			windowmanager.SurfaceDeprecation("compozy__window_list.include_minimized"),
+		)
+		windowManagerSurfaceDeprecationLogger(slog.Default(), nil)(ctx,
+			windowmanager.CommandRequest{Actor: windowManagerActor(scope)}, payload.Deprecations)
+	}
 	return structuredResult(payload, fmt.Sprintf("listed %d windows at revision %d", len(windows), payload.Revision))
 }
 
@@ -42,6 +54,13 @@ func (n *daemonNativeTools) windowOpen(
 	var input windowManagerWindowOpenInput
 	if err := decodeWindowManagerInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	app, _ := windowmanager.RetiredApp(strings.TrimSpace(input.App))
+	if strings.TrimSpace(input.RestoreWindowID) == "" && !corecmds.RegisteredApp(app) {
+		return toolspkg.ToolResult{}, windowManagerInvalidInput(
+			req.ToolID,
+			fmt.Errorf("unregistered window app %q: %w", app, windowmanager.ErrInvalidCommand),
+		)
 	}
 	return n.executeWindowManagerCommand(ctx, scope, req, input.windowManagerMutationInput, input.command())
 }

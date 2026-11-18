@@ -43,6 +43,8 @@ type RuntimeDeps struct {
 	ToolArtifacts       toolspkg.ToolArtifactStore
 	SessionAttachments  attachmentspkg.Store
 	SessionFiles        core.SessionFileSearcher
+	FileTree            core.FileTreeReader
+	SessionChanges      core.SessionChangesReader
 	ToolApprovals       toolspkg.ApprovalTokenIssuer
 	ApprovalCoordinator toolspkg.ApprovalCoordinator
 	CmdPalette          cmdpalette.Registry
@@ -58,6 +60,7 @@ type RuntimeDeps struct {
 	Profiles            *profile.Manager
 	RuntimeMemory       doctor.RuntimeMemorySnapshotSource
 	HostLoad            doctor.HostLoadSnapshotSource
+	TelemetryStatus     core.TelemetryStatusSource
 	DeadEntities        doctor.DeadEntitySource
 	WorkspaceResolver   workspacepkg.RuntimeResolver
 	WorkspaceService    core.WorkspaceService

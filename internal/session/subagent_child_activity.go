@@ -16,12 +16,19 @@ func (s *subagentService) updateChildActivity(ctx context.Context, row store.Ses
 	}
 	child, err := s.runtime.Snapshot(ctx, *row.ChildSessionID)
 	if errors.Is(err, ErrSessionNotFound) {
-		return nil
+		// The child session was deleted: the terminal outcome stays, and its
+		// cached liveness can only be stopped.
+		return s.recordChildActivity(ctx, row, store.SubagentChildActivityStopped)
 	}
 	if err != nil {
 		return err
 	}
-	activity := subagentChildActivity(child)
+	return s.recordChildActivity(ctx, row, subagentChildActivity(child))
+}
+
+func (s *subagentService) recordChildActivity(
+	ctx context.Context, row store.SessionSubagent, activity store.SubagentChildActivity,
+) error {
 	if activity == store.SubagentChildActivityUnknown || activity == row.ChildActivity {
 		return nil
 	}

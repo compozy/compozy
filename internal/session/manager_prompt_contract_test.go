@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime/pprof"
 	"slices"
 	"strings"
@@ -203,8 +204,362 @@ func TestNextPromptPumpEventPrioritizesReadyRuntimeEvents(t *testing.T) {
 	})
 }
 
+// TestPromptStreamsToRecorderAndNotifier verifies ordered durable output and live delivery across replay boundaries.
 func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		readError   error
+		permanent   bool
+		wantType    string
+		wantReason  store.FailureReasonCode
+		wantQueries int64
+	}{
+		{"Should retry a catch-up read failure after persistence completes", errors.New("transient read failure"), false, acp.EventTypeDone, "", 2},
+		{"Should end catch-up when its recorder closes", store.ErrClosed, false, "", "", 1},
+		{"Should end catch-up after persistent completed read failures", errors.New("persistent read failure"), true, acp.EventTypeError, store.FailureReasonPromptDeliveryReadFailed, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			session := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: acp.EventTypeDone, TurnID: "turn-read-retry",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			recorder := &promptDeliveryQueryRecorder{
+				EventRecorder: session.recorderHandle(), readError: tc.readError, failAlways: tc.permanent,
+			}
+			recorder.failNext.Store(true)
+			session.setRecorder(recorder)
+			out := make(chan acp.AgentEvent, 2)
+			h.manager.catchUpDurablePromptDelivery(ctx, session, "turn-read-retry", 0, 0,
+				&transcript.SessionMessageCards{}, nil, true, out)
+			close(out)
+			events := collectEvents(t, out)
+			if tc.wantType != "" {
+				if len(events) != 1 || events[0].Type != tc.wantType {
+					t.Fatalf("catch-up events = %#v, want %s", events, tc.wantType)
+				}
+				if tc.wantReason != "" && (events[0].Failure == nil || events[0].Failure.ReasonCode != tc.wantReason) {
+					t.Fatalf("catch-up failure = %#v, want %s", events[0].Failure, tc.wantReason)
+				}
+			} else if len(events) != 0 {
+				t.Fatalf("closed recorder emitted events: %#v", events)
+			}
+			queries := recorder.queries.Load()
+			if queries < 1 || (tc.wantQueries > 0 && queries != tc.wantQueries) || ctx.Err() != nil {
+				t.Fatalf("catch-up queries = %d, context = %v", queries, ctx.Err())
+			}
+		})
+	}
+	t.Run("Should deliver a contiguous live terminal without catch-up queries", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		session.setRecorder(recorder)
+		cursor, err := recorder.MaxEventSequence(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		live, unsubscribe, err := h.manager.subscribePersistedSessionEvents(ctx, session.ID, cursor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := make(chan acp.AgentEvent)
+		go h.manager.runDurablePromptDelivery(ctx, session, "turn-live-terminal", cursor, live, unsubscribe, nil, out)
+		for _, eventType := range []string{acp.EventTypeAgentMessage, acp.EventTypeDone} {
+			if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: eventType, TurnID: "turn-live-terminal",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		events := collectEvents(t, out)
+		if len(events) != 2 || events[0].Type != acp.EventTypeAgentMessage || events[1].Type != acp.EventTypeDone {
+			t.Fatalf("live events = %#v", events)
+		}
+		if queries := recorder.queries.Load(); queries != 0 {
+			t.Fatalf("contiguous terminal delivery made %d catch-up queries", queries)
+		}
+	})
+	t.Run("Should recover an event recorded between cursor capture and subscription", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		recorder.afterCursorRead = func(ctx context.Context) error {
+			return h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: acp.EventTypeRuntimeWarning, TurnID: "subscription-turn", Text: "setup race",
+			})
+		}
+		session.setRecorder(recorder)
+		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "subscription-turn")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer delivery.cancel()
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "subscription-turn", Text: "live reply",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []struct{ eventType, text string }{
+			{acp.EventTypeRuntimeWarning, "setup race"},
+			{acp.EventTypeAgentMessage, "live reply"},
+		} {
+			if event := receivePromptEvent(t, delivery.events); event.Type != want.eventType ||
+				event.TurnID != "subscription-turn" || event.Text != want.text {
+				t.Fatalf("event before persistence completion = %#v, want %s with turn subscription-turn and text %q",
+					event, want.eventType, want.text)
+			}
+		}
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeDone, TurnID: "subscription-turn",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		close(delivery.persistenceDone)
+		if events := collectEvents(t, delivery.events); len(events) != 1 || events[0].Type != acp.EventTypeDone ||
+			events[0].TurnID != "subscription-turn" {
+			t.Fatalf("remaining events = %#v, want one terminal", events)
+		}
+	})
+	t.Run("Should recover a terminal recorded after setup without a later publication", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		recorder.afterQueryRead = func(ctx context.Context) error {
+			return h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: acp.EventTypeDone, TurnID: "terminal-window",
+			})
+		}
+		session.setRecorder(recorder)
+		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "terminal-window")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer delivery.cancel()
+		// No later publication wakes delivery; completing persistence must recover the saved terminal.
+		close(delivery.persistenceDone)
+		if events := collectEvents(t, delivery.events); len(events) != 1 || events[0].Type != acp.EventTypeDone ||
+			events[0].TurnID != "terminal-window" {
+			t.Fatalf("completion recovery = %#v, want exactly the saved terminal and stream closure", events)
+		}
+	})
+	for _, tc := range []struct {
+		name        string
+		failMaximum bool
+	}{
+		{name: "Should release prompt ownership after the maximum sequence read fails", failMaximum: true},
+		{name: "Should release prompt ownership after the setup query fails"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			session := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			readErr := errors.New("initial delivery read failed")
+			recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+			if tc.failMaximum {
+				recorder.maxReadError = readErr
+			} else {
+				recorder.readError, recorder.failAlways = readErr, true
+			}
+			session.setRecorder(recorder)
+			if _, err := h.manager.Prompt(t.Context(), session.ID, "first attempt"); !errors.Is(err, readErr) {
+				t.Fatalf("Prompt() error = %v, want initial delivery read error", err)
+			}
+			session.setRecorder(recorder.EventRecorder)
+			next, err := h.manager.Prompt(t.Context(), session.ID, "next attempt")
+			if err != nil {
+				t.Fatalf("Prompt() after recorder recovery = %v", err)
+			}
+			if events := collectEvents(t, next); countAgentEvents(events, acp.EventTypeDone) != 1 {
+				t.Fatalf("recovered prompt events = %#v, want one terminal", events)
+			}
+		})
+	}
+	t.Run("Should preserve current turn warnings recorded during setup", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: "pi", Model: "test-model"},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		session, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatal("accepted session is not available")
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeRuntimeWarning, TurnID: "prior-turn", Text: "prior warning",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(session.sessionDir, "provider-runtime"),
+			[]byte("block materialization"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		h.driver.startContextHook = func(ctx context.Context, opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.FinalizeStartup == nil {
+				return nil, errors.New("Pi startup finalizer is missing")
+			}
+			if _, _, err := opts.FinalizeStartup(ctx); err != nil {
+				return nil, err
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-pi-%d", sequence)), nil
+		}
+		output, err := h.manager.Prompt(ctx, session.ID, "reply with unavailable native tools")
+		if err != nil {
+			t.Fatal(err)
+		}
+		events := collectEvents(t, output)
+		if len(events) != 3 || events[0].Type != acp.EventTypeRuntimeWarning ||
+			events[0].Text != "Pi native tools are unavailable; using CLI guidance." ||
+			events[0].TurnID == "" || events[0].TurnID != events[1].TurnID || events[0].TurnID != events[2].TurnID ||
+			events[0].ProviderError == nil || events[0].ProviderError.Provider != "pi" ||
+			events[0].ProviderError.Code != "pi_native_tools_materialization_failed" ||
+			events[1].Type != acp.EventTypeAgentMessage || events[2].Type != acp.EventTypeDone {
+			t.Fatalf("setup output = %#v, want current warning, message and terminal in order", events)
+		}
+	})
+	t.Run("Should keep later prompts on live delivery without catch-up queries", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		session.setRecorder(recorder)
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "prior-turn", Text: "prior reply",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "later-turn")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer delivery.cancel()
+		setupQueries := recorder.queries.Load()
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "later-turn", Text: "reply",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		first := receivePromptEvent(t, delivery.events)
+		if first.Type != acp.EventTypeAgentMessage || first.Text != "reply" {
+			t.Fatalf("live event = %#v", first)
+		}
+		if queries := recorder.queries.Load() - setupQueries; queries != 0 {
+			t.Fatalf("contiguous live delivery made %d catch-up queries", queries)
+		}
+		// Invariant: non-ACP lifecycle payloads cannot interrupt a turn's output delivery.
+		// Owner: session prompt delivery; canonical suite: TestPromptStreamsToRecorderAndNotifier.
+		for _, lifecycle := range []struct{ eventType, content string }{
+			{"hook.dispatch.started", "{}"},
+			{EventTypeMCPReloaded, `{"outcome":"applied","runtime":"Claude Code"}`},
+		} {
+			if _, err := recordPersistedSessionEvent(ctx, recorder.EventRecorder, store.SessionEvent{
+				TurnID: "later-turn", Type: lifecycle.eventType, Content: lifecycle.content,
+				AgentName: session.Info().AgentName, Timestamp: time.Now().UTC(),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for index, text := range []string{"after unpublished row", "live again"} {
+			if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, TurnID: "later-turn", Text: text,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			event := receivePromptEvent(t, delivery.events)
+			if event.Type != acp.EventTypeAgentMessage || event.Text != text ||
+				recorder.queries.Load()-setupQueries != 1 {
+				t.Fatalf(
+					"delivery %d = %#v, queries = %d; want resumed live delivery",
+					index,
+					event,
+					recorder.queries.Load()-setupQueries,
+				)
+			}
+		}
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeDone, TurnID: "later-turn",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		close(delivery.persistenceDone)
+		events := collectEvents(t, delivery.events)
+		if len(events) != 1 || events[0].Type != acp.EventTypeDone {
+			t.Fatalf("remaining events = %#v, want persisted terminal", events)
+		}
+	})
+	t.Run("Should replay a terminal event overtaken by a concurrent publication", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		turnID := "turn-publication-order"
+		var later store.SessionEvent
+		for _, eventType := range []string{acp.EventTypeAgentMessage, acp.EventTypeDone, acp.EventTypeSystem} {
+			payload, err := json.Marshal(acp.AgentEvent{Type: eventType, TurnID: turnID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			later, err = recordPersistedSessionEvent(ctx, session.recorderHandle(), store.SessionEvent{
+				TurnID: turnID, Type: eventType, Content: string(payload), Timestamp: time.Now().UTC(),
+				AgentName: session.Info().AgentName,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		// Publish the later marker while the terminal's post-append work is still running.
+		live := make(chan store.SessionEvent, 1)
+		live <- later
+		persisted := make(chan struct{})
+		finish := sync.OnceFunc(func() { close(persisted) })
+		defer finish()
+		out := make(chan acp.AgentEvent)
+		go h.manager.runDurablePromptDelivery(ctx, session, turnID, 0, live, func() {}, persisted, out)
+		first := receivePromptEvent(t, out)
+		close(live)
+		finish()
+		if first.Type != acp.EventTypeAgentMessage {
+			t.Fatalf("first event = %q, want persisted agent message before terminal", first.Type)
+		}
+		events := collectEvents(t, out)
+		if len(events) != 1 || events[0].Type != acp.EventTypeDone {
+			t.Fatalf("remaining events = %#v, want the persisted terminal", events)
+		}
+	})
 	t.Run("Should label batch persistence when capture starts during an active turn", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -773,6 +1128,80 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 		})
 	}
 
+	// Invariant: a turn interrupted by the daemon's own shutdown stop keeps its terminal event, because
+	// the recorder stays open until the prompt pump has recorded it.
+	t.Run("Should record the interrupted turn terminal before a shutdown stop closes the recorder", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t,
+			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}),
+			WithDaemonShutdownTurnGrace(time.Minute),
+		)
+		session := createSession(t, h)
+		originalACP := session.Info().ACPSessionID
+		source := make(chan acp.AgentEvent, 1)
+		turnStarted := make(chan string, 1)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			turnStarted <- req.TurnID
+			return source, nil
+		}
+		// A provider's prompt stream fails only once its process is gone, so the pump learns of the
+		// interruption after the stop has already verified the exit.
+		var failStream sync.Once
+		h.driver.mu.Lock()
+		h.driver.verifyExitHook = func(proc *AgentProcess) (bool, error) {
+			exited := isProcessDone(proc)
+			if exited {
+				failStream.Do(func() {
+					go func() {
+						defer close(source)
+						source <- acp.AgentEvent{
+							Type:      acp.EventTypeError,
+							SessionID: originalACP,
+							Timestamp: time.Now().UTC(),
+							Error:     "ACP connection closed",
+							Failure: &store.SessionFailure{
+								Kind:    store.FailureTransport,
+								Summary: "ACP connection closed",
+							},
+						}
+					}()
+				})
+			}
+			return exited, nil
+		}
+		h.driver.mu.Unlock()
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		turnID := <-turnStarted
+		h.manager.BeginDaemonShutdown(true)
+		if err := h.manager.PrepareDaemonShutdown(testutil.Context(t), true); err != nil {
+			t.Fatalf("PrepareDaemonShutdown() error = %v", err)
+		}
+		cause, detail := DaemonShutdownStopCause(true)
+		if err := h.manager.StopWithCause(testutil.Context(t), session.ID, cause, detail); err != nil {
+			t.Fatalf("StopWithCause() error = %v", err)
+		}
+		collectEvents(t, eventsCh)
+
+		terminals := 0
+		for _, event := range readStoredEvents(t, session) {
+			if event.TurnID == turnID && event.Type == acp.EventTypeDone {
+				terminals++
+			}
+		}
+		if terminals != 1 {
+			t.Fatalf("stored terminal events of the interrupted turn = %d, want 1", terminals)
+		}
+		meta := readMeta(t, session.MetaPath())
+		if meta.Failure != nil || meta.StopReason == nil || *meta.StopReason != store.StopShutdown {
+			t.Fatalf("meta failure = %#v stop reason = %#v, want a restart interruption", meta.Failure, meta.StopReason)
+		}
+	})
+
 	t.Run("Should classify an ACP error followed by exit code zero as a transport failure", func(t *testing.T) {
 		t.Parallel()
 
@@ -956,10 +1385,10 @@ func TestPromptStreamClosureWithoutTerminalStopsSession(t *testing.T) {
 func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 	t.Parallel()
 	for _, code := range []string{acp.ProviderErrorAuthRequired, acp.ProviderErrorRateLimited} {
-		t.Run("Should persist "+code+" and accept the next turn without stopping", func(t *testing.T) {
+		t.Run("Should persist "+code+" and accept the next turn in the active session", func(t *testing.T) {
 			t.Parallel()
 			h := newHarness(t)
-			// With the sign-in wait off, an auth loss keeps today's contract; TestPromptProviderAuthRecovery owns the wait.
+			// TestPromptProviderAuthRecovery owns the wait; this suite checks the terminal error and next turn.
 			h.manager.authRecoveryDelays = nil
 			session := createSession(t, h)
 			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
@@ -1005,8 +1434,12 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 				current.Info().State != StateActive {
 				t.Fatal("provider recovery did not preserve the active session")
 			}
-			if h.driver.stopCalls != 0 {
-				t.Fatalf("driver stop calls = %d, want none", h.driver.stopCalls)
+			wantStops := 0
+			if code == acp.ProviderErrorAuthRequired {
+				wantStops = 1
+			}
+			if h.driver.stopCalls != wantStops {
+				t.Fatalf("driver stop calls = %d, want %d", h.driver.stopCalls, wantStops)
 			}
 			stored, err := h.manager.Events(
 				t.Context(),
@@ -4057,8 +4490,9 @@ func TestRequestCompaction(t *testing.T) {
 // nativeOrderRecorder records the subagent transitions the prompt path drives, in order.
 type nativeOrderRecorder struct {
 	SubagentService
-	mu    sync.Mutex
-	calls []string
+	mu     sync.Mutex
+	calls  []string
+	settle func()
 }
 
 func (r *nativeOrderRecorder) record(call string) {
@@ -4089,6 +4523,9 @@ func (r *nativeOrderRecorder) OnNativeTurnDone(_ context.Context, _, turn string
 
 func (r *nativeOrderRecorder) OnParentTurnSettled(_ context.Context, _, turn string) error {
 	r.record("settled:" + turn)
+	if r.settle != nil {
+		r.settle()
+	}
 	return nil
 }
 
@@ -4102,9 +4539,170 @@ func (r *nativeOrderRecorder) Summaries(context.Context, []string) (map[string]s
 
 // Invariant: native Agent/Task events and the provider's answer reach the subagent service on the
 // persistence path, in ledger order and before turn settlement, even while nobody reads the prompt
-// stream (issue #766); owner: Manager prompt persistence.
+// stream (issue #766), and the next turn stays excluded until settlement returns; owner: Manager prompt persistence.
 func TestNativeSubagentPersistenceOrder(t *testing.T) {
 	t.Parallel()
+	// Invariant: only committed late summaries enrich retired rows, immediately or through durable replay.
+	for _, boundary := range []string{"live", "projection-failure", "stopped"} {
+		t.Run(
+			"Should project only committed late native summaries at "+boundary,
+			func(t *testing.T) {
+				t.Parallel()
+				recoverResult := boundary == "projection-failure"
+				h := newDeriveHarness(t)
+				parent := createSession(t, h.harness)
+				t.Cleanup(func() { reportSessionStop(t, h.harness, parent.ID) })
+				s, _, _ := newSubagentTestService(t)
+				s.store, s.runtime, s.now = h.db, managerSubagentRuntime{m: h.manager}, h.manager.now
+				hook := &subagentRecordingHook{}
+				s.settled = hook
+				h.manager.SetSubagentService(s)
+				launch := acp.AgentEvent{Type: acp.EventTypeToolCall, TurnID: "turn", ToolCallID: "retired"}.
+					WithProviderToolMetadata("", "Agent", "pending").
+					WithTool("Agent", json.RawMessage(`{"run_in_background":true}`), false)
+				if err := h.manager.recordEvent(t.Context(), parent, launch); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.OnNativeTurnDone(t.Context(), parent.ID, "turn", s.now()); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.OnParentStopped(t.Context(), parent.ID); err != nil {
+					t.Fatal(err)
+				}
+				stopped := boundary == "stopped"
+				if stopped {
+					if err := h.manager.Stop(t.Context(), parent.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				limit := s.resultLimit
+				if recoverResult {
+					s.resultLimit = func(context.Context, string) (int, error) { return 0, errors.New("projection unavailable") }
+				}
+				late := acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: "retired"}.
+					WithNativeTask(&acp.NativeTaskObservation{
+						Kind: acp.NativeTaskKindState, TaskID: "agent", ToolCallID: "retired",
+						Status: acp.NativeTaskStatusCompleted, Summary: new("durable late answer"),
+					})
+				if stopped {
+					out := make(chan acp.AgentEvent, 1)
+					turn := &promptTurnDispatchState{session: parent, turnID: "turn"}
+					failure, errorText, stopPump := h.manager.handlePromptPumpEvent(
+						t.Context(),
+						t.Context(),
+						parent,
+						turn,
+						out,
+						&promptPumpLoopState{},
+						late,
+						false,
+						&promptPumpFatal{},
+					)
+					if failure != nil || errorText != "" || stopPump || len(out) != 0 {
+						t.Fatalf(
+							"post-stop task was delivered or failed the pump: %v %q %t",
+							failure,
+							errorText,
+							stopPump,
+						)
+					}
+					if got := countTranscriptMarkers(t, h.manager, parent.ID, transcript.MarkerPostStop); got != 1 {
+						t.Fatalf("post-stop markers = %d, want 1", got)
+					}
+				} else if err := h.manager.recordEvent(t.Context(), parent, late); err != nil {
+					t.Fatal(err)
+				}
+				row, err := h.db.GetSubagent(t.Context(), h.workspaceID, subagentID(parent.ID, "retired"))
+				if err != nil || (recoverResult || stopped) && row.Result != nil ||
+					!recoverResult && !stopped && row.Result == nil {
+					t.Fatalf("late projection = %#v, %v", row, err)
+				}
+				stored, err := h.manager.Events(
+					t.Context(),
+					parent.ID,
+					store.EventQuery{Types: []string{acp.EventTypeNativeTask}},
+				)
+				wantStored := 1
+				if stopped {
+					wantStored = 0
+				}
+				if err != nil || len(stored) != wantStored {
+					t.Fatalf("committed summaries = %d, %v", len(stored), err)
+				}
+				s.resultLimit = limit
+				if recoverResult {
+					if err := s.Recover(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+				}
+				waitForCondition(t, "native settled hook", func() bool { return len(hook.recorded()) == 1 })
+				row, err = h.db.GetSubagent(t.Context(), h.workspaceID, row.ID)
+				if err != nil || stopped && row.Result != nil ||
+					!stopped && (row.Result == nil || *row.Result != "durable late answer") ||
+					row.Status != store.SubagentStatusCompleted ||
+					row.Delivery != store.SubagentDeliveryNone ||
+					len(hook.recorded()) != 1 ||
+					len(s.nativeKnown[parent.ID]) != 0 {
+					t.Fatalf("committed summary lost or resettled native work: %#v, %v", row, err)
+				}
+			},
+		)
+	}
+	t.Run("Should reserve the next prompt until native settlement returns", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		entered := make(chan struct{}, 1)
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		defer unblock()
+		recorder := &nativeOrderRecorder{settle: func() {
+			entered <- struct{}{}
+			<-release
+		}}
+		h.manager.SetSubagentService(recorder)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			source := make(chan acp.AgentEvent, 2)
+			source <- acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: req.Message, TurnID: req.TurnID}.
+				WithProviderToolMetadata("", "Agent", "pending").
+				WithTool("Agent", json.RawMessage(`{"run_in_background":true}`), false)
+			source <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID,
+				PromptStopReason: acp.PromptStopReasonEndTurn}
+			close(source)
+			return source, nil
+		}
+		output, err := h.manager.Prompt(t.Context(), active.ID, "first")
+		if err != nil {
+			t.Fatal(err)
+		}
+		settlementCtx, cancelSettlement := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancelSettlement()
+		select {
+		case <-entered:
+		case <-settlementCtx.Done():
+			t.Fatalf("native settlement did not start: %v", settlementCtx.Err())
+		}
+		if _, err := h.manager.Prompt(t.Context(), active.ID, "second"); !errors.Is(err, ErrPromptInProgress) {
+			t.Fatalf("prompt during native settlement error = %v, want ErrPromptInProgress", err)
+		}
+		if got := recorder.snapshot(); len(got) != 3 || got[0] != "native:first:pending:true" ||
+			!strings.HasPrefix(got[1], "done:") || got[2] != "settled:"+strings.TrimPrefix(got[1], "done:") {
+			t.Fatalf("calls during blocked settlement = %q", got)
+		}
+		unblock()
+		collectEvents(t, output)
+		output, err = h.manager.Prompt(t.Context(), active.ID, "second")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, output)
+		if got := recorder.snapshot(); len(got) != 6 || got[3] != "native:second:pending:true" ||
+			!strings.HasPrefix(got[4], "done:") || got[5] != "settled:"+strings.TrimPrefix(got[4], "done:") ||
+			got[1] == got[4] {
+			t.Fatalf("calls across settled turns = %q", got)
+		}
+	})
 	t.Run("Should ingest a background launch and the turn's answer before settling it", func(t *testing.T) {
 		t.Parallel()
 		// A one-event prompt buffer stalls the unread delivery pump after the first event.
@@ -4443,4 +5041,138 @@ var _ context.Context = (*profileStartedContext)(nil)
 func (c *profileStartedContext) Done() <-chan struct{} {
 	c.once.Do(func() { close(c.started) })
 	return c.Context.Done()
+}
+
+// promptDeliveryQueryRecorder counts replay reads at the recorder I/O boundary.
+type promptDeliveryQueryRecorder struct {
+	EventRecorder
+	queries         atomic.Int64
+	failNext        atomic.Bool
+	readError       error
+	failAlways      bool
+	maxReadError    error
+	afterCursorRead func(context.Context) error
+	cursorRead      sync.Once
+	afterQueryRead  func(context.Context) error
+	queryRead       sync.Once
+}
+
+func (r *promptDeliveryQueryRecorder) MaxEventSequence(ctx context.Context) (int64, error) {
+	if r.maxReadError != nil {
+		return 0, r.maxReadError
+	}
+	sequence, err := r.EventRecorder.MaxEventSequence(ctx)
+	if err == nil && r.afterCursorRead != nil {
+		r.cursorRead.Do(func() { err = r.afterCursorRead(ctx) })
+	}
+	return sequence, err
+}
+
+func (r *promptDeliveryQueryRecorder) Query(ctx context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
+	r.queries.Add(1)
+	if r.failAlways || r.failNext.Swap(false) {
+		return nil, r.readError
+	}
+	events, err := r.EventRecorder.Query(ctx, query)
+	if err == nil && r.afterQueryRead != nil {
+		r.queryRead.Do(func() { err = r.afterQueryRead(ctx) })
+	}
+	return events, err
+}
+
+func (r *promptDeliveryQueryRecorder) RecordPersisted(
+	ctx context.Context, event store.SessionEvent,
+) (store.SessionEvent, error) {
+	return recordPersistedSessionEvent(ctx, r.EventRecorder, event)
+}
+
+// Invariant: cumulative reports charge increments and zero on drops across
+// manager/runtime restarts, without double-counting repeated usage notifications. Owner: prompt delivery; real ledger.
+func TestPromptCostAccounting(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name           string
+		amounts, costs []float64
+	}{
+		{"Should continue a restored counter across manager restart", []float64{1, 3, 4}, []float64{1, 2, 1}},
+		{"Should charge zero for a lower counter across manager restart", []float64{1, 3, 0.5, 2}, []float64{1, 2, 0, 1.5}},
+		{"Should resume increments from a lagging restored counter across manager restart", []float64{10, 12, 11.5, 12.5}, []float64{10, 2, 0, 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			target := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			var charged float64
+			for index, amount := range tc.amounts {
+				if index > 0 {
+					if err := h.manager.Stop(t.Context(), target.ID); err != nil {
+						t.Fatal(err)
+					}
+					h.manager = newManagerWithHarness(t, h)
+					resumed, err := h.manager.Resume(t.Context(), target.ID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					target = resumed
+				}
+				h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					out := make(chan acp.AgentEvent, 3)
+					for _, kind := range []string{acp.EventTypeUsage, acp.EventTypeUsage, acp.EventTypeDone} {
+						out <- acp.AgentEvent{Type: kind, TurnID: req.TurnID, Usage: &acp.TokenUsage{
+							TurnID: req.TurnID, CostAmount: new(amount), CostCurrency: new("USD"), TotalTokens: new(int64(12)),
+						}}
+					}
+					close(out)
+					return out, nil
+				}
+				stream, err := h.manager.Prompt(t.Context(), target.ID, "cost")
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, event := range collectEvents(t, stream) {
+					if event.Usage == nil {
+						continue
+					}
+					if event.Usage.CostAmount == nil || *event.Usage.CostAmount != tc.costs[index] ||
+						event.Usage.ReportedCostAmount == nil || *event.Usage.ReportedCostAmount != amount {
+						t.Fatalf(
+							"turn %d usage = %+v; want charge %v and report %v",
+							index,
+							event.Usage,
+							tc.costs[index],
+							amount,
+						)
+					}
+					if event.Type == acp.EventTypeDone {
+						charged += *event.Usage.CostAmount
+					}
+				}
+			}
+			projection, err := target.recorderHandle().ListTokenUsage(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var projected, want float64
+			for _, usage := range projection {
+				if usage.CostAmount != nil {
+					projected += *usage.CostAmount
+				}
+			}
+			for _, cost := range tc.costs {
+				want += cost
+			}
+			if projected != want || charged != want {
+				t.Fatalf("projected=%v delivered=%v want=%v", projected, charged, want)
+			}
+		})
+	}
+	t.Run("Should retain an explicitly declared per-turn report", func(t *testing.T) {
+		t.Parallel()
+		for _, amount := range []float64{1, 3, 0.5} {
+			if got := turnCost(amount, 12, compozyconfig.ProviderCostPerTurn); got != amount {
+				t.Fatalf("cost=%v want=%v", got, amount)
+			}
+		}
+	})
 }

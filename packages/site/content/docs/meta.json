@@ -13,6 +13,7 @@
         "---Core concepts---",
         "sessions",
         "terminal",
+        "files",
         "agents",
         "autonomy",
         "workspaces",
@@ -28,6 +29,7 @@
         "marketplace",
         "skills",
         "tools",
+        "mcp",
         "resources",
         "extensions",
         "hooks",
@@ -37,6 +39,7 @@
         "configuration",
         "---Reference---",
         "cli",
-        "api"
+        "api",
+        "sdk"
     ]
 }

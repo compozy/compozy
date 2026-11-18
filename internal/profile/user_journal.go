@@ -16,6 +16,26 @@ func WithUserJournalRemover(remover UserJournalRemover) Option {
 	return func(m *Manager) error { m.userJournal = remover; return nil }
 }
 
+type UserToolArtifactRemover interface {
+	RemoveUserArtifacts(context.Context, string) error
+}
+
+func WithUserToolArtifactRemover(remover UserToolArtifactRemover) Option {
+	return func(m *Manager) error { m.userArtifacts = remover; return nil }
+}
+
+func (m *Manager) removeUserToolArtifacts(ctx context.Context, opID string) error {
+	if m.userArtifacts == nil {
+		return nil
+	}
+	var profileID string
+	if err := m.store.ReadDB().QueryRowContext(ctx,
+		`SELECT profile_id FROM profile_lifecycle_ops WHERE id = ?`, opID).Scan(&profileID); err != nil {
+		return fmt.Errorf("profile: read User artifact owner: %w", err)
+	}
+	return m.userArtifacts.RemoveUserArtifacts(ctx, profileID)
+}
+
 func (m *Manager) removeUserJournal(ctx context.Context, opID string) error {
 	if m.userJournal == nil {
 		return nil

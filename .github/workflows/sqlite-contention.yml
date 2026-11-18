@@ -16,12 +16,17 @@ on:
       - "go.mod"
       - "go.sum"
   workflow_dispatch:
+    inputs:
+      runtime_trace_trials:
+        description: "Record the original trials for syscall/scheduling diagnosis (not final acceptance evidence)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: sqlite-contention-${{ github.ref }}
+  group: sqlite-contention-${{ github.ref }}-${{ inputs.runtime_trace_trials && 'traced' || 'acceptance' }}
   cancel-in-progress: true
 
 env:
@@ -31,7 +36,7 @@ env:
 
 jobs:
   paired-load:
-    name: SQLite paired load and 1 GB upgrade
+    name: ${{ inputs.runtime_trace_trials && 'SQLite traced diagnostic (not acceptance)' || 'SQLite paired load and 1 GB upgrade' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -46,6 +51,7 @@ jobs:
       - name: Install syscall tracer
         run: |
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get "${apt_sources[@]}" update
           sudo apt-get "${apt_sources[@]}" install --yes strace
       - name: Check out the fixed baseline
@@ -64,17 +70,27 @@ jobs:
       - name: Measure on the same runner, sequentially
         env:
           EXPERIMENT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUNTIME_TRACE_TRIALS: ${{ inputs.runtime_trace_trials || false }}
         run: |
+          diagnostic_args=()
+          if test "$RUNTIME_TRACE_TRIALS" = true; then
+            diagnostic_args+=(--runtime-trace-trials)
+          fi
           python3 scripts/sqlite-contention/run.py \
             --baseline "$RUNNER_TEMP/contention-baseline" \
             --head "$RUNNER_TEMP/contention-head" \
             --baseline-sha "$BASELINE_SHA" --head-sha "$EXPERIMENT_HEAD" \
-            --output "$RUNNER_TEMP/sqlite-contention"
+            --output "$RUNNER_TEMP/sqlite-contention" "${diagnostic_args[@]}"
       - name: Publish experiment summary
         if: always()
         run: |
-          if test -f "$RUNNER_TEMP/sqlite-contention/report.md"; then
-            cat "$RUNNER_TEMP/sqlite-contention/report.md" >> "$GITHUB_STEP_SUMMARY"
+          report="$RUNNER_TEMP/sqlite-contention/report.md"
+          if test -f "$report"; then
+            # Keep the full artifact; reserve room below GitHub's 1 MiB summary limit.
+            head -c 900000 "$report" >> "$GITHUB_STEP_SUMMARY"
+            if test "$(wc -c < "$report")" -gt 900000; then
+              printf '\n\nSummary truncated. Download the SQLite contention artifact for the complete report.md and warning decisions.\n' >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
       - uses: actions/upload-artifact@v7
         if: always()

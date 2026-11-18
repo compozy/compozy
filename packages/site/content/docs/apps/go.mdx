@@ -17,10 +17,14 @@ You need a running CompozyOS daemon and an authenticated agent named `claude`. F
 
 In your Go module:
 
+<section id="sdk-install-go">
+
 ```bash
 COMPOZY_SDK_VERSION="$(compozy version | awk '{print $2}')"
 go get "github.com/compozy/compozy/sdk/go/client@v${COMPOZY_SDK_VERSION#v}"
 ```
+
+</section>
 
 The command reads your installed CompozyOS version and pins the corresponding Go module version.
 Keep the running daemon on that same release. Expected result: `go.mod` records
@@ -31,7 +35,9 @@ Keep the running daemon on that same release. Expected result: `go.mod` records
 
 Save this as `main.go` in the workspace you want the agent to inspect:
 
-```go
+<section id="sdk-run-go">
+
+```go title="main.go"
 package main
 
 import (
@@ -89,6 +95,8 @@ func main() {
     }
 }
 ```
+
+</section>
 
 Run `go run .`. Expected result: the agent's answer is printed as chunks arrive; names and sizes match
 your workspace. The session remains in CompozyOS after the process exits.

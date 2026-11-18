@@ -336,12 +336,9 @@ func TestBuildInvokedSkillsBlock(t *testing.T) {
 
 	t.Run("Should render verified instructions with exact source scope", func(t *testing.T) {
 		t.Parallel()
-		block, err := commandpkg.BuildInvokedSkillsBlock([]commandpkg.InvokedSkill{
+		block := commandpkg.BuildInvokedSkillsBlock([]commandpkg.InvokedSkill{
 			{Ref: ref, Content: "Review carefully."},
 		})
-		if err != nil {
-			t.Fatalf("BuildInvokedSkillsBlock() error = %v", err)
-		}
 		if !strings.Contains(block, `command-id="skill:workspace::review"`) ||
 			!strings.Contains(block, `scope="workspace"`) ||
 			!strings.Contains(block, `command_id="skill:workspace::review"`) ||
@@ -350,41 +347,58 @@ func TestBuildInvokedSkillsBlock(t *testing.T) {
 			!strings.Contains(block, "Review carefully.") {
 			t.Fatalf("BuildInvokedSkillsBlock() = %q, want source-bound resource loading and instructions", block)
 		}
-	})
-
-	t.Run("Should reject one skill above its explicit budget", func(t *testing.T) {
-		t.Parallel()
-		_, err := commandpkg.BuildInvokedSkillsBlock([]commandpkg.InvokedSkill{{
-			Ref: ref, Content: strings.Repeat("x", commandpkg.MaxSkillBytes+1),
-		}})
-		if !errors.Is(err, commandpkg.ErrSkillContextTooLarge) {
-			t.Fatalf("BuildInvokedSkillsBlock() error = %v, want ErrSkillContextTooLarge", err)
+		if strings.Contains(block, "<deferred-instructions") {
+			t.Fatalf("BuildInvokedSkillsBlock() = %q, want a small skill inlined", block)
 		}
 	})
 
-	t.Run("Should reject the combined skill context above its explicit budget", func(t *testing.T) {
+	t.Run("Should defer one skill above its explicit budget to skill_view", func(t *testing.T) {
 		t.Parallel()
-		_, err := commandpkg.BuildInvokedSkillsBlock([]commandpkg.InvokedSkill{
-			{Ref: ref, Content: strings.Repeat("a", commandpkg.MaxSkillBytes)},
-			{
-				Ref: commandpkg.SkillRef{
-					CommandID: "skill:workspace::deploy",
-					Name:      "deploy",
-					Source:    ref.Source,
-				},
-				Content: strings.Repeat("b", commandpkg.MaxSkillBytes),
-			},
-			{
-				Ref: commandpkg.SkillRef{
-					CommandID: "skill:workspace::inspect",
-					Name:      "inspect",
-					Source:    ref.Source,
-				},
-				Content: strings.Repeat("c", commandpkg.MaxSkillBytes),
-			},
+		oversized := strings.Repeat("x", commandpkg.MaxSkillBytes+1)
+		block := commandpkg.BuildInvokedSkillsBlock([]commandpkg.InvokedSkill{{
+			Ref: ref, Content: oversized,
+		}})
+		if strings.Contains(block, oversized) {
+			t.Fatalf("BuildInvokedSkillsBlock() inlined %d bytes, want deferred delivery", len(oversized))
+		}
+		wantDeferred := fmt.Sprintf(
+			`<deferred-instructions command_id="skill:workspace::review" bytes="%d">`,
+			len(oversized),
+		)
+		if !strings.Contains(block, `command-id="skill:workspace::review"`) ||
+			!strings.Contains(block, wantDeferred) ||
+			!strings.Contains(block, "call compozy__skill_view with this exact command_id and no file") {
+			t.Fatalf("BuildInvokedSkillsBlock() = %q, want source-bound deferred skill_view delivery", block)
+		}
+	})
+
+	t.Run("Should inline skills within the combined budget and defer the rest", func(t *testing.T) {
+		t.Parallel()
+		skill := func(name string, content string) commandpkg.InvokedSkill {
+			return commandpkg.InvokedSkill{
+				Ref:     commandpkg.SkillRef{CommandID: "skill:workspace::" + name, Name: name, Source: ref.Source},
+				Content: content,
+			}
+		}
+		first := strings.Repeat("a", commandpkg.MaxSkillBytes)
+		second := strings.Repeat("b", commandpkg.MaxSkillBytes)
+		third := strings.Repeat("c", commandpkg.MaxSkillBytes)
+		block := commandpkg.BuildInvokedSkillsBlock([]commandpkg.InvokedSkill{
+			skill("review", first),
+			skill("deploy", second),
+			skill("inspect", third),
+			skill("lint", "Lint the diff."),
 		})
-		if !errors.Is(err, commandpkg.ErrSkillContextTooLarge) {
-			t.Fatalf("BuildInvokedSkillsBlock() error = %v, want combined ErrSkillContextTooLarge", err)
+		if !strings.Contains(block, first) || !strings.Contains(block, second) ||
+			!strings.Contains(block, "Lint the diff.") {
+			t.Fatalf("BuildInvokedSkillsBlock() omitted a skill that fits the remaining combined budget")
+		}
+		if strings.Contains(block, third) ||
+			!strings.Contains(block, `<deferred-instructions command_id="skill:workspace::inspect"`) {
+			t.Fatalf("BuildInvokedSkillsBlock() did not defer the skill beyond the combined budget")
+		}
+		if deferred := strings.Count(block, "<deferred-instructions"); deferred != 1 {
+			t.Fatalf("BuildInvokedSkillsBlock() deferred %d skills, want 1", deferred)
 		}
 	})
 }

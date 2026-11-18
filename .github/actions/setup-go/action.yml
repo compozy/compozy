@@ -47,13 +47,23 @@ inputs:
 outputs:
   go-version:
     description: "The Go version that was installed"
-    value: ${{ steps.setup-go.outputs.go-version }}
+    value: ${{ steps.setup-go-retry.outputs.go-version || steps.setup-go.outputs.go-version }}
 
 runs:
   using: "composite"
   steps:
     - name: Set up Go
       id: setup-go
+      continue-on-error: true
+      uses: actions/setup-go@v7
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: "false"
+
+    # Retry only toolchain provisioning, never the test job.
+    - name: Retry Go toolchain download
+      id: setup-go-retry
+      if: steps.setup-go.outcome == 'failure'
       uses: actions/setup-go@v7
       with:
         go-version: ${{ inputs.go-version }}
@@ -90,9 +100,9 @@ runs:
       uses: actions/cache/restore@v6
       with:
         path: ${{ steps.go-cache-paths.outputs.build }}
-        key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ inputs.build-cache-job || github.job }}${{ inputs.cache-key-suffix }}-${{ github.run_id }}
+        key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go-retry.outputs.go-version || steps.setup-go.outputs.go-version }}-${{ inputs.build-cache-job || github.job }}${{ inputs.cache-key-suffix }}-${{ github.run_id }}
         restore-keys: |
-          ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ inputs.build-cache-job || github.job }}${{ inputs.cache-key-suffix }}-
+          ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go-retry.outputs.go-version || steps.setup-go.outputs.go-version }}-${{ inputs.build-cache-job || github.job }}${{ inputs.cache-key-suffix }}-
 
     # No restore-keys: the run-scoped key never matches, so the saving job
     # starts cold and stores only what it compiled, instead of growing the
@@ -102,7 +112,7 @@ runs:
       uses: actions/cache@v6
       with:
         path: ${{ steps.go-cache-paths.outputs.build }}
-        key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-${{ github.run_id }}
+        key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go-retry.outputs.go-version || steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-${{ github.run_id }}
 
     - name: Download Go modules
       if: inputs.verify-modules == 'true'

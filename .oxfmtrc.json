@@ -30,6 +30,7 @@
         "catalog/v3/*.json",
         "openapi/compozy.json",
         "**/routeTree.gen.ts",
+        "**/.output/**",
         "extensions/open-design/lint.gen.mjs",
         ".compozy/tasks/**",
         "docs/**",

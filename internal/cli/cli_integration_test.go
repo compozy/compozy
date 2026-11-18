@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/udsapi"
@@ -39,6 +41,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
@@ -208,7 +211,10 @@ func TestTerminalAgentCommandBodiesShouldMatchHTTPClientContracts(t *testing.T) 
 		{
 			"exec",
 			newTerminalExecCommand(deps),
-			[]string{"exec", "--workspace", "workspace-a", "--yield", "250ms", "printf", "ok"},
+			[]string{
+				"exec", "--workspace", "workspace-a", "--yield", "250ms",
+				"--worktree", "wt-ready", "printf", "ok",
+			},
 			"",
 			"ok",
 		},
@@ -302,6 +308,7 @@ func TestTerminalAgentCommandBodiesShouldMatchHTTPClientContracts(t *testing.T) 
 		}
 	})
 	if client.exec.Workspace != "workspace-a" || client.exec.Request.YieldMs != 250 ||
+		client.exec.Request.Worktree != "wt-ready" ||
 		client.signal != "TERM" || !client.inputAllProfiles || !client.journalAllProfiles ||
 		client.journal.Limit != 25 || client.rejected != "input-a" || client.recordAction != "start" ||
 		client.readOptions.FromLine != 0 || client.readOptions.ToLine != 2 {
@@ -2107,150 +2114,227 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 func TestCLIAgentAuthoredContextIntegration(t *testing.T) {
 	t.Parallel()
 
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "--json")
-	writeWorkspaceAgentDef(t, h.workspace, "coder")
-	mustExecuteRoot(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "--json")
+	t.Run("Should preserve authored context and list persisted checks over CLI and UDS", func(t *testing.T) {
+		t.Parallel()
 
-	soulBodyPath := filepath.Join(t.TempDir(), "SOUL.md")
-	soulBody := strings.Join([]string{
-		"---",
-		`version: "1"`,
-		"role: Reviewer",
-		"tone:",
-		"  - concise",
-		"principles:",
-		"  - Keep scope tight",
-		"---",
-		"Review implementation behavior.",
-		"",
-	}, "\n")
-	if err := os.WriteFile(soulBodyPath, []byte(soulBody), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(SOUL.md) error = %v", err)
-	}
+		h := newIntegrationHarness(t)
+		mustExecuteRoot(t, h.deps, "daemon", "start", "--json")
+		writeWorkspaceAgentDef(t, h.workspace, "coder")
+		mustExecuteRoot(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "--json")
 
-	soulWriteOut, soulWriteStderr, soulWriteErr := executeRootCommand(
-		t,
-		h.deps,
-		"agent",
-		"soul",
-		"write",
-		"coder",
-		"--file",
-		soulBodyPath,
-		"--expected-digest",
-		"",
-		"--workspace",
-		"alpha",
-		"--json",
-	)
-	if soulWriteErr != nil {
-		t.Fatalf("agent soul write error = %v; stderr=%s; stdout=%s", soulWriteErr, soulWriteStderr, soulWriteOut)
-	}
-	var soulMutation AgentSoulMutationRecord
-	if err := json.Unmarshal([]byte(soulWriteOut), &soulMutation); err != nil {
-		t.Fatalf("json.Unmarshal(agent soul write) error = %v", err)
-	}
-	if !soulMutation.Soul.Valid || soulMutation.Soul.Digest == "" {
-		t.Fatalf("soul mutation = %#v, want valid digest", soulMutation)
-	}
+		soulBodyPath := filepath.Join(t.TempDir(), "SOUL.md")
+		soulBody := strings.Join([]string{
+			"---",
+			`version: "1"`,
+			"role: Reviewer",
+			"tone:",
+			"  - concise",
+			"principles:",
+			"  - Keep scope tight",
+			"---",
+			"Review implementation behavior.",
+			"",
+		}, "\n")
+		if err := os.WriteFile(soulBodyPath, []byte(soulBody), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(SOUL.md) error = %v", err)
+		}
 
-	soulInspectOut := mustExecuteRoot(t, h.deps, "agent", "soul", "inspect", "coder", "--workspace", "alpha", "--json")
-	var soulInspect AgentSoulRecord
-	if err := json.Unmarshal([]byte(soulInspectOut), &soulInspect); err != nil {
-		t.Fatalf("json.Unmarshal(agent soul inspect) error = %v", err)
-	}
-	if soulInspect.Digest != soulMutation.Soul.Digest || strings.Contains(soulInspectOut, h.homePaths.HomeDir) {
-		t.Fatalf("soul inspect = %#v, want redacted matching digest", soulInspect)
-	}
+		soulWriteOut, soulWriteStderr, soulWriteErr := executeRootCommand(
+			t,
+			h.deps,
+			"agent",
+			"soul",
+			"write",
+			"coder",
+			"--file",
+			soulBodyPath,
+			"--expected-digest",
+			"",
+			"--workspace",
+			"alpha",
+			"--json",
+		)
+		if soulWriteErr != nil {
+			t.Fatalf("agent soul write error = %v; stderr=%s; stdout=%s", soulWriteErr, soulWriteStderr, soulWriteOut)
+		}
+		var soulMutation AgentSoulMutationRecord
+		if err := json.Unmarshal([]byte(soulWriteOut), &soulMutation); err != nil {
+			t.Fatalf("json.Unmarshal(agent soul write) error = %v", err)
+		}
+		if !soulMutation.Soul.Valid || soulMutation.Soul.Digest == "" {
+			t.Fatalf("soul mutation = %#v, want valid digest", soulMutation)
+		}
 
-	heartbeatBodyPath := filepath.Join(t.TempDir(), "HEARTBEAT.md")
-	heartbeatBody := strings.Join([]string{
-		"---",
-		`version: "1"`,
-		"enabled: true",
-		`summary: "Inspect state before waking work."`,
-		"preferences:",
-		`  min_interval: "30m"`,
-		"context:",
-		"  include:",
-		"    - self",
-		"    - session_health",
-		"---",
-		"Check session health before requesting work.",
-		"",
-	}, "\n")
-	if err := os.WriteFile(heartbeatBodyPath, []byte(heartbeatBody), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(HEARTBEAT.md) error = %v", err)
-	}
+		soulInspectOut := mustExecuteRoot(
+			t,
+			h.deps,
+			"agent",
+			"soul",
+			"inspect",
+			"coder",
+			"--workspace",
+			"alpha",
+			"--json",
+		)
+		var soulInspect AgentSoulRecord
+		if err := json.Unmarshal([]byte(soulInspectOut), &soulInspect); err != nil {
+			t.Fatalf("json.Unmarshal(agent soul inspect) error = %v", err)
+		}
+		if soulInspect.Digest != soulMutation.Soul.Digest || strings.Contains(soulInspectOut, h.homePaths.HomeDir) {
+			t.Fatalf("soul inspect = %#v, want redacted matching digest", soulInspect)
+		}
 
-	heartbeatWriteOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"agent",
-		"heartbeat",
-		"write",
-		"coder",
-		"--file",
-		heartbeatBodyPath,
-		"--if-match",
-		"",
-		"--workspace",
-		"alpha",
-		"--json",
-	)
-	var heartbeatMutation AgentHeartbeatMutationRecord
-	if err := json.Unmarshal([]byte(heartbeatWriteOut), &heartbeatMutation); err != nil {
-		t.Fatalf("json.Unmarshal(agent heartbeat write) error = %v", err)
-	}
-	if !heartbeatMutation.Heartbeat.Valid || heartbeatMutation.Heartbeat.ConfigDigest == "" {
-		t.Fatalf("heartbeat mutation = %#v, want valid policy with config digest", heartbeatMutation)
-	}
+		heartbeatBodyPath := filepath.Join(t.TempDir(), "HEARTBEAT.md")
+		heartbeatBody := strings.Join([]string{
+			"---",
+			`version: "1"`,
+			"enabled: true",
+			`summary: "Inspect state before waking work."`,
+			"preferences:",
+			`  min_interval: "30m"`,
+			"context:",
+			"  include:",
+			"    - self",
+			"    - session_health",
+			"---",
+			"Check session health before requesting work.",
+			"",
+		}, "\n")
+		if err := os.WriteFile(heartbeatBodyPath, []byte(heartbeatBody), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(HEARTBEAT.md) error = %v", err)
+		}
 
-	sessionOut := mustExecuteRoot(t, h.deps, "session", "new", "--agent", "coder", "--workspace", "alpha", "--json")
-	var created SessionRecord
-	if err := json.Unmarshal([]byte(sessionOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(session new) error = %v", err)
-	}
+		heartbeatWriteOut := mustExecuteRoot(
+			t,
+			h.deps,
+			"agent",
+			"heartbeat",
+			"write",
+			"coder",
+			"--file",
+			heartbeatBodyPath,
+			"--if-match",
+			"",
+			"--workspace",
+			"alpha",
+			"--json",
+		)
+		var heartbeatMutation AgentHeartbeatMutationRecord
+		if err := json.Unmarshal([]byte(heartbeatWriteOut), &heartbeatMutation); err != nil {
+			t.Fatalf("json.Unmarshal(agent heartbeat write) error = %v", err)
+		}
+		if !heartbeatMutation.Heartbeat.Valid || heartbeatMutation.Heartbeat.ConfigDigest == "" {
+			t.Fatalf("heartbeat mutation = %#v, want valid policy with config digest", heartbeatMutation)
+		}
 
-	heartbeatStatusOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"agent",
-		"heartbeat",
-		"status",
-		"coder",
-		"--workspace",
-		"alpha",
-		"--session",
-		created.ID,
-		"--json",
-	)
-	var heartbeatStatus AgentHeartbeatStatusRecord
-	if err := json.Unmarshal([]byte(heartbeatStatusOut), &heartbeatStatus); err != nil {
-		t.Fatalf("json.Unmarshal(agent heartbeat status) error = %v", err)
-	}
-	if heartbeatStatus.ConfigDigest == "" || heartbeatStatus.SessionHealth == nil {
-		t.Fatalf("heartbeat status = %#v, want config digest and session health", heartbeatStatus)
-	}
+		sessionOut := mustExecuteRoot(t, h.deps, "session", "new", "--agent", "coder", "--workspace", "alpha", "--json")
+		var created SessionRecord
+		if err := json.Unmarshal([]byte(sessionOut), &created); err != nil {
+			t.Fatalf("json.Unmarshal(session new) error = %v", err)
+		}
 
-	sessionHealthOut := mustExecuteRoot(t, h.deps, "session", "health", created.ID, "--json")
-	var sessionHealth SessionHealthRecord
-	if err := json.Unmarshal([]byte(sessionHealthOut), &sessionHealth); err != nil {
-		t.Fatalf("json.Unmarshal(session health) error = %v", err)
-	}
-	if sessionHealth.SessionID != created.ID || sessionHealth.AgentName != "coder" {
-		t.Fatalf("session health = %#v, want created coder session", sessionHealth)
-	}
+		heartbeatStatusOut := mustExecuteRoot(
+			t,
+			h.deps,
+			"agent",
+			"heartbeat",
+			"status",
+			"coder",
+			"--workspace",
+			"alpha",
+			"--session",
+			created.ID,
+			"--json",
+		)
+		var heartbeatStatus AgentHeartbeatStatusRecord
+		if err := json.Unmarshal([]byte(heartbeatStatusOut), &heartbeatStatus); err != nil {
+			t.Fatalf("json.Unmarshal(agent heartbeat status) error = %v", err)
+		}
+		if heartbeatStatus.ConfigDigest == "" || heartbeatStatus.SessionHealth == nil {
+			t.Fatalf("heartbeat status = %#v, want config digest and session health", heartbeatStatus)
+		}
 
-	sessionInspectOut := mustExecuteRoot(t, h.deps, "session", "inspect", created.ID, "--json")
-	var sessionInspect SessionInspectRecord
-	if err := json.Unmarshal([]byte(sessionInspectOut), &sessionInspect); err != nil {
-		t.Fatalf("json.Unmarshal(session inspect) error = %v", err)
-	}
-	if sessionInspect.SessionID != created.ID || sessionInspect.ConfigDigest == "" {
-		t.Fatalf("session inspect = %#v, want policy correlation", sessionInspect)
-	}
+		db, err := globaldb.OpenGlobalDB(t.Context(), h.homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		profiles, err := profilepkg.NewManager(profilepkg.WithStore(db), profilepkg.WithHomePaths(h.homePaths))
+		if err != nil {
+			t.Fatal(err)
+		}
+		foreignProfile, err := profiles.Create(
+			t.Context(),
+			profilepkg.CreateInput{Name: "marketing", Color: "#E8572A", Icon: "megaphone"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 6, 23, 0, 0, 0, time.UTC)
+		for eventID, profileID := range map[string]string{
+			"cli-check": store.DefaultProfileID, "foreign-check": foreignProfile.ID,
+		} {
+			instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+				ProfileID:         profileID,
+				WorkspaceID:       created.WorkspaceID,
+				AgentName:         "coder",
+				PermissionCeiling: "{}",
+				CreatedByKind:     "human",
+			}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events
+        (id,workspace_id,agent_name,source,result,reason,instance_id,created_at,expires_at)
+        VALUES (?, ?, 'coder', 'instance_check', 'quiet', 'quiet', ?, ?, ?)`,
+				eventID, created.WorkspaceID, instance.ID, store.FormatTimestamp(now), store.FormatTimestamp(now.Add(time.Hour)))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		auditOut := mustExecuteRoot(
+			t,
+			h.deps,
+			"agent",
+			"heartbeat",
+			"status",
+			"coder",
+			"--workspace",
+			"alpha",
+			"--include-wake-events",
+			"--json",
+		)
+		var audit AgentHeartbeatStatusRecord
+		if err := json.Unmarshal([]byte(auditOut), &audit); err != nil {
+			t.Fatal(err)
+		}
+		if len(audit.WakeEvents) != 1 || audit.WakeEvents[0].ID != "cli-check" ||
+			audit.WakeEvents[0].Source != contract.HeartbeatWakeSourceInstanceCheck {
+			t.Fatalf("CLI/UDS audit = %+v", audit.WakeEvents)
+		}
+
+		sessionHealthOut := mustExecuteRoot(t, h.deps, "session", "health", created.ID, "--json")
+		var sessionHealth SessionHealthRecord
+		if err := json.Unmarshal([]byte(sessionHealthOut), &sessionHealth); err != nil {
+			t.Fatalf("json.Unmarshal(session health) error = %v", err)
+		}
+		if sessionHealth.SessionID != created.ID || sessionHealth.AgentName != "coder" {
+			t.Fatalf("session health = %#v, want created coder session", sessionHealth)
+		}
+
+		sessionInspectOut := mustExecuteRoot(t, h.deps, "session", "inspect", created.ID, "--json")
+		var sessionInspect SessionInspectRecord
+		if err := json.Unmarshal([]byte(sessionInspectOut), &sessionInspect); err != nil {
+			t.Fatalf("json.Unmarshal(session inspect) error = %v", err)
+		}
+		if sessionInspect.SessionID != created.ID || sessionInspect.ConfigDigest == "" {
+			t.Fatalf("session inspect = %#v, want policy correlation", sessionInspect)
+		}
+	})
 }
 
 func TestExtensionCommandRoundTripIntegration(t *testing.T) {
@@ -2394,77 +2478,88 @@ permissions = ["gateway.private"]
 func TestSessionEventsFollowIntegration(t *testing.T) {
 	t.Parallel()
 
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	sessionOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"session",
-		"new",
-		"--agent",
-		"coder",
-		"--name",
-		"demo",
-		"--cwd",
-		h.workspace,
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("session new error = %v", err)
-	}
-	var created SessionRecord
-	if err := json.Unmarshal([]byte(sessionOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(session new) error = %v", err)
-	}
+	t.Run("Should finish the followed session before daemon teardown", func(t *testing.T) {
+		t.Parallel()
 
-	if _, _, err := executeRootCommand(t, h.deps, "session", "prompt", created.ID, "hello", "-o", "json"); err != nil {
-		t.Fatalf("session prompt error = %v", err)
-	}
+		h := newIntegrationHarness(t)
+		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+		sessionOut, _, err := executeRootCommand(
+			t,
+			h.deps,
+			"session",
+			"new",
+			"--agent",
+			"coder",
+			"--name",
+			"demo",
+			"--cwd",
+			h.workspace,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("session new error = %v", err)
+		}
+		var created SessionRecord
+		if err := json.Unmarshal([]byte(sessionOut), &created); err != nil {
+			t.Fatalf("json.Unmarshal(session new) error = %v", err)
+		}
 
-	cmd := newRootCommand(h.deps)
-	var stderr bytes.Buffer
-	stdout := &lockedBuffer{}
-	cmd.SetOut(stdout)
-	cmd.SetErr(&stderr)
-	cmd.SetArgs([]string{"session", "events", created.ID, "--follow", "-o", "json"})
+		if _, _, err := executeRootCommand(
+			t, h.deps, "session", "prompt", created.ID, "hello", "-o", "json",
+		); err != nil {
+			t.Fatalf("session prompt error = %v", err)
+		}
 
-	done := make(chan error, 1)
-	go func() {
-		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-		defer cancel()
-		done <- cmd.ExecuteContext(ctx)
-	}()
+		cmd := newRootCommand(h.deps)
+		var stderr bytes.Buffer
+		stdout := &lockedBuffer{}
+		cmd.SetOut(stdout)
+		cmd.SetErr(&stderr)
+		cmd.SetArgs([]string{"session", "events", created.ID, "--follow", "-o", "json"})
 
-	waitForCondition(t, 3*time.Second, func() bool {
-		return strings.Contains(stdout.String(), `"type":"agent_message"`)
+		done := make(chan error, 1)
+		go func() {
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			done <- cmd.ExecuteContext(ctx)
+		}()
+
+		waitForCondition(t, 3*time.Second, func() bool {
+			return strings.Contains(stdout.String(), `"type":"agent_message"`)
+		})
+
+		// Join session finalization before daemon teardown; a terminal stream frame is not a stop receipt.
+		stopIntegrationSessionAndRead(t, h.deps, created.ID)
+
+		if err := <-done; err != nil {
+			t.Fatalf("follow command error = %v", err)
+		}
+
+		lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+		if len(lines) < 2 {
+			t.Fatalf("follow output lines = %d, want at least 2", len(lines))
+		}
+		var sawAgentMessage, sawSessionStopped bool
+		for _, line := range lines {
+			var event SessionEventRecord
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				t.Fatalf("json.Unmarshal(follow line) error = %v; line=%s", err, line)
+			}
+			if event.Type == "agent_message" {
+				sawAgentMessage = true
+			}
+			if event.Type == session.EventTypeSessionStopped {
+				sawSessionStopped = true
+			}
+		}
+		if !sawAgentMessage || !sawSessionStopped {
+			t.Fatalf("follow output = %q, want streamed agent_message and session_stopped events", stdout.String())
+		}
+		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
+			t.Fatalf("daemon stop error = %v", err)
+		}
 	})
-
-	if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-		t.Fatalf("daemon stop error = %v", err)
-	}
-
-	if err := <-done; err != nil {
-		t.Fatalf("follow command error = %v", err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
-	if len(lines) < 2 {
-		t.Fatalf("follow output lines = %d, want at least 2", len(lines))
-	}
-	var sawAgentMessage bool
-	for _, line := range lines {
-		var event SessionEventRecord
-		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			t.Fatalf("json.Unmarshal(follow line) error = %v; line=%s", err, line)
-		}
-		if event.Type == "agent_message" {
-			sawAgentMessage = true
-		}
-	}
-	if !sawAgentMessage {
-		t.Fatalf("follow output = %q, want streamed agent_message event", stdout.String())
-	}
 }
 
 func TestWorkspaceCommandsIntegration(t *testing.T) {
@@ -3995,6 +4090,14 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		if cleanupErr == nil {
 			return
 		}
+		if errors.Is(cleanupErr, context.DeadlineExceeded) {
+			stacks := make([]byte, 1<<20)
+			written := runtime.Stack(stacks, true)
+			cleanupErr = fmt.Errorf(
+				"%w; bounded shutdown goroutines (count=%d, at_capacity=%t):\n%s",
+				cleanupErr, runtime.NumGoroutine(), written == len(stacks), stacks[:written],
+			)
+		}
 		runErr = errors.Join(runErr, fmt.Errorf("%s: %w", operation, cleanupErr))
 	}
 
@@ -4031,6 +4134,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 
 	manager, err := session.NewManager(
 		session.WithHomePaths(d.homePaths),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
 		session.WithDriver(func() *integrationDriver {
@@ -4052,6 +4156,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 	if err != nil {
 		return fmt.Errorf("new session manager: %w", err)
 	}
+	manager.SetMCPAuthorityResolver(cliIntegrationMCPAuthority{sessions: manager})
 	d.mu.Lock()
 	d.manager = manager
 	d.mu.Unlock()
@@ -4218,7 +4323,9 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		shutdown := func(operation string, stop func(context.Context) error) {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			joinRunError(operation, stop(shutdownCtx))
+			started := time.Now()
+			err := stop(shutdownCtx)
+			joinRunError(fmt.Sprintf("%s (elapsed %s, budget 2s)", operation, time.Since(started)), err)
 		}
 		shutdown("shutdown automation manager", automationManager.Shutdown)
 		for _, info := range manager.List() {
@@ -4226,7 +4333,10 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 				continue
 			}
 			shutdown(
-				fmt.Sprintf("stop active session %q", info.ID),
+				fmt.Sprintf(
+					"stop active session %q (manager=%p, acp_session=%q, state=%s, runtime=%s, pending_permission=%t)",
+					info.ID, manager, info.ACPSessionID, info.State, info.RuntimeStatus, info.PendingPermission,
+				),
 				func(ctx context.Context) error {
 					err := manager.StopWithCause(ctx, info.ID, session.CauseShutdown, "integration daemon shutdown")
 					// Match daemon.stopSessions: an already finalized session is no longer a stop target.
@@ -4916,4 +5026,25 @@ func TestSessionPromptOriginIntegration(t *testing.T) {
 			)
 		}
 	})
+}
+
+// cliIntegrationMCPAuthority decodes the stored lineage intent; this harness has no daemon resolver.
+type cliIntegrationMCPAuthority struct{ sessions *session.Manager }
+
+func (r cliIntegrationMCPAuthority) EffectiveMCPAuthority(
+	ctx context.Context,
+	id string,
+) (store.SessionPermissionPolicy, error) {
+	info := session.MCPAuthoritySession(ctx, id)
+	if info == nil {
+		var err error
+		info, err = r.sessions.StoredStatus(ctx, id)
+		if err != nil {
+			return store.SessionPermissionPolicy{}, err
+		}
+	}
+	lineage := store.NormalizeSessionLineage(id, info.Lineage)
+	policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
+	policy.MCPServers = store.BoundMCPServers(policy, nil)
+	return policy, nil
 }

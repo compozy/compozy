@@ -4,9 +4,9 @@ area: ET
 title: Suspend hidden window live resources
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: Task, Loop, Marketplace, and dashboard windows stop their own streams, polling, and elapsed clocks when minimized, off-desktop, inside an inactive tab stack, or document-hidden; visible sibling windows stay current, and every restored window reconciles current server state without a manual reload.
-entry_points: Web OS shell; window minimize and restore; desktop switch; tab-stack activation; browser background and foreground
-qa_status: skipped
+expected: Task, Loop, Marketplace, and dashboard windows stop their own streams, polling, and elapsed clocks when off-desktop, in an inactive tab (alone or inside a split), or document-hidden; visible sibling windows stay current, and every window that becomes visible again reconciles current server state without a manual reload.
+entry_points: Web OS shell; tab bar activation; desktop switch; browser background and foreground
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-visible-session-streaming
 ---
 
-Task, Loop, Marketplace, and dashboard windows stop their own streams, polling, and elapsed clocks when minimized, off-desktop, inside an inactive tab stack, or document-hidden; visible sibling windows stay current, and every restored window reconciles current server state without a manual reload.
+Task, Loop, Marketplace, and dashboard windows stop their own streams, polling, and elapsed clocks when off-desktop, in an inactive tab (alone or inside a split), or document-hidden; visible sibling windows stay current, and every window that becomes visible again reconciles current server state without a manual reload.
 
 Walk each listed public entry point, then reload and read the stored result independently. Exercise rejection and recovery with the same workspace and profile to confirm that unrelated state remains intact.
 
@@ -38,3 +38,5 @@ avoid fetching solely because the timer was recomputed. Query-client custom hash
 defaults must retain the same behavior. The query-options/live-tail owning suites
 and the [responsiveness report](../reports/2026-10-17-responsiveness.md) record the
 current proof; this note does not upgrade the historical skipped browser verdict.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Minimize/restore and tab stacks are retired; a hidden window is now one on another desktop, in an inactive tab (alone or inside a split) or in a hidden document. Expected, the body paragraph and entry points rewritten. Walk: a Task and a dashboard window in a split in one tab, a Loop window in another tab; switch tabs and desktops and background the browser, and confirm only the hidden windows stop streams, polling and clocks and catch up when shown again. Reset for the current build.

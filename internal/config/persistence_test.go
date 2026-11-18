@@ -12,6 +12,7 @@ import (
 	"time"
 
 	burnttoml "github.com/BurntSushi/toml"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func TestEditConfigOverlayInitialTimezone(t *testing.T) {
@@ -1303,6 +1304,115 @@ func TestPersistenceHelperMapsAndStringDecoding(t *testing.T) {
 func TestLoadConfigArchivesRetiredSkillAcquisition(t *testing.T) {
 	// Invariant: retirement cannot publish over a file or parent replaced during validation.
 	// Owner: persisted config migration; canonical suite: TestLoadConfigArchivesRetiredSkillAcquisition.
+	t.Run("Should reject a save made after the migration temporary file is synced", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		path := filepath.Join(root, "config.toml")
+		body := "[skills.marketplace]\nregistry = 'clawhub'\n"
+		saved := "[agents.always_on]\nmax_proposals = 9\n"
+		writeFile(t, path, body)
+		directory, err := fileutil.OpenDirectory(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := directory.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		contents, info, err := directory.ReadRegularFile("config.toml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		migrated, err := archiveRetiredSkillMarketplace(contents, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = publishRetiredConfigArchiveWithHook(
+			directory,
+			path,
+			info,
+			contents,
+			migrated,
+			func() { writeFile(t, path, saved) },
+			nil,
+		)
+		if err == nil || !strings.Contains(err.Error(), "config changed during retirement migration") {
+			t.Fatalf("publish error = %v", err)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil || string(after) != saved {
+			t.Fatalf("concurrent save lost: %q %v", after, err)
+		}
+		entries, err := os.ReadDir(root)
+		if err != nil || len(entries) != 1 {
+			t.Fatalf("temporary migration file leaked: %v %v", entries, err)
+		}
+	})
+
+	t.Run("Should serialize a config save after the retirement comparison", func(t *testing.T) {
+		// Not parallel: this case proves ownership of the process-wide config write mutex.
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, home.ConfigFile, "[skills.marketplace]\nregistry = 'clawhub'\n")
+		directory, err := fileutil.OpenDirectory(home.HomeDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := directory.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		contents, info, err := directory.ReadRegularFile("config.toml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		rendered, err := archiveRetiredSkillMarketplace(contents, home.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compared, release := make(chan struct{}), make(chan struct{})
+		published := make(chan error, 1)
+		go func() {
+			published <- publishRetiredConfigArchiveWithHook(directory, home.ConfigFile, info, contents, rendered, nil, func() { close(compared); <-release })
+		}()
+		<-compared
+		unlocked := configOverlayWriteMu.TryLock()
+		if unlocked {
+			configOverlayWriteMu.Unlock()
+		}
+		target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+		if err != nil {
+			close(release)
+			<-published
+			t.Fatal(err)
+		}
+		saved := make(chan error, 1)
+		go func() {
+			_, err := EditConfigOverlay(home, "", target, func(editor *OverlayEditor) error {
+				return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(9))
+			})
+			saved <- err
+		}()
+		close(release)
+		if err := <-published; err != nil {
+			t.Fatal(err)
+		}
+		if err := <-saved; err != nil {
+			t.Fatal(err)
+		}
+		if unlocked {
+			t.Fatal("migration did not hold the config write lease after comparison")
+		}
+		cfg, err := LoadForHome(home)
+		if err != nil || cfg.Agents.AlwaysOn.MaxProposals != 9 {
+			t.Fatalf("saved value lost: %+v %v", cfg.Agents.AlwaysOn, err)
+		}
+	})
+
 	for _, replacement := range []string{"file", "parent"} {
 		t.Run("Should reject a changed "+replacement+" before retirement commits", func(t *testing.T) {
 			t.Parallel()
@@ -1638,6 +1748,9 @@ func assertPrivatePathMode(t *testing.T, path string, want os.FileMode) {
 	}
 }
 
+// Invariant: the retired memory and compaction settings v0.6.0 still accepted move losslessly into
+// an inactive comment archive while live settings keep their bytes (#1618; shim removal: v0.7.0).
+// Owner: persisted config boundary migration.
 func TestArchiveRetiredMemorySettings(t *testing.T) {
 	t.Parallel()
 	t.Run("Should archive memory tables losslessly and preserve live settings", func(t *testing.T) {
@@ -1771,18 +1884,80 @@ func TestArchiveRetiredMemorySettings(t *testing.T) {
 			t.Fatalf("unexpected migration: %v %v %s", archived, err, rendered)
 		}
 	})
-	t.Run("Should retain the TOML decoder error for invalid input", func(t *testing.T) {
+	t.Run("Should keep a comment that sits between a retired element and its separator", func(t *testing.T) {
+		t.Parallel()
+		contents := []byte("automation.triggers = [\n" +
+			"  {name='old', event='memory.consolidated'} # Keep this note.\n" +
+			"  ,\n" +
+			"  {name='kept', event='session.stopped', workspace='workspace'},\n" +
+			"]\n")
+		rendered, names, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err != nil {
+			t.Fatalf("archiveRetiredMemorySettings() error = %v", err)
+		}
+		if len(names) == 0 {
+			t.Fatal("archive reported no retired settings")
+		}
+		var values struct {
+			Automation struct {
+				Triggers []struct {
+					Name string `toml:"name"`
+				} `toml:"triggers"`
+			} `toml:"automation"`
+		}
+		if _, err := burnttoml.Decode(string(rendered), &values); err != nil {
+			t.Fatalf("archive published a document that does not parse: %v\n%s", err, rendered)
+		}
+		if got := values.Automation.Triggers; len(got) != 1 || got[0].Name != "kept" {
+			t.Fatalf("triggers = %+v, want only the kept trigger\n%s", got, rendered)
+		}
+		if !strings.Contains(string(rendered), "# Keep this note.") {
+			t.Fatalf("archive dropped the comment:\n%s", rendered)
+		}
+	})
+	t.Run("Should remove a separator shared by two retired elements once", func(t *testing.T) {
+		t.Parallel()
+		contents := []byte("automation.triggers = [\n" +
+			"  {name='one', event='memory.consolidated'} # keep\n" +
+			"  , {name='two', event='memory.consolidated'}\n" +
+			"]\n" +
+			"[daemon]\n" +
+			"socket = 'daemon.sock'\n")
+		rendered, _, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err != nil {
+			t.Fatalf("archiveRetiredMemorySettings() error = %v", err)
+		}
+		var values struct {
+			Automation struct {
+				Triggers []map[string]any `toml:"triggers"`
+			} `toml:"automation"`
+			Daemon struct {
+				Socket string `toml:"socket"`
+			} `toml:"daemon"`
+		}
+		if _, err := burnttoml.Decode(string(rendered), &values); err != nil {
+			t.Fatalf("archive published a document that does not parse: %v\n%s", err, rendered)
+		}
+		if len(values.Automation.Triggers) != 0 || values.Daemon.Socket != "daemon.sock" {
+			t.Fatalf("rewritten values = %+v, want no triggers and the daemon table kept\n%s", values, rendered)
+		}
+	})
+	t.Run("Should leave invalid input unchanged so the decoder reports the parse error", func(t *testing.T) {
 		t.Parallel()
 		contents := []byte("[memory\nenabled = false\n")
+		rendered, archived, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err != nil || len(archived) != 0 || !bytes.Equal(rendered, contents) {
+			t.Fatalf("archive of invalid TOML = %q, %v, %v; want the input unchanged", rendered, archived, err)
+		}
 		var values map[string]any
-		_, want := burnttoml.Decode(string(contents), &values)
-		_, _, err := archiveRetiredMemorySettings(contents, "config.toml")
-		if err == nil || err.Error() != want.Error() {
-			t.Fatalf("error = %v, want %v", err, want)
+		if _, decodeErr := burnttoml.Decode(string(rendered), &values); decodeErr == nil {
+			t.Fatal("decoder accepted the invalid document")
 		}
 	})
 }
 
+// Invariant: the retired-settings archive is lossless for every TOML layout of the retired keys
+// (dotted, inline, noncontiguous). Owner: persisted config boundary migration.
 func TestArchiveRetiredMemorySettingsTOMLForms(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, contents, preserved string }{
@@ -1862,6 +2037,17 @@ func TestArchiveRetiredMemorySettingsTOMLForms(t *testing.T) {
 			"automation.triggers = [",
 		},
 		{
+			"Should keep a comment before the only retired trigger",
+			"automation.triggers = [\n  # Keep this note.\n  {name='old',event='memory.consolidated'},\n]\n",
+			"# Keep this note.",
+		},
+		{
+			"Should keep a comment between a live and a retired trigger",
+			"automation.triggers = [\n  {name='kept',event='session.stopped',workspace='workspace'},\n" +
+				"  # Keep this note.\n  {name='old',event='memory.consolidated'},\n]\n",
+			"{name='kept',event='session.stopped',workspace='workspace'},\n  # Keep this note.",
+		},
+		{
 			"Should archive spec hook shape",
 			"[[hooks]]\nname='audit'\nmatcher = { compaction_reason = 'pressure', session_id = 'keep' }\n",
 			"session_id = 'keep'",
@@ -1933,8 +2119,9 @@ func canonicalMemoryArchiveValues(t *testing.T, values any) map[string]any {
 	return decoded
 }
 
-// Invariant: every persisted overlay archives retired keys once, preserves concurrent edits,
-// and applies the retained role and replay configuration. Owner: config persistence (UT-004/UT-007).
+// Invariant: every persisted overlay archives retired keys once and preserves concurrent edits, and
+// a file that cannot be rewritten still loads with the retired values inactive, so a v0.6.0 config
+// never blocks a start (#1618). Owner: config persistence (UT-004/UT-007).
 func TestLoadPersistedConfigArchivesRetiredMemory(t *testing.T) {
 	t.Parallel()
 	for _, retained := range []bool{false, true} {
@@ -2112,24 +2299,34 @@ func TestLoadPersistedConfigArchivesRetiredMemory(t *testing.T) {
 			t.Fatalf("writable retry did not publish archive: %q, %v", got, err)
 		}
 	})
-	t.Run("Should load retained role and replay settings", func(t *testing.T) {
+	t.Run("Should archive retired tables and remove provider_full_access in one rewrite", func(t *testing.T) {
 		t.Parallel()
-		homePaths, err := ResolveHomePathsFrom(t.TempDir())
+		path := filepath.Join(t.TempDir(), ConfigName)
+		const content = "[memory]\nenabled = true\n[permissions]\nmode = \"approve-all\"\nprovider_full_access = true\n"
+		writeFile(t, path, content)
+		overlay, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes)
+		if err != nil || overlay.Permissions.Mode == nil || *overlay.Permissions.Mode != PermissionModeApproveAll {
+			t.Fatalf("combined retired config did not load: %#v, %v", overlay.Permissions, err)
+		}
+		first, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		writeFile(
-			t,
-			homePaths.ConfigFile,
-			"[roles.auto_title]\nmodel = 'title-model'\n[roles.coordinator]\nmax_children = 3\n[session.derive]\nmax_replay_bytes = 8192\nmax_message_bytes = 4096\n",
-		)
-		cfg, err := LoadForHome(homePaths, withoutDotEnv())
-		if err != nil {
+		active, _, found := strings.Cut(string(first), retiredMemoryArchiveHeader)
+		if !found || !strings.Contains(active, "[permissions]\nmode = \"approve-all\"\n") ||
+			strings.Contains(active, "provider_full_access") || strings.Contains(active, "[memory]") {
+			t.Fatalf("active config after migration = %q", first)
+		}
+		backup, err := os.ReadFile(path + RetiredConfigKeysBackupSuffix)
+		if err != nil || string(backup) != content {
+			t.Fatalf("backup = %q, %v; want the original config", backup, err)
+		}
+		if _, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes); err != nil {
 			t.Fatal(err)
 		}
-		if cfg.Roles.AutoTitle.Model != "title-model" || cfg.Roles.Coordinator.MaxChildren != 3 ||
-			cfg.Session.Derive.MaxReplayBytes != 8192 || cfg.Session.Derive.MaxMessageBytes != 4096 {
-			t.Fatalf("retained config was not applied: %#v", cfg)
+		second, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(first, second) {
+			t.Fatalf("reload changed migrated config: %q, %v", second, err)
 		}
 	})
 }
@@ -2173,57 +2370,200 @@ func TestOverlayEditorKeepsSessionRuntimeDefaultsWithTheirProvider(t *testing.T)
 	}
 }
 
-// TestEditConfigOverlayUnsetAlwaysOnAlias owns the UT-008 unset rows: unsetting either spelling
-// removes the key from both [agents.always_on] and [agents.stays_on] in the overlay file, so an
-// old value cannot resurface. Removal: v0.5.2.
 func TestEditConfigOverlayUnsetAlwaysOnAlias(t *testing.T) {
 	t.Parallel()
-
-	for _, path := range [][]string{
-		{"agents", "stays_on", "max_proposals"},
-		{"agents", "always_on", "max_proposals"},
-		{"agents", "stays_on"},
-		{"agents", "always_on"},
-	} {
-		t.Run("Should clear both tables when unsetting "+strings.Join(path, "."), func(t *testing.T) {
+	for _, path := range [][]string{{"agents", "stays_on"}, {"agents", "stays_on", "max_proposals"}} {
+		t.Run("Should reject removed unset "+strings.Join(path, "."), func(t *testing.T) {
 			t.Parallel()
-
-			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser, "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			writeFile(t, homePaths.ConfigFile, "[agents.stays_on]\nmax_proposals = 5\n")
-			if _, err := EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
-				return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(3))
-			}); err != nil {
-				t.Fatalf("set new path error = %v", err)
-			}
-			deleted := false
-			cfg, err := EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
-				deleted = editor.HasPath(path)
-				return editor.Delete(path)
-			})
-			if err != nil {
-				t.Fatalf("unset %v error = %v", path, err)
-			}
-			if !deleted || cfg.Agents.AlwaysOn.MaxProposals != 2 {
-				t.Fatalf(
-					"deleted = %v MaxProposals = %d, want true and the default 2",
-					deleted,
-					cfg.Agents.AlwaysOn.MaxProposals,
-				)
-			}
-			contents, err := os.ReadFile(homePaths.ConfigFile)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if strings.Contains(string(contents), "max_proposals") {
-				t.Fatalf("config after unset = %q, want max_proposals gone from both tables", contents)
+			editor := OverlayEditor{}
+			if err := editor.Delete(path); err == nil || !strings.Contains(err.Error(), "agents.always_on") {
+				t.Fatalf("delete error = %v", err)
 			}
 		})
 	}
+	for _, path := range [][]string{{"agents", "always_on"}, {"agents", "always_on", "max_proposals"}} {
+		t.Run("Should unset canonical path "+strings.Join(path, "."), func(t *testing.T) {
+			t.Parallel()
+			home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, home.ConfigFile, "[agents.always_on]\nmax_proposals = 5\n")
+			cfg, err := EditConfigOverlay(
+				home,
+				"",
+				target,
+				func(editor *OverlayEditor) error { return editor.Delete(path) },
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Agents.AlwaysOn.MaxProposals != DefaultWithHome(home).Agents.AlwaysOn.MaxProposals {
+				t.Fatalf("effective MaxProposals = %d", cfg.Agents.AlwaysOn.MaxProposals)
+			}
+			body, err := os.ReadFile(home.ConfigFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var persisted map[string]any
+			meta, err := burnttoml.Decode(string(body), &persisted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if meta.IsDefined(path...) {
+				t.Fatalf("deleted path remains in config: %s", body)
+			}
+		})
+	}
+}
+
+// Invariant: loading persisted user settings moves [agents.stays_on] into [agents.always_on] once
+// and archives conflicts (#1618; shim removal: v0.7.0). Owner: persisted config boundary migration.
+func TestPersistedAgentKindConfigMigration(t *testing.T) {
+	t.Parallel()
+	for _, body := range []string{
+		"[agents.stays_on]\nmax_proposals = 7\napproval_timeout = '2h'\n[agents.always_on]\nmax_proposals = 3\n",
+		"agents = { stays_on = { max_proposals = 7, approval_timeout = '2h' }, always_on = { max_proposals = 3 } }\n",
+		"agents.stays_on.max_proposals = 7\nagents.stays_on.approval_timeout = '2h'\nagents.always_on.max_proposals = 3\n",
+	} {
+		t.Run("Should migrate layout "+body, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "config.toml")
+			writeFile(t, path, "# Keep original comment\ndefaults.model = 'kept'\n"+body)
+			cfg := Config{}
+			if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Defaults.Model != "kept" || cfg.Agents.AlwaysOn.MaxProposals != 3 ||
+				cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
+				t.Fatalf("settings = %+v", cfg.Agents.AlwaysOn)
+			}
+			first, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(first), "max_proposals = 7") {
+				t.Fatalf("lost archived conflict: %s", first)
+			}
+			if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			second, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(first, second) {
+				t.Fatalf("migration not idempotent: %s %v", second, err)
+			}
+		})
+	}
+	t.Run("Should migrate before applying a canonical config write", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, home.ConfigFile, "[agents.stays_on]\nmax_proposals = 7\n")
+		target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := EditConfigOverlay(home, "", target, func(editor *OverlayEditor) error {
+			return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(3))
+		})
+		if err != nil || cfg.Agents.AlwaysOn.MaxProposals != 3 {
+			t.Fatalf("write = %+v %v", cfg.Agents.AlwaysOn, err)
+		}
+		data, err := os.ReadFile(home.ConfigFile)
+		if err != nil || !bytes.Contains(data, []byte("max_proposals = 7")) {
+			t.Fatalf("archive = %s %v", data, err)
+		}
+	})
+	t.Run("Should archive retired memory settings before applying a canonical config write", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, home.ConfigFile, "[memory]\nenabled = false\n")
+		target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := EditConfigOverlay(home, "", target, func(editor *OverlayEditor) error {
+			return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(3))
+		})
+		if err != nil || cfg.Agents.AlwaysOn.MaxProposals != 3 {
+			t.Fatalf("write = %+v %v", cfg.Agents.AlwaysOn, err)
+		}
+		data, err := os.ReadFile(home.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		active, archive, found := strings.Cut(string(data), retiredMemoryArchiveHeader)
+		if !found || strings.Contains(active, "[memory]") || !strings.Contains(archive, "enabled = false") {
+			t.Fatalf("retired memory settings not archived by the write: %s", data)
+		}
+	})
+	// Invariant: a retired-key shim never reports a syntax error; the document reaches the config
+	// decoder unchanged so the parse error keeps its position.
+	t.Run("Should leave a malformed document to the config decoder", func(t *testing.T) {
+		t.Parallel()
+		malformed := []byte("[memory]\nenabled = false\n[agents.stays_on]\nmax_proposals = \n")
+		for name, step := range map[string]func([]byte, string) ([]byte, []string, error){
+			"memory archive":   archiveRetiredMemorySettings,
+			"always-on rename": migrateRetiredAlwaysOnTable,
+		} {
+			rendered, changed, err := step(malformed, "config.toml")
+			if err != nil || len(changed) != 0 || !bytes.Equal(rendered, malformed) {
+				t.Fatalf("%s = %q, %v, %v, want the input unchanged", name, rendered, changed, err)
+			}
+		}
+		rendered, migration, err := migrateRetiredConfigKeys(malformed, "config.toml")
+		if err != nil || migration.changed() || !bytes.Equal(rendered, malformed) {
+			t.Fatalf("migrateRetiredConfigKeys() = %q, %+v, %v, want the input unchanged", rendered, migration, err)
+		}
+		_, err = loadConfigOverlayBytes(rendered, "config.toml")
+		fileErr, ok := errors.AsType[FileError](err)
+		if !ok || fileErr.Op != "decode" || fileErr.Path != "config.toml" {
+			t.Fatalf("loadConfigOverlayBytes() error = %v, want a decode error naming config.toml", err)
+		}
+	})
+	t.Run("Should migrate other overlays while a config save owns the write mutex", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		paths := []string{
+			home.ConfigFile,
+			profileConfigFile(home, "default"),
+			workspaceConfigFile(root),
+			workspaceProfileConfigFile(root, "default"),
+		}
+		for _, path := range paths {
+			writeFile(t, path, "[agents.stays_on]\napproval_timeout = '2h'\n")
+		}
+		target, err := ResolveConfigWriteTarget(home, root, WriteScopeWorkspace, "default")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := EditConfigOverlay(home, root, target, func(editor *OverlayEditor) error {
+			return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(3))
+		})
+		if err != nil || cfg.Agents.AlwaysOn.MaxProposals != 3 || cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
+			t.Fatalf("write = %+v %v", cfg.Agents.AlwaysOn, err)
+		}
+		for _, path := range paths {
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := loadConfigOverlayBytes(after, path); err != nil {
+				t.Fatalf("overlay not migrated: %s %v", path, err)
+			}
+		}
+	})
 }

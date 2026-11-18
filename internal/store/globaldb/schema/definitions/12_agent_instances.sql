@@ -26,7 +26,7 @@ CREATE TABLE agent_instance_reports (
     id TEXT PRIMARY KEY,
     instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
     source_key TEXT NOT NULL UNIQUE,
-    kind TEXT NOT NULL CHECK (kind IN ('proposal', 'failure', 'approval_expired', 'interrupted', 'rotation_failed', 'rotation_deferred')),
+    kind TEXT NOT NULL CHECK (kind IN ('proposal', 'failure', 'approval_expired', 'interrupted', 'rotation_failed', 'rotation_deferred', 'activity')),
     payload TEXT NOT NULL CHECK (json_valid(payload)),
     fingerprint TEXT NOT NULL DEFAULT '',
     state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'reserved', 'delivered', 'indeterminate')),
@@ -165,3 +165,47 @@ CREATE TABLE heartbeat_source_script_approvals (
 
 CREATE INDEX idx_agent_instances_activity ON agent_instances(profile_id, agent_name, workspace_id);
 CREATE INDEX idx_agent_wake_events_activity ON agent_heartbeat_wake_events(instance_id, result, created_at);
+
+CREATE TABLE agent_instance_check_tool_calls (
+ instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
+ occurrence_id TEXT NOT NULL,
+ seq INTEGER NOT NULL,
+ tool_id TEXT NOT NULL,
+ backend TEXT NOT NULL CHECK (backend IN ('native','mcp')),
+ mcp_server TEXT,
+ access TEXT NOT NULL CHECK (access IN ('read','write')),
+ decision TEXT NOT NULL CHECK (decision IN ('allowed','denied')),
+ deny_reason TEXT,
+ outcome TEXT NOT NULL CHECK (outcome IN ('running','ok','error','cancelled','denied','unknown')),
+ effect TEXT NOT NULL CHECK (effect IN ('none','done','maybe')),
+ error_code TEXT,
+ args_preview TEXT,
+ duration_ms INTEGER,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ PRIMARY KEY (occurrence_id,seq)
+);
+CREATE INDEX idx_agent_instance_check_tool_calls_history ON agent_instance_check_tool_calls(instance_id,created_at);
+
+CREATE TABLE agent_instance_proposal_picks (
+ report_id TEXT NOT NULL REFERENCES agent_instance_reports(id) ON DELETE CASCADE,
+ proposal_index INTEGER NOT NULL,
+ instance_id TEXT NOT NULL,
+ action_id TEXT,
+ actor TEXT NOT NULL CHECK (actor IN ('operator','auto_accept')),
+ target_session_id TEXT NOT NULL,
+ queue_entry_id TEXT REFERENCES session_input_queue(id) ON DELETE SET NULL,
+ picked_at TEXT NOT NULL,
+ PRIMARY KEY (report_id,proposal_index)
+);
+CREATE INDEX idx_agent_instance_proposal_picks_daily ON agent_instance_proposal_picks(instance_id,actor,picked_at);
+
+CREATE TABLE heartbeat_authority_approvals (
+ notified_sha256 TEXT NOT NULL DEFAULT '',
+ profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+ definition_dir TEXT NOT NULL,
+ sha256 TEXT NOT NULL,
+ approved_at TEXT NOT NULL,
+ approved_via TEXT NOT NULL CHECK (approved_via IN ('cli','web','http','uds')),
+ PRIMARY KEY (profile_id,definition_dir)
+);

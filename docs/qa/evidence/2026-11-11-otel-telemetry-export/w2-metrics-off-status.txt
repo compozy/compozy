@@ -1,0 +1,36 @@
+Runtime
+=======
+Status:             running
+PID:                2615467
+Started:            2026-11-11T05:33:38Z
+Uptime:             27s
+Socket:             /tmp/compozyqa-5ea098baf91a/runtime/compozyd.sock
+HTTP:               127.0.0.1:51131
+Sessions:           0 active / 1 total
+Health:             ok
+Subprocess Health:  ok
+Needs Attention:    0 task runs
+Config:             ok
+OTel:               ok · http/protobuf → localhost:4318 · traces ok, metrics off · sample 1.0
+Log Tail:           available
+
+Providers
+=========
+Name               State               Mode          Default  Message
+----               -----               ----          -------  -------
+agy                missing_cli         native_cli             Native CLI "agy_acp_server.par" was not found on PATH; install it or update providers.agy.command.
+claude             authenticated       native_cli    yes      Provider status command completed successfully.
+codex              unknown             native_cli             Provider owns authentication through its native CLI; run a provider auth probe for live status.
+copilot            missing_cli         native_cli             Native CLI "copilot" was not found on PATH; install it or update providers.copilot.command.
+cursor             unknown             native_cli             Provider owns authentication through its native CLI; run a provider auth probe for live status.
+gemini             missing_cli         native_cli             Native CLI "gemini" was not found on PATH; install it or update providers.gemini.command.
+kimi-cli           missing_cli         native_cli             Native CLI "kimi" was not found on PATH; install it or update providers.kimi-cli.command.
+moonshot           missing_credential  bound_secret           Required Compozy-managed provider credential "KIMI_API_KEY" is unresolved.
+opencode           unknown             native_cli             Provider owns authentication through its native CLI; run a provider auth probe for live status.
+openrouter         missing_credential  bound_secret           Required Compozy-managed provider credential "OPENROUTER_API_KEY" is unresolved.
+pi                 unknown             native_cli             Provider owns authentication through its native CLI; run a provider auth probe for live status.
+qwen-code          unknown             native_cli             Provider owns authentication through its native CLI; run a provider auth probe for live status.
+vercel-ai-gateway  missing_credential  bound_secret           Required Compozy-managed provider credential "AI_GATEWAY_API_KEY" is unresolved.
+xai                missing_credential  bound_secret           Required Compozy-managed provider credential "XAI_API_KEY" is unresolved.
+zai                missing_credential  bound_secret           Required Compozy-managed provider credential "ZAI_API_KEY" is unresolved.
+exit=0

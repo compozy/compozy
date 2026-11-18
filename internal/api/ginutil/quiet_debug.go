@@ -11,13 +11,13 @@ import (
 
 var debugModeMu sync.Mutex
 
-// NewEngine constructs a Gin engine without emitting debug-mode setup output.
+// NewEngine constructs a traced Gin engine without emitting debug-mode setup output.
 func NewEngine() *gin.Engine {
 	var engine *gin.Engine
 	QuietDebug(func() { engine = gin.New() })
 	engine.UseEscapedPath = true
 	engine.UnescapePathValues = false
-	engine.Use(decodeEscapedPathParams)
+	engine.Use(traceRequests(), decodeEscapedPathParams)
 	return engine
 }
 

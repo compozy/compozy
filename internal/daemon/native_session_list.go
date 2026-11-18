@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -138,5 +137,5 @@ func (n *daemonNativeTools) sessionListPayload(
 			Limit:      page.Limit,
 		},
 	}
-	return structuredResult(response, fmt.Sprintf("%d of %d sessions", len(payload), page.Total))
+	return sessionListViews.result(req.View, response)
 }

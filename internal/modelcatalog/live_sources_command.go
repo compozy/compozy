@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -146,7 +147,7 @@ func (ExecDiscoveryCommandExecutor) RunDiscoveryCommand(
 	if strings.TrimSpace(req.Command) == "" {
 		return DiscoveryCommandResult{}, fmt.Errorf("model catalog: discovery command is required")
 	}
-	env := append([]string(nil), req.Env...)
+	env := slices.Clone(req.Env)
 	dir := strings.TrimSpace(req.Dir)
 	executable, resolveErr := subprocess.ResolveExecutable(req.Command, env, dir)
 	if resolveErr != nil {

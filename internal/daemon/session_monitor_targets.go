@@ -3,9 +3,11 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -39,7 +41,7 @@ func (t monitorSessionTargets) ReadTargets(ctx context.Context, spec monitorpkg.
 	for _, target := range spec.Targets {
 		status := monitorpkg.TargetStatus{SessionID: target, State: monitorpkg.TargetStateUnknown}
 		if err == nil {
-			status = readMonitorTarget(ctx, manager, target)
+			status = readMonitorTarget(ctx, manager, target, spec)
 		}
 		statuses = append(statuses, status)
 	}
@@ -57,6 +59,7 @@ func readMonitorTarget(
 	ctx context.Context,
 	manager monitorTargetManager,
 	target string,
+	spec monitorpkg.Spec,
 ) monitorpkg.TargetStatus {
 	status := monitorpkg.TargetStatus{SessionID: target, State: monitorpkg.TargetStateUnknown}
 	for check := 1; ; check++ {
@@ -72,7 +75,11 @@ func readMonitorTarget(
 			return status
 		}
 		status.Name = info.Name
+		if info.WorkspaceID != spec.WorkspaceID || info.ProfileID != spec.ProfileID {
+			status.Name = redact.CrossScopeString(status.Name)
+		}
 		status.State = monitorTargetState(info)
+		status.OccurrenceID = monitorAttentionOccurrence(info, session.Badge(status.State))
 		if !settledBadgeState(status.State) {
 			return status
 		}
@@ -120,7 +127,7 @@ func (t monitorSessionTargets) TargetChanges(
 	}
 	watchCtx, stop := context.WithCancel(ctx)
 	events, cancel, err := manager.SubscribeSessionCatalogEvents(watchCtx, session.CatalogScope{
-		ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: spec.WorkspaceID,
+		ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
 	})
 	if err != nil {
 		stop()
@@ -163,4 +170,17 @@ func forwardMonitorTargetChanges(
 			}
 		}
 	}
+}
+
+func monitorAttentionOccurrence(info *session.Info, badge session.Badge) string {
+	if info != nil && (badge == session.BadgeIdle || badge == session.BadgeDone) && info.LastSettledRevision > 0 {
+		return fmt.Sprintf("%d:settled:%d", info.TranscriptEpoch, info.LastSettledRevision)
+	}
+	if session.EndedEarlyAttention(info, badge) {
+		return fmt.Sprintf("%d:ended-early:%s", info.TranscriptEpoch, info.EndedEarlyTurnID)
+	}
+	if info != nil && badge == session.BadgeNeedsAttention && info.AttentionRevision > 0 {
+		return fmt.Sprintf("%d:attention:%d", info.TranscriptEpoch, info.AttentionRevision)
+	}
+	return ""
 }

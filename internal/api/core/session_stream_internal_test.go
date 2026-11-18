@@ -285,8 +285,10 @@ func TestSessionStreamFallbackCancelsSubscriptionBeforePolling(t *testing.T) {
 	}{
 		{name: "Should cancel raw subscription before polling after closed subscription"},
 		{
-			name:  "Should cancel raw subscription before polling after sequence gap",
-			event: &store.SessionEvent{Sequence: 3},
+			name: "Should cancel raw subscription before polling after consumer degradation",
+			event: &store.SessionEvent{
+				Type: contract.SessionStreamEventConsumerDegraded, Content: `{}`,
+			},
 		},
 	}
 
@@ -330,6 +332,136 @@ func TestSessionStreamFallbackCancelsSubscriptionBeforePolling(t *testing.T) {
 			waitForStreamTestSignal(t, canceled, "subscription cancel")
 			close(streamDone)
 			waitForStreamTestSignal(t, done, "stream fallback return")
+		})
+	}
+}
+
+func TestRawSessionStreamSequenceGap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep filtered gap replay within the observed watermark", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := &BaseHandlers{Sessions: sessionManagerStub{
+			events: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if id != "sess-a" || query.Type != acp.EventTypeAgentMessage || query.AfterSequence != 1 {
+					t.Fatalf("filtered gap replay session=%s query=%#v", id, query)
+				}
+				return []store.SessionEvent{
+					{Sequence: 2, Type: acp.EventTypeAgentMessage},
+					{Sequence: 6, Type: acp.EventTypeAgentMessage},
+				}, nil
+			},
+		}}
+		writer := &streamTestFlushWriter{}
+		cursor, err := handlers.writeRawSequenceGap(
+			t.Context(), writer, "sess-a", streamTestSessionInfo("sess-a"),
+			store.EventQuery{Type: acp.EventTypeAgentMessage, Forward: true, Limit: 200}, 1, 3,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cursor != 3 || strings.Count(writer.String(), "id: ") != 1 ||
+			!strings.Contains(writer.String(), "id: 2\n") {
+			t.Fatalf("filtered gap cursor=%d frames=%s; want only row 2 through watermark 3", cursor, writer.String())
+		}
+	})
+
+	for _, testCase := range []struct {
+		name    string
+		err     error
+		stopped bool
+	}{
+		{name: "Should replay missing rows once and keep receiving pushed events"},
+		{name: "Should end the stream at a stop replayed inside a gap", stopped: true},
+		{name: "Should fall back to durable polling after a failed gap replay", err: errors.New("gap unavailable")},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			streamDone := make(chan struct{})
+			canceled := false
+			reads := 0
+			handlers := &BaseHandlers{
+				Sessions: sessionManagerStub{
+					status: func(_ context.Context, id string) (*session.Info, error) {
+						info := streamTestSessionInfo(id)
+						info.State = session.StateActive
+						if canceled && testCase.err != nil {
+							info.State = session.StateStopped
+						}
+						return info, nil
+					},
+					events: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+						reads++
+						if reads > 1 && testCase.err != nil {
+							if !canceled || query.AfterSequence != int64(1+(reads-2)*3) || query.Limit != 200 {
+								t.Fatalf("poll query=%+v canceled=%v", query, canceled)
+							}
+							if reads > 2 {
+								return nil, nil
+							}
+							return []store.SessionEvent{
+								{Sequence: 2, Type: acp.EventTypeAgentMessage},
+								{Sequence: 3, Type: session.EventTypeMCPChanged},
+								{Sequence: 4, Type: session.EventTypeSessionStopped},
+							}, nil
+						}
+						if canceled || id != "sess-a" || !query.Forward || query.AfterSequence != 1 ||
+							query.Limit != 1 {
+							t.Fatalf("gap replay after cancellation=%v: session=%s query=%#v", canceled, id, query)
+						}
+						typ := acp.EventTypeAgentMessage
+						if testCase.stopped {
+							typ = session.EventTypeSessionStopped
+						}
+						return []store.SessionEvent{{Sequence: 2, Type: typ}}, testCase.err
+					},
+				},
+				PollInterval: time.Millisecond,
+			}
+			handlers.SetStreamDone(streamDone)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
+			writer := &streamTestFlushWriter{}
+			events := make(chan store.SessionEvent, 4)
+			events <- store.SessionEvent{Sequence: 3, Type: session.EventTypeMCPChanged}
+			events <- store.SessionEvent{Sequence: 2, Type: acp.EventTypeAgentMessage}
+			events <- store.SessionEvent{Sequence: 3, Type: session.EventTypeMCPChanged}
+			events <- store.SessionEvent{Sequence: 4, Type: session.EventTypeSessionStopped}
+			handlers.streamRawSessionEvents(
+				ctx, writer, "sess-a", streamTestSessionInfo("sess-a"), store.EventQuery{Limit: 200, Forward: true},
+				[]store.SessionEvent{{Sequence: 1, Type: acp.EventTypeAgentMessage}},
+				sessionEventStreamSubscription{events: events, cancel: sync.OnceFunc(func() {
+					canceled = true
+				})},
+			)
+			wantReads := 1
+			if testCase.err != nil {
+				wantReads = 3
+			}
+			if !canceled || reads != wantReads {
+				t.Fatalf("subscription canceled=%v, gap reads=%d; want cleanup and one replay", canceled, reads)
+			}
+			body := writer.String()
+			if strings.Contains(body, "event: error\n") {
+				t.Fatalf("unexpected stream error: %s", body)
+			}
+
+			var ids []string
+			for line := range strings.SplitSeq(body, "\n") {
+				if id, ok := strings.CutPrefix(line, "id: "); ok {
+					ids = append(ids, id)
+				}
+			}
+			wantIDs := []string{"1", "2", "3", "4"}
+			if testCase.stopped {
+				wantIDs = []string{"1", "2"}
+			}
+			if !reflect.DeepEqual(ids, wantIDs) ||
+				!strings.Contains(body, "event: "+session.EventTypeSessionStopped) {
+				t.Fatalf("raw replay cursors=%v, want contiguous replay and pushed stop: %s", ids, body)
+			}
 		})
 	}
 }
@@ -1355,6 +1487,43 @@ func TestSubagentStreamOrdering(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A deleted subagent leaves the roster by id instead of replacing a row the client can no longer read.
+func TestSubagentStreamRemoval(t *testing.T) {
+	t.Parallel()
+	t.Run("Should emit subagent_removed for a deleted row", func(t *testing.T) {
+		t.Parallel()
+		writer := &streamTestFlushWriter{}
+		update := session.SubagentUpdate{
+			ParentSessionID: "parent",
+			Subagent: session.Subagent{
+				SessionSubagent: store.SessionSubagent{ID: "sub-1", ParentSessionID: "parent"},
+			},
+			Removed: true,
+		}
+		if err := writeSubagentUpdate(writer, "parent", &update); err != nil {
+			t.Fatal(err)
+		}
+		body := writer.String()
+		if !strings.Contains(body, "event: subagent_removed") ||
+			!strings.Contains(body, `"session_id":"parent"`) ||
+			!strings.Contains(body, `"subagent_id":"sub-1"`) ||
+			strings.Contains(body, "event: subagent_updated") {
+			t.Fatal(body)
+		}
+	})
+	t.Run("Should ignore another session's update", func(t *testing.T) {
+		t.Parallel()
+		writer := &streamTestFlushWriter{}
+		update := session.SubagentUpdate{ParentSessionID: "other", Removed: true}
+		if err := writeSubagentUpdate(writer, "parent", &update); err != nil {
+			t.Fatal(err)
+		}
+		if writer.Len() != 0 {
+			t.Fatal(writer.String())
+		}
+	})
 }
 
 // Greptile 711: the snapshot replaces the client roster, so it must carry every page.

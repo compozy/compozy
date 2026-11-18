@@ -42,12 +42,14 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const daemonSessionStopHelperEnvKey = "COMPOZY_TEST_DAEMON_SESSION_STOP_HELPER"
+const daemonSessionRecoveryHelperEnvKey = "COMPOZY_TEST_DAEMON_SESSION_AUTH_RECOVERY"
 
 func daemonMigrationStreams() []store.MigrationStream {
 	return []store.MigrationStream{
@@ -1719,6 +1721,33 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 			runtimeEnv:     daemonExtensionHelperEnv(""),
 		}, true)
 		writeDaemonFile(t, filepath.Join(badDir, "extension.toml"), "not = [valid")
+		// Invariant: a package whose manifest is valid but whose declarative resources fail to load
+		// (here an automation trigger for the retired memory.consolidated event) withdraws only its
+		// own resources and never stops the boot (#1618).
+		retiredResourceDir := installExtensionForDaemonIntegration(
+			t, homePaths.DatabaseFile, "ext-retired", daemonTestExtensionOptions{
+				runtimeCommand: daemonExtensionHelperCommand(t),
+				runtimeArgs:    daemonExtensionHelperArgs(),
+				runtimeEnv:     daemonExtensionHelperEnv(""),
+			}, true)
+		retiredManifestPath := filepath.Join(retiredResourceDir, "extension.toml")
+		retiredManifest, err := os.ReadFile(retiredManifestPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", retiredManifestPath, err)
+		}
+		const resourcesHeader = "\n[resources]\n"
+		if !strings.Contains(string(retiredManifest), resourcesHeader) {
+			t.Fatalf("fixture manifest has no resources table: %s", retiredManifest)
+		}
+		writeDaemonFile(t, retiredManifestPath, strings.Replace(
+			string(retiredManifest), resourcesHeader, resourcesHeader+"automation = [\"automation\"]\n", 1,
+		))
+		writeDaemonFile(
+			t,
+			filepath.Join(retiredResourceDir, "automation", "main.toml"),
+			"[[triggers]]\nname = \"retired\"\nagent = \"writer\"\nprompt = \"Handle it.\"\n"+
+				"event = \"memory.consolidated\"\n",
+		)
 
 		var logBuffer bytes.Buffer
 		logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
@@ -1754,12 +1783,16 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 		})
 
 		retiredRegistry := extensionpkg.NewRegistry(d.registry.(extensionDBSource).DB())
-		if _, err := retiredRegistry.Get("dev-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
-			t.Fatalf("superseded entry survived boot: %v", err)
+		if _, err := retiredRegistry.Get("dev-cycle"); err != nil {
+			t.Fatalf("retained predecessor lost at boot: %v", err)
+		}
+		oldEnabled, err := retiredRegistry.IsEnabledForProfile("dev-cycle", store.DefaultProfileID)
+		if err != nil || oldEnabled {
+			t.Fatalf("predecessor enablement changed = %v, %v", oldEnabled, err)
 		}
 		enabled, err := retiredRegistry.IsEnabledForProfile("spec-cycle", store.DefaultProfileID)
-		if err != nil || enabled {
-			t.Fatalf("upgraded enablement = %v, %v", enabled, err)
+		if err != nil || !enabled {
+			t.Fatalf("successor default enablement = %v, %v", enabled, err)
 		}
 		if _, err := os.Stat(filepath.Join(retiredDir, "extension.toml")); err != nil {
 			t.Fatalf("retained old package: %v", err)
@@ -1842,6 +1875,11 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 		}
 		if !strings.Contains(logBuffer.String(), "extension manager start failed") {
 			t.Fatalf("log output = %q, want extension start failure entry", logBuffer.String())
+		}
+		for _, want := range []string{"extension.resources.skipped", "ext-retired", "memory.consolidated"} {
+			if !strings.Contains(logBuffer.String(), want) {
+				t.Fatalf("log output = %q, want skipped package resources entry with %q", logBuffer.String(), want)
+			}
 		}
 	})
 }
@@ -1946,75 +1984,167 @@ func requestDaemonIntegrationRestart(t *testing.T, d *Daemon) {
 		return restartProcessStub{pid: os.Getpid()}, nil
 	}
 	d.signalProcess = func(int, syscall.Signal) error { return nil }
+	d.preflightReplacement = stubRestartPreflight(restartPreflightUnavailable)
 	if _, err := d.RequestRestart(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestShutdownPersistsShutdownStopReason(t *testing.T) {
-	homePaths := integrationHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	command := daemonSessionStopHelperCommand(t)
-	cfg.Defaults.Provider = acpmock.ProviderName
-	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
-	writeDaemonIntegrationProviderConfig(t, homePaths, acpmock.ProviderName, command)
-	writeDaemonIntegrationAgentDef(t, homePaths, "coder", command)
-
-	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(%q) error = %v", workspaceRoot, err)
-	}
-
-	d, err := New(
-		WithHomePaths(homePaths),
-		WithConfig(&cfg),
-		WithLogger(discardLogger()),
-	)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-
-	shutdown := false
-	t.Cleanup(func() {
-		if shutdown {
-			return
+	for _, recovering := range []bool{false, true} {
+		name := "Should persist shutdown classification for an idle provider"
+		if recovering {
+			name = "Should preserve restart intent through full shutdown during provider recovery backoff"
 		}
-		if err := d.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("cleanup Shutdown() error = %v", err)
-		}
-	})
+		t.Run(name, func(t *testing.T) {
+			homePaths := integrationHomePaths(t)
+			cfg := testConfig(t, homePaths)
+			if recovering {
+				cfg.Daemon.ShutdownGrace = time.Millisecond
+			}
+			command := daemonSessionStopHelperCommand(t)
+			if recovering {
+				command = shellquote.Join("env", daemonSessionRecoveryHelperEnvKey+"=1") + " " + command
+			}
+			provider := acpmock.ProviderConfig(command)
+			if recovering {
+				provider.AuthMode = compozyconfig.ProviderAuthModeNativeCLI
+				provider.NoneSecurity = ""
+			}
+			cfg.Defaults.Provider = acpmock.ProviderName
+			cfg.Providers[acpmock.ProviderName] = provider
+			writeDaemonIntegrationProviderConfig(
+				t, homePaths, acpmock.ProviderName, command, provider.AuthMode,
+			)
+			writeDaemonIntegrationAgentDef(t, homePaths, "coder", command)
 
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
+			workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+			if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+				t.Fatalf("os.MkdirAll(%q) error = %v", workspaceRoot, err)
+			}
 
-	sess, err := d.sessions.Create(testutil.Context(t), new(session.CreateOpts{
-		AgentName:     "coder",
-		WorkspacePath: workspaceRoot,
-	}))
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
+			d, err := New(
+				WithHomePaths(homePaths),
+				WithConfig(&cfg),
+				WithLogger(discardLogger()),
+			)
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
 
-	requestDaemonIntegrationRestart(t, d)
-	if err := d.Shutdown(testutil.Context(t)); err != nil {
-		t.Fatalf("Shutdown() error = %v", err)
-	}
-	shutdown = true
+			shutdown := false
+			t.Cleanup(func() {
+				if shutdown {
+					return
+				}
+				if err := d.Shutdown(testutil.Context(t)); err != nil {
+					t.Errorf("cleanup Shutdown() error = %v", err)
+				}
+			})
 
-	meta, err := store.ReadSessionMeta(sess.MetaPath())
-	if err != nil {
-		t.Fatalf("ReadSessionMeta(%q) error = %v", sess.MetaPath(), err)
-	}
-	if meta.StopReason == nil {
-		t.Fatal("meta.StopReason = nil, want non-nil")
-	}
-	if *meta.StopReason != store.StopShutdown {
-		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopShutdown)
+			if err := d.boot(testutil.Context(t)); err != nil {
+				t.Fatalf("boot() error = %v", err)
+			}
+
+			sess, err := d.sessions.Create(testutil.Context(t), new(session.CreateOpts{
+				AgentName:     "coder",
+				WorkspacePath: workspaceRoot,
+			}))
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+
+			var interruptedTurn string
+			if recovering {
+				stream, err := d.sessions.Prompt(
+					testutil.Context(t), sess.ID, "shutdown during provider recovery",
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx := testutil.Context(t)
+				var observed []acp.AgentEvent
+			recovery:
+				for {
+					select {
+					case event, ok := <-stream:
+						if !ok {
+							t.Fatalf(
+								"prompt completed before provider recovery: events=%+v info=%+v",
+								observed, sess.Info(),
+							)
+						}
+						observed = append(observed, event)
+						if event.Type == acp.EventTypeRuntimeRecoveryStarted {
+							interruptedTurn = event.TurnID
+							break recovery
+						}
+					case <-ctx.Done():
+						t.Fatal("provider recovery did not start")
+					}
+				}
+				info := sess.Info()
+				if interruptedTurn == "" || info.RuntimeRecovery == nil ||
+					info.RuntimeRecovery.Reason != "provider_auth" {
+					t.Fatalf("recovery state = %+v, turn = %q", info.RuntimeRecovery, interruptedTurn)
+				}
+			}
+			requestDaemonIntegrationRestart(t, d)
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+			shutdown = true
+
+			meta, err := store.ReadSessionMeta(sess.MetaPath())
+			if err != nil {
+				t.Fatalf("ReadSessionMeta(%q) error = %v", sess.MetaPath(), err)
+			}
+			if meta.StopReason == nil {
+				t.Fatal("meta.StopReason = nil, want non-nil")
+			}
+			if *meta.StopReason != store.StopShutdown {
+				t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopShutdown)
+			}
+			if recovering {
+				history, err := sessiondb.OpenSessionDB(testutil.Context(t), store.SessionDBOwner{
+					SessionID: sess.ID, WorkspaceID: meta.WorkspaceID,
+				}, store.SessionDBFile(sess.SessionDir()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := history.Close(testutil.Context(t)); err != nil {
+						t.Error(err)
+					}
+				})
+				rows, err := history.Query(
+					testutil.Context(t), store.EventQuery{Type: "session.restart_interrupted", Limit: 10},
+				)
+				if err != nil || len(rows) != 1 || rows[0].TurnID != interruptedTurn {
+					t.Fatalf("persisted restart intent = %+v, error = %v", rows, err)
+				}
+				var event struct {
+					Raw store.SessionRestartCheckpoint `json:"raw"`
+				}
+				if err := json.Unmarshal([]byte(rows[0].Content), &event); err != nil {
+					t.Fatal(err)
+				}
+				if event.Raw.TurnID != interruptedTurn || event.Raw.Reason != "" {
+					t.Fatalf("restart checkpoint = %+v", event.Raw)
+				}
+				skipped, err := history.Query(
+					testutil.Context(t), store.EventQuery{Type: "session.restart_skipped", Limit: 10},
+				)
+				if err != nil || len(skipped) != 0 {
+					t.Fatalf("restart skips = %+v, error = %v", skipped, err)
+				}
+			}
+		})
 	}
 }
 
-// IT-004: boot archives retired settings losslessly once and preserves a stable second boot.
+// IT-004: boot archives the retired settings v0.6.0 still accepted losslessly once, keeps a stable
+// second boot, and still boots when the config cannot be rewritten (#1618; shim removal: v0.7.0).
 func TestBootArchivesRetiredMemorySettingsIntegration(t *testing.T) {
 	t.Run("Should start with retired settings and preserve the archived config on second boot", func(t *testing.T) {
 		homePaths := integrationHomePaths(t)
@@ -2350,7 +2480,10 @@ func TestBootBuildsHooksFromWorkspaceConfigAgentAndSkills(t *testing.T) {
 		windowClosedOutput := filepath.Join(t.TempDir(), "window-closed.json")
 		windowGroupedOutput := filepath.Join(t.TempDir(), "window-grouped.json")
 		windowUngroupedOutput := filepath.Join(t.TempDir(), "window-ungrouped.json")
-		windowActivatedOutput := filepath.Join(t.TempDir(), "window-activated.json")
+		windowSplitOutput := filepath.Join(t.TempDir(), "window-split.json")
+		windowUnsplitOutput := filepath.Join(t.TempDir(), "window-unsplit.json")
+		windowTabActivatedOutput := filepath.Join(t.TempDir(), "window-tab-activated.json")
+		windowStackActivatedOutput := filepath.Join(t.TempDir(), "window-stack-activated.json")
 
 		writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "config.toml"), `
 [[hooks.declarations]]
@@ -2389,11 +2522,32 @@ command = "`+windowScriptPath+`"
 args = ["`+windowCountOutput+`", "`+windowUngroupedOutput+`"]
 
 [[hooks.declarations]]
-name = "window-activated"
+name = "window-split"
+event = "window_manager.tab.split"
+mode = "async"
+command = "`+windowScriptPath+`"
+args = ["`+windowCountOutput+`", "`+windowSplitOutput+`"]
+
+[[hooks.declarations]]
+name = "window-unsplit"
+event = "window_manager.tab.unsplit"
+mode = "async"
+command = "`+windowScriptPath+`"
+args = ["`+windowCountOutput+`", "`+windowUnsplitOutput+`"]
+
+[[hooks.declarations]]
+name = "window-tab-activated"
+event = "window_manager.tab.activated"
+mode = "async"
+command = "`+windowScriptPath+`"
+args = ["`+windowCountOutput+`", "`+windowTabActivatedOutput+`"]
+
+[[hooks.declarations]]
+name = "window-stack-activated"
 event = "window_manager.stack.activated"
 mode = "async"
 command = "`+windowScriptPath+`"
-args = ["`+windowCountOutput+`", "`+windowActivatedOutput+`"]
+args = ["`+windowCountOutput+`", "`+windowStackActivatedOutput+`"]
 `)
 		writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "agents", "coder", "AGENT.md"), `---
 name: coder
@@ -2509,45 +2663,76 @@ body
 			if !ok {
 				t.Fatalf("boot() hooks runtime = %T, want *hooks.Hooks", d.hooks)
 			}
+			retiredHooks := []struct {
+				name   string
+				event  hookspkg.HookEvent
+				output string
+			}{
+				{"window-grouped", hookspkg.HookWindowManagerStackGrouped, windowGroupedOutput},
+				{"window-ungrouped", hookspkg.HookWindowManagerStackUngrouped, windowUngroupedOutput},
+			}
+			for _, item := range retiredHooks {
+				entries, err := windowHookDispatcher.Catalog(hookspkg.CatalogFilter{
+					WorkspaceID: resolvedWorkspace.ID,
+					Event:       item.event,
+				})
+				if err != nil {
+					t.Fatalf("Catalog(%s) error = %v", item.event, err)
+				}
+				if len(entries) != 1 || entries[0].Name != item.name || entries[0].Source != hookspkg.HookSourceConfig {
+					t.Fatalf("Catalog(%s) = %#v, want retained configured hook %q", item.event, entries, item.name)
+				}
+			}
 			windowObserver := newWindowManagerHookObserver(&bootState{
 				logger:         discardLogger(),
 				hookDispatcher: windowHookDispatcher,
 			})
+			type hookDelivery struct {
+				event  hookspkg.HookEvent
+				output string
+			}
 			windowEvents := []struct {
-				command windowmanager.CommandID
-				changes windowmanager.ChangeSet
-				event   hookspkg.HookEvent
-				output  string
+				command    windowmanager.CommandID
+				changes    windowmanager.ChangeSet
+				deliveries []hookDelivery
 			}{
 				{
 					command: windowmanager.CommandWindowOpen,
-					event:   hookspkg.HookWindowManagerWindowOpened,
-					output:  windowOpenedOutput,
+					deliveries: []hookDelivery{
+						{hookspkg.HookWindowManagerWindowOpened, windowOpenedOutput},
+					},
 				},
 				{
 					command: windowmanager.CommandWindowClose,
-					event:   hookspkg.HookWindowManagerWindowClosed,
-					output:  windowClosedOutput,
-				},
-				{
-					command: windowmanager.CommandWindowStackGroup,
-					changes: windowmanager.ChangeSet{StackGrouped: []windowmanager.NodeID{"stack-a"}},
-					event:   hookspkg.HookWindowManagerStackGrouped,
-					output:  windowGroupedOutput,
+					deliveries: []hookDelivery{
+						{hookspkg.HookWindowManagerWindowClosed, windowClosedOutput},
+					},
 				},
 				{
 					command: windowmanager.CommandWindowMove,
-					changes: windowmanager.ChangeSet{StackUngrouped: []windowmanager.NodeID{"stack-a"}},
-					event:   hookspkg.HookWindowManagerStackUngrouped,
-					output:  windowUngroupedOutput,
+					changes: windowmanager.ChangeSet{TabSplit: []windowmanager.TabID{"tab-a"}},
+					deliveries: []hookDelivery{
+						{hookspkg.HookWindowManagerTabSplit, windowSplitOutput},
+					},
 				},
 				{
-					command: windowmanager.CommandWindowStackSetActive,
-					event:   hookspkg.HookWindowManagerStackActivated,
-					output:  windowActivatedOutput,
+					command: windowmanager.CommandWindowMove,
+					changes: windowmanager.ChangeSet{TabUnsplit: []windowmanager.TabID{"tab-a"}},
+					deliveries: []hookDelivery{
+						{hookspkg.HookWindowManagerTabUnsplit, windowUnsplitOutput},
+					},
+				},
+				{
+					command: windowmanager.CommandWindowTabActivate,
+					deliveries: []hookDelivery{
+						{hookspkg.HookWindowManagerTabActivated, windowTabActivatedOutput},
+						{hookspkg.HookWindowManagerStackActivated, windowStackActivatedOutput},
+					},
 				},
 			}
+			var deliveryCount int
 			for index, item := range windowEvents {
+				deliveryCount += len(item.deliveries)
 				windowObserver(testutil.Context(t), windowmanager.Event{
 					WorkspaceID: windowmanager.WorkspaceID(resolvedWorkspace.ID),
 					Revision:    windowmanager.Revision(index + 1),
@@ -2556,33 +2741,51 @@ body
 					OccurredAt:  time.Date(2026, 7, 30, 12, index, 0, 0, time.UTC),
 				})
 			}
-			waitForCondition(t, "five window-manager script hook deliveries", func() bool {
+			waitForCondition(t, "six window-manager script hook deliveries", func() bool {
 				payload, err := os.ReadFile(windowCountOutput)
-				return err == nil && len(strings.Fields(string(payload))) == len(windowEvents)
+				return err == nil && len(strings.Fields(string(payload))) == deliveryCount
 			})
-			for _, item := range windowEvents {
-				payload, err := os.ReadFile(item.output)
-				if err != nil {
-					t.Fatalf("os.ReadFile(%q) error = %v", item.output, err)
-				}
-				var captured hookspkg.WindowManagerPayload
-				if err := json.Unmarshal(payload, &captured); err != nil {
-					t.Fatalf("json.Unmarshal(%s hook payload) error = %v; body=%s", item.event, err, payload)
-				}
-				if captured.Event != item.event || captured.WorkspaceID != resolvedWorkspace.ID {
-					t.Fatalf("captured %s hook payload = %#v", item.event, captured)
+			for index, item := range windowEvents {
+				for _, delivery := range item.deliveries {
+					payload, err := os.ReadFile(delivery.output)
+					if err != nil {
+						t.Fatalf("os.ReadFile(%q) error = %v", delivery.output, err)
+					}
+					var captured hookspkg.WindowManagerPayload
+					if err := json.Unmarshal(payload, &captured); err != nil {
+						t.Fatalf("json.Unmarshal(%s hook payload) error = %v; body=%s", delivery.event, err, payload)
+					}
+					if captured.Event != delivery.event || captured.WorkspaceID != resolvedWorkspace.ID ||
+						captured.CommandID != string(item.command) || captured.Revision != uint64(index+1) {
+						t.Fatalf("captured %s hook payload = %#v", delivery.event, captured)
+					}
+					if delivery.event == hookspkg.HookWindowManagerTabSplit &&
+						!slices.Equal(captured.Changes.TabSplit, []string{"tab-a"}) {
+						t.Fatalf("tab.split hook changes = %#v", captured.Changes)
+					}
+					if delivery.event == hookspkg.HookWindowManagerTabUnsplit &&
+						!slices.Equal(captured.Changes.TabUnsplit, []string{"tab-a"}) {
+						t.Fatalf("tab.unsplit hook changes = %#v", captured.Changes)
+					}
 				}
 			}
 			windowObserver(testutil.Context(t), windowmanager.Event{
 				WorkspaceID: windowmanager.WorkspaceID(resolvedWorkspace.ID),
 				CommandID:   windowmanager.CommandWindowFocus,
 			})
+			// Drain queued scripts before asserting that retired hooks received nothing.
+			windowHookDispatcher.Close()
+			for _, item := range retiredHooks {
+				if _, err := os.Stat(item.output); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("retired %s hook output exists or is unreadable: %v", item.event, err)
+				}
+			}
 			countPayload, err := os.ReadFile(windowCountOutput)
 			if err != nil {
 				t.Fatalf("os.ReadFile(%q) error = %v", windowCountOutput, err)
 			}
-			if len(strings.Fields(string(countPayload))) != len(windowEvents) {
-				t.Fatalf("window hook invocation count = %q, want exactly %d", countPayload, len(windowEvents))
+			if len(strings.Fields(string(countPayload))) != deliveryCount {
+				t.Fatalf("window hook invocation count = %q, want exactly %d", countPayload, deliveryCount)
 			}
 		})
 	})
@@ -3076,6 +3279,9 @@ func bootDetachedHarnessIntegrationDaemon(
 ) *Daemon {
 	t.Helper()
 
+	// Current-policy lookup requires the target definition even when no HEARTBEAT.md exists.
+	writeDaemonIntegrationAgentDef(t, homePaths, "coder", daemonSessionStopHelperCommand(t))
+
 	if sessions == nil {
 		sessions = &fakeSessionManager{}
 	}
@@ -3219,7 +3425,9 @@ func TestDaemonSessionStopACPHelperProcess(t *testing.T) {
 		return
 	}
 
-	conn := acpsdk.NewAgentSideConnection(daemonSessionStopACPAgent{}, os.Stdout, os.Stdin)
+	conn := acpsdk.NewAgentSideConnection(daemonSessionStopACPAgent{
+		authRequired: os.Getenv(daemonSessionRecoveryHelperEnvKey) == "1",
+	}, os.Stdout, os.Stdin)
 	<-conn.Done()
 	os.Exit(0)
 }
@@ -3334,10 +3542,11 @@ func writeDaemonIntegrationProviderConfig(
 	homePaths compozyconfig.HomePaths,
 	providerName string,
 	command string,
+	authMode compozyconfig.ProviderAuthMode,
 ) {
 	t.Helper()
 
-	content := strings.Join([]string{
+	lines := []string{
 		"[defaults]",
 		"agent = \"coder\"",
 		"provider = " + fmt.Sprintf("%q", providerName),
@@ -3345,10 +3554,12 @@ func writeDaemonIntegrationProviderConfig(
 		"[providers." + providerName + "]",
 		"command = " + fmt.Sprintf("%q", command),
 		"harness = \"acp\"",
-		"auth_mode = \"none\"",
-		"none_security = \"local_transport\"",
-		"",
-	}, "\n")
+		"auth_mode = " + fmt.Sprintf("%q", authMode),
+	}
+	if authMode == compozyconfig.ProviderAuthModeNone {
+		lines = append(lines, "none_security = \"local_transport\"")
+	}
+	content := strings.Join(append(lines, ""), "\n")
 	if err := os.WriteFile(homePaths.ConfigFile, []byte(content), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", homePaths.ConfigFile, err)
 	}
@@ -3409,7 +3620,9 @@ func readDaemonMarkerLines(path string) ([]string, error) {
 	return filtered, nil
 }
 
-type daemonSessionStopACPAgent struct{}
+type daemonSessionStopACPAgent struct {
+	authRequired bool
+}
 
 func (daemonSessionStopACPAgent) Authenticate(
 	context.Context,
@@ -3481,7 +3694,12 @@ func (daemonSessionStopACPAgent) LoadSession(
 	return acpsdk.LoadSessionResponse{}, nil
 }
 
-func (daemonSessionStopACPAgent) Prompt(context.Context, acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
+func (a daemonSessionStopACPAgent) Prompt(
+	context.Context, acpsdk.PromptRequest,
+) (acpsdk.PromptResponse, error) {
+	if a.authRequired {
+		return acpsdk.PromptResponse{}, &acpsdk.RequestError{Code: -32000, Message: "Authentication required"}
+	}
 	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
 }
 
@@ -3579,22 +3797,7 @@ func waitForRuntimeCondition(
 	fn func() bool,
 ) {
 	t.Helper()
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-	ticker := time.NewTicker(20 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		if fn() {
-			return
-		}
-		select {
-		case <-timer.C:
-			t.Fatalf("timed out waiting for %s", label)
-		case <-ticker.C:
-		}
-	}
+	testutil.Eventually(t, label, timeout, fn)
 }
 
 func copyDirectory(sourceDir string, targetDir string) error {
@@ -3824,6 +4027,224 @@ func TestBootArchivedWorkspaceIntegration(t *testing.T) {
 	}
 }
 
+func TestBootResumesInstancesAfterServersStart(t *testing.T) {
+	t.Run(
+		"Should retain an active main input until both servers start and resume it without startup errors",
+		func(t *testing.T) {
+			t.Parallel()
+			executable := e2etest.BuildCompozyBinary(t)
+			d, manager, workspace := newSubagentDaemonWithSetup(t, nil, executable, func(d *Daemon) {
+				path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+				body, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				body = bytes.Replace(body, []byte("name: subagent-test\n"),
+					[]byte("name: subagent-test\nkind: always_on\n"), 1)
+				if err := os.WriteFile(path, body, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				fixturePath := filepath.Join(d.homePaths.HomeDir, "subagents-fixture.json")
+				fixture, err := acpmock.LoadFixture(fixturePath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for i := range fixture.Agents[0].Turns {
+					turn := &fixture.Agents[0].Turns[i]
+					if turn.Name == "child" || turn.Name == "attributed-child" {
+						turn.Steps = append([]acpmock.Step{{
+							Kind: acpmock.StepKindNativeToolCall, ToolID: "compozy__tool_search",
+							ToolCallID: "boot-tools", RawInput: []byte(`{"query":"skill_view"}`),
+						}}, turn.Steps...)
+					}
+				}
+				data, err := json.Marshal(fixture)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(fixturePath, data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			})
+			main, err := manager.Create(t.Context(), new(session.CreateOpts{
+				AgentName: "subagent-test", Workspace: workspace,
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			stream, err := manager.Prompt(t.Context(), main.ID, "child work")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for event := range stream {
+				if event.Type == acp.EventTypeError || event.ToolError() {
+					t.Fatalf("initial prompt: %+v", event)
+				}
+			}
+			db := d.registry.(*globaldb.GlobalDB)
+			policy := main.Info().Lineage.PermissionPolicy
+			policy.MaterializedTools, policy.MaterializedMCPServers = false, false
+			ceiling, err := json.Marshal(policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+				PermissionCeiling: string(ceiling), CreatedByKind: "human",
+			}, main.ID, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
+				t.Fatal(err)
+			}
+			if err := manager.Stop(t.Context(), main.ID); err != nil {
+				t.Fatal(err)
+			}
+			held, err := manager.SendPrompt(t.Context(), main.ID, session.SendPromptOpts{
+				Message: "child work", MessageID: "boot-held", IdempotencyKey: "boot-held",
+				Origin: &acp.PromptOriginMeta{
+					Kind: acp.PromptOriginKindSession, SessionID: "peer", WorkspaceID: workspace, Hop: 1,
+				},
+			})
+			if err != nil || held.Delivery != "held" {
+				t.Fatalf("held input = %+v, %v", held, err)
+			}
+			// An idle main has neither queued input nor an interrupted turn. Its binding must
+			// still reopen after listeners start, without replaying the completed prompt.
+			idleWorkspace := resolveDaemonWorkspace(t, d.workspaceResolver, t.TempDir())
+			idle, err := manager.Create(t.Context(), new(session.CreateOpts{
+				AgentName: "subagent-test", Workspace: idleWorkspace.ID,
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			idleStream, err := manager.Prompt(t.Context(), idle.ID, "child work")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for event := range idleStream {
+				if event.Type == acp.EventTypeError || event.ToolError() {
+					t.Fatalf("idle main prompt: %+v", event)
+				}
+			}
+			idlePolicy := idle.Info().Lineage.PermissionPolicy
+			idlePolicy.MaterializedTools, idlePolicy.MaterializedMCPServers = false, false
+			idleCeiling, err := json.Marshal(idlePolicy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: idle.AgentName, WorkspaceID: idleWorkspace.ID,
+				PermissionCeiling: string(idleCeiling), CreatedByKind: "human",
+			}, idle.ID, 10); err != nil {
+				t.Fatal(err)
+			}
+			if err := manager.StopWithCause(t.Context(), idle.ID, session.CauseShutdown, "daemon restart"); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			db, err = globaldb.OpenGlobalDB(t.Context(), d.homePaths.DatabaseFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, resumeErr := db.Instances().Resume(t.Context(), instance.ID, 10, true)
+			if err := errors.Join(resumeErr, db.Close(t.Context())); err != nil {
+				t.Fatal(err)
+			}
+
+			restarted := newTestDaemon(t, d.homePaths, &d.config)
+			restarted.executable = func() (string, error) { return executable, nil }
+			var logs bytes.Buffer
+			t.Cleanup(func() {
+				if err := restarted.Shutdown(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+				if t.Failed() {
+					t.Log(logs.String())
+				}
+			})
+			restarted.logger = slog.New(slog.NewTextHandler(&logs, nil))
+			factory := restarted.udsFactory
+			checkedBeforeUDS := false
+			restarted.udsFactory = func(ctx context.Context, deps RuntimeDeps) (Server, error) {
+				checkedBeforeUDS = true
+				if deps.AgentInstances == nil || deps.AgentInstances.Checks == nil {
+					t.Fatal("instance API and checks must be wired before server creation")
+				}
+				info, err := deps.Sessions.Status(ctx, main.ID)
+				if err != nil || info.RuntimeStatus == store.SessionRuntimeReady {
+					t.Fatalf("main resumed before UDS startup: %+v, %v", info, err)
+				}
+				idleInfo, err := deps.Sessions.Status(ctx, idle.ID)
+				if err != nil || idleInfo.RuntimeStatus == store.SessionRuntimeReady {
+					t.Fatalf("idle main resumed before UDS startup: %+v, %v", idleInfo, err)
+				}
+				queued, err := deps.Registry.(*globaldb.GlobalDB).GetSessionInputQueueEntry(
+					ctx,
+					main.ID,
+					held.QueueEntryID,
+				)
+				if err != nil || queued.Status != store.SessionInputQueueStatusQueued {
+					t.Fatalf("input dispatched before UDS startup: %+v, %v", queued, err)
+				}
+				return factory(ctx, deps)
+			}
+			if err := restarted.boot(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if !checkedBeforeUDS {
+				t.Fatal("boot never reached the UDS factory")
+			}
+			idleInfo, err := restarted.sessions.Status(t.Context(), idle.ID)
+			if err != nil || idleInfo.RuntimeStatus != store.SessionRuntimeReady {
+				t.Fatalf("idle main did not reopen after boot: %+v, %v", idleInfo, err)
+			}
+			waitForCondition(t, "main input delivered after boot", func() bool {
+				row, err := restarted.registry.(*globaldb.GlobalDB).
+					GetSessionInputQueueEntry(t.Context(), main.ID, held.QueueEntryID)
+				return err == nil && row.Status == store.SessionInputQueueStatusSent
+			})
+			diagnostics := filepath.Join(d.homePaths.LogsDir, "acpmock", "subagent-test.jsonl")
+			waitForCondition(t, "resumed main prompt completed", func() bool {
+				records, err := acpmock.ReadDiagnostics(diagnostics)
+				return err == nil && len(acpmock.PromptDiagnostics(records)) == 3
+			})
+			if err := restarted.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			records, err := acpmock.ReadDiagnostics(diagnostics)
+			if err != nil {
+				t.Fatal(err)
+			}
+			loads := 0
+			for _, record := range records {
+				if record.LifecycleEvent == "session_load" {
+					loads++
+				}
+				for _, step := range record.Steps {
+					if step.Error != "" {
+						t.Fatalf("ACP fixture step failed: %+v", step)
+					}
+				}
+			}
+			if loads != 2 || len(acpmock.PromptDiagnostics(records)) != 3 {
+				t.Fatalf("expected two resumes and three total prompts without idle replay: %+v", records)
+			}
+			for _, failure := range []string{
+				"hosted MCP bind did not establish before the launch deadline",
+				"daemon: reconcile instances at startup", "session.start.driver_start_failed",
+			} {
+				if strings.Contains(logs.String(), failure) {
+					t.Fatalf("clean boot logged %q: %s", failure, logs.String())
+				}
+			}
+		},
+	)
+}
+
 func TestBootRecoversInstanceReports(t *testing.T) {
 	t.Run("Should publish an orphaned report exactly once across daemon boots", func(t *testing.T) {
 		// integrationHomePaths sets the isolated daemon environment.
@@ -3832,7 +4253,9 @@ func TestBootRecoversInstanceReports(t *testing.T) {
 		command := daemonSessionStopHelperCommand(t)
 		cfg.Defaults.Provider = acpmock.ProviderName
 		cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
-		writeDaemonIntegrationProviderConfig(t, home, acpmock.ProviderName, command)
+		writeDaemonIntegrationProviderConfig(
+			t, home, acpmock.ProviderName, command, compozyconfig.ProviderAuthModeNone,
+		)
 		writeDaemonIntegrationAgentDef(t, home, "coder", command)
 		d := newTestDaemon(t, home, &cfg)
 		t.Cleanup(func() {
@@ -3898,7 +4321,9 @@ func TestInstancePayloadIntegration(t *testing.T) {
 		command := daemonSessionStopHelperCommand(t)
 		cfg.Defaults.Provider = acpmock.ProviderName
 		cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
-		writeDaemonIntegrationProviderConfig(t, home, acpmock.ProviderName, command)
+		writeDaemonIntegrationProviderConfig(
+			t, home, acpmock.ProviderName, command, compozyconfig.ProviderAuthModeNone,
+		)
 		writeDaemonIntegrationAgentDef(t, home, "coder", command)
 		d := newTestDaemon(t, home, &cfg)
 		if err := d.boot(t.Context()); err != nil {

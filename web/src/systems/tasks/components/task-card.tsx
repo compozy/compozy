@@ -74,7 +74,7 @@ function TaskWorkItemRow({
       />
     ) : null,
     taskHasApprovalPending(task) ? (
-      <Pill data-testid={`task-card-approval-${task.id}`} key="approval" size="sm" tone="brand">
+      <Pill data-testid={`task-card-approval-${task.id}`} key="approval" size="sm" tone="attn">
         {taskApprovalStateLabel(task.approval_state)}
       </Pill>
     ) : null,

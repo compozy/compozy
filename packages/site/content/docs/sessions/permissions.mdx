@@ -8,19 +8,24 @@ CompozyOS applies permissions in two layers:
 1. a daemon-side static policy for built-in ACP tool surfaces
 2. an interactive approval flow for ACP `session/request_permission`
 
-Both layers are scoped to the session workspace. `approve-all` by itself does not guarantee
-unrestricted provider commands: the ACP provider also chooses an operating mode. Set
-`permissions.provider_full_access = true` in the global config to request the provider's unrestricted mode for new
-`approve-all` sessions, including Loop roles. CompozyOS selects `agent-full-access` for Codex,
-`bypassPermissions` for Claude Code, `yolo` for Google Antigravity, and the `allow_all = on` option
-for GitHub Copilot CLI. Copilot's Autopilot mode also approves everything, so it counts as an
-unrestricted mode. Unsupported providers fail session resolution clearly instead
-of silently accepting this preference. Existing mode selection is unchanged when the setting is
-false. With the current Claude Code adapter, `approve-all` already selects `bypassPermissions`
-when that mode is advertised. An agent can explicitly choose a narrower ACP mode, and stricter effective CompozyOS
-permissions never permit an unrestricted mode. This setting does not bypass an outer CompozyOS
-operating-system permissions; unrestricted provider commands run
-with the daemon user's access within those boundaries.
+Both layers are scoped to the session workspace. The ACP provider also chooses an operating mode,
+and `approve-all` (**Full access**) selects the provider's unrestricted mode for new sessions,
+including Loop roles: `agent-full-access` for Codex, `bypassPermissions` for Claude Code, `yolo` for
+Google Antigravity, and the `allow_all = on` option for GitHub Copilot CLI. Copilot's Autopilot mode
+also approves everything, so it counts as an unrestricted mode. Other providers keep their own
+`approve-all` mode negotiation. If the provider does not uniquely advertise a `mode` config option,
+startup skips the unrestricted-mode selection and keeps the provider's negotiated mode. Later model
+or reasoning changes can retain that skipped intent; a new live mode selection still requires a unique
+advertisement. A uniquely
+advertised option still requires a supported value and provider confirmation. `auto` (**Auto-review**)
+selects the provider's reviewer mode instead.
+An agent can explicitly choose a narrower ACP mode, and stricter effective CompozyOS permissions
+never permit an unrestricted mode. Unrestricted provider commands run with the daemon user's
+access inside the CompozyOS workspace and operating-system boundaries.
+
+`permissions.provider_full_access` is retired and has no effect; `permissions.mode` selects the
+provider mode. CompozyOS ignores the key and removes it from `config.toml` on load, keeping the
+original as `config.toml.retired-keys.bak`. Support for ignoring it ends in v0.7.0.
 
 When provider-native tool interception is active, CompozyOS may keep the upstream ACP session in an
 approval-mediated mode so provider-native tool calls return through the CompozyOS execution gateway
@@ -66,8 +71,7 @@ and scripts need no edit.
 An on-demand agent with no `permissions` shows **Follow Settings** and names the current Settings
 level. An always-on agent with no `permissions` shows **Accept edits** marked Default. When the
 agent's provider declares no reviewer, **Auto-review** is marked Not available and the page
-says the agent uses Accept edits instead. On Codex, **Full access** explains that Codex keeps its own
-reviewer unless full access is turned on separately.
+says the agent uses Accept edits instead.
 
 The agent's Permissions page also holds two operator-only controls. **Whose requests can it answer?**
 writes `session_approval` for always-on agents: "Only its own sessions" (`children`) or "Any session it
@@ -182,6 +186,19 @@ A session tool called with only a `session_id`, such as `compozy__session_status
 against the workspace and profile of that session, not the caller's. You don't need to pass
 `workspace` to read a session somewhere else.
 
+The same target-based check applies to `session_wait`, `session_stop`, `session_approve`,
+`session_clarify_answer`, `session_prompt_cancel`, and `session_compact`. A session monitor checks
+each target as a read when it is registered, then rechecks before returning retained results or
+delivering a wake. If access is revoked, the target's name and observed state are hidden and the
+result reports `access_denied`.
+
+Process diagnostics (`session_processes_*`), terminals, and pull request monitors stay in the
+caller's workspace and profile. Reparenting uses the selected workspace and the caller's profile;
+both sessions must share that scope. Moving a session to another profile still needs the
+unrestricted grant. Global definition writes, workspace folder changes, and cleanup across all
+workspaces also retain their unrestricted or operator requirement. Agent memory requires
+the owning always-on agent's main session; a permission mode cannot grant that identity.
+
 ### Redaction outside the agent's own scope
 
 When an agent reads something outside its own workspace or profile, CompozyOS redacts secrets in
@@ -214,7 +231,7 @@ a session that is denied gets the same answer whether the session it asked for e
 boundaries keep this hint:
 
 ```text
-cross-workspace access is denied by this session's permission mode; ask the operator to set the agent's permissions.mode to approve-all, or approve the prompt when asked
+access could not be authorized for the caller workspace and profile; ask the operator to inspect the session identity and workspace access policy
 ```
 
 ### The cross-workspace prompt
@@ -336,7 +353,11 @@ Success response:
 ### Approval timeout
 
 Pending interactive permission requests wait up to 5 minutes by default. If no approval arrives,
-CompozyOS resolves the request as `reject-once`.
+CompozyOS resolves the provider request as `reject-once` and records `resolved_by: timeout`.
+Daemon-owned native tool approvals return `approval_timed_out`, including an identical retry
+suppressed as `repeat_denied`. An explicit rejection keeps its denial reason. Ask the operator to
+answer a pending request or send a new human-authored prompt after expiry before retrying; agent
+and monitor prompts do not clear the expired-request suppression.
 
 ### What `allow-always` and `reject-always` mean
 

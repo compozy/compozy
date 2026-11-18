@@ -73,6 +73,7 @@ func (e *SchemaUnsupportedError) Unwrap() error { return ErrSchemaUnsupported }
 // LoadOptions supplies the instance-specific data root used for expansion.
 type LoadOptions struct {
 	DataDir string
+	Name    string
 }
 
 // Package is the validated, portable package projection.
@@ -87,8 +88,23 @@ type Package struct {
 	License     string
 	Keywords    []string
 	Skills      []SkillRef
+	Inputs      []DerivedInput
 	Servers     []ServerSpec
 	Diagnostics []Diagnostic
+}
+
+type DerivedInput struct {
+	ID       string
+	Secret   bool
+	Required bool
+	Default  string
+	Servers  []string
+}
+
+type OAuthConfig struct {
+	ClientID     string
+	ClientSecret string
+	Scopes       []string
 }
 
 // AuthorInfo mirrors the closed author object in the standard.
@@ -107,6 +123,7 @@ type SkillRef struct {
 
 // ServerSpec is a normalized stdio or Streamable HTTP MCP server.
 type ServerSpec struct {
+	Auth      *OAuthConfig
 	Name      string
 	Transport string
 	Command   string

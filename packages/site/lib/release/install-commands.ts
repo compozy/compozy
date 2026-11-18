@@ -1,4 +1,5 @@
 export const VERIFIED_INSTALLER_COMMAND = "curl -fsSL https://compozy.com/install.sh | sh";
+export const HOMEBREW_INSTALL_COMMAND = "brew install compozy/compozy/compozy";
 export const NPM_INSTALL_COMMAND = "npm install -g @compozy/cli";
 
 export function goInstallCommand(tag: string): string {

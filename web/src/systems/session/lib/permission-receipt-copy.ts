@@ -223,9 +223,10 @@ export interface PermissionExpiredReceiptCopy {
  * recorded `failed-by-restart`; any other canceled row is a plain cancellation whose
  * cause the daemon did not name.
  */
-export type PermissionExpiredCause = "restart" | "canceled";
+export type PermissionExpiredCause = "restart" | "canceled" | "expired";
 
 const EXPIRED_LEAD: Record<PermissionExpiredCause, string> = {
+  expired: "Not decided · the request expired before you answered",
   restart: "Not decided · CompozyOS restarted before you answered",
   canceled: "Not decided · the request was canceled before you answered",
 };

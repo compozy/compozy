@@ -89,6 +89,7 @@ vi.mock("@/systems/session", () => ({
     snapshot: null,
   }),
   useSessionInspectorState: () => ({ open: mocks.inspectorOpen, toggle: vi.fn() }),
+  useSessionReviewPanelState: () => ({ open: false, toggle: vi.fn() }),
   useSessionPromptRuntimeContext: () => mocks.promptRuntimeStore,
   useSessionTopbarSlot: (...args: unknown[]) => mocks.sessionTopbar(...args),
   useSessionWorktreeBinding: () => mocks.worktreeBinding,

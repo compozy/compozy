@@ -79,8 +79,8 @@ describe("cmd-palette registry projection", () => {
           when: [{ key: "shell.desktop", value: true, reason: "requires an attached shell" }],
         },
         {
-          id: "window.merge_all",
-          title: "Merge all windows",
+          id: "layout.arrange.two-up",
+          title: "Arrange two-up",
           when: [
             {
               key: "desktop.windowCount",
@@ -93,7 +93,7 @@ describe("cmd-palette registry projection", () => {
       ]),
     });
     expect(registry.byId.has("window.move")).toBe(false);
-    expect(registry.byId.get("window.merge_all")).toMatchObject({
+    expect(registry.byId.get("layout.arrange.two-up")).toMatchObject({
       available: false,
       reason: "needs two windows on this desktop",
     });

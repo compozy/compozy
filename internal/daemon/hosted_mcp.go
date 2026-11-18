@@ -88,6 +88,7 @@ func (l hostedMCPLauncherAdapter) Launch(
 		return compozyconfig.MCPServer{}, mcppkg.ErrHostedDisabled
 	}
 	return l.service.Launch(ctx, mcppkg.HostedLaunchRequest{
+		EagerTools:  req.EagerTools,
 		SessionID:   req.SessionID,
 		ProfileID:   req.ProfileID,
 		WorkspaceID: req.WorkspaceID,
@@ -140,4 +141,38 @@ func hostedMCPLauncher(service *mcppkg.HostedService) session.HostedMCPLauncher 
 
 func (l hostedMCPLauncherAdapter) WaitForBind(ctx context.Context, sessionID string) error {
 	return l.service.WaitForBind(ctx, sessionID)
+}
+
+func (l hostedMCPLauncherAdapter) ToolDigest(ctx context.Context, sessionID string) (string, error) {
+	digest, err := l.service.ToolDigest(ctx, sessionID)
+	if errors.Is(err, mcppkg.ErrHostedBindNotFound) {
+		return "", session.ErrHostedMCPBindMissing
+	}
+	return digest, err
+}
+
+func (l hostedMCPLauncherAdapter) WaitForBindToolDigest(ctx context.Context, sessionID string) (string, error) {
+	return l.service.WaitForBindToolDigest(ctx, sessionID)
+}
+
+func (l hostedMCPLauncherAdapter) InitialToolDigest(sessionID string) (string, bool) {
+	return l.service.InitialToolDigest(sessionID)
+}
+
+func (l hostedMCPLauncherAdapter) ActivationCatalog(
+	ctx context.Context, sessionID string,
+) (toolspkg.AdvertisedCatalog, string, error) {
+	catalog, served, err := l.service.ActivationCatalog(ctx, sessionID)
+	if errors.Is(err, mcppkg.ErrHostedBindNotFound) {
+		err = session.ErrHostedMCPBindMissing
+	}
+	return catalog, served, err
+}
+
+func (l hostedMCPLauncherAdapter) BoundActivationCatalog(sessionID string) (toolspkg.AdvertisedCatalog, bool) {
+	return l.service.BoundActivationCatalog(sessionID)
+}
+
+func (l hostedMCPLauncherAdapter) ServedCatalogDigest(sessionID string) string {
+	return l.service.ServedCatalogDigest(sessionID)
 }

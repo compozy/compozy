@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/gin-gonic/gin"
 )
 
@@ -67,6 +69,7 @@ func TestCORSMiddlewareAllowsPatchPreflight(t *testing.T) {
 		request.Host = "127.0.0.1:2123"
 		request.Header.Set("Origin", "http://127.0.0.1:2123")
 		request.Header.Set("Access-Control-Request-Method", http.MethodPatch)
+		request.Header.Set("Access-Control-Request-Headers", "Cache-Control")
 
 		engine.ServeHTTP(recorder, request)
 
@@ -78,6 +81,9 @@ func TestCORSMiddlewareAllowsPatchPreflight(t *testing.T) {
 		}
 		if got, want := recorder.Header().Get("Access-Control-Allow-Origin"), "http://127.0.0.1:2123"; got != want {
 			t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, want)
+		}
+		if got := recorder.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "Cache-Control") {
+			t.Fatalf("refresh header not allowed: %q", got)
 		}
 		if got := recorder.Body.String(); got != "" {
 			t.Fatalf("body = %q, want empty body", got)
@@ -348,6 +354,54 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 				recorder.Code,
 				recorder.Body.String(),
 			)
+		}
+	})
+
+	// Raw file bytes are GETs, which cross-origin protection admits; Fetch Metadata fences them.
+	t.Run("Should refuse raw file fetches another site initiated", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		engine := gin.New()
+		RegisterRoutes(engine, handlers)
+		for _, route := range []string{
+			"/api/workspaces/ws/files/raw/docs/a.png",
+			"/api/workspaces/ws/worktrees/wt/files/raw/docs/a.png",
+			"/api/workspaces/ws/sessions/sess/files/raw/docs/a.png",
+		} {
+			for site, refused := range map[string]bool{
+				"cross-site": true, "same-site": true, "same-origin": false, "none": false, "": false,
+			} {
+				recorder := httptest.NewRecorder()
+				request := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodGet,
+					"http://127.0.0.1"+route,
+					http.NoBody,
+				)
+				request.Host = "127.0.0.1"
+				if site != "" {
+					request.Header.Set("Sec-Fetch-Site", site)
+				}
+				engine.ServeHTTP(recorder, request)
+				guarded := recorder.Code == http.StatusForbidden &&
+					strings.Contains(recorder.Body.String(), errCrossSiteFetchNotAllowed.Error())
+				if guarded != refused {
+					t.Fatalf("%s site=%q status=%d body=%s", route, site, recorder.Code, recorder.Body.String())
+				}
+			}
+		}
+
+		appEngine := gin.New()
+		appEngine.GET("/raw/*path", func(c *gin.Context) {
+			c.Request = c.Request.WithContext(core.ContextWithAppToken(c.Request.Context(), gateway.AppToken{}))
+		}, sameOriginFetchGuard, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/raw/a.png", http.NoBody)
+		request.Header.Set("Sec-Fetch-Site", "cross-site")
+		appEngine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusNoContent {
+			t.Fatalf("app-token cross-site status = %d, want %d", recorder.Code, http.StatusNoContent)
 		}
 	})
 

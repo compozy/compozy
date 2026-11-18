@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -16,6 +17,7 @@ import (
 )
 
 type agentCreateInput struct {
+	MCPServers      []contract.AgentMCPServerInput        `json:"mcp_servers,omitempty"`
 	SessionApproval string                                `json:"session_approval,omitempty"`
 	PermissionRules []contract.AgentPermissionRulePayload `json:"permission_rules,omitempty"`
 	DisplayName     *string                               `json:"display_name,omitempty"`
@@ -93,6 +95,8 @@ func (n *daemonNativeTools) agentCreate(
 		n.deps.Workspaces,
 		string(req.ToolID),
 		profileName,
+		n.deps.Vault,
+		core.AgentMCPApprovalForSettings(n.settingsService()),
 	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
@@ -101,7 +105,7 @@ func (n *daemonNativeTools) agentCreate(
 	if err := agentSkills.Sync(ctx); err != nil {
 		syncErr := errors.Join(
 			fmt.Errorf("daemon: sync created agent definition: %w", err),
-			n.rollbackNativeAgentCreate(ctx, agent.SourcePath),
+			n.rollbackNativeAgentCreateWithMCP(ctx, agent, createReq.Agent.MCPServers),
 		)
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(
 			req.ToolID,
@@ -114,7 +118,11 @@ func (n *daemonNativeTools) agentCreate(
 		entry.WorkspaceID = created.WorkspaceID
 	}
 	payload := core.AgentPayloadFromEntryWithConfig(&entry, &created.RuntimeConfig)
-	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
+	result, resultErr := agentRecordViews.result(req.View, payload)
+	if err := addAgentCreateWarnings(&result, created.Warnings); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return result, resultErr
 }
 
 func (n *daemonNativeTools) nativeAgentCreateProfileName(
@@ -143,31 +151,46 @@ func (n *daemonNativeTools) nativeAgentCreateProfileName(
 	return "", errors.New("daemon: profile lookup is unavailable for agent create")
 }
 
-func (n *daemonNativeTools) rollbackNativeAgentCreate(ctx context.Context, sourcePath string) error {
+// rollbackNativeAgentCreate reports whether deletion succeeded even if catalog reconciliation fails.
+func (n *daemonNativeTools) rollbackNativeAgentCreate(ctx context.Context, sourcePath string) (bool, error) {
 	agentsRoot := filepath.Dir(filepath.Dir(sourcePath))
 	if err := compozyconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {
-		return fmt.Errorf("daemon: roll back created agent definition: %w", err)
+		return false, fmt.Errorf("daemon: roll back created agent definition: %w", err)
 	}
 	agentSkills := n.deps.agentSkills()
 	if agentSkills == nil {
-		return errors.New("daemon: agent definition sync is unavailable")
+		return true, errors.New("daemon: agent definition sync is unavailable")
 	}
 	if err := agentSkills.Sync(ctx); err != nil {
-		return fmt.Errorf("daemon: reconcile catalog after agent create rollback: %w", err)
+		return true, fmt.Errorf("daemon: reconcile catalog after agent create rollback: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
+// agentCreateRequest builds the shared input while keeping managed credentials reference-only.
 func (n *daemonNativeTools) agentCreateRequest(
 	id toolspkg.ToolID,
 	scope toolspkg.Scope,
 	input agentCreateInput,
 ) (contract.CreateAgentRequest, error) {
+	if scope.SessionID != "" {
+		for _, server := range input.MCPServers {
+			if len(server.SecretHeaderValues)+len(server.SecretEnvValues) > 0 {
+				return contract.CreateAgentRequest{}, toolspkg.NewToolError(
+					toolspkg.ErrorCodeDenied,
+					id,
+					"use Vault references for MCP credentials in agent tools",
+					toolspkg.ErrToolDenied,
+				)
+			}
+		}
+	}
 	createReq := contract.CreateAgentRequest{
 		Scope:     contract.AgentCreateScope(strings.TrimSpace(input.Scope)),
 		Workspace: strings.TrimSpace(input.Workspace),
 		Agent: contract.CreateAgentPayload{
 			Name:            strings.TrimSpace(input.Name),
+			MCPServers:      input.MCPServers,
 			DisplayName:     input.DisplayName,
 			Description:     input.Description,
 			Kind:            input.Kind,
@@ -199,7 +222,7 @@ func (n *daemonNativeTools) agentCreateRequest(
 	if createReq.Scope == contract.AgentCreateScopeWorkspace {
 		workspaceRef := nativeCallerWorkspaceInput(createReq.Workspace, scope)
 		if strings.TrimSpace(workspaceRef) == "" {
-			return contract.CreateAgentRequest{}, nativeRequiredInputError(id, "workspace")
+			return contract.CreateAgentRequest{}, nativeRequiredInputError(id, resourceScopeWorkspaceKind)
 		}
 		createReq.Workspace = workspaceRef
 	}
@@ -295,4 +318,32 @@ func nativeReservedAgentNameToolError(id toolspkg.ToolID, err error) error {
 		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 		toolspkg.ReasonSchemaInvalid,
 	)
+}
+
+// rollbackNativeAgentCreateWithMCP cleans minted credentials only after their definition is removed.
+func (n *daemonNativeTools) rollbackNativeAgentCreateWithMCP(
+	ctx context.Context,
+	agent compozyconfig.AgentDef,
+	inputs []contract.AgentMCPServerInput,
+) error {
+	deleted, rollbackErr := n.rollbackNativeAgentCreate(ctx, agent.SourcePath)
+	if !deleted {
+		return rollbackErr
+	}
+	return errors.Join(rollbackErr, core.RollbackAgentMCPSecretValues(ctx, n.deps.Vault, agent, inputs))
+}
+
+func addAgentCreateWarnings(result *toolspkg.ToolResult, warnings []string) error {
+	if len(warnings) > 0 {
+		result.Preview += "; " + strings.Join(warnings, "; ")
+		encoded, err := json.Marshal(warnings)
+		if err != nil {
+			return err
+		}
+		if result.Metadata == nil {
+			result.Metadata = make(map[string]json.RawMessage)
+		}
+		result.Metadata["warnings"] = encoded
+	}
+	return nil
 }

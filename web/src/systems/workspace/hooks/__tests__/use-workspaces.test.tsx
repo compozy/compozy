@@ -328,6 +328,59 @@ describe("useActiveWorkspace", () => {
     expect(restored.result.current.dataScope).toEqual({ kind: "project", workspaceId: alpha.id });
   });
 
+  it("Should not re-render callers when a catalog refresh answers unchanged rows", async () => {
+    vi.mocked(fetchWorkspaces).mockImplementation(async () => [makeWorkspace()]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(statusKeys.identity(), runtimeIdentityFixture);
+    let renders = 0;
+    const { result } = renderHook(
+      () => {
+        renders += 1;
+        return useActiveWorkspace();
+      },
+      { wrapper: createWrapper(queryClient) }
+    );
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    const settled = renders;
+
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: workspaceKeys.list(), exact: true });
+      // TanStack delivers observer notifications on a later macrotask.
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    expect(fetchWorkspaces).toHaveBeenCalledTimes(2);
+    expect(renders).toBe(settled);
+  });
+
+  it("Should not re-render destination readers when the daemon home changes", async () => {
+    vi.mocked(fetchWorkspaces).mockResolvedValue([makeWorkspace()]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(statusKeys.identity(), runtimeIdentityFixture);
+    let renders = 0;
+    const { result } = renderHook(
+      () => {
+        renders += 1;
+        return useActiveWorkspace();
+      },
+      { wrapper: createWrapper(queryClient) }
+    );
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    const settled = renders;
+
+    await act(async () => {
+      queryClient.setQueryData(statusKeys.identity(), {
+        ...runtimeIdentityFixture,
+        daemon: { ...runtimeIdentityFixture.daemon, user_home_dir: "/workspace/another-home" },
+      });
+      // Flush observer notifications so an unwanted identity subscription is observable.
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    expect(renders).toBe(settled);
+    expect(result.current.dataScope).toEqual({ kind: "all" });
+  });
+
   it.each([
     ["added", ["window:editorial", "window:home"]],
     ["removed", []],

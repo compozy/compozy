@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -53,6 +54,9 @@ const (
 )
 
 type bootState struct {
+	mcpDigestKeys       vault.KeyProvider
+	runtimeMCPInventory *runtimeMCPInventory
+	sessionMCPReadModel *sessionMCPReadModel
 	agentInstances      *core.AgentInstanceAPI
 	subagents           session.SubagentService
 	cfg                 compozyconfig.Config
@@ -62,9 +66,11 @@ type bootState struct {
 	harnessResolver     *HarnessContextResolver
 	harnessRecorder     *harnessLifecycleRecorder
 	runtimeWorkers      daemonRuntimeWorkers
+	proactiveChecksMu   sync.RWMutex
 	skillsRegistry      *skills.Registry
 	mcpResolver         *skills.MCPResolver
 	situationContext    *situation.Service
+	standingContext     *standingContextAugmenter
 	promptAssembler     session.PromptAssembler
 	startupOverlay      session.StartupPromptOverlay
 	promptAugmenter     session.PromptInputAugmenter
@@ -104,6 +110,7 @@ type bootState struct {
 	accessConsent         *workspaceAccessConsentCache
 	toolRegistry          toolspkg.Registry
 	mcpToolProvider       daemonMCPToolProvider
+	nativeToolProvider    toolspkg.Provider
 	toolArtifacts         toolspkg.ToolArtifactStore
 	sessionAttachments    attachmentspkg.Store
 	toolsets              core.ToolsetRegistry
@@ -113,6 +120,7 @@ type bootState struct {
 	viewPatches           *extensionCmdPaletteProvider
 	clarify               *clarifyBridge
 	observer              Observer
+	telemetry             *telemetrySlot
 	lifecycleObservers    *sessionLifecycleFanout
 	hookTelemetrySinks    *hookTelemetryFanout
 	hooks                 hookRuntime
@@ -130,6 +138,7 @@ type bootState struct {
 	extensionEnvBindings  extensionpkg.EnvBindingStore
 	extensionInputs       extensioninput.Store
 	extensionMCP          extensionmcp.Store
+	mcpApprovals          mcpApprovalCache
 	mcpAuthGeneration     *mcpauth.MutationGeneration
 	mcpAuthStatus         toolspkg.MCPAuthStatusProvider
 	mcpRuntimeHealth      *mcppkg.RuntimeHealthRegistry
@@ -181,10 +190,16 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 	ctx = d.admission.BeginBoot(ctx)
 	defer d.finishBoot(&err)
+	bootStarted := time.Now()
 
 	state := &bootState{
+		mcpDigestKeys:       vault.NewMCPDigestKeyProvider(d.homePaths.HomeDir),
 		mcpAuthGeneration:   mcpauth.NewMutationGeneration(),
 		toolProjectionEpoch: mcppkg.NewProjectionEpoch(),
+	}
+	state.runtimeMCPInventory, err = newRuntimeMCPInventory(state.mcpDigestKeys)
+	if err != nil {
+		return fmt.Errorf("daemon: initialize MCP definition digests: %w", err)
 	}
 	cleanup := &bootCleanup{}
 	defer cleanup.run(ctx, &err)
@@ -206,6 +221,14 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 
 	d.publishBootState(state)
+	// The discovery record names ready only once boot has committed; until then it carries the phase
+	// that was current when it was written. A failed rewrite leaves the conservative earlier phase.
+	readyInfo := state.info
+	readyInfo.ReadinessPhase = string(contract.DaemonReadinessReady)
+	if err := WriteInfo(d.homePaths.DaemonInfo, readyInfo); err != nil {
+		state.logger.WarnContext(ctx, "daemon: publish ready phase in daemon info", "error", err)
+	}
+	state.logger.InfoContext(ctx, "daemon: boot complete", "duration_ms", time.Since(bootStarted).Milliseconds())
 	return nil
 }
 
@@ -213,7 +236,9 @@ func (d *Daemon) publishDaemonInfo(state *bootState, cleanup *bootCleanup) error
 	cleanup.add(func(context.Context) error {
 		return RemoveInfo(d.homePaths.DaemonInfo)
 	})
-	if err := WriteInfo(d.homePaths.DaemonInfo, state.info); err != nil {
+	info := state.info
+	info.ReadinessPhase = string(d.readiness.snapshot().phase)
+	if err := WriteInfo(d.homePaths.DaemonInfo, info); err != nil {
 		return fmt.Errorf("daemon: publish daemon info: %w", err)
 	}
 	return nil
@@ -304,6 +329,7 @@ func (d *Daemon) bootHarnessPromptRuntime(
 		ToolsPromptSectionEnabled:           state.cfg.Tools.Enabled,
 		SkillsAugmenter:                     state.skillsRegistry != nil,
 		SituationAugmenter:                  state.situationContext != nil,
+		StandingAugmenter:                   true,
 		SyntheticTurnsEnabled:               true,
 		DetachedTaskRuntimeEnabled:          true,
 	},
@@ -340,9 +366,11 @@ func (d *Daemon) bootHarnessPromptRuntime(
 	if skillsCatalogAugmenter != nil {
 		skillsCatalog = skillsCatalogAugmenter.Augment
 	}
+	state.standingContext = newStandingContextAugmenter(state)
 	promptAugmenterDescriptors := defaultPromptInputAugmenterDescriptors(
 		skillsCatalog,
 		state.situationContext.Augment,
+		state.standingContext.Augment,
 	)
 	if skillsCatalogAugmenter != nil {
 		for index := range promptAugmenterDescriptors {

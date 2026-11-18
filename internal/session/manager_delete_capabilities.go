@@ -108,6 +108,8 @@ func stageBoundSessionDelete(
 	if moveErr == nil && result.PostCommitErr == nil && verifyErr == nil {
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
 	rollbackResult, rollbackErr := capabilities.database.MoveParentDirectory(
 		ctx, owner, capabilities.directory, capabilities.parentDirectory, originalPath,
 	)

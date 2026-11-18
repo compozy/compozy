@@ -10,7 +10,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMarketplaceExtensionMCPServer } from "../use-marketplace-detail-mcp-server";
 import type { MarketplaceExtensionServer } from "../../types";
 import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
-import { useMarketplaceCatalog, useMarketplaceCatalogEntry } from "../use-marketplace";
+import { marketplaceKeys } from "../../lib/query-keys";
+import {
+  useMarketplaceCatalog,
+  useMarketplaceCatalogEntry,
+  useMarketplaceCategory,
+} from "../use-marketplace";
 
 const mocks = vi.hoisted(() => ({
   catalog: vi.fn(),
@@ -300,6 +305,24 @@ describe("one catalog query lifecycle", () => {
     expect(inactive.result.current.data).toBeUndefined();
     expect(mocks.catalog).toHaveBeenCalledTimes(2);
     inactive.unmount();
+    unmount();
+    client.clear();
+  });
+
+  // Invariant: an inactive category read stays quiet even when Load more fires on cached pages.
+  it("Should not ask for the next category page while the read is inactive", async () => {
+    const options = { category: "productivity", limit: 50, profileName: "work" };
+    const { client, wrapper } = setup();
+    client.setQueryData(marketplaceKeys.category(options), {
+      pages: [page("cached", "next")],
+      pageParams: [undefined],
+    });
+    const { result, unmount } = renderHook(() => useMarketplaceCategory(options, false), {
+      wrapper,
+    });
+    expect(result.current.hasNextPage).toBe(true);
+    await act(() => result.current.loadMore());
+    expect(mocks.catalog).not.toHaveBeenCalled();
     unmount();
     client.clear();
   });

@@ -9,6 +9,7 @@
 @import "tw-animate-css";
 @import "./tokens-runtime.css";
 @import "./terminal-tokens.css";
+@import "./styles/pierre-bridge.css";
 @import "./tokens-light.css";
 
 /* `data-theme` and `.dark` are toggled together on <html>; either matches. */
@@ -37,23 +38,24 @@
   --color-desk: #131313;
   --color-canvas: #131313;
   --color-canvas-soft: #1a1a1a;
-  --color-sunken: #0e0e0e;
+  --color-sunken: #0a0a0a;
   --color-surface-2: #232323;
   --color-selected: #262626;
   --color-code-bg: #1a1a1a;
   --color-sidebar: var(--color-sunken);
-  --color-elevated: #1c1c1c;
+  --color-elevated: #1b1b1b;
   --color-hover: var(--color-surface-2);
-  --color-disabled: #4d4d4d;
+  --color-disabled: #5e5e5e;
 
   /* Hairlines — opaque greys, one ladder per theme. `line` edges cards and
      popovers (via shadow-card / shadow-pop) and structural rules; line-soft
      is the quiet divider inside a card; line-focus is the input focus
      border. */
-  --color-line: #2a2a2a;
+  --color-line: #262626;
   --color-line-soft: #202020;
-  --color-line-strong: #3a3a3a;
-  --color-line-focus: #5c5c5c;
+  --color-line-strong: #383838;
+  /* Input focus border rides the cyan focus colour (brand v1.2). */
+  --color-line-focus: #3df2e0;
   /* Resting non-text indicator: a dot, ring or mark that alone carries state
      (inactive pager dot, queued ring). Clears 3:1 on every surface in the ramp;
      the hairlines above stay decorative boundaries. */
@@ -61,38 +63,56 @@
   /* Control knob (switch thumb): the lightest ink in either theme — the
      near-white fg on dark, pure white on light — so an off switch reads as a
      light knob on its line-strong track, never a heavy dark disc. */
-  --color-knob: #f5f5f5;
+  --color-knob: #ececec;
 
   /* Text. fg-2 = mix(muted-foreground 60%, fg) and fg-3 = mix(fg 70%, muted-foreground), the
      reference's own recipes, resolved to literals. muted-foreground / subtle / faint all
      carry text, so each clears WCAG AA 4.5:1 on canvas, canvas-soft,
      sunken, rail, surface-2, selected and elevated — a deliberate override
      of the reference's dimmer greys (brand-spec.md, "Rules observed" 6). */
-  --color-fg: #f5f5f5;
+  --color-fg: #ececec;
   --color-fg-strong: #ffffff;
-  --color-fg-2: #c4c4c4;
-  --color-fg-3: #dcdcdc;
-  --color-muted-foreground: #a3a3a3;
+  --color-fg-2: #bababa;
+  --color-fg-3: #d3d3d3;
+  --color-muted-foreground: #989898;
   --color-subtle: #8e8e8e;
   --color-faint: #8d8d8d;
 
   /* Primary — the single inverted action (near-white on dark, near-black on
-     light). Never the brand hue: highlights ride the brand below. */
+     light). Never the brand hue: actions stay inverted, highlights ride the
+     brand below. */
   --color-primary: #f5f5f5;
   --color-primary-hover: #ffffff;
   --color-primary-foreground: #0a0a0a;
 
-  /* Brand — the orange: highlight and needs-you (`attn`). The only
-     non-neutral hue; amber (`warning`) is reserved for real warnings. */
-  --color-brand: #e8572a;
-  --color-brand-hover: #d14e25;
-  --color-brand-strong: #f6874f;
-  --color-brand-ink: #17110f;
-  --color-brand-tint: rgba(232, 87, 42, 0.1);
-  --color-brand-tint-strong: rgba(232, 87, 42, 0.16);
-  --color-brand-dim: rgba(232, 87, 42, 0.24);
-  --color-brand-glow: rgba(232, 87, 42, 0.05);
-  --color-attn: var(--color-brand);
+  /* Brand — volt on paper, signal blue on ink (identity v1.2): highlight
+     fills, marks, selection and tints. On dark the brand is the signal blue
+     (sky, 5.59:1 on rail) because volt #2f5bff reads too dark on ink; light
+     keeps volt. Brand used AS TEXT takes `brand-strong` (AA on every surface,
+     the hover and selected plates included). `brand-ink` is the text on a
+     brand fill: dark ink here (white is 3.54:1 on sky), so hover steps the
+     fill LIGHTER to keep it. The palette swatch `brand-volt` stays volt. */
+  --color-brand: #1f87fc;
+  --color-brand-hover: #3d95ff;
+  --color-brand-strong: #4a9dff;
+  --color-brand-ink: #0a0a0a;
+  --color-brand-tint: rgba(31, 135, 252, 0.1);
+  --color-brand-tint-strong: rgba(31, 135, 252, 0.16);
+  --color-brand-dim: rgba(31, 135, 252, 0.24);
+  --color-brand-glow: rgba(31, 135, 252, 0.05);
+  /* Brand palette — the identity's raw hues, constant across themes. Brand
+     decoration and the manual only; product state keeps its semantic tokens.
+     Gradients (`--gradient-*` in :root) are always 45deg and never use deep. */
+  --color-brand-volt: #2f5bff;
+  --color-brand-sky: #1f87fc;
+  --color-brand-teal: #1df0d7;
+  --color-brand-cyan: #3df2e0;
+  --color-brand-glint: #b5faf6;
+  --color-brand-deep: #0b31f7;
+  /* Needs you — amber, its own value (never an alias of brand): the one loud
+     exception, one amber element per view region. */
+  --color-attn: #f5b14c;
+  --color-attn-tint: rgba(245, 177, 76, 0.1);
 
   /* Signal palette — mint success marks in-progress/done glyphs and identity
      wells; tints at 8–12% alpha. `well` = mix(success 14%, canvas). */
@@ -102,6 +122,8 @@
   --color-warning-tint: rgba(245, 177, 76, 0.1);
   --color-destructive: #f87171;
   --color-destructive-tint: rgba(248, 113, 113, 0.1);
+  /* Text on the destructive-solid fill (the previous brand ink). */
+  --color-destructive-ink: #17110f;
   --color-info: #8e8eb5;
   --color-info-tint: rgba(142, 142, 181, 0.12);
   --color-well: #1e342c;
@@ -124,6 +146,19 @@
   --color-viz-other: rgba(255, 255, 255, 0.26);
   --color-viz-grid: rgba(255, 255, 255, 0.045);
   --color-viz-cell: #ffffff;
+
+  /* QR code — a fixed dark-on-light pair in BOTH themes (never overridden in
+     tokens-light.css): phone scanners expect dark modules on a light quiet
+     zone, so the matrix ignores the surrounding surface and the theme. */
+  --color-qr-plate: #ffffff;
+  --color-qr-module: #0a0a0a;
+
+  /* Ink on bright fills — the brand and Live gradients and the bright signal
+     plates (sky, teal, cyan, glint, attn, success). Fixed dark in BOTH themes
+     (never overridden in tokens-light.css): white fails AA from the gradient's
+     sky stop to its glint end. On --gradient-live it is large-text only (its
+     volt stop holds 3:1, not 4.5:1). */
+  --color-on-gradient: #0a0a0a;
 
   /* Surface glaze ladder — translucent ink over the ramp (white-alpha on dark,
      black-alpha on light). */
@@ -172,7 +207,7 @@
   --color-destructive-foreground: var(--color-fg-strong);
   --color-border: var(--color-line);
   --color-input: var(--color-line);
-  --color-ring: var(--color-line-strong);
+  --color-ring: #3df2e0;
   --color-chart-1: var(--color-brand);
   --color-chart-2: var(--color-success);
   --color-chart-3: var(--color-info);
@@ -186,13 +221,13 @@
   --color-sidebar-border: var(--color-line);
   --color-sidebar-ring: var(--color-line-strong);
 
-  /* Font families — Inter Variable for UI (the 425 regular needs the wght
+  /* Font families — Figtree Variable for UI (the 450 regular needs the wght
      axis), Geist Mono Variable for code, paths and the terminal. Each stack
      leads with the operator's Appearance choice (`--user-font-*`, defaulted
      in :root below and overridden inline on <html>), so a missing face falls
      through to the built-in stack instead of the browser default. */
   --font-sans:
-    var(--user-font-sans), "Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI",
+    var(--user-font-sans), "Figtree Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI",
     sans-serif;
   /* "Symbols Nerd Font Mono" backfills the Private Use Area icons terminals
      emit (see the @font-face in tokens-runtime.css); Geist Mono wins every
@@ -200,23 +235,25 @@
   --font-mono:
     var(--user-font-mono), "Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono",
     ui-monospace, "SFMono-Regular", "Menlo", monospace;
-  /* Display alias reserved for explicit logo/wordmark surfaces only.
+  /* Display face — Instrument Sans Variable 400 at --tracking-display,
+     reserved for explicit logo/wordmark and site display surfaces only.
      Keep the `font-display` utility out of type-ramp callers under
-     `web/src/**` and `packages/ui/src/**` — review-enforced, no lint rule.
-     Site re-binds this to Playfair Display in `packages/site/app/global.css`. */
-  --font-display: var(--font-sans);
+     `web/src/**` and `packages/ui/src/**` — review-enforced, no lint rule. */
+  --font-display:
+    "Instrument Sans Variable", "Instrument Sans", -apple-system, "BlinkMacSystemFont", "Segoe UI",
+    sans-serif;
   /* Keyboard-key stack — system-first (SF Pro on macOS, Segoe UI on Windows)
      so modifier glyphs (⌘ ⇧ ⌥ ⌃ ⏎ ⌫ ⇥ ⎋) and letters render from one face
      with native menu metrics. The bundled Geist/JetBrains subsets ship none
      of those code points, so mono-styled key caps fell through to per-glyph
      system fallback with mismatched size and baseline. */
-  --font-keys: -apple-system, "BlinkMacSystemFont", "Segoe UI", "Inter Variable", sans-serif;
+  --font-keys: -apple-system, "BlinkMacSystemFont", "Segoe UI", "Figtree Variable", sans-serif;
 
-  /* Weight ladder — 425 / 500 / 600 (brand-spec). Regular is 425, a touch
-     above Inter's 400 so dark-on-light and light-on-dark read at the same
-     weight; requires Inter Variable (wght axis). Bold caps at semibold: the
-     system has no heavier weight. */
-  --font-weight-normal: 425;
+  /* Weight ladder — 450 / 500 / 600 (brand v1.2). UI regular is 450, a touch
+     above Figtree's 400 body weight so dark-on-light and light-on-dark read
+     at the same weight; requires Figtree Variable (wght axis). Bold caps at
+     semibold: the system has no heavier weight. */
+  --font-weight-normal: 450;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 600;
@@ -226,98 +263,114 @@
      / eyebrow / kbd) · 12.5 meta · 13 small-body · 13.5 body · 14 item-title /
      card-title · 15 heading · 18 page H1; the other tiers below are
      role-specific (badges, KPIs, prose, site). Leading: body ≈1.45–1.5,
-     titles ≈1.3, headings 1.25, transcript 1.6. */
-  --text-meta: 0.78125rem; /* 12.5px — meta rows, tool-row trailing details */
-  --text-meta--line-height: 1.125rem;
-  --text-body: 0.84375rem; /* 13.5px — UI baseline: rows, labels, tabs */
-  --text-body--line-height: 1.25rem;
-  --text-heading: 0.9375rem; /* 15px — surface headings, window titles, medium */
-  --text-heading--line-height: 1.1875rem;
-  --text-item-title: 0.875rem; /* 14px — card & row titles */
-  --text-item-title--line-height: 1.125rem;
-  --text-small-body: 0.8125rem; /* 13px — secondary text, inputs, menu items */
-  --text-small-body--line-height: 1.1875rem;
-  --text-badge: 0.6875rem; /* 11px — matches --text-micro */
-  --text-badge--line-height: 0.75rem;
-  --text-eyebrow: 0.75rem; /* 12px */
-  --text-eyebrow--line-height: 1rem;
+     titles ≈1.3, headings 1.25, transcript 1.6. Every rem step multiplies by
+     the Appearance text size (`--user-text-scale`, 1 by default). */
+  /* Tailwind's text-xs / text-sm, which some file and diff surfaces still use,
+     re-declared so they follow the Appearance text size like every step below.
+     Leading keeps Tailwind's ratio. */
+  --text-xs: calc(0.75rem * var(--user-text-scale));
+  --text-xs--line-height: calc(1 / 0.75);
+  --text-sm: calc(0.875rem * var(--user-text-scale));
+  --text-sm--line-height: calc(1.25 / 0.875);
+  --text-meta: calc(
+    0.78125rem * var(--user-text-scale)
+  ); /* 12.5px — meta rows, tool-row trailing details */
+  --text-meta--line-height: calc(1.125rem * var(--user-text-scale));
+  --text-body: calc(
+    0.84375rem * var(--user-text-scale)
+  ); /* 13.5px — UI baseline: rows, labels, tabs */
+  --text-body--line-height: calc(1.25rem * var(--user-text-scale));
+  --text-heading: calc(
+    0.9375rem * var(--user-text-scale)
+  ); /* 15px — surface headings, window titles, medium */
+  --text-heading--line-height: calc(1.1875rem * var(--user-text-scale));
+  --text-item-title: calc(0.875rem * var(--user-text-scale)); /* 14px — card & row titles */
+  --text-item-title--line-height: calc(1.125rem * var(--user-text-scale));
+  --text-small-body: calc(
+    0.8125rem * var(--user-text-scale)
+  ); /* 13px — secondary text, inputs, menu items */
+  --text-small-body--line-height: calc(1.1875rem * var(--user-text-scale));
+  --text-badge: calc(0.6875rem * var(--user-text-scale)); /* 11px — matches --text-micro */
+  --text-badge--line-height: calc(0.75rem * var(--user-text-scale));
+  --text-eyebrow: calc(0.75rem * var(--user-text-scale)); /* 12px */
+  --text-eyebrow--line-height: calc(1rem * var(--user-text-scale));
   /* Caps rendition of the eyebrow contract — uppercase reads ~20% larger
      optically, so it steps down a size and takes positive tracking. */
-  --text-eyebrow-caps: 0.6875rem; /* 11px */
-  --text-eyebrow-caps--line-height: 1rem;
+  --text-eyebrow-caps: calc(0.6875rem * var(--user-text-scale)); /* 11px */
+  --text-eyebrow-caps--line-height: calc(1rem * var(--user-text-scale));
   /* Keyboard-key cap tier — the one size every shortcut chip renders at.
      Legibility comes from the single-face --font-keys stack (the old blur was
      per-glyph fallback, not the point size); 12px regular matches the brand
      ramp's smallest step. A dedicated role token because --text-eyebrow is
      the lint-enforced structural-label contract, never a key size. */
-  --text-kbd: 0.75rem; /* 12px */
-  --text-kbd--line-height: 1rem;
+  --text-kbd: calc(0.75rem * var(--user-text-scale)); /* 12px */
+  --text-kbd--line-height: calc(1rem * var(--user-text-scale));
   /* Weight rides the token so every text-kbd caller inherits it. */
-  --text-kbd--font-weight: 425;
+  --text-kbd--font-weight: 450;
   /* Empty-desktop hero question only. */
-  --text-display-2xl: 1.5rem; /* 24px */
+  --text-display-2xl: calc(1.5rem * var(--user-text-scale)); /* 24px */
   --text-display-2xl--line-height: 1.25;
-  --text-site-lead: 1.1875rem; /* 19px */
+  --text-site-lead: calc(1.1875rem * var(--user-text-scale)); /* 19px */
   --text-site-lead--line-height: 1.5;
-  --text-micro: 0.6875rem; /* 11px */
-  --text-micro--line-height: 0.75rem;
+  --text-micro: calc(0.6875rem * var(--user-text-scale)); /* 11px */
+  --text-micro--line-height: calc(0.75rem * var(--user-text-scale));
   /* Count badge on pills and rail items (Pill.Count size "count"). */
-  --text-count: 0.59375rem; /* 9.5px */
-  --text-count--line-height: 0.9375rem; /* 15px */
+  --text-count: calc(0.59375rem * var(--user-text-scale)); /* 9.5px */
+  --text-count--line-height: calc(0.9375rem * var(--user-text-scale)); /* 15px */
   --text-inline-code: 0.9em;
   --text-accent-glyph: 0.85em;
-  --text-ui-title-lg: 1.35rem;
+  --text-ui-title-lg: calc(1.35rem * var(--user-text-scale));
 
   /* Type ladder additions. */
-  --text-detail-h1: 1.125rem; /* 18px — page H1 */
+  --text-detail-h1: calc(1.125rem * var(--user-text-scale)); /* 18px — page H1 */
   --text-detail-h1--line-height: 1.25;
   /* PH3 split-pane compact page-head H1 (route chrome contract §08). */
-  --text-compact-h1: 0.9375rem; /* 15px */
+  --text-compact-h1: calc(0.9375rem * var(--user-text-scale)); /* 15px */
   --text-compact-h1--line-height: 1.25;
-  --text-empty-h1: 0.9375rem; /* 15px */
-  --text-modal-title: 0.875rem; /* 14px */
-  --text-section-head: 0.7rem;
-  --text-form-input: 0.8125rem; /* 13px */
-  --text-form-label: 0.8125rem; /* 13px */
-  --text-form-hint: 0.75rem; /* 12px */
-  --text-form-required: 0.625rem;
-  --text-metric-value: 1.25rem; /* 20px */
+  --text-empty-h1: calc(0.9375rem * var(--user-text-scale)); /* 15px */
+  --text-modal-title: calc(0.875rem * var(--user-text-scale)); /* 14px */
+  --text-section-head: calc(0.7rem * var(--user-text-scale));
+  --text-form-input: calc(0.8125rem * var(--user-text-scale)); /* 13px */
+  --text-form-label: calc(0.8125rem * var(--user-text-scale)); /* 13px */
+  --text-form-hint: calc(0.75rem * var(--user-text-scale)); /* 12px */
+  --text-form-required: calc(0.625rem * var(--user-text-scale));
+  --text-metric-value: calc(1.25rem * var(--user-text-scale)); /* 20px */
   /* In-window KPI / metric value (DS Components §09) — 20px number at
      font-semibold (600) with tabular-nums. --text-kpi-compact is the 15px tier. */
-  --text-kpi-value: 1.25rem; /* 20px */
+  --text-kpi-value: calc(1.25rem * var(--user-text-scale)); /* 20px */
   --text-kpi-value--line-height: 1.1;
-  --text-kpi-compact: 0.9375rem; /* 15px */
-  --text-agent-metric: 0.9375rem; /* 15px */
-  --text-rail-avatar: 0.71875rem;
-  --text-ws-name: 0.875rem; /* 14px */
-  --text-mono-id: 0.6875rem;
-  --text-pill-group-badge: 0.5625rem;
+  --text-kpi-compact: calc(0.9375rem * var(--user-text-scale)); /* 15px */
+  --text-agent-metric: calc(0.9375rem * var(--user-text-scale)); /* 15px */
+  --text-rail-avatar: calc(0.71875rem * var(--user-text-scale));
+  --text-ws-name: calc(0.875rem * var(--user-text-scale)); /* 14px */
+  --text-mono-id: calc(0.6875rem * var(--user-text-scale));
+  --text-pill-group-badge: calc(0.5625rem * var(--user-text-scale));
   /* 14 px tier for prose-adjacent / card-title surfaces (chat bubble body,
      tool-call title). Two steps above `--text-small-body` (13 px), shared
      with `--text-item-title`. Block code never rides this sans tier — it has
      its own mono pair below. */
-  --text-card-title: 0.875rem; /* 14px */
+  --text-card-title: calc(0.875rem * var(--user-text-scale)); /* 14px */
   --text-card-title--line-height: 1.3;
   /* Prose heading ladder (Markdown H1–H3) — must stay above the 13.5 px prose body. */
-  --text-prose-h1: 1.125rem; /* 18px */
+  --text-prose-h1: calc(1.125rem * var(--user-text-scale)); /* 18px */
   --text-prose-h1--line-height: 1.25;
-  --text-prose-h2: 1rem; /* 16px */
+  --text-prose-h2: calc(1rem * var(--user-text-scale)); /* 16px */
   --text-prose-h2--line-height: 1.3;
-  --text-prose-h3: 0.90625rem; /* 14.5px */
+  --text-prose-h3: calc(0.90625rem * var(--user-text-scale)); /* 14.5px */
   --text-prose-h3--line-height: 1.4;
   /* Block-code tier — Geist Mono block surfaces (CodeBlock, JsonViewer)
      share one size; density varies padding/surface only. */
-  --text-code-block: 0.8125rem; /* 13px */
+  --text-code-block: calc(0.8125rem * var(--user-text-scale)); /* 13px */
   --text-code-block--line-height: 1.5;
 
   /* Calm transcript ladder — shared by timeline rows, detail rails, working
      state, and the user-message surface. These preserve the OpenDesign rhythm
      without scattering pixel literals across the web renderer. */
-  --text-transcript-message: 0.875rem; /* 14px — chat reading text */
+  --text-transcript-message: calc(0.875rem * var(--user-text-scale)); /* 14px — chat reading text */
   --text-transcript-message--line-height: 1.6;
-  --text-transcript-body: 0.78125rem; /* 12.5px */
-  --text-transcript-meta: 0.75rem; /* 12px */
-  --text-transcript-caption: 0.6875rem; /* 11px */
+  --text-transcript-body: calc(0.78125rem * var(--user-text-scale)); /* 12.5px */
+  --text-transcript-meta: calc(0.75rem * var(--user-text-scale)); /* 12px */
+  --text-transcript-caption: calc(0.6875rem * var(--user-text-scale)); /* 11px */
 
   /* Leading. */
   --leading-small-body: var(--text-small-body--line-height);
@@ -348,23 +401,26 @@
   /* Body baseline tracking — matches the `letter-spacing` set on `body`
      (tokens-runtime.css). Used by tabs label and any UI row that needs to
      read against body type without optical drift. */
-  --tracking-body: -0.01em;
+  --tracking-body: var(--user-tracking-body);
   /* Listing-row title optical tightening (one step, matches --text-card-title). */
   --tracking-row-title: -0.01em;
   /* Prose heading ladder — tightening scales with size, like the page-head H1s. */
   --tracking-prose-h1: -0.015em;
   --tracking-prose-h2: -0.015em;
   --tracking-prose-h3: -0.01em;
+  /* Display face tracking (Instrument Sans, logo/site display only). */
+  --tracking-display: -0.025em;
 
-  /* Radii — base + ladder: 3 / 6 / 7 / 8 / 8 / 12 / 18 / pill. Actions are
-     pills; cards and panels take lg (12); the identity well takes 7. */
-  --radius: 8px;
-  --radius-xxs: 3px;
+  /* Radii — base + ladder: 4 / 6 / 6 / 10 / 10 / 14 / 20 / pill (brand v1.2).
+     Actions are pills; cards and panels take lg (14); the identity well
+     takes 7. */
+  --radius: 10px;
+  --radius-xxs: 4px;
   --radius-xs: 6px;
-  --radius-sm: 7px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 18px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
   --radius-pill: 9999px;
   --radius-chip: 7px;
   --radius-mono-badge: 4px;
@@ -391,8 +447,8 @@
      `:root` (dark) and tokens-light.css: Tailwind inlines a literal `--shadow-*`
      value into its `shadow-*` utility, so a per-theme override of the @theme
      name would never reach the utility. Focus indicator (`focus-ring` /
-     `focus-inset`) — EXCLUSIVE :focus-visible semantics: a 2 px, 50 %-white
-     ring (50 %-ink on light) clears ≥3:1 on every surface-ramp background;
+     `focus-inset`) — EXCLUSIVE :focus-visible semantics: a 2 px cyan ring
+     (cyan ink on light) clears ≥3:1 on every surface-ramp background;
      outset by default, `-inset` for full-bleed rows / triggers. */
   --shadow-card: var(--theme-shadow-card);
   --shadow-elevated: var(--theme-shadow-elevated);
@@ -422,7 +478,7 @@
 
   /* Component geometry — keyed into the @theme `--height-*` / `--width-*` /
      `--min-width-*` / `--size-*` namespaces so Tailwind generates bare utilities
-     (`h-button-default`, `min-w-deck-tab`, `size-button-icon-xs`, `w-modal-md`,
+     (`h-button-default`, `min-w-deck-badge`, `size-button-icon-xs`, `w-modal-md`,
      etc.). Per L-023 these scale tokens stay in `@theme`; only truly bespoke
      component-internal values (pill-group / modal widths used pre-L-024) live in
      `:root` with explicit lint allowlist entries. */
@@ -595,12 +651,8 @@
   --height-modal-wizard: 960px;
   --height-modal-xl: 840px;
 
-  /* Shell chrome is flat (DESIGN.md §5): no glass, no backdrop blur. The deck
-     tab radius is the only shell-specific corner. */
-  --radius-deck-tab: 9px;
-
-  /* Shell motion tier — chrome-scale spatial transitions (window entry,
-     desktop switches, minimize travel) above the base ladder; one spring. */
+  /* Shell motion tier — chrome-scale spatial transitions (window entry and
+     desktop switches) above the base ladder; one spring. */
   --duration-shell-fast: 120ms;
   --duration-shell-base: 240ms;
   --duration-shell-slow: 320ms;
@@ -614,7 +666,7 @@
   --distance-workspaces-menu-entry: -3px;
   --distance-workspaces-caption-entry: 3px;
 
-  /* Shell chrome geometry — rail + menubar + deck (shell v2). The menubar's
+  /* Shell chrome geometry — rail + menubar (shell v2). The menubar's
      first 84px are reserved for the frameless window's traffic lights. */
   --width-rail: 60px;
   --size-rail-item: 40px;
@@ -623,16 +675,9 @@
   --height-window-head: 48px;
   /* Filter / view toolbar strip under the window head (OsWindowToolbar). */
   --height-window-toolbar: 44px;
-  --size-seam-hit: 9px;
-  /* The deck — 40px browser-tab strip above the window head; tabs shrink
-     from 208px to 136px. */
-  --height-deck: 40px;
-  --height-deck-tab: 32px;
-  --min-width-deck-tab: 136px;
-  --width-deck-tab-max: 208px;
+  /* Glyph and badge sizes shared by compact rows and palette sections. */
   --size-deck-glyph: 13px;
   --min-width-deck-badge: 14px;
-  --size-deck-close: 20px;
 
   /* Compact canvas faces in Settings layouts. */
   --text-workspace-avatar: 9px;
@@ -657,8 +702,17 @@
      repeats each stack's first face so an unset choice is a no-op; web's
      font runtime (and the pre-paint boot script) override these inline on
      <html>, never the stacks themselves. */
-  --user-font-sans: "Inter Variable";
+  --user-font-sans: "Figtree Variable";
   --user-font-mono: "Geist Mono Variable";
+
+  /* Appearance text size and letter spacing. `--user-text-scale` multiplies
+     every rem `--text-*` step and its leading in @theme, so a choice keeps the
+     ramp's proportions; `--user-tracking-body` feeds `--tracking-body`. The
+     defaults are the built-in ramp; web's type runtime (and the pre-paint boot
+     script) override them inline on <html>. The terminal keeps its own size
+     (`--text-terminal*` in terminal-tokens.css). */
+  --user-text-scale: 1;
+  --user-tracking-body: -0.01em;
 
   /* Dark theme-shadow literals behind the @theme `--shadow-*` adapters.
      card / pop / overlay open with the 1px `line` hairline (polish contract
@@ -672,8 +726,13 @@
     0 1.5px 3px #0006;
   --theme-shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--color-line);
   --theme-shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  --theme-shadow-focus-ring: 0 0 0 2px rgba(255, 255, 255, 0.5);
-  --theme-shadow-focus-inset: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+  --theme-shadow-focus-ring: 0 0 0 2px rgba(61, 242, 224, 1);
+  --theme-shadow-focus-inset: inset 0 0 0 2px rgba(61, 242, 224, 1);
+
+  /* Brand gradients — always 45deg, bottom-left → top-right; deep is never in
+     a gradient. Consumed via `bg-(image:--gradient-brand)`. */
+  --gradient-brand: linear-gradient(45deg, #1f87fc 0%, #1df0d7 60%, #b5faf6 100%);
+  --gradient-live: linear-gradient(45deg, #2f5bff, #3df2e0);
 
   /* Workspaces overview (Command-Tab switcher) strip edge fades — gradient
      geometry is not a utility scale, so the family stays out of @theme.

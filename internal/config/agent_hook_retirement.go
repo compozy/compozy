@@ -9,7 +9,12 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-// Remove this boundary shim in v0.6.0 after the retired matcher migration window.
+// Restored by #1618: v0.6.1 removed this shim while v0.6.0 homes still carried the values it
+// handles, which stopped the daemon from starting. One shim generation; remove it, its call
+// sites and their tests in v0.7.0.
+//
+// ignoreRetiredAgentHookMatchers drops the retired compaction matcher keys from persisted AGENT.md
+// hooks in memory and never rewrites the file.
 func ignoreRetiredAgentHookMatchers(data []byte) ([]byte, error) {
 	var document map[string]any
 	yamlFormat := yaml.Unmarshal(data, &document) == nil

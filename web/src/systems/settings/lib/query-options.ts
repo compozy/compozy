@@ -20,6 +20,7 @@ import {
   listSettingsApplyRecords,
   listSettingsHooks,
   listSettingsMCPServers,
+  listRuntimeMCPServers,
   getSettingsMCPServer,
   listSettingsProviders,
 } from "../adapters/settings-api";
@@ -30,6 +31,7 @@ import type {
   SettingsAttentionFilter,
   SettingsMCPServerListFilter,
   SettingsMCPServerGetFilter,
+  RuntimeMCPInventoryFilter,
   SettingsCmdPaletteFilter,
   SettingsHookListFilter,
   SettingsPersonaFilter,
@@ -281,6 +283,24 @@ export function settingsMCPServersListOptions(
   });
 }
 
+/**
+ * Every runtime's own MCP servers for the shell's lens. The daemon refreshes it from file watches,
+ * so the collection cadence (45 s) bounds how stale an outside edit can look (US-007.AC-7).
+ */
+export function settingsRuntimeMCPInventoryOptions(
+  filter: RuntimeMCPInventoryFilter = {},
+  enabled = true
+) {
+  return queryOptions({
+    queryKey: settingsKeys.mcpRuntimeInventory(filter),
+    queryFn: ({ signal }) => listRuntimeMCPServers(filter, signal),
+    staleTime: COLLECTION_STALE_TIME,
+    refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    enabled,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
 export function settingsRestartStatusOptions(operationId: string | null, enabled = true) {
   const active = Boolean(operationId) && enabled;
 
@@ -294,9 +314,16 @@ export function settingsRestartStatusOptions(operationId: string | null, enabled
         ? false
         : RESTART_POLL_INTERVAL,
     refetchIntervalInBackground: true,
+    // The daemon is local: browser connectivity must not pause polling a restart.
+    networkMode: "always",
     retry: (failureCount, error) =>
       getErrorStatus(error) === 404 ? false : shouldRetrySettingsQuery(failureCount, error),
   });
+}
+
+/** A status poll that never reached the daemon, as while it restarts; polling continues. */
+export function isRestartStatusUnreachable(error: Error | null): boolean {
+  return error !== null && getErrorStatus(error) === null;
 }
 
 function isTerminalRestartError(error: Error | null): boolean {

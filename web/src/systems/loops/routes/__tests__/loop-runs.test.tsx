@@ -92,6 +92,7 @@ async function renderAttentionRoute(
           applied: true,
           changes: { window_ids: [windowId] },
           diagnostics: [],
+          deprecations: [],
           client: windowManagerClientFixture(command.client_id, snapshot.workspace_id, windowId),
         });
       }

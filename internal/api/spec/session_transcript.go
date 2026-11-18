@@ -117,6 +117,7 @@ func sessionStreamBodies() responseBodies {
 	return overlappingResponseBodiesOf(
 		responseBodyOf[contract.SubagentsSnapshotEvent](),
 		responseBodyOf[contract.SubagentUpdatedEvent](),
+		responseBodyOf[contract.SubagentRemovedEvent](),
 		responseBodyOf[contract.SessionUsageChangedPayload](),
 		responseBodyOf[contract.SessionConsumerDegradedPayload](),
 		responseBodyOf[contract.SessionEventPayload](),

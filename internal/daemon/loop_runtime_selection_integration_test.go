@@ -787,14 +787,18 @@ func testLoopRuntimeSelectionMatrixIntegration(t *testing.T, harness *e2etest.Ru
 	assertMatrixRuntimeOutputs(t, detail)
 }
 
+// assertMatrixRuntimeOutputs verifies that conjunctive rules preserve each matrix item's applied runtime.
 func assertMatrixRuntimeOutputs(t testing.TB, detail contract.LoopRunResponse) {
 	t.Helper()
 	outputs := loopRuntimeResolvedOutputs(detail)
 	if len(outputs) != 4 {
 		t.Fatalf("matrix resolved runtime outputs = %#v, want four", outputs)
 	}
+	codex := matrixResolvedRuntime("codex", "frontend-model", "high", contract.SpeedNormal)
+	codex.ACPOptions = []contract.AgentACPOptionSelection{{ID: "mode", ValueID: "agent-full-access"}}
+	codex.Source.ACPOptions = map[string]string{"mode": "agent"}
 	want := []contract.LoopResolvedRuntime{
-		matrixResolvedRuntime("codex", "frontend-model", "high", contract.SpeedNormal),
+		codex,
 		matrixResolvedRuntime(acpmock.ProviderName, "base-model", "low", contract.SpeedFast),
 		matrixResolvedRuntime(acpmock.ProviderName, "docs-model", "high", contract.SpeedFast),
 		matrixResolvedRuntime(acpmock.ProviderName, "vendor/model", "low", contract.SpeedFast),
@@ -905,6 +909,7 @@ func assertLoopRuntimeNoDiagnostics(t testing.TB, environment loopRuntimeIntegra
 	}
 }
 
+// assertMixedRuntimeOutputs verifies per-item precedence and binder observations in a mixed batch.
 func assertMixedRuntimeOutputs(t testing.TB, detail contract.LoopRunResponse) {
 	t.Helper()
 	outputs := loopRuntimeResolvedOutputs(detail)
@@ -914,11 +919,13 @@ func assertMixedRuntimeOutputs(t testing.TB, detail contract.LoopRunResponse) {
 	want := []contract.LoopResolvedRuntime{
 		{
 			Provider: "codex", Model: "frontend-model", Reasoning: "high", Speed: contract.SpeedNormal,
+			ACPOptions: []contract.AgentACPOptionSelection{{ID: "mode", ValueID: "agent-full-access"}},
 			SpeedResolution: &contract.SpeedResolution{
 				Requested: contract.SpeedNormal, Status: contract.SpeedResolutionApplied,
 			},
 			Source: contract.LoopRuntimeProvenance{
 				Provider: "run", Model: "run", Reasoning: "run", Speed: "run",
+				ACPOptions: map[string]string{"mode": "agent"},
 			},
 		},
 		{
@@ -983,7 +990,7 @@ func invokeLoopRuntimeNativeStatus(
 	runID string,
 ) contract.LoopRunResponse {
 	t.Helper()
-	input, err := json.Marshal(map[string]string{"run_id": runID})
+	input, err := json.Marshal(map[string]string{"run_id": runID, "result_view": "full"})
 	if err != nil {
 		t.Fatalf("json.Marshal(native loop status input) error = %v", err)
 	}
@@ -1098,7 +1105,7 @@ func assertLoopRuntimeForeignIsolation(
 		t, ctx, harness, loopRunEventsPath(foreignWorkspaceID, runID, 0), http.StatusNotFound,
 	)
 
-	input, err := json.Marshal(map[string]string{"run_id": runID})
+	input, err := json.Marshal(map[string]string{"run_id": runID, "result_view": "full"})
 	if err != nil {
 		t.Fatalf("json.Marshal(foreign native loop status input) error = %v", err)
 	}

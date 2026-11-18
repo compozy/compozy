@@ -1,21 +1,31 @@
 import { createStoreLogic } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
-import { applyWindowManagerLayout } from "../adapters/window-manager-layouts-api";
-import { parseImportedWindowManagerLayoutDocument } from "../lib/window-manager-layout-import";
+import {
+  applyWindowManagerLayout,
+  convertWindowManagerLayoutDocument,
+} from "../adapters/window-manager-layouts-api";
+import {
+  LAYOUT_FILE_CONVERSION,
+  type LayoutConversionMessages,
+  layoutConversionError,
+  readLayoutFile,
+  SAVED_LAYOUT_CONVERSION,
+} from "../lib/window-manager-layout-import";
+import { windowManagerLayoutDocumentToWire } from "../lib/window-manager-layout-schema";
 import {
   windowManagerLayoutFingerprint,
   windowManagerLayoutReviewOptions,
 } from "../lib/window-manager-layout-query";
 import type {
-  WindowManagerLayoutDesktop,
   WindowManagerLayoutDocument,
   WindowManagerLayoutPreview,
+  WindowManagerLayoutProfileSource,
   WindowManagerLayoutState,
-  WindowManagerNormalizedRect,
 } from "../lib/window-manager-layout-types";
 import { windowManagerKeys } from "@/systems/os";
 
@@ -254,38 +264,51 @@ export function useWindowManagerLayoutEditor(
     });
 
   const updateDraft = (draft: WindowManagerLayoutDocument) => store.trigger.draftChanged({ draft });
-  const importDocument = async (file: File) => {
+  /** Takes one edit from `window-manager-layout-mutations`; a refused edit returns the draft itself. */
+  const edit = (next: WindowManagerLayoutDocument) => {
+    if (next !== context.draft) updateDraft(next);
+  };
+  const loadSequence = useRef(0);
+  /**
+   * A load owns the draft it started from: its result is dropped once a later load began or the
+   * draft changed (an edit, a reset, a newer baseline), so a slow answer never replaces newer work.
+   */
+  const beginLoad = () => {
+    loadSequence.current += 1;
+    const sequence = loadSequence.current;
+    const startedFrom = store.getSnapshot().context.draft;
+    return () =>
+      sequence === loadSequence.current && store.getSnapshot().context.draft === startedFrom;
+  };
+  /**
+   * Any accepted version goes to the daemon, and the editor edits the version 6 it returns. Every
+   * failure reaches the review bar in product wording, never as engine text.
+   */
+  const loadWire = async (
+    read: () => Promise<Readonly<Record<string, unknown>>>,
+    messages: LayoutConversionMessages
+  ) => {
+    const stillCurrent = beginLoad();
     try {
-      const value: unknown = JSON.parse(await file.text());
-      const imported = parseImportedWindowManagerLayoutDocument(value);
-      updateDraft({ ...imported, workspaceId });
+      const wire = await read();
+      const converted = await convertWindowManagerLayoutDocument(workspaceId, profileId, wire);
+      if (stillCurrent()) updateDraft({ ...converted, workspaceId });
     } catch (cause) {
-      store.trigger.importFailed({
-        error:
-          cause instanceof Error ? cause : new Error("The selected file is not a layout document."),
-      });
+      if (stillCurrent()) {
+        store.trigger.importFailed({ error: layoutConversionError(cause, messages) });
+      }
     }
   };
-  const setDesktop = (index: number, next: WindowManagerLayoutDesktop) => {
-    updateDraft({
-      ...context.draft,
-      desktops: context.draft.desktops.map((desktop, position) =>
-        position === index ? next : desktop
-      ),
-    });
-  };
-  const setDesktopName = (index: number, name: string) => {
-    const desktop = context.draft.desktops[index];
-    if (!desktop) return;
-    setDesktop(index, { ...desktop, name });
-  };
-  const setFloatingRect = (windowId: string, floatingRect: WindowManagerNormalizedRect) => {
-    const window = context.draft.windows[windowId];
-    if (!window) return;
-    updateDraft({
-      ...context.draft,
-      windows: { ...context.draft.windows, [windowId]: { ...window, floatingRect } },
-    });
+  const importDocument = (file: File) =>
+    loadWire(() => readLayoutFile(file), LAYOUT_FILE_CONVERSION);
+  /** A saved layout opens as is, or — saved before tabs and splits — converted by the daemon. */
+  const loadSource = async (source: WindowManagerLayoutProfileSource) => {
+    if (source.kind === "current") {
+      loadSequence.current += 1;
+      updateDraft({ ...structuredClone(source.document), workspaceId });
+      return;
+    }
+    await loadWire(async () => source.wire, SAVED_LAYOUT_CONVERSION);
   };
 
   const currentReview = review.data?.fingerprint === fingerprint ? review.data : null;
@@ -296,7 +319,9 @@ export function useWindowManagerLayoutEditor(
     apply: { mutate: requestApply },
     dirty,
     draft: context.draft,
-    exportDocument: () => structuredClone(context.draft),
+    /** The draft as a layout document file: wire form, which import, `layout apply` and `layout validate` read. */
+    exportDocument: () => windowManagerLayoutDocumentToWire(context.draft),
+    edit,
     importDocument,
     importError: context.phase === "error" ? (context.error?.message ?? null) : null,
     mutationError: context.error ?? review.error ?? applyMutation.error,
@@ -306,9 +331,7 @@ export function useWindowManagerLayoutEditor(
     reviewed,
     reviewCurrent: reviewed !== null,
     revision: context.revision,
-    setDesktop,
-    setDesktopName,
-    setFloatingRect,
+    loadSource,
     updateDraft,
     validation: currentReview?.validation ?? null,
   };

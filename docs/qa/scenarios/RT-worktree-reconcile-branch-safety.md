@@ -52,3 +52,49 @@ In an isolated lab, create a managed worktree, remove its checkout externally, a
 - Ordinary removal preserves the branch. `--delete-branch` remains a separate opt-in governed by the existing branch ownership, occupancy, and merge-safety checks.
 
 Repeat metadata-only removal through CLI/HTTP and the native tool after deleting the parent project folder as well. The retained project registration must allow the lifecycle guard to run; a ready or recreated checkout must still refuse filesystem removal.
+
+2026-11-13 #1663 impact: remove a registered checkout with a large dependency tree.
+Verify the active path and Git registration disappear while staged bytes still exist under the
+managed root's `.compozy-trash/<id>`, and another operation acquires the repository lock before collection.
+Inject cross-volume rename failure and retain synchronous safety behavior. Restart the collector
+with leftovers, inject CPU pressure, cancel and join it, then resume cleanup; a symlink to an
+external sentinel must preserve that sentinel. Failed fenced rereads must restore the original ID,
+and repeating removal must reconcile an abandoned `removing` row without restart. Existing
+`TestServiceRemoveAndRecover` and `TestWorktreeLifecycleIntegration` own these invariants. The real
+Git test logs a single CI latency/file-count sample; no local runtime or performance claim is made.
+
+Also restart with a profile-specific worktrees root, including an archived owner, and confirm its
+marked trash is collected. Leave sentinels in an unmarked `.compozy-trash` and system `.Trash`;
+confirm they survive and removal falls back synchronously without adopting either directory.
+A populated submodule must retain Git's non-force refusal; a forced removal uses the synchronous
+path and preserves the external submodule source repository.
+
+Inject a tracked write immediately before rename: non-force removal must restore those bytes and
+keep the ready Git registration. Reject adoption under a trash root and preserve preexisting
+registered checkouts found there, including nested paths. Reuse an ID with old staged bytes and
+confirm synchronous removal succeeds without overwriting the previous discard.
+
+If restoring a refused staged checkout fails, its record stays `removing` and collection keeps
+its bytes. Retry removal after freeing the original path: recovery verifies the saved Git pointer,
+restores the checkout and repeats safety checks before permitting any discard. Relative Git
+pointers and orphaned checkouts use synchronous removal.
+
+Fail the removal state write after staged Git registration cleanup. Both repeating removal and
+boot recovery must mark the row removed without restoring an unregistered checkout, emit one
+removed event, and leave staged bytes until collection succeeds. An unavailable session inventory
+during recovery must retain the removing fence and staged bytes until a later successful retry.
+Approval must be durable before Git cleanup; failed Git cleanup must restore a usable checkout
+with a clean Git status. After a non-force late-change refusal and a failed restore, externally
+prune Git registration, then retry, restart and collect: the refused bytes and branch must remain,
+the record must stay `removing`, and no removed event may be emitted. The existing real-Git
+lifecycle suite owns these recovery and data-preservation invariants.
+
+Repeat the post-Git-cleanup state-write failure and approved-cleanup rollback cases with the managed
+root configured through a directory symlink. Retry and boot recovery must reach `removed`; failed
+Git cleanup must restore a usable `ready` checkout with clean status. Collection must finish through
+the alias while a symlink at the trash directory itself remains refused.
+
+Use literal root names containing `%`, `%20` and decomposed Unicode as well. Interrupt before
+staging with the original checkout intact: an unavailable session inventory must leave a retryable
+ready checkout, not a permanently removing row. Repeat post-Git-cleanup recovery and collection
+under each literal root; staging must not create a decoded or Unicode-normalized sibling root.

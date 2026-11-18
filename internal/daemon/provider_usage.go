@@ -24,6 +24,11 @@ type providerUsageRuntime struct {
 	profileEvents chan profile.Event
 	profileCancel context.CancelFunc
 	profileDone   chan struct{}
+	authMu        sync.RWMutex
+	recoverAuth   func(string, string, string) bool
+	// recheckSignIn re-checks a provider whose stored needs_login verdict a verified collection
+	// contradicts.
+	recheckSignIn func(string)
 }
 
 func (d *Daemon) bootProviderUsage(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -31,6 +36,7 @@ func (d *Daemon) bootProviderUsage(ctx context.Context, state *bootState, cleanu
 	resolver := &providerUsageResolver{
 		cfg: config.CloneConfig(&state.cfg), home: d.homePaths, baseEnv: os.Environ(),
 		profiles: state.profiles, secrets: d.modelCatalogSecretResolver(state), collectors: registry,
+		logger: state.logger,
 	}
 	if state.providerVault != nil {
 		resolver.metadata = state.providerVault
@@ -38,8 +44,13 @@ func (d *Daemon) bootProviderUsage(ctx context.Context, state *bootState, cleanu
 	metrics := &providerUsageMetrics{}
 	runtime := &providerUsageRuntime{resolver: resolver, metrics: metrics, ctx: ctx}
 	runtime.Manager = providerusage.NewService(providerusage.Options{
-		Resolver: resolver, Collectors: registry, RefreshInterval: state.cfg.ProviderUsage.RefreshInterval,
-		Logger: state.logger, Metrics: metrics, Disabled: !state.cfg.ProviderUsage.Enabled,
+		Resolver:        resolver,
+		Collectors:      registry,
+		RefreshInterval: state.cfg.ProviderUsage.RefreshInterval,
+		Logger:          state.logger,
+		Metrics:         metrics,
+		OnAuthenticated: runtime.onAuthenticated,
+		Disabled:        !state.cfg.ProviderUsage.Enabled,
 	})
 	cleanup.add(runtime.Shutdown)
 	if err := runtime.syncProfiles(ctx); err != nil {
@@ -68,6 +79,7 @@ func (r *providerUsageRuntime) syncProfiles(ctx context.Context) error {
 			ids = append(ids, item.ID)
 		}
 	}
+	r.resolver.pruneSelectorWarnings(ids)
 	return r.Start(ctx, ids)
 }
 
@@ -117,4 +129,39 @@ func (r *providerUsageRuntime) ApplyConsent(ctx context.Context, previous, next 
 func providerUsageConfigChanged(previous, next *config.Config) bool {
 	return !reflect.DeepEqual(previous.ProviderUsage, next.ProviderUsage) ||
 		!reflect.DeepEqual(previous.Providers, next.Providers)
+}
+
+// onAuthenticated forwards published native-auth proofs without holding the config reconciliation lock.
+func (r *providerUsageRuntime) onAuthenticated(_ context.Context, target providerusage.Target) {
+	r.authMu.RLock()
+	recoverAuth, recheckSignIn := r.recoverAuth, r.recheckSignIn
+	r.authMu.RUnlock()
+	if target.AuthRouteFingerprint == "" {
+		return
+	}
+	if recoverAuth != nil {
+		recoverAuth(target.ProfileID, target.ProviderID, target.AuthRouteFingerprint)
+	}
+	if recheckSignIn != nil {
+		recheckSignIn(target.ProviderID)
+	}
+}
+
+// setSignInRecheck installs the native-CLI sign-in re-check that verified collections trigger.
+func (r *providerUsageRuntime) setSignInRecheck(recheck func(string)) {
+	r.authMu.Lock()
+	r.recheckSignIn = recheck
+	r.authMu.Unlock()
+}
+
+// setAuthRecovery reports whether the session manager exposes verified-auth recovery.
+func (r *providerUsageRuntime) setAuthRecovery(sessions core.SessionManager) bool {
+	recovery, ok := sessions.(core.ProviderAuthRecoverer)
+	if !ok {
+		return false
+	}
+	r.authMu.Lock()
+	r.recoverAuth = recovery.ProviderAuthenticationReady
+	r.authMu.Unlock()
+	return true
 }

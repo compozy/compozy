@@ -59,6 +59,9 @@ func (s *service) cancelRun(
 	if !result.Applied {
 		return nil
 	}
+	if result.Terminal && result.Run.Status == StatusCanceled {
+		s.interruptCoordinators(ctx, mutation)
+	}
 	s.revokeGoalPromptLeases(ctx, result.RevokedPromptLeases, TransitionCauseOperatorCancel)
 	parentCloseErr := s.applyParentCloseActions(ctx, mutation, parentCloseActions)
 	if result.Terminal {
@@ -230,6 +233,24 @@ func (s *service) finishCommittedRunCancellation(
 	}
 	s.dispatchCoordinatorTerminal(ctx, result.Run, TransitionCauseOperatorCancel, mutation.RequestedAt)
 	s.stopCancellationSessions(ctx, mutation, result.SessionIDs)
+}
+
+// interruptCoordinators stops in-flight coordinator evaluations so a long gate command cannot
+// outlive the canceled Run that owns it.
+func (s *service) interruptCoordinators(ctx context.Context, mutation CancellationMutation) {
+	if s.coordinatorInterrupt == nil {
+		return
+	}
+	interrupted := s.coordinatorInterrupt.InterruptLoopCoordinatorRuns(string(mutation.RunID), mutation.Reason)
+	if interrupted > 0 {
+		s.logger.InfoContext(
+			ctx,
+			"loop cancellation interrupted in-flight coordinator evaluation",
+			"workspace_id", mutation.WorkspaceID,
+			"run_id", mutation.RunID,
+			"interrupted", interrupted,
+		)
+	}
 }
 
 func (s *service) stopCancellationSessions(

@@ -1,7 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
 
-import { reconcileInstalledExtensionCaches } from "@/integrations/tanstack-query/reconcile-installed-extension";
+import {
+  clearMarketplaceEnableFailures,
+  reconcileInstalledExtensionCaches,
+} from "@/integrations/tanstack-query/reconcile-installed-extension";
 
 import {
   removeExtension,
@@ -47,7 +50,15 @@ function toastUnlessGatewayConfirmation(error: Error) {
   toast.error(error.message);
 }
 
-export function useToggleExtension() {
+export interface ToggleExtensionOptions {
+  /**
+   * False when the caller reports a failed toggle itself (for example with the daemon's error
+   * code), so one attempt never shows two toasts for the same error.
+   */
+  reportErrors?: boolean;
+}
+
+export function useToggleExtension({ reportErrors = true }: ToggleExtensionOptions = {}) {
   const queryClient = useQueryClient();
   const { profileName, workspaceId } = useExtensionInstanceScope();
   return useMutation<
@@ -72,11 +83,27 @@ export function useToggleExtension() {
       );
       return { previous, listKey };
     },
-    onSuccess: (_data, { enabled, name, profileName: selectedProfile = profileName }) =>
-      toast.success(`${name} ${enabled ? "enabled" : "disabled"} in ${selectedProfile}`),
+    onSuccess: (
+      _data,
+      {
+        enabled,
+        name,
+        profileName: selectedProfile = profileName,
+        workspaceId: selectedWorkspace = workspaceId,
+      }
+    ) => {
+      if (enabled) {
+        clearMarketplaceEnableFailures(queryClient, {
+          name,
+          profileName: selectedProfile,
+          workspaceId: selectedWorkspace ?? null,
+        });
+      }
+      toast.success(`${name} ${enabled ? "enabled" : "disabled"} in ${selectedProfile}`);
+    },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(context.listKey, context.previous);
-      toast.error(error.message);
+      if (reportErrors) toast.error(error.message);
     },
     /**
      * Enabling and disabling change which kit resources are live, so the whole extension cache —

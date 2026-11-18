@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -431,7 +432,7 @@ func TestHookAgentEventHelpersHandlePointerAndAliasInputs(t *testing.T) {
 }
 
 func TestNewHookBindingPublisherUsesResourceBackedSync(t *testing.T) {
-	t.Run("Should require the codec and publish resource-backed hook bindings", func(t *testing.T) {
+	t.Run("Should require the codec and publish concurrent hook snapshots without conflicts", func(t *testing.T) {
 		t.Parallel()
 
 		db := openDaemonTestGlobalDB(t)
@@ -486,8 +487,23 @@ func TestNewHookBindingPublisherUsesResourceBackedSync(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newHookBindingPublisher() error = %v", err)
 		}
-		if err := publisher.Sync(testutil.Context(t)); err != nil {
-			t.Fatalf("publisher.Sync() error = %v", err)
+		const callers = 8
+		start := make(chan struct{})
+		syncErrors := make(chan error, callers)
+		var workers sync.WaitGroup
+		for range callers {
+			workers.Go(func() {
+				<-start
+				syncErrors <- publisher.Sync(t.Context())
+			})
+		}
+		close(start)
+		workers.Wait()
+		close(syncErrors)
+		for err := range syncErrors {
+			if err != nil {
+				t.Errorf("concurrent publisher.Sync() error = %v", err)
+			}
 		}
 
 		records, err := store.List(testutil.Context(t), resources.MutationActor{
@@ -501,6 +517,9 @@ func TestNewHookBindingPublisherUsesResourceBackedSync(t *testing.T) {
 		}
 		if len(records) != 1 {
 			t.Fatalf("store.List() count = %d, want 1", len(records))
+		}
+		if got := records[0].Version; got != 1 {
+			t.Fatalf("record.Version = %d, want one idempotent initial publication", got)
 		}
 		if got := records[0].Spec.Name; got != "tool-hook" {
 			t.Fatalf("record.Spec.Name = %q, want %q", got, "tool-hook")

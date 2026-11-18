@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"maps"
 	"strings"
 )
 
@@ -55,6 +56,12 @@ func (r *staticPolicyInputResolver) Resolve(_ context.Context, _ Scope) (PolicyI
 
 func clonePolicyInputs(src PolicyInputs) PolicyInputs {
 	cloned := src
+	cloned.MCPReadOnlyTools = maps.Clone(src.MCPReadOnlyTools)
+	if src.CheckIn != nil {
+		policy := *src.CheckIn
+		policy.AllowWrites = append([]string(nil), src.CheckIn.AllowWrites...)
+		cloned.CheckIn = &policy
+	}
 	cloned.TrustedSources = append([]SourceGrant(nil), src.TrustedSources...)
 	cloned.AllowSources = append([]SourceGrant(nil), src.AllowSources...)
 	cloned.AllowTools = append([]ToolPattern(nil), src.AllowTools...)
@@ -64,5 +71,6 @@ func clonePolicyInputs(src PolicyInputs) PolicyInputs {
 	cloned.Agent.Toolsets = append([]ToolsetID(nil), src.Agent.Toolsets...)
 	cloned.Agent.DenyTools = append([]ToolPattern(nil), src.Agent.DenyTools...)
 	cloned.Session.Tools = append([]ToolID(nil), src.Session.Tools...)
+	cloned.Session.MCPServers = append([]string(nil), src.Session.MCPServers...)
 	return cloned
 }

@@ -41,8 +41,10 @@ func (s *Session) retainStoppingProcess(proc *AgentProcess, now time.Time) error
 	return nil
 }
 
+// updateFromProcessLocked retains observed tool support only while the same provider process remains bound.
 func (s *Session) updateFromProcessLocked(proc *AgentProcess, now time.Time, adoptCurrentModel bool) {
 	if s.process != proc {
+		s.toolEventsObserved = false
 		s.AdvertisedCommands = nil
 	}
 	s.process = proc
@@ -110,6 +112,11 @@ func (s *Session) activateWithProcess(
 			s.stopDetail = ""
 			s.failure = nil
 		}
+	}
+	if proc != nil {
+		// A bound runtime supersedes every retained failure. A preserved crash
+		// classification keeps its stop reason and detail, not the stale failure.
+		s.failure = nil
 	}
 	s.updateFromProcessLocked(proc, now, adoptCurrentModel)
 	return nil

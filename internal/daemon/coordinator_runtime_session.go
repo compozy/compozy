@@ -116,6 +116,7 @@ func coordinatorInvocationRole(
 		Model:           cfg.Model,
 		ReasoningEffort: cfg.ReasoningEffort,
 		Fallbacks:       append([]compozyconfig.RoleFallback(nil), cfg.Fallbacks...),
+		PrimaryDisabled: cfg.PrimaryDisabled,
 		eventWriter:     events,
 	}
 	role.setRuntime(cfg.Speed, cfg.ACPOptions)

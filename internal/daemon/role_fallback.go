@@ -106,11 +106,14 @@ func (role *ResolvedRole) invokeRoleWithFallback[T any](
 		Speed:           role.speedValue(),
 		ACPOptions:      compozyconfig.CloneACPOptionSelections(role.acpOptionsValue()),
 	}
-	value, accepted, err := invoke(ctx, primary)
-	if accepted {
-		return value, err
+	var attemptErrors []error
+	if !role.PrimaryDisabled {
+		value, accepted, err := invoke(ctx, primary)
+		if accepted {
+			return value, err
+		}
+		attemptErrors = append(attemptErrors, roleAttemptError(role.Role, 0, err))
 	}
-	attemptErrors := []error{roleAttemptError(role.Role, 0, err)}
 	for index, fallback := range role.Fallbacks {
 		route := roleAttemptRoute{
 			AgentName:       primary.AgentName,
@@ -126,7 +129,7 @@ func (role *ResolvedRole) invokeRoleWithFallback[T any](
 		if eventErr := recordRoleFallbackEvent(ctx, role, correlation, attempt, route); eventErr != nil {
 			return zero, errors.Join(append(attemptErrors, eventErr)...)
 		}
-		value, accepted, err = invoke(ctx, route)
+		value, accepted, err := invoke(ctx, route)
 		if accepted {
 			return value, err
 		}
@@ -135,7 +138,7 @@ func (role *ResolvedRole) invokeRoleWithFallback[T any](
 	return zero, fmt.Errorf(
 		"daemon: %s role invocation exhausted %d attempt(s): %w",
 		role.Role,
-		len(role.Fallbacks)+1,
+		len(attemptErrors),
 		errors.Join(attemptErrors...),
 	)
 }

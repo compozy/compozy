@@ -1,21 +1,17 @@
-import {
-  resolveAppDescriptorForPath as resolveAppForPath,
-  SESSION_EMPTY_PATH,
-} from "./app-catalog";
+import { SESSION_EMPTY_PATH } from "./app-catalog";
 import { createdSessionHostWindow, landCreatedSession } from "./created-session-window";
 import type { OsOpenTarget, OsWindowRoute, WindowManagerOpenOutcome } from "./os-types";
 import { mruWindowInstance } from "./window-instance-lookup";
-import type {
-  OsRouterPort,
-  RouteReconciliation,
-  RoutingManager,
-} from "./routing-coordinator-contract";
+import type { OsRouterPort, RoutingManager } from "./routing-coordinator-contract";
 import {
-  carriesDesktopDefaultViewIntent,
   isDesktopDefaultViewIntent,
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
-import { decideRouteReconciliation } from "./routing-route-decision";
+import { KeyboardFocusHandoff } from "./keyboard-focus-handoff";
+import { CanonicalCandidate, focusedRouteOrDesktop } from "./routing-route-decision";
+import { RoutingEntryLedger } from "./routing-entry-ledger";
+import { RouteReconciler } from "./routing-route-reconciler";
+import { WindowActivations } from "./routing-window-activation";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
 
@@ -45,8 +41,6 @@ export class RoutingCoordinator {
   private currentRoute: OsWindowRoute | null = null;
   private heldRoute: OsWindowRoute | null = null;
   private desktopDefaultViewIntentPending = false;
-  private routeReconciliation: RouteReconciliation | null = null;
-  private nextReconciliationToken = 0;
   private nextUserRetargetToken = 0;
   /**
    * Bumped by every navigation the coordinator did not write itself and by every explicit
@@ -55,21 +49,51 @@ export class RoutingCoordinator {
    * late push would drag the operator back to a destination they left (rule 3 coalescing).
    */
   private nextUserIntentToken = 0;
-  private pendingNavigateMode: "push" | "pop" | null = null;
-  private createdSessionIntent: { instanceKey: string; afterToken: number } | null = null;
+  private readonly activations = new WindowActivations();
+  /**
+   * Keyboard handoffs for the focus changes this client asks for itself (#1655); the pane hosts
+   * take them. Foreign focus (client views, snapshots) never requests one.
+   */
+  readonly keyboardFocus = new KeyboardFocusHandoff();
+  private readonly entries: RoutingEntryLedger;
+  private readonly canonical: CanonicalCandidate;
+  private readonly reconciler: RouteReconciler;
 
-  constructor(manager: RoutingManager, router: OsRouterPort) {
+  /** `entries` is fed by the router bridge with every history change (`RouterEntryBridge`). */
+  constructor(manager: RoutingManager, router: OsRouterPort, entries = new RoutingEntryLedger()) {
     this.manager = manager;
     this.router = router;
+    this.entries = entries;
+    this.canonical = new CanonicalCandidate(entries);
+    this.reconciler = new RouteReconciler({
+      manager,
+      canReconcile: () => this.phase === "ready" && this.heldRoute === null,
+      desktopDefaultViewIntentPending: () => this.desktopDefaultViewIntentPending,
+      userIntentToken: () => this.nextUserIntentToken,
+      settleDesktopDefaultViewIntent: () => {
+        this.desktopDefaultViewIntentPending = false;
+      },
+      reportAuthoritativeState: () => this.reportAuthoritativeState(),
+      handOffKeyboard: (windowId, since) => this.handOffKeyboard(windowId, since),
+    });
   }
 
   /**
    * Sync-controllers report every matched location here (cause: route-pop).
    * During hydration the location is held as the final focus intent — on a
    * workspace switch this is exactly the cross-workspace deep link that must
-   * win over the target workspace's restored focus (US-016.EC-2).
+   * win over the target workspace's restored focus (US-016.EC-2). `entryKey` is the reported
+   * history entry's own key (`__TSR_key`).
    */
-  reportRouteMatch(route: OsWindowRoute): void {
+  reportRouteMatch(route: OsWindowRoute, entryKey: string | null = null): void {
+    // The router echoing the coordinator's own navigation is never intent: authoritative focus
+    // may have moved on since, and the URL follows it instead; its canonical form waits for
+    // settled focus (`CanonicalCandidate`). During hydration every location stays the held intent.
+    if (this.phase === "ready" && this.entries.isEcho(entryKey)) {
+      this.canonical.note(route, entryKey);
+      this.reportAuthoritativeState();
+      return;
+    }
     if (isDesktopDefaultViewIntent(route)) this.desktopDefaultViewIntentPending = true;
     // The coordinator sets `currentRoute` before its own pushes and replaces, so
     // a report that differs is external intent: a link, back/forward, a deep link.
@@ -79,7 +103,8 @@ export class RoutingCoordinator {
       this.initialIntent = route;
       return;
     }
-    this.queueRouteReconciliation(route);
+    // Back/Forward and links are this client's own navigation: the keyboard follows its focus.
+    this.reconciler.queue(route, { keyboardSince: this.keyboardFocus.begin() });
   }
 
   /**
@@ -104,20 +129,20 @@ export class RoutingCoordinator {
       const defaultIntent =
         intent && isDesktopDefaultViewIntent(intent) ? intent : { pathname: "/", search: {} };
       this.replaceRoute(withoutDesktopDefaultViewIntent(defaultIntent));
-      this.queueRouteReconciliation(defaultIntent);
+      this.reconciler.queue(defaultIntent);
       return;
     }
     if (this.cycle === "workspace-switch") {
       this.cycle = "boot";
       if (intent && intent.pathname !== "/") {
-        this.queueRouteReconciliation(intent);
+        this.reconciler.queue(intent);
         return;
       }
-      this.navigateToFocusedOrDesktop();
+      this.pushRoute(focusedRouteOrDesktop(this.manager.getState()));
       return;
     }
     if (intent && intent.pathname !== "/") {
-      this.queueRouteReconciliation(intent);
+      this.reconciler.queue(intent);
       return;
     }
     const state = this.manager.getState();
@@ -134,17 +159,22 @@ export class RoutingCoordinator {
   reportAuthoritativeState(): void {
     if (this.phase !== "ready" || this.heldRoute) return;
     if (this.desktopDefaultViewIntentPending) {
-      if (this.routeReconciliation === null) {
-        this.queueRouteReconciliation({ pathname: "/", search: {} });
-      } else if (!this.routeReconciliation.inFlight) {
-        this.reconcilePendingRoute();
+      const pending = this.reconciler.pending;
+      if (pending === null) {
+        this.reconciler.queue({ pathname: "/", search: {} });
+      } else if (!pending.inFlight) {
+        this.reconciler.reconcilePending();
       }
       return;
     }
-    if (this.routeReconciliation !== null) {
-      if (!this.routeReconciliation.inFlight) this.reconcilePendingRoute();
+    const pending = this.reconciler.pending;
+    if (pending !== null) {
+      if (!pending.inFlight) this.reconciler.reconcilePending();
       return;
     }
+    // A window activation in flight writes the URL once it settles (`activate`).
+    if (this.activations.settling) return;
+    this.currentRoute = this.canonical.settle(this.manager, this.currentRoute);
     const state = this.manager.getState();
     if (state.client === null) return;
     const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
@@ -161,7 +191,7 @@ export class RoutingCoordinator {
    * operator answers it, so the hold suspends both until the surface resolves.
    */
   holdRoute(route: OsWindowRoute): void {
-    this.invalidateRouteReconciliation();
+    this.reconciler.invalidate();
     this.heldRoute = route;
     this.currentRoute = route;
     this.initialIntent = null;
@@ -178,7 +208,7 @@ export class RoutingCoordinator {
    * unmarked keeps today's `replace` semantics.
    */
   noteNavigateMode(mode: "push" | "pop"): void {
-    this.pendingNavigateMode = mode;
+    this.reconciler.noteNavigateMode(mode);
   }
 
   /**
@@ -187,9 +217,7 @@ export class RoutingCoordinator {
    * reconciliation consumes the hint; it survives a workspace switch (held deep link).
    */
   noteCreatedSession(sessionId: string): void {
-    const instanceKey = sessionId.trim();
-    const afterToken = this.nextReconciliationToken;
-    this.createdSessionIntent = instanceKey ? { instanceKey, afterToken } : null;
+    this.reconciler.noteCreatedSession(sessionId);
   }
 
   /**
@@ -204,26 +232,42 @@ export class RoutingCoordinator {
    */
   userNavigate(route: OsWindowRoute): void {
     this.nextUserIntentToken += 1;
-    this.pushRoute(route);
-    if (this.phase === "ready") this.queueRouteReconciliation(route);
+    this.pushRoute(route, "operator");
+    if (this.phase === "ready") this.reconciler.queue(route);
   }
 
-  /** Dock, palette, rail, menubar: open-or-focus then one history entry. */
+  /**
+   * Dock, palette, rail, menubar: open-or-focus then one history entry. Reports meanwhile defer to
+   * it as to a window activation (`activate`): a frame that shows the new focus before the command
+   * settles would otherwise replace the entry being left, and Back would stay on this window
+   * (#1655). A newer navigation that arrives meanwhile owns the URL; this open then writes nothing.
+   */
   async userOpen(target: OsOpenTarget): Promise<string | null> {
     const intentToken = ++this.nextUserIntentToken;
+    const keyboardSince = this.keyboardFocus.begin();
+    const before = this.manager.getState();
     const outcome = this.manager.openOrFocus(target);
-    if (!(await outcome.completion)) return null;
     const id = outcome.windowId;
-    // A newer navigation arrived while the daemon held this open; it owns the
-    // URL now and the window already follows it.
-    if (intentToken !== this.nextUserIntentToken) return id;
-    // A window can consume its route intent before the opening command completes.
-    const route =
-      this.manager.getState().windows[id]?.route ??
-      target.route ??
-      defaultOsWindowRoute(target.app);
-    this.pushRoute(route);
-    return id;
+    const start = this.activations.begin(before, id, intentToken);
+    // A rejected completion still ends the open: the count must never leak.
+    const applied = await outcome.completion.catch(() => false);
+    const state = this.manager.getState();
+    const newest = this.nextUserIntentToken;
+    // The window that landed: a conflict recovery can retarget the open to an existing instance.
+    const landed = outcome.windowId;
+    // A window can consume its route intent before the opening command completes (`endOpen`).
+    const entry = this.activations.endOpen(start, state, this.currentRoute, newest, {
+      applied,
+      requested: target.route ?? defaultOsWindowRoute(target.app),
+      landed,
+    });
+    if (entry !== null) this.pushRoute(entry);
+    else if (!this.activations.settling) this.reportAuthoritativeState();
+    if (!applied) return null;
+    if (intentToken === newest && state.focusedId === landed) {
+      this.handOffKeyboard(landed, keyboardSince);
+    }
+    return landed;
   }
 
   /** Launchers that open a just-created session directly: prefer an existing Session window. */
@@ -233,10 +277,14 @@ export class RoutingCoordinator {
     const host = createdSessionHostWindow(this.manager.getState(), target);
     if (host === null) return this.userOpen(target);
     const intentToken = ++this.nextUserIntentToken;
+    const keyboardSince = this.keyboardFocus.begin();
     const isCurrent = () => intentToken === this.nextUserIntentToken;
     const outcome = landCreatedSession(this.manager, host, target, isCurrent);
     if (await outcome.completion) {
-      if (isCurrent()) this.pushRoute(target.route);
+      if (isCurrent()) {
+        this.pushRoute(target.route);
+        this.handOffKeyboard(host.id, keyboardSince);
+      }
       return host.id;
     }
     // Unless a newer gesture owns focus: a host another client closed means choose again (a new
@@ -249,41 +297,59 @@ export class RoutingCoordinator {
   /**
    * Window activation (pointerdown, Tab, Enter — Routing Model rule 5). When
    * the activation target is a link, the link's own navigation writes the one
-   * history entry and reconciliation follows it (rule 3 coalescing).
+   * history entry and reconciliation follows it (rule 3 coalescing). `keyboard`
+   * marks an activation from a chord or the palette (tab next/previous/jump,
+   * "Focus last window"): the keyboard follows it into the window. A pointer or
+   * pane activation leaves focus where the operator put it.
    */
-  async userFocus(windowId: string, opts: { viaLink?: boolean } = {}): Promise<boolean> {
+  async userFocus(
+    windowId: string,
+    opts: { viaLink?: boolean; keyboard?: boolean } = {}
+  ): Promise<boolean> {
     const state = this.manager.getState();
     const win = state.windows[windowId];
-    const alreadyActive =
-      state.focusedId === windowId && !win?.minimized && win?.stackActive === true;
+    const alreadyActive = state.focusedId === windowId && win?.shown === true;
     if (!win || opts.viaLink) return false;
     this.nextUserIntentToken += 1;
     if (alreadyActive) return false;
-    const outcome = this.manager.focusWindow(windowId);
-    if (!(await outcome.completion)) return false;
-    const focused = this.manager.getState().windows[windowId];
-    if (focused) this.pushRoute(focused.route);
-    return focused !== undefined;
+    return this.activate(windowId, opts.keyboard === true);
   }
 
   /**
    * Dock cycling, palette "Go to tab", session rows: land on a specific window
-   * in one action (US-017/US-021). Restore carries focus and the desktop
-   * switch for the acting client; `window.focus` alone rejects minimized
-   * targets, so the two paths are a single decision here.
+   * in one action (US-017/US-021). `window.focus` carries the tab activation
+   * and the desktop switch for the acting client.
    */
   async userActivateWindow(windowId: string): Promise<boolean> {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win) return false;
     this.nextUserIntentToken += 1;
-    const outcome = win.minimized
-      ? this.manager.restoreWindow(windowId)
-      : this.manager.focusWindow(windowId);
-    if (!(await outcome.completion)) return false;
-    const focused = this.manager.getState().windows[windowId];
-    if (focused) this.pushRoute(focused.route);
-    return focused !== undefined;
+    return this.activate(windowId, true);
+  }
+
+  /**
+   * Focuses the window, then writes the activation's one entry (`windowActivationEntry`). Reports
+   * meanwhile defer to it, so the entry before a burst stays a Back target.
+   */
+  private async activate(windowId: string, keyboard = false): Promise<boolean> {
+    const keyboardSince = this.keyboardFocus.begin();
+    const start = this.activations.begin(
+      this.manager.getState(),
+      windowId,
+      this.nextUserIntentToken
+    );
+    // A rejected completion still ends the activation: the count must never leak.
+    await this.manager.focusWindow(windowId, { replaceable: true }).completion.catch(() => false);
+    const state = this.manager.getState();
+    const newest = this.nextUserIntentToken;
+    const entry = this.activations.end(start, state, this.currentRoute, newest);
+    if (entry !== null) this.pushRoute(entry);
+    // Reports deferred to activations catch up once none is left in flight.
+    else if (!this.activations.settling) this.reportAuthoritativeState();
+    const landed = start.intent === newest && state.focusedId === windowId;
+    if (landed && keyboard) this.handOffKeyboard(windowId, keyboardSince);
+    return landed;
   }
 
   /**
@@ -344,36 +410,7 @@ export class RoutingCoordinator {
     this.nextUserIntentToken += 1;
     const wasFocused = state.focusedId === windowId;
     if (!(await this.manager.closeWindow(windowId, viewOnly))) return false;
-    if (wasFocused) this.navigateToFocusedOrDesktop();
-    return true;
-  }
-
-  /** Minimize: when focus moves to a successor, the URL follows it. */
-  async userMinimize(windowId: string): Promise<boolean> {
-    const state = this.manager.getState();
-    const win = state.windows[windowId];
-    if (!win || win.minimized) return false;
-    this.nextUserIntentToken += 1;
-    const wasFocused = state.focusedId === windowId;
-    if (!(await this.manager.minimizeWindow(windowId))) return false;
-    if (wasFocused) this.navigateToFocusedOrDesktop();
-    return true;
-  }
-
-  /**
-   * Zoom already focuses its target in the daemon client projection. For an
-   * inactive window, reflect that activation with one history write without
-   * preceding the durable command with a competing presentation command.
-   */
-  async userZoom(windowId: string): Promise<boolean> {
-    const state = this.manager.getState();
-    const win = state.windows[windowId];
-    if (!win || win.minimized) return false;
-    this.nextUserIntentToken += 1;
-    const wasFocused = state.focusedId === windowId;
-    const outcome = this.manager.zoomWindow(windowId);
-    if (!(await outcome.completion)) return false;
-    if (!wasFocused) this.pushRoute(win.route);
+    if (wasFocused) this.pushRoute(focusedRouteOrDesktop(this.manager.getState()));
     return true;
   }
 
@@ -386,115 +423,38 @@ export class RoutingCoordinator {
    */
   beginWorkspaceSwitch(): void {
     if (this.phase === "hydrating" && this.cycle === "workspace-switch") return;
-    this.invalidateRouteReconciliation();
+    this.reconciler.invalidate();
+    this.activations.abandon();
     this.phase = "hydrating";
     this.cycle = "workspace-switch";
   }
 
-  private navigateToFocusedOrDesktop(): void {
-    const state = this.manager.getState();
-    const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
-    this.pushRoute(focused ? focused.route : { pathname: "/", search: {} });
+  /**
+   * A focus this client sent without the coordinator (directional focus, which writes no entry of
+   * its own): the keyboard follows it once it lands. A newer focus that replaced it hands off itself.
+   */
+  async followKeyboard(focus: WindowManagerOpenOutcome | null): Promise<void> {
+    const keyboardSince = this.keyboardFocus.begin();
+    if (focus === null || !(await focus.completion.catch(() => false))) return;
+    this.handOffKeyboard(focus.windowId, keyboardSince);
   }
 
-  private pushRoute(route: OsWindowRoute): void {
+  /**
+   * The keyboard follows a focus change this client asked for, once it is still the focus and no
+   * pointer press placed focus since the change began (`since`).
+   */
+  private handOffKeyboard(windowId: string, since: number): void {
+    if (this.manager.getState().focusedId === windowId) this.keyboardFocus.request(windowId, since);
+  }
+
+  private pushRoute(route: OsWindowRoute, ...origin: [origin?: "operator"]): void {
     this.desktopDefaultViewIntentPending = false;
     this.currentRoute = route;
-    this.router.navigate(route);
+    this.router.navigate(route, ...origin);
   }
 
   private replaceRoute(route: OsWindowRoute): void {
     this.currentRoute = route;
     this.router.replace(route);
-  }
-
-  /**
-   * Route-originated reconciliation (rule 2): store updates only, no history.
-   * The desktop URL (`/`) opens nothing — it focuses an existing dashboard
-   * window on the active desktop or leaves the desktop as-is (first run stays
-   * empty, US-001.EC-1).
-   */
-  private queueRouteReconciliation(route: OsWindowRoute): void {
-    const current = this.routeReconciliation;
-    const desktopDefaultView = carriesDesktopDefaultViewIntent(
-      route,
-      this.desktopDefaultViewIntentPending,
-      current
-    );
-    if (current && sameOsWindowRoute(current.route, route)) {
-      if (!current.inFlight) this.reconcilePendingRoute();
-      return;
-    }
-    this.nextReconciliationToken += 1;
-    this.routeReconciliation = {
-      token: this.nextReconciliationToken,
-      route,
-      desktopDefaultView,
-      inFlight: false,
-    };
-    this.reconcilePendingRoute();
-  }
-
-  private reconcilePendingRoute(): void {
-    const pending = this.routeReconciliation;
-    if (pending === null || pending.inFlight || this.phase !== "ready" || this.heldRoute) return;
-    const state = this.manager.getState();
-    if (state.client === null || state.hydration !== "live") return;
-    const desktopDefaultView = pending.desktopDefaultView;
-    const route = withoutDesktopDefaultViewIntent(pending.route);
-    const resolved = resolveAppForPath(route.pathname);
-    const mode = this.pendingNavigateMode;
-    this.pendingNavigateMode = null;
-    if (!resolved) {
-      this.routeReconciliation = null;
-      return;
-    }
-    const intent = this.createdSessionIntent;
-    const matches = intent?.instanceKey === resolved.instanceKey;
-    if (matches || (intent && pending.token > intent.afterToken)) this.createdSessionIntent = null;
-    const createdSession = pending.createdSession === true || matches;
-    const tracked = createdSession ? { ...pending, createdSession } : pending;
-    const intentToken = this.nextUserIntentToken;
-    const outcome = decideRouteReconciliation(this.manager, {
-      resolved,
-      route,
-      desktopDefaultView,
-      mode,
-      createdSession,
-      isCurrent: () => intentToken === this.nextUserIntentToken,
-    });
-    if (outcome === null) {
-      this.routeReconciliation = null;
-      return;
-    }
-    this.startRouteReconciliation(tracked, outcome);
-  }
-
-  private startRouteReconciliation(
-    pending: RouteReconciliation,
-    outcome: WindowManagerOpenOutcome
-  ): void {
-    if (!outcome.accepted) {
-      if (this.routeReconciliation?.token !== pending.token) return;
-      this.routeReconciliation = { ...pending, inFlight: false };
-      return;
-    }
-    this.routeReconciliation = { ...pending, inFlight: true };
-    void outcome.completion.then(applied => {
-      if (this.routeReconciliation?.token !== pending.token) return;
-      if (!applied) {
-        this.routeReconciliation = { ...pending, inFlight: false };
-        return;
-      }
-      if (pending.desktopDefaultView) this.desktopDefaultViewIntentPending = false;
-      this.routeReconciliation = null;
-      this.reportAuthoritativeState();
-    });
-  }
-
-  private invalidateRouteReconciliation(): void {
-    this.nextReconciliationToken += 1;
-    this.routeReconciliation = null;
-    this.pendingNavigateMode = null;
   }
 }

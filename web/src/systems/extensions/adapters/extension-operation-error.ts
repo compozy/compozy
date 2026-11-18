@@ -50,7 +50,7 @@ const inputFields = {
   id: z.string().min(1),
   prompt: z.string(),
   required: z.boolean(),
-  binding: z.object({ type: z.enum(["env", "url_query"]), name: z.string().min(1) }),
+  binding: z.object({ type: z.enum(["env", "url_query", "template"]), name: z.string().min(1) }),
 };
 const inputDefinitionsSchema = z.array(
   z.discriminatedUnion("type", [

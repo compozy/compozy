@@ -1,8 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { HttpResponse } from "msw";
 import { fn } from "storybook/test";
 
+import { storybookMswParameters } from "@/storybook/msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
+
 import { agentAlwaysOn, buildAgentTeam } from "../../lib/agent-team";
-import { TEAM_WORKSPACES, teamInstances, teamItems } from "../../mocks/team-fixtures";
+import {
+  TEAM_WORKSPACES,
+  activityFixture,
+  crewInstances,
+  crewItems,
+  teamInstances,
+  teamItems,
+} from "../../mocks/team-fixtures";
 import { AgentTeamPage } from "../agent-team/agent-team-page";
 
 const members = buildAgentTeam({
@@ -42,6 +53,29 @@ type Story = StoryObj<typeof meta>;
 export const Cards: Story = {};
 
 export const Rows: Story = { args: { view: "rows" } };
+
+const crew = buildAgentTeam({
+  items: crewItems(),
+  instances: crewInstances(),
+  workspaces: TEAM_WORKSPACES,
+});
+
+/** Twenty always-on agents: the section has to stay scannable at this size. */
+export const ManyAlwaysOn: Story = {
+  args: { members: crew },
+  parameters: {
+    ...storybookMswParameters({
+      agent: [
+        compozyApiMock.post("/api/agents/activity", async ({ request }) => {
+          const body = (await request.json()) as { items: unknown[] };
+          return HttpResponse.json({ activities: body.items.map(() => activityFixture()) });
+        }),
+      ],
+    }),
+  },
+};
+
+export const ManyAlwaysOnRows: Story = { ...ManyAlwaysOn, args: { members: crew, view: "rows" } };
 
 export const NobodyAlwaysOn: Story = {
   args: { members: members.filter(member => !agentAlwaysOn(member)) },

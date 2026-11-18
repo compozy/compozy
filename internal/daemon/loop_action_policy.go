@@ -76,18 +76,9 @@ func (g *loopSessionPolicyGate) applyResolved(
 			err,
 		)
 	}
-	resolvedAgent, err := resolved.Config.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
-		Provider:  opts.Provider,
-		Model:     opts.Model,
-		Reasoning: opts.ReasoningEffort,
-	})
+	resolvedAgent, err := resolveLoopSessionAgent(&resolved.Config, agentDef, opts, agentName)
 	if err != nil {
-		return loopSessionPolicyResolution{}, fmt.Errorf(
-			"%w: resolve loop session policy for %q: %w",
-			looppkg.ErrValidation,
-			strings.TrimSpace(agentName),
-			err,
-		)
+		return loopSessionPolicyResolution{}, err
 	}
 	policy := sessionPolicyFromResolvedAgent(resolvedAgent)
 	applySessionPermissionPolicy(opts, policy)
@@ -254,4 +245,30 @@ func sessionPolicyFromResolvedAgent(
 		},
 	}
 	return policy
+}
+
+// resolveLoopSessionAgent resolves the loop session runtime and refuses a disabled provider.
+func resolveLoopSessionAgent(
+	cfg *compozyconfig.Config,
+	agentDef compozyconfig.AgentDef,
+	opts *session.CreateOpts,
+	agentName string,
+) (compozyconfig.ResolvedAgent, error) {
+	resolvedAgent, err := cfg.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
+		Provider:  opts.Provider,
+		Model:     opts.Model,
+		Reasoning: opts.ReasoningEffort,
+	})
+	if err != nil {
+		return compozyconfig.ResolvedAgent{}, fmt.Errorf(
+			"%w: resolve loop session policy for %q: %w",
+			looppkg.ErrValidation,
+			strings.TrimSpace(agentName),
+			err,
+		)
+	}
+	if err := requireLoopRuntimeProviderEnabled(cfg, resolvedAgent.Provider, "loop_validate"); err != nil {
+		return compozyconfig.ResolvedAgent{}, err
+	}
+	return resolvedAgent, nil
 }

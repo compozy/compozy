@@ -37,6 +37,31 @@ export async function fetchSessionSubagents(
   return requireResponseData(data, response, "Failed to fetch subagents");
 }
 
+/**
+ * Permanently removes a delegated subagent and its child session in the parent's
+ * profile. A provider-native row is refused (409 `subagent_not_deletable`).
+ */
+export async function deleteSubagent(
+  workspaceId: string,
+  subagentId: string,
+  profile: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.DELETE(
+    "/api/workspaces/{workspace_id}/subagents/{subagent_id}",
+    {
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), subagent_id: subagentId },
+        query: { profile },
+      },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, `Failed to delete subagent "${subagentId}"`);
+  }
+}
+
 /** Cancels a delegated subagent in its parent's profile; the daemon settles it asynchronously. */
 export async function cancelSubagent(
   workspaceId: string,

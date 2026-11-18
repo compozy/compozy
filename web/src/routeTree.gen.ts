@@ -15,6 +15,7 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppActivityRouteImport } from './routes/_app/activity'
 import { Route as AppAgentsRouteImport } from './routes/_app/agents'
 import { Route as AppAutomationsRouteImport } from './routes/_app/automations'
+import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppJobsRouteImport } from './routes/_app/jobs'
 import { Route as AppLoopRunsRouteImport } from './routes/_app/loop-runs'
 import { Route as AppLoopsRouteImport } from './routes/_app/loops'
@@ -29,6 +30,8 @@ import { Route as AppUsageRouteImport } from './routes/_app/usage'
 import { Route as AppVaultRouteImport } from './routes/_app/vault'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents.index'
 import { Route as AppAgentsNameRouteImport } from './routes/_app/agents.$name'
+import { Route as AppFilesIndexRouteImport } from './routes/_app/files/index'
+import { Route as AppFilesWorkspaceIdRouteImport } from './routes/_app/files/$workspaceId'
 import { Route as AppJobsJobIdRouteImport } from './routes/_app/jobs.$jobId'
 import { Route as AppLoopRunsRunIdRouteImport } from './routes/_app/loop-runs.$runId'
 import { Route as AppLoopsNameRouteImport } from './routes/_app/loops.$name'
@@ -70,6 +73,7 @@ import { Route as AppLoopRunsRunIdDiffRouteImport } from './routes/_app/loop-run
 import { Route as AppLoopsNameConfigureRouteImport } from './routes/_app/loops.$name.configure'
 import { Route as AppLoopsNameEditorRouteImport } from './routes/_app/loops.$name.editor'
 import { Route as AppLoopsNameRunRouteImport } from './routes/_app/loops.$name.run'
+import { Route as AppMarketplaceCategoriesCategoryRouteImport } from './routes/_app/marketplace.categories.$category'
 import { Route as AppTasksIdEditRouteImport } from './routes/_app/tasks.$id.edit'
 import { Route as AppAgentsNameSessionsIdRouteImport } from './routes/_app/agents.$name.sessions.$id'
 import { Route as AppTasksIdRunsRunIdRouteImport } from './routes/_app/tasks.$id.runs.$runId'
@@ -101,6 +105,11 @@ const AppAgentsRoute = AppAgentsRouteImport.update({
 const AppAutomationsRoute = AppAutomationsRouteImport.update({
   id: '/automations',
   path: '/automations',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFilesRoute = AppFilesRouteImport.update({
+  id: '/files',
+  path: '/files',
   getParentRoute: () => AppRoute,
 } as any)
 const AppJobsRoute = AppJobsRouteImport.update({
@@ -172,6 +181,16 @@ const AppAgentsNameRoute = AppAgentsNameRouteImport.update({
   id: '/$name',
   path: '/$name',
   getParentRoute: () => AppAgentsRoute,
+} as any)
+const AppFilesIndexRoute = AppFilesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppFilesRoute,
+} as any)
+const AppFilesWorkspaceIdRoute = AppFilesWorkspaceIdRouteImport.update({
+  id: '/$workspaceId',
+  path: '/$workspaceId',
+  getParentRoute: () => AppFilesRoute,
 } as any)
 const AppJobsJobIdRoute = AppJobsJobIdRouteImport.update({
   id: '/$jobId',
@@ -381,6 +400,12 @@ const AppLoopsNameRunRoute = AppLoopsNameRunRouteImport.update({
   path: '/run',
   getParentRoute: () => AppLoopsNameRoute,
 } as any)
+const AppMarketplaceCategoriesCategoryRoute =
+  AppMarketplaceCategoriesCategoryRouteImport.update({
+    id: '/categories/$category',
+    path: '/categories/$category',
+    getParentRoute: () => AppMarketplaceRoute,
+  } as any)
 const AppTasksIdEditRoute = AppTasksIdEditRouteImport.update({
   id: '/edit',
   path: '/edit',
@@ -403,6 +428,7 @@ export interface FileRoutesByFullPath {
   '/activity': typeof AppActivityRoute
   '/agents': typeof AppAgentsRouteWithChildren
   '/automations': typeof AppAutomationsRouteWithChildren
+  '/files': typeof AppFilesRouteWithChildren
   '/jobs': typeof AppJobsRouteWithChildren
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/loops': typeof AppLoopsRouteWithChildren
@@ -416,6 +442,7 @@ export interface FileRoutesByFullPath {
   '/usage': typeof AppUsageRoute
   '/vault': typeof AppVaultRoute
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
+  '/files/$workspaceId': typeof AppFilesWorkspaceIdRoute
   '/jobs/$jobId': typeof AppJobsJobIdRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
@@ -446,6 +473,7 @@ export interface FileRoutesByFullPath {
   '/terminal/$terminalId': typeof AppTerminalTerminalIdRoute
   '/triggers/$triggerId': typeof AppTriggersTriggerIdRoute
   '/agents/': typeof AppAgentsIndexRoute
+  '/files/': typeof AppFilesIndexRoute
   '/marketplace/': typeof AppMarketplaceIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/terminal/': typeof AppTerminalIndexRoute
@@ -457,6 +485,7 @@ export interface FileRoutesByFullPath {
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/loops/$name/run': typeof AppLoopsNameRunRoute
+  '/marketplace/categories/$category': typeof AppMarketplaceCategoriesCategoryRoute
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/agents/$name/': typeof AppAgentsNameIndexRoute
   '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
@@ -476,6 +505,7 @@ export interface FileRoutesByTo {
   '/usage': typeof AppUsageRoute
   '/vault': typeof AppVaultRoute
   '/': typeof AppIndexRoute
+  '/files/$workspaceId': typeof AppFilesWorkspaceIdRoute
   '/jobs/$jobId': typeof AppJobsJobIdRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
@@ -506,6 +536,7 @@ export interface FileRoutesByTo {
   '/terminal/$terminalId': typeof AppTerminalTerminalIdRoute
   '/triggers/$triggerId': typeof AppTriggersTriggerIdRoute
   '/agents': typeof AppAgentsIndexRoute
+  '/files': typeof AppFilesIndexRoute
   '/marketplace': typeof AppMarketplaceIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/terminal': typeof AppTerminalIndexRoute
@@ -517,6 +548,7 @@ export interface FileRoutesByTo {
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/loops/$name/run': typeof AppLoopsNameRunRoute
+  '/marketplace/categories/$category': typeof AppMarketplaceCategoriesCategoryRoute
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/agents/$name': typeof AppAgentsNameIndexRoute
   '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
@@ -529,6 +561,7 @@ export interface FileRoutesById {
   '/_app/activity': typeof AppActivityRoute
   '/_app/agents': typeof AppAgentsRouteWithChildren
   '/_app/automations': typeof AppAutomationsRouteWithChildren
+  '/_app/files': typeof AppFilesRouteWithChildren
   '/_app/jobs': typeof AppJobsRouteWithChildren
   '/_app/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/_app/loops': typeof AppLoopsRouteWithChildren
@@ -543,6 +576,7 @@ export interface FileRoutesById {
   '/_app/vault': typeof AppVaultRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agents/$name': typeof AppAgentsNameRouteWithChildren
+  '/_app/files/$workspaceId': typeof AppFilesWorkspaceIdRoute
   '/_app/jobs/$jobId': typeof AppJobsJobIdRoute
   '/_app/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
   '/_app/loops/$name': typeof AppLoopsNameRouteWithChildren
@@ -573,6 +607,7 @@ export interface FileRoutesById {
   '/_app/terminal/$terminalId': typeof AppTerminalTerminalIdRoute
   '/_app/triggers/$triggerId': typeof AppTriggersTriggerIdRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
+  '/_app/files/': typeof AppFilesIndexRoute
   '/_app/marketplace/': typeof AppMarketplaceIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/terminal/': typeof AppTerminalIndexRoute
@@ -584,6 +619,7 @@ export interface FileRoutesById {
   '/_app/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/_app/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/_app/loops/$name/run': typeof AppLoopsNameRunRoute
+  '/_app/marketplace/categories/$category': typeof AppMarketplaceCategoriesCategoryRoute
   '/_app/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/_app/agents/$name/': typeof AppAgentsNameIndexRoute
   '/_app/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
@@ -597,6 +633,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/agents'
     | '/automations'
+    | '/files'
     | '/jobs'
     | '/loop-runs'
     | '/loops'
@@ -610,6 +647,7 @@ export interface FileRouteTypes {
     | '/usage'
     | '/vault'
     | '/agents/$name'
+    | '/files/$workspaceId'
     | '/jobs/$jobId'
     | '/loop-runs/$runId'
     | '/loops/$name'
@@ -640,6 +678,7 @@ export interface FileRouteTypes {
     | '/terminal/$terminalId'
     | '/triggers/$triggerId'
     | '/agents/'
+    | '/files/'
     | '/marketplace/'
     | '/settings/'
     | '/terminal/'
@@ -651,6 +690,7 @@ export interface FileRouteTypes {
     | '/loops/$name/configure'
     | '/loops/$name/editor'
     | '/loops/$name/run'
+    | '/marketplace/categories/$category'
     | '/tasks/$id/edit'
     | '/agents/$name/'
     | '/agents/$name/sessions/$id'
@@ -670,6 +710,7 @@ export interface FileRouteTypes {
     | '/usage'
     | '/vault'
     | '/'
+    | '/files/$workspaceId'
     | '/jobs/$jobId'
     | '/loop-runs/$runId'
     | '/loops/$name'
@@ -700,6 +741,7 @@ export interface FileRouteTypes {
     | '/terminal/$terminalId'
     | '/triggers/$triggerId'
     | '/agents'
+    | '/files'
     | '/marketplace'
     | '/settings'
     | '/terminal'
@@ -711,6 +753,7 @@ export interface FileRouteTypes {
     | '/loops/$name/configure'
     | '/loops/$name/editor'
     | '/loops/$name/run'
+    | '/marketplace/categories/$category'
     | '/tasks/$id/edit'
     | '/agents/$name'
     | '/agents/$name/sessions/$id'
@@ -722,6 +765,7 @@ export interface FileRouteTypes {
     | '/_app/activity'
     | '/_app/agents'
     | '/_app/automations'
+    | '/_app/files'
     | '/_app/jobs'
     | '/_app/loop-runs'
     | '/_app/loops'
@@ -736,6 +780,7 @@ export interface FileRouteTypes {
     | '/_app/vault'
     | '/_app/'
     | '/_app/agents/$name'
+    | '/_app/files/$workspaceId'
     | '/_app/jobs/$jobId'
     | '/_app/loop-runs/$runId'
     | '/_app/loops/$name'
@@ -766,6 +811,7 @@ export interface FileRouteTypes {
     | '/_app/terminal/$terminalId'
     | '/_app/triggers/$triggerId'
     | '/_app/agents/'
+    | '/_app/files/'
     | '/_app/marketplace/'
     | '/_app/settings/'
     | '/_app/terminal/'
@@ -777,6 +823,7 @@ export interface FileRouteTypes {
     | '/_app/loops/$name/configure'
     | '/_app/loops/$name/editor'
     | '/_app/loops/$name/run'
+    | '/_app/marketplace/categories/$category'
     | '/_app/tasks/$id/edit'
     | '/_app/agents/$name/'
     | '/_app/agents/$name/sessions/$id'
@@ -830,6 +877,13 @@ declare module '@tanstack/react-router' {
       path: '/automations'
       fullPath: '/automations'
       preLoaderRoute: typeof AppAutomationsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/files': {
+      id: '/_app/files'
+      path: '/files'
+      fullPath: '/files'
+      preLoaderRoute: typeof AppFilesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/jobs': {
@@ -929,6 +983,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/agents/$name'
       preLoaderRoute: typeof AppAgentsNameRouteImport
       parentRoute: typeof AppAgentsRoute
+    }
+    '/_app/files/': {
+      id: '/_app/files/'
+      path: '/'
+      fullPath: '/files/'
+      preLoaderRoute: typeof AppFilesIndexRouteImport
+      parentRoute: typeof AppFilesRoute
+    }
+    '/_app/files/$workspaceId': {
+      id: '/_app/files/$workspaceId'
+      path: '/$workspaceId'
+      fullPath: '/files/$workspaceId'
+      preLoaderRoute: typeof AppFilesWorkspaceIdRouteImport
+      parentRoute: typeof AppFilesRoute
     }
     '/_app/jobs/$jobId': {
       id: '/_app/jobs/$jobId'
@@ -1217,6 +1285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLoopsNameRunRouteImport
       parentRoute: typeof AppLoopsNameRoute
     }
+    '/_app/marketplace/categories/$category': {
+      id: '/_app/marketplace/categories/$category'
+      path: '/categories/$category'
+      fullPath: '/marketplace/categories/$category'
+      preLoaderRoute: typeof AppMarketplaceCategoriesCategoryRouteImport
+      parentRoute: typeof AppMarketplaceRoute
+    }
     '/_app/tasks/$id/edit': {
       id: '/_app/tasks/$id/edit'
       path: '/edit'
@@ -1287,6 +1362,20 @@ const AppAutomationsRouteWithChildren = AppAutomationsRoute._addFileChildren(
   AppAutomationsRouteChildren,
 )
 
+interface AppFilesRouteChildren {
+  AppFilesWorkspaceIdRoute: typeof AppFilesWorkspaceIdRoute
+  AppFilesIndexRoute: typeof AppFilesIndexRoute
+}
+
+const AppFilesRouteChildren: AppFilesRouteChildren = {
+  AppFilesWorkspaceIdRoute: AppFilesWorkspaceIdRoute,
+  AppFilesIndexRoute: AppFilesIndexRoute,
+}
+
+const AppFilesRouteWithChildren = AppFilesRoute._addFileChildren(
+  AppFilesRouteChildren,
+)
+
 interface AppJobsRouteChildren {
   AppJobsJobIdRoute: typeof AppJobsJobIdRoute
 }
@@ -1353,12 +1442,14 @@ interface AppMarketplaceRouteChildren {
   AppMarketplaceEntryIdRoute: typeof AppMarketplaceEntryIdRoute
   AppMarketplaceInstalledRoute: typeof AppMarketplaceInstalledRoute
   AppMarketplaceIndexRoute: typeof AppMarketplaceIndexRoute
+  AppMarketplaceCategoriesCategoryRoute: typeof AppMarketplaceCategoriesCategoryRoute
 }
 
 const AppMarketplaceRouteChildren: AppMarketplaceRouteChildren = {
   AppMarketplaceEntryIdRoute: AppMarketplaceEntryIdRoute,
   AppMarketplaceInstalledRoute: AppMarketplaceInstalledRoute,
   AppMarketplaceIndexRoute: AppMarketplaceIndexRoute,
+  AppMarketplaceCategoriesCategoryRoute: AppMarketplaceCategoriesCategoryRoute,
 }
 
 const AppMarketplaceRouteWithChildren = AppMarketplaceRoute._addFileChildren(
@@ -1473,6 +1564,7 @@ interface AppRouteChildren {
   AppActivityRoute: typeof AppActivityRoute
   AppAgentsRoute: typeof AppAgentsRouteWithChildren
   AppAutomationsRoute: typeof AppAutomationsRouteWithChildren
+  AppFilesRoute: typeof AppFilesRouteWithChildren
   AppJobsRoute: typeof AppJobsRouteWithChildren
   AppLoopRunsRoute: typeof AppLoopRunsRouteWithChildren
   AppLoopsRoute: typeof AppLoopsRouteWithChildren
@@ -1493,6 +1585,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppActivityRoute: AppActivityRoute,
   AppAgentsRoute: AppAgentsRouteWithChildren,
   AppAutomationsRoute: AppAutomationsRouteWithChildren,
+  AppFilesRoute: AppFilesRouteWithChildren,
   AppJobsRoute: AppJobsRouteWithChildren,
   AppLoopRunsRoute: AppLoopRunsRouteWithChildren,
   AppLoopsRoute: AppLoopsRouteWithChildren,

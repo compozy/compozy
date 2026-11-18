@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import type { CSSProperties } from "react";
 import { loadOGFonts } from "../fonts";
 import { LogoLockup } from "../logo";
-import { COLORS, FONTS, formatBlogDate, SIZE, truncate } from "../tokens";
+import { BEAM, COLORS, FONTS, formatBlogDate, SIZE, truncate, GLOW } from "../tokens";
 
 export interface RenderBlogOGInput {
   title: string;
@@ -18,7 +18,8 @@ const canvasStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   justifyContent: "space-between",
-  background: COLORS.canvas,
+  backgroundColor: COLORS.canvas,
+  backgroundImage: GLOW,
   color: COLORS.textPrimary,
   fontFamily: FONTS.sans,
   padding: "72px",
@@ -60,12 +61,16 @@ export async function renderBlogOG({
       >
         <LogoLockup height={48} letteringFill={COLORS.textPrimary} />
         <div style={metaStyle}>
-          <span style={{ color: COLORS.brand, textTransform: "uppercase" }}>COMPOZYOS BLOG</span>
+          <span style={{ color: COLORS.brandText, textTransform: "uppercase" }}>
+            COMPOZYOS BLOG
+          </span>
           {formattedDate ? (
-            <>
-              <span style={{ width: "48px", height: "1px", background: COLORS.border }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+              <span
+                style={{ width: "48px", height: "2px", borderRadius: "2px", backgroundImage: BEAM }}
+              />
               <span style={{ color: COLORS.textSecondary }}>{formattedDate}</span>
-            </>
+            </div>
           ) : null}
         </div>
       </div>
@@ -83,7 +88,7 @@ export async function renderBlogOG({
             fontFamily: FONTS.display,
             fontSize: "76px",
             lineHeight: 1.0,
-            letterSpacing: "-0.02em",
+            letterSpacing: "-0.03em",
             color: COLORS.textPrimary,
             fontWeight: 400,
             maxWidth: "940px",
@@ -113,7 +118,7 @@ export async function renderBlogOG({
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          borderTop: `1px solid ${COLORS.border}`,
+          borderTop: `1px solid ${COLORS.hairline}`,
           paddingTop: "24px",
         }}
       >

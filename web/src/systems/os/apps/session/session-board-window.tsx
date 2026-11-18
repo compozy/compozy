@@ -7,6 +7,7 @@ import {
   SESSION_BOARD_SORTS,
   SessionsBoard,
   SessionsBoardSelection,
+  SessionFoldAllButton,
   SessionViewOptionsMenu,
   SessionViewToggle,
   sessionBoardSort,
@@ -81,20 +82,25 @@ export function SessionBoardWindow({
     overflow: <SessionViewToggle onValueChange={setView} value={view.view} />,
     actions: (
       <>
+        {board.lanes === null ? null : (
+          <SessionFoldAllButton
+            allCollapsed={sidebar.foldAll === "collapsed"}
+            onAllCollapsedChange={collapsed =>
+              sidebar.setFoldAll(collapsed ? "collapsed" : "expanded")
+            }
+            testId="sessions-board"
+          />
+        )}
         <SessionViewOptionsMenu
-          allCollapsed={sidebar.foldAll === "collapsed"}
           groupBy={board.groupBy}
           groupByOptions={board.groupByOptions}
           hideChildren={view.hideChildren}
-          onAllCollapsedChange={
-            board.lanes === null
-              ? undefined
-              : collapsed => sidebar.setFoldAll(collapsed ? "collapsed" : "expanded")
-          }
           onGroupByChange={order.setGroupBy}
           onHideChildrenChange={view.setHideChildren}
+          onShowAutomationChange={sidebar.setShowAutomation}
           onShowEmptyProjectsChange={sidebar.setShowEmptyProjects}
           onSortChange={order.setSort}
+          showAutomation={sidebar.showAutomation}
           showEmptyProjects={sidebar.showEmptyProjects}
           sort={sessionBoardSort(order.sort)}
           sortOptions={SESSION_BOARD_SORTS}

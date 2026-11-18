@@ -112,6 +112,7 @@ func startHelperProcess(
 	opts.ActivateMCPServers = overrides.ActivateMCPServers
 	opts.FinalizeStartup = overrides.FinalizeStartup
 	opts.InputOnly = overrides.InputOnly
+	opts.LeanEnvironment = overrides.LeanEnvironment
 	opts.SetExecutionPolicy(overrides.ExecutionPolicyValue())
 
 	proc, err := driver.Start(testutil.Context(t), opts)
@@ -129,6 +130,11 @@ func stopProcess(t *testing.T, driver *Driver, proc *AgentProcess) {
 	if err := driver.Stop(testutil.Context(t), proc); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
+}
+
+func newTestDriverWithCatalogBudget(t *testing.T, budget time.Duration, opts ...Option) *Driver {
+	t.Helper()
+	return New(append([]Option{WithModelCatalogBudget(budget)}, opts...)...)
 }
 
 type failingToolRuntimeStore struct {
@@ -526,7 +532,8 @@ func (a *helperACPAgent) Initialize(
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
 			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" ||
-				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options" ||
+				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options" || a.scenario == "load_claude_models" ||
+				a.scenario == "load_claude_stale_models" || a.scenario == "load_model_current" ||
 				a.scenario == "fork_session" || a.scenario == "stall_load",
 			SessionCapabilities: sessionCaps,
 			PromptCapabilities: acpsdk.PromptCapabilities{
@@ -617,7 +624,7 @@ func (a *helperACPAgent) ResumeSession(
 // NewSession advertises the scenario capabilities without contacting a live provider.
 func (a *helperACPAgent) NewSession(
 	ctx context.Context,
-	_ acpsdk.NewSessionRequest,
+	params acpsdk.NewSessionRequest,
 ) (acpsdk.NewSessionResponse, error) {
 	if a.scenario == "stall_new" {
 		<-ctx.Done()
@@ -625,6 +632,10 @@ func (a *helperACPAgent) NewSession(
 	}
 	if a.scenario == "new_session_auth_required" {
 		return acpsdk.NewSessionResponse{}, &acpsdk.RequestError{Code: -32000, Message: "Authentication required"}
+	}
+	if a.scenario == "load_claude_stale_models" {
+		options, err := a.claudeStaleModelOptions(params.Meta)
+		return acpsdk.NewSessionResponse{SessionId: "sess-new", ConfigOptions: options}, err
 	}
 	if a.scenario == "triage_config_mode" || a.scenario == "triage_config_unconfirmed" {
 		options := []acpsdk.SessionConfigOption{helperSelectConfigOption("mode", "Mode", "default", "default", "plan")}
@@ -653,6 +664,18 @@ func (a *helperACPAgent) NewSession(
 			Modes:     helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
 		}, nil
 	}
+	if strings.HasPrefix(a.scenario, "full_access_mode_") {
+		option := helperSelectConfigOption("mode", "Mode", "default", "default", "bypassPermissions")
+		options := []acpsdk.SessionConfigOption{option}
+		if a.scenario == "full_access_mode_duplicate" {
+			options = append(options, option)
+		}
+		if a.scenario == "full_access_mode_unavailable" {
+			options = []acpsdk.SessionConfigOption{helperSelectConfigOption("mode", "Mode", "default", "default")}
+		}
+		a.setHelperConfigOptions(options)
+		return acpsdk.NewSessionResponse{SessionId: "sess-new", ConfigOptions: options}, nil
+	}
 	if a.scenario == "cursor_mode_mapping" || a.scenario == "cursor_mode_current_agent" {
 		current := "plan"
 		if a.scenario == "cursor_mode_current_agent" {
@@ -668,9 +691,16 @@ func (a *helperACPAgent) NewSession(
 			ConfigOptions: configOptions,
 		}, nil
 	}
+	if a.scenario == "model_catalog_late" {
+		return a.newSessionWithDeferredModelCatalog(), nil
+	}
+	if a.scenario == "model_catalog_exit" {
+		return a.newSessionWithExitingModelCatalog(), nil
+	}
 	if a.scenario == "config_options" || a.scenario == "stall_config" ||
 		a.scenario == "stall_last_config" || a.scenario == "config_options_slow_close" ||
 		a.scenario == "config_options_unconfirmed" ||
+		a.scenario == "config_options_late_update" ||
 		a.scenario == "config_options_stale_update" ||
 		a.scenario == "config_options_reject_speed" ||
 		a.scenario == "config_options_no_model" ||
@@ -724,9 +754,86 @@ func (a *helperACPAgent) NewSession(
 	}, nil
 }
 
+// newSessionWithDeferredModelCatalog mirrors opencode's readiness race: session/new
+// announces only the builtin catalog and the full catalog arrives later as one
+// config_option_update notification. filePath overrides the announcement delay.
+func (a *helperACPAgent) newSessionWithDeferredModelCatalog() acpsdk.NewSessionResponse {
+	const lateModel = "catalog-late-model"
+	builtin := []acpsdk.SessionConfigOption{
+		helperSelectConfigOption("model", "Model", "new-model", "new-model", "other-model"),
+	}
+	a.setHelperConfigOptions(builtin)
+	if a.filePath == "never" {
+		return acpsdk.NewSessionResponse{
+			SessionId:     "sess-new",
+			Modes:         helperModeState("new-mode"),
+			ConfigOptions: builtin,
+		}
+	}
+	delay := 300 * time.Millisecond
+	if parsed, err := time.ParseDuration(a.filePath); err == nil {
+		delay = parsed
+	}
+	go func() {
+		select {
+		case <-time.After(delay):
+		case <-a.conn.Done():
+			return
+		}
+		// Build the announced option instead of mutating the select that
+		// session/new already returned, which would make that response confirm
+		// the model and leave the notification untested.
+		full := []acpsdk.SessionConfigOption{
+			helperSelectConfigOption(
+				"model",
+				"Model",
+				"new-model",
+				"new-model",
+				"other-model",
+				lateModel,
+			),
+		}
+		a.setHelperConfigOptions(full)
+		_ = a.conn.SessionUpdate(context.Background(), acpsdk.SessionNotification{
+			SessionId: "sess-new",
+			Update: acpsdk.SessionUpdate{
+				ConfigOptionUpdate: &acpsdk.SessionConfigOptionUpdate{ConfigOptions: full},
+			},
+		})
+	}()
+	return acpsdk.NewSessionResponse{
+		SessionId:     "sess-new",
+		Modes:         helperModeState("new-mode"),
+		ConfigOptions: builtin,
+	}
+}
+
+// newSessionWithExitingModelCatalog mirrors a provider that dies before it can
+// publish the full catalog: session/new advertises only the builtin catalog and
+// the subprocess exits while a model pin waits for the config_option_update.
+func (a *helperACPAgent) newSessionWithExitingModelCatalog() acpsdk.NewSessionResponse {
+	builtin := []acpsdk.SessionConfigOption{
+		helperSelectConfigOption("model", "Model", "new-model", "new-model", "other-model"),
+	}
+	a.setHelperConfigOptions(builtin)
+	delay := 300 * time.Millisecond
+	if parsed, err := time.ParseDuration(a.filePath); err == nil {
+		delay = parsed
+	}
+	go func() {
+		time.Sleep(delay)
+		os.Exit(23)
+	}()
+	return acpsdk.NewSessionResponse{
+		SessionId:     "sess-new",
+		Modes:         helperModeState("new-mode"),
+		ConfigOptions: builtin,
+	}
+}
+
 func (a *helperACPAgent) LoadSession(
 	ctx context.Context,
-	_ acpsdk.LoadSessionRequest,
+	params acpsdk.LoadSessionRequest,
 ) (acpsdk.LoadSessionResponse, error) {
 	if a.scenario == "stall_load" {
 		<-ctx.Done()
@@ -740,8 +847,29 @@ func (a *helperACPAgent) LoadSession(
 			Modes: helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
 		}, nil
 	}
-	if a.scenario == "load_config_options" {
+	if a.scenario == "load_model_current" {
+		options := []acpsdk.SessionConfigOption{
+			helperSelectConfigOption("model", "Model", a.filePath, "default", "opus"),
+		}
+		a.setHelperConfigOptions(options)
+		return acpsdk.LoadSessionResponse{ConfigOptions: options}, nil
+	}
+	if a.scenario == "load_claude_stale_models" {
+		options, err := a.claudeStaleModelOptions(params.Meta)
+		return acpsdk.LoadSessionResponse{ConfigOptions: options}, err
+	}
+	if a.scenario == "load_config_options" || a.scenario == "load_claude_models" {
 		configOptions := helperConfigOptions("loaded-model", "high")
+		if a.scenario == "load_claude_models" {
+			configOptions = []acpsdk.SessionConfigOption{
+				helperSelectConfigOption("model", "Model", "default", "default", "opus"),
+			}
+			if _, err := os.Stat(a.filePath); err == nil {
+				configOptions = []acpsdk.SessionConfigOption{
+					helperSelectConfigOption("model", "Model", "default", "default", "claude-opus-5-5"),
+				}
+			}
+		}
 		a.setHelperConfigOptions(configOptions)
 		return acpsdk.LoadSessionResponse{
 			Modes:         helperModeState("loaded-mode"),
@@ -751,6 +879,31 @@ func (a *helperACPAgent) LoadSession(
 	return acpsdk.LoadSessionResponse{
 		Modes: helperModeState("loaded-mode"),
 	}, nil
+}
+
+// claudeStaleModelOptions mirrors the SDK's custom picker while its built-in list is stale.
+func (a *helperACPAgent) claudeStaleModelOptions(metadata any) ([]acpsdk.SessionConfigOption, error) {
+	var meta struct {
+		ClaudeCode struct {
+			Options struct {
+				Env map[string]string `json:"env"`
+			} `json:"options"`
+		} `json:"claudeCode"`
+	}
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, err
+	}
+	values := []string{"default", "opus", "fable", "claude-opus-5", "claude-fable-5-1"}
+	if model := meta.ClaudeCode.Options.Env["ANTHROPIC_CUSTOM_MODEL_OPTION"]; model != "" && a.filePath != "ignored" {
+		values = append(values, model)
+	}
+	options := []acpsdk.SessionConfigOption{helperSelectConfigOption("model", "Model", "opus", values...)}
+	a.setHelperConfigOptions(options)
+	return options, nil
 }
 
 func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
@@ -1095,8 +1248,32 @@ func (a *helperACPAgent) SetSessionConfigOption(
 			return acpsdk.SetSessionConfigOptionResponse{}, err
 		}
 	}
+	if a.scenario == "config_options_late_update" {
+		// Apply the value only in a notification that lands after this response:
+		// that is the race the confirmation window exists for. Copy the select
+		// option, because the response still has to report the previous value.
+		updated := helperConfigOptionsWithCurrent(a.configOptions, "reasoning_effort", "high")
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			_ = a.conn.SessionUpdate(context.Background(), acpsdk.SessionNotification{
+				SessionId: "sess-new",
+				Update: acpsdk.SessionUpdate{ConfigOptionUpdate: &acpsdk.SessionConfigOptionUpdate{
+					ConfigOptions: updated,
+				}},
+			})
+		}()
+		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
+	}
 	if a.scenario == "config_options_unconfirmed" || a.scenario == "triage_config_unconfirmed" {
 		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
+	}
+	if a.scenario == "load_claude_stale_models" {
+		if a.filePath == "reject" {
+			return acpsdk.SetSessionConfigOptionResponse{}, acpsdk.NewInvalidParams("provider refused the pinned model")
+		}
+		if a.filePath == "unconfirmed" {
+			return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
+		}
 	}
 	if request.ValueId != nil {
 		configID := string(request.ValueId.ConfigId)
@@ -1157,6 +1334,25 @@ func (a *helperACPAgent) setHelperConfigOptions(options []acpsdk.SessionConfigOp
 	a.configOptionsMu.Lock()
 	defer a.configOptionsMu.Unlock()
 	a.configOptions = append([]acpsdk.SessionConfigOption(nil), options...)
+}
+
+// helperConfigOptionsWithCurrent copies the option list and sets one select value,
+// leaving the original options untouched.
+func helperConfigOptionsWithCurrent(
+	options []acpsdk.SessionConfigOption,
+	id string,
+	current string,
+) []acpsdk.SessionConfigOption {
+	updated := append([]acpsdk.SessionConfigOption(nil), options...)
+	for index := range updated {
+		if updated[index].Select == nil || string(updated[index].Select.Id) != id {
+			continue
+		}
+		selectOption := *updated[index].Select
+		selectOption.CurrentValue = acpsdk.SessionConfigValueId(current)
+		updated[index].Select = &selectOption
+	}
+	return updated
 }
 
 func helperConfigOptions(modelCurrent string, reasoningCurrent string) []acpsdk.SessionConfigOption {

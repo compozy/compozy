@@ -8,13 +8,13 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
   Icon,
+  TreeBranch,
 } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import { openContextMenuFromKeyboard } from "@/systems/os/lib/context-menu-keyboard";
 
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
-import { BRANCH_RAIL } from "./session-list-branch-rail";
 
 export interface SessionListFolderProps {
   folder: { id: string; name: string };
@@ -210,7 +210,7 @@ function SessionListFolderBody({
   children,
 }: Pick<FolderVerbs, "testId" | "holds" | "onNewSession"> & { children: React.ReactNode }) {
   if (holds === "projects") {
-    return <div className={cn(BRANCH_RAIL, "flex flex-col gap-0.5 pt-0.5")}>{children}</div>;
+    return <TreeBranch className="flex flex-col gap-0.5 pt-0.5">{children}</TreeBranch>;
   }
   return (
     <div className="flex flex-col gap-0.5 pt-0.5 pl-2.5">

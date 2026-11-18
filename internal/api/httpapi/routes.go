@@ -62,6 +62,16 @@ func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaces.POST("", handlers.CreateWorkspace)
 	workspaces.GET("", handlers.ListWorkspaces)
 	workspaces.GET("/:workspace_id", handlers.GetWorkspace)
+	workspaces.GET("/:workspace_id/files/entries", handlers.ListFileEntries)
+	workspaces.GET("/:workspace_id/files/find", handlers.FindFiles)
+	workspaces.GET("/:workspace_id/files/search", handlers.SearchFileContents)
+	workspaces.GET("/:workspace_id/files/content", handlers.ReadFileContent)
+	workspaces.GET("/:workspace_id/files/raw/*path", sameOriginFetchGuard, handlers.ReadFileBytes)
+	workspaces.GET(
+		"/:workspace_id/worktrees/:worktree_id/files/raw/*path",
+		sameOriginFetchGuard,
+		handlers.ReadWorktreeFileBytes,
+	)
 	workspaces.PATCH("/:workspace_id", handlers.UpdateWorkspace)
 	workspaces.DELETE("/:workspace_id", handlers.DeleteWorkspace)
 	workspaces.POST("/:workspace_id/archive", handlers.ArchiveWorkspace)
@@ -260,6 +270,7 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 	marketplace := api.Group("/marketplace")
 	marketplace.GET("", handlers.ListMarketplace)
+	marketplace.GET("/sections", handlers.ListMarketplaceSections)
 	marketplace.GET("/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
 	marketplace.POST("/refresh", handlers.privilegedMutationGuard(), handlers.RefreshMarketplaceCatalog)
 	marketplace.GET("/sources", handlers.ListMarketplaceSources)
@@ -343,13 +354,19 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.GET("/providers/:name", handlers.GetSettingsProvider)
 	settings.PUT("/providers/:name", privileged, handlers.PutSettingsProvider)
 	settings.DELETE("/providers/:name", privileged, handlers.DeleteSettingsProvider)
+	settings.PATCH("/providers/:name/enabled", privileged, handlers.SetSettingsProviderEnabled)
 
+	settings.GET("/runtime-mcp-servers", handlers.ListRuntimeMCPServers)
+	settings.POST("/runtime-mcp-servers/:runtime/:name/import", privileged, handlers.ImportRuntimeMCPServer)
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
 	settings.GET("/mcp-servers/:name", handlers.GetSettingsMCPServer)
 	settings.GET("/mcp-servers/:name/auth/status", handlers.GetSettingsMCPAuthStatus)
+	settings.PUT("/mcp-servers/:name/approval", privileged, handlers.PutSettingsMCPApproval)
+	settings.DELETE("/mcp-servers/:name/approval", privileged, handlers.DeleteSettingsMCPApproval)
 	settings.POST("/mcp-servers/:name/auth/begin", privileged, handlers.BeginSettingsMCPAuth)
 	settings.POST("/mcp-servers/:name/auth/exchange", privileged, handlers.ExchangeSettingsMCPAuth)
 	settings.POST("/mcp-servers/:name/auth/logout", privileged, handlers.LogoutSettingsMCPAuth)
+	settings.POST("/mcp-servers/:name/check", privileged, handlers.CheckSettingsMCPServer)
 	settings.PUT("/mcp-servers/:name", privileged, handlers.PutSettingsMCPServer)
 	settings.DELETE("/mcp-servers/:name", privileged, handlers.DeleteSettingsMCPServer)
 

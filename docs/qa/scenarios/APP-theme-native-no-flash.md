@@ -38,3 +38,20 @@ Coverage remains outstanding; this skip is not a passing result. Resume from the
 report's session matrix in a future QA cycle.
 
 qa-impact: 2026-10-27 #984. `/theme-boot.js` now also replays the Appearance fonts (`compozy.fonts`); the desktop boot page keeps the built-in fonts (it renders before the daemon is reachable). Re-check that a relaunch with a chosen font shows no default-font frame in the product window.
+
+## 2026-11-08 brand identity v1.2 slice
+
+Spec `.compozy/tasks/brand-site/` (E2E-003). Current native backgrounds come from
+`desktop/src/window/window-theme.ts`: product chrome `#0a0a0a` / `#f2f2f3`, canvas `#131313` /
+`#ffffff`. Extra steps for this slice:
+
+1. The product window paints Figtree as the default interface font from the first frame.
+2. With Code font set to JetBrains Mono in Settings > Appearance, quit and relaunch: the product window
+   shows JetBrains Mono from the first frame, with no Geist Mono frame. Reset to the default afterwards.
+3. The dock icon and the window's app icon show the new symbol on a dark tile, not the orange mark.
+
+Slice validation: partial. The web half passed. JetBrains Mono chosen in Appearance was still applied
+in a fresh browser context (`--user-font-mono` = `"JetBrains Mono Variable"`, face loaded), and reset
+returned Geist Mono. `desktop/build/icon.icns` and `icon.png` carry the new symbol. The packaged
+Electron relaunch was not walked in this slice, so the no-flash claim for the native window is still
+unverified.

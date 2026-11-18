@@ -15,6 +15,28 @@ type SchemaStreamStatus struct {
 	SumDigest    string `json:"sum_digest"`
 }
 
+// DaemonReadinessPhase is the daemon lifecycle phase reported beside `status`.
+type DaemonReadinessPhase string
+
+const (
+	// DaemonReadinessStarting means boot steps are still running before the daemon serves reads.
+	DaemonReadinessStarting DaemonReadinessPhase = "starting"
+	// DaemonReadinessServing means the read model is served while session recovery still runs.
+	DaemonReadinessServing DaemonReadinessPhase = "serving"
+	// DaemonReadinessReady means recovery finished; `status` is `running` unless the daemon drains.
+	DaemonReadinessReady DaemonReadinessPhase = "ready"
+	// DaemonReadinessStopping means shutdown has begun.
+	DaemonReadinessStopping DaemonReadinessPhase = "stopping"
+)
+
+// DaemonReadinessPayload reports the lifecycle phase and the step currently running in it.
+// It is additive: `status: running` still means fully ready.
+type DaemonReadinessPayload struct {
+	Phase DaemonReadinessPhase `json:"phase"`
+	Step  string               `json:"step,omitempty"`
+	Since time.Time            `json:"since"`
+}
+
 // DaemonStatusPayload is the shared daemon status response payload.
 type DaemonStatusPayload struct {
 	Status         string                `json:"status"`
@@ -30,6 +52,8 @@ type DaemonStatusPayload struct {
 	MinAppVersion  string                `json:"min_app_version"`
 	Gateway        *GatewayStatusPayload `json:"gateway,omitzero"`
 	SchemaStreams  []SchemaStreamStatus  `json:"schema_streams"`
+	// Readiness is absent from daemons that predate lifecycle phases.
+	Readiness *DaemonReadinessPayload `json:"readiness,omitzero"`
 }
 
 // StatusPayload is the hard-cut runtime status surface shared by HTTP, UDS, and CLI JSON.
@@ -47,6 +71,30 @@ type StatusPayload struct {
 	Skills           SkillRuntimeStatusPayload        `json:"skills"`
 	Config           ConfigRuntimeStatusPayload       `json:"config"`
 	LogTail          LogTailStatusPayload             `json:"log_tail"`
+	// OTel is absent only from daemons that predate OTLP export; clients treat it as unknown.
+	OTel *OTelStatusPayload `json:"otel,omitzero"`
+}
+
+// OTelStatusPayload reports OTLP export state, target, and per-signal health.
+type OTelStatusPayload struct {
+	// State is disabled, inactive_observability_disabled, ok, or degraded.
+	State              string                  `json:"state"`
+	Protocol           string                  `json:"protocol,omitempty"`
+	EndpointHost       string                  `json:"endpoint_host,omitempty"`
+	SampleRatio        float64                 `json:"sample_ratio"`
+	ForwardToProviders bool                    `json:"forward_to_providers"`
+	Traces             OTelSignalStatusPayload `json:"traces"`
+	Metrics            OTelSignalStatusPayload `json:"metrics"`
+	DroppedSpans       int64                   `json:"dropped_spans"`
+}
+
+// OTelSignalStatusPayload reports one exported signal's health.
+type OTelSignalStatusPayload struct {
+	Enabled      bool      `json:"enabled"`
+	LastExportAt time.Time `json:"last_export_at,omitzero"`
+	// LastErrorClass is the fixed class of the last export failure; absent when the last export succeeded.
+	LastErrorClass string `json:"last_error_class,omitempty"`
+	FailedExports  int64  `json:"failed_exports"`
 }
 
 // DoctorPayload is the diagnostic probe result shared by HTTP, UDS, and CLI JSON.

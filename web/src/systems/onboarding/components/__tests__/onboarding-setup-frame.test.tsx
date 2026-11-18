@@ -116,7 +116,6 @@ describe("OnboardingSetupFrame", () => {
     render(<OnboardingSetupFrame wizard={onboardingWizardFixture()} />);
 
     expect(screen.queryByRole("button", { name: /close/i })).toBeNull();
-    expect(screen.queryByTestId("os-traffic-lights")).toBeNull();
     await user.keyboard("{Escape}");
     expect(screen.getByTestId("onboarding-setup-panel")).toBeInTheDocument();
 

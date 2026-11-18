@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { copyWorktreePath } from "../copy-worktree-path";
+import { createDeferred } from "@/test/event-recorder";
 
 const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 
@@ -21,8 +22,8 @@ function installClipboard(writeText: (path: string) => Promise<void>): void {
 
 describe("copyWorktreePath", () => {
   beforeEach(() => {
-    toastMocks.success.mockClear();
-    toastMocks.error.mockClear();
+    toastMocks.success.mockReset();
+    toastMocks.error.mockReset();
   });
 
   afterEach(() => {
@@ -37,8 +38,11 @@ describe("copyWorktreePath", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     installClipboard(writeText);
 
+    const copied = createDeferred<void>();
+    toastMocks.success.mockImplementationOnce(() => copied.resolve());
     copyWorktreePath("/workspace/feature");
-    await vi.waitFor(() => expect(toastMocks.success).toHaveBeenCalledWith("Path copied"));
+    await copied.promise;
+    expect(toastMocks.success).toHaveBeenCalledWith("Path copied");
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith("/workspace/feature");
     expect(toastMocks.error).not.toHaveBeenCalled();
@@ -55,10 +59,11 @@ describe("copyWorktreePath", () => {
   it("Should report an asynchronous clipboard rejection", async () => {
     installClipboard(vi.fn().mockRejectedValue(new Error("permission denied")));
 
+    const failed = createDeferred<void>();
+    toastMocks.error.mockImplementationOnce(() => failed.resolve());
     copyWorktreePath("/workspace/feature");
-    await vi.waitFor(() =>
-      expect(toastMocks.error).toHaveBeenCalledExactlyOnceWith("Could not copy the path")
-    );
+    await failed.promise;
+    expect(toastMocks.error).toHaveBeenCalledExactlyOnceWith("Could not copy the path");
   });
 
   it("Should report a synchronous clipboard failure", () => {

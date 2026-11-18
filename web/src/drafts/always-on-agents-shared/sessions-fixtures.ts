@@ -192,6 +192,7 @@ export function byUrgency(instances: readonly DraftInstance[]) {
 
 export const RUNTIME_PROVIDERS = [
   { id: "claude", name: "Claude", runtime_provider: "claude", harness: "acp" },
+  { id: "codex", name: "Codex", runtime_provider: "codex", harness: "acp" },
 ];
 
 export const RUNTIME_MODELS = [
@@ -199,6 +200,17 @@ export const RUNTIME_MODELS = [
     id: "claude-opus-5-5",
     provider: "claude",
     name: "Claude Opus 5.5",
+    featured: true,
+    efforts: ["low", "medium", "high"],
+    default_effort: "medium",
+    availability: "live",
+    curated: true,
+    supports_tools: true,
+  },
+  {
+    id: "gpt-6-astra",
+    provider: "codex",
+    name: "GPT-6 Astra",
     featured: true,
     efforts: ["low", "medium", "high"],
     default_effort: "medium",

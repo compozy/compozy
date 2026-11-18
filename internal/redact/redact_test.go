@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -167,6 +168,74 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 
 func TestStringUsesDynamicSecretsAndRemainsIdempotent(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should report registered secret material until cleanup", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "registered-predicate-secret-7d1e"
+		cleanup := RegisterRequiredSecret(secret)
+		t.Cleanup(cleanup)
+
+		if !ContainsRegisteredSecret("org/model-" + secret) {
+			t.Fatal("ContainsRegisteredSecret(value with secret) = false, want true")
+		}
+		if ContainsRegisteredSecret("org/model") {
+			t.Fatal("ContainsRegisteredSecret(value without secret) = true, want false")
+		}
+		cleanup()
+		if ContainsRegisteredSecret("org/model-" + secret) {
+			t.Fatal("ContainsRegisteredSecret(after cleanup) = true, want false")
+		}
+	})
+
+	t.Run("Should derive reversible encodings once per registered secret change", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "encoded-registry-secret-9c2f"
+		registry := newDynamicSecretRegistry()
+		registry.register(secret)
+		encodings := registry.encodingsSnapshot()
+		for _, want := range []string{
+			base64.StdEncoding.EncodeToString([]byte(secret)),
+			base64.RawURLEncoding.EncodeToString([]byte(secret)),
+			strings.ToUpper(hex.EncodeToString([]byte(secret))),
+		} {
+			if !slices.Contains(encodings, want) {
+				t.Fatalf("encodings = %q, missing %q", encodings, want)
+			}
+		}
+		if again := registry.encodingsSnapshot(); &again[0] != &encodings[0] {
+			t.Fatal("encodingsSnapshot rebuilt the encodings without a registry change")
+		}
+		registry.unregister(secret)
+		if got := registry.encodingsSnapshot(); len(got) != 0 {
+			t.Fatalf("encodings after unregister = %q, want none", got)
+		}
+	})
+
+	t.Run("Should distinguish separate lifetimes of the same registered secret", func(t *testing.T) {
+		t.Parallel()
+		registry := newDynamicSecretRegistry()
+		empty := registry.snapshot.Load().fingerprint
+		registry.register("continuous-fixture")
+		first := registry.snapshot.Load().fingerprint
+		registry.register("continuous-fixture")
+		registry.unregister("continuous-fixture")
+		registry.register("temporary-fixture")
+		registry.unregister("temporary-fixture")
+		if got := registry.snapshot.Load().fingerprint; got != first {
+			t.Fatal("an uninterrupted registration lost its fingerprint")
+		}
+		registry.unregister("continuous-fixture")
+		registry.register("continuous-fixture")
+		if got := registry.snapshot.Load().fingerprint; got == first {
+			t.Fatal("a new registration reused the previous lifetime's fingerprint")
+		}
+		registry.unregister("continuous-fixture")
+		if got := registry.snapshot.Load().fingerprint; got != empty {
+			t.Fatal("the empty registry changed fingerprint")
+		}
+	})
 
 	t.Run("Should redact registered dynamic secrets until cleanup", func(t *testing.T) {
 		secret := "runtime-secret-material-123456"
@@ -910,4 +979,43 @@ func BenchmarkDynamicSecretReferences(b *testing.B) {
 	if len(registry.valuesSnapshot()) != 1024 {
 		b.Fatal("reference updates changed the secret population")
 	}
+}
+
+func TestArgs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should redact flag values without changing argument boundaries", func(t *testing.T) {
+		t.Parallel()
+		args := []string{
+			"--token",
+			"opaque-credential",
+			"--label",
+			" padded ",
+			"",
+			"--password",
+			"two words",
+			"--token=secret-value",
+			"--token=first second",
+			"--password=first,second",
+			"visible",
+		}
+		want := []string{
+			"--token",
+			Marker,
+			"--label",
+			" padded ",
+			"",
+			"--password",
+			Marker,
+			"--token=" + Marker,
+			"--token=" + Marker,
+			"--password=" + Marker,
+			"visible",
+		}
+		if got := Args(args); !slices.Equal(got, want) {
+			t.Fatalf("Args = %q, want %q", got, want)
+		}
+		if args[1] != "opaque-credential" {
+			t.Fatal("input mutated")
+		}
+	})
 }

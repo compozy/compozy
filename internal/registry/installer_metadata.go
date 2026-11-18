@@ -201,7 +201,10 @@ func manifestNameAtRoot(root *fileutil.Directory) (string, error) {
 		case agentplugin.SchemaUnsupportedVersion:
 			return "", &agentplugin.SchemaUnsupportedError{Path: installerAgentPluginManifestName, Declared: declared}
 		default:
-			return "", fmt.Errorf("%w: unrelated plugin.json", errInstallMissingManifest)
+			if err := validateInstallerClientSchema(content, installerAgentPluginManifestName); err != nil {
+				return "", err
+			}
+			return installerAgentPluginManifestName, nil
 		}
 	default:
 		return clientManifestNameAtRoot(root)

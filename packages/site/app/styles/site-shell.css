@@ -1,0 +1,108 @@
+/*
+ * Translucent tones of the v1.2 redesign, mirrored from the approved landing draft
+ * (web/src/drafts/landing/landing.css). White and black at fixed alphas over the
+ * #0a0a0a surface; utilities come from the `--color-site-*` aliases above.
+ */
+:root {
+  --site-light-025: rgb(255 255 255 / 0.025);
+  --site-light-030: rgb(255 255 255 / 0.03);
+  --site-light-040: rgb(255 255 255 / 0.04);
+  --site-light-050: rgb(255 255 255 / 0.05);
+  --site-light-060: rgb(255 255 255 / 0.06);
+  --site-light-070: rgb(255 255 255 / 0.07);
+  --site-light-080: rgb(255 255 255 / 0.08);
+  --site-light-090: rgb(255 255 255 / 0.09);
+  --site-light-100: rgb(255 255 255 / 0.1);
+  --site-light-120: rgb(255 255 255 / 0.12);
+  --site-light-150: rgb(255 255 255 / 0.15);
+  --site-light-200: rgb(255 255 255 / 0.2);
+  --site-light-250: rgb(255 255 255 / 0.25);
+  --site-light-350: rgb(255 255 255 / 0.35);
+  --site-dark-030: rgb(0 0 0 / 0.03);
+  --site-dark-100: rgb(0 0 0 / 0.1);
+  --site-dark-150: rgb(0 0 0 / 0.15);
+  --site-dark-400: rgb(0 0 0 / 0.4);
+  --site-dark-450: rgb(0 0 0 / 0.45);
+  --site-dark-550: rgb(0 0 0 / 0.55);
+  --site-dark-600: rgb(0 0 0 / 0.6);
+  --site-dark-700: rgb(0 0 0 / 0.7);
+  /* The teal glow under the pointer on spotlight cards. */
+  --site-spot-teal: rgb(29 240 215 / 0.14);
+}
+
+/*
+ * Marketing shell (`SiteShell`): the redesign drafts render on the shared neutral
+ * text ramp, not the warm D9 pins above, so routes inside the shell restore it.
+ */
+.site-marketing {
+  /* The drafts render on the shared ui weight ladder (450 regular, 500 medium); the docs keep D9's. */
+  --font-weight-normal: 450;
+  --font-weight-medium: 500;
+  --font-weight-bold: 600;
+  font-weight: var(--font-weight-normal);
+  --color-fg: #ececec;
+  --color-fg-strong: #ffffff;
+  --color-muted-foreground: #989898;
+  --color-subtle: #8e8e8e;
+  --color-faint: #8d8d8d;
+}
+
+/* A count set inside a display heading keeps its own spacing, not the heading's tight tracking. */
+.site-heading-count {
+  letter-spacing: normal;
+}
+
+/* Hash targets land below the floating marketing header. Element scroll margins (`scroll-mt-*`) add
+   to this, so they hold only the offset a draft sets beyond the header (draft 112px → scroll-mt-6). */
+html:has(.site-marketing) {
+  scroll-padding-top: 88px;
+}
+
+@keyframes landing-marquee {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes landing-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+/*
+ * Above-the-fold entrance (`Entrance`, `WordsIn`). A CSS animation runs from the first paint,
+ * so the served HTML is the settled content: it shows without JavaScript and before hydration,
+ * and hydration does not restart it. Per element: --site-enter-y, -scale, -blur, -duration, -delay.
+ */
+@keyframes site-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--site-enter-y, 28px)) scale(var(--site-enter-scale, 1));
+    filter: blur(var(--site-enter-blur, 8px));
+  }
+}
+
+.site-enter {
+  animation: site-enter var(--site-enter-duration, 0.9s) cubic-bezier(0.16, 1, 0.3, 1)
+    var(--site-enter-delay, 0s) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-enter {
+    animation: none;
+  }
+}
+
+/*
+ * The landing hero window's tilt on wide screens, straightened by `--hero-flat` (0 → 1 as the hero
+ * scrolls away). CSS decides where it applies, so the served HTML is already tilted and hydration
+ * does not move the window.
+ */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .site-hero-tilt {
+    /* Same order motion wrote it in: scale, then the tilt. */
+    transform: scale(calc(0.86 + var(--hero-flat, 0) * 0.14))
+      rotateX(calc((1 - var(--hero-flat, 0)) * 24deg));
+  }
+}

@@ -78,3 +78,33 @@ func (s *Service) FailStaleDispatches(ctx context.Context) (int, error) {
 	}
 	return owner.FailStaleDispatchingSessionInputs(ctx, s.now())
 }
+
+// boundarySteerStore owns durable supersession and its recovery read.
+type boundarySteerStore interface {
+	SupersedeSessionBoundarySteers(context.Context, string, string, string, time.Time) ([]string, error)
+	ListSupersededSessionSteers(context.Context, string, string) ([]store.SessionInputQueueEntry, error)
+}
+
+// SupersedeBoundarySteers retires guidance superseded by an empty operator interrupt.
+func (s *Service) SupersedeBoundarySteers(
+	ctx context.Context,
+	sessionID, turnID, replacementID string,
+) ([]string, error) {
+	owner, ok := s.store.(boundarySteerStore)
+	if !ok {
+		return nil, nil
+	}
+	return owner.SupersedeSessionBoundarySteers(ctx, sessionID, turnID, replacementID, s.now())
+}
+
+// ListSupersededSteers returns a bounded page for idempotent transcript repair.
+func (s *Service) ListSupersededSteers(
+	ctx context.Context,
+	sessionID, afterID string,
+) ([]store.SessionInputQueueEntry, error) {
+	owner, ok := s.store.(boundarySteerStore)
+	if !ok {
+		return nil, nil
+	}
+	return owner.ListSupersededSessionSteers(ctx, sessionID, afterID)
+}

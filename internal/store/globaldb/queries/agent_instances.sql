@@ -16,8 +16,10 @@ UPDATE agent_instances SET main_session_id = sqlc.arg(session_id), state = 'acti
 WHERE id = sqlc.arg(id) AND state = 'starting' AND archived_at IS NULL AND main_session_id IS NULL;
 
 -- name: PauseAgentInstance :execrows
-UPDATE agent_instances SET state = 'paused', pause_reason = ?, updated_at = ?
-WHERE id = ? AND state = 'active' AND archived_at IS NULL;
+UPDATE agent_instances SET state = 'paused', pause_reason = sqlc.arg(pause_reason), updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id) AND archived_at IS NULL
+AND (state = 'active' OR (state = 'paused' AND sqlc.arg(pause_reason) = 'manual'
+ AND pause_reason IN ('definition_missing', 'definition_not_always_on')));
 
 -- name: ResumeAgentInstance :execrows
 UPDATE agent_instances SET state = 'active', pause_reason = '', updated_at = ?
@@ -67,7 +69,7 @@ SELECT id, parent_session_id, instance_id FROM sessions WHERE id=sqlc.arg(sessio
 UNION
 SELECT s.id, s.parent_session_id, s.instance_id FROM sessions s JOIN ancestry a ON s.id=a.parent_session_id
 )
-SELECT s.id, s.agent_name, s.profile_id, s.permission_policy_json, s.effective_workspace_access,
+SELECT s.id, s.agent_name, s.profile_id, s.permission_policy_json, s.effective_workspace_access, s.lineage_kind, s.session_type,
 COALESCE((SELECT i.id FROM ancestry a JOIN agent_instances i ON i.id=a.instance_id LIMIT 1),'') AS originating_instance_id,
 COALESCE((SELECT MAX(i.depth) FROM ancestry a JOIN agent_instances i ON i.id=a.instance_id),0) AS instance_depth
 FROM sessions s WHERE s.id=sqlc.arg(session_id);
@@ -102,6 +104,8 @@ SELECT EXISTS (
  WHERE p.status IN ('pending', 'orphaned')
 ) OR EXISTS (
  SELECT 1 FROM agent_instance_reports r WHERE r.instance_id = sqlc.arg(instance_id) AND r.state = 'pending' AND r.kind = 'failure'
+ AND r.created_at > COALESCE((SELECT last_seen_at FROM agent_instance_seen
+ WHERE instance_id = r.instance_id AND operator_id = 'local-operator'), '')
 );
 
 -- name: CountInstanceHeldWakes :one
@@ -117,18 +121,28 @@ SELECT CAST(COALESCE(SUM(1 + COALESCE(json_array_length(q.synthetic_prompt_json,
 FROM session_input_queue q JOIN instance_sessions s ON s.id = q.session_id
 JOIN sessions current ON current.id = s.id
 WHERE q.status = 'queued' AND q.origin_class <> 'human'
-AND q.session_generation = current.input_generation;
+AND q.session_generation = current.input_generation
+AND EXISTS (
+ SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
+ WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
+ AND (current.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+);
 
 -- name: ListInstanceQueuedSessions :many
 WITH RECURSIVE instance_sessions(id, profile_id) AS (
  SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
- WHERE i.id = sqlc.arg(instance_id) AND s.profile_id = i.profile_id AND i.state = 'active' AND i.archived_at IS NULL
+ WHERE i.id = sqlc.arg(instance_id) AND s.profile_id = i.profile_id AND (i.state = 'active' OR (i.state = 'paused' AND i.pause_reason IN ('definition_missing', 'definition_not_always_on'))) AND i.archived_at IS NULL
  UNION
  SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
  WHERE s.profile_id = parent.profile_id
 )
 SELECT s.id FROM sessions s JOIN instance_sessions lineage ON lineage.id = s.id
 WHERE s.id > sqlc.arg(after_id) AND s.archived_at IS NULL
+AND NOT EXISTS (
+ SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
+ WHERE root.id = COALESCE(NULLIF(s.root_session_id, ''), s.id) AND i.state = 'paused'
+ AND (s.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+)
 AND (s.state <> 'stopped' OR s.id = (SELECT agent_instances.main_session_id FROM agent_instances WHERE agent_instances.id = sqlc.arg(instance_id)))
 AND EXISTS (SELECT 1 FROM session_input_queue q WHERE q.session_id = s.id
  AND q.status = 'queued' AND q.session_generation = s.input_generation)
@@ -160,4 +174,68 @@ SELECT CAST(COALESCE(SUM(1 + COALESCE(json_array_length(q.synthetic_prompt_json,
 FROM session_input_queue q JOIN instance_sessions s ON s.id = q.session_id
 JOIN sessions current ON current.id = s.id
 WHERE q.status = 'queued' AND q.origin_class <> 'human'
-AND q.session_generation = current.input_generation;
+AND q.session_generation = current.input_generation
+AND EXISTS (
+ SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
+ WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
+ AND (current.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+);
+
+-- name: TripInstanceUnattendedPause :execrows
+UPDATE agent_instances SET state = 'paused', pause_reason = 'unattended', updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND archived_at IS NULL
+AND (state = 'active' OR (state = 'paused' AND pause_reason IN ('definition_missing', 'definition_not_always_on')));
+
+-- name: GetSessionInputHold :one
+SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+ ELSE instance.pause_reason END AS TEXT) AS pause_reason FROM sessions target
+JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+JOIN agent_instances instance ON instance.id = root.instance_id
+WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
+  AND (target.instance_id = instance.id
+    OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'));
+
+-- name: GetHeldSessionInput :one
+SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+ ELSE instance.pause_reason END AS TEXT) AS pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
+FROM sessions target
+JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+JOIN agent_instances instance ON instance.id = root.instance_id
+JOIN session_input_queue q ON q.session_id = target.id AND q.session_generation = target.input_generation
+WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
+  AND (target.instance_id = instance.id
+    OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+  AND q.status = 'queued' AND q.origin_class <> 'human'
+GROUP BY instance.id, instance.pause_reason;
+
+-- name: CountCheckInProposalStates :one
+SELECT
+ CAST(COALESCE(SUM(CASE WHEN p.actor = 'auto_accept' THEN 1 ELSE 0 END),0) AS INTEGER) AS auto_accepted,
+ CAST(COALESCE(SUM(CASE WHEN p.report_id IS NULL THEN 1 ELSE 0 END),0) AS INTEGER) AS waiting
+FROM agent_instance_reports r, json_each(r.payload, '$.proposals') proposal
+LEFT JOIN agent_instance_proposal_picks p ON p.report_id = r.id AND p.proposal_index = CAST(proposal.key AS INTEGER)
+WHERE r.instance_id = sqlc.arg(instance_id) AND r.source_key = sqlc.arg(source_key) AND r.kind = 'proposal';
+
+-- name: CountScopedCheckInCalls :many
+SELECT c.access, c.decision, COUNT(*) AS count FROM agent_instance_check_tool_calls c
+JOIN agent_instances i ON i.id = c.instance_id
+WHERE i.profile_id = sqlc.arg(profile_id) AND i.workspace_id = sqlc.arg(workspace_id) GROUP BY c.access, c.decision;
+
+-- name: CountScopedInstancePicks :many
+SELECT p.actor, COUNT(*) AS count FROM agent_instance_proposal_picks p
+JOIN agent_instances i ON i.id = p.instance_id
+WHERE i.profile_id = sqlc.arg(profile_id) AND i.workspace_id = sqlc.arg(workspace_id) GROUP BY p.actor;
+
+-- name: InstanceHasLiveInteractions :one
+WITH RECURSIVE instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
+ WHERE i.id = sqlc.arg(instance_id) AND s.profile_id = i.profile_id
+ UNION
+ SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
+ WHERE s.profile_id = parent.profile_id
+)
+SELECT EXISTS (
+ SELECT 1 FROM session_pending_interactions p JOIN instance_sessions s ON p.session_id = s.id
+ JOIN sessions live ON live.id = s.id
+ WHERE p.status IN ('pending', 'orphaned') AND live.state <> 'stopped'
+);

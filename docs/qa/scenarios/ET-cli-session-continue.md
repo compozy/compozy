@@ -12,9 +12,23 @@ fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-errors.txt; docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-committed-child.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-cl.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cl-child-transcript.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cl-child-derived-logs.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-cli.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-api.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-usage-errors.txt
-last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
+last_report: docs/qa/reports/2026-11-09-issue-1414-continue-runtime.md
 overlaps: RT-session-derive-retry; RT-provider-error-handoff
 ---
+
+## Explicit runtime selection regression
+
+Continue from Claude to Codex with an explicit model, `high` reasoning, and `normal` or `fast`
+speed. Exercise both `--message` and a staged child followed by two prompts. Read the child's
+runtime and durable user events: `selected`, `requested`, `last_known`, and each `prompt_runtime`
+must retain the chosen provider/model/effort/speed. Use an ACP fixture advertising the requested
+controls to verify effective speed as well.
+
+Give the target agent an unstartable primary command and a working Claude fallback. An explicit
+Codex continuation must return a visible launch error with its committed child ID, leave the child
+unbound with `runtime.failure`, and dispatch no user message on Claude. An ordinary new session
+for the same agent may still use its declared fallback. See
+[the targeted runtime report](../reports/2026-11-09-issue-1414-continue-runtime.md).
 
 Planning 2026-09-28 (session-continue-fork task_03): new behavior. Walk against a dev daemon with two
 agents (acpmock or real Codex + Claude):
@@ -67,3 +81,13 @@ governed child. The same check applies to `session fork`. The existing CLI/daemo
 journey passes for root, fork and continue, with manager regressions for legacy resume.
 [Focused verification](../reports/2026-10-23-harness-dogfood.md) records this bounded branch;
 the earlier full cross-provider verdict remains historical.
+
+## Unknown target during concurrent source activity — 2026-11-15
+
+After the CLI reads a derive preview, let the source transcript advance and request
+`session continue <source> --agent nope`. The response must remain `agent_not_found`,
+with no child or derive receipt. The same stale fences with an existing target still
+return `session_fence_conflict`; source ownership, eligibility and archive checks take
+precedence over target resolution. `TestContinueSession` owns the combined invalid-target
+and stale-fence case; the unchanged `TestDaemonE2ESessionContinueCLI` owns the real CLI
+journey. Exact-head CI verification is pending; local verification is disabled in release mode.

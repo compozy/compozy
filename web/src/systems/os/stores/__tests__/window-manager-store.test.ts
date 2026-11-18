@@ -1,15 +1,14 @@
 // Suite: window-manager interaction store
-// Invariants: WM-WEB-007/008 — Query remains the snapshot authority, while placement, gesture,
+// Invariants: WM-WEB-007/008 — Query remains the snapshot authority, while seam previews,
 // command acceptance, and transition-intent reconciliation derive atomically in store transitions.
 // Boundary IN: named XState Store events, guarded transitions, and selector subscriptions.
 // Boundary OUT: Query snapshots, daemon commands, and pointer transport.
-import { act, renderHook } from "@testing-library/react";
+import { act } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { useWindowManagerGestureActive } from "../../hooks/use-window-manager-store";
-import type { SnapTarget } from "../../lib/snap-targets";
 import {
   createWindowManagerStore,
+  selectDesktopOverviewDesktopAction,
   selectDesktopOverviewSegmentRequest,
   selectDesktopTransitionIntent,
   selectPendingWindowManagerCommand,
@@ -17,29 +16,15 @@ import {
   selectWindowManagerConflict,
   selectWindowManagerConnectionStatus,
   selectWindowManagerDiagnostic,
-  selectWindowManagerGesture,
-  selectWindowManagerGestureDragging,
-  selectWindowManagerGesturePreview,
   selectWindowManagerOverlay,
   selectWindowManagerWorkArea,
   type WindowManagerDiagnostic,
   windowManagerStore,
 } from "../window-manager-store";
-import {
-  advanceWindowManagerPlacementCycle,
-  beginWindowManagerCommand,
-  finishWindowManagerGesture,
-} from "../window-manager-store-commands";
+import { beginWindowManagerCommand } from "../window-manager-store-commands";
 
 const WORK_AREA = { rect: { x: 0, y: 0, w: 1440, h: 820 }, origin: { x: 0, y: 0 } };
-const SNAP_TARGET: SnapTarget = {
-  kind: "tile",
-  id: "edge:left:0.5",
-  edge: "left",
-  ratio: 0.5,
-  rect: { x: 0, y: 0, w: 596, h: 800 },
-  zoneRect: { x: 0, y: 0, w: 600, h: 800 },
-};
+const SEAM_PREVIEW = { splitId: "split:one", boundaryIndex: 0, deltaPx: 20 };
 const CONFLICT_DIAGNOSTIC: WindowManagerDiagnostic = {
   code: "layout_revision_conflict",
   message: "The layout changed before the command completed.",
@@ -51,19 +36,8 @@ function state(store: ReturnType<typeof createWindowManagerStore>) {
   return store.getSnapshot().context;
 }
 
-function beginGesture(store: ReturnType<typeof createWindowManagerStore>): void {
-  store.trigger.gestureBegan({
-    pointerId: 4,
-    point: { x: 420, y: 180 },
-    workArea: WORK_AREA.rect,
-    layoutRevision: 17,
-    source: { windowId: "window:tasks", nodeId: null, groupId: null, moveMode: "window" },
-  });
-}
-
 function resetWindowManagerStoreSingleton(): void {
   windowManagerStore.trigger.bindingUnbound();
-  windowManagerStore.trigger.gestureCleared();
   windowManagerStore.trigger.seamPreviewCleared();
 }
 
@@ -95,7 +69,7 @@ describe("window manager store", () => {
         mode: "slide",
       },
     });
-    beginGesture(store);
+    store.trigger.seamPreviewSet({ preview: SEAM_PREVIEW });
     expect(
       beginWindowManagerCommand(store, {
         id: "command:one",
@@ -122,8 +96,7 @@ describe("window manager store", () => {
     expect(selectWindowManagerOverlay(state(store))).toBeNull();
     expect(selectDesktopOverviewSegmentRequest(state(store))).toBeNull();
     expect(selectDesktopTransitionIntent(state(store))).toBeNull();
-    expect(state(store).placementCycles).toEqual({});
-    expect(selectWindowManagerGesture(state(store))).toBeNull();
+    expect(state(store).seamPreview).toBeNull();
     expect(selectPendingWindowManagerCommand(state(store))).toBeNull();
     expect(selectWindowManagerConflict(state(store))).toBeNull();
     expect(selectWindowManagerDiagnostic(state(store))).toBeNull();
@@ -182,6 +155,40 @@ describe("window manager store", () => {
     });
     expect(selectWindowManagerConnectionStatus(state(store))).toBe("idle");
     expect(selectWindowManagerOverlay(state(store))).toBeNull();
+  });
+
+  it("Should open the overview on a desktop menu action and drop it with the overview", () => {
+    const store = createWindowManagerStore();
+    store.trigger.overviewSegmentRequested({
+      request: { direction: "later", hiddenDesktopIds: ["desktop:six"], anchorDesktopId: "a" },
+    });
+
+    store.trigger.overviewDesktopActionRequested({
+      request: { desktopId: "desktop:build", action: "close" },
+    });
+    expect(selectWindowManagerOverlay(state(store))).toEqual({ kind: "desktops-overview" });
+    expect(selectDesktopOverviewDesktopAction(state(store))).toEqual({
+      desktopId: "desktop:build",
+      action: "close",
+    });
+    // One entry reason at a time: the action replaces the overflow request and the reverse.
+    expect(selectDesktopOverviewSegmentRequest(state(store))).toBeNull();
+
+    // The card applied it: the overview stays open and the action is gone, so a remount of that
+    // card does not apply it again.
+    store.trigger.overviewDesktopActionConsumed();
+    expect(selectWindowManagerOverlay(state(store))).toEqual({ kind: "desktops-overview" });
+    expect(selectDesktopOverviewDesktopAction(state(store))).toBeNull();
+
+    store.trigger.overlayClosed();
+    expect(selectWindowManagerOverlay(state(store))).toBeNull();
+    expect(selectDesktopOverviewDesktopAction(state(store))).toBeNull();
+
+    store.trigger.overviewDesktopActionRequested({
+      request: { desktopId: "desktop:build", action: "rename" },
+    });
+    store.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } });
+    expect(selectDesktopOverviewDesktopAction(state(store))).toBeNull();
   });
 
   it("Should keep one exclusive overlay and scope an overflow request to the overview", () => {
@@ -354,93 +361,6 @@ describe("window manager store", () => {
     expect(selectDesktopTransitionIntent(state(store))).toBeNull();
   });
 
-  it("Should cycle placements per window and reset on side or structural target changes", () => {
-    const store = createWindowManagerStore();
-
-    expect(advanceWindowManagerPlacementCycle(store, "window:tasks", "left")).toBe(0);
-    expect(advanceWindowManagerPlacementCycle(store, "window:tasks", "left")).toBe(1);
-    expect(advanceWindowManagerPlacementCycle(store, "window:agents", "left")).toBe(0);
-    expect(advanceWindowManagerPlacementCycle(store, "window:tasks", "right")).toBe(0);
-
-    store.trigger.placementTargetTracked({ windowId: "window:tasks", edge: "top" });
-    expect(advanceWindowManagerPlacementCycle(store, "window:tasks", "top")).toBe(1);
-
-    store.trigger.placementTargetTracked({ windowId: "window:tasks", edge: null });
-    expect(advanceWindowManagerPlacementCycle(store, "window:tasks", "top")).toBe(0);
-  });
-
-  it("Should capture a gesture revision and clear its preview on explicit cancellation", () => {
-    const store = createWindowManagerStore();
-    beginGesture(store);
-
-    const previewTarget: SnapTarget = { ...SNAP_TARGET, rect: { ...SNAP_TARGET.rect } };
-    store.trigger.gesturePreviewed({
-      point: { x: 1, y: 240 },
-      preview: previewTarget,
-      currentWorkArea: WORK_AREA.rect,
-    });
-    previewTarget.rect.x = 500;
-
-    expect(selectWindowManagerGesturePreview(state(store))).toEqual(SNAP_TARGET);
-    expect(selectWindowManagerGesture(state(store))).toMatchObject({
-      status: "active",
-      layoutRevision: 17,
-      currentPoint: { x: 1, y: 240 },
-    });
-
-    store.trigger.gestureCancelled({ reason: "escape", point: { x: 4, y: 245 } });
-    expect(selectWindowManagerGesturePreview(state(store))).toBeNull();
-    expect(selectWindowManagerGesture(state(store))).toMatchObject({
-      status: "cancelled",
-      reason: "escape",
-      finalPoint: { x: 4, y: 245 },
-      layoutRevision: 17,
-    });
-  });
-
-  it("Should report gesture dragging only after the pointer leaves the press point", () => {
-    const store = createWindowManagerStore();
-    beginGesture(store);
-
-    expect(selectWindowManagerGestureDragging(state(store), "window:tasks")).toBe(false);
-
-    store.trigger.gesturePreviewed({
-      point: { x: 421, y: 180 },
-      preview: null,
-      currentWorkArea: WORK_AREA.rect,
-    });
-    expect(selectWindowManagerGestureDragging(state(store), "window:tasks")).toBe(true);
-    expect(selectWindowManagerGestureDragging(state(store), "window:other")).toBe(false);
-
-    store.trigger.gestureCancelled({ reason: "escape" });
-    expect(selectWindowManagerGestureDragging(state(store), "window:tasks")).toBe(false);
-  });
-
-  it("Should finish through the pure gesture decision without persisting the session", () => {
-    const store = createWindowManagerStore();
-    beginGesture(store);
-    store.trigger.gesturePreviewed({
-      point: { x: 2, y: 300 },
-      preview: SNAP_TARGET,
-      currentWorkArea: WORK_AREA.rect,
-    });
-
-    const decision = finishWindowManagerGesture(store, {
-      finalPoint: { x: 1, y: 301 },
-      finalTarget: SNAP_TARGET,
-      currentRevision: 17,
-      currentWorkArea: WORK_AREA.rect,
-      clientValid: true,
-    });
-
-    expect(decision).toMatchObject({
-      kind: "commit",
-      command: { expectedRevision: 17, finalPoint: { x: 1, y: 301 } },
-    });
-    expect(selectWindowManagerGesture(state(store))).toBeNull();
-    expect(selectWindowManagerGesture(state(createWindowManagerStore()))).toBeNull();
-  });
-
   it("Should serialize pending commands and record conflicts only for the active command", () => {
     const store = createWindowManagerStore();
     expect(
@@ -520,76 +440,22 @@ describe("window manager store", () => {
     expect(selectWindowManagerDiagnostic(state(store))).toBeNull();
   });
 
-  it("Should reject an old-binding completion after a new binding starts a command", () => {
+  it("Should keep the state identity when a seam preview repeats and clear it once", () => {
     const store = createWindowManagerStore();
-    const alpha = {
-      workspaceId: "workspace:alpha",
-      profileId: "marketing",
-      clientId: "client:one",
-    };
-    const beta = { workspaceId: "workspace:beta", profileId: "marketing", clientId: "client:two" };
-    store.trigger.bindingBound({ binding: alpha });
-    expect(
-      beginWindowManagerCommand(store, {
-        id: "command:alpha",
-        kind: "window.move",
-        expectedRevision: 17,
-      })
-    ).toBe(true);
-    store.trigger.bindingBound({ binding: beta });
-    expect(
-      beginWindowManagerCommand(store, {
-        id: "command:beta",
-        kind: "window.move",
-        expectedRevision: 18,
-      })
-    ).toBe(true);
+    store.trigger.seamPreviewSet({ preview: SEAM_PREVIEW });
+    const before = store.getSnapshot();
 
-    store.trigger.commandCompleted({ commandId: "command:beta", binding: alpha });
+    store.trigger.seamPreviewSet({ preview: { ...SEAM_PREVIEW } });
+    expect(store.getSnapshot()).toBe(before);
+    expect(state(store).seamPreview).toEqual(SEAM_PREVIEW);
 
-    expect(selectPendingWindowManagerCommand(state(store))).toMatchObject({ id: "command:beta" });
-    store.trigger.commandCompleted({ commandId: "command:beta", binding: beta });
-    expect(selectPendingWindowManagerCommand(state(store))).toBeNull();
-  });
+    store.trigger.seamPreviewSet({ preview: { ...SEAM_PREVIEW, deltaPx: 32 } });
+    expect(state(store).seamPreview).toEqual({ ...SEAM_PREVIEW, deltaPx: 32 });
 
-  it("Should not rerender an unrelated gesture selector for seam-preview updates", () => {
-    let renders = 0;
-    const hook = renderHook(() => {
-      renders += 1;
-      return useWindowManagerGestureActive("window:tasks");
-    });
-    const initialRenders = renders;
-
-    act(() => {
-      windowManagerStore.trigger.seamPreviewSet({
-        preview: { kind: "split", splitId: "split:one", boundaryIndex: 0, deltaPx: 20 },
-      });
-    });
-
-    expect(hook.result.current).toBe(false);
-    expect(renders).toBe(initialRenders);
-  });
-
-  it("Should update only the dragged-window selector when gesture activity changes", () => {
-    const dragged = renderHook(() => useWindowManagerGestureActive("window:tasks"));
-    const unrelated = renderHook(() => useWindowManagerGestureActive("window:agents"));
-
-    act(() => {
-      windowManagerStore.trigger.gestureBegan({
-        pointerId: 4,
-        point: { x: 420, y: 180 },
-        workArea: WORK_AREA.rect,
-        layoutRevision: 17,
-        source: { windowId: "window:tasks", nodeId: null, groupId: null, moveMode: "window" },
-      });
-      windowManagerStore.trigger.gesturePreviewed({
-        point: { x: 2, y: 300 },
-        preview: SNAP_TARGET,
-        currentWorkArea: WORK_AREA.rect,
-      });
-    });
-
-    expect(dragged.result.current).toBe(true);
-    expect(unrelated.result.current).toBe(false);
+    store.trigger.seamPreviewCleared();
+    const cleared = store.getSnapshot();
+    expect(state(store).seamPreview).toBeNull();
+    store.trigger.seamPreviewCleared();
+    expect(store.getSnapshot()).toBe(cleared);
   });
 });

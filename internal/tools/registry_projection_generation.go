@@ -14,7 +14,7 @@ type ProjectionGenerationProvider interface {
 // ProjectionGenerationResolver reports authoritative non-provider projection state.
 type ProjectionGenerationResolver func(context.Context, Scope) (generation string, known bool)
 
-// WithProjectionInvalidator invalidates cached projections after any dispatch attempt.
+// WithProjectionInvalidator invalidates cached projections after a potentially mutating backend invocation.
 func WithProjectionInvalidator(invalidate func()) RegistryOption {
 	return func(registry *RuntimeRegistry) {
 		registry.projectionInvalidator = invalidate
@@ -55,4 +55,18 @@ func (r *RuntimeRegistry) ProjectionGeneration(ctx context.Context, scope Scope)
 
 func appendProjectionGenerationPart(dst *strings.Builder, name string, generation string) {
 	fmt.Fprintf(dst, "%d:%s%d:%s", len(name), name, len(generation), generation)
+}
+
+// BootstrapProjectionGeneration is authoritative only when bootstrap excludes no provider.
+// A complete catalog generation cannot validate a native-only bootstrap snapshot.
+func (r *RuntimeRegistry) BootstrapProjectionGeneration(ctx context.Context, scope Scope) (string, bool) {
+	if r == nil {
+		return "", false
+	}
+	for _, provider := range r.providers {
+		if !includeInitialProvider(provider) {
+			return "", false
+		}
+	}
+	return r.ProjectionGeneration(ctx, scope)
 }

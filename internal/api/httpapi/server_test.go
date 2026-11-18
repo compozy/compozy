@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -301,19 +302,35 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("http.NewRequestWithContext() error = %v", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("http.DefaultClient.Do() error = %v", err)
+	// Template discovery must be safe alongside Gin's first-request route-tree preparation.
+	type requestResult struct {
+		statusCode int
+		err        error
 	}
-	defer func() {
-		if resp.Body != nil {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				t.Errorf("response body Close() error = %v", closeErr)
-			}
+	responses := make(chan requestResult, 1)
+	go func() {
+		response, requestErr := http.DefaultClient.Do(req)
+		if requestErr != nil {
+			responses <- requestResult{err: requestErr}
+			return
 		}
+		closeErr := response.Body.Close()
+		responses <- requestResult{statusCode: response.StatusCode, err: closeErr}
 	}()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	templates := server.RouteTemplates()
+	result := <-responses
+	if result.err != nil {
+		t.Fatalf("status request or response body close error = %v", result.err)
+	}
+	if result.statusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d", result.statusCode, http.StatusOK)
+	}
+	if !slices.Contains(templates, "/api/status") {
+		t.Fatalf("RouteTemplates() = %v, want the mounted status route", templates)
+	}
+	templates[0] = "caller-mutated-template"
+	if slices.Contains(server.RouteTemplates(), templates[0]) {
+		t.Fatal("RouteTemplates() allowed a caller to change the telemetry route catalog")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)

@@ -37,6 +37,16 @@ func (m *Manager) validateRuntimeModelAtAdmission(
 	if err != nil {
 		return err
 	}
+	admission := admissionRuntimeChange
+	if session != nil {
+		admission = runtimeChangeAdmission(
+			boundRoute(meta),
+			acceptedRoute{provider: providerID, model: selection.Model},
+		)
+	}
+	if err := requireEnabledRuntimeProvider(&workspace.Config, providerID, admission, m.logger); err != nil {
+		return err
+	}
 	provider, err := workspace.Config.ResolveProvider(providerID)
 	if err != nil {
 		return err
@@ -446,4 +456,19 @@ func providerLiveSourcePresent(model modelcatalog.Model, providerID string) bool
 		}
 	}
 	return false
+}
+
+// Provider negotiation refusals are retried only by a subsequent prompt request;
+// replacing a healthy process cannot grant an unavailable capability or account tier.
+func runtimeConfigurationRefused(err error, process *AgentProcess) bool {
+	if _, ok := errors.AsType[*acp.NegotiationError](err); !ok || isProcessDone(process) {
+		return false
+	}
+	if failure, ok := acp.FailureFromError(err, store.FailurePrompt); ok {
+		switch failure.Kind {
+		case store.FailureTransport, store.FailureProcess, store.FailureCanceled, store.FailureTimeout:
+			return false
+		}
+	}
+	return true
 }

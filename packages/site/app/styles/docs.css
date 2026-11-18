@@ -1,243 +1,54 @@
-/* Docs reading surface and masthead. API workbench overrides live in docs-api.css. */
-.site-doc-masthead {
-  margin-bottom: 0;
+/*
+ * Docs shell (`app/docs/layout.tsx`, ported from the approved `web/src/drafts/docs` draft).
+ * The draft reads on the neutral text ramp, as the marketing shell does; the warm D9 pins in
+ * global.css stay for everything outside these two shells. The drawer and the search palette
+ * portal to `body`, outside the shell, so their panels carry the class too.
+ */
+.site-docs {
+  --color-fg: #ececec;
+  --color-fg-strong: #ffffff;
+  --color-muted-foreground: #989898;
+  --color-subtle: #8e8e8e;
+  --color-faint: #8d8d8d;
 }
 
-.site-doc-masthead__context {
-  display: flex;
-  align-items: center;
-  gap: var(--site-doc-masthead-context-gap);
-  min-height: var(--site-doc-masthead-context-height);
-  flex-wrap: wrap;
+/* Quiet scrollbars for the side rails; the section tabs scroll without one. */
+.docs-rail {
+  scrollbar-width: thin;
+  scrollbar-color: var(--site-light-120) transparent;
 }
 
-.site-doc-masthead__crumbs {
-  display: flex;
-  align-items: center;
-  gap: var(--site-doc-masthead-crumb-gap);
-  min-width: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-badge);
-  line-height: var(--text-badge--line-height);
-  font-weight: 500;
-  letter-spacing: var(--site-doc-masthead-crumb-tracking);
-  text-transform: uppercase;
+.docs-tabs {
+  scrollbar-width: none;
 }
 
-.site-doc-masthead__product {
-  color: var(--color-brand);
+.docs-tabs::-webkit-scrollbar {
+  display: none;
 }
 
-.site-doc-masthead__crumb-sep {
-  width: var(--site-doc-masthead-crumb-rule-width);
-  height: var(--site-doc-hairline);
-  flex-shrink: 0;
-  background: var(--color-line-strong);
+/* Hash targets land below the fixed two-row docs header. */
+html:has(.docs-root) {
+  scroll-padding-top: 128px;
 }
 
-.site-doc-masthead__crumbs a {
-  color: var(--color-muted-foreground);
-  text-decoration: none;
-  transition: color var(--duration-base) var(--ease-out);
+.docs-count {
+  letter-spacing: normal;
 }
 
-.site-doc-masthead__crumbs a:hover {
-  color: var(--color-fg);
+/* Workflow steps and the section map number themselves. */
+.docs-steps {
+  counter-reset: docs-step;
 }
 
-.site-doc-masthead__leaf {
-  color: var(--color-fg);
+.docs-steps > li {
+  counter-increment: docs-step;
 }
 
-.site-doc-masthead__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--site-doc-masthead-action-gap);
-  margin-inline-start: auto;
+.docs-step-number::before {
+  content: counter(docs-step);
 }
 
-.site-doc-masthead__title {
-  margin-top: var(--site-doc-masthead-title-offset);
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-site-doc-title);
-  line-height: var(--site-doc-masthead-title-leading);
-  letter-spacing: var(--site-doc-masthead-title-tracking);
-  color: var(--color-fg);
-  overflow-wrap: break-word;
-}
-
-.site-doc-masthead__lead {
-  margin-top: var(--site-doc-masthead-lead-offset);
-  max-width: var(--site-doc-masthead-lead-width);
-  font-size: var(--text-site-doc-lead);
-  line-height: var(--text-site-doc-lead--line-height);
-  color: var(--color-muted-foreground);
-}
-
-.site-doc-masthead__meta {
-  display: flex;
-  align-items: center;
-  gap: var(--site-doc-masthead-meta-gap);
-  flex-wrap: wrap;
-  margin-top: var(--site-doc-masthead-meta-offset);
-  padding-top: var(--site-doc-masthead-meta-rule-gap);
-  border-top: var(--site-doc-hairline) solid var(--color-line);
-  font-size: var(--text-small-body);
-  line-height: var(--text-small-body--line-height);
-  color: var(--color-subtle);
-}
-
-.site-doc-masthead__meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--site-doc-inline-gap);
-}
-
-.site-doc-masthead__meta-icon {
-  width: var(--text-card-title);
-  height: var(--text-card-title);
-  opacity: var(--site-doc-meta-icon-opacity);
-}
-
-.site-doc-masthead__meta-item strong {
-  color: var(--color-muted-foreground);
-  font-weight: 500;
-}
-
-.site-doc-page-action {
-  height: var(--height-search);
-  gap: var(--site-doc-inline-gap);
-  padding-inline: var(--site-doc-action-padding-inline);
-  border-radius: var(--radius-md);
-  background: var(--color-canvas-soft);
-  font-size: var(--text-form-label);
-  font-weight: 500;
-  color: var(--color-muted-foreground);
-}
-
-.site-doc-page-action:hover:not(:disabled) {
-  color: var(--color-fg);
-  background: var(--color-elevated);
-  border-color: var(--color-line-strong);
-}
-
-.site-doc-page-action[data-copy-state="copied"] {
-  color: var(--color-success);
-  border-color: var(--site-doc-action-success-border);
-  background: var(--site-doc-action-success-background);
-}
-
-.site-doc-page-action[data-copy-state="failed"] {
-  color: var(--color-destructive);
-}
-
-.site-doc-page-action--icon {
-  width: var(--height-search);
-  padding-inline: 0;
-  justify-content: center;
-}
-
-.site-doc-page-action svg:not([class*="size-"]) {
-  width: var(--text-card-title);
-  height: var(--text-card-title);
-}
-
-.site-doc-body {
-  color: var(--color-muted-foreground);
-  font-size: var(--text-site-doc-prose);
-  line-height: var(--text-site-doc-prose--line-height);
-}
-
-.site-doc-body > :first-child {
-  margin-top: 0;
-}
-
-.site-doc-body h2 {
-  margin-top: var(--site-doc-section-offset);
-  padding-top: var(--site-doc-section-rule-gap);
-  border-top: var(--site-doc-hairline) solid var(--color-line);
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-site-doc-heading);
-  line-height: var(--site-doc-section-leading);
-  letter-spacing: var(--tracking-tight);
-  color: var(--color-fg);
-}
-
-.site-doc-body h3 {
-  margin-top: var(--site-doc-subsection-offset);
-  font-size: var(--text-site-doc-subheading);
-  font-weight: 600;
-  line-height: var(--text-site-doc-subheading--line-height);
-  letter-spacing: var(--tracking-tight);
-  color: var(--color-fg);
-}
-
-.site-doc-body :is(h1, h2, h3, h4, h5, h6) a.peer {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.site-doc-body p,
-.site-doc-body ul,
-.site-doc-body ol,
-.site-doc-body blockquote {
-  max-width: var(--site-doc-prose-width);
-}
-
-.site-doc-body ul,
-.site-doc-body ol {
-  padding-inline-start: var(--site-doc-list-indent);
-}
-
-.site-doc-body li::marker {
-  color: var(--color-brand);
-}
-
-.site-doc-body strong {
-  color: var(--color-fg);
-  font-weight: 600;
-}
-
-.site-doc-body :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {
-  border: var(--site-doc-hairline) solid var(--color-line);
-  border-radius: var(--radius-md);
-  background: var(--color-elevated);
-  padding-inline: var(--site-doc-code-padding-inline);
-  padding-block: var(--site-doc-code-padding-block);
-  font-size: var(--text-inline-code);
-  color: var(--color-fg);
-}
-
-.site-doc-body hr,
-.site-doc-body table {
-  border-color: var(--color-line);
-}
-
-.site-doc-body :is(p, li, td, th, blockquote) a {
-  color: var(--color-fg);
-  text-decoration: underline;
-  text-decoration-color: var(--color-line-strong);
-  text-underline-offset: var(--site-doc-link-underline-offset);
-}
-
-.site-doc-body :is(p, li, td, th, blockquote) a:hover {
-  color: var(--color-brand);
-}
-
-.site-doc-body :is(h1, h2, h3, h4, h5, h6) a {
-  color: inherit;
-  text-decoration: none;
-}
-
-@media (max-width: 768px) {
-  .site-doc-body {
-    font-size: var(--text-site-doc-prose-compact);
-    line-height: var(--text-site-doc-prose-compact--line-height);
-  }
-
-  .site-doc-body h2 {
-    margin-top: var(--site-doc-section-offset-compact);
-  }
+/* Shiki keeps its dual-theme tokens; the frame owns the surface. */
+.docs-prose pre.shiki {
+  background: transparent;
 }

@@ -56,6 +56,15 @@ func (m *Manager) addSubscription(
 	return hub.add(ctx, fence), nil
 }
 
+func (m *Manager) publishSnapshot(snapshot Snapshot) {
+	m.mu.Lock()
+	hub := m.hubs[snapshot.WorkspaceID]
+	m.mu.Unlock()
+	if hub != nil {
+		hub.publishSnapshot(snapshot)
+	}
+}
+
 func (m *Manager) publishEvent(event Event) {
 	m.mu.Lock()
 	hub := m.hubs[event.WorkspaceID]

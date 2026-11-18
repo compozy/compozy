@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -47,16 +48,26 @@ func (n *daemonNativeTools) taskList(
 	core.ApplyTaskLoopCatalogFilters(&query, input.IncludeLoop, input.LoopRunID)
 	query.ReadScope = actor.ReadScope
 	if strings.TrimSpace(scope.WorkspaceID) != "" {
-		workspaceID := nativeCallerWorkspaceInput(input.WorkspaceID, scope)
-		query.Scope = taskpkg.CatalogScopeWorkspace
-		query.WorkspaceID = workspaceID
+		if query.Scope == "" {
+			query.Scope = taskpkg.CatalogScopeWorkspace
+		}
+		if query.Scope.Normalize() == taskpkg.CatalogScopeGlobal {
+			query.WorkspaceID = ""
+		} else {
+			query.WorkspaceID = nativeCallerWorkspaceInput(input.WorkspaceID, scope)
+		}
 	}
 	page, err := n.deps.Tasks.ListTaskCatalog(ctx, query, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeTaskToolError(req.ToolID, err)
 	}
 	response := core.TaskCatalogResponseFromPage(page)
-	return structuredResult(response, fmt.Sprintf("%d of %d tasks", len(response.Tasks), response.Page.Total))
+	return (resultViews[contract.TasksResponse]{
+		Compact: viewTaskList,
+		Preview: func(contract.TasksResponse) string {
+			return fmt.Sprintf("%d of %d tasks", len(response.Tasks), response.Page.Total)
+		},
+	}).result(req.View, response)
 }
 
 func (i taskListInput) query() taskpkg.CatalogQuery {

@@ -8,13 +8,14 @@ import (
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 var deprecatedPaletteIDs sync.Map
 
-// Public aliases are removed in v0.5.0.
+// Public aliases remain available through their named removal release.
 func (h *BaseHandlers) canonicalPaletteCommandID(ctx context.Context, raw string) cmdpalette.CommandID {
-	return resolvePaletteCommandID(ctx, h.Logger, &deprecatedPaletteIDs, raw)
+	return resolvePaletteCommandID(ctx, h.Logger, nil, raw)
 }
 
 func resolvePaletteCommandID(
@@ -26,12 +27,21 @@ func resolvePaletteCommandID(
 	id := cmdpalette.CommandID(strings.TrimSpace(raw))
 	replacement, retired := corecmds.RetiredCommandID(id)
 	if retired {
+		if corecmds.RetiredCommandRemovalRelease(id) == "v0.8.0" {
+			windowmanager.WarnSurfaceDeprecation(
+				ctx, logger, windowmanager.SurfaceDeprecation(string(id)), "api", warnedIDs,
+			)
+			return replacement
+		}
+		if warnedIDs == nil {
+			warnedIDs = &deprecatedPaletteIDs
+		}
 		if _, warned := warnedIDs.LoadOrStore(id, struct{}{}); !warned {
 			if logger == nil {
 				logger = slog.Default()
 			}
 			logger.WarnContext(ctx, "deprecated command id", "event", "cmdpalette.command_id_deprecated",
-				"id", id, "replacement", replacement, "removal", "v0.5.0")
+				"id", id, "replacement", replacement, "removal", corecmds.RetiredCommandRemovalRelease(id))
 		}
 	}
 	return replacement

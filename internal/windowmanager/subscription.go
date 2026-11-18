@@ -111,6 +111,10 @@ func (h *subscriptionHub) remove(subscription *eventSubscription) {
 	}
 }
 
+func (h *subscriptionHub) publishSnapshot(snapshot Snapshot) {
+	h.publish(SubscriptionUpdate{Snapshot: &snapshot}, func(*eventSubscription) bool { return true })
+}
+
 func (h *subscriptionHub) publishEvent(event Event) {
 	update := SubscriptionUpdate{Event: &event}
 	h.publish(update, func(*eventSubscription) bool { return true })

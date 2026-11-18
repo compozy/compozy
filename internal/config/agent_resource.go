@@ -30,32 +30,33 @@ func validateAgentResourceSpec(
 	}
 
 	normalized := AgentDef{
-		WorkspaceAccess: spec.WorkspaceAccess,
-		SessionApproval: spec.SessionApproval,
-		PermissionRules: append([]PermissionRule(nil), spec.PermissionRules...),
-		DisplayName:     spec.DisplayName,
-		Description:     spec.Description,
-		Kind:            spec.Kind,
-		Appearance:      CloneAgentAppearance(spec.Appearance),
-		Name:            strings.TrimSpace(spec.Name),
-		Provider:        strings.TrimSpace(spec.Provider),
-		Command:         strings.TrimSpace(spec.Command),
-		SessionEnv:      MergeSessionEnv(nil, spec.SessionEnv),
-		Model:           strings.TrimSpace(spec.Model),
-		ReasoningEffort: strings.TrimSpace(spec.ReasoningEffort),
-		Tools:           normalizeAgentToolPatterns(spec.Tools),
-		Toolsets:        normalizeAgentToolsetRefs(spec.Toolsets),
-		DenyTools:       normalizeAgentToolPatterns(spec.DenyTools),
-		Permissions:     strings.TrimSpace(spec.Permissions),
-		Skills:          normalizeAgentSkillsConfig(spec.Skills),
-		CategoryPath:    normalizeAgentCategoryPath(spec.CategoryPath),
-		MCPServers:      cloneMCPServers(spec.MCPServers),
-		Hooks:           cloneHookDecls(spec.Hooks),
-		FallbackChain:   normalizeRoleFallbacks(spec.FallbackChain),
-		Prompt:          strings.TrimSpace(spec.Prompt),
+		WorkspaceAccess:   spec.WorkspaceAccess,
+		SessionApproval:   spec.SessionApproval,
+		PermissionRules:   append([]PermissionRule(nil), spec.PermissionRules...),
+		DisplayName:       spec.DisplayName,
+		Description:       spec.Description,
+		Kind:              spec.Kind,
+		Appearance:        CloneAgentAppearance(spec.Appearance),
+		Name:              strings.TrimSpace(spec.Name),
+		Provider:          strings.TrimSpace(spec.Provider),
+		Command:           strings.TrimSpace(spec.Command),
+		SessionEnv:        MergeSessionEnv(nil, spec.SessionEnv),
+		AutoCompactWindow: cloneAutoCompactWindow(spec.AutoCompactWindow),
+		Model:             strings.TrimSpace(spec.Model),
+		ReasoningEffort:   strings.TrimSpace(spec.ReasoningEffort),
+		Tools:             normalizeAgentToolPatterns(spec.Tools),
+		Toolsets:          normalizeAgentToolsetRefs(spec.Toolsets),
+		DenyTools:         normalizeAgentToolPatterns(spec.DenyTools),
+		Permissions:       strings.TrimSpace(spec.Permissions),
+		Skills:            normalizeAgentSkillsConfig(spec.Skills),
+		CategoryPath:      normalizeAgentCategoryPath(spec.CategoryPath),
+		MCPServers:        cloneMCPServers(spec.MCPServers),
+		Hooks:             cloneHookDecls(spec.Hooks),
+		FallbackChain:     normalizeRoleFallbacks(spec.FallbackChain),
+		Prompt:            strings.TrimSpace(spec.Prompt),
 	}
-	// Records written by v0.5.0 may carry stays_on. Removal of the alias: v0.5.2.
-	normalized.Kind, _ = CanonicalAgentKind(normalized.Kind)
+	normalized.SetLeanEnvironment(spec.LeanEnvironmentValue())
+	normalized.SetAccepts(spec.AcceptsValue())
 	normalized.SetSpeed(spec.SpeedValue())
 	normalized.SetACPOptions(spec.ACPOptionsValue())
 	if spec.Capabilities != nil {

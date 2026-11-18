@@ -10,6 +10,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/githubauth"
 )
 
 const (
@@ -189,6 +190,7 @@ type Manager struct {
 	getenv            func(string) string
 	now               func() time.Time
 	httpClient        *http.Client
+	githubCredentials *githubauth.Resolver
 	runtimeOS         string
 	runtimeArch       string
 	lookPath          func(string) (string, error)

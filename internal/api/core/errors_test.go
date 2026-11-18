@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -98,6 +100,11 @@ func TestTaskErrorHelpers(t *testing.T) {
 		want int
 	}{
 		{name: "nil", err: nil, want: http.StatusOK},
+		{
+			name: "Should map boot admission to a retryable service status",
+			err:  admission.ErrStarting,
+			want: http.StatusServiceUnavailable,
+		},
 		{name: "invalid scope", err: taskpkg.ErrInvalidScopeBinding, want: http.StatusBadRequest},
 		{name: "immutable field", err: taskpkg.ErrImmutableField, want: http.StatusBadRequest},
 		{name: "run missing", err: taskpkg.ErrTaskRunNotFound, want: http.StatusNotFound},
@@ -197,6 +204,14 @@ func TestLoopErrorHelpers(t *testing.T) {
 			name: "Should preserve unavailable actor lookup as service unavailable",
 			err:  agentidentity.ErrIdentityLookupUnavailable,
 			want: http.StatusServiceUnavailable,
+		},
+		{
+			name: "Should map a runtime validation caused by a disabled provider to conflict",
+			err: looppkg.NewRuntimeValidationCauseError(
+				&compozyconfig.ProviderDisabledError{Provider: "gemini"},
+				looppkg.RuntimeValidationItem{Field: "provider", Value: "gemini", Reason: "provider_disabled"},
+			),
+			want: http.StatusConflict,
 		},
 		{
 			name: "Should map unknown Loop errors to internal server error",
@@ -384,6 +399,7 @@ func TestErrorPayloadForError(t *testing.T) {
 			{store.ErrSessionNotFound, "session_not_found", http.StatusNotFound},
 			{store.ErrSessionInputQueueFull, "queue_full", http.StatusConflict},
 			{store.ErrSessionInputMutationConflict, "send_conflict", http.StatusConflict},
+			{&compozyconfig.ProviderDisabledError{Provider: "gemini"}, "provider_disabled", http.StatusConflict},
 		} {
 			err := fmt.Errorf("send refused: %w", tc.err)
 			payload := ErrorPayloadForError(err)
@@ -396,6 +412,22 @@ func TestErrorPayloadForError(t *testing.T) {
 					tc.code,
 					tc.status,
 				)
+			}
+		}
+	})
+
+	t.Run("Should title provider enabled diagnostics after the provider, not a role", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			err   error
+			title string
+		}{
+			{&compozyconfig.ProviderDisabledError{Provider: "gemini"}, "Provider is disabled"},
+			{&compozyconfig.ProviderDefaultDisableError{Provider: "codex"}, "Default provider can't be disabled"},
+		} {
+			payload := ErrorPayloadForError(fmt.Errorf("start refused: %w", tc.err))
+			if payload.Diagnostic == nil || payload.Diagnostic.Title != tc.title {
+				t.Fatalf("diagnostic for %v = %#v, want title %q", tc.err, payload.Diagnostic, tc.title)
 			}
 		}
 	})
@@ -481,6 +513,90 @@ func TestErrorPayloadForError(t *testing.T) {
 			if strings.Contains(string(raw), leaked) {
 				t.Fatalf("payload = %s leaked %q", raw, leaked)
 			}
+		}
+	})
+}
+
+// Invariant: reload startup failure refuses admission with retry identity on HTTP and native surfaces.
+// Owner: core error mapping; canonical suite: core errors (UT-024b).
+func TestMCPReloadAdmissionErrorContract(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve the derive admission code during boot", func(t *testing.T) {
+		t.Parallel()
+		failure := deriveFailure(admission.ErrStarting, "")
+		payload := DeriveErrorPayload(failure)
+		if payload.Code != deriveCodeAdmissionUnavailable || !payload.Retryable {
+			t.Fatalf("derive boot refusal = %+v", payload)
+		}
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		handlers := &BaseHandlers{MaskInternalErrors: true}
+		handlers.respondDeriveError(ctx, http.StatusInternalServerError, failure)
+		if recorder.Code != http.StatusServiceUnavailable {
+			t.Fatalf("derive boot HTTP status = %d", recorder.Code)
+		}
+		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Code != deriveCodeAdmissionUnavailable || !payload.Retryable {
+			t.Fatalf("derive boot HTTP payload = %+v", payload)
+		}
+	})
+	t.Run("Should expose boot admission as retryable across HTTP and native tools", func(t *testing.T) {
+		t.Parallel()
+		failure := fmt.Errorf("prompt admission: %w", admission.ErrStarting)
+		if got := StatusForSessionError(failure); got != http.StatusServiceUnavailable {
+			t.Fatalf("status = %d, want 503", got)
+		}
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		RespondError(ctx, http.StatusInternalServerError, failure, true)
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if recorder.Code != http.StatusServiceUnavailable || payload.Code != admission.StartingCode ||
+			!payload.Retryable || payload.Error != admission.ErrStarting.Error() {
+			t.Fatalf("HTTP status=%d payload=%+v", recorder.Code, payload)
+		}
+		native := NativeToolError("compozy__session_prompt", failure)
+		result := ToolErrorResponseForError(native, StatusForToolError(native), true)
+		if string(result.Error.Code) != admission.StartingCode || !result.Error.Retryable ||
+			StatusForToolError(native) != http.StatusServiceUnavailable {
+			t.Fatalf("native boot error = %+v, %v", result, native)
+		}
+	})
+	t.Run("Should expose an authoritative retryable conflict without masking the provider cause", func(t *testing.T) {
+		t.Parallel()
+		failure := &session.MCPReloadError{
+			Provider:        "codex",
+			ClientMessageID: "message-reload",
+			Cause:           errors.New("provider launch failed"),
+		}
+		wrapped := fmt.Errorf("prepare runtime: %w", failure)
+		if StatusForSessionError(wrapped) != http.StatusConflict {
+			t.Fatal("reload failure mapped to ambiguous server error")
+		}
+		normalized := normalizeErrorStatus(http.StatusInternalServerError,
+			&session.MCPReloadError{Provider: "codex", Cause: compozyconfig.ErrWorkspaceConfigInvalid}, true)
+		if normalized.status != http.StatusConflict {
+			t.Fatal("wrapped preparation cause overrode authoritative reload refusal")
+		}
+		payload := ErrorPayloadForError(wrapped)
+		if payload.Code != session.MCPReloadFailedCode || !payload.Retryable ||
+			payload.ClientMessageID != failure.ClientMessageID ||
+			payload.ProviderError != failure.Cause.Error() {
+			t.Fatalf("HTTP payload = %+v", payload)
+		}
+		native := NativeToolError("compozy__session_prompt", wrapped)
+		if StatusForToolError(native) != http.StatusConflict {
+			t.Fatal("native reload failure lost HTTP status")
+		}
+		result := ToolErrorResponseForError(native, http.StatusConflict, true)
+		if string(result.Error.Code) != payload.Code || !result.Error.Retryable ||
+			result.Error.ClientMessageID != payload.ClientMessageID ||
+			result.Error.ProviderError != payload.ProviderError {
+			t.Fatalf("native payload = %+v", result)
 		}
 	})
 }

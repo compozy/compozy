@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -134,7 +135,37 @@ func shouldRetry(cfg RetryConfig, run *Run, attempt int, dispatchErr error) bool
 	if cfg.Strategy != RetryStrategyBackoff {
 		return false
 	}
+	if startup, ok := errors.AsType[*sessionStartupError](dispatchErr); ok && !retryableSessionStartup(startup.err) {
+		return false
+	}
 	return attempt <= cfg.MaxRetries
+}
+
+type sessionStartupError struct{ err error }
+
+func (e *sessionStartupError) Error() string { return e.err.Error() }
+
+func (e *sessionStartupError) Unwrap() error { return e.err }
+
+func retryableSessionStartup(err error) bool {
+	if errors.Is(err, session.ErrRecoveryPersistence) ||
+		errors.Is(err, context.Canceled) ||
+		acp.IsAuthRequiredError(err) {
+		return false
+	}
+	if _, accepted := acp.AcceptedSessionID(err); accepted {
+		return false
+	}
+	failure, ok := errors.AsType[*acp.FailureError](err)
+	if !ok || failure == nil {
+		return false
+	}
+	switch failure.Kind {
+	case store.FailureStartup, store.FailureHandshake, store.FailureProcess, store.FailureProtocol:
+		return true
+	default:
+		return false
+	}
 }
 
 func retryDelay(cfg RetryConfig, attempt int) (time.Duration, error) {

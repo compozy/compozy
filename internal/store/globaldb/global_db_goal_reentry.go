@@ -197,7 +197,20 @@ func (g *GoalRepo) applyGoalReentry(
 	grantID int64,
 ) (looppkg.GoalReactivationResult, error) {
 	turnLimit := current.state.TurnLimit + req.TurnIncrement
-	if err := updateGoalPromptOwnerForReentry(ctx, exec, req, current, successor.ID, nextEpoch, g.now()); err != nil {
+	clearOperation, err := goalReentryClearsOperation(ctx, exec, current)
+	if err != nil {
+		return looppkg.GoalReactivationResult{}, err
+	}
+	if err := updateGoalPromptOwnerForReentry(
+		ctx,
+		exec,
+		req,
+		current,
+		successor.ID,
+		nextEpoch,
+		clearOperation,
+		g.now(),
+	); err != nil {
 		return looppkg.GoalReactivationResult{}, err
 	}
 	if err := updateGoalCheckpointForReentry(
@@ -209,6 +222,7 @@ func (g *GoalRepo) applyGoalReentry(
 		nextEpoch,
 		grantID,
 		turnLimit,
+		clearOperation,
 		g.now(),
 	); err != nil {
 		return looppkg.GoalReactivationResult{}, err
@@ -313,9 +327,9 @@ func updateGoalCheckpointForReentry(
 	nextEpoch int64,
 	grantID int64,
 	turnLimit int,
+	clearOperation bool,
 	now time.Time,
 ) error {
-	clearOperation := req.State.Cause == looppkg.ReasonCodeGoalRecoveryAmbiguous
 	phase, err := goalCheckpointPhaseForReentry(ctx, exec, current, clearOperation)
 	if err != nil {
 		return err
@@ -378,11 +392,12 @@ func updateGoalPromptOwnerForReentry(
 	current goalReentryRow,
 	successorRunID string,
 	nextEpoch int64,
+	clearOperation bool,
 	now time.Time,
 ) error {
 	if strings.TrimSpace(current.state.QueueEntryID) == "" ||
 		strings.TrimSpace(current.state.PromptID) == "" ||
-		req.State.Cause == looppkg.ReasonCodeGoalRecoveryAmbiguous {
+		clearOperation {
 		return nil
 	}
 	clearControlFence := req.Kind == looppkg.GoalGrantPlainResume

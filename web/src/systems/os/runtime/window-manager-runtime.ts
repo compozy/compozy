@@ -1,11 +1,14 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { frameForWindow, zoomedFrame } from "../lib/group-projection";
-import { arrangeLayoutCommand, restoreWindowCommand } from "../lib/window-manager-command-builders";
+import { focusWindowCommand, openWindowCommand } from "../lib/window-manager-command-builders";
 import { mruWindowInstance, randomOsWindowId } from "../lib/window-instance-lookup";
-import { arrangePeerWindows, directionalFocusTarget } from "../lib/window-manager-navigation";
+import {
+  activeTabCandidates,
+  directionalFocusTarget,
+  directionalSwapTarget,
+  type ShownWindow,
+} from "../lib/window-manager-navigation";
 import type {
-  OsArrangePreset,
   OsDesktopBounds,
   OsDesktopRuntime,
   OsDesktopRuntimeStore,
@@ -14,20 +17,31 @@ import type {
   WindowManagerCommandOutcome,
   WindowManagerOpenOutcome,
 } from "../lib/os-types";
-import type { GroupFrameEditInput } from "../lib/frame-seams";
-import type { FocusDirection, NormalizedRect } from "../lib/window-manager-types";
+import type {
+  FocusDirection,
+  FocusWindowOptions,
+  WindowManagerCommandId,
+  WindowManagerCommandInput,
+} from "../lib/window-manager-types";
 import { sameOsWindowRoute } from "../lib/window-manager-route";
-import { buildOsDesktopRuntimeView, normalizedRectToWire } from "../lib/window-manager-view";
+import { buildOsDesktopRuntimeView } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
 import type { WindowManagerRuntimeBinding } from "./window-manager-runtime-core";
-import { randomWindowManagerId } from "./window-manager-runtime-helpers";
 import { WindowManagerDesktopRuntime } from "./window-manager-desktop-commands";
+import { PendingSwaps } from "./window-manager-pending-swaps";
 import { WindowManagerSemanticOpenCoordinator } from "./window-manager-semantic-open";
-import { openWindowCommand } from "./window-manager-tab-commands";
 
-function rejectedCommandOutcome(): WindowManagerCommandOutcome {
-  return { accepted: false, completion: Promise.resolve(false) };
-}
+/** Commands that never move a window within the shown tab: the pending-swap overlay survives. */
+const LAYOUT_PRESERVING_COMMANDS: ReadonlySet<WindowManagerCommandId> = new Set([
+  "window.swap",
+  "window.focus",
+  "window.navigate",
+  "window.pin",
+  "window.tab.reorder",
+  "desktop.create",
+  "desktop.update",
+  "desktop.reorder",
+]);
 
 export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements OsDesktopRuntime {
   private readonly semanticOpens: WindowManagerSemanticOpenCoordinator;
@@ -58,24 +72,95 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     if (changed) this.semanticOpens.reset();
   }
 
-  focusDirection(direction: FocusDirection): void {
+  /**
+   * Moves focus between the windows on screen in the active tab, by projected geometry with this
+   * client's unanswered swaps applied, from the newest focus this client asked for. Returns the
+   * focus it dispatched, with its target window.
+   */
+  focusDirection(direction: FocusDirection): WindowManagerOpenOutcome | null {
     const config = this.view.windowManagerConfig;
-    const activeDesktopId = this.view.activeDesktopId;
-    if (config === null || activeDesktopId === null) return;
+    if (config === null) return null;
+    const candidates = this.directionalCandidates();
+    if (candidates.length === 0) return null;
+    const from = this.directionalFocusId();
     const target = directionalFocusTarget({
-      windows: Object.values(this.view.windows).filter(
-        window => window.desktopId === activeDesktopId
-      ),
-      focusedId: this.view.focusedId,
+      candidates,
+      focusedId: from,
       direction,
       wrap: config.focusWrap,
     });
-    if (target === null) return;
-    this.dispatch({
-      commandId: "window.focus",
-      payload: { window_id: target, direction: "" },
-      rebase: { windowId: target },
-    });
+    if (target === null || target === from) return null;
+    return {
+      windowId: target,
+      ...this.dispatch(focusWindowCommand(target, { replaceable: true })),
+    };
+  }
+
+  /**
+   * Trades the focused window's place with its on-screen neighbour on that side of the active tab,
+   * from the newest focus this client asked for. Never wraps; nothing on that side is a no-op. The
+   * moved window keeps focus: `window.swap` exchanges places and leaves focus alone. The swap is
+   * sent at once, in order with every other command; the neighbour is read from the layout with
+   * this client's unanswered swaps applied, so two quick presses move the window two places.
+   */
+  swapDirection(direction: FocusDirection): void {
+    const from = this.directionalFocusId();
+    const target = directionalSwapTarget(this.directionalCandidates(), from, direction);
+    if (from === null || target === null) return;
+    this.swapWindows(from, target);
+  }
+
+  private readonly pendingSwaps = new PendingSwaps();
+
+  /**
+   * Every accepted swap, a directional one or a Shift-drop, joins the pending-swap overlay until it
+   * settles, and the view republishes so menus re-read their sides. A command that can change the
+   * shown layout (an undo, a move, a tile, an arrange, a close, a tab or desktop change) runs after
+   * the unanswered swaps in ways this client cannot predict, so it drops the overlay and
+   * directional input reads the shown layout again. Commands that leave window places alone keep
+   * it.
+   */
+  protected override dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {
+    if (command.commandId !== "window.swap") {
+      if (!LAYOUT_PRESERVING_COMMANDS.has(command.commandId)) this.pendingSwaps.clear();
+      return super.dispatch(command);
+    }
+    const shown = this.directionalCandidates();
+    const outcome = super.dispatch(command);
+    const { first_window_id: first, second_window_id: second } = command.payload;
+    if (!outcome.accepted || typeof first !== "string" || typeof second !== "string") {
+      return outcome;
+    }
+    const release = this.pendingSwaps.record(first, second, shown);
+    if (release === null) return outcome;
+    this.publish();
+    // A refused swap publishes before it settles; republish so menus drop the predicted places.
+    const settle = () => {
+      release();
+      this.publish();
+    };
+    void outcome.completion.then(settle, settle);
+    return outcome;
+  }
+
+  /**
+   * The active tab's on-screen windows with this client's unanswered swaps applied, so directional
+   * focus, swaps and the Window menu read where the windows are going.
+   */
+  directionalCandidates(): ShownWindow[] {
+    return this.pendingSwaps.apply(activeTabCandidates(this.view));
+  }
+
+  /**
+   * The window directional focus and swaps start from. A focus still waiting for its answer is
+   * where the operator already is: the view names the focus before it until that answer shows,
+   * and a press meanwhile must not start from there.
+   */
+  directionalFocusId(): string | null {
+    const pending = this.focusTurns.pendingFocus();
+    if (pending === null) return this.view.focusedId;
+    const onScreen = activeTabCandidates(this.view).some(candidate => candidate.id === pending);
+    return onScreen ? pending : this.view.focusedId;
   }
 
   undoLayout(): void {
@@ -86,14 +171,11 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     this.dispatch({ commandId: "layout.redo", payload: {} });
   }
 
-  /**
-   * Evens every split in the focused window's tiled group. The window's own
-   * node is a leaf, never a split, so it is not a valid balance target.
-   */
+  /** Evens every split in the focused window's tab; a single-window tab has nothing to even. */
   balanceFocusedLayout(): void {
     const focused = this.view.focusedId ? this.view.windows[this.view.focusedId] : undefined;
-    if (!focused?.groupId) return;
-    this.balanceLayout(focused.groupId);
+    if (!focused?.inSplit) return;
+    this.balanceTab(focused.tabId);
   }
 
   protected buildView(): OsDesktopRuntimeStore {
@@ -124,8 +206,9 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
   /**
    * Focus-first launch (ADR-010): resolve the live instance semantically by
    * `(app, instanceKey)` — most-recently-focused wins — and only open when
-   * none exists. "Open new instance" and "open as tab" skip the lookup, which
-   * is what makes the same gesture explicit instead of ambiguous.
+   * none exists. "Open new instance" and "open after this tab" skip the lookup,
+   * which is what makes the same gesture explicit instead of ambiguous. A live
+   * instance in an inactive tab is focused: focus activates its tab.
    */
   private openOrFocusAttempt(
     target: OsOpenTarget,
@@ -134,7 +217,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     // Semantic identity and the command revision must come from the same current snapshot.
     const state = this.buildView();
     const existing =
-      target.forceNewInstance || target.stackTargetWindowId
+      target.forceNewInstance || target.afterWindowId
         ? null
         : mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
             app: target.app,
@@ -143,12 +226,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     if (existing) {
       const id = existing.id;
       let outcome: WindowManagerCommandOutcome;
-      if (existing.minimized) {
-        const authoritative = state.snapshot?.windows[id];
-        outcome = authoritative
-          ? this.dispatch(restoreWindowCommand(authoritative, target.route))
-          : rejectedCommandOutcome();
-      } else if (target.route && !sameOsWindowRoute(existing.route, target.route)) {
+      if (target.route && !sameOsWindowRoute(existing.route, target.route)) {
         outcome = this.navigateWindow(id, target.route, target.navigateMode);
       } else {
         outcome = this.focusWindow(id);
@@ -158,9 +236,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
 
     const desktopId =
       target.desktopId ??
-      (target.stackTargetWindowId
-        ? state.windows[target.stackTargetWindowId]?.desktopId
-        : undefined) ??
+      (target.afterWindowId ? state.windows[target.afterWindowId]?.desktopId : undefined) ??
       state.activeDesktopId;
     const id = randomOsWindowId();
     if (desktopId === null || desktopId === undefined) {
@@ -170,7 +246,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
       ...openWindowCommand(target, id, desktopId),
       // Identity lookups keep their revision fence. Deliberate new windows
       // skip that lookup and bind to the serializer's execution revision.
-      ...(target.forceNewInstance || target.stackTargetWindowId
+      ...(target.forceNewInstance || target.afterWindowId
         ? {}
         : { expectedRevision: state.snapshot?.revision }),
     });
@@ -186,7 +262,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
   ): WindowManagerOpenOutcome {
     const startedFromIdle = windowManagerStore.getSnapshot().context.commandState.status === "idle";
     if (!enabled || !outcome.accepted || !startedFromIdle) return { windowId: id, ...outcome };
-    return {
+    const recovered: WindowManagerOpenOutcome = {
       windowId: id,
       accepted: true,
       completion: outcome.completion.then(async applied => {
@@ -195,103 +271,29 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
           return false;
         if (!(await this.awaitConflictRecovery())) return false;
         const retry = this.openOrFocusAttempt(target, false);
+        // The retry can land on another client's instance: the outcome names that window.
+        recovered.windowId = retry.windowId;
         return retry.accepted && (await retry.completion);
       }),
     };
+    return recovered;
   }
 
   closeWindow = (id: string, viewOnly = false): Promise<boolean> =>
     viewOnly ? this.closeWindowViewOnly(id) : this.closeWindowScoped(id, "tab");
 
+  /** Focus also makes the window's tab this client's active tab (daemon client projection). */
+  focusWindow = (id: string, options?: FocusWindowOptions): WindowManagerCommandOutcome =>
+    this.dispatch(focusWindowCommand(id, options));
+
   /**
-   * Focus reveals: a tiled window hidden under a zoomed unit on its desktop is
-   * unzoomed into view first, so activating it from the dock or palette never
-   * lands focus on something the user cannot see.
+   * Calls `listener` after the runtime releases an authoritative client view it held behind this
+   * client's focuses, adopted or ignored as older. Views adopted on arrival (`setClient`) are not
+   * reported here: their caller already acts on them. A focus answer is not reported either; the
+   * stream view its daemon published first was held, so its release reports for both.
    */
-  focusWindow = (id: string): WindowManagerCommandOutcome => {
-    const window = this.view.windows[id];
-    if (window && !window.minimized && window.placement !== "floating") {
-      const zoomed = frameForWindow(this.view.frames, id);
-      const covering = zoomedFrame(this.view.frames[window.desktopId]);
-      if (covering !== null && (zoomed === null || zoomed.id !== covering.id)) {
-        this.zoomWindow(covering.activeWindowId);
-      }
-    }
-    return this.dispatch({
-      commandId: "window.focus",
-      payload: { window_id: id, direction: "" },
-      rebase: { windowId: id },
-    });
-  };
-
-  minimizeWindow = (id: string): Promise<boolean> => {
-    return this.dispatch({
-      commandId: "window.close",
-      payload: { window_id: id, minimize: true },
-    }).completion;
-  };
-
-  restoreWindow = (id: string): WindowManagerCommandOutcome => {
-    const window = this.view.snapshot?.windows[id];
-    if (!window) return rejectedCommandOutcome();
-    return this.dispatch(restoreWindowCommand(window));
-  };
-
-  arrangeLayout = (anchorId: string, preset: OsArrangePreset): void => {
-    const anchor = this.view.windows[anchorId];
-    if (!anchor) return;
-    const peers = arrangePeerWindows(this.view.windows, anchorId);
-    const command = arrangeLayoutCommand(anchor, peers, preset, randomWindowManagerId("group"));
-    if (command !== null) this.dispatch(command);
-  };
-
-  resizeLayout = (
-    splitId: string,
-    boundaryIndex: number,
-    delta: number
-  ): WindowManagerCommandOutcome => {
-    return this.dispatch({
-      commandId: "layout.resize",
-      payload: { split_id: splitId, boundary_index: boundaryIndex, delta },
-      rebase: { splitId, boundaryIndex },
-    });
-  };
-
-  /** Free-edge resize of one tiled unit; the daemon detaches split members. */
-  resizeWindowFrame = (windowId: string, frame: NormalizedRect): WindowManagerCommandOutcome => {
-    return this.dispatch({
-      commandId: "window.resize",
-      payload: { window_id: windowId, frame: normalizedRectToWire(frame) },
-    });
-  };
-
-  /** One atomic multi-island frame rewrite for a shared-boundary drag. */
-  resizeGroupFrames = (
-    desktopId: string,
-    edits: readonly GroupFrameEditInput[]
-  ): WindowManagerCommandOutcome => {
-    if (edits.length === 0) return rejectedCommandOutcome();
-    return this.dispatch({
-      commandId: "layout.frame_resize",
-      payload: {
-        desktop_id: desktopId,
-        edits: edits.map(edit => ({
-          group_id: edit.groupId,
-          frame: normalizedRectToWire(edit.frame),
-        })),
-      },
-    });
-  };
-
-  balanceLayout = (groupId?: string, splitId?: string): void => {
-    this.dispatch({
-      commandId: "layout.balance",
-      payload: {
-        ...(groupId ? { group_id: groupId } : {}),
-        ...(splitId ? { split_id: splitId } : {}),
-      },
-    });
-  };
+  onHeldClientAdopted = (listener: () => void): (() => void) =>
+    this.focusTurns.onHeldViewAdopted(listener);
 
   setWallpaper = (wallpaper: OsWallpaper): void => {
     this.wallpaper = wallpaper;

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -96,10 +97,13 @@ func (s *ScriptRunner) Poll(ctx context.Context, ref Ref, req Request) (Result, 
 		return Result{}, err
 	}
 	defer os.RemoveAll(private)
+	lifetime, cancel := context.WithTimeout(ctx, s.Timeout)
+	defer cancel()
 	path := filepath.Join(private, ref.Script)
-	// Private verified bytes must be executable; the containing directory is operator-only.
-	//nolint:gosec // G306: executing a verified private script requires the owner execute bit.
-	if err := os.WriteFile(path, data, 0700); err != nil {
+	if err := writePrivateScript(lifetime, path, data); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return Result{}, Failure("source_timeout", "script poll canceled or timed out")
+		}
 		return Result{}, err
 	}
 	if len(req.State) == 0 {
@@ -112,8 +116,6 @@ func (s *ScriptRunner) Poll(ctx context.Context, ref Ref, req Request) (Result, 
 	if err != nil {
 		return Result{}, err
 	}
-	lifetime, cancel := context.WithTimeout(ctx, s.Timeout)
-	defer cancel()
 	cmd := exec.CommandContext(lifetime, path)
 	cmd.Dir = req.Workspace.RootDir
 	cmd.Stdin = bytes.NewReader(input)
@@ -243,4 +245,32 @@ func ApprovedScript(
 		return nil, "", false, err
 	}
 	return data, hash, stored == hash, nil
+}
+
+// writePrivateScript closes the writer before joining Linux vforks that could have inherited it.
+func writePrivateScript(ctx context.Context, path string, data []byte) error {
+	//nolint:gosec // G306: the verified copy requires the owner execute bit inside a private directory.
+	if err := os.WriteFile(path, data, 0700); err != nil {
+		return err
+	}
+	if runtime.GOOS != "linux" {
+		return ctx.Err()
+	}
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		// Linux Go vforks retain ForkLock until exec closes inherited CLOEXEC writers.
+		if syscall.ForkLock.TryRLock() {
+			syscall.ForkLock.RUnlock()
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }

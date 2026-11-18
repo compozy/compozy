@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -14,7 +17,19 @@ import (
 var ErrDeleteStopAccepted = errors.New("session: delete stop accepted")
 
 // Delete removes one session from active runtime state and persisted history.
-func (m *Manager) Delete(ctx context.Context, id string) (err error) {
+func (m *Manager) Delete(ctx context.Context, id string) error {
+	return m.deleteSession(ctx, id, nil)
+}
+
+// DeleteArchived removes one session only while it is archived and owned by the
+// expected profile and workspace: it is refused before anything stops, and the
+// catalog row goes only if the deleting transaction still finds it archived, so
+// a session restored meanwhile is never deleted.
+func (m *Manager) DeleteArchived(ctx context.Context, target store.ArchivedSessionDelete) error {
+	return m.deleteSession(ctx, target.SessionID, &target)
+}
+
+func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.ArchivedSessionDelete) (err error) {
 	if m == nil {
 		return errors.New("session: manager is required")
 	}
@@ -35,9 +50,24 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	if err != nil {
 		return err
 	}
-	defer unlock()
+	finishSubagent := func(bool) {}
+	defer func() {
+		unlock()
+		if finishSubagent != nil {
+			finishSubagent(err == nil)
+		}
+	}()
 	if err := m.guardInstanceMain(ctx, target); err != nil {
 		return err
+	}
+	if handled, finish, deleteErr := m.deleteMissingSession(ctx, target, archived); handled {
+		finishSubagent = finish
+		return deleteErr
+	}
+	if archived != nil {
+		if err := m.requireArchivedDelete(ctx, target, *archived); err != nil {
+			return err
+		}
 	}
 
 	// Stop settlement and its subagent/Goal callbacks can acquire lifecycleMu.
@@ -48,7 +78,20 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 		return err
 	}
 
-	m.lifecycleMu.Lock()
+	finishSubagent, err = m.prepareSubagentSessionDelete(ctx, target)
+	if err != nil {
+		return err
+	}
+
+	return m.deletePreparedSession(ctx, target, info, archived)
+}
+
+func (m *Manager) deletePreparedSession(
+	ctx context.Context, target string, info *Info, archived *store.ArchivedSessionDelete,
+) error {
+	if err := m.lifecycleMu.LockContext(ctx); err != nil {
+		return fmt.Errorf("session: await delete lifecycle lock: %w", err)
+	}
 	defer m.lifecycleMu.Unlock()
 
 	staged, err := m.stageSessionDirectoryDelete(ctx, target, info)
@@ -57,7 +100,7 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	}
 
 	if m.sessionCatalog != nil {
-		if err := m.sessionCatalog.DeleteSession(ctx, target); err != nil {
+		if err := m.deleteSessionCatalogRow(ctx, target, archived); err != nil {
 			deleteErr := fmt.Errorf("session: delete catalog state for %q: %w", target, err)
 			if rollbackErr := m.rollbackStagedSessionDeletes(ctx, []stagedSessionDelete{staged}); rollbackErr != nil {
 				return errors.Join(deleteErr, rollbackErr)
@@ -66,22 +109,7 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 		}
 	}
 	m.replyWatchSessionDeleted(ctx, target)
-	if m.sessionWindowReconciler != nil && staged.info != nil {
-		if reconcileErr := m.reconcileDeletedSessionWindows(
-			context.WithoutCancel(ctx),
-			staged.info.ProfileID,
-			staged.info.WorkspaceID,
-			target,
-		); reconcileErr != nil {
-			staged.windowReconciliationPending = true
-			m.logger.Warn(
-				"session: retained deletion tombstone for window reconciliation retry",
-				"session_id", target,
-				"workspace_id", staged.info.WorkspaceID,
-				"error", reconcileErr,
-			)
-		}
-	}
+	m.reconcileStagedSessionDeleteWindows(ctx, &staged)
 	if cleanupErr := m.commitStagedSessionDeletes(ctx, []stagedSessionDelete{staged}); cleanupErr != nil {
 		// The catalog deletion is already committed. The tombstone is deliberately
 		// retained and retried during the next manager construction, while the
@@ -97,6 +125,110 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 		m.scheduleDeletedSessionWindowRetry(deletedSessionWindowRetryPath(staged))
 	}
 	return nil
+}
+
+func (m *Manager) deleteMissingSession(
+	ctx context.Context, target string, archived *store.ArchivedSessionDelete,
+) (bool, func(bool), error) {
+	finishSubagent := func(bool) {}
+	if m.sessionCatalog == nil {
+		return false, finishSubagent, nil
+	}
+	if _, active := m.Get(target); active || m.isPending(target) || m.hasPendingStopSettlement(target) {
+		return false, finishSubagent, nil
+	}
+	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
+	if _, err := os.Lstat(metaPath); !errors.Is(err, os.ErrNotExist) {
+		return false, finishSubagent, nil
+	}
+	info, err := m.durableSessionInfoForLifecycleTransition(ctx, target)
+	if err != nil {
+		return true, finishSubagent, err
+	}
+	if info.State != StateStopped {
+		return true, finishSubagent, fmt.Errorf(
+			"%w: cannot delete missing session %s before process exit",
+			ErrStopVerificationFailed,
+			target,
+		)
+	}
+	if archived != nil {
+		if err := validateArchivedDelete(info, *archived); err != nil {
+			return true, finishSubagent, err
+		}
+	}
+	stopInfo := *info
+	stopInfo.StopCause = CauseUserRequested
+	if err := m.removeSessionGoals(ctx, &stopInfo); err != nil {
+		return true, finishSubagent, fmt.Errorf("session: cancel Goals before delete: %w", err)
+	}
+	finishSubagent, err = m.prepareSubagentSessionDelete(ctx, target)
+	if err != nil {
+		return true, finishSubagent, err
+	}
+	if _, err := os.Lstat(store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))); err == nil {
+		return true, finishSubagent, m.deletePreparedSession(ctx, target, info, archived)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return true, finishSubagent, err
+	}
+	if err := m.lifecycleMu.LockContext(ctx); err != nil {
+		return true, finishSubagent, fmt.Errorf("session: await delete lifecycle lock: %w", err)
+	}
+	defer m.lifecycleMu.Unlock()
+	if err := m.deleteSessionCatalogRow(ctx, target, archived); err != nil {
+		return true, finishSubagent, err
+	}
+	m.replyWatchSessionDeleted(ctx, target)
+	m.publishCommittedSessionDelete(&stagedSessionDelete{info: info})
+	if err := m.reconcileDeletedSessionWindows(
+		context.WithoutCancel(ctx),
+		info.ProfileID,
+		info.WorkspaceID,
+		target,
+	); err != nil {
+		m.logger.Warn("session: reconcile deleted missing session windows", "session_id", target, "error", err)
+	}
+	return true, finishSubagent, nil
+}
+
+// requireArchivedDelete refuses an archived-only delete of a session that was
+// restored, moved, or never matched the expected owner.
+func (m *Manager) requireArchivedDelete(
+	ctx context.Context,
+	target string,
+	archived store.ArchivedSessionDelete,
+) error {
+	info, err := m.Status(ctx, target)
+	if err != nil {
+		return err
+	}
+	return validateArchivedDelete(info, archived)
+}
+
+func validateArchivedDelete(info *Info, archived store.ArchivedSessionDelete) error {
+	if info.ArchivedAt == nil ||
+		strings.TrimSpace(info.ProfileID) != strings.TrimSpace(archived.ProfileID) ||
+		strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(archived.WorkspaceID) {
+		return fmt.Errorf("session: delete %q: %w", info.ID, store.ErrSessionNotArchived)
+	}
+	return nil
+}
+
+func (m *Manager) deleteSessionCatalogRow(
+	ctx context.Context,
+	target string,
+	archived *store.ArchivedSessionDelete,
+) error {
+	if archived == nil {
+		return m.sessionCatalog.DeleteSession(ctx, target)
+	}
+	cleanupStore, ok := m.sessionCatalog.(store.SessionHistoryCleanupStore)
+	if !ok {
+		return ErrSessionArchiveUnavailable
+	}
+	guarded := *archived
+	guarded.SessionID = target
+	return cleanupStore.DeleteArchivedSession(ctx, guarded)
 }
 
 // prepareSessionDelete settles execution and owned Goals before reversible history removal.
@@ -172,7 +304,14 @@ func (m *Manager) quiesceSessionQueries(
 	if m.queryStoreRuntime == nil {
 		return func() {}, nil
 	}
-	return m.queryStoreRuntime.Quiesce(ctx, owner, store.SessionDBFile(sessionDir))
+	timeout := m.queryQuiesceTimeout
+	if timeout <= 0 {
+		timeout = defaultLifecycleTimeout
+	}
+	// Keep staging and rollback on the caller's original lifetime.
+	quiesceCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return m.queryStoreRuntime.Quiesce(quiesceCtx, owner, store.SessionDBFile(sessionDir))
 }
 
 func stopSessionBeforeDelete(

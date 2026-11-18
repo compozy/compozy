@@ -15,30 +15,42 @@ import { BLOG_CATEGORIES, allPosts, postsByCategory } from "@/lib/blog";
 import { absoluteUrl, canonicalPath, siteConfig } from "@/lib/site-config";
 import { NextRequest } from "next/server";
 
-const mockedDocs = vi.hoisted(() => ({
-  protocolPages: [
-    {
-      data: { description: "Implemented protocol surface.", title: "Implementation Status" },
-      slugs: ["loops", "reference", "grammar"],
-      url: "/docs/loops/reference/grammar",
-    },
-  ],
-  runtimePages: [
-    {
-      data: { description: "Runtime docs overview.", title: "How to use these docs" },
-      slugs: ["how-to-use-these-docs"],
-      url: "/docs/how-to-use-these-docs",
-    },
-    {
-      data: {
-        description: "Prepare a project workspace for agent execution.",
-        title: "Prepare a project workspace",
+type MockedDocsPage = {
+  data: { description: string; title: string };
+  slugs: string[];
+  url: string;
+  /** The page's processed Markdown; defaults to an H1 of its title. */
+  body?: string;
+  /** The authored MDX the build compiles into the page module (generated API pages). */
+  rawSource?: string;
+};
+
+const mockedDocs = vi.hoisted(
+  (): { protocolPages: MockedDocsPage[]; runtimePages: MockedDocsPage[] } => ({
+    protocolPages: [
+      {
+        data: { description: "Implemented protocol surface.", title: "Implementation Status" },
+        slugs: ["loops", "reference", "grammar"],
+        url: "/docs/loops/reference/grammar",
       },
-      slugs: ["use-cases", "prepare-a-project-workspace"],
-      url: "/docs/use-cases/prepare-a-project-workspace",
-    },
-  ],
-}));
+    ],
+    runtimePages: [
+      {
+        data: { description: "Runtime docs overview.", title: "How to use these docs" },
+        slugs: ["how-to-use-these-docs"],
+        url: "/docs/how-to-use-these-docs",
+      },
+      {
+        data: {
+          description: "Prepare a project workspace for agent execution.",
+          title: "Prepare a project workspace",
+        },
+        slugs: ["use-cases", "prepare-a-project-workspace"],
+        url: "/docs/use-cases/prepare-a-project-workspace",
+      },
+    ],
+  })
+);
 
 const mockedOG = vi.hoisted(() => ({
   renderBlog: vi.fn(async () => new Response("blog-og")),
@@ -68,7 +80,11 @@ vi.mock("@/lib/source", () => ({
         ...page,
         data: {
           ...page.data,
-          content: `# ${page.data.title}`,
+          // Only the processed text is what the llms output may read.
+          getText: async (type: string) =>
+            type === "processed" ? (page.body ?? `# ${page.data.title}`) : "RAW MDX",
+          _exports: { rawSource: page.rawSource },
+          info: { fullPath: `${page.slugs.join("/")}.mdx` },
         },
         path: `${page.slugs.join("/")}.mdx`,
       };
@@ -139,6 +155,10 @@ describe("public route metadata", () => {
     expect(urls).not.toContain(absoluteUrl("/marketplace/bridges/"));
     expect(urls).toContain(absoluteUrl("/marketplace/bundled/spec-cycle/"));
     expect(urls).toContain(absoluteUrl("/marketplace/example-extension/"));
+    const { marketplacePluginPath, marketplacePlugins } = await import("@/lib/marketplace-plugins");
+    for (const entry of marketplacePlugins) {
+      expect(urls).toContain(absoluteUrl(`${marketplacePluginPath(entry)}/`));
+    }
     expect(urls.filter(url => url.includes("/changelog"))).toEqual([
       absoluteUrl("/changelog/"),
       absoluteUrl("/changelog/feed.xml"),
@@ -199,6 +219,163 @@ describe("public route metadata", () => {
           params: Promise.resolve({ slug: legacySlug }),
         })
       ).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+    }
+  });
+
+  async function llmsMarkdown(pages: MockedDocsPage[], slug: string[]): Promise<string> {
+    mockedDocs.runtimePages.push(...pages);
+    try {
+      const response = await llmsMarkdownGET(new NextRequest("https://compozy.com/llms.mdx"), {
+        params: Promise.resolve({ slug: ["docs", ...slug] }),
+      });
+      return await response.text();
+    } finally {
+      mockedDocs.runtimePages.splice(-pages.length);
+    }
+  }
+
+  it("serves a hand-written page as its title, URL, description and processed Markdown", async () => {
+    const markdown = await llmsMarkdown(
+      [
+        {
+          data: { description: "Start, stop and resume sessions.", title: "Session lifecycle" },
+          slugs: ["sessions", "lifecycle"],
+          url: "/docs/sessions/lifecycle",
+          body: "## Start\n\nRun `compozy session start`.",
+        },
+      ],
+      ["sessions", "lifecycle"]
+    );
+    expect(markdown).toBe(
+      [
+        "# Session lifecycle",
+        `URL: ${absoluteUrl("/docs/sessions/lifecycle")}`,
+        "",
+        "Start, stop and resume sessions.",
+        "",
+        "## Start\n\nRun `compozy session start`.",
+      ].join("\n")
+    );
+  });
+
+  it("serves an SDK guide's per-language content under language labels, without its tags", async () => {
+    const markdown = await llmsMarkdown(
+      [
+        {
+          data: { description: "Get a connected client.", title: "Client" },
+          slugs: ["sdk", "client"],
+          url: "/docs/sdk/client",
+          body: [
+            "<SdkLangBar />",
+            "",
+            "## Install",
+            "",
+            '<SdkLang lang="ts">',
+            "",
+            "```bash\nnpm install @compozy/client\n```",
+            "",
+            "</SdkLang>",
+            "",
+            '<SdkSymbol lang="ts">',
+            "",
+            '<SdkFields title="Options">',
+            '  <SdkField name="baseUrl" type="string" required>',
+            "    Selects a daemon",
+            "    ahead of discovery.",
+            "  </SdkField>",
+            '  <SdkField name="onVersionMismatch" type="(versions: { daemon: string }) => void" />',
+            '  <SdkField name="mode" type={\'"queue" | "steer"\'} />',
+            "</SdkFields>",
+            "",
+            "</SdkSymbol>",
+            "",
+            '<SdkSymbol lang="go" none />',
+          ].join("\n"),
+        },
+      ],
+      ["sdk", "client"]
+    );
+    expect(markdown).not.toMatch(/<\/?Sdk/);
+    expect(markdown).toContain(
+      "## Install\n\n**TypeScript**\n\n```bash\nnpm install @compozy/client\n```"
+    );
+    expect(markdown).toContain(
+      [
+        "Options:",
+        "",
+        "- `baseUrl` (`string`, required): Selects a daemon ahead of discovery.",
+        "- `onVersionMismatch` (`(versions: { daemon: string }) => void`)",
+        '- `mode` (`"queue" | "steer"`)',
+      ].join("\n")
+    );
+    expect(markdown).toContain("**Go**\n\nTypeScript only. The Go client has no equivalent.");
+  });
+
+  it("serves a generated API page as its operations, without the generator's comment", async () => {
+    const comment = "{/* This file was generated by Fumadocs. Do not edit this file directly. */}";
+    const operations = [
+      { path: "/api/agent/spawn", method: "post" },
+      { path: "/api/sessions/{session_id}", method: "get" },
+    ];
+    const markdown = await llmsMarkdown(
+      [
+        {
+          data: { description: "CompozyOS Sessions HTTP endpoints.", title: "Sessions" },
+          slugs: ["api", "sessions"],
+          url: "/docs/api/sessions",
+          body: `${comment}\n`,
+          rawSource: `${comment}\n\n<OpenAPIPage document="compozy" operations={${JSON.stringify(operations)}} />`,
+        },
+      ],
+      ["api", "sessions"]
+    );
+    expect(markdown).not.toContain("generated by Fumadocs");
+    expect(markdown).not.toContain("RAW MDX");
+    const spawn = markdown.indexOf("`POST /api/agent/spawn`");
+    const snapshot = markdown.indexOf("`GET /api/sessions/{session_id}`");
+    expect(spawn).toBeGreaterThan(0);
+    expect(snapshot).toBeGreaterThan(spawn);
+    expect(markdown).toContain("## Spawn a narrowed child session for the calling agent");
+    expect(markdown).toContain(
+      "- `X-Compozy-Session-ID` (header, `string`, required): Daemon-issued active session id"
+    );
+    expect(markdown).toContain("Request body (application/json, `AgentSpawnRequest`, required):");
+    expect(markdown).toContain("- `agent_name` (`string`, required)");
+    expect(markdown).toContain("- `session_id` (path, `string`, required)");
+  });
+
+  it("lists SDK pages in llms.txt and serves a resource page's methods as Markdown", async () => {
+    const pages = [
+      {
+        data: { description: "Typed TypeScript and Go clients.", title: "SDK Reference" },
+        slugs: ["sdk"],
+        url: "/docs/sdk",
+      },
+      {
+        data: { description: "98 methods on the Sessions resource.", title: "Sessions" },
+        slugs: ["sdk", "sessions"],
+        url: "/docs/sdk/sessions",
+        body: '<SdkResource id="sessions" />',
+      },
+    ];
+    mockedDocs.runtimePages.push(...pages);
+    try {
+      const index = await (await llmsGET()).text();
+      const reference = index.slice(index.indexOf("## Reference"));
+      expect(reference).toContain(`[SDK Reference](${absoluteUrl("/docs/sdk")})`);
+      expect(reference).toContain(`[Sessions](${absoluteUrl("/docs/sdk/sessions")})`);
+
+      const response = await llmsMarkdownGET(new NextRequest("https://compozy.com/llms.mdx"), {
+        params: Promise.resolve({ slug: ["docs", "sdk", "sessions"] }),
+      });
+      const markdown = await response.text();
+      expect(markdown).not.toContain("<SdkResource");
+      expect(markdown).toContain("## listSessions");
+      expect(markdown).toContain("`compozy.sessions.listSessions({ query })`");
+      expect(markdown).toContain("`c.ListSessions(ctx, ListSessionsParams)`");
+      expect(markdown).toContain("## prompt");
+    } finally {
+      mockedDocs.runtimePages.splice(-pages.length);
     }
   });
 

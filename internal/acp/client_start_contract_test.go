@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -61,14 +62,20 @@ func TestStartInitializeContract(t *testing.T) {
 			)
 		}
 		var capabilities struct {
-			Meta     map[string]any `json:"_meta"`
-			Terminal bool           `json:"terminal"`
+			Meta        map[string]any `json:"_meta"`
+			Terminal    bool           `json:"terminal"`
+			Elicitation *struct {
+				Form json.RawMessage `json:"form"`
+			} `json:"elicitation"`
 		}
 		if err := json.Unmarshal(params["clientCapabilities"], &capabilities); err != nil {
 			t.Fatalf("decode initialize clientCapabilities: %v", err)
 		}
 		if !capabilities.Terminal {
 			t.Fatal("clientCapabilities.terminal = false, want true")
+		}
+		if capabilities.Elicitation == nil || len(capabilities.Elicitation.Form) == 0 {
+			t.Fatal("clientCapabilities.elicitation.form is absent, want form elicitation advertised")
 		}
 		if value, ok := capabilities.Meta["terminal_output"]; ok {
 			t.Fatalf("clientCapabilities._meta.terminal_output = %#v, want absent", value)
@@ -303,10 +310,179 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	}
 }
 
+func TestStartClaudeStaleModelPicker(t *testing.T) {
+	t.Parallel()
+	// Owner: ACP driver; canonical start negotiation suite with a subprocess protocol boundary.
+	// Invariant: authenticated Claude starts negotiate the exact pin despite a stale built-in picker.
+	for _, tc := range []struct {
+		name      string
+		model     string
+		response  string
+		inputOnly bool
+		resume    bool
+	}{
+		{name: "fresh Opus", model: "claude-opus-5-5"},
+		{name: "resumed Opus", model: "claude-opus-5-5", resume: true},
+		{name: "fresh Fable", model: "claude-fable-5-2"},
+		{name: "resumed Fable", model: "claude-fable-5-2", resume: true},
+		{name: "fresh input only", model: "claude-opus-5-5", inputOnly: true},
+		{name: "resumed input only", model: "claude-opus-5-5", inputOnly: true, resume: true},
+		{name: "fresh provider refusal", model: "claude-opus-5-5", response: "reject"},
+		{name: "resumed provider refusal", model: "claude-opus-5-5", response: "reject", resume: true},
+		{name: "fresh unconfirmed model", model: "claude-opus-5-5", response: "unconfirmed"},
+		{name: "resumed unconfirmed model", model: "claude-opus-5-5", response: "unconfirmed", resume: true},
+		{name: "fresh ignored startup option", model: "claude-opus-5-5", response: "ignored"},
+		{name: "resumed ignored startup option", model: "claude-opus-5-5", response: "ignored", resume: true},
+	} {
+		t.Run("Should preserve the authenticated full model with stale picker and "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			capture := filepath.Join(t.TempDir(), "requests.jsonl")
+			provider := compozyconfig.BuiltinProviders()["claude"]
+			command := helperCommand(t) + " @agentclientprotocol/claude-agent-acp@latest"
+			provider.Command = command
+			var probes atomic.Int64
+			probe := &providers.ProbeEnv{
+				ProviderName: "claude",
+				BypassCache:  true,
+				LookPath:     func(string) (string, error) { return os.Executable() },
+				ResolveCommand: func(context.Context, string, []string, string) (string, error) {
+					return os.Executable()
+				},
+				RunCommand: func(context.Context, providers.ProviderAuthCommandSpec) (providers.ProviderAuthCommandResult, error) {
+					probes.Add(1)
+					return providers.ProviderAuthCommandResult{Stdout: `{"loggedIn":true}`}, nil
+				},
+			}
+			resumeID, wantSessionID := "", "sess-new"
+			if tc.resume {
+				resumeID, wantSessionID = "existing-claude", "existing-claude"
+			}
+			// The ignored-startup-option cases pin a permanent rejection, so a short
+			// catalog budget keeps them from waiting the full readiness window.
+			driver := newTestDriverWithCatalogBudget(
+				t, 400*time.Millisecond, WithProviderPreStarter(providers.NewPreStarter()),
+			)
+			proc, err := driver.Start(t.Context(), StartOpts{
+				AgentName: "helper", ProviderName: "claude", ProviderConfig: &provider,
+				ProviderAuthEnv: probe, Command: command, Cwd: t.TempDir(),
+				Env:             helperEnvWithCapture("load_claude_stale_models", tc.response, capture),
+				ResumeSessionID: resumeID, PreferredModel: tc.model, InputOnly: tc.inputOnly,
+			})
+			if probes.Load() != 1 {
+				t.Fatalf("authenticated probes = %d, want 1", probes.Load())
+			}
+			if proc != nil {
+				t.Cleanup(func() { stopProcess(t, driver, proc) })
+			}
+			if attempts := len(captureRequestParamsForMethod(t, capture, acpsdk.AgentMethodInitialize)); attempts != 1 {
+				t.Fatalf("startup attempts = %d, want 1", attempts)
+			}
+			wantSetters := 1
+			if tc.response == "ignored" {
+				wantSetters = 0
+			}
+			setters := len(captureRequestParamsForMethod(t, capture, acpsdk.AgentMethodSessionSetConfigOption))
+			if setters != wantSetters {
+				t.Fatalf("model setters = %d, want %d", setters, wantSetters)
+			}
+			if tc.response != "" {
+				diagnostic, ok := ProviderFailureDiagnosticFromError(err)
+				failure, _ := FailureFromError(err, store.FailurePrompt)
+				if err == nil || proc != nil || !ok || diagnostic.Action != ProviderFailureActionChangeModel ||
+					failure == nil || failure.Kind != store.FailureProtocol ||
+					!strings.Contains(err.Error(), tc.model) || !strings.Contains(err.Error(), `provider "claude"`) {
+					t.Fatalf("model refusal = %v, process = %v, diagnostic = %#v", err, proc, diagnostic)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			option, ok := ModelConfigOption(proc.CapsSnapshot().ConfigOptions)
+			if proc.SessionID != wantSessionID || !ok || option.CurrentValueID != tc.model {
+				t.Fatalf("started conversation/model = %q / %#v", proc.SessionID, option)
+			}
+			request := decodeCapturedSetSessionConfigOptionRequest(t,
+				captureRequestParams(t, capture, acpsdk.AgentMethodSessionSetConfigOption))
+			if request.ConfigID != "model" || request.Value != tc.model {
+				t.Fatalf("model acknowledgement = %#v, want exact pin %q", request, tc.model)
+			}
+		})
+	}
+}
+
 func TestStartResumeUsesLoadSession(t *testing.T) {
 	t.Parallel()
 	// Invariant: a resume-only ACP agent retains its native conversation without transcript replay.
 	// Owner: ACP driver; canonical start negotiation suite with a subprocess at the protocol boundary.
+
+	t.Run("Should keep an already observed full model absent from the picker without resetting it", func(t *testing.T) {
+		t.Parallel()
+		const model = "claude-opus-5-5"
+		capture := filepath.Join(t.TempDir(), "requests.jsonl")
+		driver := New()
+		proc := startHelperProcess(t, driver, "load_model_current", model, StartOpts{
+			ResumeSessionID: "existing-claude", PreferredModel: model,
+			Env: helperEnvWithCapture("load_model_current", model, capture),
+		})
+		t.Cleanup(func() { stopProcess(t, driver, proc) })
+		option, ok := ModelConfigOption(proc.CapsSnapshot().ConfigOptions)
+		if !ok || option.CurrentValueID != model ||
+			captureMethodExists(t, capture, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatalf("observed full model was not preserved without a setter: %#v", option)
+		}
+	})
+
+	// Invariant: a native sign-out is classified before the resume adapter's offline model list.
+	// Owner: ACP driver; existing subprocess start/resume contract suite.
+	t.Run("Should resume the pinned full Claude model after sign in restores its model list", func(t *testing.T) {
+		t.Parallel()
+		driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+		credential := filepath.Join(t.TempDir(), "signed-in")
+		provider := compozyconfig.BuiltinProviders()["claude"]
+		provider.Command = helperCommand(t)
+		probe := &providers.ProbeEnv{
+			ProviderName:   "claude",
+			BypassCache:    true,
+			LookPath:       func(string) (string, error) { return os.Executable() },
+			ResolveCommand: func(context.Context, string, []string, string) (string, error) { return os.Executable() },
+			RunCommand: func(context.Context, providers.ProviderAuthCommandSpec) (providers.ProviderAuthCommandResult, error) {
+				if _, err := os.Stat(credential); err == nil {
+					return providers.ProviderAuthCommandResult{Stdout: `{"loggedIn":true}`}, nil
+				}
+				return providers.ProviderAuthCommandResult{ExitCode: 1, Stdout: `{"loggedIn":false}`}, nil
+			},
+		}
+		opts := StartOpts{AgentName: "helper", ProviderName: "claude", ProviderConfig: &provider,
+			ProviderAuthEnv: probe, Command: helperCommand(t), Cwd: t.TempDir(),
+			Env: helperEnv("load_claude_models", credential), ResumeSessionID: "existing-claude",
+			PreferredModel: "claude-opus-5-5"}
+		proc, err := driver.Start(t.Context(), opts)
+		if proc != nil {
+			stopProcess(t, driver, proc)
+			t.Fatal("signed-out provider started")
+		}
+		diagnostic, ok := ProviderFailureDiagnosticFromError(err)
+		if !ok || diagnostic.Action != ProviderFailureActionLogin {
+			t.Fatalf("signed-out resume = %v, want native login guidance before model negotiation", err)
+		}
+		if err := os.WriteFile(credential, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		proc, err = driver.Start(t.Context(), opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopProcess(t, driver, proc) })
+		if proc.SessionID != opts.ResumeSessionID {
+			t.Fatalf("conversation = %q", proc.SessionID)
+		}
+		option, ok := ModelConfigOption(proc.CapsSnapshot().ConfigOptions)
+		if !ok || option.CurrentValueID != opts.PreferredModel {
+			t.Fatalf("resumed model = %#v", option)
+		}
+	})
+
 	t.Run("Should use session resume when load is unsupported", func(t *testing.T) {
 		t.Parallel()
 		driver := New()
@@ -358,6 +534,106 @@ func TestStartApproveAllSetsPermissiveSessionModeWhenSupported(t *testing.T) {
 	}
 	if got, want := request.ModeID, "bypassPermissions"; got != want {
 		t.Fatalf("set-mode mode id = %q, want %q", got, want)
+	}
+}
+
+func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, scenario, provider, value, wantError string
+		wantSelection                              bool
+	}{
+		{name: "Should start Claude without a mode option", scenario: "config_options", provider: "claude", value: "bypassPermissions"},
+		{name: "Should start Codex without a mode option", scenario: "config_options", provider: "codex", value: "agent-full-access"},
+		{name: "Should start agy without a mode option", scenario: "config_options", provider: "agy", value: "yolo"},
+		{name: "Should start without selecting an ambiguous mode option", scenario: "full_access_mode_duplicate", value: "bypassPermissions"},
+		{name: "Should select a uniquely advertised unrestricted mode", scenario: "full_access_mode_available", value: "bypassPermissions", wantSelection: true},
+		{name: "Should reject an unavailable value on a unique mode option", scenario: "full_access_mode_unavailable", value: "bypassPermissions", wantError: "does not allow value"},
+		{name: "Should reject a missing narrower mode option", scenario: "config_options", value: "plan", wantError: "not uniquely advertised"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			captureFile := filepath.Join(t.TempDir(), "full-access-mode.jsonl")
+			proc, err := driver.Start(t.Context(), StartOpts{
+				ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
+				AgentName:      "helper", ProviderName: tc.provider,
+				Command: helperCommand(t), Cwd: t.TempDir(),
+				Env:         helperEnvWithCapture(tc.scenario, "", captureFile),
+				Permissions: compozyconfig.PermissionModeApproveAll,
+				ACPOptions:  []SessionConfigOptionSelection{{ID: "mode", ValueID: tc.value}},
+			})
+			if proc != nil {
+				defer stopProcess(t, driver, proc)
+			}
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("Start() error = %v, want %q", err, tc.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Start() error = %v", err)
+			}
+			if got := captureMethodExists(
+				t,
+				captureFile,
+				acpsdk.AgentMethodSessionSetConfigOption,
+			); got != tc.wantSelection {
+				t.Fatalf("set_config_option sent = %v, want %v", got, tc.wantSelection)
+			}
+			if tc.wantSelection {
+				assertConfigOption(
+					t,
+					proc.CapsSnapshot().ConfigOptions,
+					"mode",
+					tc.value,
+					"default",
+					"bypassPermissions",
+				)
+			} else {
+				runtime := RuntimeConfig{
+					ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: tc.value}},
+				}
+				if tc.scenario == "config_options" {
+					runtime.Model, runtime.ReasoningEffort = "other-model", "high"
+				}
+				if err := driver.ConfigureRuntime(t.Context(), proc, runtime); err != nil {
+					t.Fatalf("ConfigureRuntime() error = %v", err)
+				}
+				err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{
+					ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: "full-access"}},
+				})
+				if err == nil || !strings.Contains(err.Error(), "not uniquely advertised") {
+					t.Fatalf("new live mode error = %v, want missing mode rejection", err)
+				}
+				if runtime.Model != "" {
+					assertConfigOption(
+						t,
+						proc.CapsSnapshot().ConfigOptions,
+						"model",
+						"other-model",
+						"new-model",
+						"loaded-model",
+						"other-model",
+					)
+					assertConfigOption(
+						t,
+						proc.CapsSnapshot().ConfigOptions,
+						"reasoning_effort",
+						"high",
+						"minimal",
+						"none",
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max",
+						"ultra",
+					)
+				}
+			}
+		})
 	}
 }
 
@@ -803,6 +1079,161 @@ func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "other-model")
 }
 
+func TestRuntimeModelSwitchDoesNotWaitForTheCatalog(t *testing.T) {
+	t.Parallel()
+
+	// The catalog wait exists for the fresh startup bind only. A runtime switch or an
+	// inspection holds the runtime config lock, so a budget there would stall the
+	// session for a provider that never publishes a late catalog.
+	driver := newTestDriverWithCatalogBudget(t, 30*time.Second)
+	proc := startHelperProcess(t, driver, "config_options", "", StartOpts{})
+	defer stopProcess(t, driver, proc)
+
+	started := time.Now()
+	err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{Model: "not-advertised"})
+	negotiationErr, matched := errors.AsType[*NegotiationError](err)
+	if !matched || negotiationErr.Code != NegotiationCodeModelUnavailable {
+		t.Fatalf("ConfigureRuntime() error = %v, want model_unavailable NegotiationError", err)
+	}
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
+		t.Fatalf("ConfigureRuntime() waited %s outside the startup bind", elapsed)
+	}
+}
+
+func TestStartWaitsForModelCatalogPublishedAfterSessionNew(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply a model announced by a later config_option_update", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "late-model-catalog.jsonl")
+		proc := startHelperProcess(t, driver, "model_catalog_late", "150ms", StartOpts{
+			PreferredModel: "catalog-late-model",
+			Env:            helperEnvWithCapture("model_catalog_late", "150ms", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		request := decodeCapturedSetSessionConfigOptionRequest(
+			t,
+			captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+		)
+		if request.ConfigID != "model" || request.Value != "catalog-late-model" {
+			t.Fatalf("set-config request = %#v, want the model from the late catalog", request)
+		}
+		assertConfigOption(
+			t,
+			proc.CapsSnapshot().ConfigOptions,
+			"model",
+			"catalog-late-model",
+			"catalog-late-model",
+		)
+	})
+
+	t.Run("Should reject a model the provider never announces", func(t *testing.T) {
+		t.Parallel()
+
+		driver := newTestDriverWithCatalogBudget(t, 400*time.Millisecond)
+		captureFile := filepath.Join(t.TempDir(), "never-model-catalog.jsonl")
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:      "helper",
+			Command:        helperCommand(t),
+			Cwd:            t.TempDir(),
+			Env:            helperEnvWithCapture("model_catalog_late", "never", captureFile),
+			Permissions:    compozyconfig.PermissionModeApproveAll,
+			PreferredModel: "catalog-late-model",
+		})
+		if proc != nil {
+			defer stopProcess(t, driver, proc)
+		}
+		if err == nil {
+			t.Fatal("Start() error = nil, want model_unavailable after the readiness budget")
+		}
+		negotiationErr, matched := errors.AsType[*NegotiationError](err)
+		if !matched || negotiationErr.Code != NegotiationCodeModelUnavailable {
+			t.Fatalf("Start() error = %v, want model_unavailable NegotiationError", err)
+		}
+		if !slices.Contains(negotiationErr.ValidChoices, "new-model") {
+			t.Fatalf("valid choices = %#v, want the advertised builtin catalog", negotiationErr.ValidChoices)
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent for a model the provider never announced")
+		}
+	})
+
+	t.Run("Should fail fast when the provider exits while the catalog is pending", func(t *testing.T) {
+		t.Parallel()
+
+		driver := newTestDriverWithCatalogBudget(t, 5*time.Second)
+		captureFile := filepath.Join(t.TempDir(), "exited-model-catalog.jsonl")
+		startedAt := time.Now()
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:      "helper",
+			Command:        helperCommand(t),
+			Cwd:            t.TempDir(),
+			Env:            helperEnvWithCapture("model_catalog_exit", "300ms", captureFile),
+			Permissions:    compozyconfig.PermissionModeApproveAll,
+			PreferredModel: "catalog-late-model",
+		})
+		elapsed := time.Since(startedAt)
+		if proc != nil {
+			defer stopProcess(t, driver, proc)
+		}
+		if err == nil {
+			t.Fatal("Start() error = nil, want a process exit error before the readiness budget")
+		}
+		if elapsed >= 2*time.Second {
+			t.Fatalf("Start() waited %v, want a fast failure under the 5s readiness budget", elapsed)
+		}
+		if !errors.Is(err, errProcessExited) {
+			t.Fatalf("Start() error = %v, want wrapped errProcessExited", err)
+		}
+		if !strings.Contains(err.Error(), "exited") {
+			t.Fatalf("Start() error = %v, want the process exit reported", err)
+		}
+		if _, matched := errors.AsType[*NegotiationError](err); matched {
+			t.Fatalf("Start() error = %v, want a process exit error instead of a model negotiation rejection", err)
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent for a model the exited provider never announced")
+		}
+	})
+
+	t.Run("Should stop waiting at the readiness budget", func(t *testing.T) {
+		t.Parallel()
+
+		const budget = 400 * time.Millisecond
+		driver := newTestDriverWithCatalogBudget(t, budget)
+		captureFile := filepath.Join(t.TempDir(), "slow-model-catalog.jsonl")
+		startedAt := time.Now()
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:      "helper",
+			Command:        helperCommand(t),
+			Cwd:            t.TempDir(),
+			Env:            helperEnvWithCapture("model_catalog_late", "5s", captureFile),
+			Permissions:    compozyconfig.PermissionModeApproveAll,
+			PreferredModel: "catalog-late-model",
+		})
+		elapsed := time.Since(startedAt)
+		if proc != nil {
+			defer stopProcess(t, driver, proc)
+		}
+		if err == nil {
+			t.Fatal("Start() error = nil, want model_unavailable when the catalog misses the budget")
+		}
+		negotiationErr, matched := errors.AsType[*NegotiationError](err)
+		if !matched || negotiationErr.Code != NegotiationCodeModelUnavailable {
+			t.Fatalf("Start() error = %v, want model_unavailable NegotiationError", err)
+		}
+		if elapsed > 4*time.Second {
+			t.Fatalf("Start() waited %v, want the readiness budget of %v to bound the wait", elapsed, budget)
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent before the catalog announced the model")
+		}
+	})
+}
+
 func TestStartHandlesCurrentSessionConfigValues(t *testing.T) {
 	t.Parallel()
 
@@ -1203,6 +1634,75 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 func TestConfigureRuntime(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should wake configuration waiters only when the mode changes", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{}
+		proc.setConfigOptions([]SessionConfigOption{{ID: "mode", CurrentValueID: "agent"}})
+		_, changed := proc.configRevisionAndChange()
+		proc.setConfigOptionCurrent("mode", "agent")
+		select {
+		case <-changed:
+			t.Fatal("unchanged mode woke configuration waiters")
+		default:
+		}
+		proc.setConfigOptionCurrent("mode", "plan")
+		select {
+		case <-changed:
+		default:
+			t.Fatal("changed mode did not wake configuration waiters")
+		}
+	})
+
+	t.Run("Should accept a confirmation published during readback without resending", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New(WithConfigSettleBudget(time.Millisecond))
+		proc := &AgentProcess{}
+		proc.setConfigOptions([]SessionConfigOption{{ID: "reasoning_effort", CurrentValueID: "medium"}})
+		requests := 0
+		err := driver.applyConfigOption(t.Context(), proc, func(context.Context) error {
+			requests++
+			return nil
+		}, func() bool {
+			options, _ := proc.configOptionsSnapshot()
+			proc.setConfigOptionCurrent("reasoning_effort", "high")
+			return options[0].CurrentValueID == "high"
+		})
+		if err != nil {
+			t.Fatalf("applyConfigOption() error = %v, want the concurrent confirmation accepted", err)
+		}
+		if requests != 1 {
+			t.Fatalf("set requests = %d, want 1", requests)
+		}
+	})
+
+	// Invariant: unrelated updates cannot exhaust the final confirmation window.
+	t.Run("Should keep waiting after unrelated revisions on the final request", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New(WithConfigSettleBudget(time.Second))
+		proc := &AgentProcess{}
+		requests, readbacks := 0, 0
+		err := driver.applyConfigOption(t.Context(), proc, func(context.Context) error {
+			requests++
+			return nil
+		}, func() bool {
+			readbacks++
+			if requests == configSettleAttempts && readbacks >= 7 {
+				return true
+			}
+			proc.setConfigOptions([]SessionConfigOption{{ID: "mode", CurrentValueID: "agent"}})
+			return false
+		})
+		if err != nil {
+			t.Fatalf("applyConfigOption() error = %v, want the final confirmation accepted", err)
+		}
+		if requests != configSettleAttempts {
+			t.Fatalf("set requests = %d, want %d", requests, configSettleAttempts)
+		}
+	})
+
 	// Invariant: requested intent is not effective until provider readback confirms it.
 	t.Run("Should preserve prior effort when the provider does not confirm a change", func(t *testing.T) {
 		t.Parallel()
@@ -1213,7 +1713,34 @@ func TestConfigureRuntime(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "did not confirm") || !IsConfigurationRejection(err) {
 			t.Fatalf("error = %v, want unconfirmed configuration rejection", err)
 		}
+		if strings.Contains(err.Error(), "valid choices") {
+			t.Fatalf("error = %v, claims the requested value is absent from the advertised choices", err)
+		}
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "medium", "high")
+	})
+
+	// Invariant: a confirmation that arrives as a later notification settles the
+	// bind without a second set request.
+	t.Run("Should accept a late config_option_update without resending", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "late-update.jsonl")
+		proc := startHelperProcess(t, driver, "config_options_late_update", "", StartOpts{
+			Env: helperEnvWithCapture("config_options_late_update", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+		if err := driver.ConfigureRuntime(
+			testutil.Context(t),
+			proc,
+			RuntimeConfig{ReasoningEffort: "high"},
+		); err != nil {
+			t.Fatalf("ConfigureRuntime() error = %v, want the late confirmation accepted", err)
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "high", "high")
+		requests := captureRequestParamsForMethod(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption)
+		if len(requests) != 1 {
+			t.Fatalf("set_config_option requests = %d, want 1: the late notification must confirm", len(requests))
+		}
 	})
 
 	// Invariant: a notification sent before the provider's response cannot discard that confirmation.
@@ -1437,7 +1964,7 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			driver := New()
+			driver := newTestDriverWithCatalogBudget(t, 400*time.Millisecond)
 			captureFile := filepath.Join(t.TempDir(), "session-unavailable-config-option.jsonl")
 			opts := StartOpts{
 				AgentName:   "helper",
@@ -2027,6 +2554,75 @@ func TestIsLoadSessionResourceMissing(t *testing.T) {
 	}
 }
 
+// Invariant: only the provider's account/backend mismatch wording on a failed session/load is a
+// permanent failure that may rotate to a fresh provider thread; other load failures stay retryable.
+// Owner: ACP failure classification; canonical suite: client_start_contract_test.go.
+func TestLoadSessionRequiresFreshThread(t *testing.T) {
+	t.Parallel()
+
+	loadFailure := func(reqErr *acpsdk.RequestError) error {
+		return WrapFailure(store.FailureLoad, "ACP session/load failed", fmt.Errorf(
+			"%w: load session %q for %q: %w", ErrLoadSessionFailed, "sess-existing", "helper", reqErr,
+		))
+	}
+	mismatch := map[string]any{
+		"details": "This chat uses openai, but your current provider is cliproxyapi. Switch to openai to continue.",
+	}
+	tests := []struct {
+		name         string
+		err          error
+		wantMismatch bool
+		wantFresh    bool
+	}{
+		{
+			name:         "Should classify the provider backend mismatch as permanent",
+			err:          loadFailure(&acpsdk.RequestError{Code: -32603, Message: "Internal error", Data: mismatch}),
+			wantMismatch: true,
+			wantFresh:    true,
+		},
+		{
+			name: "Should keep a missing provider session on the fresh thread path",
+			err: loadFailure(&acpsdk.RequestError{
+				Code: requestErrorResourceNotFoundCode, Message: "Resource not found: sess-existing",
+			}),
+			wantFresh: true,
+		},
+		{
+			name:      "Should keep an unsupported session load on the fresh thread path",
+			err:       fmt.Errorf("%w: agent %q", ErrAgentDoesNotSupportSession, "helper"),
+			wantFresh: true,
+		},
+		{
+			name: "Should keep a generic internal load error transient",
+			err:  loadFailure(&acpsdk.RequestError{Code: -32603, Message: "Internal error"}),
+		},
+		{
+			name: "Should keep a load error that only names the current provider transient",
+			err: loadFailure(&acpsdk.RequestError{
+				Code: -32603, Message: "Internal error",
+				Data: map[string]any{"details": "your current provider is cliproxyapi and it is overloaded"},
+			}),
+		},
+		{
+			name: "Should ignore the mismatch wording outside a session load failure",
+			err:  &acpsdk.RequestError{Code: -32603, Message: "Internal error", Data: mismatch},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := IsLoadSessionProviderMismatch(tc.err); got != tc.wantMismatch {
+				t.Fatalf("IsLoadSessionProviderMismatch() = %v, want %v", got, tc.wantMismatch)
+			}
+			if got := LoadSessionRequiresFreshThread(tc.err); got != tc.wantFresh {
+				t.Fatalf("LoadSessionRequiresFreshThread() = %v, want %v", got, tc.wantFresh)
+			}
+		})
+	}
+}
+
 func TestCleanupFailedStartReturnsJoinedErrorWhenStopFails(t *testing.T) {
 	t.Parallel()
 
@@ -2215,6 +2811,7 @@ func TestHermesDiscoveryModelIsReadOnlyForModernACP(t *testing.T) {
 			t.Context(),
 			process,
 			"openrouter:grok-4.6",
+			false,
 		)
 		if applied {
 			t.Fatal("applySessionModel() applied = true, want false for discovery-only model")
@@ -2334,8 +2931,11 @@ func TestStartCapturesSteerCapability(t *testing.T) {
 			t.Parallel()
 			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
 			proc := startHelperProcess(t, driver, tc.scenario, "", StartOpts{
-				ProviderName:   "custom",
-				ProviderConfig: &compozyconfig.ProviderConfig{SteerCapability: tc.override},
+				ProviderName: "claude",
+				ProviderConfig: &compozyconfig.ProviderConfig{
+					SteerCapability: tc.override,
+					AuthMode:        compozyconfig.ProviderAuthModeNone,
+				},
 			})
 			defer stopProcess(t, driver, proc)
 			if got := proc.CapsSnapshot().SteerCapability; got != tc.want {
@@ -2424,11 +3024,15 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 			)
 		}
 		hooks := options.Settings.Hooks.PreToolUse
-		if len(hooks) != 1 || hooks[0].Matcher != "Bash|PowerShell" || len(hooks[0].Hooks) != 1 ||
+		if len(hooks) != 2 || hooks[0].Matcher != "Bash|PowerShell" || len(hooks[0].Hooks) != 1 ||
 			hooks[0].Hooks[0].Type != "command" ||
 			!strings.Contains(hooks[0].Hooks[0].Command, "run_in_background") ||
 			!strings.Contains(hooks[0].Hooks[0].Command, `"permissionDecision":"deny"`) {
-			t.Fatalf("%s PreToolUse hooks = %#v, want one shell run_in_background deny hook", method, hooks)
+			t.Fatalf("%s PreToolUse hooks = %#v, want shell background and subagent monitor guards", method, hooks)
+		}
+		if hooks[1].Matcher != "(^|.*__)compozy__monitor_create$" || len(hooks[1].Hooks) != 1 ||
+			!strings.Contains(hooks[1].Hooks[0].Command, "__internal shell-wait-hook") {
+			t.Fatalf("%s monitor guard = %#v", method, hooks[1])
 		}
 		// Only the four SDK task lifecycle messages are forwarded, never every raw SDK message.
 		wantFilters := []map[string]string{
@@ -2647,7 +3251,7 @@ func TestStartFinalizesRuntimeGuidance(t *testing.T) {
 			},
 		})
 		defer stopProcess(t, driver, proc)
-		text, included, _ := proc.nextPromptText("hello", false)
+		text, included, _, _ := proc.nextPromptText("hello", PromptRequest{Message: "hello"})
 		if !included || strings.Contains(text, "unconfirmed tools") ||
 			!strings.Contains(text, "confirmed runtime guidance") {
 			t.Fatalf("first prompt = %q", text)
@@ -2663,28 +3267,42 @@ func TestStartFinalizesRuntimeGuidance(t *testing.T) {
 }
 
 func TestTriageStartup(t *testing.T) {
+	// Invariant: triage negotiates a verified read-only mode for the effective runtime provider.
+	// Owner: ACP startup negotiation; canonical suite: TestTriageStartup.
 	for _, tc := range []struct {
-		name, provider, scenario string
-		allowed                  bool
+		name, provider, runtimeProvider, scenario string
+		allowed                                   bool
 	}{
-		{"Should select the verified Claude planning mode", "claude", "mode_mapping", true},
-		{"Should confirm a config-only planning mode", "opencode", "triage_config_mode", true},
-		{"Should reject an unverified Kimi planning mode", "kimi-cli", "triage_config_mode", false},
-		{"Should reject an unconfirmed planning mode", "opencode", "triage_config_unconfirmed", false},
-		{"Should reject an unknown providers planning mode", "unknown", "triage_config_mode", false},
+		{"Should select the verified Claude planning mode", "claude", "", "mode_mapping", true},
+		{"Should select the Claude overlay planning mode", "claude-secondary", "claude", "mode_mapping", true},
+		{"Should confirm the Claude overlay config-only planning mode", "claude-secondary", "claude", "triage_config_mode", true},
+		{"Should confirm a config-only planning mode", "opencode", "", "triage_config_mode", true},
+		{"Should confirm the OpenCode overlay planning mode", "opencode-secondary", "opencode", "triage_config_mode", true},
+		{"Should reject an unverified Kimi planning mode", "kimi-cli", "", "triage_config_mode", false},
+		{"Should reject an unsupported overlay runtime", "claude-secondary", "kimi-cli", "triage_config_mode", false},
+		{"Should reject a Claude name backed by an unsupported runtime", "claude", "kimi-cli", "triage_config_mode", false},
+		{"Should reject an overlay without a runtime provider", "claude-secondary", "", "triage_config_mode", false},
+		{"Should reject an unconfirmed planning mode", "opencode", "", "triage_config_unconfirmed", false},
+		{"Should reject an unconfirmed Claude overlay planning mode", "claude-secondary", "claude", "triage_config_unconfirmed", false},
+		{"Should reject an unknown providers planning mode", "unknown", "", "triage_config_mode", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			captureFile := filepath.Join(t.TempDir(), "triage-mode.jsonl")
 			process, err := driver.Start(t.Context(), StartOpts{
-				ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
-				AgentName:      "helper",
-				ProviderName:   tc.provider,
-				Command:        helperCommand(t),
-				Cwd:            t.TempDir(),
-				Env: helperEnv(
+				ProviderConfig: &compozyconfig.ProviderConfig{
+					AuthMode:        compozyconfig.ProviderAuthModeNone,
+					RuntimeProvider: tc.runtimeProvider,
+				},
+				AgentName:    "helper",
+				ProviderName: tc.provider,
+				Command:      helperCommand(t),
+				Cwd:          t.TempDir(),
+				Env: helperEnvWithCapture(
 					tc.scenario,
 					"",
+					captureFile,
 				),
 				PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
 				Permissions:      compozyconfig.PermissionModeApproveAll,
@@ -2694,6 +3312,31 @@ func TestTriageStartup(t *testing.T) {
 			}
 			if (err == nil) != tc.allowed {
 				t.Fatalf("triage startup: %v", err)
+			}
+			if !tc.allowed && tc.scenario != "triage_config_unconfirmed" && !errors.Is(err, ErrTriageUnsupported) {
+				t.Fatalf("startup error=%v, want triage_unsupported", err)
+			}
+			if tc.scenario == "triage_config_unconfirmed" && !errors.Is(err, errConfigOptionUnconfirmed) {
+				t.Fatalf("startup error=%v, want unconfirmed mode rejection", err)
+			}
+			if tc.allowed && process.permissions.mode != compozyconfig.PermissionModeApproveReads {
+				t.Fatalf("triage permissions = %s, want approve-reads", process.permissions.mode)
+			}
+			if tc.allowed && tc.scenario == "mode_mapping" {
+				request := decodeCapturedSetSessionModeRequest(
+					t, captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode),
+				)
+				if request.SessionID != "sess-new" || request.ModeID != "plan" {
+					t.Fatalf("set_mode = %+v, want sess-new plan", request)
+				}
+			}
+			if tc.allowed && tc.scenario == "triage_config_mode" || tc.scenario == "triage_config_unconfirmed" {
+				request := decodeCapturedSetSessionConfigOptionRequest(
+					t, captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+				)
+				if request.ConfigID != "mode" || request.Value != "plan" {
+					t.Fatalf("set_config_option = %+v, want mode=plan", request)
+				}
 			}
 			if tc.allowed && tc.scenario == "triage_config_mode" {
 				option, ok := findSelectConfigOption(process.CapsSnapshot().ConfigOptions, "mode")
@@ -2846,5 +3489,191 @@ func TestPermissionLevelModeSelection(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCheckInHostedStartup(t *testing.T) {
+	t.Run("Should retain only the daemon hosted server when enabled [UT-021]", func(t *testing.T) {
+		t.Parallel()
+		for _, enabled := range []bool{false, true} {
+			opts := StartOpts{
+				ProviderName:     "codex",
+				CheckInTools:     enabled,
+				Command:          "npx -y @agentclientprotocol/codex-acp@latest",
+				PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
+				MCPServers: []compozyconfig.MCPServer{
+					{Name: "raw", Command: "raw"},
+					{Name: "compozy-hosted-tools", Command: "compozy", Args: []string{"--bind-nonce", "nonce"}},
+				},
+			}
+			normalized, err := constrainTriageStart(opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if enabled {
+				want = 1
+			}
+			if len(normalized.MCPServers) != want {
+				t.Fatalf("enabled=%v servers=%+v", enabled, normalized.MCPServers)
+			}
+			process := &AgentProcess{}
+			process.setHostedToolIdentity(normalized)
+			if process.hostedToolIdentitySnapshot().launched != enabled {
+				t.Fatalf("hosted identity enabled=%v", enabled)
+			}
+			if len(opts.MCPServers) != 2 || opts.MCPServers[0].Name != "raw" {
+				t.Fatal("start constraint mutated caller slice")
+			}
+		}
+	})
+}
+
+func TestClaudeAutoCompactWindow(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, scenario, method, resume string }{
+		{"new", "stream_updates", acpsdk.AgentMethodSessionNew, ""},
+		{"load", "load_session", acpsdk.AgentMethodSessionLoad, "sess-existing"},
+		{"resume", "resume_session", acpsdk.AgentMethodSessionResume, "sess-existing"},
+	} {
+		for _, configured := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf("Should preserve compact window configuration on %s configured %t", tc.name, configured),
+				func(t *testing.T) {
+					t.Parallel()
+					capture := filepath.Join(t.TempDir(), "request.jsonl")
+					opts := StartOpts{
+						Command:         helperCommand(t) + " @agentclientprotocol/claude-agent-acp@latest",
+						ResumeSessionID: tc.resume,
+						Env:             helperEnvWithCapture(tc.scenario, "", capture),
+					}
+					if configured {
+						opts.ProviderConfig = &compozyconfig.ProviderConfig{AutoCompactWindow: new(200000)}
+					}
+					proc := startHelperProcess(t, New(), tc.scenario, "", opts)
+					defer stopProcess(t, New(), proc)
+					params := captureRequestParams(t, capture, tc.method)
+					var meta struct {
+						ClaudeCode struct {
+							Options struct {
+								Env map[string]string `json:"env"`
+							} `json:"options"`
+						} `json:"claudeCode"`
+					}
+					if err := json.Unmarshal(params["_meta"], &meta); err != nil {
+						t.Fatal(err)
+					}
+					got, present := meta.ClaudeCode.Options.Env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"]
+					if present != configured || configured && got != "200000" {
+						t.Fatalf("window = %q, present = %t", got, present)
+					}
+				},
+			)
+		}
+	}
+}
+
+func TestClaudeLeanEnvironment(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, scenario, method, resume string }{
+		{"new", "stream_updates", acpsdk.AgentMethodSessionNew, ""},
+		{"load", "load_session", acpsdk.AgentMethodSessionLoad, "sess-existing"},
+		{"resume", "resume_session", acpsdk.AgentMethodSessionResume, "sess-existing"},
+	} {
+		for _, enabled := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf(
+					"Should preserve repository instructions and managed tools on %s lean %t",
+					tc.name,
+					enabled,
+				),
+				func(t *testing.T) {
+					t.Parallel()
+					capture := filepath.Join(t.TempDir(), "request.jsonl")
+					opts := StartOpts{
+						Command:         helperCommand(t) + " @agentclientprotocol/claude-agent-acp@latest",
+						ResumeSessionID: tc.resume,
+						Env:             helperEnvWithCapture(tc.scenario, "", capture),
+						LeanEnvironment: enabled,
+					}
+					driver := New()
+					proc := startHelperProcess(t, driver, tc.scenario, "", opts)
+					defer stopProcess(t, driver, proc)
+					params := captureRequestParams(t, capture, tc.method)
+					var meta struct {
+						ClaudeCode struct {
+							Options struct {
+								StrictMCP bool              `json:"strictMcpConfig"`
+								Env       map[string]string `json:"env"`
+								Tools     *[]string         `json:"tools"`
+								Skills    *[]string         `json:"skills"`
+							} `json:"options"`
+						} `json:"claudeCode"`
+					}
+					if err := json.Unmarshal(params["_meta"], &meta); err != nil {
+						t.Fatal(err)
+					}
+					got := meta.ClaudeCode.Options
+					if got.StrictMCP != enabled || (got.Env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1") != enabled ||
+						(got.Env["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false") != enabled {
+						t.Fatalf("options = %+v", got)
+					}
+					if got.Env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] != "" || got.Tools != nil || got.Skills != nil {
+						t.Fatal("lean environment removed coding instructions or tools")
+					}
+				},
+			)
+		}
+	}
+	t.Run("Should isolate provider MCP without turning off auto-memory", func(t *testing.T) {
+		t.Parallel()
+		meta, ok := claudeCodeSessionMeta(StartOpts{
+			Command: "npx -y @agentclientprotocol/claude-agent-acp@latest", IsolateProviderMCP: true,
+		}).(map[string]any)
+		if !ok {
+			t.Fatal("Claude session meta missing")
+		}
+		options := meta["claudeCode"].(map[string]any)["options"].(map[string]any)
+		env := options["env"].(map[string]string)
+		if options["strictMcpConfig"] != true || env["ENABLE_CLAUDEAI_MCP_SERVERS"] != "false" {
+			t.Fatalf("provider MCP not isolated: %+v", options)
+		}
+		if _, disabled := env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"]; disabled {
+			t.Fatal("provider MCP isolation turned off auto-memory")
+		}
+	})
+	t.Run("Should leave other provider environments unchanged", func(t *testing.T) {
+		t.Parallel()
+		if claudeCodeSessionMeta(
+			StartOpts{Command: "codex-acp", LeanEnvironment: true, IsolateProviderMCP: true},
+		) != nil {
+			t.Fatal("Claude options escaped to another provider")
+		}
+	})
+}
+
+// Invariant: Claude receives isolation options unless machine policy refuses strict configuration.
+// Owner: ACP metadata; canonical suite: client start contract (UT-070, UT-075).
+func TestClaudeRuntimeMCPIsolationMeta(t *testing.T) {
+	t.Parallel()
+	for _, managed := range []bool{false, true} {
+		for _, inputOnly := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf("Should respect managed policy %t for input-only %t [UT-070 UT-075]", managed, inputOnly),
+				func(t *testing.T) {
+					t.Parallel()
+					meta := claudeCodeSessionMeta(StartOpts{Command: "claude-agent-acp", IsolateProviderMCP: true, ManagedProviderMCP: managed, InputOnly: inputOnly}).(map[string]any)
+					options := meta["claudeCode"].(map[string]any)["options"].(map[string]any)
+					strict, present := options["strictMcpConfig"]
+					if present == managed || !managed && strict != true {
+						t.Fatalf("strict option = %v (present %v)", strict, present)
+					}
+					env := options["env"].(map[string]string)
+					if env["ENABLE_CLAUDEAI_MCP_SERVERS"] != "false" {
+						t.Fatalf("connector isolation = %v", env)
+					}
+				},
+			)
+		}
 	}
 }

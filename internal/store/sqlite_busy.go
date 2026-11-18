@@ -13,21 +13,12 @@ func executeSQLiteWithBusyWait(ctx context.Context, conn *sql.Conn, operation fu
 	if ctx.Done() == nil {
 		return operation()
 	}
-	operationFailed := false
-	defer func() {
-		if operationFailed && ctx.Err() != nil {
-			// Driver cancellation can mask a successful BEGIN; closing the connection rolls it back.
-			retErr = discardSQLiteConnection(conn, retErr)
-		}
-	}()
 	var timeoutMS int
 	if err := conn.QueryRowContext(ctx, "PRAGMA busy_timeout").Scan(&timeoutMS); err != nil {
 		return err
 	}
 	if timeoutMS <= 0 {
-		err := operation()
-		operationFailed = err != nil && !IsSQLiteBusy(err)
-		return err
+		return operation()
 	}
 	defer func() {
 		restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultWriteRollbackTimeout)
@@ -54,7 +45,6 @@ func executeSQLiteWithBusyWait(ctx context.Context, conn *sql.Conn, operation fu
 		}
 		err := operation()
 		busy := IsSQLiteBusy(err)
-		operationFailed = err != nil && !busy
 		if !busy {
 			return err
 		}
@@ -67,6 +57,21 @@ func executeSQLiteWithBusyWait(ctx context.Context, conn *sql.Conn, operation fu
 		}
 		delay = min(delay*2, defaultWriteMinRetryDelay)
 	}
+}
+
+// beginSQLiteImmediate discards an ambiguous canceled BEGIN, which may have acquired
+// a transaction even if the driver reports cancellation. Checkpoints need no such discard.
+func beginSQLiteImmediate(ctx context.Context, conn *sql.Conn) error {
+	operationFailed := false
+	err := executeSQLiteWithBusyWait(ctx, conn, func() error {
+		_, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement)
+		operationFailed = err != nil && !IsSQLiteBusy(err)
+		return err
+	})
+	if operationFailed && ctx.Err() != nil {
+		return discardSQLiteConnection(conn, err)
+	}
+	return err
 }
 
 func discardSQLiteConnection(conn *sql.Conn, cause error) error {

@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report: reports/2026-10-29-issue-1023.md
+last_report: docs/qa/reports/2026-11-07-provider-enable-toggle.md
 overlaps: APP-provider-usage-tray
 ---
 
@@ -156,3 +156,99 @@ negative controls for rereading, the sequence fence, cancellation and error hand
 See the reverse observation-order section of
 `../reports/2026-11-01-performance/usage-dashboard.md`. This uses temporary synthetic
 credentials and loopback HTTP; it does not change the broader scenario verdict.
+
+## Alias account selector (#1266)
+
+Run in an isolated lab with synthetic Claude config dirs only; never the operator's accounts.
+
+1. QA-1 — Configure aliases `claude-mm1` and `claude-mm2` (`runtime_provider = "claude"`,
+   `native_cli`) whose `command` assigns their own `CLAUDE_CONFIG_DIR`, one as a leading
+   `CLAUDE_CONFIG_DIR=<dir> …` and one inside `env -u ARGV0 CLAUDE_CONFIG_DIR=<dir> …`. Refresh each.
+   Neither row carries the "Set … in this provider's command" message, each refresh leaves the daemon
+   (observable through a logging `HTTPS_PROXY` stub), and `compozy provider usage list -o json`
+   matches `GET /api/provider-usage` rows, including `collector_id: "claude"` on both aliases and no
+   `collector_id` on built-in rows.
+2. QA-2 — Add `claude-mm5` with no `CLAUDE_CONFIG_DIR` in its command (the daemon environment may
+   still define one). Refresh it: the row is `signed_out` / `auth_missing` with
+   "Set CLAUDE_CONFIG_DIR in this provider's command so CompozyOS reads its own sign-in", no request
+   leaves the daemon for it, and the daemon log has `provider_usage.alias_selector_missing` without
+   any path value. Repeat with `CLAUDE_CONFIG_DIR=` (empty) and `env -u CLAUDE_CONFIG_DIR`. When the
+   effective selector changes (for example the daemon environment gains
+   `CLAUDE_SECURESTORAGE_CONFIG_DIR`), the next refresh shows the new key in the message. Remove the
+   alias: its row disappears.
+
+Supporting checks: `TestApplyLaunchEnvironment`, `TestProviderUsageResolver/Should_fail_closed_…`,
+`TestProviderUsageAliasSelector` (IT-001/IT-002 with the real Claude collector), `TestAccountSelector`,
+`TestUsageService/Should_publish_a_changed_resolver_error_under_the_same_status`.
+
+Targeted evidence: [#1266 report](../reports/2026-11-04-provider-usage-runtime-alias.md) — QA-1/QA-2 Pass
+(BUG-20261104-alias-selector-log-repeats fixed). The broader scenario keeps its status.
+
+## Rate-limit backoff and one collection per account (#1302)
+
+Isolated lab only: a loopback usage fixture that counts requests per account header and answers
+`429` with `Retry-After: 0`, synthetic Codex auth files, two profiles that resolve the same account.
+
+1. Refresh the account from profile A with `compozy provider usage refresh codex -o json`. Expect
+   `status: rate_limited`, and `next_refresh_at` and `error.retry_after` five minutes after the check.
+   The fixture logs one request.
+2. Refresh again with background intent before the cooldown ends, from A and from B. Expect no new
+   fixture request; profile B shows the same `rate_limited` row and the same `next_refresh_at`.
+3. Trigger a second 429 inside the same daemon run (an explicit refresh spends the bypass; a
+   restart would clear the in-memory streak). Expect a ten-minute cooldown, then 20, 40, and 60 minutes on later strikes. One successful response resets
+   the next cooldown to five minutes.
+4. With the fixture answering 200, refresh both profiles at the same time. The fixture logs one
+   request for the account, and both profiles show the same windows.
+5. Reuse A's successful result from B before its `MaxAge` expires. Both rows retain the original
+   `measured_at` and `next_refresh_at`. Refresh B after the original collection exceeds `MaxAge`;
+   expect a new fixture request even if B reused the data recently.
+6. Run one explicit refresh during a cooldown. It sends one request; a second explicit refresh from
+   either profile sends none until a success.
+
+Automated evidence: `internal/providerusage` `TestUsageRateLimitBackoff`,
+`TestUsageSharedAccountCollection`, the `rateLimitUntil` table in `TestFoundations`, and the
+pre-existing ownership, read-fence, and scheduling suites (race-enabled).
+
+Verification 2026-11-05: isolated lab walk PASS (floor, explicit-bypass strike 2, cross-profile single request for 429 and 200). See `../reports/2026-11-05-usage-backoff-signin-boot.md`.
+This section-level walk leaves the scenario-level `qa_status` unchanged; the scenario's original
+steps 1-8 (top of this file) still need their integrated walk.
+
+QA impact 2026-11-07 (issue #1326, provider enable toggle): A turned-off provider resolves to the usage `disabled` status: it leaves the aggregate usage views and is not collected (no provider requests). Settings → Provider usage shows "Provider disabled" on its row. `provider_usage.providers.<id>.enabled` is never rewritten by the toggle. Status reset to
+`untested`; `RT-provider-enable-toggle` and the spec task_07 own the walk.
+
+QA 2026-11-07 (issue #1326): walked in an isolated lab — see `docs/qa/reports/2026-11-07-provider-enable-toggle.md`.
+
+### Incomplete profile provider at startup (#1505)
+
+In an isolated home, add `[providers.ghost]` with `enabled = false` to the default
+profile config, without defining `ghost` globally. Repeat with a disabled alias that
+sets `runtime_provider = "claude"` but has no command. Start the daemon with usage
+collection enabled, then repeat with `[provider_usage] enabled = false`. Startup
+must reach readiness, resolvable built-ins and configured aliases must retain their
+usage targets, and `ghost` must be absent. The daemon emits
+`provider_usage.provider_unresolved` once per unresolved profile/provider pair. Reads
+do not repeat the warning; resolving the provider clears it so a recurrence warns again. Session
+admission still rejects the undefined provider. Malformed profile TOML remains an
+error. Do not use an operator's real home for this check.
+
+Supporting regression: `TestProviderUsageResolverDisabledProviders` exercises the
+real profile overlay and full daemon boot with collection disabled for credential
+isolation, using temporary homes and dedicated sockets/ports. This is automated runtime
+evidence, not a completed UI walk.
+
+## macOS leftover credential file (#1642)
+
+In an isolated macOS fixture with synthetic credentials, place an expired
+`.credentials.json` beside a valid routed Keychain login. With consent enabled,
+background collection must show the Keychain account's usage with one silent
+Keychain read, then reuse the cached login on later polls without another read or
+any prompt. Explicit Refresh may read the Keychain as it does without a file. A
+valid file must still win without any Keychain read. With an expired file and
+consent off, show `Needs Keychain access`; with denied or timed-out background
+access, show the existing access-recovery state; with no Keychain login, keep the
+file's `Run claude /login` diagnosis. Linux and Windows still use only the file.
+Never read or modify real credentials.
+
+Owning automated coverage: `TestClaudeKeychain` and `TestClaudeCollector` in
+`internal/providerusage/claude_test.go`. Not walked locally for this change: the
+operator requires CI-only verification and forbids QA daemons and real credentials.

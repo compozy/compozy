@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -150,6 +151,46 @@ func (s *daemonExtensionService) applyManifestInstallScope(
 	}
 	request.Scope = defaultScope
 	return s.resolveExtensionScope(ctx, request.Scope, request.WorkspaceID, request.Profile, actor)
+}
+
+// Replacing shared package code requires authority over every attachment and an existing target.
+func (s *daemonExtensionService) authorizeExtensionReplace(
+	ctx context.Context, name string, actor taskpkg.ActorContext, target extensionMutationTarget,
+) error {
+	if _, err := s.registry.Get(name); err != nil {
+		if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			return nil
+		}
+		return err
+	}
+	if !actor.Scope.Operator {
+		workspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
+		if workspaceID == "" {
+			return taskpkg.ErrPermissionDenied
+		}
+		profile, err := s.extensionReadProfile(ctx, actor)
+		if err != nil {
+			return err
+		}
+		attachments, err := s.registry.Installations(ctx, name)
+		if err != nil {
+			return err
+		}
+		if len(attachments) == 0 {
+			return taskpkg.ErrPermissionDenied
+		}
+		for _, attachment := range attachments {
+			profileID := strings.TrimSpace(attachment.Scope.ProfileID)
+			if strings.TrimSpace(attachment.Scope.WorkspaceID) != workspaceID ||
+				(profileID != "" && profileID != profile.ID) {
+				return taskpkg.ErrPermissionDenied
+			}
+		}
+	}
+	_, err := s.registry.ResolveInstallation(ctx, name, extensionpkg.InstallationScope{
+		ProfileID: target.profile.ID, WorkspaceID: target.scope.WorkspaceID,
+	})
+	return err
 }
 
 func extensionMutationKeys(names []string, target extensionMutationTarget) []extensionpkg.InstanceKey {

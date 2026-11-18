@@ -141,7 +141,19 @@ func agentInstanceCatalogOperations() []OperationSpec {
 }
 
 func agentInstanceDetailOperations() []OperationSpec {
-	var operations []OperationSpec
+	operations := []OperationSpec{
+		{
+			Method:      httpMethodPost,
+			Path:        "/api/agent-instances/{id}/reports/{report_id}/pick",
+			OperationID: "pickAgentInstanceProposal",
+			Summary:     "Pick an instance proposal",
+			Parameters:  []ParameterSpec{pathParam("id", "Instance ID"), pathParam("report_id", "Report ID")},
+			RequestBody: contract.AgentInstancePickRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "Picked", Body: contract.AgentInstancePickResponse{}},
+			},
+		},
+	}
 	for _, verb := range []struct{ method, path, id, summary string }{
 		{httpMethodGet, "", "getAgentInstance", "Get an agent instance"},
 		{httpMethodPost, "/pause", "pauseAgentInstance", "Pause an agent instance"},

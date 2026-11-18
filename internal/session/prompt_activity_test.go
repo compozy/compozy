@@ -1135,6 +1135,33 @@ func TestPromptActivitySupervisorEventBatch(t *testing.T) {
 // Invariant: quiet supervision is a hung-turn watchdog; a session waiting for the operator never warns or
 // stops for inactivity. Owner: session supervision; canonical activity/supervision suite.
 func TestSupervisionIgnoresSessionWaitingForOperator(t *testing.T) {
+	// Invariant: held queue attention does not suppress the hung-turn watchdog.
+	t.Run("Should warn about a silent in-flight turn while input is held", func(t *testing.T) {
+		now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+		cfg := testSupervisionConfig()
+		cfg.QuietAfter, cfg.StopGrace = time.Second, time.Minute
+		h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		installAbsentWorkSources(h.manager)
+		h.manager.SetWorkSignalSources(WorkSignalSource{Kind: WorkSignalHeldInput,
+			Source: SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) {
+				return []WorkSignal{{Kind: WorkSignalHeldInput, Since: now, ValidUntil: now.Add(time.Hour),
+					AttentionReason: "Input held by paused instance: manual"}}, nil
+			}),
+		})
+		markTurnInFlight(target)
+		for range 2 {
+			if err := h.manager.Supervise(t.Context(), now); err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(time.Second)
+		}
+		if target.Info().Supervision.QuietWarning == nil {
+			t.Fatal("held input suppressed quiet warning")
+		}
+	})
+
 	t.Run("Should not warn or stop a session with no turn in flight", func(t *testing.T) {
 		now := time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC)
 		cfg := testSupervisionConfig()
@@ -1514,6 +1541,63 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 			t.Fatalf("rebind ResumeSessionID = %q, want session/load of %q", last.ResumeSessionID, acpSessionID)
 		}
 	})
+	// Invariant: Stop admission stays responsive while its worker joins an owned idle release.
+	t.Run("Should admit Stop before an in-flight idle runtime release finishes", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		released := h.driver.lastProcess()
+		entered, release := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		setStopHook(h, func(proc *fakeProcess) error {
+			close(entered)
+			<-release
+			proc.exit()
+			return nil
+		})
+		releaseDone := make(chan struct{})
+		var releaseErr error
+		go func() {
+			defer close(releaseDone)
+			releaseErr = superviseUntilReleaseError(h, clock, advance)
+		}()
+		defer func() { unblock(); <-releaseDone }()
+		<-entered
+		ctx, cancel := context.WithTimeout(testutil.Context(t), time.Second)
+		defer cancel()
+		requested, requestDone := make(chan error, 1), make(chan struct{})
+		go func() {
+			defer close(requestDone)
+			requested <- h.manager.RequestStop(ctx, target.ID, CauseUserRequested)
+		}()
+		defer func() { unblock(); <-requestDone }()
+		select {
+		case err := <-requested:
+			if err != nil {
+				t.Fatalf("RequestStop() admission = %v", err)
+			}
+		case <-ctx.Done():
+			t.Fatal("RequestStop blocked on idle runtime release")
+		}
+		cancel()
+		if outcome, err := h.manager.AwaitStopped(
+			ctx,
+			target.ID,
+		); !errors.Is(err, context.Canceled) ||
+			outcome.Verified {
+			t.Fatalf("canceled stop waiter = %+v, %v", outcome, err)
+		}
+		if isProcessDone(released.handle) || target.Info().State == StateStopped {
+			t.Fatal("Stop released its owner before idle termination finished")
+		}
+		unblock()
+		<-releaseDone
+		if releaseErr != nil {
+			t.Fatal(releaseErr)
+		}
+		if outcome, err := h.manager.AwaitStopped(testutil.Context(t), target.ID); err != nil ||
+			!outcome.Verified || !isProcessDone(released.handle) {
+			t.Fatalf("settled idle release Stop = %+v, %v", outcome, err)
+		}
+	})
 	t.Run("Should stop the released process before a session stop verifies exit", func(t *testing.T) {
 		h, target, clock, advance := idleReleaseHarness(t, nil)
 		released := h.driver.lastProcess()
@@ -1538,6 +1622,7 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 		{"Should retain a monitor runtime without session load", false, ""},
 		{"Should retain a runtime with a monitor and task lease", true, WorkSignalTaskLease},
 		{"Should retain a runtime with a monitor and scheduled wait", true, WorkSignalScheduledWait},
+		{"Should release a runtime with a monitor and held input", true, WorkSignalHeldInput},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -1570,7 +1655,7 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 				})
 			}
 			superviseFor(t, h, clock, advance, 3)
-			if !tt.load || tt.other != "" {
+			if !tt.load || (tt.other != "" && tt.other != WorkSignalHeldInput) {
 				if info := target.Info(); info.RuntimeStatus != RuntimeStatusReady {
 					t.Fatalf("blocked runtime = %s", info.RuntimeStatus)
 				}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -53,7 +54,7 @@ func startStdioChild(ctx context.Context, name string, spec Spec) (_ *stdioChild
 	// The child outlives the start request and lives until close, not the caller's context.
 	childCtx, stop := context.WithCancel(context.WithoutCancel(ctx))
 	cmd := exec.CommandContext(childCtx, executable, spec.Args...)
-	cmd.Env = append([]string(nil), spec.Env...)
+	cmd.Env = slices.Clone(spec.Env)
 	cmd.Dir = spec.Dir
 	stderr := &tailBuffer{limit: stderrTailBytes}
 	cmd.Stdin = stdinReader

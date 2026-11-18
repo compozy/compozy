@@ -1,4 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
+
+import { FileDiff, List, PanelRight } from "../../icons";
 
 import { Button } from "../button";
 
@@ -144,4 +147,40 @@ export const DisabledVariants: Story = {
       </div>
     </div>
   ),
+};
+
+/**
+ * Quiet icon toggles, as in a window head: a pressed toggle is its glyph in brand ink with no
+ * plate; an unpressed one stays muted until hovered. Tab through to check the focus ring.
+ */
+export const QuietToggles: Story = {
+  args: {},
+  tags: ["play-fn"],
+  render: () => (
+    <div className="flex items-center gap-1 bg-canvas p-4 text-fg">
+      <Button
+        variant="quiet"
+        size="icon-sm"
+        aria-label="Open sessions sidebar"
+        aria-pressed={false}
+      >
+        <List aria-hidden className="size-4" />
+      </Button>
+      <Button variant="quiet" size="icon-sm" aria-label="Changes" aria-pressed>
+        <FileDiff aria-hidden className="size-4" />
+      </Button>
+      <Button variant="quiet" size="icon-sm" aria-label="Close context sidebar" aria-pressed>
+        <PanelRight aria-hidden className="size-4" />
+      </Button>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const pressed = canvas.getByRole("button", { name: "Changes" });
+    await expect(pressed).toHaveAttribute("aria-pressed", "true");
+    await expect(getComputedStyle(pressed).backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    await expect(getComputedStyle(pressed).color).not.toBe(
+      getComputedStyle(canvas.getByRole("button", { name: "Open sessions sidebar" })).color
+    );
+  },
 };

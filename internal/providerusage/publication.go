@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+// admitLocked decides whether a flight may collect. It returns the skip outcome when not, and
+// whether that outcome was published here (an identity cooldown this target had not shown yet).
 func (s *Manager) admitLocked(
 	profile, id string,
 	state *targetState,
@@ -15,7 +17,7 @@ func (s *Manager) admitLocked(
 	identity CredentialIdentity,
 	err error,
 	started time.Time,
-) (bool, *UsageError) {
+) (bool, *UsageError, bool) {
 	target := state.target
 	collector := s.options.Collectors[target.Collector()]
 	known := identity != (CredentialIdentity{})
@@ -25,21 +27,32 @@ func (s *Manager) admitLocked(
 		state.snapshot = initialSnapshot(target, collector)
 		state.lastSuccess = time.Time{}
 		state.hasIdentity = false
-		state.cooldown = nil
+		state.cooldownUntil = time.Time{}
 		s.changedLocked(s.profileLocked(profile))
 		s.options.Logger.Info("provider_usage.ownership_changed", "provider", id)
 	}
 	if err == nil && !state.lastSuccess.IsZero() && started.Sub(state.lastSuccess) < f.maxAge {
-		return false, nil
+		return false, nil, false
 	}
-	if err == nil && state.cooldown != nil && state.cooldown.identity.Same(identity) &&
-		started.Before(state.cooldown.until) {
-		if intent != IntentExplicit || state.cooldown.bypassed {
-			return false, RateLimited(target.ProviderName, state.cooldown.until)
-		}
-		state.cooldown.bypassed = true
+	if err != nil {
+		return true, nil, false
 	}
-	return true, nil
+	state.accountKey = newAccountKey(profile, target, identity)
+	c := s.activeCooldownLocked(state.accountKey, started)
+	if c == nil {
+		return true, nil, false
+	}
+	// The bypass itself is spent atomically with the request in joinAccountLocked.
+	if intent == IntentExplicit && !c.bypassed {
+		return true, nil, false
+	}
+	outcome := RateLimited(target.ProviderName, c.until)
+	if state.cooldownUntil.Equal(c.until) {
+		return false, outcome, false
+	}
+	// Another target of this identity earned the cooldown; show it without a request.
+	s.publishLocked(profile, id, state, target, identity, Snapshot{}, outcome)
+	return false, outcome, true
 }
 
 func (s *Manager) publishLocked(
@@ -60,13 +73,17 @@ func (s *Manager) publishLocked(
 			snapshot.MeasuredAt = &now
 		}
 		snapshot.CheckedAt = &now
-		next := now.Add(s.options.RefreshInterval)
+		collectedAt := snapshot.collectedAt
+		if collectedAt.IsZero() {
+			collectedAt = now
+		}
+		next := collectedAt.Add(s.options.RefreshInterval)
 		snapshot.NextRefreshAt = &next
 		state.snapshot = cloneSnapshot(snapshot)
 		state.identity = identity
 		state.hasIdentity = true
-		state.lastSuccess = now
-		state.cooldown = nil
+		state.lastSuccess = collectedAt
+		state.cooldownUntil = time.Time{}
 	} else {
 		if state.hasIdentity && state.identity.Same(identity) && state.snapshot.MeasuredAt != nil {
 			state.snapshot.Status = StatusStale
@@ -85,14 +102,12 @@ func (s *Manager) publishLocked(
 		state.snapshot.Error = clonePointer(outcome)
 		state.snapshot.CheckedAt = &now
 		if outcome.Code == ErrorCodeProviderRateLimited {
-			until := now.Add(5 * time.Minute)
+			until := now.Add(rateLimitFloor)
 			if outcome.RetryAfter != nil {
 				until = *outcome.RetryAfter
 			}
-			bypassed := state.cooldown != nil && state.cooldown.identity.Same(identity) && state.cooldown.bypassed
-			state.cooldown = &cooldown{identity: identity, until: until, bypassed: bypassed}
+			state.cooldownUntil = until
 			state.snapshot.NextRefreshAt = &until
-			s.options.Logger.Info("provider_usage.cooldown", "provider", id, "until", until)
 		}
 	}
 	s.changedLocked(s.profileLocked(profile))

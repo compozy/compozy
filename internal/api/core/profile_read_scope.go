@@ -67,7 +67,7 @@ func (h *BaseHandlers) resolveProfileReadSelectionWithSelector(
 	}
 	sessionProfileID := caller.sessionProfileID
 	if allProfiles {
-		return h.allProfilesReadScope(c, caller, workspaceID)
+		return h.allProfilesReadScope(c, &caller, workspaceID)
 	}
 	if requested == "" && sessionProfileID == "" {
 		requested = profileDefaultName
@@ -82,7 +82,7 @@ func (h *BaseHandlers) resolveProfileReadSelectionWithSelector(
 	if sessionProfileID != "" && requested != "" {
 		boundProfileID = ""
 	}
-	resolved, err := h.resolveRequestedProfile(c, caller, requested, boundProfileID)
+	resolved, err := h.resolveRequestedProfile(c, &caller, requested, boundProfileID)
 	if err != nil {
 		return resolvedProfileReadScope{}, err
 	}
@@ -107,7 +107,7 @@ func (h *BaseHandlers) resolveProfileReadSelectionWithSelector(
 // session's own profile still gets its real error from the session-bound resolution.
 func (h *BaseHandlers) resolveRequestedProfile(
 	c *gin.Context,
-	caller profileReadCaller,
+	caller *profileReadCaller,
 	requested, boundProfileID string,
 ) (profilepkg.Resolution, error) {
 	resolved, err := h.profileService().Resolve(c.Request.Context(), profilepkg.ResolveInput{
@@ -189,7 +189,7 @@ func (h *BaseHandlers) resolveProfileReadCaller(c *gin.Context, workspaceID stri
 // workspace-access policy admits: the unrestricted grant, approve-all, or approve-reads consent.
 func (h *BaseHandlers) allProfilesReadScope(
 	c *gin.Context,
-	caller profileReadCaller,
+	caller *profileReadCaller,
 	workspaceID string,
 ) (resolvedProfileReadScope, error) {
 	if caller.sessionProfileID != "" {

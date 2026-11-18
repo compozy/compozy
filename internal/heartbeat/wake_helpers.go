@@ -1,6 +1,7 @@
 package heartbeat
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -18,8 +19,25 @@ func (s *ManagedWakeService) currentTime() time.Time {
 	return now.UTC()
 }
 
+func (s *ManagedWakeService) resolveWakeRequest(ctx context.Context, req WakeRequest) (WakeRequest, error) {
+	if req.PolicyTarget == nil && s.targetResolver != nil {
+		target, err := s.targetResolver(ctx, req)
+		if err != nil {
+			return WakeRequest{}, err
+		}
+		req.PolicyTarget = &target
+	}
+	if req.PolicyTarget != nil && req.PolicyTarget.Config.IsZero() {
+		target := *req.PolicyTarget
+		target.Config = s.config
+		req.PolicyTarget = &target
+	}
+	return normalizeWakeRequest(req)
+}
+
 func normalizeWakeRequest(req WakeRequest) (WakeRequest, error) {
 	normalized := WakeRequest{
+		PolicyTarget:         req.PolicyTarget,
 		ProfileID:            strings.TrimSpace(req.ProfileID),
 		WorkspaceID:          strings.TrimSpace(req.WorkspaceID),
 		AgentName:            strings.TrimSpace(req.AgentName),
@@ -28,13 +46,20 @@ func normalizeWakeRequest(req WakeRequest) (WakeRequest, error) {
 		DryRun:               req.DryRun,
 		SyntheticCorrelation: req.SyntheticCorrelation.Normalize(),
 	}
+	if target := normalized.PolicyTarget; target != nil && strings.TrimSpace(target.AgentName) != normalized.AgentName {
+		return WakeRequest{}, fmt.Errorf("%w: wake policy target must match agent", ErrInvalid)
+	}
 	switch {
 	case normalized.AgentName == "":
 		return WakeRequest{}, errors.New("heartbeat: wake agent name is required")
 	case normalized.SessionID == "":
 		return WakeRequest{}, errors.New("heartbeat: wake session id is required")
 	case !ValidWakeSource(normalized.Source):
-		return WakeRequest{}, fmt.Errorf("heartbeat: invalid wake source %q", normalized.Source)
+		return WakeRequest{}, fmt.Errorf(
+			"%w: invalid wake source %q; accepted values: %s",
+			ErrInvalid,
+			normalized.Source, WakeSourceNames,
+		)
 	default:
 		return normalized, nil
 	}

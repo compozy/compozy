@@ -1,14 +1,14 @@
-import { use, type MouseEvent } from "react";
+import { use, useMemo, type MouseEvent } from "react";
 import { SubagentDrawerContext } from "../../contexts/subagent-drawer-context";
-import { Button, cn } from "@compozy/ui";
+import { SessionSubagentActionsContext } from "../../contexts/session-subagent-actions-context-value";
+import { Button, TreeBranchNode } from "@compozy/ui";
 
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { subagentNavigationTarget } from "../../lib/subagent-navigation";
 import { SUBAGENT_BRANCH_PAGE_SIZE } from "../../lib/subagent-query-options";
 import type { SessionListTarget } from "../../types";
-import { sortSubagentsByUrgency } from "../subagents/subagent-format";
 import type { SubagentView } from "../subagents/types";
-import { BRANCH_NODE } from "./session-list-branch-rail";
+import { SessionListBranchMore } from "./session-list-branch-more";
 import { SessionSubagentRowsSkeleton } from "./session-list-skeleton";
 import { SessionListSubagentRow } from "./session-list-subagent-row";
 
@@ -26,10 +26,11 @@ export interface SessionListSubagentBranchProps {
 
 /**
  * A parent row's open subagent list: one compact row per direct subagent on
- * the parent's rail, most urgent first (waiting, failed, working, queued,
- * settled), each opening the subagent's session. The daemon pages in that
- * order; the rows re-sort here so a live status change reorders loaded rows.
- * At most one page mounts until "Show N more" asks for the next.
+ * the parent's rail, active work first (waiting, working), then failed,
+ * queued and settled, each opening the subagent's session. The daemon pages in
+ * that order and the branch re-sorts loaded and live rows the same way, so a
+ * status change reorders them. One page mounts until "Show N more" asks for
+ * the next, except that every active row shows (#1732).
  */
 export function SessionListSubagentBranch({
   workspaceId,
@@ -42,7 +43,18 @@ export function SessionListSubagentBranch({
   testIdPrefix,
 }: SessionListSubagentBranchProps) {
   const drawer = use(SubagentDrawerContext);
+  const actions = use(SessionSubagentActionsContext);
   const branch = useSessionSubagentBranch(workspaceId, sessionId, total);
+  // The branch's rows carry this parent's scope; the actions owner lives above
+  // the threads, so a confirmation outlives this branch.
+  const verbs = useMemo(() => {
+    if (!actions) return {};
+    const scope = { workspaceId, sessionId, profile: profile ?? "" };
+    return {
+      onDelete: (subagent: SubagentView) => actions.openDelete(subagent, scope),
+      onStop: (subagent: SubagentView) => actions.stop(subagent, scope),
+    };
+  }, [actions, workspaceId, sessionId, profile]);
   const open = (subagent: SubagentView, event: MouseEvent<HTMLButtonElement>) => {
     if (drawer) {
       drawer.open(subagent, { newWindow: event.metaKey || event.ctrlKey }, workspaceId);
@@ -64,12 +76,15 @@ export function SessionListSubagentBranch({
         // Placeholders are the live rows' own frame, so the list does not jump when they land.
         <SessionSubagentRowsSkeleton count={Math.min(total, SUBAGENT_BRANCH_PAGE_SIZE)} />
       ) : (
-        sortSubagentsByUrgency(branch.rows).map(subagent => (
+        branch.rows.map(subagent => (
           <SessionListSubagentRow
             key={subagent.id}
             subagent={subagent}
             workspace={workspace}
             profile={profile}
+            menuTestId={`${testIdPrefix}-subagent-menu-${subagent.id}`}
+            onDelete={verbs.onDelete}
+            onStop={verbs.onStop}
             current={
               subagent.child_session_id !== null && subagent.child_session_id === currentSessionId
             }
@@ -82,26 +97,20 @@ export function SessionListSubagentBranch({
         ))
       )}
       {branch.failed ? (
-        <div className={cn(BRANCH_NODE, "flex items-center gap-2 px-2 py-1.5")}>
+        <TreeBranchNode className="flex items-center gap-2 px-2 py-1.5">
           <span className="text-transcript-caption text-subtle">Couldn't load subagents.</span>
           <Button type="button" variant="ghost" size="xs" onClick={branch.retry}>
             Try again
           </Button>
-        </div>
-      ) : branch.remaining > 0 && !branch.loading ? (
-        <div className={cn(BRANCH_NODE, "px-0.5 py-0.5")}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            disabled={branch.loadingMore}
-            onClick={branch.showMore}
-            data-testid={`${testIdPrefix}-subagents-more-${sessionId}`}
-          >
-            Show {Math.min(SUBAGENT_BRANCH_PAGE_SIZE, branch.remaining)} more
-          </Button>
-        </div>
-      ) : null}
+        </TreeBranchNode>
+      ) : branch.loading ? null : (
+        <SessionListBranchMore
+          count={Math.min(SUBAGENT_BRANCH_PAGE_SIZE, branch.remaining)}
+          onShowMore={branch.showMore}
+          disabled={branch.loadingMore}
+          testId={`${testIdPrefix}-subagents-more-${sessionId}`}
+        />
+      )}
     </div>
   );
 }

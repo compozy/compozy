@@ -192,8 +192,8 @@ export function sessionClarificationsOptions(workspace: string, id: string, enab
 
 /**
  * Decisions the daemon settled without the transcript recording an answer — today the
- * pre-crash permission/clarification asks a daemon restart expires (`canceled`,
- * resolution `failed-by-restart`). Read while the transcript shows an undecided ask; the
+ * permission/clarification asks settled without a transcript answer (`canceled` or
+ * `timed_out`). Read while the transcript shows an undecided ask; the
  * live control cadence re-reads only while some undecided ask is still unknown to the
  * settled map, so a transcript whose every open ask has a settled row keeps its cached
  * receipts without polling, and a session with nothing undecided never asks. A restart
@@ -213,9 +213,16 @@ export function sessionExpiredInteractionsOptions(
 ) {
   const undecided = options.undecidedRequestIds ?? new Set<string>();
   return queryOptions({
-    queryKey: sessionKeys.interactions(workspace, id, "canceled"),
-    queryFn: ({ signal }) =>
-      fetchSessionInteractions(workspace, id, { status: "canceled", signal }),
+    queryKey: sessionKeys.interactions(workspace, id, "settled"),
+    queryFn: async ({ signal }) => {
+      const rows = await Promise.all([
+        fetchSessionInteractions(workspace, id, { status: "canceled", signal }),
+        fetchSessionInteractions(workspace, id, { status: "timed_out", signal }),
+      ]);
+      return rows
+        .flat()
+        .sort((left, right) => Date.parse(left.created_at) - Date.parse(right.created_at));
+    },
     refetchInterval: query => {
       const cadence = catalogStreamCoveredRefetchInterval(
         options.streamCovered ?? false,

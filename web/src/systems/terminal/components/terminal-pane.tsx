@@ -109,8 +109,8 @@ export function TerminalPane({
           aria-label={terminalDisplayTitle(terminal)}
           className={
             display.awaitingFirstFrame
-              ? "invisible px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"
-              : "px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"
+              ? "invisible px-3.5 pt-2.5 pb-3 font-mono text-terminal tracking-mono"
+              : "px-3.5 pt-2.5 pb-3 font-mono text-terminal tracking-mono"
           }
           {...(engineLoader ? { engineLoader } : {})}
           handleRef={handleRef}

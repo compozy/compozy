@@ -57,8 +57,27 @@ export class FileOpenPolicy {
     return homes.some(home => this.contains(root, home));
   }
 
-  /** True when `target` is under a fixed credential location of any of `homes`. */
+  /** Recognizes credential file names and fixed credential locations under any home. */
   isSensitive(target: string, homes: readonly string[]): boolean {
+    const basename = this.#path.basename(target).toLowerCase();
+    const sample = [".env.example", ".env.sample", ".env.template"].includes(basename);
+    const credential = [
+      ".npmrc",
+      ".pypirc",
+      ".netrc",
+      "credentials.json",
+      ".git-credentials",
+    ].includes(basename);
+    if (
+      !sample &&
+      (credential ||
+        basename === ".env" ||
+        basename.startsWith(".env.") ||
+        /\.(pem|key|p12|pfx|keystore)$/.test(basename) ||
+        /^id_(rsa|ed25519|ecdsa)/.test(basename) ||
+        /^service-account.*\.json$/.test(basename))
+    )
+      return true;
     return homes.some(home =>
       SENSITIVE_HOME_ENTRIES.some(entry =>
         this.#containsKeys(

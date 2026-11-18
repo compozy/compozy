@@ -123,6 +123,8 @@ interface UseSessionLinkedWorkInput {
   session: SessionPayload;
   workspaceId: string;
   enabled: boolean;
+  /** `false` skips the full read, leaving the catalog summary: a menu whose session links nothing. */
+  read?: boolean;
 }
 
 /** The session window's list: the catalog summary answers first, then the full read takes over. */
@@ -130,12 +132,13 @@ export function useSessionLinkedWork({
   session,
   workspaceId,
   enabled,
+  read = true,
 }: UseSessionLinkedWorkInput): SessionLinkedWorkModel {
   const [clipped, setClipped] = useState(false);
   const list = useQuery({
     ...sessionLinkedWorkOptions(workspaceId, session.id),
     // A window that isn't live still shows the whole list; it just stops rereading it.
-    enabled: !!session.id,
+    enabled: read && !!session.id,
     refetchInterval: enabled ? PULL_REQUEST_REREAD_INTERVAL_MS : false,
   });
   const { remove, refresh } = useSessionLinkMutations(

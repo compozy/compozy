@@ -35,6 +35,11 @@ func (r *coordinatorRuntime) dispatchSpawned(
 	if r.hooks == nil || info == nil {
 		return
 	}
+	// Report the route that started the session: a fallback replaces a failed or disabled primary.
+	provider, model := cfg.Provider, cfg.Model
+	if strings.TrimSpace(info.Provider) != "" {
+		provider, model = info.Provider, info.Model
+	}
 	_, err := r.hooks.DispatchCoordinatorSpawned(ctx, hookspkg.CoordinatorSpawnedPayload{
 		Event: hookspkg.HookCoordinatorSpawned, Timestamp: r.now().UTC(),
 		ProfileID:            decision.ProfileID,
@@ -46,8 +51,8 @@ func (r *coordinatorRuntime) dispatchSpawned(
 		RunID:                decision.RunID,
 		WorkflowID:           decision.WorkflowID,
 
-		Provider:     cfg.Provider,
-		Model:        cfg.Model,
+		Provider:     provider,
+		Model:        model,
 		DecisionKind: "lifecycle",
 		Decision:     reason,
 	})

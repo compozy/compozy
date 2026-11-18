@@ -19,12 +19,28 @@ func (s *Scheduler) claimScheduledJob(
 	registration scheduledRegistration,
 ) (scheduledJobClaimResult, error) {
 	job := registration.definition
-	scheduledAt := *schedulerDueAt(registration.state)
-	if registration.state.DeferredUntil != nil {
-		scheduledAt = *registration.state.LastScheduledAt
-	}
+	state := registration.state
+	scheduledAt := *schedulerDueAt(state)
 	claimedAt := s.now()
-	nextRun := nextRunAfter(job, scheduledAt, s.location)
+	misfire := false
+	var skipReason SchedulerSkipReason
+	var nextRun *time.Time
+	if state.DeferredUntil != nil {
+		scheduledAt = *state.LastScheduledAt
+	} else if job.Schedule.Mode != ScheduleModeAt && claimedAt.Sub(scheduledAt) > schedulerCatchUpJitterGrace &&
+		(state.LastMisfireAt == nil || scheduledAt.After(*state.LastMisfireAt)) {
+		// A reconciled backlog keeps its original recovery boundary while replay drains it.
+		state, skipReason = reconcileMissedSchedulerCursor(job, state, claimedAt, s.location)
+		misfire = true
+		if skipReason == "" {
+			scheduledAt = *state.NextRunAt
+		} else {
+			nextRun = state.NextRunAt
+		}
+	}
+	if skipReason == "" {
+		nextRun = nextRunAfter(job, scheduledAt, s.location)
+	}
 	claim := SchedulerClaim{
 		WorkspaceID:         job.WorkspaceID,
 		ProfileID:           job.ProfileID,
@@ -37,7 +53,9 @@ func (s *Scheduler) claimScheduledJob(
 		ScheduleHash:        registration.state.ScheduleHash,
 		CatchUpPolicy:       registration.state.CatchUpPolicy,
 		MisfireGraceSeconds: registration.state.MisfireGraceSeconds,
-		CatchUp:             scheduledFireIsCatchUp(scheduledAt, claimedAt, registration.state),
+		CatchUp:             scheduledFireIsCatchUp(scheduledAt, claimedAt, state),
+		Misfire:             misfire,
+		SkipReason:          skipReason,
 	}
 	if s.store != nil {
 		// Claims yield to scheduler backoff; finalization retains its independent persistence budget.
@@ -55,9 +73,9 @@ func (s *Scheduler) claimScheduledJob(
 			skipReason:  result.SkipReason,
 		}, nil
 	}
-	state := schedulerStateAfterInMemoryClaim(registration.state, claim, nextRun)
+	state = schedulerStateAfterInMemoryClaim(registration.state, claim, nextRun)
 	// Keep one-shot registrations until dispatch has a durable disposition.
-	return scheduledJobClaimResult{claim: claim, state: state}, nil
+	return scheduledJobClaimResult{claim: claim, state: state, skipped: skipReason != "", skipReason: skipReason}, nil
 }
 
 func schedulerStateAfterInMemoryClaim(
@@ -67,7 +85,9 @@ func schedulerStateAfterInMemoryClaim(
 ) SchedulerState {
 	state := current
 	state.NextRunAt = cloneTimePointer(nextRun)
-	state.LastRunAt = new(claim.ClaimedAt)
+	if claim.SkipReason == "" {
+		state.LastRunAt = new(claim.ClaimedAt)
+	}
 	state.LastScheduledAt = new(claim.ScheduledAt)
 	state.LastFireID = claim.FireID
 	state.ScheduleHash = claim.ScheduleHash

@@ -15,3 +15,6 @@ export const MARKETPLACE_PAGE_BODY_CLASS = "@container flex min-w-0 flex-col gap
 /** Installed lists one card per row from 960px, with the description held to two lines. */
 export const MARKETPLACE_INSTALLED_GRID_CLASS =
   "@min-[960px]:grid-cols-1 [&_[data-slot=catalog-card-description]]:line-clamp-2";
+
+/** Section and category rows sit two to a line from a narrow window up, one per line below it. */
+export const MARKETPLACE_SECTION_GRID_CLASS = "@min-[600px]:grid-cols-2";

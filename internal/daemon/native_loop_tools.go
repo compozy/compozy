@@ -59,7 +59,15 @@ func (n *daemonNativeTools) loopList(
 	if response.Page.HasMore {
 		preview += "; more available"
 	}
-	return structuredResult(response, preview)
+	return (resultViews[contract.LoopsResponse]{
+		Compact: viewLoopList,
+		Preview: func(contract.LoopsResponse) string {
+			return preview
+		},
+	}).result(
+		req.View,
+		response,
+	)
 }
 
 func (n *daemonNativeTools) loopInspect(
@@ -80,14 +88,22 @@ func (n *daemonNativeTools) loopInspect(
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
 	loop := response.Loop
-	return structuredResult(map[string]any{
-		nativeConfigHookToolsNameKey: loop.Name,
-		loopInputsKey:                loop.Definition.Inputs,
-		"contract":                   loop.Definition.Contract,
-		"effective_config":           loop.EffectiveConfig,
-		"start":                      loop.Definition.Start,
-		"version":                    loop.Version,
-	}, fmt.Sprintf("loop %s v%d", loop.Name, loop.Version))
+	return (resultViews[loopInspectResult]{
+		Compact: viewLoopInspect,
+		Preview: func(loopInspectResult) string {
+			return fmt.Sprintf("loop %s v%d", loop.Name, loop.Version)
+		},
+	}).result(
+		req.View,
+		loopInspectResult{
+			Name:            loop.Name,
+			Inputs:          loop.Definition.Inputs,
+			Contract:        loop.Definition.Contract,
+			EffectiveConfig: loop.EffectiveConfig,
+			Start:           loop.Definition.Start,
+			Version:         loop.Version,
+		},
+	)
 }
 
 func (n *daemonNativeTools) loopValidate(
@@ -185,7 +201,15 @@ func (n *daemonNativeTools) loopCreate(
 		if err != nil {
 			return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 		}
-		return structuredResult(response, fmt.Sprintf("loop %s v%d", response.Loop.Name, response.Loop.Version))
+		return (resultViews[*contract.LoopResponse]{
+			Compact: viewLoopCreate,
+			Preview: func(*contract.LoopResponse) string {
+				return fmt.Sprintf("loop %s v%d", response.Loop.Name, response.Loop.Version)
+			},
+		}).result(
+			req.View,
+			&response,
+		)
 	}
 
 	var document *contract.LoopDefinitionDocument
@@ -204,7 +228,12 @@ func (n *daemonNativeTools) loopCreate(
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
 
-	return structuredResult(response, fmt.Sprintf("loop %s v%d", response.Loop.Name, response.Loop.Version))
+	return (resultViews[*contract.LoopResponse]{
+		Compact: viewLoopCreate,
+		Preview: func(*contract.LoopResponse) string {
+			return fmt.Sprintf("loop %s v%d", response.Loop.Name, response.Loop.Version)
+		},
+	}).result(req.View, &response)
 }
 
 func (n *daemonNativeTools) loopRun(
@@ -242,7 +271,15 @@ func (n *daemonNativeTools) loopRun(
 	if input.Dry {
 		preview = fmt.Sprintf("loop %s dry run", name)
 	}
-	return structuredResult(response, preview)
+	return (resultViews[contract.RunLoopResponse]{
+		Compact: viewLoopStart,
+		Preview: func(contract.RunLoopResponse) string {
+			return preview
+		},
+	}).result(
+		req.View,
+		response,
+	)
 }
 
 func (n *daemonNativeTools) loopStatus(
@@ -262,7 +299,15 @@ func (n *daemonNativeTools) loopStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
-	return structuredResult(response, fmt.Sprintf("loop run %s is %s", runID, response.Run.Status))
+	return (resultViews[*contract.LoopRunResponse]{
+		Compact: viewLoopStatus,
+		Preview: func(*contract.LoopRunResponse) string {
+			return fmt.Sprintf("loop run %s is %s", runID, response.Run.Status)
+		},
+	}).result(
+		req.View,
+		&response,
+	)
 }
 
 func (n *daemonNativeTools) loopRuns(
@@ -292,7 +337,15 @@ func (n *daemonNativeTools) loopRuns(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
-	return structuredResult(response, fmt.Sprintf("%d loop runs", len(response.Runs)))
+	return (resultViews[contract.LoopRunsResponse]{
+		Compact: viewLoopRuns,
+		Preview: func(contract.LoopRunsResponse) string {
+			return fmt.Sprintf("%d loop runs", len(response.Runs))
+		},
+	}).result(
+		req.View,
+		response,
+	)
 }
 
 func (n *daemonNativeTools) loopPause(
@@ -335,7 +388,15 @@ func (n *daemonNativeTools) loopConfigure(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
-	return structuredResult(response, fmt.Sprintf("loop %s configured", name))
+	return (resultViews[contract.LoopConfigResponse]{
+		Compact: viewLoopConfigure,
+		Preview: func(contract.LoopConfigResponse) string {
+			return fmt.Sprintf("loop %s configured", name)
+		},
+	}).result(
+		req.View,
+		response,
+	)
 }
 
 func (n *daemonNativeTools) loopApprove(

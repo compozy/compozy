@@ -1,0 +1,4 @@
+Use case: brand photography detail. Asset: photo, 4:5 portrait.
+Subject: close-up of two hands typing on a dark mechanical keyboard, a mug edge and a notebook partly in frame, soft blue screen light falling from the top.
+Composition: top-down at a slight angle, shallow depth of field.
+Style/medium: documentary photograph, 35mm full-frame look, natural, unposed, subtle film grain. Colour grade: cool and restrained — neutral-cool white balance, deep blue-black shadows (around #0a0a0a), desaturated about 20%, no warm orange tones. Lighting: real light only (cold daylight or screen light). Constraints: anonymous people of varied backgrounds, no readable text, no readable screens (screens show soft abstract blue light or are out of focus), no logos, no brand names. Avoid: stock-photo smiles, posing at camera, neon, holograms, robots, glowing brains, sci-fi UI overlays, lens flares, HDR look, plastic skin.

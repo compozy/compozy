@@ -16,3 +16,15 @@ const automationScheduleInputSchema = `{
 	},
 	"additionalProperties":false
 }`
+
+const automationJobTriggerInputSchema = `{
+ "type":"object",
+ "required":["job_id"],
+ "properties":{
+  "job_id":{"type":"string"},
+  "workspace":{"type":"string"},
+  "wait":{"type":"boolean"},
+  "timeout":{"type":"string"}
+ },
+ "additionalProperties":false
+}`

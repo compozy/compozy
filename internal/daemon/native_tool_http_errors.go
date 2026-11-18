@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/compozy/compozy/internal/admission"
+
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspace"
 
@@ -12,6 +16,23 @@ import (
 )
 
 func nativeHTTPStatusToolError(id toolspkg.ToolID, err error, status int) error {
+	if errors.Is(err, admission.ErrStarting) {
+		result := toolspkg.NewToolError(toolspkg.ErrorCode(admission.StartingCode), id,
+			admission.ErrStarting.Error(), errors.Join(toolspkg.ErrToolUnavailable, err))
+		result.HTTPStatus = http.StatusServiceUnavailable
+		result.PublicMessage = admission.ErrStarting.Error()
+		result.Retryable = true
+		return result
+	}
+	if refusal, ok := errors.AsType[*session.MCPReloadError](err); ok {
+		result := toolspkg.NewToolError(toolspkg.ErrorCode(session.MCPReloadFailedCode), id, refusal.Error(), err)
+		result.HTTPStatus = http.StatusConflict
+		result.PublicMessage = refusal.Error()
+		result.Retryable = true
+		result.ClientMessageID = refusal.ClientMessageID
+		result.ProviderError = diagnostics.RedactAndBound(refusal.Cause.Error(), 2048)
+		return result
+	}
 	if errors.Is(err, workspace.ErrWorkspaceRootMissing) {
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeWorkspaceRootMissing,

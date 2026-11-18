@@ -103,7 +103,7 @@ func (m *Manager) updatePresenceLeaseLocked(
 	key := sessionPresenceKey{sessionID: sessionID, leaseID: leaseID}
 	previous, existed := m.presenceLeases[key]
 	m.presenceLeases[key] = sessionPresenceLease{expiresAt: now.Add(SessionPresenceLeaseTTL)}
-	commit, err := m.commitAttention(sessionID, func() (store.SessionAttentionCommit, error) {
+	commit, err := m.commitAttention(ctx, sessionID, func() (store.SessionAttentionCommit, error) {
 		return m.attentionStore.MarkSessionSeen(ctx, sessionID, now)
 	})
 	if err != nil {
@@ -173,7 +173,7 @@ func (m *Manager) settleSessionAttention(
 			seen = true
 		}
 	}
-	_, err := m.commitAttention(sessionID, func() (store.SessionAttentionCommit, error) {
+	_, err := m.commitAttention(ctx, sessionID, func() (store.SessionAttentionCommit, error) {
 		return m.attentionStore.MarkSessionSettled(ctx, sessionID, seen, at)
 	})
 	m.presenceMu.Unlock()

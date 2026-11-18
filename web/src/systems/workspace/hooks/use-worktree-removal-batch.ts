@@ -1,3 +1,4 @@
+import { settleBounded } from "@/lib/settle-bounded";
 import { createStoreLogic } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -204,7 +205,8 @@ const BRANCH_UNCONFIRMED =
   "Worktree cleaned up, but the branch result is unconfirmed. Retry repeats only the branch step.";
 
 /**
- * Executes one confirmed batch through the singular lifecycle APIs in repository-queue order.
+ * Executes one confirmed batch through the singular lifecycle APIs with at most three browser requests
+ * in flight. The daemon serializes Git mutations by canonical common directory.
  * Reconciles lost responses, preserves successful receipts, and retries only unresolved
  * targets with force only after explicit confirmation. Scope and cache cleanup follow the confirmed workspace and ID.
  */
@@ -216,106 +218,89 @@ export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
     if (!store.can.start()) return;
     store.trigger.start();
     const { batch, results, deleteBranch } = store.getSnapshot().context;
-    // Targets share the daemon's bounded repository queue. Chain each request
-    // after the previous receipt so selecting many rows cannot exhaust it.
-    return results
-      .reduce<Promise<void>>(
-        (previous, result) =>
-          previous.then(async () => {
-            if (result.status === "success") return;
-            const force =
-              forceTargets.some(target => target.target.key === result.target.key) &&
-              canForce(result);
-            if (forceTargets.length > 0 && !force) return;
-            const target = result.target;
-            if (target.kind === "discovered") {
-              store.trigger.outcome({ key: target.key, status: "running", message: "Removing…" });
-              try {
-                const message = await cleanupDiscovered(
-                  target.discovered,
-                  batch.workspaceId,
-                  force
-                );
-                store.trigger.outcome({ key: target.key, status: "success", message });
-                queryClient.setQueryData<WorktreesResponse>(
-                  workspaceKeys.worktrees(batch.workspaceId),
-                  current => removeDiscoveredFromList(current, target.discovered.path)
-                );
-              } catch (error) {
-                const refusal = decodeWorktreeRefusal(error);
-                store.trigger.outcome({
-                  key: target.key,
-                  status: "failed",
-                  refusal,
-                  message:
-                    refusal?.code === WORKTREE_ERROR_CODES.discoveredChanged
-                      ? DISCOVERED_CHANGED
-                      : (refusal?.message ??
-                        (error instanceof Error
-                          ? error.message
-                          : "Result unconfirmed. Retry checks CompozyOS before acting.")),
-                });
-              }
-              return;
-            }
-            const row = target.row;
-            store.trigger.outcome({ key: row.id, status: "running", message: "Checking…" });
-            let message = "Already removed or dismissed; confirmed by CompozyOS.";
-            try {
-              const terminal = await reconcileTarget(batch, row);
-              // A terminal record still owes its branch outcome when the opt-in was confirmed.
-              if (!terminal || deleteBranch) {
-                message = await cleanupTarget(
-                  row,
-                  batch.workspaceId,
-                  deleteBranch,
-                  terminal,
-                  force
-                );
-              }
-            } catch (error) {
-              let confirmed: TerminalState | null = null;
-              try {
-                confirmed = await reconcileTarget(batch, row);
-              } catch {
-                /* Keep the original refusal visible. */
-              }
-              if (!confirmed || deleteBranch) {
-                store.trigger.outcome({
-                  key: row.id,
-                  status: "failed",
-                  refusal: confirmed ? null : decodeWorktreeRefusal(error),
-                  message: confirmed
-                    ? BRANCH_UNCONFIRMED
-                    : (decodeWorktreeRefusal(error)?.message ??
-                      (error instanceof Error
-                        ? error.message
-                        : "Result unconfirmed. Retry checks CompozyOS before acting.")),
-                });
-                return;
-              }
-            }
-            store.trigger.outcome({ key: row.id, status: "success", message });
-            activeWorkspaceStore.trigger.worktreeRemoved({
-              workspaceId: batch.workspaceId,
-              worktreeId: row.id,
-            });
-            queryClient.setQueryData<WorktreesResponse>(
-              workspaceKeys.worktrees(batch.workspaceId),
-              current => removeWorktreeFromList(current, row.id)
-            );
-            queryClient.removeQueries({
-              queryKey: workspaceKeys.worktreeDetail(batch.workspaceId, row.id),
-            });
-          }),
-        Promise.resolve()
-      )
-      .finally(() => {
-        store.trigger.finish();
-        void queryClient.invalidateQueries({
-          queryKey: workspaceKeys.worktrees(batch.workspaceId),
-        });
+    // Three requests stay below the daemon's eight-waiter repository queue.
+    // The daemon serializes Git mutations by canonical common directory across profiles.
+    return settleBounded(results, 3, async result => {
+      if (result.status === "success") return;
+      const force =
+        forceTargets.some(target => target.target.key === result.target.key) && canForce(result);
+      if (forceTargets.length > 0 && !force) return;
+      const target = result.target;
+      if (target.kind === "discovered") {
+        store.trigger.outcome({ key: target.key, status: "running", message: "Removing…" });
+        try {
+          const message = await cleanupDiscovered(target.discovered, batch.workspaceId, force);
+          store.trigger.outcome({ key: target.key, status: "success", message });
+          queryClient.setQueryData<WorktreesResponse>(
+            workspaceKeys.worktrees(batch.workspaceId),
+            current => removeDiscoveredFromList(current, target.discovered.path)
+          );
+        } catch (error) {
+          const refusal = decodeWorktreeRefusal(error);
+          store.trigger.outcome({
+            key: target.key,
+            status: "failed",
+            refusal,
+            message:
+              refusal?.code === WORKTREE_ERROR_CODES.discoveredChanged
+                ? DISCOVERED_CHANGED
+                : (refusal?.message ??
+                  (error instanceof Error
+                    ? error.message
+                    : "Result unconfirmed. Retry checks CompozyOS before acting.")),
+          });
+        }
+        return;
+      }
+      const row = target.row;
+      store.trigger.outcome({ key: row.id, status: "running", message: "Checking…" });
+      let message = "Already removed or dismissed; confirmed by CompozyOS.";
+      try {
+        const terminal = await reconcileTarget(batch, row);
+        // A terminal record still owes its branch outcome when the opt-in was confirmed.
+        if (!terminal || deleteBranch) {
+          message = await cleanupTarget(row, batch.workspaceId, deleteBranch, terminal, force);
+        }
+      } catch (error) {
+        let confirmed: TerminalState | null = null;
+        try {
+          confirmed = await reconcileTarget(batch, row);
+        } catch {
+          /* Keep the original refusal visible. */
+        }
+        if (!confirmed || deleteBranch) {
+          store.trigger.outcome({
+            key: row.id,
+            status: "failed",
+            refusal: confirmed ? null : decodeWorktreeRefusal(error),
+            message: confirmed
+              ? BRANCH_UNCONFIRMED
+              : (decodeWorktreeRefusal(error)?.message ??
+                (error instanceof Error
+                  ? error.message
+                  : "Result unconfirmed. Retry checks CompozyOS before acting.")),
+          });
+          return;
+        }
+      }
+      store.trigger.outcome({ key: row.id, status: "success", message });
+      activeWorkspaceStore.trigger.worktreeRemoved({
+        workspaceId: batch.workspaceId,
+        worktreeId: row.id,
       });
+      queryClient.setQueryData<WorktreesResponse>(
+        workspaceKeys.worktrees(batch.workspaceId),
+        current => removeWorktreeFromList(current, row.id)
+      );
+      queryClient.removeQueries({
+        queryKey: workspaceKeys.worktreeDetail(batch.workspaceId, row.id),
+      });
+    }).finally(() => {
+      store.trigger.finish();
+      void queryClient.invalidateQueries({
+        queryKey: workspaceKeys.worktrees(batch.workspaceId),
+      });
+    });
   };
   return {
     ...context,

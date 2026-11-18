@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/goccy/go-yaml"
+
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/goccy/go-yaml"
 )
 
 // EditAgentDefFile rewrites one AGENT.md frontmatter block while preserving the prompt body.
@@ -49,10 +50,13 @@ func editAgentDefFileInDirectory(
 	}
 
 	var parsed parsedAgentDef
-	if _, err := decodeAgentFrontmatter(parts.Metadata, &parsed); err != nil {
+	if err := decodeAgentFrontmatter(parts.Metadata, &parsed); err != nil {
 		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", path, err)
 	}
 
+	if parsed.Kind == retiredAgentKind {
+		parsed.Kind = AgentKindAlwaysOn
+	}
 	agent, err := agentDefFromParsedFile(path, parts, parsed)
 	if err != nil {
 		return AgentDef{}, err
@@ -62,6 +66,9 @@ func editAgentDefFileInDirectory(
 	originalAppearance := CloneAgentAppearance(agent.Appearance)
 
 	if err := mutate(&agent); err != nil {
+		return AgentDef{}, err
+	}
+	if err := agent.ValidateIdentity(); err != nil {
 		return AgentDef{}, err
 	}
 	if agent.EffectiveKind() != originalKind {
@@ -106,8 +113,9 @@ func agentDefFromParsedFile(
 	parsed parsedAgentDef,
 ) (AgentDef, error) {
 	agent := AgentDef{
-		SessionEnv: MergeSessionEnv(nil, parsed.SessionEnv),
-		Name:       NormalizeAgentName(parsed.Name),
+		SessionEnv:        MergeSessionEnv(nil, parsed.SessionEnv),
+		AutoCompactWindow: parsed.AutoCompactWindow,
+		Name:              NormalizeAgentName(parsed.Name),
 		DisplayName: strings.TrimSpace(
 			parsed.DisplayName,
 		),
@@ -132,6 +140,8 @@ func agentDefFromParsedFile(
 		Prompt:          strings.TrimSpace(parts.Body),
 		SourcePath:      filepath.Clean(path),
 	}
+	agent.SetLeanEnvironment(parsed.LeanEnvironment)
+	agent.SetAccepts(parsed.Accepts)
 	agent.SetSpeed(parsed.Speed)
 	normalizedOptions, err := normalizeACPOptionSelectionsAt("agent.acp_options", parsed.ACPOptions)
 	if err != nil {
@@ -154,6 +164,8 @@ func agentDefFromParsedFile(
 }
 
 func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
+	parsed.AutoCompactWindow = agent.AutoCompactWindow
+	parsed.LeanEnvironment = agent.LeanEnvironmentValue()
 	parsed.SessionEnv = MergeSessionEnv(nil, agent.SessionEnv)
 	parsed.Name = agent.Name
 	parsed.DisplayName = strings.TrimSpace(agent.DisplayName)
@@ -175,6 +187,7 @@ func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
 	parsed.PermissionRules = append([]PermissionRule(nil), agent.PermissionRules...)
 	parsed.Skills = normalizeAgentSkillsConfig(agent.Skills)
 	parsed.CategoryPath = normalizeAgentCategoryPath(agent.CategoryPath)
+	parsed.Accepts = agent.AcceptsValue()
 	parsed.MCPServers = cloneMCPServers(agent.MCPServers)
 	parsed.FallbackChain = normalizeRoleFallbacks(agent.FallbackChain)
 	hooks, err := parsedHookDeclarationsFromHookDecls(agent.Hooks, agent.Name)

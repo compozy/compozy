@@ -64,6 +64,7 @@ func (m *Service) Timeline(
 	query TimelineQuery,
 	actor ActorContext,
 ) ([]TimelineItem, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -100,6 +101,7 @@ func (m *Service) Stream(
 	query StreamQuery,
 	actor ActorContext,
 ) (<-chan StreamEvent, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -129,6 +131,7 @@ func (m *Service) Stream(
 }
 
 func (m *Service) Tree(ctx context.Context, taskID string, actor ActorContext) (*TreeView, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}

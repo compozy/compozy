@@ -82,6 +82,11 @@ archive and a `<asset>.sha256` sidecar to the release. The result names all thre
   field, and an unresolvable credential fails before any upload.
 </OperatorNote>
 
+Publishing sends credentials over HTTPS, including to custom GitHub API endpoints. To preserve local
+registry workflows, HTTP is also supported on the exact configured `127.0.0.1`, `::1`, or `localhost`
+origin and port. Other HTTP endpoints fail before any request and ask you to use HTTPS; publishing
+never silently proceeds without its credential. Redirects to other origins receive no credential.
+
 `publish` is a CLI-local and native-tool verb. It has no HTTP or UDS route.
 
 ## What the digest sidecar does — and does not do
@@ -144,8 +149,9 @@ Source-union search spans the curated catalog and GitHub:
 compozy extension search notes --sources curated,github
 ```
 
-GitHub discovery is unauthenticated by default and subject to anonymous rate limits; a
-`GITHUB_TOKEN` in the daemon environment raises them. A rate-limited or unreachable source degrades
+GitHub discovery uses `GITHUB_TOKEN` from the daemon environment, then the daemon user's
+`gh auth token` login, and otherwise anonymous access. Run `gh auth login` as that user to
+raise the shared anonymous rate limit. A rate-limited or unreachable source degrades
 to cached-or-omitted results with a `sources_degraded` marker rather than failing the whole search.
 
 The curated catalog remains a separate, editorially selected feed with digest pinning. Publishing

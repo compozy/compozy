@@ -37,19 +37,26 @@ func (r *InstanceRepo) LastSeen(ctx context.Context, instance, operator string) 
 	return &at, nil
 }
 
-func (r *InstanceRepo) MarkSeen(ctx context.Context, instance, operator string, at time.Time) (time.Time, error) {
+// MarkSeen acknowledges failures and eligible stopped requests without consuming provider reports.
+func (r *InstanceRepo) MarkSeen(
+	ctx context.Context,
+	instance, operator string,
+	at time.Time,
+) (agentinstance.SeenResult, error) {
 	if err := r.checkReady(ctx, "mark instance seen"); err != nil {
-		return time.Time{}, err
+		return agentinstance.SeenResult{}, err
 	}
 	if instance == "" || operator == "" || at.IsZero() {
-		return time.Time{}, errors.New("instance operator and timestamp are required")
+		return agentinstance.SeenResult{}, errors.New("instance operator and timestamp are required")
 	}
 	var raw string
+	var result agentinstance.SeenResult
 	err := store.ExecuteWriteOperation(
 		ctx,
 		r.db,
 		"mark instance seen",
 		func(ctx context.Context, tx *store.WriteTx) error {
+			result.Interactions = nil
 			q := sqlcgen.New(tx)
 			var err error
 			raw, err = q.MarkAgentInstanceSeen(ctx, sqlcgen.MarkAgentInstanceSeenParams{
@@ -58,11 +65,37 @@ func (r *InstanceRepo) MarkSeen(ctx context.Context, instance, operator string, 
 			if err != nil {
 				return err
 			}
+			if operator == agentinstance.LocalOperator {
+				seenAt, err := time.Parse(time.RFC3339Nano, raw)
+				if err != nil {
+					return err
+				}
+				ids, err := q.ListSeenStoppedInstanceInteractions(
+					ctx,
+					sqlcgen.ListSeenStoppedInstanceInteractionsParams{
+						InstanceID: instance, SeenAt: raw,
+					},
+				)
+				if err != nil {
+					return err
+				}
+				for _, id := range ids {
+					commit, err := transitionPendingInteraction(ctx, tx, store.PendingInteractionTransition{
+						InteractionID: id, Status: store.PendingInteractionStatusCanceled,
+						At: seenAt, Resolution: "Acknowledged by operator after session stopped", ResolvedBy: operator,
+					})
+					if err != nil {
+						return err
+					}
+					result.Interactions = append(result.Interactions, commit)
+				}
+			}
 			return q.ResetInstanceUnattended(ctx, sqlcgen.ResetInstanceUnattendedParams{InstanceID: instance, Now: raw})
 		},
 	)
 	if err != nil {
-		return time.Time{}, err
+		return agentinstance.SeenResult{}, err
 	}
-	return time.Parse(time.RFC3339Nano, raw)
+	result.LastSeenAt, err = time.Parse(time.RFC3339Nano, raw)
+	return result, err
 }

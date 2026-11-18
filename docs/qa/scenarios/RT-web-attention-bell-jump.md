@@ -42,3 +42,9 @@ Dependency-release CI follow-up: the disconnected-bell E2E must interrupt
 request failing before checking the warning. Interrupting the session catalog stream
 does not disconnect the ledger and can only pass accidentally during initial loading.
 The canonical `web/e2e/__tests__/attention.spec.ts` assertion and timeout remain intact.
+
+QA impact 2026-11-08 (#1388): a session row in the bell names an automation run by its job (for example
+`issue-triage`), and an always-on agent's untitled main by its agent. Before, it read "New session" when the
+job and its agent shared a name. `GET /api/notifications/attention` session items now also carry the additive
+optional fields `session_type` and `instance_id`. Owners: `TestAttentionNotificationReceipts` (daemon payload)
+and `use-os-attention.test.tsx` (bell title). Not walked.

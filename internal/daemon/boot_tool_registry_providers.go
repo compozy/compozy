@@ -17,6 +17,7 @@ func (d *Daemon) bootToolProviders(
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create native tool provider: %w", err)
 	}
+	state.nativeToolProvider = nativeProvider
 	providers := []toolspkg.Provider{nativeProvider}
 
 	extensionProvider, err := newDaemonExtensionToolProvider(state)

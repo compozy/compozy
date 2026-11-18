@@ -1,10 +1,11 @@
 // Suite: Automations listing rows, cards and states
 // Invariant: a row reads as a sentence with its time and last-run truth, shows only exception
-//   badges and supported actions, never flips its switch before the daemon answers; the shell
+//   badges and supported actions (the automation menu the detail page shares; a lone copy sits at
+//   the top level, two go behind Copy ▸), never flips its switch before the daemon answers; the shell
 //   tells first run, filtered empty, loading and load error apart.
 // Boundary IN: AutomationView (board story fixtures) and row controls.
 // Boundary OUT: data loading (use-automations-page suite) and routing.
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -55,8 +56,8 @@ function controls(overrides: Partial<AutomationItemControls> = {}): AutomationIt
     onToggleEnabled: vi.fn(),
     onRunNow: vi.fn(),
     onEdit: vi.fn(),
+    onInspect: vi.fn(),
     onDelete: vi.fn(),
-    onCopyLink: vi.fn(),
     ...overrides,
   };
 }
@@ -185,16 +186,58 @@ describe("AutomationRow", () => {
   });
 
   it.each([
-    ["morning-digest", ["Run now", "Edit", "Delete automation…"]],
-    ["summarize-failures", ["Edit", "Delete automation…"]],
-    ["deploy-webhook", ["Copy link", "Edit", "Delete automation…"]],
-    ["release-checklist", ["Run now", "Edit in config.toml"]],
+    ["morning-digest", ["Run now", "Edit", "Inspect", "Copy automation id", "Delete automation…"]],
+    ["summarize-failures", ["Edit", "Inspect", "Copy automation id", "Delete automation…"]],
+    ["deploy-webhook", ["Edit", "Inspect", "Copy", "Delete automation…"]],
+    ["release-checklist", ["Run now", "Edit in config.toml", "Inspect", "Copy automation id"]],
   ])("Should offer only supported actions for %s", async (id, labels) => {
     const user = userEvent.setup();
     renderRow(view(id));
     await user.click(screen.getByRole("button", { name: `More actions for ${id}` }));
     const items = await screen.findAllByRole("menuitem");
     expect(items.map(item => item.textContent?.trim())).toEqual(labels);
+  });
+
+  it("Should keep a webhook's two copies behind Copy", async () => {
+    const user = userEvent.setup();
+    renderRow(view("deploy-webhook"));
+    await user.click(screen.getByRole("button", { name: "More actions for deploy-webhook" }));
+    // Keyboard, not pointer: jsdom has no geometry for the submenu's hover guard, so a pointer
+    // crossing from Copy to its items may close the submenu before the click lands.
+    const copy = await screen.findByRole("menuitem", { name: "Copy" });
+    copy.focus();
+    await user.keyboard("{ArrowRight}");
+    const copyId = await screen.findByRole("menuitem", { name: "Copy automation id" });
+    const submenu = copyId.closest<HTMLElement>('[role="menu"]')!;
+    expect(
+      within(submenu)
+        .getAllByRole("menuitem")
+        .map(item => item.textContent?.trim())
+    ).toEqual(["Copy link", "Copy automation id"]);
+    await waitFor(() => expect(submenu).toContainElement(document.activeElement as HTMLElement));
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    within(submenu).getByRole("menuitem", { name: "Copy link" }).focus();
+    await user.keyboard("{Enter}");
+    // The published public link, never the app's own origin joined to the webhook path.
+    expect(writeText).toHaveBeenCalledWith(view("deploy-webhook").publicUrl);
+    expect(view("deploy-webhook").publicUrl).toMatch(/^https:\/\/northstar\.gateway\.test\//);
+  });
+
+  it("Should not offer a link to copy while the public link is off", async () => {
+    const user = userEvent.setup();
+    const trigger = automationStoryTriggers.find(entity => entity.id === "deploy-webhook")!;
+    renderRow(withEntity({ ...trigger, ingress: { ...trigger.ingress!, reachability: "off" } }));
+    await user.click(screen.getByRole("button", { name: "More actions for deploy-webhook" }));
+    expect(await screen.findByRole("menuitem", { name: "Copy automation id" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: /Copy link|^Copy$/ })).not.toBeInTheDocument();
+  });
+
+  it("Should inspect the row's automation from its menu", async () => {
+    const user = userEvent.setup();
+    const rowControls = renderRow(view("summarize-failures"));
+    await user.click(screen.getByRole("button", { name: "More actions for summarize-failures" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Inspect" }));
+    expect(rowControls.onInspect).toHaveBeenCalledWith(view("summarize-failures"));
   });
 });
 

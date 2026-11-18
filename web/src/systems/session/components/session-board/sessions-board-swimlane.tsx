@@ -155,7 +155,7 @@ function SessionsBoardLaneToggle({
               className="flex items-center gap-1.5 text-small-body text-muted-foreground"
               data-testid={`${testId}-agents-waiting`}
             >
-              <StatusDot size="sm" tone="brand" />
+              <StatusDot size="sm" tone="attn" />
               {waiting === 1 ? "1 agent needs you" : `${waiting} agents need you`}
             </span>
           ) : null}

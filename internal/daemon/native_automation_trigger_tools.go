@@ -38,7 +38,7 @@ func (n *daemonNativeTools) automationTriggersGet(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := payloads[0]
-	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
+	return triggerRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationTriggersCreate(
@@ -64,7 +64,7 @@ func (n *daemonNativeTools) automationTriggersCreate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.TriggerPayloadFromTrigger(created)
-	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
+	return triggerRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationTriggersUpdate(
@@ -113,7 +113,7 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.TriggerPayloadFromTrigger(updated)
-	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
+	return triggerRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationTriggersDelete(
@@ -273,7 +273,7 @@ func (n *daemonNativeTools) automationSetJobEnabled(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := n.automationJobPayloadBestEffort(ctx, updated)
-	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
+	return jobRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationSetTriggerEnabled(
@@ -303,7 +303,7 @@ func (n *daemonNativeTools) automationSetTriggerEnabled(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.TriggerPayloadFromTrigger(updated)
-	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
+	return triggerRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationRunsForQuery(
@@ -312,23 +312,25 @@ func (n *daemonNativeTools) automationRunsForQuery(
 	workspaceID string,
 	query automationpkg.RunQuery,
 ) (toolspkg.ToolResult, error) {
-	var (
-		runs []automationpkg.Run
-		err  error
-	)
-	if strings.TrimSpace(workspaceID) == "" {
-		runs, err = n.automationManager().ListRuns(ctx, query)
-	} else {
-		runs, err = n.nativeAutomationRunsForWorkspace(ctx, workspaceID, query)
+	if strings.TrimSpace(workspaceID) != "" {
+		if err := n.validateNativeAutomationRunTargets(ctx, workspaceID, query); err != nil {
+			return toolspkg.ToolResult{}, nativeAutomationToolError(toolID, err)
+		}
+		query.WorkspaceID = strings.TrimSpace(workspaceID)
 	}
+	limit, err := core.PrepareAutomationRunPage(&query)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(toolID, err)
 	}
-	payload := core.RunPayloadsFromRuns(runs)
-	return structuredResult(
-		map[string]any{nativeAutomationToolsRunsKey: payload},
-		fmt.Sprintf("%d automation runs", len(payload)),
-	)
+	runs, err := n.automationManager().ListRuns(ctx, query)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutomationToolError(toolID, err)
+	}
+	payload, err := core.AutomationRunPage(query, runs, limit)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutomationToolError(toolID, err)
+	}
+	return structuredResult(payload, fmt.Sprintf("%d automation runs", len(payload.Runs)))
 }
 
 func (n *daemonNativeTools) automationJobPayloads(

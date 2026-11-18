@@ -1,13 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
   appRouteParameters,
+  holdWindowOpen,
 } from "@/storybook/route-story-meta";
 import { MCPServerEditor } from "@/systems/settings/components/mcp-server-editor";
 import { emptyDraft } from "@/systems/settings/lib/mcp-editor-model";
@@ -24,10 +25,11 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Settings › MCP servers: the canonical management page. Manual and extension-provided definitions coexist under their owner with the composed status matrix, the authorize/repair flow, the manual editor and the extension override editor.",
+          "Settings › MCP servers: the canonical management page. Manual and extension-provided definitions coexist under their owner with the composed status matrix, the sign-in panel beside the row, the manual editor and the extension override editor.",
       },
     },
   },
+  beforeEach: holdWindowOpen,
 };
 
 export default meta;
@@ -73,8 +75,16 @@ async function clickExtensionGithubAuthorize(canvasElement: HTMLElement) {
 
 async function openAuthorizeWaiting(canvasElement: HTMLElement) {
   const page = await clickExtensionGithubAuthorize(canvasElement);
-  await page.findByTestId("settings-page-mcp-authorize-url");
+  await page.findByTestId("mcp-sign-in-copy-link");
   return page;
+}
+
+async function finishByPaste(page: ReturnType<typeof within>, address: string) {
+  await userEvent.click(page.getByTestId("mcp-sign-in-paste-toggle"));
+  const input = await page.findByTestId("mcp-sign-in-paste-input");
+  await waitFor(() => expect(input).toBeEnabled());
+  await userEvent.type(input, address);
+  await userEvent.click(page.getByTestId("mcp-sign-in-paste-submit"));
 }
 
 /** matrix-desktop / matrix-mobile: manual `github` and `extension:github` (runs as github.github) side by side. */
@@ -97,6 +107,24 @@ export const SelectedManualRow: Story = {
   },
 };
 
+/** remove-desktop: Delete on a manual row asks "Remove <name>?" with its consequence. */
+export const RemoveServer: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: ownerParams(),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByTestId(`${MANUAL_GITHUB_ROW}-name`));
+    await userEvent.click(await canvas.findByTestId("settings-page-mcp-selection-delete"));
+    await page.findByTestId("settings-mcp-servers-delete");
+    await expect(page.getByTestId("settings-mcp-servers-delete-confirm")).toHaveTextContent(
+      "Remove server"
+    );
+  },
+};
+
 /** An extension-provided row selected: no Delete — the server leaves with its extension. */
 export const SelectedExtensionRow: Story = {
   args: {},
@@ -111,7 +139,7 @@ export const SelectedExtensionRow: Story = {
   },
 };
 
-/** authorize-waiting-desktop / authorize-mobile: the extension's own token, not the manual one. */
+/** authorize-waiting-desktop / authorize-mobile: the extension's own token, not the manual one, in the panel beside the row. */
 export const AuthorizeWaiting: Story = {
   args: {},
   tags: ["play-fn"],
@@ -119,7 +147,7 @@ export const AuthorizeWaiting: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
-    await expect(page.getByTestId("settings-page-mcp-authorize-waiting")).toBeInTheDocument();
+    await expect(page.getByTestId("mcp-sign-in-panel")).toHaveAttribute("data-phase", "waiting");
   },
 };
 
@@ -131,8 +159,9 @@ export const AuthorizeManual: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
-    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-manual-trigger"));
-    await page.findByTestId("settings-page-mcp-authorize-manual");
+    await userEvent.click(page.getByTestId("mcp-sign-in-paste-toggle"));
+    const input = await page.findByTestId("mcp-sign-in-paste-input");
+    await waitFor(() => expect(input).toBeEnabled());
   },
 };
 
@@ -165,13 +194,8 @@ export const AuthFailure: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
-    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-manual-trigger"));
-    await userEvent.type(
-      await page.findByTestId("settings-page-mcp-authorize-manual-input"),
-      "http://127.0.0.1:2123/api/mcp/oauth/callback?code=rejected&state=x"
-    );
-    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-exchange"));
-    await page.findByTestId("settings-page-mcp-authorize-failure");
+    await finishByPaste(page, "http://127.0.0.1:2123/api/mcp/oauth/callback?code=rejected&state=x");
+    await page.findByText("Sign-in didn't finish");
   },
 };
 
@@ -196,8 +220,8 @@ export const AuthBeginFailure: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await clickExtensionGithubAuthorize(canvasElement);
-    await page.findByText("Sign-in couldn't start");
-    await page.findByTestId("settings-page-mcp-authorize-retry");
+    await page.findByText("Sign-in didn't finish");
+    await page.findByTestId("mcp-sign-in-retry");
   },
 };
 
@@ -209,17 +233,15 @@ export const Authenticated: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
-    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-manual-trigger"));
-    await userEvent.type(
-      await page.findByTestId("settings-page-mcp-authorize-manual-input"),
-      "http://127.0.0.1:2123/api/mcp/oauth/callback?code=valid&state=x"
-    );
-    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-exchange"));
-    await page.findByTestId("settings-page-mcp-authorize-confirmed");
+    await finishByPaste(page, "http://127.0.0.1:2123/api/mcp/oauth/callback?code=valid&state=x");
+    await page.findByText("Connected to github");
   },
 };
 
-/** editor-stdio-desktop: Add MCP server opens the manual editor. */
+/**
+ * editor-stdio-desktop: Add MCP server opens the editor with one URL-or-command field; More
+ * options holds the local program's arguments, settings and key names.
+ */
 export const EditorStdio: Story = {
   args: {},
   tags: ["play-fn"],
@@ -229,6 +251,8 @@ export const EditorStdio: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.click(await canvas.findByTestId("settings-page-mcp-create"));
+    await page.findByLabelText("URL or command");
+    await userEvent.click(page.getByTestId("settings-mcp-servers-editor-mode-advanced"));
     await page.findByTestId("settings-mcp-editor-stdio");
   },
 };
@@ -281,13 +305,14 @@ export const EditorHttp: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.click(await canvas.findByTestId("settings-page-mcp-servers-row-linear-edit"));
-    await page.findByTestId("settings-mcp-editor-remote");
+    await expect(await page.findByLabelText("Server URL")).toBeVisible();
   },
 };
 
 /**
- * override-editor-desktop: Edit on an extension-provided row opens the override editor — package
- * fields read-only, headers and endpoint editable, Reset override offered because one is stored.
+ * override-editor-desktop: Edit on an extension-provided row opens "Set up <server>" — headers and
+ * address editable, package details read-only under Technical details, and Reset to extension
+ * defaults offered because an override is stored.
  */
 export const OverrideEditor: Story = {
   args: {},

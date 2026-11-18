@@ -8,6 +8,10 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 	if err := c.Observability.Validate(); err != nil {
 		return err
 	}
+	// Validated apart because the Settings form validates ObservabilityConfig without the otel block.
+	if err := c.Observability.OTel.Validate(c.Observability.Enabled); err != nil {
+		return err
+	}
 	if err := c.Log.Validate(); err != nil {
 		return err
 	}
@@ -27,6 +31,9 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 		return err
 	}
 	if err := c.Marketplace.Validate(); err != nil {
+		return err
+	}
+	if err := c.Client.Validate(); err != nil {
 		return err
 	}
 	if err := c.Automation.validateWithEnv(lookup); err != nil {

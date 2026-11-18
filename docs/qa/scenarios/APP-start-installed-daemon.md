@@ -6,7 +6,7 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: Opening the app with the runtime installed but stopped shows starting progress and lands in the product UI after required boot work. Readiness polling windows do not kill a live daemon or restart its boot work. Observation continues until readiness, actual exit, or caller cancellation; actual boot failures retain bounded retries. The started runtime survives app quit with `compozy status` healthy.
 entry_points: dock/launcher icon with an installed, stopped runtime; compozy app open
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent
 fix_status: fixed
 retest_status: pass
@@ -39,3 +39,40 @@ receive the URL as one argument. On launch, inspect the recreated desktop entry 
 AppImage path/version, `%u`, and `MimeType=x-scheme-handler/compozyos;`; verify `xdg-mime query
 default x-scheme-handler/compozyos` and launch the URL through KDE without protocol recursion.
 Native KDE/AppImage evidence remains a platform QA requirement; macOS checks do not prove it.
+
+2026-11-11 boot-cost impact: native tool catalog initialization avoids repeated canonicalization
+of byte-identical result schemas and encoder allocation for strings that need no JSON escaping.
+Canonical schema bytes and persisted digests must remain identical. The real SQLite
+`TestBootLoopReconciliationBarrier` keeps its original one/five-second guards and all 16 claim
+rejections; a timeout records goroutine stacks to identify the blocked boot phase. Local CPU
+profiles and focused tests do not replace Linux-race CI or the desktop platform walks above.
+
+First-run state-record regression (#1595 / #1547): while bootstrap moves from
+`starting/start` to `starting/ready`, every published `app.json` must retain a
+start attempt. Preserve the reported retry count until leaving `starting`; a new
+start without a count begins at 1. Poll the real `app status -o json` through
+product-state publication with strict schema validation intact, then confirm
+installed/running/product and attached/owned runtime. The existing app-state
+publisher suite reads the actual temporary record, and the Electron first-run
+journey owns the real CLI walk. CI owns execution; no local run or platform
+verdict is claimed. The separate schema maximum of 3 versus CLI retry budget of 5
+needs a compatibility-contract decision; this repair neither clamps counts nor
+changes that bound.
+
+2026-11-12 boot window redesign (#1549): starting an installed runtime stays in the centered layout, with the symbol, "Starting CompozyOS", a sweeping point line and the brand `horizon` Atmosphere behind it in dark theme only. A retry shows `attempt N of 5` next to the clock. Walk addition: the window shows no step list or version pill when nothing is installed or upgraded. Status reset to untested.
+
+2026-11-16 trusted sidecar startup regression (#1766): in an isolated Compozy home,
+declare `jam` only in `mcp.json` and set `[tools.policy] trusted_sources = ["mcp:jam"]`
+in `config.toml`. Start the installed runtime through the app or `compozy daemon start`
+and require readiness without moving the server to TOML. Repeat with a TOML-only server
+and with matching TOML/JSON names (the JSON definition wins). A source absent from both
+files must still fail with `tools.policy.trusted_sources[0] references unknown MCP source`;
+a malformed sidecar must report `daemon: load global MCP JSON`. Daemon boot reads the
+global home layer only; profile and workspace overlays remain resolved at their existing
+owners. `TestBootConfigTrustedMCPSources` owns automated boot-config coverage with real
+temporary files. CI owns execution; no local daemon or desktop walk is claimed.
+After a sidecar-only boot without `config.toml`, remove or rename a sidecar server and
+require its publication to retire on refresh; separately injected servers must remain.
+Tool listing and search must continue without the retired source, and unqualified lookup
+must allow a same-name extension when no manual declaration remains. The existing
+declaring-scope publication and MCP resolver suites own these regressions.

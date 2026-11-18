@@ -17,9 +17,12 @@ import {
 
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
+  useMarkAgentInstanceSeen,
   agentPauseCopy,
+  agentAuthorityCopy,
   agentAvatarAppearance,
   agentInstanceAvatarState,
+  agentInstanceDefinitionGone,
   agentInstanceResumeBlocked,
   agentInstancesByUrgency,
   agentScopeLabel,
@@ -52,6 +55,7 @@ function SeatMenu({
   instance: AgentInstancePayload;
   actions: AlwaysOnRowActions;
 }) {
+  const markSeen = useMarkAgentInstanceSeen();
   const paused = instance.state === "paused";
   const reason = agentPauseCopy(instance);
   return (
@@ -61,8 +65,16 @@ function SeatMenu({
           {instance.label} · {agentScopeLabel(instance.scope)}
         </ContextMenuLabel>
         {reason ? <p className="px-2 pb-1.5 text-eyebrow text-subtle">{reason}</p> : null}
+        {agentAuthorityCopy(instance) ? (
+          <p className="px-2 pb-1.5 text-eyebrow text-warning">{agentAuthorityCopy(instance)}</p>
+        ) : null}
       </ContextMenuGroup>
       <ContextMenuSeparator />
+      {instance.attention_dismissible ? (
+        <ContextMenuItem disabled={markSeen.isPending} onClick={() => markSeen.mutate(instance)}>
+          Mark as seen
+        </ContextMenuItem>
+      ) : null}
       <ContextMenuItem
         disabled={paused && agentInstanceResumeBlocked(instance)}
         onClick={() => actions.togglePause(instance)}
@@ -70,14 +82,18 @@ function SeatMenu({
         {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
         {paused ? "Resume" : "Pause"}
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => void actions.openAgent(instance)}>
-        <Bot aria-hidden="true" />
-        Open agent
-      </ContextMenuItem>
-      <ContextMenuItem onClick={() => void actions.openCheckIns(instance)}>
-        <HeartPulse aria-hidden="true" />
-        Heartbeat
-      </ContextMenuItem>
+      {agentInstanceDefinitionGone(instance) ? null : (
+        <>
+          <ContextMenuItem onClick={() => void actions.openAgent(instance)}>
+            <Bot aria-hidden="true" />
+            Open agent
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => void actions.openCheckIns(instance)}>
+            <HeartPulse aria-hidden="true" />
+            Heartbeat
+          </ContextMenuItem>
+        </>
+      )}
       <ContextMenuSeparator />
       <ContextMenuItem onClick={() => actions.archive(instance)}>
         <Archive aria-hidden="true" />

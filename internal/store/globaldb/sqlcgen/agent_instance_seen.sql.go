@@ -26,6 +26,47 @@ func (q *Queries) GetAgentInstanceSeen(ctx context.Context, arg GetAgentInstance
 	return last_seen_at, err
 }
 
+const listSeenStoppedInstanceInteractions = `-- name: ListSeenStoppedInstanceInteractions :many
+WITH RECURSIVE instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
+ WHERE i.id = ?2 AND s.profile_id = i.profile_id
+ UNION
+ SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
+ WHERE s.profile_id = parent.profile_id
+)
+SELECT p.interaction_id FROM session_pending_interactions p
+JOIN instance_sessions tree ON tree.id = p.session_id JOIN sessions s ON s.id = tree.id
+WHERE s.state = 'stopped' AND p.status IN ('pending', 'orphaned') AND p.created_at <= ?1
+`
+
+type ListSeenStoppedInstanceInteractionsParams struct {
+	SeenAt     string `json:"seen_at"`
+	InstanceID string `json:"instance_id"`
+}
+
+func (q *Queries) ListSeenStoppedInstanceInteractions(ctx context.Context, arg ListSeenStoppedInstanceInteractionsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listSeenStoppedInstanceInteractions, arg.SeenAt, arg.InstanceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var interaction_id string
+		if err := rows.Scan(&interaction_id); err != nil {
+			return nil, err
+		}
+		items = append(items, interaction_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markAgentInstanceSeen = `-- name: MarkAgentInstanceSeen :one
 INSERT INTO agent_instance_seen (instance_id, operator_id, last_seen_at)
 VALUES (?, ?, ?)

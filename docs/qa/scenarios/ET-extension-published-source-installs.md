@@ -114,3 +114,11 @@ integration owns deterministic expiry injection and exact SQLite/vault compariso
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-11-15 (release M2): install a local package attached to profile A in workspace W.
+A profile B agent in W must receive permission denied for `replace: true`, without a reload or
+candidate publication. Repeat with both an all-profile W attachment and the A attachment: B is
+still denied. Verify an agent can replace its own profile or all-profile W package; an operator
+can replace across attachments. Selecting a workspace/profile with no reachable installation fails
+before staging and never reloads candidate code. The existing daemon replacement suites own these
+checks; local QA is prohibited in release mode and main CI verification is pending.

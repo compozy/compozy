@@ -12,8 +12,8 @@ import (
 )
 
 // InspectPluginPackage uses the install manifest and resource loaders without publishing or starting resources.
-func InspectPluginPackage(ctx context.Context, root string) (marketplace.PluginInspection, error) {
-	manifest, err := LoadManifest(root)
+func InspectPluginPackage(ctx context.Context, root string, name string) (marketplace.PluginInspection, error) {
+	manifest, err := loadManifest(root, "", name)
 	if err != nil {
 		return marketplace.PluginInspection{}, err
 	}

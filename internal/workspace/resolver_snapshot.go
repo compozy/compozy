@@ -9,6 +9,30 @@ import (
 	"github.com/compozy/compozy/internal/filesnap"
 )
 
+// HoldSnapshots keeps every validated discovery snapshot fresh past the snapshot TTL until
+// ReleaseSnapshots runs, so a bounded phase such as daemon boot discovers each workspace once
+// instead of once per TTL window. Config inputs are still compared on every read and explicit
+// invalidation still drops snapshots; only the age bound is suspended.
+func (r *Resolver) HoldSnapshots() {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	r.snapshotsHeld = true
+	r.mu.Unlock()
+}
+
+// ReleaseSnapshots restores the snapshot TTL. Snapshots older than the TTL are revalidated by
+// their next read.
+func (r *Resolver) ReleaseSnapshots() {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	r.snapshotsHeld = false
+	r.mu.Unlock()
+}
+
 func (r *Resolver) freshSnapshot(
 	key string,
 	ws Workspace,
@@ -18,7 +42,8 @@ func (r *Resolver) freshSnapshot(
 	now := r.now()
 	cached := r.cache[key]
 	fresh := cached != nil && r.snapshotTTL > 0 && !now.Before(cached.validatedAt) &&
-		now.Sub(cached.validatedAt) < r.snapshotTTL && now.Sub(cached.lastAccess) < r.cacheTTL &&
+		(r.snapshotsHeld || now.Sub(cached.validatedAt) < r.snapshotTTL) &&
+		now.Sub(cached.lastAccess) < r.cacheTTL &&
 		sameWorkspaceRuntimeInputs(cached.workspace, ws)
 	r.mu.RUnlock()
 	if !fresh || !r.snapshotConfigUnchanged(ws, profileName, cached.snapshots) {

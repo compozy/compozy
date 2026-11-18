@@ -233,8 +233,13 @@ func (s *subagentService) failWake(ctx context.Context, parent, id string) error
 }
 
 const subagentWakeRetryDelay = 200 * time.Millisecond
+const defaultSubagentRecoveryRetryDelay = time.Second
 
 func (s *subagentService) retryWake(parent string, attempts int) {
+	s.retryWakeAfter(parent, subagentWakeRetryDelay*time.Duration(attempts))
+}
+
+func (s *subagentService) retryWakeAfter(parent string, delay time.Duration) {
 	s.mu.Lock()
 	if s.wakeRetries == nil {
 		s.wakeRetries = make(map[string]bool)
@@ -246,18 +251,26 @@ func (s *subagentService) retryWake(parent string, attempts int) {
 	s.wakeRetries[parent] = true
 	s.mu.Unlock()
 	s.launch(func() {
-		timer := time.NewTimer(subagentWakeRetryDelay * time.Duration(attempts))
+		timer := time.NewTimer(delay)
 		defer timer.Stop()
 		select {
 		case <-s.ctx.Done():
 			return
 		case <-timer.C:
 		}
+		// Keep the retry guard raised through fact observation so another
+		// successor cannot compose this parent's batch before the facts are saved.
+		factsErr := s.recoverPendingFacts(s.ctx, parent)
 		unlock := s.lock(parent)
 		defer unlock()
 		s.mu.Lock()
 		delete(s.wakeRetries, parent)
 		s.mu.Unlock()
+		if factsErr != nil {
+			s.logError(s.ctx, "wake_retry_facts", factsErr)
+			s.retryWakeAfter(parent, s.recoveryRetryDelay)
+			return
+		}
 		s.logError(s.ctx, "wake_retry", s.successor(s.ctx, parent))
 	})
 }

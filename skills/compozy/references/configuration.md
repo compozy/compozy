@@ -18,6 +18,7 @@
 - Session rebuild bounds
 - Host load management
 - Stdio MCP server processes
+- Runtime MCP switch and external tool policy
 - Session messaging
 - Agent overrides
 - Retired memory and compaction settings
@@ -27,6 +28,7 @@
 - Terminal
 - Shell session preferences
 - Provider usage
+- OpenTelemetry export
 - User-scope execution directory
 
 ## Desired State And Apply Lifecycle
@@ -46,6 +48,12 @@ Use `compozy config reload -o json` to reconcile edited desired state with the a
 `compozy status --json` reports the current `config.restart_required` flag. The Web Settings banner
 uses that runtime truth, including changes saved from CLI or API after a previous restart.
 Choosing **Not now** dismisses the observed change; a later apply record can show the notice again.
+
+`POST /api/settings/actions/restart` (HTTP or UDS) pre-flights the replacement binary before the
+running daemon is signaled: config load and validation, plus a read-only global database migration
+plan. A positive failure returns `409` with the reason, records the restart operation as `failed`
+with that `failure_reason`, and leaves the running daemon serving; fix the cause and request the
+restart again. An unavailable or timed-out pre-flight never blocks the restart.
 
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
 `compozy__config_get` reports an absent key as `config_path_not_found: config path not found`; after `compozy__config_set`, read the same path again and confirm its structured value.
@@ -350,7 +358,7 @@ CLI automation creation supports the Agent-or-Loop target union. Use `automation
 Triggers additionally accept experimental `target_kind = "agent_instance"`, `agent`, `prompt`, and
 `target_instance_scope` equal to their own workspace or `global`. CLI creation uses `--target-instance`
 and `--workspace` (or `@user` for global). Scheduled jobs do not support this target. Delivery feeds
-the existing instance's read-only check and completes the run without prompting its main. Events
+the existing instance's check-in and completes the run without prompting its main. Events
 stay pending across pause and quiet windows: newest 200 retained, at most 20 and 8 KiB read per check,
 2 KiB per summary, and `events_omitted` counts retention loss. This collector ignores `context.include`.
 A failed/cancelled check retains its batch; successful completion consumes only admitted event IDs.
@@ -369,8 +377,12 @@ recovery, and `session continue|fork`. The replay never exceeds `max_replay_byte
 `max_message_bytes` is truncated. Validation rejects `max_message_bytes` outside 1024 through
 `max_replay_bytes`, so lowering `max_replay_bytes` below the default `max_message_bytes` (16384) requires
 lowering `max_message_bytes` too. Edit these keys in `config.toml`; `compozy config set` does not accept
-them. CompozyOS has no compaction settings: the agent owns its context window,
-and compaction is observed or requested through the experimental surfaces in
+them. Claude sessions accept `providers.claude.auto_compact_window` (100000–1000000 tokens),
+capped at the model window and always forwarded as a full token count,
+with `auto_compact_window` in an agent definition taking precedence. Omission preserves the provider
+default; the value is forwarded on new, load and resume. This is independent of retired
+`session.compaction` keys, which remain archived on load until v0.7.0. Manual compaction is
+requested through the surfaces in
 `references/runtime-operations.md`. Changes to `session.*` keys are restart-required and do not mutate
 the policy bound to the running daemon.
 
@@ -394,7 +406,9 @@ discovery, `compozy__mcp_status` probes, and tool calls. `[mcp.stdio]` sets `idl
 (close an unused process), `connect_timeout = "60s"` (one launch plus MCP handshake; a slow first
 start keeps running after the caller's deadline), and `max_concurrent_calls = 8` (in-flight requests
 per process, `1` through `64`). `mcp.status_probe_timeout = "15s"` bounds one status probe of any MCP
-server. All four are restart-required, user-scope only, and rejected in workspace and profile
+server. Runtime catalog discovery shares this timeout across its visible sources, capped at half
+the hosted bind window. A slow source is omitted without canceling healthy discovery or shortening
+tool-call deadlines. All four are restart-required, user-scope only, and rejected in workspace and profile
 layers; none is agent-mutable.
 
 A process that fails to start or exits unexpectedly is relaunched only after an exponential backoff
@@ -404,6 +418,52 @@ stderr tail of the current or last process. Isolated homes live under
 `$COMPOZY_HOME/cache/mcp/homes/` and are removed when the process ends or at the next daemon start;
 `npx` and `uvx` package caches persist in `$COMPOZY_HOME/cache/mcp/npm` and
 `$COMPOZY_HOME/cache/mcp/uv`.
+
+## Turn Off A Provider
+
+`providers.<id>.enabled = false` turns off a provider the operator doesn't use. It is global and
+profile config only (workspace layers are rejected), applies live, and defaults to `true`. Set it with
+`compozy config set providers.<id>.enabled false`, `compozy__config_set`, or
+`PATCH /api/settings/providers/{name}/enabled`.
+
+- Inventories (`compozy provider list`, `GET /api/providers`, Settings) keep the provider with
+  `enabled: false`; selection surfaces (pickers, model catalog, `compozy__provider_models_list`,
+  `compozy__subagent_capabilities`, usage) drop it.
+- New starts, stopped-session resumes, runtime changes and loop/goal runs on it fail with
+  `provider_disabled` (HTTP 409); running sessions continue. Fallback chains and roles skip it.
+- The default provider can't be turned off (`provider_default_disable_rejected`); change
+  `defaults.provider` first. Re-enabling removes the key and an emptied `[providers.<id>]` block.
+
+## Runtime MCP Switch And External Tool Policy
+
+`[providers.<id>] runtime_mcp` decides whether a runtime CLI loads its own MCP servers (the ones in
+its own files, listed read-only by `compozy mcp list`) in CompozyOS sessions. Default `"load"`.
+`"off"` is accepted only for `claude`, `copilot` and `qwen-code`; any other provider fails validation
+with `runtime_mcp_unsupported` ("<Runtime> always loads its own MCP servers; runtime_mcp can only be
+\"load\""). The key is live: set it with `compozy config set providers.claude.runtime_mcp off`,
+`compozy__config_set`, the provider PUT behind Settings → Providers, or the switch on that runtime's
+group in Settings → MCP servers. Open sessions apply it on their next message (one reload, reason
+`runtime_mcp`).
+
+- Claude: `off` launches with a strict MCP config and claude.ai connectors disabled. When the machine
+  has a managed `managed-mcp.json`, the stored `off` stays valid but has no effect, and the inventory
+  reports the switch unavailable with a note.
+- Copilot and Qwen Code: `off` passes one `--disable-mcp-server <name>` per server in the session's
+  runtime inventory (Copilot also `--disable-builtin-mcps`), recomputed at every launch. A server added
+  to the runtime file later triggers a reload at the next message. If that inventory cannot be read,
+  the `off` launch is refused instead of loading servers silently.
+- Always-on agents keep their existing isolation whatever the value.
+
+`tools.policy.external_default` keeps its values (`disabled` default, `ask`, `enabled`) and now
+applies only to MCP sources without operator consent: project-file servers waiting for approval.
+Servers added through CompozyOS, servers in operator-owned home files, enabled extensions and their
+servers are admitted regardless. `enabled` admits unapproved project servers; `disabled` and `ask`
+keep them waiting and never start them. `ask` still prompts per call for consented sources. Dynamic
+tools stay denied. Grant `external_default` and `trusted_sources` in user or personal profile config.
+Workspace and workspace-profile layers can only restrict inherited policy: `disabled` is stricter than
+`ask`, which is stricter than `enabled`, and trusted sources are intersected with the preceding layer.
+Omit the trust list to inherit it; `[]` removes all trust. Attempted grants are ignored with one warning
+per daemon process. Project files cannot grant their own consent or read-only trust. Approval workflow: `references/tools-and-skills.md` (MCP Activation And Consent).
 
 ## Provider Sign-In Recovery
 
@@ -422,6 +482,16 @@ restart-required. `session.limits.timeout` and the DTO field `config.session_tim
 and enforce nothing: no session ends when they elapse. They stay readable and writable through v0.4
 (a non-zero value logs a load warning, and a PATCH that sends a non-zero `session_timeout` gets a
 `Warning` header) and are removed in v0.5.0. Never set them to bound session lifetime.
+
+## Busy Session Input
+
+`[session.busy_input] steer_boundary_timeout` defaults to `"45s"` and is restart-required.
+For operator steering without native injection, it bounds the wait for all open tools before
+cancellation and reprompt. `"0s"` preserves immediate cancellation; negative durations are invalid.
+If the adapter emits no tool events, steering queues after the turn instead. Explicit interrupt
+always cancels immediately. `default_mode` still defaults to `steer`; choose `queue` for after-turn
+follow-ups on every provider. Read `steer_delivery` in the acceptance receipt: `pending_boundary`
+waits for tools and `after_turn` queues; native injection keeps its existing delivery values.
 
 ## Session Messaging
 
@@ -458,21 +528,25 @@ in place: the `memory` table and its sub-tables, `roles.dream`, `roles.checkpoin
 `compaction_reason` and `compaction_strategy`. The values move, commented and inactive, under
 `# Archived retired memory and compaction settings; these values are inactive.` at the end of the same
 file, every other setting is kept, the daemon logs `config.retired_keys_archived` once, and the next load
-finds nothing to archive. The archive is a v0.6.0 removal shim. It is non-fatal: if the rewrite is refused
-because the file changed concurrently, or fails because the file or its directory is not writable, the
-loader logs the warning `config.retired_keys_archive_failed` (`path`, `reason`), loads with the retired
-values inactive, leaves the file untouched, and retries on the next load. Treat that warning as work to
-do: fix the permission or finish the edit. (A file whose only retired settings are the older
-`skills.marketplace` values still fails the load when its rewrite cannot publish.) `compozy config set` on
-a retired key is still refused.
+finds nothing to archive. It is non-fatal: if the rewrite is refused because the file changed
+concurrently, or fails because the file or its directory is not writable, the loader logs the warning
+`config.retired_keys_archive_failed` (`path`, `reason`), loads with the retired values inactive, leaves
+the file untouched, and retries on the next load. Treat that warning as work to do: fix the permission
+or finish the edit. (A file whose only retired settings are the older `skills.marketplace` values still
+fails the load when its rewrite cannot publish.) `compozy config set` on a retired key is still refused.
 
-The same retirement is ignored, not rejected, in other places: `compaction_reason` and
-`compaction_strategy` in an `AGENT.md` or `SKILL.md` hook matcher are dropped with one
-`agent.retired_entries_ignored` (`agent`, `entries`) or `skills.retired_entries_ignored` warning per
-owner and the file is not rewritten (other invalid fields still fail); an extension manifest entry for
-the removed memory surface, or an extension automation resource whose trigger `event` is
-`memory.consolidated`, is dropped or skipped with `extension.retired_entries_ignored` while the rest of
-the extension loads. Replace the matcher keys with `compaction_trigger` before v0.6.0.
+`compaction_reason` and `compaction_strategy` in an `AGENT.md` hook matcher are ignored with one
+`agent.retired_entries_ignored` (`agent`, `entries`) warning and the file is not rewritten (other
+invalid fields still fail).
+
+Both are one shim generation, removed in v0.7.0. v0.6.1 shipped without them and a v0.6.0 file that
+still held these values stopped the daemon from starting; v0.6.2 restores them. Replace the matcher
+keys with `compaction_trigger` before v0.7.0.
+
+Still rejected, as in v0.6.1: the same matcher keys in a `SKILL.md` or an extension manifest,
+`memory.consolidated` extension automation triggers, and retired memory manifest entries. They fail
+only that skill or extension. An installed extension whose packaged resources fail to load is skipped
+with an `extension.resources.skipped` warning (`extension`, `error`) and the daemon still starts.
 
 ## Auto-Title Role
 
@@ -536,9 +610,12 @@ write scalar settings with `compozy config get|set cmd_palette.<key>`. Use the t
 
 ## Window Manager
 
-`[window_manager]` controls global behavior defaults for new-window placement, small-viewport
-fallback, focus and raise policy, drag-away grouping, bounded history, desktop transitions, gaps,
-snap thresholds and repeat ratios, edge bindings, and shortcuts. Every `window_manager.*` path is
+`[window_manager]` controls global behavior defaults for new-window placement (`tab` or
+`beside_focus`), small-viewport fallback, focus policy, the swap modifier, bounded history, desktop
+transitions, gaps, and shortcuts. The retired keys `raise_on_focus`, `drag_away_policy`,
+`group_move_modifier`, `snap.*`, `bindings.top_center`, and `bindings.bottom_center` still load with
+one `warning:` and are ignored until v0.8.0; `new_window_policy = "floating"` loads as `"tab"` with a
+warning. Remove them instead of setting them. Every `window_manager.*` path is
 live-applied only after the complete candidate validates; a failed apply keeps the prior active
 generation. Workspace topology overrides remain part of revisioned layout documents rather than a
 second Settings scope. Field detail lives in `references/window-management.md` (Configuration and hooks).
@@ -607,30 +684,39 @@ governs one daemon. Workspace overlays remain valid.
 ## Shell Session Preferences
 
 `shell.sessions.sort` persists ordering (`created`, `name`, `last_activity`, `attention`, or `manual`).
-`shell.sessions.group_by` controls grouping: `none` (default), `project`, or `profile`. These user-wide
+`shell.sessions.group_by` controls grouping: `none`, `project` (default), or `profile`. These user-wide
 values apply live as the default for session windows: each Web window keeps its own Sort by / Group by
 (shared by its List and Kanban views), follows these values until the operator chooses there, and never
 writes them back. Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
 PATCH preserves omitted preferences and returns the apply receipt plus the effective config.
 
 `shell.appearance.ui_font` and `shell.appearance.mono_font` hold the Interface and Code font family
-names shown in Settings › Appearance › Fonts (empty = the built-in Inter / Geist Mono). They are
+names shown in Settings › Appearance › Text (empty = the built-in Figtree / Geist Mono). They are
 daemon-wide, so every connected Web and desktop client repaints with them; a family missing on one
 device falls back to the built-in stack there. Each value is one family name of letters, digits,
 spaces, `-`, `_`, `.`, or `'` (at most 128 characters); anything else fails with
-`shell_config_invalid`. `compozy config set shell.appearance.mono_font "JetBrains Mono Variable"`
-sets one; `compozy config unset shell.appearance.mono_font` (or PATCH `""`) restores the default.
+`shell_config_invalid`. `Geist Variable`, `Inter Variable`, `Instrument Sans Variable` and
+`JetBrains Mono Variable` ship with the app and load only when chosen or previewed in the font list.
+`compozy config set shell.appearance.mono_font "JetBrains Mono Variable"` sets one;
+`compozy config unset shell.appearance.mono_font` (or PATCH `""`) restores the default.
+
+`shell.appearance.text_size` (`small`, `default`, `large`, `larger`) scales every text size of the
+Web and desktop apps together, and `shell.appearance.letter_spacing` (`tight`, `default`,
+`relaxed`, `wide`) sets the interface text tracking; the terminal keeps its own size. Both are
+daemon-wide and live. Unset reads as `default`, and PATCH `"default"` or `compozy config unset`
+removes the key. Any other value fails with `shell_config_invalid`.
 
 Through v0.4.0, `shell.sessions.scope` remains stored and functional as legacy breadth intent
 (`workspace` or `all-workspaces`). Writes return a deprecation warning naming `group_by` and the topbar
-globe. While grouping is unset, `all-workspaces` derives `group_by=project`; an explicit grouping wins.
+globe. While grouping is unset, either scope value reads `group_by=project`; an explicit grouping wins.
 The response's `legacy_scope` reports `value`, whether the user overlay is `explicit`, and a durable
 `revision` that advances even for same-value writes. Default-only scope is never a breadth instruction.
 Existing clients may continue writing the legacy key in v0.4.0. In v0.5.0 the loader materializes
 `group_by = "project"` from `scope = "all-workspaces"` when grouping is unset, drops the key with a
 logged notice, and the next apply deletes it from the overlay; it never fails as an unknown key.
 `group_by = "project"` takes effect only under All projects and `profile` only under All profiles;
-an inapplicable value renders as `none` without being rewritten. Unknown values fail with
+an inapplicable value renders as `none` without being rewritten, so one project's list stays flat
+under the default. An explicitly persisted `none` stays flat. Unknown values fail with
 `shell_config_invalid`. Breadth (All projects versus one project or User) is browser state owned by
 the topbar globe, not a config key.
 
@@ -657,6 +743,54 @@ metadata prevents the read. An item change racing that check can briefly prompt;
 background timeout terminates the reader and reports `keychain_read_timeout`. Explicit local
 refreshes may request OS authorization; agents cannot request interactive refreshes. CompozyOS never exchanges Claude Code refresh tokens.
 
+## OpenTelemetry Export
+
+`[observability.otel]` exports daemon traces and metrics over OTLP. It is global-only and every key
+is `restart-required` (apply reports `restart-daemon`). Workspace config that sets it fails to load
+(`observability.otel settings are global-only`), workspace-scope writes are rejected, and profile
+overlays deny the `observability` block. Export also needs `observability.enabled = true`.
+
+| Key                                       | Default            | Notes                                                                                   |
+| ----------------------------------------- | ------------------ | --------------------------------------------------------------------------------------- |
+| `observability.otel.enabled`              | `false`            | Master switch.                                                                          |
+| `observability.otel.protocol`             | `"http/protobuf"`  | `"http/protobuf"` or `"grpc"`.                                                          |
+| `observability.otel.endpoint`             | `""`               | `""` → `OTEL_EXPORTER_OTLP_ENDPOINT` → `http://localhost:4318` (`grpc`: `:4317`).       |
+| `observability.otel.traces` / `.metrics`  | `true`             | Per-signal switches.                                                                    |
+| `observability.otel.sample_ratio`         | `1.0`              | `0`–`1`; new traces and unsampled parents. A sampled external parent is always kept.    |
+| `observability.otel.metric_interval`      | `"60s"`            | Minimum `"5s"`.                                                                         |
+| `observability.otel.service_name`         | `"compozy-daemon"` | `^[A-Za-z0-9._-]{1,64}$`.                                                               |
+| `observability.otel.slow_db_write_ms`     | `50`               | `db.write` span threshold; `0` disables write spans.                                    |
+| `observability.otel.forward_to_providers` | `false`            | Operator policy: providers started afterwards receive OTLP env and `TRACEPARENT`.       |
+| `observability.otel.headers.<name>`       | none               | `env:` or `vault:observability/` refs only; edited in the file (`compozy config edit`). |
+
+`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS`, and
+`OTEL_SERVICE_NAME` fill only values `config.toml` does not set (a written value wins even when it
+equals the default; an empty `endpoint` is not set; a non-empty headers table replaces env headers).
+Only the process environment counts, never a workspace `.env`. They are validated only while export can run
+(`observability.enabled`, `otel.enabled`, and a signal on). `OTEL_SDK_DISABLED=true` or both signals off reads `disabled`;
+`OTEL_RESOURCE_ATTRIBUTES` is ignored.
+
+Operator-only: `compozy__config_set` refuses every `observability.otel.*` key with
+`config_trust_root_forbidden`. Agents read keys with `compozy__config_get` (header values read as `[REDACTED]`: agent-facing
+output masks every `env:`/`vault:` ref, so only the operator's `compozy config get` shows them;
+`OTEL_*` values never appear) and runtime state from `compozy status --json` `.otel` or
+`GET /api/status`: `state` (`disabled`, `inactive_observability_disabled`, `ok`, `degraded`),
+`protocol`, `endpoint_host`, `sample_ratio`, `forward_to_providers`, `traces`/`metrics`
+(`enabled`, `last_export_at`, `last_error_class`, `failed_exports`), and `dropped_spans`. Error
+classes: `http_400`, `http_401`, `http_403`, `http_404`, `http_413`, `http_429`, `http_5xx`,
+`unavailable`, `deadline_exceeded`, `tls`, `header_ref_unresolved`, `other`. A missing `otel`
+object means an older daemon (unknown). Exports carry IDs and registered names only, never prompt
+text, tool payloads, paths, or secrets.
+
+Provider forwarding: with `forward_to_providers = true` and export running (not disabled, inactive,
+or degraded at start), providers started afterwards receive `OTEL_EXPORTER_OTLP_ENDPOINT`,
+`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS` (`name=<resolved value>`),
+`OTEL_RESOURCE_ATTRIBUTES` (`compozy.session_id=…,compozy.agent=…`), and `TRACEPARENT` from the
+sampled `acp.process.spawn` span. **This is an operator policy, not covered by the daemon privacy
+guarantee:** the provider decides what it exports (possibly prompt text or tool payloads) and
+receives the resolved header values. Agent-defined `OTEL_*` values win. Status shows
+`forward_to_providers: true` and the human line ends with `forwarding to providers`.
+
 ## User-scope execution directory
 
 `[user_scope] work_dir = "~"` selects the User execution directory. A personal profile overlay may
@@ -682,8 +816,8 @@ on window-manager surfaces it always means the reserved partition. `@user` alway
 Proactive checks use `[agents.heartbeat]` limits: `max_concurrent_triage = 2` and
 `max_interval = "24h"` (at least `quiet_backoff_cap`). `[agents.always_on]` retains
 `max_proposals = 2` and `triage_timeout = "10m"`.
-`[agents.always_on]` was renamed in v0.5.1. Its v0.5.0 table name, and only that table's config paths, are
-still read through v0.5.1 and removed in v0.5.2; see "Identity and kind" in
+`[agents.always_on]` was renamed in v0.5.1. Its old table name and config paths are
+rejected in the release after v0.5.2 with errors naming the replacement; see "Identity and kind" in
 `references/agent-definitions.md`. Validation messages name `agents.always_on.*`.
 All must be positive; `max_proposals` cannot exceed 20. Changes take effect after daemon
 restart. Cadence, enabled state and event retention use the existing `[agents.heartbeat]`
@@ -734,3 +868,26 @@ env_allow = []
 ```
 
 `timeout` must be 1s–5m; concurrent polls and sources per agent 1–32; items 1–100; output 4 KiB–4 MiB; state 1 KiB–256 KiB; failure threshold 1–20. Scripts require operator hash approval even when enabled. `env_allow` names daemon variables explicitly passed to scripts.
+
+### Check-in tool bounds
+
+`[agents.always_on]` accepts `check_in_tools = "enabled"` (`disabled` restores
+no hosted tools in triage), `check_in_max_tool_calls = 25` (1–100),
+`check_in_max_write_calls = 5` (0–50), and `check_in_audit_retention = "720h"`
+(24h–8760h). Attempts count toward the total cap; only allowed writes count toward
+the write cap. Listing never spends budget. Retention removes audit rows daily.
+Operator-authored MCP declarations support `read_only_tools` with raw tool names;
+extension/catalog declarations cannot override classification.
+
+`[agents.always_on].auto_accept_per_day` defaults to 20 and accepts 0–200.
+It limits auto-accepted proposals per instance over a rolling 24 hours. Zero
+disables auto picks. Queue capacity, approved authority, active lifecycle state,
+deduplication, fatigue and unattended limits still apply. A queue-cap miss leaves
+the proposal waiting and does not fail the completed check-in.
+
+## Client request budget
+
+`[client] request_timeout` (duration, default `30s`, bounds 5s–30m) bounds one unary CLI request to the
+daemon. `COMPOZY_CLIENT_TIMEOUT` overrides it for one invocation and wins over the file; both sources
+reject an out-of-range value. Streams are not bounded by it, and profile and workspace layers reject
+`client.*`. Set it with `compozy config set client.request_timeout 2m`.

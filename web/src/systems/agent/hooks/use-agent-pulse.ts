@@ -21,7 +21,10 @@ function pulseBatches(members: readonly AgentTeamMember[]) {
   const batches: PulseSelection[][] = [];
   let scopeCount = 0;
   for (const member of members) {
-    const scopes = [...new Set(member.scopes)].sort();
+    // A user-level definition can work in a project its catalog scopes don't name.
+    const scopes = [
+      ...new Set([...member.scopes, ...member.places.map(place => place.scope)]),
+    ].sort();
     for (let offset = 0; offset < scopes.length; offset += MAX_BATCH_ITEMS) {
       const workspaces = scopes.slice(offset, offset + MAX_BATCH_ITEMS);
       let batch = batches[batches.length - 1];
@@ -44,7 +47,7 @@ function pulseBatches(members: readonly AgentTeamMember[]) {
 export function useAgentPulses(members: readonly AgentTeamMember[]) {
   const { destination } = useProfileReadScope();
   const selected = members
-    .filter(member => member.kind === "always_on" && member.agent !== null)
+    .filter(member => member.kind === "always_on")
     .sort((a, b) => a.key.localeCompare(b.key));
   const batches = pulseBatches(selected);
   const reads = useQueries({

@@ -83,7 +83,7 @@ export function activationTarget(
 }
 
 /** Dock aggregation (ADR-010 §3): an app lights while any instance is live. */
-export type OsAppRunState = "closed" | "open" | "focused" | "minimized";
+export type OsAppRunState = "closed" | "open" | "focused";
 
 export function appRunState(
   windows: Readonly<Record<string, OsWindow>>,
@@ -92,8 +92,6 @@ export function appRunState(
 ): OsAppRunState {
   const instances = windowInstancesFor(windows, { app });
   if (instances.length === 0) return "closed";
-  if (instances.some(instance => instance.id === focusedId && !instance.minimized))
-    return "focused";
-  if (instances.some(instance => !instance.minimized)) return "open";
-  return "minimized";
+  if (instances.some(instance => instance.id === focusedId)) return "focused";
+  return "open";
 }

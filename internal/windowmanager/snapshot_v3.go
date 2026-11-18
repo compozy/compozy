@@ -17,26 +17,26 @@ const LegacySnapshotVersion uint32 = 3
 const legacyFocusPurpose = "focus"
 
 type legacyDesktopV3 struct {
-	ID             DesktopID       `json:"id"`
-	Name           string          `json:"name"`
-	Order          int             `json:"order"`
-	Purpose        string          `json:"purpose"`
-	FocusOwner     *WindowID       `json:"focus_owner,omitzero"`
-	Groups         []LayoutGroup   `json:"groups"`
-	Floating       []WindowID      `json:"floating"`
-	FloatingStacks []FloatingStack `json:"floating_stacks"`
+	ID             DesktopID         `json:"id"`
+	Name           string            `json:"name"`
+	Order          int               `json:"order"`
+	Purpose        string            `json:"purpose"`
+	FocusOwner     *WindowID         `json:"focus_owner,omitzero"`
+	Groups         []LayoutGroupV5   `json:"groups"`
+	Floating       []WindowID        `json:"floating"`
+	FloatingStacks []FloatingStackV5 `json:"floating_stacks"`
 }
 
 type legacySnapshotV3 struct {
-	Version       uint32              `json:"version"`
-	WorkspaceID   WorkspaceID         `json:"workspace_id"`
-	Revision      Revision            `json:"revision"`
-	Desktops      []legacyDesktopV3   `json:"desktops"`
-	Windows       map[WindowID]Window `json:"windows"`
-	ClosedEntries []ClosedEntry       `json:"closed_entries,omitempty"`
-	History       json.RawMessage     `json:"history"`
-	Overrides     WorkspaceConfig     `json:"overrides"`
-	UpdatedAt     time.Time           `json:"updated_at"`
+	Version       uint32                `json:"version"`
+	WorkspaceID   WorkspaceID           `json:"workspace_id"`
+	Revision      Revision              `json:"revision"`
+	Desktops      []legacyDesktopV3     `json:"desktops"`
+	Windows       map[WindowID]WindowV5 `json:"windows"`
+	ClosedEntries []ClosedEntryV5       `json:"closed_entries,omitempty"`
+	History       json.RawMessage       `json:"history"`
+	Overrides     WorkspaceConfigV5     `json:"overrides"`
+	UpdatedAt     time.Time             `json:"updated_at"`
 }
 
 // MigrateLegacySnapshotV3 chains v3 through the v4 geometry and v5 app identities.
@@ -45,18 +45,22 @@ type legacySnapshotV3 struct {
 // layout history does not survive because its entries carry the old shape.
 // The result carries the next revision: its content differs from what any
 // client cached under the stored revision.
-func MigrateLegacySnapshotV3(encoded []byte) (Snapshot, error) {
+func MigrateLegacySnapshotV3(encoded []byte) (SnapshotV5, error) {
+	encoded, err := translateDocumentOverridesJSON(encoded)
+	if err != nil {
+		return SnapshotV5{}, fmt.Errorf("decode legacy window-manager overrides: %w", err)
+	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.DisallowUnknownFields()
 	var legacy legacySnapshotV3
 	if err := decoder.Decode(&legacy); err != nil {
-		return Snapshot{}, fmt.Errorf("decode legacy window-manager snapshot: %w", err)
+		return SnapshotV5{}, fmt.Errorf("decode legacy window-manager snapshot: %w", err)
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return Snapshot{}, errors.New("decode legacy window-manager snapshot: trailing data")
+		return SnapshotV5{}, errors.New("decode legacy window-manager snapshot: trailing data")
 	}
 	if legacy.Version != LegacySnapshotVersion {
-		return Snapshot{}, fmt.Errorf(
+		return SnapshotV5{}, fmt.Errorf(
 			"legacy window-manager snapshot version %d is not %d",
 			legacy.Version,
 			LegacySnapshotVersion,
@@ -64,24 +68,24 @@ func MigrateLegacySnapshotV3(encoded []byte) (Snapshot, error) {
 	}
 	revision, err := NextTopologyRevision(legacy.Revision)
 	if err != nil {
-		return Snapshot{}, fmt.Errorf("legacy window-manager snapshot revision: %w", err)
+		return SnapshotV5{}, fmt.Errorf("legacy window-manager snapshot revision: %w", err)
 	}
-	snapshot := Snapshot{
-		Version:       SnapshotVersion,
+	snapshot := SnapshotV5{
+		Version:       5,
 		WorkspaceID:   legacy.WorkspaceID,
 		Revision:      revision,
-		Desktops:      make([]Desktop, 0, len(legacy.Desktops)),
+		Desktops:      make([]DesktopV5, 0, len(legacy.Desktops)),
 		Windows:       legacy.Windows,
 		ClosedEntries: legacy.ClosedEntries,
-		History:       History{Undo: []HistoryEntry{}, Redo: []HistoryEntry{}},
+		History:       json.RawMessage(`{"undo":[],"redo":[]}`),
 		Overrides:     legacy.Overrides,
 		UpdatedAt:     legacy.UpdatedAt,
 	}
 	if snapshot.Windows == nil {
-		snapshot.Windows = map[WindowID]Window{}
+		snapshot.Windows = map[WindowID]WindowV5{}
 	}
 	for _, desktop := range legacy.Desktops {
-		snapshot.Desktops = append(snapshot.Desktops, Desktop{
+		snapshot.Desktops = append(snapshot.Desktops, DesktopV5{
 			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order,
 			Groups: desktop.Groups, Floating: desktop.Floating, FloatingStacks: desktop.FloatingStacks,
 		})
@@ -95,21 +99,30 @@ func MigrateLegacySnapshotV3(encoded []byte) (Snapshot, error) {
 			dropEmptyLegacyFocusDesktop(&snapshot, desktop.ID)
 		}
 	}
-	setDesktopOrders(&snapshot)
-	rewriteSnapshotRetiredApps(&snapshot)
-	snapshot = NormalizeSnapshot(snapshot)
-	if err := ValidateSnapshot(snapshot); err != nil {
-		return Snapshot{}, fmt.Errorf("migrated window-manager snapshot: %w", err)
+	for i := range snapshot.Desktops {
+		snapshot.Desktops[i].Order = i
 	}
 	return snapshot, nil
 }
-
-func dropEmptyLegacyFocusDesktop(snapshot *Snapshot, desktopID DesktopID) {
-	index, exists := desktopIndexByID(snapshot, desktopID)
+func dropEmptyLegacyFocusDesktop(snapshot *SnapshotV5, desktopID DesktopID) {
+	index := -1
+	for i, d := range snapshot.Desktops {
+		if d.ID == desktopID {
+			index = i
+			break
+		}
+	}
+	exists := index >= 0
 	if !exists || len(snapshot.Desktops) == 1 {
 		return
 	}
-	if !desktopEmpty(snapshot.Desktops[index]) {
+	if len(
+		snapshot.Desktops[index].Groups,
+	)+len(
+		snapshot.Desktops[index].Floating,
+	)+len(
+		snapshot.Desktops[index].FloatingStacks,
+	) > 0 {
 		return
 	}
 	snapshot.Desktops = slices.Delete(snapshot.Desktops, index, index+1)

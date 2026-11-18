@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/compozy/compozy/internal/agentinstance"
-	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -76,7 +75,7 @@ func (n *daemonNativeTools) createNativeInstance(
 		return toolspkg.ToolResult{}, err
 	}
 	payload.Created = created
-	return structuredResult(contract.AgentInstanceResponse{Instance: payload}, "Instance created")
+	return agentInstanceCreateViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) nativeInstanceQuery(
@@ -156,24 +155,12 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 	if !scope.AllProfiles && instance.ProfileID != scope.ProfileID {
 		return agentinstance.ErrNotFound
 	}
-	if (action == "away" || action == "mark_seen") && !scope.Operator {
+	if (action == "away" || action == "mark_seen" || action == nativeInstanceActionClearMain) && !scope.Operator {
 		return agentinstance.ErrForbidden
 	}
-	verb := action
-	if action == nativeInstanceActionGet || action == nativeInstanceActionCheckIns {
-		verb = nativeInstanceActionReports
-	}
-	if action == "checks" {
-		if input.Enabled == nil {
-			return errors.New("enabled is required")
-		}
-		verb = "checks_off"
-		if *input.Enabled {
-			verb = "checks_on"
-		}
-	}
-	if action == nativeInstanceActionCheck && input.DryRun {
-		verb = "check_dry_run"
+	verb, err := nativeInstanceAuthorityVerb(input, action)
+	if err != nil {
+		return err
 	}
 	if err := api.Authority.Authorize(ctx, actor, instance, verb); err != nil {
 		return err
@@ -203,18 +190,39 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 	return nil
 }
 
+// nativeInstanceAuthorityVerb maps a native instance action to the authority verb it must hold.
+func nativeInstanceAuthorityVerb(input nativeInstanceInput, action string) (string, error) {
+	switch {
+	case action == nativeInstanceActionGet || action == nativeInstanceActionCheckIns:
+		return nativeInstanceActionReports, nil
+	case action == "checks":
+		if input.Enabled == nil {
+			return "", errors.New("enabled is required")
+		}
+		if *input.Enabled {
+			return "checks_on", nil
+		}
+		return "checks_off", nil
+	case action == nativeInstanceActionCheck && input.DryRun:
+		return "check_dry_run", nil
+	default:
+		return action, nil
+	}
+}
+
 func nativeInstanceList(
 	ctx context.Context,
 	api *core.AgentInstanceAPI,
 	actor workspaceaccess.ActorRef,
 	query agentinstance.ListQuery,
+	view toolspkg.ResultView,
 ) (toolspkg.ToolResult, error) {
 	result, err := api.ListPage(ctx, query, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 
-	return structuredResult(result, "Agent instances")
+	return agentInstanceListViews.result(view, result)
 }
 
 func nativeInstanceTarget(

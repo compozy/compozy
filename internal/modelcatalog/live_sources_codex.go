@@ -52,7 +52,7 @@ func (AppServerCodexModelProbe) InspectCodexModels(
 	stop := func() error {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		return proc.Shutdown(stopCtx)
+		return errors.Join(proc.Shutdown(stopCtx), proc.Stdout().Close())
 	}
 	stopped := make(chan error, 1)
 	cancelStop := context.AfterFunc(ctx, func() { stopped <- stop() })

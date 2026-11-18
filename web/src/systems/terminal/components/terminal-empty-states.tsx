@@ -16,8 +16,9 @@ function TerminalEmptyFrame({ children }: { children: ReactNode }) {
 /**
  * A project with no terminals.
  *
- * Reached only where opening one is not this window's call — aggregate reads
- * and isolated hosts — so it stays a quiet line, not a framed launchpad.
+ * Reached where opening one is not this window's call — aggregate reads and
+ * isolated hosts — or after the cap dialog was dismissed, so it stays a quiet
+ * line, not a framed launchpad.
  */
 export function TerminalEmptyState({ onOpenTerminal }: TerminalEmptyStateProps) {
   return (

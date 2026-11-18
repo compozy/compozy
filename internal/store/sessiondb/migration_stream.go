@@ -19,6 +19,9 @@ func MigrationStream() store.MigrationStream {
 		Dir:          "migrations",
 		VersionTable: sessionMigrationVersionTable,
 		LegacyTables: []string{"schema_migrations"},
+		// Session databases reached boot carrying migration 11's column without its
+		// version (issue #1614); the reconciliation completes that exact state.
+		Reconciliation: usageCostMigrationReconciliation(),
 		Bootstrap: &store.MigrationBootstrap{
 			FS:           sessionschema.Files,
 			MigrationDir: "migrations",

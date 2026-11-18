@@ -1,5 +1,9 @@
-import { mcpManagementScopeLabel } from "../lib/mcp-management-target";
-import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "../types";
+import { deriveMCPManagementFilter, mcpManagementScopeLabel } from "../lib/mcp-management-target";
+import type {
+  SettingsLayeredScope,
+  SettingsMCPServerEntry,
+  SettingsMCPServerTarget,
+} from "../types";
 
 export function mcpTargetLabel(target: SettingsMCPServerTarget): string {
   if (target === "auto") return "Automatic (where it's already saved)";
@@ -82,4 +86,33 @@ export function mcpAllocatedRuntimeName(server: SettingsMCPServerEntry): string 
 export function mcpServerRowTestId(server: SettingsMCPServerEntry): string {
   const extension = mcpOwnerExtensionName(server.owner);
   return `settings-page-mcp-servers-row-${server.name}${extension ? `--${extension}` : ""}`;
+}
+
+/**
+ * Where a server is used, in the editor's own words ("All projects", "Only <project>"), never
+ * the raw scope value. A profile server names its profile.
+ */
+export function mcpScopeWords(
+  scope: SettingsLayeredScope,
+  names: { projectName?: string | null; profile?: string | null } = {}
+): string {
+  if (scope === "workspace") return `Only ${names.projectName?.trim() || "this project"}`;
+  if (scope === "profile") {
+    const profile = names.profile?.trim();
+    return profile ? `Only the ${profile} profile` : "Only this profile";
+  }
+  return "All projects";
+}
+
+/** `mcpScopeWords` for a listed definition, from the scope an edit or delete lands in. */
+export function mcpEntryScopeWords(entry: SettingsMCPServerEntry): string {
+  const target = deriveMCPManagementFilter(entry);
+  const scope = target?.scope ?? (entry.scope as SettingsLayeredScope);
+  return mcpScopeWords(scope, { profile: target && "profile" in target ? target.profile : null });
+}
+
+/** Who added a definition, in words: the extension's name, else the person. */
+export function mcpAddedByWords(owner: string | undefined): string {
+  const extension = mcpOwnerExtensionName(owner);
+  return extension ? `The ${extension} extension` : "You";
 }

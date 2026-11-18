@@ -56,6 +56,18 @@ story: As an operator I ask an agent to run something slow and report back, and 
     `monitor_list` shows `fired` with reason `pull_request_merged`. The Web composer popover shows "Pull request on
     <branch>", and the transcript divider reads "Monitor fired · <description> · Pull request changed".
 
+    For #1807, keep the head unchanged and finish all pending checks. Verify one completion wake and repeat
+    the same forge response for two reads. Add a non-required check and complete it between reads. The
+    larger completed count triggers one more wake. Rerun a check, expose its pending state for a read,
+    and finish it successfully with the same total. Verify one more completion wake. Repeat with a failed
+    check, then let its rerun recover between reads and verify the new failure and recovery are reported.
+    Repeat registration against a head whose checks are already complete and verify one initial wake.
+    A neutral or skipped check counts as complete and a legacy status context still participates.
+    If a completion is queued and another round starts before it is delivered, the merged wake names
+    the earlier completion alongside the new round's pending counts.
+    After a completed round, return a smaller completed summary with a new failure. Verify one
+    failure wake. Repeat the smaller summary and restore the original summary with no further wakes.
+
 14. **Waiting on other sessions.** Start two top-level sessions with slow prompts and, from a third session, call
     `compozy__monitor_create` with `kind: "session"`, both ids in `target_session_ids`, and `until: "all"`, then let
     its turn end. Expect the owner to stay `waiting` (`active_monitor` signal) past the first target settling, and
@@ -191,3 +203,104 @@ remain owned by the frontend delivery.
 QA verification 2026-11-03 (always-on hardening B3, soh/qa 583415ef5, isolated acpmock lab): Partial. Pause and restart: a timer wake fired while the instance was paused and was held, the held rows and `unattended_turns` survived a daemon restart, and an operator resume delivered once. Next wake: a 900-second timer earlier than the next check projected `next_wake {kind: timer, at, description: "Re-check the staging deploy"}`; a 3600-second timer later than the check projected `kind: check`. Doctrine: an always-on main's startup sections include `always_on_doctrine`, and an ordinary on-demand session's do not (`doctrine-sections.txt`). Quiet window (UT-028 receipt): with HEARTBEAT `quiet_windows` 05:00–07:30 UTC, triage-desk's timer fired at 06:02:47 as a `[COMPOZY MONITOR - NOT USER INPUT]` turn with `held_wakes: 0` (`ut028-triage-events.txt`). Not walked: idle release, collector retry, post-compaction notice, Goal refusal, context exhaustion, and descendant queues.
 
 QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): instance mains and their children receive the `always_on_doctrine` startup section, wrapped in `<compozy-always-on-doctrine>`. Not walked; S4 walks it on the integration head.
+
+### Pull request merge conflicts
+
+Register a `pull_request` monitor for an open PR. Introduce a base conflict and
+verify one wake names the PR, base, and rebase action while the monitor stays armed.
+Repeated conflicting reads must not wake again. Unknown/null mergeability and
+forge failures must neither wake nor clear the remembered conflict, including
+after daemon restart. Clear the conflict with a known mergeable observation, then
+introduce another conflict and verify a second wake. A changed head alone does not
+clear the conflict. While another wake is held for admission, observe a conflict
+then push a new head: the undelivered conflict must survive. Repeat with a known
+clearance before admission: omit stale rebase guidance while preserving any other
+queued check/review changes. A known clearance without a head must also cancel the
+queued conflict without resetting known check results. A same-head retarget updates
+the named base; a push with no base retains the last known base. REST retargets must
+name the base from the detail read, and closed or mismatched-head details must not
+introduce a conflict.
+Merge queue removal is not currently observable independently.
+
+Backend coverage: `TestDetectPullRequest` and `TestServicePullRequestMonitorRestart`
+exercise transition detection, durable recovery and wake rendering. `TestMonitorIdleReleaseIntegration` verifies conflict wake admission through real
+SQLite and an ACP subprocess. Live GitHub conflict/restart walk remains unverified.
+
+### Definition pauses and dispatched children
+
+Create an always-on main with a dispatched child and grandchild. Queue their own
+monitor wakes and a peer message. Remove the creator's definition, producing
+`definition_missing`: children deliver once, while the main retains its inputs.
+Repeat after rotation and with `definition_not_always_on`. Already queued work is
+released by instance reconciliation; stopped descendants stay stopped. Idle-release a
+child using the removed definition before releasing its queued work: the accepted
+runtime reloads on the same route and both inputs are delivered. Repeat Pi startup
+finalization after definition removal: accepted guidance remains byte-identical
+across reloads rather than accumulating prior startup sections. A new session or
+runtime switch still requires an available definition. Repeat with a
+prepared Goal ahead of those inputs: normal child continuations still deliver,
+while the Goal retains its explicit pause guard. Explicitly pause the definition-paused
+instance manually: the reason becomes `manual`, and later child messages and wakes
+stay held. Definition reconciliation must not weaken that manual brake.
+
+Repeat with `manual`, `fatigue`, `unattended` and an unknown pause reason: all
+autonomous lineage input stays held. Read prompt results and input lists for
+`held_reason` and `held_instance_id`, then session status for the `held_input`
+attention signal and Needs attention badge. A human prompt still runs. Resume and
+confirm the hold explanation and attention clear. Under a definition pause, lower
+the unattended limit and let a child reach it: the pause becomes `unattended`,
+and later child wakes stay held. Adoption preserves child lineage and does not
+implicitly transfer it to another instance. Archive an instance paused manually or for either definition reason, then
+queue later child monitor and peer input: the receipt, queue and attention say `instance_archived`,
+and the input remains fenced rather than suggesting a resumable pause. A later
+human message still runs; no autonomous input is released behind it.
+
+Backend verification 2026-11-06 (#1328): passed the owning paused-input queue,
+coalesced wake, prompt-admission and unattended-brake tests; the prepared Goal
+lifecycle integration rejected claims for both definition reasons on descendants
+and retained queued rows without dispatch tokens. The HTTP/ACP child journey
+verified held attention, manual takeover, idle release, definition removal and
+queued wake/message delivery without resuming the creator. Browser and live-provider
+walks are not claimed.
+
+15. **Claude provider-native subagent refusal (#1439).** In an isolated lab using the candidate binary,
+    ask a Claude background Agent subagent to register both a terminal monitor on its pending command
+    and a timer monitor. Each call must be denied before MCP dispatch, explaining that monitors wake
+    the parent, and advising return of pending work and terminal ID to the parent or a separate
+    CompozyOS child session. The parent monitor list must contain neither refused registration and
+    receive no wake from either. A foreground shell wait in the subagent must give the same handback
+    guidance, and the background-shell refusal must explain the subagent exception. Have the parent
+    register the terminal monitor and a timer itself: both register normally and wake the parent;
+    the parent can then resume its subagent. Repeat after session load/resume. Keep background Agent
+    execution enabled. On Windows, repeat through PowerShell with COMPOZY_BIN pointing to the candidate.
+
+    Candidate verification (2026-11-10): the built CLI and POSIX PreToolUse wrapper refused terminal
+    and timer calls carrying a child `agent_id` and emitted no decision for the same parent calls.
+    The ACP start/load/resume contract and owning-session wake suite passed. A live-model background
+    Agent walk and the Windows runtime walk remain unrun; CI owns E2E under this assignment.
+
+### Explicit GitHub fork selection
+
+Register a pull request monitor with `branch: "contributor:topic"` against a base
+repository containing both a same-repository `topic` PR and a fork `topic` PR.
+Verify the fork PR is selected, completed checks and new reviews wake its owner,
+and merge or close after an open observation ends the monitor. Repeat with an
+unqualified `topic` and verify only the base repository PR is selected. Cancel
+an active monitor before it fires: the cancel response and monitor list must omit
+`fired_at`. Cancel after a repeating wake: `last_fired_at` remains the actual wake
+time and no cancellation time appears as `fired_at`.
+
+Validation: regression coverage is in the existing GitHub provider and monitor
+service suites. Local execution and live GitHub walks are forbidden for this
+parallel delivery; CI results are recorded in the PR.
+
+QA impact #1545 (CI-only verification; public-surface re-walk not run locally):
+
+- Reject `contributor: topic` and `acme/repo:topic`; accept `Acme-123:fix/one/two`.
+- Queue a child's early-stop alarm before registering a late monitor. Let the monitor fire, view
+  the child, then release the parent queue. Only the monitor wake reaches the creator. Repeat
+  with an unmatched sibling outcome sorted before the matching child monitor. A newer child turn
+  invalidates the old monitor coverage.
+
+For non-ended-early lifecycle attention, retain coverage across presence updates using the child
+transcript epoch and attention revision; a newer revision must invalidate the previous outcome.

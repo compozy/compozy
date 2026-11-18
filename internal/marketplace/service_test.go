@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -1527,4 +1528,202 @@ func (s *browseInterceptStore) BrowseSources(
 		after()
 	}
 	return page, err
+}
+
+func TestCatalogCategoryCollapse(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep readable rows when one projection is malformed", func(t *testing.T) {
+		t.Parallel()
+		rows := visibleCategoryCandidates(
+			[]Entry{{EntryID: "broken", Name: "Broken", Payload: json.RawMessage(`{`)}},
+			nil,
+		)
+		if len(rows) != 1 || rows[0].entry.InstallBlocker != "projection_failed" ||
+			rows[0].details.Category.ID != CategoryMore {
+			t.Fatalf("rows = %+v", rows)
+		}
+	})
+
+	for _, tc := range []struct {
+		name, source                  string
+		installed, disabled, dangling bool
+		want                          string
+		count                         int
+	}{
+		{name: "Should supersede an upstream row", source: "compozy-plugins", want: "compozy-plugins", count: 1},
+		{name: "Should retain the installed upstream row", source: "compozy-plugins", installed: true, want: "claude-plugins-official", count: 1},
+		{name: "Should ignore third party supersedes", source: "third-party", count: 2},
+		{name: "Should ignore dangling supersedes", source: "compozy-plugins", dangling: true, count: 2},
+		{name: "Should restore upstream when curator is disabled", source: "compozy-plugins", disabled: true, want: "claude-plugins-official", count: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			at := time.Date(2026, 11, 7, 0, 0, 0, 0, time.UTC)
+			target := "claude-plugins-official/linear"
+			if tc.dangling {
+				target = "missing/linear"
+			}
+			binding := func(name string, enabled, curated bool) SourceBinding {
+				ref, kind := "github:team/"+name, SourceKindCustom
+				if name == "compozy-plugins" {
+					ref, kind = "github:compozy/plugins", SourceKindPreset
+				}
+				return SourceBinding{
+					Config: ResolvedSource{
+						Name:    name,
+						Ref:     ref,
+						Kind:    kind,
+						Enabled: enabled,
+					},
+					Fetcher: &recordingSource{fetch: func(context.Context) (*Document, error) {
+						entry := testEntry("linear", "Linear", "Issue tracker")
+						entry.InstallSlug = name + "/linear"
+						payload := pluginEntry{Category: "productivity", SourceRef: ref}
+						if curated {
+							payload.Supersedes = []string{target}
+						}
+						raw, err := json.Marshal(payload)
+						if err != nil {
+							return nil, err
+						}
+						entry.Payload = raw
+						return testDocument(at, entry), nil
+					}},
+				}
+			}
+			service, err := NewService(
+				t.Context(),
+				openMarketplaceTestStore(t),
+				append(
+					marketplaceTestBindings(
+						t,
+						&recordingSource{
+							fetch: func(context.Context) (*Document, error) { return testDocument(at), nil },
+						},
+					),
+					binding(tc.source, !tc.disabled, true),
+					binding("claude-plugins-official", true, false),
+				),
+				time.Hour,
+				time.Minute,
+				WithNow(func() time.Time { return at }),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := service.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			if _, err := service.Refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			filter := BrowseFilter{Query: "linear", Category: "productivity", Installed: []Origin{}}
+			if tc.installed {
+				filter.Installed = append(
+					filter.Installed,
+					Origin{SourceRef: "github:team/claude-plugins-official", EntryID: "linear"},
+				)
+			}
+			page, err := service.BrowseFiltered(t.Context(), filter, 0, 10)
+			if err != nil || page.Total != tc.count || len(page.Entries) != tc.count {
+				t.Fatalf("page=%+v err=%v", page, err)
+			}
+			if tc.want != "" && page.Entries[0].SourceName != tc.want {
+				t.Fatalf("source=%q want %q", page.Entries[0].SourceName, tc.want)
+			}
+			if page.Categories[1].Count != tc.count {
+				t.Fatalf("facets=%+v", page.Categories)
+			}
+			if _, err := service.Detail(t.Context(), "claude-plugins-official", "linear"); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestCatalogSectionsAvailability(t *testing.T) {
+	t.Parallel()
+	t.Run("Should check availability only for selected section rows and retain complete totals", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 11, 7, 0, 0, 0, 0, time.UTC)
+		entries := make([]Entry, 120)
+		for i := range entries {
+			entries[i] = testEntry(fmt.Sprintf("entry-%03d", i), fmt.Sprintf("Entry %03d", i), "Data")
+			entries[i].Payload = json.RawMessage(`{"category":"database"}`)
+			entries[i].DigestSHA256 = "invalid-unselected-digest"
+		}
+		entries[0].DigestSHA256 = strings.Repeat("a", 64)
+		bindings := marketplaceTestBindings(
+			t,
+			&recordingSource{fetch: func(context.Context) (*Document, error) { return testDocument(at), nil }},
+		)
+		bindings = append(bindings, SourceBinding{
+			Config: ResolvedSource{Name: "custom", Ref: "github:team/custom", Kind: SourceKindCustom, Enabled: true},
+			Fetcher: &recordingSource{
+				fetch: func(context.Context) (*Document, error) { return testDocument(at, entries...), nil },
+			},
+		})
+		service, err := NewService(
+			t.Context(),
+			openMarketplaceTestStore(t),
+			bindings,
+			time.Hour,
+			time.Second,
+			WithNow(func() time.Time { return at }),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := service.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		service.packageCache = &pluginsource.PackageCache{Root: t.TempDir()}
+		sections, err := service.Sections(t.Context(), "", 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(sections.Sections) != 1 || sections.Sections[0].Total != 120 || len(sections.Sections[0].Entries) != 1 ||
+			sections.Sections[0].Entries[0].InstallBlocker != "package_unavailable" {
+			t.Fatalf("sections = %+v", sections)
+		}
+	})
+}
+
+func TestCatalogBoundaryFiltering(t *testing.T) {
+	t.Parallel()
+	t.Run("Should bound maximum cursor offsets", func(t *testing.T) {
+		t.Parallel()
+		page, err := FilterBrowse(
+			BrowseResult{Entries: []Entry{testEntry("one", "One", "")}},
+			BrowseFilter{},
+			int(^uint(0)>>1),
+			10,
+		)
+		if err != nil || len(page.Entries) != 0 || page.Total != 1 {
+			t.Fatalf("page=%+v err=%v", page, err)
+		}
+	})
+	t.Run("Should retain upstream when its curated replacement is blocked", func(t *testing.T) {
+		t.Parallel()
+		curated := testEntry("linear", "Linear", "")
+		curated.SourceName = "compozy-plugins"
+		curated.InstallBlocker = "package_unavailable"
+		curated.Installable = false
+		curated.Payload = json.RawMessage(
+			`{"source_ref":"github:compozy/plugins","category":"productivity","supersedes":["official/linear"]}`,
+		)
+		upstream := testEntry("linear", "Linear", "")
+		upstream.SourceName = "official"
+		page, err := FilterBrowse(BrowseResult{Entries: []Entry{curated, upstream}}, BrowseFilter{}, 0, 10)
+		if err != nil || len(page.Entries) != 2 {
+			t.Fatalf("blocked supersession=%+v %v", page, err)
+		}
+	})
 }

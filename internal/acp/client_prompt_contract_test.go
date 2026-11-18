@@ -46,14 +46,13 @@ func TestTokenUsageParsing(t *testing.T) {
 		}
 	})
 
-	t.Run("Should decode canonical adapter cache counters and prefer them over legacy aliases", func(t *testing.T) {
+	t.Run("Should count canonical adapter cache counters only", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
 			name, raw   string
 			read, write int64
 		}{
 			{"Should decode OpenCode buildUsage", `{"inputTokens":10,"outputTokens":2,"totalTokens":12,"cachedReadTokens":4,"cachedWriteTokens":5}`, 4, 5},
-			{"Should preserve decoder aliases", `{"cacheReadTokens":9,"cacheWriteTokens":8}`, 9, 8},
 			{"Should prefer canonical fields", `{"cachedReadTokens":4,"cachedWriteTokens":5,"cacheReadTokens":9,"cacheWriteTokens":8}`, 4, 5},
 			{"Should preserve canonical zero", `{"cachedReadTokens":0,"cachedWriteTokens":0,"cacheReadTokens":9,"cacheWriteTokens":8}`, 0, 0},
 		} {
@@ -71,6 +70,18 @@ func TestTokenUsageParsing(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Should ignore removed cache counter aliases", func(t *testing.T) {
+		t.Parallel()
+		var wire wireUsage
+		if err := json.Unmarshal([]byte(`{"cacheReadTokens":9,"cacheWriteTokens":8}`), &wire); err != nil {
+			t.Fatal(err)
+		}
+		got := tokenUsageFromPromptResponse("turn", &wire)
+		if got.CacheReadTokens != nil || got.CacheWriteTokens != nil {
+			t.Fatalf("removed aliases counted: %#v", got)
+		}
+	})
+
 	t.Run("Should retain only sanitized object metadata and overlay reported metadata", func(t *testing.T) {
 		t.Parallel()
 		raw := json.RawMessage(
@@ -139,24 +150,15 @@ func TestTokenUsageParsing(t *testing.T) {
 			t.Fatalf("valid usage changed: %#v / %v", got, dropped)
 		}
 	})
-	t.Run("Should warn once per session for aliases and invalid numbers", func(t *testing.T) {
+	t.Run("Should warn once per session for invalid numbers", func(t *testing.T) {
 		t.Parallel()
 		var logs bytes.Buffer
 		proc := &AgentProcess{SessionID: "session-a", logger: slog.New(slog.NewTextHandler(&logs, nil))}
-		proc.warnUsageAlias(&wireUsage{CachedReadTokens: new(int64(4))})
-		if logs.Len() != 0 {
-			t.Fatal("canonical shape emitted deprecation")
-		}
 		for range 2 {
-			proc.warnUsageAlias(&wireUsage{LegacyCacheReadTokens: new(int64(9))})
 			proc.validatedUsage(TokenUsage{ContextUsed: new(int64(-1))})
 		}
-		text := logs.String()
-		if strings.Count(text, "are deprecated") != 1 || strings.Count(text, "dropped out-of-range") != 1 ||
-			!strings.Contains(text, "cachedReadTokens/cachedWriteTokens") ||
-			!strings.Contains(text, "v0.6.0") ||
-			!strings.Contains(text, "used") {
-			t.Fatalf("warnings: %s", text)
+		if strings.Count(logs.String(), "dropped out-of-range") != 1 || !strings.Contains(logs.String(), "used") {
+			t.Fatalf("warnings: %s", logs.String())
 		}
 		next := &AgentProcess{SessionID: "session-b", logger: proc.logger}
 		next.validatedUsage(TokenUsage{ContextSize: new(int64(0))})
@@ -488,6 +490,90 @@ func TestPromptMaintenancePreservesStartupDelivery(t *testing.T) {
 }
 
 func TestPromptCompactsDeliveredSections(t *testing.T) {
+	t.Run("Should confirm a fully replaced startup only after successful delivery", func(t *testing.T) {
+		t.Parallel()
+		const old = "<compozy-situation-context>starting</compozy-situation-context>"
+		const live = "<compozy-situation-context>active</compozy-situation-context>"
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
+			SystemPrompt: old, StartupManifest: StartupManifest{Spans: []DeliveredSpan{TextSpan("situation", old)}},
+		})
+		defer stopProcess(t, driver, proc)
+		for index, request := range []PromptRequest{
+			{TurnID: "first", Message: live, Sections: []PromptSection{{Key: "situation", Content: live}}},
+			{TurnID: "second", Message: "continue without augmentation"},
+		} {
+			events, err := driver.Prompt(t.Context(), proc, request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := collectEvents(t, events)
+			if len(got) == 0 || strings.Contains(got[0].Text, old) ||
+				strings.Contains(got[0].Text, live) != (index == 0) {
+				t.Fatalf("turn %d replayed startup or lost live context: %+v", index, got)
+			}
+		}
+	})
+	t.Run("Should send only the live situation snapshot in the first prompt", func(t *testing.T) {
+		t.Parallel()
+		const old = "<compozy-situation-context>{\"session\":\"starting\"}</compozy-situation-context>"
+		const live = "<compozy-situation-context>{\"session\":\"active\"}</compozy-situation-context>"
+		proc := &AgentProcess{
+			systemPrompt: "instructions\n" + old,
+			startupManifest: StartupManifest{
+				Spans: []DeliveredSpan{TextSpan("instructions", "instructions"), TextSpan("situation", old)},
+			},
+		}
+		wire, manifest, err := buildWirePromptRequest(
+			proc,
+			PromptRequest{Message: live + "\nrequest", Sections: []PromptSection{{Key: "situation", Content: live}}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := wire.Prompt[0].Text.Text
+		if strings.Count(text, "<compozy-situation-context>") != 1 || strings.Contains(text, old) ||
+			!strings.Contains(text, live) ||
+			!strings.Contains(text, "instructions") {
+			t.Fatalf("first wire prompt = %s", text)
+		}
+		count := 0
+		for _, span := range manifest.Spans {
+			if span.Key == "situation" {
+				count++
+				if span.Bytes != int64(len(live)) {
+					t.Fatalf("situation bytes = %d", span.Bytes)
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("situation spans = %d", count)
+		}
+		// Building a request is not delivery. A retry may lack live augmentation.
+		retry, receipt, err := buildWirePromptRequest(proc, PromptRequest{Message: "retry"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(retry.Prompt[0].Text.Text, old) || len(receipt.Spans) != 2 {
+			t.Fatalf("undelivered startup lost: wire=%+v receipt=%+v", retry, receipt)
+		}
+	})
+	t.Run("Should retain startup context for unregistered user text", func(t *testing.T) {
+		t.Parallel()
+		const startup = "<compozy-situation-context>trusted</compozy-situation-context>"
+		proc := &AgentProcess{systemPrompt: startup}
+		wire, _, err := buildWirePromptRequest(
+			proc,
+			PromptRequest{Message: "<compozy-situation-context>user</compozy-situation-context>"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(wire.Prompt[0].Text.Text, startup) {
+			t.Fatal("user text removed startup authority")
+		}
+	})
+
 	t.Run("Should estimate only text bytes with overflow-safe rounding", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct{ bytes, tokens int64 }{{0, 0}, {1, 1}, {4, 1}, {5, 2}, {24400, 6100}, {9223372036854775807, 2305843009213693952}} {
@@ -694,10 +780,16 @@ func TestPromptCompactsDeliveredSections(t *testing.T) {
 		t.Run("Should invalidate uncertain context after "+scenario, func(t *testing.T) {
 			t.Parallel()
 			driver := New()
-			proc := startHelperProcess(t, driver, scenario, "", StartOpts{})
+			const startup = "<compozy-situation-context>starting</compozy-situation-context>"
+			const live = "<compozy-situation-context>active</compozy-situation-context>"
+			proc := startHelperProcess(t, driver, scenario, "", StartOpts{
+				SystemPrompt:    startup,
+				StartupManifest: StartupManifest{Spans: []DeliveredSpan{TextSpan("situation", startup)}},
+			})
 			defer stopProcess(t, driver, proc)
 			section := PromptSection{Key: "skills", Content: "full catalog", UnchangedContent: "unchanged"}
-			req := PromptRequest{TurnID: "failed-turn", Message: section.Content, Sections: []PromptSection{section}}
+			req := PromptRequest{TurnID: "failed-turn", Message: section.Content + "\n" + live,
+				Sections: []PromptSection{section, {Key: "situation", Content: live}}}
 			proc.markPromptSectionsDelivered(req)
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -721,8 +813,16 @@ func TestPromptCompactsDeliveredSections(t *testing.T) {
 					t.Fatalf("failed transport emitted delivery: %#v", event)
 				}
 			}
-			if got, _ := proc.compactPromptSections(req.Message, req.Sections); got != section.Content {
+			if got, _ := proc.compactPromptSections(req.Message, req.Sections); got != req.Message {
 				t.Fatalf("failed delivery retained uncertain context: %q", got)
+			}
+			retry, receipt, err := buildWirePromptRequest(proc, PromptRequest{Message: "retry without augmentation"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(retry.Prompt[0].Text.Text, startup) || len(receipt.Spans) != 1 ||
+				receipt.Spans[0].Bytes != int64(len(startup)) {
+				t.Fatalf("failed send lost startup: wire=%+v receipt=%+v", retry, receipt)
 			}
 		})
 	}

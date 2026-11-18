@@ -1,8 +1,6 @@
 package builtin
 
 import (
-	"encoding/json"
-
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -22,8 +20,7 @@ func sessionRewindDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, "rewind"},
 		[]string{"rewind session", "rollback conversation"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionRewindOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRewindCompactOutputSchema, sessionRewindOutputSchema)
 }
 
 const sessionRewindInputSchema = `{

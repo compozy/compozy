@@ -1,0 +1,89 @@
+{
+    "version": 3,
+    "key": "app-menus",
+    "sequence": 1,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "app-menus-1",
+            "slug": "app-menus",
+            "status": "resolved",
+            "createdAt": "2026-11-13T15:05:46.481Z",
+            "updatedAt": "2026-11-13T15:09:23.055Z",
+            "resolvedAt": "2026-11-13T15:09:18.728Z",
+            "context": {
+                "commit": "a2dc0654ba40dcb9b01b04c92efefb5807a3ac55",
+                "state": "pull-request",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(4) > div > div > div:nth-of-type(5) > div:nth-of-type(1)",
+                "testId": null,
+                "tag": "div",
+                "text": "ASK THE AGENT",
+                "source": "src/drafts/session-menus/session-menu.tsx:81:17",
+                "sourceChain": [
+                    "src/drafts/session-menus/session-menu.tsx:81:17",
+                    "src/drafts/session-menus/session-menu.tsx:80:15",
+                    "src/drafts/session-menus/session-menu.tsx:164:9",
+                    "src/drafts/session-menus/session-menu.tsx:163:7",
+                    "src/drafts/session-menus/session-menu.tsx:161:5",
+                    "src/drafts/app-menus/index.proto.tsx:32:7",
+                    "src/drafts/app-menus/index.proto.tsx:27:5",
+                    "src/drafts/app-menus/index.proto.tsx:69:11"
+                ],
+                "rect": {
+                    "x": 655,
+                    "y": 377,
+                    "width": 253.734375,
+                    "height": 26.5
+                },
+                "rectNormalized": {
+                    "x": 0.31429942418426104,
+                    "y": 0.3266897746967071,
+                    "width": 0.12175353886756238,
+                    "height": 0.02296360485268631
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "e472858b-3bbc-4d78-8670-51feff26ba33",
+                    "at": "2026-11-13T15:05:46.529Z",
+                    "editedAt": null,
+                    "body": "isso aqui está muito colado no item de cima, como é um \"divider\" deveria ter respiro encima",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "53e2a4b9-026a-406e-801b-8aedeae7426b",
+                    "at": "2026-11-13T15:09:18.727Z",
+                    "editedAt": "2026-11-13T15:09:23.055Z",
+                    "body": "Group labels now get 9px of top margin when they follow an item instead of a separator, the same rhythm a separator gives. Fixed in the @compozy/ui menu primitives (DropdownMenuLabel and ContextMenuLabel), so every menu with a group label gets it, including the shipped PR chip menu. Verified on pull-request at 2084px, dark: Ask the agent now has breathing room in all three menus.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "26930c62-d920-4664-96c7-b080b25bffbc",
+                            "name": "app-menus-1-fix.png",
+                            "type": "image/png",
+                            "size": 80264,
+                            "width": 2084,
+                            "height": 810,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

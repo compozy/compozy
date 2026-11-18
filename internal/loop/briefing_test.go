@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -520,6 +521,36 @@ func TestBriefingContract(t *testing.T) {
 		if source.Outcome == nil || source.Outcome.Status != StatusDone ||
 			source.Outcome.Cause != "verified" || !source.Outcome.At.Equal(eventAt) {
 			t.Fatalf("terminal outcome = %#v", source.Outcome)
+		}
+	})
+	t.Run("Should explain a contract failure with its reason, node, and message", func(t *testing.T) {
+		t.Parallel()
+		source := RosterSource{Run: Run{ID: "run-a", Status: StatusFailed}}
+		eventAt := now.Add(2 * time.Minute)
+		err := applyRunReadEvidence(&source, []RunEvent{{
+			LoopRunID: "run-a",
+			Kind:      string(RunEventStatusChanged),
+			Payload: []byte(`{"status":"failed","cause":"contract","reason_code":"no_ready_nodes",` +
+				`"node_id":"join","message":"node \"join\" can never run"}`),
+			At: eventAt,
+		}})
+		if err != nil {
+			t.Fatalf("applyRunReadEvidence() error = %v", err)
+		}
+		want := &RunOutcome{
+			Status: StatusFailed, Cause: "contract", ReasonCode: "no_ready_nodes",
+			NodeID: "join", Message: `node "join" can never run`, At: eventAt,
+		}
+		if !reflect.DeepEqual(source.Outcome, want) {
+			t.Fatalf("terminal outcome = %#v, want %#v", source.Outcome, want)
+		}
+		briefing := healthyBriefing(now)
+		briefing.Run.Status = StatusFailed
+		briefing.Outcome = source.Outcome
+		got := ProjectBriefing(&briefing)
+		if got.Outcome == nil || got.Outcome.ReasonCode != "no_ready_nodes" ||
+			!strings.HasPrefix(got.Detail, `node "join" can never run. `) {
+			t.Fatalf("briefing = %#v, want outcome diagnosis in detail", got)
 		}
 	})
 	t.Run("Should project a complete briefing roster beyond the maximum page size", func(t *testing.T) {

@@ -52,7 +52,7 @@ func (r *Registry) PlacementsForProfile(
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		manifest, err := loadManifestAtPath(installed[infoIndex].ManifestPath)
+		manifest, err := LoadInstalledManifest(&installed[infoIndex])
 		if err != nil {
 			return nil, fmt.Errorf("extension: load placements for %q: %w", installed[infoIndex].Name, err)
 		}

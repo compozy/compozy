@@ -1,3 +1,5 @@
+import { daemonFetch } from "@/lib/api-client";
+
 import type { SessionPayload } from "../types";
 import { SessionApiError, throwSessionRequestError } from "./session-api-errors";
 import { sessionWorkspacePath } from "./session-workspace-path";
@@ -48,7 +50,7 @@ export async function rewindSession(
       signal,
     }
   );
-  const response = await globalThis.fetch(request);
+  const response = await daemonFetch(request);
   if (!response.ok) {
     const error: unknown = await response.json().catch(() => null);
     throwSessionRequestError(response, error, "Couldn't rewind this session", id);

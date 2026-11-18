@@ -48,6 +48,13 @@ func validateOps(ops []Op, limits Limits) error {
 			if !isJSONObject(op.Value) {
 				return fmt.Errorf("clientstate: op %d key %q: %w", index, op.Key, ErrInvalidValue)
 			}
+		case OpCopy:
+			if err := validateKey(op.SourceKey); err != nil {
+				return err
+			}
+			if op.SourceKey == op.Key || op.SourceRev == 0 || len(op.Value) != 0 {
+				return fmt.Errorf("clientstate: invalid copy op %d: %w", index, ErrInvalidValue)
+			}
 		case OpDelete:
 			if len(op.Value) != 0 {
 				return fmt.Errorf(

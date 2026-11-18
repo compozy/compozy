@@ -33,7 +33,7 @@ Upgrade without any manual step and confirm:
 4. The automation records stay unchanged, and each run fails alone with a clear error.
 5. The override row stays and is never read. The active run fails at its first removed step with a clear error, its history stays, and other runs complete. Also rerun from a removed tool node: the run must settle as failed without reattempting or parking in quarantine; its failure names the missing ToolID.
 6. The same-name workspace Loop keeps working.
-7. The always-on instance pauses as `definition_missing`.
+7. The always-on instance pauses as `definition_missing`. The Agents page neither lists nor counts it, and its sidebar menu offers no agent page to open; Archive stays available.
 8. Batuta still loads, and only `batuta-deliver` fails when run.
 9. Task file hashes are unchanged.
 

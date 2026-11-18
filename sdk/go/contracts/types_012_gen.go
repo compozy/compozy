@@ -7,6 +7,79 @@ import (
 	"time"
 )
 
+type LoopGatePostPayload struct {
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	LoopRunID       string    `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string    `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	LoopName        string    `json:"loop_name,omitempty"`
+	Generation      int       `json:"generation,omitempty"`
+	TaskID          string    `json:"task_id,omitempty"`
+	RunID           string    `json:"run_id,omitempty"`
+	RunKind         string    `json:"run_kind,omitempty"`
+	NodeID          string    `json:"node_id,omitempty"`
+	WorkflowID      string    `json:"workflow_id,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	ActorKind       string    `json:"actor_kind,omitempty"`
+	ActorID         string    `json:"actor_id,omitempty"`
+	OriginKind      string    `json:"origin_kind,omitempty"`
+	OriginRef       string    `json:"origin_ref,omitempty"`
+	GateID          string    `json:"gate_id,omitempty"`
+	// Outcome is the machine result already computed when the hook observes the gate.
+	Outcome string `json:"outcome,omitempty"`
+	// Score is the computed metric score, when the observed gate has a metric criterion.
+	Score *float64 `json:"score,omitempty"`
+	// BestGeneration is the durable best generation known when the hook observes the result.
+	BestGeneration *int64          `json:"best_generation,omitempty"`
+	Status         string          `json:"status,omitempty"`
+	ReasonCode     string          `json:"reason_code,omitempty"`
+	Details        json.RawMessage `json:"details,omitempty"`
+	Denied         bool            `json:"denied,omitempty"`
+	DenyReason     string          `json:"deny_reason,omitempty"`
+}
+
+type LoopGatePrePatch struct {
+	Deny       bool   `json:"deny,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
+}
+
+type LoopGatePrePayload struct {
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	LoopRunID       string    `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string    `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	LoopName        string    `json:"loop_name,omitempty"`
+	Generation      int       `json:"generation,omitempty"`
+	TaskID          string    `json:"task_id,omitempty"`
+	RunID           string    `json:"run_id,omitempty"`
+	RunKind         string    `json:"run_kind,omitempty"`
+	NodeID          string    `json:"node_id,omitempty"`
+	WorkflowID      string    `json:"workflow_id,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	ActorKind       string    `json:"actor_kind,omitempty"`
+	ActorID         string    `json:"actor_id,omitempty"`
+	OriginKind      string    `json:"origin_kind,omitempty"`
+	OriginRef       string    `json:"origin_ref,omitempty"`
+	GateID          string    `json:"gate_id,omitempty"`
+	// Outcome is the machine result already computed when the hook observes the gate.
+	Outcome string `json:"outcome,omitempty"`
+	// Score is the computed metric score, when the observed gate has a metric criterion.
+	Score *float64 `json:"score,omitempty"`
+	// BestGeneration is the durable best generation known when the hook observes the result.
+	BestGeneration *int64          `json:"best_generation,omitempty"`
+	Status         string          `json:"status,omitempty"`
+	ReasonCode     string          `json:"reason_code,omitempty"`
+	Details        json.RawMessage `json:"details,omitempty"`
+	Denied         bool            `json:"denied,omitempty"`
+	DenyReason     string          `json:"deny_reason,omitempty"`
+}
+
 type LoopGenerationOrigin string
 
 const (
@@ -223,6 +296,20 @@ type LoopTerminalPayload struct {
 	Details         json.RawMessage `json:"details,omitempty"`
 }
 
+type MarketplaceInputBindingPayload struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
+type MarketplaceInputPayload struct {
+	ID       string                         `json:"id"`
+	Prompt   string                         `json:"prompt"`
+	Type     string                         `json:"type"`
+	Required bool                           `json:"required"`
+	Binding  MarketplaceInputBindingPayload `json:"binding"`
+	Default  json.RawMessage                `json:"default,omitempty"`
+}
+
 type MessageDeltaPatch struct {
 	Deny       bool    `json:"deny,omitempty"`
 	DenyReason string  `json:"deny_reason,omitempty"`
@@ -328,68 +415,4 @@ type MessageStartPatch struct {
 	Role       *string `json:"role,omitempty"`
 	DeltaType  *string `json:"delta_type,omitempty"`
 	Text       *string `json:"text,omitempty"`
-}
-
-type MessageStartPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	ProfileID      string          `json:"profile_id,omitempty"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	MessageID      string          `json:"message_id,omitempty"`
-	Role           string          `json:"role,omitempty"`
-	DeltaType      string          `json:"delta_type,omitempty"`
-	Text           string          `json:"text,omitempty"`
-	Raw            json.RawMessage `json:"raw,omitempty"`
-}
-
-type MetaField struct {
-	Label    string            `json:"label"`
-	Value    string            `json:"value"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
-}
-
-type ModelCatalogCostPayload struct {
-	InputPerMillion      *float64 `json:"input_per_million,omitempty"`
-	OutputPerMillion     *float64 `json:"output_per_million,omitempty"`
-	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
-	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
-	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
-}
-
-type ModelCatalogSourceRefPayload struct {
-	SourceID    string `json:"source_id"`
-	SourceKind  string `json:"source_kind"`
-	Priority    int    `json:"priority"`
-	RefreshedAt string `json:"refreshed_at,omitempty"`
-	Stale       bool   `json:"stale"`
-	LastError   string `json:"last_error,omitempty"`
-}
-
-type ModelCatalogSourceStatusPayload struct {
-	FailureReason string `json:"failure_reason,omitempty"`
-	SourceID      string `json:"source_id"`
-	SourceKind    string `json:"source_kind"`
-	ProviderID    string `json:"provider_id"`
-	Priority      int    `json:"priority"`
-	LastRefresh   string `json:"last_refresh,omitempty"`
-	NextRefresh   string `json:"next_refresh,omitempty"`
-	LastSuccess   string `json:"last_success,omitempty"`
-	LastError     string `json:"last_error,omitempty"`
-	RefreshState  string `json:"refresh_state"`
-	RowCount      int    `json:"row_count"`
-	Stale         bool   `json:"stale"`
 }

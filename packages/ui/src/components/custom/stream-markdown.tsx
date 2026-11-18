@@ -12,6 +12,7 @@ import { extendSafeMarkdownPlugins } from "./markdown-plugins";
 import { INLINE_CODE_CLASS } from "./markdown-components";
 import { MarkdownAuthoredAnchor } from "./markdown-authored-anchor";
 import { remarkAuthoredLineBreaks } from "./markdown-line-breaks";
+import { remarkRelativeUrls } from "./markdown-relative-urls";
 import {
   MARKDOWN_LOCAL_LINK_TAG,
   rehypeMarkdownLocalLinks,
@@ -156,13 +157,27 @@ const LOCAL_LINK_COMPONENTS = {
 // Streamdown caches parsers by plugin identity, so each combination is built once.
 const PLUGIN_CACHE = new Map<string, ReturnType<typeof extendSafeMarkdownPlugins>>();
 
-function streamMarkdownPlugins(slotted: boolean, authored: boolean, localLinks: boolean) {
-  if (!slotted && !authored && !localLinks) return undefined;
-  const key = `${slotted}:${authored}:${localLinks}`;
+function streamMarkdownPlugins(
+  slotted: boolean,
+  authored: boolean,
+  localLinks: boolean,
+  linkBase: string | undefined
+) {
+  if (!slotted && !authored && !localLinks && linkBase === undefined) return undefined;
+  const key = `${slotted}:${authored}:${localLinks}:${linkBase ?? "\u0000"}`;
   let plugins = PLUGIN_CACHE.get(key);
   if (!plugins) {
     plugins = extendSafeMarkdownPlugins({
       remark: [
+        // Runs first, so the routed-link pass sees root-anchored paths.
+        ...(linkBase !== undefined
+          ? [
+              [remarkRelativeUrls, { base: linkBase }] as [
+                typeof remarkRelativeUrls,
+                { base: string },
+              ],
+            ]
+          : []),
         ...(slotted ? [remarkMarkdownSlotLiterals] : []),
         ...(authored ? [remarkAuthoredLineBreaks] : []),
         ...(localLinks ? [remarkMarkdownLocalLinks] : []),
@@ -205,6 +220,12 @@ export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "
    * Without it those links keep the blocked rendering.
    */
   localLinkComponent?: StreamMarkdownLocalLinkComponent;
+  /**
+   * The rendered document's root-relative directory (`docs/specs`). Document-relative link and
+   * image URLs become root-anchored paths (`/docs/specs/a.md`) before the safe-mode passes, which
+   * would otherwise resolve them against the site root.
+   */
+  linkBase?: string;
 }
 
 /**
@@ -223,6 +244,7 @@ function StreamMarkdown({
   components,
   inlineCodeDecorator,
   localLinkComponent: LocalLink,
+  linkBase,
   className,
   ...props
 }: StreamMarkdownProps) {
@@ -240,7 +262,12 @@ function StreamMarkdown({
         ...(LocalLink ? LOCAL_LINK_COMPONENTS : undefined),
         ...components,
       }}
-      plugins={streamMarkdownPlugins(slots !== undefined, authored, LocalLink !== undefined)}
+      plugins={streamMarkdownPlugins(
+        slots !== undefined,
+        authored,
+        LocalLink !== undefined,
+        linkBase
+      )}
       className={cn(authored && "[&_:not(pre)>code]:whitespace-pre-wrap", className)}
       {...props}
     >

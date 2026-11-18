@@ -4,8 +4,9 @@
 // The active window's search shortcut also works from desktop focus, without taking a keystroke
 // owned by a field, dialog, modified chord or another handler. The section area shows the
 // section's own skeleton while its code loads, and keeps the page on screen while the next
-// section's code loads. Owner: Settings window navigation.
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+// section's code loads. A section that fails to render shows its own error inside the section
+// area; the nav keeps working and another section still opens. Owner: Settings window navigation.
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -14,7 +15,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext } from "../../../contexts/os-shell-context";
 import { RoutingCoordinator } from "../../../lib/routing-coordinator";
@@ -35,6 +36,15 @@ import { statusOptions } from "@/systems/status/lib/query-options";
 import { statusFixture } from "@/systems/status/mocks/fixtures";
 import { SettingsWindow } from "../settings-window";
 import { SettingsWindowNav } from "../settings-window-nav";
+
+// The section's render-time failure is the only behavior under test: MCP rows read
+// `env_keys` as an array, and a null from the daemon threw while rendering (v0.7.1).
+vi.mock("@/routes/_app/settings/-mcp-settings-page", () => ({
+  MCPSettingsPage: () => {
+    const server = { env_keys: null as unknown as string[] };
+    return <span>{[...server.env_keys].join(",")}</span>;
+  },
+}));
 
 const cleanups: Array<() => void> = [];
 
@@ -211,8 +221,7 @@ describe("Settings window search shortcut", () => {
 
   it("Should enable the shortcut only while its window is active", async () => {
     const user = userEvent.setup();
-    const { desktop, search, manager, client, queryClient, snapshotKey, snapshot } =
-      await renderLoadedSettingsWindow();
+    const { desktop, search, manager, client } = await renderLoadedSettingsWindow();
     desktop.focus();
     act(() =>
       manager.setClient({
@@ -231,24 +240,28 @@ describe("Settings window search shortcut", () => {
     expect(search).toHaveFocus();
 
     desktop.focus();
-    act(() => {
-      queryClient.setQueryData(snapshotKey, {
-        ...snapshot,
-        windows: {
-          ...snapshot.windows,
-          [windowManagerStoryWindowId]: {
-            ...snapshot.windows[windowManagerStoryWindowId],
-            minimized: true,
-          },
-        },
-      });
-    });
+    act(() =>
+      manager.setClient({
+        ...client,
+        activeDesktopId: "desktop:elsewhere",
+        presentationRevision: client.presentationRevision + 3,
+      })
+    );
     await user.keyboard("/");
     expect(desktop).toHaveFocus();
   });
 });
 
 describe("Settings window section area", () => {
+  beforeAll(async () => {
+    // Warm module evaluation without rendering the lazy sections or preloading Hooks.
+    await Promise.all([
+      import("../appearance-settings-pane"),
+      import("@/routes/_app/settings/-terminal-settings-page"),
+      import("@/routes/_app/settings/-mcp-settings-page"),
+    ]);
+  }, 30_000);
+
   it("Should show the section's own skeleton, not a spinner, while its code loads", async () => {
     await renderSettingsWindow("/settings/hooks");
 
@@ -277,7 +290,32 @@ describe("Settings window section area", () => {
     expect(outlet).toContainElement(wallpaper);
     expect(outlet.querySelector('[data-slot="skeleton"]')).toBeNull();
 
-    await waitFor(() => expect(outlet).not.toContainElement(wallpaper), { timeout: 20_000 });
+    await act(async () => vi.dynamicImportSettled());
+    expect(outlet).not.toContainElement(wallpaper);
     expect(outlet).not.toHaveAttribute("aria-busy");
-  }, 30_000);
+  });
+
+  it("Should contain a section render failure to the section and still open another section", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    cleanups.push(() => consoleError.mockRestore());
+    const { queryClient, snapshotKey } = await renderSettingsWindow("/settings/mcp");
+    const outlet = screen.getByTestId("settings-shell-outlet");
+
+    await act(async () => vi.dynamicImportSettled());
+    const failure = screen.getByRole("alert");
+    expect(outlet).toContainElement(failure);
+    expect(failure).toHaveTextContent("MCP servers couldn't open");
+    expect(screen.getByTestId("settings-section-appearance")).toBeInTheDocument();
+
+    act(() => {
+      queryClient.setQueryData(
+        snapshotKey,
+        parseWindowManagerSnapshot(windowManagerStorySnapshot("/settings/appearance"))
+      );
+    });
+
+    await act(async () => vi.dynamicImportSettled());
+    expect(screen.getByRole("radiogroup", { name: "Wallpaper" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });

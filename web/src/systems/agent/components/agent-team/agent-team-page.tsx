@@ -9,6 +9,8 @@ import type { AgentTeamActions } from "./agent-team-card";
 import { AgentAlwaysOnWelcome, AgentTeamSection } from "./agent-team-section";
 
 const ON_DEMAND_PAGE = 12;
+/** Always-on cards are compact, so a page holds a few full rows of them. */
+const ALWAYS_ON_PAGE = 30;
 
 export type AgentTeamStatus = "loading" | "first-run-empty" | "filtered-empty" | "ready";
 
@@ -91,7 +93,7 @@ export function AgentTeamPage({
           actions={actions}
           label="Always-on"
           members={alwaysOn}
-          pageSize={ON_DEMAND_PAGE}
+          pageSize={ALWAYS_ON_PAGE}
           view={view}
         />
       ) : unfiltered ? (

@@ -90,6 +90,8 @@ func SessionHealthIneligibilityReasonValues() []string {
 // HeartbeatWakeSourceValues returns the closed wake source enum values.
 func HeartbeatWakeSourceValues() []string {
 	return []string{
+		string(HeartbeatWakeSourceTimer),
+		string(HeartbeatWakeSourceInstanceCheck),
 		string(HeartbeatWakeSourceScheduler),
 		string(HeartbeatWakeSourceManual),
 		string(HeartbeatWakeSourceHarnessReentry),
@@ -99,6 +101,9 @@ func HeartbeatWakeSourceValues() []string {
 // HeartbeatWakeResultValues returns the closed wake result enum values.
 func HeartbeatWakeResultValues() []string {
 	return []string{
+		string(HeartbeatWakeResultQuiet),
+		string(HeartbeatWakeResultCancelled),
+		string(HeartbeatWakeResultReported),
 		string(HeartbeatWakeResultSent),
 		string(HeartbeatWakeResultSkipped),
 		string(HeartbeatWakeResultCoalesced),
@@ -110,6 +115,23 @@ func HeartbeatWakeResultValues() []string {
 // HeartbeatWakeReasonValues returns the closed wake reason enum values.
 func HeartbeatWakeReasonValues() []string {
 	return []string{
+		string(HeartbeatWakeReasonQuiet),
+		string(HeartbeatWakeReasonReported),
+		string(HeartbeatWakeReasonCancelled),
+		string(HeartbeatWakeReasonDigestEmpty),
+		string(HeartbeatWakeReasonDigestUnchanged),
+		string(HeartbeatWakeReasonPolicyDisabled),
+		string(HeartbeatWakeReasonDefinitionNotAlwaysOn),
+		string(HeartbeatWakeReasonDefinitionMissing),
+		string(HeartbeatWakeReasonNoSlot),
+		string(HeartbeatWakeReasonHookCancelled),
+		string(HeartbeatWakeReasonDuplicateSuppressed),
+		string(HeartbeatWakeReasonTriageUnsupported),
+		string(HeartbeatWakeReasonTriageOutputInvalid),
+		string(HeartbeatWakeReasonTriageTimeout),
+		string(HeartbeatWakeReasonTriageInterrupted),
+		string(HeartbeatWakeReasonTriageConfigUnavailable),
+		string(HeartbeatWakeReasonTriageFailed),
 		string(HeartbeatWakeReasonSourcePollInFlight),
 		string(HeartbeatWakeReasonSent),
 		string(HeartbeatWakeReasonDisabled),
@@ -171,7 +193,24 @@ func (s AuthoredDiagnosticSeverity) Validate() error {
 // Valid reports whether the wake reason is a closed enum member.
 func (r HeartbeatWakeReason) Valid() bool {
 	switch r {
-	case HeartbeatWakeReasonSourcePollInFlight, HeartbeatWakeReasonSent,
+	case HeartbeatWakeReasonQuiet,
+		HeartbeatWakeReasonReported,
+		HeartbeatWakeReasonCancelled,
+		HeartbeatWakeReasonDigestEmpty,
+		HeartbeatWakeReasonDigestUnchanged,
+		HeartbeatWakeReasonPolicyDisabled,
+		HeartbeatWakeReasonDefinitionNotAlwaysOn,
+		HeartbeatWakeReasonDefinitionMissing,
+		HeartbeatWakeReasonNoSlot,
+		HeartbeatWakeReasonHookCancelled,
+		HeartbeatWakeReasonDuplicateSuppressed,
+		HeartbeatWakeReasonTriageUnsupported,
+		HeartbeatWakeReasonTriageOutputInvalid,
+		HeartbeatWakeReasonTriageTimeout,
+		HeartbeatWakeReasonTriageInterrupted,
+		HeartbeatWakeReasonTriageConfigUnavailable,
+		HeartbeatWakeReasonTriageFailed,
+		HeartbeatWakeReasonSourcePollInFlight, HeartbeatWakeReasonSent,
 		HeartbeatWakeReasonDisabled,
 		HeartbeatWakeReasonInvalid,
 		HeartbeatWakeReasonNoPolicy,

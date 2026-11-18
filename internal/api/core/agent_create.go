@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -18,6 +19,7 @@ type CreatedAgentDefinition struct {
 	Agent         compozyconfig.AgentDef
 	RuntimeConfig compozyconfig.Config
 	WorkspaceID   string
+	Warnings      []string
 }
 
 // CreateAgentFromRequest validates and persists one AGENT.md definition from a
@@ -31,6 +33,8 @@ func CreateAgentFromRequest(
 	workspaces WorkspaceService,
 	transportName string,
 	profileName string,
+	vault VaultService,
+	recorders ...settingspkg.WorkspaceMCPApprovalRecorder,
 ) (CreatedAgentDefinition, error) {
 	if err := compozyconfig.ValidateAgentAppearance(req.Agent.Appearance); err != nil {
 		return CreatedAgentDefinition{}, errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
@@ -48,7 +52,12 @@ func CreateAgentFromRequest(
 	if err := validateAgentDraftRuntime(draft, &target.Config); err != nil {
 		return CreatedAgentDefinition{}, err
 	}
-	agent, err := compozyconfig.CreateAgentDefFile(target.Path, draft, false)
+	var warnings []string
+	approval := AgentMCPApprovalContext{WorkspaceID: target.WorkspaceID, ProfileName: profileName, Warnings: &warnings}
+	if len(recorders) > 0 {
+		approval.Recorder = recorders[0]
+	}
+	agent, err := writeAgentDefinitionWithMCP(ctx, vault, target.Path, draft, false, req.Agent.MCPServers, approval)
 	if err != nil {
 		return CreatedAgentDefinition{}, err
 	}
@@ -56,11 +65,18 @@ func CreateAgentFromRequest(
 		Agent:         agent,
 		RuntimeConfig: target.Config,
 		WorkspaceID:   target.WorkspaceID,
+		Warnings:      warnings,
 	}, nil
 }
 
 func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig.AgentDefinitionDraft, error) {
 	agent := req.Agent
+	if err := (compozyconfig.AgentDef{Kind: agent.Kind}).ValidateIdentity(); errors.Is(
+		err,
+		compozyconfig.ErrAgentKindInvalid,
+	) {
+		return compozyconfig.AgentDefinitionDraft{}, errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
+	}
 	agentName := compozyconfig.NormalizeAgentName(agent.Name)
 	if agentName == "" {
 		return compozyconfig.AgentDefinitionDraft{}, errors.Join(
@@ -97,42 +113,30 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig
 		DisplayName: agentIdentityText(
 			agent.DisplayName,
 		),
-		Description:     agentIdentityText(agent.Description),
-		Kind:            canonicalRequestAgentKind(agent.Kind, agentName),
-		Appearance:      compozyconfig.CloneAgentAppearance(agent.Appearance),
-		Provider:        agent.Provider,
-		Command:         agent.Command,
-		SessionEnv:      sessionEnvFromPayload(agent.SessionEnv),
-		Model:           agent.Model,
-		ReasoningEffort: string(agent.ReasoningEffort),
-		Speed:           agent.Speed,
-		ACPOptions:      agentACPOptionsFromContract(agent.ACPOptions),
-		Tools:           append([]string(nil), agent.Tools...),
-		Toolsets:        append([]string(nil), agent.Toolsets...),
-		DenyTools:       append([]string(nil), agent.DenyTools...),
-		WorkspaceAccess: agent.WorkspaceAccess,
-		SessionApproval: agent.SessionApproval,
-		PermissionRules: permissionRulesFromPayload(agent.PermissionRules),
-		Permissions:     string(agent.Permissions),
-		Skills:          compozyconfig.AgentSkillsConfig{Disabled: disabledSkills},
-		CategoryPath:    append([]string(nil), agent.CategoryPath...),
-		FallbackChain:   agentFallbackChainFromContract(agent.FallbackChain),
-		Prompt:          agent.Prompt,
+		Description:       agentIdentityText(agent.Description),
+		Kind:              agent.Kind,
+		Appearance:        compozyconfig.CloneAgentAppearance(agent.Appearance),
+		Provider:          agent.Provider,
+		Command:           agent.Command,
+		SessionEnv:        sessionEnvFromPayload(agent.SessionEnv),
+		AutoCompactWindow: agent.AutoCompactWindow,
+		LeanEnvironment:   agent.LeanEnvironment,
+		Model:             agent.Model,
+		ReasoningEffort:   string(agent.ReasoningEffort),
+		Speed:             agent.Speed,
+		ACPOptions:        agentACPOptionsFromContract(agent.ACPOptions),
+		Tools:             append([]string(nil), agent.Tools...),
+		Toolsets:          append([]string(nil), agent.Toolsets...),
+		DenyTools:         append([]string(nil), agent.DenyTools...),
+		WorkspaceAccess:   agent.WorkspaceAccess,
+		SessionApproval:   agent.SessionApproval,
+		PermissionRules:   permissionRulesFromPayload(agent.PermissionRules),
+		Permissions:       string(agent.Permissions),
+		Skills:            compozyconfig.AgentSkillsConfig{Disabled: disabledSkills},
+		CategoryPath:      append([]string(nil), agent.CategoryPath...),
+		FallbackChain:     agentFallbackChainFromContract(agent.FallbackChain),
+		Prompt:            agent.Prompt,
 	}, nil
-}
-
-// canonicalRequestAgentKind maps the v0.5.0 stays_on request spelling to always_on and logs the
-// deprecation once per request. HTTP, UDS and compozy__agent_create all decode here. Removal: v0.5.2.
-func canonicalRequestAgentKind(raw string, agentName string) string {
-	kind, deprecated := compozyconfig.CanonicalAgentKind(raw)
-	if deprecated {
-		compozyconfig.DeprecationLogger().Warn(
-			"agent kind stays_on is deprecated; use always_on (stays_on is removed in v0.5.2)",
-			"source", "request",
-			"agent", agentName,
-		)
-	}
-	return kind
 }
 
 func validateAgentDraftRuntime(draft compozyconfig.AgentDefinitionDraft, cfg *compozyconfig.Config) error {

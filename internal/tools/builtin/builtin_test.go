@@ -8,6 +8,7 @@ import (
 	"go/constant"
 	"go/types"
 	"maps"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -30,6 +32,15 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 
 	nativeDescriptors := NativeDescriptors()
 	descriptors := descriptorMap(nativeDescriptors)
+
+	t.Run("Should keep retired native tool IDs reserved", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range toolspkg.RetiredMemoryToolIDs {
+			if _, registered := descriptors[id]; registered {
+				t.Fatalf("retired tool %s is registered", id)
+			}
+		}
+	})
 
 	t.Run("Should return independently owned terminal descriptors matching the catalog", func(t *testing.T) {
 		t.Parallel()
@@ -253,6 +264,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		t.Parallel()
 
 		descriptor := descriptors[toolspkg.ToolIDGoalControl]
+		descriptor.OutputSchema = descriptor.ResultViews().Full.Schema
 		var output struct {
 			Required             []string                   `json:"required"`
 			AdditionalProperties bool                       `json:"additionalProperties"`
@@ -425,7 +437,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			assertSessionTargetMutationSchema(
 				t,
 				descriptors[toolspkg.ToolIDSessionArchive],
-				[]string{"processes", "profile", "session_id", "stop", "with_children", "workspace"},
+				[]string{"processes", "profile", "result_view", "session_id", "stop", "with_children", "workspace"},
 			)
 		})
 		t.Run("Should validate the session unarchive schema", func(t *testing.T) {
@@ -433,7 +445,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			assertSessionTargetMutationSchema(
 				t,
 				descriptors[toolspkg.ToolIDSessionUnarchive],
-				[]string{"profile", "session_id", "workspace"},
+				[]string{"profile", "result_view", "session_id", "workspace"},
 			)
 		})
 		assertSessionPromptMutationSchema(t, descriptors[toolspkg.ToolIDSessionPrompt])
@@ -717,7 +729,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatalf("session list input schema exposes internal dream type: %s", sessionList.InputSchema)
 		}
 
-		sessionStatus := string(descriptors[toolspkg.ToolIDSessionStatus].OutputSchema)
+		sessionStatus := string(descriptors[toolspkg.ToolIDSessionStatus].ResultViews().Full.Schema)
 		for _, requiredRecoveryContract := range []string{
 			`"recovering"`,
 			`"automatic_recovery"`,
@@ -789,6 +801,10 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should accept profile-owned tool approval output contracts", func(t *testing.T) {
 		t.Parallel()
 
+		set := descriptors[toolspkg.ToolIDToolApprovalsSet]
+		set.OutputSchema = set.ResultViews().Full.Schema
+		list := descriptors[toolspkg.ToolIDToolApprovalsList]
+		list.OutputSchema = list.ResultViews().Full.Schema
 		grant := `{
 			"id":"grant-1",
 			"profile_id":"01JPROFILEMARKETING0000000",
@@ -805,12 +821,12 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}`
 		assertNativeOutputSchemaAccepts(
 			t,
-			descriptors[toolspkg.ToolIDToolApprovalsSet],
+			set,
 			`{"grant":`+grant+`}`,
 		)
 		assertNativeOutputSchemaAccepts(
 			t,
-			descriptors[toolspkg.ToolIDToolApprovalsList],
+			list,
 			`{"grants":[`+grant+`],"total":1}`,
 		)
 	})
@@ -843,6 +859,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		if err := input.Validate(conflicting); err == nil {
 			t.Fatal("session_spawn input schema accepted worktree with new_worktree")
 		}
+		spawn.OutputSchema = spawn.ResultViews().Full.Schema
 		assertNativeOutputSchemaAccepts(t, spawn, `{
 			"session_id":"sess-child","spawn_role":"worker","spawn_depth":1,"ttl_expires_at":"2026-10-21T12:00:00Z",
 			"permissions":{"tools":["compozy__read"],"skills":[],"mcp_servers":[],"workspace_paths":[]},
@@ -863,7 +880,9 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		t.Parallel()
 
 		status := descriptors[toolspkg.ToolIDLoopStatus]
+		status.OutputSchema = status.ResultViews().Full.Schema
 		runs := descriptors[toolspkg.ToolIDLoopRuns]
+		runs.OutputSchema = runs.ResultViews().Full.Schema
 		var runsInput struct {
 			Properties map[string]struct {
 				Type        string `json:"type"`
@@ -898,13 +917,17 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 		cancel := descriptors[toolspkg.ToolIDLoopCancel]
 		nodes := descriptors[toolspkg.ToolIDLoopNodes]
+		nodes.OutputSchema = nodes.ResultViews().Full.Schema
 		requests := descriptors[toolspkg.ToolIDLoopRequests]
+		requests.OutputSchema = requests.ResultViews().Full.Schema
 		request := descriptors[toolspkg.ToolIDLoopRequest]
 		respond := descriptors[toolspkg.ToolIDLoopRespond]
 		amend := descriptors[toolspkg.ToolIDLoopNodeAmend]
+		amend.OutputSchema = amend.ResultViews().Full.Schema
 		diff := descriptors[toolspkg.ToolIDLoopDiff]
 		rerun := descriptors[toolspkg.ToolIDLoopRerun]
 		fork := descriptors[toolspkg.ToolIDLoopFork]
+		fork.OutputSchema = fork.ResultViews().Full.Schema
 		assertNativeOutputSchemaAccepts(t, status, `{
 			"run":{"id":"run-1","completion_state":"partial","best_generation":2,"best_score":0.91},
 			"materialized_contract":{"goal":"Ship weather-app","definition_of_done":"All tasks complete"},
@@ -1217,7 +1240,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		assertWindowManagerResultSchemas(
 			t,
 			descriptors[toolspkg.ToolIDDesktopCreate].OutputSchema,
-			descriptors[toolspkg.ToolIDLayoutPreview].OutputSchema,
+			descriptors[toolspkg.ToolIDLayoutPreview].ResultViews().Full.Schema,
 		)
 		assertWindowManagerLayoutDocumentSchemas(
 			t,
@@ -1325,6 +1348,9 @@ type nativeDescriptorExpectation struct {
 
 func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 	return []nativeDescriptorExpectation{
+		{id: toolspkg.ToolIDMCPList, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDMCPImport, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDSessionChanges, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentDraftInstructions, risk: toolspkg.RiskMutating},
 		{id: toolspkg.ToolIDSessionPendingInteractions, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentInstanceArchive, risk: toolspkg.RiskMutating, destructive: true},
@@ -1333,6 +1359,7 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: toolspkg.ToolIDAgentInstanceOccurrence, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentInstanceCreate, risk: toolspkg.RiskMutating},
 		{id: toolspkg.ToolIDAgentInstanceEnsureMain, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentInstanceClearMain, risk: toolspkg.RiskMutating, destructive: true},
 		{id: toolspkg.ToolIDAgentInstanceList, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentInstancePause, risk: toolspkg.RiskMutating},
 		{id: toolspkg.ToolIDAgentInstanceReports, risk: toolspkg.RiskRead, readOnly: true},
@@ -1381,6 +1408,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__automation_jobs_trigger", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__automation_jobs_update", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__automation_runs_cancel", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__automation_runs_get", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
@@ -1580,12 +1609,21 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__loop_validate", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{
+			id:          "compozy__marketplace_categories",
+			risk:        toolspkg.RiskRead,
+			readOnly:    true,
+			destructive: false,
+			openWorld:   false,
+		},
 		{id: "compozy__marketplace_search", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__marketplace_sources", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__mcp_auth_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_mcp_list", risk: toolspkg.RiskRead, readOnly: true},
+		{id: "compozy__mcp_allow", risk: toolspkg.RiskMutating, readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__mcp_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__monitor_cancel", risk: toolspkg.RiskMutating,
@@ -1704,6 +1742,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_unarchive", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_cleanup", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_later", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_resume_later", risk: toolspkg.RiskMutating,
@@ -1963,7 +2003,7 @@ func assertSessionCreateMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
 	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
-		"agent", "name", "new_worktree", "profile", "workspace", "worktree",
+		"agent", "name", "new_worktree", "profile", "result_view", "workspace", "worktree",
 	})
 	var newWorktree nativeObjectSchema
 	if err := json.Unmarshal(input.Properties["new_worktree"], &newWorktree); err != nil {
@@ -2007,7 +2047,7 @@ func assertSessionRenameMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t,
 		descriptor.ID.String()+" input",
 		input,
-		[]string{"name", "profile", "session_id", "workspace"},
+		[]string{"name", "profile", "result_view", "session_id", "workspace"},
 	)
 	if !slices.Equal(input.Required, []string{"session_id", "name"}) {
 		t.Fatalf("%s input required = %#v, want [session_id name]", descriptor.ID, input.Required)
@@ -2032,7 +2072,7 @@ func assertSessionReparentMutationSchema(t *testing.T, descriptor toolspkg.Descr
 		t,
 		descriptor.ID.String()+" input",
 		input,
-		[]string{"parent_session_id", "profile", "session_id", "top_level", "workspace"},
+		[]string{"parent_session_id", "profile", "result_view", "session_id", "top_level", "workspace"},
 	)
 	if !slices.Equal(input.Required, []string{"session_id"}) {
 		t.Fatalf("%s input required = %#v, want [session_id]", descriptor.ID, input.Required)
@@ -2042,6 +2082,9 @@ func assertSessionReparentMutationSchema(t *testing.T, descriptor toolspkg.Descr
 
 func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
 	t.Helper()
+	output := decodeRawNativeObjectSchema(t, "prompt output", descriptor.OutputSchema)
+	payload := decodeRawNativeObjectSchema(t, "prompt payload", output.Properties["prompt"])
+	assertSteerDeliverySchema(t, "prompt output", payload.Properties["steer_delivery"])
 	var input nativeObjectSchema
 	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
@@ -2283,7 +2326,7 @@ func assertSessionRuntimeMutationSchemas(
 		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 			t.Fatalf("%s input schema unmarshal error = %v", id, err)
 		}
-		wantFields := []string{"expected_revision", "profile", "session_id", "workspace"}
+		wantFields := []string{"expected_revision", "profile", "result_view", "session_id", "workspace"}
 		if id == toolspkg.ToolIDSessionRuntimeSet {
 			wantFields = append(wantFields, "runtime")
 		}
@@ -2483,6 +2526,7 @@ func assertSessionInputPayloadSchema(t *testing.T, owner string, raw json.RawMes
 	t.Helper()
 	input := decodeRawNativeObjectSchema(t, owner, raw)
 	assertSchemaDeclaresPayload(t, owner, raw, reflect.TypeFor[contract.SessionInputPayload]())
+	assertSteerDeliverySchema(t, owner, input.Properties["steer_delivery"])
 	if !slices.Equal(input.Required, []string{
 		"id", "session_id", "status", "mode", "delivery", "text", "queue_generation", "enqueued_at",
 	}) {
@@ -2508,6 +2552,19 @@ func assertSessionMutationEnvelopeSchema(
 	}
 	if payload.Type != "object" {
 		t.Fatalf("%s payload = %#v, want object", owner, payload)
+	}
+}
+
+func assertSteerDeliverySchema(t *testing.T, owner string, raw json.RawMessage) {
+	t.Helper()
+	var schema struct {
+		Enum []string `json:"enum"`
+	}
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(schema.Enum, store.SteerDeliveryModeValues()) {
+		t.Fatalf("%s steering deliveries=%v", owner, schema.Enum)
 	}
 }
 
@@ -2544,9 +2601,16 @@ func assertWindowManagerMoveSchema(t *testing.T, raw json.RawMessage) {
 			valid: true,
 		},
 		{
-			name: "Should reject missing placement outside group mode",
+			name: "Should accept omitted placement as a tab",
 			payload: `{"expected_revision":1,"window_id":"window-a",` +
 				`"destination_desktop_id":"desktop-b"}`,
+			valid: true,
+		},
+		{
+			name: "Should accept empty placement as a deprecated tab placement",
+			payload: `{"expected_revision":1,"window_id":"window-a",` +
+				`"destination_desktop_id":"desktop-b","placement":""}`,
+			valid: true,
 		},
 		{
 			name: "Should accept structural group relocation onto a target",
@@ -2563,11 +2627,16 @@ func assertWindowManagerMoveSchema(t *testing.T, raw json.RawMessage) {
 			valid: true,
 		},
 		{
-			name: "Should reject a structural group relocation with a floating rectangle",
+			name: "Should accept a deprecated floating rectangle on group relocation",
 			payload: `{"expected_revision":1,"window_id":"window-a",` +
 				`"destination_desktop_id":"desktop-b","move_group":true,` +
 				`"target_window_id":"window-b",` +
 				`"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
+			valid: true,
+		},
+		{
+			name:    "Should reject an unknown placement",
+			payload: `{"expected_revision":1,"window_id":"window-a","destination_desktop_id":"desktop-b","placement":"unknown"}`,
 		},
 	}
 	for _, tc := range cases {
@@ -2666,8 +2735,16 @@ func assertWindowManagerResultSchemas(t *testing.T, commandRaw, previewRaw json.
 		t.Fatalf("window manager command output schema unmarshal error = %v", err)
 	}
 	assertSchemaFields(t, "window manager command output", command, []string{
-		"applied", "changes", "client", "command_id", "diagnostics", "rebased_from", "revision", "workspace_id",
-	}, []string{"applied", "changes", "command_id", "diagnostics", "revision", "workspace_id"})
+		"applied",
+		"changes",
+		"client",
+		"command_id",
+		"deprecations",
+		"diagnostics",
+		"rebased_from",
+		"revision",
+		"workspace_id",
+	}, []string{"applied", "changes", "command_id", "deprecations", "diagnostics", "revision", "workspace_id"})
 	assertWindowManagerChangesSchema(t, "window manager command output", command.Properties["changes"])
 
 	var preview resultSchema
@@ -2675,8 +2752,16 @@ func assertWindowManagerResultSchemas(t *testing.T, commandRaw, previewRaw json.
 		t.Fatalf("window manager preview output schema unmarshal error = %v", err)
 	}
 	assertSchemaFields(t, "window manager preview output", preview, []string{
-		"changed", "changes", "client", "command_id", "diagnostics", "revision", "snapshot", "workspace_id",
-	}, []string{"changed", "changes", "command_id", "diagnostics", "revision", "snapshot", "workspace_id"})
+		"changed",
+		"changes",
+		"client",
+		"command_id",
+		"deprecations",
+		"diagnostics",
+		"revision",
+		"snapshot",
+		"workspace_id",
+	}, []string{"changed", "changes", "command_id", "deprecations", "diagnostics", "revision", "snapshot", "workspace_id"})
 	assertWindowManagerChangesSchema(t, "window manager preview output", preview.Properties["changes"])
 }
 
@@ -2690,7 +2775,16 @@ func assertWindowManagerChangesSchema(t *testing.T, owner string, raw json.RawMe
 		t.Fatalf("%s changes schema unmarshal error = %v", owner, err)
 	}
 	assertSchemaFields(t, owner+" changes", changes, []string{
-		"client_ids", "desktop_ids", "group_ids", "node_ids", "stack_grouped", "stack_ungrouped", "window_ids",
+		"client_ids",
+		"desktop_ids",
+		"group_ids",
+		"node_ids",
+		"stack_grouped",
+		"stack_ungrouped",
+		"tab_ids",
+		"tab_split",
+		"tab_unsplit",
+		"window_ids",
 	}, nil)
 }
 
@@ -2710,13 +2804,13 @@ func assertWindowManagerLayoutDocumentSchemas(t *testing.T, schemas ...json.RawM
 			t.Fatalf("window manager layout document schema unmarshal error = %v", err)
 		}
 		var version struct {
-			Const int `json:"const"`
+			Enum []int `json:"enum"`
 		}
 		if err := json.Unmarshal(document.Properties["version"], &version); err != nil {
 			t.Fatalf("window manager layout version schema unmarshal error = %v", err)
 		}
-		if version.Const != int(windowmanager.SnapshotVersion) {
-			t.Fatalf("window manager layout version const = %d, want %d", version.Const, windowmanager.SnapshotVersion)
+		if !slices.Equal(version.Enum, []int{4, 5, int(windowmanager.SnapshotVersion)}) {
+			t.Fatalf("window manager layout versions = %v, want 4, 5, 6", version.Enum)
 		}
 	}
 }
@@ -3370,6 +3464,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			toolspkg.ToolIDAgentInstanceCheck,
 			toolspkg.ToolIDAgentInstanceCheckIns,
 			toolspkg.ToolIDAgentInstanceChecks,
+			toolspkg.ToolIDAgentInstanceClearMain,
 			toolspkg.ToolIDAgentInstanceCreate,
 			toolspkg.ToolIDAgentInstanceEnsureMain,
 			toolspkg.ToolIDAgentInstanceGet,
@@ -3477,7 +3572,11 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Equal(
 			marketplace,
-			[]toolspkg.ToolID{toolspkg.ToolIDMarketplaceSearch, toolspkg.ToolIDMarketplaceSources},
+			[]toolspkg.ToolID{
+				toolspkg.ToolIDMarketplaceCategories,
+				toolspkg.ToolIDMarketplaceSearch,
+				toolspkg.ToolIDMarketplaceSources,
+			},
 		) {
 			t.Fatalf("marketplace toolset expansion = %#v, want marketplace search and sources", marketplace)
 		}
@@ -3522,7 +3621,15 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expand(mcp) error = %v", err)
 		}
-		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPStatus}; !slices.Equal(mcp, want) {
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDMCPAllow,
+			toolspkg.ToolIDMCPImport,
+			toolspkg.ToolIDMCPList,
+			toolspkg.ToolIDMCPStatus,
+		}; !slices.Equal(
+			mcp,
+			want,
+		) {
 			t.Fatalf("mcp expansion = %#v, want %#v", mcp, want)
 		}
 
@@ -3754,36 +3861,433 @@ func TestBuiltinEditLevelAutoApprovals(t *testing.T) {
 			t.Fatalf("unasked builtin mutations at approve-edits changed:\ngot  %v\nwant %v", got, want)
 		}
 	})
+	// Invariant: agents cannot grant source consent without operator approval in any mode.
+	// Owner: native tool policy; canonical suite: builtin permission approvals.
+	for _, mode := range []toolspkg.PermissionMode{
+		toolspkg.PermissionModeDenyAll, toolspkg.PermissionModeApproveReads,
+		toolspkg.PermissionModeApproveEdits, toolspkg.PermissionModeAuto, toolspkg.PermissionModeApproveAll,
+	} {
+		t.Run("Should require MCP consent approval at "+string(mode), func(t *testing.T) {
+			t.Parallel()
+			for _, available := range []bool{true, false} {
+				evaluator, err := toolspkg.NewEffectivePolicyEvaluator(toolspkg.PolicyInputs{
+					SystemPermissionMode: mode, ApprovalAvailable: available,
+				}, toolspkg.ToolsetCatalog{}, []toolspkg.ToolID{toolspkg.ToolIDMCPAllow})
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, descriptor := range NativeDescriptors() {
+					if descriptor.ID != toolspkg.ToolIDMCPAllow {
+						continue
+					}
+					decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !decision.ApprovalRequired || decision.Callable != available {
+						t.Fatalf("MCP consent decision with approval available=%v: %+v", available, decision)
+					}
+				}
+			}
+		})
+	}
 }
 
-// TestAgentKindToolText owns UT-019: compozy__agent_create lists the deprecated stays_on alias in
-// its kind enum, and no other descriptor text names the retired word.
+// TestAgentKindToolText verifies canonical kind enums and current descriptor text.
 func TestAgentKindToolText(t *testing.T) {
-	t.Parallel()
+	t.Run("Should enforce the current input contract", func(t *testing.T) {
+		t.Parallel()
 
-	for _, descriptor := range NativeDescriptors() {
-		if descriptor.ID != toolspkg.ToolIDAgentCreate {
-			text := descriptor.Description + string(descriptor.InputSchema) + string(descriptor.OutputSchema)
-			if strings.Contains(strings.ToLower(text), "stays-on") || strings.Contains(text, "stays_on") ||
-				strings.Contains(strings.ToLower(text), "stays on") {
-				t.Fatalf("%s descriptor names the retired kind: %s", descriptor.ID, text)
+		for _, descriptor := range NativeDescriptors() {
+			if descriptor.ID != toolspkg.ToolIDAgentCreate {
+				text := descriptor.Description + string(descriptor.InputSchema) + string(descriptor.OutputSchema)
+				if strings.Contains(strings.ToLower(text), "stays-on") || strings.Contains(text, "stays_on") ||
+					strings.Contains(strings.ToLower(text), "stays on") {
+					t.Fatalf("%s descriptor names the retired kind: %s", descriptor.ID, text)
+				}
+				continue
 			}
-			continue
+			var schema struct {
+				Properties map[string]struct {
+					Enum        []string `json:"enum"`
+					Description string   `json:"description"`
+				} `json:"properties"`
+			}
+			if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
+				t.Fatal(err)
+			}
+			kind := schema.Properties["kind"]
+			if !slices.Equal(kind.Enum, []string{"on_demand", "always_on"}) ||
+				!strings.Contains(kind.Description, "fixed at creation") {
+				t.Fatalf("agent_create kind = %+v, want the two canonical kinds and identity description", kind)
+			}
 		}
-		var schema struct {
-			Properties map[string]struct {
-				Enum        []string `json:"enum"`
-				Description string   `json:"description"`
-			} `json:"properties"`
+	})
+}
+
+func TestCheckInWritableInventory(t *testing.T) {
+	t.Run("Should confine native check-in writes to operator notifications [UT-005]", func(t *testing.T) {
+		t.Parallel()
+		classified := map[toolspkg.ToolID]bool{
+			toolspkg.ToolIDMCPAllow:                   false,
+			toolspkg.ToolIDMCPImport:                  false,
+			"compozy__agent_create":                   false,
+			"compozy__agent_draft_instructions":       false,
+			"compozy__agent_heartbeat_wake":           false,
+			"compozy__agent_instance_archive":         false,
+			"compozy__agent_instance_check":           false,
+			"compozy__agent_instance_checks":          false,
+			"compozy__agent_instance_clear_main":      false,
+			"compozy__agent_instance_create":          false,
+			"compozy__agent_instance_ensure_main":     false,
+			"compozy__agent_instance_mark_seen":       false,
+			"compozy__agent_instance_pause":           false,
+			"compozy__agent_instance_resume":          false,
+			"compozy__agent_memory_add":               false,
+			"compozy__agent_memory_remove":            false,
+			"compozy__agent_memory_replace":           false,
+			"compozy__agent_skill_propose":            false,
+			"compozy__automation_jobs_create":         false,
+			"compozy__automation_jobs_delete":         false,
+			"compozy__automation_jobs_disable":        false,
+			"compozy__automation_jobs_enable":         false,
+			"compozy__automation_jobs_trigger":        false,
+			"compozy__automation_jobs_update":         false,
+			"compozy__automation_runs_cancel":         false,
+			"compozy__automation_suggestions_accept":  false,
+			"compozy__automation_suggestions_dismiss": false,
+			"compozy__automation_triggers_create":     false,
+			"compozy__automation_triggers_delete":     false,
+			"compozy__automation_triggers_disable":    false,
+			"compozy__automation_triggers_enable":     false,
+			"compozy__automation_triggers_update":     false,
+			"compozy__cmd_palette_invoke":             false,
+			"compozy__config_set":                     false,
+			"compozy__config_unset":                   false,
+			"compozy__desktop_create":                 false,
+			"compozy__desktop_delete":                 false,
+			"compozy__desktop_reorder":                false,
+			"compozy__desktop_switch":                 false,
+			"compozy__desktop_update":                 false,
+			"compozy__extensions_build":               false,
+			"compozy__extensions_dev":                 false,
+			"compozy__extensions_disable":             false,
+			"compozy__extensions_enable":              false,
+			"compozy__extensions_init":                false,
+			"compozy__extensions_install":             false,
+			"compozy__extensions_publish":             false,
+			"compozy__extensions_reload":              false,
+			"compozy__extensions_remove":              false,
+			"compozy__extensions_update":              false,
+			"compozy__goal_control":                   false,
+			"compozy__goal_report":                    false,
+			"compozy__hooks_create":                   false,
+			"compozy__hooks_delete":                   false,
+			"compozy__hooks_disable":                  false,
+			"compozy__hooks_enable":                   false,
+			"compozy__hooks_update":                   false,
+			"compozy__layout_apply":                   false,
+			"compozy__layout_arrange":                 false,
+			"compozy__layout_balance":                 false,
+			"compozy__layout_frame_resize":            false,
+			"compozy__layout_redo":                    false,
+			"compozy__layout_resize":                  false,
+			"compozy__layout_undo":                    false,
+			"compozy__loop_approve":                   false,
+			"compozy__loop_cancel":                    false,
+			"compozy__loop_configure":                 false,
+			"compozy__loop_create":                    false,
+			"compozy__loop_delete":                    false,
+			"compozy__loop_fork":                      false,
+			"compozy__loop_node_amend":                false,
+			"compozy__loop_node_cancel":               false,
+			"compozy__loop_node_pause":                false,
+			"compozy__loop_node_requeue":              false,
+			"compozy__loop_node_resume":               false,
+			"compozy__loop_pause":                     false,
+			"compozy__loop_rerun":                     false,
+			"compozy__loop_respond":                   false,
+			"compozy__loop_resume":                    false,
+			"compozy__loop_run":                       false,
+			"compozy__monitor_cancel":                 false,
+			"compozy__monitor_create":                 false,
+			"compozy__notify":                         true,
+			"compozy__provider_models_curate":         false,
+			"compozy__provider_models_refresh":        false,
+			"compozy__provider_usage_refresh":         false,
+			"compozy__session_approve":                false,
+			"compozy__session_archive":                false,
+			"compozy__session_clarify_answer":         false,
+			"compozy__session_cleanup":                false,
+			"compozy__session_compact":                false,
+			"compozy__session_continue":               false,
+			"compozy__session_create":                 false,
+			"compozy__session_folder_create":          false,
+			"compozy__session_folder_delete":          false,
+			"compozy__session_folder_rename":          false,
+			"compozy__session_folder_reorder":         false,
+			"compozy__session_fork":                   false,
+			"compozy__session_input_cancel":           false,
+			"compozy__session_input_promote":          false,
+			"compozy__session_input_replace":          false,
+			"compozy__session_inputs_clear":           false,
+			"compozy__session_later":                  false,
+			"compozy__session_link":                   false,
+			"compozy__session_mark_seen":              false,
+			"compozy__session_move":                   false,
+			"compozy__session_move_to_profile":        false,
+			"compozy__session_processes_terminate":    false,
+			"compozy__session_prompt":                 false,
+			"compozy__session_prompt_cancel":          false,
+			"compozy__session_rename":                 false,
+			"compozy__session_reorder":                false,
+			"compozy__session_reparent":               false,
+			"compozy__session_resume_later":           false,
+			"compozy__session_rewind":                 false,
+			"compozy__session_runtime_clear":          false,
+			"compozy__session_runtime_set":            false,
+			"compozy__session_spawn":                  false,
+			"compozy__session_stop":                   false,
+			"compozy__session_unarchive":              false,
+			"compozy__session_unlink":                 false,
+			"compozy__session_worktree_bind":          false,
+			"compozy__session_worktree_unbind":        false,
+			"compozy__subagent_cancel":                false,
+			"compozy__subagent_delegate":              false,
+			"compozy__subagent_status":                false,
+			"compozy__task_block":                     false,
+			"compozy__task_cancel":                    false,
+			"compozy__task_child_create":              false,
+			"compozy__task_create":                    false,
+			"compozy__task_execution_profile_delete":  false,
+			"compozy__task_execution_profile_set":     false,
+			"compozy__task_fanout_runs":               false,
+			"compozy__task_recover":                   false,
+			"compozy__task_run_claim_next":            false,
+			"compozy__task_run_complete":              false,
+			"compozy__task_run_fail":                  false,
+			"compozy__task_run_heartbeat":             false,
+			"compozy__task_run_release":               false,
+			"compozy__task_run_review_request":        false,
+			"compozy__task_run_review_submit":         false,
+			"compozy__task_unblock":                   false,
+			"compozy__task_update":                    false,
+			"compozy__task_worktree_policy_set":       false,
+			"compozy__terminal_close":                 false,
+			"compozy__terminal_exec":                  false,
+			"compozy__terminal_open":                  false,
+			"compozy__terminal_request_input":         false,
+			"compozy__terminal_signal":                false,
+			"compozy__terminal_write":                 false,
+			"compozy__tool_approvals_revoke":          false,
+			"compozy__tool_approvals_set":             false,
+			"compozy__window_activate":                false,
+			"compozy__window_close":                   false,
+			"compozy__window_float":                   false,
+			"compozy__window_focus":                   false,
+			"compozy__window_group":                   false,
+			"compozy__window_move":                    false,
+			"compozy__window_navigate":                false,
+			"compozy__window_open":                    false,
+			"compozy__window_pin":                     false,
+			"compozy__window_reopen":                  false,
+			"compozy__window_reorder":                 false,
+			"compozy__window_resize":                  false,
+			"compozy__window_swap":                    false,
+			"compozy__window_zoom":                    false,
+			"compozy__workspace_archive":              false,
+			"compozy__workspace_folder_create":        false,
+			"compozy__workspace_folder_delete":        false,
+			"compozy__workspace_folder_rename":        false,
+			"compozy__workspace_folder_reorder":       false,
+			"compozy__workspace_move":                 false,
+			"compozy__workspace_reorder":              false,
+			"compozy__workspace_unarchive":            false,
+			"compozy__worktree_create":                false,
+			"compozy__worktree_remove":                false,
 		}
-		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
-			t.Fatal(err)
+
+		found := false
+		for _, descriptor := range NativeDescriptors() {
+			if toolspkg.AccessOf(descriptor) == toolspkg.AccessRead {
+				if descriptor.RequiresInteraction || descriptor.ID == toolspkg.ToolIDClarify {
+					evaluator, err := toolspkg.NewEffectivePolicyEvaluator(
+						toolspkg.PolicyInputs{CheckIn: &toolspkg.CheckInPolicy{}},
+						toolspkg.ToolsetCatalog{},
+						[]toolspkg.ToolID{descriptor.ID},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+					if err != nil || decision.Callable {
+						t.Fatalf("interaction tool allowed: %s %v", descriptor.ID, err)
+					}
+				}
+				continue
+			}
+			expected, known := classified[descriptor.ID]
+			if !known {
+				t.Fatalf("classify new native write %s for check-ins", descriptor.ID)
+			}
+			writable := toolspkg.IsCheckInWritable(descriptor.ID)
+			if writable != expected {
+				t.Fatalf("unexpected writable native tool: %s", descriptor.ID)
+			}
+			found = found || writable
 		}
-		kind := schema.Properties["kind"]
-		if !slices.Equal(kind.Enum, []string{"on_demand", "always_on", "stays_on"}) ||
-			!strings.Contains(kind.Description, "stays_on is the deprecated") ||
-			!strings.Contains(kind.Description, "v0.5.2") {
-			t.Fatalf("agent_create kind = %+v, want the three kinds and the deprecation text", kind)
+		if !found {
+			t.Fatal("notification write missing")
 		}
+	})
+}
+
+func TestResultViewDeclaration(t *testing.T) {
+	t.Parallel()
+	for _, input := range []string{emptyInputSchema, `{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`} {
+		t.Run("Should inject the optional selector into "+input, func(t *testing.T) {
+			t.Parallel()
+			d := sessionEventsDescriptor()
+			d.InputSchema = json.RawMessage(input)
+			original := cloneDescriptor(d)
+			compact := `{"type":"object","additionalProperties":false}`
+			result := withResultViews(d, compact, string(d.OutputSchema))
+			if string(result.OutputSchema) != compact ||
+				string(result.ResultViews().Full.Schema) != string(original.OutputSchema) {
+				t.Fatal("output contracts changed")
+			}
+			if !strings.HasSuffix(result.Description, resultViewDescription) {
+				t.Fatal("missing discovery sentence")
+			}
+			var schema struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+				Required   []string                   `json:"required"`
+			}
+			if err := json.Unmarshal(result.InputSchema, &schema); err != nil {
+				t.Fatal(err)
+			}
+			if string(schema.Properties[toolspkg.ResultViewInputKey]) != toolspkg.ResultViewSelectorSchema {
+				t.Fatalf("selector=%s", schema.Properties[toolspkg.ResultViewInputKey])
+			}
+			if slices.Contains(schema.Required, toolspkg.ResultViewInputKey) {
+				t.Fatal("selector is required")
+			}
+			if err := result.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			result.InputSchema = original.InputSchema
+			result.OutputSchema = original.OutputSchema
+			result.SetResultViews(nil)
+			result.ToolExecutionMetadata = original.ToolExecutionMetadata
+			result.Description = original.Description
+			if !reflect.DeepEqual(result, original) {
+				t.Fatal("unrelated descriptor metadata changed")
+			}
+		})
+	}
+}
+
+func TestSingleResultContracts(t *testing.T) {
+	t.Parallel()
+	descriptors := map[toolspkg.ToolID]toolspkg.Descriptor{}
+	for _, d := range NativeDescriptors() {
+		descriptors[d.ID] = d
+	}
+	for _, family := range singleResultFamilies {
+		for id, reason := range family {
+			t.Run("Should retain the single result contract of "+id.String(), func(t *testing.T) {
+				t.Parallel()
+				d, exists := descriptors[id]
+				if !exists {
+					t.Fatal("unknown single-result tool")
+				}
+				got, ok := SingleResultReasonFor(id)
+				if !ok || got != reason {
+					t.Fatal("reason lookup mismatch")
+				}
+				if !slices.Contains(
+					[]SingleResultReason{SingleResultContent, SingleResultMinimal, SingleResultCallerBounded},
+					reason,
+				) {
+					t.Fatal("invalid reason")
+				}
+				if d.ResultViews() != nil {
+					t.Fatal("single-result tool has views")
+				}
+				if err := d.Validate(); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+	}
+}
+
+// UT-014: every native tool has exactly one result contract.
+func TestNativeResultClassification(t *testing.T) {
+	t.Parallel()
+	for _, d := range NativeDescriptors() {
+		t.Run("Should classify "+d.ID.String()+" exactly once", func(t *testing.T) {
+			t.Parallel()
+			_, single := SingleResultReasonFor(d.ID)
+			if (d.ResultViews() != nil) == single {
+				t.Fatalf("%s must have views or a single-result reason, exclusively", d.ID)
+			}
+		})
+	}
+}
+
+// UT-015: the generated product catalog describes the live contracts.
+func TestNativeResultCatalog(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("testdata/native-tool-catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var entries []struct {
+		ID       toolspkg.ToolID    `json:"tool_id"`
+		Contract string             `json:"result_contract"`
+		Reason   SingleResultReason `json:"single_result_reason"`
+		Compact  string             `json:"compact_output_schema_digest"`
+		Full     string             `json:"full_output_schema_digest"`
+	}
+	if err := json.Unmarshal(data, &entries); err != nil {
+		t.Fatal(err)
+	}
+	descriptors := NativeDescriptors()
+	if len(entries) != len(descriptors) {
+		t.Fatalf("catalog=%d descriptors=%d", len(entries), len(descriptors))
+	}
+	byID := make(map[toolspkg.ToolID]int, len(entries))
+	for i, e := range entries {
+		if _, exists := byID[e.ID]; exists {
+			t.Fatalf("duplicate catalog entry %s", e.ID)
+		}
+		byID[e.ID] = i
+	}
+	for _, descriptor := range descriptors {
+		t.Run("Should publish the result contract of "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			d, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			i, exists := byID[d.ID]
+			if !exists {
+				t.Fatalf("missing catalog entry %s", d.ID)
+			}
+			entry := entries[i]
+			if views := d.ResultViews(); views != nil {
+				if entry.Contract != "compact_full" || entry.Reason != "" || entry.Compact != views.Compact.Digest ||
+					entry.Full != views.Full.Digest {
+					t.Fatalf("catalog contract differs for %s", d.ID)
+				}
+			} else {
+				reason, ok := SingleResultReasonFor(d.ID)
+				if !ok || entry.Contract != "single" || entry.Reason != reason || entry.Compact != "" ||
+					entry.Full != "" {
+					t.Fatalf("catalog single result differs for %s", d.ID)
+				}
+			}
+		})
 	}
 }

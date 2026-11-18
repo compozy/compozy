@@ -79,7 +79,7 @@ var autonomyTools = []toolspkg.Descriptor{
 		[]string{autonomyAutonomyKey, tasksTasksKey, autonomyLeasesKey},
 		[]string{"release task run", "handoff work"},
 	),
-	nativeDescriptor(
+	withTaskResultViews(nativeDescriptor(
 		toolspkg.ToolIDTaskRunReviewSubmit,
 		"submit_run_review",
 		"Submit Run Review",
@@ -92,7 +92,7 @@ var autonomyTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAutonomy},
 		[]string{autonomyAutonomyKey, tasksTasksKey, autonomyReviewsKey},
 		[]string{"submit_run_review", "review verdict", "task run review"},
-	),
+	)),
 }
 
 func autonomyDescriptors() []toolspkg.Descriptor {

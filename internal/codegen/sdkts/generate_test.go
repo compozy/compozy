@@ -51,7 +51,7 @@ func TestGenerateDeterministicAndStructured(t *testing.T) {
 
 		requiredSnippets := []string{
 			generatedHeader,
-			`export type IssueSeverity = "error" | "warning" | "warn";`,
+			`export type IssueSeverity = "error" | "warning" | "warn" | "info";`,
 			`export type LoopProvenanceRole = "coordinator" | "cell";`,
 			`export type ReasoningEffort = string;`,
 			`export type CostStatus = "actual" | "estimated" | "included" | "unknown";`,

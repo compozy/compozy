@@ -27,8 +27,9 @@ export interface SessionBoardCardProps {
   archived?: boolean;
   onOpen: (session: SessionBoardPayload) => void;
   /**
-   * The session list's lifecycle verbs: the card then carries the same actions
-   * as a list row, on right-click (and Shift+F10) and behind its `…` button.
+   * The session list's lifecycle verbs: the card then carries a list row's menu,
+   * folders included and manual order left out, on right-click (and Shift+F10)
+   * and behind its `…` button.
    */
   actions?: SessionLifecycleActionHandlers;
 }
@@ -70,9 +71,16 @@ export function SessionBoardCard({ actions, ...props }: SessionBoardCardProps) {
       button
     );
   }
+  // A card offers a list row's tree minus manual order: columns order the board.
+  const menu = {
+    actions,
+    session,
+    readFolders: true,
+    onOpen: () => props.onOpen(session),
+  };
   return (
     <SessionRowContextMenu
-      actions={actions}
+      {...menu}
       render={
         <div className={SESSION_BOARD_CARD_FRAME_GROUP} onContextMenu={selection?.retarget} />
       }
@@ -81,7 +89,6 @@ export function SessionBoardCard({ actions, ...props }: SessionBoardCardProps) {
           <SessionsBoardSelectionMenu testId="sessions-board-selection-menu" />
         ) : undefined
       }
-      session={session}
     >
       {button}
       {checkbox}
@@ -90,7 +97,7 @@ export function SessionBoardCard({ actions, ...props }: SessionBoardCardProps) {
           className="absolute top-2 right-2 rounded-md bg-surface-2 opacity-0 transition-opacity duration-fast group-focus-within/session-card:opacity-100 group-hover/session-card:opacity-100 group-has-data-popup-open/session-card:opacity-100 motion-reduce:transition-none"
           data-testid={`session-board-card-actions-${session.id}`}
         >
-          <SessionRowActions actions={actions} session={session} />
+          <SessionRowActions {...menu} />
         </span>
       )}
     </SessionRowContextMenu>

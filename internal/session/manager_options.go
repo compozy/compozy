@@ -43,6 +43,13 @@ func WithQueryStore(opener QueryStoreOpener) Option {
 	}
 }
 
+// WithQueryQuiesceTimeout bounds waiting for stored readers; non-positive values use the five-second default.
+func WithQueryQuiesceTimeout(timeout time.Duration) Option {
+	return func(manager *Manager) {
+		manager.queryQuiesceTimeout = timeout
+	}
+}
+
 // WithPromptAssembler injects prompt assembly for session startup.
 func WithPromptAssembler(assembler PromptAssembler) Option {
 	return func(manager *Manager) {
@@ -97,6 +104,14 @@ func WithAgentResolver(resolver AgentResolver) Option {
 func WithProviderSecretResolver(resolver ProviderSecretResolver) Option {
 	return func(manager *Manager) {
 		manager.providerSecrets = resolver
+	}
+}
+
+// WithProviderTelemetryEnv injects the OTLP export variables forwarded to provider processes; it returns nil while
+// forwarding is off or export is inactive.
+func WithProviderTelemetryEnv(source func() []string) Option {
+	return func(manager *Manager) {
+		manager.providerTelemetryEnv = source
 	}
 }
 
@@ -358,6 +373,14 @@ func WithPromptRecoveryDelays(delays ...time.Duration) Option {
 	}
 }
 
+// WithDaemonShutdownTurnGrace overrides how long a daemon shutdown stop keeps a session's recorder
+// open for the terminal event of the turn it interrupted.
+func WithDaemonShutdownTurnGrace(grace time.Duration) Option {
+	return func(manager *Manager) {
+		manager.daemonShutdownTurnGrace = grace
+	}
+}
+
 // WithSessionAuthRecoveryConfig sets how long a turn waits for a lost provider sign-in.
 func WithSessionAuthRecoveryConfig(config compozyconfig.SessionAuthRecoveryConfig) Option {
 	return func(manager *Manager) {
@@ -399,4 +422,8 @@ func WithSessionDeriveConfig(cfg compozyconfig.SessionDeriveConfig) Option {
 	return func(manager *Manager) {
 		manager.deriveConfig = cfg
 	}
+}
+
+func WithCheckInTools(enabled bool) Option {
+	return func(m *Manager) { m.checkInToolsDisabled = !enabled }
 }

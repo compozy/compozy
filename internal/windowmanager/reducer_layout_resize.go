@@ -16,15 +16,15 @@ func (r *reducer) resize(snapshot *Snapshot, command ResizeLayoutCommand) (bool,
 	if command.BoundaryIndex < 0 || command.BoundaryIndex >= len(node.Children)-1 {
 		return false, fmt.Errorf("boundary %d: %w", command.BoundaryIndex, ErrInvalidCommand)
 	}
+	if math.Abs(command.Delta) <= weightTolerance {
+		return false, nil
+	}
 	left := command.BoundaryIndex
 	right := left + 1
 	leftWeight := node.Weights[left] + command.Delta
 	rightWeight := node.Weights[right] - command.Delta
 	if leftWeight < 0.01 || rightWeight < 0.01 {
 		return false, fmt.Errorf("resize exceeds boundary: %w", ErrInvalidCommand)
-	}
-	if math.Abs(command.Delta) <= weightTolerance {
-		return false, nil
 	}
 	node.Weights[left] = leftWeight
 	node.Weights[right] = rightWeight

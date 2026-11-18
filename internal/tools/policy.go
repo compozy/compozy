@@ -100,14 +100,20 @@ type AgentToolPolicy struct {
 
 // SessionToolPolicy captures concrete resolved lineage atoms.
 type SessionToolPolicy struct {
-	Enforced bool     `json:"enforced"`
-	Tools    []ToolID `json:"tools,omitempty"`
+	Enforced          bool     `json:"enforced"`
+	Tools             []ToolID `json:"tools,omitempty"`
+	MCPServers        []string `json:"mcp_servers,omitempty"`
+	MCPByServer       bool     `json:"mcp_by_server,omitempty"`
+	ExtensionsInherit bool     `json:"extensions_inherit,omitempty"`
 }
 
 // PolicyInputs contains the config-neutral inputs for effective policy.
 type PolicyInputs struct {
+	MCPReadOnlyTools map[string]bool
+	// MCPResourceNames maps daemon resource IDs to logical config allowlist names.
+	MCPResourceNames     map[string]string
 	AlwaysOnLineage      bool
-	TriageReadOnly       bool
+	CheckIn              *CheckInPolicy
 	ToolsDisabled        bool
 	SystemPermissionMode PermissionMode
 	ExternalDefault      ExternalDefault
@@ -145,7 +151,6 @@ func NewEffectivePolicyEvaluator(
 	toolsets ToolsetCatalog,
 	universe []ToolID,
 ) (*EffectivePolicyEvaluator, error) {
-	inputs = dropRetiredPolicyInputs(inputs)
 	normalizedUniverse := normalizeToolUniverse(universe)
 	if err := validatePolicyInputs(inputs); err != nil {
 		return nil, err
@@ -296,6 +301,10 @@ func (e *EffectivePolicyEvaluator) evaluateSourcePolicy(
 	}
 	if e.hasExplicitSourceGrant(d) || e.hasExplicitToolGrant(d.ID) {
 		decision.SourcePolicyResult = policyResultAllowed
+		if e.externalDefault() == ExternalDefaultAsk {
+			decision.SourcePolicyResult = policyResultApprovalRequired
+			return true, true
+		}
 		return true, false
 	}
 	if e.isTrustedReadOnlySource(d) {
@@ -349,7 +358,7 @@ func (e *EffectivePolicyEvaluator) isTrustedReadOnlySource(d Descriptor) bool {
 }
 
 func isReadOnlyAutoApprovable(d Descriptor) bool {
-	return d.ReadOnly && !d.Destructive && !d.OpenWorld && !d.RequiresInteraction && d.Risk == RiskRead
+	return AccessOf(d) == AccessRead
 }
 
 func isSessionVisible(visibility Visibility) bool {

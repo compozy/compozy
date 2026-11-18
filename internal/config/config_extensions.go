@@ -6,6 +6,8 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 )
 
+const defaultSkillsPollInterval = 3 * time.Second
+
 // SkillsConfig controls skill loading and discovery.
 type SkillsConfig struct {
 	Enabled                 bool          `toml:"enabled"`
@@ -14,6 +16,13 @@ type SkillsConfig struct {
 	DisabledSkills          []string      `toml:"disabled_skills,omitempty"`
 	PollInterval            time.Duration `toml:"poll_interval"`
 	AllowedMarketplaceHooks []string      `toml:"allowed_marketplace_hooks,omitempty"`
+}
+
+func (c SkillsConfig) EffectivePollInterval() time.Duration {
+	if c.PollInterval > 0 {
+		return c.PollInterval
+	}
+	return defaultSkillsPollInterval
 }
 
 // ExtensionsConfig controls extension trust, sources, development, and resource policy.
@@ -80,4 +89,5 @@ type Config struct {
 	Gateway       GatewayConfig             `toml:"gateway"`
 	Autonomy      AutonomyConfig            `toml:"autonomy"`
 	Worktrees     WorktreesConfig           `toml:"worktrees"`
+	Client        ClientConfig              `toml:"client"`
 }

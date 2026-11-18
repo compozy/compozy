@@ -26,6 +26,7 @@ func requireExpectedActiveTurn(session *Session, expectedTurnID string) (string,
 	return activeTurnID, nil
 }
 
+// activateInterruptingInput stops only the entry's target turn before dispatching its replacement.
 func (m *Manager) activateInterruptingInput(
 	ctx context.Context,
 	session *Session,
@@ -33,6 +34,9 @@ func (m *Manager) activateInterruptingInput(
 ) error {
 	if session == nil {
 		return errors.New("session: session is required")
+	}
+	if entry.Mode == store.SessionInputQueueModeInterrupt && store.IsHumanSessionInputOriginClass(entry.OriginClass) {
+		m.emitInterruptSupersededSteers(ctx, session, entry)
 	}
 	if !session.IsPrompting() {
 		m.startNextQueuedInputPrompt(session.ID)

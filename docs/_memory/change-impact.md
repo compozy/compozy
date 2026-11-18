@@ -1,5 +1,878 @@
 # Compozy Change Impact
 
+## Pull request monitor check rounds
+
+Owner: [#1807](https://github.com/compozy/compozy/issues/1807).
+
+- **Native tools.** A `compozy__monitor_create` pull request monitor wakes once per observed
+  completion round, including later rounds on the same head. Newly failed checks still wake.
+  Tool input, output and wake formats retain their existing shapes.
+- **Extensibility, hooks and config.** The detector uses the existing forge observations.
+  Polling cadence, query budget, extension contracts, hooks and config keys retain their behavior.
+- **State and isolation.** The existing cursor stores the completed check total alongside the
+  delivered state. Older cursors retain their delivered state and learn the total on their next
+  complete read. Workspace and profile scope continue to fence the same forge and wake paths.
+- **Web, official skill, docs and QA.** The existing transcript divider renders each new wake.
+  The monitor guide, native tool reference and RT-session-monitor-wake scenario describe the
+  revised completion rule and the limits of observing reruns between polls.
+
+## Agent Plugin MCP credentials and sign-in
+
+Owner: [#1800](https://github.com/compozy/compozy/issues/1800).
+
+- **Native tools.** Extension MCP discovery can use the owner's OAuth credential or its configured
+  header inputs. Existing MCP status and consent tools retain their IDs and schemas.
+- **CLI/HTTP/UDS.** The existing extension secrets route and command list optional credential input
+  names in `declared_env` and accept them through the existing write operations. Responses retain
+  their shape and expose presence without values or Vault refs. OAuth uses existing owner selectors.
+- **Extensibility and state.** The client adapter still derives optional inputs from existing header
+  syntax. The runtime reads exact scoped bindings and omits unbound headers with empty defaults.
+  Config, manifest grammar, hooks and storage schemas are unchanged.
+- **Isolation.** Vault bindings and MCP projection share the existing profile and extension
+  instance identity. The outbound OAuth metadata probe runs without plugin header credentials.
+- **Web.** Settings pairs a supported OAuth challenge with **Sign in** and reflects discovery in
+  technical details. A plugin rejection without an OAuth action shows **Access denied**.
+- **Official skill, docs and QA.** Updated the extension and MCP guidance and the
+  ET-agent-plugin-remote-header and ET-web-marketplace-mcp-authorize-installed scenarios.
+
+## MCP connection popovers, panels and dialogs redesign — 2026-11-16
+
+Owner: branch `feat/mcp-redesign` (plan `.compozy/tasks/mcp-ux-redesign/_slices.md`).
+
+- **Native tools.** `compozy__session_mcp_list` rows gain `scope`, `workspace_id`, `profile` and
+  `transport`; the definition preview (`command`, `args`, `url`, `source`, `approval`) is returned
+  only for rows waiting for approval, redacted (URL userinfo/query values, secret args) and omitted for
+  app tokens. All additions are optional fields; existing consumers
+  are unaffected. No new native tool: the on-demand check is a CLI/HTTP/UDS surface.
+- **CLI/HTTP/UDS.** Additive: `POST /api/workspaces/{ws}/sessions/{id}/mcp/servers/{name}/check`,
+  `POST /api/settings/mcp-servers/{name}/check`, `compozy session mcp check <id> <name>` and
+  `compozy mcp check <name>`. Settings list items gain `definition_source`. Both check routes are
+  denied to app tokens. No route, verb or DTO is removed.
+- **Extensibility and hooks.** No hook or extension-definition change; SDK clients regenerate with
+  the new optional fields and check operations.
+- **Config.** No key change.
+- **User state.** No schema or migration change. A failed or cancelled check keeps the last working
+  tool list; a check bypasses the tools/list caches and publishes `session.mcp_changed`.
+- **Workspace isolation.** Checks resolve the server through the same scope/workspace/profile/owner
+  selectors as the Settings and session reads; nothing crosses workspaces.
+- **Web.** Composer MCP popover drops its section header, folds the coding agent's own servers
+  (closed by default), and opens sign-in, allow, not-working (Check again) and copy as nested row
+  panels instead of dialogs (`MCPAuthorizeDialog`, `MCPCopyToCompozyDialog` deleted). New
+  `PopoverPanel` primitive in `packages/ui`. Settings MCP editor, remove and extension set-up
+  dialogs are rewritten in plain words; runtime groups fold under All; the agent MCP select becomes a
+  searchable picker. Paste sign-in needs an explicit "Get a sign-in link" press.
+- **Official skill and docs.** `skills/compozy` MCP references and `packages/site/content/docs/mcp`
+  describe the check verbs and the new row fields; CLI reference regenerated.
+- **QA.** Scenario notes updated: ET-web-agent-mcp-attachments, ET-web-mcp-authorize,
+  ET-web-mcp-authorize-manual, ET-mcp-signin-from-session-control, ET-runtime-mcp-inventory-copy,
+  ET-mcp-project-server-approval, MS-web-mcp-editor-simple-advanced, ET-web-mcp-remote-editor,
+  ET-web-marketplace-mcp-authorize-installed, ET-046, ET-session-mcp-control-states,
+  ET-web-mcp-status-matrix.
+- **Known gaps.** The agent picker cannot remove saved servers (the agents API only adds); the
+  extension "N missing" count needs extension-input data. Allow still addresses the server by name
+  only (no owner on the approval request).
+
+## Subagent cancel retires the child session — 2026-11-14
+
+Owner: PR #1688, branch `fix/cancel-stops-child`.
+
+- **Native tools.** `compozy__subagent_cancel` also stops the child session and its live descendants,
+  including when the row is already terminal: a `completed` child that stayed idle is retired and
+  becomes non-resumable. The outcome shape is unchanged (`cancel_requested` for a live row, its
+  terminal status otherwise). A stop failure is returned as an error with the row already `canceled`;
+  retrying is safe because an already stopped or missing child counts as success.
+- **CLI/HTTP/UDS.** No verb, route, or DTO change; cancel responses keep their shape.
+- **Extensibility and hooks.** No hook, SDK, or extension-definition change.
+- **Config.** No key change.
+- **User state.** No schema or migration change. A terminal row's child session ends stopped instead
+  of idle and can no longer be resumed.
+- **Review repair.** Cancellation and parent-stop traversal reach live descendants below terminal
+  delegated intermediaries while preserving their terminal results. Cleanup errors identify the phase
+  and child. Existing service cancellation coverage owns these cases; main CI runs them in release mode.
+- **Web.** No change.
+- **Official skill.** `skills/compozy/references/native-tools.md` documents the extended cancel
+  contract and the safe retry.
+- **QA.** `docs/qa/scenarios/RT-subagent-delegate.md` gains a cancel-after-completion step.
+
+## User-scope MCP policy resolution — 2026-11-15
+
+Owner: release `rel/main-health`, CI regression introduced by #1725.
+
+- User session creation, automation execution, and native tool discovery resolve the live user/profile
+  configuration through the narrow agent resolver without looking up `@user` as a registered project.
+  Project roots and skills are excluded from this resolution; explicit permission ceilings remain intact.
+- Existing CLI/HTTP/UDS and native tool contracts are preserved. No new hooks, extension APIs, config
+  keys, database shapes, or official skill changes. Web uses the same session and automation endpoints.
+- QA: `RT-session-cwd-resume`; release rules prohibit local verification, so runtime/E2E proof belongs
+  to current-main CI. The focused resolver regression is in `TestWorkspaceContractAgentConfigResolution`.
+
+Provenance follow-up (`d22e9bdf2`): a `--parent` session records its origin without narrowing native
+tool inheritance. The MCP authority resolver now treats provenance sessions like root sessions when
+expanding an inherited native tool policy. Governed spawn and explicit tool lists keep their existing
+ceilings. This restores `compozy__session_changes` parity with HTTP/UDS/CLI; no public shape,
+configuration, hook, extension, schema, workspace-isolation, Web or official-skill change is needed.
+The existing `TestDaemonSearchSessionFilesWorktreeBoundIT005` integration owns the observable
+contract; `RT-session-parent-provenance` records the QA walk. CI proof remains pending.
+
+## Release main-health: Tasks toolbar measurement
+
+Owner: release `rel/main-health`, E2E-023 performance diagnosis.
+
+- Web: the Tasks toolbar consumes the initial and subsequent ResizeObserver measurements instead
+  of forcing synchronous layout in its React layout effect. The same width thresholds keep one
+  active-status representation and a usable search field in tiled panes.
+- Native tools, CLI/HTTP/UDS, hooks, extension APIs, configuration, persisted workspace data and
+  isolation, schema, and official skill `skills/compozy/` are unchanged.
+- Test invariant: pane-width changes preserve the status and search controls. Owner: Tasks listing
+  toolbar; canonical suite: `tasks-list-surface.test.tsx`. Existing assertions now receive browser
+  ResizeObserver entries at the I/O boundary. E2E-023 retains its 50 ms budget and owns performance
+  acceptance in CI; the profile attributed about 34 ms of forced layout to the removed read.
+- QA: `ET-web-route-chrome-topbar`, Tasks pane resize walk. No local verification in release mode.
+
+## Per-model reasoning effort ceiling — 2026-11-14
+
+Owner: `fix/model-effort-levels`. Web-only bug fix (internal regime, SD-013).
+
+- **Web.** The reasoning slider renders only the levels a model advertises. One shared rule,
+  `restrictReasoningEfforts` (`web/src/systems/model-catalog/lib/to-runtime-selector-options.ts`),
+  intersects every provider/live list with the catalog row's `reasoning_efforts`, preserving the
+  advertised order and deduping. It caps the live ACP overlay in `sessionModelCapabilities`, the
+  configuration matrix in `modelEfforts`, and the latent `buildReasoningOptions`. An empty
+  advertised list still lets ACP introduce levels; a matrix with no effort coordinate stays
+  Fast-only. `resolveReasoningState`, the slider and `setReasoning` keep rendering/validating
+  `efforts` unchanged.
+- No native tool, CLI, HTTP/UDS route or DTO, hook, extension SDK, config key, SQLite schema or
+  migration change; the daemon already stores per-model effort profiles. Workspace data isolation
+  is unchanged. Official skill `skills/compozy/`: no change.
+- Docs: 2026-11-14 QA note in `docs/qa/scenarios/ET-web-runtime-selector-minimal-slider.md`.
+
+## Subagent row delete and context menu — 2026-11-14
+
+Owner: subagent menu feature, web half (backend half landed in the same branch). QA: 2026-11-14 notes in
+`docs/qa/scenarios/ET-web-subagent-card.md` and `RT-subagent-delegate.md`.
+
+- Web (`web/src/systems/session`): subagent rows in the sessions rail gain the row context menu
+  (right-click and Shift+F10) with Copy ▸ (`Copy subagent ID`, `Copy title`), `Stop subagent` for a live
+  delegated row, and `Delete subagent` for a delegated row behind a confirmation; provider-native rows
+  offer Copy only. `SubagentDeleteDialog` composes the existing Dialog primitives and blocks dismissal
+  while the request runs. `useSessionSubagentActions` owns the delete/stop mutations and their rereads.
+  This is additive: left click still opens the child session and the rail's existing menus are unchanged.
+- Drawer follow-up: a successful row deletion closes the selected subagent drawer only when its
+  current subagent ID and workspace match the removed row. A different selection stays open.
+  Existing sidebar confirmation coverage owns this interaction; no public contract changes.
+- Review repair: after the child is removed, roster deletion, wake rewriting, and parent settlement
+  use a detached bounded cleanup context; a disconnected HTTP/UDS caller cannot strand a running row.
+  The canonical subagent delete service suite covers this boundary. No wire or persistence change.
+- The web consumes the backend's already-listed additive surfaces: `DELETE
+  /api/workspaces/{workspace_id}/subagents/{subagent_id}?profile=…` (204; 409 `subagent_not_deletable`),
+  the `compozy session subagents delete` CLI verb, and the `subagent_removed` session-stream event
+  (`{session_id, subagent_id}`). An agent caller may delete only a delegation of its own session; an
+  operator deletes any delegated row in the workspace. The delete rewrites a queued completion message
+  without the removed row, cancels an empty batch, and settles the parent on the new roster. No schema,
+  migration, config, hook, extension SDK or native tool change in this half; no workspace-data-isolation
+  change beyond the existing profile-scoped route. Official skill `skills/compozy/`:
+  `runtime-operations.md` and `native-tools.md` document the delete verb, route and `subagent_removed`;
+  no `compozy__*` tool was added.
+
+## Session delete confirmation survives the window reconciliation — 2026-11-14
+
+Owner: `fix/session-delete-dialog-flicker`. Web-only bug fix (internal regime, SD-013).
+
+- **Web.** The rail's single and batch delete actions are handed to the OS shell's persistent
+  lifecycle host (`DesktopSessionDialogs`) through an xstate request store
+  (`web/src/systems/os/hooks/use-session-delete-request.ts`), following the
+  `sessionParentPickerStore` pattern. The shell outlives every session window, and the daemon
+  reconciles a deleted session's window before the DELETE answers, so the confirmation no longer
+  leaves with the window. The window keeps its rename, Later and process-choice dialogs and no longer
+  hosts a delete confirmation. `SessionDeleteDialog` and `SessionDeleteDialogSet` cancel Escape/outside
+  dismissals through Base UI `details.cancel()` while deleting and keep the wrapper's window-scoped
+  pointer-dismissal default when idle.
+- No native tool, CLI, HTTP/UDS route or DTO, hook, extension SDK, config key, SQLite schema or
+  migration change. Workspace data isolation is unchanged: the same owner-scoped session transitions
+  and profile scope apply. Official skill `skills/compozy/`: no change.
+- QA: 2026-11-14 notes in `docs/qa/scenarios/RT-session-list-row-actions.md` and
+  `docs/qa/scenarios/ET-web-sessions-catalog-modal.md`; regression suites named there.
+
+## Grouped menus with List and Kanban parity — 2026-11-13
+
+Owner: PR `feat/grouped-menus` (proto drafts `web/src/drafts/session-menus` and `web/src/drafts/app-menus`,
+approved by the operator). QA: grouped-menu notes in `docs/qa/scenarios/RT-session-list-row-actions.md`,
+`ET-web-sessions-board-card-actions-group-sort.md`, `ET-web-session-pr-chip.md`,
+`RT-workspace-overview-command-tab.md`, `APP-open-in-targets.md`, `TA-web-automations-listing.md` and the
+other scenarios touched by the PR.
+
+- Web and `@compozy/ui` only, internal regime (SD-013). New primitive `MenuTreeItems` with `tidyMenuTree`
+  and `MenuTreeNode`; the context-menu and dropdown-menu primitives render item and submenu icons in
+  `subtle` ink and space a group label that follows an item. DESIGN.md §8 and the `eng-design` skill
+  record the icon rule.
+- Session row, Kanban card and selection menus, the pull request menu (chip, Linked work row, session
+  submenu), project menus, file Open in and automation menus are each one tree rendered by right-click and
+  the overflow button. Verbs moved into submenus; none were removed. Kanban cards gain folder moves and
+  linked work; selections gain Move under and Copy branch names. A set of choices (folders, profiles)
+  announces its members as radio menu items with the current one checked.
+- A project menu's New session targets that project even outside All projects, at its root rather than
+  the focused project's worktree. A rolled-up linked-work item offers Open session for its child. An
+  automation's Copy link copies the published public address and shows only while that link is live.
+- The session list toolbar's Collapse all / Expand all becomes its own icon button beside View options.
+- No native tool, CLI, HTTP/UDS route or DTO, hook, extension SDK, config key, SQLite schema or migration
+  change; menus call the existing endpoints. Workspace data isolation: unchanged; User-scope folder reads
+  go through the existing `@user` selector. Official skill `skills/compozy/`: no change (menus are not an
+  agent surface). Docs: `packages/site/content/docs/files/open-in.mdx` and `sessions/board.mdx`.
+
+## Window tabs and splits: one tab bar per desktop, snapshot v6 — 2026-11-13
+
+Owner: `.compozy/tasks/window-tabs-split/`, single PR from `feat/window-tabs-split`. QA: the
+"Product retirement — floating windows, minimize, zoom (2026-11-13)" section of `docs/qa/README.md`; every
+affected file under `docs/qa/scenarios/` and `docs/qa/journeys/` carries a `qa-impact: 2026-11-13` note.
+New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure-retry`,
+`ET-window-unsplit-four-ways`, `ET-window-retired-surfaces-deprecations`,
+`MS-window-manager-retired-config-keys`, `MS-window-shortcut-retired-binding`,
+`ET-layout-editor-import-legacy-document`. Removed: `ET-window-zoom-in-place`,
+`ET-layout-editor-board-summary`, `ET-layout-editor-group-overlap-refused`.
+
+- **User state** (user-state regime; ADR-001 records the sign-off). Stored snapshots v3/v4/v5 convert to
+  v6 on load (`DecodeSnapshot` → `ConvertSnapshotV5`, frozen types in `snapshot_v5_types.go`); the
+  converter and the v4/v5 document decoder (`layout_decode.go`) are permanent. One client-state batch
+  writes `snapshot:<profileID>` (v6), `legacy:<profileID>` (original bytes, new `clientstate.OpCopy`)
+  and `migration:<profileID>` (status). A failed conversion keeps the bytes and writes a default
+  snapshot with `state: "failed"`; a newer value (version 7+) is never modified: its partition answers
+  `ErrUnavailable` (HTTP 503), and boot reconciliation logs `window_manager.partition_reconciliation_skipped`
+  and serves the other partitions instead of stopping the daemon. Only boot skips it: session-delete
+  window reconciliation and workspace unregistration call `reconcilePartitions` strictly, which
+  processes every readable partition and then returns the unavailable ones joined (any other error
+  still returns at once). While a partition the daemon cannot read or cannot write exists (version
+  7+, or a re-upgrade refused by the key quota) the session delete still succeeds but its window
+  cleanup is retried in the background (tombstone kept), and unregistration answers HTTP 500 with
+  the intent staged until a repeat succeeds (a 503 needs a contract change; follow-up). Both causes
+  are traced: a quota-refused v5 value is re-migrated on every `Load` and its single `Apply` fails
+  again (`SnapshotQuotaError`, `ErrUnavailable`), and `ReconcileDeletedSession` /
+  `ReconcileUnregisteredWorkspace` call `Snapshot` first. Unregistration purges the removed
+  workspace's own partitions before the cross-partition reconciliation (`window_manager_boot.go`),
+  so only an unusable partition of another workspace or profile blocks it; that purge is the one
+  place a v5 value is deleted without conversion, at the user's request. A
+  re-upgrade after a downgrade
+  converts the layout v0.6 wrote whatever the earlier status (no status-based refusal; the only
+  refusal is the key quota below): when its bytes
+  differ from `legacy:<profileID>`, the same atomic batch copies the earlier backup to
+  `superseded:<profileID>:<sha256 hex>` with a sibling disposition record
+  `superseded:<profileID>:<sha256 hex>:disposition` (`{"state":"migrated"}` when the status the copy
+  belonged to was `migrated` without an error, otherwise `{"state":"failed"}`; a copy already marked
+  failed stays failed) and writes the new bytes to `legacy:`; `migration:` holds the latest status,
+  and retry, ack and `retry --replace` act on the latest `legacy:`. The status reports the number of
+  kept copies in `superseded_backups` (recomputed on read); `error` is present only on `failed`.
+  Retention from v0.8.0 deletes a superseded copy and its record when the record says `migrated`
+  (the same rule as a migrated `legacy:`); copies of `failed` or unrecorded conversions are kept
+  until the workspace or profile is purged. A re-upgrade whose extra keys would exceed the
+  client-state key quota per workspace (`MaxKeysPerWorkspace`, 512 by default) writes nothing (one atomic batch): the partition answers `ErrUnavailable`
+  (HTTP 503 `window_manager_unavailable`, diagnostic `snapshot_key_quota`) and boot skips it like a
+  version 7 partition. Stored `window_layout` profiles are
+  rewritten to document v6 at boot (`reconcileStoredWindowLayouts`). Lossy: undo/redo history, floating
+  rects, group frames, minimized and zoomed flags, return anchors, stack grouping (members become
+  adjacent tabs), pins on windows that land in a split tab. The user is told by `snapshot.migration`
+  (`state`, `summary`, `error`), the web upgrade notice (Dismiss acks for every client, Retry on
+  failure) and `layout migration status|ack|retry`. `config.toml`: retired keys load with any value, are
+  ignored and never written back by Settings; existing lines stay.
+- **Native tools** (public regime). No tool ID added, renamed or removed. `compozy__window_move`:
+  `placement` gains `tab`, new `target_tab_id`; `compozy__window_close`: `scope` gains `left`, `all`;
+  `compozy__layout_balance`: new `tab_id`, `group_id` is its deprecated alias; layout document inputs
+  accept `version` 4, 5, 6. Deprecated no-ops: `compozy__window_float`, `compozy__window_zoom`,
+  `compozy__window_resize`, `compozy__layout_frame_resize`; `compozy__window_group` places adjacent
+  tabs. Command IDs `window.tab.reorder` and `window.tab.activate` replace `window.stack.reorder` and
+  `window.stack.set_active` (kept as aliases). Results and previews gain the additive `deprecations[]`
+  (`code`, `surface`, `replacement`, `removal_release` `v0.8.0`, `message`); `changes` gains `tab_ids`,
+  `tab_split`, `tab_unsplit`. Topology results have no v5 projection (accepted break, ADR-004).
+- **CLI/HTTP/UDS** (public regime). New: `window reorder <window-id> --index`, `layout migration
+  status|ack|retry [--replace]`, `window move --tab` and `--placement tab` (now the default), `window
+  close --scope left|all`, `layout balance --tab`. Deprecated with a stderr warning, exit 0: `window
+  float|zoom|resize|group`, `layout frame-resize`, and the flags `--floating`, `--rect`, `--restore`,
+  `--minimize`, `--placement floating`, `--arrangement stack`, `--frame`, `--keep-frames`, and `--group`
+  on `layout arrange|balance`. `window.move` with an empty or missing `placement` (HTTP/UDS,
+  `compozy__window_move`) maps to `tab` and reports the deprecation `window.move.placement=empty`. New routes `GET` and `POST
+  /api/workspaces/{workspace_id}/window-manager/migration` (`WindowManagerMigrationRequest` →
+  `MigrationStatus`; `replace` is optional, used only by `retry`); ack and retry publish a `snapshot`
+  stream frame. The Web failure notice sends `replace: true` only after the operator confirms
+  "Replace current layout", offered when the snapshot revision differs from `failure_revision` (the
+  daemon's own rule) or a plain retry answers 409; `ack` never sends it. A failed status carries `failure_revision` (`omitempty`; the fallback snapshot is revision 0, so
+  a fresh failure omits it; cleared by a successful retry) and `error`,
+  whose `code` is the converter's topology diagnostic code or else `migration.conversion_failed`;
+  `error` is absent on every other state. New additive `superseded_backups` (integer, `minimum: 0`,
+  omitted at 0) on `MigrationStatus`, in OpenAPI, `sdk/go`, `sdk/client` and the `layout migration`
+  JSON output.
+  `window open` and its preview refuse an unregistered app id with `window_manager_invalid_command`
+  (HTTP 422, "unregistered window app") on HTTP, UDS, CLI and native tools, after the retired
+  `jobs`/`triggers` ids are translated to `automations`.
+  `desktop delete` needs no `--destination` when every tab of the desktop is a New tab placeholder;
+  the placeholders are dropped, not moved. Client view: `active_tab`
+  replaces `stack_active` (still sent, `{}`); `window_in_split` is new, `window_stacked` mirrors it,
+  `window_floating` is `false`. `PATCH /api/settings/window-manager` ignores `raise_on_focus`,
+  `drag_away_policy`, `group_move_modifier`, `snap`, `bindings` (deprecated in OpenAPI); `GET` returns
+  fixed `false`, `"window"`, `"none"`, zero `snap` with `repeat_ratios: []`, and `"none"` bindings.
+  Regenerated: OpenAPI, `sdk/go`, `sdk/client`, `sdk/typescript`, CLI docs, native-tool catalog.
+- **Extensibility and hooks** (public regime). New events `window_manager.tab.split`,
+  `window_manager.tab.unsplit`, `window_manager.tab.activated`, with payload types in the extension SDK
+  contract. `window_manager.stack.activated` fires together with `tab.activated`;
+  `window_manager.stack.grouped` and `window_manager.stack.ungrouped` stay valid, never fire, and warn
+  at load and in `compozy hooks list`. Extension `window_layouts` keep the v1 envelope; v4/v5 documents
+  convert at load. The example in `packages/site/content/docs/extensions/develop.mdx` is a v6 document.
+- **Config** (public regime). Retired `[window_manager]` keys, each warning once: `raise_on_focus`,
+  `drag_away_policy`, `group_move_modifier`, `snap.edge_band`, `snap.corner_reach`, `snap.exit_slack`,
+  `snap.repeat_ratios`, `bindings.top_center`, `bindings.bottom_center`; `new_window_policy =
+  "floating"` loads as `"tab"`; workspace and layout-document `overrides` take the same translation.
+  Retired shortcut IDs (bindings load, do nothing; defaults removed): `window.minimize`, `window.zoom`,
+  `window.toggle_floating`, `window.merge_all`, `window.tab.detach`,
+  `window.tile.top-left|top-right|bottom-left|bottom-right`. `window.tile.left|right|top|bottom` now
+  move the window to that edge of its tab. New unbound IDs: `window.unsplit`, `window.tab.move_left`,
+  `window.tab.move_right`.
+- **Command palette** (public regime). Retired palette command IDs keep resolving until v0.8.0 as
+  deprecated no-ops (`applied: false` with a `deprecations` entry; `compozy cmd-palette invoke`
+  reaches the daemon for them and also prints a `warning:` line) and are no longer listed: `window.minimize`, `window.zoom`,
+  `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`,
+  `layout.frame_resize`, `window.stack.group`.
+- **Workspace data isolation.** `snapshot:`, `legacy:`, `migration:` and the new
+  `superseded:<profileID>:<sha256 hex>` keys and their `:disposition` records are keyed per
+  workspace and profile, and
+  `purgeWindowManagerPartition` deletes all of them (workspace or profile removal). The active tab is per
+  client (`active_tab`), with `active_tab_id` as the shared default. The boot rewrite keeps each layout
+  profile's scope, owner and source.
+- **Web** (internal regime). `web/src/systems/os` renders v6: `os-tab-bar`, `os-tab`, `os-split-view`,
+  `os-window-pane`, drag and drop (`os-tab-drag-store`, `os-drop-zone`), seam resize, unsplit,
+  `os-upgrade-notice`, desktops overview cards with tab rows and in-place close, top-bar
+  `desktop-indicators` in place of `desktop-pager`. Window frames, decks, snap overlays, traffic lights,
+  the zoom menu and `react-rnd` are removed. The Settings layout editor edits desktops, tabs and splits
+  and drops the controls for retired keys. New `@compozy/ui` primitive `DeleteButton`
+  (`packages/ui/src/components/custom/delete-button.tsx`, story and test).
+- **Official skill.** `skills/compozy/references/window-management.md` is rewritten for tabs and splits
+  (model, CLI, tools, HTTP and stream, upgrade, recovery, config, hooks, retired surfaces);
+  `native-tools.md`, `configuration.md` and `desktop.md` follow the new model.
+- **Docs.** `packages/site/content/docs/workspaces/window-management.mdx` (rewritten, with the v0.6
+  upgrade and a "Retired in v0.7.0" table), `configuration/config-toml.mdx`, `configuration/shortcuts.mdx`,
+  `sessions/index.mdx`, `sessions/mentions.mdx`, `resources/index.mdx`, `hooks/event-catalog.mdx`
+  (new Window Manager Events family), `extensions/develop.mdx`, generated `cli/window/` (new `reorder.mdx`) and
+  `cli/layout/` (new `migration/`) pages; `COPY.md` §OS Shell Terms and `docs/_memory/glossary.md`
+  (Tab and Split replace Tiled group); release note `.release-notes/window-tabs-and-splits.md`
+  (`breaking`, with the migration block).
+- **Delete targets (v0.8.0, one shim generation).** `command_compatibility.go`,
+  `deprecated_surfaces.go`, `retired_shortcuts.go`, `config_compatibility.go` in
+  `internal/windowmanager`; retired fields in `internal/api/contract/windowmanager_command_payloads.go`;
+  the two alias command IDs; `group_ids`, `stack_grouped`, `stack_ungrouped`, `stack_active`,
+  `window_floating`, `window_stacked`; deprecated Settings fields in
+  `internal/api/core/settings_window_manager_payload.go`; the five deprecated tools with
+  `internal/daemon/native_tool_window_manager_deprecation.go`; deprecated verbs and flags with
+  `internal/cli/window_manager_deprecation.go`; `internal/config/retired_window_manager.go`; the
+  `stack.*` events in `internal/hooks/events_window_manager.go`;
+  `web/src/systems/settings/lib/window-manager-retired-shortcuts.ts`; `retiredConfigKeys` in
+  `web/src/systems/os/lib/window-manager-config-schema.ts`. `expireMigrationBackups`
+  (`internal/daemon/window_manager_migration_retention.go`) deletes `legacy:` of `migrated` workspaces
+  at the first v0.8.0 boot. Permanent: `snapshot_v3.go`, `snapshot_v4.go`, `snapshot_v5*.go`,
+  `layout_decode.go`.
+
+## Always-on context: operator rules, peer roster, provider MCP isolation — 2026-11-12
+
+Owner: small-work PR `feat/always-on-binding-context`. QA: `docs/qa/scenarios/RT-always-on-standing-context.md`
+and the 2026-11-12 impact note in `docs/qa/scenarios/RT-agent-memory-startup.md`.
+
+- **Native tools.** No new tool ID. `compozy__agent_memory_replace` and `compozy__agent_memory_remove`
+  refuse a change that would create, alter or delete an operator rule (`agent_memory_rule_protected`);
+  `compozy__agent_memory_add` still writes dated notes only. The same guard applies to HTTP/UDS/CLI memory
+  calls made with an agent session identity (403 `agent_memory_rule_protected`). `compozy__agent_instance_list` with
+  `peers: true` returns an additive `accepts` array per peer. Descriptions state the note/rule split.
+- **CLI/HTTP/UDS.** `compozy agent memory add --kind note|rule`. `AgentMemoryAddRequest.kind`
+  (`note` default, `rule`), `AgentInstancePeer.accepts` and `AgentPayload.accepts` are additive
+  (public regime, SD-013 ladder a). OpenAPI, the Go SDK and `@compozy/client` are regenerated.
+- **Extensibility and hooks.** AGENT.md gains the optional `accepts` key, valid for repository,
+  profile and extension agents; when absent the first fenced block under `## Input` is used. Frontmatter
+  decoding is strict, so a release before this one rejects a definition that uses the key: the
+  repository definitions keep the `## Input` block and do not use `accepts` yet. No hook change.
+- **Config.** No new key. Behavior change: an `always_on` agent with `lean_environment` unset now
+  launches Claude with `strictMcpConfig` and `ENABLE_CLAUDEAI_MCP_SERVERS=false` (auto-memory stays
+  on). `lean_environment: false` restores the operator's Claude MCP servers and connectors;
+  `true` is unchanged. Other providers and on-demand agents are unchanged.
+- **Prompt assembly.** New per-turn `standing` augmenter for always-on agents on every turn origin:
+  `<compozy-standing-context>` with operator rules and a 12-peer roster, bounded to 12,000
+  characters, stubbed to one line when unchanged and sent in full after a completed provider
+  compaction. The startup `<compozy-agent-memory>` snapshot now carries notes only.
+- **Workspace data isolation.** The roster reuses `AgentInstanceAPI.PeersPage` with the session as
+  actor: instance authority plus the read-only `workspaceaccess` catalog check per row, profile
+  scoped. A session without an instance gets no roster. The read is cached per session until the
+  agent catalog revision changes or 30 seconds pass. Memory identity is unchanged.
+- **User state.** No schema or migration. `MEMORY.md` keeps its shape: a rule is a line starting
+  `- [rule] `, every existing line stays a note, and nothing is rewritten on load. Rules are never
+  archived by overflow.
+- **Web.** The agent Memory editor shows rules apart from notes, can switch a line between note and
+  rule, and filters by rules.
+- **Official skill.** `skills/compozy/references/agent-memory.md`, `agent-definitions.md` and
+  `runtime-operations.md` describe rules, input forms, the standing context and the isolation default.
+- **Docs.** `packages/site/content/docs/agents/{definitions,providers}.mdx` and the generated
+  `cli/agent/memory/add.mdx`.
+
+## Runtime selector hover names and chip rail paging — 2026-11-11
+
+Owner: small-work PR `run/polish-runtime-selector-rail-and-model-name-tooltips-c4b3757d`. QA:
+`docs/qa/scenarios/ET-web-runtime-selector-minimal-slider.md` (2026-11-11 impact note).
+
+- Web only (`web/src/systems/runtime/`), internal regime (SD-013): model rows reveal the full model
+  name and the OpenCode upstream provider label through the shared `@compozy/ui` tooltip; the
+  trigger is pointer-only, so the listbox keeps its combobox/activedescendant focus model. Provider
+  chips move from a 24px to a 28px target inside the unchanged 32px line; the native rail scrollbar
+  is replaced by edge fades and pointer-only paging chevrons. `@compozy/ui` primitives are consumed
+  unchanged — no new primitive.
+- No native tool, CLI, HTTP/UDS route or DTO, hook, extension SDK, config key, SQLite schema, or
+  migration changes. Provider enable/disable semantics and list filtering are untouched.
+- Workspace data isolation: unaffected (presentation only). Official skill `skills/compozy/`: no
+  change. Docs: no public documentation change; the QA scenario carries the impact flag.
+
+## OpenTelemetry trace and metric export (#1361) — 2026-11-10
+
+Owner: spec `.compozy/tasks/otel-telemetry-export/` (GitHub #1361), integration branch
+`feat/otel-telemetry-export`. Slice tasks cite this entry.
+Additive on every public surface and user state (SD-013 public regime, additive; no delete
+targets, no shim).
+
+- **Native tools.** No new tool. `compozy__config_set` refuses every `observability.otel.*` key
+  with `config_trust_root_forbidden` (`observability` is a trust root; operator-only through
+  `compozy config set`/`config edit`). `compozy__config_get` reads the keys; header values read
+  as `[REDACTED]` (agent-facing output masks every `env:`/`vault:` ref) and `OTEL_*` values never
+  appear. `compozy__observe_metrics` unchanged.
+- **CLI/HTTP/UDS.** `compozy config set` accepts the scalar `observability.otel.*` keys (`headers`
+  is file-edited). `compozy status` gains the Runtime `OTel:` line; `GET /api/status` (HTTP/UDS)
+  and `status --json` gain optional `otel` (state, protocol, endpoint host, sample ratio,
+  forwarding flag, per-signal health with fixed error classes, dropped spans). OpenAPI, TS and Go
+  clients regenerated. Every route accepts W3C `traceparent`; invalid values and `tracestate` are
+  ignored.
+- **Extensibility and hooks.** Hook dispatch is traced (`hook.dispatch`); no new hook events.
+  Extensions, SDK helpers, manifests, and MCP sidecars are unaffected and get no telemetry API.
+- **Config.** Additive `[observability.otel]` (`enabled=false`, `protocol`, `endpoint`, `traces`,
+  `metrics`, `sample_ratio`, `metric_interval`, `service_name`, `slow_db_write_ms`,
+  `forward_to_providers`) and `[observability.otel.headers]` (`env:` / `vault:observability/`
+  refs only). All `restart-required` (existing `observability.*` lifecycle row) and global-only:
+  workspace files fail to load, workspace-scope writes are rejected, profile overlays deny
+  `observability`. Standard `OTEL_*` variables fill unset values only, from the process environment
+  only (never a workspace `.env`), in both daemon boot and config inspection (`config get`, settings
+  reload diff); they are validated only while export can run (parent `observability.enabled`,
+  `otel.enabled`, and at least one signal).
+- **Repository infra.** New `infra/observability/` Compose stack (OTel Collector, Tempo, Loki,
+  Prometheus, Grafana with a provisioned daemon dashboard), classified `meta` by `scripts/gate.sh` and
+  `scripts/ci-changes.sh`; not shipped in releases.
+- **Workspace data isolation.** Exports carry owner IDs (session, turn, run, workspace, profile,
+  loop, automation) and registered names only, through a sanitizing exporter that omits or
+  replaces anything outside the registries (`other`, `custom`, `compozy.unknown`, `invalid`).
+  Never prompt/response text, tool arguments or results, file contents, paths, environment or
+  header values, secrets, or error text. Export is daemon-wide to one operator-chosen collector;
+  no per-workspace routing. Provider forwarding (`forward_to_providers`, off by default) is outside
+  this guarantee: provider processes get the OTLP environment, including resolved header values,
+  and decide what they export.
+- **Runtime behavior.** Off by default; with export off no providers or connections exist. Export
+  failures never fail a command; they surface as `degraded` status.
+- **Web and desktop.** No UI. The web API client and desktop health fetcher send an unsampled
+  `traceparent` to the daemon origin only.
+- **Docs and official skill.** `configuration/config-toml.mdx` (`[observability.otel]`,
+  `[observability.otel.headers]`, env precedence), new `operations/telemetry-export.mdx` ("Export
+  traces and metrics": Compose golden path, status, header secrets, exported catalog,
+  troubleshooting by error class); `skills/compozy/references/configuration.md` "OpenTelemetry
+  Export", including provider forwarding and measured overhead.
+
+## Native Tool Result Views — issue #1432 — 2026-11-10
+
+Owner: `.compozy/tasks/native-tool-result-views/`, S10 closure and M1 integration. ADR-002 records the
+operator-approved hard cut for public default results (SD-013 regime 2). ADR-004
+approves removal of hosted native output schemas in the same breaking release.
+
+- **Native tools / CLI / HTTP / UDS:** 99 native tools adopt compact/full; 189 retain a
+  single result. Tool descriptors expose both contracts and digests. Invocation takes
+  `result_view` inside input; HTTP/UDS session DTOs and `compozy session` stay unchanged.
+- **Hooks / extensibility:** tool references add `has_result_views` and, when pinned,
+  `pinned_result_view`; `tool.post_call` adds `result_view`. Pre-call input patches can
+  select a view but cannot override Loop pins. Extension/MCP-backed tools keep their
+  own inputs. Per ADR-004 (S12), managed-session MCP advertises no native output schemas;
+  external MCP and extension output contracts remain unchanged;
+  input selectors, structured results, text, continuations and typed errors are unchanged.
+  Contracts remain discoverable through tool info and HTTP/UDS descriptors;
+  `compozy mcp serve` keeps its separate Host API projection.
+- **M1 bounded reads:** search keeps continuation metadata in compact/full, worktree
+  filtering and workspace registration/profile ownership apply before projection. History
+  tools stay single-result pages. Current-main pre-selector input digests translate to full;
+  pre-bounds pins retain the `action_contract_stale` behavior approved in
+  `docs/release/native-read-defaults.md`. No new superseded-digest exception is introduced.
+- **Config / automation:** no new key or default override. Job/Trigger/LoopTarget
+  definitions start sessions, Tasks or Loops; mappings consume event inputs, not native
+  result fields. No automation storage migration is needed.
+- **User state / workspace isolation:** no SQLite or config shape changes. Existing
+  scope authorization and artifact ownership apply to both views. Pre-view Loop pins
+  translate to full for one release; #1462 removes translation next release. Definitions
+  reading moved fields require a literal full selector before Start.
+- **Official skill / bundled consumers:** native-tools, tools-and-skills and loops
+  references explain selection and migration. Consumer audit evidence is in the S10 QA
+  report and PR inventory. Requested content tools remain whole.
+- **Web / Docs:** generic transcript rendering and required parser fields remain;
+  no new UI. Site tools, hooks, Loop grammar/DSL and migration pages co-ship. QA:
+  ET-native-result-views, ET-cli-tool-invoke-structural-handles, RT-session-spawn-wake.
+
+## Provider interactive tools through ACP elicitation — 2026-11-10
+
+Owner: small-work PR `feat/interactive-tools-support`. Regimes (SD-013): the touched
+packages (`internal/acp`, `internal/session`, `internal/daemon`) are internal code and change
+together; no user state, config key, CLI verb/flag, route, or DTO shape moves. The new
+`clientCapabilities.elicitation.form` is an ACP client capability sent to providers, not a
+Compozy public surface.
+
+- **Native tools.** Unaffected. `compozy__clarify` keeps its descriptor, toolset, digest, and
+  answer surface; provider elicitation reuses its broker.
+- **CLI/HTTP/UDS.** Unaffected. Questions reach the operator through the existing
+  `/clarifications` and `/pending-interactions` routes and `compozy session clarify` verbs.
+- **Extensibility and hooks.** Unaffected. No hook, manifest, extension SDK, skill, or MCP
+  sidecar change. Elicitation does not dispatch a permission hook, before or after.
+- **Config.** Unaffected. `permissions.mode` still governs `session/request_permission` only;
+  `tools.clarify.timeout` still owns the broker wait, while the ACP wait is the session's
+  operator wait (5 minutes by default).
+- **Persisted user state.** Unaffected shape. Provider questions become ordinary
+  `clarify` pending interactions that already exist; no migration.
+- **Workspace isolation.** Preserved. The asker scopes each question with the session's
+  workspace, profile, session id, and agent name, so the existing ownership checks apply.
+- **Official skill.** `skills/compozy/` needs no edit: it documents the clarification channel
+  the provider path now reuses.
+- **Web / Docs.** No Web change; the existing clarification dock renders provider questions.
+  New research note `docs/research/interactive-tools.md`.
+- **QA.** `docs/qa/scenarios/RT-session-clarification-roundtrip.md` records the provider
+  elicitation path; the live cross-provider walk stays outstanding, automated coverage is
+  cited there.
+
+## compozy.com redesign on the v1.2 brand — landing, download, marketplace, changelog, blog, docs shell and SDK Reference — 2026-11-10
+
+
+Owner: spec `.compozy/tasks/site-redesign/` (integration branch `feat/brand-identity-v1-2`, slices
+S1–S10). Site-only change in `packages/site`: no Go, wire, config or SQLite change. Regimes
+(SD-013): the site's components, styles, tokens and `DESIGN.md` are internal code (replaced
+together, deleted without aliases); public site routes keep their paths, and `/docs/sdk/**` is
+additive.
+
+- **Native tools.** Unaffected. No `compozy__*` tool, descriptor, catalog or digest changes.
+- **CLI/HTTP/UDS.** Unaffected. No verb, flag, route or DTO changes. The CLI and API reference
+  pages are still generated from the Cobra sources and `openapi/compozy.json`; only their page
+  template changed.
+- **Extensibility and hooks.** Unaffected. No hook, manifest, extension SDK, skill or MCP
+  surface changes. The public marketplace reads the checked-in plugin snapshot
+  (`packages/site/lib/marketplace-plugins.snapshot.json`, refreshed by hand with
+  `bun run generate:marketplace-plugins` from the preset marketplaces in
+  `catalog/v3/marketplaces.json`) plus the v3 extension feed; builds stay offline.
+- **Config.** Unaffected. No `config.toml` key changes.
+- **Persisted user state.** Unaffected. The SDK language choice is a compozy.com visitor
+  preference kept in the browser; nothing is written for the daemon or the desktop app.
+- **Workspace isolation.** Not applicable. Static site pages; no data path, scope or
+  authorization change.
+- **Official skill.** `skills/compozy/` is not affected: the docs URLs it links keep their paths.
+- **Web / Docs.**
+  - New pages from the approved drafts in `web/src/drafts/`: landing on live star, release and
+    provider counts; `/download` on the latest release; `/marketplace` browse and detail;
+    `/changelog` timeline and release pages (feeds unchanged); `/blog` front page and posts with
+    new covers; shared floating header, one-line footer, 404 and OG images (the home image's
+    footer rail now reads "KEEP EVERY AGENT RUNNING").
+  - New docs shell replaces the Fumadocs notebook chrome: section tabs, per-section sidebar,
+    masthead and page actions, "On this page", pager, ⌘K search palette and mobile drawer.
+    Fumadocs still loads the source, MDX, search index, OpenAPI and `llms` output.
+  - New `/docs/sdk` section generated by `generate:sdk` from `openapi/compozy.json`,
+    `openapi/sdk-samples.json` and the client sources, with a TypeScript/Go switch; it is in
+    the sidebar, search, `llms.txt` and per-page Markdown.
+  - Old-design components, images, CSS rules and unused site tokens were deleted;
+    `DESIGN.md` and `packages/ui/src/lib/font-size-classes.generated.ts` regenerated.
+  - Affected QA scenarios: new `ET-site-landing`, `ET-site-download`, `ET-site-changelog`,
+    `ET-site-blog`, `ET-site-docs-shell`, `ET-site-docs-reference-pages`,
+    `ET-site-docs-sdk-reference`, `ET-site-404-og-feeds-llms`; updated
+    `ET-site-marketplace-catalog`, `ET-site-docs-api-reference-ui`,
+    `ET-site-docs-sidebar-opendesign`, `ET-site-docs-masthead-opendesign`,
+    `ET-site-docs-typography-opendesign`, `ET-site-docs-search-context`, `REL-os-landing-proof`.
+
+## Brand identity v1.2 — tokens, fonts, logo, icons and `packages/brand` — 2026-11-08
+
+Owner: spec `.compozy/tasks/brand-site/` (integration branch `feat/brand-identity-v1-2`, slices
+S1–S8). Presentation-only change: no Go, wire, config or SQLite change. Regimes (SD-013): tokens,
+`DESIGN.md`, `@compozy/ui`, `web/` and `packages/brand` are internal code (consumers renamed
+together, no aliases); user state and public surfaces are unchanged.
+
+- **Native tools.** Unaffected. No `compozy__*` tool, descriptor, catalog or digest changes; the
+  change lives in CSS tokens, fonts and static assets.
+- **CLI/HTTP/UDS.** Unaffected. No verb, flag, route or DTO changes.
+- **Extensibility and hooks.** Unaffected. Extension views that read `--color-brand` keep the
+  variable name and now get volt instead of orange; no hook, manifest, skill or MCP surface
+  changes.
+- **Config.** No `config.toml` key changes. An explicit Appearance font choice (for example
+  `JetBrains Mono Variable`, System) keeps winning; only the built-in default becomes Figtree. A
+  hand-written `ui_font = "Inter"` keeps working only where Inter is installed locally (business
+  rule 7, accepted).
+- **Persisted user state.** Unchanged and lossless: Appearance font choice, workspace/profile
+  colours and the identity palette are not touched.
+- **Workspace isolation.** Not applicable. Build-time styling and static assets only; no data
+  path, scope or authorization change.
+- **Official skill.** `skills/compozy/` is not affected: it names no colour, font or logo.
+- **Web / Docs.**
+  - Re-skin through `@compozy/ui` tokens only (business rule 9): brand is volt `#2F5BFF`
+    (light `#2448E6`), text on brand uses `brand-strong`, needs-you is amber `--color-attn`
+    (no longer an alias of brand), blacks are neutral, sans default is Figtree, display is
+    Instrument Sans, mono is Geist Mono.
+  - `DESIGN.md` regenerated by `scripts/sync-design-md.mjs` (`make codegen`).
+  - New Logo lettering/symbol in `@compozy/ui`; new favicons, PWA icons and manifests in `web/public`
+    and `packages/site/public`; desktop icon and tray templates in `desktop/build`; site OG
+    templates, fonts and tokens; launch-video brand constants; README lockup.
+  - New workspace `packages/brand` (TanStack Start brand manual, port 4620) with its own turbo
+    build task and `scripts/ci-changes.sh` lane. Hi-res and export assets stay outside git in
+    `~/Dev/compozy/_rebranding`.
+  - `COPY.md` positioning moves to "The autonomous control plane for your agents"; the
+    `packages/site` landing copy still carries the retired headline until the site redesign.
+  - Retired built-in identity is guarded by the retired-identity scan (`_tests.md` UT-012).
+  - Affected QA scenarios: `APP-brand-channel-visibility`, `APP-theme-native-no-flash`,
+    `ET-compozy-public-brand-navigation`, `ET-web-light-theme-readability`,
+    `ET-web-theme-system-follows-os`, `ET-web-theme-toggle-persists`.
+
+## Check-in tools and auto-accepted actions — 2026-11-08
+
+Owner: spec `.compozy/tasks/always-on-check-in-tools/` (GitHub #1357), integration branch
+`feat/always-on-check-in-tools` (S1 tools/audit/authority, S2 actions/picks, S3 Web, F1 review
+fixes, S4 docs/QA). Additive on every public surface and user state (SD-013). Internal hard cut:
+`TriageReadOnly`, the triage MCP stripping and the read-only triage prompt sentence are deleted.
+Supersedes the read-only triage clause of always-on ADR-004.
+
+- **Native tools.** Check-in sessions reach the agent's native tools and MCP servers through the
+  hosted gateway, bounded by the instance's current main session: reads always; writes only from
+  the approved `check_ins.allow_writes`, only if the main session would not ask, and for native
+  tools only from the closed writable set `{compozy__notify}`. `compozy__clarify` and every
+  interaction tool are always denied; with no main session every call is denied
+  `check_in_no_main_session`. `compozy__agent_instance_check_ins` gains `occurrence_id`,
+  `tools_status`, `tool_calls`; `compozy__agent_instance_reports` gains `picks`, `tool_calls`
+  counts, `occurrence_id`, proposal `action` and `auto_accept_status`
+  (`picked|limit|queue_full|unapproved|no_main|none`); `compozy__agent_instance_get` gains
+  `authority_status`; `compozy__tool_info`/`tool_list` gain `access`. No native pick or
+  authority-approve tool.
+- **CLI/HTTP/UDS.** New `compozy agent instance pick` (1-based), `POST
+  /api/agent-instances/{id}/reports/{report_id}/pick` (0-based), UDS `agent.instance.report.pick`
+  (operator-only, `proposal_pick_operator_only`). New `compozy agent heartbeat authority
+  show|approve|revoke`, `POST|DELETE /api/agents/:name/heartbeat/authority/approve`, UDS
+  `agent.heartbeat.authority.approve|revoke` (operator-only). `PUT …/heartbeat` accepts
+  `approve_authority_sha256`; `heartbeat write` shows the block and asks
+  (`--approve-authority --yes`). `instance check-ins --occurrence`, `instance reports` (pick state,
+  auto-accept status, tool summary) and `heartbeat validate` gain fields and diagnostics.
+- **Extensibility and hooks.** New observe-only hook `agent.instance.proposal.picked`.
+  `tool.pre_call`/`tool.post_call` fire for check-in calls; policy re-evaluates after `pre_call`.
+  Extension-shipped agents may declare `check_ins`/`actions` (authority starts unapproved); their
+  MCP `read_only_tools` is ignored (`mcp_read_only_override_untrusted`). Provide surfaces and SDK
+  helpers unchanged; generated TS/Go clients regenerated.
+- **Config.** `[agents.always_on]` `check_in_tools` (`enabled|disabled`), `check_in_max_tool_calls`
+  (25, 1–100), `check_in_max_write_calls` (5, 0–50), `auto_accept_per_day` (20, 0–200),
+  `check_in_audit_retention` (`720h`). MCP server declarations gain `read_only_tools`.
+- **Workspace data isolation.** The check-in ceiling is the instance's main-session ceiling
+  (workspace reach, MCP source grants, permission policy). Audit and pick rows are per instance;
+  picks go only to the main session fixed at insert. Authority approvals are per
+  (profile, definition directory).
+- **User state.** `HEARTBEAT.md` `check_ins` and `actions` (additive; absent = reads only, no
+  writes, no auto-accept; older daemons reject them on downgrade). Authority digest covers
+  `allow_writes`, caps, every action (`id`, `title`, `instructions`, `auto_accept`) and the MCP
+  `read_only_tools` overrides; unapproved = ignored whole. Migration `00198`: tables
+  `agent_instance_check_tool_calls`, `agent_instance_proposal_picks`,
+  `heartbeat_authority_approvals`; `agent_instance_reports` rebuilt losslessly for kind
+  `activity`. Report payloads store `picks_tracked` and per-proposal `auto_accept_skip`, recorded
+  at publication. Picks reuse `session_input_queue`. No file rewritten on upgrade.
+- **Runtime behavior.** Every check-in that reaches the model may call read tools; empty or
+  unchanged digests still make no model call. `destructiveHint: true` MCP tools become writes in
+  every session (release note). A check-in that wrote always reports (`activity`). Auto picks are
+  synthetic turns; pause/archive cancels queued auto picks.
+- **Web.** Server pick, auto-accepted chip and waiting reasons, tool-call line and list, activity
+  report, check-ins history tools badge, editor "What it can change" and "Actions", authority
+  notice, Approve and save-confirm. No new page.
+- **Docs and official skill.** `agents/heartbeat.mdx` (tools, authority, Linear snippet, actions,
+  picks), `configuration/config-toml.mdx`, generated CLI reference;
+  `skills/compozy/references/{agent-definitions,configuration,native-tools}.md`; glossary
+  "check-in", "check-in authority", "check-in action", "auto-accept", "pick"; `COPY.md` check-in
+  tools and picks terms.
+- **QA.** `MS-always-on-check-in-sources.md` §8 (tools and actions), `MS-web-stays-on-reports.md`
+  (picks, tool calls, activity). Both pending the integrated walk.
+
+## Marketplace plugin catalog — category browse, one-step Add, plugin compatibility
+
+Owner: spec `.compozy/tasks/marketplace-plugin-catalog/` (slices S1–S9), integration branch
+`feat/marketplace-plugin-catalog`. Slices link here; S8 wrote this entry.
+
+- **Native tools.** New read-only `compozy__marketplace_categories` (marketplace toolset, same app
+  access as search). Additive optional args: `compozy__marketplace_search {category}`,
+  `compozy__extensions_install {enable}`; install output gains optional `enable_error`. Setup state
+  stays on `compozy__extensions_info` and `compozy__mcp_auth_status`.
+- **CLI/HTTP/UDS.** Additive: `compozy marketplace categories`, `marketplace search --category`
+  (unknown id exits 2, `marketplace_category_unknown`), `extension install --enable`;
+  `GET /api/marketplace?category=`, new `GET /api/marketplace/sections`, `POST /api/extensions`
+  `enable` (enable failure → `201` with `enable_error`, install kept). Listing DTOs gain `category`,
+  `category_label`, `featured`; list gains `categories` counts. OpenAPI, TS and Go clients
+  regenerated. No public delete targets (SD-013: additive, no shim).
+- **Extensibility/hooks/config.** `marketplace.json` accepts `url` and `git-subdir` sources and the
+  Codex index `.agents/plugins/marketplace.json`; `x-compozy {category, featured, supersedes}` is
+  honored only for curated sources. Client plugins load root `mcp.json`/`.mcp.json`, vendor
+  placeholder aliases, tolerant server fields (`client_field_ignored`), `${NAME}` derived inputs
+  (`client_placeholder_invalid`) and `auth` → OAuth. Unreadable source shapes keep the existing
+  `unsupported_source` code (the spec's `marketplace_plugin_source_unsupported` was not introduced);
+  missing required values keep `extension_inputs_required`. No hooks added; plugin hooks/commands
+  stay ignored. No new config keys; the `compozy-plugins` preset (default on) is preset data and an
+  existing disabled state is preserved.
+- **User state.** No SQLite migration: category/featured/supersedes live in the refreshable catalog
+  payload; old rows resolve their category on read.
+- **Workspace data isolation.** Sections and category reads use the existing list scope, workspace
+  and profile resolution; install-with-enable uses the existing scoped install and per-extension
+  operation lock. Derived secrets go to the scoped vault, never to catalog payloads or logs.
+- **Web.** Browse home by category (Featured + sections with View all), new
+  `/marketplace/categories/<id>` route and window location, one-step Add with Set up / Ready /
+  Turn on / Couldn't turn on + Retry, detail "From {source}" and `?setup=1`. Source-grouped sections
+  deleted (internal hard cut).
+- **Docs and official skill.** `packages/site/content/docs/marketplace/{index,sources}.mdx`;
+  `skills/compozy/references/extensions.md` (Marketplace categories and Add, client compatibility);
+  `COPY.md` Marketplace Terms; glossary "Marketplace category".
+- **QA.** `docs/qa/scenarios/ET-web-marketplace-landing-browse.md`,
+  `ET-web-marketplace-search-fanout.md`, `ET-cli-marketplace-search.md`,
+  `ET-agent-plugin-marketplace-install.md`, `ET-agent-plugin-source-install.md`; integrated walk
+  E2E-004 in S8.
+
+## Project file explorer, file viewer, and session Changes — 2026-11-07
+
+Owner: spec `.compozy/tasks/file-explorer/` (integration branch `feat/file-explorer`). Additive across
+every public surface (SD-013); no delete targets in the public or user-state regimes. Slice evidence:
+`docs/qa/reports/2026-11-07-file-explorer-s1.md`…`-s9.md`; integrated walk
+`docs/qa/reports/2026-11-07-file-explorer-integration.md`.
+
+- **HTTP / UDS / SDK:** twelve new `GET` operations, all `AppAccessAllowed` with profile read scope:
+  files `listFileEntries`, `readFileContent`, `listSessionFileEntries`, `readSessionFileContent`;
+  search `findFiles`, `findSessionFiles`, `searchFileContents`, `searchSessionFileContents`; changes
+  `getSessionChanges`, `getSessionChangePatches`, `getSessionChangeContents`,
+  `listSessionChangeBases`. Workspace forms take optional `worktree_id`; session forms resolve the
+  bound worktree, else the project root, never the resumed CWD. OpenAPI and the TS/Go SDKs
+  regenerated; the existing `searchSessionFiles` (composer) is unchanged. Every response `root`
+  carries the public registry `workspace_id` (`ws_…`), never the project's internal identity
+  (fixed during the integrated walk, BUG-20261107-files-root-internal-workspace-id).
+- **Native tools / CLI:** new `compozy__session_changes` (toolset `compozy__sessions`, `RiskRead`;
+  `session_id`, `workspace`, `scope`, `base`, `patch_paths` ≤ 20, `reveal`) and
+  `compozy session changes <session-id>` (`--scope`, `--base`, repeatable `--patch`, `--reveal`;
+  domain failures exit 1 with their code). No file list/read/search tools or file CLI verbs (Q6, Q12).
+- **Extensibility / hooks / config:** no hook, manifest, extension protocol, or `config.toml` key
+  change. `[desktop] editor_command` keeps its meaning and is the "Configured editor" Open in target.
+  The desktop product bridge gains `files.listOpenTargets` and `files.openWith` (fixed built-in
+  catalog: VS Code, Cursor, Zed, Sublime Text, IntelliJ IDEA, WebStorm, GoLand, Xcode, plus
+  Finder/File manager reveal via `showItemInFolder`; login-shell PATH detection; `shell:false`;
+  main-frame only). The native confirmation now also covers in-root credential files.
+- **User state / workspace isolation:** no SQLite or migration. Reads are confined to registered
+  project and worktree roots (realpath plus open-time containment); responses carry no absolute
+  paths and `.git` is never served. Every git call runs through one read-only policy (fsmonitor,
+  hooks, filter drivers, textconv, external diff neutralized; subtree-confined for repository
+  subdirectories). Sensitive basenames and in-root symlinks to them need explicit `reveal=true`;
+  app tokens get `403 reveal_forbidden` (Q13). User-scope sessions have no root
+  (`409 root_unavailable`); out-of-scope profiles see `404`. Client-only keys:
+  `compozy:session:review-panel:v1`, `compozy:files:v1:<workspace_id>`, `compozy:files:search:v1`,
+  and `compozy.open-target` (remembered Open in target, default `configured`).
+- **Web:** session Review panel (Changes · Files) beside the Inspector; `files` OS app (dock after
+  Agents, palette "Open project files", project context menu "Open files"); transcript paths open
+  the viewer on a plain click on every client, the hover "Open in editor" button is retired, and
+  desktop Cmd/Ctrl-click opens the remembered target. Turn "Changed files" rows link to Changes; the
+  PR chip gains "Review changes". The explorer gains Go to file (Cmd/Ctrl+P), a Search pane
+  (Cmd/Ctrl+Shift+F, `git grep` with a walk fallback), and Find in file (Cmd/Ctrl+F), all scoped to
+  the explorer with no window-manager chord changes. New `@compozy/ui` primitives `FileTree`,
+  `CodeViewer`, `DiffViewer` (Pierre, exact pins). New Go deps: `github.com/junegunn/fzf`
+  (`src/algo`, `src/util` only), `github.com/charlievieth/fastwalk`, `github.com/bluekeyes/go-gitdiff`.
+- **Window manager / palette (internal):** the `files` app ID joins the daemon app inventory
+  (`internal/cmdpalette/corecmds`, palette `app.open.files`); `internal/windowmanager` removes a
+  project's Files window when the project is unregistered.
+- **Official skill / Docs / QA:** `skills/compozy/references/native-tools.md` (Session changes),
+  `runtime-operations.md` (`session changes` CLI), `desktop.md` (viewer-first links, Open in targets,
+  remembered modifier-click target), `worktrees.md` (reviewing a worktree's changes), and
+  `app-sdk.md` (file/changes routes, `reveal_forbidden`). Site: new `files/` category ("Files and
+  changes": `index`, `tutorial`, `review-panel`, `file-viewer`, `search`, `files-app`, `open-in`),
+  `use-cases/review-a-change.mdx`, `sessions/index.mdx`, and
+  `configuration/config-toml.mdx`; generated CLI page `cli/session/changes.mdx`. QA: updated
+  `APP-open-transcript-paths-in-editor`; new `ET-session-review-files`, `ET-session-review-changes`,
+  `ET-files-app`, `APP-open-in-targets`, `ET-files-search`.
+
+## File viewer previews and raw file bytes — 2026-11-13
+
+Owner: issue #1605 (branch `feat/files-preview`). Additive (SD-013); no delete targets.
+
+- **HTTP / UDS / SDK:** three stable `GET` operations, `AppAccessAllowed` with profile read scope:
+  `readFileBytes` (`/api/workspaces/{workspace_id}/files/raw/{path}`), `readWorktreeFileBytes`
+  (`.../worktrees/{worktree_id}/files/raw/{path}`, worktree in the path so relative assets resolve),
+  and `readSessionFileBytes` (`.../sessions/{session_id}/files/raw/{path}`). `Range`/`If-Range`/
+  `If-None-Match` via `http.ServeContent`; extension-only `Content-Type` allowlist (html/js/xml are
+  `application/octet-stream` + `attachment`), `nosniff`, `sandbox` CSP, CORP `same-origin`,
+  `private, no-cache`, weak ETag. Sensitive files always `403 sensitive_file` (no reveal). HTTP only:
+  `Sec-Fetch-Site: cross-site|same-site` without an app token is `403`. OpenAPI and TS/Go SDKs
+  regenerated. The production web CSP is unchanged.
+- **Native tools / CLI / extensibility / hooks / config:** none.
+- **User state / workspace isolation:** no SQLite or migration. Streams reuse the reader's
+  confinement (`projectfiles.FileReader.Open` shares `Read`'s realpath, `os.Root`, regular-file, and
+  open-time identity checks); worktree and session roots resolve exactly as the content routes do.
+- **Web / Docs / skill:** Files viewer Source/Preview/Split (frontend half of #1605);
+  `packages/site/content/docs/files/{file-viewer,files-app}.mdx`; `skills/compozy/references/app-sdk.md`.
+
+## Oversized invoked skills deferred to `compozy__skill_view`
+
+Owner: `fix/oversized-skill-deferred-delivery`. QA:
+`docs/qa/scenarios/ET-session-slash-commands-inline.md` (2026-11-06 impact and verdict).
+
+- An invoked skill body above `MaxSkillBytes` (24,000), or one that no longer fits the remaining
+  `MaxInvokedSkillBytes` (64,000) turn budget, is no longer a dispatch failure (`invoked skill
+  context too large`, reported as an indeterminate prompt dispatch). Its `<skill>` entry keeps the
+  source-qualified identity and carries `<deferred-instructions command_id bytes>` directing the
+  agent to `compozy__skill_view` with the same `command_id`. Skills that fit stay inlined in order.
+- Native tools, CLI verbs/output, HTTP/UDS routes and DTOs, hooks, extension SDKs, config keys and
+  SQLite are unchanged; only the agent-facing turn text changes. `command.ErrSkillContextTooLarge`
+  was internal and is deleted (internal regime). Workspace data isolation: the deferred read goes
+  through the existing session-bound, source-fenced `command_id` path.
+- Official skill `skills/compozy/`: `references/tools-and-skills.md` documents deferred delivery.
+  Web/Docs: no change; the site never documented the limit.
+
+## Disable providers you don't use — issue #1326
+
+Owner: `feat/disable-providers` (spec `.compozy/tasks/provider-enable-toggle/`). QA: new
+`docs/qa/scenarios/RT-provider-enable-toggle.md` plus the provider settings, runtime selector and
+usage scenarios updated by the spec's QA task.
+
+- Config (SD-013 additive, no migration): optional `providers.<id>.enabled` (default `true`),
+  global and profile layers only; workspace and workspace-profile overlays are rejected at load and
+  write. Disabling the effective `defaults.provider` is rejected
+  (`provider_default_disable_rejected`). Lifecycle `providers.*.enabled` is Live.
+- New diagnostic codes `provider_disabled` and `provider_default_disable_rejected`
+  (CategoryProvider). Starts, resumes, runtime changes, spawns and loop/goal runs on a disabled
+  provider fail with `provider_disabled` (409); running sessions continue.
+- Fallbacks and roles: agent fallback chains and role fallbacks skip disabled routes
+  (`fallback.route_skipped`, `reason=provider_disabled`); a role with a disabled primary uses its
+  first enabled fallback, and a role with no enabled route reports `provider_disabled` (resolution
+  error and role status diagnostic).
+- Native tools: `compozy__config_set`/`compozy__config_get` accept the bool path; selection tools
+  (`compozy__provider_models_list`, `compozy__subagent_capabilities`) omit disabled providers;
+  session create/spawn and loop/goal starts return `provider_disabled`. No tool ID changes.
+- HTTP/UDS (additive): `enabled` on provider inventory (reported for the selected profile) and
+  settings payloads; new
+  `PATCH /api/settings/providers/{name}/enabled`; workspace provider options and model catalog
+  routes omit disabled providers. CLI `provider list` gains an `ENABLED` column / `enabled` field;
+  `config set` output gains additive `warnings`.
+- Hooks, extension SDKs and manifests: unchanged; extension model catalog sources are filtered at
+  read time. Gateway providers are a separate concept and untouched. Workspace data isolation:
+  unaffected (the key is not workspace-scoped).
+- Web: Settings → Providers switch, Disabled group and filter; pickers and usage surfaces drop
+  disabled providers. Docs: config reference and provider docs; official skill `skills/compozy/`
+  `references/configuration.md` documents the key.
+
+## Usage backoff, one collection per account, sign-in after restart — issue #1302
+
+Owner: `fix/usage-backoff-signin-boot`. QA: `docs/qa/scenarios/ET-provider-usage-surfaces.md`,
+`docs/qa/scenarios/MS-web-provider-auth-gate.md`; run report
+`docs/qa/reports/2026-11-05-usage-backoff-signin-boot.md`.
+
+- Provider usage DTOs, routes, native tools (`compozy__provider_usage_*`), config keys and the
+  stream are unchanged; only values change. A `429` cools the account down for at least 5 minutes
+  and backs off 5→10→20→40→60 minutes per credential identity until a success. Profiles that target
+  the same account share one collection. State is in memory only; no SQLite change.
+- After boot the daemon probes each installed `native_cli` provider's `auth_status_command` once
+  (two at a time) and records verdicts through `AuthVerdicts.Record`; `GET /api/providers`,
+  `compozy provider list` and Settings read them. No route, DTO, or verdict fingerprint change.
+- Public CLI (SD-013 additive): `compozy provider auth status` probes `native_cli` providers through
+  the local daemon socket when it answers and adds `probe_source` (`daemon`|`local`); new `--local`
+  flag restores the in-process probe; `--remote` and `--no-probe` are unchanged; `--local --remote`
+  is rejected. Generated CLI docs regenerated.
+- Web: Settings → Providers Ready dot uses the success tone (label stays muted); no new primitive.
+- Hooks, extension SDKs, workspace data isolation: unaffected. Official skill `skills/compozy/`:
+  `references/agent-definitions.md` (auth status routing, startup check) and
+  `references/runtime-operations.md` (usage sharing and backoff) updated.
+
 ## Script source approval before the first check-in — issue #1258
 
 Owner: `fix/issue-1258-approve-before-first-check` (PR #1262). QA:
@@ -83,7 +956,7 @@ creation after choosing a model before changing kind.
 
 ## Always-on vocabulary alignment (v0.5.1) — 2026-11-03
 
-Owner: issue #1199, spec `.compozy/tasks/vocabulary-alignment/`. This is a public-surface rename of `stays_on` to `always_on`. The shims are removed in v0.5.2.
+Owner: issue #1199, spec `.compozy/tasks/vocabulary-alignment/`. This is a public-surface rename of `stays_on` to `always_on`. The shims are removed in the release after v0.5.2 (#1239).
 
 - **Native tools / CLI / HTTP / UDS**
   - Tool IDs, routes, verbs and hook names are unchanged.
@@ -5448,3 +6321,171 @@ Updates the Session linked work audit above. Native link/unlink metadata and ris
 - **Docs and official skill.** `skills/compozy/references/` runtime, agent-definitions, loops, tools-and-skills (corrects line 260), new skill-authoring reference; site tutorials; glossary.
 - **QA.** `docs/qa/scenarios/` for pause and brake, held wakes, approvals, permission rules, skill review, events, compaction; extend `MS-web-stays-on-reports.md` and `RT-session-monitor-wake.md`.
 - **Final review corrections.** Daemon-originated tool approvals skip `permission_rules`; deny path rules match regardless of letter case; `approve-edits` and `auto` ask for edits without a contained location and for requests of kind `other` or no kind. `reviewer_mode` is always present on provider summaries (empty means no reviewer); mixed-case reviewer declarations cannot select a full-access mode. Automation event digests always admit the oldest event, and receipts report `policy_disabled` when effective heartbeat policy disables checks. Copilot declares no reviewer, so its `auto` falls back to `approve-edits`.
+
+## Tailscale embedded node host routing — 2026-11-10
+
+Fix for the bundled `tailscale` connectivity provider failing to establish on hosts whose internet
+path is policy-routed away from the main-table default device (Cloudflare WARP, split-tunnel VPN).
+
+- **Native tools.** Not applicable; no tool descriptor changes.
+- **CLI/HTTP/UDS.** No verb, route, or DTO change. On affected hosts the provider now reaches the
+  control plane instead of returning `503 gateway_provider_degraded`.
+- **Extensibility and hooks.** Not applicable; no hook, SDK, or extension-definition change. The
+  provider subprocess calls `netns.SetEnabled(false)` before creating its tsnet node, so the
+  embedded node's control/DERP dials follow the host routing table instead of `SO_BINDTODEVICE`
+  pinned to the main-table default device.
+- **Config.** Not applicable; no new key. Silent device pinning is removed unless `ALL_PROXY` is
+  configured, where the proxy keeps precedence and a warning is logged; tsnet exposes no dialer
+  hook that could offer an opt-in `bind_interface`.
+- **Workspace data isolation.** Not applicable.
+- **User state.** Not applicable; no schema, migration, or file shape changes.
+- **Web.** Not applicable.
+- **Official skill.** Not applicable; `skills/compozy/` behavior is unchanged.
+- **QA.** `docs/qa/scenarios/RT-connectivity-provider-route.md` records the policy-routed egress
+  evidence and the verified private-tier walk: provider up/healthy, live advertised address, and
+  a TLS `401 gateway_device_unauthenticated` at the pairing gate.
+
+## MCP and extension hot activation, runtime MCP inventory — 2026-11-14
+
+**Owning spec:** `.compozy/tasks/mcp-extension-hot-activation/_spec.md` (one PR, branch
+`feat/mcp-hot-activation`). Slices S1–S9 update only what they affect; slice evidence lives in the
+spec directory's `_s*-report.md` files.
+
+- **Native tools.** New `compozy__mcp_list` and `compozy__session_mcp_list` (read) and
+  `compozy__mcp_allow` (mutating, always requires operator approval) and `compozy__mcp_import`
+  (mutating, approval per permission mode), all in the `compozy__mcp` toolset. `compozy__mcp_status.callable_discovery_note` points to
+  `compozy__session_mcp_list`. `compozy__session_prompt` can return `session_mcp_reload_failed`
+  (`retryable`, `client_message_id`, `provider_error`). Blocked calls carry repair messages
+  (`source_disabled` waiting/removed, `mcp_auth_required`).
+- **CLI/HTTP/UDS.** Additive: `compozy mcp list|allow|import`, `compozy session mcp`,
+  `compozy mcp auth login --digest`; `GET /api/settings/runtime-mcp-servers`,
+  `POST /api/settings/runtime-mcp-servers/{runtime}/{name}/import`,
+  `PUT|DELETE /api/settings/mcp-servers/{name}/approval`,
+  `GET /api/workspaces/{ws}/sessions/{id}/mcp`; auth begin `definition_digest`; Settings MCP items
+  gain `approval` and `callable_in_sessions`; single-session payload gains `mcp_summary`; events
+  `session.mcp_reloaded` and `session.mcp_changed`. Generated OpenAPI, TS/Go SDKs and CLI pages co-ship.
+- **Extensibility and hooks.** Extension manifests, SDK and bridge unchanged; enabling an extension
+  is the consent for its servers and tools. No new hook events; the two session events reach existing
+  session-event consumers. Agent or skill sidecars under a workspace root are workspace records.
+- **Config.** New `[providers.<id>] runtime_mcp = "load" | "off"` (live, next message; `off` only for
+  `claude`, `copilot`, `qwen-code`, else `runtime_mcp_unsupported`). `tools.policy.external_default`
+  keeps keys, values and default; its scope narrows to sources without consent. Behavior tightening:
+  unapproved project servers no longer start during discovery or probes, and under `ask` they are no
+  longer callable after a per-call prompt.
+- **Workspace data isolation.** Approvals key on (profile, workspace, source, definition digest)
+  and never cross projects or profiles. Session MCP reads and native list/allow/import resolve the
+  caller's workspace and profile first. Runtime inventory reads the operator home plus the selected
+  workspace root (Settings) or the session's own provider home and working directory (sessions);
+  no secret value leaves the daemon.
+- **User state.** Append-only migrations `00201_schema.sql` (`mcp_server_approvals`, starts empty)
+  and `00202_permission_intent.sql` (idempotent lineage/instance-ceiling marker backfill). The boundary decoder for unmarked rows stays
+  one more release and is removed in the release after next (SD-013 user-state regime). Copy writes
+  Vault secrets and Settings files; runtime files are never written.
+- **Web.** Settings → MCP servers and Marketplace → MCPs group servers by runtime with a filter,
+  approval cell, Copy to CompozyOS dialog and runtime switch; Settings → Providers switch; MCP save
+  toast says open sessions use it from their next message. S8 adds the composer MCP control and the
+  transcript reload line.
+- **Docs and official skill.** `skills/compozy/` `SKILL.md` routing, `references/tools-and-skills.md`
+  (MCP Activation And Consent, Runtime MCP Inventory; removed the OAuth-only grant and "updates open
+  hosted sessions" promises), `references/native-tools.md`, `references/configuration.md`. Site:
+  new `docs/mcp/` section (overview, add a server, project servers, runtime servers); updated
+  `configuration/config-toml.mdx`, `configuration/mcp-json.mdx`, `extensions/install.mdx`.
+  Release note `.release-notes/mcp-hot-activation.md`.
+- **QA.** New scenarios mapping E2E-001–E2E-011: `RT-mcp-hot-activation-next-message`,
+  `RT-mcp-hot-activation-lineage`, `ET-mcp-signin-from-session-control`,
+  `ET-extension-hot-activation-next-message`, `ET-mcp-project-server-approval`,
+  `RT-mcp-hot-activation-pi-bridge`, `ET-runtime-mcp-inventory-copy`, `RT-runtime-mcp-switch`,
+  `ET-session-mcp-control-states`, `RT-mcp-reload-failure-recovery`, `ET-cli-mcp-runtime-verbs`.
+  QA impact notes on `ET-cli-mcp-authorize`, `ET-web-mcp-authorize`, `ET-web-mcp-authorize-manual`,
+  `ET-api-mcp-oauth-endpoints`, `ET-web-mcp-status-matrix`, `RT-mcp-stdio-session-reuse`.
+
+CI round 2 repairs retain this impact scope. Default-profile session reads select User/workspace
+Settings overlays, config-source consent keeps logical names without resource IDs, and MCP reload
+and change events carry durable turn identities. Reloads preserve the accepted provider command.
+Failed discovery retains advertised views but disables execution until recovery; one hosted refresh
+window shares its discovery listing. Invalid MCP definitions remain readable without auth probing.
+The existing QA scenarios and official MCP references reflect these backend corrections; no new Web
+surface, hook, config key, SDK shape or database migration is introduced by this repair.
+
+Backend review fixes preserve this scope: consent checks the exact resolved transport definition;
+agent policy bounds inherited authority while roots follow current native tools. Session list/status
+reads degrade one failing MCP scope and share scope resolution within the request. Sign-out removes
+local credentials without network access or an approval gate. Public definition digests use an
+installation HMAC key in the private `mcp-digest.key` file; approvals and runtime inventory share it.
+Runtime config symlinks resolve through the existing bounded regular-file reader, and inventory
+caches are bounded. Hosted projection revisions remain opaque; activation and served receipts use
+`Catalog.Digest` for the external tools actually installed. Missing initial list receipts do not
+restart list-changed runtimes. Reload/receipt telemetry failures preserve successful operations.
+CLI allow/import/session MCP support JSONL and TOON; changed runtime definitions have a distinct
+Copy error. `_rf-backend-report.md` records focused evidence, including the real isolated daemon
+HTTP/native/CLI read-surfaces check. No additional wire shape, hook/config key or migration is added.
+
+## Failed delegation recovery tail (PR #1686)
+
+Recovery upgrades the wake policy and queues the parent wake on a fresh bounded context after
+terminal settlement. Native subagent status/delegate/wake behavior keeps its existing wire shape;
+there are no new tools, hooks, extension/config keys, SDK types, or persistence migrations. Workspace
+scoping and isolation cleanup remain unchanged. Web consumes the existing terminal/catalog events.
+The official skill contract remains unchanged. Service coverage owns cancellation after settlement
+and context-aware retry attempts. Release mode delegates all execution and QA validation to main CI.
+
+## Release main-health: instance permission intent
+
+The MCP hot-activation repair preserves stored permission intent when an agent creates an instance
+in its own workspace. Cross-workspace creation freezes effective server/tool bounds, and both paths
+validate against the caller's live authority. Native `compozy__agent_instance_create`, HTTP and UDS
+keep their existing shape; there are no new tools, hooks, config keys, SDK fields or migrations.
+Workspace/profile isolation and explicit lists remain bounded. Web and the official skill use the
+existing instance and lineage contracts. The existing `TestInstanceNativeCreateJourney` owns exact
+runtime/persisted ceiling equality; the approval transport fixture explicitly inherits the workspace
+paths before narrowing its permission level. Main CI owns validation in release mode. The affected
+QA scenario is `RT-mcp-hot-activation-lineage`; no local verification or runtime lab was run.
+
+## Release main-health: canceled authority reads
+
+Canceled session reads retain an empty effective MCP server set without logging an operational
+authority failure. Other resolver failures still warn with session/profile/workspace correlation.
+No native tool, CLI/HTTP/UDS shape, hook, extension API, config, schema, official skill or workspace
+isolation contract changes. Web navigation and deletion keep their existing request cancellation.
+`TestManagerStatusReturnsActiveAndStoredSessions` owns fail-closed reads and diagnostic behavior;
+the session-hardening Web E2E retains its unchanged sensitive-data assertions. Main CI owns validation.
+
+## Release main-health: derivation fixture baseline
+
+The browser derivation suite waits for the declaration watcher's initial durable MCP summary before
+capturing source fences. Fork/continue still preserve every source entry and the exact fence. This
+is test synchronization with the existing `session.mcp_changed` contract; no production surface,
+permissions, hook, config, persistence, official skill or workspace isolation behavior changes.
+`ET-web-session-fork-from-here` names the same baseline; main CI owns the browser scenario validation.
+
+## Release main-health: layout commands after directional focus
+
+Web commands acting on the focused window reuse the controller's existing pending-focus resolver,
+so a tile, unsplit or tab move issued before the focus response lands targets the window just
+chosen. The unchanged Tabs-split E2E-010 owns the real browser sequence; the client-op table suite
+covers the old client view alongside the newer focus intent. `ET-window-unsplit-four-ways` records
+the affected walk. No native tool, CLI/HTTP/UDS shape, hook, extension, config, persistence,
+official skill or workspace/profile isolation contract changes. Main CI owns validation.
+
+## Release main-health: derivation target validation
+
+Continue/fork validate source ownership, eligibility and archive state before resolving
+the target agent, then validate transcript freshness and message cuts. An unknown agent
+therefore keeps its existing `agent_not_found` diagnostic when a CLI preview becomes
+stale; valid targets retain `session_fence_conflict`, and receipt replay remains first.
+CLI, HTTP/UDS and `compozy__session_continue` share the manager behavior; Web receives
+the same existing errors. No route/DTO, hook, extension API, config, persistence, workspace
+isolation or official skill change. `ET-cli-session-continue`, `TestContinueSession` and
+the unchanged runtime E2E own validation; release CI is the only execution gate.
+
+## Release main-health: accepted layout commands survive disconnect
+
+The shared HTTP/UDS command handler gives accepted window-manager commands an independent,
+30-second execution lifetime. Profile selection still precedes admission; workspace authorization,
+revision CAS and commit run in order with the same request values after a client disconnect.
+Pin and other commands on this route therefore finish saving across an immediate Web reload.
+CLI/native window tools, DTOs, hooks, extension APIs, config, schema, official skills and
+workspace/profile isolation keep their existing contracts. No Web source or E2E expectation
+changes. `TestWindowManagerHandlers` owns admission/cancellation and persisted read-back;
+the unchanged Tabs-split E2E-004 and `ET-web-desktop-shell-lifecycle` own browser acceptance.
+Main CI is the only execution gate under the release directive.

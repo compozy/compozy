@@ -23,6 +23,7 @@ import { useProviderEditorTier } from "../hooks/use-provider-editor-tier";
 import { getProviderStateView, type ProviderStateView } from "../lib/provider-state";
 import type { ProviderDraft, SettingsProviderEntry } from "../types";
 import { ProviderEditForm } from "./provider-edit-form";
+import { ProviderEnabledSwitch } from "./provider-enabled-switch";
 import { ProviderInspectView } from "./provider-inspect-view";
 import { SettingsSourceBadge } from "./settings-source-badge";
 
@@ -34,6 +35,11 @@ export interface ProviderDetailDialogProps {
   open: boolean;
   mode: DetailMode;
   entry: SettingsProviderEntry | null;
+  /**
+   * The entry as the provider list holds it now. The Enabled switch reads it, so a toggle shows
+   * while the editor keeps the entry it opened with. Defaults to `entry`.
+   */
+  liveEntry?: SettingsProviderEntry | null;
   draft: ProviderDraft | null;
   error: string | null;
   warnings: string[] | undefined;
@@ -92,11 +98,13 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
             mode={mode}
             onClose={isSaving ? undefined : () => onOpenChange(false)}
             provider={provider}
+            statusProvider={props.liveEntry ?? provider}
           />
           {mode === "create" ? null : (
             <ProviderDetailTabs
               activeTab={isEditing ? "configure" : "overview"}
               onChange={handleTabChange}
+              provider={props.liveEntry ?? provider}
             />
           )}
           {isEditing ? (
@@ -144,18 +152,22 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
 function ProviderDetailHeader({
   mode,
   provider,
+  statusProvider,
   draft,
   onClose,
 }: {
   mode: DetailMode;
+  /** Edit baseline: names the provider while Configure is open. */
   provider: SettingsProviderEntry | null;
+  /** Live entry, so a toggle made while editing updates the status at once. */
+  statusProvider: SettingsProviderEntry | null;
   draft: ProviderDraft | null;
   onClose: (() => void) | undefined;
 }) {
   return (
     <EntityDialogHeader
       className="border-b-0 pb-3"
-      description={headerDescription(mode, provider)}
+      description={headerDescription(mode, statusProvider)}
       // Create/edit titles already name the entity; only the bare-name inspect view needs the kind.
       eyebrow={mode === "inspect" ? "Provider" : undefined}
       icon={Settings2}
@@ -181,18 +193,27 @@ const DETAIL_TABS = [
 function ProviderDetailTabs({
   activeTab,
   onChange,
+  provider,
 }: {
   activeTab: DetailTab;
   onChange: (next: DetailTab) => void;
+  provider: SettingsProviderEntry | null;
 }) {
   return (
-    <div className="border-b border-line px-5 pb-2">
+    <div className="flex items-center justify-between gap-3 border-b border-line px-5 pb-2">
       <LaneTabs<DetailTab>
         ariaLabel="Provider detail sections"
         items={DETAIL_TABS}
         onChange={onChange}
         value={activeTab}
       />
+      {provider ? (
+        <ProviderEnabledSwitch
+          data-testid="provider-detail-enabled"
+          provider={provider}
+          showLabel
+        />
+      ) : null}
     </div>
   );
 }

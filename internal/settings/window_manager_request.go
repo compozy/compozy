@@ -34,6 +34,10 @@ func mergeWindowManagerRequest(
 			*req.WindowManagerGlobalShortcuts,
 		)
 	}
+	if desired.NewWindowPolicy == compozyconfig.WindowNewPolicyFloating {
+		windowmanager.WarnRetiredConfigKey("new_window_policy", true)
+		desired.NewWindowPolicy = compozyconfig.WindowNewPolicyTab
+	}
 	desiredAliases := cloneAliases(aliases)
 	if req.WindowManagerAliases != nil {
 		desiredAliases = cloneAliases(*req.WindowManagerAliases)

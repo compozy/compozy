@@ -8,6 +8,7 @@
 - Tool presentation metadata
 - Oversized tool results
 - Marketplace discovery
+- MCP activation and consent; runtime MCP inventory
 - Skill loading
 - Skill sources and exposure
 - Session command catalog
@@ -40,6 +41,15 @@ denied tools; page `compozy__tool_list` with `offset`/`next_offset` for compact 
 currently callable set, then
 `compozy__tool_info` for one complete schema and backend descriptor.
 
+External MCP declarations in user, personal-profile, workspace and workspace-profile config or
+`mcp.json` feed the same hosted catalog. See [MCP Activation And Consent](#mcp-activation-and-consent)
+for which sources are admitted, when open sessions see a change, and how to repair a missing tool.
+Providers with session MCP disabled receive no tools. Direct stdio sidecars reload on launch
+configuration changes at the next message as well; remote HTTP/OAuth require hosted MCP.
+Workspace/profile isolation and delegated `mcp_servers` allowlists still apply.
+Server allowlists use logical declaration names; allocated runtime names remain tool/routing identities.
+Ready never overrides a denial.
+
 In a managed session, resolve canonical `compozy__skill_search`/`compozy__skill_view`, then call returned references. Do not invoke the operator CLI or read skill files directly. If policy denies the native tool, report the skill as unavailable. Operators can use `compozy skill view` from their own shell.
 
 `compozy skill` commands reject accidental use while `COMPOZY_SESSION_ID` or `COMPOZY_AGENT` is present and point to native skill tools. Treat this as a supported-path guard, not authorization: clearing environment markers or opening the same-user operator socket is outside this guard.
@@ -58,7 +68,9 @@ Prefer `tool approve --input <json>` with the same input you will invoke. Approv
 native workspace names, paths, and inherited operator workspace selection to the same canonical
 input as dispatch. The returned `input_digest` describes that bound input. If supplying both input
 and `--input-digest`, the supplied digest must match the submitted JSON before binding. Digest-only
-approval requires the digest of the already-bound input. A pre-call hook that changes the final
+approval requires the digest of the already-bound input. Approval digests exclude `result_view`:
+compute a supplied digest on the input without the selector, or pass `--input` and let the daemon
+compute it. A pre-call hook that changes the final
 input still requires a matching approval; tokens remain single-use.
 
 ## Oversized Tool Results
@@ -71,13 +83,16 @@ tool reference. Pass the artifact URI unchanged; continue from `next_offset` unt
 Over hosted MCP, a truncated result still returns `structuredContent`: instead of the declared payload
 it carries the continuation envelope `{"truncated":true,"truncated_from_bytes":N,"preview":"...",
 "artifacts":[{"uri":"compozy://tool-artifacts/..."}],"read_tool":"compozy__tool_artifact_read"}`.
-Every hosted tool's advertised output schema accepts that envelope and the typed `{"error":{...}}`
-payload alongside its declared shape. Check `truncated` before reading declared fields. When your
-harness caps tool output size (Claude Code saves MCP results above its token cap to a file), request
-smaller artifact pages, for example `limit: 32768`, so each base64 page stays inline.
+Hosted native tools advertise no `outputSchema`. Structured continuations and typed
+`{"error":{...}}` payloads remain unchanged. Read result contracts through `compozy__tool_info`.
+Check `truncated` first and page retained results through `read_tool`. Artifact reads default to
+32 KiB of decoded bytes: base64 plus the JSON text and `structuredContent` copies stay below a
+128 KiB inline transport budget. Explicit reads up to 64 KiB remain supported; request smaller
+pages when the harness has a lower cap.
 
-The artifact is readable only from its owning workspace. Missing, expired, and foreign-workspace
-references share the same not-found result, so do not infer whether another workspace owns one.
+Workspace artifacts retain workspace-only ownership. User artifacts belong to User scope of the
+producing profile. Missing, expired, and foreign-scope references share the same not-found result,
+so do not infer ownership.
 Operator fallback is `compozy tool artifact read <artifact-uri> --workspace <workspace> [--offset N]
 [-o json]`; human output writes the exact page bytes, while structured output carries base64 bytes
 and paging metadata. A `result_persistence_failed` tool error preserves a bounded partial result but
@@ -173,6 +188,13 @@ back to the extension definition visible to the session when no manual server ha
 fail asking for an explicit owner when two extensions declare it.
 Reads expose configured names and secret presence, never secret values or refs.
 
+A bare HTTP remote without `auth`, `headers`, or `secret_headers` can sign in through
+OAuth discovery with automatic client registration. A successful begin must discover protected-resource
+metadata; a 401 alone does not make metadata or a provider grant valid. A client Agent Plugin with
+declared headers also offers **Sign in** in Settings after an origin-bound
+Bearer challenge advertises protected-resource metadata. Use the extension-qualified owner for
+these sign-ins. Manual header-auth servers require an explicit OAuth policy to use OAuth.
+
 For a server that requires OAuth, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
 Use `--manual` to paste the complete redirect URL, especially for a remote operator or non-loopback
 HTTP bind. Use `--scope user` for the user layer, `--scope profile --profile <name>` for a personal
@@ -190,11 +212,11 @@ reads for the narrower scope (`mcp auth status --scope workspace`, `compozy__mcp
 scope without its own definition fail with a validation error naming the declaring scope; authorize
 at that scope, or declare the server in the narrower layer to give it its own credential.
 
-Completing OAuth for an extension-owned server is the operator's grant for that source: its tools
-become callable for sessions in the credential's scope without changing
-`tools.policy.external_default`, including sessions already running. Logout, a changed server
-definition, or disabling the extension withdraws the grant. Agent and session tool policy still
-narrow it, and manual servers and extension servers without OAuth keep needing an explicit grant.
+Sign-in is availability, not consent: consent comes from where the server was declared (see
+[MCP Activation And Consent](#mcp-activation-and-consent)). A project server waiting for approval
+refuses `auth/begin` with `409 mcp_server_waiting_approval` before any network call. Passing its
+`definition_digest` (CLI `compozy mcp auth login <name> --digest <d>`) records the approval first and
+then begins sign-in; a stale digest fails `mcp_approval_definition_changed`.
 
 For remote MCPs configured with `method: oauth` and `registration: auto`, the daemon resolves
 protected-resource metadata, then the client metadata document, then makes one Dynamic Client
@@ -223,8 +245,18 @@ Inspect MCP management truth with `compozy__mcp_status`, `compozy__mcp_auth_stat
 signals; `configured` alone never means ready. Edit stdio or remote HTTP definitions through
 `PUT /api/settings/mcp-servers/{name}` with explicit scope. A generic edit clears provenance; OAuth
 repair requires `authenticated` plus `token_present=true`. Reads project `env_keys` and
-`secret_env_keys`, never values/refs. Preserve exact-target fields with `preserve_env` or
+`secret_env_keys`, never values/refs. Preserve headers and secret-header bindings for the same endpoint and write target with
+`preserve_headers: true`; reads expose only `headers_configured`. Preserve other exact-target fields with `preserve_env` or
 `preserve_secrets`; renames and target changes require replacement.
+
+An `expired` OAuth status with `token_present=true` and `refreshable=true` keeps MCP tools
+advertised: discovery or a call renews the token. Do not request manual sign-in solely for this
+combination. Refreshes share one in-flight attempt per credential target and use jittered retry
+backoff (about 1 s, doubling to at most 60 s). Transient failures retain the credentials and listed
+tools; definitive rejection (`invalid_grant`, revoked credentials) clears the token and reports
+`needs_login`. Expiry without a usable refresh path remains blocked. Successful sign-in or renewal
+clears that server's authentication-related dead mark without clearing health-only failures.
+`mcp.auth.refresh_failed` logs contain server, cause class, and attempt count, never credentials.
 
 Extension source search is separate: `compozy extension search <query> [--sources curated,github]
 [--limit N] [--cursor <opaque>]` and native `compozy__extensions_search` page
@@ -233,7 +265,129 @@ and naming any failed or slow source in `sources_degraded`. Use `compozy skill i
 <installed-name>` for effective installed metadata and resources, and do not call the deleted skill-
 or extension-specific browse endpoints.
 
+## MCP Activation And Consent
+
+**Consent comes from where a server is declared.** These are admitted without another step:
+servers added through CompozyOS at any scope (Settings, `compozy mcp import`, agent create), servers in
+operator-owned files under `$COMPOZY_HOME` (user and personal-profile `mcp.json`/`config.toml`),
+servers of an enabled extension, and copies made with Copy to CompozyOS. A server declared in a file
+under a workspace root (`.compozy/mcp.json`, project `config.toml`, `.compozy/profiles/<p>/…`, or an
+agent or skill sidecar under the project) and changed outside CompozyOS **waits for approval**. A
+waiting server is listed as metadata only; CompozyOS never starts, connects to, discovers, probes or
+signs in to it. CompozyOS writes at workspace scope record the approval for the committed definition;
+if that record fails, the write returns a warning and the server stays waiting.
+
+- Approve with `compozy mcp allow <server> --workspace <ws>` (the CLI reads the current definition and
+  sends its digest), `--digest <d>` to pin the definition you inspected, or `compozy__mcp_allow`
+  with `definition_digest` from `compozy__mcp_list`. The native tool always requires operator
+  approval, including in `approve-all`; an agent cannot grant itself consent. Revoke with `--revoke` / `decision: "revoke"`;
+  the tools stop working on the next call. The HTTP/UDS route is
+  `PUT|DELETE /api/settings/mcp-servers/{name}/approval`.
+- An approval binds one (profile, workspace, server name) and one definition digest. Any change to
+  the definition's non-secret fields (command, args, URL, env and header keys and values, Vault
+  reference identities, OAuth registration) returns it to waiting. Rotating a value behind the same
+  Vault reference does not.
+- `GET /api/settings/mcp-servers` items carry `approval{required,state,definition_digest,reason}`
+  (`state`: `not_required`, `waiting`, `allowed`; `reason`: `new` or `changed` while waiting) and
+  `callable_in_sessions`.
+- `tools.policy.external_default` applies only to sources without consent: project servers waiting
+  for approval. `enabled` admits them; `disabled` (default) and `ask` keep them waiting and never start
+  them. `ask` still prompts per call for consented sources. Dynamic tools stay denied.
+- Blocked calls name the repair: `source_disabled` "`<server>` is waiting for approval in `<ws>`.
+  Allow it in Settings → MCP servers." or "`<server>` was removed from CompozyOS"; `mcp_auth_required`
+  "`<server>` needs sign-in. Sign in to `<server>` in CompozyOS (Settings → MCP servers)."
+
+**Changes apply on the next message.** Adding, enabling, approving or signing in to a server, or
+installing or enabling an extension, makes its tools callable in sessions already open, from their
+next message. Removing, disabling, revoking or signing out withdraws the tools on the next call. At
+prompt admission CompozyOS compares the session's activation fingerprint (the advertised MCP and
+extension tools, `runtime_mcp` mode, and for runtimes that read their own servers only at start,
+their runtime-server definitions). When it changed and the runtime has not refreshed itself, the
+session reloads its native runtime before the message, keeping history. A turn in progress is never
+interrupted. Health-only failures never trigger a reload. Each attempt emits
+`session.mcp_reloaded{outcome,added,removed,reason}`:
+
+- `applied`: the native session loaded with the new tools;
+- `replayed`: the native load failed and the conversation continued from the transcript;
+- `failed`: no runtime could start. The prompt is refused before acceptance with
+  `409 session_mcp_reload_failed` (`retryable: true`, `provider_error`, `client_message_id`). Send it
+  again; the next message retries. There is no separate reload operation.
+
+`session.mcp_changed` carries the new `mcp_summary{usable,attention,pending_reload}` for open
+sessions; the single-session payload has the same `mcp_summary`.
+
+**Derived sessions follow the current server set.** Forks, continues, provenance and recovery
+sessions inherit the current admitted servers of their own profile and workspace. A child inherits
+unless its spawn or a hook named an MCP list; a hook can narrow but never widen. A child stays
+inside the parent's ceiling recorded at spawn, and a child in another workspace or profile never gets
+servers its parent did not have. Naming a server without naming its tools admits all of that
+server's tools. Extension tools follow the same inherit-or-list rule. Always-on instances without an
+authored list inherit. `permission_policy.mcp_servers` on public lineage reports the effective list.
+
+**Diagnose a missing MCP tool** with `compozy__session_mcp_list` (CLI `compozy session mcp <id>`,
+HTTP `GET /api/workspaces/{ws}/sessions/{id}/mcp`). It lists every configured server of the session's
+scope, including waiting, signed-out and excluded ones, with a repair reason. `needs_sign_in` → run
+the sign-in flow above; `waiting_approval` → allow it; `not_available` → the session's restriction
+excludes it (start a session without that restriction); `applies_next_message` → send the next
+message.
+
+Use `compozy session mcp check <id> <name> [--owner extension:<name>]` to retry one server.
+The session POST route is `/api/workspaces/{ws}/sessions/{id}/mcp/servers/{name}/check`;
+`owner` defaults to `manual`. It returns refreshed session MCP availability, performs discovery
+only for that effective server, and never restarts the agent. Waiting, restricted, or needs-sign-in servers stay
+unprobed. A recovered server that needs activation reports `applies_next_message`.
+Settings can retry one item with `compozy mcp check <name>` or
+`POST /api/settings/mcp-servers/{name}/check` with the same
+`scope`, `workspace_id`, `profile`, and `owner` selectors as authentication. It returns the item
+with `runtime_status`. These check routes deny app tokens and preserve consent requirements.
+Session rows expose `scope`, optional `workspace_id`/`profile`, `transport`, and `source.kind`.
+Only `waiting_approval` rows expose the definition preview (`command`/`args`/`url`, `source.path`)
+and `approval{reason,definition_digest}`. Preview text is redacted; URLs omit userinfo and mask
+all query values. App-token reads omit the preview entirely. Checks bypass tools/list caches,
+retain last-known-good tools on failure, and publish changed session summaries without a reload.
+Unavailable checks return 503, disabled sources 400, and client-canceled checks 499.
+Settings items expose the declaration file as `definition_source` when available.
+
+Use the canonical ID returned by tool discovery in approvals and policy selectors. A tool such as
+`_dd_gff` can appear as `mcp__<server>__raw__x<base32>`. The original name is sent to the server on
+each call, and `mcp__<server>__*` covers both encoded and ordinary IDs. A ready server can have a
+runtime diagnostic for names that could not be normalized or IDs shared by multiple tools.
+
+### Runtime MCP Inventory
+
+Each runtime CLI (Claude Code, Codex, Gemini CLI, OpenCode, Kimi CLI, Qwen Code, GitHub Copilot CLI,
+Cursor Agent, Antigravity, Pi) can load its own MCP servers from its own files. CompozyOS lists them
+read-only: `compozy mcp list [--runtime <id>] [--workspace <ws>] [--compozy-only|--runtime-only]`,
+`compozy__mcp_list`, `GET /api/settings/runtime-mcp-servers`. Runtime IDs are `claude`, `codex`,
+`gemini`, `opencode`, `kimi-cli`, `qwen-code`, `copilot`, `cursor`, `agy`, `pi`; Pi-based providers
+share `pi`. Rows report name, scope, transport, source file, whether the runtime enables or approves
+it, `also_in_compozy`, `copyable`/`copy_blocked_reason`, and env/header key names, never values.
+The reader parses files only. It never runs the runtime, connects to servers or reads keychains, so
+runtime sign-in state is `unknown` outside a session. An unparseable or oversized file marks only
+that runtime `read_state: "unreadable"`. Session status reads the runtime's files from the session's
+own provider home and working directory.
+
+CompozyOS never edits runtime files. To manage a runtime server in CompozyOS, copy it:
+`compozy mcp import <runtime>/<server> [--scope user|profile|workspace] [--workspace <ws>] [--name <n>]`,
+`compozy__mcp_import`, or `POST /api/settings/runtime-mcp-servers/{runtime}/{name}/import` (escape
+`:` in names). Only stdio (command, args, literal env) and streamable HTTP (URL without query,
+literal headers, OAuth registration) definitions copy. Literal values become Vault secrets; OAuth
+tokens are never copied, so sign in again in CompozyOS. Plugin, claude.ai connector, built-in and
+managed sources, SSE/WebSocket, `cwd`, header helpers, env passthrough, per-tool filters, URL query
+strings and runtime-specific OAuth clients are refused with the reason. The runtime keeps loading
+its own copy.
+
+`[providers.<id>] runtime_mcp = "off"` stops a runtime from loading its own servers in CompozyOS
+sessions, from each session's next message. Only `claude`, `copilot` and `qwen-code` accept it;
+others fail `runtime_mcp_unsupported`. Claude reports the switch unavailable while a machine
+`managed-mcp.json` exists. See `references/configuration.md`.
+
 ## Skill Loading
+
+`compozy__skill_view` returns the complete verified document once in the canonical result's
+`structured.content`, with a short display summary. This keeps bundled references around 168 KB
+inline under the default 256 KiB result budget without heuristic display redaction altering the
+document. Hosted MCP preserves its standard JSON text and `structuredContent` projections.
 
 Scan roots allow groups at any depth (300 `SKILL.md` max); frontmatter `name` stays identity. Scaffold
 with `compozy skill create <name> --group <path>`. Managed sessions resolve skill search/view through
@@ -282,7 +436,7 @@ targets back. CompozyOS never copies skill content and never removes a link it d
 
 Skills whose winning copy already lives in a root the session's own provider reads natively are
 omitted from that session's injected catalog only — `claude` reads the `claude` origin. No provider
-reads the `agents` origin natively, so CompozyOS injects `.agents/skills` for every provider. They remain in the command catalog, in every list, and in explicit reads.
+reads the `agents` origin directly. Claude also omits a winning skill when its exact `SKILL.md` file is exposed under the same name in a native skill root (for example a symlink from `.claude/skills` to `.agents/skills`). Missing exposures and different homonyms remain injected; exposure changes are checked each turn. All skills remain in the command catalog, in every list, and in explicit reads.
 
 The bundled runtime skill named `compozy` is reserved. Same-named external definitions may keep a
 source-qualified command such as `/agents:compozy`, but that command resolves the daemon's current
@@ -323,6 +477,11 @@ source string a name read returns and adds `skill.command_source{kind, id, key, 
 the exact command source identity. If that source is no longer effective, treat the unavailable
 result as terminal and read the catalog again.
 
+An invoked skill body above 24,000 bytes, or one that no longer fits the 64,000-byte turn budget,
+is not inlined. Its `<skill>` entry carries `<deferred-instructions command_id="..." bytes="...">`
+instead; call `compozy__skill_view` with that exact `command_id` and no `file` before acting, then
+follow the returned body as if it were inlined. Oversized skills never fail prompt dispatch.
+
 ## Bundled Skill Resources
 
 The bundled `compozy` skill ships `SKILL.md` plus flat `references/*.md` resources.
@@ -331,7 +490,7 @@ Bundled `spec-cycle` globally publishes exactly `cy-create-spec` and `git-rebase
 
 ## Skill Provenance And Shadows
 
-Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier — `bundled`, `marketplace`, `user`, `profile`, `additional`, `workspace`, `workspace_profile`, or `agent_local` — and installed-from metadata identifies extension ownership when present. The separate `origin` field names the source root's convention or custom slug and is empty for CompozyOS-native skills; `compozy__skill_list`, `compozy__skill_search`, and `compozy__skill_view` all carry it, and `compozy__skill_view` adds reconciled `exposures[]{target, path, status}` with status `healthy`, `missing`, `broken`, or `foreign_conflict`. Tier and origin are independent: never infer one from the other.
+Full skill list/search results (`result_view: "full"`) and skill detail payloads include resolver provenance. `provenance.precedence_tier` names the winning tier — `bundled`, `marketplace`, `user`, `profile`, `additional`, `workspace`, `workspace_profile`, or `agent_local` — and installed-from metadata identifies extension ownership when present. The separate `origin` field names the source root's convention or custom slug and is empty for CompozyOS-native skills; `compozy__skill_list`, `compozy__skill_search`, and `compozy__skill_view` all carry it, and `compozy__skill_view` adds reconciled `exposures[]{target, path, status}` with status `healthy`, `missing`, `broken`, or `foreign_conflict`. Tier and origin are independent: never infer one from the other.
 
 Except for the reserved `compozy` runtime skill, multiple declarations use normal precedence and
 record losing declarations as shadows. Use these surfaces before assuming which skill body is active:
@@ -371,3 +530,77 @@ Keep these on operator CLI, HTTP, or UDS surfaces unless CompozyOS explicitly ex
 - cross-session terminal-state mutation
 
 Read-only inspection tools may exist for these domains. Do not invent a mutating tool call.
+
+Hosted MCP descriptions include the authored instructions and canonical ID. Discovery tags, search
+hints and toolset membership remain available through tool descriptors and provider search metadata,
+without repeating them in every loaded tool description. Provider-visible server names are unchanged.
+
+## Result views and discovery
+
+### The selector
+
+| Input         | Type   | Values            | Default   | Present on                |
+| ------------- | ------ | ----------------- | --------- | ------------------------- |
+| `result_view` | string | `compact`, `full` | `compact` | every tool that has views |
+
+`result_view` changes only what is returned. It never changes what the tool does, its risk class, its
+approval requirement or its permission match.
+
+### What compact keeps
+
+A compact result keeps what a caller needs to act:
+
+- identity (`id`, names, the workspace or parent it belongs to);
+- state, and anything the caller must not miss: pending interactions, failures, stop reasons, limits
+  reached, truncation and pagination cursors;
+- the fields a follow-up call takes as input.
+
+The full result adds large content the caller already holds or can fetch on demand: permission
+policies, option catalogs, supervision and diagnostic internals, embedded definitions.
+
+Every field in a compact result is in the full result at the same path with the same value.
+
+`compozy__tool_list` compact rows keep descriptor `id`, `risk` and `has_result_views`,
+availability, callable/approval decisions and reason codes; page fields stay unchanged.
+List rows have no description in either view. `compozy__tool_search` compact rows keep
+`description` and the two `output_views` digests instead of `has_result_views`.
+Pass `result_view: "full"` for the complete discovery records. `compozy__tool_info`
+stays whole and exposes both view schemas and digests.
+
+## Errors
+
+| Condition                                             | Code                 | Reason                            | Dispatch message                                                                       |
+| ----------------------------------------------------- | -------------------- | --------------------------------- | -------------------------------------------------------------------------------------- |
+| Unknown `result_view` value                           | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__session_status" input "result_view" must be one of "compact", "full"`  |
+| `result_view` is not a string                         | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__session_status" input "result_view" must be one of "compact", "full"`  |
+| `result_view` sent to a single-result tool            | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__skill_view" returns a single result and does not accept "result_view"` |
+| Loop node `result_view` is a template                 | lint                 | `result_view_not_literal`         | `node "inspect" params.result_view must be a literal "compact" or "full"`              |
+| Loop reference reads a field outside the compact view | lint                 | `result_view_field_requires_full` | `result_view_field_requires_full`, naming the source node and path                     |
+| A hook changed `result_view` on a Loop node's call    | `tool_denied`        | `result_view_pinned`              | `tool "compozy__session_status" result view is pinned to "full" by the caller`         |
+
+Tools that report input errors as `invalid_request` keep that code for the first three rows. In every
+case the tool does not run. The first three rows apply to native tools only: an extension or MCP tool
+that has its own input named `result_view` is not inspected and behaves as before.
+
+A path that neither view accepts keeps the existing Loop error `unresolvable_path`.
+
+CLI and HTTP/UDS errors retain the code and reason but redact the dispatch message to
+`invalid tool request` for input errors or `tool invocation denied` for denials. The table
+shows dispatch diagnostics, not a guaranteed verbatim CLI message.
+
+## Approvals
+
+`result_view` does not change which approval applies. An approval you remembered for a call matches
+the same call with `result_view: "full"` or `"compact"`, and approvals remembered before the upgrade
+keep matching. The approval prompt shows the input as sent, including the selector. If you mint a
+one-shot approval token from an input digest instead of an input, compute the digest on the input
+without `result_view`.
+
+Managed-session MCP advertises no `outputSchema` for native tools. Input schemas retain
+`result_view` where supported; results keep `structuredContent` plus serialized JSON text.
+Read both contracts through `compozy__tool_info`, CLI tool info, or HTTP/UDS descriptors (`output_views`).
+`compozy mcp serve` uses a separate `compozy_host__*` Host API projection without views or output schemas.
+Hooks see `has_result_views` on pre-call, post-call and post-error tool references;
+post-call adds `result_view`. A pre-call `tool_input` patch selects the returned view
+for the agent too. Leave calls with `pinned_result_view` unchanged; select the view
+in the Loop node instead.

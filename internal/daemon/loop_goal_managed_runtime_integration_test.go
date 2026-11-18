@@ -30,6 +30,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspace"
 )
@@ -1091,8 +1092,10 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 	})
 
 	t.Run("Should converge Cancel after session materialization and before binding activation", func(t *testing.T) {
-		materialized := make(chan struct{})
+		materialized := make(chan session.EnsureCreatedResult, 1)
 		releaseActivation := make(chan struct{})
+		release := sync.OnceFunc(func() { close(releaseActivation) })
+		defer release()
 		fixture := newLoopGoalManagedRuntimeFixture(
 			t,
 			"stop-create-race",
@@ -1104,16 +1107,33 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 				}
 			}),
 		)
+		if err := stopGoalSessionOutboxRelay(
+			t.Context(),
+			fixture.daemonInstance.goalOutboxCancel,
+			fixture.daemonInstance.goalOutboxDone,
+		); err != nil {
+			t.Fatalf("stop fixture outbox relay: %v", err)
+		}
 		request := fixture.bindingRequest("stop-create-race")
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		defer cancel()
 		result := make(chan error, 1)
 		go func() {
-			_, err := fixture.runtime.BindActionSession(testutil.Context(t), request)
+			_, err := fixture.runtime.BindActionSession(ctx, request)
 			result <- err
 		}()
+		var createdSessionID string
 		select {
-		case <-materialized:
-		case <-time.After(time.Second):
-			t.Fatal("managed session creation did not materialize")
+		case created := <-materialized:
+			createdSessionID = created.SessionID
+		case bindErr := <-result:
+			t.Fatalf("BindActionSession completed before the materialization barrier: %v", bindErr)
+		case <-ctx.Done():
+			t.Fatalf("managed session creation did not materialize: %v", ctx.Err())
+		}
+		created, err := fixture.manager.Status(ctx, createdSessionID)
+		if err != nil || created.ID != createdSessionID || created.State == session.StateStopped {
+			t.Fatalf("managed session before cancellation = %#v, %v, want materialized session", created, err)
 		}
 
 		aggregate, err := looppkg.NewService(
@@ -1135,7 +1155,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		if err := aggregate.CancelRun(
-			testutil.Context(t), fixture.run.WorkspaceID, fixture.run.ID, "operator cancel", actor,
+			ctx, fixture.run.WorkspaceID, fixture.run.ID, "operator cancel", actor,
 		); err != nil {
 			t.Fatalf("CancelRun() error = %v", err)
 		}
@@ -1147,36 +1167,69 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		if !ok {
 			t.Fatalf("goal store = %T, want goalSessionOutboxStore", fixture.goalStore)
 		}
-		if pending, err := cleanupStore.ClaimLoopSessionCleanup(testutil.Context(t), 10); err != nil {
+		acknowledged := make(chan string, 1)
+		recordingStore := &recordingGoalCleanupStore{loopSessionCleanupStore: cleanupStore, acknowledged: acknowledged}
+		relay := &goalSessionOutboxRelay{
+			store: outboxStore, appender: fixture.manager,
+			cleanupStore: recordingStore, stopper: fixture.manager, now: time.Now,
+		}
+		pendingTaskCleanup, err := cleanupStore.ClaimLoopSessionCleanup(ctx, 10)
+		if err != nil || len(pendingTaskCleanup) != 1 ||
+			pendingTaskCleanup[0].SourceKind != looppkg.SessionCleanupSourceTaskRun ||
+			pendingTaskCleanup[0].SourceID != fixture.taskRunID ||
+			pendingTaskCleanup[0].SessionID == createdSessionID {
+			t.Fatalf("pending task cleanup = %#v, %v, want only the fixture task run", pendingTaskCleanup, err)
+		}
+		if err := relay.DeliverPending(ctx); err != nil {
+			t.Fatalf("DeliverPending(task run) error = %v", err)
+		}
+		select {
+		case cleanupID := <-acknowledged:
+			if cleanupID != pendingTaskCleanup[0].CleanupID {
+				t.Fatalf("acknowledged task cleanup = %q, want %q", cleanupID, pendingTaskCleanup[0].CleanupID)
+			}
+		default:
+			t.Fatal("test relay did not acknowledge the fixture task cleanup")
+		}
+		if pending, err := cleanupStore.ClaimLoopSessionCleanup(ctx, 10); err != nil {
 			t.Fatalf("ClaimLoopSessionCleanup(unsettled) error = %v", err)
 		} else if len(pending) != 0 {
 			t.Fatalf("unsettled cleanup = %#v, want hidden", pending)
 		}
-		close(releaseActivation)
+		release()
 		select {
 		case bindErr := <-result:
 			if bindErr == nil {
 				t.Fatal("BindActionSession(after Cancel) error = nil")
 			}
-		case <-time.After(time.Second):
-			t.Fatal("BindActionSession did not converge after Cancel")
+		case <-ctx.Done():
+			t.Fatalf("BindActionSession did not converge after Cancel: %v", ctx.Err())
 		}
 
-		if _, active := fixture.manager.Get(request.DesiredSessionID); active {
-			t.Fatalf("late-created root session %q survived binding cancellation", request.DesiredSessionID)
+		stopped, err := fixture.manager.Status(ctx, createdSessionID)
+		if err != nil || stopped.State != session.StateStopped {
+			t.Fatalf("late-created session after binding cancellation = %#v, %v, want stopped", stopped, err)
 		}
 
-		relay := &goalSessionOutboxRelay{
-			store: outboxStore, appender: fixture.manager,
-			cleanupStore: cleanupStore, stopper: fixture.manager, now: time.Now,
+		pending, err := cleanupStore.ClaimLoopSessionCleanup(ctx, 10)
+		if err != nil || len(pending) != 1 || pending[0].SessionID != createdSessionID {
+			t.Fatalf("settled cleanup = %#v, %v, want created session obligation", pending, err)
 		}
-		if err := relay.DeliverPending(testutil.Context(t)); err != nil {
+		if err := relay.DeliverPending(ctx); err != nil {
 			t.Fatalf("DeliverPending() error = %v", err)
 		}
-		if _, active := fixture.manager.Get(request.DesiredSessionID); active {
-			t.Fatalf("late-created session %q remained active", request.DesiredSessionID)
+		select {
+		case cleanupID := <-acknowledged:
+			if cleanupID != pending[0].CleanupID {
+				t.Fatalf("acknowledged cleanup = %q, want %q", cleanupID, pending[0].CleanupID)
+			}
+		default:
+			t.Fatal("test relay did not acknowledge the created session cleanup")
 		}
-		if pending, err := cleanupStore.ClaimLoopSessionCleanup(testutil.Context(t), 10); err != nil {
+		if _, active := fixture.manager.Get(createdSessionID); active {
+			t.Fatalf("late-created session %q remained active", createdSessionID)
+		}
+		if pending, err := cleanupStore.ClaimLoopSessionCleanup(ctx, 10); err != nil {
 			t.Fatalf("ClaimLoopSessionCleanup(completed) error = %v", err)
 		} else if len(pending) != 0 {
 			t.Fatalf("completed cleanup = %#v, want none", pending)
@@ -1253,11 +1306,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PrepareActionPrompt() error = %v", err)
 		}
-		select {
-		case <-promptStarted:
-		case <-time.After(time.Second):
-			t.Fatal("managed driver prompt did not start")
-		}
+		testutil.Receive(t, "managed driver prompt start", time.Second, promptStarted)
 
 		aggregate, err := looppkg.NewService(
 			fixture.goalStore,
@@ -1290,11 +1339,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("CancelRun() error = %v", err)
 		}
-		select {
-		case <-promptCanceled:
-		case <-time.After(time.Second):
-			t.Fatal("managed driver prompt lease was not canceled")
-		}
+		testutil.Receive(t, "managed driver prompt lease cancellation", time.Second, promptCanceled)
 		result, err := fixture.runtime.AwaitActionPrompt(testutil.Context(t), ticket)
 		if err != nil {
 			t.Fatalf("AwaitActionPrompt(after Cancel) error = %v", err)
@@ -1398,7 +1443,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		case <-promptStarted:
 		case err := <-errC:
 			t.Fatalf("Goal Execute() before prompt error = %v", err)
-		case <-time.After(2 * time.Second):
+		case <-time.After(testutil.Scaled(t, 2*time.Second)):
 			t.Fatal("managed Goal prompt did not start")
 		}
 
@@ -1444,7 +1489,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		case raw = <-resultC:
 		case err := <-errC:
 			t.Fatalf("Goal Execute() error = %v", err)
-		case <-time.After(2 * time.Second):
+		case <-time.After(testutil.Scaled(t, 2*time.Second)):
 			t.Fatal("Goal Execute() did not settle the paused prompt")
 		}
 		if raw.Control == nil || raw.Control.Disposition != looppkg.ActionDispositionPaused ||
@@ -1931,7 +1976,7 @@ func withGoalRuntimeSessionManager(
 
 type delayedEnsureCreatedManager struct {
 	*session.Manager
-	materialized chan struct{}
+	materialized chan session.EnsureCreatedResult
 	release      <-chan struct{}
 }
 
@@ -1990,7 +2035,10 @@ func (m *delayedEnsureCreatedManager) EnsureCreated(
 	opts := *optsInput
 
 	result, err := m.Manager.EnsureCreated(ctx, &(opts))
-	close(m.materialized)
+	if err != nil {
+		return result, err
+	}
+	m.materialized <- result
 	select {
 	case <-m.release:
 		return result, err
@@ -2022,7 +2070,16 @@ func newLoopGoalManagedRuntimeFixture(
 		resolvedWorkspace.Config = cfg
 		resolvedWorkspace.Agents[0].Provider = acpmock.ProviderName
 		resolvedWorkspace.Agents[0].Model = ""
+		// The real hosted catalog resolves this custom provider through the on-disk overlay.
+		e2etest.SeedConfig(t, homePaths, e2etest.ConfigSeedOptions{Mutate: func(seed *compozyconfig.Config) {
+			*seed = cfg
+		}})
 	}
+	e2etest.WriteAgentDef(t, homePaths, e2etest.AgentSeed{
+		Name: resolvedWorkspace.Agents[0].Name, Provider: resolvedWorkspace.Agents[0].Provider,
+		Model: resolvedWorkspace.Agents[0].Model, Prompt: resolvedWorkspace.Agents[0].Prompt,
+		Tools: resolvedWorkspace.Agents[0].Tools,
+	})
 	daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 	t.Cleanup(func() {
 		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
@@ -2285,4 +2342,17 @@ func (s *failingGoalBindingAdoption) BindCheckpoint(
 		return goalpkg.Checkpoint{}, err
 	}
 	return s.ExecutorStore.BindCheckpoint(ctx, req)
+}
+
+type recordingGoalCleanupStore struct {
+	loopSessionCleanupStore
+	acknowledged chan<- string
+}
+
+func (s *recordingGoalCleanupStore) AcknowledgeLoopSessionCleanup(ctx context.Context, id string, at time.Time) error {
+	if err := s.loopSessionCleanupStore.AcknowledgeLoopSessionCleanup(ctx, id, at); err != nil {
+		return err
+	}
+	s.acknowledged <- id
+	return nil
 }

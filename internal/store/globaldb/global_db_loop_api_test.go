@@ -587,11 +587,19 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 		resolved := looppkg.ResolvedRuntime{
 			Runtime: looppkg.RuntimeSpec{
 				Provider: "codex", Model: "gpt-5.6-terra", Reasoning: "high", Speed: speedpkg.SpeedFast,
+				ACPOptions: []looppkg.ACPOptionSelection{
+					{ID: "fast_mode", BoolValue: new(false)},
+					{ID: "mode", ValueID: "agent-full-access"},
+				},
 			},
 			Source: looppkg.RuntimeProvenance{
 				Provider: looppkg.RuntimeSourceRun,
 				Model:    looppkg.RuntimeSourceFrontmatter, Reasoning: looppkg.RuntimeSourceDefault,
 				Speed: looppkg.RuntimeSourceInput,
+				ACPOptions: map[string]looppkg.RuntimeSource{
+					"fast_mode": looppkg.RuntimeSourceNode,
+					"mode":      looppkg.RuntimeSourceAgent,
+				},
 			},
 			SpeedResolution: &speedpkg.Resolution{
 				Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionUnsupported,
@@ -669,6 +677,7 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 		got := outputs[0].ResolvedRuntime
 		if got.Runtime.Provider != resolved.Runtime.Provider || got.Runtime.Model != resolved.Runtime.Model ||
 			got.Runtime.Reasoning != resolved.Runtime.Reasoning || got.Runtime.Speed != resolved.Runtime.Speed ||
+			!reflect.DeepEqual(got.Runtime.ACPOptions, resolved.Runtime.ACPOptions) ||
 			!reflect.DeepEqual(got.Source, resolved.Source) || got.SpeedResolution == nil ||
 			*got.SpeedResolution != *resolved.SpeedResolution {
 			t.Fatalf("resolved runtime after reopen = %#v, want %#v", got, resolved)
@@ -695,13 +704,15 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 			NodeID          string `json:"node_id"`
 			ItemIndex       int    `json:"item_index"`
 			ResolvedRuntime struct {
-				Provider        string              `json:"provider"`
-				Model           string              `json:"model"`
-				Speed           speedpkg.Speed      `json:"speed"`
-				SpeedResolution speedpkg.Resolution `json:"speed_resolution"`
+				Provider        string                       `json:"provider"`
+				Model           string                       `json:"model"`
+				Speed           speedpkg.Speed               `json:"speed"`
+				ACPOptions      []looppkg.ACPOptionSelection `json:"acp_options"`
+				SpeedResolution speedpkg.Resolution          `json:"speed_resolution"`
 				Source          struct {
-					Model string                `json:"model"`
-					Speed looppkg.RuntimeSource `json:"speed"`
+					Model      string                           `json:"model"`
+					Speed      looppkg.RuntimeSource            `json:"speed"`
+					ACPOptions map[string]looppkg.RuntimeSource `json:"acp_options"`
 				} `json:"source"`
 			} `json:"resolved_runtime"`
 		}
@@ -715,7 +726,9 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 			eventPayload.ResolvedRuntime.SpeedResolution.Status != speedpkg.ResolutionUnsupported ||
 			eventPayload.ResolvedRuntime.SpeedResolution.Reason != speedpkg.ReasonCapabilityAbsent ||
 			eventPayload.ResolvedRuntime.Source.Model != "frontmatter" ||
-			eventPayload.ResolvedRuntime.Source.Speed != looppkg.RuntimeSourceInput {
+			eventPayload.ResolvedRuntime.Source.Speed != looppkg.RuntimeSourceInput ||
+			!reflect.DeepEqual(eventPayload.ResolvedRuntime.ACPOptions, resolved.Runtime.ACPOptions) ||
+			!reflect.DeepEqual(eventPayload.ResolvedRuntime.Source.ACPOptions, resolved.Source.ACPOptions) {
 			t.Fatalf("runtime event payload = %#v, want durable public runtime shape", eventPayload)
 		}
 	})

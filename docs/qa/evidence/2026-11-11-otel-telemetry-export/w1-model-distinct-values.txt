@@ -1,0 +1,3 @@
+      4 "key":"gen_ai.request.model","type":"string","value":"claude-opus-5-5"
+      2 "key":"gen_ai.request.model","type":"string","value":"other"
+{"status":"success","data":["claude-opus-5-5","other"]}

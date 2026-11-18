@@ -267,3 +267,84 @@ func TestClientPluginManagedInstall(t *testing.T) {
 		})
 	}
 }
+
+func TestDerivedInputCatalogIntegration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should refresh derived inputs into durable entry detail", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, "client"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(
+			t,
+			filepath.Join(root, "client", "mcp.json"),
+			`{"mcpServers":{"remote":{"url":"https://${HOST}/mcp"}}}`,
+		)
+		writeFile(t, filepath.Join(root, "marketplace.json"), `{"plugins":[{"name":"client","source":"./client"}]}`)
+		resolver := &pluginsource.Resolver{
+			Cache:   &pluginsource.PackageCache{Root: t.TempDir()},
+			Sources: pluginsource.Sources{TempDir: t.TempDir()},
+		}
+		projector, err := marketplace.NewPluginProjector(resolver, InspectPluginPackage)
+		if err != nil {
+			t.Fatal(err)
+		}
+		config := marketplace.ResolvedSource{Name: "team", Ref: root, Kind: marketplace.SourceKindCustom, Enabled: true}
+		source, err := marketplace.NewPluginSource(config, &resolver.Sources, projector)
+		if err != nil {
+			t.Fatal(err)
+		}
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "catalog.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		store, err := marketplace.NewSQLiteStore(db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		service, err := marketplace.NewService(
+			t.Context(),
+			store,
+			[]marketplace.SourceBinding{
+				{
+					Config: marketplace.ResolvedSource{
+						Name:    marketplace.CompozyCatalogSource,
+						Ref:     marketplace.CompozyCatalogRef,
+						Kind:    marketplace.SourceKindFeed,
+						Enabled: true,
+					},
+					Fetcher: source,
+				},
+				{Config: config, Fetcher: source},
+			},
+			time.Hour,
+			time.Minute,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := service.Refresh(t.Context(), "team"); err != nil {
+			t.Fatal(err)
+		}
+		entry, err := service.Detail(t.Context(), "team", "client")
+		if err != nil {
+			t.Fatal(err)
+		}
+		detail, err := marketplace.ProjectEntry(*entry)
+		if err != nil || len(detail.Extension.Inputs) != 1 || detail.Extension.Inputs[0].ID != "HOST" ||
+			!detail.Extension.Inputs[0].Required {
+			t.Fatalf("entry detail = %+v, %v", detail, err)
+		}
+	})
+}

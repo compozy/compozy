@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +32,7 @@ func newWorktreeCommand(deps commandDeps) *cobra.Command {
 
 func newWorktreeListCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
-	var refresh bool
+	var refresh, includeRemoved bool
 	cmd := &cobra.Command{
 		Use: worktreeListVerb, Short: "List registered worktrees",
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -42,7 +43,7 @@ func newWorktreeListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.ListWorktrees(cmd.Context(), workspaceID, refresh)
+			result, err := client.ListWorktrees(cmd.Context(), workspaceID, refresh, includeRemoved)
 			if err != nil {
 				return err
 			}
@@ -51,6 +52,7 @@ func newWorktreeListCommand(deps commandDeps) *cobra.Command {
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
 	cmd.Flags().BoolVar(&refresh, "refresh", false, "Refresh Git discovery and status")
+	cmd.Flags().BoolVar(&includeRemoved, "include-removed", false, "Include removed worktree records")
 	addAllWorkspacesFlag(cmd)
 	cmd.MarkFlagsMutuallyExclusive("refresh", "all-workspaces")
 	return cmd
@@ -171,13 +173,19 @@ func newWorktreeStatusCommand(deps commandDeps) *cobra.Command {
 
 func newWorktreeRemoveCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, discoveredPath string
+	var dryRun bool
 	var opts WorktreeCleanupOptions
 	cmd := &cobra.Command{
-		Use: "remove <ref> | --path <path>", Short: "Remove a worktree", Args: worktreeRemoveArgs(&discoveredPath),
+		Use:   "remove <ref> [<ref>...] | --path <path>",
+		Short: "Remove a worktree",
+		Args:  worktreeRemoveArgs(&discoveredPath),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspaceID, err := worktreeCommandContext(cmd, deps, workspaceRef)
 			if err != nil {
 				return err
+			}
+			if dryRun || len(args) > 1 {
+				return runWorktreeRemovalBatch(cmd, client, workspaceID, args, discoveredPath, opts, dryRun)
 			}
 			if strings.TrimSpace(discoveredPath) != "" {
 				// Sent verbatim: Git lists paths exactly, edge whitespace included.
@@ -206,15 +214,25 @@ func newWorktreeRemoveCommand(deps commandDeps) *cobra.Command {
 	addWorktreeDeleteBranchFlag(cmd, &opts.DeleteBranch)
 	cmd.Flags().StringVar(&discoveredPath, "path", "",
 		"Remove a discovered (not adopted) worktree by its listed path; its branch is kept")
+	cmd.Flags().
+		BoolVar(&dryRun, "dry-run", false, "Preview per-target risk without removing worktrees or running hooks")
 	cmd.MarkFlagsMutuallyExclusive("path", "delete-branch")
 	return cmd
 }
 
-// worktreeRemoveArgs accepts either one registered ref or a discovered --path.
+// worktreeRemoveArgs accepts registered references or one discovered --path.
 func worktreeRemoveArgs(discoveredPath *string) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		if strings.TrimSpace(*discoveredPath) == "" {
-			return exactOneNonBlankArg()(cmd, args)
+			if len(args) == 0 {
+				return fmt.Errorf("cli: %q requires at least one worktree reference", cmd.CommandPath())
+			}
+			for _, ref := range args {
+				if strings.TrimSpace(ref) == "" {
+					return fmt.Errorf("cli: worktree reference cannot be blank")
+				}
+			}
+			return nil
 		}
 		if len(args) != 0 {
 			return fmt.Errorf("cli: %q accepts either <ref> or --path, not both", cmd.CommandPath())
@@ -293,4 +311,34 @@ func addWorktreeWorkspaceFlag(cmd *cobra.Command, target *string) {
 		target, workspaceFlagName, "",
 		"Override workspace context (ID, name, or path)",
 	)
+}
+
+func runWorktreeRemovalBatch(
+	cmd *cobra.Command, client DaemonClient, workspaceID string, refs []string, path string,
+	opts WorktreeCleanupOptions, dryRun bool,
+) error {
+	request := contract.RemoveWorktreesRequest{Force: opts.Force, DeleteBranch: opts.DeleteBranch, DryRun: dryRun}
+	for _, ref := range refs {
+		if ref = strings.TrimSpace(ref); ref != "" {
+			request.Targets = append(request.Targets, contract.WorktreeRemovalTarget{Ref: ref})
+		}
+	}
+	if strings.TrimSpace(path) != "" {
+		request.Targets = append(request.Targets, contract.WorktreeRemovalTarget{Path: path})
+	}
+	response, err := client.RemoveWorktrees(cmd.Context(), workspaceID, request)
+	if err != nil {
+		return err
+	}
+	if err := writeCommandOutput(cmd, worktreeRemovalBatchBundle(response)); err != nil {
+		return err
+	}
+	if !dryRun {
+		for _, result := range response.Results {
+			if result.State != lifecycleRemovedKey || result.Code != "" {
+				return fmt.Errorf("cli: one or more worktrees could not be removed; inspect per-target results")
+			}
+		}
+	}
+	return nil
 }

@@ -5,14 +5,15 @@ description: Open, page, and retain exact tool results that exceed the active re
 
 Tool calls keep a bounded result in the transcript. When the final post-hook, redacted result is
 larger than its effective byte budget, CompozyOS also retains the exact canonical JSON envelope and
-returns an opaque workspace-scoped artifact reference.
+returns an opaque artifact reference scoped to its workspace or profile-owned User scope.
 
 Use this guide when a tool card says the result is truncated or a structured result contains
 `truncated: true` with a `compozy://tool-artifacts/...` URI.
 
-<OperatorNote label="Workspace boundary">
-  An artifact is readable only from the workspace that produced it. Missing, expired, and
-  foreign-workspace references return the same not-found response.
+<OperatorNote label="Scope boundary">
+  A workspace artifact is readable only from its workspace. A User artifact is readable only from
+  User sessions of the profile that produced it. Missing, expired, and foreign-scope references
+  return the same not-found response.
 </OperatorNote>
 
 ## Open a result in the Web UI
@@ -33,6 +34,8 @@ compozy tool artifact read \
   compozy://tool-artifacts/art_<sha256> \
   --workspace <workspace-id>
 ```
+
+For a User artifact, pass `--workspace @user` and select its profile with `--profile <name>`.
 
 For scripts, request structured output:
 
@@ -63,9 +66,8 @@ large result without shell access. Hosted MCP returns the same page envelope as 
 
 ## Hosted MCP clients
 
-MCP clients reject a successful call that omits `structuredContent` when the tool advertises an
-output schema. A truncated hosted result therefore still returns `structuredContent`, carrying a
-continuation envelope instead of the declared payload:
+A truncated hosted result returns `structuredContent`, carrying a continuation envelope
+instead of the declared payload:
 
 ```json
 {
@@ -77,7 +79,7 @@ continuation envelope instead of the declared payload:
 }
 ```
 
-Each hosted tool's advertised output schema accepts its declared payload, this envelope, and the typed
+Hosted native tools advertise no `outputSchema`. Results retain this envelope and the typed
 `{"error": {...}}` payload of a failed call. Check `truncated` first, then page the artifact with
 `read_tool` as described above. The retained artifact holds the complete canonical result, including
 the original structured payload. A harness that caps tool output size, such as Claude Code's MCP

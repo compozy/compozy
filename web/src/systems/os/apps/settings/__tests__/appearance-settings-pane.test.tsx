@@ -7,9 +7,11 @@
 // rejected save says why instead of silently reverting, the local daemon is read and written even
 // while the browser reports offline, saves reach the daemon in selection
 // order, and overlapping rejected saves leave neither choice behind. A bundled face is published
-// only after its lazy stylesheet loaded.
+// only after its lazy stylesheet loaded. Text size and letter spacing are daemon-wide named steps:
+// a choice PATCHes only its own key and paints `--user-text-scale` / `--user-tracking-body`, and
+// the default step removes the override.
 // Owning layer: the pane; the daemon's shell settings route and queryLocalFonts are mocked I/O.
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
@@ -18,7 +20,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OsShellContext, type OsShellHandle } from "../../../contexts/os-shell-context";
 import { WindowManagerRuntime } from "../../../runtime/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../../lib/routing-coordinator";
-import { FontAppearanceSync, THEME_STORAGE_KEY, themePreferenceStore } from "@/systems/theme";
+import {
+  FontAppearanceSync,
+  THEME_STORAGE_KEY,
+  TypeAppearanceSync,
+  themePreferenceStore,
+  useTypeAppearance,
+} from "@/systems/theme";
 import { AppearanceSettingsPane } from "../appearance-settings-pane";
 
 const managers: WindowManagerRuntime[] = [];
@@ -50,9 +58,13 @@ function matchMediaStub(matches: boolean) {
   }));
 }
 
-const daemon: { appearance: { ui_font: string; mono_font: string } } = {
-  appearance: { ui_font: "", mono_font: "" },
+const DEFAULT_APPEARANCE = {
+  ui_font: "",
+  mono_font: "",
+  text_size: "default",
+  letter_spacing: "default",
 };
+const daemon: { appearance: typeof DEFAULT_APPEARANCE } = { appearance: { ...DEFAULT_APPEARANCE } };
 
 function json(body: unknown) {
   return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
@@ -104,6 +116,7 @@ function renderPane({ systemReducedMotion = false } = {}) {
     <QueryClientProvider client={client}>
       <OsShellContext.Provider value={shell}>
         <FontAppearanceSync />
+        <TypeAppearanceSync />
         <AppearanceSettingsPane />
       </OsShellContext.Provider>
     </QueryClientProvider>
@@ -113,7 +126,7 @@ function renderPane({ systemReducedMotion = false } = {}) {
 
 describe("AppearanceSettingsPane", () => {
   beforeEach(() => {
-    daemon.appearance = { ui_font: "", mono_font: "" };
+    daemon.appearance = { ...DEFAULT_APPEARANCE };
     fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
       const request = input as Request;
       if (new URL(request.url).pathname !== "/api/settings/shell") {
@@ -134,6 +147,8 @@ describe("AppearanceSettingsPane", () => {
     fontLoads.gate = null;
     document.documentElement.style.removeProperty("--user-font-sans");
     document.documentElement.style.removeProperty("--user-font-mono");
+    document.documentElement.style.removeProperty("--user-text-scale");
+    document.documentElement.style.removeProperty("--user-tracking-body");
     vi.restoreAllMocks();
     cleanup();
     for (const manager of managers.splice(0)) manager.destroy();
@@ -199,7 +214,7 @@ describe("AppearanceSettingsPane", () => {
     renderPane();
 
     const trigger = screen.getByTestId("os-appearance-font-sans");
-    await waitFor(() => expect(trigger).toHaveTextContent("Inter"));
+    await waitFor(() => expect(trigger).toHaveTextContent("Figtree"));
     await user.click(trigger);
     await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
 
@@ -220,9 +235,63 @@ describe("AppearanceSettingsPane", () => {
         config: { sessions: {}, appearance: { ui_font: "" } },
       })
     );
-    await waitFor(() => expect(trigger).toHaveTextContent("Inter"));
+    await waitFor(() => expect(trigger).toHaveTextContent("Figtree"));
     await waitFor(() =>
       expect(document.documentElement.style.getPropertyValue("--user-font-sans")).toBe("")
+    );
+  });
+
+  it("Should save the text size and letter spacing for every client and paint them", async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const root = document.documentElement;
+    const size = screen.getByRole("group", { name: "Text size" });
+    const spacing = screen.getByRole("group", { name: "Letter spacing" });
+
+    await user.click(within(size).getByRole("button", { name: "Large" }));
+    await waitFor(() => expect(root.style.getPropertyValue("--user-text-scale")).toBe("1.075"));
+    expect(within(size).getByRole("button", { name: "Large" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    await user.click(within(spacing).getByRole("button", { name: "Relaxed" }));
+    await waitFor(() => expect(root.style.getPropertyValue("--user-tracking-body")).toBe("0em"));
+    expect(JSON.parse(window.localStorage.getItem("compozy.type") ?? "{}")).toEqual({
+      "--user-text-scale": "1.075",
+      "--user-tracking-body": "0em",
+    });
+
+    await user.click(within(size).getByRole("button", { name: "Default" }));
+    await waitFor(() => expect(root.style.getPropertyValue("--user-text-scale")).toBe(""));
+    expect(await shellWrites()).toEqual([
+      { config: { sessions: {}, appearance: { text_size: "large" } } },
+      { config: { sessions: {}, appearance: { letter_spacing: "relaxed" } } },
+      { config: { sessions: {}, appearance: { text_size: "default" } } },
+    ]);
+  });
+
+  it("Should write only the changed text steps and skip a step already stored", async () => {
+    daemon.appearance = { ...DEFAULT_APPEARANCE, text_size: "large" };
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useTypeAppearance(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.type.size).toBe("large"));
+
+    act(() => {
+      result.current.setType({ size: "large" });
+      result.current.setType({});
+    });
+    expect(await shellWrites()).toEqual([]);
+
+    act(() => result.current.setType({ size: "larger", spacing: "wide" }));
+    await waitFor(async () =>
+      expect(await shellWrites()).toEqual([
+        { config: { sessions: {}, appearance: { text_size: "larger", letter_spacing: "wide" } } },
+      ])
     );
   });
 
@@ -273,40 +342,42 @@ describe("AppearanceSettingsPane", () => {
     }
   });
 
-  it(
-    "Should reread fonts that failed to load once the connection returns",
-    { timeout: 15_000 },
-    async () => {
-      let daemonReachable = false;
-      fetcher.mockImplementation(async input => {
-        const request = input as Request;
-        if (!daemonReachable) {
-          return new Response(JSON.stringify({ error: { message: "daemon unavailable" } }), {
-            status: 503,
-            headers: { "content-type": "application/json" },
-          });
-        }
-        if (request.method === "PATCH") return json({ applied: true });
-        return json({ config: { sessions: {}, appearance: { ...daemon.appearance } } });
-      });
-      daemon.appearance.mono_font = "Fira Code";
-      onlineManager.setOnline(false);
-      try {
-        renderPane();
-        // The first read and both settings retries fail; nothing rereads on its
-        // own after that (the 60s poll is far away).
-        await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3), { timeout: 6000 });
-        const trigger = screen.getByTestId("os-appearance-font-mono");
-        expect(trigger).toHaveTextContent("Geist Mono");
-
-        daemonReachable = true;
-        onlineManager.setOnline(true);
-        await waitFor(() => expect(trigger).toHaveTextContent("Fira Code"));
-      } finally {
-        onlineManager.setOnline(true);
+  it("Should reread fonts that failed to load once the connection returns", async () => {
+    vi.useFakeTimers();
+    let daemonReachable = false;
+    fetcher.mockImplementation(async input => {
+      const request = input as Request;
+      if (!daemonReachable) {
+        return new Response(JSON.stringify({ error: { message: "daemon unavailable" } }), {
+          status: 503,
+          headers: { "content-type": "application/json" },
+        });
       }
+      if (request.method === "PATCH") return json({ applied: true });
+      return json({ config: { sessions: {}, appearance: { ...daemon.appearance } } });
+    });
+    daemon.appearance.mono_font = "Fira Code";
+    onlineManager.setOnline(false);
+    try {
+      renderPane();
+      // The first read and both settings retries fail; nothing rereads on its
+      // own after that (the 60s poll is far away).
+      await act(async () => vi.advanceTimersByTimeAsync(3_100));
+      expect(fetcher).toHaveBeenCalledTimes(3);
+      const trigger = screen.getByTestId("os-appearance-font-mono");
+      expect(trigger).toHaveTextContent("Geist Mono");
+
+      daemonReachable = true;
+      await act(async () => {
+        onlineManager.setOnline(true);
+        await vi.advanceTimersByTimeAsync(10);
+      });
+      expect(trigger).toHaveTextContent("Fira Code");
+    } finally {
+      vi.useRealTimers();
+      onlineManager.setOnline(true);
     }
-  );
+  });
 
   it("Should publish a bundled face only after its stylesheet has loaded", async () => {
     const user = userEvent.setup();
@@ -382,7 +453,7 @@ describe("AppearanceSettingsPane", () => {
     pending[1]?.();
     await waitFor(() => expect(toastError).toHaveBeenCalledTimes(2));
     expect(code).toHaveTextContent("Geist Mono");
-    expect(ui).toHaveTextContent("Inter");
+    expect(ui).toHaveTextContent("Figtree");
   });
 
   it("Should offer installed fonts, and only monospace ones for Code", async () => {

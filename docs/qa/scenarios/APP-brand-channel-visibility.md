@@ -28,3 +28,22 @@ product states, and the About/update surface showing `beta` + versions with no s
 
 Dedup note: ET-compozy-public-brand-navigation (canonical) owns the public site/web/CLI/release
 brand surfaces; this file owns only the desktop app's durable identity surfaces.
+
+## 2026-11-08 brand identity v1.2 slice
+
+Spec `.compozy/tasks/brand-site/` (E2E-003). The identity names do not change; the marks do. Extra
+steps for this slice:
+
+1. Dock, launcher, start-menu and installer icons show the blue-to-cyan symbol on a dark rounded tile
+   (`desktop/build/icon.icns`, `icon.ico`, `icon.png`); the orange mark appears nowhere.
+2. Menubar tray templates (`desktop/build/tray/{idle,working,attention}Template*.png`) render as
+   monochrome template images in both macOS appearances.
+3. The About/update surface and the first-run window show the new Logo from `@compozy/ui`.
+
+Slice validation: partial. The icon artifacts were converted and inspected
+(`/tmp/brand-s8-shots/10-desktop-icon-icns.png`, `11-tray-attention@2x.png`). The web first-run
+dialog showed the new symbol beside "Set up CompozyOS". The installed app (dock, About, installer
+records) was not walked in this slice. The blue-tinted `rgb(8, 15, 20)` tile found in this slice was
+recoloured to neutral `#0a0a0a` (business rule 2) in the app-icon and maskable sources under
+`packages/brand/public/brand/png/`, and every consumer was regenerated with `bun run logos`; pixel
+inspection of `desktop/build/icon.png` and `web/public/icon-512.png` reads `rgb(10, 10, 10)`.

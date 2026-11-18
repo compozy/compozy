@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import type { Page } from "@playwright/test";
 
-import { sessionWindow, windowFrame } from "../fixtures/os-navigation";
+import { sessionWindow, windowPane } from "../fixtures/os-navigation";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { seedSessionPullRequest } from "../fixtures/session-pull-request";
 import { expect, test } from "../fixtures/test";
@@ -48,7 +48,7 @@ async function openSession(page: Page, runtime: BrowserRuntime, sessionId: strin
   await page.goto(runtime.url(`/agents/${agentName}/sessions/${sessionId}`));
   const win = sessionWindow(page, sessionId);
   await expect(win).toBeVisible();
-  return windowFrame(win);
+  return windowPane(win);
 }
 
 test("E2E-001: the topbar shows the linked PR instead of the agent chip", async ({
@@ -107,7 +107,7 @@ test("E2E-003: failing checks lead the chip menu and send one prompt naming the 
   await chip.click();
   const menu = appPage.getByTestId("session-pull-request-menu");
   const items = menu.getByRole("menuitem");
-  await expect(items.first()).toHaveAttribute("data-action", "fix");
+  await expect(items.first()).toHaveAttribute("data-testid", "session-pull-request-action-fix");
   await expect(items.first()).toHaveText("Fix failing checks");
   await browserArtifacts.captureScreenshot("session-pr-chip-fix-menu", appPage);
 

@@ -30,16 +30,6 @@ func newConfigCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-// canonicalConfigPathArg maps a deprecated config path to its replacement and warns on stderr.
-// Removal: v0.5.2.
-func canonicalConfigPathArg(cmd *cobra.Command, raw string) string {
-	canonical, deprecated := compozyconfig.CanonicalDottedConfigPath(raw)
-	if deprecated {
-		fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+compozyconfig.ConfigPathAliasWarning)
-	}
-	return canonical
-}
-
 func newConfigUnsetCommand(deps commandDeps) *cobra.Command {
 	var (
 		scopeRaw      string
@@ -74,7 +64,7 @@ func runConfigUnsetCommand(
 	if err != nil {
 		return err
 	}
-	path, _, _, err := configMutationPath(canonicalConfigPathArg(cmd, rawPath))
+	path, _, _, err := configMutationPath(rawPath)
 	if err != nil {
 		return err
 	}
@@ -194,7 +184,10 @@ func newConfigGetCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path := strings.TrimSpace(canonicalConfigPathArg(cmd, args[0]))
+			path := strings.TrimSpace(args[0])
+			if _, err := compozyconfig.ParseDottedConfigPath(path); err != nil {
+				return err
+			}
 			if path == configWindowManagerKey {
 				discovery, discoveryErr := windowManagerConfigDiscovery(cfg.WindowManager)
 				if discoveryErr != nil {
@@ -259,11 +252,14 @@ func runConfigSetCommand(
 	if err != nil {
 		return err
 	}
-	path, kind, redacted, err := configMutationPath(canonicalConfigPathArg(cmd, args[0]))
+	path, kind, redacted, err := configMutationPath(args[0])
 	if err != nil {
 		return err
 	}
 	if err := requireOperatorForAgentOverride(deps, path); err != nil {
+		return err
+	}
+	if handled, err := ignoreRetiredWindowManagerConfigSet(cmd, target, path, args[1], redacted); handled {
 		return err
 	}
 	if err := prepareConfigMutationTarget(target, path); err != nil {
@@ -274,6 +270,7 @@ func runConfigSetCommand(
 	if err != nil {
 		return err
 	}
+	value = translateRetiredWindowManagerConfigSetValue(cmd, path, value)
 	if err := validateSkillSourceConfigValue(target.Scope(), path, value); err != nil {
 		return err
 	}
@@ -297,7 +294,7 @@ func runConfigSetCommand(
 		workspace,
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
-			return setConfigOverlayValue(editor, path, kind, value)
+			return setConfigOverlayValue(editor, homePaths, target, path, kind, value)
 		},
 	); err != nil {
 		return err
@@ -400,6 +397,8 @@ func configSetRecordForLocalWrite(
 
 func setConfigOverlayValue(
 	editor *compozyconfig.OverlayEditor,
+	homePaths compozyconfig.HomePaths,
+	target compozyconfig.WriteTarget,
 	path []string,
 	kind configSetValueKind,
 	value any,
@@ -414,5 +413,5 @@ func setConfigOverlayValue(
 			return fmt.Errorf("cli: config path %q requires an object", strings.Join(path, "."))
 		}
 	}
-	return editor.SetValue(path, value)
+	return editor.SetValueAtTarget(homePaths, target, path, value)
 }

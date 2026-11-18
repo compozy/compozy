@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -126,7 +127,8 @@ func TestClaudeCollector(t *testing.T) {
 				path := filepath.Join(dir, ".credentials.json")
 				requireNoError(t, os.WriteFile(path, []byte(body), 0o600))
 				reader := &fakeClaudeKeychain{}
-				c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeKeychain(reader))
+				c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
+					WithClaudeKeychain(reader), WithClaudePlatform("linux"))
 				_, err := c.Identity(t.Context(), target, IntentExplicit)
 				requireEqual(t, tc.code, AsUsageError(err, "Claude").Code)
 				got, err := os.ReadFile(path)
@@ -159,19 +161,21 @@ func TestClaudeCollector(t *testing.T) {
 				t.Parallel()
 				target, _, _ := claudeFixture(t, true)
 				var calls atomic.Int32
-				server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+				transport := fixtureTransport(func(r *http.Request) (*http.Response, error) {
+					w := httptest.NewRecorder()
 					calls.Add(1)
 					if r.URL.RawQuery == "" {
 						requireEqual(t, "claude-code/2.1.0", r.Header.Get("User-Agent"))
 						claudeResponse(t, w, `{"five_hour":{"utilization":1}}`)
-						return
+						return w.Result(), nil
 					}
 					w.Header().Set("Retry-After", tc.retry)
 					w.WriteHeader(tc.status)
 					claudeResponse(t, w, tc.body)
+					return w.Result(), nil
 				})
 				clock := fixtureClock(t)
-				c := NewClaudeCollector(WithClaudeClock(clock.Now), WithClaudeHTTP(server.URL, nil))
+				c := NewClaudeCollector(WithClaudeClock(clock.Now), WithClaudeHTTP("https://claude.test", transport))
 				_, err := collectClaude(t, c, target, IntentBackground)
 				if tc.code == "" {
 					requireNoError(t, err)
@@ -329,6 +333,107 @@ func TestClaudeKeychain(t *testing.T) {
 		requireEqual(t, "Sign in with claude /login to read usage", outcome.Message)
 		requireEqual(t, string(ActionSignIn), outcome.Action)
 		requireEqual(t, int32(1), reader.calls.Load())
+	})
+
+	t.Run("Should read the live Keychain login past an unusable leftover file once", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name      string
+			transform func(string) string
+		}{
+			{"Should skip an expired file", func(s string) string {
+				return strings.ReplaceAll(s, fmt.Sprint(fixtureClock(t).Now().Add(time.Hour).UnixMilli()), "1")
+			}},
+			{"Should skip a malformed file", func(string) string { return "{" }},
+			{"Should skip a file without the profile scope", func(s string) string {
+				return strings.ReplaceAll(s, "user:profile", "other")
+			}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				target, dir, credential := claudeFixture(t, true)
+				path := filepath.Join(dir, ".credentials.json")
+				body := tc.transform(credential)
+				requireNoError(t, os.WriteFile(path, []byte(body), 0o600))
+				reader := &fakeClaudeKeychain{
+					data: strings.ReplaceAll(credential, "synthetic-secret", "keychain-secret"),
+				}
+				var requests atomic.Int32
+				server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+					requests.Add(1)
+					requireEqual(t, "Bearer keychain-secret", r.Header.Get("Authorization"))
+					claudeResponse(t, w, `{"five_hour":{"utilization":42}}`)
+				})
+				c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
+					WithClaudeKeychain(reader), WithClaudePlatform("darwin"), WithClaudeHTTP(server.URL, nil))
+				for range 3 {
+					snapshot, err := collectClaude(t, c, target, IntentBackground)
+					requireNoError(t, err)
+					requireEqual(t, 42.0, *snapshot.Windows[0].UsedPercent)
+				}
+				requireEqual(t, int32(3), requests.Load())
+				requireEqual(t, int32(1), reader.calls.Load())
+				requireEqual(t, int32(0), reader.interactive.Load())
+				got, err := os.ReadFile(path)
+				requireNoError(t, err)
+				requireEqual(t, body, string(got))
+			})
+		}
+	})
+
+	t.Run("Should keep a usable file authoritative without reading the Keychain", func(t *testing.T) {
+		t.Parallel()
+		target, _, credential := claudeFixture(t, true)
+		reader := &fakeClaudeKeychain{data: strings.ReplaceAll(credential, "synthetic-secret", "keychain-secret")}
+		server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+			requireEqual(t, "Bearer synthetic-secret", r.Header.Get("Authorization"))
+			claudeResponse(t, w, `{"five_hour":{"utilization":42}}`)
+		})
+		c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
+			WithClaudeKeychain(reader), WithClaudePlatform("darwin"), WithClaudeHTTP(server.URL, nil))
+		for _, intent := range []Intent{IntentBackground, IntentExplicit, IntentBackground} {
+			_, err := collectClaude(t, c, target, intent)
+			requireNoError(t, err)
+		}
+		requireEqual(t, int32(0), reader.calls.Load())
+	})
+
+	t.Run("Should report Keychain recovery instead of a stale file login", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name    string
+			consent bool
+			err     error
+			code    ErrorCode
+			calls   int32
+		}{
+			{"Should require consent before reading", false, nil, ErrorCodeKeychainConsentRequired, 0},
+			{"Should keep the file expiry without a Keychain login", true, os.ErrNotExist, ErrorCodeAuthExpired, 1},
+			{"Should report a silent denial", true, os.ErrPermission, ErrorCodeKeychainDenied, 1},
+			{"Should report a bounded read timeout", true,
+				NewUsageError(ErrorCodeKeychainReadTimeout, "Claude"), ErrorCodeKeychainReadTimeout, 1},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				target, dir, credential := claudeFixture(t, true)
+				target.Route.KeychainAccess = tc.consent
+				expired := strings.ReplaceAll(
+					credential,
+					fmt.Sprint(fixtureClock(t).Now().Add(time.Hour).UnixMilli()),
+					"1",
+				)
+				requireNoError(t, os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte(expired), 0o600))
+				reader := &fakeClaudeKeychain{data: credential, err: tc.err}
+				c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
+					WithClaudeKeychain(reader), WithClaudePlatform("darwin"))
+				identity, err := c.Identity(t.Context(), target, IntentBackground)
+				requireEqual(t, tc.code, AsUsageError(err, "Claude").Code)
+				// The expired file keeps its identity so same-owner usage can stay stale.
+				requireEqual(t, false, identity == (CredentialIdentity{}))
+				requireEqual(t, tc.calls, reader.calls.Load())
+				requireEqual(t, int32(0), reader.interactive.Load())
+			})
+		}
 	})
 
 	t.Run("Should reread cleared profile credentials without prompting", func(t *testing.T) {

@@ -31,7 +31,8 @@ func bootConsumedGlobalPath(clean []string) bool {
 	return slices.Equal(clean, toolSurfaceToolsClarifyTimeoutSegments) ||
 		slices.Equal(clean, mcpStatusProbeTimeoutSegments) ||
 		hasPrefix(mcpStdioConfigSegments) ||
-		hasPrefix(sessionAuthRecoverySegments)
+		hasPrefix(sessionAuthRecoverySegments) ||
+		hasPrefix(otelConfigSegments)
 }
 
 // ValidateConfigWriteScope rejects paths that the selected runtime scope cannot consume.

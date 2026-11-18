@@ -198,14 +198,16 @@ func ProviderUsageView(
 			if err != nil {
 				return providerusage.Envelope{}, err
 			}
-			envelope.Targets = []providerusage.Snapshot{
-				{
-					ProviderID:   providerID,
-					ProviderName: provider.DisplayName,
-					Status:       providerusage.StatusDisabled,
-					Error:        providerusage.NewUsageError(providerusage.ErrorCodeDisabled, providerID),
-				},
+			snapshot := providerusage.Snapshot{
+				ProviderID:   providerID,
+				ProviderName: provider.DisplayName,
+				Status:       providerusage.StatusDisabled,
+				Error:        providerusage.NewUsageError(providerusage.ErrorCodeDisabled, providerID),
 			}
+			if family := config.ProviderUsageFamily(providerID, provider, nil); family != providerID {
+				snapshot.CollectorID = family
+			}
+			envelope.Targets = []providerusage.Snapshot{snapshot}
 			envelope.Tray = nil
 			return envelope, nil
 		}

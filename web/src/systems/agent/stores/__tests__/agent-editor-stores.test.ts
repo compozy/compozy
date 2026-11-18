@@ -43,7 +43,16 @@ const heartbeatPayload = (
   validation_status: "valid",
   digest: "digest-a",
   schema_version: 1,
-  frontmatter: { enabled: true, version: 1, context: {}, preferences: {} },
+  actions: [],
+  authority: { digest: "", status: "none", check_ins: {}, actions: [] },
+  frontmatter: {
+    enabled: true,
+    version: 1,
+    context: {},
+    preferences: {},
+    check_ins: {},
+    actions: [],
+  },
   guidance_markdown: "# Heartbeat\n",
   limits: { max_body_bytes: 65536 },
   preferences: { min_interval: "30m", context: {} },
@@ -309,7 +318,9 @@ describe("agent editor store logic", () => {
       agent,
     });
 
-    store.trigger.draftPatched({ patch: { prompt: "local prompt" } });
+    store.trigger.draftPatched({
+      patch: { prompt: "local prompt", mcpAdditions: [{ name: "team-docs", reference: true }] },
+    });
     let snapshot = store.getSnapshot();
     expect(snapshot.context.draft?.prompt).toBe("local prompt");
     expect(snapshot.context.baseline?.definition_digest).toBe(agent.definition_digest);
@@ -324,12 +335,29 @@ describe("agent editor store logic", () => {
     store.trigger.saveRequested({ name: agent.name, save, workspaceId: "ws-test" });
     snapshot = store.getSnapshot();
     const requestId = snapshot.context.requestId;
+    expect(snapshot.context.draft?.mcpAdditions).toEqual([{ name: "team-docs", reference: true }]);
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({
+          agent: expect.objectContaining({ mcp_servers: [{ name: "team-docs", reference: true }] }),
+        }),
+      })
+    );
     store.trigger.saveSucceeded({
       requestId: requestId - 1,
       agent: { ...agent, prompt: "local prompt" },
     });
     snapshot = store.getSnapshot();
     expect(snapshot.context.phase).toBe("saving");
+    store.trigger.saveSucceeded({
+      requestId,
+      agent: {
+        ...agent,
+        definition_digest: "saved-digest",
+        mcp_servers: [{ name: "team-docs", reference: true }],
+      },
+    });
+    expect(store.getSnapshot().context.draft?.mcpAdditions).toBeUndefined();
   });
 
   it("Should own save and reload effects without side effects from can probes or duplicate intents", async () => {

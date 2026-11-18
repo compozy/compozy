@@ -1,0 +1,32 @@
+pid=2741756 npm exec @agentclientprotocol/claude-agent-acp@latest                                     
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_RESOURCE_ATTRIBUTES=compozy.session_id=sess-339cda6e529e234c,compozy.agent=otelprobe
+OTEL_METRICS_EXPORTER=otlp
+OTEL_METRIC_EXPORT_INTERVAL=5000
+CLAUDE_CODE_ENABLE_TELEMETRY=1
+TRACEPARENT=00-d657f3ae2cbdc172381d9b42a42c1db2-60f9c4f9e00a45ee-01
+pid=2741943 sh -c 'claude-agent-acp' 
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_RESOURCE_ATTRIBUTES=compozy.session_id=sess-339cda6e529e234c,compozy.agent=otelprobe
+OTEL_METRICS_EXPORTER=otlp
+OTEL_METRIC_EXPORT_INTERVAL=5000
+CLAUDE_CODE_ENABLE_TELEMETRY=1
+TRACEPARENT=00-d657f3ae2cbdc172381d9b42a42c1db2-60f9c4f9e00a45ee-01
+pid=2741944 node ~/.npm/_npx/b555b4fead8494dc/node_modules/.bin/claude-agent-acp 
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_METRICS_EXPORTER=otlp
+OTEL_METRIC_EXPORT_INTERVAL=5000
+TRACEPARENT=00-d657f3ae2cbdc172381d9b42a42c1db2-60f9c4f9e00a45ee-01
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_RESOURCE_ATTRIBUTES=compozy.session_id=sess-339cda6e529e234c,compozy.agent=otelprobe
+CLAUDE_CODE_ENABLE_TELEMETRY=1
+pid=2741958 ~/.local/bin/claude --output-format stream-json --verbose --input-format stream
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_METRICS_EXPORTER=otlp
+OTEL_METRIC_EXPORT_INTERVAL=5000
+TRACEPARENT=00-d657f3ae2cbdc172381d9b42a42c1db2-60f9c4f9e00a45ee-01
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_RESOURCE_ATTRIBUTES=compozy.session_id=sess-339cda6e529e234c,compozy.agent=otelprobe
+CLAUDE_CODE_ENABLE_TELEMETRY=1

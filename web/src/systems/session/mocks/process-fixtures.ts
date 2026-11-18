@@ -9,7 +9,10 @@ import {
 } from "../lib/session-processes";
 import type { SessionPayload } from "../types";
 
-const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+// One clock read per module: every fixture built for the same age shares one `started_at`, so
+// `(pid, started_at)` identities stay equal across fixture calls that straddle a millisecond.
+const FIXTURE_NOW = Date.now();
+const minutesAgo = (minutes: number) => new Date(FIXTURE_NOW - minutes * 60_000).toISOString();
 
 /** One running process row; overrides pick the kind, command, and ports. */
 export function sessionProcessFixture(

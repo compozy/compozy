@@ -1,0 +1,20 @@
+{
+    "version": 3,
+    "key": "blog",
+    "sequence": 0,
+    "review": {
+        "status": "approved",
+        "updatedAt": "2026-11-10T01:37:12.927Z"
+    },
+    "events": [
+        {
+            "id": "b7c1a8b9-541d-4c85-8d44-6569b6686a50",
+            "type": "approved",
+            "at": "2026-11-10T01:37:12.927Z",
+            "author": "reviewer",
+            "commit": "e696a57b86be49f9b12c1a6a6840c112780d0578",
+            "openCount": 0
+        }
+    ],
+    "comments": []
+}

@@ -5,6 +5,9 @@ import type { SessionPayload } from "../types";
 import type { SessionLaterConfirmation } from "./use-session-later-actions";
 
 export type SessionLifecycleAction =
+  | "mark-seen"
+  | "make-top-level"
+  | "move-under"
   | "rename"
   | "stop"
   | "archive"
@@ -23,7 +26,8 @@ export interface SessionProcessChoice {
 
 export interface SessionLifecycleActionHandlers {
   pendingAction: SessionLifecycleAction | null;
-  pendingSessionId: string | null;
+  /** Every session a pending action is working on; a parallel batch lists each running target. */
+  pendingSessionIds: readonly string[];
   onStop: (session: SessionPayload) => void;
   onRename: (session: SessionPayload) => void;
   onArchive: (session: SessionPayload) => void;
@@ -39,13 +43,18 @@ export interface SessionLifecycleActionHandlers {
   onBackFromLaterMany?: (sessions: readonly SessionPayload[]) => void;
   /** Clears a dismissible Needs you; absent where the host offers no Mark as seen. */
   onMarkSeen?: (session: SessionPayload) => void;
+  onMarkSeenMany?: (sessions: readonly SessionPayload[]) => void;
+  onMakeTopLevelMany?: (sessions: readonly SessionPayload[]) => void;
+  /** Moves every selected session that can go under `parent` there; the rest are skipped. */
+  onMoveUnderMany?: (sessions: readonly SessionPayload[], parent: SessionPayload) => void;
   onDeleteMany?: (
     sessions: readonly SessionPayload[],
     onSelectionChange?: (remainingIds: readonly string[]) => void
   ) => void;
-  /** Nests a top-level session under `parent` (dropped onto its row); absent where unsupported. */
-  /** Loaded rows offered by the owning list as candidate parents. */
-  nestParents?: readonly SessionPayload[];
+  /**
+   * Nests a top-level session under `parent` (dropped onto its row); absent where the host
+   * cannot move lineage, which also hides the row menu's Move under….
+   */
   onAdopt?: (session: SessionPayload, parent: SessionPayload) => void;
   /** Returns a nested child to the top level; the row menu's Make top-level. */
   onMakeTopLevel?: (session: SessionPayload) => void;

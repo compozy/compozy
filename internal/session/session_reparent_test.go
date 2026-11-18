@@ -255,7 +255,7 @@ func TestManagerAdoptSession(t *testing.T) {
 		h := newSpawnReparentHarness(t)
 		ctx := testutil.Context(t)
 		parent := h.spawnParent(t)
-		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+		worker, err := h.manager.Spawn(ctx, &SpawnOpts{
 			ParentSessionID:  parent.ID,
 			AgentName:        "coder",
 			Name:             "worker",
@@ -272,12 +272,11 @@ func TestManagerAdoptSession(t *testing.T) {
 				t.Fatalf("Stop(%q) error = %v", id, err)
 			}
 		}
-		// Releases before the canceled-start fix recorded a reaper-canceled resume
-		// as a process failure, which marks the runtime dead.
+		// Current releases persist an interrupted launch as a canceled stop.
 		metaPath := worker.MetaPath()
 		meta := readMeta(t, metaPath)
 		meta.Failure = &store.SessionFailure{
-			Kind:    store.FailureProcess,
+			Kind:    store.FailureCanceled,
 			Summary: `session: startup canceled for "` + worker.ID + `": spawn_reaper:parent_stopped`,
 		}
 		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
@@ -333,7 +332,7 @@ func TestManagerAdoptSession(t *testing.T) {
 		catalog.GlobalDB = h.db
 		ctx := testutil.Context(t)
 		parent := h.spawnParent(t)
-		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+		worker, err := h.manager.Spawn(ctx, &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true,
 		})
 		if err != nil {
@@ -378,7 +377,7 @@ func TestManagerAdoptSession(t *testing.T) {
 		catalog.GlobalDB = h.db
 		ctx := testutil.Context(t)
 		parent := h.spawnParent(t)
-		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+		worker, err := h.manager.Spawn(ctx, &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true,
 		})
 		if err != nil {
@@ -416,7 +415,7 @@ func TestManagerAdoptSession(t *testing.T) {
 		ctx := testutil.Context(t)
 		parent := h.spawnParent(t)
 		t.Cleanup(func() { reportSessionStop(t, h.harness, parent.ID) })
-		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+		worker, err := h.manager.Spawn(ctx, &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true,
 		})
 		if err != nil {
@@ -585,9 +584,10 @@ func TestValidateReparentNodes(t *testing.T) {
 	t.Run("Should refuse adopting sessions that already carry lineage or are not user sessions", func(t *testing.T) {
 		t.Parallel()
 		for _, test := range []struct {
-			name string
-			node reparentNode
-			want ReparentRefusal
+			name   string
+			node   reparentNode
+			want   ReparentRefusal
+			detail string
 		}{
 			{
 				name: "subagent",
@@ -602,14 +602,22 @@ func TestValidateReparentNodes(t *testing.T) {
 				want: ReparentRefusalSourceNotUser,
 			},
 			{
-				name: "continued session",
-				node: user(store.SessionLineage{ParentSessionID: "sess-p", Kind: store.LineageKindContinue}),
-				want: ReparentRefusalSourceHasParent,
+				name:   "continued session",
+				node:   user(store.SessionLineage{ParentSessionID: "sess-p", Kind: store.LineageKindContinue}),
+				want:   ReparentRefusalSourceHasParent,
+				detail: "continued and forked sessions stay linked to the session they came from",
 			},
 			{
-				name: "forked session",
-				node: user(store.SessionLineage{ParentSessionID: "sess-p", Kind: store.LineageKindFork}),
-				want: ReparentRefusalSourceHasParent,
+				name:   "forked session",
+				node:   user(store.SessionLineage{ParentSessionID: "sess-p", Kind: store.LineageKindFork}),
+				want:   ReparentRefusalSourceHasParent,
+				detail: "continued and forked sessions stay linked to the session they came from",
+			},
+			{
+				name:   "adopted child",
+				node:   user(store.SessionLineage{ParentSessionID: "sess-p", Kind: store.LineageKindProvenance}),
+				want:   ReparentRefusalSourceHasParent,
+				detail: "session already has a parent; make it top-level first",
 			},
 			{
 				name: "recovery session",
@@ -622,6 +630,9 @@ func TestValidateReparentNodes(t *testing.T) {
 				refusal, ok := errors.AsType[*ReparentError](validateAdoptSource(&test.node))
 				if !ok || refusal.Reason != test.want {
 					t.Fatalf("validateAdoptSource(%s) refusal = %#v, want %q", test.name, refusal, test.want)
+				}
+				if test.detail != "" && refusal.Detail != test.detail {
+					t.Fatalf("validateAdoptSource(%s) detail = %q, want %q", test.name, refusal.Detail, test.detail)
 				}
 			})
 		}
@@ -708,7 +719,7 @@ func TestValidateReparentNodes(t *testing.T) {
 
 func (h *harness) spawnBoundWorker(t *testing.T, parent *Session) *Session {
 	t.Helper()
-	worker, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+	worker, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 		ParentSessionID:  parent.ID,
 		AgentName:        "coder",
 		Name:             "worker",

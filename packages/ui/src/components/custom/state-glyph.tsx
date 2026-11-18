@@ -44,7 +44,7 @@ const STATE_CLASS: Record<StateGlyphState, string> = {
   delegated: "text-info",
   monitoring: "text-warning",
   done: "text-success",
-  attention: "text-brand",
+  attention: "text-attn",
   failed: "text-destructive",
   stopped: "text-subtle",
   idle: "text-subtle",
@@ -123,7 +123,7 @@ function StateGlyphMark({ state }: { state: StateGlyphState }) {
  * (running), a dashed ring (queued), an info ring around a dot (delegated —
  * parked until work it handed off finishes), an amber radar ring (monitoring —
  * the turn ended but a monitor still waits to wake it), a filled mint check
- * (done), an accent orange dot (attention / needs you), a danger ring with ×
+ * (done), an amber dot (attention / needs you), a danger ring with ×
  * (failed), a subtle filled square (stopped) and a subtle dot (idle). Amber is
  * the monitoring mark only — never attention — so a watched session reads as
  * not done at a glance. Under reduced motion the

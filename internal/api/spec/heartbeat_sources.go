@@ -44,7 +44,7 @@ func heartbeatSourceOperations() []OperationSpec {
 			RequestBody: contract.HeartbeatScriptApprovalRequest{},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "Approved", Body: contract.HeartbeatScriptApprovalPayload{}},
-				{Status: 403, Description: "Operator required", Body: contract.ErrorPayload{}},
+				{Status: 403, Description: operatorRequiredDescription, Body: contract.ErrorPayload{}},
 				{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},
 				{Status: 422, Description: "Invalid source script request", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: sourceInternalErrorDescription, Body: contract.ErrorPayload{}},
@@ -67,7 +67,7 @@ func heartbeatSourceOperations() []OperationSpec {
 			),
 			Responses: []ResponseSpec{
 				{Status: 204, Description: "Script approval revoked"},
-				{Status: 403, Description: "Operator required", Body: contract.ErrorPayload{}},
+				{Status: 403, Description: operatorRequiredDescription, Body: contract.ErrorPayload{}},
 				{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},
 				{Status: 422, Description: "Invalid source script request", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: sourceInternalErrorDescription, Body: contract.ErrorPayload{}},

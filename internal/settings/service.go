@@ -14,6 +14,7 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -150,6 +151,15 @@ type MCPRuntimeProvider interface {
 	) (MCPServerRuntimeStatus, error)
 }
 
+// MCPCachedRuntimeProvider returns a bounded observation without contacting a server.
+type MCPCachedRuntimeProvider interface {
+	MCPServerCachedRuntimeStatus(
+		context.Context,
+		mcpauth.Target,
+		compozyconfig.MCPServer,
+	) (MCPServerRuntimeStatus, error)
+}
+
 // ConfigRuntimeApplier reconciles a validated config snapshot with daemon-owned runtime state.
 type ConfigRuntimeApplier interface {
 	// ApplyActiveConfig installs a fully projected next-active snapshot, not the persisted desired config.
@@ -180,6 +190,10 @@ type MCPDefinitionRetirer interface {
 
 // Dependencies captures the runtime dependencies required by the settings service.
 type Dependencies struct {
+	RuntimeMCPInventory         RuntimeMCPInventory
+	RuntimeMCPContext           func() (runtimemcp.ReadContext, error)
+	MCPConsent                  MCPConsentProvider
+	WorkspaceMCPApprovals       WorkspaceMCPApprovalRecorder
 	ShellScopeRevisions         ShellScopeRevisionStore
 	WorkspaceResolver           WorkspaceResolver
 	ProfileResolver             ProfileResolver
@@ -217,6 +231,11 @@ type ShellScopeRevisionStore interface {
 }
 
 type service struct {
+	mcpMutationMu               sync.Mutex
+	runtimeMCP                  RuntimeMCPInventory
+	runtimeMCPContext           func() (runtimemcp.ReadContext, error)
+	mcpConsent                  MCPConsentProvider
+	workspaceMCPApprovals       WorkspaceMCPApprovalRecorder
 	shellScopeRevisions         ShellScopeRevisionStore
 	shellMu                     sync.Mutex
 	homePaths                   compozyconfig.HomePaths
@@ -286,6 +305,8 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 	}
 
 	return &service{
+		runtimeMCP:                  deps.RuntimeMCPInventory,
+		runtimeMCPContext:           deps.RuntimeMCPContext,
 		homePaths:                   homePaths,
 		workspaceResolver:           deps.WorkspaceResolver,
 		profileResolver:             deps.ProfileResolver,
@@ -299,6 +320,8 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 		transportParity:             deps.TransportParity,
 		cmdPalette:                  deps.CmdPalette,
 		mcpAuth:                     deps.MCPAuth,
+		mcpConsent:                  deps.MCPConsent,
+		workspaceMCPApprovals:       deps.WorkspaceMCPApprovals,
 		mcpRuntime:                  deps.MCPRuntime,
 		mcpExtensions:               deps.MCPExtensions,
 		mcpExtensionManagement:      deps.MCPExtensionManagement,

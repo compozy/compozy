@@ -1,0 +1,16 @@
+142:forward_to_providers = false         # give provider processes OTEL_* + TRACEPARENT (operator policy)
+230:| forwarding on                     | the line ends with ` · forwarding to providers`                                                                      |
+346:**This is an operator policy, not covered by the daemon privacy guarantee.** The provider decides
+350:values win. `compozy status` shows `forwarding to providers` while it is on.
+       
+   345	**This is an operator policy, not covered by the daemon privacy guarantee.** The provider decides
+   346	what it exports — some providers include prompt text or tool payloads in their own telemetry — and
+   347	it receives the resolved header values. Whether a provider exports anything depends on that provider
+   348	(some need their own enable flag, set through the agent's environment). Agent-defined `OTEL_*`
+   349	values win. `compozy status` shows `forwarding to providers` while it is on.
+       
+   350	Nothing is forwarded while export is disabled, inactive (`observability.enabled = false`), or
+   351	degraded at start, for example by a header ref that does not resolve. Providers already running keep
+   352	the environment they started with.
+       
+   353	```bash

@@ -13,7 +13,6 @@ import {
 
 import type { SessionDerivePlacementHandlers } from "../hooks/use-session-derive";
 import { useSessionContinueDialog } from "../hooks/use-session-continue-dialog";
-import { useSessionContinueRuntimeOptions } from "../hooks/use-session-continue-runtime-options";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import type { SessionPayload } from "../types";
 import { SessionContinueFields } from "./session-continue-fields";
@@ -50,7 +49,6 @@ export function SessionContinueDialog({
     onClose: () => onOpenChange(false),
     placement,
   });
-  const runtimeOptions = useSessionContinueRuntimeOptions(workspaceId, open);
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (model.isSubmitting && !nextOpen) return;
@@ -81,7 +79,7 @@ export function SessionContinueDialog({
 
         <form className="contents" onSubmit={handleSubmit}>
           <EntityDialogBody className="flex flex-col gap-4">
-            <SessionContinueFields model={model} runtimeOptions={runtimeOptions} />
+            <SessionContinueFields model={model} runtimeOptions={model.runtimeOptions} />
 
             <SessionDerivePreviewLine view={model.previewView} />
 

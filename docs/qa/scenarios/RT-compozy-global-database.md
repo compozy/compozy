@@ -24,3 +24,14 @@ QA impact 2026-07-28: live read-only probes now participate in SQLite locking an
 visibility instead of asserting that an actively checkpointed global database is
 immutable. Stale verdict reset to untested; planning flag only, with historical evidence
 preserved and no QA replay in this change.
+
+QA impact 2026-11-11 (#1465): telemetry WAL maintenance now reclaims allocation above
+16 MiB with a nonwaiting TRUNCATE attempt after its periodic PASSIVE checkpoint.
+This is a reclamation threshold, not a hard cap: active readers can retain required frames.
+On temporary synthetic databases, hold an observation snapshot while appending events;
+verify checkpoint progress stalls while ingestion continues. Release the reader, require
+backfill and allocation reclamation on a later maintenance tick, then close and reopen
+and verify every acknowledged event and `integrity_check`. Keep FULL ingestion sync.
+The real SQLite walks in `TestStoreSQLiteHelpers` and `TestGlobalDBTelemetryDelivery`
+passed; [the investigation](../reports/2026-11-11-telemetry-wal.md) records byte/frame
+measurements and shutdown evidence. These checks do not claim a desktop or production-home walk.

@@ -221,6 +221,7 @@ export function deriveSteerProvenance(
     if (messageId === null) continue;
     identityByMarker.set(visit.key, messageId);
     const previous = byMessageId.get(messageId);
+    if (previous?.kind === "superseded" && visit.view.kind !== "superseded") continue;
     const entryId = evidenceString(visit.marker, "queue_entry_id");
     byMessageId.set(messageId, {
       messageId,

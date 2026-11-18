@@ -16,6 +16,11 @@ interface ProfileViewContext {
   /** The switch (its epoch) that produced the current view; 0 when no switch did. */
   viewSwitch: number;
   /**
+   * The current view is what a switch with an unknown outcome left behind, not something the
+   * operator chose: the daemon may have applied the write anyway.
+   */
+  viewRolledBack: boolean;
+  /**
    * Switches whose persist has not settled, by epoch, with the view each one replaced. Switches
    * can overlap, so a failure rolls back along this chain rather than to a captured snapshot: a
    * failed switch's successors inherit what it replaced, and the view only returns when the
@@ -27,6 +32,12 @@ interface ProfileViewContext {
 interface PendingSwitch {
   previous: ProfileView | null;
   previousSwitch: number;
+  /**
+   * Whether returning to `previous` cannot be persisted: it was itself left by a rollback with an
+   * unknown outcome, or a write between them failed without an answer. A later refusal proves
+   * nothing about those writes, so the uncertainty travels with the fallback.
+   */
+  previousRolledBack: boolean;
 }
 
 /**
@@ -40,25 +51,43 @@ interface PendingSwitch {
  * moving an open client. All profiles is the one view the daemon cannot store,
  * so it is the only answer persisted here — it survives a reload, and the
  * remembered choice underneath it stays the creation destination.
+ *
+ * A rollback restores the screen. It restores the choice a reload starts from only when the daemon
+ * refused the write: a reload rejects the write it interrupts, even a keepalive write the daemon
+ * goes on to apply, so a failure without an answer cannot prove the operator stayed in All
+ * profiles, and the next document defers to the daemon until the operator chooses again (#1436).
  */
 export const profileViewStore = createStore({
-  context: { view: null, switchEpoch: 0, viewSwitch: 0, pending: {} } as ProfileViewContext,
+  context: {
+    view: null,
+    switchEpoch: 0,
+    viewSwitch: 0,
+    viewRolledBack: false,
+    pending: {},
+  } as ProfileViewContext,
   on: {
     viewEntered: (context, event: { view: ProfileView }) => {
       if (context.view !== null) return undefined;
       return { ...context, view: event.view };
     },
     viewChanged: (context, event: { view: ProfileView }) => {
-      if (context.view && sameView(context.view, event.view)) return undefined;
+      if (context.view && sameView(context.view, event.view)) {
+        return context.viewRolledBack ? { ...context, viewRolledBack: false } : undefined;
+      }
       const epoch = context.switchEpoch + 1;
       return {
         ...context,
         view: event.view,
         switchEpoch: epoch,
         viewSwitch: epoch,
+        viewRolledBack: false,
         pending: {
           ...context.pending,
-          [epoch]: { previous: context.view, previousSwitch: context.viewSwitch },
+          [epoch]: {
+            previous: context.view,
+            previousSwitch: context.viewSwitch,
+            previousRolledBack: context.viewRolledBack,
+          },
         },
       };
     },
@@ -72,31 +101,45 @@ export const profileViewStore = createStore({
      * The switch's persist failed: it never happened. Its successors now replace what it replaced,
      * and if it is still the view on screen, that view returns. A rollback is not a switch.
      */
-    switchFailed: (context, event: { switch: number }) => {
+    switchFailed: (context, event: { switch: number; refused: boolean }) => {
       const failed = context.pending[event.switch];
       if (failed === undefined) return undefined;
+      const rolledBack = failed.previousRolledBack || !event.refused;
       const pending: Record<number, PendingSwitch> = {};
       for (const [id, entry] of Object.entries(context.pending)) {
         if (Number(id) === event.switch) continue;
-        pending[Number(id)] = entry.previousSwitch === event.switch ? { ...failed } : entry;
+        pending[Number(id)] =
+          entry.previousSwitch === event.switch
+            ? { ...failed, previousRolledBack: rolledBack }
+            : entry;
       }
       if (context.viewSwitch !== event.switch) return { ...context, pending };
-      return { ...context, view: failed.previous, viewSwitch: failed.previousSwitch, pending };
+      return {
+        ...context,
+        view: failed.previous,
+        viewSwitch: failed.previousSwitch,
+        viewRolledBack: rolledBack,
+        pending,
+      };
     },
     viewCleared: context =>
-      context.view === null ? undefined : { ...context, view: null, viewSwitch: 0 },
+      context.view === null && !context.viewRolledBack
+        ? undefined
+        : { ...context, view: null, viewSwitch: 0, viewRolledBack: false },
     /** Drops a deleted or archived profile so the next read resolves a live one. */
     profileSwept: (context, event: { profile: string }) => {
       const view = context.view;
       if (view?.kind !== "profile" || view.profile !== event.profile) return undefined;
-      return { ...context, view: null, viewSwitch: 0 };
+      return { ...context, view: null, viewSwitch: 0, viewRolledBack: false };
     },
   },
 }).with(
   persist({
     name: PROFILE_VIEW_PERSIST_KEY,
     version: 1,
-    pick: context => ({ view: context.view?.kind === "aggregate" ? context.view : null }),
+    pick: context => ({
+      view: context.view?.kind === "aggregate" && !context.viewRolledBack ? context.view : null,
+    }),
   })
 );
 
@@ -123,9 +166,12 @@ export function settleProfileSwitch(switchId: number): void {
   profileViewStore.trigger.switchSettled({ switch: switchId });
 }
 
-/** The switch's persist failed: roll it back along the pending chain. */
-export function failProfileSwitch(switchId: number): void {
-  profileViewStore.trigger.switchFailed({ switch: switchId });
+/**
+ * The switch's persist failed: roll it back along the pending chain. `refused` means the daemon
+ * answered and did not apply the write; otherwise the outcome is unknown.
+ */
+export function failProfileSwitch(switchId: number, { refused = false } = {}): void {
+  profileViewStore.trigger.switchFailed({ switch: switchId, refused });
 }
 
 /** Captures the remembered choice the first time this client resolves one. */

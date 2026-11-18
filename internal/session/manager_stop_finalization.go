@@ -44,6 +44,7 @@ func (m *Manager) finalizeStoppedOwned(
 	defer func() {
 		m.finishFinalization(session.ID, err)
 		if err == nil && session.Info().State == StateStopped {
+			m.retryChildSettleWake(ctx, session.Info())
 			if service := m.ReplyWatches(); service != nil {
 				service.OnTurnSettled(ctx, session.ID, "")
 			}
@@ -127,6 +128,11 @@ func (m *Manager) markStorageStopped(ctx context.Context, session *Session, caus
 // finishStoppedPersistence retains the receipt until stop history, Goal cancellation
 // and supervised task recovery settle.
 func (m *Manager) finishStoppedPersistence(ctx context.Context, session *Session) error {
+	if err := m.cancelSessionInteractions(ctx, session.ID, "session-stopped"); err != nil {
+		session.setPendingStopState(true, true)
+		m.dispatchSessionPostStop(ctx, session)
+		return errors.Join(session.stopFinalizationErr, ErrRecoveryPersistence, err)
+	}
 	if err := m.markSessionStopped(ctx, session); err != nil {
 		m.dispatchSessionPostStop(ctx, session)
 		return errors.Join(session.stopFinalizationErr, err)
@@ -157,9 +163,7 @@ func (m *Manager) finishStoppedPersistence(ctx context.Context, session *Session
 		m.hostedMCP.ReleaseSession(session.ID)
 	}
 	m.dispatchSessionPostStop(ctx, session)
-	if m.notifier != nil {
-		m.notifier.OnSessionStopped(ctx, session)
-	}
+	m.notifyStoppedSession(ctx, session)
 	if _, healthErr := m.persistSessionStoppedHealth(ctx, session, m.now()); healthErr != nil {
 		m.sessionLogger(session).Warn("session: persist stopped health failed", "error", healthErr)
 	}

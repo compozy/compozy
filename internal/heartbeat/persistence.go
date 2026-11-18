@@ -95,6 +95,8 @@ const (
 	WakeSourceScheduler      WakeSource = "scheduler"
 	WakeSourceManual         WakeSource = "manual"
 	WakeSourceHarnessReentry WakeSource = "harness_reentry"
+	WakeSourceTimer          WakeSource = "timer"
+	WakeSourceInstanceCheck  WakeSource = "instance_check"
 )
 
 // WakeResult classifies the outcome of one advisory Heartbeat wake attempt.
@@ -106,28 +108,48 @@ const (
 	WakeResultCoalesced   WakeResult = "coalesced"
 	WakeResultRateLimited WakeResult = "rate_limited"
 	WakeResultFailed      WakeResult = "failed"
+	WakeResultQuiet       WakeResult = "quiet"
+	WakeResultCancelled   WakeResult = "cancelled" //nolint:misspell // Stored spelling.
+	WakeResultReported    WakeResult = "reported"
 )
 
 // WakeReason is a closed deterministic reason for Heartbeat wake state and audit.
 type WakeReason string
 
 const (
-	WakeReasonSourcePollInFlight    WakeReason = "source_poll_in_flight"
-	WakeReasonSent                  WakeReason = "wake_sent"
-	WakeReasonHeartbeatDisabled     WakeReason = "heartbeat_disabled"
-	WakeReasonHeartbeatInvalid      WakeReason = "heartbeat_invalid"
-	WakeReasonHeartbeatNoPolicy     WakeReason = "heartbeat_no_policy"
-	WakeReasonHeartbeatRateLimited  WakeReason = "heartbeat_rate_limited"
-	WakeReasonHeartbeatNoEligible   WakeReason = "heartbeat_no_eligible_session"
-	WakeReasonCooldownActive        WakeReason = "cooldown_active"
-	WakeReasonQuietWindow           WakeReason = "quiet_window"
-	WakeReasonSessionNotFound       WakeReason = "session_not_found"
-	WakeReasonSessionUnhealthy      WakeReason = "session_unhealthy"
-	WakeReasonSessionNotAttachable  WakeReason = "session_not_attachable"
-	WakeReasonSessionPromptActive   WakeReason = "session_prompt_active"
-	WakeReasonSessionPromptRace     WakeReason = "session_prompt_active_race"
-	WakeReasonSyntheticPromptFailed WakeReason = "synthetic_prompt_failed"
-	WakeReasonCoalesced             WakeReason = "wake_coalesced"
+	WakeReasonSourcePollInFlight      WakeReason = "source_poll_in_flight"
+	WakeReasonSent                    WakeReason = "wake_sent"
+	WakeReasonHeartbeatDisabled       WakeReason = "heartbeat_disabled"
+	WakeReasonHeartbeatInvalid        WakeReason = "heartbeat_invalid"
+	WakeReasonHeartbeatNoPolicy       WakeReason = "heartbeat_no_policy"
+	WakeReasonHeartbeatRateLimited    WakeReason = "heartbeat_rate_limited"
+	WakeReasonHeartbeatNoEligible     WakeReason = "heartbeat_no_eligible_session"
+	WakeReasonCooldownActive          WakeReason = "cooldown_active"
+	WakeReasonQuietWindow             WakeReason = "quiet_window"
+	WakeReasonSessionNotFound         WakeReason = "session_not_found"
+	WakeReasonSessionUnhealthy        WakeReason = "session_unhealthy"
+	WakeReasonSessionNotAttachable    WakeReason = "session_not_attachable"
+	WakeReasonSessionPromptActive     WakeReason = "session_prompt_active"
+	WakeReasonSessionPromptRace       WakeReason = "session_prompt_active_race"
+	WakeReasonSyntheticPromptFailed   WakeReason = "synthetic_prompt_failed"
+	WakeReasonCoalesced               WakeReason = "wake_coalesced"
+	WakeReasonQuiet                   WakeReason = "quiet"
+	WakeReasonReported                WakeReason = "reported"
+	WakeReasonCancelled               WakeReason = "cancelled" //nolint:misspell // Stored spelling.
+	WakeReasonDigestEmpty             WakeReason = "digest_empty"
+	WakeReasonDigestUnchanged         WakeReason = "digest_unchanged"
+	WakeReasonPolicyDisabled          WakeReason = "policy_disabled"
+	WakeReasonDefinitionNotAlwaysOn   WakeReason = "definition_not_always_on"
+	WakeReasonDefinitionMissing       WakeReason = "definition_missing"
+	WakeReasonNoSlot                  WakeReason = "no_slot"
+	WakeReasonHookCancelled           WakeReason = "hook_cancelled" //nolint:misspell // Stored spelling.
+	WakeReasonDuplicateSuppressed     WakeReason = "duplicate_suppressed"
+	WakeReasonTriageUnsupported       WakeReason = "triage_unsupported"
+	WakeReasonTriageOutputInvalid     WakeReason = "triage_output_invalid"
+	WakeReasonTriageTimeout           WakeReason = "triage_timeout"
+	WakeReasonTriageInterrupted       WakeReason = "triage_interrupted"
+	WakeReasonTriageConfigUnavailable WakeReason = "triage_config_unavailable"
+	WakeReasonTriageFailed            WakeReason = "triage_failed"
 )
 
 // Snapshot is the immutable storage row for a resolved HEARTBEAT.md policy.

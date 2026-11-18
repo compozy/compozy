@@ -56,6 +56,7 @@ export {
 } from "./lib/model-catalog-tones";
 export {
   providerNeedsAuth,
+  restrictReasoningEfforts,
   toRuntimeModelOptions,
   type ToRuntimeModelOptionsInput,
 } from "./lib/to-runtime-selector-options";

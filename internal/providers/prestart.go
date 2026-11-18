@@ -74,7 +74,7 @@ func runPreStart(
 		Stdout:   result.Stdout,
 		Stderr:   result.Stderr,
 	}, &normalized)
-	verdicts.Record(normalized.ProviderName, provider, probeClassification, startedAt)
+	verdicts.Record(normalized.ProviderName, provider, normalized.CommandEnv, probeClassification, startedAt)
 	if probeClassification.Code == "" {
 		return PreStartReport{}
 	}

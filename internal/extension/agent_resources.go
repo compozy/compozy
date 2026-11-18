@@ -129,7 +129,7 @@ func loadAgentResourceEntry(rootDir, entryRoot string) ([]StaticAgent, error) {
 
 func loadStaticAgent(rootDir, agentDir string) (StaticAgent, error) {
 	agentPath := filepath.Join(agentDir, compozyconfig.AgentDefinitionFileName)
-	agent, err := compozyconfig.LoadAgentDefFile(agentPath)
+	agent, err := compozyconfig.LoadPackagedAgentDefFile(agentPath)
 	if err != nil {
 		return StaticAgent{}, wrapResourceValidationError(
 			agentPath,
@@ -208,9 +208,10 @@ func loadStaticAgentSidecar(
 		})
 	case agentSidecarKindHeartbeat:
 		_, err = heartbeat.Parse(context.Background(), heartbeat.ParseRequest{
-			SourcePath: sourcePath,
-			Content:    body,
-			Config:     compozyconfig.DefaultHeartbeatConfig(),
+			CheckInLimits: &heartbeat.CheckInLimits{MaxToolCalls: 100, MaxWriteCalls: 50},
+			SourcePath:    sourcePath,
+			Content:       body,
+			Config:        compozyconfig.DefaultHeartbeatConfig(),
 		})
 	}
 	if err != nil {

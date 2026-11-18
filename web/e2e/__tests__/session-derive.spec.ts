@@ -50,13 +50,39 @@ interface SessionPayload {
 
 interface TranscriptPayload {
   max_sequence: number;
-  entries: Array<{ message: { id: string; role?: string } }>;
+  entries: Array<{
+    message: {
+      id: string;
+      role?: string;
+      parts?: Array<{ type: string; data?: { type?: string } }>;
+    };
+  }>;
 }
 
 function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): string {
   return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(
     sessionID
   )}${suffix}`;
+}
+
+async function settleInitialMCPNotification(
+  runtime: BrowserRuntime,
+  workspaceID: string,
+  sessionID: string
+): Promise<void> {
+  // The watcher records its baseline independently of prompt completion and derivation.
+  await expect
+    .poll(async () => {
+      const transcript = await runtime.requestJSON<TranscriptPayload>(
+        sessionAPIPath(workspaceID, sessionID, "/transcript")
+      );
+      return transcript.entries.some(entry =>
+        entry.message.parts?.some(
+          part => part.type === "data-compozy-event" && part.data?.type === "session.mcp_changed"
+        )
+      );
+    })
+    .toBe(true);
 }
 
 // The prompt route answers with an event stream; drain it so the turn has settled.
@@ -111,6 +137,7 @@ async function createPromptedSource(
       return transcript.entries.length;
     })
     .toBeGreaterThanOrEqual(2);
+  await settleInitialMCPNotification(runtime, workspace.id, session.id);
   return session;
 }
 
@@ -148,6 +175,7 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     await promptAndSettle(runtime, workspace, source.id, "First step", 2);
     await promptAndSettle(runtime, workspace, source.id, "Second step", 4);
     await promptAndSettle(runtime, workspace, source.id, "Third step", 6);
+    await settleInitialMCPNotification(runtime, workspace.id, source.id);
     const before = await runtime.requestJSON<TranscriptPayload>(
       sessionAPIPath(workspace.id, source.id, "/transcript")
     );
@@ -246,6 +274,8 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     // A frame can retain sibling tabs from the fork step; the session's own row menu owns Continue.
     const sourceUi = sessionWindowSelectors(sourceWin, appPage);
     await sourceUi.sessionRowActions(source.id).click();
+    // Continue lives under the row menu's "New from this ▸" submenu (`derive`), mounted on open.
+    await sourceUi.sessionRowMenuItem("derive", source.id).click();
     await sourceUi.sessionRowMenuItem("continue", source.id).click();
     const dialog = appPage.getByTestId("session-continue-dialog");
     await expect(dialog).toBeVisible();

@@ -53,7 +53,7 @@ export const NAVIGATION_STREAM_REFRESH_MS = 5_000;
 export const TRAIL_MIN_PANE_WIDTH_PX = 864;
 /** Bound on pages one jump may pull before giving up on an unreachable cursor. */
 const NAVIGATION_LOAD_OLDER_MAX_PAGES = 500;
-const OS_WINDOW_FRAME_SELECTOR = '[data-slot="os-window-frame"]';
+const OS_WINDOW_SELECTOR = '[data-slot="os-window-surface"]';
 const COMPOSER_INPUT_SELECTOR = '[data-testid="composer-input"]';
 const COMPOSER_EDITABLE_SELECTOR = `${COMPOSER_INPUT_SELECTOR} [contenteditable="true"]`;
 const THREAD_ROOT_SELECTOR = "[data-thread-root]";
@@ -105,7 +105,7 @@ function nextFrame(): Promise<void> {
 
 /** ⌘F belongs to the focused session window; outside the OS shell the viewport is the only one. */
 function findShortcutScoped(viewport: HTMLElement): boolean {
-  const frame = viewport.closest(OS_WINDOW_FRAME_SELECTOR);
+  const frame = viewport.closest(OS_WINDOW_SELECTOR);
   return frame === null || frame.hasAttribute("data-focused");
 }
 

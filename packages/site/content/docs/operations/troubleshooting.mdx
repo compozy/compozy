@@ -54,6 +54,38 @@ Fix the error reported by foreground mode, then start normally:
 compozy daemon start
 ```
 
+## Desktop app could not start because of a config error
+
+| Field      | What to check                                                                                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | The boot window shows "CompozyOS could not start" with the code `config_invalid`. The detail names the config file and either the settings CompozyOS does not recognize or the invalid TOML line. |
+| Diagnosis  | The app could not load `$COMPOZY_HOME/config.toml`. It reports this once and does not retry, because retrying reads the same file. A running daemon is left untouched.                            |
+| Resolution | Select **Open config file**, remove or rename the named settings or fix the TOML at the reported line, save, then select **Try again**.                                                           |
+
+To check the file from a terminal:
+
+```bash
+compozy config validate
+```
+
+## Desktop app waits for another update or restart
+
+| Field      | What to check                                                                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | The boot window stays on "Starting CompozyOS" with "Another update or restart is in progress", or stops with the code `update_lock_held`.                                                   |
+| Diagnosis  | Another process holds `$COMPOZY_HOME/update.lock`: a runtime update, a restart, or another start. The app waits for it up to 10 minutes without using start attempts, then reports it once. |
+| Resolution | Let the other operation finish, then select **Try again**. If nothing is updating or restarting, check the process named in the boot window and the runtime log before stopping it.         |
+
+To see what the runtime is doing:
+
+```bash
+compozy status -o json
+```
+
+`daemon.readiness.phase` is `starting`, `serving`, `ready`, or `stopping`, and `daemon.readiness.step`
+names the current step. In `serving` the runtime answers reads while it resumes interrupted
+sessions; new prompts and new sessions are accepted once it reaches `ready`.
+
 ## CompozyOS refuses an incompatible database
 
 | Field      | What to check                                                                                                                                                                                                                                                                                                                                    |

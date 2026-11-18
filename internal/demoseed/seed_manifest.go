@@ -87,6 +87,28 @@ func seedManifestPaths(root string) ([]string, error) {
 	return paths, nil
 }
 
+// validateSeedManifest reports a path cleanup could not remove, before anything is deleted.
+func validateSeedManifest(root string, marker seedMarker) error {
+	for _, relative := range marker.Manifest {
+		clean := filepath.Clean(filepath.FromSlash(relative))
+		if clean == "." || filepath.IsAbs(clean) || clean == ".." ||
+			strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("demo seed: marker contains unsafe path %q", relative)
+		}
+		info, err := os.Lstat(filepath.Join(root, clean))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("demo seed: inspect prior fixture %q: %w", relative, err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("demo seed: fixture manifest path %q unexpectedly became a directory", relative)
+		}
+	}
+	return nil
+}
+
 func cleanSeedManifest(root string, marker seedMarker) error {
 	for _, relative := range marker.Manifest {
 		clean := filepath.Clean(filepath.FromSlash(relative))

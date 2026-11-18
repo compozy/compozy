@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -50,10 +49,7 @@ func (n *daemonNativeTools) automationSuggestionsList(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.AutomationSuggestionPayloadsFromSuggestions(suggestions)
-	return structuredResult(
-		contract.AutomationSuggestionsResponse{Suggestions: payload},
-		fmt.Sprintf("%d automation suggestions", len(payload)),
-	)
+	return automationSuggestionListViews.result(req.View, contract.AutomationSuggestionsResponse{Suggestions: payload})
 }
 
 func (n *daemonNativeTools) automationSuggestionsAccept(
@@ -82,7 +78,7 @@ func (n *daemonNativeTools) automationSuggestionsAccept(
 		Suggestion: core.AutomationSuggestionPayloadFromSuggestion(accepted.Suggestion),
 		Job:        core.JobPayloadFromJob(accepted.Job, nil, nil),
 	}
-	return structuredResult(response, accepted.Job.ID)
+	return automationSuggestionAcceptViews.result(req.View, response)
 }
 
 func (n *daemonNativeTools) automationSuggestionsDismiss(
@@ -110,7 +106,7 @@ func (n *daemonNativeTools) automationSuggestionsDismiss(
 	response := contract.AutomationSuggestionResponse{
 		Suggestion: core.AutomationSuggestionPayloadFromSuggestion(dismissed),
 	}
-	return structuredResult(response, dismissed.ID)
+	return automationSuggestionViews.result(req.View, response)
 }
 
 func decodeAutomationSuggestionActionInput(

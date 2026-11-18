@@ -48,6 +48,8 @@ type SessionPromptAdmissionResult struct {
 	QueueEntryID          string            `json:"queue_entry_id,omitempty"`
 	QueuePosition         int               `json:"queue_position,omitzero"`
 	QueueGeneration       int64             `json:"queue_generation,omitzero"`
+	HeldReason            string            `json:"held_reason,omitempty"`
+	HeldInstanceID        string            `json:"held_instance_id,omitempty"`
 	Delivery              string            `json:"delivery,omitempty"`
 	SteerDelivery         SteerDeliveryMode `json:"steer_delivery,omitempty"`
 	PreviousTurnID        string            `json:"previous_turn_id,omitempty"`

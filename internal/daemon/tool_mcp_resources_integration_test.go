@@ -26,10 +26,12 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 // Invariant: extension auth policy survives desired-resource persistence and boot reconstruction.
 // Owner: daemon resource publication, canonical real SQLite integration suite.
+// TestToolMCPStaticPublicationAndBootRebuild verifies persisted config and extension publication.
 func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 	t.Parallel()
 	// Invariant: explicit profile installations publish only into their owning
@@ -167,7 +169,13 @@ binding = { type = "url_query", name = "workspace" }
 				}
 				return driver.WaitForIdle(ctx, ticket)
 			},
-			daemonConfigMCPDeclarationProvider(&publishedConfig, compozyconfig.HomePaths{}, nil, nil, discardLogger()),
+			daemonConfigMCPDeclarationProvider(
+				&publishedConfig,
+				testHomePaths(t),
+				nil,
+				discardLogger(),
+				nil,
+			),
 			extensionManifestToolMCPDeclarationProvider(
 				registry,
 				func() extensionRuntime { return runtime },
@@ -184,7 +192,7 @@ binding = { type = "url_query", name = "workspace" }
 		// Invariant: actual persisted/projected extension declarations reach Settings without copying them to manual config.
 		// Owner: publication-to-Settings integration; canonical tagged suite.
 		settingsAdapter := settingsMCPExtensionDefinitions{
-			state: &bootState{extensionMCP: db.ExtensionMCP, mcpServerCatalog: initialMCPServerCatalog},
+			state: &bootState{mcpDigestKeys: vault.NewMCPDigestKeyProvider(t.TempDir()), extensionMCP: db.ExtensionMCP, mcpServerCatalog: initialMCPServerCatalog},
 		}
 		settingsHome := testHomePaths(t)
 		settingsProfiles, err := profilepkg.NewManager(
@@ -195,11 +203,11 @@ binding = { type = "url_query", name = "workspace" }
 		if err != nil {
 			t.Fatal(err)
 		}
-		authManager, err := newSettingsMCPAuthManagerWithConfig(db, nil, nil, nil, compozyconfig.MCPOAuthConfig{})
+		authManager, err := newSettingsMCPAuthManagerWithConfig(db, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		settingsAdapter.auth = &settingsRuntimeSurface{mcpAuthManager: authManager}
+		settingsAdapter.auth = &settingsRuntimeSurface{digestKey: testMCPDigestKey(t, settingsAdapter.state), mcpAuthManager: authManager}
 		for _, owner := range []string{"manual", "extension:" + manifest.Name} {
 			target := mcpauth.Target{Scope: mcpauth.ScopeUser, Owner: owner, ServerName: "remote"}
 			cfg, err := mcpauth.ServerConfigFromMCP(testutil.Context(t), target, compozyconfig.MCPServer{
@@ -373,6 +381,7 @@ binding = { type = "url_query", name = "workspace" }
 		// Owner: real publication/credential integration; canonical tagged suite.
 		executor, err := mcppkg.NewMCPCallExecutor(
 			newDaemonMCPServerResolver(settingsAdapter.state),
+			mcppkg.WithDefinitionDigestKey(testMCPDigestKey(t, settingsAdapter.state)),
 			mcppkg.WithTokenStore(db),
 		)
 		if err != nil {
@@ -537,6 +546,21 @@ binding = { type = "url_query", name = "workspace" }
 			t.Fatalf("syncer.SyncConfig(empty candidate) error = %v", err)
 		}
 		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 2)
+		// Settings rollback explicitly restores its active snapshot before passive sync.
+		if err := syncer.SyncConfig(testutil.Context(t), &publishedConfig); err != nil {
+			t.Fatalf("syncer.SyncConfig(rollback) error = %v", err)
+		}
+		servers, err = mcpStore.List(
+			testutil.Context(t),
+			toolMCPSyncActor(),
+			resources.ResourceFilter{Source: &source},
+		)
+		if err != nil {
+			t.Fatalf("mcpStore.List(rollback) error = %v", err)
+		}
+		if got, want := mcpServerNames(servers), []string{"git", "kubectl", "remote"}; !slices.Equal(got, want) {
+			t.Fatalf("rollback MCP servers = %#v, want %#v", got, want)
+		}
 		if err := syncer.Sync(testutil.Context(t)); err != nil {
 			t.Fatalf("syncer.Sync(published config) error = %v", err)
 		}

@@ -22,6 +22,7 @@ const (
 
 // InstallExtensionRequest is the shared extension install request payload.
 type InstallExtensionRequest struct {
+	Enable               bool                            `json:"enable,omitzero"`
 	Scope                string                          `json:"scope,omitempty"`
 	WorkspaceID          string                          `json:"workspace_id,omitempty"`
 	Profile              string                          `json:"profile,omitempty"`
@@ -32,6 +33,7 @@ type InstallExtensionRequest struct {
 	Version              string                          `json:"version,omitempty"`
 	Asset                string                          `json:"asset,omitempty"`
 	AllowUnverified      bool                            `json:"allow_unverified,omitzero"`
+	Replace              bool                            `json:"replace,omitzero"`
 	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest,omitempty"`
 }
 
@@ -176,6 +178,8 @@ type ExtensionProvenancePayload struct {
 
 // ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
 type ExtensionPayload struct {
+	// InstallEnableError carries the install outcome to transport envelopes without changing inventory JSON.
+	InstallEnableError          *ExtensionEnableError             `json:"-"`
 	Description                 string                            `json:"description,omitempty"`
 	InstallationProfile         string                            `json:"installation_profile,omitempty"`
 	Layout                      string                            `json:"layout,omitempty"`

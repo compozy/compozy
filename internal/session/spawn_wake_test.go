@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -11,9 +12,13 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 type recordingSpawnWakeNotifier struct {
@@ -21,18 +26,23 @@ type recordingSpawnWakeNotifier struct {
 	events  []SpawnWakeEvent
 	parents []string
 	err     error
+	deliver func(context.Context, string, SpawnWakeEvent) error
 }
 
 func (notifier *recordingSpawnWakeNotifier) WakeSpawnCreator(
-	_ context.Context,
+	ctx context.Context,
 	creatorSessionID string,
 	event SpawnWakeEvent,
 ) error {
 	notifier.mu.Lock()
-	defer notifier.mu.Unlock()
 	notifier.parents = append(notifier.parents, creatorSessionID)
 	notifier.events = append(notifier.events, event)
-	return notifier.err
+	err, deliver := notifier.err, notifier.deliver
+	notifier.mu.Unlock()
+	if deliver != nil {
+		return deliver(ctx, creatorSessionID, event)
+	}
+	return err
 }
 
 func (notifier *recordingSpawnWakeNotifier) calls() ([]string, []SpawnWakeEvent) {
@@ -65,6 +75,21 @@ func TestSpawnWakeEventContract(t *testing.T) {
 		}
 		if got := len([]rune(event.Detail)); got > spawnWakeTextMaxRunes {
 			t.Fatalf("wake detail runes = %d, want <= %d", got, spawnWakeTextMaxRunes)
+		}
+	})
+
+	t.Run("Should keep other attention causes distinct from the early-stop occurrence", func(t *testing.T) {
+		t.Parallel()
+		info := spawnWakeTestInfo(true)
+		info.State = StateActive
+		info.PendingInteractions = nil
+		info.EndedEarlyTurnID = "turn-early"
+		earlyID := spawnWakeEventID(info, SpawnWakeReasonNeedsAttention)
+		info.StopVerificationFailed = true
+		info.AttentionRevision++
+		failureID := spawnWakeEventID(info, SpawnWakeReasonNeedsAttention)
+		if failureID == earlyID {
+			t.Fatal("a new stop-verification failure reused the early-stop alarm identity")
 		}
 	})
 
@@ -132,6 +157,232 @@ func TestSpawnWakeReasonForBadge(t *testing.T) {
 
 func TestManagerDispatchSpawnWake(t *testing.T) {
 	t.Parallel()
+	for _, unavailable := range []string{"unreadable", "archived", "expired"} {
+		t.Run("Should recover other shutdown wakes when one child is "+unavailable, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			notifier := &recordingSpawnWakeNotifier{}
+			h := newHarness(t, WithSpawnWakeNotifier(notifier), WithLogger(slog.New(slog.NewTextHandler(&logs, nil))))
+			parent := createSession(t, h)
+			var infos []*Info
+			for range 2 {
+				child, err := h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: parent.ID,
+					AgentName: "coder", TTL: time.Hour, NotifyCreator: true})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := h.manager.StopWithCause(t.Context(), child.ID, CauseShutdown, "daemon restart"); err != nil {
+					t.Fatal(err)
+				}
+				info, err := h.manager.Status(t.Context(), child.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				infos = append(infos, info)
+			}
+			switch unavailable {
+			case "archived":
+				infos[0].ArchivedAt = new(h.manager.now())
+			case "expired":
+				infos[0].Lineage.TTLExpiresAt = new(h.manager.now().Add(-time.Second))
+			}
+			open := h.manager.openQueryStore
+			h.manager.openQueryStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventReadCloser, error) {
+				if unavailable == "unreadable" && owner.SessionID == infos[0].ID {
+					return nil, errors.New("child transcript unavailable")
+				}
+				return open(ctx, owner, path)
+			}
+			if err := h.manager.recoverSpawnShutdownWakes(t.Context(), infos); err != nil {
+				t.Fatal(err)
+			}
+			_, wakes := notifier.calls()
+			if len(wakes) != 1 || wakes[0].ChildSessionID != infos[1].ID {
+				t.Fatalf("recovered wakes = %+v, want only the readable child", wakes)
+			}
+			if unavailable == "unreadable" && (!strings.Contains(logs.String(), infos[0].ID) ||
+				!strings.Contains(logs.String(), "child transcript unavailable")) {
+				t.Fatalf("failed child recovery has no diagnostic: %s", logs.String())
+			}
+		})
+	}
+	// Invariant: a shutdown wake is deferred and derived after manager replacement with a durable
+	// identity; boot never revives a deliberately stopped parent. Owner: spawn wake recovery.
+	for _, tc := range []struct {
+		name          string
+		parentStopped bool
+		err           error
+	}{
+		{name: "Should recover shutdown wake after retryable error", err: ErrSpawnWakeRetryable},
+		{name: "Should recover shutdown wake after uncertain delivery", err: errors.New("delivery outcome unknown")},
+		{name: "Should suppress shutdown wake for an explicitly stopped parent", parentStopped: true, err: ErrSpawnWakeRetryable},
+	} {
+		t.Run(
+			tc.name,
+			func(t *testing.T) {
+				parentStopped := tc.parentStopped
+				db := openManagerInputQueueStore(t)
+				notifier := &recordingSpawnWakeNotifier{}
+				opts := []Option{WithSessionCatalog(db), WithSessionInputQueueStore(db),
+					WithSessionPromptAdmissionStore(db), WithSpawnWakeNotifier(notifier),
+					WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond})}
+				h := newHarness(t, opts...)
+				registerManagerInputQueueWorkspace(t, db, h)
+				parent := createSession(t, h)
+				stream, err := h.manager.Prompt(t.Context(), parent.ID, "wait for the child")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, stream)
+				child, err := h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: parent.ID,
+					AgentName: "coder", TTL: time.Hour, NotifyCreator: true, AutoStopOnParent: true})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := h.manager.StopWithCause(t.Context(), child.ID, CauseShutdown, "daemon restart"); err != nil {
+					t.Fatal(err)
+				}
+				cause := CauseShutdown
+				if parentStopped {
+					cause = CauseUserRequested
+				}
+				if err := h.manager.StopWithCause(t.Context(), parent.ID, cause, ""); err != nil {
+					t.Fatal(err)
+				}
+				if err := h.manager.Shutdown(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if _, wakes := notifier.calls(); len(wakes) != 0 {
+					t.Fatal("shutdown delivered before recovery")
+				}
+				h.manager = newManagerWithHarness(t, h, opts...)
+				t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+				notifier.err = tc.err
+				for attempt := range 3 {
+					if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+					if attempt == 0 {
+						notifier.mu.Lock()
+						notifier.err = nil
+						notifier.deliver = func(ctx context.Context, id string, wake SpawnWakeEvent) error {
+							stream, err := h.manager.PromptSynthetic(ctx, id, SyntheticPromptOpts{
+								MessageID: wake.WakeEventID, Message: "inspect the stopped child",
+								Metadata: acp.PromptSyntheticMeta{
+									ChildSessionID: wake.ChildSessionID, ChildAgentName: wake.ChildAgentName,
+									Badge: string(wake.Badge), Reason: string(wake.Reason),
+									Summary: wake.Detail, WakeEventID: wake.WakeEventID,
+								},
+							})
+							if err == nil {
+								drainPromptSource(stream)
+							}
+							return err
+						}
+						notifier.mu.Unlock()
+					}
+				}
+				parents, wakes := notifier.calls()
+				wantCalls := 2
+				if parentStopped {
+					wantCalls = 0
+				}
+				if len(wakes) != wantCalls {
+					t.Fatalf("shutdown wakes = %d, want %d", len(wakes), wantCalls)
+				}
+				for i, wake := range wakes {
+					if parents[i] != parent.ID || wake.WakeEventID != wakes[0].WakeEventID ||
+						wake.Reason != SpawnWakeReasonStopped || !strings.Contains(wake.Detail, "Daemon shutdown") {
+						t.Fatalf("recovered shutdown identity changed: %+v", wake)
+					}
+				}
+				_, live := h.manager.Get(parent.ID)
+				if live == parentStopped {
+					t.Fatalf("parent live = %t after explicit stop %t", live, parentStopped)
+				}
+				if !parentStopped {
+					if err := h.manager.StopWithCause(
+						t.Context(),
+						parent.ID,
+						CauseShutdown,
+						"next restart",
+					); err != nil {
+						t.Fatal(err)
+					}
+					if err := h.manager.Shutdown(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+					h.manager = newManagerWithHarness(t, h, opts...)
+					starts := len(h.driver.startCalls)
+					if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+					if len(h.driver.startCalls) != starts {
+						t.Fatal("an already admitted shutdown wake reopened its idle parent")
+					}
+				}
+			},
+		)
+	}
+	// For non-shutdown wakes, pre-dispatch failures can retry, while
+	// admitted or uncertain outcomes must retain duplicate suppression.
+	for _, test := range []struct {
+		name      string
+		err       error
+		wantCalls int
+	}{
+		{name: "Should retry a pre-dispatch lookup failure", err: fmt.Errorf("lookup: %w", ErrSpawnWakeRetryable), wantCalls: 2},
+		{name: "Should retain an uncertain delivery reservation", err: errors.New("delivery outcome unknown"), wantCalls: 1},
+		{name: "Should retain an admitted wake reservation", wantCalls: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			notifier := &recordingSpawnWakeNotifier{err: test.err}
+			manager := spawnWakeTestManager(notifier, nil)
+			info := spawnWakeTestInfo(true)
+			manager.dispatchSpawnWake(t.Context(), info, BadgeWaitingForInput)
+			notifier.mu.Lock()
+			notifier.err = nil
+			notifier.mu.Unlock()
+			manager.dispatchSpawnWake(t.Context(), info, BadgeWaitingForInput)
+			manager.dispatchSpawnWake(t.Context(), info, BadgeWaitingForInput)
+			_, events := notifier.calls()
+			if len(events) != test.wantCalls {
+				t.Fatalf("wake calls = %d, want %d", len(events), test.wantCalls)
+			}
+			for _, event := range events {
+				if event.WakeEventID != events[0].WakeEventID {
+					t.Fatal("retry changed the durable admission identity")
+				}
+			}
+		})
+	}
+
+	// Invariant: child attention names native sign-in separately from a permission request.
+	// Owner: session spawn wake; canonical dispatch suite.
+	for _, tc := range []struct {
+		name     string
+		failure  *store.SessionFailure
+		recovery *store.SessionRuntimeRecovery
+		want     string
+	}{
+		{name: "Should describe provider sign in recovery", recovery: &store.SessionRuntimeRecovery{Reason: store.SessionRuntimeRecoveryProviderAuth}, want: "Waiting for the provider sign-in."},
+		{name: "Should describe expired provider sign in", failure: &store.SessionFailure{Kind: store.FailureProviderAuth}, want: "Waiting for the provider sign-in."},
+		{name: "Should retain permission guidance for a pending permission", want: "Waiting for permission."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			notifier := &recordingSpawnWakeNotifier{}
+			manager := spawnWakeTestManager(notifier, nil)
+			info := spawnWakeTestInfo(true)
+			info.Failure, info.RuntimeRecovery = tc.failure, tc.recovery
+			manager.dispatchSpawnWake(t.Context(), info, BadgeWaitingForAuth)
+			_, events := notifier.calls()
+			if len(events) != 1 || events[0].Detail != tc.want {
+				t.Fatalf("wakes = %#v, want detail %q", events, tc.want)
+			}
+		})
+	}
 
 	t.Run("Should deliver one wake per cause episode", func(t *testing.T) {
 		t.Parallel()
@@ -275,6 +526,618 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: each settled provenance revision wakes its instance main once, survives
+// restart, respects explicit stops and monitor coverage, and excludes ordinary creators.
+// Owner: session lifecycle; canonical suite: spawn_wake_test.go.
+func TestAlwaysOnChildSettleWake(t *testing.T) {
+	t.Parallel()
+	// Invariant: a same-badge completion survives lookup failure and an older reply watch.
+	// Owner: session lifecycle receipt selection; canonical child-settle suite.
+	for _, interleaving := range []string{"a failed lookup", "an older reply watch"} {
+		t.Run("Should deliver a same-badge completion after "+interleaving, func(t *testing.T) {
+			t.Parallel()
+			h, parent, notifier := newAlwaysOnWakeHarness(t)
+			child := createAlwaysOnWakeChild(t, h, parent.ID)
+			stream, err := h.manager.Prompt(t.Context(), child.ID, "first assignment")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, stream)
+			before := child.Info()
+			for _, kind := range []string{acp.EventTypeUserMessage, acp.EventTypeDone} {
+				event := h.manager.normalizeEvent(child, "new-completion", acp.AgentEvent{
+					Type: kind, TurnID: "new-completion", Timestamp: h.manager.now(),
+				}).WithEventID(kind + ":new-completion")
+				if err := h.manager.recordEvent(t.Context(), child, event); err != nil {
+					t.Fatal(err)
+				}
+			}
+			after := *before
+			after.AttentionRevision++
+			after.LastSettledRevision++
+			catalog := h.manager.sessionCatalog
+			defer func() { h.manager.sessionCatalog = catalog }()
+			completedTurnID := "new-completion"
+			if interleaving == "a failed lookup" {
+				h.manager.sessionCatalog = &flakySpawnWakeCatalog{
+					SessionCatalog: catalog, childID: parent.ID, failInstanceRead: true,
+				}
+			} else {
+				completedTurnID = "older-completion"
+				h.manager.replyWatches = &replyWatchService{manager: h.manager,
+					store: &pendingReplyWatchStore{pending: []store.ReplyWatch{{
+						ID: "old-reply", SenderSessionID: parent.ID, TargetSessionID: child.ID,
+						TurnID: completedTurnID,
+					}}}}
+				defer func() { h.manager.replyWatches = nil }()
+			}
+			wake := h.manager.publishLifecycleAttentionTransitionWakeLocked(
+				t.Context(), before, &after, true, completedTurnID,
+			)
+			if wake == nil {
+				t.Fatal("same-badge completion did not schedule delivery")
+			}
+			wake()
+			h.manager.sessionCatalog = catalog
+			h.manager.retryChildSettleWakes(t.Context())
+			_, wakes := notifier.calls()
+			if len(wakes) != 2 || wakes[0].WakeEventID == wakes[1].WakeEventID {
+				t.Fatalf("wakes=%+v, want each completion delivered once", wakes)
+			}
+		})
+	}
+	for _, outcome := range []string{"completed", "stopped", "failed", "seen"} {
+		t.Run("Should wake once when a provenance child is "+outcome, func(t *testing.T) {
+			t.Parallel()
+			h, parent, notifier := newAlwaysOnWakeHarness(t)
+			child, err := h.manager.Create(t.Context(), &CreateOpts{
+				AgentName: "coder", Workspace: h.workspaceID, Lineage: &store.SessionLineage{
+					ParentSessionID: parent.ID, Kind: store.LineageKindProvenance,
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if outcome == "seen" {
+				if _, err := h.manager.SessionPresence(t.Context(), child.ID, "", true); err != nil {
+					t.Fatal(err)
+				}
+			}
+			switch outcome {
+			case "completed", "seen":
+				stream, err := h.manager.Prompt(t.Context(), child.ID, "finish the assigned work")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, stream)
+			case "stopped", "failed":
+				cause := CauseCompleted
+				if outcome == "failed" {
+					cause = CauseFailed
+				}
+				if err := h.manager.StopWithCause(t.Context(), child.ID, cause, "child settled"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			waitForCondition(t, "the child's settlement wake delivered", func() bool {
+				_, events := notifier.calls()
+				return len(events) > 0
+			})
+			info, err := h.manager.Status(t.Context(), child.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.manager.dispatchSpawnWake(t.Context(), info, BadgeForInfo(info))
+			parents, events := notifier.calls()
+			if len(events) != 1 || parents[0] != parent.ID || !events[0].Automatic {
+				t.Fatalf("wakes=%+v parents=%v, want one automatic wake", events, parents)
+			}
+			want := SpawnWakeReason(outcome)
+			if outcome == "seen" {
+				want = SpawnWakeReasonCompleted
+			}
+			if events[0].Reason != want {
+				t.Fatalf("reason=%s, want %s", events[0].Reason, want)
+			}
+		})
+	}
+	t.Run("Should retain monitor coverage after cache eviction", func(t *testing.T) {
+		t.Parallel()
+		h, parent, notifier := newAlwaysOnWakeHarness(t)
+		h.manager.ConfigureSpawnWakeCoverage(func(string, *Info, Badge) bool { return true })
+		child, err := h.manager.Create(t.Context(), &CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Lineage: &store.SessionLineage{
+				ParentSessionID: parent.ID, Kind: store.LineageKindProvenance,
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		stream, err := h.manager.Prompt(t.Context(), child.ID, "finish")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		info := child.Info()
+		h.manager.forgetSpawnWakeEvents(child.ID)
+		h.manager.ConfigureSpawnWakeCoverage(nil)
+		h.manager.dispatchSpawnWake(t.Context(), info, BadgeDone)
+		if _, events := notifier.calls(); len(events) != 0 {
+			t.Fatalf("covered child generated wakes: %+v", events)
+		}
+	})
+	t.Run("Should discard a queued wake after the child starts newer work", func(t *testing.T) {
+		t.Parallel()
+		h, parent, notifier := newAlwaysOnWakeHarness(t)
+		child, err := h.manager.Create(t.Context(), &CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Lineage: &store.SessionLineage{
+				ParentSessionID: parent.ID, Kind: store.LineageKindProvenance,
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		stream, err := h.manager.Prompt(t.Context(), child.ID, "finish")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		_, events := notifier.calls()
+		if len(events) != 1 {
+			t.Fatalf("wakes=%+v", events)
+		}
+		wake := events[0]
+		meta := &acp.PromptSyntheticMeta{Kind: SpawnWakeKindChildSettled, ChildSessionID: child.ID,
+			WakeEventID: wake.WakeEventID, Badge: string(wake.Badge), Reason: string(wake.Reason)}
+		if err := h.manager.validateSpawnWake(t.Context(), parent.ID, meta); err != nil {
+			t.Fatal(err)
+		}
+		stream, err = h.manager.Prompt(t.Context(), child.ID, "new work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		if err := h.manager.validateSpawnWake(t.Context(), parent.ID, meta); !errors.Is(err, errSpawnWakeStale) {
+			t.Fatalf("old wake validation=%v, want stale", err)
+		}
+	})
+	t.Run("Should wait while the child has an active prompt or pending input", func(t *testing.T) {
+		t.Parallel()
+		h, parent, notifier := newAlwaysOnWakeHarness(t)
+		child := createAlwaysOnWakeChild(t, h, parent.ID)
+		providerEvents := make(chan acp.AgentEvent, 1)
+		h.driver.mu.Lock()
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return providerEvents, nil
+		}
+		h.driver.mu.Unlock()
+		stream, err := h.manager.Prompt(t.Context(), child.ID, "work is still running")
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.manager.dispatchSpawnWake(t.Context(), child.Info(), BadgeForInfo(child.Info()))
+		if _, wakes := notifier.calls(); len(wakes) != 0 {
+			t.Fatalf("active prompt generated wakes=%+v", wakes)
+		}
+		h.manager.restartInputsHeld.Store(child.ID, true)
+		if _, err := h.manager.EnqueueSyntheticWake(t.Context(), child.ID, SyntheticPromptOpts{
+			MessageID: "next-assignment", Message: "more work", Metadata: acp.PromptSyntheticMeta{Reason: "next"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		providerEvents <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: child.CurrentTurnID()}
+		close(providerEvents)
+		collectEvents(t, stream)
+		h.manager.dispatchSpawnWake(t.Context(), child.Info(), BadgeForInfo(child.Info()))
+		if _, wakes := notifier.calls(); len(wakes) != 0 {
+			t.Fatalf("pending work generated wakes=%+v", wakes)
+		}
+	})
+	t.Run("Should keep a canceled child turn suppressed after restart", func(t *testing.T) {
+		t.Parallel()
+		h, parent, notifier := newAlwaysOnWakeHarness(t)
+		child := createAlwaysOnWakeChild(t, h, parent.ID)
+		providerEvents := make(chan acp.AgentEvent, 1)
+		var cancelOnce sync.Once
+		h.driver.mu.Lock()
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return providerEvents, nil
+		}
+		h.driver.cancelHook = func(_ *fakeProcess) error {
+			cancelOnce.Do(func() {
+				providerEvents <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: child.CurrentTurnID(),
+					PromptStopReason: acp.PromptStopReasonCancelled, StopReason: string(acp.PromptStopReasonCancelled)}
+				close(providerEvents)
+			})
+			return nil
+		}
+		h.driver.mu.Unlock()
+		stream, err := h.manager.Prompt(t.Context(), child.ID, "cancel this assignment")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.CancelPrompt(t.Context(), child.ID); err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		if _, wakes := notifier.calls(); len(wakes) != 0 {
+			t.Fatalf("canceled turn generated wakes=%+v", wakes)
+		}
+		db, queue := h.manager.sessionCatalog, h.manager.inputQueueStore
+		for _, id := range []string{child.ID, parent.ID} {
+			if err := h.manager.StopWithCause(t.Context(), id, CauseShutdown, "restart"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := h.manager.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		next := &recordingSpawnWakeNotifier{}
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db), WithSessionInputQueueStore(queue),
+			WithSpawnWakeNotifier(next))
+		cleanupTestManager(t, h.manager)
+		if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if _, wakes := next.calls(); len(wakes) != 0 {
+			t.Fatalf("restart replayed canceled work: %+v", wakes)
+		}
+	})
+	for _, outcome := range []string{"delivered", "undelivered", "covered"} {
+		t.Run("Should recover a "+outcome+" completion across restart", func(t *testing.T) {
+			t.Parallel()
+			h, parent, notifier := newAlwaysOnWakeHarness(t)
+			db := h.manager.sessionCatalog
+			if outcome == "undelivered" {
+				notifier.err = ErrSpawnWakeRetryable
+			}
+			if outcome == "covered" {
+				h.manager.ConfigureSpawnWakeCoverage(func(string, *Info, Badge) bool { return true })
+			}
+			child := createAlwaysOnWakeChild(t, h, parent.ID)
+			stream, err := h.manager.Prompt(t.Context(), child.ID, "deliver the final report")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, stream)
+			for _, id := range []string{child.ID, parent.ID} {
+				if err := h.manager.StopWithCause(t.Context(), id, CauseShutdown, "restart"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := h.manager.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			next := &recordingSpawnWakeNotifier{}
+			h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db),
+				WithSessionInputQueueStore(h.manager.inputQueueStore), WithSpawnWakeNotifier(next))
+			cleanupTestManager(t, h.manager)
+			for range 2 {
+				if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, wakes := next.calls()
+			want := 0
+			if outcome == "undelivered" {
+				want = 1
+			}
+			if len(wakes) != want {
+				t.Fatalf("recovered wakes=%+v, want %d", wakes, want)
+			}
+		})
+	}
+	for _, optOut := range []string{"ordinary creator", "explicit stop", "archive", "governed opt-out"} {
+		t.Run("Should respect "+optOut, func(t *testing.T) {
+			t.Parallel()
+			h, parent, notifier := newAlwaysOnWakeHarness(t)
+			parentID := parent.ID
+			if optOut == "ordinary creator" {
+				parentID = createSession(t, h).ID
+			}
+			child := createAlwaysOnWakeChild(t, h, parentID)
+			if optOut == "governed opt-out" {
+				var err error
+				child, err = h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: parent.ID,
+					AgentName: "coder", TTL: time.Hour, NotifyCreatorSet: true, NotifyCreator: false})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			cause := CauseCompleted
+			if optOut == "explicit stop" {
+				cause = CauseUserRequested
+			}
+			if optOut == "archive" {
+				cause = CauseShutdown
+			}
+			if err := h.manager.StopWithCause(t.Context(), child.ID, cause, "settled"); err != nil {
+				t.Fatal(err)
+			}
+			if optOut == "archive" {
+				if _, err := h.manager.Archive(t.Context(), h.workspaceID, child.ID); err != nil {
+					t.Fatal(err)
+				}
+				info, err := h.manager.Status(t.Context(), child.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				h.manager.dispatchSpawnWake(t.Context(), info, BadgeForInfo(info))
+			}
+			if _, wakes := notifier.calls(); len(wakes) != 0 {
+				t.Fatalf("opt-out generated wakes=%+v", wakes)
+			}
+		})
+	}
+	for _, source := range []string{"historical", "adopted"} {
+		t.Run("Should not recover a wake for an unenrolled "+source+" child", func(t *testing.T) {
+			t.Parallel()
+			var child *Session
+			h, main, notifier := newAlwaysOnWakeHarness(t, func(h *harness, parent *Session) {
+				if source == "historical" {
+					child = createAlwaysOnWakeChild(t, h, parent.ID)
+				}
+			})
+			if source == "adopted" {
+				child = createSession(t, h)
+				if _, err := h.manager.AdoptSession(t.Context(), h.workspaceID, child.ID, main.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			stream, err := h.manager.Prompt(t.Context(), child.ID, "old report")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, stream)
+			infos, err := h.manager.ListAll(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.manager.recoverChildSettleWakes(t.Context(), infos)
+			h.manager.retryChildSettleWakes(t.Context())
+			if _, wakes := notifier.calls(); len(wakes) != 0 {
+				t.Fatalf("unenrolled child generated wakes=%+v", wakes)
+			}
+		})
+	}
+	for _, operation := range []string{"clear", "rewind"} {
+		t.Run("Should not wake for a conversation "+operation, func(t *testing.T) {
+			t.Parallel()
+			h, parent, notifier := newAlwaysOnWakeHarness(t)
+			child := createAlwaysOnWakeChild(t, h, parent.ID)
+			for _, prompt := range []string{"keep this report", "replace this report"} {
+				stream, err := h.manager.Prompt(t.Context(), child.ID, prompt)
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, stream)
+			}
+			if operation == "clear" {
+				if _, err := h.manager.ClearConversation(t.Context(), child.ID); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				page, err := h.manager.TranscriptPage(t.Context(), child.ID, transcript.PageQuery{Limit: 20})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var target string
+				for _, entry := range page.Entries {
+					if transcript.UIMessageText(entry.Message) == "replace this report" {
+						target = entry.Message.ID
+					}
+				}
+				if _, err := h.manager.RewindConversation(t.Context(), child.ID, ConversationRewindOptions{
+					MessageID: target, IdempotencyKey: "rewind-child", ExpectedEpoch: child.Info().TranscriptEpoch,
+					ExpectedGeneration: page.Generation, ExpectedMaxSequence: page.MaxSequence,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h.manager.retryChildSettleWakes(t.Context())
+			if _, wakes := notifier.calls(); len(wakes) != 2 {
+				t.Fatalf("conversation operation generated wakes=%+v, want only the two reports", wakes)
+			}
+			stream, err := h.manager.Prompt(t.Context(), child.ID, "new report")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, stream)
+			if _, wakes := notifier.calls(); len(wakes) != 3 {
+				t.Fatalf("new work generated wakes=%+v, want three reports", wakes)
+			}
+		})
+	}
+	t.Run("Should retry transient delivery and wake for three children independently", func(t *testing.T) {
+		t.Parallel()
+		h, parent, notifier := newAlwaysOnWakeHarness(t)
+		var attemptsMu sync.Mutex
+		attempts := make(map[string]int)
+		notifier.deliver = func(_ context.Context, _ string, event SpawnWakeEvent) error {
+			attemptsMu.Lock()
+			defer attemptsMu.Unlock()
+			attempts[event.ChildSessionID]++
+			if attempts[event.ChildSessionID] == 1 {
+				return ErrSpawnWakeRetryable
+			}
+			return nil
+		}
+		childIDs := make([]string, 0, 3)
+		for range 3 {
+			child := createAlwaysOnWakeChild(t, h, parent.ID)
+			childIDs = append(childIDs, child.ID)
+			if err := h.manager.StopWithCause(t.Context(), child.ID, CauseCompleted, "final report"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		waitForCondition(t, "each child's failed delivery retried", func() bool {
+			h.manager.retryChildSettleWakes(t.Context())
+			_, wakes := notifier.calls()
+			return len(wakes) == 6
+		})
+		h.manager.retryChildSettleWakes(t.Context())
+		_, wakes := notifier.calls()
+		if len(wakes) != 6 {
+			t.Fatalf("wakes=%+v, want one failed attempt and one delivery per child", wakes)
+		}
+		attemptsMu.Lock()
+		defer attemptsMu.Unlock()
+		for _, childID := range childIDs {
+			if attempts[childID] != 2 {
+				t.Fatalf("child %s had %d attempts, want one failure and one delivery", childID, attempts[childID])
+			}
+		}
+	})
+	t.Run("Should preserve badge-edge completion semantics for an ordinary creator", func(t *testing.T) {
+		t.Parallel()
+		h, _, notifier := newAlwaysOnWakeHarness(t)
+		parent := createSession(t, h)
+		child, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{ParentSessionID: parent.ID,
+				Kind: store.LineageKindProvenance, NotifyCreator: true}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		stream, err := h.manager.Prompt(t.Context(), child.ID, "finish without presence acknowledgement")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		before := child.Info()
+		after := *before
+		after.AttentionRevision++
+		after.LastSettledRevision++
+		if wake := h.manager.publishLifecycleAttentionTransitionWakeLocked(
+			t.Context(),
+			before,
+			&after,
+			true,
+			"later-turn",
+		); wake != nil {
+			wake()
+		}
+		if _, wakes := notifier.calls(); len(wakes) != 1 || wakes[0].Automatic {
+			t.Fatalf("ordinary creator wakes=%+v, want one legacy badge edge", wakes)
+		}
+	})
+	t.Run("Should not cover a real stop after a declined conversation reset", func(t *testing.T) {
+		t.Parallel()
+		h, parent, notifier := newAlwaysOnWakeHarness(t)
+		child := createAlwaysOnWakeChild(t, h, parent.ID)
+		_, err := h.manager.guardedStopWithCauseReceipt(t.Context(), child.ID, CauseClearConversation, "reset",
+			func(context.Context, *Info) error { return errStopDeclined }, nil)
+		if !errors.Is(err, errStopDeclined) {
+			t.Fatalf("guarded reset=%v, want declined", err)
+		}
+		if err := h.manager.StopWithCause(t.Context(), child.ID, CauseCompleted, "actual stop"); err != nil {
+			t.Fatal(err)
+		}
+		// A stop joiner can return before the process watcher's wake callback.
+		// Observe delivery before checking that the declined reset did not cover it.
+		waitForCondition(t, "the real stop's automatic wake delivered", func() bool {
+			_, wakes := notifier.calls()
+			return len(wakes) > 0
+		})
+		h.manager.retryChildSettleWake(t.Context(), child.Info())
+		parents, wakes := notifier.calls()
+		if len(wakes) != 1 || !wakes[0].Automatic || parents[0] != parent.ID ||
+			wakes[0].ChildSessionID != child.ID || wakes[0].Reason != SpawnWakeReasonStopped {
+			t.Fatalf("real stop wakes=%+v parents=%v, want one automatic stopped wake to its main", wakes, parents)
+		}
+	})
+	t.Run("Should recover a shutdown-interrupted child when continuation is refused", func(t *testing.T) {
+		t.Parallel()
+		h, parent, notifier := newAlwaysOnWakeHarness(t)
+		child := createAlwaysOnWakeChild(t, h, parent.ID)
+		source := make(chan acp.AgentEvent)
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return source, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), child.ID, "unfinished assignment")
+		if err != nil {
+			t.Fatal(err)
+		}
+		notifier.err = ErrSpawnWakeRetryable
+		if err := h.manager.PrepareDaemonShutdown(t.Context(), true); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.StopWithCause(t.Context(), child.ID, CauseShutdown, "restart"); err != nil {
+			t.Fatal(err)
+		}
+		close(source)
+		collectEvents(t, stream)
+		if err := h.manager.StopWithCause(t.Context(), parent.ID, CauseShutdown, "restart"); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		h.driver.promptHook = nil
+		h.resolver.mu.Lock()
+		for key, workspace := range h.resolver.byRef {
+			workspace.Config.Session.Restart.AutoContinue = false
+			h.resolver.byRef[key] = workspace
+		}
+		h.resolver.mu.Unlock()
+		next := &recordingSpawnWakeNotifier{}
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(h.manager.sessionCatalog),
+			WithSessionInputQueueStore(h.manager.inputQueueStore), WithSpawnWakeNotifier(next))
+		cleanupTestManager(t, h.manager)
+		if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if _, wakes := next.calls(); len(wakes) != 1 || wakes[0].Reason != SpawnWakeReasonStopped {
+			t.Fatalf("unresumed child wakes=%+v, want one stopped wake", wakes)
+		}
+	})
+}
+
+func createAlwaysOnWakeChild(t *testing.T, h *harness, parentID string) *Session {
+	t.Helper()
+	child, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID,
+		Lineage: &store.SessionLineage{ParentSessionID: parentID, Kind: store.LineageKindProvenance}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return child
+}
+
+func newAlwaysOnWakeHarness(
+	t *testing.T,
+	beforeBind ...func(*harness, *Session),
+) (*harness, *Session, *recordingSpawnWakeNotifier) {
+	t.Helper()
+	db := openManagerInputQueueStore(t)
+	notifier := &recordingSpawnWakeNotifier{}
+	h := newHarness(t, WithSessionCatalog(db), WithSessionInputQueueStore(db),
+		WithSessionPromptAdmissionStore(db), WithSpawnWakeNotifier(notifier))
+	prs := &earlyStopPullRequests{saved: "fix/child", prBranch: "fix/child"}
+	h.manager.ConfigurePullRequests(prs, prs)
+	h.manager.ConfigureBranchSnapshotSaver(prs.saveBranch)
+	registerManagerInputQueueWorkspace(t, db, h)
+	cleanupTestManager(t, h.manager)
+	parent := createSession(t, h)
+	for _, prepare := range beforeBind {
+		prepare(h, parent)
+	}
+	instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+		ProfileID: store.DefaultProfileID, AgentName: parent.AgentName, WorkspaceID: h.workspaceID,
+		PermissionCeiling: `{}`, CreatedByKind: "operator",
+	}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Instances().BindMain(t.Context(), instance.ID, parent.ID); err != nil {
+		t.Fatal(err)
+	}
+	stream, err := h.manager.Prompt(t.Context(), parent.ID, "coordinate child work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	collectEvents(t, stream)
+	return h, parent, notifier
 }
 
 type pendingReplyWatchStore struct {
@@ -555,6 +1418,162 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 		collectEvents(t, events)
 	}
 
+	// Invariant: advancing an open attention revision replaces the creator wake even with the same badge.
+	for _, kind := range []string{
+		store.PendingInteractionKindPermission, store.PendingInteractionKindClarify,
+	} {
+		t.Run("Should replace queued attention after another "+kind, func(t *testing.T) {
+			t.Parallel()
+			h, _, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+			child.mu.Lock()
+			child.Lineage.NotifyCreator = true
+			child.mu.Unlock()
+			h.manager.restartInputsHeld.Store(parent.ID, true)
+			var entries []store.SessionInputQueueEntry
+			notifier.deliver = func(ctx context.Context, creatorID string, event SpawnWakeEvent) error {
+				entry, err := h.manager.EnqueueSyntheticWake(ctx, creatorID, SyntheticPromptOpts{
+					MessageID: event.WakeEventID, Message: "Child needs input.",
+					Metadata: acp.PromptSyntheticMeta{ChildSessionID: child.ID, WakeEventID: event.WakeEventID,
+						Reason: string(event.Reason)},
+				})
+				if err == nil {
+					entries = append(entries, entry)
+				}
+				return err
+			}
+			for _, id := range []string{"first", "second"} {
+				if _, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+					SessionID: child.ID, InteractionID: id, ProviderRequestID: id, Kind: kind,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := h.manager.transitionPendingInteraction(
+				t.Context(), child.ID, store.PendingInteractionTransition{
+					InteractionID: "first", Status: store.PendingInteractionStatusResolved,
+					Resolution: "allow", ResolvedBy: "operator",
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if len(entries) != 3 {
+				t.Fatalf("queued wakes = %d, want a replacement for each of three revisions", len(entries))
+			}
+			h.manager.restartInputsHeld.Delete(parent.ID)
+			h.manager.startNextQueuedInputPrompt(parent.ID)
+			for index, entry := range entries {
+				want := store.SessionInputQueueStatusFailed
+				if index == len(entries)-1 {
+					want = store.SessionInputQueueStatusSent
+				}
+				waitForCondition(t, "revision wake settled", func() bool {
+					row, err := h.manager.inputQueue.Get(t.Context(), parent.ID, entry.ID)
+					return err == nil && row.Status == want
+				})
+			}
+		})
+	}
+
+	// Invariant: only the current, uncovered attention revision reaches the creator.
+	for _, covered := range []bool{false, true} {
+		name := fmt.Sprintf("Should discard obsolete attention and honor monitor coverage %t", covered)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h, _, _, parent, child := newEarlyStopHarness(t, "", true, nil)
+			h.manager.restartInputsHeld.Store(parent.ID, true)
+			h.manager.ConfigureSpawnWakeCoverage(func(string, *Info, Badge) bool { return covered })
+			var ids []string
+			for revision := range 2 {
+				child.mu.Lock()
+				child.PendingClarifyCount = 1
+				child.AttentionRevision = int64(revision + 1)
+				child.mu.Unlock()
+				wakeID := spawnWakeEventID(child.Info(), SpawnWakeReasonNeedsAttention)
+				entry, err := h.manager.EnqueueSyntheticWake(t.Context(), parent.ID, SyntheticPromptOpts{
+					MessageID: wakeID, Message: "Child needs input.",
+					Metadata: acp.PromptSyntheticMeta{ChildSessionID: child.ID, WakeEventID: wakeID,
+						Reason: string(SpawnWakeReasonNeedsAttention)},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				ids = append(ids, entry.ID)
+			}
+			h.manager.restartInputsHeld.Delete(parent.ID)
+			h.manager.startNextQueuedInputPrompt(parent.ID)
+			for index, id := range ids {
+				want := store.SessionInputQueueStatusFailed
+				if index == 1 && !covered {
+					want = store.SessionInputQueueStatusSent
+				}
+				waitForCondition(t, "attention wake settled", func() bool {
+					entry, err := h.manager.inputQueue.Get(t.Context(), parent.ID, id)
+					return err == nil && entry.Status == want
+				})
+			}
+		})
+	}
+
+	// Invariant: answering the creator's current input delivers a review turn without requiring a PR.
+	name := "Should deliver a watched brief and an unwatched creator follow-up but flag an unanswered turn"
+	t.Run(name, func(t *testing.T) {
+		t.Parallel()
+		h, db, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+		service, err := NewReplyWatchService(db, h.manager)
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.manager.SetReplyWatchService(service)
+		h.manager.restartInputsHeld.Store(parent.ID, true)
+		for _, watched := range []bool{true, false} {
+			id := fmt.Sprintf("creator-message-%t", watched)
+			result, err := h.manager.SendPrompt(t.Context(), child.ID, SendPromptOpts{
+				Message: "Review and answer the creator.", MessageID: id, IdempotencyKey: id,
+				NotifyOnComplete: watched,
+				Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: parent.ID,
+					WorkspaceID: h.workspaceID, Hop: 1},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, result.Events)
+			if watched {
+				if _, err := db.GetReplyWatch(t.Context(), store.ReplyWatchID(child.ID, id)); err != nil {
+					t.Fatalf("initial brief has no reply watch: %v", err)
+				}
+			}
+			info := child.Info()
+			if info.EndedEarlyTurnID != "" || BadgeForInfo(info) == BadgeNeedsAttention {
+				t.Fatalf("answered creator input marked abandoned: %#v", info)
+			}
+		}
+		if _, wakes := notifier.calls(); len(wakes) != 0 {
+			t.Fatalf("answered review turns emitted attention wakes: %#v", wakes)
+		}
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			out := make(chan acp.AgentEvent, 1)
+			out <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID,
+				PromptStopReason: acp.PromptStopReasonEndTurn}
+			close(out)
+			return out, nil
+		}
+		result, err := h.manager.SendPrompt(t.Context(), child.ID, SendPromptOpts{
+			Message: "Review this follow-up too.", MessageID: "unanswered", IdempotencyKey: "unanswered",
+			Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: parent.ID,
+				WorkspaceID: h.workspaceID, Hop: 1},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, result.Events)
+		if info := child.Info(); info.EndedEarlyTurnID == "" || BadgeForInfo(info) != BadgeNeedsAttention {
+			t.Fatalf("unanswered creator input was not flagged: %#v", info)
+		}
+		if _, wakes := notifier.calls(); len(wakes) != 1 || !wakes[0].EndedEarly {
+			t.Fatalf("unanswered turn wakes = %#v, want one early-stop alarm", wakes)
+		}
+	})
+
 	t.Run("Should flag the early stop durably and wake the parent with the final answer", func(t *testing.T) {
 		t.Parallel()
 		h, db, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
@@ -588,6 +1607,261 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 		}
 		if got := BadgeForInfo(durable); got != BadgeNeedsAttention {
 			t.Fatalf("durable catalog badge = %s, want needs-attention after a runtime-less read", got)
+		}
+	})
+
+	t.Run("Should leave an early-stop alarm to the creator session monitor", func(t *testing.T) {
+		t.Parallel()
+		h, db, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+		h.manager.ConfigureSpawnWakeCoverage(func(creatorID string, info *Info, badge Badge) bool {
+			return creatorID == parent.ID && info.ID == child.ID && badge == BadgeNeedsAttention
+		})
+
+		promptChild(t, h, child)
+
+		attention, err := db.GetSessionAttention(t.Context(), child.ID)
+		if err != nil || attention.EndedEarlyTurnID == "" {
+			t.Fatalf("attention = %#v, %v; want the monitor to observe the early-stop state", attention, err)
+		}
+		if _, events := notifier.calls(); len(events) != 0 {
+			t.Fatalf("creator wakes = %#v, want only the session monitor's wake", events)
+		}
+	})
+
+	t.Run("Should synchronously deliver the settling child's alarm to an idle creator", func(t *testing.T) {
+		t.Parallel()
+		h, _, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+		var parentEvents <-chan acp.AgentEvent
+		notifier.deliver = func(ctx context.Context, creatorID string, event SpawnWakeEvent) error {
+			var err error
+			parentEvents, err = h.manager.PromptSynthetic(ctx, creatorID, SyntheticPromptOpts{
+				MessageID: event.WakeEventID, Message: "Review the child's answer.",
+				Metadata: acp.PromptSyntheticMeta{Kind: SpawnWakeKindEndedEarly, ChildSessionID: child.ID,
+					Reason: string(event.Reason), WakeEventID: event.WakeEventID},
+			})
+			return err
+		}
+		promptChild(t, h, child)
+		if parentEvents == nil {
+			t.Fatal("the idle creator received no wake stream")
+		}
+		collectEvents(t, parentEvents)
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		if len(h.driver.promptCalls) != 2 || h.driver.promptCalls[1].Meta.Synthetic == nil ||
+			h.driver.promptCalls[1].Meta.Synthetic.ChildSessionID != child.ID {
+			t.Fatalf("provider calls = %#v, want the child then its creator alarm", h.driver.promptCalls)
+		}
+		if parent.IsPrompting() {
+			t.Fatal("the creator wake did not settle")
+		}
+	})
+
+	for _, tc := range []struct {
+		name    string
+		advance bool
+		during  string
+		seen    bool
+	}{
+		{name: "Should dispatch an early-stop wake while its child occurrence is current"},
+		{name: "Should retain the queued alarm when the operator views its child", seen: true},
+		{name: "Should drop a queued early-stop wake after its child starts another turn", advance: true},
+		{name: "Should revalidate the child after input hooks", during: "input"},
+		{name: "Should revalidate the child after prompt augmentation", during: "augment"},
+		{name: "Should revalidate the child after turn start hooks", during: "turn"},
+		{name: "Should drop an alarm during newer child prompt setup", during: "child_setup"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h, _, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+			promptChild(t, h, child)
+			_, wakes := notifier.calls()
+			if len(wakes) != 1 {
+				t.Fatalf("child wakes = %#v, want one early-stop wake", wakes)
+			}
+			h.manager.restartInputsHeld.Store(parent.ID, true)
+			wake := wakes[0]
+			queued, err := h.manager.EnqueueSyntheticWake(t.Context(), parent.ID, SyntheticPromptOpts{
+				MessageID: wake.WakeEventID, Message: "Child turn ended with no open work.",
+				Metadata: acp.PromptSyntheticMeta{
+					Kind: SpawnWakeKindEndedEarly, ChildSessionID: child.ID,
+					Reason: string(wake.Reason), WakeEventID: wake.WakeEventID,
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.seen {
+				before := child.Info()
+				if _, err := h.manager.SessionPresence(t.Context(), child.ID, "", true); err != nil {
+					t.Fatal(err)
+				}
+				after := child.Info()
+				if after.AttentionRevision <= before.AttentionRevision ||
+					after.EndedEarlyTurnID != before.EndedEarlyTurnID {
+					t.Fatalf("presence attention = %#v, want a seen revision of the same early-stop occurrence", after)
+				}
+			}
+			if tc.advance {
+				h.manager.SetWorkSignalSources(earlyStopWorkSources(WorkSignalActiveMonitor)...)
+				promptChild(t, h, child)
+			}
+			var setupDone chan error
+			var releaseSetup func()
+			if tc.during == "child_setup" {
+				entered, release := make(chan struct{}), make(chan struct{})
+				releaseSetup = sync.OnceFunc(func() { close(release) })
+				t.Cleanup(releaseSetup)
+				setupDone = make(chan error, 1)
+				h.manager.SetWorkSignalSources(earlyStopWorkSources(WorkSignalActiveMonitor)...)
+				h.manager.hooks = fullHookSet(&spyHookDispatcher{dispatchTurnStartFn: func(
+					_ context.Context, payload hookspkg.TurnStartPayload,
+				) (hookspkg.TurnStartPayload, error) {
+					if payload.SessionID == child.ID {
+						close(entered)
+						<-release
+					}
+					return payload, nil
+				}})
+				go func() {
+					events, err := h.manager.Prompt(t.Context(), child.ID, "next child turn")
+					if err == nil {
+						for range events {
+						}
+					}
+					setupDone <- err
+				}()
+				select {
+				case <-entered:
+				case <-time.After(5 * time.Second):
+					t.Fatal("new child setup did not reach turn.start")
+				}
+				if info := child.Info(); info.EndedEarlyTurnID == "" || child.CurrentTurnID() == info.EndedEarlyTurnID {
+					t.Fatalf("child setup = %+v, want newer current turn and uncleared early-stop mark", info)
+				}
+			}
+			if tc.during != "" && tc.during != "child_setup" {
+				advanceChild := func() {
+					h.manager.SetWorkSignalSources(earlyStopWorkSources(WorkSignalActiveMonitor)...)
+					promptChild(t, h, child)
+				}
+				dispatcher := &spyHookDispatcher{}
+				if tc.during == "input" {
+					dispatcher.dispatchInputPreSubmitFn = func(
+						_ context.Context,
+						payload hookspkg.InputPreSubmitPayload,
+					) (hookspkg.InputPreSubmitPayload, error) {
+						if payload.SessionID == parent.ID {
+							advanceChild()
+						}
+						return payload, nil
+					}
+				}
+				if tc.during == "turn" {
+					dispatcher.dispatchTurnStartFn = func(
+						_ context.Context,
+						payload hookspkg.TurnStartPayload,
+					) (hookspkg.TurnStartPayload, error) {
+						if payload.SessionID == parent.ID {
+							advanceChild()
+						}
+						return payload, nil
+					}
+				}
+				h.manager.hooks = fullHookSet(dispatcher)
+				if tc.during == "augment" {
+					h.manager.inputAugmenter = func(
+						_ context.Context,
+						target *Session,
+						message string,
+					) (string, error) {
+						if target.ID == parent.ID {
+							advanceChild()
+						}
+						return message, nil
+					}
+				}
+			}
+			h.manager.restartInputsHeld.Delete(parent.ID)
+			h.manager.startNextQueuedInputPrompt(parent.ID)
+			wantStatus := store.SessionInputQueueStatusSent
+			if tc.advance || tc.during != "" {
+				wantStatus = store.SessionInputQueueStatusFailed
+			}
+			waitForCondition(t, "the queued child wake to settle", func() bool {
+				entry, readErr := h.manager.inputQueue.Get(t.Context(), parent.ID, queued.ID)
+				return readErr == nil && entry.Status == wantStatus
+			})
+			if releaseSetup != nil {
+				releaseSetup()
+				if err := <-setupDone; err != nil {
+					t.Fatal(err)
+				}
+			}
+			h.driver.mu.Lock()
+			defer h.driver.mu.Unlock()
+			wakeCalls := 0
+			for _, call := range h.driver.promptCalls {
+				if call.Meta.Synthetic != nil && call.Meta.Synthetic.Kind == SpawnWakeKindEndedEarly {
+					wakeCalls++
+				}
+			}
+			wantCalls := 1
+			if tc.advance || tc.during != "" {
+				wantCalls = 0
+			}
+			if wakeCalls != wantCalls {
+				t.Fatalf("early-stop provider calls = %d, want %d", wakeCalls, wantCalls)
+			}
+			if wantCalls == 0 {
+				if countEventType(readStoredEvents(t, parent), acp.EventTypeSyntheticReentry) != 0 {
+					t.Fatal("a discarded alarm left a replayable parent input")
+				}
+				parent.mu.RLock()
+				hasRestartBoundary := parent.restartBoundary != nil
+				parent.mu.RUnlock()
+				if hasRestartBoundary {
+					t.Fatal("a discarded alarm created a restart checkpoint")
+				}
+			}
+		})
+	}
+
+	t.Run("Should retry a transient durable child lookup without losing its alarm", func(t *testing.T) {
+		t.Parallel()
+		h, _, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+		promptChild(t, h, child)
+		_, wakes := notifier.calls()
+		if len(wakes) != 1 {
+			t.Fatalf("wakes = %#v, want one alarm", wakes)
+		}
+		catalog := &flakySpawnWakeCatalog{SessionCatalog: h.manager.sessionCatalog, childID: child.ID}
+		h.manager.sessionCatalog = catalog
+		h.manager.mu.Lock()
+		delete(h.manager.sessions, child.ID)
+		h.manager.mu.Unlock()
+		defer func() {
+			h.manager.mu.Lock()
+			h.manager.sessions[child.ID] = child
+			h.manager.mu.Unlock()
+		}()
+		wake := wakes[0]
+		queued, err := h.manager.EnqueueSyntheticWake(t.Context(), parent.ID, SyntheticPromptOpts{
+			MessageID: wake.WakeEventID, Message: "Review the child's answer.",
+			Metadata: acp.PromptSyntheticMeta{Kind: SpawnWakeKindEndedEarly, ChildSessionID: child.ID,
+				Reason: string(wake.Reason), WakeEventID: wake.WakeEventID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "the child wake to retry its durable lookup and dispatch", func() bool {
+			entry, err := h.manager.inputQueue.Get(t.Context(), parent.ID, queued.ID)
+			return err == nil && entry.Status == store.SessionInputQueueStatusSent
+		})
+		catalog.mu.Lock()
+		defer catalog.mu.Unlock()
+		if catalog.calls < 2 {
+			t.Fatalf("child lookups = %d, want a failed read and successful retry", catalog.calls)
 		}
 	})
 
@@ -703,4 +1977,42 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 			}
 		})
 	}
+}
+
+// flakySpawnWakeCatalog fails only the first child read at the durable I/O boundary.
+type flakySpawnWakeCatalog struct {
+	store.SessionCatalog
+	mu               sync.Mutex
+	childID          string
+	calls            int
+	failInstanceRead bool
+}
+
+func (c *flakySpawnWakeCatalog) SessionInstanceID(ctx context.Context, id string) (string, error) {
+	if c.failInstanceRead && id == c.childID {
+		c.mu.Lock()
+		c.calls++
+		fail := c.calls == 1
+		c.mu.Unlock()
+		if fail {
+			return "", errors.New("temporary instance binding read failure")
+		}
+	}
+	return c.SessionCatalog.SessionInstanceID(ctx, id)
+}
+
+func (c *flakySpawnWakeCatalog) ListSessions(
+	ctx context.Context,
+	query store.SessionListQuery,
+) ([]store.SessionInfo, error) {
+	if query.ID == c.childID {
+		c.mu.Lock()
+		c.calls++
+		fail := c.calls == 1
+		c.mu.Unlock()
+		if fail {
+			return nil, errors.New("temporary catalog read failure")
+		}
+	}
+	return c.SessionCatalog.ListSessions(ctx, query)
 }

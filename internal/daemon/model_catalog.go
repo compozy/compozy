@@ -22,6 +22,9 @@ const (
 )
 
 type modelCatalogRuntime struct {
+	afterRefreshMu sync.RWMutex
+	afterRefresh   func(context.Context, modelcatalog.RefreshOptions)
+
 	service            modelcatalog.Service
 	logger             *slog.Logger
 	now                func() time.Time
@@ -258,6 +261,7 @@ func (r *modelCatalogRuntime) refresh(
 		} else {
 			r.failureCauses.clear(modelCatalogFailureScope(refreshOpts))
 		}
+		r.notifyCheckConfigRecovery(refreshCtx, refreshOpts, err)
 		resultCh <- modelCatalogRefreshResult{statuses: statuses, err: err}
 	}(releaseGeneration)
 

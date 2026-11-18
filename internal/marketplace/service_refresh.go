@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	storepkg "github.com/compozy/compozy/internal/store"
 )
@@ -69,6 +70,9 @@ func (s *CatalogService) startRefreshFlight(source *registeredSource, force bool
 		return source.flight, nil
 	}
 	now := s.now().UTC()
+	if now.Before(source.backoffUntil) {
+		return source.lastRefresh, nil
+	}
 	if !force && !source.lastAttempt.IsZero() && source.lastAttempt.Add(s.ttl).After(now) {
 		return nil, nil
 	}
@@ -95,6 +99,10 @@ func (s *CatalogService) startRefreshFlight(source *registeredSource, force bool
 		s.flightMu.Lock()
 		if source.flight == flight {
 			source.flight = nil
+		}
+		if limited, ok := errors.AsType[*githubauth.RateLimitError](flight.err); ok {
+			source.backoffUntil = limited.RetryAt
+			source.lastRefresh = flight
 		}
 		s.completedRefreshes++
 		close(flight.done)

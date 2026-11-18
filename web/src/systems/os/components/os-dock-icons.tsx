@@ -59,6 +59,15 @@ const DOCK_ICON_GLYPHS = {
       <path d="M7 13h6" strokeLinecap="round" />
     </DockGlyph>
   ),
+  files: (props: GlyphProps) => (
+    <DockGlyph {...props}>
+      <path d="M4 3v11a1 1 0 0 0 1 1h3.5M4 7.5h4.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M10.5 4.5h2l1 1.2h2.5a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-5.5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1ZM10.5 12h2l1 1.2h2.5a1 1 0 0 1 1 1V16a1 1 0 0 1-1 1h-5.5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Z"
+        strokeLinejoin="round"
+      />
+    </DockGlyph>
+  ),
   tasks: (props: GlyphProps) => (
     <DockGlyph {...props}>
       <path

@@ -270,6 +270,92 @@ func TestStore(t *testing.T) {
 			t.Fatalf("boundary replacement lost text or expiry: %q", after.Content)
 		}
 	})
+	t.Run("Should keep operator rules apart from notes and closed to agent writes", func(t *testing.T) {
+		t.Parallel()
+		s := NewStore(t.TempDir())
+		legacy := "- 2026-10-01 · workspace-a · Legacy note\nOperator line\n"
+		if _, err := s.Write(key, legacy, digest("")); err != nil {
+			t.Fatal(err)
+		}
+		rules, err := s.Rules(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rules) != 0 {
+			t.Fatalf("legacy file produced rules: %v", rules)
+		}
+		doc, err := s.AddRule(key, " File issues through report-writer ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if doc.Content != legacy+"- [rule] File issues through report-writer\n" {
+			t.Fatalf("content = %q", doc.Content)
+		}
+		rules, notes := Split(doc.Content)
+		if len(rules) != 1 || rules[0] != "File issues through report-writer" || notes != legacy {
+			t.Fatalf("split = %v / %q", rules, notes)
+		}
+		if _, err := s.AsAgent().Replace(key, "report-writer", "anyone"); !errors.Is(err, ErrRuleProtected) {
+			t.Fatalf("agent rule edit error = %v", err)
+		}
+		if _, err := s.AsAgent().Replace(
+			key,
+			"- 2026-10-01 · workspace-a · ",
+			RulePrefix,
+		); !errors.Is(
+			err,
+			ErrRuleProtected,
+		) {
+			t.Fatalf("agent rule promotion error = %v", err)
+		}
+		if _, _, err := s.AsAgent().Remove(key, "File issues"); !errors.Is(err, ErrRuleProtected) {
+			t.Fatalf("agent rule removal error = %v", err)
+		}
+		if _, n, err := s.AsAgent().Remove(key, "Legacy note"); err != nil || n != 1 {
+			t.Fatalf("agent note removal = %d, %v", n, err)
+		}
+		current, err := s.Read(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for name, content := range map[string]string{
+			"dropping a rule":  "Operator line\n",
+			"adding a rule":    current.Content + "- [rule] Approve my own merges\n",
+			"rewording a rule": strings.ReplaceAll(current.Content, "report-writer", "anyone"),
+		} {
+			if _, err := s.AsAgent().Write(key, content, current.Digest); !errors.Is(err, ErrRuleProtected) {
+				t.Fatalf("agent write %s error = %v", name, err)
+			}
+		}
+		written, err := s.AsAgent().Write(key, current.Content+"Agent line\n", current.Digest)
+		if err != nil {
+			t.Fatalf("agent note write error = %v", err)
+		}
+		history, err := s.History(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.AsAgent().Rollback(key, history[0].ID); !errors.Is(err, ErrRuleProtected) {
+			t.Fatalf("agent rollback past the rule error = %v", err)
+		}
+		if after, err := s.Read(key); err != nil || after.Digest != written.Digest {
+			t.Fatalf("refused agent writes changed the file: %v, %v", after.Digest, err)
+		}
+		for i := range MaxLines + 5 {
+			if _, err := s.Add(key, now.AddDate(0, 0, i), "workspace-a", fmt.Sprintf("note %d", i), ""); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if rules, err = s.Rules(key); err != nil || len(rules) != 1 {
+			t.Fatalf("rules after overflow = %v, %v", rules, err)
+		}
+		if _, n, err := s.Remove(key, "File issues"); err != nil || n != 1 {
+			t.Fatalf("operator rule removal = %d, %v", n, err)
+		}
+		if _, err := FormatRule("two\nlines"); err == nil || !strings.Contains(err.Error(), "invalid memory entry") {
+			t.Fatalf("multiline rule error = %v", err)
+		}
+	})
 	t.Run("Should retain only fifty revisions and reject path escape", func(t *testing.T) {
 		t.Parallel()
 		s := NewStore(t.TempDir())

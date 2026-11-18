@@ -13,8 +13,15 @@ import (
 var (
 	namePattern  = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 	colorPattern = regexp.MustCompile(`^#[0-9a-f]{6}$`)
-	reserved     = map[string]struct{}{string(ResolutionSourceDefault): {}, "all": {}, "global": {}}
+	// idPattern matches the canonical ULIDs newProfileID issues, including the zero-ULID default profile.
+	idPattern = regexp.MustCompile(`^[0-7][0-9A-HJKMNP-TV-Z]{25}$`)
+	reserved  = map[string]struct{}{string(ResolutionSourceDefault): {}, "all": {}, "global": {}}
 )
+
+// IsProfileID reports whether value is a canonical profile ULID, including store.DefaultProfileID.
+func IsProfileID(value string) bool {
+	return idPattern.MatchString(value)
+}
 
 func normalizeName(name string) (string, error) {
 	name = strings.TrimSpace(name)

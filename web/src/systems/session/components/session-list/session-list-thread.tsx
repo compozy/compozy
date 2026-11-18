@@ -1,5 +1,7 @@
 import { memo } from "react";
 
+import { TreeBranch, TreeBranchNode } from "@compozy/ui";
+
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
 import { childSessionSignalState, isSubagentSession } from "../../lib/session-hierarchy";
@@ -13,7 +15,7 @@ import type { SessionListTarget, SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 import { SessionListBranch } from "./session-list-branch";
-import { BRANCH_NODE, BRANCH_RAIL } from "./session-list-branch-rail";
+import { SessionListChildBranch } from "./session-list-child-branch";
 import { SessionListBranchToggle } from "./session-list-branch-toggle";
 import { SessionListRow, type SessionListRowProps } from "./session-list-row";
 import { SessionListSubagentBranch } from "./session-list-subagent-branch";
@@ -75,6 +77,7 @@ function SessionListThreadView({
     <SessionListBranchRow
       session={session}
       childSessions={foldable}
+      selectedIds={selection?.selectedIds}
       collapsed={collapsed}
       subagentThreads={subagentThreads}
       onThreadBranchChange={onThreadBranchChange}
@@ -99,7 +102,7 @@ function SessionListThreadView({
       childRow={child => {
         const childOwner = ownerOf?.(child);
         return (
-          <div key={child.id} className={BRANCH_NODE}>
+          <TreeBranchNode key={child.id}>
             <SessionListBranchRow
               session={child}
               childSessions={[]}
@@ -125,7 +128,7 @@ function SessionListThreadView({
                 />
               )}
             />
-          </div>
+          </TreeBranchNode>
         );
       }}
     />
@@ -137,9 +140,9 @@ function SessionListThreadView({
       {branch}
       {/* The viewed subagent sits outside the fold: folding the branch never hides it. */}
       {revealed.length > 0 ? (
-        <div className={BRANCH_RAIL}>
+        <TreeBranch>
           {revealed.map(child => (
-            <div key={child.id} className={BRANCH_NODE}>
+            <TreeBranchNode key={child.id}>
               <SessionListBranchRow
                 session={child}
                 childSessions={[]}
@@ -163,9 +166,9 @@ function SessionListThreadView({
                   />
                 )}
               />
-            </div>
+            </TreeBranchNode>
           ))}
-        </div>
+        </TreeBranch>
       ) : null}
     </div>
   );
@@ -222,9 +225,11 @@ function SessionListBranchRow({
   testIdPrefix,
   row,
   childRow,
+  selectedIds,
 }: {
   session: SessionPayload;
   childSessions: readonly SessionPayload[];
+  selectedIds?: ReadonlySet<string>;
   collapsed: boolean;
   subagentThreads: SessionSubagentFolds;
   onThreadBranchChange: SessionThreadBranchChange;
@@ -248,9 +253,16 @@ function SessionListBranchRow({
   const branchId = `${testIdPrefix}-branch-${session.id}`;
   const list = (shown: SessionThreadSegment) =>
     shown === "children" ? (
-      <div className={BRANCH_RAIL}>{childSessions.map(child => childRow?.(child))}</div>
+      <SessionListChildBranch
+        sessionId={session.id}
+        childSessions={childSessions}
+        currentSessionId={currentSessionId}
+        selectedIds={selectedIds}
+        childRow={child => childRow?.(child)}
+        testIdPrefix={testIdPrefix}
+      />
     ) : (
-      <div className={BRANCH_RAIL}>
+      <TreeBranch>
         <SessionListSubagentBranch
           workspaceId={session.workspace_id ?? ""}
           workspace={session.workspace_id}
@@ -261,7 +273,7 @@ function SessionListBranchRow({
           onSelectSession={onSelectSession}
           testIdPrefix={testIdPrefix}
         />
-      </div>
+      </TreeBranch>
     );
 
   return (

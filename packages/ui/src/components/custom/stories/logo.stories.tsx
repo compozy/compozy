@@ -10,7 +10,7 @@ const meta: Meta<typeof Logo> = {
     docs: {
       description: {
         component:
-          "Compozy brand mark. Use `logo` for full lockups, `symbol` for square app surfaces (including OS-shell menubar chrome at a smaller size class), and `lettering` only where the symbol is already present nearby.",
+          "Compozy brand mark. Use `logo` for full lockups, `symbol` for square app surfaces (including OS-shell menubar chrome at a smaller size class), and `lettering` only where the symbol is already present nearby. The lettering follows the text colour; the symbol is an interim raster (ADR-004) that keeps its gradient on dark and light surfaces.",
       },
     },
   },

@@ -3,6 +3,7 @@ import { notifyUser } from "@/lib/user-feedback";
 import { workspaceKeys } from "@/systems/workspace";
 import { changeSessionWorktree } from "../adapters/session-worktree-api";
 import { sessionKeys } from "../lib/query-keys";
+import { resetSessionRootReads } from "./session-root-change";
 
 export function useChangeSessionWorktree(workspaceId: string, sessionId: string) {
   const queryClient = useQueryClient();
@@ -22,6 +23,7 @@ export function useChangeSessionWorktree(workspaceId: string, sessionId: string)
         queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists(workspaceId) }),
         queryClient.invalidateQueries({ queryKey: sessionKeys.commands(workspaceId, sessionId) }),
         queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceId) }),
+        resetSessionRootReads(queryClient, workspaceId, sessionId),
       ]);
     },
   });

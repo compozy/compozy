@@ -20,7 +20,7 @@ import (
 const agentActionSpawn = "agent.spawn"
 
 type agentSpawner interface {
-	Spawn(ctx context.Context, opts session.SpawnOpts) (*session.Session, error)
+	Spawn(ctx context.Context, opts *session.SpawnOpts) (*session.Session, error)
 }
 
 // AgentSpawn creates a bounded child session for the validated agent caller.
@@ -64,7 +64,14 @@ func (h *BaseHandlers) AgentSpawn(c *gin.Context) {
 		return
 	}
 
-	payload, err := agentSpawnPayloadFromSession(child.Info())
+	info := child.Info()
+	if authority, ok := h.Sessions.(session.MCPAuthorityResolver); ok {
+		if err := session.PopulateEffectiveMCPAuthority(ctx, authority, info); err != nil {
+			h.respondError(c, http.StatusInternalServerError, err)
+			return
+		}
+	}
+	payload, err := agentSpawnPayloadFromSession(info)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -169,8 +176,8 @@ func decodeStrictAgentSpawnRequest(c *gin.Context, req *contract.AgentSpawnReque
 	return nil
 }
 
-func spawnOptsFromAgentRequest(req contract.AgentSpawnRequest, parentSessionID string) session.SpawnOpts {
-	return session.SpawnOpts{
+func spawnOptsFromAgentRequest(req contract.AgentSpawnRequest, parentSessionID string) *session.SpawnOpts {
+	return &session.SpawnOpts{
 		ParentSessionID:    strings.TrimSpace(parentSessionID),
 		AgentName:          strings.TrimSpace(req.AgentName),
 		Provider:           strings.TrimSpace(req.Provider),

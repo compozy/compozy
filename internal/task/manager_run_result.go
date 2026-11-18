@@ -15,6 +15,7 @@ func (m *Service) ReadTaskRunResult(
 	limit int64,
 	actor ActorContext,
 ) (RunResultPage, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return RunResultPage{}, err
 	}

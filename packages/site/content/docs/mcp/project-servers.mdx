@@ -1,0 +1,159 @@
+---
+title: Project servers need approval
+description: Allow an MCP server that a repository declares in its own files, understand when it asks again, and revoke it.
+---
+
+A repository can ship its own MCP servers in `<project>/.compozy/mcp.json`, the project's
+`.compozy/config.toml`, `.compozy/profiles/<profile>/…`, or an agent or skill folder inside the
+project. Because anyone with commit access can change those files, CompozyOS treats a server that
+arrives this way as **waiting for approval**:
+
+- it is listed, so you can see it, but CompozyOS never starts it, connects to it, asks it for tools or
+  opens a sign-in for it;
+- its tools are not callable in any session until you allow it;
+- an approval covers one project, one [profile](/docs/profiles) and the exact definition you saw.
+
+Servers you add through CompozyOS, even into a project, are approved by that action.
+
+## Before you start
+
+- The project is open in CompozyOS (`compozy workspace list`).
+- Its `.compozy/mcp.json` declares a server, for example:
+
+```json
+{
+  "mcpServers": {
+    "sentry": {
+      "command": "npx",
+      "args": ["-y", "@sentry/mcp-server"]
+    }
+  }
+}
+```
+
+## Step 1: See the waiting server
+
+Open **Settings → MCP servers**, select **Project** and the project. The page header counts
+**1 waiting for approval**, and the `sentry` row reads **Waiting for approval** · Added by a file in
+this project, with an **Allow** button. A session in that project shows the same state in its
+**MCP** control.
+
+From the CLI, the JSON listing shows the approval state and the definition digest:
+
+```bash
+compozy mcp list --workspace my-project --compozy-only -o json
+```
+
+```json
+{
+  "compozy_servers": [
+    {
+      "name": "sentry",
+      "scope": "workspace",
+      "transport": "stdio",
+      "approval": {
+        "required": true,
+        "state": "waiting",
+        "reason": "new",
+        "definition_digest": "3f9c…"
+      },
+      "callable_in_sessions": false
+    }
+  ],
+  "runtimes": []
+}
+```
+
+(Fields trimmed.) `state` is `not_required` for servers that need no approval, `waiting`, or
+`allowed`.
+
+## Step 2: Allow it
+
+Click **Allow**, or run:
+
+```bash
+compozy mcp allow sentry --workspace my-project
+```
+
+```text
+sentry · stdio · npx [-y @sentry/mcp-server]
+Allowed sentry in my-project for profile default. Sessions can use it from their next message.
+```
+
+The first line shows exactly what you are approving. Agents and scripts pass the digest they read
+with `--digest`, so a definition that changed after they looked is refused:
+
+```bash
+compozy mcp allow sentry --workspace my-project --digest 3f9c…
+```
+
+## Step 3: Use it
+
+Send a message in a session of that project. The server starts, and the agent can call its tools in
+that turn. `compozy session mcp <session-id>` lists `sentry` as **Ready**.
+
+## When it asks again
+
+The approval is tied to the server's full definition: command, arguments, URL, environment and
+header names and values, secret references and sign-in settings. If any of them changes (a teammate
+edits the file, or you pull a commit that does), the server goes back to **Waiting for approval** ·
+Changed since you allowed it, and its tools stop working until you allow the new definition.
+Changing the value stored behind the same [Vault](/docs/configuration/vault) secret does not ask again.
+
+Allowing a stale definition is refused with the error code `mcp_approval_definition_changed` and
+the message `sentry changed since you looked at it. List it again and approve the new definition`.
+
+## Sign in allows it too
+
+For a remote project server that uses OAuth, **Sign in** on the waiting row allows the definition and
+starts the sign-in in one step. From the CLI, pass the digest:
+
+```bash
+compozy mcp auth login sentry --scope workspace --workspace my-project --digest 3f9c…
+```
+
+Without the digest, sign-in is refused before any network call:
+`sentry is waiting for approval in my-project. Allow it first, or sign in from its row to allow and sign in together.`
+
+## Revoke it
+
+```bash
+compozy mcp allow sentry --workspace my-project --revoke
+```
+
+```text
+Revoked sentry in my-project for profile default. Its tools stop working on the next call.
+```
+
+Calls fail with `sentry is waiting for approval in my-project. Allow it in Settings → MCP servers.`
+
+## `external_default` and project servers
+
+[`tools.policy.external_default`](/docs/configuration/config-toml#toolspolicy) now applies only to
+servers without your consent, which means project servers waiting for approval:
+
+| Value                | Waiting project servers           | Servers with consent                            |
+| -------------------- | --------------------------------- | ----------------------------------------------- |
+| `disabled` (default) | Wait for approval; never started. | Callable.                                       |
+| `ask`                | Wait for approval; never started. | Callable, with an approval prompt on each call. |
+| `enabled`            | Callable without approval.        | Callable.                                       |
+
+Grant consent in your user or personal profile config. Workspace and workspace-profile layers may
+only tighten `external_default`: `disabled` is stricter than `ask`, which is stricter than `enabled`.
+Their `trusted_sources` lists retain only entries already trusted by the preceding layer; omitting
+the list inherits it, and `[]` removes all trust. Attempted grants are ignored with one warning per
+daemon process. A project cannot approve its own servers. Dynamic tools stay denied whatever the value.
+
+## Troubleshooting
+
+| Symptom                                                                 | Fix                                                                                                                                    |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `linear does not need approval: it was added through CompozyOS`         | Nothing to approve. The server is already callable; if a session can't use it, read its state with `compozy session mcp <session-id>`. |
+| `multiple MCP declarations named sentry; use --digest to select …`      | Two project files declare `sentry`. Read both digests with `compozy mcp list --workspace <project> -o json` and pass the one you want. |
+| The server is allowed in one project but waiting in another.            | Approvals never carry across projects or profiles. Allow it in each one.                                                               |
+| Saving a project server in Settings shows a warning about its approval. | The file was saved but the approval couldn't be recorded. The server stays waiting; allow it from its row.                             |
+
+## Next steps
+
+- [Add a server and use it](/docs/mcp/add-a-server)
+- [Runtime servers](/docs/mcp/runtime-servers)

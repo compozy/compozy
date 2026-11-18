@@ -54,7 +54,7 @@ func (m *Manager) discoverExtension(ext *managedExtension) error {
 }
 
 func (m *Manager) parseExtension(ext *managedExtension) error {
-	manifest, err := loadManifestAtPath(ext.info.ManifestPath)
+	manifest, err := LoadInstalledManifest(&ext.info)
 	if err != nil {
 		m.setFailure(ext, ExtensionPhaseParse, err)
 		return phaseError(ext.info.Name, ExtensionPhaseParse, err)

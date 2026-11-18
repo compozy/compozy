@@ -781,8 +781,11 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 		getAutomationTriggerFn: func(context.Context, string) (TriggerRecord, error) {
 			return sampleAutomationTriggerRecord(), nil
 		},
-		listAutomationRunsFn: func(context.Context, AutomationRunQuery) ([]RunRecord, error) {
-			return []RunRecord{sampleAutomationRunRecord()}, nil
+		listAutomationRunsFn: func(context.Context, AutomationRunQuery) (AutomationRunListRecord, error) {
+			return AutomationRunListRecord{
+				Runs: []RunRecord{sampleAutomationRunRecord()},
+				Page: &contract.CursorPagePayload{Limit: 50, HasMore: true, NextCursor: "next-runs"},
+			}, nil
 		},
 	})
 
@@ -817,6 +820,49 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 		"automation_runs[1]{id,profile_name,target,status,attempt,session_id,scheduled_at,started_at,ended_at,error,delivery_error}:",
 	) || !strings.Contains(runsToon, "default") {
 		t.Fatalf("runs toon output = %q, want automation_runs TOON array", runsToon)
+	}
+	for _, format := range []string{"human", "toon", "jsonl"} {
+		t.Run("Should print the continuation page in "+format+" output", func(t *testing.T) {
+			output, _, err := executeRootCommand(t, deps, "automation", "runs", "-o", format)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if format == "jsonl" {
+				lines := strings.Split(strings.TrimSpace(output), "\n")
+				var footer struct {
+					Type string                     `json:"type"`
+					Page contract.CursorPagePayload `json:"page"`
+				}
+				if err := json.Unmarshal([]byte(lines[len(lines)-1]), &footer); err != nil {
+					t.Fatalf("decode JSONL page footer from %q: %v", output, err)
+				}
+				if footer.Type != "page" || footer.Page.NextCursor != "next-runs" || !footer.Page.HasMore ||
+					footer.Page.Limit != 50 {
+					t.Fatalf("run page = %#v", footer)
+				}
+				return
+			}
+			if format == "toon" {
+				_, page, found := strings.Cut(output, "page{returned,limit,has_more,next_cursor}:\n")
+				if !found || strings.TrimSpace(page) != "1,50,true,next-runs" {
+					t.Fatalf("missing or incorrect TOON continuation page: %s", output)
+				}
+				return
+			}
+			_, page, found := strings.Cut(output, "Page\n")
+			if !found {
+				t.Fatalf("missing continuation page: %s", output)
+			}
+			normalizedPage := "\n"
+			for line := range strings.SplitSeq(page, "\n") {
+				normalizedPage += strings.Join(strings.Fields(line), " ") + "\n"
+			}
+			for _, line := range []string{"Limit: 50", "Has More: true", "Next Cursor: next-runs"} {
+				if !strings.Contains(normalizedPage, "\n"+line+"\n") {
+					t.Fatalf("continuation page missing %q: %s", line, page)
+				}
+			}
+		})
 	}
 }
 
@@ -860,12 +906,12 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 		deleteAutomationJobFn: func(context.Context, string) error {
 			return nil
 		},
-		triggerAutomationJobFn: func(context.Context, string) (RunRecord, error) {
+		triggerAutomationJobFn: func(context.Context, string, ...time.Duration) (RunRecord, error) {
 			return sampleAutomationRunRecord(), nil
 		},
-		automationJobRunsFn: func(_ context.Context, _ string, query AutomationRunQuery) ([]RunRecord, error) {
+		automationJobRunsFn: func(_ context.Context, _ string, query AutomationRunQuery) (AutomationRunListRecord, error) {
 			jobHistoryQuery = query
-			return []RunRecord{sampleAutomationRunRecord()}, nil
+			return AutomationRunListRecord{Runs: []RunRecord{sampleAutomationRunRecord()}}, nil
 		},
 		getAutomationTriggerFn: func(context.Context, string) (TriggerRecord, error) {
 			return sampleAutomationTriggerRecord(), nil
@@ -880,12 +926,12 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 		deleteAutomationTriggerFn: func(context.Context, string) error {
 			return nil
 		},
-		automationTriggerRunsFn: func(context.Context, string, AutomationRunQuery) ([]RunRecord, error) {
-			return []RunRecord{sampleAutomationRunRecord()}, nil
+		automationTriggerRunsFn: func(context.Context, string, AutomationRunQuery) (AutomationRunListRecord, error) {
+			return AutomationRunListRecord{Runs: []RunRecord{sampleAutomationRunRecord()}}, nil
 		},
-		listAutomationRunsFn: func(_ context.Context, query AutomationRunQuery) ([]RunRecord, error) {
+		listAutomationRunsFn: func(_ context.Context, query AutomationRunQuery) (AutomationRunListRecord, error) {
 			runsQuery = query
-			return []RunRecord{sampleAutomationRunRecord()}, nil
+			return AutomationRunListRecord{Runs: []RunRecord{sampleAutomationRunRecord()}}, nil
 		},
 		getAutomationRunFn: func(context.Context, string) (RunRecord, error) {
 			return sampleAutomationRunRecord(), nil
@@ -1112,6 +1158,28 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 
 func TestAutomationHelperFormattingAndParsing(t *testing.T) {
 	t.Parallel()
+
+	for _, filter := range []struct{ name, since, until string }{
+		{name: "since", since: "1h"}, {name: "until", until: "1h"},
+	} {
+		t.Run("Should reject relative "+filter.name+" during continuation", func(t *testing.T) {
+			_, err := parseAutomationRunListQuery(
+				"",
+				filter.since,
+				filter.until,
+				50,
+				"next-page",
+				func() time.Time { return fixedTestNow },
+			)
+			if err == nil || !strings.Contains(err.Error(), "RFC3339") {
+				t.Fatalf("relative continuation error = %v", err)
+			}
+		})
+	}
+
+	if _, err := parseAutomationRunListQuery("", "2026-04-15T15:00:00Z", "", 50, "next-page", nil); err != nil {
+		t.Fatal(err)
+	}
 
 	normalized, err := normalizeAutomationAtTime("2026-04-15T15:00")
 	if err != nil {
@@ -1567,6 +1635,90 @@ func TestAutomationInstanceTargets(t *testing.T) {
 		)
 		if err == nil || strings.Contains(err.Error(), "--agent") {
 			t.Fatalf("instance target error must not name --agent: %v", err)
+		}
+	})
+}
+
+func TestAutomationJobTriggerWaitFlags(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		flags   []string
+		wait    time.Duration
+		wantErr string
+	}{
+		{name: "Should return admission without waiting"},
+		{name: "Should pass the default completion budget", flags: []string{"--wait"}, wait: time.Minute},
+		{
+			name:  "Should pass an explicit completion budget",
+			flags: []string{"--wait", "--timeout", "2m"}, wait: 2 * time.Minute,
+		},
+		{
+			name:  "Should reject timeout without wait",
+			flags: []string{"--timeout", "2m"}, wantErr: "--timeout requires --wait",
+		},
+		{
+			name:  "Should reject an unbounded wait",
+			flags: []string{"--wait", "--timeout", "0s"}, wantErr: "positive duration",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			called := false
+			deps := newDefaultProfileTestDeps(t, &stubClient{
+				triggerAutomationJobFn: func(_ context.Context, id string, timeout ...time.Duration) (RunRecord, error) {
+					called = true
+					if id != "job-1" || (tc.wait == 0 && len(timeout) != 0) ||
+						(tc.wait != 0 && (len(timeout) != 1 || timeout[0] != tc.wait)) {
+						t.Fatalf("trigger(%s, %v)", id, timeout)
+					}
+					return RunRecord{ID: "run-1", Status: automationpkg.RunRunning}, nil
+				},
+			})
+			args := append([]string{"automation", "jobs", "trigger", "job-1", "-o", "json"}, tc.flags...)
+			stdout, _, err := executeRootCommand(t, deps, args...)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) || called {
+					t.Fatalf("trigger output=%s error=%v called=%v", stdout, err, called)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var receipt RunRecord
+			if err := json.Unmarshal([]byte(stdout), &receipt); err != nil {
+				t.Fatal(err)
+			}
+			if !called || receipt.ID != "run-1" || receipt.Status != automationpkg.RunRunning {
+				t.Fatalf("receipt=%#v called=%v", receipt, called)
+			}
+		})
+	}
+}
+
+func TestAutomationRunsCancel(t *testing.T) {
+	t.Parallel()
+	t.Run("Should cancel the selected run and print its structured receipt", func(t *testing.T) {
+		t.Parallel()
+		deps := newDefaultProfileTestDeps(t, &stubClient{
+			cancelAutomationRunFn: func(_ context.Context, id string) (RunRecord, error) {
+				if id != "run-stuck" {
+					t.Fatalf("cancel id = %q", id)
+				}
+				return RunRecord{ID: id, Status: automationpkg.RunCancelled, Error: "operator_canceled"}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "automation", "runs", "cancel", "run-stuck", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got RunRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatal(err)
+		}
+		if got.ID != "run-stuck" || got.Status != automationpkg.RunCancelled || got.Error != "operator_canceled" {
+			t.Fatalf("cancel receipt = %#v", got)
 		}
 	})
 }

@@ -13,6 +13,65 @@ import type {
 // Invariant: every published app.json is a complete schema-v2 snapshot of shell and update truth.
 // Owner: desktop app-state writer. Canonical suite: app-state.test.ts.
 describe("app state publisher", () => {
+  it.each([1, 3])("Should retain start attempt %i through readiness publication", async attempt => {
+    const home = await mkdtemp(join(tmpdir(), "compozy-app-state-"));
+    const path = join(home, "app.json");
+    try {
+      const publisher = new AppStatePublisher({
+        path,
+        appVersion: "0.3.0",
+        channel: "development",
+        startedAt: new Date("2026-08-16T00:00:00Z"),
+      });
+      await publisher.publish({
+        state: "starting",
+        stage: "start",
+        ...(attempt === 1 ? {} : { attempt }),
+      });
+      expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
+        state: "starting",
+        stage: "start",
+        attempt,
+      });
+      await publisher.publish({ state: "starting", stage: "ready" });
+      expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
+        state: "starting",
+        stage: "ready",
+        attempt,
+      });
+      await publisher.publish({ state: "resolving" });
+      expect(JSON.parse(await readFile(path, "utf8"))).not.toHaveProperty("attempt");
+      await publisher.publish({ state: "starting", stage: "start" });
+      expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({ attempt: 1 });
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  // Invariant: live boot detail reaches the boot window but never app.json, whose schema is closed.
+  it("Should hand live boot detail to the window without recording it", async () => {
+    const home = await mkdtemp(join(tmpdir(), "compozy-app-state-"));
+    const path = join(home, "app.json");
+    const rendered: unknown[] = [];
+    try {
+      const publisher = new AppStatePublisher({
+        path,
+        appVersion: "0.3.0",
+        channel: "development",
+        startedAt: new Date("2026-08-16T00:00:00Z"),
+        onPublished: snapshot => rendered.push(snapshot),
+      });
+      const boot = { wait: "runtime_mutation", owner_pid: 4242 } as const;
+      await publisher.publish({ state: "starting", stage: "start", attempt: 1, boot });
+      expect(rendered).toEqual([{ state: "starting", stage: "start", attempt: 1, boot }]);
+      const record: unknown = JSON.parse(await readFile(path, "utf8"));
+      expect(record).toMatchObject({ state: "starting", attempt: 1 });
+      expect(record).not.toHaveProperty("boot");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   it("Should preserve acquired kernel identity across later publications", async () => {
     const home = await mkdtemp(join(tmpdir(), "compozy-app-state-"));
     const path = join(home, "app.json");

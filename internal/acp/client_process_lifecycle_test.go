@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -183,6 +184,43 @@ func TestDriverRejectsUninitializedProcessState(t *testing.T) {
 }
 
 func TestAgentProcessExitLifecycle(t *testing.T) {
+	t.Run("Should close retained stdout before joining ACP child work", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			handle := newFakeHandle(t.TempDir())
+			t.Cleanup(func() {
+				if err := handle.stdoutWriter.Close(); err != nil {
+					t.Errorf("close retained stdout writer: %v", err)
+				}
+			})
+			close(handle.done)
+			processCtx, cancelProcess := context.WithCancel(t.Context())
+			defer cancelProcess()
+			proc := &AgentProcess{
+				handle: handle, processCtx: processCtx, cancelProcess: cancelProcess,
+				done: make(chan struct{}),
+			}
+			New().configureAgentConnection(proc, handle, nil)
+			run, ok := proc.beginChildTask()
+			if !ok {
+				t.Fatal("beginChildTask() rejected initial work")
+			}
+			proc.startReservedChildTask(run, func() { <-proc.conn.Done() })
+			proc.waitForExit(t.Context(), defaultProcessRecordTimeout)
+			select {
+			case <-proc.Done():
+			default:
+				t.Fatal("process Done remained open after output drain")
+			}
+			if err := proc.Wait(); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("Wait() error = %v, want output drain deadline", err)
+			}
+			if _, err := handle.stdoutWriter.Write([]byte("late output")); !errors.Is(err, io.ErrClosedPipe) {
+				t.Fatalf("write after process completion error = %v, want closed pipe", err)
+			}
+		})
+	})
+
 	t.Run("Should surface a process crash", func(t *testing.T) {
 		t.Parallel()
 

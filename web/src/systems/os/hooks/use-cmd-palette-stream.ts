@@ -2,6 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useState } from "react";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
+import { agentKeys } from "@/systems/agent";
+import { extensionKeys } from "@/systems/extensions";
 
 import { cmdPaletteKeys } from "../lib/cmd-palette-query-keys";
 import {
@@ -22,7 +24,9 @@ export interface UseCmdPaletteStreamOptions {
  *
  * The stream carries no replay cursor by design, so both a change event and a
  * reconnect resolve the same way: invalidate the workspace's catalog reads and
- * let the refetch settle the revision.
+ * let the refetch settle the revision. The agent and extension lists the palette
+ * rows read go stale on the same signal (an extension was enabled, disabled,
+ * removed, linked or reloaded), so they ride the same invalidation.
  */
 export function useCmdPaletteStream({
   workspaceId,
@@ -48,14 +52,16 @@ export function useCmdPaletteStream({
       // lens it was projected under, and all of them just went stale.
       const catalogPrefix = cmdPaletteKeys.workspaceCatalogs(workspace);
       const rankSignalsKey = cmdPaletteKeys.rankSignals(workspace, profileKey);
+      // Extension-contributed agents and extension rows are not workspace-scoped
+      // reads alone, so every lens of those lists refetches if it is observed.
+      const rowListPrefixes = [agentKeys.lists(), agentKeys.aggregates(), extensionKeys.lists()];
       void queryClient.invalidateQueries({
         predicate: query => {
           const key = query.queryKey;
           return (
-            (key.length >= catalogPrefix.length &&
-              catalogPrefix.every((part, index) => key[index] === part)) ||
-            (key.length === rankSignalsKey.length &&
-              rankSignalsKey.every((part, index) => key[index] === part))
+            hasKeyPrefix(key, catalogPrefix) ||
+            (key.length === rankSignalsKey.length && hasKeyPrefix(key, rankSignalsKey)) ||
+            rowListPrefixes.some(prefix => hasKeyPrefix(key, prefix))
           );
         },
       });
@@ -72,4 +78,8 @@ export function useCmdPaletteStream({
   }, [enabled, profileKey, queryClient, workspace]);
 
   return enabled && workspace !== "" ? status : "disabled";
+}
+
+function hasKeyPrefix(key: readonly unknown[], prefix: readonly unknown[]): boolean {
+  return key.length >= prefix.length && prefix.every((part, index) => key[index] === part);
 }

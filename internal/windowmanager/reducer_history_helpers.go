@@ -3,8 +3,8 @@ package windowmanager
 func (r *reducer) markState(snapshot *Snapshot) {
 	for _, desktop := range snapshot.Desktops {
 		r.changes.desktop(desktop.ID)
-		for _, group := range desktop.Groups {
-			r.changes.group(group.ID)
+		for _, group := range desktop.Tabs {
+			r.changes.tab(group.ID)
 			markNodeChanges(group.Root, &r.changes)
 		}
 	}

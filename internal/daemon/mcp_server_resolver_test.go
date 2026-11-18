@@ -4,23 +4,197 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensionmcp"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T) {
 	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		published bool
+		renamed   bool
+	}{
+		{name: "Should retain file declarations as sources without a publisher"},
+		{name: "Should omit retired file declarations from published sources", published: true},
+		{name: "Should enumerate renamed publications without stale boot sources", published: true, renamed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			injected := compozyconfig.MCPServer{Name: "injected", Command: "injected"}
+			state := &bootState{
+				cfg: compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{
+					{
+						Name:             "docs",
+						Command:          "old",
+						DefinitionSource: filepath.Join(t.TempDir(), compozyconfig.MCPJSONName),
+					},
+					injected,
+				}},
+				mcpServerCatalog: newResourceCatalog(cloneDaemonMCPServer),
+			}
+			want := []string{"docs", "injected"}
+			if tc.published {
+				state.toolMCPResources = toolMCPPublisherFunc(func(context.Context) error { return nil })
+				want = []string{"injected"}
+				records := []resources.Record[compozyconfig.MCPServer]{
+					{
+						ID:    "injected",
+						Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+						Spec:  injected,
+					},
+				}
+				if tc.renamed {
+					want = append(want, "renamed")
+					records = append(records, resources.Record[compozyconfig.MCPServer]{
+						ID: "renamed", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+						Spec: compozyconfig.MCPServer{Name: "renamed", Command: "current"},
+					})
+				}
+				state.mcpServerCatalog.Replace(1, records)
+			}
+			sources, err := daemonMCPSources(t.Context(), state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, source := range sources {
+				got = append(got, source.RawServerName)
+				if _, err := resolveDaemonMCPServer(t.Context(), state, source, ""); err != nil {
+					t.Fatalf("enumerated source %q cannot resolve: %v", source.RawServerName, err)
+				}
+			}
+			slices.Sort(got)
+			if !slices.Equal(got, want) {
+				t.Fatalf("sources = %v, want %v", got, want)
+			}
+		})
+	}
+
+	// Invariant: deleting a published declaration cannot resurrect its stale boot snapshot.
+	// Owner: daemon MCP identity resolver; canonical suite: resource identity.
+	t.Run("Should reject a removed published server despite stale boot config", func(t *testing.T) {
+		t.Parallel()
+		state := &bootState{
+			cfg: compozyconfig.Config{
+				MCPServers: []compozyconfig.MCPServer{{Name: "removed", Command: "old"}},
+			},
+			mcpServerCatalog: newResourceCatalog(cloneDaemonMCPServer),
+			toolMCPResources: toolMCPPublisherFunc(func(context.Context) error { return nil }),
+		}
+		_, err := resolveDaemonMCPServer(
+			t.Context(),
+			state,
+			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, RawServerName: "removed"},
+			"",
+		)
+		if err == nil || !strings.Contains(err.Error(), "unavailable") {
+			t.Fatalf("removed source resolved: %v", err)
+		}
+	})
+
+	t.Run("Should apply the active profile before workspace overrides without moving credentials", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		home := testHomePaths(t)
+		profiles, err := profilepkg.NewManager(
+			profilepkg.WithStore(db),
+			profilepkg.WithHomePaths(home),
+			profilepkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		writeMCPDeclarationFile(t, home.ConfigFile, `[[mcp_servers]]
+name = "docs"
+command = "user-server"
+`)
+		writeMCPDeclarationFile(
+			t,
+			filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName),
+			`[[mcp_servers]]
+name = "docs"
+args = ["workspace"]
+`,
+		)
+		resolver, err := workspacepkg.NewResolver(db, workspacepkg.WithHomePaths(home),
+			workspacepkg.WithProfileAvailabilityChecker(profiles),
+			workspacepkg.WithConfigLoader(func(root string) (compozyconfig.Config, error) {
+				return compozyconfig.LoadForHome(home, compozyconfig.WithWorkspaceRoot(root))
+			}),
+			workspacepkg.WithProfileConfigLoader(func(root, profile string) (compozyconfig.Config, error) {
+				return compozyconfig.LoadForHome(
+					home,
+					compozyconfig.WithWorkspaceRoot(root),
+					compozyconfig.WithProfile(profile),
+				)
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace, err := resolver.ResolveOrRegister(t.Context(), root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		record := resources.Record[compozyconfig.MCPServer]{ID: "workspace-docs", Source: toolMCPSyncActor().Source,
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: workspace.ID},
+			Spec:  compozyconfig.MCPServer{Name: "docs", Command: "user-server", Args: []string{"workspace"}},
+		}
+		catalog := newResourceCatalog(cloneDaemonMCPServer)
+		catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{record})
+		state := &bootState{profiles: profiles, workspaceResolver: resolver, mcpServerCatalog: catalog}
+		for _, name := range []string{"marketing", "sales"} {
+			profile, err := profiles.Create(t.Context(), profilepkg.CreateInput{Name: name})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "user-server"
+			if name == "marketing" {
+				want = "profile-server"
+				writeMCPDeclarationFile(
+					t,
+					filepath.Join(home.ProfilesDir, name, compozyconfig.ConfigName),
+					`[[mcp_servers]]
+name = "docs"
+command = "profile-server"
+`,
+				)
+			}
+			resolved, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
+				Kind: toolspkg.SourceMCP, ResourceID: record.ID, RawServerName: "docs", ProfileID: profile.ID,
+			}, "")
+			if err != nil || resolved.Server.Command != want ||
+				!slices.Equal(resolved.Server.Args, []string{"workspace"}) {
+				t.Fatalf("%s server = %+v, %v", name, resolved.Server, err)
+			}
+			if resolved.Target.Scope != mcpauth.ScopeWorkspace || resolved.Target.WorkspaceID != workspace.ID {
+				t.Fatalf("credential owner moved for %s: %+v", name, resolved.Target)
+			}
+		}
+	})
 
 	// Invariant: failed publication/auth cleanup restores the persisted override even after caller cancellation, and auth calls keep the exact owner.
 	// Owner: daemon override commit boundary; canonical suite: mcp_server_resolver_test.go.
@@ -669,6 +843,20 @@ func TestMCPSourceResourceFindsExtensionServersByName(t *testing.T) {
 			t.Fatalf("lookup = %#v, %v", target, err)
 		}
 	})
+	t.Run("Should resolve an extension after a same-name file declaration retires", func(t *testing.T) {
+		t.Parallel()
+		state := &bootState{
+			mcpServerCatalog: catalogOf(extensionRecord("ext", "linear")),
+			toolMCPResources: toolMCPPublisherFunc(func(context.Context) error { return nil }),
+		}
+		stale := server
+		stale.DefinitionSource = filepath.Join(t.TempDir(), compozyconfig.MCPJSONName)
+		state.cfg.MCPServers = []compozyconfig.MCPServer{stale}
+		target, err := lookup(t, state)
+		if err != nil || target.Owner != "extension:linear" {
+			t.Fatalf("lookup after file declaration retirement = %#v, %v", target, err)
+		}
+	})
 	t.Run("Should require an owner when two extensions declare the name", func(t *testing.T) {
 		t.Parallel()
 		_, err := lookup(t, &bootState{mcpServerCatalog: catalogOf(
@@ -737,8 +925,53 @@ func (s mcpGrantAuthStatus) Status(
 	return s.status[source.ResourceID], s.err
 }
 
-func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
+func TestOperatorConsentedMCPSourceGrants(t *testing.T) {
 	t.Parallel()
+	// Invariant: personal boot declarations remain admitted without a resource ID; owner: daemon source authority.
+	t.Run("Should retain boot-time personal TOML servers in inherited authority", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		state.cfg.Tools.Policy.ExternalDefault = "disabled"
+		state.cfg.MCPServers = []compozyconfig.MCPServer{{Name: "personal", Command: "echo"}}
+		resolver, err := newNativeToolPolicyResolverForBoot(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := session.WithMCPAuthoritySession(
+			t.Context(),
+			&session.Info{
+				ID:          "root",
+				WorkspaceID: req.WorkspaceID,
+				Type:        session.SessionTypeUser,
+				ProfileID:   store.DefaultProfileID,
+				Lineage: &store.SessionLineage{
+					Kind:             store.LineageKindRoot,
+					PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionInherit},
+				},
+			},
+		)
+		policy, err := resolver.EffectiveMCPAuthority(ctx, "root")
+		if err != nil || !slices.Equal(policy.MCPServers, []string{"personal"}) {
+			t.Fatalf("policy=%+v err=%v", policy, err)
+		}
+	})
+
+	// Invariant: admitted config sources without resource IDs retain their logical server names.
+	// Owner: daemon MCP authority; canonical suite: operator-consented source grants.
+	t.Run("Should retain consented config names without catalog resource identities", func(t *testing.T) {
+		t.Parallel()
+		resolver := &nativeToolPolicyResolver{mcpResourceNames: func() map[string]string {
+			return map[string]string{"record": "catalog-name"}
+		}}
+		names := resolver.admittedMCPNames(toolspkg.PolicyInputs{AllowSources: []toolspkg.SourceGrant{
+			{Kind: toolspkg.SourceMCP, Owner: "config-name"},
+			{Kind: toolspkg.SourceMCP, Owner: "runtime-name", ResourceID: "record"},
+			{Kind: toolspkg.SourceMCP, Owner: "unknown-record", ResourceID: "unknown"},
+		}}, nil)
+		if !slices.Equal(names, []string{"config-name", "catalog-name"}) {
+			t.Fatalf("admitted names = %v", names)
+		}
+	})
 
 	db := openDaemonTestGlobalDB(t)
 	profiles, err := profilepkg.NewManager(profilepkg.WithStore(db),
@@ -769,17 +1002,41 @@ func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
 	catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{
 		{ID: "ext", Scope: openScope, Owner: *extensionOwner("lab"), Spec: named("lab-mcp", true)},
 		{ID: "plain", Scope: openScope, Owner: *extensionOwner("plain"), Spec: named("plain", false)},
-		{ID: "manual", Scope: openScope, Spec: named("manual", true)},
+		{
+			ID:    "header",
+			Scope: openScope,
+			Owner: *extensionOwner("header"),
+			Spec: compozyconfig.MCPServer{
+				Name:      "header",
+				Transport: "http",
+				URL:       "https://example.com/mcp",
+				Headers:   map[string]string{"X-Key": "value"},
+			},
+		},
+		{
+			ID:    "manual",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			Spec: compozyconfig.MCPServer{
+				Name:             "manual",
+				Command:          "fixture",
+				DefinitionSource: filepath.Join(testHomePaths(t).HomeDir, compozyconfig.MCPJSONName),
+			},
+		},
 		{ID: "foreign", Scope: otherScope, Owner: *extensionOwner("foreign"), Spec: named("foreign", true)},
 		{ID: "logged-out", Scope: openScope, Owner: *extensionOwner("logged"), Spec: named("logged-out", true)},
 	})
 	present := toolspkg.MCPAuthStatus{Status: "expired", TokenPresent: true}
 	authed := mcpGrantAuthStatus{status: map[string]toolspkg.MCPAuthStatus{
-		"ext": present, "plain": present, "manual": present, "foreign": present,
+		"ext": present, "plain": present, "header": present, "manual": present, "foreign": present,
 		"logged-out": {Status: "needs_login"},
 	}}
 	state := func(status toolspkg.MCPAuthStatusProvider) *bootState {
-		return &bootState{mcpServerCatalog: catalog, mcpAuthStatus: status, profiles: profiles}
+		return &bootState{
+			mcpDigestKeys:    vault.NewMCPDigestKeyProvider(t.TempDir()),
+			mcpServerCatalog: catalog,
+			mcpAuthStatus:    status,
+			profiles:         profiles,
+		}
 	}
 	scope := toolspkg.Scope{ProfileID: open.ID}
 	descriptor := toolspkg.Descriptor{
@@ -792,16 +1049,22 @@ func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
 		},
 	}
 
-	// Invariant: only a credential the operator holds for a projected extension server grants its
-	// source, so external_default keeps denying everything else and other profiles stay isolated.
+	// Invariant (UT-001/002/003): published personal and enabled extension sources grant consent
+	// independently of token availability, without reaching another profile.
 	// Owner: daemon MCP source grants; canonical suite: mcp_server_resolver_test.go.
-	t.Run("Should grant only the authenticated extension server the scope projects", func(t *testing.T) {
+	t.Run("Should grant personal and enabled extension sources independently of OAuth", func(t *testing.T) {
 		t.Parallel()
-		grants, err := operatorAuthorizedMCPSourceGrants(t.Context(), state(authed), scope)
+		grants, err := operatorConsentedSourceGrants(t.Context(), state(authed), scope)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []toolspkg.SourceGrant{{Kind: toolspkg.SourceMCP, Owner: "lab-mcp", ResourceID: "ext"}}
+		want := []toolspkg.SourceGrant{
+			{Kind: toolspkg.SourceMCP, Owner: "lab-mcp", ResourceID: "ext"},
+			{Kind: toolspkg.SourceMCP, Owner: "plain", ResourceID: "plain"},
+			{Kind: toolspkg.SourceMCP, Owner: "header", ResourceID: "header"},
+			{Kind: toolspkg.SourceMCP, Owner: "manual", ResourceID: "manual"},
+			{Kind: toolspkg.SourceMCP, Owner: "logged-out", ResourceID: "logged-out"},
+		}
 		if !slices.Equal(grants, want) {
 			t.Fatalf("grants = %#v, want %#v", grants, want)
 		}
@@ -814,21 +1077,28 @@ func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspaceProfile, ID: "invalid"},
 			Owner: *extensionOwner("lab"), Spec: named("broken", true),
 		}})
-		grants, err := operatorAuthorizedMCPSourceGrants(t.Context(),
-			&bootState{mcpServerCatalog: broken, mcpAuthStatus: authed}, scope)
+		grants, err := operatorConsentedSourceGrants(
+			t.Context(),
+			&bootState{
+				mcpDigestKeys:    vault.NewMCPDigestKeyProvider(t.TempDir()),
+				mcpServerCatalog: broken,
+				mcpAuthStatus:    authed,
+			},
+			scope,
+		)
 		if err != nil || len(grants) != 0 {
 			t.Fatalf("grants = %#v, %v", grants, err)
 		}
 	})
-	t.Run("Should grant nothing when the credential status cannot be read", func(t *testing.T) {
+	t.Run("Should preserve source consent when credential status cannot be read", func(t *testing.T) {
 		t.Parallel()
-		grants, err := operatorAuthorizedMCPSourceGrants(t.Context(),
+		grants, err := operatorConsentedSourceGrants(t.Context(),
 			state(mcpGrantAuthStatus{err: errors.New("store unavailable")}), scope)
-		if err != nil || len(grants) != 0 {
+		if err != nil || len(grants) != 5 {
 			t.Fatalf("grants = %#v, %v", grants, err)
 		}
 	})
-	t.Run("Should make the login the only thing that lifts the disabled external default", func(t *testing.T) {
+	t.Run("Should make source consent lift the disabled external default", func(t *testing.T) {
 		t.Parallel()
 		cfg := compozyconfig.Config{
 			Tools:       compozyconfig.ToolsConfig{Enabled: true},
@@ -845,7 +1115,7 @@ func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
 			{name: "with login", callable: true, grants: func(
 				ctx context.Context, scope toolspkg.Scope,
 			) ([]toolspkg.SourceGrant, error) {
-				return operatorAuthorizedMCPSourceGrants(ctx, state(authed), scope)
+				return operatorConsentedSourceGrants(ctx, state(authed), scope)
 			}},
 		} {
 			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
@@ -870,6 +1140,19 @@ func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
 			}
 			if decision.Callable != tc.callable {
 				t.Fatalf("%s: decision = %#v, want callable %t", tc.name, decision, tc.callable)
+			}
+			personal := descriptor
+			personal.ID = "mcp__manual__echo"
+			personal.Source = toolspkg.SourceRef{
+				Kind:          toolspkg.SourceMCP,
+				Owner:         "manual",
+				RawServerName: "manual",
+				RawToolName:   "echo",
+				ResourceID:    "manual",
+			}
+			personalDecision, err := evaluator.Evaluate(t.Context(), scope, personal)
+			if err != nil || personalDecision.Callable != tc.callable {
+				t.Fatalf("home source decision=%+v %v", personalDecision, err)
 			}
 			twin := descriptor
 			twin.Source.RawServerName, twin.Source.ResourceID = "lab_mcp", "ext-twin"
@@ -903,6 +1186,7 @@ func TestDaemonMCPProviderRecordsExtensionLaunchFailures(t *testing.T) {
 			},
 		})
 		state := &bootState{
+			mcpDigestKeys:    vault.NewMCPDigestKeyProvider(t.TempDir()),
 			mcpServerCatalog: catalog,
 			extensions: &fakeExtensionRuntime{getExt: &extensionpkg.Extension{
 				Info: extensionpkg.ExtensionInfo{Name: "kit", Checksum: "generation-a"},
@@ -936,4 +1220,739 @@ func (r *mcpOverrideAuthRecorder) MCPAuthInvalidate(target mcpauth.Target) error
 func (r *mcpOverrideAuthRecorder) MCPAuthDeleteState(_ context.Context, target mcpauth.Target) error {
 	r.targets = append(r.targets, target)
 	return r.deleteError
+}
+
+// Invariant (UT-005/006/007/008/009/019/031/032/033/034/036): consent binds the
+// exact profile/workspace/declaring-file/definition, never a token or allocated name.
+// Owner: daemon consent repository and write boundary; canonical suite: MCP source resolver.
+func TestWorkspaceMCPConsent(t *testing.T) {
+	t.Parallel()
+	// Invariant: persisted approval source IDs preserve lexical filenames and symlink identity.
+	// Owner: daemon consent; canonical suite: workspace MCP consent.
+	t.Run(
+		"Should retain persisted approval identity for symlinked and percent-encoded declaring files",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name     string
+				external bool
+			}{
+				{"Should preserve an internal target", false},
+				{"Should preserve an external target", true},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					external := tc.external
+					state, req := newMCPConsentFixture(t)
+					workspace, err := state.workspaceResolver.ResolveAgentConfig(t.Context(), req.WorkspaceID, "")
+					if err != nil {
+						t.Fatal(err)
+					}
+					targetDir := workspace.RootDir
+					if external {
+						targetDir = t.TempDir()
+					}
+					target := filepath.Join(targetDir, "shared-mcp.json")
+					if err := os.WriteFile(target, []byte(`{"mcpServers":{}}`), 0o600); err != nil {
+						t.Fatal(err)
+					}
+					path := filepath.Join(filepath.Dir(req.Server.DefinitionSource), "mcp%20settings.json")
+					if err := os.Symlink(target, path); err != nil {
+						t.Fatal(err)
+					}
+					want := filepath.ToSlash(filepath.Join(compozyconfig.DirName, "mcp%20settings.json"))
+					got, err := mcpApprovalSourceID(t.Context(), state, req.WorkspaceID, path)
+					if err != nil || got != want {
+						t.Fatalf("approval source (external=%t) = %q, %v; want %q", external, got, err, want)
+					}
+					alias := filepath.Join(t.TempDir(), "workspace-alias")
+					if err := os.Symlink(workspace.RootDir, alias); err != nil {
+						t.Fatal(err)
+					}
+					aliasedPath := filepath.Join(alias, compozyconfig.DirName, filepath.Base(path))
+					got, err = mcpApprovalSourceID(t.Context(), state, req.WorkspaceID, aliasedPath)
+					if err != nil || got != want {
+						t.Fatalf("aliased approval source = %q, %v; want %q", got, err, want)
+					}
+					decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+					if err != nil {
+						t.Fatal(err)
+					}
+					repository, ok := state.registry.(MCPApprovalStore)
+					if !ok {
+						t.Fatal("approval repository unavailable")
+					}
+					if err := repository.PutMCPServerApproval(t.Context(), MCPApproval{
+						ProfileID: store.DefaultProfileID, WorkspaceID: req.WorkspaceID,
+						ServerName: req.Server.Name, SourceID: want, DefinitionDigest: decision.DefinitionDigest,
+					}); err != nil {
+						t.Fatal(err)
+					}
+					state.invalidateMCPApprovals(store.DefaultProfileID, req.WorkspaceID)
+					// Existing records keep matching the declaring path rather than its resolved target.
+					req.Server.DefinitionSource = path
+					again, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+					if err != nil || !again.Admitted {
+						t.Fatalf("persisted approval (external=%t) = %+v, %v", external, again, err)
+					}
+				})
+			}
+		},
+	)
+	// Invariant: a durable installation identity preserves stored approval decisions; owner: daemon consent.
+	t.Run("Should retain definition identity and approvals across daemon states sharing a home", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		home := t.TempDir()
+		state.mcpDigestKeys = vault.NewMCPDigestKeyProvider(home)
+		first, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := (settingsMCPConsent{state: state}).ApproveMCP(
+			t.Context(),
+			req,
+			first.DefinitionDigest,
+			false,
+		); err != nil {
+			t.Fatal(err)
+		}
+		restarted := &bootState{
+			mcpDigestKeys:     vault.NewMCPDigestKeyProvider(home),
+			registry:          state.registry,
+			cfg:               state.cfg,
+			profiles:          state.profiles,
+			workspaceResolver: state.workspaceResolver,
+			mcpServerCatalog:  state.mcpServerCatalog,
+		}
+		again, err := (settingsMCPConsent{state: restarted}).MCPConsent(t.Context(), req)
+		if err != nil || !again.Admitted || again.DefinitionDigest != first.DefinitionDigest {
+			t.Fatalf("restart changed consent: %+v %v", again, err)
+		}
+	})
+	// Invariant: a resource ID cannot substitute its declaring file after approval; owner: daemon execution gate.
+	t.Run("Should gate the exact resolved definition and source file", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := (settingsMCPConsent{state: state}).ApproveMCP(
+			t.Context(),
+			req,
+			decision.DefinitionDigest,
+			false,
+		); err != nil {
+			t.Fatal(err)
+		}
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         req.Server.Name,
+			RawServerName: req.Server.Name,
+			ProfileID:     store.DefaultProfileID,
+			WorkspaceID:   req.WorkspaceID,
+		}
+		resolved := mcppkg.ResolvedServer{
+			Server: req.Server,
+			Target: mcpauth.Target{
+				Scope:       mcpauth.ScopeWorkspace,
+				WorkspaceID: req.WorkspaceID,
+				ServerName:  req.Server.Name,
+			},
+		}
+		if err := requireResolvedMCPConsent(t.Context(), state, source, &resolved); err != nil {
+			t.Fatal(err)
+		}
+		resolved.Server.Command = "unapproved"
+		if err := requireResolvedMCPConsent(t.Context(), state, source, &resolved); err == nil {
+			t.Fatal("changed transport definition admitted")
+		}
+		resolved.Server = req.Server
+		resolved.Server.DefinitionSource = filepath.Join(filepath.Dir(req.Server.DefinitionSource), "other.json")
+		if err := requireResolvedMCPConsent(t.Context(), state, source, &resolved); err == nil {
+			t.Fatal("different source file admitted")
+		}
+	})
+
+	t.Run("Should approve only the observed definition and invalidate cached decisions", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		consent := settingsMCPConsent{state: state}
+		waiting, err := consent.MCPConsent(t.Context(), req)
+		if err != nil || !waiting.Waiting || waiting.Admitted || waiting.Reason != "new" {
+			t.Fatalf("waiting=%+v %v", waiting, err)
+		}
+		epoch := state.toolProjectionEpoch.Current()
+		if _, err = consent.ApproveMCP(t.Context(), req, "stale", false); err == nil {
+			t.Fatal("stale digest approved")
+		} else if failure, ok := errors.AsType[*settingspkg.MCPApprovalError](err); !ok || failure.Code != "mcp_approval_definition_changed" {
+			t.Fatal(err)
+		}
+		records, err := state.mcpApprovalRecords(t.Context(), store.DefaultProfileID, req.WorkspaceID)
+		if err != nil || len(records) != 0 {
+			t.Fatalf("stale approval wrote %+v %v", records, err)
+		}
+		if _, err = consent.ApproveMCP(t.Context(), req, waiting.DefinitionDigest, false); err != nil {
+			t.Fatal(err)
+		}
+		allowed, err := consent.MCPConsent(t.Context(), req)
+		if err != nil || !allowed.Admitted || allowed.Waiting || state.toolProjectionEpoch.Current() <= epoch {
+			t.Fatalf("allowed=%+v %v", allowed, err)
+		}
+		changedDefinition := req
+		changedDefinition.Server.Args = []string{"updated"}
+		changedDecision, err := consent.MCPConsent(t.Context(), changedDefinition)
+		if err != nil || changedDecision.Reason != "changed" {
+			t.Fatalf("changed approval reason=%+v, %v", changedDecision, err)
+		}
+		for _, change := range []func(*settingspkg.MCPConsentRequest){
+			func(r *settingspkg.MCPConsentRequest) { r.Server.Args = []string{"changed"} },
+			func(r *settingspkg.MCPConsentRequest) { r.Server.Env = map[string]string{"MODE": "changed"} },
+			func(r *settingspkg.MCPConsentRequest) { r.Server.Headers = map[string]string{"X-Tenant": "changed"} },
+			func(r *settingspkg.MCPConsentRequest) {
+				r.Server.SecretEnv = map[string]string{"TOKEN": "vault:mcp/shared/changed"}
+			},
+			func(r *settingspkg.MCPConsentRequest) {
+				r.Server.SecretHeaders = map[string]string{"Authorization": "vault:mcp/shared/header"}
+			},
+			func(r *settingspkg.MCPConsentRequest) { r.Server.ReadOnlyTools = []string{"echo"} },
+			func(r *settingspkg.MCPConsentRequest) {
+				r.Server.DefinitionSource = filepath.Join(filepath.Dir(r.Server.DefinitionSource), "agent", compozyconfig.MCPJSONName)
+			},
+		} {
+			changed := req
+			change(&changed)
+			decision, err := consent.MCPConsent(t.Context(), changed)
+			if err != nil || decision.Admitted || !decision.Waiting {
+				t.Fatalf("changed=%+v %v", decision, err)
+			}
+		}
+		// Removing a record does not remove its approval. Restoring identical bytes remains admitted.
+		state.mcpServerCatalog.Replace(2, nil)
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         req.Server.Name,
+			RawServerName: req.Server.Name,
+			WorkspaceID:   req.WorkspaceID,
+			ProfileID:     store.DefaultProfileID,
+			ResourceID:    "workspace-server",
+		}
+		if err := requireMCPSourceConsent(
+			t.Context(),
+			state,
+			source,
+		); err == nil ||
+			!strings.Contains(err.Error(), "was removed from CompozyOS") {
+			t.Fatalf("removed error=%v", err)
+		}
+		restored, err := consent.MCPConsent(t.Context(), req)
+		if err != nil || !restored.Admitted {
+			t.Fatalf("restored=%+v %v", restored, err)
+		}
+		if _, err = consent.ApproveMCP(t.Context(), req, "", true); err != nil {
+			t.Fatal(err)
+		}
+		revoked, err := consent.MCPConsent(t.Context(), req)
+		if err != nil || revoked.Admitted || !revoked.Waiting {
+			t.Fatalf("revoked=%+v %v", revoked, err)
+		}
+	})
+	t.Run("Should retain consent when a stable Vault reference rotates", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		db := state.registry.(*globaldb.GlobalDB)
+		secretVault, err := vault.NewService(db.VaultRepo, vault.NewFileKeyProvider(t.TempDir(), nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		const ref = "vault:mcp/shared/stable"
+		req.Server.SecretEnv = map[string]string{"TOKEN": ref}
+		consent := settingsMCPConsent{state: state}
+		digest, err := state.mcpDefinitionDigest(req.Server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := consent.ApproveMCP(t.Context(), req, digest, false); err != nil {
+			t.Fatal(err)
+		}
+		for _, value := range []string{"first-private-value", "rotated-private-value"} {
+			if _, err := secretVault.PutSecret(t.Context(), ref, "mcp", value); err != nil {
+				t.Fatal(err)
+			}
+			decision, err := consent.MCPConsent(t.Context(), req)
+			if err != nil || !decision.Admitted || decision.DefinitionDigest != digest {
+				t.Fatalf("Vault rotation changed consent=%+v %v", decision, err)
+			}
+		}
+	})
+	t.Run("Should isolate profiles workspaces and default-profile project layers", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		consent := settingsMCPConsent{state: state}
+		decision, err := consent.MCPConsent(t.Context(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = consent.ApproveMCP(t.Context(), req, decision.DefinitionDigest, false); err != nil {
+			t.Fatal(err)
+		}
+		profile, err := state.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "work"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		otherProfile := req
+		otherProfile.ProfileName = profile.Name
+		other, err := consent.MCPConsent(t.Context(), otherProfile)
+		if err != nil || other.Admitted {
+			t.Fatalf("profile leaked=%+v %v", other, err)
+		}
+		second, err := state.workspaceResolver.ResolveOrRegister(t.Context(), t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		otherWorkspace := req
+		otherWorkspace.WorkspaceID = second.ID
+		otherWorkspace.Server.DefinitionSource = filepath.Join(
+			second.RootDir,
+			compozyconfig.DirName,
+			compozyconfig.MCPJSONName,
+		)
+		other, err = consent.MCPConsent(t.Context(), otherWorkspace)
+		if err != nil || other.Admitted {
+			t.Fatalf("workspace leaked=%+v %v", other, err)
+		}
+		root, err := state.workspaceResolver.Resolve(t.Context(), req.WorkspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, file := range []string{compozyconfig.MCPJSONName, compozyconfig.ConfigName} {
+			projected := req
+			projected.Scope = "workspace_profile"
+			projected.ProfileName = "default"
+			projected.Server.DefinitionSource = filepath.Join(
+				root.RootDir,
+				compozyconfig.DirName,
+				compozyconfig.ProfilesDirName,
+				"default",
+				file,
+			)
+			other, err = consent.MCPConsent(t.Context(), projected)
+			if err != nil || other.Admitted || !other.Waiting {
+				t.Fatalf("project default layer admitted=%+v %v", other, err)
+			}
+		}
+	})
+	t.Run("Should keep project servers pending despite workspace trust grants", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		root, err := state.workspaceResolver.Resolve(t.Context(), req.WorkspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeMCPDeclarationFile(
+			t,
+			filepath.Join(root.RootDir, compozyconfig.DirName, compozyconfig.ConfigName),
+			"[tools.policy]\nexternal_default = \"enabled\"\ntrusted_sources = [\"mcp:sentry\"]\n",
+		)
+		decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+		if err != nil || decision.Admitted || !decision.Waiting {
+			t.Fatalf("workspace trust bypassed approval=%+v %v", decision, err)
+		}
+	})
+	for _, scope := range []string{"workspace", "workspace_profile"} {
+		for _, tc := range []struct {
+			name, policy string
+			admitted     bool
+		}{
+			{"Should retain personal consent when project policy matches", "enabled", true},
+			{"Should require consent when a project tightens enabled to ask", "ask", false},
+			{"Should require consent when a project tightens enabled to disabled", "disabled", false},
+		} {
+			t.Run(tc.name+" in "+scope, func(t *testing.T) {
+				t.Parallel()
+				home := testHomePaths(t)
+				writeMCPDeclarationFile(t, home.ConfigFile, "[tools.policy]\nexternal_default = \"enabled\"\n")
+				state, req := newMCPConsentFixtureForHome(t, home)
+				root, err := state.workspaceResolver.Resolve(t.Context(), req.WorkspaceID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				path := filepath.Join(root.RootDir, compozyconfig.DirName, compozyconfig.ConfigName)
+				if scope == "workspace_profile" {
+					path = filepath.Join(root.RootDir, compozyconfig.DirName,
+						compozyconfig.ProfilesDirName, "default", compozyconfig.ConfigName)
+				}
+				writeMCPDeclarationFile(t, path,
+					fmt.Sprintf("[tools.policy]\nexternal_default = %q\n", tc.policy))
+				decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+				if err != nil || decision.Admitted != tc.admitted || decision.Waiting == tc.admitted {
+					t.Fatalf("project consent restriction=%+v %v, want admitted=%t", decision, err, tc.admitted)
+				}
+			})
+		}
+	}
+	t.Run("Should commit the file before approval and preserve it on approval failure", func(t *testing.T) {
+		t.Parallel()
+		for _, fail := range []bool{false, true} {
+			t.Run(fmt.Sprint(fail), func(t *testing.T) {
+				state, req := newMCPConsentFixture(t)
+				recorder := &recordingMCPApprovalRegistry{
+					Registry:         state.registry,
+					MCPApprovalStore: state.registry.(MCPApprovalStore),
+					path:             req.Server.DefinitionSource,
+					fail:             fail,
+				}
+				state.registry = recorder
+				warning, err := (settingsMCPConsent{state: state}).RecordWorkspaceMCPWrite(
+					t.Context(),
+					settingspkg.WorkspaceMCPWrite{
+						WorkspaceID: req.WorkspaceID,
+						SourceID:    req.Server.DefinitionSource,
+						Server:      req.Server,
+						Write: func() error {
+							return os.WriteFile(
+								req.Server.DefinitionSource,
+								[]byte(`{"mcpServers":{"sentry":{"command":"fixture"}}}`),
+								0o600,
+							)
+						},
+					},
+				)
+				if err != nil || recorder.puts != 1 || !recorder.filePresent || (warning != "") != fail {
+					t.Fatalf("write result=%q %v recorder=%+v", warning, err, recorder)
+				}
+				decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+				if err != nil || decision.Admitted == fail {
+					t.Fatalf("post-write=%+v %v", decision, err)
+				}
+			})
+		}
+	})
+}
+
+func newMCPConsentFixture(t *testing.T) (*bootState, settingspkg.MCPConsentRequest) {
+	t.Helper()
+	return newMCPConsentFixtureForHome(t, testHomePaths(t))
+}
+
+func newMCPConsentFixtureForHome(
+	t *testing.T, home compozyconfig.HomePaths,
+) (*bootState, settingspkg.MCPConsentRequest) {
+	t.Helper()
+	db := openDaemonTestGlobalDB(t)
+	profiles, err := profilepkg.NewManager(
+		profilepkg.WithStore(db),
+		profilepkg.WithHomePaths(home),
+		profilepkg.WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolver, err := workspacepkg.NewResolver(
+		db,
+		workspacepkg.WithHomePaths(home),
+		workspacepkg.WithProfileAvailabilityChecker(profiles),
+		workspacepkg.WithConfigLoader(func(root string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(home, compozyconfig.WithWorkspaceRoot(root))
+		}),
+		workspacepkg.WithProfileConfigLoader(func(root, profile string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(
+				home,
+				compozyconfig.WithWorkspaceRoot(root),
+				compozyconfig.WithProfile(profile),
+			)
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspace, err := resolver.ResolveOrRegister(t.Context(), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(workspace.RootDir, compozyconfig.DirName, compozyconfig.MCPJSONName)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	server := compozyconfig.MCPServer{Name: "sentry", Command: "fixture", DefinitionSource: path}
+	catalog := newResourceCatalog(cloneDaemonMCPServer)
+	catalog.Replace(
+		1,
+		[]resources.Record[compozyconfig.MCPServer]{
+			{
+				ID:    "workspace-server",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: workspace.ID},
+				Spec:  server,
+			},
+		},
+	)
+	return &bootState{
+		mcpDigestKeys:       vault.NewMCPDigestKeyProvider(home.HomeDir),
+		registry:            db,
+		cfg:                 compozyconfig.DefaultWithHome(home),
+		profiles:            profiles,
+		workspaceResolver:   resolver,
+		mcpServerCatalog:    catalog,
+		toolProjectionEpoch: mcppkg.NewProjectionEpoch(),
+	}, settingspkg.MCPConsentRequest{
+		Scope:       "workspace",
+		WorkspaceID: workspace.ID,
+		Server:      server,
+	}
+}
+
+type recordingMCPApprovalRegistry struct {
+	Registry
+	MCPApprovalStore
+	path        string
+	fail        bool
+	puts        int
+	filePresent bool
+}
+
+func (r *recordingMCPApprovalRegistry) PutMCPServerApproval(ctx context.Context, a MCPApproval) error {
+	r.puts++
+	_, err := os.Stat(r.path)
+	r.filePresent = err == nil
+	if r.fail {
+		return errors.New("injected approval failure")
+	}
+	return r.MCPApprovalStore.PutMCPServerApproval(ctx, a)
+}
+
+// Invariant (UT-004): enabled non-bundled extension tools carry consent; withdrawal
+// removes it. Owner: daemon published tool catalog; canonical source-policy suite.
+func TestOperatorConsentedExtensionTools(t *testing.T) {
+	t.Parallel()
+	catalog := newResourceCatalog(cloneToolSpec)
+	catalog.Replace(
+		1,
+		[]resources.Record[toolspkg.Tool]{
+			{
+				ID:    "extension-ping",
+				Owner: *extensionOwner("non-bundled"),
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			},
+		},
+	)
+	state := &bootState{toolCatalog: catalog}
+	grants, err := operatorConsentedSourceGrants(t.Context(), state, toolspkg.Scope{ProfileID: store.DefaultProfileID})
+	if err != nil || len(grants) != 1 || grants[0].Kind != toolspkg.SourceExtension ||
+		grants[0].Owner != "non-bundled" {
+		t.Fatalf("enabled grants=%+v %v", grants, err)
+	}
+	catalog.Replace(2, nil)
+	grants, err = operatorConsentedSourceGrants(t.Context(), state, toolspkg.Scope{ProfileID: store.DefaultProfileID})
+	if err != nil || len(grants) != 0 {
+		t.Fatalf("disabled grants=%+v %v", grants, err)
+	}
+}
+
+// Invariant (UT-003): profile token state affects availability, never source consent.
+// Owner: daemon credential resolver; canonical MCP source resolver suite.
+func TestMCPConsentDoesNotShareProfileTokens(t *testing.T) {
+	t.Parallel()
+	state, _ := newMCPConsentFixture(t)
+	work, err := state.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := compozyconfig.MCPServer{
+		Name:      "linear",
+		Transport: "http",
+		URL:       "https://example.com/mcp",
+		Auth: compozyconfig.MCPAuthConfig{
+			Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+			ClientID:     "client",
+			IssuerURL:    "https://example.com",
+		},
+	}
+	state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{
+		{
+			ID:    "default-linear",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: store.DefaultProfileID},
+			Spec:  server,
+		},
+		{
+			ID:    "work-linear",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: work.ID},
+			Spec:  server,
+		},
+	})
+	target := mcpauth.Target{Scope: mcpauth.ScopeProfile, WorkspaceID: "work", ServerName: "linear"}.Normalize()
+	cfg, err := mcpauth.ServerConfigFromMCP(t.Context(), target, server, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := state.registry.(mcpauth.TokenStore).SaveMCPAuthToken(
+		t.Context(),
+		mcpauth.TokenRecord{
+			Target:                target,
+			DefinitionFingerprint: fingerprint,
+			Issuer:                server.Auth.IssuerURL,
+			ClientID:              "client",
+			AccessToken:           "profile-private",
+			TokenType:             "Bearer",
+			ObtainedAt:            approvalTimestamp(),
+			UpdatedAt:             approvalTimestamp(),
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	grants, err := operatorConsentedSourceGrants(t.Context(), state, toolspkg.Scope{ProfileID: store.DefaultProfileID})
+	if err != nil || len(grants) != 1 || grants[0].ResourceID != "default-linear" {
+		t.Fatalf("grants=%+v %v", grants, err)
+	}
+	executor, err := mcppkg.NewMCPCallExecutor(
+		newDaemonMCPServerResolver(state),
+		mcppkg.WithDefinitionDigestKey(testMCPDigestKey(t, state)),
+		mcppkg.WithTokenStore(state.registry.(mcpauth.TokenStore)),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := executor.Status(
+		t.Context(),
+		toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "linear",
+			RawServerName: "linear",
+			ResourceID:    "default-linear",
+			ProfileID:     store.DefaultProfileID,
+		},
+		"manual",
+	)
+	if err != nil || status.Status != "needs_login" || status.TokenPresent {
+		t.Fatalf("default auth=%+v %v", status, err)
+	}
+}
+
+// Invariant: manually edited agent sidecars remain visible and can be approved by
+// their observed digest. Owner: daemon Settings published-definition boundary.
+func TestSettingsPublishedAgentMCPConsent(t *testing.T) {
+	t.Parallel()
+	state, req := newMCPConsentFixture(t)
+	workspace, err := state.workspaceResolver.Resolve(t.Context(), req.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Server.DefinitionSource = filepath.Join(
+		workspace.RootDir,
+		compozyconfig.DirName,
+		"agents",
+		"worker",
+		compozyconfig.MCPJSONName,
+	)
+	state.mcpServerCatalog.Replace(
+		2,
+		[]resources.Record[compozyconfig.MCPServer]{
+			{
+				ID:    "agent-sentry",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: req.WorkspaceID},
+				Spec:  req.Server,
+			},
+		},
+	)
+	service, err := settingspkg.NewService(
+		testHomePaths(t),
+		settingspkg.Dependencies{
+			WorkspaceResolver:       state.workspaceResolver,
+			ProfileResolver:         state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPConsent:              settingsMCPConsent{state: state},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	collection, err := service.ListCollection(
+		t.Context(),
+		settingspkg.CollectionRequest{
+			Collection:  settingspkg.CollectionMCPServers,
+			Scope:       settingspkg.ScopeWorkspace,
+			WorkspaceID: req.WorkspaceID,
+		},
+	)
+	if err != nil || len(collection.MCPServers) != 1 || collection.MCPServers[0].Approval.State != "waiting" ||
+		collection.MCPServers[0].CallableInSessions {
+		t.Fatalf("agent listing=%+v %v", collection.MCPServers, err)
+	}
+	approver, ok := service.(core.MCPSettingsApproval)
+	if !ok {
+		t.Fatal("settings service does not record MCP approvals")
+	}
+	_, err = approver.SetMCPApproval(
+		t.Context(),
+		settingspkg.MCPAuthTargetRequest{
+			Scope:       settingspkg.ScopeWorkspace,
+			WorkspaceID: req.WorkspaceID,
+			Name:        "sentry",
+		},
+		collection.MCPServers[0].Approval.DefinitionDigest,
+		false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+	if err != nil || !decision.Admitted {
+		t.Fatalf("agent consent=%+v %v", decision, err)
+	}
+	// A same-name project declaration is a separate record selected by its own digest.
+	configPath := filepath.Join(workspace.RootDir, compozyconfig.DirName, compozyconfig.MCPJSONName)
+	writeMCPDeclarationFile(t, configPath, `{"mcpServers":{"sentry":{"command":"different-fixture"}}}`)
+	collection, err = service.ListCollection(
+		t.Context(),
+		settingspkg.CollectionRequest{
+			Collection:  settingspkg.CollectionMCPServers,
+			Scope:       settingspkg.ScopeWorkspace,
+			WorkspaceID: req.WorkspaceID,
+		},
+	)
+	if err != nil || len(collection.MCPServers) != 2 {
+		t.Fatalf("same-name listing=%+v %v", collection.MCPServers, err)
+	}
+	target := settingspkg.MCPAuthTargetRequest{
+		Scope:       settingspkg.ScopeWorkspace,
+		WorkspaceID: req.WorkspaceID,
+		Name:        "sentry",
+	}
+	for _, item := range collection.MCPServers {
+		if _, err := approver.SetMCPApproval(t.Context(), target, item.Approval.DefinitionDigest, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := approver.SetMCPApproval(t.Context(), target, "", true); err != nil {
+		t.Fatal(err)
+	}
+	collection, err = service.ListCollection(
+		t.Context(),
+		settingspkg.CollectionRequest{
+			Collection:  settingspkg.CollectionMCPServers,
+			Scope:       settingspkg.ScopeWorkspace,
+			WorkspaceID: req.WorkspaceID,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range collection.MCPServers {
+		if item.Approval.State != "waiting" || item.CallableInSessions {
+			t.Fatalf("same-name revoke left consent=%+v", item)
+		}
+	}
+}
+
+func testMCPDigestKey(t *testing.T, state *bootState) []byte {
+	t.Helper()
+	key, err := state.mcpDigestKeys.Key()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return key
 }

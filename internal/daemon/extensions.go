@@ -203,7 +203,7 @@ func populateExtensionManifest(logger *slog.Logger, ext *extensionpkg.Extension)
 		return
 	}
 
-	manifest, err := extensionpkg.LoadManifest(extensionpkg.PackageRootFromManifest(ext.Info.ManifestPath))
+	manifest, err := extensionpkg.LoadInstalledManifest(&ext.Info)
 	if err != nil {
 		if logger != nil {
 			logger.Debug(
@@ -299,7 +299,7 @@ func (s *daemonExtensionService) marketplaceSourceLoader() extensionpkg.Marketpl
 	return func(ctx context.Context) ([]registrypkg.Source, error) {
 		loader := s.marketplaceLoader
 		if loader == nil {
-			loader = defaultDaemonExtensionMarketplaceSourceLoader
+			loader = s.defaultDaemonExtensionMarketplaceSourceLoader
 		}
 		return loader(ctx, s.marketplaceConfig())
 	}

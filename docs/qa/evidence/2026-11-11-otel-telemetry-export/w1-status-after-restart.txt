@@ -1,0 +1,2 @@
+OTel:               ok · http/protobuf → localhost:4318 · traces pending, metrics pending · sample 1.0
+OTel:               ok · http/protobuf → localhost:4318 · traces ok, metrics ok · sample 1.0

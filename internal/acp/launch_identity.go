@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/procutil"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/subprocess"
 	shellquote "github.com/kballard/go-shellquote"
@@ -124,7 +126,7 @@ func launchSpecFromStartOpts(opts StartOpts) LaunchSpec {
 		Command:        opts.Command,
 		Cwd:            opts.Cwd,
 		AdditionalDirs: append([]string(nil), opts.AdditionalDirs...),
-		Env:            append([]string(nil), opts.Env...),
+		Env:            slices.Clone(opts.Env),
 	}
 }
 
@@ -133,7 +135,7 @@ func applyLaunchSpecToStartOpts(opts StartOpts, spec LaunchSpec) StartOpts {
 	next.Command = spec.Command
 	next.Cwd = spec.Cwd
 	next.AdditionalDirs = append([]string(nil), spec.AdditionalDirs...)
-	next.Env = append([]string(nil), spec.Env...)
+	next.Env = slices.Clone(spec.Env)
 	return next
 }
 
@@ -141,7 +143,7 @@ func cloneLaunchSpec(spec LaunchSpec) LaunchSpec {
 	clone := spec
 	clone.Args = append([]string(nil), spec.Args...)
 	clone.AdditionalDirs = append([]string(nil), spec.AdditionalDirs...)
-	clone.Env = append([]string(nil), spec.Env...)
+	clone.Env = slices.Clone(spec.Env)
 	return clone
 }
 
@@ -181,6 +183,9 @@ func (l *localLauncher) PrepareLaunch(
 	}
 	for _, assignment := range parsed.Environment {
 		key, value, _ := strings.Cut(assignment, "=")
+		if procutil.InternalHandoffEnvName(key) {
+			continue
+		}
 		next.Env = setEnvValue(next.Env, key, value)
 	}
 	command, args := parsed.Executable, parsed.Args
@@ -216,7 +221,7 @@ func applyProviderLaunchIdentity(opts StartOpts) StartOpts {
 	}
 
 	probe := *next.ProviderAuthEnv
-	commandEnv := append([]string(nil), next.Env...)
+	commandEnv := slices.Clone(next.Env)
 	probe.CommandEnv = commandEnv
 	probe.CommandDir = next.Cwd
 	probe.LookupEnv = subprocess.LookupEnvFunc(commandEnv)

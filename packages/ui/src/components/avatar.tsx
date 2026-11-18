@@ -67,13 +67,15 @@ function AvatarFallback({ className, ...props }: AvatarPrimitive.Fallback.Props)
 
 type AvatarBadgeTone = "neutral" | "success" | "warning" | "destructive" | "info" | "brand";
 
+// Glyph ink per fill: `brand-ink` is the ink for the brand fill only; signal fills
+// punch the glyph out in the canvas colour, matching the ring-canvas cutout.
 const AVATAR_BADGE_TONE: Record<AvatarBadgeTone, string> = {
-  neutral: "bg-neutral",
-  success: "bg-success",
-  warning: "bg-warning",
-  destructive: "bg-destructive",
-  info: "bg-info",
-  brand: "bg-brand",
+  neutral: "bg-neutral text-canvas",
+  success: "bg-success text-canvas",
+  warning: "bg-warning text-canvas",
+  destructive: "bg-destructive text-canvas",
+  info: "bg-info text-canvas",
+  brand: "bg-brand text-brand-ink",
 };
 
 function AvatarBadge({
@@ -86,7 +88,7 @@ function AvatarBadge({
       data-slot="avatar-badge"
       data-tone={tone}
       className={cn(
-        "absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full text-brand-ink ring-2 ring-canvas select-none",
+        "absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full ring-2 ring-canvas select-none",
         AVATAR_BADGE_TONE[tone],
         "group-data-[size=sm]/avatar:size-2 group-data-[size=sm]/avatar:[&>svg]:hidden",
         "group-data-[size=default]/avatar:size-2.5 group-data-[size=default]/avatar:[&>svg]:size-2",

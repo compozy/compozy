@@ -10,9 +10,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/goccy/go-yaml"
+
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	speedpkg "github.com/compozy/compozy/internal/speed"
-	"github.com/goccy/go-yaml"
 )
 
 var (
@@ -31,25 +32,28 @@ type AgentDefinitionDraft struct {
 	Kind            string         `json:"kind,omitempty"         yaml:"kind,omitempty"         toml:"kind,omitempty"`
 	Appearance      map[string]any `json:"appearance,omitempty"   yaml:"appearance,omitempty"   toml:"appearance,omitempty"`
 
-	WorkspaceAccess string
-	Name            string
-	Provider        string
-	Command         string
-	SessionEnv      SessionEnv
-	Model           string
-	ReasoningEffort string
-	Speed           speedpkg.Speed
-	ACPOptions      []ACPOptionSelection
-	Tools           []string
-	Toolsets        []string
-	DenyTools       []string
-	Permissions     string
-	Skills          AgentSkillsConfig
-	CategoryPath    []string
-	MCPServers      []MCPServer
-	Hooks           []hookspkg.HookDecl
-	FallbackChain   []RoleFallback
-	Prompt          string
+	WorkspaceAccess   string
+	Name              string
+	Provider          string
+	Command           string
+	SessionEnv        SessionEnv
+	AutoCompactWindow *int
+	LeanEnvironment   *bool
+	Model             string
+	ReasoningEffort   string
+	Speed             speedpkg.Speed
+	ACPOptions        []ACPOptionSelection
+	Tools             []string
+	Toolsets          []string
+	DenyTools         []string
+	Permissions       string
+	Skills            AgentSkillsConfig
+	CategoryPath      []string
+	Accepts           []string
+	MCPServers        []MCPServer
+	Hooks             []hookspkg.HookDecl
+	FallbackChain     []RoleFallback
+	Prompt            string
 }
 
 // CreateAgentDefFile renders, validates, and persists one AGENT.md definition.
@@ -99,7 +103,6 @@ func CreateAgentDefFile(path string, draft AgentDefinitionDraft, overwrite bool)
 
 // RenderAgentDefinition renders a draft to AGENT.md bytes and validates by parsing the result.
 func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error) {
-	draft.Kind, _ = CanonicalAgentKind(draft.Kind)
 	agentName := NormalizeAgentName(draft.Name)
 	if err := ValidateAuthoredAgentName(agentName); err != nil {
 		return nil, AgentDef{}, errors.Join(ErrInvalidAgentDefinition, err)
@@ -109,28 +112,31 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		DisplayName: strings.TrimSpace(
 			draft.DisplayName,
 		),
-		Description:     draft.Description,
-		Kind:            draft.Kind,
-		Appearance:      canonicalAgentAppearance(draft.Appearance),
-		Provider:        strings.TrimSpace(draft.Provider),
-		Command:         strings.TrimSpace(draft.Command),
-		SessionEnv:      MergeSessionEnv(nil, draft.SessionEnv),
-		Model:           strings.TrimSpace(draft.Model),
-		ReasoningEffort: strings.TrimSpace(draft.ReasoningEffort),
-		Tools:           trimAgentDefinitionAtoms(draft.Tools),
-		Toolsets:        trimAgentDefinitionAtoms(draft.Toolsets),
-		DenyTools:       trimAgentDefinitionAtoms(draft.DenyTools),
-		Permissions:     strings.TrimSpace(draft.Permissions),
-		WorkspaceAccess: draft.WorkspaceAccess,
-		SessionApproval: draft.SessionApproval,
-		PermissionRules: append([]PermissionRule(nil), draft.PermissionRules...),
-		Skills:          AgentSkillsConfig{Disabled: trimAgentDefinitionAtoms(draft.Skills.Disabled)},
-		CategoryPath:    trimAgentDefinitionAtoms(draft.CategoryPath),
-		MCPServers:      cloneMCPServers(draft.MCPServers),
-		Hooks:           cloneHookDecls(draft.Hooks),
-		FallbackChain:   normalizeRoleFallbacks(draft.FallbackChain),
-		Prompt:          strings.TrimSpace(draft.Prompt),
+		Description:       draft.Description,
+		Kind:              draft.Kind,
+		Appearance:        canonicalAgentAppearance(draft.Appearance),
+		Provider:          strings.TrimSpace(draft.Provider),
+		Command:           strings.TrimSpace(draft.Command),
+		SessionEnv:        MergeSessionEnv(nil, draft.SessionEnv),
+		AutoCompactWindow: draft.AutoCompactWindow,
+		Model:             strings.TrimSpace(draft.Model),
+		ReasoningEffort:   strings.TrimSpace(draft.ReasoningEffort),
+		Tools:             trimAgentDefinitionAtoms(draft.Tools),
+		Toolsets:          trimAgentDefinitionAtoms(draft.Toolsets),
+		DenyTools:         trimAgentDefinitionAtoms(draft.DenyTools),
+		Permissions:       strings.TrimSpace(draft.Permissions),
+		WorkspaceAccess:   draft.WorkspaceAccess,
+		SessionApproval:   draft.SessionApproval,
+		PermissionRules:   append([]PermissionRule(nil), draft.PermissionRules...),
+		Skills:            AgentSkillsConfig{Disabled: trimAgentDefinitionAtoms(draft.Skills.Disabled)},
+		CategoryPath:      trimAgentDefinitionAtoms(draft.CategoryPath),
+		MCPServers:        cloneMCPServers(draft.MCPServers),
+		Hooks:             cloneHookDecls(draft.Hooks),
+		FallbackChain:     normalizeRoleFallbacks(draft.FallbackChain),
+		Prompt:            strings.TrimSpace(draft.Prompt),
 	}
+	agent.SetLeanEnvironment(draft.LeanEnvironment)
+	agent.SetAccepts(draft.Accepts)
 	agent.SetSpeed(draft.Speed)
 	agent.SetACPOptions(draft.ACPOptions)
 	agent = canonicalAgentDefinition(agent)
@@ -173,29 +179,32 @@ func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
 		DisplayName: strings.TrimSpace(
 			canonical.DisplayName,
 		),
-		Description:     canonical.Description,
-		Kind:            canonical.Kind,
-		Appearance:      CloneAgentAppearance(canonical.Appearance),
-		Provider:        canonical.Provider,
-		Command:         canonical.Command,
-		SessionEnv:      MergeSessionEnv(nil, canonical.SessionEnv),
-		Model:           canonical.Model,
-		ReasoningEffort: canonical.ReasoningEffort,
-		Speed:           canonical.SpeedValue(),
-		ACPOptions:      CloneACPOptionSelections(canonical.ACPOptionsValue()),
-		Tools:           cloneStrings(canonical.Tools),
-		Toolsets:        cloneStrings(canonical.Toolsets),
-		DenyTools:       cloneStrings(canonical.DenyTools),
-		Permissions:     canonical.Permissions,
-		WorkspaceAccess: canonical.WorkspaceAccess,
-		SessionApproval: canonical.SessionApproval,
-		PermissionRules: append([]PermissionRule(nil), canonical.PermissionRules...),
-		Skills:          normalizeAgentSkillsConfig(canonical.Skills),
-		CategoryPath:    cloneStrings(canonical.CategoryPath),
-		MCPServers:      cloneMCPServers(canonical.MCPServers),
-		Hooks:           cloneHookDecls(canonical.Hooks),
-		FallbackChain:   normalizeRoleFallbacks(canonical.FallbackChain),
-		Prompt:          canonical.Prompt,
+		Description:       canonical.Description,
+		Kind:              canonical.Kind,
+		Appearance:        CloneAgentAppearance(canonical.Appearance),
+		Provider:          canonical.Provider,
+		Command:           canonical.Command,
+		SessionEnv:        MergeSessionEnv(nil, canonical.SessionEnv),
+		AutoCompactWindow: canonical.AutoCompactWindow,
+		LeanEnvironment:   canonical.LeanEnvironmentValue(),
+		Model:             canonical.Model,
+		ReasoningEffort:   canonical.ReasoningEffort,
+		Speed:             canonical.SpeedValue(),
+		ACPOptions:        CloneACPOptionSelections(canonical.ACPOptionsValue()),
+		Tools:             cloneStrings(canonical.Tools),
+		Toolsets:          cloneStrings(canonical.Toolsets),
+		DenyTools:         cloneStrings(canonical.DenyTools),
+		Permissions:       canonical.Permissions,
+		WorkspaceAccess:   canonical.WorkspaceAccess,
+		SessionApproval:   canonical.SessionApproval,
+		PermissionRules:   append([]PermissionRule(nil), canonical.PermissionRules...),
+		Skills:            normalizeAgentSkillsConfig(canonical.Skills),
+		CategoryPath:      cloneStrings(canonical.CategoryPath),
+		Accepts:           canonical.AcceptsValue(),
+		MCPServers:        cloneMCPServers(canonical.MCPServers),
+		Hooks:             cloneHookDecls(canonical.Hooks),
+		FallbackChain:     normalizeRoleFallbacks(canonical.FallbackChain),
+		Prompt:            canonical.Prompt,
 	}
 }
 

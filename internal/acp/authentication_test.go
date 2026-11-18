@@ -384,6 +384,37 @@ func TestAuthenticateRejectsUnshapedMethod(t *testing.T) {
 	}
 }
 
+func TestAuthenticationSteerCapability(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain steering announced during authentication initialization", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		req, _ := authTestRequest(
+			t,
+			"auth_raw_login_ready",
+			"",
+			filepath.Join(dir, "record"),
+			filepath.Join(dir, "capture"),
+		)
+		opts, err := normalizeAuthStartOpts(req.SessionInspectionRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		driver := New()
+		proc, err := driver.launchAgentProcess(t.Context(), opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopProcess(t, driver, proc) })
+		if _, err := initializeAuthSession(t.Context(), proc, opts.AgentName); err != nil {
+			t.Fatal(err)
+		}
+		if got := proc.CapsSnapshot().SteerCapability; got != "steer_ext" {
+			t.Fatalf("steering=%q, want steer_ext", got)
+		}
+	})
+}
+
 func TestProbeAuthentication(t *testing.T) {
 	t.Parallel()
 

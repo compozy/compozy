@@ -10,7 +10,7 @@ const subagentDelegateDescription = "Delegate one self-contained task to a subag
 
 func subagentDescriptors() []toolspkg.Descriptor {
 	return []toolspkg.Descriptor{
-		subagentDescriptor(
+		withResultViews(subagentDescriptor(
 			toolspkg.ToolIDSubagentCapabilities,
 			"subagent_capabilities",
 			"Subagent Capabilities",
@@ -24,7 +24,7 @@ func subagentDescriptors() []toolspkg.Descriptor {
 			true,
 			false,
 			false,
-		),
+		), subagentCapabilitiesCompactOutputSchema, subagentCapabilitiesOutputSchema),
 		subagentDescriptor(
 			toolspkg.ToolIDSubagentDelegate,
 			"subagent_delegate",

@@ -54,16 +54,33 @@ func (m *Manager) sendEmptyInterrupt(ctx context.Context, req promptRequest) (Se
 	return m.completePromptAdmission(context.WithoutCancel(ctx), admission, result)
 }
 
+// cancelEmptyInterrupt retires pending human guidance and stops the turn without a replacement prompt.
 func (m *Manager) cancelEmptyInterrupt(ctx context.Context, req promptRequest) (SendPromptResult, error) {
 	result := SendPromptResult{
 		Status: store.SessionPromptResultStatusCanceled,
 		Mode:   BusyInputModeInterrupt, Delivery: store.SessionInputDeliveryNone,
 	}
-	if _, ok := m.Get(req.target); !ok {
+	session, ok := m.Get(req.target)
+	if !ok {
 		if _, err := m.Status(ctx, req.target); err != nil {
 			return SendPromptResult{}, err
 		}
 		return result, nil
+	}
+	turnID := session.CurrentTurnID()
+	if turnID != "" && req.expectedTurnID != "" && turnID != req.expectedTurnID {
+		return SendPromptResult{}, ErrActiveTurnMismatch
+	}
+	if turnID != "" && req.meta.Origin == nil && m.inputQueue != nil {
+		replacementID := "interrupt_" + turnID
+		ids, err := m.inputQueue.SupersedeBoundarySteers(ctx, session.ID, turnID, replacementID)
+		if err != nil {
+			return SendPromptResult{}, err
+		}
+		result.CanceledQueuedEntries = len(ids)
+		m.emitInterruptSupersededSteers(ctx, session, &store.SessionInputQueueEntry{
+			ID: replacementID, TargetTurnID: turnID, SupersededIDs: ids,
+		})
 	}
 	run, err := m.requestTurnStop(ctx, req.target, req.expectedTurnID, CauseUserRequested)
 	if errors.Is(err, ErrPromptNotInProgress) {

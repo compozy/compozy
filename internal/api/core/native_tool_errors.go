@@ -43,6 +43,9 @@ func NativeToolError(id toolspkg.ToolID, err error) error {
 		mapped.Code = toolspkg.ErrorCode(payload.Code)
 		mapped.HTTPStatus = nativeDomainErrorStatus(cause)
 		mapped.ReasonCodes = nil
+		mapped.Retryable = payload.Retryable
+		mapped.ClientMessageID = payload.ClientMessageID
+		mapped.ProviderError = payload.ProviderError
 	}
 	if mapped.ToolID == "" {
 		mapped.ToolID = id

@@ -60,6 +60,7 @@ type ModelCatalogService interface {
 // Observer is the observability surface exposed by API transports.
 type Observer interface {
 	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
+	EventSequenceHead(ctx context.Context) (int64, error)
 	QueryHookCatalog(ctx context.Context, filter hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
 	QueryHookRuns(ctx context.Context, query store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
 	QueryHookEvents(ctx context.Context, filter hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
@@ -256,7 +257,7 @@ type AutomationManager interface {
 	CreateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
 	UpdateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
 	DeleteJob(ctx context.Context, id string) error
-	TriggerJob(ctx context.Context, id string) (automationpkg.Run, error)
+	StartJob(ctx context.Context, id string, waitTimeout time.Duration) (automationpkg.Run, error)
 	ListTriggers(ctx context.Context, query automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error)
 	Triggers(ctx context.Context) ([]automationpkg.Trigger, error)
 	GetTrigger(ctx context.Context, id string) (automationpkg.Trigger, error)
@@ -274,6 +275,7 @@ type AutomationManager interface {
 	ListRuns(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
 	Runs(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
 	GetRun(ctx context.Context, id string) (automationpkg.Run, error)
+	CancelRun(ctx context.Context, id string) (automationpkg.Run, error)
 	Status(ctx context.Context) (automationpkg.ManagerStatus, error)
 	SetJobEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Job, error)
 	SetTriggerEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Trigger, error)

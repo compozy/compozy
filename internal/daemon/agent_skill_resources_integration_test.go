@@ -39,6 +39,32 @@ import (
 var specCycleIntegrationSkillNames = []string{"cy-create-spec", "git-rebase"}
 
 func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
+	t.Run("Should publish global agents without a workspace resolver", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := agentSkillIntegrationHome(t)
+		writeAgentSkillIntegrationFile(t, filepath.Join(homePaths.AgentsDir, "global-coder", "AGENT.md"), `---
+name: global-coder
+provider: claude
+---
+
+Global coding assistant.
+`)
+		var resolver *workspacepkg.Resolver
+		provider := daemonAgentSkillDeclarationProvider(
+			homePaths, openDaemonTestGlobalDB(t), resolver, nil, nil, discardLogger(),
+		)
+		decls, err := provider(t.Context())
+		if err != nil {
+			t.Fatalf("discover agent declarations: %v", err)
+		}
+		if !slices.ContainsFunc(decls.agents, func(agent agentPublicationInput) bool {
+			return agent.scope.Kind == resources.ResourceScopeKindUser && agent.spec.Name == "global-coder"
+		}) {
+			t.Fatal("global-coder missing from user-scope agent declarations")
+		}
+	})
+
 	t.Run("Should publish agent and skill resources and rebuild them on boot", func(t *testing.T) {
 		db := openDaemonTestGlobalDB(t)
 		kernel, err := resources.NewKernel(db.DB())
@@ -152,6 +178,16 @@ Keep this installed skill body.
 		}
 		if err := db.InsertWorkspace(testutil.Context(t), workspace); err != nil {
 			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		// Invariant: a missing registered root cannot block healthy agent/skill publication.
+		// Owner: daemon publication; canonical suite: agent/skill publication and boot rebuild.
+		missing := workspace
+		missing.ID, missing.Name, missing.RootDir = "ws_agent_skill_missing", "unmounted", t.TempDir()
+		if err := db.InsertWorkspace(t.Context(), missing); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(missing.RootDir); err != nil {
+			t.Fatal(err)
 		}
 		workspaceResolver, err := workspacepkg.NewResolver(
 			db,
@@ -1128,6 +1164,7 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 				Scope: contract.AgentCreateScopeGlobal,
 				Agent: contract.CreateAgentPayload{
 					Name: "coder", Provider: "claude", Prompt: "Create integration fixtures.",
+					MCPServers: []contract.AgentMCPServerInput{{Name: "configured-reference", Reference: true}},
 				},
 			},
 		)
@@ -1136,6 +1173,16 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 		}
 		var created contract.AgentResponse
 		decodeAgentMutationIntegrationResponse(t, create, &created)
+		if len(created.Agent.MCPServers) != 1 || !created.Agent.MCPServers[0].Reference ||
+			!created.Agent.MCPServers[0].BrokenReference {
+			t.Fatalf("reference projection = %#v", created.Agent.MCPServers)
+		}
+		for _, record := range mcpCatalog.Snapshot() {
+			if record.Spec.Name == "configured-reference" {
+				t.Fatal("name reference published as a standalone MCP resource")
+			}
+		}
+
 		if _, err := catalog.GetAgent(ctx, "coder"); err != nil {
 			t.Fatalf("catalog.GetAgent(coder after create) error = %v", err)
 		}

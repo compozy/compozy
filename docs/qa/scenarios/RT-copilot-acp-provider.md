@@ -42,7 +42,7 @@ story: As an operator whose team uses only GitHub Copilot, I sign in once, start
 ## Unrestricted options
 
 1. Under `approve-reads`, `--acp-option allow_all=on` and `--acp-option mode=https://agentclientprotocol.com/protocol/session-modes#autopilot` are refused with `requires approve-all permissions`.
-2. With `[permissions] provider_full_access = true` and `mode = "approve-all"`, a new Copilot agent resolves the `allow_all = on` option.
+2. With `[permissions] mode = "approve-all"` alone, a new Copilot agent resolves the `allow_all = on` option; under `auto` it does not.
 
 ## Cancel and resume
 

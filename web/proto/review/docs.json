@@ -1,0 +1,288 @@
+{
+    "version": 3,
+    "key": "docs",
+    "sequence": 4,
+    "review": {
+        "status": "approved",
+        "updatedAt": "2026-11-10T03:31:23.806Z"
+    },
+    "events": [
+        {
+            "id": "d66e08e0-f3cb-43b6-98d5-c6c83d6320d9",
+            "type": "approved",
+            "at": "2026-11-10T03:31:23.806Z",
+            "author": "reviewer",
+            "commit": "e696a57b86be49f9b12c1a6a6840c112780d0578",
+            "openCount": 0
+        }
+    ],
+    "comments": [
+        {
+            "id": "docs-1",
+            "slug": "docs",
+            "status": "resolved",
+            "createdAt": "2026-11-10T03:20:30.757Z",
+            "updatedAt": "2026-11-10T03:22:43.146Z",
+            "resolvedAt": "2026-11-10T03:22:43.146Z",
+            "context": {
+                "commit": "e696a57b86be49f9b12c1a6a6840c112780d0578",
+                "state": "home",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 653
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(1) > a",
+                "testId": null,
+                "tag": "a",
+                "text": "Star on GitHub",
+                "source": "src/drafts/docs/header.tsx:124:9",
+                "sourceChain": [
+                    "src/drafts/docs/header.tsx:124:9",
+                    "src/drafts/docs/header.tsx:81:7",
+                    "src/drafts/docs/header.tsx:78:5",
+                    "src/drafts/docs/shell.tsx:89:11",
+                    "src/drafts/docs/index.proto.tsx:61:11",
+                    "src/drafts/docs/index.proto.tsx:60:9",
+                    "src/drafts/docs/index.proto.tsx:59:7",
+                    "src/drafts/docs/index.proto.tsx:58:5"
+                ],
+                "rect": {
+                    "x": 1221.3828125,
+                    "y": 10,
+                    "width": 142.6171875,
+                    "height": 36
+                },
+                "rectNormalized": {
+                    "x": 0.8749160547994269,
+                    "y": 0.015313935681470138,
+                    "width": 0.1021613090974212,
+                    "height": 0.055130168453292494
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "2ecbb26f-eb46-4d4e-b542-c02838ce9231",
+                    "at": "2026-11-10T03:20:30.768Z",
+                    "editedAt": null,
+                    "body": "não tem o counting de star como temos atualmente no nosso packages/site",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "6fe86989-37de-4544-a892-570cca1ff624",
+                    "at": "2026-11-10T03:22:43.145Z",
+                    "editedAt": null,
+                    "body": "O botão agora mostra a contagem de stars ao lado de \"Star on GitHub\" (2,860), em header.tsx. O número é o mesmo retrato usado na landing; em produção vem ao vivo do GitHub, como no site atual. Conferido em navegador real em 1396 e 1100, sem overflow nem erros; proto check, typecheck e lint passaram.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "docs-2",
+            "slug": "docs",
+            "status": "resolved",
+            "createdAt": "2026-11-10T03:20:52.255Z",
+            "updatedAt": "2026-11-10T03:22:43.428Z",
+            "resolvedAt": "2026-11-10T03:22:43.428Z",
+            "context": {
+                "commit": "e696a57b86be49f9b12c1a6a6840c112780d0578",
+                "state": "home",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 653
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "header > div:nth-of-type(1) > nav",
+                "testId": null,
+                "tag": "nav",
+                "text": "Site",
+                "source": "src/drafts/docs/header.tsx:105:9",
+                "sourceChain": [
+                    "src/drafts/docs/header.tsx:105:9",
+                    "src/drafts/docs/header.tsx:81:7",
+                    "src/drafts/docs/header.tsx:78:5",
+                    "src/drafts/docs/shell.tsx:89:11",
+                    "src/drafts/docs/index.proto.tsx:61:11",
+                    "src/drafts/docs/index.proto.tsx:60:9",
+                    "src/drafts/docs/index.proto.tsx:59:7",
+                    "src/drafts/docs/index.proto.tsx:58:5"
+                ],
+                "rect": {
+                    "x": 904.75,
+                    "y": 17.5,
+                    "width": 304.6328125,
+                    "height": 21
+                },
+                "rectNormalized": {
+                    "x": 0.6481017191977078,
+                    "y": 0.02679938744257274,
+                    "width": 0.21821834706303725,
+                    "height": 0.03215926493108729
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "1cee956d-0409-47cc-8f46-6553c970a3d8",
+                    "at": "2026-11-10T03:20:52.312Z",
+                    "editedAt": null,
+                    "body": "o \"Docs\" deveria ficar aqui e em um estado de selected e não lá do outro lado na logo",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "7c04658c-b11f-4e97-8c44-a213451ad1f5",
+                    "at": "2026-11-10T03:22:43.428Z",
+                    "editedAt": null,
+                    "body": "\"Docs\" saiu de perto da logo e virou o primeiro item do menu do site, em estado selecionado: texto claro e a linha de luz da marca embaixo. Clicar nele leva à home dos docs. Conferido em 1396 na home e no tutorial. Abaixo de 1280px esse menu fica oculto, como já ficava; ali a volta para a home dos docs é pela trilha no topo de cada página.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "docs-3",
+            "slug": "docs",
+            "status": "resolved",
+            "createdAt": "2026-11-10T03:21:03.147Z",
+            "updatedAt": "2026-11-10T03:22:43.710Z",
+            "resolvedAt": "2026-11-10T03:22:43.710Z",
+            "context": {
+                "commit": "e696a57b86be49f9b12c1a6a6840c112780d0578",
+                "state": "home",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 653
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(1) > button:nth-of-type(2)",
+                "testId": null,
+                "tag": "button",
+                "text": "Docs home",
+                "source": "src/drafts/docs/header.tsx:90:9",
+                "sourceChain": [
+                    "src/drafts/docs/header.tsx:90:9",
+                    "src/drafts/docs/header.tsx:81:7",
+                    "src/drafts/docs/header.tsx:78:5",
+                    "src/drafts/docs/shell.tsx:89:11",
+                    "src/drafts/docs/index.proto.tsx:61:11",
+                    "src/drafts/docs/index.proto.tsx:60:9",
+                    "src/drafts/docs/index.proto.tsx:59:7",
+                    "src/drafts/docs/index.proto.tsx:58:5"
+                ],
+                "rect": {
+                    "x": 32,
+                    "y": 16,
+                    "width": 164.40625,
+                    "height": 24
+                },
+                "rectNormalized": {
+                    "x": 0.022922636103151862,
+                    "y": 0.02450229709035222,
+                    "width": 0.11776952005730659,
+                    "height": 0.036753445635528334
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "d2dd45ae-2d0c-4caa-8b42-ca4706ee44fb",
+                    "at": "2026-11-10T03:21:03.199Z",
+                    "editedAt": null,
+                    "body": "aqui deveria ficar a logo normal e ao clicar voltar pra home",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "40e6ba43-ebc1-43ed-8ad6-7bba7f888010",
+                    "at": "2026-11-10T03:22:43.709Z",
+                    "editedAt": null,
+                    "body": "A logo agora é a normal, sem a etiqueta \"Docs\", e é um link para a home do site (href \"#\" no protótipo, como os outros links do menu). Conferido em 1396, 1100 e 390.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "docs-4",
+            "slug": "docs",
+            "status": "resolved",
+            "createdAt": "2026-11-10T03:24:18.206Z",
+            "updatedAt": "2026-11-10T03:25:44.940Z",
+            "resolvedAt": "2026-11-10T03:25:44.940Z",
+            "context": {
+                "commit": "e696a57b86be49f9b12c1a6a6840c112780d0578",
+                "state": "home",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 653
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "header > div:nth-of-type(1)",
+                "testId": null,
+                "tag": "div",
+                "text": "Search the docs ⌘K Docs Marketplace Blog Changelog Download Star on GitHub 2,860",
+                "source": "src/drafts/docs/header.tsx:84:7",
+                "sourceChain": [
+                    "src/drafts/docs/header.tsx:84:7",
+                    "src/drafts/docs/header.tsx:81:5",
+                    "src/drafts/docs/shell.tsx:89:11",
+                    "src/drafts/docs/index.proto.tsx:61:11",
+                    "src/drafts/docs/index.proto.tsx:60:9",
+                    "src/drafts/docs/index.proto.tsx:59:7",
+                    "src/drafts/docs/index.proto.tsx:58:5"
+                ],
+                "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 1396,
+                    "height": 56
+                },
+                "rectNormalized": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 1,
+                    "height": 0.08575803981623277
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "327984fd-7cf6-402c-bcb8-47f9d310833f",
+                    "at": "2026-11-10T03:24:18.216Z",
+                    "editedAt": null,
+                    "body": "da pra deixar um pouquinho mais de espaços entre os componentes estão todos muito grudados",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "46703bfb-5b82-45f1-9a7b-16631c019d67",
+                    "at": "2026-11-10T03:25:44.939Z",
+                    "editedAt": null,
+                    "body": "Abri os espaços da primeira linha do cabeçalho (header.tsx): entre a logo e a busca (de 20px para 40px), entre os itens do menu (de 24px para 36px), entre o menu e o botão de stars (de 12px para 36px) e dentro do próprio botão, entre o ícone, o texto e o número. Conferido em navegador real em 1396 (home e tutorial), 1300, 1100, 800 e 390, sem overflow nem erros; proto check, typecheck e lint passaram. A linha das abas de seção não mudou.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        }
+    ]
+}

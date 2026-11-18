@@ -6,7 +6,15 @@ import { loader, type MetaData, type VirtualFile } from "fumadocs-core/source";
 import { describe, expect, it } from "vitest";
 import rootMeta from "../../content/docs/meta.json";
 import { DOCS_ICONS } from "../docs-icons";
-import { assertDocsTreeComplete, DOCS_GROUP_BY_FOLDER, docsGroupForUrl } from "../docs-navigation";
+import {
+  assertDocsTreeComplete,
+  collectPageUrls,
+  currentSectionId,
+  DOCS_GROUP_BY_FOLDER,
+  docsGroupForUrl,
+  docsSections,
+  sectionHeads,
+} from "../docs-navigation";
 import { overviewPageTransformer } from "../docs-overview-tree";
 
 function getNodeName(node: { name?: unknown }): string {
@@ -146,6 +154,74 @@ describe("docs category overview", () => {
 
     expect(profiles.index).toBeUndefined();
     expect(childNames(profiles)).toEqual(["Profiles"]);
+  });
+});
+
+// UT-007: the section tabs split the root tree on its labeled separators.
+describe("docs sections", () => {
+  function sectionedTree(): Root {
+    return buildCategoryTree([
+      meta("meta.json", {
+        pages: [
+          "index",
+          "intro",
+          "---Start here---",
+          "getting-started",
+          "migration",
+          "---Reference---",
+          "cli",
+        ],
+      }),
+      page("index.mdx", "Docs", []),
+      page("intro.mdx", "How to use these docs", ["intro"]),
+      meta("getting-started/meta.json", { title: "Getting Started", pages: ["install", "quick"] }),
+      page("getting-started/index.mdx", "Getting Started", ["getting-started"]),
+      page("getting-started/install.mdx", "Installation", ["getting-started", "install"]),
+      page("getting-started/quick.mdx", "Quick Start", ["getting-started", "quick"]),
+      page("migration.mdx", "Migration", ["migration"]),
+      meta("cli/meta.json", { title: "CLI", pages: ["---Sessions---", "session"] }),
+      page("cli/index.mdx", "CLI", ["cli"]),
+      meta("cli/session/meta.json", { title: "Session", pages: ["prompt"] }),
+      page("cli/session/index.mdx", "compozy session", ["cli", "session"]),
+      page("cli/session/prompt.mdx", "compozy session prompt", ["cli", "session", "prompt"]),
+    ]);
+  }
+
+  it("Should split on separators with distinct page counts, folder landing pages counted once", () => {
+    const sections = docsSections(sectionedTree());
+    expect(sections.map(section => [section.id, section.label, section.count])).toEqual([
+      ["start-here", "Start here", 4],
+      ["reference", "Reference", 3],
+    ]);
+  });
+
+  it("Should place every sectioned page in exactly one section and leave the intro pages out", () => {
+    const tree = sectionedTree();
+    const sections = docsSections(tree);
+    const seen = new Map<string, number>();
+    for (const section of sections) {
+      for (const url of collectPageUrls(section.items)) seen.set(url, (seen.get(url) ?? 0) + 1);
+    }
+    expect([...seen.values()].every(times => times === 1)).toBe(true);
+    expect(seen.size).toBe(sections.reduce((sum, section) => sum + section.count, 0));
+
+    const tabs = sections.map(section => ({ id: section.id, heads: sectionHeads(section) }));
+    expect(currentSectionId(tabs, "/docs/getting-started/quick/")).toBe("start-here");
+    expect(currentSectionId(tabs, "/docs/migration")).toBe("start-here");
+    expect(currentSectionId(tabs, "/docs/cli/session/prompt")).toBe("reference");
+    expect(currentSectionId(tabs, "/docs")).toBeNull();
+    expect(currentSectionId(tabs, "/docs/intro")).toBeNull();
+  });
+
+  it("Should match a pathname to the section owning its top-level folder", () => {
+    const tabs = [
+      { id: "start-here", heads: ["getting-started", "migration"] },
+      { id: "reference", heads: ["cli"] },
+    ];
+    expect(currentSectionId(tabs, "/docs/cli/session/prompt/")).toBe("reference");
+    expect(currentSectionId(tabs, "/docs/migration")).toBe("start-here");
+    expect(currentSectionId(tabs, "/docs/")).toBeNull();
+    expect(currentSectionId(tabs, "/docs/intro")).toBeNull();
   });
 });
 

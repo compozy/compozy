@@ -6,12 +6,10 @@ import { Button, Section, type ListingViewMode } from "@compozy/ui";
 
 import { useAgentPulses } from "../../hooks/use-agent-pulse";
 import type { AgentTeamMember } from "../../lib/agent-team";
-import { FLEET_ROWS_CLASS } from "../agent-fleet-classes";
+import { FLEET_CARDS_CLASS, FLEET_ROWS_CLASS } from "../agent-fleet-classes";
 import { AgentMark } from "../agent-mark";
 import { AgentOnDemandCard, AgentAlwaysOnCard, type AgentTeamActions } from "./agent-team-card";
 import { AgentTeamRow } from "./agent-team-row";
-
-const GRID = "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3";
 
 const GROUP = {
   "Always-on": { icon: InfinityIcon, testId: "agents-section-always-on" },
@@ -39,7 +37,7 @@ export function AgentTeamSection({
     <div data-testid={GROUP[label].testId}>
       <Section count={members.length} icon={GROUP[label].icon} label={label}>
         {view === "cards" ? (
-          <div className={GRID}>
+          <div className={FLEET_CARDS_CLASS}>
             {visible.map(member =>
               member.kind === "always_on" ? (
                 <AgentAlwaysOnCard

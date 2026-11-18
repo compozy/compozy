@@ -28,10 +28,11 @@ const (
 )
 
 const (
-	FailureReasonPromptStreamIncomplete FailureReasonCode = "prompt_stream_incomplete"
-	FailureReasonNPXPrepare             FailureReasonCode = "npx_prepare_failed"
-	FailureReasonNPXInitialize          FailureReasonCode = "npx_initialize_timeout"
-	FailureReasonNPXResolve             FailureReasonCode = "npx_resolution_failed"
+	FailureReasonPromptStreamIncomplete   FailureReasonCode = "prompt_stream_incomplete"
+	FailureReasonPromptDeliveryReadFailed FailureReasonCode = "prompt_delivery_read_failed"
+	FailureReasonNPXPrepare               FailureReasonCode = "npx_prepare_failed"
+	FailureReasonNPXInitialize            FailureReasonCode = "npx_initialize_timeout"
+	FailureReasonNPXResolve               FailureReasonCode = "npx_resolution_failed"
 )
 
 // ValidFailureKind reports whether kind is a supported failure enum member.
@@ -59,6 +60,7 @@ func ValidFailureKind(kind FailureKind) bool {
 func ValidFailureReasonCode(code FailureReasonCode) bool {
 	switch code {
 	case FailureReasonPromptStreamIncomplete,
+		FailureReasonPromptDeliveryReadFailed,
 		FailureReasonNPXPrepare,
 		FailureReasonNPXInitialize,
 		FailureReasonNPXResolve:
@@ -109,7 +111,8 @@ func (f SessionFailure) Validate() error {
 	if normalized.ReasonCode != "" && !ValidFailureReasonCode(normalized.ReasonCode) {
 		return fmt.Errorf("store: invalid session failure reason code %q", normalized.ReasonCode)
 	}
-	if normalized.ReasonCode == FailureReasonPromptStreamIncomplete && normalized.Kind != FailureTransport {
+	if (normalized.ReasonCode == FailureReasonPromptStreamIncomplete ||
+		normalized.ReasonCode == FailureReasonPromptDeliveryReadFailed) && normalized.Kind != FailureTransport {
 		return fmt.Errorf(
 			"store: session failure reason code %q requires kind %q",
 			normalized.ReasonCode,

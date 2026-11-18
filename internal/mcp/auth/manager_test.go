@@ -19,6 +19,42 @@ import (
 
 func TestManagerSessionMutationRaces(t *testing.T) {
 	t.Parallel()
+	// Invariant: renewal of the old credential never supersedes an operator's pending login.
+	for _, rejected := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should finish an open login after refresh rejection is %t", rejected), func(t *testing.T) {
+			t.Parallel()
+			manager, cfg, store, authority := newManagerRaceHarness(t, false)
+			authority.rejectRefresh.Store(rejected)
+			token := managerBoundToken(t, cfg, "old-access")
+			token.RefreshToken, token.ExpiresAt = "old-refresh", time.Now().Add(-time.Hour)
+			if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+				t.Fatal(err)
+			}
+			begin, err := manager.Begin(t.Context(), cfg, managerTestCallbackURL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, err := manager.generation.Revision(cfg.Target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := manager.service.Refresh(t.Context(), cfg); err != nil {
+				t.Fatal(err)
+			}
+			after, err := manager.generation.Revision(cfg.Target)
+			if err != nil || after <= before {
+				t.Fatalf("credential revision did not change: %d -> %d, %v", before, after, err)
+			}
+			status, err := manager.ExchangeCallback(t.Context(), cfg, managerCallbackURL(begin))
+			if err != nil || status.Status != StatusAuthenticated {
+				t.Fatalf("callback after renewal = %+v, %v", status, err)
+			}
+			persisted, err := store.GetMCPAuthToken(t.Context(), cfg.Target)
+			if err != nil || persisted.AccessToken != "exchanged-access" {
+				t.Fatalf("callback token was not persisted: %v", err)
+			}
+		})
+	}
 
 	t.Run("Should reject token persistence when logout races an exchange", func(t *testing.T) {
 		t.Parallel()
@@ -234,11 +270,12 @@ func TestManagerConcurrentSessionContract(t *testing.T) {
 const managerTestCallbackURL = "http://127.0.0.1:2123/api/mcp/oauth/callback"
 
 type managerRaceAuthority struct {
-	tokenStarted chan struct{}
-	release      chan struct{}
-	startedOnce  sync.Once
-	releaseOnce  sync.Once
-	tokenCalls   atomic.Int32
+	tokenStarted  chan struct{}
+	release       chan struct{}
+	startedOnce   sync.Once
+	releaseOnce   sync.Once
+	tokenCalls    atomic.Int32
+	rejectRefresh atomic.Bool
 }
 
 func newManagerRaceHarness(
@@ -263,6 +300,14 @@ func newManagerRaceHarness(
 				"http://"+request.Host+"/token",
 			))
 		case "/token":
+			if err := request.ParseForm(); err != nil {
+				t.Error(err)
+			}
+			if request.Form.Get("grant_type") == "refresh_token" && authority.rejectRefresh.Load() {
+				writer.WriteHeader(http.StatusBadRequest)
+				writeManagerTestResponse(t, writer, `{"error":"invalid_grant"}`)
+				return
+			}
 			authority.tokenCalls.Add(1)
 			authority.startedOnce.Do(func() { close(authority.tokenStarted) })
 			<-authority.release

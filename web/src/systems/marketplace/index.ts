@@ -2,6 +2,7 @@ export * from "./adapters/marketplace-api";
 export * from "./adapters/marketplace-actions-api";
 export * from "./hooks/use-marketplace";
 export * from "./hooks/use-marketplace-page";
+export * from "./hooks/use-marketplace-category-page";
 export { useMarketplaceExtensionMCPServer } from "./hooks/use-marketplace-detail-mcp-server";
 export * from "./hooks/use-marketplace-actions";
 export * from "./lib/query-keys";

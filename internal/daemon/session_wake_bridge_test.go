@@ -14,11 +14,15 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/heartbeat"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/transcript"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
@@ -32,6 +36,8 @@ type sessionWakeManagerStub struct {
 	promptCalls int
 	events      chan acp.AgentEvent
 	ctxErr      error
+	admitted    map[string]bool
+	ledgerErr   error
 }
 
 func (stub *sessionWakeManagerStub) Status(ctx context.Context, _ string) (*session.Info, error) {
@@ -39,6 +45,12 @@ func (stub *sessionWakeManagerStub) Status(ctx context.Context, _ string) (*sess
 	defer stub.mu.Unlock()
 	stub.ctxErr = ctx.Err()
 	return stub.status, stub.statusErr
+}
+
+func (stub *sessionWakeManagerStub) SyntheticWakeAdmitted(_ context.Context, id, messageID string) (bool, error) {
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	return stub.admitted[messageID] || stub.admitted[id+":"+messageID], stub.ledgerErr
 }
 
 func (stub *sessionWakeManagerStub) PromptSynthetic(
@@ -52,11 +64,262 @@ func (stub *sessionWakeManagerStub) PromptSynthetic(
 	stub.promptID = id
 	stub.promptOpts = opts
 	stub.promptCalls++
+	if stub.admitted != nil && stub.promptErr == nil {
+		stub.admitted[opts.MessageID] = true
+	}
 	return stub.events, stub.promptErr
 }
 
 func TestSessionWakeBridge(t *testing.T) {
 	t.Parallel()
+	// Invariant: rotation cannot replay an admitted wake when its coverage append failed.
+	// Owner: daemon admission deduplication; canonical session wake bridge suite.
+	t.Run("Should retain the predecessor admission when retrying after rotation", func(t *testing.T) {
+		t.Parallel()
+		manager := &sessionWakeManagerStub{admitted: map[string]bool{"predecessor:wake-child": true}}
+		admitted, err := childWakeAdmitted(t.Context(), manager, "successor", "wake-child", "predecessor")
+		if err != nil || !admitted {
+			t.Fatalf("rotated wake admitted=%v err=%v, want predecessor receipt retained", admitted, err)
+		}
+	})
+	// Invariant: a pending child result follows its instance's current main after rotation.
+	// Owner: daemon wake routing; canonical session wake bridge suite, real SQLite and ACP.
+	t.Run("Should deliver a pending child stop to the successor main through real ACP", func(t *testing.T) {
+		t.Parallel()
+		h := newHeartbeatSourceRuntime(t, false, false)
+		bridge, err := newSessionWakeBridge(
+			t.Context(),
+			func() sessionWakeSessionManager { return nil },
+			discardLogger(),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bridge.instances = h.db.Instances()
+		t.Cleanup(func() {
+			if err := bridge.shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		session.WithSpawnWakeNotifier(bridge)(h.manager)
+		main := h.instance.MainSessionID
+		child, err := h.manager.Create(t.Context(), &session.CreateOpts{AgentName: h.instance.AgentName,
+			Workspace: h.instance.WorkspaceID, Lineage: &store.SessionLineage{
+				Kind: store.LineageKindProvenance, ParentSessionID: main}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.StopWithCause(t.Context(), child.ID, session.CauseCompleted, "final report"); err != nil {
+			t.Fatal(err)
+		}
+		successor, err := h.manager.Create(t.Context(), &session.CreateOpts{AgentName: h.instance.AgentName,
+			Workspace: h.instance.WorkspaceID, InstanceID: h.instance.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.PublishInstanceRotation(t.Context(), main, func() error {
+			return h.db.Instances().PublishRotation(t.Context(), agentinstance.RotationPublication{
+				InstanceID: h.instance.ID, PredecessorID: main, SuccessorID: successor.ID,
+			})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.StopWithCause(t.Context(), main, session.CauseCompleted, "rotated"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Archive(t.Context(), h.instance.WorkspaceID, main); err != nil {
+			t.Fatal(err)
+		}
+		bridge.resolve = func() sessionWakeSessionManager { return h.manager }
+		for range 2 {
+			if err := h.manager.Supervise(t.Context(), time.Now()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		waitForConditionWithin(t, "successor reviewed the pending child result", 15*time.Second, func() bool {
+			rows, err := h.manager.Events(
+				t.Context(),
+				successor.ID,
+				store.EventQuery{Type: acp.EventTypeAgentMessage, Limit: 10},
+			)
+			return err == nil && len(rows) == 1
+		})
+		if err := bridge.shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := h.manager.Events(
+			t.Context(),
+			successor.ID,
+			store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 10},
+		)
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("successor wake turns=%d err=%v, want one", len(rows), err)
+		}
+	})
+
+	// Invariant: provenance settlement reaches an instance main through real SQLite,
+	// queue admission, wake bridge and ACP subprocesses, independently of triage.
+	// Owner: daemon composition; canonical session wake bridge suite.
+	t.Run("Should run one main turn for each settled provenance child through real ACP", func(t *testing.T) {
+		t.Parallel()
+		h := newHeartbeatSourceRuntime(t, false, false)
+		bridge, err := newSessionWakeBridge(
+			t.Context(),
+			func() sessionWakeSessionManager { return h.manager },
+			discardLogger(),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := bridge.shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		session.WithSpawnWakeNotifier(bridge)(h.manager)
+		main := h.instance.MainSessionID
+		childWakes := make(map[string]int)
+		for _, outcome := range []string{"completed", "stopped", "failed"} {
+			child, err := h.manager.Create(t.Context(), &session.CreateOpts{AgentName: h.instance.AgentName,
+				Workspace: h.instance.WorkspaceID, Lineage: &store.SessionLineage{
+					Kind: store.LineageKindProvenance, ParentSessionID: main}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			childWakes[child.ID] = 0
+			if outcome == "completed" {
+				result, err := h.manager.SendPrompt(t.Context(), child.ID, session.SendPromptOpts{
+					Message:   "Perform a proactive check.",
+					MessageID: "child-assignment", IdempotencyKey: "child-assignment",
+					Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: main,
+						WorkspaceID: h.instance.WorkspaceID, AgentName: h.instance.AgentName, Hop: 1},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if result.Events != nil {
+					for range result.Events {
+					}
+				}
+				waitForConditionWithin(t, "the admitted child assignment settled", 15*time.Second, func() bool {
+					info, err := h.manager.Status(t.Context(), child.ID)
+					return err == nil && info.LastSettledRevision > 0 &&
+						(info.Liveness == nil || info.Liveness.Activity == nil || info.Liveness.Activity.TurnID == "")
+				})
+			} else {
+				cause := session.CauseCompleted
+				if outcome == "failed" {
+					cause = session.CauseFailed
+				}
+				if err := h.manager.StopWithCause(t.Context(), child.ID, cause, "final report"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := h.manager.Supervise(t.Context(), time.Now()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		waitForConditionWithin(t, "three child reports reviewed by the main", 15*time.Second, func() bool {
+			rows, err := h.manager.Events(
+				t.Context(),
+				main,
+				store.EventQuery{Type: acp.EventTypeAgentMessage, Limit: 10},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return len(rows) == 3
+		})
+		if err := h.manager.Supervise(t.Context(), time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		if err := bridge.shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := h.manager.Events(
+			t.Context(),
+			main,
+			store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 10},
+		)
+		if err != nil || len(rows) != 3 {
+			t.Fatalf("main turns=%d err=%v, want three", len(rows), err)
+		}
+		for _, row := range rows {
+			event, err := transcript.UnmarshalAgentEvent(row.Content)
+			if err != nil || event.Synthetic == nil || event.Synthetic.Kind != session.SpawnWakeKindChildSettled {
+				t.Fatalf("main wake=%+v err=%v", event, err)
+			}
+			if _, ok := childWakes[event.Synthetic.ChildSessionID]; !ok {
+				t.Fatalf("wake names an unexpected child: %+v", event.Synthetic)
+			}
+			childWakes[event.Synthetic.ChildSessionID]++
+		}
+		for childID, count := range childWakes {
+			if count != 1 {
+				t.Fatalf("child %s received %d wakes, want one", childID, count)
+			}
+		}
+	})
+
+	t.Run("Should suppress admitted attention revisions but deliver new child information", func(t *testing.T) {
+		t.Parallel()
+		manager := &sessionWakeManagerStub{
+			status:   &session.Info{ID: "parent", State: session.StateActive},
+			admitted: make(map[string]bool),
+		}
+		bridge, err := newSessionWakeBridge(t.Context(), func() sessionWakeSessionManager { return manager }, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if stopErr := bridge.shutdown(testutil.Context(t)); stopErr != nil {
+				t.Error(stopErr)
+			}
+		})
+		event := session.SpawnWakeEvent{
+			ChildSessionID: "child", Reason: session.SpawnWakeReasonNeedsAttention,
+			Badge: session.BadgeWaitingForInput, WakeEventID: "session-wake:child:1:1:needs_attention",
+		}
+		for range 3 {
+			if wakeErr := bridge.WakeSpawnCreator(t.Context(), "parent", event); wakeErr != nil {
+				t.Fatal(wakeErr)
+			}
+		}
+		if err := bridge.shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		bridge, err = newSessionWakeBridge(t.Context(), func() sessionWakeSessionManager { return manager }, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := bridge.WakeSpawnCreator(t.Context(), "parent", event); err != nil {
+			t.Fatal(err)
+		}
+		manager.mu.Lock()
+		calls, messageID := manager.promptCalls, manager.promptOpts.MessageID
+		manager.mu.Unlock()
+		if calls != 1 || messageID != event.WakeEventID {
+			t.Fatalf("replayed revision admitted %d prompts", calls)
+		}
+		event.WakeEventID = "session-wake:child:1:2:needs_attention"
+		if wakeErr := bridge.WakeSpawnCreator(t.Context(), "parent", event); wakeErr != nil {
+			t.Fatal(wakeErr)
+		}
+		manager.mu.Lock()
+		calls = manager.promptCalls
+		ledgerErr := errors.New("ledger unavailable")
+		manager.ledgerErr = ledgerErr
+		manager.mu.Unlock()
+		if calls != 2 {
+			t.Fatal("new attention revision was suppressed")
+		}
+		if wakeErr := bridge.WakeSpawnCreator(t.Context(), "parent", event); !errors.Is(wakeErr, ledgerErr) {
+			t.Fatalf("uncertain admission was silently acknowledged: %v", wakeErr)
+		} else if !errors.Is(wakeErr, session.ErrSpawnWakeRetryable) {
+			t.Fatalf("pre-dispatch lookup error does not permit retry: %v", wakeErr)
+		}
+		t.Log("same attention revision: 3 deliveries -> 1 admission; new revision: 1 -> 1")
+	})
 
 	t.Run("Should deliver detached bounded metadata and drain through shutdown", func(t *testing.T) {
 		t.Parallel()
@@ -147,13 +410,16 @@ func TestSessionWakeBridge(t *testing.T) {
 		})
 		event.ChildSessionID = cmp.Or(event.ChildSessionID, "child-1")
 		event.Reason, event.Badge = session.SpawnWakeReasonNeedsAttention, session.BadgeNeedsAttention
-		event.Detail, event.EndedEarly = "Turn ended without a linked pull request.", true
+		event.Detail, event.EndedEarly = "Turn ended with no open work.", true
 		event.WakeEventID = "wake-early"
 		if err := bridge.WakeSpawnCreator(testutil.Context(t), "parent-1", event); err != nil {
 			t.Fatalf("WakeSpawnCreator() error = %v", err)
 		}
 		manager.mu.Lock()
 		defer manager.mu.Unlock()
+		if manager.promptOpts.Metadata.Kind != session.SpawnWakeKindEndedEarly {
+			t.Fatalf("wake kind = %q, want a revision-fenced early-stop wake", manager.promptOpts.Metadata.Kind)
+		}
 		return manager.promptOpts.Message
 	}
 
@@ -164,7 +430,7 @@ func TestSessionWakeBridge(t *testing.T) {
 		message := earlyStopWakePrompt(t, session.SpawnWakeEvent{FinalAnswer: answer})
 		if !strings.Contains(message, "Final answer:\n---\n"+strings.TrimSpace(answer)) ||
 			!strings.Contains(message, "compozy__session_stop") ||
-			!strings.Contains(message, "Detail: Turn ended without a linked pull request.") {
+			!strings.Contains(message, "Detail: Turn ended with no open work.") {
 			t.Fatalf("wake prompt = %q, want the full bounded final answer and next actions", message)
 		}
 	})
@@ -185,7 +451,9 @@ func TestSessionWakeBridge(t *testing.T) {
 		t.Parallel()
 
 		message := earlyStopWakePrompt(t, session.SpawnWakeEvent{})
-		if !strings.Contains(message, "It stopped before delivering.") ||
+		if !strings.Contains(message, "final answer is unavailable") ||
+			!strings.Contains(message, "compozy__session_history") ||
+			!strings.Contains(message, "compozy__session_events") ||
 			!strings.Contains(message, "compozy__session_stop") || strings.Contains(message, "Final answer:") {
 			t.Fatalf("wake prompt = %q, want the continue-or-stop guidance without an answer block", message)
 		}
@@ -249,7 +517,7 @@ func TestSessionWakeBridge(t *testing.T) {
 			"parent-1",
 			validSessionWakeEvent(),
 		); err == nil ||
-			!strings.Contains(err.Error(), "stopping") {
+			!strings.Contains(err.Error(), "stopping") || !errors.Is(err, session.ErrSpawnWakeRetryable) {
 			t.Fatalf("WakeSpawnCreator() error = %v, want stopping rejection", err)
 		}
 	})
@@ -265,6 +533,7 @@ func validSessionWakeEvent() session.SpawnWakeEvent {
 }
 
 type monitorWakeManagerStub struct {
+	statusFn    func(context.Context, string) (*session.Info, error)
 	status      *session.Info
 	statusErr   error
 	enqueueErr  error
@@ -275,7 +544,10 @@ type monitorWakeManagerStub struct {
 	opts        session.SyntheticPromptOpts
 }
 
-func (stub *monitorWakeManagerStub) Status(context.Context, string) (*session.Info, error) {
+func (stub *monitorWakeManagerStub) Status(ctx context.Context, id string) (*session.Info, error) {
+	if stub.statusFn != nil {
+		return stub.statusFn(ctx, id)
+	}
 	return stub.status, stub.statusErr
 }
 
@@ -340,6 +612,7 @@ func TestMonitorPullRequestObservation(t *testing.T) {
 	number, open := 7, "open"
 	facts := &worktree.ForgeStatus{
 		PRNumber: &number, PRState: &open, PRURL: "https://forge.test/pull/7", HeadSHA: "head-a",
+		Base: "main", Mergeable: "conflicting",
 		Checks: &worktree.ForgeChecks{State: "failing", Failed: 1, FailedNames: []string{"lint"}},
 		Reviews: &worktree.ForgeReviews{
 			Items: []worktree.ForgeReview{
@@ -354,6 +627,7 @@ func TestMonitorPullRequestObservation(t *testing.T) {
 
 		got := monitorPullRequestObservation(worktree.PullRequestEntry{LookupState: "ok", Facts: facts}, nil)
 		if got.Lookup != monitorpkg.PullRequestFound || got.Number != 7 || got.Head != "head-a" ||
+			got.Base != "main" || got.Mergeable != "conflicting" ||
 			got.Checks == nil || got.Checks.Failed != 1 || got.Reviews == nil ||
 			got.Reviews.UnresolvedThreads != 2 || got.Reviews.Items[0].ID != "r1" ||
 			got.Reviews.Threads[0] != (monitorpkg.PullRequestThread{ID: "t1", Commit: "head-a"}) {
@@ -555,8 +829,8 @@ func TestMonitorSessionTargets(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer stop()
-		if stub.scope.WorkspaceID != "ws-1" || !stub.scope.ReadScope.AllProfiles {
-			t.Fatalf("scope = %+v, want the workspace across profiles", stub.scope)
+		if !stub.scope.AllWorkspaces || !stub.scope.ReadScope.AllProfiles {
+			t.Fatalf("scope = %+v, want target change signals across workspaces and profiles", stub.scope)
 		}
 		stub.events <- session.CatalogEvent{SessionID: "sess-other"}
 		stub.events <- session.CatalogEvent{SessionID: "sess-a"}
@@ -572,7 +846,121 @@ func TestMonitorSessionTargets(t *testing.T) {
 
 func TestMonitorSessionWaker(t *testing.T) {
 	t.Parallel()
+	t.Run("Should redact foreign names and withhold states after access is revoked", func(t *testing.T) {
+		t.Parallel()
+		const secret = "sk-proj-AbCdEf0123456789xyzQRS"
+		owner := &session.Info{ID: "sess-owner", WorkspaceID: "ws-own", ProfileID: "p-own", State: session.StateActive}
+		manager := &monitorWakeManagerStub{statusFn: func(_ context.Context, id string) (*session.Info, error) {
+			if id == owner.ID {
+				return owner, nil
+			}
+			return &session.Info{ID: id, WorkspaceID: "ws-other", ProfileID: "p-other", Name: secret}, nil
+		}}
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		waker := &monitorSessionWaker{
+			sessions:        func() monitorSessionManager { return manager },
+			workspaceAccess: func() workspaceaccess.Policy { return policy },
+		}
+		wake := monitorpkg.Notification{
+			Monitor: monitorpkg.Monitor{
+				ID:        "mon-test",
+				SessionID: owner.ID,
+				Kind:      monitorpkg.KindSession,
+				Until:     "all",
+			},
+			Outcome: monitorpkg.Outcome{Reason: monitorpkg.ReasonConditionMet, Targets: []monitorpkg.TargetStatus{
+				{SessionID: "sess-target", Name: "Deploy " + secret, State: "idle", Matched: true},
+			}},
+		}
+		if err := waker.WakeSession(t.Context(), wake); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(manager.opts.Message, secret) || !strings.Contains(manager.opts.Message, "REDACTED") {
+			t.Fatalf("wake exposed a secret: %s", manager.opts.Message)
+		}
+		if !policy.last.ReadOnly {
+			t.Fatal("watch target must be authorized as a read")
+		}
+		policy.decision.Allowed = false
+		if err := waker.WakeSession(t.Context(), wake); err != nil {
+			t.Fatal(err)
+		}
+		for _, message := range []string{manager.opts.Message, manager.opts.Coalesce.CompactText} {
+			if strings.Contains(message, "Deploy") || strings.Contains(message, "<state>idle") ||
+				strings.Contains(message, "reached the condition") ||
+				!strings.Contains(message, "access_denied") ||
+				!strings.Contains(message, "<state>unknown") {
+				t.Fatalf("revoked wake leaked target data: %s", message)
+			}
+		}
+	})
 
+	// Invariant: immutable target ownership keeps deleted local targets readable and foreign targets revocable.
+	// Owner: wake boundary; canonical suite: TestMonitorSessionWaker.
+	t.Run("Should preserve deleted local targets and recheck saved foreign monitor grants", func(t *testing.T) {
+		t.Parallel()
+		for _, statusErr := range []error{session.ErrSessionNotFound, errors.New("temporary read failure")} {
+			t.Run(statusErr.Error(), func(t *testing.T) {
+				t.Parallel()
+				owner := &session.Info{ID: "sess-owner", AgentName: "coder", WorkspaceID: "ws-own", ProfileID: "p-own",
+					State: session.StateActive}
+				manager := &monitorWakeManagerStub{statusFn: func(_ context.Context, id string) (*session.Info, error) {
+					if id == owner.ID {
+						return owner, nil
+					}
+					return nil, statusErr
+				}}
+				policy := &recordingNativeWorkspaceAccessPolicy{
+					decision: workspaceaccess.Decision{PromptEligible: true},
+				}
+				grants := &recordingApprovalGrantStore{}
+				waker := &monitorSessionWaker{sessions: func() monitorSessionManager { return manager },
+					workspaceAccess: func() workspaceaccess.Policy { return policy },
+					approvalGrants:  func() toolspkg.ApprovalGrantStore { return grants }}
+				wake := monitorpkg.Notification{Monitor: monitorpkg.Monitor{ID: "mon-test", SessionID: owner.ID,
+					Kind: monitorpkg.KindSession, Until: "all", TargetScopes: []monitorpkg.TargetScope{
+						{SessionID: "sess-target", WorkspaceID: owner.WorkspaceID, ProfileID: owner.ProfileID},
+					}}, Outcome: monitorpkg.Outcome{Reason: monitorpkg.ReasonConditionMet, Targets: []monitorpkg.TargetStatus{
+					{SessionID: "sess-target", State: monitorpkg.TargetStateGone, Matched: true},
+				}}}
+				requireWake := func(wantVisible bool) {
+					t.Helper()
+					if err := waker.WakeSession(t.Context(), wake); err != nil {
+						t.Fatal(err)
+					}
+					for _, message := range []string{manager.opts.Message, manager.opts.Coalesce.CompactText} {
+						if strings.Contains(message, "access_denied") == wantVisible ||
+							strings.Contains(message, "<state>gone") != wantVisible {
+							t.Fatalf("wake = %s, want visible %t", message, wantVisible)
+						}
+					}
+				}
+				requireWake(true)
+				wake.Monitor.TargetScopes[0].WorkspaceID = "ws-other"
+				requireWake(false)
+				key := toolspkg.WorkspaceAccessReadGrantKey(
+					toolspkg.Scope{
+						WorkspaceID: owner.WorkspaceID, ProfileID: owner.ProfileID, AgentName: owner.AgentName,
+					},
+					toolspkg.CallRequest{},
+					toolspkg.Descriptor{ID: toolspkg.ToolIDMonitorCreate, ReadOnly: true},
+					workspaceaccess.ActorRef{
+						AgentName: owner.AgentName,
+					},
+					workspaceaccess.ScopeTarget("ws-other", owner.ProfileID),
+				)
+				if key == nil {
+					t.Fatal("missing monitor read grant key")
+				}
+				grants.grants = []toolspkg.ApprovalGrant{
+					{ApprovalGrantKey: *key, Decision: toolspkg.ApprovalGrantAllow},
+				}
+				requireWake(true)
+				grants.grants = nil
+				requireWake(false)
+			})
+		}
+	})
 	fired := monitorpkg.Notification{
 		Monitor: monitorpkg.Monitor{
 			ID: "mon-0123456789ab", SessionID: "sess-1", Kind: monitorpkg.KindTerminal,

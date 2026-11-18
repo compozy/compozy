@@ -32,6 +32,7 @@ coverage/
 .compozy/runs
 .compozy/memory
 .compozy/work-log.md
+.compozy/intake-ledger.md
 .compoz/runs
 $COMPOZY_HOME
 COMPOZY_HOME

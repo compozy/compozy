@@ -3,6 +3,8 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -23,7 +25,7 @@ func (s *subagentService) Cancel(
 			return SubagentCancelOutcome{}, err
 		}
 		workspace = actor.Caller.WorkspaceID
-	} else if actor.Kind != "operator" {
+	} else if actor.Kind != SubagentActorOperator {
 		return SubagentCancelOutcome{}, ErrSubagentNotFound
 	}
 	var row store.SessionSubagent
@@ -46,7 +48,9 @@ func (s *subagentService) Cancel(
 		return SubagentCancelOutcome{}, ErrSubagentNotCancelable
 	}
 	if store.IsSubagentStatusTerminal(row.Status) {
-		return SubagentCancelOutcome{ID: id, Status: row.Status}, nil
+		// A terminal row can still own a running child: that residual lane is
+		// exactly what cancellation must retire.
+		return s.retireCanceledChild(ctx, row, row.Status)
 	}
 	unlock := s.lock(row.ParentSessionID)
 	// Delegation links the child and settlement finalizes the row under this
@@ -58,8 +62,10 @@ func (s *subagentService) Cancel(
 	}
 	if store.IsSubagentStatusTerminal(row.Status) {
 		unlock()
-		return SubagentCancelOutcome{ID: id, Status: row.Status}, nil
+		return s.retireCanceledChild(ctx, row, row.Status)
 	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
 	err = s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: row.ParentSessionID, IDs: []string{id}})
 	if err == nil {
 		err = s.finalizeCanceled(ctx, row)
@@ -69,18 +75,57 @@ func (s *subagentService) Cancel(
 	if err != nil {
 		return SubagentCancelOutcome{}, err
 	}
-	if row.ChildSessionID != nil {
-		// Freeze every live descendant before any stop signal can turn an
-		// in-flight delegation admission into a provider failure.
-		cascadeErr := s.cancelDescendants(ctx, *row.ChildSessionID)
-		s.launch(func() {
-			s.logError(s.ctx, "cancel_child", s.runtime.Stop(s.ctx, *row.ChildSessionID))
-		})
-		if cascadeErr != nil {
-			return SubagentCancelOutcome{}, cascadeErr
+	return s.retireCanceledChild(ctx, row, "cancel_requested")
+}
+
+// retireCanceledChild freezes every live descendant before any stop signal can
+// turn an in-flight delegation admission into a provider failure, and retires
+// the child even when that cleanup fails: a canceled row must not leave a live
+// session behind. Both steps own a bounded context, so a canceled request
+// cannot cut the cleanup short.
+func (s *subagentService) retireCanceledChild(
+	ctx context.Context,
+	row store.SessionSubagent,
+	status string,
+) (SubagentCancelOutcome, error) {
+	outcome := SubagentCancelOutcome{ID: row.ID, Status: status}
+	if row.ChildSessionID == nil {
+		return outcome, nil
+	}
+	cleanup, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancelCleanup()
+	descendantErr := s.cancelDescendants(cleanup, *row.ChildSessionID)
+	if descendantErr != nil {
+		descendantErr = fmt.Errorf("session: cancel descendants of %s: %w", *row.ChildSessionID, descendantErr)
+	}
+	return outcome, errors.Join(descendantErr, s.stopChildSession(cleanup, *row.ChildSessionID))
+}
+
+// stopBudget covers the whole cooperative stop ladder: a shorter bound would
+// make Cancel return before forced termination even starts.
+func (s *subagentService) stopBudget() time.Duration {
+	if s.runtime != nil {
+		if budget := s.runtime.TerminationBudget(); budget > 0 {
+			return budget
 		}
 	}
-	return SubagentCancelOutcome{ID: id, Status: "cancel_requested"}, nil
+	return defaultLifecycleTimeout
+}
+
+// stopChildSession retires a child session with its own bounded context: the
+// cancel request may arrive with a context that is already expiring, and an
+// already stopped session is not a failure.
+func (s *subagentService) stopChildSession(ctx context.Context, child string) error {
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.stopBudget())
+	defer cancel()
+	err := s.runtime.Stop(stopCtx, child)
+	if errors.Is(err, ErrSessionNotActive) || errors.Is(err, ErrSessionNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("session: stop subagent child %s: %w", child, err)
+	}
+	return nil
 }
 func (s *subagentService) OnParentStopped(ctx context.Context, parent string) error {
 	unlock := s.lock(parent)
@@ -116,8 +161,9 @@ func (s *subagentService) OnParentStopped(ctx context.Context, parent string) er
 		if row.Origin != store.SubagentOriginDelegated || row.ChildSessionID == nil {
 			continue
 		}
-		// The reaper owns auto_stop_on_parent for terminal non-canceled children.
+		// The reaper owns this terminal child; descendants still need synchronous cleanup.
 		if store.IsSubagentStatusTerminal(row.Status) && row.Status != store.SubagentStatusCanceled {
+			err = errors.Join(err, s.OnParentStopped(ctx, *row.ChildSessionID))
 			continue
 		}
 		if snap, err := s.runtime.Snapshot(
@@ -239,11 +285,13 @@ func (s *subagentService) cancelDescendants(ctx context.Context, parent string) 
 	var children []string
 	if err == nil {
 		for _, row := range rows {
-			if row.Origin != store.SubagentOriginDelegated || store.IsSubagentStatusTerminal(row.Status) {
+			if row.Origin != store.SubagentOriginDelegated {
 				continue
 			}
-			if err = s.finalizeCanceled(ctx, row); err != nil {
-				break
+			if !store.IsSubagentStatusTerminal(row.Status) {
+				if err = s.finalizeCanceled(ctx, row); err != nil {
+					break
+				}
 			}
 			if row.ChildSessionID != nil {
 				children = append(children, *row.ChildSessionID)

@@ -50,6 +50,7 @@ authoritative. The error envelope is unchanged; messages can include a bounded, 
 
 | Code                                           | Meaning and next action                                                                                                                    |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `daemon_starting` with `retryable: true`       | Boot recovery is still running. Wait for daemon readiness, then retry the same message identity.                                           |
 | `subagent_archive_follows_parent`              | A child cannot be archived independently. Archive through its parent.                                                                      |
 | `session_archive_requires_stopped`             | Stop the session before archiving. A detached runtime is not a stopped session.                                                            |
 | `session_in_later`                             | The session is parked in Later. Bring it back with `compozy__session_resume_later`, or let the operator prompt it.                         |
@@ -76,6 +77,12 @@ does not add an automatic bootstrap/catalog allowlist over the hosted projection
 apply.
 
 The discovery loop and denial-handling rules live in the preceding tools-and-skills prompt section; this reference supplies the stable tool map.
+
+`compozy__tool_search` defaults to 20 results (maximum 100; zero uses the default).
+Continue with `offset: next_offset` and the same query. Both views include `count`, `total` and `has_more`; `offset` and `next_offset` are omitted when zero.
+Compact rows summarize descriptors; `result_view: "full"` retains complete descriptors.
+`tool_info` reads one complete descriptor.
+Operator and session HTTP/UDS search share these bounds; CLI uses `tool search --limit --offset`.
 
 ## Command Palette Tools
 
@@ -126,9 +133,9 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_compact`, `compozy__session_status`, `compozy__session_history`,
 `compozy__session_events`, `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
-`compozy__session_unarchive`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_mark_seen`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
+`compozy__session_unarchive`, `compozy__session_cleanup`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_mark_seen`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
-`compozy__session_clarify_answer`, `compozy__session_prompt_cancel`.
+`compozy__session_clarify_answer`, `compozy__session_prompt_cancel`, `compozy__session_changes`.
 
 Session reads are paged. `compozy__session_events` returns the newest 50 events and
 `compozy__session_history` the newest 10 turns when `limit` is omitted or 0; an explicit `limit` is
@@ -163,12 +170,16 @@ Monitor tools, also in the `sessions` toolset: `compozy__monitor_create`, `compo
 turn when it fires, which is the only way background work can resume you after your turn ends. Use one
 for every wait on external work, inside or outside your turn; `terminal.md` describes the shell-wait
 guard that refuses `gh run watch`, long `sleep`, and polling loops, and points `gh pr checks --watch` here.
+Claude provider-native subagents share the parent's MCP session identity and cannot receive their own
+monitor wakes. A provider PreToolUse hook refuses their registrations when `agent_id` is present.
+Return pending work and any terminal ID to the parent for monitoring and resumption, or use a separate
+CompozyOS child session. Parent-session monitors are unchanged.
 Provider-internal background shells, monitors, scheduled wakeups, and "I will report back" promises
 cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `terminal_exec` with
 `still_running`, or `terminal_open`) until `until="exit"` (default) or `until="match"` with a Go
 regular expression `pattern`; `timeout_seconds` defaults to 1,800, caps at 21,600, and the monitor
 still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 to 86,400).
-`kind="session"` watches 1 to 32 other sessions of the same workspace and profile in `target_session_ids` until `until="all"`
+`kind="session"` watches 1 to 32 other sessions authorized by workspace access policy in `target_session_ids` until `until="all"`
 (default) or `until="any"` of them reach `states`, then wakes you once with each target's state. `states`
 defaults to `idle`, `waiting-for-input`, `waiting-for-auth`, `needs-attention`, `stopped`, and `failed`,
 and also accepts `hung`. `done` counts as `idle`. Targets are read as they are now, not as a history: one
@@ -180,19 +191,35 @@ as idle. `timeout_seconds` defaults to 7,200, caps at 21,600, and the
 monitor still wakes you on timeout, up to 8 seconds late so it can read the targets once more, with the
 targets that did not settle. A state that could not be read is reported as last known and never counts. A condition that already holds
 fires at once.
+Session target registration is a read: same-profile `approve-all` works across workspaces, and
+cross-profile watches follow the read policy too. Self-targets remain refused. Access is checked again
+before delivery and monitor results, including authenticated HTTP/UDS reads and retained or replayed wakes. If access was revoked,
+the wake reports `access_denied`, replaces denied target data with `unknown`/`matched: false`, and omits
+its name. Cross-scope names are secret-redacted. Re-register after the operator restores access.
+
 `kind="pull_request"` is the wait for a pull request's checks and reviews. The daemon reads the forge about
 once a minute, with the forge extension's own credential, and runs no command or URL of yours. `branch`
-defaults to the session's branch; a default branch, or a session with no branch, is refused. A missing pull
+defaults to the session's branch; GitHub fork heads use `owner:branch` to select the contributor
+explicitly. An unqualified branch selects the base repository. A default branch, or a session with no
+branch, is refused. A missing pull
 request is a wait, so you can register before opening it, and so is one that had already merged or closed
 when the monitor first read it: a reused branch's old pull request is history, and only a pull request this
 monitor saw open can end it. `timeout_seconds` defaults to 21,600 and caps at
 86,400. One monitor fires many times and stays armed until the pull request merges or closes, the timeout
 expires, you cancel it, or it reaches 64 wakes. It wakes at once when checks are already failing on the
-head, then within about a minute of a check newly failing and once per head when all checks finish; a new
+head or the PR already conflicts with its base (with rebase guidance), then within about a minute of a
+check newly failing and once per observed round when all checks finish, including if they are
+already finished on the first read. A late check or rerun on the same head can trigger another
+completion wake after pending checks, an increase in completed checks, or a changed failure result
+at the same total. A rerun entirely between reads with an identical summary is indistinguishable. A
+conflict transition wakes once and can wake again after a known clearance; unknown mergeability never
+clears a conflict, including across restarts or forge outages. A new
 review or unresolved thread on the current head wakes after 2 minutes of quiet, held at most 5, and the first
-read is the baseline for reviews and threads. A new head wakes nothing by itself and drops
-what the old head had pending, and a late review or thread on an old head wakes nothing, though open threads
-stay in the count each wake reports; a rerun on the same head wakes only if it fails. The wake carries the pull
+read is the baseline for reviews and threads. A new head wakes nothing by itself and drops pending
+check and review activity from the old head. A conflict collected while an earlier wake awaits admission
+survives a push on the same PR until a known clearance. A late review or thread on an old head wakes
+nothing, though open threads
+stay in the count each wake reports. The wake carries the pull
 request, head, check counts, failed names, and new reviews and threads, in an entity-encoded untrusted
 block, and says what the forge could not observe. It carries no review text: read the reviews yourself,
 including review bodies, because follow-ups can live only there. You, not the daemon, decide when delivery
@@ -229,7 +256,12 @@ and the owner is resumed only when restart auto-continue rules allow it. A shutd
 reason and nothing wakes the session. While an owner check is retried after a restart the monitor stays
 listed as active; deleting a non-running owner in that window cancels its monitors at the next check (within
 about 30 seconds). A transient failure is retried for at least 15 minutes from its first persisted failure.
-Operators see `monitor_summary.active` on session payloads and can cancel monitors (no wake).
+Prompted monitor reads honor the exact saved `monitor_create` read grant from **Always allow**.
+**Allow once** covers the current call only; wakes and later results need current authorization.
+Deny-all, a rejected session, or grant revocation still hides the target. Immutable target ownership
+survives restart and deletion, so a readable deleted target continues to report `gone`.
+
+Operators see `monitor_summary.active` on full session payloads (`compozy__session_status` with `result_view: "full"`) and can cancel monitors (no wake).
 
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or
 `new_worktree`. It creates an active logical session with `runtime.status="unbound"`; it does not
@@ -292,7 +324,7 @@ rather than deriving it from the session state.
 For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
 `notify_on_complete: true` and keep the returned `reply_watch.id`. Once every remaining step needs
 that answer, end your turn; the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
-history or hold `session_wait` just to collect the answer. `compozy__session_status` lists outstanding
+history or hold `session_wait` just to collect the answer. `compozy__session_status` in both compact and full views lists outstanding
 `reply_watches` in state `armed` or `fired`; delivered and abandoned watches drop off that list.
 A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
 summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain,
@@ -304,7 +336,7 @@ native calls requesting it return `invalid_request` with
 re-arms the same watch; the result reports its persisted state (`armed`, `fired`, `delivered`, or
 `abandoned`). Deleting or archiving an unconsumed target produces `unknown` immediately.
 
-`compozy__session_wait` blocks on one same-workspace session other than the caller, inside your turn.
+`compozy__session_wait` blocks on one policy-authorized session other than the caller, inside your turn.
 To end your turn and be woken when one or more sessions settle, use `compozy__monitor_create` with
 `kind="session"`. `until` accepts
 the canonical attention/lifecycle badges; omission uses the settled set, and `done` satisfies `idle`.
@@ -329,15 +361,32 @@ removed. Use this instead of `workspace_paths`, which only records a narrowing a
 
 `prompt` sends the first prompt from the caller with `notify_on_complete` (message ID
 `spawn-prompt-<child_session_id>`), so the reply wake carries the child's final answer. The result
-returns the child ID, role, depth, TTL expiry, effective `permissions`, and optional `worktree` and
+returns the child ID, role, depth, TTL expiry, and optional `worktree` and
 `prompt` objects; a failed first prompt returns `prompt.status: "failed"` with `error`, and the
-child stays live for a `session_prompt` retry. Refusals are structured: `operator_cause` names the field, value, and rule
+child stays live for a `session_prompt` retry. Request `result_view: "full"` on
+`compozy__session_spawn` to inspect effective `permissions`. Refusals are structured: `operator_cause` names the field, value, and rule
 (`subset_of_parent`, `blank_atom`, `known_toolset`) and `operator_recovery` the next step. A
 live-child cap fails with reason `spawn_budget_exhausted` and names the cap and live count; stopped
 children and subagents hold no slot. A depth refusal uses the same reason with cause `max_depth`:
 a spawned child cannot spawn governed children, so delegate a subagent instead. A `model` override
 needs `provider` too; the refusal says so. Check `limits.can_spawn_children` in your situation
 context before spawning.
+
+When an always-on main creates an ordinary provenance child with
+`compozy__session_create`, its settled turn (idle with no active prompt or queued
+input), stop, or failure queues a main-session turn even without a session monitor.
+This lifecycle wake is independent of Heartbeat triage and its digest. A covering
+session monitor or reply watch remains the sole wake path for that revision.
+Delivery retries on the mechanical scheduler cadence and survives restart without
+duplicate turns. Archived, Later, and explicitly stopped children are excluded;
+instance pause guards still hold autonomous input. Governed spawn opt-outs and
+ordinary non-main creators keep their existing `notify_creator` behavior.
+Only children enrolled at creation use this path; adopted sessions and historical
+results from before enrollment are not replayed. Clear and rewind operations do
+not report completion.
+Pending wakes follow the instance's current main after rotation and wait while
+that main is stopped or in Later. Canceling a monitor after it covered a result
+does not replay that result through the automatic path.
 
 Subagent tools, also in the `sessions` toolset: `compozy__subagent_capabilities`,
 `compozy__subagent_delegate`, `compozy__subagent_status`, `compozy__subagent_cancel`. A subagent is a
@@ -346,7 +395,7 @@ have an active turn and otherwise returns `parent_not_active`. Use them instead 
 `session_spawn` → `session_prompt` → `session_wait` → `session_history` when you want one task answered
 by another agent, provider, or model while you keep working:
 
-1. `compozy__subagent_capabilities {}` returns the caller's inherited runtime, permission mode, depth,
+1. `compozy__subagent_capabilities {"result_view":"full"}` returns the caller's inherited runtime, permission mode, depth,
    live subagent count, and per-agent and per-provider `can_delegate` with `constraints` and advertised
    models. Pick a target whose `can_delegate` is true. Only delegable providers include models,
    capped at 40 per provider with the caller's current model first, then the provider default.
@@ -400,7 +449,10 @@ when it settles, or settles `interrupted` (still waking you) when it cannot resu
 settles a running subagent `failed`. A waiting subagent does not wake you: the operator approves it, or you
 call `compozy__session_approve` or `compozy__session_clarify_answer` on its `child_session_id` after
 status reports `waiting`. `compozy__subagent_cancel {subagent_id, reason?}` returns `cancel_requested`
-for a live subagent, otherwise its terminal status; Claude's own Agent/Task subagents
+for a live subagent, otherwise its terminal status. Cancel also retires the child session and its live
+descendants, including from a terminal row: a `completed` child that stayed idle stops and becomes
+non-resumable. A stop failure is returned as an error with the row already `canceled`; retrying is
+safe because an already stopped or missing child counts as success. Claude's own Agent/Task subagents
 (`origin: "provider_native"`) return `subagent_not_cancelable`; a background one stays `running` until
 its own task finishes, then reads `completed`, `failed`, or `canceled` with the task's summary as
 `result` once Claude reports it (briefly `null` before that); one with no task report settles
@@ -409,10 +461,12 @@ with the original brief, prior findings, and open objections instead of promptin
 subagent may delegate its own subagents. Subagents share your workspace and worktree, so give
 concurrent subagents disjoint files or read-only tasks. Stopping your session cancels every live
 subagent depth-first; interrupting a turn keeps its subagents running, but their results no longer wake
-you. CLI and HTTP/UDS fallback for reads and cancel: `compozy session subagents <session-id>`,
-`compozy session subagents show|cancel <subagent-id>`.
+you. CLI and HTTP/UDS fallback for reads, cancel and delete: `compozy session subagents <session-id>`,
+`compozy session subagents show|cancel|delete <subagent-id>`. A delete permanently removes a delegated
+subagent and its child session transcript/history; provider-native rows refuse with
+`subagent_not_deletable`.
 
-`compozy__session_stop` stops another same-workspace session and is destructive/approval-gated. It is
+`compozy__session_stop` stops another policy-authorized session and is destructive/approval-gated. It is
 idempotent for an already stopped target. `compozy__session_prompt_cancel` cancels only another
 session's active prompt and returns `canceled` or `nothing-in-flight` without stopping the session.
 
@@ -420,7 +474,10 @@ session's active prompt and returns `canceled` or `nothing-in-flight` without st
 `allow-always`, `reject-once`, or `reject-always`. `compozy__session_clarify_answer` resolves another
 session's pending question with either a one-based `choice` or text. Both preserve durable
 post-restart interactions and can return `already-resolved`, `resolved-after-restart`, or
-`queue-full`; self-action is denied. Read `compozy session interactions` or
+`queue-full`; self-action is denied. Expired permissions are retained as `timed_out`; stopping or losing
+their runtime cancels remaining requests. Late responses to expired/canceled permissions are
+refused with an explicit terminal-state message and never execute the operation.
+Read `compozy session interactions` or
 `compozy__session_status` for the durable request IDs instead of matching display text.
 
 `compozy__session_rewind` is a destructive conversation-only mutation. Pass the durable user
@@ -477,8 +534,9 @@ Worktree tools: `compozy__worktree_list`, `compozy__worktree_inspect`,
 mutating; remove is destructive and approval-gated, and its opt-in `delete_branch` input also deletes
 the local branch with the safety rules in `references/worktrees.md`. Remove takes `path` instead of
 `ref` for a discovered (not adopted) checkout, exactly as `worktree_list` reports it; that form keeps
-the branch and rejects `ref` and `delete_branch`. All carry an explicit or caller-resolved
-workspace boundary. Adopt, creation cancel, exit planning/actions, exit cancel, and dismiss are
+the branch and rejects `ref` and `delete_branch`. List excludes `removed` records by default; pass `include_removed: true` to read them. HTTP/UDS
+uses `include_removed=true`, including All projects; CLI uses `worktree list --include-removed`.
+All carry an explicit or caller-resolved workspace boundary. Adopt, creation cancel, exit planning/actions, exit cancel, and dismiss are
 CLI/HTTP/UDS-only; read `references/worktrees.md` before using either path.
 
 Remembered approvals: `compozy__tool_approvals_set`, `compozy__tool_approvals_list`, and
@@ -497,7 +555,8 @@ zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session c
 and `children: "exclude"` (default `include`). Columns filter before pagination/counting;
 unknown values return `tool_invalid_input`. Excluding children removes every session with a parent,
 independent of its spawn role. Page payloads include the derived `board_column`, direct-child
-`children` counts, and scoped `parent_title`; `waiting_on` explains the `waiting` badge. These
+`children` counts; `waiting_on` explains the `waiting` badge. Request `result_view: "full"`
+for scoped `parent_title`. These
 filters participate in the cursor fingerprint. PR facts are display-cache reads, without forge I/O.
 
 `compozy__session_list` returns one counted catalog page and accepts workspace, exact state, exact
@@ -513,8 +572,19 @@ recursively, in one transaction; continued and forked sessions are never include
 inside the session's workspace and profile, `stop` and `processes` cover the included children, and
 a failed stop archives nothing. A tree containing the calling session is denied. Unarchive restores
 subagent families only, so restore other children one by one.
-The CLI fallback is `compozy session archive <id> [--stop] [--with-children]`. Unarchive before prompting or
-resuming a session. `compozy__session_later` moves a session to Later: it stops the session and
+The CLI fallback is `compozy session archive <id> [--stop] [--with-children]`. Unarchive before
+prompting or resuming a session. `compozy__session_cleanup` deletes the profile's archived history in bulk. Its default
+`action: "plan"` with `dry_run` true only previews and runs without approval: every count is a
+number of sessions, and `kept_live` counts child sessions still in the session list or in Later,
+which always stay with everything under them. `dry_run: false` asks for approval, then deletes in
+the daemon's background, a few archived sessions at a time; `action: "status"` follows the run and
+`action: "stop"` ends it early (deleted sessions stay deleted). The range defaults to threads
+archived more than 7 days ago (`older_than_days`, `archived_before`, or `any_time`); `delete`
+defaults to everything, or narrows to `children` and `subagents` while keeping main sessions.
+To delete no more than a preview counted, send its `plan.counted_at` as `counted_at`.
+It defaults to the caller's workspace; `all_workspaces` needs unrestricted workspace access.
+Worktrees stay, as with a single delete. Retry failed threads with `session_ids`. The CLI fallback is
+`compozy session cleanup [--yes]`, with `status` and `stop` subcommands. `compozy__session_later` moves a session to Later: it stops the session and
 its hierarchy children (forks and continues are not children), cancels their monitors and pending
 wakes, terminates their processes and terminals, and parks them with an optional one-line `reason`
 and optional `return_at` that brings the session back into Needs you with a notification. Parking
@@ -551,8 +621,8 @@ verified process exit is refused with `source_running`, and daemon roles such as
 `source_not_user`, `parent_ineligible`, `cycle`, `archived`, `not_detachable`, `source_running`,
 `operator_required`). The CLI fallback is
 `compozy session reparent <id> --parent <parent-id>` or `--top-level`.
-`compozy__session_move_to_profile` copies a stopped top-level user session of the caller's workspace
-and profile into `target_profile` (an active profile name) and archives the original; the copy is a
+`compozy__session_move_to_profile` copies a stopped top-level user session of the selected workspace
+and caller's profile into `target_profile` (an active profile name) and archives the original; the copy is a
 fork owned by the target profile, and a bound worktree's branch is checked out again in a new
 worktree owned by that profile. The result carries the copy as `session`, the archived `original`,
 and `worktree_id`/`branch` when a worktree moved. An agent cannot move its own session
@@ -562,10 +632,22 @@ any other cross-profile write, so it needs the unrestricted grant. Refusals carr
 `compozy session move-to-profile <id> <profile>`. Not `compozy__session_move`, which only places a
 session in a folder.
 
+Daemon-owned approval expiry returns `approval_timed_out`, including identical retries suppressed
+as `repeat_denied`. Finish unaffected work and ask the operator to prompt the session before
+retrying. Agent and monitor prompts do not clear this suppression; an explicit denial keeps its
+denial reason.
+
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
+Wake `source` may be omitted for `manual`; explicit values must be exact documented enum members.
+The native schema rejects empty or padded values before dispatch. A dry run writes nothing and
+reuses a matching persisted policy snapshot ID when available.
+For heartbeat status, `include_session_health: true` requires a nonblank `session_id`;
+otherwise the tool returns `tool_invalid_input` naming `session_id`.
 
 Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy__workspace_describe`,
-`compozy__agent_list`, `compozy__agent_create`. `compozy__agent_list` returns exact names from the
+`compozy__agent_list`, `compozy__agent_create`. `compozy__workspace_describe` returns sessions owned
+by the resolved workspace registration, even when its directory metadata has a different ID.
+`compozy__agent_list` returns exact names from the
 resolved workspace catalog. `compozy__agent_create` authors one public `AGENT.md` at `global` or
 `workspace` scope; provide `scope`, `name`, `prompt`, and `workspace` for workspace scope. Provider,
 model, and reasoning are optional agent-level overrides; when omitted, the definition inherits the
@@ -700,11 +782,14 @@ A session tool called with a `session_id` and no `workspace` resolves the target
 
 Denied native calls return `workspace_access_denied`. The message names the axis that denied the call and what would allow it, never the target: `deny-all` mode, a missing `approve-reads` answer, a rejected answer, or a write to another profile or aggregate that needs `workspace_access: unrestricted`. Branch on the code and reason, not the text. Seams outside native tools keep this hint:
 
-    cross-workspace access is denied by this session's permission mode; ask the operator to set the agent's permissions.mode to approve-all, or approve the prompt when asked
+    access could not be authorized for the caller workspace and profile; ask the operator to inspect the session identity and workspace access policy
 
 When a native call is allowed outside the caller's own workspace and profile, the dispatch boundary redacts the result before hooks, events, and the agent see it. Every string in the result (session names, messages, tool inputs and outputs, previews, metadata) passes the shared secret redactor with its heuristics always on: known credential shapes (`Authorization`/`Bearer` values, `key=value` and `--flag value` pairs whose key names a secret, URL userinfo, `env:`/`vault:` references, CompozyOS claim and gateway tokens, registered runtime secrets), well-known provider token prefixes (`sk-`, `ghp_`, `github_pat_`, `xox*-`, `AKIA`, and others), and high-entropy mixed-case tokens of 28 or more characters become `[REDACTED]`. Fields named `*_id`, hashes, digests, and cursors stay readable. This is pattern-based: a secret with no recognizable shape or key, a short or low-entropy secret, or a secret split across fields can still pass, and errors and binary artifacts are not rewritten. Own-scope reads are unchanged. Redaction applies to native tool results; HTTP/UDS responses to agent-credentialed requests are not rewritten, because a process in the session can drop the agent headers and read as the operator (the soft boundary in `references/agent-definitions.md`).
 
 Under `approve-reads`, a call that crosses two axes, such as `all_profiles` on another workspace, asks once per axis: first `Access workspace <id>`, then `Read all profiles` or `Read profile <id>`.
+
+Session monitor targets also recheck the authenticated viewer's access and redact foreign names
+on HTTP/UDS list and cancel responses. Operator monitor reads retain the authorized operator view.
 
 Read prompts offer `allow_once` (this call), `allow_always` (remember this read scope),
 `reject_once` (this call), and `reject_session` (deny later crossings by this session). An operator
@@ -721,6 +806,27 @@ A prompt timeout, transport failure, or unknown answer denies and stores no answ
 
 Granted agents may also select any active `profile` for writes, use `all_profiles` on reads, and read aggregate routes regardless of mode. Work a granted agent creates in profile P is owned by P; the acting session's tool-approval grants apply. Tool-risk approvals still follow the session's `permissions` mode. Desktop tools remain restricted to project partitions and the caller profile's `user` partition; `global`, another profile's partitions, presence leases, and notification receipts stay operator-only. The full authority matrix and the operator-only authoring rule are in `references/agent-definitions.md` (Unrestricted Workspace Access). User Scope Work ADR-003 supersedes cross-workspace ADR-007 §1 for this one operator-authored field.
 
+The id-only orchestration tools `session_wait`, `session_stop`, `session_approve`,
+`session_clarify_answer`, `session_prompt_cancel`, and `session_compact` use this target-owner policy;
+no workspace selector is needed. Domain restrictions, self-target refusals and approval authority still
+apply. Cross-profile mutations still require `workspace_access: unrestricted`.
+
+Explicit exceptions retain their own boundary: `session_processes_*` requires the caller workspace
+and profile; `session_reparent` can select an authorized workspace but keeps source and parent in that
+workspace and the caller profile. `session_move_to_profile` keeps the source in the selected workspace
+and caller profile and authorizes the target-profile write. Taking over a governed worker remains
+operator-only. Pull-request monitors use the caller's repository/workspace and terminal tools and
+terminal monitors use the caller workspace/profile; there is no cross-workspace selector for them.
+
+`scope=global` and `scope=all` reads use the same policy rather than an unconditional grant barrier.
+Task reads, including `all_profiles`, classify each row as a read; mutations still classify as writes.
+`agent_create` and `extensions_install` are writes, so their global-scope gate still needs the operator
+or unrestricted grant. Extension installation also retains its service boundary: agent changes stay
+in the caller workspace/profile and cannot replace code shared outside it; global/shared installation
+requires the operator. `workspace_folder_*` and cleanup `all_workspaces` keep their operator or
+unrestricted requirement. `agent_memory_*` requires the owning always-on-agent main session; changing
+permission mode does not confer that identity.
+
 A successful native read admitted by the separate consent gate also records `workspace.access_granted` with source `tool_consent`; the initial policy miss remains attributable.
 
 Each policy evaluation attempts a best-effort `workspace.access_granted` or `workspace.access_denied` audit append with actor/target profiles, target kind/workspace, seam, decision source, and mode. A prompt-eligible miss is a denied policy evaluation even when the operator then allows that one call; later evaluations allowed by `allow_session` are granted. Read persisted events through `compozy__logs`, `compozy__observe_search`, `compozy logs --type <event-type>`, or `GET /api/logs`.
@@ -735,14 +841,15 @@ for mutations. Resolve descriptors, pass the workspace, and use the current revi
 - Desktops: `compozy__desktop_list`, `compozy__desktop_create`, `compozy__desktop_update`,
   `compozy__desktop_reorder`, `compozy__desktop_switch`, `compozy__desktop_delete`,
   `compozy__desktop_clients`.
-- Windows: `compozy__window_list`, `compozy__window_open`, `compozy__window_close`, `compozy__window_focus`,
-  `compozy__window_move`, `compozy__window_swap`, `compozy__window_float`, `compozy__window_zoom`,
-  `compozy__window_navigate`.
-- Tabs: `compozy__window_group`, `compozy__window_reorder`, `compozy__window_activate`,
-  `compozy__window_pin`, `compozy__window_reopen`.
+- Windows and tabs: `compozy__window_list`, `compozy__window_open`, `compozy__window_close`,
+  `compozy__window_focus`, `compozy__window_move`, `compozy__window_swap`, `compozy__window_navigate`,
+  `compozy__window_reorder`, `compozy__window_activate`, `compozy__window_pin`, `compozy__window_reopen`.
 - Layouts: `compozy__layout_get`, `compozy__layout_preview`, `compozy__layout_arrange`,
   `compozy__layout_resize`, `compozy__layout_balance`, `compozy__layout_undo`, `compozy__layout_redo`,
   `compozy__layout_export`, `compozy__layout_validate`, `compozy__layout_apply`.
+- Retired until v0.8.0 (never call; each answers `applied: false` or a translation plus
+  `deprecations[]` naming the replacement): `compozy__window_float`, `compozy__window_zoom`,
+  `compozy__window_resize`, `compozy__layout_frame_resize`, `compozy__window_group`.
 
 For operator calls, these descriptors accept `workspace: "global"` before registry normalization,
 selecting the acting profile's reserved All projects partition. Every agent identity, including
@@ -750,17 +857,28 @@ agents with the unrestricted grant, is denied on it. `workspace: "@user"` select
 profile's reserved `user` partition. Neither makes `global` a valid workspace on other tools. Read
 `references/window-management.md` (Reserved partitions) for bindings and reconciliation.
 
-Every tab tool mutates and needs `window_manager.write`. `window_group` takes `target_window_id` plus
-a `window_ids` array and an optional `insert_index`; `window_reorder` moves one member inside its own
-stack with a clamped `index`; `window_activate` sets the stack's durable active member and is the
-public name of the internal `window.stack.set_active` command; `window_pin` takes a required `pinned`
-boolean; `window_reopen` needs only the revision. Three existing tools carry tab inputs:
-`window_open` accepts `stack_target_window_id` (plus `floating` for an explicit floating window;
-it rejects `insert_tiled` or `stack_target_window_id` alongside it), `window_navigate` accepts `mode`
-(`replace`/`push`/`pop`, and `pop` forbids `route`), and `window_close` accepts `scope`
-(`tab`/`group`/`others`/`right`, rejected together with `minimize`).
+Each desktop has one tab bar; a tab holds one window or a split of windows. Every tab tool
+mutates and needs `window_manager.write`. `window_reorder` moves the window's tab to a clamped
+`index` inside its pinned or unpinned range; `window_activate` activates the window's tab for its
+desktop and the issuing client (command `window.tab.activate`); `window_pin` pins or unpins the
+window's whole tab with a required `pinned` boolean; `window_reopen` needs only the revision.
+`window_move` splits, unsplits, and moves: `placement` `left`/`right`/`top`/`bottom` with
+`target_window_id` puts the window beside that window in its tab, with `target_tab_id` at that
+root edge of the tab; `placement: "tab"` makes it its own tab; `move_group` moves the whole tab.
+`window_open` accepts `stack_target_window_id` (a new tab right after that window's tab) and
+`insert_tiled` (a split member right of the focused window); `window_navigate` accepts `mode`
+(`replace`/`push`/`pop`, and `pop` forbids `route`); `window_close` accepts `scope`
+(`tab`/`group`/`others`/`right`/`left`/`all`); `layout_balance` takes `tab_id` or `split_id`.
+Results carry `changes.tab_ids`, `tab_split`, `tab_unsplit` and, when a retired input was used,
+`deprecations[]`. `compozy__layout_get` includes `migration` while the layout-upgrade notice is
+unacknowledged. A successful conversion is a `layout-upgrade` bell notification ("Your windows are
+now tabs"); reading it or clearing its captured bell snapshot durably acknowledges the conversion
+and refreshes connected clients' snapshots. The bell includes all source profiles in registered
+workspaces and the reserved User (`user`) and All projects (`global`) desktops; its receipt profile
+does not filter layout conversions. Unregistered project workspaces stay out. Migration `ack` through
+HTTP/UDS or `compozy layout migration ack` also removes the item. Failed conversions stay inline.
 
-`desktop_switch`, `window_focus`, and `window_zoom` require a connected `client_id`.
+`desktop_switch` and `window_focus` require a connected `client_id`.
 `window_navigate` changes presentation only when given one. Preview/validate never write;
 desktop delete, window close, and layout apply carry destructive risk. Discover `window_layout`
 resources with `compozy__resources_list`; `resource_id` is exclusive with inline arrange fields. CLI
@@ -825,12 +943,24 @@ later invocations.
 
 Automations (jobs and triggers): the Web UI shows both in one Automations window — a job is a
 scheduled automation, a trigger an automation on an event, a webhook trigger a link automation.
+Manual `compozy__automation_jobs_trigger` calls return the run id and `running` status after prompt
+admission. Completion waiting is opt-in with `wait: true` and `timeout` (default `1m`, maximum `24h`).
+An expired wait returns the running receipt without canceling execution. Read `compozy__automation_runs_get`
+for current state. Task and Loop targets retain their `delegated` receipts. CLI uses `--wait --timeout`;
+HTTP/UDS uses `?wait=true&timeout=5m` on the existing trigger route.
 Tools, CLI verbs, routes, and config keep `job`/`trigger`; never send `automations` to them.
 Automation catalogs use CLI, HTTP/UDS, and `compozy__automation_jobs_list` / `compozy__automation_triggers_list`.
 Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, `target`
 (`agent`|`loop`|`task`|`agent_instance`; `task` matches no trigger; `agent_instance` is trigger-only), search, and event;
-run history stays uncounted and must be bounded. Continue with the returned opaque cursor under
-unchanged profile scope and filters; changing either starts a new first page. Other `compozy__automation_*` tools cover detail,
+run history stays uncounted and defaults to 50 records per page (maximum 200; zero uses 50).
+`automation_runs_list`, `automation_jobs_history`, and `automation_triggers_history` return
+`page.limit`, `page.has_more`, and `page.next_cursor`. Continue with `cursor` and unchanged filters
+and profile/workspace scope. HTTP/UDS shares the same page contract. CLI history and runs use
+`--last` for page size and `--cursor` for continuation. JSON preserves the `page` envelope;
+human, TOON and JSONL expose continuation too. For CLI history that spans pages, use absolute
+RFC3339 time filters from the first request. Relative durations move between calls and cannot
+be reused with `--cursor`. Changing filters or scope starts a new first page. Other
+`compozy__automation_*` tools cover detail,
 mutation, toggles, and manual trigger. Config/package definitions only toggle enabled and cannot be
 deleted; dynamic definitions are fully mutable. List and get items carry `last_run` (`id`, `status`,
 `started_at`, `ended_at`, `skip_reason` for a skipped fire stored as `canceled`), equal to the first
@@ -864,13 +994,44 @@ MCP diagnostics are `compozy__mcp_status` and `compozy__mcp_auth_status`. A
 workspace-scoped server with five consecutive confirmed permanent failures reports `state: "dead"`
 from `compozy__mcp_status`; its nested runtime reason is `backend_dead`. During the same daemon lifetime,
 resolve its last-known tools through `compozy__tool_info`, which retains their unavailable descriptors
-and diagnostic instead of hiding them. Do not retry a dead tool blindly or invent a revive call: CompozyOS
+and diagnostic instead of hiding them. Do not retry a dead tool blindly: use the explicit session/settings check documented in
+`references/tools-and-skills.md` after repairing its cause. Otherwise CompozyOS
 admits at most one automatic recovery probe after the 60-second window and clears the mark when that
 probe succeeds. Browser/OAuth login, raw auth material, and any required credential repair remain
 management-surface operations.
 Acquire Marketplace MCP capabilities through extension installation. Manage manual servers
 through Settings MCP APIs; extension-owned management and diagnostics require the explicit
 extension owner. Browser/OAuth login remains a management operation.
+
+MCP availability and repair tools (toolset `compozy__mcp`). Consent, runtime inventory and copy rules
+live in `references/tools-and-skills.md`.
+
+- `compozy__session_mcp_list` (read; `session_id` defaults to the caller): the session's CompozyOS
+  servers and its runtime's own servers, with `usable`, `attention`, `pending_reload` and
+  `last_reload{at,outcome,reason}`. Row states: `ready`, `applies_next_message`, `needs_sign_in`,
+  `waiting_approval`, `failed`, `not_available` (reason `Limited by the parent session`); runtime rows
+  use `loaded_by_runtime`, `off_in_compozy_sessions`, `off_in_runtime` or `waiting_in_runtime` (only
+  `loaded_by_runtime` counts as usable). It reads cached state only and never discovers,
+  probes or starts a server. Reads stay inside the caller's workspace and profile. Start here when a
+  tool is missing; `compozy__mcp_status.callable_discovery_note` points to it.
+- `compozy__mcp_list` (read; `runtime`, `include_runtimes` default `true`, `workspace` limited to the
+  caller's workspace): CompozyOS servers with `approval{required,state,definition_digest}` and
+  `callable_in_sessions`, plus one read-only group per runtime. A `runtime` filter returns only that
+  runtime group. It reads files only.
+- `compozy__mcp_allow` (mutating, always requires operator approval): `server_name`, `decision`
+  (`allow`|`revoke`), `workspace`, and for `allow` the `definition_digest` copied from
+  `compozy__mcp_list`. A missing or stale digest fails `mcp_approval_definition_changed` and approves
+  nothing; list again and send the new digest. `mcp_approval_not_required` means the server was
+  added through CompozyOS or belongs to an extension. The approval is bound to the caller's profile.
+- `compozy__mcp_import` (mutating, approval per permission mode): `runtime`, `server_name`, `scope`
+  (`user` default, `profile`, `workspace`), optional `workspace` and new `name`. Errors:
+  `mcp_server_not_found`, `mcp_import_name_taken` (retry with `name`),
+  `mcp_import_unsupported_source`, `mcp_import_unsupported_transport`,
+  `mcp_import_unsupported_definition`. A result with `partial: true` warns that secret cleanup was
+  not confirmed; report the warning instead of retrying.
+
+There is no reload tool. The next `compozy__session_prompt` applies a pending change; a prompt refused
+with `session_mcp_reload_failed` (`retryable: true`) was not accepted and can be sent again unchanged.
 
 ## Observability Tools
 
@@ -993,16 +1154,42 @@ labels User items `"User"` (previously `"Global"`; a display string).
 ### Session pull-request projection
 
 When a registered project's folder is missing, `compozy__session_status` and
-`compozy__session_describe` retain the session payload and add a `workspace_root_missing`
+`compozy__session_describe`, both with `result_view: "full"`, retain the session payload and add a `workspace_root_missing`
 diagnostic. Stopping and archiving remain available; these controls do not need to load the
 project's agent files. Creating or executing new work still requires an available root.
 
 `compozy__session_list` and `compozy__session_status` include `branch`, nullable `pull_request`,
-nullable `pull_request_lookup`, and `board_column`. The PR contains state, nullable draft, head SHA,
+and `board_column` by default. Request `result_view: "full"` to inspect nullable `pull_request_lookup`. The PR contains state, nullable draft, head SHA,
 complete check counts, review decision, mergeability and `ready_to_merge`. A null lookup means no
 branch; `pending`, `error`, and `incomplete` do not establish that no PR exists. Stale successful facts
 remain visible during provider outages. Explicit refresh is available through
 `POST /api/sessions/{session_id}/pull-request/refresh` or `compozy session pr <id> --refresh`.
+
+### Session changes
+
+`compozy__session_changes` (sessions toolset, read risk) reads what a session changed in its
+project root, untracked files included: `session_id` (required), optional `workspace`, `scope`
+(`branch` diffs the working tree against its merge base with `base`; `uncommitted` diffs it
+against HEAD; omitted picks `branch` when HEAD is ahead of the base, else `uncommitted`), `base` (any Git-resolvable ref; omitted uses the
+worktree's base ref, then `origin/HEAD`, then `main` or `master`), `patch_paths` (at most 20 root-relative paths),
+and `reveal`. The root is the session's bound worktree, else its project root; it never follows the
+provider's resumed CWD. The result is the summary (`root`, `head`, `base`, `totals`, `files` with
+status, `old_path` for renames, `+/-` counts and `binary`/`generated`/`sensitive` flags,
+`truncated`, `revision`, and the cached `pull_request` when one exists) plus `patches` for the
+requested paths. Summaries list at most 3,000 files and keep the full totals; `totals.partial`
+marks lower bounds. Each patch is capped at 1 MiB and returns `too_large: true` without text past
+it. Sensitive files (`.env`, keys, credentials, and in-root symlinks to them) return
+`sensitive: true` and no patch text unless the call sets `reveal: true`; reveal only when the
+operator's task needs the content.
+
+Failures come back as a structured `error` with a `code`: `session_not_found` (also for sessions
+outside the caller's profile read scope), `root_unavailable` (User-scope sessions and removed
+worktrees), `not_a_git_repository`, `base_not_found`, `invalid_scope`, `too_many_paths`,
+`invalid_path`, `path_outside_root`, `path_denied` (`.git` and paths resolving into it),
+`file_not_found`, `not_a_file`, `changes_stale` (HEAD or base moved; call again), and
+`changes_unavailable`. There are no native tools or CLI verbs that list, read, or search project
+files; those routes are HTTP/UDS only (see `references/app-sdk.md`). CLI fallback:
+`compozy session changes <session-id>` (`references/runtime-operations.md`).
 
 ### In-place session worktree tools
 
@@ -1024,6 +1211,7 @@ Raw environments are never exposed. `trees` groups the rows into logical process
 `id`, `kind`, `root`, `lead` (the process that names it, the leaf of a `sh -c`/`bun run`/`npm run`
 wrapper chain), `wrappers`, `members`, and the union of `ports`; every row carries its `tree_id`. A
 browser and its helpers, including detached crash handlers of the same app bundle, are one tree.
+Read `compozy__session_status` with `result_view: "full"` for this summary.
 The session's `process_summary.trees` counts Background and Terminal trees; `background` and
 `terminals` still count processes, with ports from that same population; foreground tools remain in
 the detailed list. Catalog changes invalidate it.
@@ -1076,14 +1264,28 @@ or failed checks count, while quiet checks and managed Goal/Loop turns do not.
 The turn reaching the limit runs, pauses the instance with reason `unattended`,
 and publishes one report and notification. Later autonomous input stays queued.
 
-A pause holds main and descendant input, including descendants of an older main.
+Manual, fatigue, unattended and unknown pauses hold main and descendant input,
+including descendants of an older main. Definition pauses (`definition_missing` and
+`definition_not_always_on`) hold mains only: dispatched children retain their own
+monitor wakes and agent input. Their turns still count toward the unattended limit;
+reaching it replaces the definition pause with `unattended` and holds the lineage.
+`session_prompt` returns `held_reason` and `held_instance_id` when delivery is held;
+`session_inputs_list` exposes the same fields with `held: true`. Session status adds
+an attention `held_input` work signal carrying those fields and the instance reference.
+An explicit manual pause replaces a definition pause and holds the whole lineage;
+other safety pauses retain their reason. An archived hold reports `instance_archived`
+because that instance cannot be resumed. Archive overrides the definition-pause
+exception for descendants; human input remains runnable. An idle-released child whose definition
+disappeared can reload its accepted runtime for queued work on the same route; new
+sessions and runtime switches still require a live definition. A prepared Goal does not hold normal descendant input during a definition pause;
+the Goal itself retains its explicit pause guard. Adoption keeps existing child lineage; it does not transfer another instance's children.
 Human prompts still run and reset the counter without resuming the instance. A child
 spawned during a human turn may run without acquiring operator approval authority.
 Marking reports seen, an operator approval/clarification, and resume also reset the
 counter; presence alone does not. A pause cancels a running check without fatigue.
 
 Only the operator may resume `manual`, `fatigue`, `unattended` or unknown reasons;
-agents may resume `definition_*` reasons. Resume delivers held input within the
+agents may resume `definition_missing` or `definition_not_always_on`. Resume delivers held input within the
 existing queue limits and restores only Goals/Loops paused by the instance. Direct
 Goal/Loop resume during an instance pause returns `agent_instance_paused`. A stopped
 main can restart to deliver its queue; stopped descendants retain theirs. Archive
@@ -1103,12 +1305,18 @@ does not produce a lost-wake report; stopping the main session still reports its
   `more`, `duration_ms`, optional `error`) and source digest items keyed
   `source:<id>:<item key>`. A dry run polls without committing state or status. A real check
   while a source poll runs returns gate `source_poll_in_flight` and starts nothing.
-- `compozy__agent_instance_get` includes `sources`: per declared source `id`, `kind` or
+- `compozy__agent_instance_get` includes `sources` by default: per-source `id`, `kind` or
   `script`, `status` (`pending_first_poll`, `ok`, `failing`, `unavailable`, `disabled`,
-  `unapproved`), poll timestamps, `last_item_count`, `failure_streak`, optional `error`, and
-  `next_poll_at`.
+  `unapproved`), `failure_streak`, optional `error`, `next_poll_at`, and `awaiting_approval`.
+  Request `result_view: "full"` for poll timestamps and `last_item_count`.
 - `compozy__agent_instance_checks` requires `enabled`. Only the operator can enable checks;
   the instance's own agent can disable them. Enabling schedules one cadence ahead.
+- `compozy__agent_instance_clear_main` is operator only and takes the instance selector. It
+  discards the main session's conversation and starts a fresh provider thread under the same
+  session ID; queued inputs, agent memory and the instance are kept. It is refused while the
+  main is running a turn, for an instance without a main, and with `dry_run`. A provider
+  account/backend mismatch does not need it: the main rotates its provider thread and replays
+  the transcript on its next wake.
 - `compozy__agent_instance_occurrence` requires `occurrence_id` and the instance selector.
   Results contain `state` (`running` or `finished`), and completed `result`, `reason`, and
   optional `report_id`. Reads stay within the authorized profile and instance.
@@ -1146,7 +1354,7 @@ repository returns `session_link_fork_unsupported`; providers that omit head rep
 existing behavior. Status follows the branch: selecting another PR on an already linked branch
 replaces its stored number. Local repositories support branch links without a forge.
 Candidate page 1 may include one extra exact PR match; that match is omitted from later pages. Session reads carry
-an additive `linked_work` summary (`total`, `pull_requests`, `needs_you`, `lead`). Use the session
+an additive `linked_work` summary (request `result_view: "full"` on native session tools) (`total`, `pull_requests`, `needs_you`, `lead`). Use the session
 resource's `links` endpoint for the full list; child items carry `source_session_id`
 and `source_session_title` and are read-only on their parent.
 
@@ -1156,7 +1364,236 @@ members). These counts belong to the caller's profile and workspace, including i
 
 ### Check-in source catalog
 
-`compozy__agent_heartbeat_sources` is read-only. Pass `agent` and `workspace` to list
+`compozy__agent_heartbeat_sources` is read-only. Pass `agent`, `workspace`, and `result_view: "full"` to list
 scoped extension `kinds` (including `params_schema`), local `scripts` and their approval
-status, `scripts_enabled`, and effective `limits`. It returns the same catalog JSON as
+status, `scripts_enabled`, and effective `limits`. The full view returns the same catalog JSON as
 `compozy agent heartbeat sources <agent> -o json` and HTTP/UDS source discovery.
+
+### Check-in call audit
+
+`agent_instance_check_ins` includes `occurrence_id`, `tools_status`
+(`enabled`, `disabled`, `unavailable`) and `tool_calls`. `agent_instance_reports`
+projects `tool_calls` counts from the durable audit. Tool descriptors expose `access`
+(`read` or `write`) and `check_in_writable` (whether it belongs in the check-in
+write selector). Each attempt records decision, outcome, redacted argument
+preview and effect (`none`, `done`, `maybe`); tool results are never stored.
+CLI `instance reports` text prints per-proposal pick state and `auto_accept_status`
+plus the tool summary. `instance check-ins` text has WHEN, OUTCOME, TOOLS and
+PROPOSALS columns, with counts such as `1 auto-accepted, 1 waiting`.
+An otherwise silent check-in with completed or uncertain writes publishes an
+`activity` report. Cancellation retains its outcome and discards pending source state.
+Check-ins never create approval or clarify requests: `compozy__clarify` and other
+interaction tools are always denied (`check_in_tool_not_writable`). With no main
+session, every check-in call is denied `check_in_no_main_session`. Only the operator can approve standing
+check-in authority through the heartbeat authority CLI or HTTP/UDS routes; there is
+no authority-approve native tool.
+
+### Proposal picks
+
+Manual picks are operator-only: `compozy agent instance pick <agent-or-instance>
+<report-id> <n>` uses a 1-based index; HTTP/UDS
+`POST /api/agent-instances/{id}/reports/{report_id}/pick` uses `{"proposal":0}`.
+Agent credentials fail `proposal_pick_operator_only`. There is no native pick tool.
+Report reads include `picks`, proposal `action`, and `auto_accept_status`
+(`picked`, `limit`, `queue_full`, `unapproved`, `no_main`, `inactive`, `none`). `picked` means
+an auto-accept pick; skip values are the decision recorded at publication and are
+never recomputed; operator picks never project as `picked`. Each proposal is picked
+once; `proposal_already_picked` reports a repeat. The observe-only
+`agent.instance.proposal.picked` hook includes actor, action id and report id.
+
+### Instance attention acknowledgement
+
+The local operator can acknowledge an always-on instance with
+`compozy agent instance mark-seen <id>`, `POST /api/agent-instances/{id}/away`, or
+`compozy__agent_instance_mark_seen`. The avatar hover card offers **Mark as seen**.
+This advances the operator's seen watermark, acknowledges failure attention through that time,
+and cancels pending/orphaned interactions in stopped sessions in the instance's profile-scoped
+lineage. Live sessions' requests still need an answer. New failures raise attention again.
+Reports retain their provider delivery state and history; acknowledgement does not deliver them
+to the provider. The catalog stream updates open avatars without a reload.
+
+### Instance list capacity and missing targets
+
+Instance lists return authorized rows after agent, workspace, state and pagination filters.
+The native list defaults to the calling agent and workspace; use `peers: true` for reachable
+always-on agents. An empty list does not establish that the profile has no instances.
+`active_count` measures occupied capacity across all workspaces in the selected profiles,
+independent of row filters and pagination. `max_active_instances` is the cap for each profile,
+including when an all-profiles read sums counts. The CLI list uses the same capacity semantics
+but filters agent names only when `--agent` is provided. These capacity semantics apply only to
+ordinary lists: `peers: true` (CLI `--peers`) leaves both capacity fields at zero to mean
+unavailable, not unused capacity.
+
+Ensure-main requires an existing instance. A missing native target returns
+`agent_instance_not_found`, not a backend health error. Ensure-main does not support
+`dry_run`; the native tool rejects it before starting a main and the CLI offers no such flag.
+Use instance get (CLI `agent instance show`) to inspect without starting a session.
+
+## Result views
+
+### The selector
+
+| Input         | Type   | Values            | Default   | Present on                |
+| ------------- | ------ | ----------------- | --------- | ------------------------- |
+| `result_view` | string | `compact`, `full` | `compact` | every tool that has views |
+
+`result_view` changes only what is returned. It never changes what the tool does, its risk class, its
+approval requirement or its permission match.
+
+### What compact keeps
+
+A compact result keeps what a caller needs to act:
+
+- identity (`id`, names, the workspace or parent it belongs to);
+- state, and anything the caller must not miss: pending interactions, failures, stop reasons, limits
+  reached, truncation and pagination cursors;
+- the fields a follow-up call takes as input.
+
+The full result adds large content the caller already holds or can fetch on demand: permission
+policies, option catalogs, supervision and diagnostic internals, embedded definitions.
+
+Every field in a compact result is in the full result at the same path with the same value.
+
+### Session record tools
+
+`compozy__session_status`, `compozy__session_create` and `compozy__session_archive` return the same
+compact session record shown above. Optional fields appear only when set:
+
+| Field                                   | When present                            |
+| --------------------------------------- | --------------------------------------- |
+| `attention`, `waiting_on`               | The session needs the operator or waits |
+| `pending_interactions[]`                | Always (empty list when none)           |
+| `stop_reason`, `stop_detail`, `failure` | The session stopped or failed           |
+| `runtime.failure`                       | The runtime binding failed              |
+| `worktree_id`, `branch`                 | A worktree or branch is associated      |
+| `pull_request`                          | Always; null when none is associated    |
+| `queue`, `children`, `subagent_summary` | The corresponding summary is available  |
+| `later`                                 | The session is set aside for later      |
+
+`transcript_epoch`, `runtime.generation` and `runtime.selection_revision` are the fences
+`compozy__session_rewind`, `compozy__session_fork`, `compozy__session_continue` and
+`compozy__session_runtime_set` take as input. `runtime.selection_revision` is always present.
+`transcript_epoch` and `runtime.generation` are omitted while they are 0, exactly as in the full
+record: `runtime.generation` until the session is first bound (one `compozy__session_create` just
+returned has none), `transcript_epoch` until the first clear or rewind. Pass 0 as the fence in that
+case. `lineage` carries `kind`, `parent_session_id`, `root_session_id`, `ttl_expires_at` and `spawn_budget` in the
+compact result; the permission policy is in the full result.
+
+Excerpt from a session waiting on a permission prompt:
+
+```json
+{
+  "session": {
+    "id": "sess-example",
+    "agent_name": "general",
+    "state": "active",
+    "badge": "waiting-for-auth",
+    "board_column": "needs_you",
+    "runtime": {
+      "status": "ready",
+      "effective": { "provider": "claude", "model": "claude-opus-5-5" }
+    },
+    "pending_interactions": [
+      {
+        "session_id": "sess-example",
+        "interaction_id": "int-52c1",
+        "kind": "permission",
+        "provider_request_id": "req-9",
+        "title": "Run make test",
+        "status": "pending",
+        "created_at": "2026-11-10T14:19:40Z"
+      }
+    ],
+    "archived_at": null,
+    "created_at": "2026-11-10T14:02:11Z",
+    "updated_at": "2026-11-10T14:19:47Z"
+  }
+}
+```
+
+`compozy__session_spawn` compact result — the spawn facts without the permission echo:
+
+```json
+// call
+{
+  "tool": "compozy__session_spawn",
+  "input": { "agent_name": "general", "ttl_seconds": 3600 }
+}
+
+// result excerpt (compact, default)
+{
+  "session_id": "sess-child",
+  "spawn_role": "worker",
+  "spawn_depth": 1,
+  "ttl_expires_at": "2026-11-10T15:20:02Z"
+}
+```
+
+`result_view: "full"` adds `permissions` (`tools`, `skills`, `mcp_servers`, `workspace_paths`), as
+before. When the call sends a first `prompt` or creates a worktree, both views carry the same `prompt`
+and `worktree` entries.
+
+### Discovering both contracts
+
+```json
+// call
+{ "tool": "compozy__tool_info", "input": { "tool_id": "compozy__session_status" } }
+
+// result (descriptor excerpt; inside tool.descriptor)
+{
+  "id": "compozy__session_status",
+  "description": "Read one session. Returns the compact result; pass result_view \"full\" for the complete record.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "session_id": { "type": "string" },
+      "result_view": {
+        "type": "string",
+        "enum": ["compact", "full"]
+      }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": { "type": "object", "required": ["session"], "additionalProperties": false },
+  "output_schema_digest": "5d1c0e…",
+  "output_views": {
+    "compact": { "schema": { "type": "object", "required": ["session"], "additionalProperties": false }, "digest": "5d1c0e…" },
+    "full": { "schema": { "type": "object", "required": ["session"], "additionalProperties": false }, "digest": "a2c799…" }
+  }
+}
+```
+
+Hosted MCP omits `outputSchema` for every native tool. Input selectors and result
+`structuredContent` plus serialized JSON text are unchanged, including continuations and typed
+errors. Read contracts here through tool info or the HTTP/UDS descriptor routes (`output_views`).
+
+For a tool with views, `output_schema` and `output_schema_digest` describe the compact view. The schemas above are
+shortened. Full schemas can leave parts of a record open; inspect the live schema and result
+before referencing a field.
+
+A single-result tool has no `output_views` and no `result_view` input:
+
+```json
+{ "tool": "compozy__tool_info", "input": { "tool_id": "compozy__skill_view" } }
+// descriptor has "output_schema" only.
+```
+
+Compact session records also retain `stop_cause`, `permission_mode_degraded`,
+`attention_dismissible`, `lineage.ttl_expires_at` and `lineage.spawn_budget`.
+Compact `compozy__agent_heartbeat_status` retains the policy `snapshot_id`.
+
+Compact session records retain outstanding `reply_watches` with watch ID, target session,
+message ID, state and creation time, at the same paths and values as the full record.
+
+### Recovering orphaned automation runs
+
+Daemon startup reconciles unfinished `scheduled`/`running` automation runs before scheduling:
+missing or stopped sessions become `failed` with `error: "orphaned_after_restart"` and an end time.
+History and attribution remain intact; live sessions continue to block self-overlap.
+Use `compozy__automation_runs_cancel {"run_id":"<id>"}` to settle a run whose session is missing
+or stopped as `canceled` with `error: "operator_canceled"`. Optional `workspace` and the caller's
+profile restrict the lookup. Terminal runs are unchanged, so cancellation is idempotent.
+Live sessions, delegated executions and admissions with no session are refused; use the owning
+session/Loop/Task stop surface first. CLI: `compozy automation runs cancel <id> -o json`.
+HTTP/UDS: `POST /api/automation/runs/{id}/cancel`, returning the existing `{run: ...}` DTO;
+live or concurrent execution conflicts return 409. No separate finish operation is needed.

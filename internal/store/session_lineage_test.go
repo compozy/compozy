@@ -1,7 +1,9 @@
 package store
 
 import (
+	jsonv2 "encoding/json/v2"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -372,10 +374,12 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 		}
 
 		policy := SessionPermissionPolicy{
-			Tools:          []string{"compozy__task_update", " compozy__skill_view ", "compozy__skill_view"},
-			Skills:         []string{"go"},
-			MCPServers:     []string{"memory"},
-			WorkspacePaths: []string{"/repo"},
+			Tools:                  []string{"compozy__task_update", " compozy__skill_view ", "compozy__skill_view"},
+			Skills:                 []string{"go"},
+			MCPServers:             []string{"memory"},
+			WorkspacePaths:         []string{"/repo"},
+			MaterializedTools:      true,
+			MaterializedMCPServers: true,
 		}
 		rawPolicy, err := EncodeSessionPermissionPolicy(policy)
 		if err != nil {
@@ -386,10 +390,12 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 			t.Fatalf("DecodeSessionPermissionPolicy() error = %v", err)
 		}
 		wantPolicy := SessionPermissionPolicy{
-			Tools:          []string{"compozy__skill_view", "compozy__task_update"},
-			Skills:         []string{"go"},
-			MCPServers:     []string{"memory"},
-			WorkspacePaths: []string{"/repo"},
+			Tools:                  []string{"compozy__skill_view", "compozy__task_update"},
+			Skills:                 []string{"go"},
+			MCPServers:             []string{"memory"},
+			WorkspacePaths:         []string{"/repo"},
+			MaterializedTools:      true,
+			MaterializedMCPServers: true,
 		}
 		if !reflect.DeepEqual(decodedPolicy, wantPolicy) {
 			t.Fatalf("decoded policy = %#v, want %#v", decodedPolicy, wantPolicy)
@@ -527,6 +533,99 @@ func TestValidateChildSessionToolSubset(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "canonical ToolID") {
 			t.Fatalf("ValidateChildSessionToolSubset() error = %v, want canonical ToolID", err)
+		}
+	})
+}
+
+// Invariant: legacy intent depends only on persisted lineage/MCP atoms; owner: store boundary.
+func TestSessionPermissionIntent(t *testing.T) {
+	t.Parallel()
+	t.Run("Should decode root and derived policies independently of native atoms [UT-010]", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: unmarked v0.7.0 non-delegated budgets never become access limits.
+		for _, kind := range []LineageKind{
+			LineageKindRoot, LineageKindFork, LineageKindContinue, LineageKindProvenance, LineageKindRecovery,
+		} {
+			for _, stored := range []SessionPermissionPolicy{
+				{},
+				{Tools: []string{"compozy__session_list"}, MCPServers: []string{"linear"}},
+				{Tools: []string{"compozy__session_list"}, MaterializedTools: true},
+			} {
+				policy := DecodeIntent(stored, kind, "user")
+				if policy.MCPServersMode != PermissionInherit || policy.ToolsMode != PermissionInherit ||
+					!slices.Equal(BoundMCPServers(policy, []string{"linear", "sentry"}), []string{"linear", "sentry"}) {
+					t.Fatalf("%s: %+v", kind, policy)
+				}
+			}
+		}
+	})
+	t.Run("Should preserve explicit non-delegated lists", func(t *testing.T) {
+		t.Parallel()
+		for _, kind := range []LineageKind{LineageKindRoot, LineageKindProvenance} {
+			stored := SessionPermissionPolicy{ToolsMode: PermissionList, MCPServersMode: PermissionList}
+			got := DecodeIntent(stored, kind, "user")
+			if !reflect.DeepEqual(got, NormalizeSessionPermissionPolicy(stored)) {
+				t.Fatalf("explicit list changed: %+v", got)
+			}
+		}
+	})
+	t.Run("Should retain an empty legacy spawn as a list [UT-011]", func(t *testing.T) {
+		t.Parallel()
+		policy := DecodeIntent(SessionPermissionPolicy{}, LineageKindSpawn, "spawned")
+		if policy.MCPServersMode != PermissionList || policy.ToolsMode != PermissionList ||
+			len(BoundMCPServers(policy, []string{"linear"})) != 0 {
+			t.Fatalf("legacy spawn widened: %+v", policy)
+		}
+	})
+	t.Run("Should decode instance ceilings by depth and retain explicit markers [UT-102]", func(t *testing.T) {
+		t.Parallel()
+		for _, depth := range []int{0, 1, 2} {
+			policy := DecodeInstanceCeilingIntent(SessionPermissionPolicy{MCPServers: []string{"linear"}}, depth)
+			want := PermissionList
+			if depth == 0 {
+				want = PermissionInherit
+			}
+			if policy.MCPServersMode != want || policy.ToolsMode != want ||
+				!slices.Equal(policy.MCPServers, []string{"linear"}) {
+				t.Fatalf("depth %d: %+v", depth, policy)
+			}
+			if got := DecodeInstanceCeilingIntent(policy, 1-depth); !reflect.DeepEqual(got, policy) {
+				t.Fatalf("explicit markers changed: %+v", got)
+			}
+		}
+	})
+	t.Run("Should round trip an explicitly empty ancestor ceiling [UT-111]", func(t *testing.T) {
+		t.Parallel()
+		ceiling := IntersectMCPCeiling(new([]string{"linear"}), []string{"sentry"})
+		policy := SessionPermissionPolicy{
+			MCPServersMode:     PermissionInherit,
+			ToolsMode:          PermissionInherit,
+			AncestorMCPCeiling: ceiling,
+		}
+		raw, err := EncodeSessionPermissionPolicy(policy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := DecodeSessionPermissionPolicy(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decoded.AncestorMCPCeiling == nil || len(*decoded.AncestorMCPCeiling) != 0 ||
+			len(BoundMCPServers(decoded, []string{"linear", "sentry"})) != 0 {
+			t.Fatalf("explicit empty ceiling lost: %s / %+v", raw, decoded)
+		}
+		v2, err := jsonv2.Marshal(policy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(v2), `"ancestor_mcp_ceiling":[]`) {
+			t.Fatalf("v2 omitted empty ceiling: %s", v2)
+		}
+
+		absent := decoded
+		absent.AncestorMCPCeiling = nil
+		if len(BoundMCPServers(absent, []string{"linear", "sentry"})) != 2 {
+			t.Fatal("absent ceiling must inherit")
 		}
 	})
 }

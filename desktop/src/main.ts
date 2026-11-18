@@ -2,9 +2,8 @@ import { homedir } from "node:os";
 import { registerLinuxDesktop } from "./deep-links/linux-registration";
 
 import { randomUUID } from "node:crypto";
-import { access, mkdir } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
-import { setTimeout as delay } from "node:timers/promises";
 import { join, resolve } from "node:path";
 
 import {
@@ -21,9 +20,11 @@ import { BootstrapRunner } from "./bootstrap/bootstrap-runner";
 import { createDesktopCommandLineTool } from "./cli/electron-command-line-tool";
 import type { DesktopBuildChannel } from "./release/build-channel";
 import { verifyRuntimeBundle } from "./bootstrap/bundle-integrity";
-import { RuntimeHealthMonitor } from "./bootstrap/runtime-health-monitor";
+import { waitForE2EProductReady } from "./bootstrap/e2e-product-ready";
+import type { RuntimeHealthMonitor } from "./bootstrap/runtime-health-monitor";
+import { monitorProductRuntime } from "./bootstrap/runtime-reconnect";
 import { bootstrapSnapshot } from "./boot/bootstrap-state";
-import { isForwardedBootMethod } from "./boot/boot-contract";
+import { createBootControl } from "./boot/boot-control";
 import { createControlHandler } from "./control/control-handler";
 import { ControlMethodError } from "./control/control-contract";
 import { ControlServer } from "./control/control-server";
@@ -85,23 +86,6 @@ let installerOwnsQuit = false;
 const bootstrapAbort = new AbortController();
 let bootstrapFlow: Promise<void> | null = null;
 const commandLineTool = createDesktopCommandLineTool(paths, logger, __COMPOZY_DESKTOP_E2E_BUILD__);
-
-async function waitForE2EProductReady(): Promise<void> {
-  const readyPath = process.env.COMPOZY_DESKTOP_E2E_READY_FILE?.trim();
-  if (process.env.COMPOZY_DESKTOP_E2E !== "1" || !readyPath) return;
-  const deadline = Date.now() + 10_000;
-  while (Date.now() < deadline) {
-    bootstrapAbort.signal.throwIfAborted();
-    try {
-      await access(readyPath);
-      return;
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-    }
-    await delay(25, undefined, { signal: bootstrapAbort.signal });
-  }
-  throw new Error("The desktop E2E product-ready gate timed out.");
-}
 
 if (app.isPackaged && !__COMPOZY_DESKTOP_E2E_BUILD__) {
   for (const name of ["remote-debugging-port", "remote-debugging-pipe", "inspect", "inspect-brk"]) {
@@ -248,13 +232,19 @@ async function start(): Promise<void> {
     onPublished: snapshot => boot?.render(snapshot),
   });
   publisher = statePublisher;
-  boot = new BootWindow({
-    pagePath: resources.page,
-    preloadPath: resources.bootPreload,
-    presentation: windowPresentation,
-    theme: windowTheme,
-    onError: error => logger.error("load boot window", error),
-  });
+  /** Shows the boot window, reopening it (it presents itself on load) after the product closed it. */
+  function showBootWindow(): void {
+    if (boot && !boot.isDestroyed()) return boot.show();
+    boot = new BootWindow({
+      pagePath: resources.page,
+      preloadPath: resources.bootPreload,
+      presentation: windowPresentation,
+      theme: windowTheme,
+      snapshot: statePublisher.snapshot(),
+      onError: error => logger.error("load boot window", error),
+    });
+  }
+  showBootWindow();
   installApplicationMenu(() => product, commandLineTool?.install);
   await statePublisher.publish({ state: "resolving" });
 
@@ -281,22 +271,17 @@ async function start(): Promise<void> {
   controlServer = await ControlServer.start(paths.appSocket, token, controlHandler, error => {
     logger.error("serve app control request", error);
   });
-  ipcMain.handle("boot:control", async (_event, method: unknown, params: unknown) => {
-    if (method === "open_logs") {
-      const failure = await shell.openPath(paths.logs);
-      if (failure) throw new Error(failure);
-      return { opened: true };
-    }
-    if (method === "quit") {
-      void quitCleanly();
-      return { quitting: true };
-    }
-    if (typeof method !== "string") throw new Error("The boot action is invalid.");
-    if (isForwardedBootMethod(method)) {
-      return await controlHandler(method, params);
-    }
-    throw new Error("The boot action is not supported.");
+  const bootControl = createBootControl({
+    openLogs: async () => await shell.openPath(paths.logs),
+    openConfig: async () => await shell.openPath(paths.config),
+    openExternal: async url => await shell.openExternal(url),
+    targetVersion: () => statePublisher.snapshot().to_version,
+    quit: () => void quitCleanly(),
+    forward: async (method, params) => await controlHandler(method, params),
   });
+  ipcMain.handle("boot:control", async (_event, method: unknown, params: unknown) =>
+    bootControl(method, params)
+  );
 
   const runner = new BootstrapRunner({
     bundlePath: resources.bundle,
@@ -327,7 +312,9 @@ async function start(): Promise<void> {
       startUpdateConsumer(statePublisher);
       const runtime = await runner.run(async event => {
         if (bootstrapAbort.signal.aborted) return;
-        await statePublisher.publish(bootstrapSnapshot(event, paths.bootstrapLog));
+        await statePublisher.publish(
+          bootstrapSnapshot(event, paths.bootstrapLog, statePublisher.snapshot())
+        );
       }, bootstrapAbort.signal);
       if (bootstrapAbort.signal.aborted) return;
       applyDefaultDenyPermissions(session.defaultSession, runtime.origin);
@@ -349,14 +336,27 @@ async function start(): Promise<void> {
             owned: runtime.owned,
           });
           if (bootstrapAbort.signal.aborted) return;
-          runtimeMonitor = new RuntimeHealthMonitor({
-            origin: runtime.origin,
-            onDisconnected: async () => {
-              await product?.close();
+          runtimeMonitor = monitorProductRuntime(runtime, {
+            stopped: () => bootstrapAbort.signal.aborted,
+            publish: async snapshot => await statePublisher.publish(snapshot),
+            reloadProduct: async () => await product?.reload(),
+            productLoaded: () => product?.isLoaded() ?? false,
+            home: paths.home,
+            showBoot: showBootWindow,
+            renderBoot: snapshot => boot?.render(snapshot),
+            closeProduct: async () => {
+              const current = product;
               product = null;
-              await statePublisher.publish({ state: "disconnected" });
-              boot?.show();
+              const route = current?.route();
+              try {
+                await current?.discard();
+              } finally {
+                if (route) links.push(productDeepLink(route));
+              }
             },
+            resolveRuntime: runBootstrap,
+            logger,
+            logPath: paths.desktopLog,
           });
           runtimeMonitor.start();
           boot?.close();
@@ -371,11 +371,11 @@ async function start(): Promise<void> {
               log_path: paths.desktopLog,
             },
           });
-          boot?.show();
+          showBootWindow();
         },
         onError: error => logger.error("product window", error),
       });
-      await waitForE2EProductReady();
+      await waitForE2EProductReady(bootstrapAbort.signal);
       if (bootstrapAbort.signal.aborted) return;
       await product.create();
       commandLineTool?.firstRun();
@@ -396,7 +396,7 @@ async function start(): Promise<void> {
           },
         });
       }
-      boot?.show();
+      showBootWindow();
     }
   }
 
@@ -419,6 +419,7 @@ async function start(): Promise<void> {
             throw error;
           }
         },
+        onFeedFallback: error => logger.error("read app update feed", error),
       }),
       onError: error => {
         logger.error("consume app update operation", error);

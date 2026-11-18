@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -17,6 +18,9 @@ import (
 const (
 	sessionStreamErrorKey = "error"
 )
+
+var errRawStreamStopped = errors.New("raw stream stopped")
+var errRawGapRead = errors.New("raw stream gap read failed")
 
 type sessionStreamOptions struct {
 	frameMode          string
@@ -211,6 +215,48 @@ func (h *BaseHandlers) writeSessionEventBatch(
 	return afterSequence, nil
 }
 
+func (h *BaseHandlers) writeRawSequenceGap(
+	ctx context.Context,
+	writer FlushWriter,
+	sessionID string,
+	info *session.Info,
+	query store.EventQuery,
+	cursor, throughSequence int64,
+) (int64, error) {
+	for cursor < throughSequence {
+		query.AfterSequence = cursor
+		query.Limit = int(min(int64(query.Limit), throughSequence-cursor))
+		page, err := h.Sessions.Events(ctx, sessionID, query)
+		if err != nil {
+			return cursor, errors.Join(errRawGapRead, err)
+		}
+		end := 0
+		stopped := false
+		for end < len(page) && page[end].Sequence <= throughSequence {
+			stopped = page[end].Type == session.EventTypeSessionStopped
+			end++
+			if stopped {
+				break
+			}
+		}
+		next, err := h.writeSessionEventBatch(writer, page[:end], info)
+		if err != nil {
+			return cursor, err
+		}
+		if stopped {
+			return next, errRawStreamStopped
+		}
+		if end < len(page) || len(page) < query.Limit {
+			return throughSequence, nil
+		}
+		if next <= cursor {
+			return cursor, fmt.Errorf("raw sequence gap did not advance beyond %d", cursor)
+		}
+		cursor = next
+	}
+	return cursor, nil
+}
+
 func (h *BaseHandlers) writeSessionStoppedEvent(writer FlushWriter, latest *session.Info) error {
 	if latest == nil || latest.State != session.StateStopped {
 		return nil
@@ -329,9 +375,23 @@ func (h *BaseHandlers) pushAndStreamSessionEvents(
 					afterSequence,
 					event.Sequence,
 				)
-				subscription.cancelIfActive()
-				h.pollAndStreamSessionEvents(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
-				return
+				// Concurrent writers can publish ahead of an already committed prompt batch.
+				var err error
+				afterSequence, err = h.writeRawSequenceGap(
+					c.Request.Context(), writer, sessionID, currentInfo, pollQuery, afterSequence, event.Sequence-1,
+				)
+				if errors.Is(err, errRawStreamStopped) {
+					return
+				}
+				if errors.Is(err, errRawGapRead) {
+					subscription.cancelIfActive()
+					h.pollAndStreamSessionEvents(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
+					return
+				}
+				if err != nil {
+					h.writeTranscriptStreamError(writer, err)
+					return
+				}
 			}
 			nextSequence, err := h.writeSessionEventBatch(writer, []store.SessionEvent{event}, currentInfo)
 			if err != nil {

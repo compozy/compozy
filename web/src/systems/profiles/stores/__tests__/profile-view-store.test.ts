@@ -3,8 +3,10 @@
 // a failed persist restores the previous answer including "there wasn't one", and overlapping
 // switches roll back along their chain (a later switch keeps the view; a chain of failures returns
 // to where the operator started, #1194) — a profile that
-// stops existing is dropped, only the All profiles view is persisted for a reload, and only an
-// explicit change of view counts as a switch.
+// stops existing is dropped, only an All profiles view the operator chose is persisted for a reload
+// (a rollback after a write with an unknown outcome restores the screen, not the choice the next
+// document starts from; one the daemon refused restores both, #1436), and only an explicit change
+// of view counts as a switch.
 // Boundary IN: the module-scoped @xstate/store, its imperative API, and its localStorage envelope.
 // Boundary OUT: the remembered choice (server state, exercised through the selection hooks).
 
@@ -145,5 +147,48 @@ describe("profile view store", () => {
     // A concrete choice is daemon state; a reload resolves the remembered Global slot.
     setProfileView({ kind: "profile", profile: "marketing" });
     expect(persistedView()).toBeNull();
+  });
+
+  it("Should not start the next document in an All profiles view restored by a rollback [#1436]", () => {
+    setProfileView({ kind: "aggregate" });
+    failProfileSwitch(setProfileView({ kind: "profile", profile: "marketing" }) ?? 0);
+    expect(localProfileView()).toEqual({ kind: "aggregate" });
+    expect(persistedView()).toBeNull();
+
+    // Every later event rewrites the envelope, so the exclusion has to outlast the rollback itself.
+    enterProfileView({ kind: "profile", profile: "default" });
+    expect(persistedView()).toBeNull();
+
+    // Choosing All profiles again is an operator's choice, even with the view already showing it.
+    expect(setProfileView({ kind: "aggregate" })).toBeNull();
+    expect(persistedView()).toEqual({ kind: "aggregate" });
+  });
+
+  it("Should keep an unanswered write's doubt when a later switch is refused [#1436]", () => {
+    // In sequence: the first write's answer is lost, then the retry is refused.
+    setProfileView({ kind: "aggregate" });
+    failProfileSwitch(setProfileView({ kind: "profile", profile: "marketing" }) ?? 0);
+    failProfileSwitch(setProfileView({ kind: "profile", profile: "open-design" }) ?? 0, {
+      refused: true,
+    });
+    expect(localProfileView()).toEqual({ kind: "aggregate" });
+    expect(persistedView()).toBeNull();
+
+    // Overlapping: the earlier write's answer is lost while the later one is still on screen.
+    setProfileView({ kind: "aggregate" });
+    const lost = setProfileView({ kind: "profile", profile: "marketing" }) ?? 0;
+    const refused = setProfileView({ kind: "profile", profile: "open-design" }) ?? 0;
+    failProfileSwitch(lost);
+    failProfileSwitch(refused, { refused: true });
+    expect(localProfileView()).toEqual({ kind: "aggregate" });
+    expect(persistedView()).toBeNull();
+  });
+
+  it("Should keep All profiles for a reload when the daemon refused the switch [#1436]", () => {
+    setProfileView({ kind: "aggregate" });
+    const refused = setProfileView({ kind: "profile", profile: "marketing" }) ?? 0;
+    failProfileSwitch(refused, { refused: true });
+    expect(localProfileView()).toEqual({ kind: "aggregate" });
+    expect(persistedView()).toEqual({ kind: "aggregate" });
   });
 });

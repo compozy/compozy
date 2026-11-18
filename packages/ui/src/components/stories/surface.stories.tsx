@@ -30,7 +30,7 @@ export const Default: Story = {
   render: () => (
     <Surface className="flex flex-col gap-2">
       <span className="text-form-label text-muted-foreground">Active runs</span>
-      <span className="text-kpi-value font-display text-fg-strong tabular-nums">18</span>
+      <span className="text-kpi-value text-fg-strong tabular-nums">18</span>
     </Surface>
   ),
 };

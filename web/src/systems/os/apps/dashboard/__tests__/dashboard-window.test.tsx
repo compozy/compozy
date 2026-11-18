@@ -15,12 +15,24 @@ const desktop = {
   activeDesktopId: "desktop-1",
   focusedId: "win-1",
   windows: {
-    "win-1": { desktopId: "desktop-1", minimized: false, stackActive: true },
+    "win-1": { desktopId: "desktop-1", shown: true },
   },
 };
 
 vi.mock("../../../hooks/use-desktop", () => ({
   useDesktop: (selector: (state: typeof desktop) => unknown) => selector(desktop),
+}));
+
+// The live-data lease reads the desk projection, built from `desktop` when each window renders.
+const shell: { projection: WindowManagerProjectionAtom | null } = { projection: null };
+
+vi.mock("../../../hooks/use-os-shell", () => ({
+  useOsShell: () => {
+    shell.projection ??= createWindowManagerProjectionAtom(
+      desktop as unknown as OsDesktopRuntimeStore
+    );
+    return { projection: shell.projection };
+  },
 }));
 
 vi.mock("@/systems/status/hooks/use-daemon-connection-status", () => ({
@@ -43,6 +55,11 @@ vi.mock("@/systems/dashboard/components/home-dashboard", () => ({
 }));
 
 import { DashboardWindow } from "../dashboard-window";
+import type { OsDesktopRuntimeStore } from "../../../lib/os-types";
+import {
+  createWindowManagerProjectionAtom,
+  type WindowManagerProjectionAtom,
+} from "../../../lib/window-manager-projection";
 
 async function renderWindow() {
   const rootRoute = createRootRoute({
@@ -64,15 +81,12 @@ async function renderWindow() {
 
 describe("DashboardWindow", () => {
   beforeEach(() => {
+    shell.projection = null;
     homeDashboardSpy.mockClear();
     sessionCreate.hasActiveWorkspace = true;
     desktop.activeDesktopId = "desktop-1";
     desktop.focusedId = "win-1";
-    desktop.windows["win-1"] = {
-      desktopId: "desktop-1",
-      minimized: false,
-      stackActive: true,
-    };
+    desktop.windows["win-1"] = { desktopId: "desktop-1", shown: true };
   });
 
   it("Should mount the home dashboard body while connected", async () => {
@@ -106,21 +120,15 @@ describe("DashboardWindow", () => {
 
   it.each([
     {
-      name: "Home is minimized",
-      arrange: () => {
-        desktop.windows["win-1"].minimized = true;
-      },
-    },
-    {
       name: "another desktop is active",
       arrange: () => {
         desktop.activeDesktopId = "desktop-2";
       },
     },
     {
-      name: "another window in the stack is active",
+      name: "another tab is active",
       arrange: () => {
-        desktop.windows["win-1"].stackActive = false;
+        desktop.windows["win-1"].shown = false;
       },
     },
   ])("Should keep Home live reads dormant when $name", async ({ arrange }) => {

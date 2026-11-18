@@ -29,8 +29,25 @@ WHERE id = sqlc.arg(id) AND origin = 'delegated' AND child_activity <> sqlc.arg(
 UPDATE session_subagents SET child_activity = 'stopped', updated_at = sqlc.arg(now)
 WHERE origin = 'delegated' AND child_activity IN ('working','idle')
  AND status IN ('completed','failed','canceled','interrupted')
- AND child_session_id IN (SELECT id FROM sessions WHERE state = 'stopped')
+ AND (child_session_id IS NULL OR child_session_id IN (SELECT id FROM sessions WHERE state = 'stopped'))
 RETURNING *;
+
+-- name: StopDeletedSubagentChildActivity :exec
+UPDATE session_subagents SET
+ status = CASE WHEN status IN ('completed','failed','canceled','interrupted') THEN status ELSE 'interrupted' END,
+ work_state = CASE WHEN status IN ('completed','failed','canceled','interrupted') THEN work_state ELSE 'result_available' END,
+ error = CASE WHEN status IN ('completed','failed','canceled','interrupted') THEN error
+  ELSE COALESCE(error, 'delegation interrupted: child session deleted') END,
+ settled_at = CASE WHEN status IN ('completed','failed','canceled','interrupted') THEN settled_at
+  ELSE COALESCE(settled_at, sqlc.arg(now)) END,
+ child_activity = 'stopped',
+ delivery = CASE
+  WHEN status IN ('completed','failed','canceled','interrupted') THEN delivery
+  WHEN delivery = 'none' THEN 'pending'
+  ELSE delivery END,
+ updated_at = sqlc.arg(now)
+WHERE origin = 'delegated' AND child_session_id = sqlc.arg(child_id)
+ AND (child_activity <> 'stopped' OR status NOT IN ('completed','failed','canceled','interrupted'));
 
 -- name: ListSubagentsByParent :many
 SELECT * FROM session_subagents
@@ -42,23 +59,23 @@ WHERE parent_session_id = sqlc.arg(parent)
 ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit);
 
 -- name: ListSubagentsByParentUrgency :many
--- Most urgent first, matching the clients' display order: waiting, failed,
--- working (a resumed child included), queued, settled; then newest.
+-- Active work first, matching the clients' display order: waiting, working
+-- (a resumed child included), then failed, queued, settled; then newest.
 SELECT * FROM session_subagents
 WHERE parent_session_id = sqlc.arg(parent)
  AND (sqlc.arg(workspace) = '' OR workspace_id = sqlc.arg(workspace))
  AND (sqlc.arg(origins) = '[]' OR origin IN (SELECT value FROM json_each(sqlc.arg(origins))))
  AND (sqlc.arg(statuses) = '[]' OR status IN (SELECT value FROM json_each(sqlc.arg(statuses))))
  AND (sqlc.arg(cursor_id) = '' OR
-  (CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+  (CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+   WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
    WHEN status = 'queued' THEN 3 ELSE 4 END) > CAST(sqlc.arg(cursor_rank) AS INTEGER) OR
-  ((CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+  ((CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+   WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
    WHEN status = 'queued' THEN 3 ELSE 4 END) = CAST(sqlc.arg(cursor_rank) AS INTEGER) AND
    (created_at,id) < (sqlc.arg(cursor_time),sqlc.arg(cursor_id))))
-ORDER BY CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-  WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+ORDER BY CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+  WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
   WHEN status = 'queued' THEN 3 ELSE 4 END,
  created_at DESC,id DESC LIMIT sqlc.arg(page_limit);
 
@@ -152,6 +169,10 @@ UPDATE session_subagents SET pending_task = NULL, updated_at = ? WHERE id = ?;
 
 -- name: DeleteReservedSubagent :execrows
 DELETE FROM session_subagents WHERE id = ? AND status = 'queued' AND child_session_id IS NULL;
+
+-- name: DeleteSubagent :execrows
+DELETE FROM session_subagents WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+
 -- name: ListSubagentArchiveFamily :many
 WITH RECURSIVE family(id,state) AS (
  SELECT sessions.id,sessions.state FROM sessions WHERE sessions.workspace_id = sqlc.arg(workspace_id) AND sessions.id = sqlc.arg(session_id)
@@ -235,9 +256,9 @@ WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND parent_ses
  AND origin = 'provider_native' AND status = sqlc.arg(status) AND status IN ('completed','failed','canceled')
  AND result IS NULL;
 
--- name: ListNativeMissingResultSubagents :many
+-- name: ListNativeReplayCandidatesSubagents :many
 SELECT * FROM session_subagents
-WHERE origin = 'provider_native' AND status IN ('completed','failed','canceled') AND result IS NULL
+WHERE origin = 'provider_native' AND status IN ('completed','failed','canceled')
  AND settled_at >= sqlc.arg(since)
  AND (sqlc.arg(cursor_id) = '' OR (settled_at,id) < (sqlc.arg(cursor_time),sqlc.arg(cursor_id)))
 ORDER BY settled_at DESC, id DESC LIMIT sqlc.arg(row_limit);
@@ -275,3 +296,11 @@ SELECT EXISTS (
       AND NOT (wake_policy = 'settled_only' AND delivery = 'none'
         AND status IN ('completed','failed','canceled','interrupted'))
 );
+
+-- name: ResumeNativeSubagent :execrows
+UPDATE session_subagents SET status = 'running', work_state = 'working',
+ parent_turn_id = sqlc.arg(turn), result = NULL, error = NULL, result_truncated = 0,
+ progress = '', settled_at = NULL, updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND origin = 'provider_native'
+ AND status IN ('completed','failed','canceled','interrupted')
+ AND settled_at < sqlc.arg(now);

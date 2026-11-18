@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -17,6 +18,12 @@ func (m *Manager) sessionMCPServers(
 	agentDef compozyconfig.AgentDef,
 ) ([]compozyconfig.MCPServer, error) {
 	if spec.sessionType == SessionTypeTriage {
+		spec.checkInToolsStatus = "unavailable"
+		if m.checkInToolsDisabled {
+			spec.checkInToolsStatus = "disabled"
+		}
+	}
+	if spec.sessionType == SessionTypeTriage && (m.checkInToolsDisabled || !resolved.SessionMCP || m.hostedMCP == nil) {
 		return nil, nil
 	}
 	required := sessionRequiresHostedMCP(spec, resolved)
@@ -42,26 +49,59 @@ func (m *Manager) sessionMCPServers(
 		if required {
 			return nil, fmt.Errorf("%w: hosted MCP launcher is not configured", ErrHostedMCPUnavailable)
 		}
-		spec.startLogger(m).Warn(
-			"session.mcp.hosted_mcp_unavailable",
-			"reason", "hosted_mcp_launcher_unavailable",
-			"resolved_agent_name", strings.TrimSpace(resolved.Name),
-			"resolved_provider", strings.TrimSpace(resolved.Provider),
-			"configured_mcp_servers", len(resolved.MCPServers),
-		)
-		return m.resolveStartMCPServers(ctx, &spec.workspace, agentDef, resolved.MCPServers)
+		return m.directSessionMCPServers(ctx, spec, resolved, agentDef)
 	}
 	hosted, err := m.hostedMCP.Launch(ctx, HostedMCPLaunchRequest{
-		SessionID: spec.sessionID, ProfileID: spec.profileID,
-		WorkspaceID: spec.workspace.ID, AgentName: resolved.Name,
+		EagerTools:  true,
+		SessionID:   spec.sessionID,
+		ProfileID:   spec.profileID,
+		WorkspaceID: spec.workspace.ID,
+		AgentName:   resolved.Name,
 	})
 	if err != nil {
+		if spec.sessionType == SessionTypeTriage {
+			spec.startLogger(m).Warn("check_in_tools_unavailable", "error", err)
+			return nil, nil
+		}
 		return nil, errors.Join(
 			ErrHostedMCPUnavailable,
 			fmt.Errorf("session: mint hosted MCP launch for %q: %w", spec.sessionID, err),
 		)
 	}
+	if spec.sessionType == SessionTypeTriage {
+		spec.checkInToolsStatus = "enabled"
+	}
 	return []compozyconfig.MCPServer{hosted}, nil
+}
+
+func (m *Manager) directSessionMCPServers(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	resolved compozyconfig.ResolvedAgent,
+	agentDef compozyconfig.AgentDef,
+) ([]compozyconfig.MCPServer, error) {
+	spec.startLogger(m).Warn(
+		"session.mcp.hosted_mcp_unavailable",
+		"reason", "hosted_mcp_launcher_unavailable",
+		"resolved_agent_name", strings.TrimSpace(resolved.Name),
+		"resolved_provider", strings.TrimSpace(resolved.Provider),
+		"configured_mcp_servers", len(resolved.MCPServers),
+	)
+	servers, err := m.resolveStartMCPServers(ctx, &spec.workspace, agentDef, resolved.MCPServers)
+	if err == nil && m.mcpConsentFilter != nil {
+		servers, err = m.mcpConsentFilter(ctx, spec.profileID, spec.workspace.ID, servers)
+	}
+	if err != nil {
+		return nil, err
+	}
+	policy, err := m.effectiveStartAuthority(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+	servers = slices.DeleteFunc(servers, func(server compozyconfig.MCPServer) bool {
+		return !slices.Contains(policy.MCPServers, server.Name)
+	})
+	return servers, err
 }
 
 func sessionRequiresHostedMCP(spec *sessionStartSpec, resolved compozyconfig.ResolvedAgent) bool {
@@ -80,7 +120,7 @@ func sessionRequiresHostedMCP(spec *sessionStartSpec, resolved compozyconfig.Res
 		return false
 	}
 	policy := store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
-	return len(policy.Tools) > 0
+	return len(policy.Tools) > 0 && (!policy.MaterializedTools || !resolved.SessionMCP)
 }
 
 func (m *Manager) sessionMCPServerActivator(

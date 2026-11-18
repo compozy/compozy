@@ -32,6 +32,7 @@ export function ThreadViewport({
   sessionState,
   failure,
   startupFailed,
+  messageTrail = true,
   className,
   ...props
 }: ThreadViewportProps & {
@@ -42,6 +43,8 @@ export function ThreadViewport({
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
   startupFailed: boolean;
+  /** Off for an always-on agent's main: the trail and its outline read never mount. */
+  messageTrail?: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -54,7 +57,7 @@ export function ThreadViewport({
     transcript,
     workspaceId,
   } = useThreadViewport({ contentRef, isSessionRunning, sessionId, viewportRef });
-  const trailEnabled = Boolean(workspaceId) && navigation.trail.enabled;
+  const trailEnabled = messageTrail && Boolean(workspaceId) && navigation.trail.enabled;
   // Reads the trail's own cached outline: the gutter opens only when the trail
   // actually renders, so short sessions keep a centred transcript.
   const outline = useQuery(
@@ -80,6 +83,9 @@ export function ThreadViewport({
           ref={viewportRef}
           className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto", className)}
           data-testid="chat-view"
+          // `SCROLL_OWNER_ATTRIBUTE`: the transcript keeps its own reading position across a
+          // hidden pane (`useThreadScrollResume`), and the pane host leaves it alone.
+          data-scroll-owner=""
         >
           <ThreadContentRail
             ref={contentRef}
@@ -114,7 +120,7 @@ export function ThreadViewport({
           </ThreadContentRail>
         </div>
         {/* right-4 clears a classic 15px scrollbar; pr-12 keeps text off the 28px rail beside it. */}
-        {workspaceId && navigation.trail.enabled ? (
+        {trailEnabled && workspaceId ? (
           <SessionMessageTrail
             className="absolute top-1/2 right-4 z-10 -translate-y-1/2"
             onJumpToSequence={navigation.trail.onJumpToSequence}

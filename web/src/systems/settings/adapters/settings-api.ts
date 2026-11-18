@@ -39,6 +39,7 @@ export {
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
+  setSettingsProviderEnabled,
 } from "./settings-resources-api";
 export {
   OBSERVABILITY_LOG_TAIL_PATH,
@@ -48,6 +49,12 @@ export {
   settingsObservabilityLogTailPath,
   triggerSettingsRestart,
 } from "./settings-operations-api";
+export {
+  checkSettingsMCPServer,
+  importRuntimeMCPServer,
+  listRuntimeMCPServers,
+  putSettingsMCPApproval,
+} from "./settings-runtime-mcp-api";
 export { getRolesStatus, getSettingsRoles, updateSettingsRoles } from "./settings-roles-api";
 
 export { getSettingsMarketplace, updateSettingsMarketplace } from "./settings-marketplace-api";

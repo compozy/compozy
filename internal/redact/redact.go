@@ -13,7 +13,35 @@ func String(value string) string {
 	return processRedactor().RedactString(value)
 }
 
+// Args redacts argument values while preserving sensitive flag context and argument boundaries.
+func Args(args []string) []string {
+	if args == nil {
+		return nil
+	}
+	result := make([]string, len(args))
+	sensitive := false
+	for i, arg := range args {
+		flag, isFlag := strings.CutPrefix(arg, "--")
+		name, _, inline := strings.Cut(flag, "=")
+		switch {
+		case sensitive:
+			result[i] = Marker
+		case isFlag && inline && IsSensitiveKey(name):
+			// The whole inline value is secret, even when it holds spaces or commas.
+			result[i] = "--" + name + "=" + Marker
+		default:
+			result[i] = String(arg)
+		}
+		sensitive = !sensitive && isFlag && !strings.ContainsAny(flag, "= \t\r\n") && IsSensitiveKey(flag)
+	}
+	return result
+}
+
 func exactRedactString(value string) string {
+	return exactRedactStringWithSecrets(value, dynamicSecrets.valuesSnapshot())
+}
+
+func exactRedactStringWithSecrets(value string, secrets []string) string {
 	if value == "" {
 		return ""
 	}
@@ -31,10 +59,14 @@ func exactRedactString(value string) string {
 	}
 	redacted = shellFlagPattern.ReplaceAllStringFunc(redacted, redactShellFlag)
 	redacted = secretReferencePattern.ReplaceAllString(redacted, Marker)
-	for _, secret := range dynamicSecrets.valuesSnapshot() {
-		redacted = replaceSecretOutsideMarkers(redacted, secret)
+	return replaceRegisteredSecrets(redacted, secrets)
+}
+
+func replaceRegisteredSecrets(value string, secrets []string) string {
+	for _, secret := range secrets {
+		value = replaceSecretOutsideMarkers(value, secret)
 	}
-	return redacted
+	return value
 }
 
 func replaceSecretOutsideMarkers(value string, secret string) string {

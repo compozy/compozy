@@ -145,7 +145,8 @@ func extensionState(info *ExtensionInfo, status ExtensionStatus, daemonRunning b
 }
 
 func extensionHealth(manifest *Manifest, info *ExtensionInfo, status ExtensionStatus, daemonRunning bool) string {
-	if !daemonRunning {
+	// A disabled extension runs nothing, so no health can be observed for it.
+	if !daemonRunning || !info.Enabled {
 		return extensionHealthUnknown
 	}
 	if status.Active {

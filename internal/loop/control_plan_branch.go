@@ -146,18 +146,8 @@ func allBranchPathDependenciesSkipped(
 	for _, dependency := range dependencies {
 		dependencyOutput, ok := dependencyOutputForNode(topology, outputs, nodeID, dependency, itemIndex)
 		if !ok {
-			fanOutID, inFanOutBody := topology.inFanOutBody(dependency)
-			if inFanOutBody {
-				fanOutOutput, fanOutOK := dependencyOutputForNode(
-					topology,
-					outputs,
-					nodeID,
-					fanOutID,
-					itemIndex,
-				)
-				if fanOutOK && fanOutOutput.OutputRef == branchSkippedOutputRef {
-					continue
-				}
+			if skippedFanOutBodyDependency(topology, outputs, nodeID, dependency, itemIndex, isBranchSkippedOutputRef) {
+				continue
 			}
 			return false
 		}
@@ -170,6 +160,10 @@ func allBranchPathDependenciesSkipped(
 		return false
 	}
 	return true
+}
+
+func isBranchSkippedOutputRef(outputRef string) bool {
+	return outputRef == branchSkippedOutputRef
 }
 
 func itemIndexForSkippedNode(

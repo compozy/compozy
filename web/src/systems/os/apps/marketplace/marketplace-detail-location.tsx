@@ -41,6 +41,14 @@ export function MarketplaceDetailLocation({
   const entryName = entry?.name ?? entryId;
   const referrer = search.from === "installed" ? "Installed" : "Marketplace";
   const back = () => {
+    if (search.category && search.from !== "installed") {
+      void navigate({
+        params: { category: search.category },
+        search: { q: search.q },
+        to: "/marketplace/categories/$category",
+      });
+      return;
+    }
     void navigate({
       search: { q: search.q },
       to: search.from === "installed" ? "/marketplace/installed" : "/marketplace",
@@ -91,7 +99,11 @@ export function MarketplaceDetailLocation({
   }
   return (
     <>
-      <MarketplaceDetail data={query.data} liveDataEnabled={liveDataEnabled} />
+      <MarketplaceDetail
+        data={query.data}
+        focusSetup={search.setup === 1}
+        liveDataEnabled={liveDataEnabled}
+      />
       {actions.dialogs}
     </>
   );

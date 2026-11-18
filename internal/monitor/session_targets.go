@@ -54,11 +54,20 @@ func targetReadBudget(spec Spec) time.Duration {
 // errWatchQuiesced ends a session watch without an outcome; the monitor stays active for the next boot.
 var errWatchQuiesced = errors.New("monitor: session watches are quiesced")
 
+// TargetScope is the immutable owner resolved when a session watch is authorized.
+// It is persisted privately, never returned on public monitor surfaces.
+type TargetScope struct {
+	SessionID   string `json:"session_id"`
+	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
+}
+
 // TargetStatus is the state of one watched session.
 type TargetStatus struct {
-	SessionID string `json:"session_id"`
-	Name      string `json:"name,omitempty"`
-	State     string `json:"state"`
+	OccurrenceID string `json:"occurrence_id,omitempty"`
+	SessionID    string `json:"session_id"`
+	Name         string `json:"name,omitempty"`
+	State        string `json:"state"`
 	// Matched reports that this target counts toward the monitor's condition.
 	Matched bool `json:"matched"`
 }

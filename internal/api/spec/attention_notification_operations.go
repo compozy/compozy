@@ -45,7 +45,10 @@ func attentionNotificationOperations() []OperationSpec {
 			),
 			RequestBody: contract.AcknowledgeAttentionRequest{},
 			Responses: []ResponseSpec{
-				{Status: 204, Description: "Receipts committed atomically; source state unchanged"},
+				{
+					Status:      204,
+					Description: "Receipts committed atomically; bell layout-upgrade notices also acknowledged durably",
+				},
 				{Status: 400, Description: "Invalid snapshot request", Body: contract.ErrorPayload{}},
 				{Status: 403, Description: "Operator surface", Body: contract.ErrorPayload{}},
 				{

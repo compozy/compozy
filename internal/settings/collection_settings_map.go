@@ -8,6 +8,12 @@ import (
 
 func providerSettingsMap(settings ProviderSettings) map[string]any {
 	values := make(map[string]any)
+	if settings.RuntimeMCP != "" {
+		values["runtime_mcp"] = settings.RuntimeMCP
+	}
+	if settings.AutoCompactWindow != nil {
+		values["auto_compact_window"] = *settings.AutoCompactWindow
+	}
 	if settings.SteerCapability != "" {
 		values["steer_capability"] = string(settings.SteerCapability)
 	}
@@ -32,24 +38,7 @@ func providerSettingsMap(settings ProviderSettings) map[string]any {
 	if strings.TrimSpace(settings.BaseURL) != "" {
 		values["base_url"] = strings.TrimSpace(settings.BaseURL)
 	}
-	if settings.AuthMode != "" {
-		values["auth_mode"] = string(settings.AuthMode)
-	}
-	if settings.EnvPolicy != "" {
-		values["env_policy"] = string(settings.EnvPolicy)
-	}
-	if settings.HomePolicy != "" {
-		values["home_policy"] = string(settings.HomePolicy)
-	}
-	if strings.TrimSpace(settings.AuthStatusCmd) != "" {
-		values["auth_status_command"] = strings.TrimSpace(settings.AuthStatusCmd)
-	}
-	if settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "" {
-		values["auth_login_command"] = strings.TrimSpace(settings.AuthLoginCmd)
-	}
-	if settings.AuthACPMethodSet || strings.TrimSpace(settings.AuthACPMethod) != "" {
-		values["auth_acp_method"] = strings.TrimSpace(settings.AuthACPMethod)
-	}
+	populateProviderAuthSettingsMap(values, settings)
 	if len(settings.CredentialSlots) > 0 {
 		values["credential_slots"] = providerCredentialSlotMaps(settings.CredentialSlots)
 	}
@@ -89,4 +78,25 @@ func providerCredentialSlotMaps(slots []compozyconfig.ProviderCredentialSlot) []
 		}
 	}
 	return values
+}
+
+func populateProviderAuthSettingsMap(values map[string]any, settings ProviderSettings) {
+	if settings.AuthMode != "" {
+		values["auth_mode"] = string(settings.AuthMode)
+	}
+	if settings.EnvPolicy != "" {
+		values["env_policy"] = string(settings.EnvPolicy)
+	}
+	if settings.HomePolicy != "" {
+		values["home_policy"] = string(settings.HomePolicy)
+	}
+	if strings.TrimSpace(settings.AuthStatusCmd) != "" {
+		values["auth_status_command"] = strings.TrimSpace(settings.AuthStatusCmd)
+	}
+	if settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "" {
+		values["auth_login_command"] = strings.TrimSpace(settings.AuthLoginCmd)
+	}
+	if settings.AuthACPMethodSet || strings.TrimSpace(settings.AuthACPMethod) != "" {
+		values["auth_acp_method"] = strings.TrimSpace(settings.AuthACPMethod)
+	}
 }

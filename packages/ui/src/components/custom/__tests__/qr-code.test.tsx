@@ -6,11 +6,26 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { encode } from "uqr";
 
+import { THEMES, readToken, type Theme } from "../../../__tests__/token-source";
+import { contrastRatio, parseHexColor, relativeLuminance, type Rgb } from "../../../lib/contrast";
 import { QrCode } from "../qr-code";
 
 // Pairing links carry their artifact in the fragment, which is what the product
 // actually encodes into a QR code.
 const PAYLOAD = "https://gateway.example.test/#pair=cpz_gwp_2f8c1d5a9b";
+
+// Scanners need a strong module/plate separation; AAA text contrast is a safe floor.
+const QR_MIN_CONTRAST = 7;
+
+/** Resolves an element's `fill-<token>` utility to the colour the shipped tokens paint. */
+function resolvedFill(element: Element | null, theme: Theme): Rgb {
+  const utility = Array.from(element?.classList ?? []).find(name => name.startsWith("fill-"));
+  if (!utility) throw new Error("expected a fill-<token> utility on the QR element");
+  const value = readToken(`color-${utility.slice("fill-".length)}`, theme);
+  const rgb = parseHexColor(value);
+  if (!rgb) throw new Error(`expected a hex colour for ${utility} (${theme}), got "${value}"`);
+  return rgb;
+}
 
 describe("QrCode", () => {
   it("Should expose the matrix as a labelled image rather than raw payload text", () => {
@@ -38,13 +53,16 @@ describe("QrCode", () => {
     expect(second).not.toBe(first);
   });
 
-  it("Should keep dark modules on a light plate so scanners are not handed an inverted code", () => {
-    const { container } = render(<QrCode value={PAYLOAD} label="Scan to pair" />);
-    const plate = container.querySelector('[data-slot="qr-code"] rect');
-    const path = container.querySelector('[data-slot="qr-code"] path');
-    expect(plate).toHaveClass("fill-viz-cell");
-    expect(path).toHaveClass("fill-brand-ink");
-  });
+  it.each(THEMES)(
+    "Should paint dark modules on a light plate in the %s theme so scanners are not handed an inverted code",
+    theme => {
+      const { container } = render(<QrCode value={PAYLOAD} label="Scan to pair" />);
+      const plate = resolvedFill(container.querySelector('[data-slot="qr-code"] rect'), theme);
+      const modules = resolvedFill(container.querySelector('[data-slot="qr-code"] path'), theme);
+      expect(relativeLuminance(modules)).toBeLessThan(relativeLuminance(plate));
+      expect(contrastRatio(modules, plate)).toBeGreaterThanOrEqual(QR_MIN_CONTRAST);
+    }
+  );
 
   it("Should keep accessibility and matrix geometry invariant when SVG props conflict", () => {
     const { container, rerender } = render(

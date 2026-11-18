@@ -103,10 +103,17 @@ const (
 	ErrorCodeAgentInstanceNotFound ErrorCode = "agent_instance_not_found"
 	// ErrorCodeAgentInstanceStarting reports a target instance without a main session yet.
 	ErrorCodeAgentInstanceStarting ErrorCode = "agent_instance_starting"
+	// ErrorCodeProviderDisabled reports a start, resume or runtime change on a provider the
+	// operator disabled with providers.<id>.enabled = false.
+	ErrorCodeProviderDisabled ErrorCode = "provider_disabled"
 )
 
 // ToolError carries stable reason codes with a wrapped cause.
 type ToolError struct {
+	Retryable       bool   `json:"retryable,omitzero"`
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	ProviderError   string `json:"provider_error,omitempty"`
+
 	Code          ErrorCode        `json:"code"`
 	ToolID        ToolID           `json:"tool_id,omitempty"`
 	Message       string           `json:"message"`

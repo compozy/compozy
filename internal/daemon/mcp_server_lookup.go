@@ -100,8 +100,13 @@ func (s *mcpSourceSelection) consider(record resources.Record[compozyconfig.MCPS
 
 func daemonConfigDeclaresMCPServer(state *bootState, name string) bool {
 	matches := func(server compozyconfig.MCPServer) bool { return strings.TrimSpace(server.Name) == name }
-	if slices.ContainsFunc(state.cfg.MCPServers, matches) {
-		return true
+	for _, server := range state.cfg.MCPServers {
+		if state.toolMCPResources != nil && strings.TrimSpace(server.DefinitionSource) != "" {
+			continue
+		}
+		if matches(server) {
+			return true
+		}
 	}
 	for _, provider := range state.cfg.Providers {
 		if slices.ContainsFunc(provider.MCPServers, matches) {

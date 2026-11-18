@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -14,16 +15,42 @@ type dispatchTarget struct {
 	handle     Handle
 	view       ToolView
 	evaluator  *EffectivePolicyEvaluator
+	audit      *checkInDispatch
 }
 
-func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallRequest) (ToolResult, error) {
+func (r *RuntimeRegistry) dispatch(
+	ctx context.Context,
+	scope Scope,
+	req CallRequest,
+) (result ToolResult, callErr error) {
+	ctx, _ = withCallScopeAccess(ctx)
+	handlerCtx := ctx
+	ctx = r.ReadContext(ctx)
+	inputs, err := r.policyInputsFor(ctx, scope)
+	audit := &checkInDispatch{
+		recorder:   r.checkInRecorder,
+		policy:     inputs.CheckIn,
+		input:      req.Input,
+		descriptor: Descriptor{ID: req.ToolID},
+		started:    time.Now(),
+	}
+	defer func() {
+		finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := audit.finish(finishCtx, callErr); err != nil {
+			callErr = err
+		}
+	}()
+	if err != nil {
+		audit.denyReason = string(ReasonCheckInPolicyUnavailable)
+		return ToolResult{}, err
+	}
 	started := time.Now().UTC()
 	// The record exists before normalization so a cross-workspace admission there marks it.
-	ctx, _ = withCallScopeAccess(ctx)
 	if err := contextErr(ctx, req.ToolID); err != nil {
 		return ToolResult{}, err
 	}
-	req, err := r.normalizeDispatchCallRequest(ctx, scope, req)
+	req, err = r.normalizeDispatchCallRequest(ctx, scope, req)
 	if err != nil {
 		return ToolResult{}, err
 	}
@@ -31,6 +58,11 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 		return ToolResult{}, invalidInputError(req.ToolID, "tool id is invalid", err)
 	}
 	target, err := r.resolveDispatchTarget(ctx, scope, req)
+	target.audit = audit
+	if target.descriptor.ID != "" {
+		audit.descriptor = target.descriptor
+		setCallSpanRisk(ctx, target.descriptor.Risk)
+	}
 	if contextError := contextErr(ctx, req.ToolID); contextError != nil {
 		err = contextError
 	}
@@ -40,15 +72,23 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 		}
 		return ToolResult{}, r.failDispatch(ctx, &target, req, started, err, ToolCallFailed)
 	}
-	var result ToolResult
-	profiling.Do(ctx, func(ctx context.Context) {
-		result, err = r.executeDispatchTarget(ctx, scope, req, &target, started)
+	// These synchronous catalog readers consume the admitted snapshot. Mutation handlers keep
+	// the original context so synthetic rows and post-mutation reads cannot reuse stale authority.
+	if target.descriptor.Source.Kind == SourceBuiltin && AccessOf(target.descriptor) == AccessRead {
+		switch target.descriptor.ID {
+		case ToolIDToolList, ToolIDToolSearch, ToolIDToolInfo:
+			handlerCtx = ctx
+		}
+	}
+	profiling.Do(handlerCtx, func(handlerCtx context.Context) {
+		result, err = r.executeDispatchTarget(ctx, handlerCtx, scope, req, &target, started)
 	}, "tool", string(target.descriptor.ID), "session_id", scope.SessionID)
 	return result, err
 }
 
 func (r *RuntimeRegistry) executeDispatchTarget(
 	ctx context.Context,
+	handlerCtx context.Context,
 	scope Scope,
 	req CallRequest,
 	target *dispatchTarget,
@@ -75,10 +115,16 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 		return ToolResult{}, err
 	}
 	if err := validateCallInput(target.descriptor, req.Input); err != nil {
+		if target.audit != nil {
+			target.audit.denyReason = string(ReasonCheckInInputInvalid)
+		}
 		return ToolResult{}, r.failDispatch(ctx, target, req, started, err, ToolCallFailed)
 	}
 	patchedReq, err := r.runPreCallHook(ctx, scope, target, req)
 	if err != nil {
+		if target.audit != nil {
+			target.audit.denyReason = string(ReasonCheckInHookDenied)
+		}
 		return ToolResult{}, r.failDispatch(ctx, target, req, started, err, ToolCallDenied)
 	}
 	patchedReq, err = r.bindCallInput(ctx, scope, target.descriptor, patchedReq)
@@ -93,9 +139,14 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 		)
 	}
 	if err := validateCallInput(target.descriptor, patchedReq.Input); err != nil {
+		if target.audit != nil {
+			target.audit.denyReason = string(ReasonCheckInInputInvalid)
+		}
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallFailed)
 	}
-	scopeAccess := callScopeAccessFrom(ctx)
+	if err := checkPinnedResultView(target.descriptor, patchedReq); err != nil {
+		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
+	}
 	if err := r.authorizeBoundCallInput(ctx, scope, target.descriptor, patchedReq); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
@@ -104,7 +155,7 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	}
 	// Hooks may change dry-run or checks-off into a mutating operation.
 	if target.evaluator != nil {
-		decision, err := target.evaluator.evaluateCall(target.descriptor, patchedReq.Input)
+		decision, err := target.evaluator.evaluateCallContext(ctx, target.descriptor, patchedReq.Input)
 		if err != nil {
 			return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 		}
@@ -116,7 +167,37 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	if err := r.requestApproval(ctx, scope, target, &patchedReq); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
-	providerResult, err := target.handle.Call(ctx, patchedReq)
+	return r.invokeDispatchTarget(ctx, handlerCtx, scope, patchedReq, target, started)
+}
+
+func (r *RuntimeRegistry) invokeDispatchTarget(
+	ctx context.Context,
+	handlerCtx context.Context,
+	scope Scope,
+	patchedReq CallRequest,
+	target *dispatchTarget,
+	started time.Time,
+) (ToolResult, error) {
+	if target.audit != nil {
+		target.audit.input = patchedReq.Input
+		if err := target.audit.begin(ctx, ""); err != nil {
+			return ToolResult{}, err
+		}
+		target.audit.invoked = true
+	}
+	handlerReq := patchedReq
+	patchedReq.View, handlerReq.Input = resolveResultView(target.descriptor, patchedReq.Input)
+	handlerReq.View = patchedReq.View
+	// A backend may mutate before returning an error; denied and read-only native calls do not invalidate.
+	if r.projectionInvalidator != nil &&
+		(target.descriptor.Source.Kind != SourceBuiltin || AccessOf(target.descriptor) != AccessRead) {
+		defer r.projectionInvalidator()
+	}
+	// Admission snapshots must not escape into handlers that mutate and then read again.
+	providerResult, err := target.handle.Call(handlerCtx, handlerReq)
+	if target.audit != nil {
+		target.audit.semanticError = bytes.Equal(providerResult.Metadata["is_error"], []byte("true"))
+	}
 	if contextError := contextErr(ctx, target.descriptor.ID); contextError != nil {
 		err = contextError
 	}
@@ -125,7 +206,7 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 		normalized = r.runPostErrorHook(ctx, scope, target, patchedReq, normalized)
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, normalized, ToolCallFailed)
 	}
-	if scopeAccess.outsideCallerScope() {
+	if callScopeAccessFrom(ctx).outsideCallerScope() {
 		providerResult = redactOutsideScopeResult(providerResult)
 	}
 	return r.completeDispatch(ctx, scope, target, patchedReq, started, providerResult)
@@ -252,7 +333,7 @@ func (r *RuntimeRegistry) resolveDispatchTarget(
 	effective, isEffective := evaluator.(*EffectivePolicyEvaluator)
 	var decision EffectiveToolDecision
 	if isEffective && effective != nil {
-		decision, err = effective.evaluateCall(entry.descriptor, req.Input)
+		decision, err = effective.evaluateCallContext(ctx, entry.descriptor, req.Input)
 	} else {
 		decision, err = evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
 	}

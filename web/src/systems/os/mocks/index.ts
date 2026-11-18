@@ -5,7 +5,9 @@ export {
   osSessionAttentionEventFixture,
   windowManagerSnapshotFixture,
   windowManagerStoryDesktopId,
+  windowManagerStoryTabId,
   windowManagerStoryWindowId,
+  windowManagerTabsSnapshotFixture,
 } from "./fixtures";
 export {
   cmdPaletteStoryClientId,

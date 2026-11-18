@@ -8,6 +8,7 @@ import (
 )
 
 type InstanceWakeState struct {
+	LastReason                                                                     string
 	UnattendedTurns                                                                int64
 	RotationDueSession                                                             string
 	InstanceID, NextWakeAt, LastWakeAt, LastDigest, LastDigestAt, AutomationCursor string
@@ -26,11 +27,16 @@ type AdmitRequest struct {
 	MaxConcurrent            int
 }
 type FinishResult struct {
+	Picks   []agentinstance.Pick
 	Changed bool
 	Paused  *agentinstance.Instance
 }
 
 type FinishRequest struct {
+	Actions                                                  []ActionDecl
+	AuthorityDigest, DefinitionDir                           string
+	AutoAcceptPerDay, QueueCap                               int
+	ToolsStatus                                              string
 	HasSources, SourceMore                                   bool
 	MinInterval                                              time.Duration
 	UnattendedTurnLimit                                      int64

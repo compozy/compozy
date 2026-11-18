@@ -12,7 +12,7 @@ func newMarketplaceSourcesCommand(deps commandDeps) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "sources",
 		Short: "Manage plugin marketplace sources",
-		Long:  "Manage global plugin marketplace sources.\n\nStability: experimental through v0.6.0.",
+		Long:  "Manage global plugin marketplace sources.\n\nStability: experimental.",
 	}
 	command.AddCommand(
 		newMarketplaceSourcesListCommand(deps),
@@ -27,7 +27,7 @@ func newMarketplaceSourcesListCommand(deps commandDeps) *cobra.Command {
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List configured sources and diagnostics",
-		Long:  "List configured sources and diagnostics.\n\nStability: experimental through v0.6.0.",
+		Long:  "List configured sources and diagnostics.\n\nStability: experimental.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := marketplaceSourcesClient(deps)
@@ -49,7 +49,7 @@ func newMarketplaceSourcesAddCommand(deps commandDeps) *cobra.Command {
 	add := &cobra.Command{
 		Use:   "add <ref>",
 		Short: "Add a GitHub repository, HTTPS git source, or absolute folder",
-		Long:  "Validate and add a plugin marketplace.\n\nStability: experimental through v0.6.0.",
+		Long:  "Validate and add a plugin marketplace.\n\nStability: experimental.",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := marketplaceSourcesClient(deps)
@@ -77,7 +77,7 @@ func newMarketplaceSourcesRemoveCommand(deps commandDeps) *cobra.Command {
 	remove := &cobra.Command{
 		Use:   "remove <name>",
 		Short: "Remove a custom source and keep installed extensions",
-		Long:  "Remove a custom source and keep installed extensions.\n\nStability: experimental through v0.6.0.",
+		Long:  "Remove a custom source and keep installed extensions.\n\nStability: experimental.",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := marketplaceSourcesClient(deps)
@@ -97,7 +97,7 @@ func newMarketplaceSourcesRefreshCommand(deps commandDeps) *cobra.Command {
 	refresh := &cobra.Command{
 		Use:   "refresh <name>",
 		Short: "Refresh one configured source",
-		Long:  "Refresh one configured source.\n\nStability: experimental through v0.6.0.",
+		Long:  "Refresh one configured source.\n\nStability: experimental.",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := marketplaceSourcesClient(deps)

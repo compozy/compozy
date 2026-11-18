@@ -33,7 +33,7 @@ func spawnDetachedDaemonProcess(
 	child, err := procutil.SpawnDetachedLoggedProcess(ctx, procutil.DetachedLaunchRequest{
 		Binary:  binary,
 		Args:    []string{daemonDaemonKey, daemonStartKey, "--foreground", "--" + internalChildFlagName},
-		Sandbox: compozylogger.WithMirrorToStderrEnv(os.Environ(), false),
+		Sandbox: compozylogger.WithMirrorToStderrEnv(procutil.WithoutInternalHandoffEnv(os.Environ()), false),
 		LogPath: daemonStdioLogPath(homePaths),
 	})
 	if err != nil {

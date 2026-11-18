@@ -20,6 +20,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/vault"
@@ -99,6 +100,9 @@ func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normal
 	if errors.Is(err, context.Canceled) {
 		return normalizedErrorStatus{status: statusClientClosedRequest, err: err}
 	}
+	if _, ok := errors.AsType[*session.MCPReloadError](err); ok {
+		return normalizedErrorStatus{status: http.StatusConflict, err: err}
+	}
 	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
 		status = http.StatusUnprocessableEntity
 		maskInternalErrors = false
@@ -108,7 +112,8 @@ func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normal
 		err = ErrRequestBodyTooLarge
 		maskInternalErrors = false
 	}
-	if errors.Is(err, admission.ErrDraining) {
+	if errors.Is(err, admission.ErrDraining) || errors.Is(err, admission.ErrStarting) {
+		status = http.StatusServiceUnavailable
 		maskInternalErrors = false
 	}
 	if errors.Is(err, gateway.ErrDeviceRevoked) {
@@ -278,7 +283,9 @@ func StatusForAutomationError(err error) int {
 		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, looppkg.ErrDefinitionNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, automationpkg.ErrJobNameTaken),
+	case errors.Is(err, automationpkg.ErrRunActive),
+		errors.Is(err, automationpkg.ErrRunReservationConflict),
+		errors.Is(err, automationpkg.ErrJobNameTaken),
 		errors.Is(err, automationpkg.ErrSuggestionResolved),
 		errors.Is(err, automationpkg.ErrSuggestionPendingCap),
 		errors.Is(err, automationpkg.ErrTriggerNameTaken),

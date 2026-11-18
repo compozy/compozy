@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa;docs/qa/reports/2026-09-12-session-context.md
+evidence: unpublished-local-artifact/qa;docs/qa/reports/2026-09-12-session-context.md
 last_report: docs/qa/reports/2026-09-12-session-context.md
 overlaps:
 ---
@@ -42,3 +42,18 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
 Session-context integration: compare the cache-read/cache-write tiles with the aggregate and per-turn rows. Unknown and unavailable context must not change the independently reported cost provenance. Final execution is owned by session-context tasks 05/06.
 
 QA 2026-09-12: session-context final feature pass; runtime, focused integration/browser and 43 visual-pair evidence are separated in the linked report. Unchanged lifecycle/roll-up behavior reuses the earlier owning evidence; this pass verifies the new Context surface and its coexistence.
+
+## Cumulative cost accounting (2026-11-09)
+
+Run three turns reporting cumulative USD amounts 1, 3 and 4. Confirm per-turn costs 1, 2 and 1
+in usage/turns, transcript usage parts and the live prompt stream, with session/task/daily total 4.
+Release and resume the runtime, then restart the daemon: a restored report 5 contributes 1;
+a lower report 0.5 contributes zero, and the next report 2 contributes 1.5. Also verify a lagging
+restore: `10, 12, 11.5, 12.5` produces `10, 2, 0, 1`, including across runtime restart.
+An explicitly per-turn adapter keeps its reported amounts.
+Upgrade a prior database with complete and missing session ledgers. Recomputed rows become actual;
+missing/partial histories become unknown with no amount. Token counts, turn counts and timestamps
+remain byte/value equivalent. Reopening must not repeat the repair.
+
+Focused SQLite migration and prompt-contract tests are recorded in the harness efficiency report.
+A fresh browser/HTTP/UDS scenario walk is not claimed by those tests.

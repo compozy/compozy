@@ -89,7 +89,15 @@ func (n *daemonNativeTools) loopNodes(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
-	return structuredResult(response, fmt.Sprintf("%d loop nodes", len(response.Items)))
+	return (resultViews[contract.LoopNodeInventoryResponse]{
+		Compact: viewLoopNodes,
+		Preview: func(contract.LoopNodeInventoryResponse) string {
+			return fmt.Sprintf("%d loop nodes", len(response.Items))
+		},
+	}).result(
+		req.View,
+		response,
+	)
 }
 
 func (n *daemonNativeTools) loopNodePause(

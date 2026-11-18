@@ -4,9 +4,9 @@ area: ET
 title: Operate every desktop surface from the static menubar
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: The CompozyOS mark is one `role="menubar"`. The Global scope globe sits between the mark and the workspace chip, outside `role="menubar"`. The workspace chip is a second `role="menubar"`. The static Session · Go · Window · Help set is a third `role="menubar"`; ←/→ traverse each menubar, Home/End jump to the ends, ↓ enters a menu, → opens a submenu, Esc closes, and hovering a sibling switches the open menu. Compact viewports (<960px) hide the app menus but keep mark · globe · chip leading. CompozyOS opens About/Settings/Appearance/Layouts, Session creates a session or agent and opens the catalog, Go mirrors the dock groups plus the palette and Workspaces, Window carries the everyday window actions in the shell-rail order — an Arrange group (Main and stack, Columns, Grid, Balance sizes), a Move window to submenu naming every other desktop, Zoom, Minimize, Floating, Move & resize, All desktops, Close — with real chords while directional focus, tab merge/detach, layout undo/redo, and desktop stepping stay palette/keyboard commands, and Help reaches the shortcut reference, docs, protocol, changelog, issues, and support; every item is disabled — never hidden — when its runtime predicate fails, and no chord glyph renders unless the registry actually binds it.
+expected: The CompozyOS mark is one `role="menubar"`. The Global scope globe sits between the mark and the workspace chip, outside `role="menubar"`. The workspace chip is a second `role="menubar"`. The static Session · Go · Window · Help set is a third `role="menubar"`; ←/→ traverse each menubar, Home/End jump to the ends, ↓ enters a menu, → opens a submenu, Esc closes, and hovering a sibling switches the open menu. Compact viewports (<960px) hide the app menus but keep mark · globe · chip leading. CompozyOS opens About/Settings/Appearance/Layouts, Session creates a session or agent and opens the catalog, Go mirrors the dock groups plus the palette and Workspaces, Window carries, in order, Move to new tab (for a window in a split), Arrange ▸ (Main and stack, Columns, Grid, Balance sizes), Move to desktop ▸ naming every other desktop (with one desktop it stays disabled with "needs another desktop"), All desktops, and Close window — with real chords — and has no Zoom, Minimize, Floating, Move & resize, merge or detach item, while directional focus, layout undo/redo, and desktop stepping stay palette/keyboard commands, and Help reaches the shortcut reference, docs, protocol, changelog, issues, and support; every item is disabled — never hidden — when its runtime predicate fails, and no chord glyph renders unless the registry actually binds it.
 entry_points: web desktop menubar; keyboard traversal from the menubar; <960px compact viewport
-qa_status: skipped
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -59,3 +59,10 @@ roles, focus containment, and absence of retained-focus aria-hidden warnings.
 
 Focused evidence and limits: [2026-10-29 overlay focus report](../reports/2026-10-29-overlay-focus-handoff.md).
 Historical unrelated menu coverage remains unchanged.
+
+qa-impact: 2026-11-13 window-tabs-split S9: the tray's desktop dots gained a context menu (Rename,
+Move left, Move right, Close desktop, New desktop) and grow into drop targets during a tab drag.
+They stay outside every `role="menubar"`; confirm menubar traversal skips them. Behavior is owned
+by RT-desktop-pager-overview.
+
+qa-impact: 2026-11-13 window-tabs-split S10. The Window menu now follows `web/src/systems/os/components/menubar/window-menu.tsx`: Move to new tab, Arrange ▸, Move to desktop ▸, All desktops, Close window. Zoom, Minimize, Floating, Move & resize and the tab merge/detach items were retired with floating windows; the menu notes above that list them are history. Walk: open Window with a single-window tab (Move to new tab stays in place, disabled with "needs a window in a split"; the palette's four "Move to tab's left|right|top|bottom edge" commands read the same reason), with a split tab (Move to new tab runs and the window becomes its own tab), and with one desktop (Move to desktop disabled with "needs another desktop"); confirm none of the retired items render.

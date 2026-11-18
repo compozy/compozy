@@ -2,7 +2,53 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+type ResourcesListParams struct {
+	Kind  ResourceKind   `json:"kind,omitempty"`
+	Scope *ResourceScope `json:"scope,omitempty"`
+	Limit int            `json:"limit,omitempty"`
+}
+
+type ResourcesSnapshotParams struct {
+	SourceVersion int64                    `json:"source_version"`
+	Records       []ResourceSnapshotRecord `json:"records"`
+}
+
+type ResultTrust string
+
+type ResultViewContract struct {
+	Schema json.RawMessage `json:"schema"`
+	Digest string          `json:"digest,omitempty"`
+}
+
+type ResultViews struct {
+	Compact ResultViewContract `json:"compact"`
+	Full    ResultViewContract `json:"full"`
+}
+
+type RetentionHealth struct {
+	Enabled                  bool       `json:"enabled"`
+	RetentionDays            int        `json:"retention_days"`
+	SweepIntervalSeconds     int64      `json:"sweep_interval_seconds"`
+	LastSweepStatus          string     `json:"last_sweep_status"`
+	LastSweepAt              *time.Time `json:"last_sweep_at,omitempty"`
+	LastCutoffAt             *time.Time `json:"last_cutoff_at,omitempty"`
+	LastSweepError           string     `json:"last_sweep_error,omitempty"`
+	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
+	DeletedTokenStats        int64      `json:"deleted_token_stats"`
+	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
+	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
+}
+
+type RetryConfig struct {
+	Strategy   RetryStrategy `json:"strategy"`
+	MaxRetries int           `json:"max_retries"`
+	BaseDelay  string        `json:"base_delay"`
+}
 
 type RetryStrategy string
 
@@ -142,68 +188,3 @@ type SessionAttentionChangedPayload struct {
 }
 
 type SessionAttentionObservationPatch struct{}
-
-type SessionConfigOptionPayload struct {
-	ID             string                            `json:"id"`
-	Label          string                            `json:"label,omitempty"`
-	Description    string                            `json:"description,omitempty"`
-	Category       string                            `json:"category,omitempty"`
-	Kind           string                            `json:"kind"`
-	CurrentValueID string                            `json:"current_value_id,omitempty"`
-	CurrentBool    *bool                             `json:"current_bool,omitempty"`
-	Values         []SessionConfigOptionValuePayload `json:"values,omitempty"`
-}
-
-type SessionConfigOptionValuePayload struct {
-	Value       string `json:"value"`
-	Label       string `json:"label,omitempty"`
-	Description string `json:"description,omitempty"`
-	GroupID     string `json:"group_id,omitempty"`
-	GroupLabel  string `json:"group_label,omitempty"`
-}
-
-type SessionContext struct {
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-type SessionCreatePatch struct {
-	Deny        bool    `json:"deny,omitempty"`
-	DenyReason  string  `json:"deny_reason,omitempty"`
-	SessionName *string `json:"session_name,omitempty"`
-	SessionType *string `json:"session_type,omitempty"`
-	AgentName   *string `json:"agent_name,omitempty"`
-	WorkspaceID *string `json:"workspace_id,omitempty"`
-	Workspace   *string `json:"workspace,omitempty"`
-}
-
-type SessionCreateResult struct {
-	SessionID string `json:"session_id"`
-}
-
-type SessionDerivationPayload struct {
-	Kind            LineageKind `json:"kind"`
-	SourceSessionID string      `json:"source_session_id"`
-	Seed            string      `json:"seed"`
-	NativeState     string      `json:"native_state,omitempty"`
-	NativeForkError string      `json:"native_fork_error,omitempty"`
-	FirstPrompt     string      `json:"first_prompt"`
-}
-
-type SessionEvent struct {
-	Type      string    `json:"type"`
-	Timestamp time.Time `json:"timestamp"`
-	Data      any       `json:"data,omitempty"`
-}

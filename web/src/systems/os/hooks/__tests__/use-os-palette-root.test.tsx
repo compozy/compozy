@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // (use-desktop-overlays), stack and filter mechanics (palette-view-stack,
 // palette-session-filters), and daemon command transport.
 import { sessionLinkDialogStore } from "@/systems/session/hooks/use-session-link-dialog";
+import { sessionParentPickerStore } from "@/systems/session/hooks/use-session-parent-picker";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -139,7 +140,7 @@ const paletteMocks = vi.hoisted(() => {
     openItem: vi.fn(),
     /** Destination: a project (`activeWorkspaceId`), User, or All projects (`global`). */
     scope: "workspace" as "workspace" | "global" | "user",
-    paletteIntent: null as { kind: "destination"; windowId: string } | null,
+    paletteIntent: null as { kind: "destination"; windowId: string | null } | null,
     paletteIntentCleared: vi.fn(),
     paletteIntentRequested: vi.fn(),
     sessions: [] as PaletteSessionFixture[],
@@ -149,15 +150,6 @@ const paletteMocks = vi.hoisted(() => {
     sessionsEnabled: vi.fn(),
     nextCatalogPage: vi.fn(),
     previousCatalogPage: vi.fn(),
-    windowCommands: {
-      arrangeCommands: [],
-      commandsAvailable: true,
-      dispatchArrange: vi.fn(),
-      dispatchPlacement: vi.fn(),
-      focusedWindowActions: null,
-      placementCommands: [],
-      shortcutLabels: {},
-    },
     windowSlots: new Map<string, { crumb?: string }>(),
     workspaceGroups: [] as Array<{
       workspaceId: string;
@@ -378,15 +370,9 @@ vi.mock("../../hooks/use-os-shell", () => ({
     manager: {
       closeWindow: paletteMocks.closeWindow,
       getState: desktopState,
-      groupWindows: vi.fn(),
       reopenWindow: vi.fn(),
-      toggleFloating: vi.fn(),
     },
   }),
-}));
-
-vi.mock("../../hooks/use-os-window-commands", () => ({
-  useOsWindowCommands: () => paletteMocks.windowCommands,
 }));
 
 vi.mock("../../hooks/use-window-manager-store", async () => {
@@ -442,41 +428,46 @@ function windowFixture(overrides: Partial<OsWindow> = {}): OsWindow {
   return {
     app: "tasks",
     desktopId: "desktop:alpha",
-    groupId: null,
     id: "window:tasks",
+    inSplit: false,
     instanceKey: null,
-    layer: 1,
-    minimized: false,
-    zoomed: false,
     navStack: [],
     nodeId: null,
-    parentAxis: null,
     pinned: false,
-    placement: "floating",
-    rect: { h: 400, w: 600, x: 20, y: 20 },
     route: { pathname: "/tasks", search: {} },
-    stackActive: true,
-    stackId: null,
+    shown: true,
+    tabActive: true,
+    tabId: "tab:tasks",
     ...overrides,
   };
 }
 
 const DESKTOPS: readonly LayoutDesktop[] = [
   {
-    floating: [],
-    floatingStacks: [],
-    groups: [],
+    activeTabId: "tab:alpha",
     id: "desktop:alpha",
     name: "Alpha",
     order: 0,
+    tabs: [
+      {
+        id: "tab:alpha",
+        pinned: false,
+        root: { id: "leaf:alpha", kind: "leaf", windowId: "window:tasks" },
+      },
+    ],
   },
   {
-    floating: [],
-    floatingStacks: [],
-    groups: [],
+    activeTabId: "tab:beta",
     id: "desktop:beta",
     name: "Beta",
     order: 1,
+    tabs: [
+      {
+        id: "tab:beta",
+        pinned: false,
+        root: { id: "leaf:beta", kind: "leaf", windowId: "window:beta" },
+      },
+    ],
   },
 ];
 
@@ -487,6 +478,16 @@ function desktopState(): OsDesktopRuntimeStore {
 
 function commandSnapshot(workspaceId: string): NonNullable<OsDesktopRuntimeStore["snapshot"]> {
   return { workspaceId } as NonNullable<OsDesktopRuntimeStore["snapshot"]>;
+}
+
+/** The empty New Tab window a destination pick replaces. */
+function newTabWindowFixture(): OsWindow {
+  return windowFixture({
+    app: "new-tab",
+    id: "window:new-tab",
+    route: { pathname: "/new-tab", search: {} },
+    tabId: "tab:new-tab",
+  });
 }
 
 function desktopFixture(
@@ -500,11 +501,11 @@ function desktopFixture(
     connectionStatus: "connected",
     desktopBounds: null,
     desktops: DESKTOPS,
+    activeTabIds: {},
     focusedId,
-    frames: {},
     hydration: "live",
     loadError: null,
-    presentation: "floating",
+    presentation: "split",
     projections: {},
     reduceMotion: false,
     snapshot: null,
@@ -755,7 +756,6 @@ function resetPaletteHarness() {
   paletteMocks.workspaceGroups = [];
   paletteMocks.writeViewStack([]);
   paletteMocks.windowSlots.clear();
-  paletteMocks.windowCommands.commandsAvailable = true;
   paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
   paletteMocks.commandAvailable = false;
   clearChooseSessionTerminalQuote();
@@ -920,7 +920,7 @@ describe("useOsPaletteRoot", () => {
 
   it("Should hand the empty tab's place to the picked session [UT-080]", async () => {
     paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
-    paletteMocks.desktop = desktopFixture({}, null);
+    paletteMocks.desktop = desktopFixture({ "window:new-tab": newTabWindowFixture() }, null);
     const { result } = renderRoot();
 
     await act(async () => {
@@ -938,17 +938,41 @@ describe("useOsPaletteRoot", () => {
       app: "session",
       instanceKey: "session:one",
       route: { pathname: "/agents/codex/sessions/session%3Aone", search: {} },
-      stackTargetWindowId: "window:new-tab",
+      afterWindowId: "window:new-tab",
     });
     await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
     // BR-20: destination picking is not a landing, so the shared jump stays out.
     expect(paletteMocks.jumpToSession).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { name: "an empty desktop", windowId: null },
+    { name: "a New Tab another client already closed", windowId: "window:new-tab" },
+  ])("Should open the pick unanchored for $name (#1799)", async ({ windowId }) => {
+    paletteMocks.paletteIntent = { kind: "destination", windowId };
+    paletteMocks.desktop = desktopFixture({}, null);
+    const { result } = renderRoot();
+    expect(result.current.destination).toBe(true);
+    const command = PALETTE_REGISTRY.byId.get("app.open.terminal");
+    if (command === undefined) throw new Error("Expected the Terminal command fixture.");
+
+    await act(async () => {
+      result.current.runCommand(command);
+    });
+
+    expect(paletteMocks.paletteIntentCleared).toHaveBeenCalledOnce();
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({ app: "terminal" });
+    await act(async () => {});
+    expect(paletteMocks.closeWindow).not.toHaveBeenCalled();
+  });
+
   it("Should hand the empty tab's place to a fresh app instance [UT-080]", async () => {
     paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
     paletteMocks.desktop = desktopFixture(
-      { "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }) },
+      {
+        "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }),
+        "window:new-tab": newTabWindowFixture(),
+      },
       "window:new-tab"
     );
     const { result } = renderRoot();
@@ -962,7 +986,7 @@ describe("useOsPaletteRoot", () => {
     expect(paletteMocks.paletteIntentCleared).toHaveBeenCalledOnce();
     expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledWith({
       app: "tasks",
-      stackTargetWindowId: "window:new-tab",
+      afterWindowId: "window:new-tab",
     });
     await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
   });
@@ -970,7 +994,10 @@ describe("useOsPaletteRoot", () => {
   it("Should open Terminal through userOpen and not land a session", async () => {
     paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
     paletteMocks.desktop = desktopFixture(
-      { "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }) },
+      {
+        "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }),
+        "window:new-tab": newTabWindowFixture(),
+      },
       "window:new-tab"
     );
     const { result } = renderRoot();
@@ -984,7 +1011,7 @@ describe("useOsPaletteRoot", () => {
     expect(paletteMocks.paletteIntentCleared).toHaveBeenCalledOnce();
     expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
       app: "terminal",
-      stackTargetWindowId: "window:new-tab",
+      afterWindowId: "window:new-tab",
     });
     expect(paletteMocks.jumpToSession).not.toHaveBeenCalled();
     await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
@@ -993,7 +1020,10 @@ describe("useOsPaletteRoot", () => {
   it("Should open the Automations editor with the chosen start [UT-112, IT-020]", async () => {
     paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
     paletteMocks.desktop = desktopFixture(
-      { "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }) },
+      {
+        "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }),
+        "window:new-tab": newTabWindowFixture(),
+      },
       "window:new-tab"
     );
     const { result } = renderRoot();
@@ -1016,7 +1046,7 @@ describe("useOsPaletteRoot", () => {
     expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
       app: "automations",
       route: { pathname: "/automations", search: { create: "1", start: "event" } },
-      stackTargetWindowId: "window:new-tab",
+      afterWindowId: "window:new-tab",
     });
   });
 
@@ -1443,6 +1473,31 @@ describe("useOsPaletteRoot", () => {
     sessionLinkDialogStore.trigger.closed();
   });
 
+  // Invariant: Move under… reaches the focused session's parent picker, only once asked for.
+  it("Should offer Move under for the focused session and open its parent picker", () => {
+    const focused = windowFixture({
+      app: "session",
+      id: "window:session",
+      instanceKey: "session:focused",
+      route: { pathname: "/agents/codex/sessions/session%3Afocused", search: {} },
+    });
+    paletteMocks.desktop = desktopFixture({ [focused.id]: focused }, focused.id);
+    paletteMocks.fallbackAgentEnabled = true;
+    const onOpenChange = vi.fn();
+    const { result } = renderRoot(true, onOpenChange);
+    expect(result.current.entities.moveSessionId).toBeNull();
+
+    act(() => result.current.setQuery("parent"));
+    expect(result.current.entities.moveSessionId).toBe("session:focused");
+    // A matched focused-session command is a direct result: no agent fallback ahead of it.
+    expect(result.current.fallback).toBeNull();
+
+    act(() => result.current.moveSession("session:focused"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(sessionParentPickerStore.getSnapshot().context.sessionId).toBe("session:focused");
+    sessionParentPickerStore.trigger.closed();
+  });
+
   it("Should render contextual Go to tab results, attention, and no empty group [UT-100]", () => {
     const alpha = windowFixture({ id: "window:alpha" });
     const beta = windowFixture({ desktopId: "desktop:beta", id: "window:beta" });
@@ -1488,13 +1543,14 @@ describe("useOsPaletteRoot", () => {
     expect(screen.queryByText("Go to tab")).not.toBeInTheDocument();
   });
 
-  it("Should restore a minimized tab on its desktop through the single activation action [UT-101]", async () => {
+  it("Should activate a background tab on its desktop through the single activation action [UT-101]", async () => {
     paletteMocks.desktop = desktopFixture(
       {
-        "window:minimized": windowFixture({
+        "window:background": windowFixture({
           desktopId: "desktop:beta",
-          id: "window:minimized",
-          minimized: true,
+          id: "window:background",
+          shown: false,
+          tabActive: false,
         }),
       },
       null
@@ -1502,10 +1558,10 @@ describe("useOsPaletteRoot", () => {
     const { result } = renderRoot();
 
     await act(async () => {
-      result.current.goToTab("window:minimized");
+      result.current.goToTab("window:background");
     });
 
-    expect(paletteMocks.coordinator.userActivateWindow).toHaveBeenCalledWith("window:minimized");
+    expect(paletteMocks.coordinator.userActivateWindow).toHaveBeenCalledWith("window:background");
   });
 });
 

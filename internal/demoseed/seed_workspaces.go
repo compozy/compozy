@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
@@ -70,6 +71,9 @@ func preflightWorkspaceRoot(workspaceRoot string, replace bool) error {
 }
 
 func prepareGlobalState(ctx context.Context, db *globaldb.GlobalDB, state *scenario) error {
+	if err := validateWorkspaceConflicts(ctx, db, state); err != nil {
+		return err
+	}
 	for _, story := range state.workspaces {
 		if err := prepareWorkspaceState(ctx, db, state, story); err != nil {
 			return err
@@ -78,10 +82,60 @@ func prepareGlobalState(ctx context.Context, db *globaldb.GlobalDB, state *scena
 	if !state.replace {
 		return nil
 	}
-	for _, sessionID := range scenarioSessionIDs {
+	sessionIDs := append(slices.Clone(scenarioSessionIDs), boardSessionIDs(state.clock)...)
+	sessionIDs = append(sessionIDs, bundledSessionIDs()...)
+	for _, sessionID := range append(sessionIDs, alwaysOnSessionIDs(state.clock)...) {
 		sessionDir := filepath.Join(state.paths.SessionsDir, sessionID)
 		if err := os.RemoveAll(sessionDir); err != nil {
 			return fmt.Errorf("demo seed: remove prior session directory %q: %w", sessionDir, err)
+		}
+	}
+	return nil
+}
+
+// validateWorkspaceConflicts checks every project before any cleanup, so a conflict on the
+// last one cannot leave the earlier ones already deleted.
+func validateWorkspaceConflicts(ctx context.Context, db *globaldb.GlobalDB, state *scenario) error {
+	for _, story := range state.workspaces {
+		root := state.workspaceRoot(story)
+		existing, err := lookupExistingWorkspace(ctx, db, story.Name, root)
+		if err != nil {
+			return err
+		}
+		if existing.ID != "" && !state.replace {
+			return fmt.Errorf("%w in %s; rerun with --replace", ErrScenarioExists, state.paths.DatabaseFile)
+		}
+		if !state.replace {
+			continue
+		}
+		marker, err := readSeedMarker(root)
+		if existing.ID == "" && errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("demo seed: verify replace ownership for %q: %w", story.Name, err)
+		}
+		if marker.WorkspaceKey != story.Key {
+			return fmt.Errorf("demo seed: workspace marker key %q does not match %q", marker.WorkspaceKey, story.Key)
+		}
+		if err := validateSeedManifest(root, marker); err != nil {
+			return err
+		}
+		if err := refuseUnownedFeeds(root, story.Key, marker); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// refuseUnownedFeeds stops a replace before it would overwrite a file the seed never wrote.
+func refuseUnownedFeeds(root string, workspaceKey string, marker seedMarker) error {
+	for _, feed := range sourceFeedPaths(workspaceKey) {
+		if slices.Contains(marker.Manifest, feed) {
+			continue
+		}
+		if _, err := os.Lstat(filepath.Join(root, filepath.FromSlash(feed))); err == nil {
+			return fmt.Errorf("demo seed: refusing to overwrite unowned feed %q in %s", feed, root)
 		}
 	}
 	return nil
@@ -146,7 +200,10 @@ func prepareWorkspaceState(
 	if err := deleteScenarioLoopRuns(ctx, db, state, story.Key, existing.ID); err != nil {
 		return err
 	}
-	if err := cleanupWorkspaceAutomation(ctx, db, story.Key, existing.ID); err != nil {
+	if err := cleanupWorkspaceAutomation(ctx, db, state, story.Key, existing.ID); err != nil {
+		return err
+	}
+	if err := stopWorkspaceSessions(ctx, db, existing.ID); err != nil {
 		return err
 	}
 	// The daily usage rollup is additive, so a replace has to clear it first.
@@ -263,15 +320,19 @@ func writeAgentDefinitions(state *scenario) error {
 		if err != nil {
 			return err
 		}
-		path := filepath.Join(
-			record.RootDir, config.DirName, config.AgentsDirName, story.Name, config.AgentDefinitionFileName,
-		)
-		if _, err := config.CreateAgentDefFile(path, config.AgentDefinitionDraft{
+		dir := filepath.Join(record.RootDir, config.DirName, config.AgentsDirName, story.Name)
+		definition := filepath.Join(dir, config.AgentDefinitionFileName)
+		if _, err := config.CreateAgentDefFile(definition, config.AgentDefinitionDraft{
 			Name: story.Name, Provider: story.Provider, Model: story.Model,
 			Permissions: story.Permissions, Tools: story.Tools,
 			CategoryPath: story.CategoryPath, Prompt: story.Prompt,
+			DisplayName: story.DisplayName, Description: story.Description,
+			Kind: story.Kind, Appearance: story.Appearance,
 		}, state.replace); err != nil {
 			return fmt.Errorf("demo seed: write agent %q: %w", story.Name, err)
+		}
+		if err := writeCheckInPolicy(dir, story); err != nil {
+			return err
 		}
 	}
 	return nil

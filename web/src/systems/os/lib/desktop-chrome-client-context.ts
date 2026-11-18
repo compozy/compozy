@@ -1,11 +1,42 @@
 import type { BreadthMode } from "@/systems/workspace";
 
-import type { WindowManagerClientContextInput } from "../hooks/use-window-manager-stream";
+import type { GlobalShortcutRegistrationWire } from "./desktop-shell-bridge";
 import type { OsDesktopRuntimeStore, OsWindowRoute } from "./os-types";
+
+export interface WindowManagerClientContextInput {
+  scopeGlobal: boolean;
+  focusedSessionState: string | null;
+  workspaceTrusted: boolean;
+  destinationIntent: {
+    pathname: string;
+    search: Readonly<Record<string, unknown>>;
+  } | null;
+  globalShortcuts: readonly GlobalShortcutRegistrationWire[];
+}
+
+/** The `client_context` frame the window-manager stream sends for this client. */
+export function serializeWindowManagerClientContext(
+  context: WindowManagerClientContextInput
+): string {
+  return JSON.stringify({
+    type: "client_context",
+    context: {
+      scope_global: context.scopeGlobal,
+      ...(context.focusedSessionState === null
+        ? {}
+        : { focused_session_state: context.focusedSessionState }),
+      workspace_trusted: context.workspaceTrusted,
+      ...(context.destinationIntent === null
+        ? {}
+        : { destination_intent: context.destinationIntent }),
+      global_shortcuts: context.globalShortcuts,
+    },
+  });
+}
 
 export function selectPaletteDestinationRoute(
   state: OsDesktopRuntimeStore,
-  paletteWindowId: string | undefined
+  paletteWindowId: string | null | undefined
 ): OsWindowRoute | null {
   const windowId = paletteWindowId ?? state.focusedId;
   if (windowId === null) return null;

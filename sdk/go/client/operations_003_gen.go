@@ -10,6 +10,59 @@ import (
 	"strings"
 )
 
+// CancelAutomationRun Cancel an orphaned automation run
+func (c *Client) CancelAutomationRun(ctx context.Context, params CancelAutomationRunParams) (*RunResponse, error) {
+	path := "/api/automation/runs/{id}/cancel"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RunResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelLoopNodeParams carries the path, query, and header parameters.
+type CancelLoopNodeParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	NodeID      string  `url:"node_id"`
+	Profile     *string `url:"profile"`
+}
+
+// CancelLoopNode Cancel one Loop node
+func (c *Client) CancelLoopNode(ctx context.Context, params CancelLoopNodeParams, body LoopNodeMutationRequest) (*LoopMutationResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/cancel"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopMutationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelLoopRunParams carries the path, query, and header parameters.
+type CancelLoopRunParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	Profile     *string `url:"profile"`
+}
+
 // CancelLoopRun Cancel one Loop run
 func (c *Client) CancelLoopRun(ctx context.Context, params CancelLoopRunParams, body map[string]any) (*LoopMutationResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel"
@@ -295,6 +348,72 @@ func (c *Client) CheckAgentInstance(ctx context.Context, params CheckAgentInstan
 	return &out, nil
 }
 
+// CheckSessionMCPParams carries the path, query, and header parameters.
+type CheckSessionMCPParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Name        string  `url:"name"`
+	Owner       *string `url:"owner"`
+	Profile     *string `url:"profile"`
+}
+
+// CheckSessionMCP Retry discovery for one session MCP server without restarting the runtime
+func (c *Client) CheckSessionMCP(ctx context.Context, params CheckSessionMCPParams) (*MCP, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MCP
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CheckSettingsMCPServerParams carries the path, query, and header parameters.
+type CheckSettingsMCPServerParams struct {
+	Name        string  `url:"name"`
+	Scope       string  `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Owner       *string `url:"owner"`
+}
+
+// CheckSettingsMCPServer Retry one scoped MCP server runtime probe
+func (c *Client) CheckSettingsMCPServer(ctx context.Context, params CheckSettingsMCPServerParams) (*SettingsMCPServerItemPayload, error) {
+	path := "/api/settings/mcp-servers/{name}/check"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("scope", params.Scope)
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsMCPServerItemPayload
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CheckSettingsUpdate Refresh update discovery, limited to one upstream check per minute
 func (c *Client) CheckSettingsUpdate(ctx context.Context) (*SettingsUpdateResponse, error) {
 	path := "/api/settings/update/check"
@@ -322,117 +441,4 @@ func (c *Client) ClaimNextAgentTask(ctx context.Context, params ClaimNextAgentTa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ClearSessionConversationParams carries the path, query, and header parameters.
-type ClearSessionConversationParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ClearSessionConversation Clear conversation history and restart the session context
-func (c *Client) ClearSessionConversation(ctx context.Context, params ClearSessionConversationParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/clear"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ClearSessionInputsParams carries the path, query, and header parameters.
-type ClearSessionInputsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ClearSessionInputs Clear queued input with attributed per-entry traces
-func (c *Client) ClearSessionInputs(ctx context.Context, params ClearSessionInputsParams) (*SessionInputClearResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionInputClearResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ClearSessionParentParams carries the path, query, and header parameters.
-type ClearSessionParentParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ClearSessionParent Make an adopted child session top-level, or take over a stopped spawned worker
-func (c *Client) ClearSessionParent(ctx context.Context, params ClearSessionParentParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/parent"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ClearSessionRuntimeParams carries the path, query, and header parameters.
-type ClearSessionRuntimeParams struct {
-	WorkspaceID      string  `url:"workspace_id"`
-	SessionID        string  `url:"session_id"`
-	ExpectedRevision int64   `url:"expected_revision"`
-	Profile          *string `url:"profile"`
-}
-
-// ClearSessionRuntime Clear the default runtime for future prompts
-func (c *Client) ClearSessionRuntime(ctx context.Context, params ClearSessionRuntimeParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	query.Set("expected_revision", strconv.FormatInt(params.ExpectedRevision, 10))
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ClearTaskBlockParams carries the path, query, and header parameters.
-type ClearTaskBlockParams struct {
-	ID      string  `url:"id"`
-	BlockID string  `url:"block_id"`
-	Profile *string `url:"profile"`
 }

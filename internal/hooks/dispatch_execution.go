@@ -30,6 +30,7 @@ func (h *Hooks) executeDispatch[P any, R any](
 		return payload, nil
 	}
 
+	ctx, endTrace := h.startDispatchTrace(ctx, event)
 	dispatchDepth := currentDispatchDepth(ctx) + 1
 	dispatchStarted := time.Now()
 	logger := h.dispatchLogger(payload)
@@ -66,6 +67,7 @@ func (h *Hooks) executeDispatch[P any, R any](
 		h.submitAsyncHooks(ctx, result, asyncHooks, pipe)
 	}
 
+	endTrace(report.Denied, dispatchErr)
 	h.reportDispatchResult(
 		logger,
 		event,

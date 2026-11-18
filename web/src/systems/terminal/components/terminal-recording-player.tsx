@@ -105,7 +105,7 @@ export function TerminalRecordingPlayer({
       <div className="flex min-h-0 flex-1 flex-col bg-terminal-bg">
         <TerminalView
           aria-label="Recording replay"
-          className="px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"
+          className="px-3.5 pt-2.5 pb-3 font-mono text-terminal tracking-mono"
           {...(engineLoader ? { engineLoader } : {})}
           handleRef={playback.handleRef}
           instanceId={instanceId}

@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -34,6 +35,7 @@ type StubAutomationManager struct {
 	CreateJobFn     func(context.Context, automationpkg.Job) (automationpkg.Job, error)
 	UpdateJobFn     func(context.Context, automationpkg.Job) (automationpkg.Job, error)
 	DeleteJobFn     func(context.Context, string) error
+	StartJobFn      func(context.Context, string, time.Duration) (automationpkg.Run, error)
 	TriggerJobFn    func(context.Context, string) (automationpkg.Run, error)
 	ListTriggersFn  func(context.Context, automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error)
 	TriggersFn      func(context.Context) ([]automationpkg.Trigger, error)
@@ -52,6 +54,7 @@ type StubAutomationManager struct {
 	ListRunsFn          func(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error)
 	RunsFn              func(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error)
 	GetRunFn            func(context.Context, string) (automationpkg.Run, error)
+	CancelRunFn         func(context.Context, string) (automationpkg.Run, error)
 	StatusFn            func(context.Context) (automationpkg.ManagerStatus, error)
 	SetJobEnabledFn     func(context.Context, string, bool) (automationpkg.Job, error)
 	SetTriggerEnabledFn func(context.Context, string, bool) (automationpkg.Trigger, error)
@@ -144,7 +147,12 @@ func (s StubAutomationManager) DeleteJob(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s StubAutomationManager) TriggerJob(ctx context.Context, id string) (automationpkg.Run, error) {
+func (s StubAutomationManager) StartJob(
+	ctx context.Context, id string, timeout time.Duration,
+) (automationpkg.Run, error) {
+	if s.StartJobFn != nil {
+		return s.StartJobFn(ctx, id, timeout)
+	}
 	if s.TriggerJobFn != nil {
 		return s.TriggerJobFn(ctx, id)
 	}
@@ -282,4 +290,11 @@ func (s StubAutomationManager) LatestRunsByOwner(
 		return nil, nil
 	}
 	return s.LatestRunsByOwnerFn(ctx, owner, ids)
+}
+
+func (s StubAutomationManager) CancelRun(ctx context.Context, id string) (automationpkg.Run, error) {
+	if s.CancelRunFn != nil {
+		return s.CancelRunFn(ctx, id)
+	}
+	return automationpkg.Run{}, automationpkg.ErrRunNotFound
 }

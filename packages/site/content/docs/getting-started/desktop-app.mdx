@@ -21,6 +21,31 @@ The boot window reports the active phase. Runtime start retries use bounded back
 failure leaves **Retry operation**, **Open logs**, **Load diagnostics**, and **Quit** available.
 The app never executes a bundled runtime that fails its embedded integrity check.
 
+A `config.toml` that cannot be loaded is reported once, without retries. The boot window names the
+file and the settings it does not recognize, or the line of invalid TOML, and adds **Open config
+file**. See [Troubleshooting](/docs/operations/troubleshooting#desktop-app-could-not-start-because-of-a-config-error).
+
+The app waits instead of retrying when the runtime is busy:
+
+- While another update, restart, or start holds the runtime, the boot window says "Another update
+  or restart is in progress" with that process when it is known, and continues when it finishes.
+  This wait does not use a start attempt. After 10 minutes it stops with the code
+  `update_lock_held`.
+- A runtime binary that is missing or not allowed to run is reported once, without retries.
+- With the app open, a runtime that stops answering is given 45 seconds, and after that for as
+  long as a runtime process is still alive (the one the app was connected to, a replacement that
+  is starting, or the process running a restart or update), up to 10 minutes. The app resolves the
+  runtime again only when no such process is left.
+
+The app opens as soon as the runtime answers, while interrupted sessions are still resuming. A
+notice on the desktop names the step ("Resuming interrupted sessions", for example) and says that
+reading works and sending opens again when it finishes. It clears by itself. Runtimes that predate
+this behavior open the app once they are fully ready, as before.
+
+After a restart on the same runtime version the window keeps its page and refreshes its data, so
+open windows and drafts stay. The window reloads when the runtime now serves another version, when
+the page failed to load during the outage, or when the runtime predates this behavior.
+
 ## Develop locally
 
 From the repository root:

@@ -7,6 +7,72 @@ import (
 	"time"
 )
 
+// AgentSoulRevisionAction is a daemon API value.
+type AgentSoulRevisionAction string
+
+// AgentSoulRevisionPayload is a daemon API value.
+type AgentSoulRevisionPayload struct {
+	ID             string                             `json:"id"`
+	AgentName      string                             `json:"agent_name"`
+	SourcePath     string                             `json:"source_path"`
+	Action         AgentSoulRevisionAction            `json:"action"`
+	PreviousDigest string                             `json:"previous_digest,omitempty"`
+	NewDigest      string                             `json:"new_digest,omitempty"`
+	Diagnostics    []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	Actor          AuthoredContextActorPayload        `json:"actor"`
+	Origin         *AuthoredContextActorPayload       `json:"origin,omitempty"`
+	CreatedAt      time.Time                          `json:"created_at"`
+}
+
+// AgentSoulRollbackByPathRequest is a daemon API value.
+type AgentSoulRollbackByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	RevisionID     string `json:"revision_id"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// AgentSoulSectionPayload is a daemon API value.
+type AgentSoulSectionPayload struct {
+	Enabled          bool                     `json:"enabled"`
+	Present          bool                     `json:"present"`
+	Active           bool                     `json:"active"`
+	Valid            bool                     `json:"valid"`
+	ValidationStatus AuthoredValidationStatus `json:"validation_status,omitempty"`
+	SnapshotID       string                   `json:"snapshot_id,omitempty"`
+	Digest           string                   `json:"digest,omitempty"`
+	ConfigDigest     string                   `json:"config_digest,omitempty"`
+	SourcePath       string                   `json:"source_path,omitempty"`
+	Role             string                   `json:"role,omitempty"`
+	Tone             []string                 `json:"tone"`
+	Principles       []string                 `json:"principles"`
+	Truncated        bool                     `json:"truncated,omitempty"`
+	MaxBytes         int64                    `json:"max_bytes,omitempty"`
+	MaxBodyBytes     int64                    `json:"max_body_bytes,omitempty"`
+}
+
+// AgentSoulValidateByPathRequest is a daemon API value.
+type AgentSoulValidateByPathRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	Body        string `json:"body,omitempty"`
+}
+
+// AgentSoulValidateRequest is a daemon API value.
+type AgentSoulValidateRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	Body        string `json:"body,omitempty"`
+}
+
+// AgentSpawnPayload is a daemon API value.
+type AgentSpawnPayload struct {
+	Session     SessionPayload               `json:"session"`
+	Lineage     SessionLineagePayload        `json:"lineage"`
+	Permissions SpawnPermissionPolicyPayload `json:"permissions"`
+	Worktree    *SpawnWorktreePayload        `json:"worktree,omitzero"`
+	Prompt      *SpawnPromptPayload          `json:"prompt,omitzero"`
+}
+
 // AgentSpawnRequest is a daemon API value.
 type AgentSpawnRequest struct {
 	AgentName          string                        `json:"agent_name"`
@@ -246,6 +312,8 @@ type AttentionNotificationPayload struct {
 	RequestKind    string    `json:"request_kind,omitempty"`
 	TerminalID     string    `json:"terminal_id,omitempty"`
 	Redacted       bool      `json:"redacted"`
+	SessionType    string    `json:"session_type,omitempty"`
+	InstanceID     string    `json:"instance_id,omitempty"`
 }
 
 // AttentionNotificationsResponse is a daemon API value.
@@ -288,6 +356,9 @@ type AuthoredDiagnosticSeverity string
 
 // AuthoredValidationStatus is a daemon API value.
 type AuthoredValidationStatus string
+
+// AutoAcceptStatus is a daemon API value.
+type AutoAcceptStatus string
 
 // AutomationHealthPayload is a daemon API value.
 type AutomationHealthPayload struct {
@@ -377,74 +448,3 @@ type AutonomyMatcher struct {
 
 // Axis is a daemon API value.
 type Axis string
-
-// BackendKind is a daemon API value.
-type BackendKind string
-
-// BackoffSpec is a daemon API value.
-type BackoffSpec struct {
-	Base string `json:"base,omitempty"`
-	Max  string `json:"max,omitempty"`
-}
-
-// Badge is a daemon API value.
-type Badge string
-
-// BindSessionWorktreeRequest is a daemon API value.
-type BindSessionWorktreeRequest struct {
-	Worktree           string  `json:"worktree"`
-	ExpectedWorktreeID *string `json:"expected_worktree_id,omitempty"`
-}
-
-// BindingsConfig is a daemon API value.
-type BindingsConfig struct {
-	TopCenter    string `json:"top_center"`
-	BottomCenter string `json:"bottom_center"`
-}
-
-// BlockKind is a daemon API value.
-type BlockKind string
-
-// BlockedReason is a daemon API value.
-type BlockedReason struct {
-	Source           BlockedSource `json:"source"`
-	Kind             BlockKind     `json:"kind,omitempty"`
-	Reason           string        `json:"reason,omitempty"`
-	BlockID          string        `json:"block_id,omitempty"`
-	DependsOnTaskIDs []string      `json:"depends_on_task_ids,omitempty"`
-}
-
-// BlockedSource is a daemon API value.
-type BlockedSource string
-
-// Blocker is a daemon API value.
-type Blocker struct {
-	Kind         string     `json:"kind"`
-	NodeID       NodeID     `json:"node_id,omitempty"`
-	GateID       NodeID     `json:"gate_id,omitempty"`
-	ItemIndex    int        `json:"item_index,omitzero"`
-	WaitingSince time.Time  `json:"waiting_since"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-	Expired      bool       `json:"expired,omitzero"`
-	Unblocker    string     `json:"unblocker"`
-}
-
-// BoardColumn is a daemon API value.
-type BoardColumn string
-
-// Briefing is a daemon API value.
-type Briefing struct {
-	RunID     RunID         `json:"run_id"`
-	Status    Status        `json:"status"`
-	Tone      BriefingTone  `json:"tone"`
-	Headline  string        `json:"headline"`
-	Detail    string        `json:"detail,omitempty"`
-	Blockers  []Blocker     `json:"blockers"`
-	Outcome   *RunOutcome   `json:"outcome,omitzero"`
-	Artifacts []RunArtifact `json:"artifacts"`
-	Progress  StepProgress  `json:"progress"`
-	Usage     RunUsage      `json:"usage"`
-}
-
-// BriefingTone is a daemon API value.
-type BriefingTone string

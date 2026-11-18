@@ -5,17 +5,20 @@ import mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 // MCPSecretValues is the write-only secret material submitted with an MCP server mutation.
 type MCPSecretValues struct {
 	SecretEnv         map[string]string
+	SecretHeaders     map[string]string
+	allowEmpty        bool
 	OAuthClientSecret *string
 }
 
 // MCPSecretPreservation identifies existing bindings to retain without revealing their refs.
 type MCPSecretPreservation struct {
+	Headers           bool
 	SecretEnv         []string
 	OAuthClientSecret bool
 }
 
 func (v MCPSecretValues) Empty() bool {
-	return len(v.SecretEnv) == 0 && v.OAuthClientSecret == nil
+	return len(v.SecretEnv) == 0 && len(v.SecretHeaders) == 0 && v.OAuthClientSecret == nil
 }
 
 // MCPAuthStatus is a redacted remote MCP authentication status.
@@ -25,6 +28,7 @@ type MCPAuthStatus = mcpauth.Status
 type MCPServerRuntimeState string
 
 const (
+	MCPServerRuntimeStateUnknown MCPServerRuntimeState = "unknown"
 	// MCPServerRuntimeStateReady reports a server that initialized and listed tools.
 	MCPServerRuntimeStateReady MCPServerRuntimeState = "ready"
 	// MCPServerRuntimeStateConfigError reports a malformed server definition.

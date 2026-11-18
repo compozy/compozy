@@ -74,6 +74,12 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify the provider enabled toggle as live",
+			path:          "providers.gemini.enabled",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
 			name:          "Should classify provider descendants as restart required",
 			path:          "providers.codex.command",
 			wantLifecycle: RestartRequired,
@@ -169,6 +175,13 @@ func TestClassifyPath(t *testing.T) {
 			wantLifecycle: Live,
 			wantDiffClass: DiffClassLive,
 			wantPattern:   "terminal.*",
+		},
+		{
+			name:          "Should classify the client request budget as live",
+			path:          "client.request_timeout",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+			wantPattern:   "client.*",
 		},
 		{
 			name:          "Should classify the gateway ceiling as live [UT-006]",

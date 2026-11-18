@@ -15,7 +15,7 @@ import { nowLine } from "./team-now";
 
 const DOT: Partial<Record<AgentState, StatusDotTone>> = {
   working: "success",
-  "needs-you": "brand",
+  "needs-you": "attn",
   failed: "destructive",
   paused: "faint",
   idle: "faint",
@@ -34,7 +34,7 @@ function PlaceChip({ place }: { place: ListedPlace }) {
     <Pill
       className="max-w-40 min-w-0 shrink"
       size="sm"
-      tone={place.state === "needs-you" ? "brand" : "neutral"}
+      tone={place.state === "needs-you" ? "attn" : "neutral"}
     >
       {tone ? <StatusDot size="sm" tone={tone} /> : null}
       <span className="truncate">{SCOPE_LABEL(place.scope)}</span>

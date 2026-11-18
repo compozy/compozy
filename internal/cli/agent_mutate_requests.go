@@ -14,6 +14,7 @@ import (
 )
 
 type agentDefinitionFlags struct {
+	mcpServers                                                                   []string
 	displayName, description, kind, avatar, seed, color, icon, emoji, background string
 	generation                                                                   int
 
@@ -81,7 +82,9 @@ func createAgentRequestFromFlags(
 	if err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
-	canonicalAgentKindFlag(cmd, &flags)
+	if err := validateAgentKindFlag(cmd, &flags); err != nil {
+		return contract.CreateAgentRequest{}, err
+	}
 	prompt, _, err := agentPromptFromFlags(cmd, flags, true)
 	if err != nil {
 		return contract.CreateAgentRequest{}, err
@@ -115,6 +118,7 @@ func createAgentRequestFromFlags(
 		Workspace: workspace,
 		Agent: contract.CreateAgentPayload{
 			Name:            name,
+			MCPServers:      agentMCPReferencesFromFlags(flags.mcpServers),
 			Provider:        strings.TrimSpace(flags.provider),
 			Command:         strings.TrimSpace(flags.command),
 			Model:           strings.TrimSpace(flags.model),
@@ -152,13 +156,14 @@ func updateAgentRequestFromFlags(
 		return contract.UpdateAgentRequest{}, err
 	}
 	if cmd.Flags().Changed("kind") {
-		canonicalAgentKindFlag(cmd, &flags)
+		if err := validateAgentKindFlag(cmd, &flags); err != nil {
+			return contract.UpdateAgentRequest{}, err
+		}
 		current, err := client.GetAgent(cmd.Context(), name, AgentQuery{Workspace: workspace})
 		if err != nil {
 			return contract.UpdateAgentRequest{}, err
 		}
-		// A v0.5.0 daemon still reports stays_on. Removal: v0.5.2.
-		kind, _ := compozyconfig.CanonicalAgentKind(current.Kind)
+		kind := current.Kind
 		if kind == "" {
 			kind = compozyconfig.AgentKindOnDemand
 		}
@@ -182,6 +187,7 @@ func updateAgentRequestFromFlags(
 		return contract.UpdateAgentRequest{}, err
 	}
 	payload.Name = name
+	payload.MCPServers = agentMCPReferencesFromFlags(flags.mcpServers)
 	if err := applyAgentFallbackChainFlags(cmd, &payload, flags); err != nil {
 		return contract.UpdateAgentRequest{}, err
 	}
@@ -204,7 +210,9 @@ func duplicateAgentRequestFromFlags(
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
 	}
-	canonicalAgentKindFlag(cmd, &flags)
+	if err := validateAgentKindFlag(cmd, &flags); err != nil {
+		return contract.DuplicateAgentRequest{}, err
+	}
 	createScope, err := parseAgentCreateScope(scope)
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
@@ -237,24 +245,26 @@ func createAgentPayloadFromRecord(agent *AgentRecord) contract.CreateAgentPayloa
 		DisplayName: new(
 			agent.DisplayName,
 		),
-		Description:     new(agent.Description),
-		Kind:            agent.Kind,
-		Appearance:      compozyconfig.CloneAgentAppearance(agent.Appearance),
-		Provider:        agent.Provider,
-		Command:         agent.Command,
-		SessionEnv:      maps.Clone(agent.SessionEnv),
-		Model:           agent.Model,
-		ReasoningEffort: agent.ReasoningEffort,
-		Speed:           agent.Speed,
-		ACPOptions:      cloneAgentACPOptions(agent.ACPOptions),
-		Tools:           cloneStrings(agent.Tools),
-		Toolsets:        cloneStrings(agent.Toolsets),
-		DenyTools:       cloneStrings(agent.DenyTools),
-		Permissions:     contract.SettingsPermissionMode(agent.Permissions),
-		CategoryPath:    cloneStrings(agent.CategoryPath),
-		Skills:          cloneAgentSkills(agent.Skills),
-		FallbackChain:   agentFallbackChainFromRecord(agent.FallbackChain),
-		Prompt:          agent.Prompt,
+		Description:       new(agent.Description),
+		Kind:              agent.Kind,
+		Appearance:        compozyconfig.CloneAgentAppearance(agent.Appearance),
+		Provider:          agent.Provider,
+		Command:           agent.Command,
+		SessionEnv:        maps.Clone(agent.SessionEnv),
+		AutoCompactWindow: agent.AutoCompactWindow,
+		LeanEnvironment:   agent.LeanEnvironment,
+		Model:             agent.Model,
+		ReasoningEffort:   agent.ReasoningEffort,
+		Speed:             agent.Speed,
+		ACPOptions:        cloneAgentACPOptions(agent.ACPOptions),
+		Tools:             cloneStrings(agent.Tools),
+		Toolsets:          cloneStrings(agent.Toolsets),
+		DenyTools:         cloneStrings(agent.DenyTools),
+		Permissions:       contract.SettingsPermissionMode(agent.Permissions),
+		CategoryPath:      cloneStrings(agent.CategoryPath),
+		Skills:            cloneAgentSkills(agent.Skills),
+		FallbackChain:     agentFallbackChainFromRecord(agent.FallbackChain),
+		Prompt:            agent.Prompt,
 	}
 }
 
@@ -423,4 +433,12 @@ func agentPromptFromFlags(
 		return "", false, errors.New("cli: agent prompt cannot be empty")
 	}
 	return prompt, true, nil
+}
+
+func agentMCPReferencesFromFlags(names []string) []contract.AgentMCPServerInput {
+	references := []contract.AgentMCPServerInput{}
+	for _, name := range normalizeAgentFlagValues(names) {
+		references = append(references, contract.AgentMCPServerInput{Name: name, Reference: true})
+	}
+	return references
 }

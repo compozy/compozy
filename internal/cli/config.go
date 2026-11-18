@@ -92,6 +92,8 @@ type configSetRecord struct {
 	RestartScope     string `json:"restart_scope,omitempty"`
 	Status           string `json:"status,omitempty"`
 	WinningLayer     string `json:"winning_layer,omitempty"`
+	// Warnings carries daemon reload warnings, such as an enabled change kept pending.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type configUnsetRecord struct {
@@ -179,6 +181,7 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"daemon.socket":                                   configSetString,
 	"daemon.reload_timeouts.providers":                configSetDuration,
 	"daemon.reload_timeouts.mcp":                      configSetDuration,
+	"client.request_timeout":                          configSetDuration,
 	"http.host":                                       configSetString,
 	"http.port":                                       configSetInt,
 	"desktop.editor_command":                          configSetString,
@@ -201,6 +204,16 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"observability.transcripts.enabled":               configSetBool,
 	"observability.transcripts.segment_bytes":         configSetInt,
 	"observability.transcripts.max_bytes_per_session": configSetInt64,
+	"observability.otel.enabled":                      configSetBool,
+	"observability.otel.protocol":                     configSetString,
+	"observability.otel.endpoint":                     configSetString,
+	"observability.otel.traces":                       configSetBool,
+	"observability.otel.metrics":                      configSetBool,
+	"observability.otel.sample_ratio":                 configSetFloat,
+	"observability.otel.metric_interval":              configSetDuration,
+	"observability.otel.service_name":                 configSetString,
+	"observability.otel.slow_db_write_ms":             configSetInt,
+	"observability.otel.forward_to_providers":         configSetBool,
 	"log.level":                                         configSetString,
 	"log.max_size_mb":                                   configSetInt,
 	"log.max_backups":                                   configSetInt,

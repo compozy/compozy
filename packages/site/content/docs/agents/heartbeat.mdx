@@ -11,7 +11,7 @@ liveness, not task ownership, not a scheduler, and not a durable work queue.
 
 - **Session health.** Metadata-only presence, attachability, and wake eligibility maintained by
   the daemon. It never injects prompts or renews task leases.
-- **CompozyOS Heartbeat wake service.** Evaluates the latest valid `HEARTBEAT.md` snapshot plus session
+- **CompozyOS Heartbeat wake service.** Evaluates the current `HEARTBEAT.md` policy plus session
   health, applies cooldown and coalescing, and dispatches one synthetic wake prompt. It never
   creates, claims, completes, fails, releases, or renews `task_runs`.
 
@@ -119,8 +119,8 @@ resolver is metadata-only and never calls the model.
 Validation outcomes:
 
 - **Missing file:** `present=false`, no diagnostics, sessions remain healthy and wakeable.
-- **Valid file:** snapshot stored in `agent_heartbeat_snapshots`, latest valid snapshot drives
-  wake decisions.
+- **Valid file:** real wakes store a snapshot in `agent_heartbeat_snapshots`; the current file drives
+  policy selection. Reverting A to B to A reuses the immutable A snapshot without changing its provenance.
 - **Invalid file:** wake policy is disabled for that agent; status returns `heartbeat_invalid`
   with diagnostics. Normal sessions and task APIs still work.
 
@@ -171,7 +171,10 @@ scheduler/manual/harness ──► HeartbeatWakeService
 
 Wake guarantees:
 
-1. The wake service evaluates the latest valid `HEARTBEAT.md` snapshot at wake-decision time.
+1. Manual, scheduler, and harness wakes resolve the current `HEARTBEAT.md` through the same policy
+   loader as status, including repository edits and deletion without an authoring revision. A real
+   wake persists its snapshot. A dry run reuses a matching snapshot ID when one exists and writes
+   nothing; a policy not yet persisted has an empty snapshot ID.
 2. Wake never calls `ClaimNextRun`, never creates `task_runs`, never renews leases, and never
    issues raw claim tokens.
 3. Wake serializes with the session prompt gate. If a user/model prompt starts concurrently, wake
@@ -221,7 +224,12 @@ compozy agent heartbeat status reviewer --json
 ```
 
 There is no `compozy agent heartbeat refresh` command in MVP. Managed writes create new snapshots,
-and wake decisions evaluate the latest valid snapshot at wake-decision time.
+and manual wake resolves the current file even when no managed write has created a snapshot.
+
+Recent wake events include proactive checks: `timer` identifies scheduled checks and
+`instance_check` identifies manual instance checks. These retain their check outcomes
+(`quiet`, `reported`, `cancelled`, `skipped`, or `failed`) alongside legacy heartbeat wakes
+(`scheduler`, `manual`, and `harness_reentry`). Existing audit rows remain readable after upgrade.
 
 ## Diagnostics
 
@@ -235,7 +243,7 @@ Common deterministic codes:
 | `heartbeat_conflict`                                   | `expected_digest` did not match.                                          |
 | `heartbeat_if_match_header_unsupported`                | HTTP `If-Match` header was sent; use `expected_digest` instead.           |
 | `heartbeat_rate_limited`                               | The agent exceeded `max_wakes_per_cycle` for the current scheduler cycle. |
-| `heartbeat_no_policy`                                  | No valid snapshot exists for the agent.                                   |
+| `heartbeat_no_policy`                                  | No current policy exists.                                                 |
 | `cooldown_active`                                      | The session is inside `wake_cooldown` from a prior wake.                  |
 | `quiet_window`                                         | Wake fell inside an authored quiet window.                                |
 | `session_not_found`                                    | The target session id was not resolved.                                   |
@@ -247,6 +255,10 @@ Common deterministic codes:
 
 Logs and audit rows redact actor identities, never include raw claim tokens or full prompt
 transcripts, and use workspace-relative paths.
+
+Scheduler batches share one successful-wake count across targets. Each request uses the
+lower of the daemon's `max_wakes_per_cycle` and its resolved configuration limit;
+a target override cannot increase the daemon-wide cap or create a separate quota.
 
 ## Boundaries with other authorities
 
@@ -292,6 +304,24 @@ none has a time, an active monitor can still supply its description without
 an invented timestamp. `next_wake_at` remains the check schedule. The `now`
 field is empty unless the main session is working.
 
+A child created with `session_create` by an always-on main wakes that main when it
+finishes a turn with no active prompt or queued input, stops, or fails. Delivery
+uses the session lifecycle directly, so an unchanged Heartbeat digest or a pending
+triage proposal cannot delay it. The wake queues behind an active main turn.
+Transient delivery failures retry on the mechanical scheduler's 15-second cadence;
+restart recovery reuses the same child revision without spending a second turn.
+A session monitor or reply watch covering that completion supplies the wake instead.
+Canceling that monitor after it covered the completion does not replay the automatic wake.
+Archived or explicitly stopped children do not generate this automatic wake.
+Ordinary creators and governed children with `notify_creator: false` keep their
+existing behavior. Instance pauses continue to hold autonomous input.
+Enrollment starts when the main creates the child; adopting a chat or upgrading
+does not replay historical child results. Clearing or rewinding a child conversation
+does not count as a completed assignment.
+Pending delivery follows the current main after rotation, and waits while the main
+is stopped or in Later. An interrupted child that cannot resume after restart
+reports its stopped state to the main.
+
 Always-on mains and their descendants receive daemon-composed doctrine about
 authorization, bounded follow-ups, daemon monitors, refusal handling, delegation,
 and durable context. Session identity and ancestry select it, not the agent name
@@ -323,7 +353,7 @@ an exhausted main blocked until the operator resolves them.
 ## Pause autonomous work
 
 Pausing an always-on instance holds autonomous input for its main session and descendants.
-A running work turn finishes. A running read-only check is cancelled without increasing
+A running work turn finishes. A running check-in is cancelled without increasing
 fatigue. Human prompts still run, including a child started from a human turn, and do
 not resume the instance. Pending proposals and their approval deadlines remain in place.
 
@@ -352,7 +382,26 @@ were away, the While you were away card says when it paused and offers **Resume*
 place. When two or more agents in a project paused this way, the `+N` crew panel offers
 **Resume all**. An agent's hover card shows what wakes it up next.
 
-Monitor wakes are held during pause, but not during a quiet window. Lost main-session
+Manual, fatigue, unattended and unknown pauses hold monitor wakes throughout the
+instance's lineage. Definition pauses (`definition_missing` or
+`definition_not_always_on`) hold only its main sessions, including old mains after
+rotation. Dispatched children continue their monitor wakes and agent messages, and
+their turns still count toward the unattended limit. Reaching that limit replaces
+the definition pause with `unattended` and holds the whole lineage. A prepared Goal's
+ordering boundary does not hold normal child continuations during a definition
+pause; the Goal itself retains its explicit pause guard. Manually pausing an instance
+that has a definition pause replaces it with the full lineage brake; other existing
+safety pauses remain unchanged. If an idle-released child also used the removed
+definition, its queued work can reload the same runtime from its accepted definition;
+new sessions and runtime switches still require an available definition.
+
+Held prompt results and queued inputs include `held_reason` and `held_instance_id`.
+A session with held input shows Needs attention; its status includes a `held_input`
+work signal with the reason and instance. Holds belonging to an archived instance
+report `instance_archived`, since that instance cannot be resumed. Archiving a
+paused instance holds its descendants even when the pause was caused by a missing
+definition; human input remains available. Restoring or adopting an agent does not
+transfer children from a different instance. Quiet windows do not hold monitor wakes. Lost main-session
 wakes produce one interrupted report per wake, except shutdown cancellations. A
 delivered wake does not trigger another check.
 
@@ -381,3 +430,196 @@ Polls run before model work. Empty or unchanged source digests skip the model ev
 Scripts run a private copy of approved bytes with the workspace as cwd. They receive `PATH`, `HOME`, `LANG`, `TMPDIR`, `USER`, `COMPOZY_SOURCE_ID`, `COMPOZY_AGENT`, and explicitly allowed daemon environment variables; they never receive `session_env`. Stdout, state, runtime and stderr are bounded. Upgrade every daemon reading a file before adding `context.sources`; older daemons reject the new key on downgrade.
 
 Healthy, unapproved and disabled sources are eligible on every check that passes the collection gates, including manual and event-pulled checks. `next_poll_at` is only a failing source’s retry backoff. A batch with `more: true` schedules the next timer check at `agents.heartbeat.min_interval` plus jitter, including when triage skips an unchanged digest. Other source-backed checks use the resolved agent cadence without quiet backoff. Reserved `COMPOZY_*` names are rejected in `env_allow`.
+
+## Check-in tools and authority
+
+A check-in's final assistant message must contain only `NOTHING_TO_REPORT` or one JSON
+object with `proposals`. A single Markdown fence and plain commentary around a proposal
+object are tolerated. Multiple objects or fences, braces or array brackets in surrounding
+commentary, and a sentinel mixed with proposals are rejected as ambiguous. The envelope
+and proposal fields remain strictly validated; earlier assistant messages and tool output
+are not parsed as proposals. Invalid replies keep the `triage_output_invalid` reason and
+include a static validation category in the redacted report detail: `framing`,
+`ambiguous_reply`, or `schema`.
+
+A check-in that reaches the model can use native and MCP read tools through the
+hosted gateway. Provider built-in tools remain in their confirmed read-only mode.
+The instance's current main-session permissions and tool grants remain the ceiling.
+An empty or unchanged digest still starts no model turn.
+
+```yaml
+check_ins:
+  allow_writes: [compozy__notify]
+  max_tool_calls: 10
+  max_write_calls: 1
+```
+
+Reads need no write opt-in. Writes require a matching selector, approval of the
+exact authority digest, and a main session that could run the call without asking.
+The native writable set is `compozy__notify`. Other native mutations must be proposed
+for the main session. MCP selectors accept an exact canonical ID or `mcp__<server>__*`.
+
+Claude check-ins run in Claude's `plan` mode, and Claude currently declines approved
+write tools while in that mode. Reads and actions work on Claude; for approved check-in
+writes, run the agent on Codex, or declare an action so the main session performs the
+change.
+
+A check-in never asks anyone anything. A write the main session would need approval
+for is denied `check_in_write_needs_approval`, and no approval request is created.
+`compozy__clarify` and every other tool that opens an operator interaction are always
+denied (`check_in_tool_not_writable`), even when classified as reads. When the
+instance has no main session, every call, read or write, is denied
+`check_in_no_main_session`.
+
+The authority block is `allow_writes`, both caps, every action (`id`, `title`,
+`instructions`, `auto_accept`), and the `read_only_tools` overrides in the agent's
+MCP declarations. Changing any of them changes the digest. Review and approve the
+block with `compozy agent heartbeat authority show <agent>` and
+`compozy agent heartbeat authority approve <agent>`. For scripts, approve with
+`--sha256 <digest> --yes`. Revoke with `heartbeat authority revoke <agent>`.
+`heartbeat write` displays the block before asking for approval; noninteractive
+writes can use `--approve-authority --yes`. A save never approves implicitly.
+Agent credentials cannot approve authority.
+
+Until the operator approves a non-empty block, the whole block is ignored:
+check-ins get reads only with the daemon's default caps, actions are not offered
+to the check-in, `read_only_tools` overrides are not applied (those tools stay
+writes in check-ins and in the main session), and every proposal waits for a pick.
+The instance shows "Check-in changes need your approval" and one notification fires
+per digest.
+
+If HEARTBEAT.md cannot be read or validated, including caps above the daemon limits,
+its authority is treated as unapproved. Main-session tools remain available with
+MCP overrides withheld. Tool descriptors expose `check_in_writable` alongside
+`access`; the editor uses this value for its write-tool choices.
+
+Each tool attempt is audited with its access class, outcome and redacted arguments;
+results are not retained. `instance check-ins <agent> --occurrence <id> -o json`
+lists calls. Without JSON output, `instance check-ins` includes WHEN, OUTCOME,
+TOOLS and PROPOSALS columns; the proposal summary reads, for example,
+`1 auto-accepted, 1 waiting`. `instance reports` text includes each proposal's pick
+state and `auto_accept_status`, plus total tools, completed/uncertain writes and
+denials. An otherwise quiet check-in that wrote
+publishes an activity report, including calls that may have changed something.
+Cancellation still discards pending source state.
+
+Operator-authored MCP declarations may set `read_only_tools: [raw_tool_name]` for
+unannotated read tools. Extension and marketplace declarations cannot set this
+classification. `destructiveHint: true` always makes a tool a write, including in
+main sessions. Existing files gain reads only. Upgrade every daemon reading a file
+before adding the new keys; older daemons reject unknown frontmatter.
+
+Set `[agents.always_on].check_in_tools = "disabled"` to disable hosted tools in check-ins.
+Check-ins then launch with no MCP servers and no tools, and
+check-in records show `tools_status: disabled`. Each record shows `unavailable` when
+the provider's read-only mode refused hosted tools.
+
+### Let a check-in search Linear
+
+Give the agent the Linear MCP server in `AGENT.md`, as for any session:
+
+```yaml
+mcp_servers:
+  - name: linear
+    transport: http
+    url: https://mcp.linear.app/mcp
+```
+
+Then tell its check-ins what to look for in `HEARTBEAT.md`, and keep writes off:
+
+```markdown
+---
+version: 1
+check_ins:
+  allow_writes: []
+---
+
+Look for new Linear issues assigned to me that have no comment from me yet.
+Propose one item per issue that needs me.
+```
+
+When a check-in reaches the model, it calls `mcp__linear__search_issues` (a read)
+with the agent's own Linear credentials and proposes what it finds. The report
+shows "Check-in used N tools", and
+`compozy agent instance check-ins <agent> --occurrence <id> -o json` lists each call.
+If a Linear read tool has no `readOnlyHint`, it is a write and denied
+`check_in_write_not_allowed`; list its raw name under `read_only_tools` in the
+operator-authored declaration and approve the changed authority.
+
+## Actions and proposal picks
+
+Declare up to eight actions in `HEARTBEAT.md`. Each action has a unique lowercase
+hyphenated `id` (up to 40 characters), a `title` (up to 120 characters),
+`instructions` (up to 1,000 characters), and optional `auto_accept` (default false).
+
+```yaml
+actions:
+  - id: write-report
+    title: Write a report
+    instructions: Investigate the evidence and write a report. Preserve untrusted fences when relaying evidence.
+    auto_accept: true
+```
+
+A proposal may name an action. Picking it queues the action instructions followed
+by the proposal inside an untrusted fence in the instance's main session. A
+proposal without an action queues its title. While the authority is unapproved,
+actions are not offered to the check-in and a pick queues the title only. The main
+session keeps its own tool permissions; picking grants no additional access.
+
+Auto-accept requires approval of the exact authority digest. Editing any action
+(including its title or `auto_accept`) invalidates that approval. Only completed
+check-ins on active instances with a main session can auto-pick, after
+deduplication and unattended/fatigue checks. The rolling 24-hour limit is
+`[agents.always_on].auto_accept_per_day` (default 20, range 0–200). A full queue
+leaves the proposal waiting. Auto picks count toward the unattended turn limit.
+Pausing or archiving cancels queued auto picks.
+
+Each proposal with an auto-accept action reports `auto_accept_status`: `picked`
+when the daemon picked it, otherwise the reason it waited, recorded when the report
+was published and never recomputed: `limit` (daily limit reached), `queue_full`,
+`unapproved` (authority not approved), `no_main` (no main session), or
+`inactive` (the instance was paused, archived, or inactive). Proposals
+without an auto-accept action report `none`. An operator pick never shows as
+`picked`; its pick record has actor `operator`.
+
+Operators can pick from the CLI with a 1-based proposal number:
+
+```bash
+compozy agent instance pick log-triage <report-id> 1 -o json
+```
+
+HTTP and UDS use `POST /api/agent-instances/{id}/reports/{report_id}/pick` with
+`{"proposal":0}` (0-based). Agent credentials cannot pick. Repeating a pick fails
+with `proposal_already_picked`. Report reads expose recorded picks and their queue
+state (`queued`, `delivered`, `cancelled`, or `failed`).
+
+## Acknowledge attention
+
+Choose **Mark as seen** in an always-on avatar's hover card to acknowledge old failure attention.
+The avatar updates immediately after the server refreshes its state. Pending requests in live
+sessions keep the indicator until answered; pending or orphaned requests in stopped sessions
+are canceled. A new failure raises attention again.
+
+The local operator can use `compozy agent instance mark-seen <id>` or
+`POST /api/agent-instances/{id}/away` for the same acknowledgement. Reports remain in history
+and keep their provider delivery state: reading them does not send them to the agent.
+
+### Recovering rejected check-in configuration
+
+A check-in rejected with `triage_config_unavailable` waits up to
+`agents.heartbeat.max_interval` before retrying. Applying heartbeat or provider runtime
+configuration reschedules affected active instances within their normal resolved cadence
+and clears the quiet and failure backoff. A fresh live provider model catalog confirming
+the configured triage model also schedules recovery in that profile and workspace.
+Paused, archived, disabled, and in-flight instances are left alone. Pending automation
+events and unattended-turn counts are preserved.
+
+Instance status and list responses explain the last runtime rejection in the next check's
+description. Use `agent_instance_check` to retry manually after correcting configuration.
+
+Manual wake `source` accepts `timer`, `instance_check`, `scheduler`, `manual`, or `harness_reentry`
+(default: `manual`). Unknown values return a validation error listing these values.
+
+The native tool schema requires exact enum members when `source` is supplied: empty strings and
+padded values are rejected before dispatch. Omit `source` to use `manual`. HTTP/UDS and direct
+service callers retain their existing whitespace normalization; this does not expand the native schema.

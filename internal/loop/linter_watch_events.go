@@ -148,7 +148,7 @@ func (c *lintContext) lintWatchEventsFilterReferences(node dsl.Node, namespace r
 			continue
 		}
 		if condition != nil {
-			c.warnUnknownOutputReferences(node.ID, condition.References, eventNamespace)
+			c.checkReferenceContracts(node.ID, condition.References, eventNamespace)
 		}
 		c.lintWatchEventsRequiredVars(node, idx, subscription, contract)
 	}
@@ -173,7 +173,7 @@ func (c *lintContext) lintWaitEventFilterReferences(node dsl.Node, namespace ref
 		return
 	}
 	if condition != nil {
-		c.warnUnknownOutputReferences(node.ID, condition.References, eventNamespace)
+		c.checkReferenceContracts(node.ID, condition.References, eventNamespace)
 	}
 }
 

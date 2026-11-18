@@ -6,7 +6,7 @@ import { cn, Skeleton, SkeletonRegion, SkeletonText } from "@compozy/ui";
 // (`TerminalPane`) keeps zero animation, and these stand in until it mounts.
 
 /** The emulator surface's padding and type (as `TerminalPane` sets them), so lines sit where output will. */
-const TERMINAL_SURFACE_TEXT_CLASS = "px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono";
+const TERMINAL_SURFACE_TEXT_CLASS = "px-3.5 pt-2.5 pb-3 font-mono text-terminal tracking-mono";
 
 /** Lines a loading surface stands in with: a prompt and a little output, never a screenful. */
 const TERMINAL_LINES = [

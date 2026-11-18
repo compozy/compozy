@@ -1,0 +1,428 @@
+{
+    "version": 3,
+    "key": "landing",
+    "sequence": 6,
+    "review": {
+        "status": "approved",
+        "updatedAt": "2026-11-09T22:19:49.620Z"
+    },
+    "events": [
+        {
+            "id": "3d083d52-36b4-4209-9a9f-50fd962a7ac6",
+            "type": "approved",
+            "at": "2026-11-09T22:19:49.620Z",
+            "author": "reviewer",
+            "commit": "5a212dac4a710e4e3343c230bb78822ee9612786",
+            "openCount": 0
+        }
+    ],
+    "comments": [
+        {
+            "id": "landing-1",
+            "slug": "landing",
+            "status": "resolved",
+            "createdAt": "2026-11-09T21:39:03.508Z",
+            "updatedAt": "2026-11-09T21:58:58.653Z",
+            "resolvedAt": "2026-11-09T21:58:58.653Z",
+            "context": {
+                "commit": "5a212dac4a710e4e3343c230bb78822ee9612786",
+                "state": "default",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section:nth-of-type(6) > div > ul",
+                "testId": null,
+                "tag": "ul",
+                "text": "2,860on GitHub MIT license 79releases Local-first",
+                "source": "src/drafts/landing/sections-proof.tsx:105:9",
+                "sourceChain": [
+                    "src/drafts/landing/sections-proof.tsx:105:9",
+                    "src/drafts/landing/sections-proof.tsx:85:7",
+                    "src/drafts/landing/sections-proof.tsx:84:5",
+                    "src/drafts/landing/index.proto.tsx:29:9",
+                    "src/drafts/landing/index.proto.tsx:23:7",
+                    "src/drafts/landing/index.proto.tsx:21:5"
+                ],
+                "rect": {
+                    "x": 442,
+                    "y": 543.390625,
+                    "width": 1200,
+                    "height": 79
+                },
+                "rectNormalized": {
+                    "x": 0.21209213051823417,
+                    "y": 0.4708757582322357,
+                    "width": 0.5758157389635317,
+                    "height": 0.0684575389948007
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "8f2a1210-6360-4121-ac67-04d3de0aa0e0",
+                    "at": "2026-11-09T21:39:03.521Z",
+                    "editedAt": null,
+                    "body": "essas fontes estão muito pequenas",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "7446ebcd-a27f-450e-91e0-1c64dfb41fd4",
+                    "at": "2026-11-09T21:58:58.652Z",
+                    "editedAt": null,
+                    "body": "Aumentei a faixa: número ou palavra em Instrument Sans de até 52px, rótulo de até 20px e ícone de 24px (sections-proof.tsx, STATS). Conferido em 2084px, sem overflow.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "landing-2",
+            "slug": "landing",
+            "status": "resolved",
+            "createdAt": "2026-11-09T21:39:28.961Z",
+            "updatedAt": "2026-11-09T21:58:59.393Z",
+            "resolvedAt": "2026-11-09T21:58:59.393Z",
+            "context": {
+                "commit": "5a212dac4a710e4e3343c230bb78822ee9612786",
+                "state": "default",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div > div > div > div > div > div:nth-of-type(4) > img",
+                "testId": null,
+                "tag": "img",
+                "text": "",
+                "source": "src/drafts/landing/primitives.tsx:123:7",
+                "sourceChain": [
+                    "src/drafts/landing/primitives.tsx:123:7",
+                    "src/drafts/landing/primitives.tsx:122:5",
+                    "src/drafts/landing/sections-story.tsx:180:17",
+                    "src/drafts/landing/primitives.tsx:140:7",
+                    "src/drafts/landing/primitives.tsx:139:5",
+                    "src/drafts/landing/sections-story.tsx:178:13",
+                    "src/drafts/landing/sections-story.tsx:177:11",
+                    "src/drafts/landing/sections-story.tsx:157:9"
+                ],
+                "rect": {
+                    "x": 616,
+                    "y": 189.875,
+                    "width": 1240,
+                    "height": 774.25
+                },
+                "rectNormalized": {
+                    "x": 0.29558541266794625,
+                    "y": 0.1645363951473137,
+                    "width": 0.5950095969289827,
+                    "height": 0.6709272097053726
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "f211aa0e-61ae-47fd-a631-25a79623d509",
+                    "at": "2026-11-09T21:39:28.975Z",
+                    "editedAt": null,
+                    "body": "aqui no sources poderia o sources rendizado na view do agent ao invés desse yaml",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "73e67f80-bdfe-4da9-830d-d0f95a2f8144",
+                    "at": "2026-11-09T21:58:59.382Z",
+                    "editedAt": null,
+                    "body": "Sources agora mostra a view real do agente: a linha 'New GitHub issues · northstar-pay/docs-site' no formulário de Heartbeat. O YAML aparecia porque o seed usa min_interval 3h, valor que o formulário não aceita; ajustei isso no lab para 1h. Check-ins usa a mesma tela. Conferido em 2084px.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "landing-3",
+            "slug": "landing",
+            "status": "resolved",
+            "createdAt": "2026-11-09T21:51:07.263Z",
+            "updatedAt": "2026-11-09T21:59:00.180Z",
+            "resolvedAt": "2026-11-09T21:59:00.180Z",
+            "context": {
+                "commit": "5a212dac4a710e4e3343c230bb78822ee9612786",
+                "state": "default",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section:nth-of-type(7)",
+                "testId": null,
+                "tag": "section",
+                "text": "Supervise One board, sorted by who owns the next step. One board, sorted by who owns the next step. Every session lands…",
+                "source": "src/drafts/landing/sections-proof.tsx:166:5",
+                "sourceChain": [
+                    "src/drafts/landing/sections-proof.tsx:166:5",
+                    "src/drafts/landing/index.proto.tsx:30:9",
+                    "src/drafts/landing/index.proto.tsx:23:7",
+                    "src/drafts/landing/index.proto.tsx:21:5"
+                ],
+                "rect": {
+                    "x": 0,
+                    "y": 92.390625,
+                    "width": 2084,
+                    "height": 4042.828125
+                },
+                "rectNormalized": {
+                    "x": 0,
+                    "y": 0.08006120017331023,
+                    "width": 1,
+                    "height": 3.5033172660311958
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "5ca6c22c-ac03-421e-8848-22a9249e5eca",
+                    "at": "2026-11-09T21:51:07.278Z",
+                    "editedAt": "2026-11-09T21:52:10.104Z",
+                    "body": "esse screenshot ja apareceu umas 3x até aqui, acho que essa session ficou redundante, acho que seria mais interessante algo sobre \"details that matter\" e mostrar os 3 prints de baixo de um formato visual diferente mostrando que os detalhes fazem diferença e ja mostra essas features",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "a8811f76-8dec-4e32-b08f-63f71c8717a6",
+                    "at": "2026-11-09T21:59:00.173Z",
+                    "editedAt": null,
+                    "body": "Tirei o board fixo dessa seção. Agora é 'Details that matter.' com três painéis que abrem em sequência ou ao passar o mouse, cada um com arte própria e o print do detalhe: Allow once, Later com motivo e data, coluna In review (sections-proof.tsx, DetailPanels). Mantive o subtítulo aprovado, que explica as colunas. O título é copy nova, para sua validação. Conferido em 2084px, inclusive a troca de painel com hover.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "landing-4",
+            "slug": "landing",
+            "status": "resolved",
+            "createdAt": "2026-11-09T21:52:48.550Z",
+            "updatedAt": "2026-11-09T21:59:00.934Z",
+            "resolvedAt": "2026-11-09T21:59:00.934Z",
+            "context": {
+                "commit": "5a212dac4a710e4e3343c230bb78822ee9612786",
+                "state": "default",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section:nth-of-type(12) > div:nth-of-type(2) > div:nth-of-type(2)",
+                "testId": null,
+                "tag": "div",
+                "text": "From the catalog GitHub Linear Context7 Notion Sentry GitHub Linear Context7 Notion Sentry Playwright Stripe PostHog Po…",
+                "source": "src/drafts/landing/sections-run.tsx:153:9",
+                "sourceChain": [
+                    "src/drafts/landing/sections-run.tsx:153:9",
+                    "src/drafts/landing/sections-run.tsx:147:7",
+                    "src/drafts/landing/sections-run.tsx:131:5",
+                    "src/drafts/landing/index.proto.tsx:35:9",
+                    "src/drafts/landing/index.proto.tsx:23:7",
+                    "src/drafts/landing/index.proto.tsx:21:5"
+                ],
+                "rect": {
+                    "x": 0,
+                    "y": 311.21875,
+                    "width": 2084,
+                    "height": 151.5
+                },
+                "rectNormalized": {
+                    "x": 0,
+                    "y": 0.2696869584055459,
+                    "width": 1,
+                    "height": 0.13128249566724437
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "94a79237-6807-4939-b3a4-cc0ca4445112",
+                    "at": "2026-11-09T21:52:48.573Z",
+                    "editedAt": null,
+                    "body": "aqui poderia usr as logos de cada um",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "21b79934-35cb-4838-b71c-da51d37c3175",
+                    "at": "2026-11-09T21:59:00.932Z",
+                    "editedAt": null,
+                    "body": "Cada item agora tem o logo real: GitHub e Linear vêm de @compozy/ui; os demais vêm dos ícones do nosso Marketplace (assets/catalog). Conferido em 2084px.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "landing-5",
+            "slug": "landing",
+            "status": "resolved",
+            "createdAt": "2026-11-09T21:53:26.259Z",
+            "updatedAt": "2026-11-09T21:59:01.563Z",
+            "resolvedAt": "2026-11-09T21:59:01.563Z",
+            "context": {
+                "commit": "5a212dac4a710e4e3343c230bb78822ee9612786",
+                "state": "default",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(4) > div:nth-of-type(1) > button",
+                "testId": null,
+                "tag": "button",
+                "text": "Download for macOS",
+                "source": "src/drafts/landing/primitives.tsx:66:5",
+                "sourceChain": [
+                    "src/drafts/landing/primitives.tsx:66:5",
+                    "src/drafts/landing/sections-open.tsx:121:13",
+                    "src/drafts/landing/sections-open.tsx:120:11",
+                    "src/drafts/landing/motion.tsx:29:5",
+                    "src/drafts/landing/sections-open.tsx:119:9",
+                    "src/drafts/landing/sections-open.tsx:107:7",
+                    "src/drafts/landing/sections-open.tsx:102:5",
+                    "src/drafts/landing/index.proto.tsx:24:9"
+                ],
+                "rect": {
+                    "x": 694.46875,
+                    "y": 537.9375,
+                    "width": 228.703125,
+                    "height": 52
+                },
+                "rectNormalized": {
+                    "x": 0.33323836372360843,
+                    "y": 0.46615034662045063,
+                    "width": 0.10974238243761997,
+                    "height": 0.045060658578856154
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "ebc90669-7fda-4ad2-92a9-7980f87edc8f",
+                    "at": "2026-11-09T21:53:26.272Z",
+                    "editedAt": null,
+                    "body": "uma versao de botao usando nosso gradient seria mais atrativo aqui na landing page",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "42af8b40-76e7-486a-90ef-949eaecdeaf4",
+                    "at": "2026-11-09T21:59:01.561Z",
+                    "editedAt": null,
+                    "body": "Os CTAs primários da landing agora usam --gradient-brand a 45° com texto --color-on-gradient. No hover, o gradiente desliza e o brilho aumenta (primitives.tsx, PrimaryCta). Conferido no hero e no Marketplace em 2084px.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "landing-6",
+            "slug": "landing",
+            "status": "resolved",
+            "createdAt": "2026-11-09T22:04:20.316Z",
+            "updatedAt": "2026-11-09T22:19:37.423Z",
+            "resolvedAt": "2026-11-09T22:06:46.252Z",
+            "context": {
+                "commit": "5a212dac4a710e4e3343c230bb78822ee9612786",
+                "state": "default",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "footer > div:nth-of-type(2) > svg",
+                "testId": null,
+                "tag": "svg",
+                "text": "",
+                "source": "src/drafts/landing/sections-close.tsx:160:9",
+                "sourceChain": [
+                    "src/drafts/landing/sections-close.tsx:160:9",
+                    "src/drafts/landing/sections-close.tsx:159:7",
+                    "src/drafts/landing/sections-close.tsx:150:5",
+                    "src/drafts/landing/index.proto.tsx:40:7",
+                    "src/drafts/landing/index.proto.tsx:21:5"
+                ],
+                "rect": {
+                    "x": 316,
+                    "y": 920.15625,
+                    "width": 1452,
+                    "height": 321.1875
+                },
+                "rectNormalized": {
+                    "x": 0.15163147792706333,
+                    "y": 0.7973624350086655,
+                    "width": 0.6967370441458733,
+                    "height": 0.27832538994800693
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "101424cd-2701-464f-83b2-162f8463dd7a",
+                    "at": "2026-11-09T22:04:20.331Z",
+                    "editedAt": null,
+                    "body": "veja se encontra algum efeito melhor no react bits para cá, esse degrade nao ficou legal",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "2dae27ef-9e34-4ddd-9273-36e32e085041",
+                    "at": "2026-11-09T22:06:46.251Z",
+                    "editedAt": null,
+                    "body": "Troquei o degradê pelo ParticleText do React Bits (fx/particle-text.tsx), adaptado para usar o desenho real do wordmark em vez de uma fonte. O logo agora se monta com partículas azul-teal ao entrar na tela e reage ao ponteiro (sections-close.tsx, FooterWordmark). Conferido em 2084px em navegador real, sem erros no console.",
+                    "author": "agent",
+                    "attachments": []
+                },
+                {
+                    "id": "5410b709-ae13-4529-a5ae-f6375849358a",
+                    "at": "2026-11-09T22:10:55.935Z",
+                    "editedAt": null,
+                    "body": "As partículas pioraram, então saíram. Refiz a partir do footer.design (Digital Metal, Flexion, Nothin', Turion): logo sólido de ponta a ponta sobre a linha de luz, subindo com o scroll, e links organizados acima. Conferido em 2084px, sem erros.",
+                    "author": "agent",
+                    "attachments": []
+                },
+                {
+                    "id": "dae0c9fa-5134-40ee-bc21-de5ecd6517b6",
+                    "at": "2026-11-09T22:19:37.423Z",
+                    "editedAt": null,
+                    "body": "Versão grande descartada a seu pedido. Agora o rodapé é minimalista: uma única linha com logo pequeno, links e 'Keep every agent running.', sobre um hairline, sem arte nem animação. Conferido em 2084px e 390px.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        }
+    ]
+}

@@ -1,10 +1,11 @@
 // Suite: desktop hydration status
 // Invariant: the menubar carries the one window-layout status, in plain words,
 // and stays silent when there is nothing to report — including before the
-// stream's first attempt.
+// stream's first attempt; a degraded layout names the underlying error one step deeper.
 // Boundary IN: OsHydrationStatus rendering and accessibility contract.
 // Boundary OUT: WebSocket state transitions (hooks/__tests__/use-window-manager-stream.test.tsx).
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { TooltipProvider } from "@compozy/ui";
@@ -29,6 +30,25 @@ describe("OsHydrationStatus", () => {
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Can't save window layout — retrying");
     expect(status).not.toHaveTextContent(STREAM_DIAGNOSTIC.message);
+  });
+
+  it("Should name the error that degraded the layout in the status detail [#1543]", async () => {
+    const user = userEvent.setup();
+    render(
+      <TooltipProvider delay={0}>
+        <OsHydrationStatus
+          hydration="degraded"
+          loadError={new Error("Subscriber failed to apply the frame.")}
+          connectionStatus="reconnecting"
+        />
+      </TooltipProvider>
+    );
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Can't save window layout — retrying");
+    await user.hover(status);
+
+    expect(await screen.findByText("Subscriber failed to apply the frame.")).toBeInTheDocument();
   });
 
   it("Should report a reconnecting stream without warning tone", () => {

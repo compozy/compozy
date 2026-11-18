@@ -9,11 +9,11 @@ export type { SessionListRowProps } from "./session-list-row-view";
 
 /**
  * A session list row bound to the live runtime label, the session-entry intent preload and the
- * row menus (`…` actions and right-click); the presentation is `SessionListRowView`. Linked work
+ * row menus (`…` actions and right-click, one tree); the presentation is `SessionListRowView`. Linked work
  * and the always-on agent that started a session show inside the session, not on its row (#1191).
  */
 export function SessionListRow(props: SessionListRowProps) {
-  const { session, current = false, selection, sessionActions, layoutMenu } = props;
+  const { session, current = false, selection, sessionActions, layoutMenu, onSelect } = props;
   const runtime = useSessionRowRuntimeLabel(session);
   const preloadHandlers = useSessionEntryPreload(session, !current && !selection?.mode);
   const selected = selection?.selectedIds.has(session.id) ?? false;
@@ -23,12 +23,20 @@ export function SessionListRow(props: SessionListRowProps) {
     <SessionListRowView
       {...props}
       preloadHandlers={preloadHandlers}
-      rowActions={<SessionRowActions actions={sessionActions} session={session} />}
+      rowActions={
+        <SessionRowActions
+          actions={sessionActions}
+          layout={layoutMenu}
+          onOpen={onSelect}
+          session={session}
+        />
+      }
       runtime={runtime}
       wrapRow={row => (
         <SessionRowContextMenu
           actions={sessionActions}
           layout={layoutMenu}
+          onOpen={onSelect}
           render={row}
           selectionMenu={
             verbs ? (

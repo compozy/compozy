@@ -32,6 +32,7 @@ const (
 	keyTerminal     = "terminal"
 	keyKind         = "kind"
 	keyWaitKind     = "wait_kind"
+	keyEvent        = "event"
 	keyScheduleKind = "schedule_kind"
 	keyMarket       = "market"
 )

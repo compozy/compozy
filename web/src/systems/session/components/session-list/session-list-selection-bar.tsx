@@ -15,7 +15,7 @@ import {
 
 import { cn } from "@/lib/utils";
 
-import type { SessionSelectionVerbs } from "../../hooks/use-session-list-bulk-selection";
+import type { SessionSelectionVerbs } from "../../lib/session-selection-verbs";
 import { SESSION_LIST_BAR_CLASS } from "../../lib/session-list-bar-class";
 import { sessionCountLabel } from "../../lib/session-folders";
 import { SessionSelectionMenuItems } from "./session-list-selection-menu";
@@ -112,7 +112,7 @@ export function SessionListSelectionBar({
           />
           <TooltipContent>More actions</TooltipContent>
         </Tooltip>
-        <DropdownMenuContent align="end" className="min-w-50">
+        <DropdownMenuContent align="end" className="w-auto min-w-56">
           <SessionSelectionMenuItems
             verbs={verbs}
             kind="dropdown"

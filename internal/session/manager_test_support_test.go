@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -75,7 +76,7 @@ func reportSessionStop(t *testing.T, h *harness, sessionID string) {
 	}
 }
 
-func newHarness(t *testing.T, extraOpts ...Option) *harness {
+func newHarness(t testing.TB, extraOpts ...Option) *harness {
 	t.Helper()
 
 	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
@@ -160,7 +161,7 @@ func newHostedMCPHarness(t *testing.T, extraOpts ...Option) *harness {
 	return newHarness(t, append(extraOpts, WithHostedMCPLauncher(hosted))...)
 }
 
-func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manager {
+func newManagerWithHarness(t testing.TB, h *harness, extraOpts ...Option) *Manager {
 	t.Helper()
 	claudeProvider, err := h.cfg.ResolveProvider(runtimeProviderClaude)
 	if err != nil {
@@ -169,6 +170,7 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 
 	opts := []Option{
 		WithHomePaths(h.homePaths),
+		WithRuntimeMCPInventory(runtimeMCPFileInventory{systemRoot: t.TempDir()}),
 		WithDriver(h.driver),
 		WithNotifier(h.notifier),
 		WithPromptAssembler(
@@ -191,6 +193,9 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithSessionIDGenerator(sequentialIDGenerator("sess")),
 		WithTurnIDGenerator(h.turnIDs),
+		// The fake driver keeps a prompt stream open after its process stops, so a shutdown stop
+		// would otherwise spend the whole production grace waiting for a terminal event.
+		WithDaemonShutdownTurnGrace(20 * time.Millisecond),
 		WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
 			ProviderID:        runtimeProviderClaude,
 			ModelID:           claudeProvider.Models.Default,
@@ -208,8 +213,84 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
+	// The production composition root owns live source admission. Session tests replace that
+	// I/O boundary with the fixture's configured and explicitly granted server names.
+	manager.SetMCPAuthorityResolver(
+		lineageAuthorityFunc(func(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
+			info := MCPAuthoritySession(ctx, id)
+			if info == nil {
+				var err error
+				info, err = manager.StoredStatus(ctx, id)
+				if err != nil {
+					return store.SessionPermissionPolicy{}, err
+				}
+			}
+			lineage := store.NormalizeSessionLineage(id, info.Lineage)
+			policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
+			names := fixtureMCPAuthorityNames(h, manager, info, policy)
+			policy.MCPServers = store.BoundMCPServers(policy, names)
+			return policy, nil
+		}),
+	)
 	installAbsentWorkSources(manager)
 	return manager
+}
+
+// fixtureMCPAuthorityNames reads the fixture's admitted source catalog, not runtime discovery.
+// Authority checks must not resolve agents or enumerate skills again during create, resume or reads.
+func fixtureMCPAuthorityNames(
+	h *harness, manager *Manager, info *Info, policy store.SessionPermissionPolicy,
+) []string {
+	names := slices.Clone(policy.MCPServers)
+	h.resolver.mu.Lock()
+	resolved := h.resolver.byRef[info.WorkspaceID]
+	profileName := ""
+	switch {
+	case info.ProfileID == store.DefaultProfileID:
+		profileName = sessionDefaultProfileName
+	case manager != nil && manager.profileNames != nil:
+		if name, err := manager.profileNames.ProfileName(context.Background(), info.ProfileID); err == nil {
+			profileName = name
+		}
+	}
+	if profiled, ok := h.resolver.byProfile[profileName]; ok && profiled.ID == info.WorkspaceID {
+		resolved = profiled
+	}
+	h.resolver.mu.Unlock()
+	for _, server := range resolved.Config.MCPServers {
+		names = append(names, server.Name)
+	}
+	provider := info.Provider
+	for _, agent := range resolved.Agents {
+		if agent.Name != info.AgentName {
+			continue
+		}
+		if provider == "" {
+			provider = agent.Provider
+		}
+		for _, server := range agent.MCPServers {
+			names = append(names, server.Name)
+		}
+	}
+	if provider == "" {
+		provider = resolved.Config.Defaults.Provider
+	}
+	for _, server := range resolved.Config.Providers[provider].MCPServers {
+		names = append(names, server.Name)
+	}
+	if registry, ok := manager.skillRegistry.(*fakeSkillRegistry); ok {
+		registry.mu.Lock()
+		defer registry.mu.Unlock()
+		for _, skill := range registry.skillsByWorkspace[info.WorkspaceID] {
+			if skill == nil || !skill.Enabled {
+				continue
+			}
+			for _, server := range skill.MCPServers {
+				names = append(names, server.Name)
+			}
+		}
+	}
+	return names
 }
 
 func cleanupTestManager(t *testing.T, manager *Manager) {
@@ -906,14 +987,17 @@ func cloneResolvedWorkspaceForTests(src *workspacepkg.ResolvedWorkspace) workspa
 }
 
 type recordingHostedMCPLauncher struct {
-	mu       sync.Mutex
-	bindErr  error
-	waits    []string
-	server   compozyconfig.MCPServer
-	requests []HostedMCPLaunchRequest
-	arms     []string
-	cancels  []string
-	releases []string
+	initialToolDigest string
+	toolDigest        string
+	toolDigestErr     error
+	mu                sync.Mutex
+	bindErr           error
+	waits             []string
+	server            compozyconfig.MCPServer
+	requests          []HostedMCPLaunchRequest
+	arms              []string
+	cancels           []string
+	releases          []string
 }
 
 func (l *recordingHostedMCPLauncher) ArmLaunch(_ context.Context, sessionID string) error {
@@ -943,6 +1027,7 @@ func (l *recordingHostedMCPLauncher) Launch(
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.requests = append(l.requests, req)
+	l.initialToolDigest = l.toolDigest
 	return l.server, nil
 }
 
@@ -1424,15 +1509,7 @@ func assertContextRebuiltMarkerCount(t *testing.T, events []store.SessionEvent, 
 
 func waitForCondition(t *testing.T, label string, condition func() bool) {
 	t.Helper()
-
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if condition() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %s", label)
+	testutil.Eventually(t, label, 10*time.Second, condition)
 }
 
 func (d *fakeDriver) Kill(_ context.Context, proc *AgentProcess) error {
@@ -1481,4 +1558,47 @@ func testMetadataFromEvents(rows []store.SessionEvent) []store.EventMetadata {
 		}
 	}
 	return result
+}
+
+func (l *recordingHostedMCPLauncher) ToolDigest(context.Context, string) (string, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.toolDigest, l.toolDigestErr
+}
+
+func (l *recordingHostedMCPLauncher) WaitForBindToolDigest(ctx context.Context, sessionID string) (string, error) {
+	return l.ToolDigest(ctx, sessionID)
+}
+
+func (l *recordingHostedMCPLauncher) InitialToolDigest(string) (string, bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.initialToolDigest != "" {
+		return l.initialToolDigest, true
+	}
+	return l.toolDigest, true
+}
+
+// userLifecycleResolver resolves the User scope over the harness workspace configuration.
+type userLifecycleResolver struct {
+	WorkspaceResolver
+	resolved workspacepkg.ResolvedWorkspace
+}
+
+var _ workspacepkg.UserRuntimeResolver = (*userLifecycleResolver)(nil)
+
+func (r *userLifecycleResolver) ResolveUser(
+	_ context.Context,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	resolved := r.resolved
+	resolved.ProfileID = profileID
+	resolved.ProfileName = "default"
+	return resolved, nil
+}
+
+// simulateDaemonRestart clears the shutdown marker the way a new daemon process starts without one,
+// for tests that drive shutdown and the following boot through one Manager.
+func simulateDaemonRestart(manager *Manager) {
+	manager.daemonShutdown.Store(nil)
 }

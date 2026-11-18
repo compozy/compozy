@@ -25,6 +25,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	opendesign "github.com/compozy/compozy/extensions/open-design"
@@ -587,11 +588,7 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 		}
 		bootResult := make(chan error, 1)
 		go func() { bootResult <- d.boot(testutil.Context(t)) }()
-		select {
-		case <-registry.neutralizeStarted:
-		case <-time.After(time.Second):
-			t.Fatal("daemon did not enter the Loop neutralization barrier")
-		}
+		testutil.Receive(t, "daemon to enter the Loop neutralization barrier", time.Second, registry.neutralizeStarted)
 		select {
 		case runID := <-registry.claimAttempts:
 			t.Fatalf("claim %q started before Loop neutralization completed", runID)
@@ -608,7 +605,10 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 			if err != nil {
 				t.Fatalf("boot() error = %v", err)
 			}
-		case <-time.After(5 * time.Second):
+		case <-time.After(testutil.Scaled(t, 5*time.Second)):
+			stacks := make([]byte, 1<<20)
+			stacks = stacks[:runtime.Stack(stacks, true)]
+			t.Logf("boot timeout goroutines:\n%s", stacks)
 			t.Fatal("daemon boot did not finish after Loop neutralization was released")
 		}
 		t.Cleanup(func() {
@@ -687,11 +687,7 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 				t.Fatalf("Shutdown() error = %v", err)
 			}
 		})
-		select {
-		case <-backfillDone:
-		case <-time.After(time.Second):
-			t.Fatal("post-readiness provenance backfill did not run")
-		}
+		testutil.Receive(t, "post-readiness provenance backfill", time.Second, backfillDone)
 		mu.Lock()
 		gotOrder := slices.Clone(order)
 		mu.Unlock()
@@ -1031,7 +1027,7 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 		reconcileStarted := make(chan struct{})
 		releaseReconcile := make(chan struct{})
 		release := sync.OnceFunc(func() { close(releaseReconcile) })
-		t.Cleanup(release)
+		defer release()
 		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 			return &fakeObserver{
 				err: lateFailure,
@@ -1047,15 +1043,22 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) { return httpServer, nil }
 		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return udsServer, nil }
 
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		defer cancel()
 		bootResult := make(chan error, 1)
 		go func() {
-			bootResult <- d.boot(testutil.Context(t))
+			bootResult <- d.boot(ctx)
 		}()
 
 		select {
 		case <-reconcileStarted:
-		case <-time.After(5 * time.Second):
-			t.Fatal("boot() did not reach late reconciliation")
+		case bootErr := <-bootResult:
+			t.Fatalf("boot() returned before late reconciliation: %v", bootErr)
+		case <-ctx.Done():
+			stacks := make([]byte, 64<<10)
+			stacks = stacks[:runtime.Stack(stacks, true)]
+			t.Logf("bounded boot timeout goroutines:\n%s", stacks)
+			t.Fatalf("boot() did not reach late reconciliation: %v", ctx.Err())
 		}
 
 		_, infoErr := os.Stat(homePaths.DaemonInfo)
@@ -1065,8 +1068,8 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 			if !errors.Is(bootErr, lateFailure) {
 				t.Fatalf("boot() error = %v, want late reconciliation failure", bootErr)
 			}
-		case <-time.After(5 * time.Second):
-			t.Fatal("boot() did not return after late reconciliation failed")
+		case <-ctx.Done():
+			t.Fatalf("boot() did not return after late reconciliation failed: %v", ctx.Err())
 		}
 
 		if !errors.Is(infoErr, os.ErrNotExist) {
@@ -1499,6 +1502,13 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 		if got, want := info.PID, 777; got != want {
 			t.Fatalf("daemon info pid = %d, want %d", got, want)
 		}
+		// Invariant: a completed boot publishes the ready phase in status and daemon.json.
+		if got, want := info.ReadinessPhase, string(contract.DaemonReadinessReady); got != want {
+			t.Fatalf("daemon info readiness phase = %q, want %q", got, want)
+		}
+		if got := d.DaemonReadiness(); got == nil || got.Phase != contract.DaemonReadinessReady || got.Step != "" {
+			t.Fatalf("DaemonReadiness() = %#v, want the ready phase without a step", got)
+		}
 	})
 }
 
@@ -1554,46 +1564,54 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 	cfg := testConfig(t, homePaths)
 	d := newTestDaemon(t, homePaths, &cfg)
 
-	var events []string
+	var (
+		eventsMu sync.Mutex
+		events   []string
+	)
+	record := func(event string) {
+		eventsMu.Lock()
+		defer eventsMu.Unlock()
+		events = append(events, event)
+	}
 	d.extensions = &fakeExtensionRuntime{
 		onStop: func() {
-			events = append(events, "extensions")
+			record("extensions")
 		},
 	}
 	d.automation = &fakeAutomationManager{
 		onShutdown: func() {
-			events = append(events, "automation")
+			record("automation")
 		},
 	}
 	d.sessions = &fakeSessionManager{
 		infos: []*session.Info{{ID: "sess-a"}, {ID: "sess-b"}},
 		onStop: func(id string) {
-			events = append(events, "session:"+id)
+			record("session:" + id)
 		},
 	}
 	d.tasks = &taskRuntime{}
-	d.httpServer = &fakeServer{name: "http", onShutdown: func() { events = append(events, "http") }}
-	d.udsServer = &fakeServer{name: "uds", onShutdown: func() { events = append(events, "uds") }}
+	d.httpServer = &fakeServer{name: "http", onShutdown: func() { record("http") }}
+	d.udsServer = &fakeServer{name: "uds", onShutdown: func() { record("uds") }}
 	d.registry = &recordingRegistry{
 		path: homePaths.DatabaseFile,
 		onClose: func() {
-			events = append(events, "db")
+			record("db")
 		},
 	}
 	d.hooks = &fakeHookRuntime{
 		onClose: func() {
-			events = append(events, "hooks")
+			record("hooks")
 		},
 	}
 	d.lock = &Lock{
 		path: homePaths.DaemonLock,
 		releaseFn: func() error {
-			events = append(events, "lock")
+			record("lock")
 			return nil
 		},
 	}
 	d.closeLogger = func() error {
-		events = append(events, "logger")
+		record("logger")
 		return nil
 	}
 
@@ -1604,23 +1622,33 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 		t.Fatalf("Shutdown() left task runtime = %#v, want nil", d.tasks)
 	}
 
-	want := []string{
-		"extensions",
-		"automation",
-		"session:sess-a",
-		"session:sess-b",
-		"http",
-		"uds",
-		"hooks",
-		"db",
-		"lock",
-		"logger",
+	// Workers and sessions stop side by side, and both finish before the servers, hooks and persistent
+	// resources close. Workers keep their order; sessions stop concurrently, one goroutine each, so
+	// they have no order among themselves and each is stopped exactly once.
+	eventsMu.Lock()
+	defer eventsMu.Unlock()
+	position := func(event string) int {
+		index := slices.Index(events, event)
+		if index < 0 {
+			t.Fatalf("Shutdown() events = %#v, missing %q", events, event)
+		}
+		return index
 	}
-	if !testutil.EqualStringSlices(events, want) {
-		t.Fatalf("Shutdown() order = %#v, want %#v", events, want)
+	if position("extensions") > position("automation") {
+		t.Fatalf("Shutdown() worker order = %#v, want extensions before automation", events)
+	}
+	for _, stopped := range []string{"session:sess-a", "session:sess-b"} {
+		if position(stopped) >= 4 {
+			t.Fatalf("Shutdown() events = %#v, want %q before the servers close", events, stopped)
+		}
+	}
+	wantTail := []string{"http", "uds", "hooks", "db", "lock", "logger"}
+	if len(events) != 4+len(wantTail) || !slices.Equal(events[4:], wantTail) {
+		t.Fatalf("Shutdown() order = %#v, want workers and sessions before %#v", events, wantTail)
 	}
 }
 
+// TestDaemonShutdownOperation verifies shared teardown, retry ownership and replacement discovery.
 func TestDaemonShutdownOperation(t *testing.T) {
 	t.Run("Should retain one operation while callers wait with independent contexts", func(t *testing.T) {
 		t.Parallel()
@@ -1756,6 +1784,234 @@ func TestDaemonShutdownOperation(t *testing.T) {
 		}
 	})
 
+	// Invariant: failed session shutdown retains singleton and persistence ownership
+	// until a retry joins cleanup. Owner: daemon teardown; canonical shutdown suite.
+	t.Run("Should retain the daemon lock and database until session cleanup joins", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if err := WriteInfo(home.DaemonInfo, Info{PID: os.Getpid(), StartedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		db := openDaemonTestGlobalDB(t)
+		manager := &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		d.lock, d.registry, d.sessions = lock, db, manager
+		if err := d.Shutdown(testutil.Context(t)); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("incomplete session shutdown = %v, want deadline", err)
+		}
+		if _, err := ReadInfo(home.DaemonInfo); err != nil {
+			t.Fatalf("failed shutdown removed discovery info: %v", err)
+		}
+		competitor, acquireErr := AcquireLock(home.DaemonLock, os.Getpid())
+		if competitor != nil {
+			if err := competitor.Release(); err != nil {
+				t.Error(err)
+			}
+		}
+		if !errors.Is(acquireErr, ErrAlreadyRunning) {
+			t.Fatalf("replacement acquired singleton before cleanup joined: %v", acquireErr)
+		}
+		if err := db.DB().PingContext(t.Context()); err != nil {
+			t.Fatalf("pending cleanup lost its database: %v", err)
+		}
+		manager.mu.Lock()
+		manager.shutdownErr = nil
+		manager.mu.Unlock()
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("joined retry: %v", err)
+		}
+		if _, err := os.Stat(home.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("joined shutdown left discovery info: %v", err)
+		}
+		if err := db.DB().
+			PingContext(t.Context()); err == nil ||
+			!strings.Contains(err.Error(), "sql: database is closed") {
+			t.Fatalf("database after joined cleanup = %v, want closed", err)
+		}
+		replacement, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatalf("replacement after joined cleanup: %v", err)
+		}
+		if err := replacement.Release(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Invariant: terminal discovery withdrawal survives replacement of a failed shutdown attempt.
+	t.Run("Should withdraw discovery on every incomplete terminal shutdown retry", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		})
+		d.lock = lock
+
+		d.sessions = &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		first, _, _, _, err := d.beginShutdownOperation(t.Context(), true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first.sessionShutdownIncomplete = true
+		d.completeShutdownOperation(first, context.DeadlineExceeded)
+		if err := WriteInfo(
+			home.DaemonInfo,
+			Info{PID: os.Getpid(), StartedAt: time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC)},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Shutdown(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(home.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("retry retained stopped daemon discovery: %v", err)
+		}
+	})
+
+	// Invariant: Run's terminal path withdraws discovery even if session cleanup
+	// prevents successful shutdown. Owner: daemon lifecycle; canonical shutdown suite.
+	t.Run("Should withdraw daemon info when Run ends after incomplete shutdown", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		})
+		d.lock = lock
+
+		if err := WriteInfo(home.DaemonInfo, Info{PID: os.Getpid(), StartedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		manager := &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		d.sessions = manager
+		if err := d.shutdownAfterRunTrigger(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Run shutdown = %v", err)
+		}
+		if _, err := os.Stat(home.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Run exit retained discovery record: %v", err)
+		}
+		manager.mu.Lock()
+		manager.shutdownErr = nil
+		manager.mu.Unlock()
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Invariant: the old Run must not delete discovery written after singleton
+	// release. Owner: daemon process replacement; canonical shutdown suite.
+	for _, loggerFailure := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf(
+				"Should preserve replacement discovery after lock release with logger failure %t",
+				loggerFailure,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				home := testHomePaths(t)
+				d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if err := lock.Release(); err != nil {
+						t.Error(err)
+					}
+				}()
+				d.lock = lock
+				manager := &fakeSessionManager{}
+				d.sessions = manager
+
+				var replacementLock *Lock
+				defer func() {
+					if replacementLock != nil {
+						if err := replacementLock.Release(); err != nil {
+							t.Error(err)
+						}
+					}
+				}()
+				replacement := Info{PID: os.Getpid(), StartedAt: time.Now().UTC().Add(time.Second)}
+				loggerErr := errors.New("logger close unavailable")
+				d.closeLogger = func() error {
+					var err error
+					replacementLock, err = AcquireLock(home.DaemonLock, os.Getpid())
+					if err != nil {
+						return err
+					}
+					if err := WriteInfo(home.DaemonInfo, replacement); err != nil {
+						return err
+					}
+					if loggerFailure {
+						return loggerErr
+					}
+					return nil
+				}
+				err = d.shutdownAfterRunTrigger(t.Context())
+				if loggerFailure && !errors.Is(err, loggerErr) || !loggerFailure && err != nil {
+					t.Fatalf("Run shutdown = %v", err)
+				}
+				if loggerFailure {
+					d.closeLogger = func() error { return nil }
+					manager.mu.Lock()
+					manager.shutdownErr = context.DeadlineExceeded
+					manager.mu.Unlock()
+					if err := d.Shutdown(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+						t.Fatal(err)
+					}
+					info, err := ReadInfo(home.DaemonInfo)
+					if err != nil || info != replacement {
+						t.Fatalf("incomplete retry removed replacement: %+v, %v", info, err)
+					}
+					manager.mu.Lock()
+					manager.shutdownErr = nil
+					manager.mu.Unlock()
+					if err := d.Shutdown(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+				}
+
+				info, err := ReadInfo(home.DaemonInfo)
+				if err != nil || info != replacement {
+					t.Fatalf("replacement discovery = %+v, %v, want %+v", info, err, replacement)
+				}
+			},
+		)
+	}
+
 	t.Run("Should reject invalid ownership contexts", func(t *testing.T) {
 		t.Parallel()
 
@@ -1779,6 +2035,399 @@ func TestDaemonShutdownOperation(t *testing.T) {
 		bootErr := errors.New("abort test boot")
 		d.finishBoot(&bootErr)
 	})
+
+	// Invariant: a restart never waits for a turn longer than the drain cap, and not at all for a
+	// turn only the operator can release. Owner: daemon shutdown; canonical shutdown suite.
+	t.Run("Should cap the restart drain and skip turns waiting on the operator", func(t *testing.T) {
+		t.Parallel()
+		for grace, want := range map[time.Duration]time.Duration{
+			0:                    0,
+			2 * time.Second:      2 * time.Second,
+			restartDrainCap:      restartDrainCap,
+			30 * time.Second:     restartDrainCap,
+			10 * restartDrainCap: restartDrainCap,
+		} {
+			if got := restartDrainWait(grace); got != want {
+				t.Fatalf("restartDrainWait(%s) = %s, want %s", grace, got, want)
+			}
+		}
+
+		running := &session.Info{ID: "sess-running"}
+		waiting := &session.Info{ID: "sess-waiting", PendingPermissionCount: 1}
+		clarifying := &session.Info{ID: "sess-clarifying", PendingClarifyCount: 1}
+		prompting := func(infos ...*session.Info) promptingSessionManager {
+			return promptingSessionManager{fakeSessionManager: &fakeSessionManager{infos: infos}}
+		}
+		// A long wait would stall the test if the operator-blocked turns were waited for.
+		if busy := waitSessionDrain(t.Context(), prompting(waiting, clarifying), time.Minute); busy != 0 {
+			t.Fatalf("waitSessionDrain(operator-blocked turns) = %d, want 0", busy)
+		}
+		if busy := waitSessionDrain(t.Context(), &fakeSessionManager{infos: []*session.Info{running}},
+			time.Minute); busy != 0 {
+			t.Fatalf("waitSessionDrain(idle sessions) = %d, want 0", busy)
+		}
+		if busy := waitSessionDrain(t.Context(), prompting(running, waiting), 20*time.Millisecond); busy != 1 {
+			t.Fatalf("waitSessionDrain(running turn) = %d, want 1 still running after the wait", busy)
+		}
+	})
+
+	// Invariant: the session manager learns that shutdown began before admission closes or anything
+	// drains, so no provider start or automatic recovery can slip in. Owner: daemon shutdown.
+	t.Run("Should mark session shutdown before admission closes", func(t *testing.T) {
+		t.Parallel()
+		d, err := New(WithHomePaths(testHomePaths(t)), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager := &beginRecordingSessionManager{fakeSessionManager: &fakeSessionManager{}, draining: d.IsDraining}
+		d.sessions = manager
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		if len(manager.begins) != 1 || manager.begins[0] != (shutdownBegin{}) {
+			t.Fatalf("BeginDaemonShutdown calls = %+v, want one non-restart call before draining", manager.begins)
+		}
+	})
+
+	// Invariant: the stdio MCP pool outlives every session stop, so the teardown never fails an
+	// in-flight tool call itself. Owner: daemon shutdown; canonical shutdown suite.
+	t.Run("Should close the stdio MCP pool only after sessions stop", func(t *testing.T) {
+		t.Parallel()
+		d, err := New(WithHomePaths(testHomePaths(t)), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var (
+			orderMu sync.Mutex
+			order   []string
+		)
+		record := func(event string) {
+			orderMu.Lock()
+			defer orderMu.Unlock()
+			order = append(order, event)
+		}
+		targets := &shutdownTargets{
+			sessions: &fakeSessionManager{
+				infos:        []*session.Info{{ID: "sess-a"}},
+				onStop:       func(id string) { record("session:" + id) },
+				shutdownHook: func() { record("session-manager") },
+			},
+			stdioMCP: stdioMCPCloserFunc(func(context.Context) error {
+				record("stdio-mcp")
+				return nil
+			}),
+			httpServer: &fakeServer{name: "http", onShutdown: func() { record("http") }},
+		}
+		if err := d.shutdownDetached(testutil.Context(t), nil, targets); err != nil {
+			t.Fatalf("shutdownDetached() error = %v", err)
+		}
+		orderMu.Lock()
+		defer orderMu.Unlock()
+		want := []string{"session:sess-a", "session-manager", "stdio-mcp", "http"}
+		if !slices.Equal(order, want) {
+			t.Fatalf("shutdown order = %v, want %v", order, want)
+		}
+	})
+
+	// Invariant: the persistence phase owns its budget, so the database close still runs with a live
+	// context after the teardown deadline expired. Owner: daemon shutdown; canonical shutdown suite.
+	t.Run("Should close the database with a live budget after the teardown deadline expired", func(t *testing.T) {
+		t.Parallel()
+		d, err := New(WithHomePaths(testHomePaths(t)), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		expired, cancel := context.WithCancel(testutil.Context(t))
+		cancel()
+		registry := &closeContextRegistry{recordingRegistry: &recordingRegistry{}}
+		if err := d.shutdownDetached(expired, nil, &shutdownTargets{registry: registry}); err != nil {
+			t.Fatalf("shutdownDetached() error = %v", err)
+		}
+		if registry.closes != 1 || registry.closeCtxErr != nil || !registry.closeHadDeadline {
+			t.Fatalf(
+				"database close: calls=%d ctxErr=%v deadline=%t, want one bounded close on a live context",
+				registry.closes, registry.closeCtxErr, registry.closeHadDeadline,
+			)
+		}
+	})
+
+	// Invariant: a process-terminal shutdown checkpoints and closes the database even when session
+	// cleanup did not finish, while the singleton stays owned. Owner: daemon lifecycle.
+	t.Run("Should close the database when Run ends after incomplete session cleanup", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		})
+		db := openDaemonTestGlobalDB(t)
+		d.lock, d.registry = lock, db
+		d.sessions = &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		exited := make(chan int, 1)
+		d.exitProcess = func(code int) { exited <- code }
+		if err := d.shutdownAfterRunTrigger(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Run shutdown = %v, want deadline", err)
+		}
+		if err := db.DB().PingContext(t.Context()); err == nil ||
+			!strings.Contains(err.Error(), "sql: database is closed") {
+			t.Fatalf("database after incomplete terminal shutdown = %v, want closed", err)
+		}
+		competitor, acquireErr := AcquireLock(home.DaemonLock, os.Getpid())
+		if competitor != nil {
+			if err := competitor.Release(); err != nil {
+				t.Error(err)
+			}
+		}
+		if !errors.Is(acquireErr, ErrAlreadyRunning) {
+			t.Fatalf("replacement acquired singleton before cleanup joined: %v", acquireErr)
+		}
+		select {
+		case code := <-exited:
+			t.Fatalf("watchdog exited with %d after shutdown returned", code)
+		default:
+		}
+	})
+
+	// Invariant: the phase budgets add up to the complete budget and the watchdog fires strictly
+	// after them, so a slow shutdown that respects every budget is never force-exited.
+	// Owner: daemon shutdown; canonical shutdown suite.
+	t.Run("Should keep every phase budget inside the watchdog deadline", func(t *testing.T) {
+		t.Parallel()
+		for _, total := range []time.Duration{
+			time.Second, defaultShutdownTimeout, 14 * time.Second, 25 * time.Second, time.Minute,
+		} {
+			phases := shutdownTeardownBudget(total) + shutdownSessionDependenciesBudget + shutdownPersistBudget
+			if watchdog := shutdownWatchdogBudget(total); watchdog-phases < shutdownWatchdogMargin {
+				t.Fatalf("total %s: phases %s, watchdog %s, want %s of slack", total, phases, watchdog,
+					shutdownWatchdogMargin)
+			}
+			if total >= defaultShutdownTimeout && phases != total {
+				t.Fatalf("total %s: phase budgets add up to %s, want the complete budget", total, phases)
+			}
+		}
+	})
+
+	// Invariant: the serial steps before the teardown own a bounded share of it, so a stuck
+	// workspace-deletion drain or watcher join leaves the workers and the sessions a live context.
+	// Owner: daemon shutdown; canonical shutdown suite.
+	t.Run("Should leave the teardown a live context when the prelude never finishes", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+		defer cancel()
+		stopCtxErr := context.Canceled
+		targets := &shutdownTargets{
+			sessions: &fakeSessionManager{shutdownHook: func() { stopCtxErr = ctx.Err() }},
+			workspaceFinalizer: workspaceUnregisterFinalizerFunc(func(drainCtx context.Context) error {
+				<-drainCtx.Done()
+				return drainCtx.Err()
+			}),
+			skillsDone: make(chan struct{}),
+		}
+		var errs []error
+		(&Daemon{}).shutdownRuntimeWorkers(ctx, targets, &errs)
+		if err := errors.Join(errs...); !errors.Is(err, context.DeadlineExceeded) ||
+			!strings.Contains(err.Error(), "drain workspace deletion finalization") ||
+			!strings.Contains(err.Error(), "stop skills watcher") {
+			t.Fatalf("shutdownRuntimeWorkers() error = %v, want both stuck prelude steps abandoned", err)
+		}
+		if stopCtxErr != nil || ctx.Err() != nil {
+			t.Fatalf("session stop context = %v, teardown context = %v, want both live after the prelude",
+				stopCtxErr, ctx.Err())
+		}
+	})
+
+	// Invariant: sessions still stopping after a retryable shutdown keep the stdio MCP pool; the
+	// retry that joins their cleanup, or the process-terminal path, closes it.
+	// Owner: daemon shutdown; canonical shutdown suite.
+	t.Run("Should keep session dependencies open until session cleanup joins", func(t *testing.T) {
+		t.Parallel()
+		d, err := New(WithHomePaths(testHomePaths(t)), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		closes := 0
+		manager := &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		newTargets := func() *shutdownTargets {
+			return &shutdownTargets{
+				sessions: manager,
+				stdioMCP: stdioMCPCloserFunc(func(context.Context) error {
+					closes++
+					return nil
+				}),
+			}
+		}
+		err = d.shutdownDetached(testutil.Context(t), nil, newTargets())
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("shutdownDetached(incomplete) error = %v, want deadline", err)
+		}
+		if closes != 0 {
+			t.Fatalf("stdio MCP closes after incomplete retryable shutdown = %d, want 0", closes)
+		}
+		terminal := &daemonShutdownOperation{done: make(chan struct{}), withdrawDiscovery: true}
+		err = d.shutdownDetached(testutil.Context(t), terminal, newTargets())
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("shutdownDetached(terminal) error = %v, want deadline", err)
+		}
+		if closes != 1 {
+			t.Fatalf("stdio MCP closes after incomplete terminal shutdown = %d, want 1", closes)
+		}
+		manager.mu.Lock()
+		manager.shutdownErr = nil
+		manager.mu.Unlock()
+		if err := d.shutdownDetached(testutil.Context(t), nil, newTargets()); err != nil {
+			t.Fatalf("shutdownDetached(joined retry) error = %v", err)
+		}
+		if closes != 2 {
+			t.Fatalf("stdio MCP closes after the joined retry = %d, want 2", closes)
+		}
+	})
+
+	// Invariant: the restart drain never spends the teardown its checkpoint capture needs, so a turn
+	// that outlasts the drain is still checkpointed on a live context.
+	// Owner: daemon shutdown; canonical shutdown suite.
+	t.Run("Should reserve the checkpoint capture from the restart drain", func(t *testing.T) {
+		t.Parallel()
+		d, err := New(WithHomePaths(testHomePaths(t)), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		d.restartRequested = true
+		d.config.Daemon.ShutdownGrace = 30 * time.Second
+		if got := restartDrainBudget(t.Context(), 30*time.Second); got != restartDrainCap {
+			t.Fatalf("restartDrainBudget(no deadline) = %s, want %s", got, restartDrainCap)
+		}
+		spent, cancelSpent := context.WithTimeout(testutil.Context(t), restartCheckpointBudget/2)
+		defer cancelSpent()
+		if got := restartDrainBudget(spent, 30*time.Second); got != 0 {
+			t.Fatalf("restartDrainBudget(only the reserve left) = %s, want 0", got)
+		}
+
+		ctx, cancel := context.WithTimeout(testutil.Context(t), restartCheckpointBudget+200*time.Millisecond)
+		defer cancel()
+		manager := &checkpointRecordingSessionManager{
+			fakeSessionManager: &fakeSessionManager{infos: []*session.Info{{ID: "sess-running"}}},
+		}
+		if err := d.prepareShutdownSessions(ctx, manager); err != nil {
+			t.Fatalf("prepareShutdownSessions() error = %v", err)
+		}
+		if !manager.prepared || !manager.restart || manager.prepareCtxErr != nil {
+			t.Fatalf("checkpoint capture: prepared=%t restart=%t ctxErr=%v, want a restart capture on a live context",
+				manager.prepared, manager.restart, manager.prepareCtxErr)
+		}
+	})
+
+	// Invariant: a hung process-terminal shutdown ends the process and names the step still running;
+	// a shutdown that returned never exits. Owner: daemon lifecycle; canonical shutdown suite.
+	t.Run("Should force the process exit only while a terminal shutdown is still running", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		d, err := New(
+			WithHomePaths(testHomePaths(t)),
+			WithLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		exited := make(chan int, 2)
+		d.exitProcess = func(code int) { exited <- code }
+		d.readiness.set(contract.DaemonReadinessStopping, "stop_workers_and_sessions", time.Now())
+
+		disarm := d.armShutdownWatchdog(time.Hour)
+		disarm()
+		disarmed := d.armShutdownWatchdog(10 * time.Millisecond)
+		disarmed()
+		select {
+		case code := <-exited:
+			t.Fatalf("disarmed watchdog exited with %d", code)
+		case <-time.After(100 * time.Millisecond):
+		}
+
+		defer d.armShutdownWatchdog(10 * time.Millisecond)()
+		select {
+		case code := <-exited:
+			if code != shutdownWatchdogExitCode {
+				t.Fatalf("watchdog exit code = %d, want %d", code, shutdownWatchdogExitCode)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("watchdog did not exit a hung shutdown")
+		}
+		if got := logs.String(); !strings.Contains(got, "step=stop_workers_and_sessions") ||
+			!strings.Contains(got, "phase="+string(contract.DaemonReadinessStopping)) {
+			t.Fatalf("watchdog log = %q, want the running phase and step", got)
+		}
+	})
+}
+
+// promptingSessionManager reports every listed session as running a turn.
+type promptingSessionManager struct {
+	*fakeSessionManager
+}
+
+func (promptingSessionManager) IsPrompting(string) bool { return true }
+
+// checkpointRecordingSessionManager records the context its restart checkpoint capture runs under.
+type checkpointRecordingSessionManager struct {
+	promptingSessionManager
+	prepared      bool
+	restart       bool
+	prepareCtxErr error
+}
+
+func (*checkpointRecordingSessionManager) CaptureRestartInterruptions(context.Context, []*session.Info) error {
+	return nil
+}
+
+func (m *checkpointRecordingSessionManager) PrepareDaemonShutdown(ctx context.Context, restart bool) error {
+	m.prepared, m.restart, m.prepareCtxErr = true, restart, ctx.Err()
+	return nil
+}
+
+func (*checkpointRecordingSessionManager) ResumeInterruptedSessions(context.Context) error {
+	return nil
+}
+
+type shutdownBegin struct {
+	restart  bool
+	draining bool
+}
+
+// beginRecordingSessionManager records the admission state seen when shutdown is announced.
+type beginRecordingSessionManager struct {
+	*fakeSessionManager
+	draining func() bool
+	begins   []shutdownBegin
+}
+
+func (m *beginRecordingSessionManager) BeginDaemonShutdown(restart bool) {
+	m.begins = append(m.begins, shutdownBegin{restart: restart, draining: m.draining()})
+}
+
+type stdioMCPCloserFunc func(context.Context) error
+
+func (f stdioMCPCloserFunc) Close(ctx context.Context) error { return f(ctx) }
+
+// closeContextRegistry records the context its close runs under.
+type closeContextRegistry struct {
+	*recordingRegistry
+	closes           int
+	closeCtxErr      error
+	closeHadDeadline bool
+}
+
+func (r *closeContextRegistry) Close(ctx context.Context) error {
+	r.closes++
+	r.closeCtxErr = ctx.Err()
+	_, r.closeHadDeadline = ctx.Deadline()
+	return nil
 }
 
 func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
@@ -3295,6 +3944,7 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 			"extension_name": "service-ext",
 			"source_kind":    "local_path",
 			"digest_matched": false,
+			"enabled":        true,
 		}
 		if !reflect.DeepEqual(installFields, wantInstallFields) {
 			t.Fatalf("install event content = %#v, want %#v", installFields, wantInstallFields)
@@ -3303,6 +3953,7 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		if err := json.Unmarshal(failedInstallContent, &failedInstallFields); err != nil {
 			t.Fatalf("json.Unmarshal(failed install event) error = %v", err)
 		}
+		wantInstallFields["enabled"] = false
 		if !reflect.DeepEqual(failedInstallFields, wantInstallFields) {
 			t.Fatalf("failed install event content = %#v, want %#v", failedInstallFields, wantInstallFields)
 		}
@@ -3660,11 +4311,15 @@ func TestDaemonExtensionServiceRecordsCommittedBatchUpdatesBeforeReturningFailur
 }
 
 type daemonExtensionEventStoreStub struct {
+	failType   string
 	writeErr   error
 	writeCalls int
 }
 
-func (s *daemonExtensionEventStoreStub) WriteEventSummary(context.Context, store.EventSummary) error {
+func (s *daemonExtensionEventStoreStub) WriteEventSummary(_ context.Context, event store.EventSummary) error {
+	if s.failType != "" && event.Type != s.failType {
+		return nil
+	}
 	s.writeCalls++
 	return s.writeErr
 }
@@ -3988,6 +4643,41 @@ func TestBootStateExtensionRuntimeAccessIsSynchronized(t *testing.T) {
 	for err := range providerErrors {
 		t.Errorf("extension declaration provider error = %v", err)
 	}
+}
+
+// Boot watchers must observe a fully published check service without racing its owner.
+func TestBootStateProactiveChecksAccessIsSynchronized(t *testing.T) {
+	t.Run("Should publish proactive checks safely to concurrent boot watchers", func(t *testing.T) {
+		t.Parallel()
+		state := &bootState{}
+		service := new(heartbeat.CheckService)
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for range 16 {
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				<-start
+				for range 128 {
+					state.setProactiveChecks(service)
+				}
+			}()
+			go func() {
+				defer wg.Done()
+				<-start
+				for range 128 {
+					if got := state.currentProactiveChecks(); got != nil && got != service {
+						t.Errorf("published check service = %p, want nil or %p", got, service)
+					}
+				}
+			}()
+		}
+		close(start)
+		wg.Wait()
+		if got := state.currentProactiveChecks(); got != service {
+			t.Fatalf("published check service = %p, want %p", got, service)
+		}
+	})
 }
 
 func TestShutdownDrainsHooksBeforeClosingDatabase(t *testing.T) {
@@ -4565,25 +5255,45 @@ func TestShutdownRuntimeWorkersDrainsFinalizationsBeforeSessionManager(t *testin
 func TestShutdownServersAndHooksDrainsSupportAfterServers(t *testing.T) {
 	t.Parallel()
 
-	order := make([]string, 0, 3)
-	d := &Daemon{}
-	var shutdownErrs []error
-	d.shutdownServersAndHooks(testutil.Context(t), &shutdownTargets{
-		httpServer: &fakeServer{name: "http", onShutdown: func() { order = append(order, "http") }},
-		udsServer:  &fakeServer{name: "uds", onShutdown: func() { order = append(order, "uds") }},
-		supportBundles: supportBundleShutdownerFunc(func(context.Context) error {
-			order = append(order, "support")
-			return nil
-		}),
-	}, &shutdownErrs)
+	t.Run("Should drain support bundles after servers and bound a timed-out telemetry flush", func(t *testing.T) {
+		t.Parallel()
 
-	if err := errors.Join(shutdownErrs...); err != nil {
-		t.Fatalf("shutdownServersAndHooks() error = %v", err)
-	}
-	want := []string{"http", "uds", "support"}
-	if !slices.Equal(order, want) {
-		t.Fatalf("shutdown order = %v, want %v", order, want)
-	}
+		order := make([]string, 0, 4)
+		d := &Daemon{}
+		var flushWindow time.Duration
+		telemetrySlot := &telemetrySlot{}
+		telemetrySlot.publish(&stubTelemetryRuntime{shutdownFn: func(ctx context.Context) error {
+			order = append(order, "telemetry")
+			if deadline, ok := ctx.Deadline(); ok {
+				flushWindow = time.Until(deadline)
+			}
+			return context.DeadlineExceeded
+		}})
+		var shutdownErrs []error
+		d.shutdownServersAndHooks(testutil.Context(t), &shutdownTargets{
+			httpServer: &fakeServer{name: "http", onShutdown: func() { order = append(order, "http") }},
+			udsServer:  &fakeServer{name: "uds", onShutdown: func() { order = append(order, "uds") }},
+			supportBundles: supportBundleShutdownerFunc(func(context.Context) error {
+				order = append(order, "support")
+				return nil
+			}),
+			telemetry: telemetrySlot,
+		}, &shutdownErrs)
+
+		if err := errors.Join(shutdownErrs...); err != nil {
+			t.Fatalf(
+				"shutdownServersAndHooks() error = %v, want a timed-out telemetry flush to stay out of shutdown errors",
+				err,
+			)
+		}
+		want := []string{"http", "uds", "support", "telemetry"}
+		if !slices.Equal(order, want) {
+			t.Fatalf("shutdown order = %v, want %v", order, want)
+		}
+		if flushWindow <= 0 || flushWindow > telemetryShutdownTimeout {
+			t.Fatalf("telemetry flush window = %s, want at most %s", flushWindow, telemetryShutdownTimeout)
+		}
+	})
 }
 
 func orphanTestSessions(t *testing.T, started time.Time) []*session.Info {
@@ -4680,49 +5390,32 @@ func TestBootConfigEnsuresManagedAgents(t *testing.T) {
 	})
 }
 
-// TestBootConfigRoutesConfigAliasWarningToDaemonLog owns FR-006: the boot-time [agents.stays_on]
-// warning from the daemon's first config load lands once in the daemon log and never on
-// slog.Default. It swaps process-wide loggers, so it does not run in parallel.
-func TestBootConfigRoutesConfigAliasWarningToDaemonLog(t *testing.T) {
-	var stray, daemonLog bytes.Buffer
-	previous := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&stray, nil)))
-	compozyconfig.RouteDeprecationWarnings(nil)
-	t.Cleanup(func() {
-		compozyconfig.RouteDeprecationWarnings(nil)
-		slog.SetDefault(previous)
+// Invariant: a global config that still carries [agents.stays_on] boots with its values applied
+// to agents.always_on (#1618; shim removal: v0.7.0). Owner: daemon boot config.
+func TestBootConfigMigratesRetiredAgentKindTable(t *testing.T) {
+	t.Run("Should enforce the current input contract", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		if err := os.WriteFile(
+			homePaths.ConfigFile,
+			[]byte("[agents.stays_on]\napproval_timeout = \"2h\"\n"),
+			0600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		d := newTestDaemon(t, homePaths, nil)
+		d.loadConfig = func() (compozyconfig.Config, error) { return loadConfigFromHome(homePaths, d.getenv) }
+		state := &bootState{}
+		if err := d.bootConfig(
+			state,
+			&bootCleanup{},
+		); err != nil {
+			t.Fatalf("boot error = %v", err)
+		}
+		if state.cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
+			t.Fatalf("timeout lost: %v", state.cfg.Agents.AlwaysOn.ApprovalTimeout)
+		}
 	})
-
-	homePaths := testHomePaths(t)
-	if err := os.WriteFile(
-		homePaths.ConfigFile,
-		[]byte("[agents.stays_on]\napproval_timeout = \"2h\"\n"),
-		0o600,
-	); err != nil {
-		t.Fatal(err)
-	}
-	d := newTestDaemon(t, homePaths, nil)
-	d.logger = slog.New(slog.NewTextHandler(&daemonLog, nil))
-	d.loadConfig = func() (compozyconfig.Config, error) { return loadConfigFromHome(homePaths, d.getenv) }
-
-	state := &bootState{}
-	if err := d.bootConfig(state, &bootCleanup{}); err != nil {
-		t.Fatalf("bootConfig() error = %v", err)
-	}
-	if _, err := d.loadConfig(); err != nil {
-		t.Fatalf("second loadConfig() error = %v", err)
-	}
-	if state.cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
-		t.Fatalf("ApprovalTimeout = %v, want 2h", state.cfg.Agents.AlwaysOn.ApprovalTimeout)
-	}
-	if got := strings.Count(daemonLog.String(), "agents.stays_on is deprecated"); got != 1 ||
-		!strings.Contains(daemonLog.String(), "level=WARN") ||
-		!strings.Contains(daemonLog.String(), "keys=approval_timeout") {
-		t.Fatalf("daemon log = %q, want one WARN naming keys=approval_timeout", daemonLog.String())
-	}
-	if strings.Contains(stray.String(), "agents.stays_on") {
-		t.Fatalf("slog.Default received %q, want the warning only in the daemon log", stray.String())
-	}
 }
 
 func TestRunShutsDownOnInjectedSignal(t *testing.T) {
@@ -5176,6 +5869,259 @@ func TestLoadConfigFromHomeValidationError(t *testing.T) {
 	}
 }
 
+func TestBootConfigTrustedMCPSources(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		toml        string
+		sidecar     string
+		wantNames   []string
+		wantURL     string
+		wantCommand string
+		wantError   string
+	}{
+		{
+			name:      "Should boot with a trusted HTTP server declared only in the global sidecar",
+			sidecar:   `{"mcpServers":{"jam":{"transport":"http","url":"https://mcp.example.com/mcp"}}}`,
+			wantNames: []string{"jam"},
+			wantURL:   "https://mcp.example.com/mcp",
+		},
+		{
+			name:        "Should boot with a trusted stdio server in the snake case sidecar collection",
+			sidecar:     `{"mcp_servers":{"jam":{"command":"sidecar-server"}}}`,
+			wantNames:   []string{"jam"},
+			wantCommand: "sidecar-server",
+		},
+		{
+			name:        "Should boot with a trusted TOML server when the sidecar is absent",
+			toml:        "[[mcp_servers]]\nname = \"jam\"\ncommand = \"toml-server\"\n",
+			wantNames:   []string{"jam"},
+			wantCommand: "toml-server",
+		},
+		{
+			name:      "Should preserve distinct TOML servers when loading a trusted sidecar server",
+			toml:      "[[mcp_servers]]\nname = \"local\"\ncommand = \"local-server\"\n",
+			sidecar:   `{"mcpServers":{"jam":{"transport":"http","url":"https://mcp.example.com/mcp"}}}`,
+			wantNames: []string{"local", "jam"},
+			wantURL:   "https://mcp.example.com/mcp",
+		},
+		{
+			name:      "Should replace the full TOML definition with the matching sidecar definition",
+			toml:      "[[mcp_servers]]\nname = \"jam\"\ncommand = \"toml-server\"\n",
+			sidecar:   `{"mcpServers":{"jam":{"transport":"http","url":"https://mcp.example.com/mcp"}}}`,
+			wantNames: []string{"jam"},
+			wantURL:   "https://mcp.example.com/mcp",
+		},
+		{
+			name:      "Should refuse a trusted source absent from both files",
+			wantError: `daemon: validate config: tools.policy.trusted_sources[0] references unknown MCP source "jam"`,
+		},
+		{
+			name:      "Should refuse an unknown trusted source even when another sidecar server exists",
+			sidecar:   `{"mcpServers":{"other":{"command":"other-server"}}}`,
+			wantError: `daemon: validate config: tools.policy.trusted_sources[0] references unknown MCP source "jam"`,
+		},
+		{
+			name:      "Should refuse a malformed sidecar before accepting trusted sources",
+			sidecar:   "{broken",
+			wantError: "daemon: load global MCP JSON:",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths := testHomePaths(t)
+			content := "[tools.policy]\ntrusted_sources = [\"mcp:jam\"]\n" + tt.toml
+			if err := os.WriteFile(homePaths.ConfigFile, []byte(content), 0o600); err != nil {
+				t.Fatalf("WriteFile(config) error = %v", err)
+			}
+			if tt.sidecar != "" {
+				path := filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)
+				if err := os.WriteFile(path, []byte(tt.sidecar), 0o600); err != nil {
+					t.Fatalf("WriteFile(sidecar) error = %v", err)
+				}
+			}
+			d, err := New(WithHomePaths(homePaths), WithLogger(discardLogger()))
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			d.getenv = func(string) string { return "" }
+			state := &bootState{}
+			err = d.bootConfig(state, &bootCleanup{})
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("bootConfig() error = %v, want %q", err, tt.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("bootConfig() error = %v", err)
+			}
+			names := make([]string, 0, len(state.cfg.MCPServers))
+			for _, server := range state.cfg.MCPServers {
+				names = append(names, server.Name)
+				if server.Name == "jam" && (server.URL != tt.wantURL || server.Command != tt.wantCommand) {
+					t.Fatalf(
+						"jam URL/command = %q/%q, want %q/%q",
+						server.URL,
+						server.Command,
+						tt.wantURL,
+						tt.wantCommand,
+					)
+				}
+			}
+			if !slices.Equal(names, tt.wantNames) {
+				t.Fatalf("MCP server names = %v, want %v", names, tt.wantNames)
+			}
+		})
+	}
+}
+
+func TestLoadConfigFromHomeAppliesOTelEnvironmentBeforeFile(t *testing.T) {
+	t.Parallel()
+
+	load := func(t *testing.T, env map[string]string, file string) (compozyconfig.Config, error) {
+		t.Helper()
+		homePaths := testHomePaths(t)
+		if err := os.WriteFile(homePaths.ConfigFile, []byte(file), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(config) error = %v", err)
+		}
+		return loadConfigFromHome(homePaths, func(key string) string { return env[key] })
+	}
+	env := map[string]string{"OTEL_EXPORTER_OTLP_PROTOCOL": "grpc", "OTEL_SERVICE_NAME": "env-daemon"}
+
+	t.Run("Should use environment values the file omits [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		cfg, err := load(t, env, "[observability.otel]\nenabled = true\n")
+		if err != nil {
+			t.Fatalf("loadConfigFromHome() error = %v", err)
+		}
+		if otel := cfg.Observability.OTel; otel.Protocol != "grpc" || otel.ServiceName != "env-daemon" {
+			t.Fatalf("OTel protocol/service = %q/%q, want grpc/env-daemon", otel.Protocol, otel.ServiceName)
+		}
+	})
+
+	t.Run("Should keep file values that equal the defaults [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		cfg, err := load(
+			t,
+			env,
+			"[observability.otel]\nprotocol = \"http/protobuf\"\nservice_name = \"compozy-daemon\"\n",
+		)
+		if err != nil {
+			t.Fatalf("loadConfigFromHome() error = %v", err)
+		}
+		if otel := cfg.Observability.OTel; otel.Protocol != "http/protobuf" || otel.ServiceName != "compozy-daemon" {
+			t.Fatalf("OTel protocol/service = %q/%q, want the explicit file values", otel.Protocol, otel.ServiceName)
+		}
+	})
+
+	t.Run("Should use the endpoint variable when the file endpoint is empty [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		cfg, err := load(
+			t,
+			map[string]string{"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.env:4318"},
+			"[observability.otel]\nenabled = true\nendpoint = \"\"\n",
+		)
+		if err != nil {
+			t.Fatalf("loadConfigFromHome() error = %v", err)
+		}
+		if got, want := cfg.Observability.OTel.Endpoint, "http://collector.env:4318"; got != want {
+			t.Fatalf("OTel endpoint = %q, want %q from OTEL_EXPORTER_OTLP_ENDPOINT", got, want)
+		}
+	})
+
+	t.Run("Should refuse an unsupported environment protocol while export is enabled [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := load(
+			t,
+			map[string]string{"OTEL_EXPORTER_OTLP_PROTOCOL": "thrift"},
+			"[observability.otel]\nenabled = true\n",
+		)
+		if want := `OTEL_EXPORTER_OTLP_PROTOCOL must be "http/protobuf" or "grpc"`; err == nil ||
+			!strings.Contains(err.Error(), want) {
+			t.Fatalf("loadConfigFromHome() error = %v, want %q", err, want)
+		}
+	})
+
+	t.Run("Should boot with invalid OTEL variables while export cannot run [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		// Variables set for other tools must not stop an upgraded daemon that exports nothing.
+		strayEnv := map[string]string{
+			"OTEL_EXPORTER_OTLP_ENDPOINT": "localhost:4318",
+			"OTEL_EXPORTER_OTLP_PROTOCOL": "thrift",
+			"OTEL_SERVICE_NAME":           "my service",
+			"OTEL_EXPORTER_OTLP_HEADERS":  "api-key:secret-token",
+		}
+		tests := []struct {
+			name        string
+			file        string
+			sdkDisabled string
+		}{
+			{name: "Should boot when the file has no OTel block"},
+			{name: "Should boot when export is explicitly disabled", file: "[observability.otel]\nenabled = false\n"},
+			{
+				name:        "Should boot when OTEL_SDK_DISABLED forces export off",
+				file:        "[observability.otel]\nenabled = true\n",
+				sdkDisabled: "true",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				vars := maps.Clone(strayEnv)
+				vars["OTEL_SDK_DISABLED"] = tt.sdkDisabled
+				cfg, err := load(t, vars, tt.file)
+				if err != nil {
+					t.Fatalf("loadConfigFromHome() error = %v, want invalid OTEL variables ignored", err)
+				}
+				if got, want := cfg.Observability.OTel.EnvDisabled(), tt.sdkDisabled != ""; got != want {
+					t.Fatalf("EnvDisabled() = %t, want %t", got, want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should replace environment headers entirely when the file sets headers [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		headerEnv := map[string]string{"OTEL_EXPORTER_OTLP_HEADERS": "api-key=env-key,x-tenant=acme"}
+		cfg, err := load(t, headerEnv, "")
+		if err != nil {
+			t.Fatalf("loadConfigFromHome(no headers) error = %v", err)
+		}
+		if got, want := cfg.Observability.OTel.EnvHeaders(), map[string]string{
+			"api-key": "env-key", "x-tenant": "acme",
+		}; !maps.Equal(got, want) {
+			t.Fatalf("EnvHeaders() = %#v, want %#v", got, want)
+		}
+
+		cfg, err = load(t, headerEnv, "[observability.otel.headers]\n\"api-key\" = \"env:NR_KEY\"\n")
+		if err != nil {
+			t.Fatalf("loadConfigFromHome(file headers) error = %v", err)
+		}
+		if got := cfg.Observability.OTel.EnvHeaders(); len(got) != 0 {
+			t.Fatalf("EnvHeaders() = %#v, want environment headers replaced by the file table", got)
+		}
+		if got, want := cfg.Observability.OTel.Headers, map[string]string{
+			"api-key": "env:NR_KEY",
+		}; !maps.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("Headers = %#v, want %#v", got, want)
+		}
+	})
+}
+
 func TestShouldVerifyBoundariesFromEnv(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {
@@ -5463,6 +6409,85 @@ args = ["-c", "printf '{}'"]
 
 func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 	t.Parallel()
+	// Invariant: observed authored policy takes effect within its bound when publication has not caught up.
+	// Owner: daemon policy observer; canonical suite: boot resource watchers.
+	t.Run("Should enforce policy before updated agent resources are published", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			home := testHomePaths(t)
+			cfg := compozyconfig.DefaultWithHome(home)
+			registry := &recordingRegistry{workspaces: map[string]workspacepkg.Workspace{
+				"ws_policy_watch": {ID: "ws_policy_watch", Name: "repo", RootDir: t.TempDir()},
+			}}
+			observed := make(chan struct{}, 1)
+			resolver, err := workspacepkg.NewResolver(registry,
+				workspacepkg.WithHomePaths(home), workspacepkg.WithSnapshotTTL(agentConfigMaxStaleness),
+				workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
+				workspacepkg.WithInvalidationHook(func() {
+					select {
+					case observed <- struct{}{}:
+					default:
+					}
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(home.AgentsDir, "observed", "AGENT.md")
+			writeDaemonFile(t, path, "---\nname: observed\nprovider: codex\n---\nOriginal.\n")
+			initial, err := resolver.ResolveAgentConfig(t.Context(), "ws_policy_watch", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-observed: // Initial registration can invalidate the resolver.
+			default:
+			}
+			index := slices.IndexFunc(initial.Agents, func(agent compozyconfig.AgentDef) bool {
+				return agent.Name == "observed"
+			})
+			if index < 0 {
+				t.Fatal("authored agent missing from the initial policy snapshot")
+			}
+			actor := agentSkillSyncActor()
+			catalog := newResourceCatalog(cloneAgentDef)
+			catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{
+				ID: agentManagedIDPrefix + "stale",
+				Scope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindWorkspaceProfile,
+					ID:   initial.ID + "@pf:" + daemonDefaultProfileName,
+				},
+				Source: actor.Source,
+				Owner:  managedDraftOwner(actor, nil),
+				Spec:   initial.Agents[index],
+			}})
+			policy := agentCatalogDependency(catalog)
+			ctx, cancel := context.WithCancel(t.Context())
+			var workers sync.WaitGroup
+			defer func() { cancel(); workers.Wait() }()
+
+			state := &bootState{cfg: cfg, workspaceResolver: resolver}
+			workers.Go(func() { runAgentConfigWatcher(ctx, state, agentConfigPollInterval) })
+			writeDaemonFile(
+				t,
+				path,
+				"---\nname: observed\nprovider: codex\ndeny_tools: [compozy__tool_search]\n---\nRestricted.\n",
+			)
+			select {
+			case <-observed:
+			case <-time.After(agentConfigMaxStaleness):
+				t.Fatal("policy observer exceeded the approved freshness bound")
+			}
+			current, err := resolver.ResolveAgentConfig(t.Context(), initial.ID, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			agent, err := policy.ResolvePolicyAgent(t.Context(), "observed", &current)
+			if err != nil || !slices.Contains(agent.DenyTools, "compozy__tool_search") {
+				t.Fatalf("current policy with stale published resources = %+v, %v", agent, err)
+			}
+		})
+	})
 
 	t.Run("Should reject personal profile roots inside a workspace before watching skills", func(t *testing.T) {
 		t.Parallel()
@@ -5481,14 +6506,58 @@ func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 		registry := &recordingRegistry{workspaces: map[string]workspacepkg.Workspace{
 			"ws_containment": {ID: "ws_containment", Name: "repo", RootDir: root},
 		}}
+		resolver, err := workspacepkg.NewResolver(registry, workspacepkg.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
 		for _, provider := range []func(context.Context) ([]string, error){
-			workspaceSkillWatcherRoots(home, registry, nil),
+			workspaceSkillWatcherRoots(home, registry, nil, resolver),
 			workspaceAgentWatcherRoots(home, registry, nil),
 		} {
 			roots, err := provider(t.Context())
 			if err == nil || !strings.Contains(err.Error(), "cannot be inside registered workspace") {
 				t.Fatalf("roots = %v, error = %v; want personal profile containment refusal", roots, err)
 			}
+		}
+	})
+
+	t.Run("Should watch a custom skill source on the first poll after its config edit", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		root := t.TempDir()
+		customDir := filepath.Join(t.TempDir(), "team-skills")
+		if err := os.MkdirAll(customDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		canonicalCustomDir, err := filepath.EvalSymlinks(customDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry := &recordingRegistry{workspaces: map[string]workspacepkg.Workspace{
+			"ws_custom": {ID: "ws_custom", Name: "repo", RootDir: root},
+		}}
+		resolver, err := workspacepkg.NewResolver(registry, workspacepkg.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := workspaceSkillWatcherRoots(home, registry, nil, resolver)
+		watchesCustomDir := func() bool {
+			t.Helper()
+			roots, err := provider(t.Context())
+			if err != nil {
+				t.Fatalf("skill watcher roots error = %v", err)
+			}
+			return slices.Contains(roots, canonicalCustomDir)
+		}
+		for range 2 {
+			if watchesCustomDir() {
+				t.Fatalf("skill watcher roots include %q before it is configured", canonicalCustomDir)
+			}
+		}
+		writeDaemonFile(t, filepath.Join(root, ".compozy", "config.toml"),
+			fmt.Sprintf("[skills]\ncustom_sources = [%q]\n", customDir))
+		if !watchesCustomDir() {
+			t.Fatalf("skill watcher roots omit %q after the workspace config edit", canonicalCustomDir)
 		}
 	})
 
@@ -5766,15 +6835,7 @@ func waitForCondition(t *testing.T, label string, fn func() bool) {
 
 func waitForConditionWithin(t *testing.T, label string, timeout time.Duration, fn func() bool) {
 	t.Helper()
-
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %s", label)
+	testutil.Eventually(t, label, timeout, fn)
 }
 
 func testHomePaths(t *testing.T) compozyconfig.HomePaths {
@@ -5951,6 +7012,8 @@ func newTestDaemon(t *testing.T, homePaths compozyconfig.HomePaths, cfg *compozy
 		}
 		return os.Getenv(key)
 	}
+	// Tests never execute a replacement binary unless they install their own pre-flight.
+	d.preflightReplacement = stubRestartPreflight(restartPreflightUnavailable)
 	return d
 }
 
@@ -6638,12 +7701,20 @@ type fakeSessionManager struct {
 	workspaceAccessPolicy    workspaceaccess.Policy
 	turnEndNotifier          session.TurnEndNotifier
 	agentExtensionCalls      []fakeAgentExtensionCall
+	clarifyBroker            toolspkg.ClarifyBroker
 }
 
 var _ SessionManager = (*fakeSessionManager)(nil)
 var _ autoTitleSessionManager = (*fakeSessionManager)(nil)
 var _ clarifyEventPublisher = (*fakeSessionManager)(nil)
+var _ clarifyOperatorAskerSetter = (*fakeSessionManager)(nil)
 var _ workspaceAccessPolicyBinder = (*fakeSessionManager)(nil)
+
+func (f *fakeSessionManager) SetClarifyBroker(broker toolspkg.ClarifyBroker) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.clarifyBroker = broker
+}
 
 func (f *fakeSessionManager) SetWorkspaceAccessPolicy(policy workspaceaccess.Policy) {
 	f.mu.Lock()
@@ -6753,7 +7824,7 @@ func (f *fakeSessionManager) Create(_ context.Context, optsInput *session.Create
 	}, nil
 }
 
-func (f *fakeSessionManager) Spawn(ctx context.Context, opts session.SpawnOpts) (*session.Session, error) {
+func (f *fakeSessionManager) Spawn(ctx context.Context, opts *session.SpawnOpts) (*session.Session, error) {
 	child, err := f.Create(ctx, new(session.CreateOpts{
 		AgentName:     opts.AgentName,
 		Provider:      opts.Provider,
@@ -7031,14 +8102,21 @@ func (f *fakeSessionManager) RepairSession(
 	return &session.RepairResult{SessionID: opts.SessionID}, nil
 }
 
+// recordStopLocked reports the session that was actually stopped and drops it from the listing.
+func (f *fakeSessionManager) recordStopLocked(id string) {
+	index := slices.IndexFunc(f.infos, func(info *session.Info) bool { return info != nil && info.ID == id })
+	if f.onStop == nil || index < 0 {
+		return
+	}
+	f.onStop(id)
+	f.infos = slices.Delete(slices.Clone(f.infos), index, index+1)
+}
+
 func (f *fakeSessionManager) Stop(_ context.Context, id string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stopCalls = append(f.stopCalls, id)
-	if f.onStop != nil && len(f.infos) > 0 {
-		f.onStop(f.infos[0].ID)
-		f.infos = f.infos[1:]
-	}
+	f.recordStopLocked(id)
 	if f.stopErr != nil {
 		return f.stopErr(id)
 	}
@@ -7075,10 +8153,7 @@ func (f *fakeSessionManager) StopWithCause(_ context.Context, id string, cause s
 		cause:  cause,
 		detail: detail,
 	})
-	if f.onStop != nil && len(f.infos) > 0 {
-		f.onStop(f.infos[0].ID)
-		f.infos = f.infos[1:]
-	}
+	f.recordStopLocked(id)
 	if f.stopWithCauseErr != nil {
 		return f.stopWithCauseErr(id, cause, detail)
 	}
@@ -7185,6 +8260,8 @@ type databaseUpgradeManager struct {
 }
 
 func (m *databaseUpgradeManager) UpgradeSessionDatabase(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if len(m.pendingRecoveryCalls) != 0 {
 		return errors.New("database upgrade ran after read-only interaction recovery")
 	}
@@ -7244,6 +8321,11 @@ func TestBootSessionRepair(t *testing.T) {
 						}
 						return false, readErr
 					}
+					if canceled {
+						// Inspections share a worker pool, so this read observes the cancellation.
+						<-ctx.Done()
+						return false, ctx.Err()
+					}
 					return true, nil
 				},
 			}
@@ -7265,6 +8347,118 @@ func TestBootSessionRepair(t *testing.T) {
 			}
 		})
 	}
+
+	// Invariant: restart inspection is per-session work that opens a retained history, so it
+	// runs inside the bounded pool together with the repair it decides, never serially ahead of it.
+	t.Run("Should inspect and repair restart candidates inside the bounded worker pool", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		infos := make([]*session.Info, 0, bootSessionWorkers*3)
+		wantRepaired := make([]string, 0, cap(infos))
+		for index := range cap(infos) {
+			id := fmt.Sprintf("sess-%02d", index)
+			infos = append(infos, &session.Info{ID: id, State: session.StateStopped, StopReason: store.StopShutdown})
+			if index%2 == 0 {
+				wantRepaired = append(wantRepaired, id)
+			}
+		}
+		var (
+			mu       sync.Mutex
+			inFlight int
+			peak     int
+			poolFull = make(chan struct{})
+		)
+		manager := &restartStateReadManager{
+			fakeSessionManager: &fakeSessionManager{infos: infos},
+			read: func(readCtx context.Context, id string) (bool, error) {
+				mu.Lock()
+				inFlight++
+				peak = max(peak, inFlight)
+				if inFlight == bootSessionWorkers {
+					select {
+					case <-poolFull:
+					default:
+						close(poolFull)
+					}
+				}
+				mu.Unlock()
+				// Every inspection waits until the pool is full once: a serial pass never gets there.
+				select {
+				case <-poolFull:
+				case <-readCtx.Done():
+					return false, readCtx.Err()
+				}
+				mu.Lock()
+				inFlight--
+				mu.Unlock()
+				return slices.Contains(wantRepaired, id), nil
+			},
+		}
+		state := &bootState{sessions: manager, logger: discardLogger()}
+		if err := repairBootSessionHistories(ctx, state, infos, nil); err != nil {
+			t.Fatalf("repairBootSessionHistories() error = %v", err)
+		}
+		repaired := make([]string, 0, len(manager.repairCalls))
+		for _, call := range manager.repairCalls {
+			repaired = append(repaired, call.SessionID)
+		}
+		slices.Sort(repaired)
+		if peak != bootSessionWorkers || !slices.Equal(repaired, wantRepaired) {
+			t.Fatalf("peak inspections=%d repaired=%v, want peak=%d repaired=%v",
+				peak, repaired, bootSessionWorkers, wantRepaired)
+		}
+	})
+
+	// Invariant: a proof belongs to one build. Executable size and modification time can collide
+	// across builds, so the identity always carries the commit stamp or a content digest.
+	t.Run("Should bind proofs to the build instead of executable size and timestamp", func(t *testing.T) {
+		t.Parallel()
+		digest := func(value string, err error) func() (string, error) {
+			return func() (string, error) { return value, err }
+		}
+		identity := func(release, commit string, content func() (string, error)) string {
+			t.Helper()
+			got, err := store.BootWatermarkBuildIdentity(release, commit, 4096, 1700000000, content)
+			if err != nil {
+				t.Fatalf("BootWatermarkBuildIdentity(%q, %q) error = %v", release, commit, err)
+			}
+			return got
+		}
+		unused := digest("", errors.New("a stamped build must not be digested"))
+		if identity("1.2.3", "abc1234", unused) == identity("1.2.3", "def5678", unused) ||
+			identity("1.2.3", "abc1234", unused) == identity("1.2.4", "abc1234", unused) {
+			t.Fatal("stamped builds with equal size and timestamp share an identity")
+		}
+		if identity("1.2.3-dirty", "abc1234", digest("aaaa", nil)) ==
+			identity("1.2.3-dirty", "abc1234", digest("bbbb", nil)) {
+			t.Fatal("builds of a modified tree with one stamp, size and timestamp share an identity")
+		}
+		if identity("dev", "unknown", digest("aaaa", nil)) == identity("dev", "unknown", digest("bbbb", nil)) {
+			t.Fatal("unstamped builds with equal size and timestamp share an identity")
+		}
+		first, second := identity(
+			"dev",
+			"unknown",
+			digest("aaaa", nil),
+		), identity(
+			"dev",
+			"unknown",
+			digest("aaaa", nil),
+		)
+		if first != second {
+			t.Fatal("one unstamped build reports two identities")
+		}
+		for _, content := range []func() (string, error){digest("", errors.New("unreadable")), digest("", nil)} {
+			if got, err := store.BootWatermarkBuildIdentity("dev", "unknown", 4096, 1700000000, content); err == nil {
+				t.Fatalf("unidentifiable build = %q, want an error that disables proofs", got)
+			}
+		}
+		running, err := store.BootWatermarkBinary()
+		if err != nil || running == "" {
+			t.Fatalf("BootWatermarkBinary() = %q, %v; want the running build's identity", running, err)
+		}
+	})
 
 	// Invariant: retained databases upgrade before boot reads their histories;
 	// migration failures stop boot and identity refusals stay isolated to their session.
@@ -7290,6 +8484,181 @@ func TestBootSessionRepair(t *testing.T) {
 			len(manager.pendingRecoveryCalls) != 0 {
 			t.Fatalf("migration refusal=%v, recovery=%v", err, manager.pendingRecoveryCalls)
 		}
+	})
+
+	// Invariant: a restart replacement reports every retained database against a fixed total and
+	// clears the stage when the pass ends, so the desktop shows counts instead of a frozen install.
+	t.Run("Should report retained database upgrade progress and clear it when done", func(t *testing.T) {
+		t.Parallel()
+		manager := &databaseUpgradeManager{
+			fakeSessionManager: &fakeSessionManager{infos: []*session.Info{
+				{ID: "sess-a"}, {ID: "sess-refused"}, {ID: "sess-c"},
+			}},
+			upgradeErrors: map[string]error{"sess-refused": sessiondb.ErrSessionDBOwnerMismatch},
+		}
+		state := &bootState{logger: discardLogger(), sessions: manager}
+		var reports []globaldb.MigrationProgress
+		ready, err := upgradeBootSessionDatabases(
+			t.Context(), state, manager.infos, func(progress globaldb.MigrationProgress) {
+				reports = append(reports, progress)
+			}, nil,
+		)
+		if err != nil || len(ready) != 2 {
+			t.Fatalf("upgradeBootSessionDatabases() = %d ready, %v; want 2 ready", len(ready), err)
+		}
+		stage := globaldb.MigrationStageSessionHistoryUpgrade
+		want := []globaldb.MigrationProgress{
+			{Stage: stage, Completed: 0, Total: 3},
+			{Stage: stage, Completed: 1, Total: 3},
+			{Stage: stage, Completed: 2, Total: 3},
+			{Stage: stage, Done: true},
+		}
+		if !slices.Equal(reports, want) {
+			t.Fatalf("progress = %+v, want %+v", reports, want)
+		}
+
+		reports = nil
+		manager.upgradeErrors = map[string]error{"sess-a": store.ErrSchemaAhead}
+		if _, err := upgradeBootSessionDatabases(
+			t.Context(), state, manager.infos, func(progress globaldb.MigrationProgress) {
+				reports = append(reports, progress)
+			}, nil,
+		); !errors.Is(err, store.ErrSchemaAhead) {
+			t.Fatalf("upgradeBootSessionDatabases() error = %v, want schema refusal", err)
+		}
+		if len(reports) == 0 || !reports[len(reports)-1].Done {
+			t.Fatalf("progress after failure = %+v, want the stage cleared", reports)
+		}
+	})
+
+	// Invariant: boot cost follows change. A session whose metadata and database family are
+	// byte-identical to what a previous boot verified is neither reopened nor repaired again; a
+	// changed, new, or never-verified session, and any proof from another schema head, takes the
+	// full path.
+	t.Run("Should skip unchanged verified sessions and reinspect changed ones on the next boot", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+			t.Skip("without an inode identity every session takes the full boot checks")
+		}
+		home := t.TempDir()
+		homePaths := compozyconfig.HomePaths{HomeDir: home, SessionsDir: filepath.Join(home, "sessions")}
+		settledAt := time.Now().Add(-time.Hour)
+		writeSessionFile := func(id, name, contents string) {
+			t.Helper()
+			path := filepath.Join(homePaths.SessionsDir, id, name)
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chtimes(path, settledAt, settledAt); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, id := range []string{"sess-idle", "sess-crashed"} {
+			writeSessionFile(id, store.SessionMetaName, `{"id":"`+id+`"}`)
+			writeSessionFile(id, store.SessionDatabaseName, "history")
+		}
+		manager := &databaseUpgradeManager{fakeSessionManager: &fakeSessionManager{infos: []*session.Info{
+			{ID: "sess-idle", State: session.StateStopped, StopReason: store.StopCompleted},
+			{ID: "sess-crashed", State: session.StateStopped, StopReason: store.StopAgentCrashed},
+		}}}
+		state := &bootState{logger: discardLogger(), sessions: manager}
+		boot := func() (opened []string, repaired []string) {
+			t.Helper()
+			manager.mu.Lock()
+			manager.upgraded, manager.repairCalls = nil, nil
+			manager.mu.Unlock()
+			watermarks := loadBootSessionWatermarks(homePaths, state.logger)
+			ready, err := upgradeBootSessionDatabases(t.Context(), state, manager.infos, nil, watermarks)
+			if err != nil || len(ready) != len(manager.infos) {
+				t.Fatalf("upgradeBootSessionDatabases() = %d ready, %v; want every session", len(ready), err)
+			}
+			unsettled := bootUnsettledSessions(ready, watermarks)
+			if err := repairBootSessionHistories(t.Context(), state, unsettled, watermarks); err != nil {
+				t.Fatal(err)
+			}
+			watermarks.save(state.logger)
+			manager.mu.Lock()
+			defer manager.mu.Unlock()
+			opened = slices.Clone(manager.upgraded)
+			slices.Sort(opened)
+			for _, call := range manager.repairCalls {
+				repaired = append(repaired, call.SessionID)
+			}
+			return opened, repaired
+		}
+		expect := func(step string, wantOpened []string, wantRepaired []string) {
+			t.Helper()
+			opened, repaired := boot()
+			if !slices.Equal(opened, wantOpened) || !slices.Equal(repaired, wantRepaired) {
+				t.Fatalf("%s: opened=%v repaired=%v, want opened=%v repaired=%v",
+					step, opened, repaired, wantOpened, wantRepaired)
+			}
+		}
+
+		expect("first boot", []string{"sess-crashed", "sess-idle"}, []string{"sess-crashed"})
+		expect("unchanged boot", nil, nil)
+
+		writeSessionFile("sess-idle", store.SessionDatabaseName, "history with a new turn")
+		expect("changed database", []string{"sess-idle"}, nil)
+
+		writeSessionFile("sess-crashed", store.SessionMetaName, `{"id":"sess-crashed","name":"renamed"}`)
+		expect("changed metadata", []string{"sess-crashed"}, []string{"sess-crashed"})
+
+		writeSessionFile("sess-idle", store.SessionDatabaseName+"-wal", "uncheckpointed frames")
+		expect("write-ahead log appeared", []string{"sess-idle"}, nil)
+
+		writeSessionFile("sess-new", store.SessionMetaName, `{"id":"sess-new"}`)
+		manager.infos = append(manager.infos, &session.Info{
+			ID: "sess-new", State: session.StateStopped, StopReason: store.StopCompleted,
+		})
+		expect("new session", []string{"sess-new"}, nil)
+		expect("settled again", nil, nil)
+
+		// Size and modification time are not proof of content. A database replaced by another of
+		// the same size and timestamp is a different file, and one rewritten in place carries a
+		// different header; both are inspected again.
+		idleDatabase := filepath.Join(homePaths.SessionsDir, "sess-idle", store.SessionDatabaseName)
+		sharedHead := strings.Repeat("h", 256)
+		writeSessionFile("sess-idle", store.SessionDatabaseName, sharedHead+"-turn-a")
+		expect("database grew", []string{"sess-idle"}, nil)
+		expect("grown database settled", nil, nil)
+		writeSessionFile("sess-idle", "restore.tmp", sharedHead+"-turn-b")
+		if err := os.Rename(filepath.Join(filepath.Dir(idleDatabase), "restore.tmp"), idleDatabase); err != nil {
+			t.Fatal(err)
+		}
+		expect("same-size same-timestamp atomic restore", []string{"sess-idle"}, nil)
+		expect("restored database settled", nil, nil)
+		writeSessionFile("sess-idle", store.SessionDatabaseName, "H"+sharedHead[1:]+"-turn-b")
+		expect("same-size same-timestamp rewrite in place", []string{"sess-idle"}, nil)
+		expect("rewritten database settled", nil, nil)
+
+		indexPath := filepath.Join(home, bootSessionWatermarkFile)
+		index, err := os.ReadFile(indexPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		foreign := bytes.Replace(index, []byte(`"profile":"`), []byte(`"profile":"other-build|`), 1)
+		if bytes.Equal(foreign, index) {
+			t.Fatalf("watermark index carries no verification profile: %s", index)
+		}
+		if err := os.WriteFile(indexPath, foreign, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		expect("another build or schema head",
+			[]string{"sess-crashed", "sess-idle", "sess-new"}, []string{"sess-crashed"})
+
+		// A timestamp inside the settle window cannot distinguish a later write, so it is never recorded.
+		recent := time.Now().Add(time.Minute)
+		if err := os.Chtimes(
+			filepath.Join(homePaths.SessionsDir, "sess-idle", store.SessionDatabaseName), recent, recent,
+		); err != nil {
+			t.Fatal(err)
+		}
+		expect("database inside the settle window", []string{"sess-idle"}, nil)
+		expect("settle window is never trusted", []string{"sess-idle"}, nil)
 	})
 
 	for _, tc := range []struct {
@@ -7319,7 +8688,9 @@ func TestBootSessionRepair(t *testing.T) {
 			if err := (&Daemon{}).bootSessionRepair(t.Context(), state); err != nil {
 				t.Fatalf("bootSessionRepair() error = %v, want healthy sessions available", err)
 			}
-			if !slices.Equal(manager.upgraded, []string{"sess-refused", "sess-ready"}) {
+			// The upgrade pool inspects sessions concurrently, so only the inspected set is ordered.
+			slices.Sort(manager.upgraded)
+			if !slices.Equal(manager.upgraded, []string{"sess-ready", "sess-refused"}) {
 				t.Fatalf("upgraded = %v, want both retained stores inspected", manager.upgraded)
 			}
 			if !slices.Equal(manager.pendingRecoveryCalls, []string{"sess-ready"}) {
@@ -7455,8 +8826,11 @@ func TestBootSessionRepair(t *testing.T) {
 		if got, want := len(manager.repairCalls), 2; got != want {
 			t.Fatalf("repair calls = %d, want %d", got, want)
 		}
-		if manager.repairCalls[0].SessionID != "sess-crash" || manager.repairCalls[1].SessionID != "sess-error" {
-			t.Fatalf("repair calls = %#v, want crash then error sessions", manager.repairCalls)
+		// The repair pool runs sessions concurrently, so only the repaired set is asserted.
+		repaired := []string{manager.repairCalls[0].SessionID, manager.repairCalls[1].SessionID}
+		slices.Sort(repaired)
+		if !slices.Equal(repaired, []string{"sess-crash", "sess-error"}) {
+			t.Fatalf("repair calls = %#v, want the crash and error sessions", manager.repairCalls)
 		}
 		if got, want := manager.pendingRecoveryCalls, []string{
 			"sess-crash",
@@ -7824,7 +9198,7 @@ type syntheticPrompter interface {
 }
 
 type spawnSurface interface {
-	Spawn(context.Context, session.SpawnOpts) (*session.Session, error)
+	Spawn(context.Context, *session.SpawnOpts) (*session.Session, error)
 }
 
 type autoTitleApplySurface interface {
@@ -7895,7 +9269,7 @@ var (
 
 func (m nonBindableHarnessSessionManager) Spawn(
 	ctx context.Context,
-	opts session.SpawnOpts,
+	opts *session.SpawnOpts,
 ) (*session.Session, error) {
 	spawner, ok := m.SessionManager.(spawnSurface)
 	if !ok {
@@ -7944,6 +9318,10 @@ type fakeObserver struct {
 
 func (f *fakeObserver) QueryEvents(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 	return nil, nil
+}
+
+func (f *fakeObserver) EventSequenceHead(context.Context) (int64, error) {
+	return 0, nil
 }
 
 func (f *fakeObserver) QueryHookCatalog(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error) {
@@ -8849,6 +10227,17 @@ func (r *recordingRegistry) ListSessions(context.Context, store.SessionListQuery
 	return nil, nil
 }
 
+func (r *recordingRegistry) SessionFailureSummary(
+	context.Context,
+	store.ReadScope,
+) (store.SessionFailureSummary, error) {
+	return store.SessionFailureSummary{}, nil
+}
+
+func (r *recordingRegistry) SessionInstanceID(_ context.Context, sessionID string) (string, error) {
+	return "", fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
+}
+
 func (r *recordingRegistry) AttachSession(context.Context, store.SessionAttachRequest) (store.SessionAttach, error) {
 	return store.SessionAttach{}, store.ErrSessionNotFound
 }
@@ -8867,6 +10256,10 @@ func (r *recordingRegistry) WriteEventSummaries(context.Context, []store.EventSu
 
 func (r *recordingRegistry) ListEventSummaries(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 	return nil, nil
+}
+
+func (r *recordingRegistry) EventSummaryHeadSequence(context.Context) (int64, error) {
+	return 0, nil
 }
 
 func (r *recordingRegistry) RecordTokenUsage(
@@ -9634,6 +11027,10 @@ func (f *fakeAutomationManager) DeleteJob(_ context.Context, id string) error {
 }
 
 func (f *fakeAutomationManager) TriggerJob(ctx context.Context, id string) (automationpkg.Run, error) {
+	return f.TriggerJobWithPayload(ctx, id, nil)
+}
+
+func (f *fakeAutomationManager) StartJob(ctx context.Context, id string, _ time.Duration) (automationpkg.Run, error) {
 	return f.TriggerJobWithPayload(ctx, id, nil)
 }
 
@@ -11293,4 +12690,45 @@ func TestReadWorkspaceWorkLogReplacement(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (f *fakeAutomationManager) CancelRun(ctx context.Context, id string) (automationpkg.Run, error) {
+	return f.GetRun(ctx, id)
+}
+
+// Invariant: status readers see the phase and step that is running, for failed steps too, so a slow
+// boot or shutdown is attributable instead of looking like a hang.
+func TestLifecycleStepPublishesReadiness(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should report the running step and keep it after a failure", func(t *testing.T) {
+		t.Parallel()
+
+		d := &Daemon{}
+		if got := d.DaemonReadiness(); got != nil {
+			t.Fatalf("DaemonReadiness() before any step = %#v, want nil", got)
+		}
+		stepErr := errors.New("step failed")
+		var during *contract.DaemonReadinessPayload
+		err := d.timeLifecycleStep(
+			context.Background(),
+			nil,
+			contract.DaemonReadinessServing,
+			"resumeBootInterruptedSessions",
+			func() error {
+				during = d.DaemonReadiness()
+				return stepErr
+			},
+		)
+		if !errors.Is(err, stepErr) {
+			t.Fatalf("timeLifecycleStep() error = %v, want %v", err, stepErr)
+		}
+		if during == nil || during.Phase != contract.DaemonReadinessServing ||
+			during.Step != "resumeBootInterruptedSessions" || during.Since.IsZero() {
+			t.Fatalf("DaemonReadiness() during the step = %#v, want the serving phase and step", during)
+		}
+		if after := d.DaemonReadiness(); after == nil || after.Step != "resumeBootInterruptedSessions" {
+			t.Fatalf("DaemonReadiness() after a failed step = %#v, want the failed step retained", after)
+		}
+	})
 }

@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 105
+const expectedHookEventCount = 109
 
 func TestAllHookEvents(t *testing.T) {
 	t.Run("Should expose a complete unique event taxonomy", func(t *testing.T) {
@@ -35,11 +35,12 @@ func TestSyncEligibleClassification(t *testing.T) {
 		t.Parallel()
 
 		asyncOnly := map[HookEvent]struct{}{
-			HookAgentInstanceCreated:  {},
-			HookAgentInstancePaused:   {},
-			HookAgentInstanceResumed:  {},
-			HookAgentInstanceArchived: {},
-			HookAgentInstanceAdopted:  {},
+			HookAgentInstanceProposalPicked: {},
+			HookAgentInstanceCreated:        {},
+			HookAgentInstancePaused:         {},
+			HookAgentInstanceResumed:        {},
+			HookAgentInstanceArchived:       {},
+			HookAgentInstanceAdopted:        {},
 
 			HookSubagentSettled:                 {},
 			HookMessageDelta:                    {},
@@ -73,6 +74,9 @@ func TestSyncEligibleClassification(t *testing.T) {
 			HookWindowManagerWindowMoved:        {},
 			HookWindowManagerWindowOpened:       {},
 			HookWindowManagerWindowClosed:       {},
+			HookWindowManagerTabSplit:           {},
+			HookWindowManagerTabUnsplit:         {},
+			HookWindowManagerTabActivated:       {},
 			HookWindowManagerStackGrouped:       {},
 			HookWindowManagerStackUngrouped:     {},
 			HookWindowManagerStackActivated:     {},
@@ -238,6 +242,9 @@ func TestWindowManagerHookEventsHaveExpectedFamilyAndSyncEligibility(t *testing.
 			HookWindowManagerWindowMoved,
 			HookWindowManagerWindowOpened,
 			HookWindowManagerWindowClosed,
+			HookWindowManagerTabSplit,
+			HookWindowManagerTabUnsplit,
+			HookWindowManagerTabActivated,
 			HookWindowManagerStackGrouped,
 			HookWindowManagerStackUngrouped,
 			HookWindowManagerStackActivated,

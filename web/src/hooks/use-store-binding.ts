@@ -28,6 +28,7 @@ function keyChanged<TKey, TStore>(
  * should use XState's `useStore` directly, and callback freshness belongs in events.
  * React may replay render, so both creation callbacks MUST be deterministic: no I/O,
  * subscriptions, timers, mutation calls, or cleanup. The owning hook handles lifecycle.
+ * The replacement factory also receives the key the replaced store was bound to.
  */
 export function useStoreBinding<TKey, TStore>(
   key: TKey,
@@ -36,18 +37,18 @@ export function useStoreBinding<TKey, TStore>(
 export function useStoreBinding<TKey, TStore>(
   key: TKey,
   createInitialStore: () => TStore,
-  createReplacementStore: (previous: TStore) => TStore
+  createReplacementStore: (previous: TStore, previousKey: TKey) => TStore
 ): StoreBindingResult<TStore>;
 export function useStoreBinding<TKey, TStore>(
   key: TKey,
   createInitialStore: () => TStore,
-  createReplacementStore: (previous: TStore) => TStore,
+  createReplacementStore: (previous: TStore, previousKey: TKey) => TStore,
   shouldReplace: ShouldReplaceStore<TKey, TStore>
 ): StoreBindingResult<TStore>;
 export function useStoreBinding<TKey, TStore>(
   key: TKey,
   createInitialStore: () => TStore,
-  createReplacementStore?: (previous: TStore) => TStore,
+  createReplacementStore?: (previous: TStore, previousKey: TKey) => TStore,
   shouldReplace?: ShouldReplaceStore<TKey, TStore>
 ): StoreBindingResult<TStore> {
   const replaceStore = createReplacementStore ?? (() => createInitialStore());
@@ -57,7 +58,7 @@ export function useStoreBinding<TKey, TStore>(
     store: createInitialStore(),
   }));
   const currentBinding = shouldReplaceStore(binding, key)
-    ? { key, store: replaceStore(binding.store) }
+    ? { key, store: replaceStore(binding.store, binding.key) }
     : binding;
   if (currentBinding !== binding) setBinding(currentBinding);
 
@@ -65,7 +66,7 @@ export function useStoreBinding<TKey, TStore>(
     replace: () =>
       setBinding(current => ({
         key,
-        store: replaceStore(current.store),
+        store: replaceStore(current.store, current.key),
       })),
     store: currentBinding.store,
   };

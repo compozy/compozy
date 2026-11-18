@@ -75,6 +75,12 @@ func resolveManifestPath(dir string) (string, error) {
 	document, err := agentplugin.ReadManifest(dir)
 	if err != nil {
 		missing, isMissing := errors.AsType[*agentplugin.NotManifestError](err)
+		if isMissing && missing != nil {
+			if manifest, loadErr := LoadManifest(dir); loadErr == nil && manifest.Layout == "manifestless" {
+				// The package root owns manifest-less identity; no synthetic file is written.
+				return pluginPath, nil
+			}
+		}
 		if (!isMissing || missing == nil) && !errors.Is(err, fileutil.ErrSymlink) &&
 			!errors.Is(err, fileutil.ErrDirectory) &&
 			!errors.Is(err, fileutil.ErrNotRegular) {
@@ -83,7 +89,7 @@ func resolveManifestPath(dir string) (string, error) {
 	} else {
 		status, declared := document.Classify()
 		switch status {
-		case agentplugin.SchemaSupported:
+		case agentplugin.SchemaSupported, agentplugin.SchemaUnrelated:
 			return document.Path, nil
 		case agentplugin.SchemaUnsupportedVersion:
 			return "", &agentplugin.SchemaUnsupportedError{Root: dir, Declared: declared}

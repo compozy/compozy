@@ -44,11 +44,13 @@ func (c *daemonClient) InstallExtension(
 	request InstallExtensionRequest,
 ) (ExtensionRecord, error) {
 	var response struct {
-		Extension ExtensionRecord `json:"extension"`
+		Extension   ExtensionRecord                `json:"extension"`
+		EnableError *contract.ExtensionEnableError `json:"enable_error"`
 	}
 	if err := c.doJSON(ctx, http.MethodPost, "/api/extensions", nil, request, &response); err != nil {
 		return ExtensionRecord{}, err
 	}
+	response.Extension.InstallEnableError = response.EnableError
 	return response.Extension, nil
 }
 

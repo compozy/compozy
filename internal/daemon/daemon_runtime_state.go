@@ -36,6 +36,7 @@ type daemonRuntimeState struct {
 	runtimeWorkers    daemonRuntimeWorkers
 	terminals         *terminalpkg.Service
 	situationContext  *situation.Service
+	standingContext   *standingContextAugmenter
 	sessions          SessionManager
 	sessionWakeBridge *sessionWakeBridge
 	sessionMonitors   *monitorpkg.Service
@@ -50,6 +51,7 @@ type daemonRuntimeState struct {
 	hooks             hookRuntime
 	extensions        extensionRuntime
 	observer          Observer
+	telemetry         *telemetrySlot
 	resourceReconcile resources.ReconcileDriver
 	supportBundles    supportBundleShutdowner
 	backgroundUpdates *backgroundUpdateRuntime

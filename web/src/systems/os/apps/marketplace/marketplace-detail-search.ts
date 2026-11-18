@@ -9,6 +9,10 @@ export interface MarketplaceDetailSearch {
   from?: "installed";
   /** Query kept from the referrer so Back lands on the same list. */
   q?: string;
+  /** `?setup=1`: a row's Set up opened the detail; focus the first missing input or sign-in. */
+  setup?: 1;
+  /** Category page the row came from, so Back returns to it. */
+  category?: string;
 }
 
 function optionalText(value: unknown): string | undefined {
@@ -32,5 +36,7 @@ export function validateMarketplaceDetailSearch(
     workspace_id: workspaceId,
     from: search.from === "installed" ? "installed" : undefined,
     q: optionalText(search.q),
+    setup: search.setup === 1 || search.setup === "1" || search.setup === true ? 1 : undefined,
+    category: optionalText(search.category),
   };
 }

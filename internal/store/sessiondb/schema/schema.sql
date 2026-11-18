@@ -35,6 +35,7 @@ CREATE TABLE token_usage (
 		context_used       INTEGER,
 		context_size       INTEGER,
 		cost_amount        REAL,
+        reported_cost_amount REAL,
 		cost_currency      TEXT,
 		timestamp          TEXT NOT NULL
 	);

@@ -1,4 +1,4 @@
-import { CircleOff, Plus, RotateCcw, TriangleAlert } from "@compozy/ui/icons";
+import { Archive, CircleOff, Plus, RotateCcw, TriangleAlert } from "@compozy/ui/icons";
 
 import { Button, MonoId, Pill, TableCell, TableRow, cn } from "@compozy/ui";
 
@@ -18,15 +18,19 @@ export interface WindowManagerShortcutRowProps {
   onReset: (commandId: string) => void;
 }
 
+const ROW_FLAG = {
+  unbound: { glyph: CircleOff, tone: "text-destructive" },
+  dormant: { glyph: TriangleAlert, tone: "text-warning" },
+  retired: { glyph: Archive, tone: "text-muted-foreground" },
+} as const;
+
 /** State word + glyph, so the row never leans on tone alone to say what it is. */
-function RowFlag({ kind, children }: { kind: "unbound" | "dormant"; children: string }) {
-  const Glyph = kind === "unbound" ? CircleOff : TriangleAlert;
+function RowFlag({ kind, children }: { kind: keyof typeof ROW_FLAG; children: string }) {
+  const Glyph = ROW_FLAG[kind].glyph;
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1 font-mono text-badge",
-        kind === "unbound" ? "text-destructive" : "text-warning"
-      )}
+      className={cn("inline-flex items-center gap-1 font-mono text-badge", ROW_FLAG[kind].tone)}
+      data-testid={kind === "retired" ? "shortcut-retired-flag" : undefined}
     >
       <Glyph aria-hidden="true" className="size-3" />
       {children}
@@ -43,6 +47,7 @@ function shortcutRowTint(row: ShortcutTableRow): string | undefined {
 
 function shortcutRowState(row: ShortcutTableRow, recording: boolean) {
   if (recording) return "recording";
+  if (row.retired) return "retired";
   return row.overridden ? "custom" : "default";
 }
 
@@ -71,12 +76,20 @@ function ShortcutBindingCell({
           recording && "bg-selected shadow-focus-ring"
         )}
         data-testid={`shortcut-recorder-${row.commandId}`}
-        disabled={busy}
+        disabled={busy || row.retired}
         type="button"
         onClick={() => onRecord(row.commandId)}
       >
         <ShortcutChord recording={recording} row={row} />
       </button>
+      {row.retired ? (
+        <>
+          <RowFlag kind="retired">retired</RowFlag>
+          <p className="text-form-hint text-muted-foreground">
+            This action was retired with tabs and splits, so the shortcut does nothing. Remove it.
+          </p>
+        </>
+      ) : null}
       {row.dormantReason !== null ? (
         <>
           <RowFlag kind="dormant">dormant</RowFlag>
@@ -111,7 +124,8 @@ function ShortcutActions({
     <div className="inline-flex items-center gap-0.5">
       <Button
         aria-label={`Add an alternate shortcut for ${row.title}`}
-        disabled={busy}
+        className={cn(row.retired && "invisible")}
+        disabled={busy || row.retired}
         size="icon-xs"
         type="button"
         variant="ghost"
@@ -120,7 +134,11 @@ function ShortcutActions({
         <Plus aria-hidden="true" className="size-3" />
       </Button>
       <Button
-        aria-label={`Reset ${row.title} to its default shortcut`}
+        aria-label={
+          row.retired
+            ? `Remove the retired shortcut for ${row.title}`
+            : `Reset ${row.title} to its default shortcut`
+        }
         className={cn(!row.overridden && "invisible")}
         data-testid={`shortcut-reset-${row.commandId}`}
         disabled={!row.overridden || busy}

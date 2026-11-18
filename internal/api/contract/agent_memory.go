@@ -22,6 +22,9 @@ type AgentMemoryWriteRequest struct {
 type AgentMemoryAddRequest struct {
 	Text  string `json:"text"`
 	Until string `json:"until,omitempty"`
+	// Kind is "note" (default) or "rule". A rule is an operator instruction that binds
+	// the agent every turn; it takes no expiry.
+	Kind string `json:"kind,omitempty" enum:"note,rule"`
 }
 
 type AgentMemoryReplaceRequest struct {

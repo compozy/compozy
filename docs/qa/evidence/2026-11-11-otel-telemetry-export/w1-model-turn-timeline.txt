@@ -1,0 +1,10 @@
+# session.turn gen_ai.request.model per turn (Jaeger, service compozy-daemon), lab daemon built from 82347190f
+# boot 1 (export on): 2026-11-11T14:39:31Z, telemetry initialized 14:39:32Z
+# models_dev source for provider claude refreshed 14:39:48Z (session create); model snapshot TTL 5 min
+# boot 2 (warm catalog): 2026-11-11T14:45:30Z
+turn_start_utc        trace_id                          gen_ai.request.model  note
+2026-11-11T14:39:48   67047dfc66b726d95a204b4c073de58a  other                 boot 1, 17 s after boot (cold spawn)
+2026-11-11T14:40:38   73e372f63cfe05a020cd3a09c7f88da0  other                 boot 1, 67 s after boot, snapshot predates models_dev refresh
+2026-11-11T14:44:57   376daecfbb6261d17cd0d8dbdc6df62f  claude-opus-5-5       boot 1, after 5 min TTL
+2026-11-11T14:44:59   0d4bf3af9975ffbe90c7ef4f4d317085  claude-opus-5-5       boot 1, after 5 min TTL
+2026-11-11T14:45:42   616bc28883ebda320a91bc6fc18d065d  claude-opus-5-5       boot 2, 12 s after restart, catalog already persisted

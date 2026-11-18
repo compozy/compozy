@@ -25,6 +25,36 @@ func (g *SessionRepo) AssociateSubagentWorktree(ctx context.Context, row store.S
 		return err
 	})
 }
+
+func (g *SessionRepo) RecordSubagentWorktreeFacts(
+	ctx context.Context, observed store.SessionSubagent,
+) (out store.SessionSubagent, err error) {
+	err = g.withImmediateTransaction(
+		ctx,
+		"record terminal subagent worktree facts",
+		func(exec globalSQLExecutor) error {
+			q := sqlcgen.New(exec)
+			current, readErr := readSubagent(ctx, q, observed.ID)
+			if readErr != nil {
+				return readErr
+			}
+			if current.WorkspaceID != observed.WorkspaceID || !current.CreatedAt.Equal(observed.CreatedAt) ||
+				current.WorktreeState().ID == "" || current.WorktreeState().ID != observed.WorktreeState().ID ||
+				!store.IsSubagentStatusTerminal(current.Status) {
+				return store.ErrSubagentNotFound
+			}
+			if facts := observed.WorktreeState().Facts; facts.PRStatus != "" {
+				if err := persistSubagentWorktreeFacts(ctx, q, observed.ID, facts); err != nil {
+					return err
+				}
+			}
+			out, readErr = readSubagent(ctx, q, observed.ID)
+			return readErr
+		},
+	)
+	return out, err
+}
+
 func (g *SessionRepo) SetSubagentWorktreeCleanup(ctx context.Context, id, state string) error {
 	return g.withImmediateTransaction(ctx, "subagent worktree cleanup", func(exec globalSQLExecutor) error {
 		n, err := sqlcgen.New(exec).

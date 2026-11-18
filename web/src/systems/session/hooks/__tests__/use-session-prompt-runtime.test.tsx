@@ -63,6 +63,7 @@ function provider(
   authState: NonNullable<ProviderAuthStatus>["state"]
 ): ProviderSummary {
   return {
+    enabled: true,
     auth_status: {
       env_policy: "inherit",
       home_policy: "operator",
@@ -419,6 +420,62 @@ describe("useSessionPromptRuntime", () => {
     });
   });
 
+  it("Should mark profile-disabled providers and keep the session's own as the current value", async () => {
+    const workspaceId = workspaceDetailFixture.workspace.id;
+    const { queryClient, wrapper } = createHarness();
+    queryClient.setQueryData(workspaceKeys.detail(workspaceId), {
+      ...workspaceDetailFixture,
+      providers: [
+        { display_name: "Codex", harness: "acp", name: "codex", runtime_provider: "codex" },
+        { display_name: "Gemini", harness: "acp", name: "gemini", runtime_provider: "gemini" },
+      ],
+    } satisfies WorkspaceDetailPayload);
+    queryClient.setQueryData<AgentPayload[]>(agentKeys.list(workspaceId), []);
+    queryClient.setQueryData(providerKeys.lists(), {
+      providers: [
+        provider("codex", "authenticated"),
+        { ...provider("claude", "authenticated"), display_name: "Claude", enabled: false },
+        { ...provider("gemini", "authenticated"), enabled: false },
+      ],
+    } satisfies ProviderListResponse);
+    queryClient.setQueryData(modelCatalogKeys.allModels("all", undefined, undefined, true), {
+      models: [model("codex", "gpt-6.1-sol"), model("claude", "claude-fable-5")],
+    } satisfies AllModelsListResponse);
+    const store = sessionPromptRuntimeStoreLogic.createStore(
+      sessionPromptRuntimeInput({
+        agentName: "general",
+        canPrompt: true,
+        effectiveRuntime: { provider: "claude", model: "claude-fable-5" },
+        selectedRuntime: { provider: "claude", model: "claude-fable-5", speed: "normal" },
+        selectionRevision: 1,
+        sessionId: primarySessionFixture.id,
+        workspaceId,
+      })
+    );
+
+    const { result } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
+
+    await waitFor(() => expect(result.current.canSelectRuntime).toBe(true));
+    expect(result.current.value).toMatchObject({ provider: "claude", model: "claude-fable-5" });
+    // The workspace list is not profile-scoped: gemini stays there but the inventory disables it.
+    expect(result.current.catalog.providers).toEqual([
+      expect.objectContaining({ id: "codex" }),
+      expect.objectContaining({ id: "gemini", disabled: true }),
+      expect.objectContaining({ id: "claude", name: "Claude", disabled: true }),
+    ]);
+    expect(result.current.catalog.providers[0]?.disabled).toBeUndefined();
+    expect(result.current.catalog.models.some(entry => entry.provider === "claude")).toBe(false);
+
+    act(() => {
+      result.current.onRuntimeChange({
+        provider: "codex",
+        model: "gpt-6.1-sol",
+        reasoning_effort: "",
+      });
+    });
+    expect(result.current.catalog.providers.map(entry => entry.id)).toEqual(["codex", "gemini"]);
+  });
+
   // A continued or forked session is unbound with the runtime its dialog chose as its
   // selection; the composer and its first prompt must use it, not the agent default.
   it("Should prefer an unbound session's selected runtime over the agent default", async () => {
@@ -562,6 +619,94 @@ describe("SessionPromptRuntimeProvider hydration", () => {
       });
     }
   );
+
+  it("Should cap live thought levels at the effective model's advertised efforts", async () => {
+    const workspaceId = workspaceDetailFixture.workspace.id;
+    const { queryClient } = createHarness();
+    queryClient.setQueryData(workspaceKeys.detail(workspaceId), {
+      ...workspaceDetailFixture,
+      agents: [],
+      providers: [
+        { name: "claude", display_name: "Claude", harness: "acp", runtime_provider: "claude" },
+      ],
+    } satisfies WorkspaceDetailPayload);
+    queryClient.setQueryData<AgentPayload[]>(agentKeys.list(workspaceId), []);
+    queryClient.setQueryData(providerKeys.lists(), {
+      providers: [provider("claude", "authenticated")],
+    });
+    queryClient.setQueryData(modelCatalogKeys.allModels("all", undefined, undefined, true), {
+      models: [
+        {
+          ...model("claude", "claude-fable-5-1"),
+          supports_reasoning: true,
+          reasoning_apply: "acp_option",
+          reasoning_efforts: ["low", "high", "max"],
+        },
+        {
+          ...model("claude", "claude-fable-5"),
+          supports_reasoning: true,
+          reasoning_apply: "acp_option",
+          reasoning_efforts: ["low", "high"],
+        },
+      ],
+    } satisfies AllModelsListResponse);
+    const session: SessionPayload = {
+      ...primarySessionFixture,
+      workspace_id: workspaceId,
+      runtime: {
+        ...primarySessionFixture.runtime,
+        effective: { provider: "claude", model: "claude-fable-5-1", reasoning_effort: "medium" },
+        selected: { provider: "claude", model: "claude-fable-5", reasoning_effort: "low" },
+        acp_caps: {
+          prompt_audio: false,
+          prompt_image: false,
+          prompt_embedded_context: false,
+          supports_fork_session: false,
+          supports_load_session: true,
+          supports_resume_session: false,
+          config_options: [
+            {
+              id: "reasoning_effort",
+              category: "thought_level",
+              kind: "select",
+              current_value_id: "medium",
+              values: [
+                { value: "default" },
+                { value: "low" },
+                { value: "medium" },
+                { value: "high" },
+                { value: "max" },
+                { value: "future-effort" },
+              ],
+            },
+          ],
+        },
+      },
+    };
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <SessionPromptRuntimeProvider session={session} canPrompt>
+          {children}
+        </SessionPromptRuntimeProvider>
+      </QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSessionPromptRuntime(useSessionPromptRuntimeContext()), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.catalog.models).toHaveLength(2));
+    const effective = result.current.catalog.models.find(row => row.id === "claude-fable-5-1");
+    // The live ACP list advertises more levels than the model honors; only the
+    // model's own levels may reach the slider.
+    expect(effective?.efforts).toEqual(["low", "high", "max"]);
+    // "medium" is ACP's current value but not a model level → provider default.
+    expect(effective?.default_effort).toBe("");
+    expect(effective?.reasoning_source).toBe("acp");
+    // Non-effective rows keep their own catalog capabilities untouched.
+    expect(result.current.catalog.models.find(row => row.id === "claude-fable-5")?.efforts).toEqual(
+      ["low", "high"]
+    );
+  });
 
   it("Should preserve selected ACP options when mounting and refetching a session", () => {
     const selected = {

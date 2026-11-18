@@ -61,8 +61,13 @@ func validationIssuesForError(dir string, err error) ([]ValidationIssue, error) 
 }
 
 // ValidateBundleReport adds the permission-derived consent summary to ValidateBundle.
-func ValidateBundleReport(dir string) (*ValidationReport, error) {
-	format, dualManifest, err := extensionValidationFormat(dir)
+func ValidateBundleReport(dir string, pluginName ...string) (*ValidationReport, error) {
+	return ValidateBundleReportWithAgentPluginDataDir(dir, "", pluginName...)
+}
+
+// ValidateBundleReportWithAgentPluginDataDir validates against instance-owned plugin data.
+func ValidateBundleReportWithAgentPluginDataDir(dir, dataDir string, pluginName ...string) (*ValidationReport, error) {
+	format, dualManifest, err := extensionValidationFormat(dir, pluginName...)
 	if err != nil {
 		if errors.Is(err, ErrAgentPluginManifestInvalid) {
 			return invalidAgentPluginValidationReport(err), nil
@@ -70,7 +75,7 @@ func ValidateBundleReport(dir string) (*ValidationReport, error) {
 		return nil, err
 	}
 	if format == FormatAgentPlugin {
-		return validateAgentPluginBundleReport(dir)
+		return validateAgentPluginBundleReport(dir, dataDir, pluginName...)
 	}
 
 	manifest, issues, err := ValidateBundle(dir)
@@ -104,7 +109,7 @@ func ValidateBundleReport(dir string) (*ValidationReport, error) {
 	return report, nil
 }
 
-func extensionValidationFormat(dir string) (ExtensionFormat, bool, error) {
+func extensionValidationFormat(dir string, pluginName ...string) (ExtensionFormat, bool, error) {
 	root := strings.TrimSpace(dir)
 	pluginPath := filepath.Join(root, agentPluginManifestFileName)
 	pluginInfo, pluginErr := os.Lstat(pluginPath)
@@ -122,15 +127,26 @@ func extensionValidationFormat(dir string) (ExtensionFormat, bool, error) {
 	if pluginExists && !pluginInfo.Mode().IsRegular() {
 		return "", false, agentPluginFormatDetectionError(root)
 	}
-	status, _, err := agentplugin.ClassifyManifest(root)
+	status, declared, err := agentplugin.ClassifyManifest(root)
 	if err != nil {
 		return "", false, err
 	}
 	if status == agentplugin.SchemaSupported {
 		return FormatAgentPlugin, false, nil
 	}
+	if status == agentplugin.SchemaUnrelated && pluginExists && (declared == "" || len(pluginName) > 0) {
+		document, readErr := agentplugin.ReadManifest(root)
+		if readErr == nil && document.ValidJSON() {
+			return FormatAgentPlugin, false, nil
+		}
+	}
 	if pluginExists || status == agentplugin.SchemaUnsupportedVersion {
 		return "", false, agentPluginFormatDetectionError(root)
+	}
+	for _, component := range []string{"skills", "mcp.json", ".mcp.json"} {
+		if _, err := os.Lstat(filepath.Join(root, component)); err == nil {
+			return FormatAgentPlugin, false, nil
+		}
 	}
 	return FormatCompozy, false, nil
 }
@@ -142,13 +158,42 @@ func agentPluginFormatDetectionError(root string) error {
 	return fmt.Errorf("extension: Agent Plugins format detection failed for %q", root)
 }
 
-func validateAgentPluginBundleReport(dir string) (*ValidationReport, error) {
-	root := strings.TrimSpace(dir)
-	dataDir, err := defaultAgentPluginDataDir(root, filepath.Base(root))
+func validateAgentPluginBundleReport(dir, dataDir string, pluginName ...string) (*ValidationReport, error) {
+	root, err := filepath.Abs(strings.TrimSpace(dir))
 	if err != nil {
 		return nil, err
 	}
-	pkg, err := agentplugin.Load(root, agentplugin.LoadOptions{DataDir: dataDir})
+	opts := agentplugin.LoadOptions{}
+	document, readErr := agentplugin.ReadManifest(root)
+	_, missing := errors.AsType[*agentplugin.NotManifestError](readErr)
+	if readErr != nil && !missing {
+		return nil, readErr
+	}
+	clientRoot := false
+	if readErr == nil {
+		status, _ := document.Classify()
+		clientRoot = document.Layout == agentplugin.LayoutStandard && status == agentplugin.SchemaUnrelated
+	}
+	if len(pluginName) > 0 {
+		opts.Name = pluginName[0]
+	} else if missing || clientRoot {
+		opts.Name = filepath.Base(root)
+	}
+	if dataDir == "" {
+		name := opts.Name
+		if name == "" && readErr == nil {
+			name, err = document.Name()
+			if err != nil {
+				return invalidAgentPluginValidationReport(err), nil
+			}
+		}
+		dataDir, err = defaultAgentPluginDataDir(root, name)
+		if err != nil {
+			return nil, err
+		}
+	}
+	opts.DataDir = dataDir
+	pkg, err := agentplugin.Load(root, opts)
 	if err != nil {
 		if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](err); ok {
 			return invalidAgentPluginValidationReport(
@@ -171,7 +216,15 @@ func validateAgentPluginBundleReport(dir string) (*ValidationReport, error) {
 			Issues: issues,
 		}, nil
 	}
+	inputs := make([]apicontract.MarketplaceInputPayload, 0, len(manifest.Inputs))
+	for _, input := range manifest.Inputs {
+		inputs = append(inputs, apicontract.MarketplaceInputPayload{
+			ID: input.ID, Prompt: input.Prompt, Type: input.Type, Required: input.Required, Default: input.Default,
+			Binding: apicontract.MarketplaceInputBindingPayload{Type: input.Binding.Type, Name: input.Binding.Name},
+		})
+	}
 	return &ValidationReport{
+		Inputs:      inputs,
 		Status:      "valid",
 		Format:      string(FormatAgentPlugin),
 		Name:        pkg.Name,
@@ -231,8 +284,13 @@ func agentPluginValidationComponents(root string, pkg *agentplugin.Package) []ap
 func agentPluginValidationWarnings(values []agentplugin.Diagnostic) []ValidationIssue {
 	issues := make([]ValidationIssue, 0, len(values))
 	for _, item := range values {
+		severity := IssueSeverityWarn
+		if item.Code == agentplugin.ClientMCPDiscovered {
+			severity = apicontract.IssueSeverityInfo
+		}
 		issues = append(issues, ValidationIssue{
-			Scope: strings.TrimSpace(item.Scope), Message: strings.TrimSpace(item.Message), Severity: IssueSeverityWarn,
+			Code:  item.Code,
+			Scope: strings.TrimSpace(item.Scope), Message: strings.TrimSpace(item.Message), Severity: severity,
 		})
 	}
 	return issues

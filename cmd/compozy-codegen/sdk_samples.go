@@ -112,6 +112,9 @@ func sdkTypeScriptOptions(operation spec.OperationSpec) string {
 			case parameter.Kind == sdkParamBoolean:
 				value = sdkSampleTrue
 			}
+			if parameter.Kind == sdkParamArray {
+				value = "[" + value + "]"
+			}
 			params = append(params, fmt.Sprintf("%q: %s", parameter.Name, value))
 		}
 		if len(params) > 0 {
@@ -157,6 +160,9 @@ func sdkGoSample(operation spec.OperationSpec, kind, body string) string {
 				value = "1"
 			case parameter.Kind == sdkParamBoolean:
 				value = sdkSampleTrue
+			}
+			if parameter.Kind == sdkParamArray {
+				value = "[]string{" + value + "}"
 			}
 			fields = append(fields, sdkgo.ClientParameterName(parameter.Name)+": "+value)
 		}

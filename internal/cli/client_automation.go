@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 )
 
 func (c *daemonClient) ListAutomationJobs(
@@ -65,10 +67,25 @@ func (c *daemonClient) DeleteAutomationJob(ctx context.Context, id string) error
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-func (c *daemonClient) TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error) {
+func (c *daemonClient) TriggerAutomationJob(
+	ctx context.Context, id string, waitTimeout ...time.Duration,
+) (RunRecord, error) {
 	var response contract.RunResponse
 	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id)) + "/trigger"
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+	query := url.Values{}
+	client := c.httpClient
+	if len(waitTimeout) > 0 {
+		timeout, err := automationpkg.ParseJobWaitTimeout(true, waitTimeout[0].String())
+		if err != nil {
+			return RunRecord{}, err
+		}
+		query.Set("wait", "true")
+		query.Set("timeout", timeout.String())
+		copied := *client
+		copied.Timeout = timeout + client.Timeout
+		client = &copied
+	}
+	if err := c.doJSONWithClient(ctx, http.MethodPost, path, query, nil, &response, client); err != nil {
 		return RunRecord{}, err
 	}
 	return response.Run, nil
@@ -78,13 +95,13 @@ func (c *daemonClient) AutomationJobRuns(
 	ctx context.Context,
 	id string,
 	query AutomationRunQuery,
-) ([]RunRecord, error) {
+) (AutomationRunListRecord, error) {
 	var response contract.RunsResponse
 	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id)) + "/runs"
 	if err := c.doJSON(ctx, http.MethodGet, path, automationRunValues(query), nil, &response); err != nil {
-		return nil, err
+		return AutomationRunListRecord{}, err
 	}
-	return response.Runs, nil
+	return response, nil
 }
 
 func (c *daemonClient) ListAutomationTriggers(
@@ -147,53 +164,37 @@ func (c *daemonClient) AutomationTriggerRuns(
 	ctx context.Context,
 	id string,
 	query AutomationRunQuery,
-) ([]RunRecord, error) {
+) (AutomationRunListRecord, error) {
 	var response contract.RunsResponse
 	path := "/api/automation/triggers/" + url.PathEscape(strings.TrimSpace(id)) + "/runs"
 	if err := c.doJSON(ctx, http.MethodGet, path, automationRunValues(query), nil, &response); err != nil {
-		return nil, err
+		return AutomationRunListRecord{}, err
 	}
-	return response.Runs, nil
+	return response, nil
 }
 
-func (c *daemonClient) ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error) {
-	var runs []RunRecord
-	remaining := query.Limit
-	for {
-		request := query
-		if query.AllWorkspaces && (request.Limit == 0 || request.Limit > 200) {
-			request.Limit = 200
-		}
-		var response contract.RunsResponse
-		if err := c.doJSON(
-			ctx,
-			http.MethodGet,
-			"/api/automation/runs",
-			automationRunValues(request),
-			nil,
-			&response,
-		); err != nil {
-			return nil, err
-		}
-		runs = append(runs, response.Runs...)
-		if !query.AllWorkspaces || response.Page == nil || !response.Page.HasMore {
-			return runs, nil
-		}
-		if remaining > 0 {
-			remaining -= len(response.Runs)
-			if remaining <= 0 {
-				return runs, nil
-			}
-			query.Limit = remaining
-		}
-		query.Cursor = response.Page.NextCursor
-	}
+func (c *daemonClient) ListAutomationRuns(
+	ctx context.Context,
+	query AutomationRunQuery,
+) (AutomationRunListRecord, error) {
+	var response AutomationRunListRecord
+	err := c.doJSON(ctx, http.MethodGet, "/api/automation/runs", automationRunValues(query), nil, &response)
+	return response, err
 }
 
 func (c *daemonClient) GetAutomationRun(ctx context.Context, id string) (RunRecord, error) {
 	var response contract.RunResponse
 	path := "/api/automation/runs/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return RunRecord{}, err
+	}
+	return response.Run, nil
+}
+
+func (c *daemonClient) CancelAutomationRun(ctx context.Context, id string) (RunRecord, error) {
+	var response contract.RunResponse
+	path := "/api/automation/runs/" + url.PathEscape(strings.TrimSpace(id)) + "/cancel"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
 		return RunRecord{}, err
 	}
 	return response.Run, nil

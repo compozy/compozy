@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/redact"
@@ -69,7 +70,12 @@ func (s *Store) Search(key Key, query string) ([]SearchResult, error) {
 	return results, nil
 }
 
+// Replace rewrites every matching line.
 func (s *Store) Replace(key Key, match, text string) (Document, error) {
+	return s.replace(key, match, text, false)
+}
+
+func (s *Store) replace(key Key, match, text string, guardRules bool) (Document, error) {
 	if strings.TrimSpace(text) == "" || strings.ContainsAny(text, "\r\n") {
 		return Document{}, errors.New("invalid memory entry")
 	}
@@ -91,10 +97,15 @@ func (s *Store) Replace(key Key, match, text string) (Document, error) {
 			}
 		}
 		return join(all), nil
-	}, true)
+	}, true, guardRules)
 }
 
+// Remove deletes every matching line.
 func (s *Store) Remove(key Key, match string) (Document, int, error) {
+	return s.remove(key, match, false)
+}
+
+func (s *Store) remove(key Key, match string, guardRules bool) (Document, int, error) {
 	removed := 0
 	doc, err := s.update(key, func(old string) (string, error) {
 		if match == "" {
@@ -109,9 +120,36 @@ func (s *Store) Remove(key Key, match string) (Document, int, error) {
 			kept = append(kept, line)
 		}
 		return join(kept), nil
-	}, true)
+	}, true, guardRules)
 	if err != nil {
 		return Document{}, 0, err
 	}
 	return doc, removed, nil
+}
+
+// AgentWriter is the store as an agent may write it. Every method keeps the
+// operator rules exactly as they are and fails with ErrRuleProtected otherwise.
+type AgentWriter struct{ store *Store }
+
+// AsAgent returns the write surface for a caller that acts as the agent itself.
+func (s *Store) AsAgent() AgentWriter { return AgentWriter{store: s} }
+
+func (w AgentWriter) Add(key Key, now time.Time, scope, text, until string) (Document, error) {
+	return w.store.Add(key, now, scope, text, until)
+}
+
+func (w AgentWriter) Replace(key Key, match, text string) (Document, error) {
+	return w.store.replace(key, match, text, true)
+}
+
+func (w AgentWriter) Remove(key Key, match string) (Document, int, error) {
+	return w.store.remove(key, match, true)
+}
+
+func (w AgentWriter) Write(key Key, content, expectedDigest string) (Document, error) {
+	return w.store.write(key, content, expectedDigest, true)
+}
+
+func (w AgentWriter) Rollback(key Key, revision string) (Document, error) {
+	return w.store.rollback(key, revision, true)
 }

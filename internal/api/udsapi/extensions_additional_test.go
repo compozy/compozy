@@ -2,6 +2,8 @@ package udsapi
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -298,6 +300,37 @@ func TestApproveSessionHandler(t *testing.T) {
 		if response.Outcome != "applied" || response.RequestID != "req-1" ||
 			response.Decision != "allow-once" {
 			t.Fatalf("approve response = %#v", response)
+		}
+	})
+}
+
+func TestExtensionEnablementValidationFailure(t *testing.T) {
+	t.Parallel()
+	t.Run("Should return a structured validation error", func(t *testing.T) {
+		t.Parallel()
+		homePaths := newTestHomePaths(t)
+		handlers := newTestHandlersWithExtensions(t, &stubSessionManager{}, stubObserver{}, stubExtensionService{
+			SetEnablementFn: func(context.Context, string, contract.SetExtensionEnablementRequest, taskpkg.ActorContext) (contract.ExtensionEnablementPayload, error) {
+				return contract.ExtensionEnablementPayload{}, fmt.Errorf(
+					"%w: invalid MCP declaration",
+					extensionpkg.ErrManifestInvalid,
+				)
+			},
+		}, homePaths)
+		response := performRequest(
+			t,
+			newTestRouter(t, handlers),
+			http.MethodPut,
+			"/api/extensions/demo/enablement",
+			[]byte(`{"profile":"default","enabled":true}`),
+		)
+		var payload contract.ExtensionValidationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusBadRequest || payload.Error == "" || len(payload.Issues) != 1 ||
+			!strings.Contains(payload.Issues[0].Message, "invalid MCP declaration") {
+			t.Fatalf("response = %d %s", response.Code, response.Body)
 		}
 	})
 }

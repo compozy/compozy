@@ -17,7 +17,7 @@ func buildShellSection(cfg *compozyconfig.Config) ShellSection {
 }
 
 func diffShellSettings(current compozyconfig.ShellConfig, desired compozyconfig.ShellConfig) []string {
-	changed := make([]string, 0, 5)
+	changed := make([]string, 0, 7)
 	if current.Sessions.GroupBy != desired.Sessions.GroupBy ||
 		current.Sessions.GroupByExplicit != desired.Sessions.GroupByExplicit {
 		changed = append(changed, "shell.sessions.group_by")
@@ -28,20 +28,28 @@ func diffShellSettings(current compozyconfig.ShellConfig, desired compozyconfig.
 	if desired.Sessions.ScopeExplicit || current.Sessions.Scope != desired.Sessions.Scope {
 		changed = append(changed, "shell.sessions.scope")
 	}
-	if shellFontChanged(current.Appearance.UIFont, current.Appearance.UIFontExplicit,
+	if shellAppearanceChanged(current.Appearance.UIFont, current.Appearance.UIFontExplicit,
 		desired.Appearance.UIFont, desired.Appearance.UIFontExplicit) {
 		changed = append(changed, "shell.appearance.ui_font")
 	}
-	if shellFontChanged(current.Appearance.MonoFont, current.Appearance.MonoFontExplicit,
+	if shellAppearanceChanged(current.Appearance.MonoFont, current.Appearance.MonoFontExplicit,
 		desired.Appearance.MonoFont, desired.Appearance.MonoFontExplicit) {
 		changed = append(changed, "shell.appearance.mono_font")
+	}
+	if shellAppearanceChanged(string(current.Appearance.TextSize), current.Appearance.TextSizeExplicit,
+		string(desired.Appearance.TextSize), desired.Appearance.TextSizeExplicit) {
+		changed = append(changed, "shell.appearance.text_size")
+	}
+	if shellAppearanceChanged(string(current.Appearance.LetterSpacing), current.Appearance.LetterSpacingExplicit,
+		string(desired.Appearance.LetterSpacing), desired.Appearance.LetterSpacingExplicit) {
+		changed = append(changed, "shell.appearance.letter_spacing")
 	}
 	return changed
 }
 
-// shellFontChanged also reports an explicit reset of a key the file stores as
-// "", so the reset deletes it instead of leaving the empty key behind.
-func shellFontChanged(current string, currentExplicit bool, desired string, desiredExplicit bool) bool {
+// shellAppearanceChanged also reports an explicit reset of an appearance key the file
+// stores as "", so the reset deletes it instead of leaving the empty key behind.
+func shellAppearanceChanged(current string, currentExplicit bool, desired string, desiredExplicit bool) bool {
 	if current != desired {
 		return true
 	}
@@ -72,21 +80,31 @@ func applyShellSettings(editor *compozyconfig.OverlayEditor, settings compozycon
 		}
 	}
 	if settings.Appearance.UIFontExplicit {
-		if err := applyShellFont(editor, "ui_font", settings.Appearance.UIFont); err != nil {
+		if err := applyShellAppearanceKey(editor, "ui_font", settings.Appearance.UIFont); err != nil {
 			return err
 		}
 	}
 	if settings.Appearance.MonoFontExplicit {
-		return applyShellFont(editor, "mono_font", settings.Appearance.MonoFont)
+		if err := applyShellAppearanceKey(editor, "mono_font", settings.Appearance.MonoFont); err != nil {
+			return err
+		}
+	}
+	if settings.Appearance.TextSizeExplicit {
+		if err := applyShellAppearanceKey(editor, "text_size", string(settings.Appearance.TextSize)); err != nil {
+			return err
+		}
+	}
+	if settings.Appearance.LetterSpacingExplicit {
+		return applyShellAppearanceKey(editor, "letter_spacing", string(settings.Appearance.LetterSpacing))
 	}
 	return nil
 }
 
-// applyShellFont persists a font family; an empty family deletes the key so the default applies.
-func applyShellFont(editor *compozyconfig.OverlayEditor, key string, family string) error {
+// applyShellAppearanceKey persists one appearance value; an empty value deletes the key so the default applies.
+func applyShellAppearanceKey(editor *compozyconfig.OverlayEditor, key string, value string) error {
 	path := []string{shellConfigRoot, shellAppearanceKey, key}
-	if family == "" {
+	if value == "" {
 		return editor.Delete(path)
 	}
-	return editor.SetValue(path, family)
+	return editor.SetValue(path, value)
 }

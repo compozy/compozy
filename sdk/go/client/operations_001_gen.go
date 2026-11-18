@@ -368,6 +368,30 @@ func (c *Client) ApplySettingsUpdate(ctx context.Context, body SettingsUpdateApp
 	return &out, nil
 }
 
+// ApproveAgentHeartbeatAuthorityParams carries the path, query, and header parameters.
+type ApproveAgentHeartbeatAuthorityParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ApproveAgentHeartbeatAuthority approve check-in authority
+func (c *Client) ApproveAgentHeartbeatAuthority(ctx context.Context, params ApproveAgentHeartbeatAuthorityParams, body HeartbeatScriptApprovalRequest) error {
+	path := "/api/agents/{name}/heartbeat/authority/approve"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
+}
+
 // ApproveAgentHeartbeatScriptParams carries the path, query, and header parameters.
 type ApproveAgentHeartbeatScriptParams struct {
 	Name        string  `url:"name"`
@@ -416,32 +440,6 @@ func (c *Client) ApproveAgentSkillReview(ctx context.Context, params ApproveAgen
 		path += "?" + query.Encode()
 	}
 	var out AgentSkillReviewResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ApproveLoopRunParams carries the path, query, and header parameters.
-type ApproveLoopRunParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ApproveLoopRun Approve one Loop gate
-func (c *Client) ApproveLoopRun(ctx context.Context, params ApproveLoopRunParams, body ApproveLoopRunRequest) (*map[string]bool, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/approve"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out map[string]bool
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}

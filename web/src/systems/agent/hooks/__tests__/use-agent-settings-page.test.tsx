@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   refetch: vi.fn(),
   toastSuccess: vi.fn(),
   workspaceId: "ws-test",
+  guard: undefined as { onDiscard?: () => void } | undefined,
   settingsProviders: { isLoading: false, isFetching: false },
 }));
 
@@ -71,7 +72,10 @@ vi.mock("../use-agent-delete-flow", () => ({
   }),
 }));
 vi.mock("../use-unsaved-guard", () => ({
-  useUnsavedGuard: () => ({ confirmDialog: null }),
+  useUnsavedGuard: (options: { onDiscard?: () => void }) => {
+    mocks.guard = options;
+    return { confirmDialog: null };
+  },
 }));
 
 import { AgentApiError, AgentDigestConflictError } from "../../adapters/agent-api";
@@ -275,6 +279,133 @@ describe("useAgentSettingsPage", () => {
       expect(result.current.dirty).toBe(false);
     }
   );
+
+  // Invariant (#1653): a page that goes away holding edits without Save or Discard (a command
+  //   from outside the client, a project switch) leaves them to its next mount, which saves them
+  //   against the digest they were read from; Save and the guard's Discard drop them.
+  describe("unsaved edits kept across mounts [#1653]", () => {
+    const page = () =>
+      useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" });
+
+    it("Should bring the edits back unsaved and meet a newer version as a conflict", async () => {
+      const first = renderHook(page, { wrapper: createWrapper() });
+      act(() => first.result.current.patchDraft({ prompt: "Kept prompt" }));
+      first.unmount();
+
+      mocks.agent = {
+        ...primaryAgentFixture,
+        origin: "workspace",
+        definition_digest: "newer-digest",
+        prompt: "Their prompt",
+      };
+      const second = renderHook(page, { wrapper: createWrapper() });
+      expect(second.result.current.dirty).toBe(true);
+      expect(second.result.current.draft?.prompt).toBe("Kept prompt");
+
+      mocks.updateMutateAsync.mockRejectedValueOnce(new AgentDigestConflictError("stale"));
+      act(() => second.result.current.onSave());
+      expect(mocks.updateMutateAsync.mock.calls.at(-1)![0]).toMatchObject({
+        params: { expected_digest: primaryAgentFixture.definition_digest },
+      });
+      await waitFor(() => expect(second.result.current.phase).toBe("conflict"));
+
+      act(() => mocks.guard?.onDiscard?.());
+      expect(second.result.current.dirty).toBe(false);
+      second.unmount();
+
+      const third = renderHook(page, { wrapper: createWrapper() });
+      expect(third.result.current.dirty).toBe(false);
+      expect(third.result.current.draft?.prompt).toBe("Their prompt");
+    });
+
+    it("Should keep one draft per editor of the same agent", () => {
+      const first = renderHook(page, { wrapper: createWrapper() });
+      const second = renderHook(page, { wrapper: createWrapper() });
+      act(() => first.result.current.patchDraft({ prompt: "First window" }));
+      act(() => second.result.current.patchDraft({ prompt: "Second window" }));
+      first.unmount();
+      second.unmount();
+
+      const newest = renderHook(page, { wrapper: createWrapper() });
+      expect(newest.result.current.draft?.prompt).toBe("Second window");
+      act(() => mocks.guard?.onDiscard?.());
+      newest.unmount();
+
+      const older = renderHook(page, { wrapper: createWrapper() });
+      expect(older.result.current.dirty).toBe(true);
+      expect(older.result.current.draft?.prompt).toBe("First window");
+    });
+
+    it("Should give editors of one agent that reopen together a draft each", () => {
+      const first = renderHook(page, { wrapper: createWrapper() });
+      const second = renderHook(page, { wrapper: createWrapper() });
+      act(() => first.result.current.patchDraft({ prompt: "First window" }));
+      act(() => second.result.current.patchDraft({ prompt: "Second window" }));
+      first.unmount();
+      second.unmount();
+
+      // Both render before either claims a draft, as a reopened split does.
+      const both = renderHook(() => [page(), page()], { wrapper: createWrapper() });
+      expect(both.result.current.map(editor => editor.draft?.prompt)).toEqual([
+        "Second window",
+        "First window",
+      ]);
+    });
+
+    it("Should resume each agent's draft when a mounted editor moves between agents", () => {
+      const { result, rerender } = renderHook(
+        ({ name }: { name: string }) => useAgentSettingsPage({ name, section: "instructions" }),
+        { initialProps: { name: "agent-a" }, wrapper: createWrapper() }
+      );
+      act(() => result.current.patchDraft({ prompt: "Edits to A" }));
+
+      rerender({ name: "agent-b" });
+      expect(result.current.dirty).toBe(false);
+      act(() => result.current.patchDraft({ prompt: "Edits to B" }));
+      // Discarding B's edits leaves the draft kept for A alone.
+      act(() => mocks.guard?.onDiscard?.());
+      expect(result.current.dirty).toBe(false);
+
+      rerender({ name: "agent-a" });
+      expect(result.current.dirty).toBe(true);
+      expect(result.current.draft?.prompt).toBe("Edits to A");
+    });
+
+    it("Should not keep edits a save running at unmount went on to write", async () => {
+      let finish!: (agent: unknown) => void;
+      mocks.updateMutateAsync.mockReturnValueOnce(
+        new Promise(resolve => {
+          finish = resolve;
+        })
+      );
+      const first = renderHook(page, { wrapper: createWrapper() });
+      act(() => first.result.current.patchDraft({ prompt: "Saved while closing" }));
+      act(() => first.result.current.onSave());
+      first.unmount();
+
+      await act(async () =>
+        finish({ ...primaryAgentFixture, origin: "workspace", prompt: "Saved while closing" })
+      );
+      const second = renderHook(page, { wrapper: createWrapper() });
+      expect(second.result.current.dirty).toBe(false);
+    });
+
+    it("Should not bring back edits that were saved", async () => {
+      const first = renderHook(page, { wrapper: createWrapper() });
+      act(() => first.result.current.patchDraft({ prompt: "Saved prompt" }));
+      mocks.updateMutateAsync.mockResolvedValueOnce({
+        ...primaryAgentFixture,
+        origin: "workspace",
+        prompt: "Saved prompt",
+      });
+      act(() => first.result.current.onSave());
+      await waitFor(() => expect(first.result.current.dirty).toBe(false));
+      first.unmount();
+
+      const second = renderHook(page, { wrapper: createWrapper() });
+      expect(second.result.current.dirty).toBe(false);
+    });
+  });
 });
 
 // Invariant: the agent home's Model row saves a pick, or a return to the default, in one

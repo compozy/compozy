@@ -1,43 +1,90 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { emptyDraft } from "../../lib/mcp-editor-model";
+import { emptyDraft, type MCPSecretEnvEntry } from "../../lib/mcp-editor-model";
 import { MCPEditorProcessSection } from "../mcp-editor-stdio-section";
-import { MCPSecretBindingControl } from "../mcp-secret-binding";
+import { MCPSecretKeyField, type MCPVaultInventory } from "../mcp-secret-binding";
 
 const SELECTABLE_VAULT_REF = "vault:mcp/ws/ws-platform/shared/QA_TYPED_TOKEN";
 
+function configured(key = "QA_TYPED_TOKEN"): MCPSecretEnvEntry {
+  return {
+    key,
+    originalKey: key,
+    binding: { mode: "preserve", existing: true, typedValue: "", vaultRef: "" },
+  };
+}
+
+/** Stateful host so Replace, Cancel and mode switches behave like the editor. */
+function KeyHarness({
+  initial,
+  vaultInventory = { status: "ready", refs: [] },
+  onEntry = () => undefined,
+}: {
+  initial: MCPSecretEnvEntry;
+  vaultInventory?: MCPVaultInventory;
+  onEntry?: (entry: MCPSecretEnvEntry) => void;
+}) {
+  const [entry, setEntry] = useState(initial);
+  return (
+    <MCPSecretKeyField
+      entry={entry}
+      index={0}
+      onChange={next => {
+        setEntry(next);
+        onEntry(next);
+      }}
+      vaultInventory={vaultInventory}
+    />
+  );
+}
+
+// Invariant: a configured key is reported by presence only — never its value or bound ref —
+// and is kept unless the person explicitly replaces it.
 describe("MCP editor configured secret presence", () => {
-  it("Should offer preservation for a configured stdio secret without rendering a binding", () => {
+  it("Should keep a configured key without rendering its binding until it is replaced", () => {
+    const onEntry = vi.fn();
     render(
-      <MCPEditorProcessSection
-        draft={{
-          ...emptyDraft("stdio"),
-          secretEnv: [
-            {
-              key: "QA_TYPED_TOKEN",
-              binding: { mode: "preserve", existing: true, typedValue: "", vaultRef: "" },
-            },
-          ],
-        }}
-        errors={{}}
+      <KeyHarness
+        initial={configured()}
+        onEntry={onEntry}
         vaultInventory={{ status: "ready", refs: [SELECTABLE_VAULT_REF] }}
-        onChange={() => undefined}
       />
     );
 
-    expect(screen.getByRole("radio", { name: /Keep configured/i })).toHaveAttribute(
-      "aria-checked",
-      "true"
-    );
-    expect(screen.getByText("Configured")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("settings-mcp-servers-editor-secret-value-0-presence")
+    ).toHaveTextContent("Saved in your vault");
     expect(screen.queryByText(SELECTABLE_VAULT_REF)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Existing Vault ref")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("QA_TYPED_TOKEN")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-secret-value-0-replace"));
+    expect(onEntry).toHaveBeenLastCalledWith(
+      expect.objectContaining({ binding: expect.objectContaining({ mode: "typed" }) })
+    );
+    fireEvent.change(screen.getByLabelText("QA_TYPED_TOKEN"), { target: { value: "next" } });
+
+    fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-secret-value-0-cancel"));
+    expect(onEntry).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        binding: expect.objectContaining({ mode: "preserve", typedValue: "" }),
+      })
+    );
+  });
+
+  it("Should ask for a new value once a configured key is renamed", () => {
+    render(<KeyHarness initial={{ ...configured(), key: "RENAMED_TOKEN" }} />);
+
+    expect(
+      screen.queryByTestId("settings-mcp-servers-editor-secret-value-0-presence")
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("RENAMED_TOKEN")).toHaveAttribute("type", "password");
   });
 });
 
 describe("MCP editor stdio secret binding errors", () => {
-  it("Should surface a per-row binding error and mark the key input invalid", () => {
+  it("Should mark the key name invalid under More options when its binding has no value", () => {
     render(
       <MCPEditorProcessSection
         draft={{
@@ -50,14 +97,11 @@ describe("MCP editor stdio secret binding errors", () => {
           ],
         }}
         errors={{ secretEnv: { 0: "Enter a value or select a Vault reference" } }}
-        vaultInventory={{ status: "ready", refs: [] }}
         onChange={() => undefined}
+        secretRowKeys={{ keys: ["secret-0"], append: () => undefined, remove: () => undefined }}
       />
     );
 
-    expect(screen.getByTestId("settings-mcp-servers-editor-secret-error-0")).toHaveTextContent(
-      "Enter a value or select a Vault reference"
-    );
     expect(screen.getByTestId("settings-mcp-servers-editor-secret-key-0")).toHaveAttribute(
       "aria-invalid",
       "true"
@@ -66,72 +110,58 @@ describe("MCP editor stdio secret binding errors", () => {
 });
 
 describe("MCP editor Vault inventory states", () => {
-  const refBinding = { mode: "ref" as const, existing: false, typedValue: "", vaultRef: "" };
+  const refEntry: MCPSecretEnvEntry = {
+    key: "TOKEN",
+    binding: { mode: "ref", existing: false, typedValue: "", vaultRef: "" },
+  };
 
   it("Should distinguish loading and error from a confirmed empty inventory", () => {
     const retry = vi.fn();
-    const { rerender } = render(
-      <MCPSecretBindingControl
-        binding={refBinding}
-        vaultInventory={{ status: "loading" }}
-        idPrefix="inventory"
+    const field = (vaultInventory: MCPVaultInventory) => (
+      <MCPSecretKeyField
+        entry={refEntry}
+        index={0}
         onChange={() => undefined}
+        vaultInventory={vaultInventory}
       />
     );
+    const { rerender } = render(field({ status: "loading" }));
+    const sources = () => screen.getByTestId("settings-mcp-servers-editor-secret-value-0-sources");
 
-    expect(screen.getByTestId("inventory-ref-loading")).toBeVisible();
-    expect(screen.queryByTestId("inventory-ref-empty")).not.toBeInTheDocument();
+    expect(within(sources()).getByRole("status")).toBeVisible();
+    expect(screen.queryByText("No keys saved in your vault for MCP servers yet.")).toBeNull();
 
-    rerender(
-      <MCPSecretBindingControl
-        binding={refBinding}
-        vaultInventory={{ status: "error", message: "Vault unavailable", retry }}
-        idPrefix="inventory"
-        onChange={() => undefined}
-      />
-    );
-    expect(screen.getByTestId("inventory-ref-error")).toHaveTextContent("Vault unavailable");
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    rerender(field({ status: "error", message: "Vault unavailable", retry }));
+    expect(sources()).toHaveTextContent("Vault unavailable");
+    fireEvent.click(within(sources()).getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledOnce();
-    expect(screen.queryByTestId("inventory-ref-empty")).not.toBeInTheDocument();
+    expect(screen.queryByText("No keys saved in your vault for MCP servers yet.")).toBeNull();
 
-    rerender(
-      <MCPSecretBindingControl
-        binding={refBinding}
-        vaultInventory={{ status: "ready", refs: [] }}
-        idPrefix="inventory"
-        onChange={() => undefined}
-      />
-    );
-    expect(screen.getByTestId("inventory-ref-empty")).toBeVisible();
+    rerender(field({ status: "ready", refs: [] }));
+    expect(screen.getByText("No keys saved in your vault for MCP servers yet.")).toBeVisible();
   });
 
-  it("Should write the selected ref when an asynchronously loaded inventory enables Vault", () => {
-    const onChange = vi.fn();
-    const binding = { mode: "typed" as const, existing: false, typedValue: "", vaultRef: "" };
+  it("Should bind the first ref when an asynchronously loaded inventory enables Vault", () => {
+    const onEntry = vi.fn();
+    const typed: MCPSecretEnvEntry = {
+      key: "TOKEN",
+      binding: { mode: "typed", existing: false, typedValue: "", vaultRef: "" },
+    };
     const { rerender } = render(
-      <MCPSecretBindingControl
-        binding={binding}
-        vaultInventory={{ status: "ready", refs: [] }}
-        idPrefix="async-inventory"
-        onChange={onChange}
-      />
+      <KeyHarness initial={typed} onEntry={onEntry} vaultInventory={{ status: "loading" }} />
     );
-    expect(screen.getByRole("radio", { name: /Use Vault/i })).toBeDisabled();
 
     rerender(
-      <MCPSecretBindingControl
-        binding={binding}
+      <KeyHarness
+        initial={typed}
+        onEntry={onEntry}
         vaultInventory={{ status: "ready", refs: [SELECTABLE_VAULT_REF] }}
-        idPrefix="async-inventory"
-        onChange={onChange}
       />
     );
-    fireEvent.click(screen.getByRole("radio", { name: /Use Vault/i }));
-    expect(onChange).toHaveBeenCalledWith({
-      ...binding,
-      mode: "ref",
-      vaultRef: SELECTABLE_VAULT_REF,
+    fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-secret-value-0-mode-source"));
+    expect(onEntry).toHaveBeenLastCalledWith({
+      ...typed,
+      binding: { ...typed.binding, mode: "ref", vaultRef: SELECTABLE_VAULT_REF },
     });
   });
 });

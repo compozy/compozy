@@ -1,4 +1,5 @@
 import type { OsDesktopRuntimeStore, WindowManagerController } from "./os-types";
+import type { FocusDirection } from "./window-manager-types";
 import type { WindowManagerClientCommandReply } from "./window-manager-client-command-frames";
 
 /**
@@ -26,10 +27,12 @@ export interface PaletteShellHandlers {
   cycleWorkspace(direction: "previous" | "next"): void;
   cycleSession(direction: "previous" | "next"): void;
   focusAttention(): void;
-  /** Opens a fresh tab and hands the palette its destination intent. */
-  openNewTab(stackTargetWindowId: string | null): void;
+  /** Opens a fresh tab (after this window's tab when given) and hands the palette its destination. */
+  openNewTab(afterWindowId: string | null): void;
   /** Tab and window activation owns exactly one URL write (US-020). */
   activateWindow(windowId: string): void;
+  /** Directional focus; the keyboard follows it into the window it lands on (#1655). */
+  focusDirection(direction: FocusDirection): void;
   /**
    * Raises the palette on a command's argument or confirmation step. A chord or
    * a menu item can reach a command that declares either, so the surface that

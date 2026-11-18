@@ -36,7 +36,12 @@ func authorizeMCPServer(
 	if manual {
 		mode = contract.SettingsMCPAuthBeginModeManual
 	}
+	digest, digestErr := cmd.Flags().GetString("digest")
+	if digestErr != nil {
+		digest = ""
+	}
 	begin, err := client.BeginSettingsMCPAuth(authCtx, target, SettingsMCPAuthBeginRequest{
+		DefinitionDigest:       digest,
 		Mode:                   mode,
 		ApprovedScopes:         append([]string(nil), approvedScopes...),
 		ApproveScopeEscalation: approveScopeEscalation,
@@ -239,13 +244,6 @@ func loadMCPAuthStatus(
 	if err != nil {
 		return SettingsMCPAuthStatusRecord{}, err
 	}
-	if status.Status == string(mcpauth.StatusUnconfigured) {
-		return SettingsMCPAuthStatusRecord{}, fmt.Errorf(
-			"cli: remote MCP server %q in %s scope does not configure OAuth",
-			target.Name,
-			target.Scope,
-		)
-	}
 	return status, nil
 }
 
@@ -255,7 +253,8 @@ func mcpAuthStatuses(
 ) []SettingsMCPAuthStatusRecord {
 	statuses := make([]SettingsMCPAuthStatusRecord, 0, len(servers))
 	owner := strings.TrimSpace(opts.owner)
-	for _, server := range servers {
+	for i := range servers {
+		server := &servers[i]
 		if owner != "" && vault.NormalizeMCPOwner(server.Owner) != owner {
 			continue
 		}

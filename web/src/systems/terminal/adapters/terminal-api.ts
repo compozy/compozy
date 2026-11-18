@@ -5,7 +5,7 @@
  * envelope before exposing generated terminal contract types.
  */
 
-import { apiBaseUrl, clientID, runtimeFetch } from "@/lib/api-client";
+import { apiBaseUrl, clientID, daemonFetch } from "@/lib/api-client";
 import type { ZodType } from "zod";
 
 import {
@@ -125,7 +125,7 @@ async function parseTerminalResponse<Result>(
   schema: ZodType<Result>,
   init?: RequestInit
 ): Promise<Result> {
-  const response = await runtimeFetch(url, {
+  const response = await daemonFetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -446,7 +446,7 @@ export async function fetchTerminalRecording(
     `${workspaceRoot(workspaceId)}/recordings/${encodeURIComponent(recordingId)}`,
     terminalScopeQuery({ profile: scope.profile })
   );
-  const response = await runtimeFetch(url, {
+  const response = await daemonFetch(url, {
     method: "GET",
     signal,
     headers: { "X-Compozy-Client-ID": clientID },

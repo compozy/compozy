@@ -1,0 +1,85 @@
+{
+    "$schema": "compozy/terminal-palette@1",
+    "name": "Compozy",
+    "version": "1.0.0",
+    "notes": "16 ANSI colours for the product terminal (packages/ui/src/terminal-tokens.css) and the compozy CLI. Every colour except ansi-8 (and dark ansi-0, a surface) reaches 4.5:1 on its background; light ansi-0 is near-black text. ansi-8 is for dim metadata only, never for copy. Magenta is a cold violet because the brand has no warm hue.",
+    "dark": {
+        "background": "#0a0a0a",
+        "foreground": "#ececec",
+        "cursor": "#3DF2E0",
+        "selection": "rgba(47, 91, 255, 0.32)",
+        "ansi": {
+            "0": { "hex": "#1b1b1b", "name": "black", "role": "surface, never text" },
+            "1": { "hex": "#F87171", "name": "red", "role": "error, Stuck, Failed" },
+            "2": { "hex": "#34D399", "name": "green", "role": "Done, success" },
+            "3": { "hex": "#F5B14C", "name": "yellow", "role": "Needs you, warning" },
+            "4": { "hex": "#5B7FFF", "name": "blue", "role": "ids, links, volt on dark" },
+            "5": { "hex": "#A78BFA", "name": "magenta", "role": "agent names, rare emphasis" },
+            "6": { "hex": "#3DF2E0", "name": "cyan", "role": "prompt, Working, live" },
+            "7": { "hex": "#C4D1D9", "name": "white", "role": "secondary text" },
+            "8": {
+                "hex": "#5F7382",
+                "name": "bright black",
+                "role": "timestamps, step marks, dim meta"
+            },
+            "9": { "hex": "#FA9494", "name": "bright red", "role": "error detail" },
+            "10": { "hex": "#6EE7B7", "name": "bright green", "role": "added lines" },
+            "11": { "hex": "#F8C77A", "name": "bright yellow", "role": "approval prompts" },
+            "12": { "hex": "#8FA6FF", "name": "bright blue", "role": "paths, hunk headers" },
+            "13": { "hex": "#C4B5FD", "name": "bright magenta", "role": "rare" },
+            "14": { "hex": "#B5FAF6", "name": "bright cyan", "role": "highlight, glint" },
+            "15": { "hex": "#FFFFFF", "name": "bright white", "role": "headings, bold" }
+        }
+    },
+    "light": {
+        "background": "#f6f6f6",
+        "foreground": "#0a0a0a",
+        "cursor": "#2448E6",
+        "selection": "rgba(36, 72, 230, 0.18)",
+        "ansi": {
+            "0": { "hex": "#1a1a1a", "name": "black", "role": "plain text on paper" },
+            "1": { "hex": "#C4302B", "name": "red", "role": "error, Stuck, Failed" },
+            "2": { "hex": "#0A7650", "name": "green", "role": "Done, success" },
+            "3": { "hex": "#9A5B00", "name": "yellow", "role": "Needs you, warning" },
+            "4": { "hex": "#2448E6", "name": "blue", "role": "ids, links" },
+            "5": { "hex": "#6D4FD8", "name": "magenta", "role": "agent names, rare emphasis" },
+            "6": { "hex": "#0A6F86", "name": "cyan", "role": "prompt, Working, live" },
+            "7": { "hex": "#3A4852", "name": "white", "role": "secondary text" },
+            "8": {
+                "hex": "#7B8A95",
+                "name": "bright black",
+                "role": "timestamps, step marks, dim meta"
+            },
+            "9": { "hex": "#A3221E", "name": "bright red", "role": "error detail" },
+            "10": { "hex": "#0B6E4B", "name": "bright green", "role": "added lines" },
+            "11": { "hex": "#7A4800", "name": "bright yellow", "role": "approval prompts" },
+            "12": { "hex": "#1D3CC4", "name": "bright blue", "role": "paths, hunk headers" },
+            "13": { "hex": "#5638B8", "name": "bright magenta", "role": "rare" },
+            "14": { "hex": "#085A6D", "name": "bright cyan", "role": "highlight" },
+            "15": { "hex": "#0a0a0a", "name": "bright white", "role": "headings, bold" }
+        }
+    },
+    "cli": {
+        "prompt": 6,
+        "command": "foreground",
+        "flag": 8,
+        "id": 4,
+        "path": 12,
+        "heading": 15,
+        "meta": 8,
+        "state": {
+            "Working": 6,
+            "Needs you": 3,
+            "Done": 2,
+            "Idle": 8,
+            "Failed": 1,
+            "Stuck": 1,
+            "Later": 7
+        },
+        "rules": [
+            "Colour only when stdout is a TTY and NO_COLOR is unset; --color=never|auto|always overrides.",
+            "-o json and -o yaml are never coloured and never contain glyphs or spinners.",
+            "Every coloured state also prints its glyph and word, so meaning survives without colour."
+        ]
+    }
+}

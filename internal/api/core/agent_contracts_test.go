@@ -3,9 +3,11 @@ package core_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -94,6 +96,51 @@ func TestAgentPayloadProjectsFallbackChain(t *testing.T) { // UT-018
 
 func TestAgentPayloadEffectiveRuntimeUsesRequestedWorkspaceConfig(t *testing.T) {
 	t.Parallel()
+	t.Run("Should project current reference targets even when the provider model is missing", func(t *testing.T) {
+		t.Parallel()
+		entry := core.AgentCatalogEntry{
+			Def: compozyconfig.AgentDef{
+				Name:       "agent",
+				Prompt:     "Work.",
+				MCPServers: []compozyconfig.MCPServer{{Name: "docs", Reference: true}},
+			},
+			Origin: contract.AgentOriginGlobal,
+		}
+		cfg := compozyconfig.Config{
+			Defaults: compozyconfig.DefaultsConfig{Provider: "bare-pi"},
+			Providers: map[string]compozyconfig.ProviderConfig{
+				"bare-pi": {
+					Command:         "pi-acp",
+					Harness:         compozyconfig.ProviderHarnessPiACP,
+					RuntimeProvider: "anthropic",
+					MCPServers:      []compozyconfig.MCPServer{{Name: "docs", Command: "docs-server"}},
+				},
+			},
+		}
+		if _, err := cfg.ResolveAgent(entry.Def); !errors.Is(err, compozyconfig.ErrRuntimeModelRequired) {
+			t.Fatalf("model precondition = %v", err)
+		}
+		payloads := core.AgentPayloadsFromEntries([]core.AgentCatalogEntry{entry}, &cfg)
+		if len(payloads) != 1 || len(payloads[0].MCPServers) != 1 || payloads[0].MCPServers[0].BrokenReference {
+			t.Fatalf("provider reference marked broken: %#v", payloads)
+		}
+		cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{"agent": {Provider: "codex"}}
+		payloads = core.AgentPayloadsFromEntries([]core.AgentCatalogEntry{entry}, &cfg)
+		if !payloads[0].MCPServers[0].BrokenReference {
+			t.Fatal("reference ignored provider override")
+		}
+		cfg.Agents.Overrides = nil
+		cfg.Providers["bare-pi"] = compozyconfig.ProviderConfig{
+			Command:         "pi-acp",
+			Harness:         compozyconfig.ProviderHarnessPiACP,
+			RuntimeProvider: "anthropic",
+		}
+		payloads = core.AgentPayloadsFromEntries([]core.AgentCatalogEntry{entry}, &cfg)
+		if !payloads[0].MCPServers[0].BrokenReference {
+			t.Fatal("removed provider target not surfaced as broken")
+		}
+	})
+
 	t.Run(
 		"Should project every effective runtime field and provenance from the requested workspace",
 		testAgentPayloadEffectiveRuntime,
@@ -152,8 +199,42 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 		alwaysOnPayload.EffectiveRuntime.Sources.Permissions != contract.AgentRuntimeValueSourceAlwaysOnDefault {
 		t.Fatalf("always-on effective permissions = %#v, want the always-on default", alwaysOnPayload.EffectiveRuntime)
 	}
+	unrestricted := compozyconfig.CloneAgentDef(agent)
+	unrestricted.SetACPOptions([]compozyconfig.ACPOptionSelection{
+		{ID: "thinking", BoolValue: &fast},
+		{ID: compozyconfig.CopilotAllowAllOptionID, ValueID: compozyconfig.CopilotAllowAllOn},
+	})
+	unrestrictedEntry := core.AgentCatalogEntry{Def: unrestricted, Origin: contract.AgentOriginGlobal}
+	restricted := core.AgentPayloadFromEntryWithConfig(&unrestrictedEntry, &codexConfig)
+	if got := restricted.EffectiveRuntime.PolicyExcludedACPOptions; len(got) != 1 ||
+		got[0].ID != compozyconfig.CopilotAllowAllOptionID || len(restricted.EffectiveRuntime.ACPOptions) != 2 {
+		t.Fatalf("restricted runtime options = %#v excluded %#v, want only allow_all excluded and both listed",
+			restricted.EffectiveRuntime.ACPOptions, got)
+	}
+	approved := core.AgentPayloadFromEntryWithConfig(&unrestrictedEntry, &approveAllConfig)
+	if got := approved.EffectiveRuntime.PolicyExcludedACPOptions; len(got) != 0 {
+		t.Fatalf("approve-all excluded options = %#v, want none", got)
+	}
+	unrestrictedAlwaysOn := compozyconfig.CloneAgentDef(unrestricted)
+	unrestrictedAlwaysOn.Kind = compozyconfig.AgentKindAlwaysOn
+	unrestrictedAlwaysOnEntry := core.AgentCatalogEntry{Def: unrestrictedAlwaysOn, Origin: contract.AgentOriginGlobal}
+	alwaysOnApproved := core.AgentPayloadFromEntryWithConfig(&unrestrictedAlwaysOnEntry, &approveAllConfig)
+	if got := alwaysOnApproved.EffectiveRuntime.PolicyExcludedACPOptions; len(got) != 0 ||
+		alwaysOnApproved.EffectiveRuntime.Permissions != string(compozyconfig.AlwaysOnDefaultPermissionMode) {
+		t.Fatalf("always-on under approve-all: permissions %q excluded %#v, want instance level and no exclusions",
+			alwaysOnApproved.EffectiveRuntime.Permissions, got)
+	}
 	if codexPayload.Provider != "" || claudePayload.Provider != "" {
 		t.Fatalf("authored Provider = %q/%q, want empty", codexPayload.Provider, claudePayload.Provider)
+	}
+	// The approve-all override also projects Claude's unrestricted mode beside the authored options.
+	wantEffectiveOptions := map[string]int{"codex": 2, "claude": 3}
+	bypass := func(option contract.AgentACPOptionSelection) bool {
+		return option.ID == "mode" && option.ValueID == "bypassPermissions"
+	}
+	if !slices.ContainsFunc(claudePayload.EffectiveRuntime.ACPOptions, bypass) {
+		t.Fatalf("claude effective options = %#v, want approve-all bypassPermissions",
+			claudePayload.EffectiveRuntime.ACPOptions)
 	}
 	for name, payload := range map[string]*contract.AgentPayload{
 		"codex":  &codexPayload,
@@ -168,7 +249,7 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 			t.Fatalf("%s authored ACP options = %#v", name, payload.ACPOptions)
 		}
 		if payload.EffectiveRuntime == nil || payload.EffectiveRuntime.Speed != contract.SpeedFast ||
-			len(payload.EffectiveRuntime.ACPOptions) != 2 {
+			len(payload.EffectiveRuntime.ACPOptions) != wantEffectiveOptions[name] {
 			t.Fatalf("%s effective runtime defaults = %#v", name, payload.EffectiveRuntime)
 		}
 	}
@@ -445,6 +526,50 @@ func TestAgentMemoryRoutes(t *testing.T) {
 		fixture.Engine.ServeHTTP(response, req)
 		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "max_lines") {
 			t.Fatalf("Global memory: status=%d body=%s", response.Code, response.Body.String())
+		}
+		for _, item := range []struct {
+			name, method, body string
+			asAgent            bool
+			code               int
+			want               string
+		}{
+			{"Should refuse a rule added by the agent", http.MethodPost,
+				`{"text":"File issues through report-writer","kind":"rule"}`, true,
+				http.StatusForbidden, "agent_memory_rule_protected"},
+			{"Should add a rule for the operator", http.MethodPost,
+				`{"text":"File issues through report-writer","kind":"rule"}`, false,
+				http.StatusOK, "- [rule] File issues through report-writer"},
+			{"Should refuse an expiring rule", http.MethodPost,
+				`{"text":"Expiring rule","kind":"rule","until":"2027-01-01"}`, false,
+				http.StatusUnprocessableEntity, "expiry"},
+			{"Should refuse an unknown kind", http.MethodPost,
+				`{"text":"Typo","kind":"rules"}`, false, http.StatusUnprocessableEntity, "note or rule"},
+			{"Should add a note for the agent", http.MethodPost,
+				`{"text":"Plain note"}`, true, http.StatusOK, "Global · Plain note"},
+			{"Should refuse a rule edit by the agent", http.MethodPatch,
+				`{"match":"report-writer","text":"anyone"}`, true,
+				http.StatusForbidden, "agent_memory_rule_protected"},
+			{"Should refuse a rule removal by the agent", http.MethodDelete,
+				`{"match":"File issues"}`, true, http.StatusForbidden, "agent_memory_rule_protected"},
+			{"Should edit a note for the agent", http.MethodPatch,
+				`{"match":"Plain note","text":"Edited note"}`, true, http.StatusOK, "Edited note"},
+		} {
+			// The cases share one memory file and run in order.
+			t.Run(item.name, func(t *testing.T) {
+				write := httptest.NewRequestWithContext(
+					t.Context(), item.method, "/agents/triage/memory/entries", strings.NewReader(item.body),
+				)
+				write.Header.Set("Content-Type", "application/json")
+				if item.asAgent {
+					write.Header.Set("X-Compozy-Session-ID", "global-caller")
+					write.Header.Set("X-Compozy-Agent", "triage")
+				}
+				recorder := httptest.NewRecorder()
+				fixture.Engine.ServeHTTP(recorder, write)
+				if recorder.Code != item.code || !strings.Contains(recorder.Body.String(), item.want) {
+					t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+				}
+			})
 		}
 		reader.caller.InstanceID = ""
 		response = httptest.NewRecorder()

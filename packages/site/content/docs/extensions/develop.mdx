@@ -603,20 +603,54 @@ with the versioned resource and snapshot shapes:
   "version": 1,
   "id": "two-up",
   "display_name": "Two up",
+  "aspect_variant": "any",
   "participant_slots": ["primary", "secondary"],
+  "overflow_policy": "stack",
   "document": {
-    "version": 2,
+    "version": 6,
     "workspace_id": "",
     "desktops": [
       {
         "id": "desktop-default",
         "name": "Desktop 1",
-        "purpose": "standard",
-        "groups": [],
-        "floating": []
+        "order": 0,
+        "active_tab_id": "tab-two-up",
+        "tabs": [
+          {
+            "id": "tab-two-up",
+            "pinned": false,
+            "root": {
+              "id": "split-two-up",
+              "kind": "split",
+              "axis": "horizontal",
+              "weights": [0.5, 0.5],
+              "children": [
+                { "id": "leaf-primary", "kind": "leaf", "window_id": "primary" },
+                { "id": "leaf-secondary", "kind": "leaf", "window_id": "secondary" }
+              ]
+            }
+          }
+        ]
       }
     ],
-    "windows": {},
+    "windows": {
+      "primary": {
+        "id": "primary",
+        "app": "session",
+        "desktop_id": "desktop-default",
+        "tab_id": "tab-two-up",
+        "route": { "pathname": "/sessions", "search": {} },
+        "nav_stack": []
+      },
+      "secondary": {
+        "id": "secondary",
+        "app": "terminal",
+        "desktop_id": "desktop-default",
+        "tab_id": "tab-two-up",
+        "route": { "pathname": "/terminal", "search": {} },
+        "nav_stack": []
+      }
+    },
     "overrides": {}
   }
 }

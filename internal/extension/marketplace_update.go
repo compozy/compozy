@@ -344,7 +344,7 @@ func marketplaceUpdateProvenance(
 }
 
 func loadMarketplaceUpdatedExtensionManifest(installPath string, installedName string) (*Manifest, error) {
-	manifest, err := LoadManifest(installPath)
+	manifest, err := loadManifest(installPath, "", installedName)
 	if err != nil {
 		return nil, fmt.Errorf("extension: load updated extension manifest for %q: %w", installedName, err)
 	}

@@ -19,7 +19,7 @@ interface LoopsStoryShellProps {
  * The product window surface around a loops route — the same `OsWindowSurface` the
  * window manager mounts, so the captured chrome (topbar, toolbar band, scrolling body)
  * is the shipped one rather than a story approximation. The desktop around it
- * (menubar, dock, window frame) is deliberately out of frame.
+ * (menubar, dock, tab bar) is deliberately out of frame.
  *
  * Surfaces that publish their own topbar payload need no props here; the catalog and
  * run form get theirs from their route location, so this shell republishes it.
@@ -38,7 +38,7 @@ export function LoopsStoryShell({
   const republish = Boolean(crumbs || toolbar || onBack || actions);
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <OsWindowSurface controls="deck" glyph={glyph} title={crumb}>
+      <OsWindowSurface glyph={glyph} title={crumb}>
         {republish ? (
           <LoopsStoryTopbarPayload
             actions={actions}

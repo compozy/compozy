@@ -23,6 +23,7 @@ description: Generated CompozyOS config lifecycle matrix for live apply, session
 | -------------------------------------------------- | ------------------ | ------------------ | --------------------------------------- |
 | `attention.*`                                      | `live`             | `live`             | `none`                                  |
 | `automation.*`                                     | `restart-required` | `restart-required` | `restart-daemon`                        |
+| `client.*`                                         | `live`             | `live`             | `none`                                  |
 | `cmd_palette.*`                                    | `live`             | `live`             | `none`                                  |
 | `daemon.load.*`                                    | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `daemon.memory_report_interval`                    | `restart-required` | `restart-required` | `restart-daemon`                        |
@@ -47,7 +48,7 @@ description: Generated CompozyOS config lifecycle matrix for live apply, session
 | `marketplace.catalog.*`                            | `live`             | `live`             | `none`                                  |
 | `marketplace.plugin_sources`                       | `live`             | `live`             | `none`                                  |
 | `marketplace.plugin_sources.*`                     | `live`             | `live`             | `none`                                  |
-| `mcp-servers.*`                                    | `restart-required` | `restart-required` | `restart-daemon`                        |
+| `mcp-servers.*`                                    | `live`             | `live`             | `none`                                  |
 | `mcp.oauth.*`                                      | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `mcp.status_probe_timeout`                         | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `mcp.stdio.*`                                      | `restart-required` | `restart-required` | `restart-daemon`                        |
@@ -56,8 +57,10 @@ description: Generated CompozyOS config lifecycle matrix for live apply, session
 | `provider_usage.*`                                 | `live`             | `live`             | `none`                                  |
 | `provider_usage.providers.*.*`                     | `live`             | `live`             | `none`                                  |
 | `providers.*`                                      | `restart-required` | `restart-required` | `restart-daemon`                        |
+| `providers.*.enabled`                              | `live`             | `live`             | `none`                                  |
 | `providers.*.models`                               | `live`             | `live`             | `none`                                  |
 | `providers.*.models.*`                             | `live`             | `live`             | `none`                                  |
+| `providers.*.runtime_mcp`                          | `live`             | `live`             | `none`                                  |
 | `redact.*`                                         | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `roles`                                            | `live`             | `live`             | `none`                                  |
 | `roles.*`                                          | `live`             | `live`             | `none`                                  |

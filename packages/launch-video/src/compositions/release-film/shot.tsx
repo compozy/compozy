@@ -8,6 +8,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
+import { color } from "@/brand/tokens";
 import { Cursor } from "@/components/remocn/cursor";
 import { useCursorPath } from "@/components/remocn/use-cursor-path";
 import type { Shot } from "./schema";
@@ -27,8 +28,8 @@ function Pointer({ shot, size }: { shot: Shot; size: number }) {
       <Cursor
         style={path}
         size={size}
-        rippleColor="#e8572a"
-        theme={{ foreground: "#ffffff", background: "#171615" }}
+        rippleColor={color.brand}
+        theme={{ foreground: color.fgStrong, background: color.canvas }}
       />
     </div>
   );

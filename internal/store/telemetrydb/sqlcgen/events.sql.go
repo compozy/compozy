@@ -139,6 +139,17 @@ func (q *Queries) DeleteWorkspaceEventSummaries(ctx context.Context, arg DeleteW
 	return result.RowsAffected()
 }
 
+const eventSummaryHeadSequence = `-- name: EventSummaryHeadSequence :one
+SELECT CAST(COALESCE(MAX(seq), 0) AS INTEGER) FROM event_summaries
+`
+
+func (q *Queries) EventSummaryHeadSequence(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, eventSummaryHeadSequence)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const insertAutomationSuggestionEventSummary = `-- name: InsertAutomationSuggestionEventSummary :exec
 INSERT INTO event_summaries (
   profile_id,

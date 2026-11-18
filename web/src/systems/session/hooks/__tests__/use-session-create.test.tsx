@@ -210,6 +210,29 @@ describe("session create workspace binding", () => {
     });
   });
 
+  it("Should open another project at its root with its default agent, not the acting worktree", () => {
+    workspace.runtimeWorkspaceId = "ws_home";
+    workspace.scope = "workspace";
+    scopedWorktree.id = "wt_home_feature";
+    const store = createSessionCreateStore();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    );
+    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
+
+    // An earlier opening left the acting project's worktree in the draft.
+    act(() => actions.result.current.openForAgent(""));
+    act(() => store.trigger.dialogOpenChanged({ open: false }));
+    act(() => actions.result.current.openForAgent("", { workspaceId: "ws_other" }));
+
+    expect(store.getSnapshot().context).toMatchObject({
+      open: true,
+      mode: "simple",
+      target: { project: "ws_other" },
+      draft: { agentName: "operator", workspaceId: "ws_other", environment: { kind: "root" } },
+    });
+  });
+
   it("Should open at the workspace root when the acting scope has no worktree", () => {
     workspace.runtimeWorkspaceId = "ws_git";
     workspace.scope = "workspace";

@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -548,6 +549,10 @@ func TestAgentUpdateCommand(t *testing.T) {
 				if name != "coder" || request.Workspace != "ws-1" || request.ExpectedDigest != "digest-1" {
 					t.Fatalf("UpdateAgent() route/request = %q/%#v", name, request)
 				}
+				if len(request.Agent.MCPServers) != 1 || request.Agent.MCPServers[0].Name != "team-docs" ||
+					!request.Agent.MCPServers[0].Reference {
+					t.Fatalf("MCP reference = %#v", request.Agent.MCPServers)
+				}
 				if request.Agent.Model != "new" || request.Agent.Prompt != "Review every edge." ||
 					request.Agent.Speed != contract.SpeedFast || len(request.Agent.ACPOptions) != 2 ||
 					request.Agent.ACPOptions[0].ID != "context" || request.Agent.ACPOptions[0].ValueID != "1m" ||
@@ -569,7 +574,7 @@ func TestAgentUpdateCommand(t *testing.T) {
 			t, deps, "agent", "update", "coder", "--workspace", "ws-1",
 			"--expected-digest", "digest-1", "--model", "new", "--prompt-file", promptPath, "-o", "json",
 			"--disable-skill", "security-audit", "--speed", "fast", "--acp-option", "context=1m",
-			"--acp-toggle", "thinking=true",
+			"--acp-toggle", "thinking=true", "--mcp-server", " team-docs ",
 		)
 		if err != nil || !strings.Contains(stdout, `"definition_digest": "digest-2"`) {
 			t.Fatalf("agent update = %q, %v", stdout, err)
@@ -1174,11 +1179,14 @@ func TestAgentInstanceCommands(t *testing.T) {
 	}{
 		{"create", []string{"create", "triage"}, "Triage Lead is always-on in Global\nMain session: sess-main\n"},
 		{"adopt", []string{"adopt", "triage", "--session", "sess-main"}, "Triage Lead is always-on in Global\nMain session: sess-main\n"},
+		{"pick", []string{"pick", "ainst-test", "report-test", "1", "--global"}, "Picked proposal 1 (queued)\n"},
 		{"pause", []string{"pause", "ainst-test"}, "Triage Lead paused in Global\n"},
 		{"resume", []string{"resume", "ainst-test"}, "Triage Lead resumed in Global\n"},
 		{"archive", []string{"archive", "ainst-test"}, "Triage Lead archived in Global. Its sessions stay in history.\n"},
 		{"checks off", []string{"checks", "off", "ainst-test"}, "Checks off for Triage Lead in Global\n"},
 		{"ensure-main", []string{"ensure-main", "ainst-test"}, "Main session: sess-main\n"},
+		{"clear-main", []string{"clear-main", "ainst-test"}, "Triage Lead main session cleared in Global. " +
+			"Queued inputs and memory are kept.\nMain session: sess-main\n"},
 		{"show", []string{"show", "ainst-test", "--all-profiles"}, "ainst-test\ttriage\tactive\nProfile: work\nMain session: sess-main\n" +
 			"Pause reason: \nUnattended turns: 0/0\nHeld wakes: 0\n"},
 		{"reported check", []string{"check", "ainst-test"}, "Check finished: 1 proposal delivered\n"},
@@ -1209,10 +1217,23 @@ func TestAgentInstanceCommands(t *testing.T) {
 					if r.Method != http.MethodGet && r.Method != http.MethodPatch {
 						t.Errorf("unexpected method %s", r.Method)
 					}
+				case "/api/workspaces/@user/sessions/sess-main/clear":
+					if r.Method != http.MethodPost || tc.name != "clear-main" {
+						t.Errorf("unexpected session clear: %s for %s", r.Method, tc.name)
+					}
+					body = `{"session":{"id":"sess-main"}}`
 				case "/api/agent-instances/ainst-test/check":
 					body = `{"occurrence_id":"occ-test"}`
 				case "/api/agent-instances/ainst-test/occurrences/occ-test":
 					body = `{"state":"finished","result":"reported","reason":"reported","report_id":"report-test"}`
+				case "/api/agent-instances/ainst-test/reports/report-test/pick":
+					var request contract.AgentInstancePickRequest
+					if err := json.NewDecoder(r.Body).
+						Decode(&request); err != nil || request.Proposal == nil || *request.Proposal != 0 ||
+						r.Method != "POST" {
+						t.Errorf("pick request=%+v method=%s err=%v", request, r.Method, err)
+					}
+					body = `{"pick":{"report_id":"report-test","proposal_index":0,"actor":"operator","state":"queued"}}`
 				case "/api/agent-instances/ainst-test/reports":
 					body = `{"reports":[{"id":"report-test","kind":"proposal","state":"delivered","proposals":[{"title":"Review","body":"Review work"}]}]}`
 				default:
@@ -1244,6 +1265,48 @@ func TestAgentInstanceCommands(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should refuse a pick from an agent session before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, nil)
+		deps.newClient = func(ClientTarget) (DaemonClient, error) {
+			t.Error("agent pick reached the daemon client")
+			return nil, errors.New("unexpected client")
+		}
+		deps.getenv = func(key string) string {
+			if key == agentidentity.EnvSessionID {
+				return "sess-agent"
+			}
+			return ""
+		}
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"agent", "instance", "pick", "ainst-test", "report-test", "1", "--global",
+		)
+		if err == nil || !strings.Contains(err.Error(), "proposal_pick_operator_only") {
+			t.Fatalf("agent pick err=%v", err)
+		}
+	})
+
+	t.Run("Should refuse clear-main from an agent session before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, nil)
+		deps.newClient = func(ClientTarget) (DaemonClient, error) {
+			t.Error("agent clear-main reached the daemon client")
+			return nil, errors.New("unexpected client")
+		}
+		deps.getenv = func(key string) string {
+			if key == agentidentity.EnvSessionID {
+				return "sess-agent"
+			}
+			return ""
+		}
+		_, _, err := executeRootCommand(t, deps, "agent", "instance", "clear-main", "ainst-test", "--global")
+		if err == nil || !strings.Contains(err.Error(), "clear_main_operator_only") {
+			t.Fatalf("agent clear-main err=%v", err)
+		}
+	})
 
 	for _, command := range []string{"check", "occurrence"} {
 		t.Run("Should read the completed occurrence through "+command, func(t *testing.T) {
@@ -1349,6 +1412,43 @@ func TestAgentInstanceCommands(t *testing.T) {
 }
 
 func TestAgentReadCommands(t *testing.T) {
+	t.Run("Should render proposal state and tool summaries in CLI text", func(t *testing.T) {
+		t.Parallel()
+		reports := instanceReportsText(
+			contract.AgentInstanceReportsResponse{
+				Reports: []contract.AgentInstanceReportPayload{
+					{
+						ID:    "report",
+						Kind:  "proposal",
+						State: "published",
+						Proposals: []contract.AgentInstanceProposal{
+							{Title: "Review", AutoAcceptStatus: contract.AutoAcceptPicked},
+						},
+						Picks:     []agentinstance.Pick{{ProposalIndex: 0, Actor: "auto_accept", State: "queued"}},
+						ToolCalls: agentinstance.CheckInToolSummary{Total: 3, WritesDone: 1, WritesMaybe: 1, Denied: 1},
+					},
+				},
+			},
+		)
+		for _, want := range []string{"1 Review [queued; auto_accept_status=picked]", "tools: 3 (1 writes done, 1 writes maybe, 1 denied)"} {
+			if !strings.Contains(reports, want) {
+				t.Fatalf("missing %q in %s", want, reports)
+			}
+		}
+		checks := instanceCheckInsText(
+			contract.AgentInstanceCheckInsResponse{
+				CheckIns: []contract.AgentInstanceCheckInPayload{
+					{Result: "reported", Proposals: agentinstance.CheckInProposalSummary{AutoAccepted: 1, Waiting: 1}},
+				},
+			},
+		)
+		for _, want := range []string{"WHEN\tOUTCOME\tTOOLS\tPROPOSALS", "1 auto-accepted, 1 waiting"} {
+			if !strings.Contains(checks, want) {
+				t.Fatalf("missing %q in %s", want, checks)
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name, method, path, body string
 		args                     []string
@@ -1669,76 +1769,31 @@ func TestAgentInstanceSourceOutput(t *testing.T) {
 	}
 }
 
-// TestAgentKindFlagAlias owns UT-010, UT-011 and the UT-012 help text: --kind stays_on is sent as
-// always_on with a stderr warning, never trips the immutability check, and help names always_on.
 func TestAgentKindFlagAlias(t *testing.T) {
 	t.Parallel()
-
-	const warning = "warning: --kind stays_on is deprecated; use always_on (removed in v0.5.2)"
-	t.Run("Should send always_on for a stays_on create and warn", func(t *testing.T) {
-		t.Parallel()
-
-		client := &stubClient{}
-		cmd := newAgentCreateCommand(newTestDeps(t, client))
-		var stderr bytes.Buffer
-		cmd.SetErr(&stderr)
-		if err := cmd.ParseFlags([]string{"--kind", "stays_on", "--prompt", "Watch."}); err != nil {
-			t.Fatal(err)
-		}
-		request, err := createAgentRequestFromFlags(
-			cmd, newTestDeps(t, client), client, "triage", agentDefinitionFlags{kind: "stays_on", prompt: "Watch."},
-		)
-		if err != nil {
-			t.Fatalf("createAgentRequestFromFlags() error = %v", err)
-		}
-		if request.Agent.Kind != "always_on" || !strings.Contains(stderr.String(), warning) {
-			t.Fatalf("kind = %q stderr = %q, want always_on and the warning", request.Agent.Kind, stderr.String())
-		}
-	})
-
-	for _, tc := range []struct {
-		name, kind, wantErr string
-		warns               bool
-	}{
-		{name: "Should accept stays_on on an always-on agent", kind: "stays_on", warns: true},
-		{name: "Should reject on_demand on an always-on agent", kind: "on_demand", wantErr: "agent_kind_immutable"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, verb := range []string{"create", "update", "duplicate"} {
+		t.Run("Should reject retired kind on "+verb, func(t *testing.T) {
 			t.Parallel()
-
-			client := &stubClient{getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
-				return AgentRecord{Name: "triage", Kind: "always_on", Prompt: "Watch."}, nil
-			}}
-			cmd := newAgentUpdateCommand(newTestDeps(t, client))
-			var stderr bytes.Buffer
-			cmd.SetErr(&stderr)
-			if err := cmd.ParseFlags([]string{"--kind", tc.kind}); err != nil {
+			client := &stubClient{}
+			deps := newTestDeps(t, client)
+			cmd := newAgentCreateCommand(deps)
+			if err := cmd.ParseFlags([]string{"--kind", "stays_on", "--prompt", "Watch."}); err != nil {
 				t.Fatal(err)
 			}
-			request, err := updateAgentRequestFromFlags(
-				cmd, client, "triage", "", "sha256:digest", agentDefinitionFlags{kind: tc.kind},
-			)
-			if tc.wantErr != "" {
-				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("updateAgentRequestFromFlags() error = %v, want %s", err, tc.wantErr)
-				}
-				return
+			flags := agentDefinitionFlags{kind: "stays_on", prompt: "Watch."}
+			var err error
+			switch verb {
+			case "create":
+				_, err = createAgentRequestFromFlags(cmd, deps, client, "triage", flags)
+			case "update":
+				_, err = updateAgentRequestFromFlags(cmd, client, "triage", "", "sha256:digest", flags)
+			case "duplicate":
+				_, err = duplicateAgentRequestFromFlags(cmd, deps, client, "triage", "global", flags)
 			}
-			if err != nil || request.Agent.Kind != "always_on" {
-				t.Fatalf("update = %+v, %v; want always_on", request.Agent.Kind, err)
-			}
-			if strings.Contains(stderr.String(), warning) != tc.warns {
-				t.Fatalf("stderr = %q, want warning=%v", stderr.String(), tc.warns)
+			if err == nil || !strings.Contains(err.Error(), "agent_kind_invalid") ||
+				!strings.Contains(err.Error(), compozyconfig.ErrAgentKindInvalid.Error()) {
+				t.Fatalf("error = %v", err)
 			}
 		})
 	}
-
-	t.Run("Should describe always_on in the --kind help", func(t *testing.T) {
-		t.Parallel()
-
-		flag := newAgentCreateCommand(commandDeps{}).Flags().Lookup("kind")
-		if flag == nil || flag.Usage != "Agent kind: on_demand (default) or always_on; fixed at creation" {
-			t.Fatalf("--kind usage = %#v", flag)
-		}
-	})
 }

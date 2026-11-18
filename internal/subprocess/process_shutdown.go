@@ -29,6 +29,7 @@ func (p *Process) Stdin() io.WriteCloser {
 }
 
 // Stdout exposes the subprocess stdout reader for callers that disable the shared transport.
+// Drain it to EOF or close it explicitly to release the reader, including after Wait.
 func (p *Process) Stdout() io.ReadCloser {
 	if p == nil {
 		return nil

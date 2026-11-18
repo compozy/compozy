@@ -28,7 +28,8 @@ func (m *Manager) RecoverPendingStops(ctx context.Context) error {
 		if info.StopReason == store.StopShutdown {
 			cause = CauseShutdown
 		}
-		if info.StopReason == store.StopUserCanceled {
+		if info.StopReason == store.StopUserCanceled || info.StopReason == store.StopMaxIterations ||
+			info.StopReason == store.StopLoopDetected || info.StopReason == store.StopBudgetExceeded {
 			cause = CauseUserRequested
 		}
 		if info.StopReason == store.StopError && info.StopDetail == resumeStopDetailStartIncomplete {

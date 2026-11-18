@@ -1,9 +1,7 @@
 package config
 
 import (
-	"bytes"
 	"errors"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -267,6 +265,65 @@ func TestApplyConfigOverlayFileAppliesRedactionSnapshotSetting(t *testing.T) {
 		}
 		if cfg.Redact.Enabled {
 			t.Fatal("ApplyConfigOverlayFile() Redact.Enabled = true, want false")
+		}
+	})
+}
+
+func TestApplyConfigOverlayFileAppliesObservabilityOTelOverlay(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep defaults for OTel keys the file omits [UT-008]", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlayPath, "[observability.otel]\nendpoint = \"http://collector.local:4318\"\n")
+		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		want := defaultObservabilityConfig().OTel
+		want.Endpoint = "http://collector.local:4318"
+		if !reflect.DeepEqual(cfg.Observability.OTel, want) {
+			t.Fatalf("Observability.OTel = %#v, want %#v", cfg.Observability.OTel, want)
+		}
+	})
+
+	t.Run("Should apply every OTel key written in the file", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlayPath, `
+[observability.otel]
+enabled = true
+protocol = "grpc"
+endpoint = "http://collector.local:4317"
+traces = false
+metrics = false
+sample_ratio = 0.25
+metric_interval = "30s"
+service_name = "compozy-dev"
+slow_db_write_ms = 0
+forward_to_providers = true
+
+[observability.otel.headers]
+"api-key" = "vault:observability/nr"
+`)
+		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		want := ObservabilityOTelConfig{
+			Enabled:            true,
+			Protocol:           "grpc",
+			Endpoint:           "http://collector.local:4317",
+			Headers:            map[string]string{"api-key": "vault:observability/nr"},
+			SampleRatio:        0.25,
+			MetricInterval:     30 * time.Second,
+			ServiceName:        "compozy-dev",
+			ForwardToProviders: true,
+		}
+		if !reflect.DeepEqual(cfg.Observability.OTel, want) {
+			t.Fatalf("Observability.OTel = %#v, want %#v", cfg.Observability.OTel, want)
 		}
 	})
 }
@@ -677,72 +734,20 @@ func TestSupervisionTimingCompatibility(t *testing.T) {
 	}
 }
 
-// TestStaysOnConfigAlias owns UT-006, UT-007 and UT-009: [agents.stays_on] is read into
-// agents.always_on through v0.5.1, the new table wins per key, and validation names the new path.
-// It swaps the process-wide deprecation logger, so it does not run in parallel.
 func TestStaysOnConfigAlias(t *testing.T) {
-	var logs bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&logs, nil))
-	// rearm starts a fresh process-wide warning window for each case.
-	rearm := func() {
-		logs.Reset()
-		RouteDeprecationWarnings(logger)
+	t.Parallel()
+	for _, content := range []string{`[agents.stays_on]`, `[agents.stays_on]
+approval_timeout = "2h"`, `[agents.stays_on]
+max_proposals = 5
+[agents.always_on]
+max_proposals = 3`} {
+		t.Run("Should reject removed table "+content, func(t *testing.T) {
+			t.Parallel()
+			_, err := loadConfigOverlayBytes([]byte(content), "config.toml")
+			if err == nil || !strings.Contains(err.Error(), "removed config key") ||
+				!strings.Contains(err.Error(), "agents.always_on") {
+				t.Fatalf("error = %v", err)
+			}
+		})
 	}
-	t.Cleanup(func() { RouteDeprecationWarnings(nil) })
-	load := func(t *testing.T, body string) Config {
-		t.Helper()
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		cfg := DefaultWithHome(homePaths)
-		path := filepath.Join(t.TempDir(), "config.toml")
-		writeFile(t, path, body)
-		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
-			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
-		}
-		return cfg
-	}
-
-	t.Run("Should read the old table into always_on and warn", func(t *testing.T) {
-		rearm()
-		cfg := load(t, "[agents.stays_on]\napproval_timeout = \"2h\"\n")
-		if cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
-			t.Fatalf("ApprovalTimeout = %v, want 2h", cfg.Agents.AlwaysOn.ApprovalTimeout)
-		}
-		if strings.Count(logs.String(), "agents.stays_on is deprecated") != 1 ||
-			!strings.Contains(logs.String(), "use agents.always_on") || !strings.Contains(logs.String(), "v0.5.2") ||
-			!strings.Contains(logs.String(), "keys=approval_timeout") {
-			t.Fatalf("logs = %q, want one warning naming agents.always_on, v0.5.2 and the key", logs.String())
-		}
-	})
-
-	t.Run("Should let always_on win per key and report the ignored key", func(t *testing.T) {
-		rearm()
-		cfg := load(t, "[agents.stays_on]\nmax_proposals = 5\n\n[agents.always_on]\nmax_proposals = 3\n")
-		if cfg.Agents.AlwaysOn.MaxProposals != 3 {
-			t.Fatalf("MaxProposals = %d, want 3", cfg.Agents.AlwaysOn.MaxProposals)
-		}
-		if !strings.Contains(logs.String(), "ignored=max_proposals") {
-			t.Fatalf("logs = %q, want max_proposals listed as ignored", logs.String())
-		}
-	})
-
-	t.Run("Should warn once per process across layers with different key sets", func(t *testing.T) {
-		rearm()
-		load(t, "[agents.stays_on]\napproval_timeout = \"2h\"\n")
-		load(t, "[agents.stays_on]\nmax_proposals = 5\n")
-		if got := strings.Count(logs.String(), "agents.stays_on is deprecated"); got != 1 {
-			t.Fatalf("logs = %q, want exactly one config-table warning per process", logs.String())
-		}
-	})
-
-	t.Run("Should name the new path in validation errors", func(t *testing.T) {
-		cfg := load(t, "[agents.stays_on]\napproval_timeout = \"30s\"\n")
-		err := cfg.Validate()
-		if err == nil ||
-			!strings.Contains(err.Error(), "agents.always_on.approval_timeout must be between 1m and 72h") {
-			t.Fatalf("Validate() error = %v, want the agents.always_on message", err)
-		}
-	})
 }

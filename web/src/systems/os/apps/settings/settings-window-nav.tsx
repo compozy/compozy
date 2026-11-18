@@ -7,12 +7,14 @@ import type { OsWindowRoute } from "../../lib/os-types";
 import { settingsConnectionLabel } from "./settings-connection-label";
 import { SETTINGS_NAV_ITEM_CLASS, settingsNavItemTone } from "./settings-nav-classes";
 import { SettingsNavFrame, SettingsNavGroup, SettingsNavItemContent } from "./settings-nav-parts";
+// Leaf modules, not the `@/systems/settings` barrel: it re-exports daemon-bound
+// hooks, and this nav renders in prototypes from fixtures.
 import {
   filterSettingsSections,
   SETTINGS_SECTION_GROUPS,
-  type SettingsSectionDescriptor,
   settingsSectionPath,
-} from "@/systems/settings";
+} from "@/systems/settings/lib/sections";
+import type { SettingsSectionDescriptor } from "@/systems/settings/types";
 
 export interface SettingsWindowNavProps extends Omit<ComponentProps<"nav">, "children"> {
   activeSlug: string;

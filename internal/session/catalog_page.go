@@ -55,30 +55,35 @@ type ListQuery struct {
 	// ExcludeFinishedAutomation hides settled automation-run sessions from a
 	// default read; normalizeListQuery clears it for an explicit lookup.
 	ExcludeFinishedAutomation bool
-	Columns                   []string
-	HideChildren              bool
-	Subagents                 string
-	ReadScope                 store.ReadScope
-	WorkspaceID               string
-	WorkspaceIDs              []string
-	AllWorkspaces             bool
-	WorktreeID                string
-	State                     string
-	SessionType               Type
-	AgentName                 string
-	ParentSessionID           string
-	RootSessionID             string
-	SearchFields              string
-	Search                    string
-	Resumable                 bool
-	AttentionOnly             bool
-	Badges                    []Badge
-	Archive                   store.SessionArchiveFilter
-	Later                     store.SessionLaterFilter
-	Sort                      string
-	Cursor                    string
-	Limit                     int
-	SkipTotal                 bool
+	// ExcludeAutomation hides every automation job or trigger run family the
+	// operator has not prompted; normalizeListQuery clears it for an explicit lookup.
+	ExcludeAutomation bool
+	Columns           []string
+	HideChildren      bool
+	Subagents         string
+	ReadScope         store.ReadScope
+	WorkspaceID       string
+	WorkspaceIDs      []string
+	AllWorkspaces     bool
+	WorktreeID        string
+	State             string
+	SessionType       Type
+	AgentName         string
+	ParentSessionID   string
+	RootSessionID     string
+	// ExcludeRootSessionID leaves out that session and every session rooted at it.
+	ExcludeRootSessionID string
+	SearchFields         string
+	Search               string
+	Resumable            bool
+	AttentionOnly        bool
+	Badges               []Badge
+	Archive              store.SessionArchiveFilter
+	Later                store.SessionLaterFilter
+	Sort                 string
+	Cursor               string
+	Limit                int
+	SkipTotal            bool
 }
 
 // ListPage contains one bounded public session catalog result.
@@ -107,6 +112,7 @@ type sessionListFingerprint struct {
 	AgentName       string                     `json:"agent"`
 	ParentSessionID string                     `json:"parent"`
 	RootSessionID   string                     `json:"root"`
+	ExcludeRoot     string                     `json:"exclude_root,omitempty"`
 	SearchFields    string                     `json:"search_fields,omitempty"`
 	Search          string                     `json:"q"`
 	Resumable       bool                       `json:"resumable"`
@@ -121,6 +127,8 @@ type sessionListFingerprint struct {
 	ExcludeInstanceMain bool `json:"exclude_instance_main,omitempty"`
 	// ExcludeFinishedAutomation stays empty when unset so existing cursors remain valid.
 	ExcludeFinishedAutomation bool `json:"exclude_finished_automation,omitempty"`
+	// ExcludeAutomation stays empty when unset so existing cursors remain valid.
+	ExcludeAutomation bool `json:"exclude_automation,omitempty"`
 }
 
 // ListPage returns a stable, bounded union of durable and active sessions.
@@ -158,9 +166,6 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	durableQuery.RepositoryKeys = repositoryKeys
 	durableQuery.DefaultBranches = defaultBranches
 
-	if err := m.refreshCatalogPullRequests(ctx, durableQuery); err != nil {
-		return ListPage{}, err
-	}
 	durable, err := pager.PageSessions(ctx, durableQuery)
 	if err != nil {
 		return ListPage{}, fmt.Errorf("session: page durable catalog: %w", err)
@@ -185,6 +190,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		candidates = candidates[:normalized.Limit]
 	}
 	page.Sessions = projectSessionCatalogPage(candidates, activeByID)
+	m.decorateMCPAuthorities(ctx, page.Sessions, nil)
 	if err := m.populateCatalogRelations(
 		ctx,
 		normalized,
@@ -246,33 +252,35 @@ func sessionCatalogPageQuery(
 	activeIDs []string,
 ) store.SessionCatalogPageQuery {
 	query := store.SessionCatalogPageQuery{
-		Columns:           normalized.Columns,
-		HideChildren:      normalized.HideChildren,
-		Subagents:         normalized.Subagents,
-		SkipTotal:         normalized.SkipTotal,
-		ReadScope:         normalized.ReadScope,
-		WorkspaceID:       normalized.WorkspaceID,
-		WorkspaceIDs:      normalized.WorkspaceIDs,
-		WorktreeID:        normalized.WorktreeID,
-		State:             normalized.State,
-		SessionType:       string(normalized.SessionType),
-		AgentName:         normalized.AgentName,
-		ParentSessionID:   normalized.ParentSessionID,
-		RootSessionID:     normalized.RootSessionID,
-		SearchFields:      normalized.SearchFields,
-		Search:            normalized.Search,
-		AttentionOnly:     normalized.AttentionOnly,
-		Badges:            badgeStrings(normalized.Badges),
-		Resumable:         normalized.Resumable,
-		Archive:           normalized.Archive,
-		Later:             normalized.Later,
-		Sort:              normalized.Sort,
-		Limit:             normalized.Limit + 1,
-		After:             after,
-		ExcludeIDs:        activeIDs,
-		ExcludeSpawnRoles: []string{SpawnRoleAutoTitle},
+		Columns:              normalized.Columns,
+		HideChildren:         normalized.HideChildren,
+		Subagents:            normalized.Subagents,
+		SkipTotal:            normalized.SkipTotal,
+		ReadScope:            normalized.ReadScope,
+		WorkspaceID:          normalized.WorkspaceID,
+		WorkspaceIDs:         normalized.WorkspaceIDs,
+		WorktreeID:           normalized.WorktreeID,
+		State:                normalized.State,
+		SessionType:          string(normalized.SessionType),
+		AgentName:            normalized.AgentName,
+		ParentSessionID:      normalized.ParentSessionID,
+		RootSessionID:        normalized.RootSessionID,
+		ExcludeRootSessionID: normalized.ExcludeRootSessionID,
+		SearchFields:         normalized.SearchFields,
+		Search:               normalized.Search,
+		AttentionOnly:        normalized.AttentionOnly,
+		Badges:               badgeStrings(normalized.Badges),
+		Resumable:            normalized.Resumable,
+		Archive:              normalized.Archive,
+		Later:                normalized.Later,
+		Sort:                 normalized.Sort,
+		Limit:                normalized.Limit + 1,
+		After:                after,
+		ExcludeIDs:           activeIDs,
+		ExcludeSpawnRoles:    []string{SpawnRoleAutoTitle},
 
 		ExcludeFinishedAutomation: normalized.ExcludeFinishedAutomation,
+		ExcludeAutomation:         normalized.ExcludeAutomation,
 	}
 	if normalized.SessionType == "" {
 		query.ExcludeVerdictOnly = true
@@ -331,6 +339,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		AgentName:       query.AgentName,
 		ParentSessionID: query.ParentSessionID,
 		RootSessionID:   query.RootSessionID,
+		ExcludeRoot:     query.ExcludeRootSessionID,
 		SearchFields:    query.SearchFields,
 		Search:          query.Search,
 		Resumable:       query.Resumable,
@@ -342,6 +351,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 
 		ExcludeInstanceMain:       query.ExcludeInstanceMain,
 		ExcludeFinishedAutomation: query.ExcludeFinishedAutomation,
+		ExcludeAutomation:         query.ExcludeAutomation,
 	})
 	if err != nil {
 		return "", fmt.Errorf("session: fingerprint list query: %w", err)

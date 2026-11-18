@@ -14,6 +14,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/procutil"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/vault"
 	"github.com/compozy/compozy/internal/version"
@@ -65,6 +66,7 @@ type commandDeps struct {
 	vaultKeyring                vault.Keyring
 	commandContext              func() context.Context
 	loadConfig                  func() (compozyconfig.Config, error)
+	windowManagerWarning        compozyconfig.LoadOption
 	resolveHome                 func() (compozyconfig.HomePaths, error)
 	resolveHomeForWorkspace     func(workspaceRoot string) (compozyconfig.HomePaths, error)
 	ensureHome                  func(compozyconfig.HomePaths) error
@@ -82,6 +84,7 @@ type commandDeps struct {
 	readDaemonInfo              func(path string) (compozydaemon.Info, error)
 	signalProcess               func(pid int, sig syscall.Signal) error
 	processAlive                func(pid int) bool
+	inspectProcess              func(pid int) (procutil.ScannedProcess, error)
 	processMatchesStartTime     func(pid int, startedAt time.Time) bool
 	processOwnsFileLock         func(pid int, path string) (bool, error)
 	inspectDaemonLock           func(path string) (compozydaemon.LockOwner, error)
@@ -117,12 +120,10 @@ func NewRootCommand() *cobra.Command {
 }
 
 func newRootCommand(deps commandDeps) *cobra.Command {
-	deps = deps.withDefaults()
-
 	cmd := &cobra.Command{
 		Use:     rootCompozyKey,
 		Version: version.Current().Version,
-		Short:   "CompozyOS — the system around your agents, already built",
+		Short:   "CompozyOS — the autonomous control plane for your agents",
 		Example: `  # Start the daemon and create a session in the current workspace
   compozy daemon start
   compozy session new --agent general
@@ -135,6 +136,8 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 			return cmd.Help()
 		},
 	}
+	deps.windowManagerWarning = windowManagerWarningOutput(cmd)
+	deps = deps.withDefaults()
 	cmd.SetVersionTemplate("compozy {{.Version}}\n")
 	cmd.InitDefaultVersionFlag()
 	if deps.commandContext == nil {

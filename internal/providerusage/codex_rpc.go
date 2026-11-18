@@ -42,6 +42,15 @@ func collectCodexRPC(ctx context.Context, t Target) (Snapshot, error) {
 					ErrorCodeProviderUnavailable,
 				)
 			}
+			if err := proc.Stdout().Close(); err != nil {
+				slog.Debug(
+					"provider_usage.stdout_close",
+					"provider",
+					"codex",
+					"error_code",
+					ErrorCodeProviderUnavailable,
+				)
+			}
 		})
 	}
 	canceled := context.AfterFunc(ctx, stop)

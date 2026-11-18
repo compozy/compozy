@@ -11,7 +11,9 @@ import (
 	"maps"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/tools"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -34,6 +36,7 @@ type HostedProjectionHandler func(HostedProjectionResponse) error
 
 // HostedProxyClient is the UDS client surface consumed by the hosted stdio proxy.
 type HostedProxyClient interface {
+	ReportHostedMCPServed(context.Context, HostedServedRequest) error
 	BindHostedMCP(ctx context.Context, req HostedBindRequest) (HostedBindResponse, error)
 	HostedMCPProjection(ctx context.Context, bindID string) (HostedProjectionResponse, error)
 	StreamHostedMCPProjection(
@@ -89,7 +92,7 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 		version = "0.0.0"
 	}
 
-	bind, err := client.BindHostedMCP(ctx, HostedBindRequest{SessionID: sessionID, Nonce: nonce})
+	bind, err := bindHostedMCPWithDialRetry(ctx, client, HostedBindRequest{SessionID: sessionID, Nonce: nonce})
 	if err != nil {
 		return err
 	}
@@ -107,16 +110,16 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 		},
 	)
 	defer hostedServerToolFingerprints.Delete(mcpServer)
+	catalog := &hostedProxyCatalog{}
+	mcpServer.AddReceivingMiddleware(catalog.middleware(client, bind.BindID))
 	mcpServer.AddReceivingMiddleware(privateToolListCacheMiddleware())
 	mcpServer.AddReceivingMiddleware(hostedProviderProtocolVersionMiddleware())
-	applyHostedTools(mcpServer, client, bind.BindID, bind.Tools)
+	catalog.apply(mcpServer, client, bind.BindID, HostedProjectionResponse{Tools: bind.Tools, Catalog: bind.Catalog})
 
 	proxyCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var streamWG sync.WaitGroup
-	streamWG.Go(func() {
-		streamHostedProjection(proxyCtx, client, mcpServer, bind)
-	})
+	streamWG.Go(func() { streamHostedProjectionCatalog(proxyCtx, client, mcpServer, bind, catalog) })
 
 	err = mcpServer.Run(
 		proxyCtx,
@@ -138,22 +141,47 @@ func streamHostedProjection(
 	mcpServer *sdkmcp.Server,
 	initial HostedBindResponse,
 ) {
+	streamHostedProjectionCatalog(ctx, client, mcpServer, initial, &hostedProxyCatalog{catalog: initial.Catalog})
+}
+
+func streamHostedProjectionCatalog(
+	ctx context.Context, client HostedProxyClient, mcpServer *sdkmcp.Server,
+	initial HostedBindResponse, catalog *hostedProxyCatalog,
+) {
 	lastDigest := strings.TrimSpace(initial.Digest)
-	err := client.StreamHostedMCPProjection(
-		ctx,
-		initial.BindID,
-		lastDigest,
-		func(snapshot HostedProjectionResponse) error {
-			if strings.TrimSpace(snapshot.Digest) == "" || snapshot.Digest == lastDigest {
+	for {
+		err := client.StreamHostedMCPProjection(
+			ctx,
+			initial.BindID,
+			lastDigest,
+			func(snapshot HostedProjectionResponse) error {
+				if strings.TrimSpace(snapshot.Digest) == "" || snapshot.Digest == lastDigest {
+					return nil
+				}
+				lastDigest = snapshot.Digest
+				catalog.apply(mcpServer, client, initial.BindID, snapshot)
 				return nil
-			}
-			lastDigest = snapshot.Digest
-			applyHostedTools(mcpServer, client, initial.BindID, snapshot.Tools)
-			return nil
-		},
-	)
-	if err != nil && !errors.Is(err, context.Canceled) {
-		return
+			},
+		)
+		if ctx.Err() != nil || errors.Is(err, ErrHostedBindNotFound) || errors.Is(err, ErrHostedBindRequired) {
+			return
+		}
+		// A refresh failure is not a provider disconnect. Calls still go through the
+		// daemon's current authorization, and the next stream rebuild repairs discovery.
+		if err != nil {
+			slog.Warn(
+				"mcp: hosted projection stream interrupted; reconnecting",
+				"error",
+				diagnostics.RedactAndBound(err.Error(), 1024),
+			)
+		}
+		retry := time.NewTimer(HostedProjectionFallbackRefresh)
+		select {
+		case <-ctx.Done():
+			retry.Stop()
+			return
+		case <-retry.C:
+		}
 	}
 }
 
@@ -183,19 +211,22 @@ func reconcileHostedTools(
 		view := views[i]
 		name := view.Descriptor.ID.String()
 		tool := hostedMCPTool(view.Descriptor)
-		fingerprint := hostedToolFingerprint(&tool)
+		requiresStructured := len(view.Descriptor.OutputSchema) > 0
+		if contracts := view.Descriptor.ResultViews(); contracts != nil {
+			requiresStructured = len(contracts.Compact.Schema) > 0
+		}
+		fingerprint := hostedToolFingerprint(&tool, requiresStructured)
 		next[name] = fingerprint
 		if fingerprint != "" && previous[name] == fingerprint {
 			continue
 		}
-		declaresOutput := tool.OutputSchema != nil
 		registry.AddTool(
 			&tool,
 			func(
 				ctx context.Context,
 				req *sdkmcp.CallToolRequest,
 			) (*sdkmcp.CallToolResult, error) {
-				return callHostedTool(ctx, client, bindID, declaresOutput, req)
+				return callHostedTool(ctx, client, bindID, requiresStructured, req)
 			},
 		)
 	}
@@ -216,12 +247,16 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 	readOnly := descriptor.ReadOnly
 	destructive := descriptor.Destructive
 	openWorld := descriptor.OpenWorld
+	var outputSchema any
+	if descriptor.Backend.Kind != tools.BackendNativeGo {
+		outputSchema = hostedOutputSchema(descriptor.OutputSchema)
+	}
 	return sdkmcp.Tool{
+		OutputSchema: outputSchema,
 		Name:         name,
 		Title:        descriptor.Presentation().DisplayTitle,
 		Description:  hostedToolDescription(descriptor),
 		InputSchema:  cloneRaw(descriptor.InputSchema),
-		OutputSchema: hostedOutputSchema(descriptor.OutputSchema),
 		Annotations: &sdkmcp.ToolAnnotations{
 			Title:           descriptor.Presentation().DisplayTitle,
 			ReadOnlyHint:    readOnly,
@@ -233,8 +268,11 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 	}
 }
 
-func hostedToolFingerprint(tool *sdkmcp.Tool) string {
-	payload, err := json.Marshal(tool)
+func hostedToolFingerprint(tool *sdkmcp.Tool, requiresStructured bool) string {
+	payload, err := json.Marshal(struct {
+		Tool               *sdkmcp.Tool
+		RequiresStructured bool
+	}{tool, requiresStructured})
 	if err != nil {
 		// Invalid raw schema JSON cannot be fingerprinted safely. An empty
 		// fingerprint conservatively re-registers the tool on the next projection.
@@ -248,7 +286,7 @@ func callHostedTool(
 	ctx context.Context,
 	client HostedProxyClient,
 	bindID string,
-	declaresOutput bool,
+	requiresStructured bool,
 	req *sdkmcp.CallToolRequest,
 ) (*sdkmcp.CallToolResult, error) {
 	rawInput, err := rawArguments(req.Params.Arguments)
@@ -287,14 +325,14 @@ func callHostedTool(
 			IsError:           true,
 		}, nil
 	}
-	if declaresOutput {
+	if requiresStructured {
 		return hostedDeclaredToolResult(response.Result)
 	}
 	return hostedToolResult(response.Result)
 }
 
 func hostedToolDescription(descriptor tools.Descriptor) string {
-	sections := make([]string, 0, 6)
+	sections := make([]string, 0, 2)
 	if title := strings.TrimSpace(descriptor.Presentation().DisplayTitle); title != "" {
 		if description := strings.TrimSpace(descriptor.Description); description != "" {
 			sections = append(sections, title+"\n\n"+description)
@@ -308,16 +346,7 @@ func hostedToolDescription(descriptor tools.Descriptor) string {
 	if id := strings.TrimSpace(descriptor.ID.String()); id != "" {
 		sections = append(sections, "Compozy canonical tool ID: "+id)
 	}
-	if toolsets := hostedToolsetNames(descriptor.Toolsets); toolsets != "" {
-		sections = append(sections, "Compozy toolsets: "+toolsets)
-	}
-	if tags := hostedDescriptionValues(descriptor.Tags); tags != "" {
-		sections = append(sections, "Tags: "+tags)
-	}
-	if hints := hostedDescriptionValues(descriptor.SearchHints); hints != "" {
-		sections = append(sections, "Search hints: "+hints)
-	}
-	sections = append(sections, "Call the harness-returned tool reference.")
+
 	return strings.Join(sections, "\n\n")
 }
 
@@ -353,20 +382,6 @@ func hostedSearchHint(descriptor tools.Descriptor) string {
 		}
 	}
 	return strings.Join(values, " | ")
-}
-
-func hostedToolsetNames(toolsets []tools.ToolsetID) string {
-	values := make([]string, 0, len(toolsets))
-	for _, toolset := range toolsets {
-		if value := strings.TrimSpace(toolset.String()); value != "" {
-			values = append(values, value)
-		}
-	}
-	return strings.Join(values, ", ")
-}
-
-func hostedDescriptionValues(values []string) string {
-	return strings.Join(cleanedValues(values), ", ")
 }
 
 func cleanedValues(values []string) []string {

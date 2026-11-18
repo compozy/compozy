@@ -41,3 +41,16 @@ QA impact 2026-10-09 (Subagents tools slice): `[subagents] result_max_chars` def
 accepts 1000–1000000, and supports workspace overrides. `TestSubagentsConfig` verifies real file
 loading and workspace isolation; an isolated CLI run verified the default, user override, and
 999 rejection. The integrated finalize-time reload walk remains owned by the spec QA slice.
+
+QA impact 2026-11-13 (#1659): project-scope window-manager writes no longer pin the whole
+`[window_manager]` section. Scalars and gaps equal to the inherited value are removed from the
+project file; `global_shortcuts` and `cmd_palette.aliases` are written only when the request changes
+them. The keymap stays a whole-map override. Not walked yet.
+
+QA impact 2026-11-15 (#1687): `[client] request_timeout` is machine-only, defaults to 30s,
+and rejects values outside 5s–30m. `COMPOZY_CLIENT_TIMEOUT` wins before config validation.
+User-scope writes apply to subsequent unary CLI requests without a daemon restart; streams remain
+untimed. Profile/workspace overrides are denied. A combined timeout/log change must retain the log
+restart requirement. Existing config reload/profile and CLI timeout suites own automated coverage,
+including the default loader's typed rejection. Local verification and the scenario walk are
+prohibited by release mode; main CI owns execution and the live scenario remains unverified.

@@ -6,8 +6,122 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+// ClearSessionConversationParams carries the path, query, and header parameters.
+type ClearSessionConversationParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ClearSessionConversation Clear conversation history and restart the session context
+func (c *Client) ClearSessionConversation(ctx context.Context, params ClearSessionConversationParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/clear"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ClearSessionInputsParams carries the path, query, and header parameters.
+type ClearSessionInputsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ClearSessionInputs Clear queued input with attributed per-entry traces
+func (c *Client) ClearSessionInputs(ctx context.Context, params ClearSessionInputsParams) (*SessionInputClearResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionInputClearResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ClearSessionParentParams carries the path, query, and header parameters.
+type ClearSessionParentParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ClearSessionParent Make an adopted child session top-level, or take over a stopped spawned worker
+func (c *Client) ClearSessionParent(ctx context.Context, params ClearSessionParentParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/parent"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ClearSessionRuntimeParams carries the path, query, and header parameters.
+type ClearSessionRuntimeParams struct {
+	WorkspaceID      string  `url:"workspace_id"`
+	SessionID        string  `url:"session_id"`
+	ExpectedRevision int64   `url:"expected_revision"`
+	Profile          *string `url:"profile"`
+}
+
+// ClearSessionRuntime Clear the default runtime for future prompts
+func (c *Client) ClearSessionRuntime(ctx context.Context, params ClearSessionRuntimeParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	query.Set("expected_revision", strconv.FormatInt(params.ExpectedRevision, 10))
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ClearTaskBlockParams carries the path, query, and header parameters.
+type ClearTaskBlockParams struct {
+	ID      string  `url:"id"`
+	BlockID string  `url:"block_id"`
+	Profile *string `url:"profile"`
+}
 
 // ClearTaskBlock Clear one typed task block
 func (c *Client) ClearTaskBlock(ctx context.Context, params ClearTaskBlockParams, body ClearTaskBlockRequest) (*TaskBlockResponse, error) {
@@ -316,118 +430,6 @@ type CreateChildTaskParams struct {
 func (c *Client) CreateChildTask(ctx context.Context, params CreateChildTaskParams, body CreateTaskChildRequest) (*TaskResponse, error) {
 	path := "/api/tasks/{id}/children"
 	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateLoopParams carries the path, query, and header parameters.
-type CreateLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// CreateLoop Create or fork a Loop definition
-func (c *Client) CreateLoop(ctx context.Context, params CreateLoopParams, body CreateLoopRequest) (*LoopResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateProfile Create a profile
-func (c *Client) CreateProfile(ctx context.Context, body CreateProfileRequest) (*Profile, error) {
-	path := "/api/profiles"
-	var out Profile
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateSessionParams carries the path, query, and header parameters.
-type CreateSessionParams struct {
-	Profile *string `url:"profile"`
-}
-
-// CreateSession Create a session
-func (c *Client) CreateSession(ctx context.Context, params CreateSessionParams, body CreateSessionRequest) (*SessionResponse, error) {
-	path := "/api/sessions"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateSessionFolderParams carries the path, query, and header parameters.
-type CreateSessionFolderParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// CreateSessionFolder Create a session folder
-func (c *Client) CreateSessionFolder(ctx context.Context, params CreateSessionFolderParams, body CreateSessionFolderRequest) (*SessionFolderResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-folders"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFolderResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateSupportBundle Create a support bundle
-func (c *Client) CreateSupportBundle(ctx context.Context, body CreateSupportBundleRequest) (*SupportBundleOperationResponse, error) {
-	path := "/api/support/bundles"
-	var out SupportBundleOperationResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateTaskParams carries the path, query, and header parameters.
-type CreateTaskParams struct {
-	Profile *string `url:"profile"`
-}
-
-// CreateTask Create a task
-func (c *Client) CreateTask(ctx context.Context, params CreateTaskParams, body CreateTaskRequest) (*TaskResponse, error) {
-	path := "/api/tasks"
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)

@@ -23,7 +23,7 @@ func (b *nativeWorkspaceInputBinder) AuthorizeCallInput(
 		return nil
 	}
 	schema, acceptsWorkspace := nativeWorkspaceInputSchema(descriptor)
-	if !acceptsWorkspace {
+	if !acceptsWorkspace && !nativePolicySessionTargetTool(descriptor.ID) {
 		return nil
 	}
 	var payload map[string]json.RawMessage
@@ -35,6 +35,10 @@ func (b *nativeWorkspaceInputBinder) AuthorizeCallInput(
 	if nativeInputHasGlobalScope(payload) {
 		targets[workspaceaccess.UserSelector] = struct{}{}
 	}
+	if descriptor.ID == toolspkg.ToolIDMonitorCreate {
+		return b.authorizeSessionMonitorInput(ctx, scope, descriptor, call)
+	}
+
 	sessionID := nativeSessionTargetID(descriptor.ID, schema, payload)
 	if len(targets) == 0 && sessionID == "" {
 		return nil
@@ -165,7 +169,7 @@ func (b *nativeWorkspaceInputBinder) authorizeAccessTarget(
 		unresolvedTarget: target.ref.Kind == workspaceaccess.TargetUnresolved,
 	}
 	if prompt.remember {
-		prompt.grant = workspaceAccessReadGrantKey(scope, call, descriptor, actor, target.ref)
+		prompt.grant = toolspkg.WorkspaceAccessReadGrantKey(scope, call, descriptor, actor, target.ref)
 	}
 	allowed, err := b.prompter.RequestWorkspaceAccess(ctx, scope, call, descriptor, prompt)
 	if err != nil {

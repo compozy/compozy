@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -137,8 +138,8 @@ func DefaultProviderAuthLoginRunner(
 }
 
 func commandContext(ctx context.Context, spec ProviderAuthCommandSpec) (*exec.Cmd, error) {
-	environment := append([]string(nil), spec.Env...)
-	if len(environment) == 0 {
+	environment := slices.Clone(spec.Env)
+	if environment == nil {
 		environment = os.Environ()
 	}
 	spec.Env = environment

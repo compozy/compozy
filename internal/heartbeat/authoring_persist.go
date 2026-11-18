@@ -25,6 +25,7 @@ func (s *ManagedHeartbeatAuthoringService) persistPostWrite(
 		AgentPath:     target.agentPath,
 		WorkspaceRoot: target.workspaceRoot,
 		Config:        target.config,
+		CheckInLimits: target.checkInLimits,
 	})
 	if err != nil {
 		return MutationResult{Policy: resolved}, authoringInvalidError(resolved.Diagnostics)
@@ -75,6 +76,7 @@ func (s *ManagedHeartbeatAuthoringService) persistPostDelete(
 		AgentPath:     target.agentPath,
 		WorkspaceRoot: target.workspaceRoot,
 		Config:        target.config,
+		CheckInLimits: target.checkInLimits,
 	})
 	if err != nil {
 		return MutationResult{Policy: resolved}, authoringInvalidError(resolved.Diagnostics)

@@ -53,3 +53,10 @@ bundle install leaves the live daemon untouched; failure to request coordinated 
 falls back to user-stop signaling. Existing opt-out, pending-interaction and binding-change gates
 remain in force. E2E-016 owns the app/daemon handoff; session/daemon suites own recovery safety.
 Evidence and execution limits: [continuity report](../reports/2026-10-27-update-session-continuity.md).
+
+2026-11-13 feed-host regression (issue #1641): block `raw.githubusercontent.com` (for example
+with a hosts entry) and apply an app update. The shell logs `read app update feed`, downloads the
+recorded asset from the GitHub release, verifies its digest, and restarts on the new version. With
+GitHub release downloads blocked too, the failed operation's `last_error` names the network error
+(`net::ERR_…`) instead of "The app update could not be installed."; Retry update works once the
+network allows it. Unit coverage: `electron-installer-policy.test.ts`, `app-update-consumer.test.ts`.

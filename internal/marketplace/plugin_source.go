@@ -76,7 +76,14 @@ func (s *PluginSource) Fetch(ctx context.Context) (_ *Document, err error) {
 	if snapshot != nil {
 		defer func() { err = errors.Join(err, snapshot.Close()) }()
 	}
-	entries, diagnostics, err := s.projector.project(ctx, workCtx, doc, s.config.Name, snapshot)
+	entries, diagnostics, err := s.projector.project(
+		ctx,
+		workCtx,
+		doc,
+		s.config.Name,
+		snapshot,
+		s.config.Kind == SourceKindPreset && curatedIdentity(s.config.Name, s.config.Ref),
+	)
 	if err != nil {
 		return nil, err
 	}

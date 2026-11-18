@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/deadentity"
@@ -31,6 +32,49 @@ func TestShouldCanonicalizeMCPToolIDs(t *testing.T) {
 			server: " Git-Hub ",
 			tool:   "Search.Tool",
 			want:   "mcp__git_hub__search_tool",
+		},
+		{
+			name:   "Should preserve a legacy ID that resembles an encoded name",
+			server: "github",
+			tool:   "raw",
+			want:   "mcp__github__raw",
+		},
+		{
+			name:   "Should encode a leading underscore",
+			server: "github",
+			tool:   "_dd_gff",
+			want:   "mcp__github__raw__xl5sgix3hmzta",
+		},
+		{
+			name:   "Should preserve case in the encoding of previously rejected names",
+			server: "github",
+			tool:   "_DD_gff",
+			want:   "mcp__github__raw__xl5ceix3hmzta",
+		},
+		{
+			name:   "Should encode a leading digit",
+			server: "github",
+			tool:   "9Search",
+			want:   "mcp__github__raw__xhfjwkylsmnua",
+		},
+		{
+			name:   "Should encode other punctuation",
+			server: "github",
+			tool:   "count+total",
+			want:   "mcp__github__raw__xmnxxk3tufn2g65dbnq",
+		},
+		{
+			name:   "Should reserve the encoded ID form against raw separator collisions",
+			server: "github",
+			tool:   "raw__xl5sgix3hmzta",
+			want:   "mcp__github__raw__xojqxox27pbwdk43hnf4dg2dnpj2gc",
+		},
+		{
+			name:       "Should reject a missing protocol name",
+			server:     "github",
+			tool:       "",
+			wantErr:    true,
+			wantReason: ReasonIDEmptySegment,
 		},
 		{
 			name:       "ShouldRejectDigitStart",
@@ -57,6 +101,13 @@ func TestShouldCanonicalizeMCPToolIDs(t *testing.T) {
 			name:       "ShouldRejectOverLengthIDs",
 			server:     "github",
 			tool:       "tool_" + strings.Repeat("a", 64),
+			wantErr:    true,
+			wantReason: ReasonIDTooLong,
+		},
+		{
+			name:       "Should reject an encoded name that would exceed the ID limit",
+			server:     "datadog",
+			tool:       "_" + strings.Repeat("x", 27),
 			wantErr:    true,
 			wantReason: ReasonIDTooLong,
 		},
@@ -366,6 +417,50 @@ func TestShouldSkipMCPSourceWhenDiscoveryFails(t *testing.T) {
 			t.Fatalf("provider.List() descriptors = %#v, want healthy source tool", descriptors)
 		}
 	})
+	// Owner: MCP/registry projection; a degraded aggregate cannot hide a recovered source from a peer.
+	t.Run("Should retry degraded discovery for a concurrent peer while retaining healthy tools", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			executor := &recoveringProjectionMCPExecutor{
+				fakeMCPExecutor: newFakeMCPExecutor([]MCPToolDescriptor{{
+					RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`),
+				}}),
+				started: make(chan struct{}), release: make(chan struct{}),
+			}
+			provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return []SourceRef{{Kind: SourceMCP, Owner: "broken", RawServerName: "broken"},
+					{Kind: SourceMCP, Owner: "healthy", RawServerName: "healthy"}}, nil
+			}), executor, executor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registry := newMCPRegistry(t, provider)
+			shared := WithProjectionListings(t.Context(), NewProjectionListings())
+			type outcome struct {
+				views []ToolView
+				err   error
+			}
+			project := func(sessionID string) <-chan outcome {
+				done := make(chan outcome, 1)
+				go func() {
+					views, err := registry.OperatorProjection(shared, Scope{SessionID: sessionID, Operator: true})
+					done <- outcome{views, err}
+				}()
+				return done
+			}
+			leader := project("leader")
+			<-executor.started
+			peer := project("peer")
+			synctest.Wait()
+			close(executor.release)
+			first, second := <-leader, <-peer
+			if first.err != nil || second.err != nil {
+				t.Fatalf("discovery errors: %v, %v", first.err, second.err)
+			}
+			requireToolIDs(t, first.views, "mcp__healthy__lookup")
+			requireToolIDs(t, second.views, "mcp__broken__lookup", "mcp__healthy__lookup")
+		})
+	})
 }
 
 func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
@@ -401,6 +496,245 @@ func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 }
 
 func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) {
+	for _, tc := range []struct{ checkFails, checkFirst bool }{{false, false}, {true, false}, {false, true}} {
+		t.Run(
+			fmt.Sprintf("Should prioritize checks with failure=%v checkFirst=%v", tc.checkFails, tc.checkFirst),
+			func(t *testing.T) {
+				t.Parallel()
+				source := SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs"}
+				executor := &overlappingMCPExecutor{
+					fakeMCPExecutor: newFakeMCPExecutor(nil),
+					started:         make(chan struct{}),
+					release:         make(chan struct{}),
+					checkFails:      tc.checkFails,
+					blockFresh:      tc.checkFirst,
+				}
+				provider, err := NewMCPProvider(
+					MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }),
+					executor,
+					executor,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
+				done := make(chan error, 1)
+				joined := make(chan struct{})
+				release := sync.OnceFunc(func() { close(executor.release) })
+				t.Cleanup(func() {
+					release()
+					cancel()
+					select {
+					case <-joined:
+					case <-time.After(5 * time.Second):
+						t.Error("listing did not exit")
+					}
+				})
+				go func() {
+					defer close(joined)
+					if tc.checkFirst {
+						done <- provider.CheckMCPServer(ctx, Scope{}, "docs")
+						return
+					}
+					_, err := provider.List(ctx, Scope{})
+					done <- err
+				}()
+				select {
+				case <-executor.started:
+				case err := <-done:
+					t.Fatalf("listing exited before discovery: %v", err)
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+				if tc.checkFirst {
+					if _, err := provider.List(ctx, Scope{}); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := provider.CheckMCPServer(ctx, Scope{}, "docs"); err != nil {
+					t.Fatal(err)
+				}
+				release()
+				select {
+				case err := <-done:
+					if err != nil {
+						t.Fatal(err)
+					}
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+				descriptors, err := provider.List(WithCachedMCPProjection(t.Context()), Scope{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if tc.checkFails {
+					if len(descriptors) != 0 {
+						t.Fatalf("stale tools after failed check: %+v", descriptors)
+					}
+					if _, failed := provider.discoveryFailures.Load(source); !failed {
+						t.Fatal("older success erased check failure")
+					}
+				} else if len(descriptors) != 1 || descriptors[0].ID != "mcp__docs__fresh" {
+					t.Fatalf("descriptors=%+v", descriptors)
+				}
+			},
+		)
+	}
+
+	t.Run("Should preserve tools after a canceled check", func(t *testing.T) {
+		t.Parallel()
+		source := SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs"}
+		executor := newFakeMCPExecutor(
+			[]MCPToolDescriptor{{RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		)
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }),
+			executor,
+			executor,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := provider.List(t.Context(), Scope{}); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		executor.cancelDiscovery = cancel
+		executor.setListError(context.Canceled)
+		if err := provider.CheckMCPServer(ctx, Scope{}, "docs"); !errors.Is(err, ErrToolCanceled) {
+			t.Fatalf("check error = %v, want ErrToolCanceled", err)
+		}
+		handle, found, err := provider.Resolve(WithCachedMCPProjection(t.Context()), Scope{}, "mcp__docs__lookup")
+		if err != nil || !found {
+			t.Fatalf("resolve after cancellation: found=%v err=%v", found, err)
+		}
+		if availability := handle.Availability(t.Context(), Scope{}); !availability.Executable {
+			t.Fatalf("cancellation hid working tool: %+v", availability)
+		}
+		descriptors, err := provider.List(WithCachedMCPProjection(t.Context()), Scope{})
+		if err != nil || len(descriptors) != 1 {
+			t.Fatalf("descriptors=%+v err=%v", descriptors, err)
+		}
+	})
+
+	t.Run("Should retry only the selected profile and retain sibling cached tools", func(t *testing.T) {
+		t.Parallel()
+		source := SourceRef{
+			Kind:          SourceMCP,
+			Owner:         "docs",
+			RawServerName: "docs",
+			Scope:         mcpSourceScopeWorkspace,
+			WorkspaceID:   "ws-retry",
+		}
+		executor := newFakeMCPExecutor(
+			[]MCPToolDescriptor{{RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		)
+		reliability := deadentity.New(newMCPReliabilityStore(), deadentity.WithPermanentFailureThreshold(1))
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }),
+			executor,
+			executor,
+			WithMCPDeadEntityService(reliability),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		selected := Scope{WorkspaceID: source.WorkspaceID, ProfileID: "profile-a"}
+		sibling := Scope{WorkspaceID: source.WorkspaceID, ProfileID: "profile-b"}
+		for _, scope := range []Scope{selected, sibling} {
+			if tools, err := provider.List(t.Context(), scope); err != nil || len(tools) != 1 {
+				t.Fatalf("initial tools = %+v, %v", tools, err)
+			}
+		}
+		key, tracked := mcpDeadEntityKey(source, selected.ProfileID)
+		if !tracked {
+			t.Fatal("source is not tracked")
+		}
+		if err := reliability.RecordFailure(t.Context(), key, deadentity.FailurePermanent, "offline"); err != nil {
+			t.Fatal(err)
+		}
+		executor.setListError(ErrToolUnavailable)
+		if err := provider.CheckMCPServer(t.Context(), selected, "docs"); err != nil {
+			t.Fatal(err)
+		}
+		if tools, err := provider.List(WithCachedMCPProjection(t.Context()), selected); err != nil || len(tools) != 1 {
+			t.Fatalf("failed selected tools = %+v, %v", tools, err)
+		}
+		if tools, err := provider.List(WithCachedMCPProjection(t.Context()), sibling); err != nil || len(tools) != 1 {
+			t.Fatalf("sibling tools = %+v, %v", tools, err)
+		}
+		executor.setListError(nil)
+		if err := provider.CheckMCPServer(t.Context(), selected, "docs"); err != nil {
+			t.Fatal(err)
+		}
+		if tools, err := provider.List(WithCachedMCPProjection(t.Context()), selected); err != nil || len(tools) != 1 {
+			t.Fatalf("recovered tools = %+v, %v", tools, err)
+		}
+		status, err := reliability.Status(t.Context(), key)
+		if err != nil || status.Dead {
+			t.Fatalf("recovery status = %+v, %v", status, err)
+		}
+		executor.mu.Lock()
+		defer executor.mu.Unlock()
+		if len(executor.listedSources) != 4 {
+			t.Fatalf("discoveries = %+v", executor.listedSources)
+		}
+	})
+
+	// Invariant: a settled breaker decision shares healthy discovery within the peer refresh window.
+	// Owner and canonical suite: MCP reliability/registry projection.
+	t.Run("Should share healthy discovery while another source waits for breaker recovery", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		clock := &mcpReliabilityTestClock{now: time.Date(2026, 7, 15, 18, 0, 0, 0, time.UTC)}
+		deadService := deadentity.New(newMCPReliabilityStore(), deadentity.WithClock(clock.Now))
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`),
+		}})
+		sources := []SourceRef{
+			{Kind: SourceMCP, Owner: "broken", RawServerName: "broken",
+				Scope: mcpSourceScopeWorkspace, WorkspaceID: "ws-breaker"},
+			{Kind: SourceMCP, Owner: "healthy", RawServerName: "healthy",
+				Scope: mcpSourceScopeWorkspace, WorkspaceID: "ws-breaker"},
+		}
+		provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+			return sources, nil
+		}), executor, executor, WithMCPDeadEntityService(deadService))
+		if err != nil {
+			t.Fatal(err)
+		}
+		scope := Scope{Operator: true, WorkspaceID: "ws-breaker"}
+		if descriptors, err := provider.List(ctx, scope); err != nil || len(descriptors) != 2 {
+			t.Fatalf("initial descriptors = %+v, %v", descriptors, err)
+		}
+		key, _ := mcpDeadEntityKey(sources[0], scope.ProfileID)
+		for range deadentity.DefaultPermanentFailureThreshold {
+			if err := deadService.RecordFailure(
+				ctx, key, deadentity.FailurePermanent, "sidecar unavailable",
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		registry := newMCPRegistry(t, provider)
+		shared := WithProjectionListings(ctx, NewProjectionListings())
+		for _, peer := range []string{"leader", "peer"} {
+			scope.SessionID = peer
+			views, err := registry.OperatorProjection(shared, scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireToolIDs(t, views, "mcp__broken__lookup", "mcp__healthy__lookup")
+		}
+		executor.mu.Lock()
+		defer executor.mu.Unlock()
+		if len(executor.listedSources) != 3 || executor.listedSources[2].Owner != "healthy" {
+			t.Fatalf(
+				"source discovery = %+v, want initial sources plus one shared healthy refresh", executor.listedSources,
+			)
+		}
+	})
+
 	t.Run("Should Retain Dead MCP Descriptors Until Opportunistic Recovery", func(t *testing.T) {
 		t.Parallel()
 
@@ -1038,6 +1372,8 @@ func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 }
 
 type fakeMCPExecutor struct {
+	cancelDiscovery   context.CancelFunc
+	failAfter         int
 	mu                sync.Mutex
 	tools             []MCPToolDescriptor
 	status            MCPAuthStatus
@@ -1071,7 +1407,13 @@ func (f *fakeMCPExecutor) ListTools(_ context.Context, source SourceRef) ([]MCPT
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	if f.cancelDiscovery != nil {
+		f.cancelDiscovery()
+	}
 	f.listedSources = append(f.listedSources, source)
+	if f.failAfter > 0 && len(f.listedSources) > f.failAfter {
+		return nil, ErrToolUnavailable
+	}
 	if err := f.listErrByResource[source.ResourceID]; err != nil {
 		return nil, err
 	}
@@ -1263,6 +1605,66 @@ func (c *mcpReliabilityTestClock) Advance(delta time.Duration) {
 
 func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 	t.Parallel()
+	t.Run("Should omit a stalled source within budget and still discover healthy sources", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			executor := &stalledMCPExecutor{
+				fakeMCPExecutor: newFakeMCPExecutor(
+					[]MCPToolDescriptor{{RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+				),
+			}
+			provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return []SourceRef{
+					{Kind: SourceMCP, Owner: "blocked", RawServerName: "blocked"},
+					{Kind: SourceMCP, Owner: "healthy", RawServerName: "healthy"},
+				}, nil
+			}), executor, executor, WithMCPDiscoveryBudget(10*time.Second))
+			if err != nil {
+				t.Fatal(err)
+			}
+			caller, cancel := context.WithTimeout(t.Context(), 6*time.Second)
+			defer cancel()
+			started := time.Now()
+			listed, err := provider.List(caller, Scope{})
+			if err != nil || len(listed) != 1 || listed[0].ID != "mcp__healthy__lookup" {
+				t.Fatalf("bounded discovery = %+v, %v", listed, err)
+			}
+			if caller.Err() != nil || time.Since(started) > 3*time.Second {
+				t.Fatal("source deadline consumed the caller or catalog budget")
+			}
+		})
+	})
+
+	// Invariant: availability uses the successful discovery of this projection, not a second inconsistent upstream list.
+	// Owner: MCP registry projection; canonical suite: bounded discovery.
+	t.Run("Should project one coherent discovery when a second upstream listing would fail", func(t *testing.T) {
+		t.Parallel()
+		executor := newFakeMCPExecutor(
+			[]MCPToolDescriptor{{RawName: "echo", ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		)
+		executor.failAfter = 1
+		provider := newTestMCPProvider(
+			t,
+			executor,
+			[]SourceRef{{Kind: SourceMCP, Owner: "probe", RawServerName: "probe"}},
+		)
+		inputs := DefaultPolicyInputs()
+		inputs.SystemPermissionMode = PermissionModeApproveAll
+		inputs.TrustedSources = []SourceGrant{{Kind: SourceMCP, Owner: "probe"}}
+		registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		views, err := registry.SessionProjection(t.Context(), Scope{SessionID: "coherent"})
+		if err != nil || len(views) != 1 || views[0].Descriptor.ID != "mcp__probe__echo" {
+			t.Fatalf("successful discovery lost from initial projection: %+v, %v", views, err)
+		}
+		later, err := registry.SessionProjection(t.Context(), Scope{SessionID: "coherent"})
+		if err != nil || len(later) != 0 {
+			t.Fatalf("failed later discovery reused stale tools: %+v, %v", later, err)
+		}
+	})
+
 	for _, operator := range []bool{false, true} {
 		name := "Should discover once per batch for hosted sessions"
 		if operator {
@@ -1302,7 +1704,7 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 			executor.mu.Lock()
 			calls := len(executor.listedSources)
 			executor.mu.Unlock()
-			if calls > 2 {
+			if calls != 1 {
 				t.Fatalf("upstream discovery calls = %d for one source, want bounded batch discovery", calls)
 			}
 			executor.setStatus(MCPAuthStatus{Status: "needs_login"})
@@ -1313,7 +1715,7 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 			executor.mu.Lock()
 			afterAuthCalls := len(executor.listedSources) - calls
 			executor.mu.Unlock()
-			if afterAuthCalls > 2 {
+			if afterAuthCalls != 1 {
 				t.Fatalf(
 					"upstream discovery calls after auth withdrawal = %d, want bounded batch discovery",
 					afterAuthCalls,
@@ -1387,4 +1789,307 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 			}
 		})
 	}
+}
+
+type stalledMCPExecutor struct{ *fakeMCPExecutor }
+
+func (e *stalledMCPExecutor) ListTools(ctx context.Context, source SourceRef) ([]MCPToolDescriptor, error) {
+	if source.RawServerName == "blocked" {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return e.fakeMCPExecutor.ListTools(ctx, source)
+}
+
+func TestMCPCheckInAccess(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		origin    MCPReadOnlyOverrideOrigin
+		authority map[string]bool
+		read      bool
+	}{
+		{name: "Should apply operator config override", origin: MCPReadOnlyOverrideOperatorConfig, read: true},
+		{name: "Should preserve operator override despite unrelated agent denial", origin: MCPReadOnlyOverrideOperatorConfig, authority: map[string]bool{"mcp__linear__write": false}, read: true},
+		{name: "Should withhold override with unknown origin"},
+		{name: "Should withhold agent override without scope authority", origin: MCPReadOnlyOverrideAgentDefinition},
+		{name: "Should withhold agent override with empty scope authority", origin: MCPReadOnlyOverrideAgentDefinition, authority: map[string]bool{}},
+		{name: "Should withhold unapproved agent override", origin: MCPReadOnlyOverrideAgentDefinition, authority: map[string]bool{"mcp__linear__write": false}},
+		{name: "Should apply approved agent override", origin: MCPReadOnlyOverrideAgentDefinition, authority: map[string]bool{"mcp__linear__write": true}, read: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			source := SourceRef{Kind: SourceMCP, Owner: "linear", RawServerName: "linear"}
+			executor := newFakeMCPExecutor(
+				[]MCPToolDescriptor{
+					{
+						RawName:                "write",
+						Source:                 source,
+						ReadOnlyOverride:       true,
+						ReadOnlyOverrideOrigin: tc.origin,
+						InputSchema:            json.RawMessage(`{"type":"object"}`),
+					},
+				},
+			)
+			provider := newTestMCPProvider(t, executor, []SourceRef{source})
+			inputs := DefaultPolicyInputs()
+			inputs.MCPReadOnlyTools = tc.authority
+			registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			views, err := registry.DiagnosticProjection(t.Context(), Scope{})
+			if err != nil || len(views) != 1 {
+				t.Fatalf("views=%+v err=%v", views, err)
+			}
+			if (AccessOf(views[0].Descriptor) == AccessRead) != tc.read ||
+				views[0].Descriptor.CheckInWritable() == tc.read {
+				t.Fatalf("descriptor=%+v", views[0].Descriptor)
+			}
+			encoded, err := json.Marshal(views[0].Descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var classification struct {
+				Access   Access `json:"access"`
+				Writable *bool  `json:"check_in_writable"`
+				ID       ToolID `json:"id"`
+			}
+			if err := json.Unmarshal(encoded, &classification); err != nil {
+				t.Fatal(err)
+			}
+			if classification.ID != views[0].Descriptor.ID || classification.Writable == nil ||
+				*classification.Writable == tc.read || (classification.Access == AccessRead) != tc.read {
+				t.Fatalf("descriptor classification JSON=%s", encoded)
+			}
+		})
+	}
+	t.Run("Should give destructive annotations precedence and stay indexable [UT-002]", func(t *testing.T) {
+		t.Parallel()
+		for _, readOnly := range []bool{false, true} {
+			for _, destructive := range []bool{false, true} {
+				source := SourceRef{Kind: SourceMCP, Owner: "linear", RawServerName: "linear"}
+				d, err := mcpRegistryDescriptor(
+					source,
+					MCPToolDescriptor{
+						RawName:     "read",
+						Source:      source,
+						ReadOnly:    readOnly,
+						Destructive: destructive,
+						InputSchema: json.RawMessage(`{"type":"object"}`),
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := d.Validate(); err != nil {
+					t.Fatalf("read=%v destructive=%v: registry rejects descriptor: %v", readOnly, destructive, err)
+				}
+				want := AccessWrite
+				if readOnly && !destructive {
+					want = AccessRead
+				}
+				if AccessOf(d) != want || d.Destructive != destructive {
+					t.Fatalf("read=%v destructive=%v descriptor=%+v", readOnly, destructive, d)
+				}
+			}
+		}
+	})
+}
+
+// The first untracked source attempt fails while another projection joins its listing.
+type recoveringProjectionMCPExecutor struct {
+	*fakeMCPExecutor
+	once             sync.Once
+	started, release chan struct{}
+}
+
+func (e *recoveringProjectionMCPExecutor) ListTools(
+	ctx context.Context, source SourceRef,
+) ([]MCPToolDescriptor, error) {
+	failed := false
+	if source.Owner == "broken" {
+		e.once.Do(func() { close(e.started); <-e.release; failed = true })
+	}
+	if failed {
+		return nil, errors.New("transient discovery failure")
+	}
+	return e.fakeMCPExecutor.ListTools(ctx, source)
+}
+
+// Invariant (UT-037): waiting sources never reach discovery, including an executor
+// whose previous descriptors could otherwise be cached. Owner: MCP registry adapter.
+func TestMCPConsentPrecedesDiscovery(t *testing.T) {
+	t.Parallel()
+	executor := newFakeMCPExecutor(
+		[]MCPToolDescriptor{{RawName: "read", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	)
+	source := SourceRef{
+		Kind:          SourceMCP,
+		Owner:         "remote",
+		RawServerName: "remote",
+		WorkspaceID:   "ws",
+		ResourceID:    "record",
+		Scope:         "workspace",
+	}
+	admitted := false
+	provider, err := NewMCPProvider(
+		MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }),
+		executor,
+		executor,
+		WithMCPConsent(func(context.Context, SourceRef, string) (bool, error) { return admitted, nil }),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptors, err := provider.List(t.Context(), Scope{WorkspaceID: "ws"})
+	if err != nil || len(descriptors) != 0 || executor.listedResource("record") {
+		t.Fatalf("waiting source discovered: %+v %v", descriptors, err)
+	}
+	admitted = true
+	descriptors, err = provider.List(t.Context(), Scope{WorkspaceID: "ws"})
+	if err != nil || len(descriptors) != 1 {
+		t.Fatalf("approved source missing: %+v %v", descriptors, err)
+	}
+	admitted = false
+	descriptors, err = provider.List(t.Context(), Scope{WorkspaceID: "ws"})
+	if err != nil || len(descriptors) != 0 {
+		t.Fatalf("revoked source retained cached descriptors: %+v %v", descriptors, err)
+	}
+}
+
+// Invariant (UT-030): a signed-out source returns the repair code and exact message.
+// Owner: registry dispatch diagnostics; canonical suite: MCP adapter.
+func TestMCPAuthRequiredRepair(t *testing.T) {
+	t.Parallel()
+	descriptor := mcpDescriptor("mcp__linear__read", "linear", "read")
+	err := denialErrorForView(
+		&ToolView{
+			Descriptor:   descriptor,
+			Availability: Availability{ReasonCodes: []ReasonCode{ReasonMCPAuthRequired}},
+			Decision:     EffectiveToolDecision{ReasonCodes: []ReasonCode{ReasonMCPAuthRequired}},
+		},
+	)
+	toolErr, ok := errors.AsType[*ToolError](err)
+	if !ok || toolErr.Code != "mcp_auth_required" ||
+		toolErr.Message != "linear needs sign-in. Sign in to linear in CompozyOS (Settings → MCP servers)." {
+		t.Fatalf("error=%+v", err)
+	}
+}
+
+// Invariant: health-only discovery failures retain the last successful source views; recovery replaces them.
+// Owner: MCP provider discovery; canonical suite: MCP provider tests (UT-029/UT-113).
+func TestMCPProviderAdvertisedDiscoveryRetention(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain discovered views while failing and withdraw sign-out or removal", func(t *testing.T) {
+		t.Parallel()
+		executor := newFakeMCPExecutor(
+			[]MCPToolDescriptor{{RawName: "echo", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		)
+		source := SourceRef{Kind: SourceMCP, Owner: "echo", RawServerName: "echo", Scope: "user"}
+		sources := []SourceRef{source}
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return sources, nil }),
+			executor,
+			executor,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy := DefaultPolicyInputs()
+		policy.ExternalDefault = ExternalDefaultEnabled
+		policy.SystemPermissionMode = PermissionModeApproveAll
+		registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(policy, ToolsetCatalog{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		catalog := func() AdvertisedCatalog {
+			t.Helper()
+			views, err := registry.AdvertisedSessionProjection(
+				t.Context(),
+				Scope{SessionID: "retained", ProfileID: "default", WorkspaceID: "workspace-a"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return NewAdvertisedCatalog(views)
+		}
+		bound := catalog()
+		if bound.Servers["echo"] != 1 {
+			t.Fatal("initial source not discovered")
+		}
+		executor.setListError(errors.New("peer restarting"))
+		if catalog().Digest != bound.Digest {
+			t.Fatal("health loss discarded source views")
+		}
+		executor.setListError(nil)
+		executor.setStatus(MCPAuthStatus{Status: mcpAuthStatusExpired, TokenPresent: true, Refreshable: true})
+		if catalog().Digest != bound.Digest {
+			t.Fatal("refreshable expiry discarded source entitlement")
+		}
+		views, err := registry.AdvertisedSessionProjection(
+			t.Context(),
+			Scope{SessionID: "retained", WorkspaceID: "workspace-a"},
+		)
+		if err != nil || len(views) != 1 || !views[0].Availability.Executable {
+			t.Fatalf("refreshable tool unavailable: %+v, %v", views, err)
+		}
+		for _, status := range []MCPAuthStatus{
+			{Status: mcpAuthStatusExpired, TokenPresent: true},
+			{Status: mcpAuthStatusExpired, Refreshable: true},
+		} {
+			executor.setStatus(status)
+			if len(catalog().Servers) != 0 {
+				t.Fatal("expiry without usable credentials retained source entitlement")
+			}
+		}
+		executor.setStatus(MCPAuthStatus{Status: mcpAuthStatusNeedsLogin})
+		if catalog().Digest == bound.Digest {
+			t.Fatal("sign-out retained source entitlement")
+		}
+		executor.setStatus(MCPAuthStatus{Status: mcpAuthStatusAuthenticated})
+		executor.setListError(nil)
+		if catalog().Digest != bound.Digest {
+			t.Fatal("same-tool recovery changed catalog")
+		}
+		executor.mu.Lock()
+		executor.tools = []MCPToolDescriptor{
+			{RawName: "replacement", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		}
+		executor.mu.Unlock()
+		if catalog().Digest == bound.Digest {
+			t.Fatal("recovery ignored changed tools")
+		}
+		sources = nil
+		if len(catalog().Servers) != 0 {
+			t.Fatal("removed source remained advertised")
+		}
+	})
+}
+
+type overlappingMCPExecutor struct {
+	blockFresh bool
+	checkFails bool
+	*fakeMCPExecutor
+	started chan struct{}
+	release chan struct{}
+}
+
+func (e *overlappingMCPExecutor) ListTools(ctx context.Context, _ SourceRef) ([]MCPToolDescriptor, error) {
+	fresh := FreshMCPDiscovery(ctx)
+	if fresh == e.blockFresh {
+		close(e.started)
+		select {
+		case <-e.release:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	if fresh && e.checkFails {
+		return nil, ErrToolUnavailable
+	}
+	name := "fresh"
+	if !fresh {
+		name = "old"
+	}
+	return []MCPToolDescriptor{{RawName: name, InputSchema: json.RawMessage(`{"type":"object"}`)}}, nil
 }

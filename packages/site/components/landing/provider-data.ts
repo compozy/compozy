@@ -16,6 +16,4 @@ export const BUILTIN_PROVIDER_INTEGRATIONS = [
   { id: "xai", name: "xAI" },
 ] as const;
 
-export type BuiltinProviderIntegration = (typeof BUILTIN_PROVIDER_INTEGRATIONS)[number];
-
 export const BUILTIN_PROVIDER_COUNT = BUILTIN_PROVIDER_INTEGRATIONS.length;

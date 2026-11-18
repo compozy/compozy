@@ -13,3 +13,8 @@ type DaemonDrainController interface {
 	DrainState() contract.DrainState
 	DrainStatus(ctx context.Context) (contract.DrainStatusResponse, error)
 }
+
+// DaemonReadinessReporter is the optional lifecycle-phase readout a drain controller may provide.
+type DaemonReadinessReporter interface {
+	DaemonReadiness() *contract.DaemonReadinessPayload
+}

@@ -27,6 +27,16 @@ returned `NOTHING_TO_REPORT`; Claude also refused a requested scratch-file write
 See `../reports/2026-11-01-always-on-b4-remediation.md` for unavailable providers,
 scope limits, and exact evidence. This does not mark the Web journey walked.
 
+Provider-overlay regression (#1770): repeat a check-in with a second-account provider
+declaring `runtime_provider = "claude"`, then with an OpenCode overlay. Both must
+negotiate `plan` and accept safe mode updates while reads remain allowed and writes
+remain blocked. A Codex overlay accepts `read-only`, never `plan`. An overlay with
+no runtime mapping or an unsupported runtime that advertises only `plan` still fails
+with `triage_unsupported`; a later unsafe mode update fences subsequent prompts.
+Automation owners: `internal/acp` suites `TestTriageStartup` (subprocess negotiation)
+and `TestTriagePolicy` (mode guard and tool permissions). CI owns verification for
+this change; no local tests or live provider walk were run under the dispatch restriction.
+
 QA impact 2026-11-01 (always-on F1): built against the `_dx.md` contract with typed adapters and mocks,
 before those routes merged. Focused suites own the states. Not walked.
 
@@ -89,6 +99,19 @@ reason inside the same write transaction as the cap check and state transition.
 The agent receives `agent_instance_forbidden` and the pause remains; an operator
 can still resume it. `TestInstanceResumeAuthority` injects each pause after the
 service's initial read and verifies both denial and operator recovery with SQLite.
+
+Managed Goal pause recovery (#1315): start two child Goals, pause one directly,
+then pause their always-on instance. Maintenance must retain ownership of the other
+Goal's pause while its provider turn drains and until its coordinator parks the run.
+Resume the instance: only its own Goal resumes; the directly paused Goal stays paused.
+Repeat an immediate instance pause/resume while a Goal is draining. Managed Goal turns
+do not increment the unattended counter; child lifecycle notifications are separate
+autonomous inputs. Check that counter after resumed work starts and before another resume
+resets it. An interrupted operation already finalized as ambiguous must not be queued again
+when its pause is resumed; the Goal must still accept stop after the repeated pause/resume.
+`TestInstanceManagedGoalPauseIntegration` owns the real daemon/ACP
+walk, and `TestGoalTurnRuntimeLifecycleIntegration/Should_retain_an_instance_pause_until_the_coordinator_parks_the_run`
+forces maintenance into the interval between Goal turn settlement and coordinator pause.
 
 B1 approval admission: with authenticated agent credentials, POST create and DELETE
 archive under approve-reads and deny-all must return `403 tool_approval_required`
@@ -265,3 +288,16 @@ With the fix, 60 of 60 opens across three agents and two runs resolved with `pro
 Check-ins survived 5 reloads (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1183/1dd4c5745/04-after-reload.png`).
 
 QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): the row, its aria label ("Always-on agents"), the topbar pill and the add action read Always-on ("Add always-on agent"); the avatar menu item reads Heartbeat; capacity uses `agents.always_on.max_active_instances`; the v0.5.0 table name still applies through v0.5.1 with a daemon warning. Not walked; S4 walks it on the integration head.
+
+QA impact 2026-11-05 (#1303 always-on main chrome): opening an always-on agent's main session
+shows the agent identity, the Always-on pill, the agent's `…` menu and the window controls in the head.
+The head no longer shows the "N linked" chip, Stop, or the sessions and context sidebar toggles; a panel
+left open keeps its toggle only as the control that closes it. The transcript has no right-edge message trail, and the composer has no context meter (the daemon
+rotates the main session when its context runs out). An ordinary session keeps all of these. The gate is
+the instance's `main_session_id`, never the agent name. Verified on the Storybook route stories
+`AgentSession/AlwaysOnMain` and `AgentSession/LinkedWorkWithTrail` in headless Chromium, by DOM probe
+and screenshot before and after the change. Not walked in a live lab.
+
+QA impact 2026-11-11 (#1487): the sessions list toggle moved to the start of every session head, before the project name, and stays there while the list is collapsed; before, an always-on main lost the toggle once the list closed and could not reopen it from the head. The main's right side now holds only the Always-on pill and the agent's `…` menu, with no divider before them; a context sidebar left open still adds its close toggle. Walked in an isolated lab (branch daemon and web bundle, acpmock provider) at 1600px and 1280px: the list toggle opened and closed the list in both states, ⌘B still toggled it, and the base bundle reproduced the missing toggle.
+
+QA impact 2026-11-12 (#1616 instance main recovery): an always-on main whose provider thread belongs to another provider account or backend no longer loops on `session/load`. Walk: create an always-on Codex agent, let its main bind, queue an input while it is stopped, change Codex `model_provider`, and wait three maintenance wakes; expect one `load_session_failure` row, one "provider backend changed" notice, the earlier transcript intact, the queued input delivered on the new thread, and no repeated `instance maintenance failed` log lines. Operator recovery: `compozy agent instance clear-main <agent-or-instance-id>` and native `compozy__agent_instance_clear_main` (operator only) keep the instance, session ID, queued inputs and agent memory and replace the main's conversation; an agent session calling the tool gets `forbidden`, a running turn refuses the clear, and an instance without a main is told to run `ensure-main`. Automated owners: `TestInstancePausedRuntimeIntegration` (daemon, real ACP process), `TestResumeReplayFallback` (session), `TestNativeInstanceClearMain` and `TestAgentInstanceCommands`. Not walked; planning flag only.

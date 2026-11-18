@@ -20,6 +20,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/providerexec"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -93,6 +94,7 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 				return workspaceResolver
 			}, nil),
 			daemonInstance.situationContext.Augment,
+			daemonInstance.standingContext.Augment,
 		)...,
 	)
 	if err != nil {
@@ -201,11 +203,12 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		userResolved.Policy.EnableAugmenters,
 		[]HarnessAugmenter{
 			HarnessAugmenterSkills,
+			HarnessAugmenterStanding,
 			HarnessAugmenterSituation,
 		},
 	) {
 		t.Fatalf(
-			"user EnableAugmenters = %#v, want skills and situation",
+			"user EnableAugmenters = %#v, want skills, standing and situation",
 			userResolved.Policy.EnableAugmenters,
 		)
 	}
@@ -416,14 +419,14 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 				}
 				worker, err := manager.Spawn(
 					t.Context(),
-					session.SpawnOpts{ParentSessionID: parent.ID, AgentName: agentName, TTL: time.Minute},
+					&session.SpawnOpts{ParentSessionID: parent.ID, AgentName: agentName, TTL: time.Minute},
 				)
 				if err != nil {
 					t.Fatal(err)
 				}
 				stop(worker)
 				assertLatestPrompt("spawned worker", true)
-				child, err := manager.Spawn(t.Context(), session.SpawnOpts{
+				child, err := manager.Spawn(t.Context(), &session.SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       agentName,
 					SpawnRole:       session.SpawnRoleAutoTitle,
@@ -615,6 +618,7 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 			defaultPromptInputAugmenterDescriptors(
 				skillsAugmenter,
 				daemonInstance.situationContext.Augment,
+				daemonInstance.standingContext.Augment,
 			)...)
 		if err != nil {
 			t.Fatal(err)
@@ -743,7 +747,7 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 			var created *session.Session
 			var err error
 			if role == session.SpawnRoleAutoTitle {
-				created, err = manager.Spawn(t.Context(), session.SpawnOpts{
+				created, err = manager.Spawn(t.Context(), &session.SpawnOpts{
 					ParentSessionID: parent.ID, AgentName: workspace.Agents[0].Name, SpawnRole: role, TTL: time.Minute,
 				})
 			} else {
@@ -944,14 +948,7 @@ func bootHarnessPolicyDaemon(
 
 	var capturedDeps SessionManagerDeps
 
-	d, err := New(
-		WithHomePaths(homePaths),
-		WithConfig(cfg),
-		WithLogger(discardLogger()),
-	)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
+	d := newTestDaemon(t, homePaths, cfg)
 	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
 		capturedDeps = deps
 		return &fakeSessionManager{}, nil
@@ -982,8 +979,15 @@ func newHarnessIntegrationManager(
 ) *session.Manager {
 	t.Helper()
 
+	inventoryOption := session.WithRuntimeMCPInventory(deps.RuntimeMCPInventory)
+	if deps.RuntimeMCPInventory == nil {
+		inventoryOption = session.WithRuntimeMCPReader(runtimemcp.Reader{
+			DigestKey: []byte("session-runtime-mcp-test-key"),
+		})
+	}
 	opts := []session.Option{
 		session.WithHomePaths(homePaths),
+		inventoryOption,
 		session.WithDriver(driver),
 		session.WithWorkspaceResolver(&harnessIntegrationWorkspaceResolver{resolved: resolvedWorkspace}),
 		session.WithStore(
@@ -1003,6 +1007,15 @@ func newHarnessIntegrationManager(
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
+	authority, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+		Config: &resolvedWorkspace.Config, Sessions: manager,
+		WorkspaceResolver: &harnessIntegrationWorkspaceResolver{resolved: resolvedWorkspace},
+		ProfileNames:      nativeProfileReaderStub{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.SetMCPAuthorityResolver(authority)
 	return manager
 }
 
@@ -1095,6 +1108,20 @@ func (r *harnessIntegrationWorkspaceResolver) ResolveForProfile(
 	}
 	resolved.ProfileName = strings.TrimSpace(profileName)
 	return resolved, nil
+}
+
+func (r *harnessIntegrationWorkspaceResolver) ResolveAgentConfig(
+	ctx context.Context, ref, profileName string,
+) (workspacepkg.ResolvedAgentConfig, error) {
+	resolved, err := r.ResolveForProfile(ctx, ref, profileName)
+	if err != nil {
+		return workspacepkg.ResolvedAgentConfig{}, err
+	}
+	return workspacepkg.ResolvedAgentConfig{
+		Workspace: resolved.Workspace, WorkspaceID: resolved.ID,
+		ProfileID: resolved.ProfileID, ProfileName: resolved.ProfileName,
+		Config: resolved.Config, Agents: resolved.Agents,
+	}, nil
 }
 
 func (r *harnessIntegrationWorkspaceResolver) ResolveOrRegister(

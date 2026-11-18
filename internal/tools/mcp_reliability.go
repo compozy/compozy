@@ -6,6 +6,7 @@ import (
 	"maps"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/store"
@@ -41,6 +42,10 @@ func WithMCPDeadEntityService(service MCPDeadEntityService) MCPProviderOption {
 	}
 }
 
+func WithMCPConsent(check func(context.Context, SourceRef, string) (bool, error)) MCPProviderOption {
+	return func(p *MCPProvider) { p.consent = check }
+}
+
 type mcpReliability struct {
 	service MCPDeadEntityService
 
@@ -56,72 +61,166 @@ func (p *MCPProvider) listSourceDescriptors(
 	ctx context.Context,
 	source SourceRef,
 	profileID string,
-) ([]Descriptor, error) {
+	timeout time.Duration,
+) ([]Descriptor, bool, error) {
+	if p.consent != nil {
+		admitted, err := p.consent(ctx, source, profileID)
+		if err != nil {
+			return nil, false, err
+		}
+		if !admitted {
+			return nil, true, nil
+		}
+	}
+	if cachedMCPProjection(ctx) {
+		return p.cachedSourceDescriptors(source), true, nil
+	}
 	key, tracked := mcpDeadEntityKey(source, profileID)
 	var reliabilityState *mcpReliabilityState
 	if tracked && p.reliability != nil {
 		reliabilityState = p.reliability.stateFor(key)
 		decision, err := p.reliability.service.BeforeProbe(ctx, key)
 		if err != nil {
-			return nil, fmt.Errorf("tools: admit mcp source %q: %w", source.Owner, err)
+			return nil, false, fmt.Errorf("tools: admit mcp source %q: %w", source.Owner, err)
 		}
 		if !decision.Allowed {
-			return p.reliability.cached(key, reliabilityState), nil
-		}
-	}
-
-	discovered, err := p.exec.ListTools(ctx, source)
-	if err != nil {
-		// Abort aggregate discovery only when its caller stopped. A timeout or cancellation
-		// from one executor is a source failure and must not hide healthy MCP servers.
-		if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
-			return nil, contextError
-		}
-		if tracked && p.reliability != nil {
-			if recordErr := p.reliability.service.RecordFailure(
-				ctx,
-				key,
-				MCPDiscoveryFailureClass(err),
-				err.Error(),
-			); recordErr != nil {
-				return nil, fmt.Errorf("tools: record mcp source %q failure: %w", source.Owner, recordErr)
+			if !p.canRecoverAuthFailure(ctx, source, decision.Reason) {
+				return p.reliability.cached(key, reliabilityState), true, nil
 			}
-			return p.reliability.cached(key, reliabilityState), nil
 		}
-		return nil, nil
 	}
 
-	descriptors := make([]Descriptor, 0, len(discovered))
-	for i := range discovered {
-		descriptor, err := mcpRegistryDescriptor(source, discovered[i])
-		if err != nil {
-			return nil, wrapField(err, fmt.Sprintf("mcp_tools[%d]", i))
-		}
-		descriptors = append(descriptors, descriptor)
+	generation := p.nextDiscoveryGeneration(source, FreshMCPDiscovery(ctx))
+	discovered, err := p.discoverSource(ctx, source, timeout)
+	p.discoveryMu.Lock()
+	defer p.discoveryMu.Unlock()
+	current := p.discoveryGenerations[source]
+	if current.check != generation.check || (!FreshMCPDiscovery(ctx) && current.list != generation.list) {
+		return p.cachedSourceDescriptors(source), true, nil
 	}
+	if FreshMCPDiscovery(ctx) {
+		current.list++
+		p.discoveryGenerations[source] = current
+	}
+	if err != nil {
+		return p.discoveryFailed(ctx, source, key, tracked, reliabilityState, err)
+	}
+	return p.discoverySucceeded(ctx, source, key, tracked, reliabilityState, discovered)
+}
+
+func (p *MCPProvider) canRecoverAuthFailure(ctx context.Context, source SourceRef, reason string) bool {
+	if isNilInterface(p.auth) || !MCPAuthenticationFailure(reason) {
+		return false
+	}
+	status, err := p.auth.Status(ctx, source, "")
+	if err != nil || !status.TokenPresent {
+		return false
+	}
+	return status.Status == mcpAuthStatusAuthenticated ||
+		(status.Status == mcpAuthStatusExpired && status.Refreshable)
+}
+
+// MCPAuthenticationFailure recognizes persisted auth diagnostics from earlier releases.
+func MCPAuthenticationFailure(reason string) bool {
+	reason = strings.ToLower(reason)
+	return strings.Contains(reason, "mcp_auth_") || strings.Contains(reason, "mcp auth") ||
+		strings.Contains(reason, "needs sign-in") || strings.Contains(reason, "token is expired") ||
+		strings.Contains(reason, "login required")
+}
+
+type mcpDiscoveryGeneration struct{ check, list uint64 }
+
+func (p *MCPProvider) nextDiscoveryGeneration(source SourceRef, fresh bool) mcpDiscoveryGeneration {
+	p.discoveryMu.Lock()
+	defer p.discoveryMu.Unlock()
+	if p.discoveryGenerations == nil {
+		p.discoveryGenerations = make(map[SourceRef]mcpDiscoveryGeneration)
+	}
+	generation := p.discoveryGenerations[source]
+	if fresh {
+		generation.check++
+	}
+	generation.list++
+	p.discoveryGenerations[source] = generation
+	return p.discoveryGenerations[source]
+}
+
+// discoveryFailed records a failed discovery and returns the last known descriptors. Callers hold
+// discoveryMu.
+func (p *MCPProvider) discoveryFailed(
+	ctx context.Context,
+	source SourceRef,
+	key store.DeadEntityKey,
+	tracked bool,
+	reliabilityState *mcpReliabilityState,
+	err error,
+) ([]Descriptor, bool, error) {
+	// Abort aggregate discovery only when its caller stopped. A timeout or cancellation
+	// from one executor is a source failure and must not hide healthy MCP servers.
+	if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
+		return nil, false, contextError
+	}
+	p.discoveryFailures.Store(source, struct{}{})
+	if tracked && p.reliability != nil {
+		if recordErr := p.reliability.service.RecordFailure(
+			ctx,
+			key,
+			MCPDiscoveryFailureClass(err),
+			err.Error(),
+		); recordErr != nil {
+			return nil, false, fmt.Errorf("tools: record mcp source %q failure: %w", source.Owner, recordErr)
+		}
+		return p.reliability.cached(key, reliabilityState), false, nil
+	}
+	return p.cachedSourceDescriptors(source), false, nil
+}
+
+// discoverySucceeded stores the discovered descriptors and records recovery. Callers hold
+// discoveryMu.
+func (p *MCPProvider) discoverySucceeded(
+	ctx context.Context,
+	source SourceRef,
+	key store.DeadEntityKey,
+	tracked bool,
+	reliabilityState *mcpReliabilityState,
+	discovered []MCPToolDescriptor,
+) ([]Descriptor, bool, error) {
+	descriptors, err := p.normalizeDiscovery(source, discovered)
+	if err != nil {
+		return nil, false, err
+	}
+	p.discoveryFailures.Delete(source)
 	if tracked && p.reliability != nil {
 		if err := p.reliability.service.RecordSuccess(ctx, key); err != nil {
-			return nil, fmt.Errorf("tools: record mcp source %q recovery: %w", source.Owner, err)
+			return nil, false, fmt.Errorf("tools: record mcp source %q recovery: %w", source.Owner, err)
 		}
 		p.reliability.store(key, reliabilityState, descriptors)
 	}
-	return descriptors, nil
+	return descriptors, true, nil
 }
 
 // ForgetMCPServer retires one workspace MCP server's volatile reliability state.
 func (p *MCPProvider) ForgetMCPServer(workspaceID string, serverName string) {
-	if p == nil || p.reliability == nil {
+	if p == nil {
 		return
 	}
-	p.reliability.forgetSource(workspaceID, serverName)
+	p.forgetDiscovered(func(source SourceRef) bool {
+		return source.WorkspaceID == workspaceID && mcpSourceServerName(source) == serverName
+	})
+	if p.reliability != nil {
+		p.reliability.forgetSource(workspaceID, serverName)
+	}
 }
 
 // ForgetWorkspace retires cached MCP descriptors owned by one workspace.
 func (p *MCPProvider) ForgetWorkspace(workspaceID string) {
-	if p == nil || p.reliability == nil {
+	if p == nil {
 		return
 	}
-	p.reliability.forgetWorkspace(workspaceID)
+	p.forgetDiscovered(func(source SourceRef) bool { return source.WorkspaceID == workspaceID })
+	if p.reliability != nil {
+		p.reliability.forgetWorkspace(workspaceID)
+	}
 }
 
 func (r *mcpReliability) dead(ctx context.Context, source SourceRef, profileID string) bool {
@@ -276,7 +375,6 @@ func MCPDiscoveryFailureClass(err error) deadentity.FailureClass {
 		ReasonMCPAuthRequired,
 		ReasonMCPAuthExpired,
 		ReasonMCPAuthInvalid,
-		ReasonMCPAuthRefreshFailed,
 		ReasonSourceDisabled:
 		return deadentity.FailurePermanent
 	default:

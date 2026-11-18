@@ -1,7 +1,9 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -25,6 +27,10 @@ type secretRefResolver interface {
 
 // CallExecutor lists and calls configured MCP servers through official MCP SDK clients.
 type CallExecutor struct {
+	digestKey      []byte
+	consent        func(context.Context, toolspkg.SourceRef, ResolvedServer) error
+	authNetwork    func(context.Context, mcpauth.ServerConfig) error
+	authRecovery   func(context.Context, *ResolvedServer) error
 	servers        ServerResolver
 	tokenStore     mcpauth.TokenStore
 	auth           authService
@@ -36,6 +42,7 @@ type CallExecutor struct {
 	secureClient   *securehttp.Client
 	authGeneration *mcpauth.MutationGeneration
 	timeout        time.Duration
+	toolListFloor  time.Duration
 	toolCache      mcpToolListCache
 	stdioPool      *StdioSessionPool
 }
@@ -45,6 +52,14 @@ var _ toolspkg.MCPAuthStatusProvider = (*CallExecutor)(nil)
 
 // CallExecutorOption configures the daemon-owned MCP executor.
 type CallExecutorOption func(*CallExecutor)
+
+func WithDefinitionDigestKey(key []byte) CallExecutorOption {
+	return func(e *CallExecutor) { e.digestKey = bytes.Clone(key) }
+}
+
+func WithConsentCheck(check func(context.Context, toolspkg.SourceRef, ResolvedServer) error) CallExecutorOption {
+	return func(e *CallExecutor) { e.consent = check }
+}
 
 // WithTokenStore allows remote MCP authorization headers to be injected inside internal/mcp.
 func WithTokenStore(store mcpauth.TokenStore) CallExecutorOption {
@@ -105,6 +120,24 @@ func WithTimeout(timeout time.Duration) CallExecutorOption {
 	}
 }
 
+// withToolListFloor bounds ordinary discovery frequency for test fixtures.
+func withToolListFloor(interval time.Duration) CallExecutorOption {
+	return func(executor *CallExecutor) {
+		if interval > 0 {
+			executor.toolListFloor = interval
+		}
+	}
+}
+
+// WithToolListNormalizationCapacity sets a positive limit in place of the default of 128 entries.
+func WithToolListNormalizationCapacity(capacity int) CallExecutorOption {
+	return func(executor *CallExecutor) {
+		if capacity > 0 {
+			executor.toolCache.normalizationCapacity = capacity
+		}
+	}
+}
+
 // WithStdioSessionPool reuses daemon-owned stdio MCP children instead of launching one per request.
 func WithStdioSessionPool(pool *StdioSessionPool) CallExecutorOption {
 	return func(executor *CallExecutor) {
@@ -134,14 +167,18 @@ func NewMCPCallExecutor(
 		servers: servers,
 		timeout: defaultCallTimeout,
 		toolCache: mcpToolListCache{
-			entries:          make(map[string]mcpToolListCacheEntry),
-			projectionStates: make(map[string]mcpToolProjectionState),
+			normalizationCapacity: defaultToolNormalizationCacheCapacity,
+			entries:               make(map[string]mcpToolListCacheEntry),
+			projectionStates:      make(map[string]mcpToolProjectionState),
 		},
 	}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(executor)
 		}
+	}
+	if len(executor.digestKey) == 0 {
+		return nil, errors.New("mcp: definition digest key is required")
 	}
 	if executor.lookupSecret == nil {
 		executor.lookupSecret = func(string) string { return "" }
@@ -168,7 +205,10 @@ func NewMCPCallExecutor(
 		executor.httpClient = &cloned
 	}
 	if executor.auth == nil && executor.tokenStore != nil {
-		options := []mcpauth.ServiceOption{mcpauth.WithMutationGeneration(executor.authGeneration)}
+		options := []mcpauth.ServiceOption{
+			mcpauth.WithMutationGeneration(executor.authGeneration),
+			mcpauth.WithNetworkAuthorization(executor.authNetwork),
+		}
 		authClient := executor.secureClient
 		if authClient == nil {
 			authClient = securehttp.NewClient(
@@ -193,4 +233,14 @@ func NewMCPCallExecutor(
 		executor.auth = service
 	}
 	return executor, nil
+}
+
+// WithAuthNetworkAuthorization guards continued OAuth network activity.
+func WithAuthNetworkAuthorization(check func(context.Context, mcpauth.ServerConfig) error) CallExecutorOption {
+	return func(e *CallExecutor) { e.authNetwork = check }
+}
+
+// WithAuthRecovery clears authentication-related runtime failures after renewal.
+func WithAuthRecovery(onRecovery func(context.Context, *ResolvedServer) error) CallExecutorOption {
+	return func(e *CallExecutor) { e.authRecovery = onRecovery }
 }

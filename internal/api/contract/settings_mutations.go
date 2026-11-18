@@ -41,6 +41,7 @@ type PutSettingsMCPServerRequest struct {
 	Server          SettingsMCPServerPayload              `json:"server"`
 	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
 	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
+	PreserveHeaders bool                                  `json:"preserve_headers,omitzero"`
 	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
 }
 
@@ -107,6 +108,17 @@ type SettingsProvidersResponse struct {
 
 type SettingsProviderResponse struct {
 	Provider SettingsProviderItemPayload `json:"provider"`
+}
+
+// SetSettingsProviderEnabledRequest toggles providers.<name>.enabled only.
+type SetSettingsProviderEnabledRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+// SettingsProviderEnabledResponse returns the toggled provider and its live apply result.
+type SettingsProviderEnabledResponse struct {
+	Provider SettingsProviderItemPayload `json:"provider"`
+	Apply    SettingsApplyResponse       `json:"apply"`
 }
 
 type SettingsMCPServerResponse struct {

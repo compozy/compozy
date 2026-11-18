@@ -93,3 +93,8 @@ QA impact 2026-11-03 (always-on hardening S12): a message from or to an always-o
 QA verification 2026-11-03 (always-on hardening S12, soh/qa 583415ef5): Partial. In paused Ops Lead's main the queued rows read "From Scribe · Can you confirm… · Held until it resumes" and "1 monitor fired · Held until it resumes" (`12-s12-held-message.png`). Paper cuts: the sender avatar is the Claude provider mark rather than Scribe's, and the held monitor row shows a raw "SY synthetic" label. The Sent card leg was not verified: the acpmock sender's transcript renders a generic tool row with raw JSON `"delivery":"held"` (`12b-s12-sent-card.png`), which may only reflect how the fixture's tool call renders.
 
 Re-walk 2026-11-03 on 4056dbcc2 (S12): the held peer row now shows Scribe's own avatar and "From Scribe". The held monitor row reads "1 monitor fired · Held until it resumes" with no "SY synthetic" label (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/12-s12-held-message.png`). The Sent card leg is still unverified with the acpmock sender.
+
+QA impact 2026-11-08 (#1388): a message from an automation run or another non-operator session
+whose name equals its agent reads "From {agent}" (for example "From issue-triage") instead of "From
+New session". An operator's untitled sender still reads "From New session". Owner:
+`session-messages.test.tsx` (useSessionLabel). Not walked.

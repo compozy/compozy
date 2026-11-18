@@ -1,6 +1,8 @@
 import type { TerminalInfo } from "@/systems/terminal";
 import { DESTINATION_COPY, USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
+import { normalizeRankingText, subsequenceMatch } from "./ranking/normalize";
+
 /** A place a new terminal can open: a project, one of its managed worktrees, or User (`@user`). */
 export interface TerminalLauncherDestination {
   /** Unique row key: the project id, `@user`, or `<project id>/<worktree id>`. */
@@ -10,8 +12,6 @@ export interface TerminalLauncherDestination {
   /** The managed worktree the terminal starts in; `null` for the project root or User. */
   worktreeId: string | null;
   label: string;
-  /** A worktree row's project, shown beside its name; `null` elsewhere. */
-  projectLabel: string | null;
   /** Why a terminal cannot start here (the project folder is gone); `null` when it can. */
   unavailableReason: string | null;
 }
@@ -25,6 +25,12 @@ export interface TerminalLauncherWorktree {
   state: string;
   profile_name: string;
 }
+
+/** A launcher row's cmdk value for a new-terminal destination. */
+export const terminalLauncherNewValue = (destination: string) => `new:${destination}`;
+
+/** A launcher row's cmdk value for a running terminal. */
+export const terminalLauncherAttachValue = (terminalId: string) => `attach:${terminalId}`;
 
 /** Shared with the projects overview: a registered project whose folder no longer exists. */
 export const TERMINAL_LAUNCHER_FOLDER_MISSING = "Folder not found";
@@ -47,7 +53,6 @@ export function terminalLauncherDestinations(
       workspaceId: workspace.id,
       worktreeId: null,
       label: workspace.name,
-      projectLabel: null,
       unavailableReason: missing ? TERMINAL_LAUNCHER_FOLDER_MISSING : null,
     });
     if (missing) continue;
@@ -59,7 +64,6 @@ export function terminalLauncherDestinations(
         workspaceId: workspace.id,
         worktreeId: worktree.id,
         label: worktree.name,
-        projectLabel: workspace.name,
         unavailableReason: null,
       });
     }
@@ -69,7 +73,6 @@ export function terminalLauncherDestinations(
     workspaceId: USER_SCOPE_SELECTOR,
     worktreeId: null,
     label: DESTINATION_COPY.user,
-    projectLabel: null,
     unavailableReason: null,
   });
   return destinations;
@@ -93,4 +96,110 @@ export function terminalLauncherCreateInput(destination: TerminalLauncherDestina
 /** Running terminals only: an exited one is history, read from the journal. */
 export function runningTerminals(terminals: readonly TerminalInfo[]): TerminalInfo[] {
   return terminals.filter(terminal => terminal.state === "running");
+}
+
+/** A project (or User) row and the worktrees that fold under it. */
+export interface TerminalLauncherProject {
+  destination: TerminalLauncherDestination;
+  /** Every worktree destination of the project, in catalog order. */
+  worktrees: readonly TerminalLauncherDestination[];
+}
+
+/** One project row as the launcher shows it for the current search and folds. */
+export interface TerminalLauncherProjectView extends TerminalLauncherProject {
+  /**
+   * Whether the project row is a result itself. A project shown only as the
+   * parent of matching worktrees is context: its row cannot be chosen, so a
+   * search selects the worktree that was searched for.
+   */
+  matches: boolean;
+  /** Whether the worktrees show; always `false` for a project without any. */
+  expanded: boolean;
+  /** The worktree rows on the project's branch: the matching ones while searching. */
+  shown: readonly TerminalLauncherDestination[];
+}
+
+/** Folds the flat destination list into project rows, each owning the worktrees that follow it. */
+export function terminalLauncherProjects(
+  destinations: readonly TerminalLauncherDestination[]
+): TerminalLauncherProject[] {
+  const projects: {
+    destination: TerminalLauncherDestination;
+    worktrees: TerminalLauncherDestination[];
+  }[] = [];
+  for (const destination of destinations) {
+    const parent = projects.at(-1);
+    if (
+      destination.worktreeId !== null &&
+      parent?.destination.workspaceId === destination.workspaceId
+    ) {
+      parent.worktrees.push(destination);
+    } else {
+      projects.push({ destination, worktrees: [] });
+    }
+  }
+  return projects;
+}
+
+/** Whether `query` filters the launcher: anything but separators and blanks. */
+export function terminalLauncherSearching(query: string): boolean {
+  return normalizeRankingText(query).compact !== "";
+}
+
+const termReaches = (term: string, field: string) =>
+  subsequenceMatch(term, normalizeRankingText(field).compact) !== null;
+
+/**
+ * Whether every word of `query` reaches one of `fields`: its letters appear in
+ * order, ignoring case, accents, and separators (the palette's subsequence
+ * match), so a search can combine words from several fields. An empty query
+ * matches everything.
+ */
+export function terminalLauncherMatches(query: string, fields: readonly string[]): boolean {
+  return normalizeRankingText(query).tokens.every(term =>
+    fields.some(field => termReaches(term, field))
+  );
+}
+
+/**
+ * Whether a search reaches a worktree: every word reaches its name or its
+ * project's, and at least one reaches its own name, so the project's name
+ * alone never lists every worktree of the project.
+ */
+function worktreeMatches(query: string, worktree: string, project: string): boolean {
+  return (
+    terminalLauncherMatches(query, [worktree, project]) &&
+    normalizeRankingText(query).tokens.some(term => termReaches(term, worktree))
+  );
+}
+
+/**
+ * The project rows for a search. Without a query every project shows and its
+ * worktrees follow `toggled` (the projects the operator unfolded). With one, a
+ * project shows when it or one of its worktrees matches; a project holding a
+ * match unfolds on its own, and `toggled` then flips that default, so a match
+ * can be folded and a project matched by name unfolded. An unfolded project
+ * shows only its matching worktrees, or all of them when none match.
+ */
+export function terminalLauncherProjectViews(
+  projects: readonly TerminalLauncherProject[],
+  query: string,
+  toggled: ReadonlySet<string>
+): TerminalLauncherProjectView[] {
+  const searching = terminalLauncherSearching(query);
+  const views: TerminalLauncherProjectView[] = [];
+  for (const project of projects) {
+    const label = project.destination.label;
+    const matching = searching
+      ? project.worktrees.filter(worktree => worktreeMatches(query, worktree.label, label))
+      : [];
+    const matches = terminalLauncherMatches(query, [label]);
+    if (searching && matching.length === 0 && !matches) continue;
+    const flipped = toggled.has(project.destination.value);
+    const expanded =
+      project.worktrees.length > 0 && (searching ? matching.length > 0 !== flipped : flipped);
+    const shown = !expanded ? [] : matching.length > 0 ? matching : project.worktrees;
+    views.push({ ...project, matches, expanded, shown });
+  }
+  return views;
 }

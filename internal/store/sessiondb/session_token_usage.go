@@ -25,7 +25,7 @@ func (s *SessionDB) RecordTokenUsage(ctx context.Context, usage store.TokenUsage
 	return s.enqueueWrite(ctx, sessionWriteRequest{
 		ctx:    ctx,
 		kind:   sessionWriteUsage,
-		usage:  usage,
+		usage:  &usage,
 		result: make(chan sessionWriteResult, 1),
 	})
 }
@@ -53,18 +53,19 @@ func tokenUsageFromGenerated(rows []sqlcgen.TokenUsage) ([]store.TokenUsage, err
 			return nil, fmt.Errorf("store: parse token usage timestamp for turn %q: %w", row.TurnID, err)
 		}
 		usages = append(usages, store.TokenUsage{
-			TurnID:           row.TurnID,
-			InputTokens:      nullableInt64Pointer(row.InputTokens),
-			OutputTokens:     nullableInt64Pointer(row.OutputTokens),
-			TotalTokens:      nullableInt64Pointer(row.TotalTokens),
-			ThoughtTokens:    nullableInt64Pointer(row.ThoughtTokens),
-			CacheReadTokens:  nullableInt64Pointer(row.CacheReadTokens),
-			CacheWriteTokens: nullableInt64Pointer(row.CacheWriteTokens),
-			ContextUsed:      nullableInt64Pointer(row.ContextUsed),
-			ContextSize:      nullableInt64Pointer(row.ContextSize),
-			CostAmount:       nullableFloat64Pointer(row.CostAmount),
-			CostCurrency:     nullableStringPointer(row.CostCurrency),
-			Timestamp:        timestamp,
+			TurnID:             row.TurnID,
+			InputTokens:        nullableInt64Pointer(row.InputTokens),
+			OutputTokens:       nullableInt64Pointer(row.OutputTokens),
+			TotalTokens:        nullableInt64Pointer(row.TotalTokens),
+			ThoughtTokens:      nullableInt64Pointer(row.ThoughtTokens),
+			CacheReadTokens:    nullableInt64Pointer(row.CacheReadTokens),
+			CacheWriteTokens:   nullableInt64Pointer(row.CacheWriteTokens),
+			ContextUsed:        nullableInt64Pointer(row.ContextUsed),
+			ContextSize:        nullableInt64Pointer(row.ContextSize),
+			CostAmount:         nullableFloat64Pointer(row.CostAmount),
+			ReportedCostAmount: nullableFloat64Pointer(row.ReportedCostAmount),
+			CostCurrency:       nullableStringPointer(row.CostCurrency),
+			Timestamp:          timestamp,
 		})
 	}
 	return usages, nil
@@ -98,18 +99,19 @@ func (s *SessionDB) writeTokenUsage(ctx context.Context, usage store.TokenUsage)
 
 	return store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
 		if err := sqlcgen.New(tx).UpsertTokenUsage(ctx, sqlcgen.UpsertTokenUsageParams{
-			TurnID:           usage.TurnID,
-			InputTokens:      sessionNullableInt64(usage.InputTokens),
-			OutputTokens:     sessionNullableInt64(usage.OutputTokens),
-			TotalTokens:      sessionNullableInt64(usage.TotalTokens),
-			ThoughtTokens:    sessionNullableInt64(usage.ThoughtTokens),
-			CacheReadTokens:  sessionNullableInt64(usage.CacheReadTokens),
-			CacheWriteTokens: sessionNullableInt64(usage.CacheWriteTokens),
-			ContextUsed:      sessionNullableInt64(usage.ContextUsed),
-			ContextSize:      sessionNullableInt64(usage.ContextSize),
-			CostAmount:       sessionNullableFloat64(usage.CostAmount),
-			CostCurrency:     sessionNullableStringPointer(usage.CostCurrency),
-			Timestamp:        store.FormatTimestamp(usage.Timestamp),
+			TurnID:             usage.TurnID,
+			InputTokens:        sessionNullableInt64(usage.InputTokens),
+			OutputTokens:       sessionNullableInt64(usage.OutputTokens),
+			TotalTokens:        sessionNullableInt64(usage.TotalTokens),
+			ThoughtTokens:      sessionNullableInt64(usage.ThoughtTokens),
+			CacheReadTokens:    sessionNullableInt64(usage.CacheReadTokens),
+			CacheWriteTokens:   sessionNullableInt64(usage.CacheWriteTokens),
+			ContextUsed:        sessionNullableInt64(usage.ContextUsed),
+			ContextSize:        sessionNullableInt64(usage.ContextSize),
+			CostAmount:         sessionNullableFloat64(usage.CostAmount),
+			ReportedCostAmount: sessionNullableFloat64(usage.ReportedCostAmount),
+			CostCurrency:       sessionNullableStringPointer(usage.CostCurrency),
+			Timestamp:          store.FormatTimestamp(usage.Timestamp),
 		}); err != nil {
 			return fmt.Errorf("store: upsert token usage: %w", err)
 		}

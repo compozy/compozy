@@ -1,28 +1,57 @@
-import { docsSource } from "@/lib/source";
-import { DocsBody, DocsPage } from "fumadocs-ui/page";
-import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { DocPageMasthead } from "@/components/docs/doc-page-masthead";
-import { DocsMainContainer } from "@/components/site/docs-main-container";
+import type { ReactNode } from "react";
+import { notFound } from "next/navigation";
+
+import { CliBody } from "@/components/docs/cli-page";
+import { DOCS_PROSE, textOf } from "@/components/docs/docs-classes";
+import { DocsHome } from "@/components/docs/docs-home";
+import { DocsMasthead, DocsPager } from "@/components/docs/docs-masthead";
+import { DocsPageFrame, DocsTocDisclosure, type DocsTocItem } from "@/components/docs/docs-toc";
 import {
   BreadcrumbListJsonLd,
   TechArticleJsonLd,
   type BreadcrumbItem,
 } from "@/components/seo/structured-data";
-import { getMDXComponents } from "@/mdx-components";
+import { apiOperationCount } from "@/lib/api-reference";
+import { cliToc, readCliDoc, type CliDoc } from "@/lib/cli-doc";
+import { getDocsPageSource } from "@/lib/get-llm-text";
+import { getDocsShell, neighboursOf } from "@/lib/docs-shell";
+import { normalizeDocsUrl } from "@/lib/docs-navigation";
 import { openapi } from "@/lib/openapi";
-import { resolveDocMastheadMeta } from "@/lib/doc-masthead-meta";
-import { absoluteUrl, canonicalPath, createPageMetadata, docsSourceUrl } from "@/lib/site-config";
+import { countOf, isSdkUrl, sdkFacts, sdkResourceForUrl } from "@/lib/sdk-reference";
+import { SDK_PROSE } from "@/components/sdk/sdk-classes";
+import {
+  absoluteUrl,
+  canonicalPath,
+  createPageMetadata,
+  docsSourceUrl,
+  siteConfig,
+} from "@/lib/site-config";
+import { docsSource } from "@/lib/source";
+import { cn } from "@compozy/ui";
+import { getMDXComponents } from "@/mdx-components";
 
 interface PageProps {
   params: Promise<{ slug?: string[] }>;
 }
 
-function buildActionUrls(pageUrl: string, slug: string[], relativePath: string | undefined) {
+const WORDS_PER_MINUTE = 220;
+
+/**
+ * Where "Open on GitHub" goes: generated API and SDK resource pages are gitignored build output, so
+ * they link to what they are generated from; every other page links to its own MDX file.
+ */
+function sourceUrlOf(template: DocTemplate, relativePath: string): string {
+  const blob = `${siteConfig.repoUrl}/blob/${siteConfig.repoBranch}`;
+  if (template.kind === "api") return `${blob}/openapi/compozy.json`;
+  if (template.kind === "sdk") return `${blob}/packages/site/scripts/generate-sdk-reference.ts`;
+  return docsSourceUrl(relativePath);
+}
+
+function buildActionUrls(pageUrl: string, slug: string[], githubUrl: string) {
   const slugSegment = slug.length ? `${slug.join("/")}/` : "";
   const markdownUrl = `/llms.mdx/docs/${slugSegment}`;
   const canonicalPageUrl = absoluteUrl(canonicalPath(pageUrl));
-  const githubUrl = docsSourceUrl(relativePath ?? "");
   return { markdownUrl, pageUrl: canonicalPageUrl, githubUrl };
 }
 
@@ -54,30 +83,94 @@ function resolvedDocSlug(pageUrl: string): string[] {
   return pageUrl.split("/").filter(Boolean).slice(1);
 }
 
+function readingMinutes(content: string): number {
+  const words = content.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
+}
+
+function tocIdOf(url: string): string {
+  return url.startsWith("#") ? url.slice(1) : (url.split("#")[1] ?? url);
+}
+
+/** Which template a page renders through: generated references get their own layouts. */
+type DocTemplate =
+  | { kind: "cli"; cli: CliDoc }
+  | { kind: "api"; endpoints: number }
+  | { kind: "sdk" }
+  | { kind: "article" };
+
+function templateOf(
+  slug: string[],
+  url: string,
+  content: string,
+  description: string
+): DocTemplate {
+  if (sdkResourceForUrl(url) !== undefined) return { kind: "sdk" };
+  // Generated CLI pages are parsed once here, at build, into the command template.
+  const cli = slug[0] === "cli" ? readCliDoc(slug.join("/"), content, description) : null;
+  if (cli) return { kind: "cli", cli };
+  // Generated API resource pages (not the hand-written API overview) use the resource template.
+  const endpoints = slug[0] === "api" ? apiOperationCount(content) : 0;
+  return endpoints > 0 ? { kind: "api", endpoints } : { kind: "article" };
+}
+
+type PageToc = { depth: number; url: string; title: ReactNode }[];
+
+/** API and SDK resource pages have no rail: their endpoint index plays that part, as in the draft. */
+function tocOf(template: DocTemplate, pageToc: PageToc): DocsTocItem[] {
+  if (template.kind === "cli") return cliToc(template.cli);
+  if (template.kind === "api" || template.kind === "sdk") return [];
+  return pageToc.flatMap(item =>
+    item.depth === 2 || item.depth === 3
+      ? [{ id: tocIdOf(item.url), title: textOf(item.title), depth: item.depth }]
+      : []
+  );
+}
+
+/** The masthead facts the draft shows: endpoints for API pages, method counts for SDK pages, nothing for CLI commands. */
+function factsOf(template: DocTemplate, url: string, content: string): string | undefined {
+  if (template.kind === "cli") return undefined;
+  if (template.kind === "api") return countOf(template.endpoints, "endpoint");
+  return sdkFacts(url) ?? `${readingMinutes(content)} min read`;
+}
+
+/** Layout per template: reference pages run full width and keep their chrome at reading width. */
+function layoutOf(template: DocTemplate, url: string) {
+  const reference = template.kind === "api" || template.kind === "sdk";
+  let bodyClass = cn("pt-9", DOCS_PROSE, isSdkUrl(url) && SDK_PROSE);
+  if (template.kind === "api") bodyClass = "pt-0";
+  if (template.kind === "sdk") bodyClass = DOCS_PROSE;
+  return {
+    wide: reference,
+    chromeClass: reference ? "max-w-[860px]" : undefined,
+    bodyClass,
+    // API pages have no "On this page" disclosure: their endpoint index plays that part.
+    disclosure: template.kind !== "api",
+  };
+}
+
+/** CLI commands title in mono, as the draft does. */
+function mastheadTitle(template: DocTemplate, title: string): ReactNode {
+  if (template.kind !== "cli") return null;
+  return <span className="docs-count font-mono text-[0.72em]">{title}</span>;
+}
+
 export default async function Page(props: PageProps) {
   const params = await props.params;
   const slug = params.slug ?? [];
   const page = docsSource.getPage(slug);
   if (!page) notFound();
 
+  const shell = getDocsShell();
+  const url = normalizeDocsUrl(page.url);
+  const place = shell.byUrl.get(url);
   const MDX = page.data.body;
   const resolvedSlug = resolvedDocSlug(page.url);
-  const actions = buildActionUrls(page.url, slug, page.path);
   const breadcrumbs = buildBreadcrumbs(resolvedSlug, page.data.title);
-  const masthead = resolveDocMastheadMeta(slug, docsSource.pageTree, page.url, page.data.title);
   const ogImagePath = `/og/docs/${resolvedSlug.length ? `${resolvedSlug.join("/")}/` : ""}image.png`;
   const openapiPreload = slug[0] === "api" ? await openapi.preloadOpenAPIPage(page) : undefined;
-
-  return (
-    <DocsPage
-      id="main-content"
-      toc={page.data.toc}
-      tableOfContent={{ enabled: slug.length > 0 }}
-      breadcrumb={{ enabled: false }}
-      tableOfContentPopover={{ enabled: false }}
-      slots={{ container: DocsMainContainer }}
-      className="px-4 pt-8 pb-12 md:px-6 xl:layout:[--fd-toc-width:14rem] xl:pt-10"
-    >
+  const seo = (
+    <>
       <TechArticleJsonLd
         title={page.data.title}
         description={page.data.description}
@@ -85,22 +178,53 @@ export default async function Page(props: PageProps) {
         imageUrl={ogImagePath}
       />
       <BreadcrumbListJsonLd items={breadcrumbs} />
-      <DocPageMasthead
-        product={masthead.product}
-        audience={masthead.audience}
-        crumbs={masthead.crumbs}
-        title={page.data.title}
-        description={page.data.description}
-        maturity={page.data.maturity}
-        sectionPageCount={masthead.sectionPageCount}
-        markdownUrl={actions.markdownUrl}
-        pageUrl={actions.pageUrl}
-        githubUrl={actions.githubUrl}
-      />
-      <DocsBody className="site-doc-body mt-8 max-w-none">
-        <MDX components={getMDXComponents(openapiPreload)} />
-      </DocsBody>
-    </DocsPage>
+    </>
+  );
+  if (url === "/docs" || !place) {
+    return (
+      <>
+        {seo}
+        <DocsHome shell={shell}>
+          <MDX components={getMDXComponents(openapiPreload)} />
+        </DocsHome>
+      </>
+    );
+  }
+
+  const content = getDocsPageSource(page);
+  const template = templateOf(slug, url, content, page.data.description ?? "");
+  const toc = tocOf(template, page.data.toc);
+  const layout = layoutOf(template, url);
+  const { previous, next } = neighboursOf(shell, url);
+
+  return (
+    <>
+      {seo}
+      <DocsPageFrame toc={toc} wide={layout.wide}>
+        <div className={layout.chromeClass}>
+          <DocsMasthead
+            place={place}
+            title={mastheadTitle(template, place.title)}
+            facts={factsOf(template, url, content)}
+            maturity={page.data.maturity}
+            actions={buildActionUrls(page.url, slug, sourceUrlOf(template, page.path))}
+            toc={layout.disclosure ? <DocsTocDisclosure toc={toc} /> : null}
+          />
+        </div>
+        {template.kind === "cli" ? (
+          <div className="pt-9">
+            <CliBody cli={template.cli} />
+          </div>
+        ) : (
+          <div className={layout.bodyClass}>
+            <MDX components={getMDXComponents(openapiPreload)} />
+          </div>
+        )}
+        <div className={layout.chromeClass}>
+          <DocsPager previous={previous} next={next} />
+        </div>
+      </DocsPageFrame>
+    </>
   );
 }
 

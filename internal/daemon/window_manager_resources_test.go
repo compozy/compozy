@@ -97,15 +97,16 @@ func TestWindowManagerLayoutResources(t *testing.T) {
 		}
 		for id, window := range fixture.Spec.Document.Windows {
 			window.DesktopID = "desktop-default"
-			window.Placement = windowmanager.WindowPlacementFloating
-			window.FloatingRect = windowmanager.NormalizedRect{Width: 0.5, Height: 0.5}
+			window.TabID = windowmanager.TabID("tab-" + string(id))
+
 			window.Route.Search = windowmanager.RouteSearch{}
 			if window.Route.Pathname == "" {
 				window.Route.Pathname = "/"
 			}
 			fixture.Spec.Document.Windows[id] = window
 		}
-		fixture.Spec.Document.Desktops[0].Floating = []windowmanager.WindowID{"retired", "kept"}
+		fixture.Spec.Document.Desktops[0].Tabs = []windowmanager.Tab{daemonTestTab("retired"), daemonTestTab("kept")}
+		fixture.Spec.Document.Desktops[0].ActiveTabID = "tab-retired"
 		fixture.Spec.ParticipantSlots = []windowmanager.WindowID{"retired", "kept", "virtual"}
 		original, err := store.Put(
 			t.Context(),
@@ -125,7 +126,7 @@ func TestWindowManagerLayoutResources(t *testing.T) {
 		if got.Version != original.Version+1 || got.Source != original.Source || got.Owner != original.Owner ||
 			len(got.Spec.Document.Windows) != 1 || got.Spec.Document.Windows["kept"].Route.Pathname != "/settings" ||
 			!reflect.DeepEqual(got.Spec.ParticipantSlots, []windowmanager.WindowID{"kept", "virtual"}) ||
-			!reflect.DeepEqual(got.Spec.Document.Desktops[0].Floating, []windowmanager.WindowID{"kept"}) {
+			len(got.Spec.Document.Desktops[0].Tabs) != 1 || got.Spec.Document.Desktops[0].Tabs[0].ID != "tab-kept" {
 			t.Fatalf("reconciled resource = %+v", got)
 		}
 		if err := reconcileStoredWindowLayouts(t.Context(), state); err != nil {
@@ -188,14 +189,18 @@ func windowLayoutRecord(
 			ID:      id, DisplayName: desktopName,
 			AspectVariant:  windowmanager.LayoutAspectAny,
 			OverflowPolicy: windowmanager.LayoutOverflowStack,
-			Document: windowmanager.LayoutDocument{
-				Version: windowmanager.SnapshotVersion,
-				Desktops: []windowmanager.Desktop{{
-					ID: "desktop-default", Name: desktopName,
-					Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
-				}},
-				Windows: map[windowmanager.WindowID]windowmanager.Window{},
-			},
+			Document:       daemonTestLayoutDocument(desktopName),
 		},
+	}
+}
+
+func daemonTestLayoutDocument(name string) windowmanager.LayoutDocument {
+	s := windowmanager.DefaultSnapshot("")
+	s.Desktops[0].Name = name
+	return windowmanager.LayoutDocument{
+		Version:   s.Version,
+		Desktops:  s.Desktops,
+		Windows:   s.Windows,
+		Overrides: s.Overrides,
 	}
 }

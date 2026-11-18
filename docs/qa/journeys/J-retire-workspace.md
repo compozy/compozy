@@ -50,5 +50,8 @@ journey:
     - at_step: 1
       how: "Leave after the active-session conflict."
       resume: "Nothing was deleted; stop the named session and repeat the same request."
+    - at_step: 2
+      how: "Leave after a 503 window_manager_unavailable naming a profile and project whose stored layout could not be read."
+      resume: "The removal stays pending; once that layout is readable, repeat the same request and it answers 204."
   crosses: [workspace-registry, sessions, oauth-store, encrypted-secrets, HTTP, UDS, transaction-boundary]
 ```

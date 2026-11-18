@@ -1,6 +1,29 @@
 import type { SessionPayload } from "../types";
 import { isSubagentSession } from "./session-hierarchy";
+import { sessionOriginKind } from "./session-origin";
 import { isUserControllableSession } from "./session-running";
+
+/**
+ * Why `source` cannot move under any session, or `null` when a parent may be
+ * chosen. Continued and forked sessions keep their source session as their
+ * lineage parent (shown as provenance, not nesting), so they stay where they are.
+ */
+export function sessionMoveUnderRefusal(source: SessionPayload): string | null {
+  if (isSubagentSession(source)) return "Subagent sessions stay with their parent.";
+  if (!isUserControllableSession(source)) {
+    return "Only your own sessions can move under another session.";
+  }
+  if (source.archived_at !== null) return "Unarchive this session first.";
+  if (sessionOriginKind(source) !== null) {
+    return "Continued and forked sessions stay linked to the session they came from, so they can't move under another session.";
+  }
+  if ((source.lineage?.parent_session_id ?? "") !== "") {
+    return sessionCanMakeTopLevel(source)
+      ? "Make this session top-level first, then move it under another session."
+      : "Only a top-level session can move under another session.";
+  }
+  return null;
+}
 
 /**
  * Why `source` cannot become `target`'s child, or `null` when the drop may be
@@ -26,6 +49,17 @@ export function sessionAdoptRefusal(source: SessionPayload, target: SessionPaylo
     return "A session can't move under one of its own children.";
   }
   return null;
+}
+
+/**
+ * The sessions `source` may move under, in catalog order: eligible user sessions
+ * of its project and profile, never itself or one of its own descendants.
+ */
+export function sessionParentCandidates(
+  source: SessionPayload,
+  sessions: readonly SessionPayload[]
+): SessionPayload[] {
+  return sessions.filter(target => sessionAdoptRefusal(source, target) === null);
 }
 
 /** A child the operator nested (provenance lineage) can be made top-level again. */

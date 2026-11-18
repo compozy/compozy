@@ -59,18 +59,24 @@ func monitorCreateDescriptor() toolspkg.Descriptor {
 		"monitor_create",
 		"Monitor Create",
 		"Register a daemon-owned monitor that wakes this session with a new turn when the condition fires. Use it "+
+			"only from a CompozyOS session execution. Claude provider-native subagents cannot receive monitor wakes; "+
+			"their registrations are refused by the provider hook. Return pending work and any terminal_id to the parent "+
+			"so it can register and resume the subagent, or use a separate CompozyOS child session. Use it "+
 			"for every wait on external work, inside or outside your turn: pull request checks and reviews, deploys, "+
 			"builds, polling remote state, or a delay. kind=pull_request is the wait for a pull request: the daemon "+
-			"reads its forge about once a minute and wakes you when checks fail, all checks finish, a new review or "+
+			"reads its forge about once a minute and wakes you when merge conflicts appear, checks fail, "+
+			"all checks finish, a new review or "+
 			"unresolved thread arrives, or the pull request merges or closes. It selects branch, by default this "+
 			"session's branch, refuses a default branch, and stays armed across wakes until a pull request it saw "+
 			"open ends, timeout_seconds expires, or you cancel it; you decide when delivery is done. kind=terminal watches a "+
 			"terminal_id from compozy__terminal_exec (still_running) or compozy__terminal_open until it exits or its "+
 			"output matches a pattern; kind=timer fires once after "+
-			"delay_seconds; kind=session watches other sessions of this workspace and profile in "+
+			"delay_seconds; kind=session watches other sessions authorized by workspace access policy in "+
 			"target_session_ids until any or all of them reach states (one wake with each session's state; failed, "+
 			"stopped, or deleted sessions always count). Sessions with queued input are still working. A target is "+
-			"read as it is now, and a condition that already holds fires at once. Use it instead of shell watches such "+
+			"read as it is now, and a condition that already holds fires at once. Access is checked again before wakes; "+
+			"revoked targets are reported as unknown with access_denied. Foreign names are secret-redacted. "+
+			"Pull-request and terminal monitors stay in the caller workspace and profile. Use it instead of shell watches such "+
 			"as gh pr checks --watch, sleep loops, polling, or provider-internal background tasks, Monitor, and "+
 			"ScheduleWakeup — those cannot wake a CompozyOS session. After registering, keep working on steps that do "+
 			"not depend on it; end your turn only when every remaining step waits on a registered monitor or subagent. "+
@@ -114,14 +120,14 @@ const monitorCreateInputSchema = `{
 			"description":"Terminal: exit (default) or match. Session: all (default) or any."},
 		"pattern":{"type":"string","minLength":1,"maxLength":512,"description":"Go regular expression for until=match."},
 		"branch":{"type":"string","minLength":1,"maxLength":255,
-			"description":"pull_request monitors only; defaults to this session's branch."},
+			"description":"pull_request monitors only; defaults to this session's branch. Use owner:branch for a GitHub fork."},
 		"timeout_seconds":{"type":"integer","minimum":1,"maximum":86400,
 			"description":"Defaults: terminal 1800 (max 21600), session 7200 (max 21600), ` +
 	`pull_request 21600 (max 86400). A timeout still wakes you."},
 		"delay_seconds":{"type":"integer","minimum":5,"maximum":86400,"description":"Timer monitors only."},
 		"target_session_ids":{"type":"array","minItems":1,"maxItems":32,
 			"items":{"type":"string","minLength":1},
-			"description":"Session monitors only: other sessions of this workspace and profile to watch."},
+			"description":"Session monitors only: other session IDs to read under workspace access policy."},
 		"states":{"type":"array","minItems":1,"uniqueItems":true,
 			"items":{"type":"string","enum":["idle","waiting-for-input","waiting-for-auth","needs-attention",
 				"hung","stopped","failed"]},

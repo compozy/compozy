@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -343,6 +344,54 @@ func TestWorkspaceListInfoAndRemove(t *testing.T) {
 		}
 		if removed.ID != "ws_alpha" {
 			t.Fatalf("removed.ID = %q, want %q", removed.ID, "ws_alpha")
+		}
+	})
+}
+
+func TestWorkspaceRemoveResumesHeldRemoval(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resume a removal whose registration is already gone by workspace ID", func(t *testing.T) {
+		t.Parallel()
+		var deletedRef string
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{}, &daemonAPIError{
+					statusCode: http.StatusNotFound, status: "404 Not Found",
+				}
+			},
+			deleteWorkspaceFn: func(_ context.Context, ref string) error {
+				deletedRef = ref
+				return nil
+			},
+		})
+
+		out, _, err := executeRootCommand(t, deps, "workspace", "remove", "ws_alpha", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(workspace remove) error = %v", err)
+		}
+		var removed WorkspaceRecord
+		if err := json.Unmarshal([]byte(out), &removed); err != nil ||
+			removed.ID != "ws_alpha" || deletedRef != "ws_alpha" {
+			t.Fatalf("removed = %#v deleted ref = %q err = %v, want ws_alpha", removed, deletedRef, err)
+		}
+	})
+
+	t.Run("Should report the lookup error when nothing is pending", func(t *testing.T) {
+		t.Parallel()
+		notFound := &daemonAPIError{statusCode: http.StatusNotFound, status: "404 Not Found"}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{}, notFound
+			},
+			deleteWorkspaceFn: func(context.Context, string) error {
+				return &daemonAPIError{statusCode: http.StatusNotFound, status: "404 Not Found"}
+			},
+		})
+
+		_, _, err := executeRootCommand(t, deps, "workspace", "remove", "missing", "-o", "json")
+		if !errors.Is(err, notFound) {
+			t.Fatalf("workspace remove error = %v, want the lookup error", err)
 		}
 	})
 }

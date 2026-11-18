@@ -98,6 +98,9 @@ type RuntimeValidationItem struct {
 // RuntimeValidationError reports one or more invalid runtime fields.
 type RuntimeValidationError struct {
 	Items []RuntimeValidationItem `json:"runtime_validation"`
+	// Cause is an optional typed failure (for example a disabled provider) that callers match
+	// with errors.Is; it is not serialized.
+	Cause error `json:"-"`
 }
 
 // Error implements error.
@@ -115,12 +118,18 @@ func (e *RuntimeValidationError) Error() string {
 	if item.Reason == "retired_key" || item.Reason == "unknown_field" {
 		message += "; see MIGRATION_GUIDE.md#per-task-runtime-selection"
 	}
+	if e.Cause != nil {
+		message += ": " + e.Cause.Error()
+	}
 	return message
 }
 
-// Unwrap keeps runtime validation in the loop validation error family.
-func (e *RuntimeValidationError) Unwrap() error {
-	return ErrValidation
+// Unwrap keeps runtime validation in the loop validation error family and exposes its cause.
+func (e *RuntimeValidationError) Unwrap() []error {
+	if e == nil || e.Cause == nil {
+		return []error{ErrValidation}
+	}
+	return []error{ErrValidation, e.Cause}
 }
 
 // RuntimeCatalog validates provider identity and preserves exact model IDs for the provider boundary.
@@ -132,6 +141,15 @@ type RuntimeCatalog interface {
 // WorkspaceRuntimeCatalog resolves workspace-specific provider validation authority.
 type WorkspaceRuntimeCatalog interface {
 	ForWorkspace(context.Context, WorkspaceID, string) (RuntimeCatalog, error)
+}
+
+// NewRuntimeValidationCauseError reports one invalid runtime field with a typed cause.
+func NewRuntimeValidationCauseError(cause error, item RuntimeValidationItem) error {
+	err := NewRuntimeValidationError(item)
+	if validation, ok := errors.AsType[*RuntimeValidationError](err); ok {
+		validation.Cause = cause
+	}
+	return err
 }
 
 // NewRuntimeValidationError constructs a normalized validation error.

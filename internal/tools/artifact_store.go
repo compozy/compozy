@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const artifactFileMode = 0o600
@@ -73,14 +74,14 @@ func OpenFilesystemToolArtifactStore(
 // Put publishes canonical bytes once and returns their opaque reference.
 func (s *FilesystemToolArtifactStore) Put(
 	ctx context.Context,
-	workspaceID string,
+	scope workspaceaccess.TargetRef,
 	content []byte,
 ) (ArtifactRef, error) {
 	if err := artifactContextErr(ctx); err != nil {
 		return ArtifactRef{}, err
 	}
-	if strings.TrimSpace(workspaceID) == "" {
-		return ArtifactRef{}, fmt.Errorf("%w: workspace is required", ErrToolArtifactPersistence)
+	if !validToolArtifactScope(scope) {
+		return ArtifactRef{}, fmt.Errorf("%w: concrete artifact scope is required", ErrToolArtifactPersistence)
 	}
 	if int64(len(content)) > s.retention.MaxBytes {
 		return ArtifactRef{}, fmt.Errorf(
@@ -98,7 +99,7 @@ func (s *FilesystemToolArtifactStore) Put(
 	}
 
 	id := artifactID(content)
-	workspaceDir, err := s.ensureWorkspaceDir(workspaceID)
+	workspaceDir, err := s.ensureScopeDir(scope)
 	if err != nil {
 		return ArtifactRef{}, err
 	}
@@ -131,10 +132,10 @@ func (s *FilesystemToolArtifactStore) Put(
 	return toolArtifactRef(id, int64(len(stored))), nil
 }
 
-// ReadPage returns one exact bounded byte range after enforcing workspace scope and retention.
+// ReadPage returns one exact bounded byte range after enforcing owner scope and retention.
 func (s *FilesystemToolArtifactStore) ReadPage(
 	ctx context.Context,
-	workspaceID string,
+	scope workspaceaccess.TargetRef,
 	uri string,
 	offset int64,
 	limit int64,
@@ -142,7 +143,7 @@ func (s *FilesystemToolArtifactStore) ReadPage(
 	if err := artifactContextErr(ctx); err != nil {
 		return ToolArtifactPage{}, err
 	}
-	if strings.TrimSpace(workspaceID) == "" {
+	if !validToolArtifactScope(scope) {
 		return ToolArtifactPage{}, ErrToolArtifactNotFound
 	}
 	if offset < 0 {
@@ -171,7 +172,7 @@ func (s *FilesystemToolArtifactStore) ReadPage(
 	if err := s.sweepLocked(ctx, 0, 0); err != nil {
 		return ToolArtifactPage{}, err
 	}
-	path := filepath.Join(s.workspaceDir(workspaceID), id+".json")
+	path := filepath.Join(s.scopeDir(scope), id+".json")
 	content, err := readArtifactFile(path, id)
 	if err != nil {
 		return ToolArtifactPage{}, err
@@ -196,6 +197,23 @@ func (s *FilesystemToolArtifactStore) ReadPage(
 		NextOffset: end,
 		EOF:        end == total,
 	}, nil
+}
+
+// RemoveUserArtifacts removes one profile's retained User results without touching workspace results.
+func (s *FilesystemToolArtifactStore) RemoveUserArtifacts(ctx context.Context, profileID string) error {
+	if err := artifactContextErr(ctx); err != nil {
+		return err
+	}
+	scope := workspaceaccess.ScopeTarget("", strings.TrimSpace(profileID))
+	if !validToolArtifactScope(scope) {
+		return fmt.Errorf("%w: profile is required", ErrToolArtifactPersistence)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := os.RemoveAll(s.scopeDir(scope)); err != nil {
+		return fmt.Errorf("%w: remove User artifacts: %w", ErrToolArtifactPersistence, err)
+	}
+	return nil
 }
 
 // Sweep removes expired and over-budget artifacts in deterministic creation order.
@@ -230,8 +248,8 @@ func (s *FilesystemToolArtifactStore) ensureRoot() error {
 	return nil
 }
 
-func (s *FilesystemToolArtifactStore) ensureWorkspaceDir(workspaceID string) (string, error) {
-	dir := s.workspaceDir(workspaceID)
+func (s *FilesystemToolArtifactStore) ensureScopeDir(scope workspaceaccess.TargetRef) (string, error) {
+	dir := s.scopeDir(scope)
 	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 		return "", fmt.Errorf("%w: create artifact workspace: %w", ErrToolArtifactPersistence, err)
 	}
@@ -248,9 +266,21 @@ func (s *FilesystemToolArtifactStore) ensureWorkspaceDir(workspaceID string) (st
 	return dir, nil
 }
 
-func (s *FilesystemToolArtifactStore) workspaceDir(workspaceID string) string {
-	digest := sha256.Sum256([]byte(strings.TrimSpace(workspaceID)))
-	return filepath.Join(s.root, hex.EncodeToString(digest[:]))
+func validToolArtifactScope(scope workspaceaccess.TargetRef) bool {
+	return !scope.AllProfiles &&
+		((scope.Kind == workspaceaccess.TargetUser && scope.WorkspaceID == "" && strings.TrimSpace(scope.ProfileID) != "") ||
+			(scope.Kind == workspaceaccess.TargetWorkspace && strings.TrimSpace(scope.WorkspaceID) != ""))
+}
+
+func (s *FilesystemToolArtifactStore) scopeDir(scope workspaceaccess.TargetRef) string {
+	profileID := strings.TrimSpace(scope.ProfileID)
+	workspaceID := strings.TrimSpace(scope.WorkspaceID)
+	key, prefix := workspaceID, ""
+	if scope.Kind == workspaceaccess.TargetUser {
+		key, prefix = profileID, "user-"
+	}
+	digest := sha256.Sum256([]byte(key))
+	return filepath.Join(s.root, prefix+hex.EncodeToString(digest[:]))
 }
 
 func (s *FilesystemToolArtifactStore) cleanupFailedPublish(path string, cause error) error {
@@ -368,7 +398,7 @@ func (s *FilesystemToolArtifactStore) listArtifacts(ctx context.Context) ([]reta
 		if err := artifactContextErr(ctx); err != nil {
 			return nil, err
 		}
-		if !workspaceEntry.IsDir() || len(workspaceEntry.Name()) != sha256.Size*2 {
+		if !workspaceEntry.IsDir() || !artifactScopeDirectory(workspaceEntry.Name()) {
 			continue
 		}
 		workspacePath := filepath.Join(s.root, workspaceEntry.Name())
@@ -416,4 +446,13 @@ func withArtifactStoreWriteFile(writeFile artifactWriteFile) func(*artifactStore
 	return func(options *artifactStoreOptions) {
 		options.writeFile = writeFile
 	}
+}
+
+func artifactScopeDirectory(name string) bool {
+	name = strings.TrimPrefix(name, "user-")
+	if len(name) != sha256.Size*2 {
+		return false
+	}
+	_, err := hex.DecodeString(name)
+	return err == nil
 }

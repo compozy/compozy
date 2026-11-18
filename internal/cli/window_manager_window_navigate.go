@@ -56,7 +56,7 @@ func newWindowNavigateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)

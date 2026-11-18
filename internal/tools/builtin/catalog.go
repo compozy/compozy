@@ -21,7 +21,7 @@ var catalogTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDToolSearch,
 		"tool_search",
 		"Tool Search",
-		"Search the caller's tool catalog with effective callable or denied diagnostics.",
+		"Search the caller's tool catalog with diagnostics; defaults to 20 results, continued with next_offset.",
 		toolSearchInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -67,7 +67,17 @@ func toolListDescriptor() toolspkg.Descriptor {
 }
 
 func catalogDescriptors() []toolspkg.Descriptor {
-	return catalogTools
+	descriptors := make([]toolspkg.Descriptor, len(catalogTools))
+	for i, d := range catalogTools {
+		switch d.ID {
+		case toolspkg.ToolIDToolList:
+			d = withResultViews(d, toolListCompactSchema, string(d.OutputSchema))
+		case toolspkg.ToolIDToolSearch:
+			d = withResultViews(d, toolSearchCompactSchema, string(d.OutputSchema))
+		}
+		descriptors[i] = d
+	}
+	return descriptors
 }
 
 const toolListInputSchema = `{
@@ -84,7 +94,8 @@ const toolSearchInputSchema = `{
 	"required":["query"],
 	"properties":{
 		"query":{"type":"string"},
-		"limit":{"type":"integer"}
+		"offset":{"type":"integer","minimum":0},
+		"limit":{"type":"integer","minimum":0,"maximum":100,"description":"Page size; omitted or zero uses 20."}
 	},
 	"additionalProperties":false
 }`

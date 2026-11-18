@@ -84,13 +84,50 @@ func (a Authority) Authorize(
 func IntersectPermissions(a, b store.SessionPermissionPolicy) store.SessionPermissionPolicy {
 	a = store.NormalizeSessionPermissionPolicy(a)
 	b = store.NormalizeSessionPermissionPolicy(b)
+	mode := store.PermissionList
+	if a.MCPServersMode == store.PermissionInherit && b.MCPServersMode == store.PermissionInherit {
+		mode = store.PermissionInherit
+	}
+	toolsMode := store.PermissionList
+	if a.ToolsMode == store.PermissionInherit && b.ToolsMode == store.PermissionInherit {
+		toolsMode = store.PermissionInherit
+	}
+	servers := intersectAtoms(a.MCPServers, b.MCPServers)
+	if a.MCPServersMode == store.PermissionInherit {
+		servers = b.MCPServers
+	}
+	if b.MCPServersMode == store.PermissionInherit {
+		servers = a.MCPServers
+	}
+	ceiling := a.AncestorMCPCeiling
+	if b.AncestorMCPCeiling != nil {
+		ceiling = store.IntersectMCPCeiling(ceiling, *b.AncestorMCPCeiling)
+	}
 	return store.SessionPermissionPolicy{
-		Tools:          intersectAtoms(a.Tools, b.Tools),
+		MCPServersMode: mode, ToolsMode: toolsMode, AncestorMCPCeiling: ceiling,
+		Tools:          intersectTools(a, b),
 		Skills:         intersectAtoms(a.Skills, b.Skills),
-		MCPServers:     intersectAtoms(a.MCPServers, b.MCPServers),
+		MCPServers:     servers,
 		WorkspacePaths: intersectAtoms(a.WorkspacePaths, b.WorkspacePaths),
 	}
 }
+
+// Inherited external tools are open; stored native tools remain a concrete ceiling.
+func intersectTools(a, b store.SessionPermissionPolicy) []string {
+	result := intersectAtoms(a.Tools, b.Tools)
+	for _, pair := range [][2]store.SessionPermissionPolicy{{a, b}, {b, a}} {
+		if pair[0].ToolsMode != store.PermissionInherit {
+			continue
+		}
+		for _, id := range pair[1].Tools {
+			if !strings.HasPrefix(id, "compozy__") && !slices.Contains(result, id) {
+				result = append(result, id)
+			}
+		}
+	}
+	return store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{Tools: result}).Tools
+}
+
 func intersectAtoms(a, b []string) []string {
 	result := make([]string, 0)
 	for _, atom := range a {
@@ -101,8 +138,13 @@ func intersectAtoms(a, b []string) []string {
 	return result
 }
 
-const pauseReasonManual = "manual"
+const (
+	pauseReasonManual                = "manual"
+	pauseReasonDefinitionMissing     = "definition_missing"
+	pauseReasonDefinitionNotAlwaysOn = "definition_not_always_on"
+)
 
+// OperatorOnlyResume keeps safety and unknown pauses under operator control.
 func OperatorOnlyResume(reason string) bool {
-	return !strings.HasPrefix(reason, "definition_")
+	return reason != pauseReasonDefinitionMissing && reason != pauseReasonDefinitionNotAlwaysOn
 }

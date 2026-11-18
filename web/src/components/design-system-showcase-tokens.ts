@@ -82,16 +82,19 @@ export const TOKEN_GROUPS: TokenGroup[] = [
   {
     id: "brand",
     label: "Brand",
-    caption: "The brand orange marks highlights and needs-you (attn), never the default action.",
+    caption:
+      "Volt marks highlights and selection; amber (attn) marks needs-you. Neither is the default action.",
     swatches: colors([
-      ["--color-brand", "Highlight / needs you"],
+      ["--color-brand", "Highlight fill / mark"],
       ["--color-brand-hover", "Highlight pressed"],
-      ["--color-brand-strong", "Highlight text (needs you, required)"],
+      ["--color-brand-strong", "Brand as text"],
       ["--color-brand-ink", "Text on brand fill"],
-      ["--color-brand-tint", "Needs-you chip tint"],
+      ["--color-brand-tint", "Highlight chip tint"],
       ["--color-brand-tint-strong", "Active find highlight"],
       ["--color-brand-dim", "Highlight ring"],
-      ["--color-brand-glow", "Needs-you glow"],
+      ["--color-brand-glow", "Highlight glow"],
+      ["--color-attn", "Needs you"],
+      ["--color-attn-tint", "Needs-you chip tint"],
     ]),
   },
   {

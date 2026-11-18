@@ -6,7 +6,8 @@
    `:root` qualifier outranks tokens.css's own unlayered `:root` block, which
    the CSS @import order places after this file.
    Values: brand-spec.md light column (aicss.dev "Approval Card" light set);
-   The brand orange steps one shade deeper for light contrast. */
+   brand volt, the cyan focus colour and the needs-you amber step deeper for
+   light contrast (brand v1.2). */
 
 [data-theme="light"]:root {
   color-scheme: light;
@@ -32,7 +33,7 @@
   --color-line: #e6e6e9;
   --color-line-soft: #efeff1;
   --color-line-strong: #d6d6db;
-  --color-line-focus: #b8bcc4;
+  --color-line-focus: #0a6f86;
   --color-indicator: #888888;
   --color-knob: #ffffff;
 
@@ -52,24 +53,29 @@
   --color-primary-hover: #2a2f3a;
   --color-primary-foreground: #ffffff;
 
-  /* Brand — the orange, one step deeper. */
-  /* Deep enough that white count ink clears 4.5:1 on the fill. */
-  --color-brand: #c94b24;
-  --color-brand-hover: #b9441f;
-  --color-brand-strong: #b9441f;
+  /* Brand — volt, one step deeper. */
+  /* Deep enough that white count ink clears 4.5:1 on the fill and that brand
+     text (`brand-strong`) clears AA on every light surface. */
+  --color-brand: #2448e6;
+  --color-brand-hover: #1f3fcc;
+  --color-brand-strong: #2448e6;
   --color-brand-ink: #ffffff;
-  --color-brand-tint: rgba(201, 75, 36, 0.08);
-  --color-brand-tint-strong: rgba(201, 75, 36, 0.14);
-  --color-brand-dim: rgba(201, 75, 36, 0.22);
-  --color-brand-glow: rgba(201, 75, 36, 0.05);
+  --color-brand-tint: rgba(36, 72, 230, 0.08);
+  --color-brand-tint-strong: rgba(36, 72, 230, 0.14);
+  --color-brand-dim: rgba(36, 72, 230, 0.22);
+  --color-brand-glow: rgba(36, 72, 230, 0.05);
+  /* Needs you — deep amber that reads as text on paper (5.43:1 on white). */
+  --color-attn: #9a5b00;
+  --color-attn-tint: rgba(154, 91, 0, 0.08);
 
   /* Signal palette. */
-  --color-success: #15a06a;
-  --color-success-tint: rgba(21, 160, 106, 0.08);
-  --color-warning: #d98404;
-  --color-warning-tint: rgba(217, 132, 4, 0.08);
-  --color-destructive: #dc2626;
-  --color-destructive-tint: rgba(220, 38, 38, 0.07);
+  --color-success: #0a7650;
+  --color-success-tint: rgba(10, 118, 80, 0.08);
+  --color-warning: #9a5b00;
+  --color-warning-tint: rgba(154, 91, 0, 0.08);
+  --color-destructive: #c81e1e;
+  --color-destructive-tint: rgba(200, 30, 30, 0.07);
+  --color-destructive-ink: #ffffff;
   --color-info: #5f5f94;
   --color-info-tint: rgba(95, 95, 148, 0.1);
   --color-well: #def2ea;
@@ -80,6 +86,7 @@
   --color-neutral-ink: #6b6b70;
   --color-neutral-tint: rgba(110, 110, 120, 0.07);
   --color-destructive-foreground: #ffffff;
+  --color-ring: #0a6f86;
 
   /* Data-viz ink — black-alpha monochrome. */
   --color-viz-line: rgba(10, 13, 18, 0.45);
@@ -125,8 +132,8 @@
     0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a;
   --theme-shadow-overlay: 0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px var(--color-line);
   --theme-shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --theme-shadow-focus-ring: 0 0 0 2px rgba(10, 13, 18, 0.5);
-  --theme-shadow-focus-inset: inset 0 0 0 2px rgba(10, 13, 18, 0.5);
+  --theme-shadow-focus-ring: 0 0 0 2px rgba(10, 111, 134, 1);
+  --theme-shadow-focus-inset: inset 0 0 0 2px rgba(10, 111, 134, 1);
 
   /* Workspaces strip "more to scroll" veil: a faint ink on light. */
   --workspaces-edge-veil: rgba(10, 13, 18, 0.06);
@@ -182,27 +189,28 @@
     radial-gradient(75% 85% at 50% -14%, rgba(10, 13, 18, 0.06), transparent 58%),
     linear-gradient(180deg, var(--color-surface-2), var(--color-rail) 50%);
 
-  /* Terminal well — ink-on-white ANSI: each hue deepened so it reads on #fff,
-     and the "white" lanes become greys (a white glyph on a white well is
-     invisible). */
-  --terminal-bg: #ffffff;
-  --terminal-fg: #434343;
-  --terminal-cursor: #1a1a1a;
-  --terminal-selection: rgba(10, 13, 18, 0.12);
+  /* Terminal well — the brand terminal palette's light set
+     (brand/product/terminal-palette.json): every hue deepened to read on
+     paper, and the "white" lanes become greys. ANSI 0 stays a near-black text
+     lane: programs print SGR 30 as ordinary copy on a light well. */
+  --terminal-bg: #f6f6f6;
+  --terminal-fg: #0a0a0a;
+  --terminal-cursor: #2448e6;
+  --terminal-selection: rgba(36, 72, 230, 0.18);
   --terminal-ansi-0: #1a1a1a;
-  --terminal-ansi-1: #dc2626;
-  --terminal-ansi-2: #15a06a;
-  --terminal-ansi-3: #b86e00;
-  --terminal-ansi-4: #2f6fd0;
-  --terminal-ansi-5: #9a4fb5;
-  --terminal-ansi-6: #178a8a;
-  --terminal-ansi-7: #8a8a8a;
-  --terminal-ansi-8: #737373;
-  --terminal-ansi-9: #b91c1c;
-  --terminal-ansi-10: #0f8a5a;
-  --terminal-ansi-11: #a86200;
-  --terminal-ansi-12: #1d5bbf;
-  --terminal-ansi-13: #83399e;
-  --terminal-ansi-14: #0e7373;
-  --terminal-ansi-15: #b0b0b0;
+  --terminal-ansi-1: #c4302b;
+  --terminal-ansi-2: #0a7650;
+  --terminal-ansi-3: #9a5b00;
+  --terminal-ansi-4: #2448e6;
+  --terminal-ansi-5: #6d4fd8;
+  --terminal-ansi-6: #0a6f86;
+  --terminal-ansi-7: #3a4852;
+  --terminal-ansi-8: #7b8a95;
+  --terminal-ansi-9: #a3221e;
+  --terminal-ansi-10: #0b6e4b;
+  --terminal-ansi-11: #7a4800;
+  --terminal-ansi-12: #1d3cc4;
+  --terminal-ansi-13: #5638b8;
+  --terminal-ansi-14: #085a6d;
+  --terminal-ansi-15: #0a0a0a;
 }

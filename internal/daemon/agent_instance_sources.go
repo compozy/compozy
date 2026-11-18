@@ -31,6 +31,10 @@ func (r instanceDefinitions) projectInstanceSources(
 		return
 	}
 	refs, err := r.sourceDeclarations.resolve(ctx, r.agents, artifacts, heartbeat.AuthoringTarget{
+		CheckInLimits: &heartbeat.CheckInLimits{
+			MaxToolCalls:  workspace.Config.Agents.AlwaysOn.CheckInMaxToolCalls,
+			MaxWriteCalls: workspace.Config.Agents.AlwaysOn.CheckInMaxWriteCalls,
+		},
 		ProfileID: instance.ProfileID, ProfileName: workspace.ProfileName,
 		WorkspaceID: instance.WorkspaceID, WorkspaceRoot: workspace.RootDir,
 		AgentName: instance.AgentName, AgentPath: agent.SourcePath, Config: workspace.Config.Agents.Heartbeat,

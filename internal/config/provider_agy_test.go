@@ -136,9 +136,9 @@ func TestBuiltinAgyProviderIdentity(t *testing.T) {
 	})
 }
 
-// Invariant: explicit full access plus approve-all prefers agy yolo and
+// Invariant: approve-all prefers agy yolo and
 // nothing else widens the mode. Owner: config agent resolution (UT-004).
-func TestResolveAgentAppliesAgyFullAccessPreference(t *testing.T) {
+func TestResolveAgentAppliesAgyApproveAllMode(t *testing.T) {
 	t.Parallel()
 
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -146,9 +146,8 @@ func TestResolveAgentAppliesAgyFullAccessPreference(t *testing.T) {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 	cfg := DefaultWithHome(homePaths)
-	cfg.Permissions.ProviderFullAccess = true
 
-	t.Run("Should select yolo for agy under explicit full access", func(t *testing.T) {
+	t.Run("Should select yolo for agy under approve-all", func(t *testing.T) {
 		t.Parallel()
 
 		resolved, err := cfg.ResolveAgent(AgentDef{Name: "qa", Provider: "agy", Prompt: "prompt"})

@@ -8,8 +8,10 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -1342,6 +1344,273 @@ func BenchmarkCurrentMigrationStream(b *testing.B) {
 					}
 				}
 			})
+		})
+	}
+}
+
+// Invariant: direct upgrades losslessly mark every legacy lineage/instance shape exactly once.
+// Owner: global data migration; canonical suite: migration streams (UT-112).
+func TestPermissionIntentMarkerMigration(t *testing.T) {
+	// Prepare the real historical prefix once before parallel upgrades. Replaying it
+	// per case contends on expensive schema rebuilds under the race detector.
+	stream := globaldb.MigrationStream()
+	prefixPath := filepath.Join(t.TempDir(), "permission-intent-prefix.db")
+	prefixDB, err := sql.Open("sqlite", prefixPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := prefixDB.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if err := store.Apply(migrationTestContext(t), prefixDB, migrationPrefixStream(t, stream, 199)); err != nil {
+		t.Fatal(err)
+	}
+	if err := prefixDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	prefix, err := os.ReadFile(prefixPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Parallel()
+	// Invariant: v0.7.0 access survives both direct upgrades and an already-applied 00202.
+	for _, prior := range []int{199, 202, 203} {
+		t.Run(fmt.Sprintf("Should preserve pre-upgrade authority after migration %d", prior), func(t *testing.T) {
+			t.Parallel()
+			ctx := migrationTestContext(t)
+			dbPath := filepath.Join(t.TempDir(), "permission-intent.db")
+			if err := os.WriteFile(dbPath, prefix, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			db, err := sql.Open("sqlite", dbPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			const nativePolicy = `{"tools":["compozy__session_list"],"skills":["review"],"workspace_paths":["/project"],"mcp_servers":[],"materialized_tools":true}`
+			const legacyPolicy = `{"tools":["compozy__session_list"],"mcp_servers":["linear"]}`
+			const authoredPolicy = `{"tools":["compozy__session_list"],"mcp_servers":["linear"],"materialized_mcp_servers":false}`
+			const markedPolicy = `{"mcp_servers_mode":"list","tools_mode":"list","ancestor_mcp_ceiling":[],"tools":[],"mcp_servers":[]}`
+			type sessionFixture struct {
+				id, kind, typ, raw string
+				archived           bool
+			}
+			fixtures := []sessionFixture{
+				{"root", "", "user", legacyPolicy, false},
+				{"same-second", "", "user", legacyPolicy, false},
+				{"delegated-root", "", "system", legacyPolicy, false},
+				{"delegated-child", "provenance", "user", legacyPolicy, false},
+				{
+					"ceiling-marked",
+					"provenance",
+					"user",
+					`{"tools_mode":"inherit","mcp_servers_mode":"inherit","ancestor_mcp_ceiling":[],"tools":[],"mcp_servers":[]}`,
+					false,
+				},
+				{"delegated-grandchild", "fork", "user", nativePolicy, true},
+				{"depth-zero-root", "", "system", legacyPolicy, false},
+				{"depth-zero-child", "provenance", "user", legacyPolicy, false},
+				{"foreign-profile", "provenance", "user", legacyPolicy, false},
+				{"materialized-root", "", "user", nativePolicy, false},
+				{"fork", "fork", "user", nativePolicy, false},
+				{"continue", "continue", "user", nativePolicy, false},
+				{"provenance", "provenance", "user", `{"tools":[]}`, false},
+				{"system-provenance", "provenance", "system", `{"tools":[]}`, false},
+				{"recovery", "recovery", "system", nativePolicy, false},
+				{"spawn", "spawn", "spawned", nativePolicy, false},
+				{"coordinator-child", "spawn", "coordinator", nativePolicy, false},
+				{"archived", "provenance", "user", authoredPolicy, true},
+				{
+					"materialized-mcp", "fork", "user",
+					`{"mcp_servers":["linear"],"materialized_mcp_servers":true}`, false,
+				},
+				{"already-marked", "", "user", markedPolicy, false},
+				{"authored-override", "", "user", authoredPolicy, false},
+			}
+			const foreignProfileID = "01FFFFFFFFFFFFFFFFFFFFFFFF"
+			if _, err := db.ExecContext(ctx, `INSERT INTO profiles
+			(id,name,color,emoji,created_at) VALUES (?, 'foreign', 'blue', 'F', '2026-11-01T00:00:00Z')`,
+				foreignProfileID); err != nil {
+				t.Fatal(err)
+			}
+			for _, fixture := range fixtures {
+				var archived any
+				if fixture.archived {
+					archived = "2026-11-01T00:00:00Z"
+				}
+				profileID := store.DefaultProfileID
+				if fixture.id == "foreign-profile" {
+					profileID = foreignProfileID
+				}
+				if _, err := db.ExecContext(ctx, `INSERT INTO sessions
+			(id,profile_id,agent_name,scope,workspace_id,state,session_type,lineage_kind,permission_policy_json,archived_at,created_at,updated_at)
+			VALUES (?, ?,'coder','global','','stopped',?,?,?,?, '2026-11-01T00:00:00Z','2026-11-01T00:00:00Z')`,
+					fixture.id, profileID, fixture.typ, fixture.kind, fixture.raw, archived); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := db.ExecContext(
+				ctx,
+				`INSERT INTO session_creation_profiles (profile_ref, profile_json, created_at)
+		VALUES ('authored-override', '{"allowed_tools":["compozy__session_list"]}', '2026-11-01T00:00:00Z');
+		UPDATE sessions SET creation_profile_ref = 'authored-override' WHERE id = 'authored-override'`,
+			); err != nil {
+				t.Fatal(err)
+			}
+			for _, depth := range []int{0, 1} {
+				if _, err := db.ExecContext(
+					ctx,
+					`INSERT INTO agent_instances
+			(id,profile_id,agent_name,state,depth,permission_ceiling,created_by_kind,created_by_id,created_at,updated_at,archived_at)
+			VALUES (?, ?,?,'paused',?,?,'human','operator','2026-11-01T00:00:00Z','2026-11-01T00:00:00Z',?)`,
+					fmt.Sprintf(
+						"instance-%d",
+						depth,
+					),
+					store.DefaultProfileID,
+					fmt.Sprintf("coder-%d", depth),
+					depth,
+					authoredPolicy,
+					[]any{nil, "2026-11-02T00:00:00Z"}[depth],
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := db.ExecContext(ctx, `
+UPDATE sessions SET instance_id='instance-1' WHERE id='delegated-root';
+UPDATE sessions SET parent_session_id='delegated-root' WHERE id IN ('delegated-child','foreign-profile','ceiling-marked');
+UPDATE sessions SET parent_session_id='delegated-child' WHERE id='delegated-grandchild';
+UPDATE sessions SET instance_id='instance-0' WHERE id='depth-zero-root';
+UPDATE sessions SET parent_session_id='depth-zero-root' WHERE id='depth-zero-child';
+UPDATE sessions SET created_at='2026-11-01T00:00:00.500Z' WHERE id='same-second'`); err != nil {
+				t.Fatal(err)
+			}
+			if prior >= 202 {
+				if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 202)); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := db.ExecContext(
+					ctx,
+					`UPDATE goose_db_version_global SET tstamp='2026-11-01 00:00:00' WHERE version_id=202 AND is_applied=1`,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if prior == 203 {
+					if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 203)); err != nil {
+						t.Fatal(err)
+					}
+				}
+				const explicitPolicy = `{"mcp_servers_mode":"list","tools_mode":"list","tools":["compozy__session_list"],"mcp_servers":["linear"]}`
+				for _, kind := range []string{"", "provenance"} {
+					id := "new-head-" + kind
+					policy := explicitPolicy
+					if kind == "provenance" {
+						policy = `{"tools_mode":"inherit","mcp_servers_mode":"inherit","tools":[],"mcp_servers":[]}`
+					}
+					if _, err := db.ExecContext(ctx, `INSERT INTO sessions
+				(id,profile_id,agent_name,scope,workspace_id,state,session_type,lineage_kind,permission_policy_json,created_at,updated_at)
+				SELECT ?,?,'coder','global','','stopped','user',?,?,datetime(tstamp,'+1 second'),datetime(tstamp,'+1 second')
+				FROM goose_db_version_global WHERE version_id=202 AND is_applied=1`,
+						id, store.DefaultProfileID, kind, policy); err != nil {
+						t.Fatal(err)
+					}
+					if _, err := db.ExecContext(
+						ctx,
+						`UPDATE sessions SET parent_session_id='delegated-root' WHERE id=?`,
+						id,
+					); err != nil {
+						t.Fatal(err)
+					}
+					fixtures = append(fixtures, sessionFixture{id, kind, "user", policy, false})
+				}
+			}
+			// This fixture owns SQL migration intent; runtime telemetry relocation has its own suite.
+			if err := store.Apply(ctx, db, stream); err != nil {
+				t.Fatal(err)
+			}
+			status, err := store.Status(ctx, db, stream)
+			if err != nil || status.Version != 205 {
+				t.Fatalf("upgraded status=%+v err=%v", status, err)
+			}
+			before := map[string]string{}
+			verify := func() {
+				t.Helper()
+				for _, fixture := range fixtures {
+					var raw string
+					if err := db.QueryRowContext(
+						ctx, `SELECT permission_policy_json FROM sessions WHERE id=?`, fixture.id,
+					).Scan(&raw); err != nil {
+						t.Fatal(err)
+					}
+					original, err := store.DecodeSessionPermissionPolicy(fixture.raw)
+					if err != nil {
+						t.Fatal(err)
+					}
+					want := store.NormalizeSessionPermissionPolicy(original)
+					if want.ToolsMode == "" {
+						want.ToolsMode = store.PermissionInherit
+						want.MCPServersMode = store.PermissionInherit
+						if fixture.kind == "spawn" || fixture.typ == "spawned" || fixture.typ == "coordinator" {
+							want.ToolsMode, want.MCPServersMode = store.PermissionList, store.PermissionList
+						}
+						if fixture.id == "authored-override" {
+							want.ToolsMode = store.PermissionList
+						}
+					}
+					if fixture.id == "same-second" && prior >= 202 {
+						want.ToolsMode, want.MCPServersMode = store.PermissionList, store.PermissionList
+					}
+					if strings.HasPrefix(fixture.id, "delegated-") {
+						want.ToolsMode, want.MCPServersMode = store.PermissionList, store.PermissionList
+					}
+					got, err := store.DecodeSessionPermissionPolicy(raw)
+					if err != nil || !reflect.DeepEqual(got, want) {
+						t.Fatalf("%s: got=%+v want=%+v err=%v", fixture.id, got, want, err)
+					}
+					if previous, ok := before[fixture.id]; ok && raw != previous {
+						t.Fatalf("non-idempotent session %s", fixture.id)
+					}
+					before[fixture.id] = raw
+				}
+				for _, depth := range []int{0, 1} {
+					id := fmt.Sprintf("instance-%d", depth)
+					var raw string
+					if err := db.QueryRowContext(
+						ctx, `SELECT permission_ceiling FROM agent_instances WHERE id=?`, id,
+					).Scan(&raw); err != nil {
+						t.Fatal(err)
+					}
+					original, err := store.DecodeSessionPermissionPolicy(authoredPolicy)
+					if err != nil {
+						t.Fatal(err)
+					}
+					got, err := store.DecodeSessionPermissionPolicy(raw)
+					want := store.DecodeInstanceCeilingIntent(original, depth)
+					if err != nil || !reflect.DeepEqual(got, want) {
+						t.Fatalf("%s: got=%+v want=%+v err=%v", id, got, want, err)
+					}
+					if previous, ok := before[id]; ok && raw != previous {
+						t.Fatalf("non-idempotent instance %s", id)
+					}
+					before[id] = raw
+				}
+			}
+			verify()
+			migration, err := fs.ReadFile(globalschema.Files, "migrations/00204_repair_legacy_permission_intent.sql")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(ctx, string(migration)); err != nil {
+				t.Fatal(err)
+			}
+			verify()
 		})
 	}
 }

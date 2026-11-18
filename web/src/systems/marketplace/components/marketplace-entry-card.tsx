@@ -25,6 +25,8 @@ interface MarketplaceEntryCardProps {
   flashing?: boolean;
   onFlashEnd?: () => void;
   trail: ReactNode;
+  /** Section row: logo, name and the action only; the description stays for search and lists. */
+  compact?: boolean;
   className?: string;
   "data-testid"?: string;
 }
@@ -47,11 +49,12 @@ function MarketplaceEntryCard({
   flashing = false,
   onFlashEnd,
   trail,
+  compact = false,
   className,
   "data-testid": testId,
 }: MarketplaceEntryCardProps) {
   const name = title ?? entry.name;
-  const text = description?.trim() ?? "";
+  const text = compact ? "" : (description?.trim() ?? "");
   return (
     <CatalogCard
       actionable={!pending}
@@ -61,6 +64,7 @@ function MarketplaceEntryCard({
         flashing ? "marketplace-card-flash" : pending ? "opacity-55" : undefined,
         className
       )}
+      data-compact={compact || undefined}
       data-testid={testId}
       onAnimationEnd={event => {
         if (event.currentTarget === event.target) onFlashEnd?.();

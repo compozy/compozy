@@ -22,6 +22,7 @@ import (
 
 // Registry is the narrowed global persistence surface consumed by observe/.
 type Registry interface {
+	store.SessionFailureSummaryReader
 	PermissionDailyRollups(context.Context, store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error)
 	PermissionEntries(context.Context, store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error)
 	RegisterSession(ctx context.Context, session *store.SessionInfo) error
@@ -29,6 +30,7 @@ type Registry interface {
 	ReconcileSessions(ctx context.Context, sessions []store.SessionInfo) (store.ReconcileResult, error)
 	WriteEventSummary(ctx context.Context, summary store.EventSummary) error
 	ListEventSummaries(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
+	EventSummaryHeadSequence(ctx context.Context) (int64, error)
 	RecordTokenUsage(ctx context.Context, stats store.TokenStatsUpdate, daily store.TokenUsageDailyUpdate) error
 	ListTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error)
 	WritePermissionLog(ctx context.Context, entry store.PermissionLogEntry) error
@@ -136,6 +138,8 @@ type Observer struct {
 	retentionMu         sync.RWMutex
 	agentProbeSource    AgentProbeTargetSource
 	agentProbeTimeout   time.Duration
+	eventMetrics        EventMetrics
+	toolCalls           toolCallDedup
 }
 
 var _ session.Notifier = (*Observer)(nil)
@@ -332,6 +336,9 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	}
 	if observer.sessions == nil {
 		observer.sessions = make(map[string]observedSession)
+	}
+	if observer.eventMetrics == nil {
+		observer.eventMetrics = noopEventMetrics{}
 	}
 	if observer.resolveProviderAuth == nil {
 		observer.resolveProviderAuth = defaultProviderAuthModeResolver(

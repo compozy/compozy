@@ -5,9 +5,9 @@ Watch, steer, and trust a session while it streams (`_qa.md` §3 J-C). The opera
 ```mermaid
 flowchart TD
     E[Entry: open an active session] --> W[Working row: typing dots + Working-for-Xs timer]
-    E --> VW[Open a second session window beside it on the active desktop]
+    E --> VW[Open a second session window in a split beside it on the active desktop]
     VW --> VF[Focus either window; both visible streams keep advancing]
-    VF -->|minimize, switch desktop, or cover in inactive stack| VD[Hidden window suspends live reads and catches up when visible]
+    VF -->|switch tab, switch desktop, or move one window to an inactive tab| VD[Hidden window suspends live reads and catches up when visible]
     W --> TR[Tool rows appear grouped, active cap ~4, per-tool icons + verbs]
     TR --> EX[Expand a row inline: structured Input/Output, scroll anchor stable]
     TR --> SCRL[Scroll up mid-stream: position holds, follow pill appears]
@@ -106,3 +106,8 @@ e2e_backbone:
   followups:
     - "AB-006 — reduced-motion + streaming-smoothness E2E sweep over the redesigned live thread (unit-owned today, task 30); no real-daemon browser assertion for the full follow-and-steer flow yet."
 ```
+
+qa-impact: 2026-11-13 window-tabs-split S10. Minimize and tab stacks were retired: the two visible
+session windows now share a split in one tab, and a window is hidden by switching tabs or desktops
+or by moving it to a tab that is not active. Walk the visible-stream branch with
+RT-visible-session-streaming.

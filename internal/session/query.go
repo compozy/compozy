@@ -25,6 +25,7 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 		return nil, errors.New("session: list context is required")
 	}
 
+	ctx = m.MCPAuthorityReadContext(ctx)
 	active := m.List()
 	activeByID := make(map[string]*Info, len(active))
 	for _, info := range active {
@@ -39,6 +40,7 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 	case err == nil:
 	case errors.Is(err, os.ErrNotExist):
 		m.pruneMetadataCache(nil)
+		m.decorateMCPAuthorities(ctx, active, nil)
 		return sortSessionInfos(active), nil
 	default:
 		return nil, fmt.Errorf("session: read sessions directory %q: %w", m.homePaths.SessionsDir, err)
@@ -76,6 +78,7 @@ func (m *Manager) mergePersistedSessionInfos(
 		infos = append(infos, info)
 	}
 
+	m.decorateMCPAuthorities(ctx, infos, rows)
 	return sortSessionInfos(infos), nil
 }
 
@@ -126,6 +129,15 @@ func (m *Manager) readPersistedSessionInfos(
 
 // Status returns the current session status from memory or on-disk metadata.
 func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
+	info, err := m.StoredStatus(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	m.decorateMCPAuthority(m.MCPAuthorityReadContext(ctx), info)
+	return info, nil
+}
+
+func (m *Manager) StoredStatus(ctx context.Context, id string) (*Info, error) {
 	if ctx == nil {
 		return nil, errors.New("session: status context is required")
 	}

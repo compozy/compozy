@@ -9,6 +9,8 @@ import {
   AgentAvatar,
   Eyebrow,
   SymbolPicker,
+  TreeBranch,
+  TreeBranchNode,
   identitySurfaceFor,
   type AgentAvatarAppearance,
   type SymbolBackground,
@@ -29,10 +31,6 @@ import {
   PROFILE_SPRITE_URL,
 } from "@/systems/profiles/lib/profile-identity";
 import { SessionListBranch } from "@/systems/session/components/session-list/session-list-branch";
-import {
-  BRANCH_NODE,
-  BRANCH_RAIL,
-} from "@/systems/session/components/session-list/session-list-branch-rail";
 import { SessionListBranchToggle } from "@/systems/session/components/session-list/session-list-branch-toggle";
 import { SessionListFolder } from "@/systems/session/components/session-list/session-list-folder";
 import { SessionListGroupToggle } from "@/systems/session/components/session-list/session-list-group-toggle";
@@ -119,17 +117,17 @@ function Thread({ initialSegment }: { initialSegment: SessionThreadSegment }) {
       <div id={branchId}>
         <SessionListBranch
           render={shown => (
-            <div className={BRANCH_RAIL}>
+            <TreeBranch>
               {shown === "subagents"
                 ? SUBAGENTS.map(subagent => (
                     <SessionListSubagentRow current={false} key={subagent.id} subagent={subagent} />
                   ))
                 : THREAD_CHILDREN.map(child => (
-                    <div className={BRANCH_NODE} key={child.id}>
+                    <TreeBranchNode key={child.id}>
                       <Row session={child} />
-                    </div>
+                    </TreeBranchNode>
                   ))}
-            </div>
+            </TreeBranch>
           )}
           segment={segment}
         />

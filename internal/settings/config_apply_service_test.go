@@ -35,6 +35,8 @@ import (
 func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: MCP repair/add applies live even when the previous definition's auth status is unavailable.
+	// Owner: Settings config-apply coordinator; canonical suite: config_apply_service_test.go.
 	t.Run("Should repair MCP definitions and add servers while existing auth status fails", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -89,12 +91,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			if err != nil {
 				t.Fatalf("apply %s with unavailable prior auth status: %v", name, err)
 			}
-			wantLifecycle := lifecycle.LiveAdd
-			if name == "repair-cloud" {
-				wantLifecycle = lifecycle.RestartRequired
-			}
-			if result.Record.Lifecycle != wantLifecycle {
-				t.Fatalf("%s lifecycle = %s, want %s", name, result.Record.Lifecycle, wantLifecycle)
+			if result.Record.Lifecycle != lifecycle.Live || !result.Applied || result.RestartRequired {
+				t.Fatalf("%s apply = %+v, want applied live without restart", name, result)
 			}
 			cfg, err := compozyconfig.LoadForHome(homePaths)
 			if err != nil {
@@ -809,20 +807,20 @@ cost_reasoning_per_million = 30
 			t.Fatalf("runtime defaults.provider = %q, want pending restart value %q excluded", got, want)
 		}
 
-		desired.Snap.RepeatRatios[0] = 0.9
+		desired.Gaps.Inner = 9
 		desired.Shortcuts["desktop.switch.next"][0] = "Meta+ArrowDown"
 		first, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig(first) error = %v", err)
 		}
-		first.WindowManager.Snap.RepeatRatios[0] = 0.8
+		first.WindowManager.Gaps.Inner = 8
 		first.WindowManager.Shortcuts["desktop.switch.next"][0] = "Meta+ArrowUp"
 		second, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig(second) error = %v", err)
 		}
-		if got, want := second.WindowManager.Snap.RepeatRatios[0], 0.4; got != want {
-			t.Fatalf("active repeat ratio = %v, want %v", got, want)
+		if got, want := second.WindowManager.Gaps.Inner, 12; got != want {
+			t.Fatalf("active inner gap = %v, want %v", got, want)
 		}
 		if got, want := second.WindowManager.Shortcuts["desktop.switch.next"], (windowmanager.ShortcutBinding{"Meta+ArrowRight"}); !slices.Equal(
 			got,
@@ -1823,6 +1821,44 @@ func TestReloadChangedPaths(t *testing.T) {
 		})
 	}
 
+	t.Run("Should keep a log change restart required beside a client budget change", func(t *testing.T) {
+		t.Parallel()
+
+		current := &compozyconfig.Config{
+			Client: compozyconfig.ClientConfig{RequestTimeout: 30 * time.Second},
+			Log:    compozyconfig.LogConfig{Level: "info"},
+		}
+		desired := &compozyconfig.Config{
+			Client: compozyconfig.ClientConfig{RequestTimeout: 2 * time.Minute},
+			Log:    compozyconfig.LogConfig{Level: "debug"},
+		}
+		got := reloadChangedPaths(current, desired)
+		if !slices.Contains(got, "client.request_timeout") || !slices.Contains(got, "log.*") {
+			t.Fatalf("reloadChangedPaths() = %#v, want both the client and log changes", got)
+		}
+		if lifecycleGot := classifyReloadLifecycle(current, desired); lifecycleGot != lifecycle.RestartRequired {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", lifecycleGot, lifecycle.RestartRequired)
+		}
+	})
+
+	t.Run("Should classify a client request budget change as live", func(t *testing.T) {
+		t.Parallel()
+
+		current := &compozyconfig.Config{
+			Client: compozyconfig.ClientConfig{RequestTimeout: 30 * time.Second},
+		}
+		desired := &compozyconfig.Config{
+			Client: compozyconfig.ClientConfig{RequestTimeout: 2 * time.Minute},
+		}
+		want := []string{"client.request_timeout"}
+		if got := reloadChangedPaths(current, desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(current, desired); got != lifecycle.Live {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.Live)
+		}
+	})
+
 	t.Run("Should classify a new built-in model override as live", func(t *testing.T) {
 		t.Parallel()
 
@@ -1900,6 +1936,45 @@ func TestReloadChangedPaths(t *testing.T) {
 		}
 		if got := reloadChangedPaths(current, &desired); !slices.Equal(got, want) {
 			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should list every changed OTel export key as restart required [UT-009]", func(t *testing.T) {
+		t.Parallel()
+
+		current := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		desired := current
+		otel := &desired.Observability.OTel
+		otel.Enabled = true
+		otel.Protocol = "grpc"
+		otel.Endpoint = "http://collector.local:4317"
+		otel.Headers = map[string]string{"api-key": "vault:observability/nr"}
+		otel.Traces = false
+		otel.Metrics = false
+		otel.SampleRatio = 0.25
+		otel.MetricInterval = 30 * time.Second
+		otel.ServiceName = "compozy-dev"
+		otel.SlowDBWriteMS = 0
+		otel.ForwardToProviders = true
+
+		want := []string{
+			"observability.otel.enabled",
+			"observability.otel.protocol",
+			"observability.otel.endpoint",
+			"observability.otel.headers",
+			"observability.otel.traces",
+			"observability.otel.metrics",
+			"observability.otel.sample_ratio",
+			"observability.otel.metric_interval",
+			"observability.otel.service_name",
+			"observability.otel.slow_db_write_ms",
+			"observability.otel.forward_to_providers",
+		}
+		if got := reloadChangedPaths(&current, &desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(&current, &desired); got != lifecycle.RestartRequired {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.RestartRequired)
 		}
 	})
 
@@ -2483,6 +2558,64 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 // and retries only pending projections.
 func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: the first failed mutation retains the config active before the desired file was written.
+	// Owner: Settings apply coordinator; canonical suite: runtime reconcile failures.
+	for _, operation := range []string{"section", "put", "delete"} {
+		t.Run("Should retain cold active config after failed "+operation, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			home := testHomePaths(t)
+			writeFile(
+				t,
+				home.ConfigFile,
+				baseSettingsConfig()+"\n[[mcp_servers]]\nname = \"docs\"\ncommand = \"old\"\n",
+			)
+			before, err := compozyconfig.LoadForHome(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db, err := openSettingsTestGlobalDB(ctx, t, home.DatabaseFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			applier := &fakeConfigRuntimeApplier{failures: []ApplyFailure{{Subsystem: "mcp"}}}
+			service := testService(t, home, Dependencies{
+				RuntimeApplier: applier, ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+				SkillsRuntime: newFakeSkillsRuntime(testSkill("alpha", false), testSkill("beta", false)),
+			})
+			var result ApplyResult
+			switch operation {
+			case "section":
+				desired := before.Skills
+				desired.DisabledSkills = []string{"alpha"}
+				result, err = service.ApplySection(ctx, SectionUpdateRequest{Section: SectionSkills, Skills: &desired})
+			case "put":
+				result, err = service.ApplyCollectionItem(ctx, CollectionItemPutRequest{
+					Collection: CollectionMCPServers, Name: "docs",
+					MCPServer: &compozyconfig.MCPServer{Name: "docs", Command: "changed"},
+				})
+			case "delete":
+				result, err = service.ApplyCollectionDelete(ctx, CollectionItemDeleteRequest{
+					Collection: CollectionMCPServers, Name: "docs",
+				})
+			}
+			if err != nil || result.Applied || result.Record.Status != lifecycle.StatusFailed || applier.calls != 1 {
+				t.Fatalf("failed apply = %+v, %v, calls=%d", result, err, applier.calls)
+			}
+			active, err := service.ActiveConfig(ctx)
+			if err != nil || !reflect.DeepEqual(active.MCPServers, before.MCPServers) ||
+				!reflect.DeepEqual(active.Skills, before.Skills) {
+				t.Fatalf("failed %s activated desired config: MCP=%+v skills=%+v, %v",
+					operation, active.MCPServers, active.Skills.DisabledSkills, err)
+			}
+		})
+	}
 
 	t.Run("Should retry a persisted layout without applying unrelated pending config", func(t *testing.T) {
 		t.Parallel()

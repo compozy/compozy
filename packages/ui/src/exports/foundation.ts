@@ -5,6 +5,13 @@ export { QrCode, type QrCodeProps, type QrCodeSize } from "../components/custom/
 export { Time, type TimeMode, type TimeProps } from "../components/custom/time";
 export { Disclosure, type DisclosureProps } from "../components/custom/disclosure";
 export {
+  PopoverPanel,
+  PopoverPanelContent,
+  type PopoverPanelContentProps,
+  type PopoverPanelProps,
+  type PopoverPanelTone,
+} from "../components/custom/popover-panel";
+export {
   DirectoryPickerInput,
   type DirectoryPickerInputProps,
   type DirectoryPickerSuggestion,
@@ -42,6 +49,11 @@ export {
 } from "../components/avatar";
 export { ButtonGroup, ButtonGroupSeparator, ButtonGroupText } from "../components/button-group";
 export { SplitButton } from "../components/custom/split-button";
+export {
+  DeleteButton,
+  type DeleteButtonPhase,
+  type DeleteButtonProps,
+} from "../components/custom/delete-button";
 export type { SplitButtonActionProps, SplitButtonProps } from "../components/custom/split-button";
 export { buttonGroupVariants } from "../components/button-group-variants";
 export {

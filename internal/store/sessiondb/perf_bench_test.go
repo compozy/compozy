@@ -2,6 +2,7 @@ package sessiondb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -329,3 +330,42 @@ func BenchmarkTranscriptFoldRetainedHeap(b *testing.B) {
 		runtime.KeepAlive(caches)
 	}
 }
+
+// BenchmarkProjectionMessageEncode measures encoding one large active assistant
+// message, the work every append repeats for its entry. "marshal" is the
+// json.Marshal plus string copy baseline; "writer-buffer" is the writer-owned
+// encoder reused across appends.
+func BenchmarkProjectionMessageEncode(b *testing.B) {
+	message := transcript.UIMessage{ID: "msg-bench", Role: transcript.UIRoleAssistant}
+	for index := range 400 {
+		message.Parts = append(message.Parts, transcript.UIMessagePart{
+			Type: "dynamic-tool", ToolCallID: fmt.Sprintf("call-%d", index), ToolName: "Bash",
+			State:  "output-available",
+			Input:  json.RawMessage(`{"command": "go test ./... && echo '<ok>'"}`),
+			Output: json.RawMessage(fmt.Sprintf(`{"content":%q}`, strings.Repeat("compiled ok\n", 400))),
+		})
+	}
+	b.Run("marshal", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			encoded, err := json.Marshal(message)
+			if err != nil {
+				b.Fatal(err)
+			}
+			benchmarkEncodedMessage = string(encoded)
+		}
+	})
+	b.Run("writer-buffer", func(b *testing.B) {
+		b.ReportAllocs()
+		var encoder projectionMessageEncoder
+		for b.Loop() {
+			encoded, err := encoder.encode(&message)
+			if err != nil {
+				b.Fatal(err)
+			}
+			benchmarkEncodedMessage = encoded
+		}
+	})
+}
+
+var benchmarkEncodedMessage string

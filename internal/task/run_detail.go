@@ -11,6 +11,7 @@ func (m *Service) RunDetail(
 	runID string,
 	actor ActorContext,
 ) (*RunDetailView, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}

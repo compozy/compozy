@@ -37,6 +37,10 @@ func normalizeStdioPaths(
 	if err != nil {
 		return "", "", nil, nil, fmt.Errorf("resolve data root: %w", err)
 	}
+	command = normalizePluginAliases(command)
+	if suffix, ok := strings.CutPrefix(command, pluginRootPlaceholder+"/"); ok {
+		command = "./" + suffix
+	}
 	normalizedCommand, err := normalizeCommand(command, canonicalRoot)
 	if err != nil {
 		return "", "", nil, nil, err
@@ -53,14 +57,14 @@ func normalizeStdioPaths(
 	)
 	normalizedArgs := make([]string, len(args))
 	for index, argument := range args {
-		normalizedArgs[index] = replacer.Replace(argument)
+		normalizedArgs[index] = replacer.Replace(normalizePluginAliases(argument))
 	}
 	normalizedEnv := make(map[string]string, len(env)+2)
 	for name, value := range env {
 		if reservedEnvironmentName(name) {
 			return "", "", nil, nil, fmt.Errorf("env cannot override reserved variable %q", name)
 		}
-		normalizedEnv[name] = replacer.Replace(value)
+		normalizedEnv[name] = replacer.Replace(normalizePluginAliases(value))
 	}
 	normalizedEnv[pluginRootVariable] = canonicalRoot
 	normalizedEnv[pluginDataVariable] = canonicalData
@@ -90,7 +94,7 @@ func normalizeCWD(cwd *string, root string, dataRoot string) (string, error) {
 	if cwd == nil {
 		return root, nil
 	}
-	value := *cwd
+	value := normalizePluginAliases(*cwd)
 	var base string
 	var suffix string
 	switch {
@@ -174,4 +178,12 @@ func reservedEnvironmentName(name string) bool {
 		return strings.EqualFold(name, pluginRootVariable) || strings.EqualFold(name, pluginDataVariable)
 	}
 	return name == pluginRootVariable || name == pluginDataVariable
+}
+
+func normalizePluginAliases(value string) string {
+	return strings.NewReplacer(
+		"${CLAUDE_PLUGIN_ROOT}", pluginRootPlaceholder,
+		"${CURSOR_PLUGIN_ROOT}", pluginRootPlaceholder,
+		"${CLAUDE_PLUGIN_DATA}", pluginDataPlaceholder,
+	).Replace(value)
 }

@@ -24,6 +24,8 @@ const (
 )
 
 type extensionEntry struct {
+	catalogCuration
+	Category string `json:"category,omitempty"`
 	entryCommon
 	Icon         string       `json:"icon,omitempty"`
 	Inputs       []EntryInput `json:"inputs,omitempty"`

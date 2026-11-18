@@ -32,6 +32,7 @@ const SIGNAL_NOUN: Record<SessionWorkSignalKind, string> = {
   active_monitor: "monitor",
   awaiting_reply: "awaited reply",
   held_permission: "pending permission",
+  held_input: "held input",
 };
 
 const STOP_REASON = "Stop not confirmed";

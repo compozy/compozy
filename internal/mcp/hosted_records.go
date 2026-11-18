@@ -43,20 +43,24 @@ func (s *HostedService) bindLaunch(
 		return nil, ErrHostedNonceExpired
 	}
 	launch.established = true
+	launch.everBound = true
 	launch.bindID = bindID
 	record := &hostedBindRecord{
-		digestMemo:    new(hostedProjectionDigestMemo),
-		bindID:        bindID,
-		sessionID:     launch.sessionID,
-		profileID:     launch.profileID,
-		workspaceID:   launch.workspaceID,
-		agentName:     launch.agentName,
-		expectedBin:   launch.expectedBin,
-		peer:          peer,
-		createdAt:     now,
-		correlationID: launch.correlationID,
-		runID:         launch.runID,
-		generation:    launch.generation,
+		initialDeadline: launch.expiresAt,
+		eagerTools:      launch.eagerTools,
+		digestMemo:      new(hostedProjectionDigestMemo),
+		bindID:          bindID,
+		sessionID:       launch.sessionID,
+		profileID:       launch.profileID,
+		workspaceID:     launch.workspaceID,
+		agentName:       launch.agentName,
+		expectedBin:     launch.expectedBin,
+		peer:            peer,
+		createdAt:       now,
+		correlationID:   launch.correlationID,
+		runID:           launch.runID,
+		generation:      launch.generation,
+		runTrace:        launch.runTrace,
 	}
 	s.binds[bindID] = record
 	return record.clone(), nil
@@ -117,8 +121,9 @@ func hostedProjectionResponse(views []tools.ToolView, memo *hostedProjectionDige
 		return strings.Compare(left.Descriptor.ID.String(), right.Descriptor.ID.String())
 	})
 	return HostedProjectionResponse{
-		Tools:  sorted,
-		Digest: memo.digestFor(sorted),
+		Catalog: tools.NewAdvertisedCatalog(sorted),
+		Tools:   sorted,
+		Digest:  memo.digestFor(sorted),
 	}
 }
 

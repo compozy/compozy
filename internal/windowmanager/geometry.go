@@ -6,26 +6,6 @@ import (
 	"slices"
 )
 
-func clampRect(rect NormalizedRect) NormalizedRect {
-	if !finite(rect.Width) || rect.Width <= 0 {
-		rect.Width = 0.56
-	}
-	if !finite(rect.Height) || rect.Height <= 0 {
-		rect.Height = 0.62
-	}
-	rect.Width = min(rect.Width, 1)
-	rect.Height = min(rect.Height, 1)
-	if !finite(rect.X) {
-		rect.X = 0.22
-	}
-	if !finite(rect.Y) {
-		rect.Y = 0.18
-	}
-	rect.X = min(max(rect.X, 0), 1-rect.Width)
-	rect.Y = min(max(rect.Y, 0), 1-rect.Height)
-	return rect
-}
-
 func fullRect() NormalizedRect { return NormalizedRect{Width: 1, Height: 1} }
 
 func projectedRects(snapshot Snapshot, desktopID DesktopID) map[WindowID]NormalizedRect {
@@ -35,12 +15,10 @@ func projectedRects(snapshot Snapshot, desktopID DesktopID) map[WindowID]Normali
 		return result
 	}
 	desktop := snapshot.Desktops[desktopIndex]
-	for _, group := range desktop.Groups {
-		projectNode(group.Root, group.Frame, result)
+	for _, group := range desktop.Tabs {
+		projectNode(group.Root, fullRect(), result)
 	}
-	for _, windowID := range desktop.Floating {
-		result[windowID] = snapshot.Windows[windowID].FloatingRect
-	}
+
 	return result
 }
 
@@ -49,10 +27,6 @@ func projectNode(node LayoutNode, frame NormalizedRect, output map[WindowID]Norm
 	case NodeKindLeaf:
 		if node.WindowID != nil {
 			output[*node.WindowID] = frame
-		}
-	case NodeKindStack:
-		for _, windowID := range node.WindowIDs {
-			output[windowID] = frame
 		}
 	case NodeKindSplit:
 		offset := 0.0
@@ -90,7 +64,7 @@ func directionalWindow(
 	}
 	var candidates []candidate
 	for windowID, rect := range rects {
-		if windowID == current || snapshot.Windows[windowID].Minimized {
+		if windowID == current || snapshot.Windows[windowID].TabID != snapshot.Windows[current].TabID {
 			continue
 		}
 		x, y := center(rect)

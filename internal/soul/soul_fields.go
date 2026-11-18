@@ -16,7 +16,6 @@ func isAllowedField(key string) bool {
 		"principles",
 		"constraints",
 		"collaboration",
-		"memory_policy",
 		"tags":
 		return true
 	default:

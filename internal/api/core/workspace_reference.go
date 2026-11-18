@@ -18,6 +18,7 @@ func (h *BaseHandlers) RequireProjectReference(c *gin.Context, raw string) bool 
 		for segment := range strings.SplitSeq(path, "/") {
 			switch segment {
 			case "tool-approval-grants",
+				"tool-artifacts",
 				"sessions",
 				"session-folders",
 				"session-order",

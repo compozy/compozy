@@ -12,7 +12,10 @@ import {
   EMPTY_SESSION_CREATE_DRAFT,
   type SessionCreateDialogDraft,
 } from "../lib/session-create-draft";
-import type { SessionEnvironmentTarget } from "../lib/session-environment-target";
+import {
+  ROOT_ENVIRONMENT_TARGET,
+  type SessionEnvironmentTarget,
+} from "../lib/session-environment-target";
 import type { CreateSessionParams, SessionPayload } from "../types";
 
 interface SessionCreateNavigationTarget {
@@ -147,7 +150,13 @@ export const sessionCreateStoreLogic = createStoreLogic<
         mode: event.environment ? "advanced" : "simple",
         draft: {
           ...applySessionAgentSelection(context.draft, agentName, event.workspaceId),
-          ...(event.environment ? { environment: event.environment } : {}),
+          // An opening that names its project starts at that project's root unless it names a
+          // worktree too; an earlier opening's worktree may belong to another repository.
+          ...(event.environment
+            ? { environment: event.environment }
+            : event.target?.project?.trim()
+              ? { environment: ROOT_ENVIRONMENT_TARGET }
+              : {}),
           folderId: event.folderId?.trim() ?? "",
         },
         operation: { status: "idle" },

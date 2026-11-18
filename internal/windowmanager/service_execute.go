@@ -18,12 +18,22 @@ func (m *Manager) executeDurable(
 		return Result{}, err
 	}
 	if !reduced.changed {
+		projection, err := m.projectClientViews(request.WorkspaceID, snapshot, canonicalProjectionSurfaces(request))
+		if err != nil {
+			return Result{}, err
+		}
+		client := m.applyClientProjection(request.WorkspaceID, projection)
+		for _, view := range projection.changed {
+			m.publishClient(view)
+		}
 		return Result{
 			Snapshot:    cloneSnapshot(snapshot),
 			Changes:     reduced.changes,
+			Client:      client,
 			RebasedFrom: rebasedFrom,
 		}, nil
 	}
+
 	nextRevision, err := NextTopologyRevision(snapshot.Revision)
 	if err != nil {
 		return Result{}, err
@@ -39,7 +49,11 @@ func (m *Manager) executeDurable(
 			return Result{}, err
 		}
 	}
-	projection, err := m.projectClientViews(request.WorkspaceID, working, request)
+	projection, err := m.projectClientViews(
+		request.WorkspaceID,
+		working,
+		resolvedProjectionRequest(snapshot, working, request),
+	)
 	if err != nil {
 		return Result{}, err
 	}
@@ -72,10 +86,8 @@ func isObservableCommand(commandID CommandID) bool {
 		CommandWindowOpen,
 		CommandWindowClose,
 		CommandWindowMove,
-		CommandWindowResize,
-		CommandWindowToggleFloating,
 		CommandWindowStackGroup,
-		CommandWindowStackSetActive,
+		CommandWindowTabActivate,
 		CommandWindowReopen,
 		CommandLayoutArrange,
 		CommandLayoutReplace:
@@ -118,11 +130,17 @@ func (m *Manager) reduceDurable(
 		focused = clonePointer(client.FocusedWindowID)
 		activeDesktop = new(client.ActiveDesktopID)
 	}
-	reduced, err := (&reducer{
-		generate: m.generate, config: config, focusedWindow: focused, activeDesktop: activeDesktop, now: m.now,
-	}).reduce(&working, payload)
+	reduced, err := reduceCommandSurfaces(&working, payload, &reducer{
+		generate: m.generate, config: config, focusedWindow: focused,
+		activeDesktop: activeDesktop, activeTabs: clientActiveTabs(client), now: m.now,
+	})
 	if err != nil {
 		return Snapshot{}, reduction{}, Config{}, err
+	}
+	if !reduced.changed {
+		if changes, activated := explicitClientActivation(working, client, payload); activated {
+			reduced = reduction{changed: true, applied: true, changes: changes}
+		}
 	}
 	if err := m.validateCommandBindings(ctx, working, payload, reduced.changes); err != nil {
 		return Snapshot{}, reduction{}, Config{}, err
@@ -139,7 +157,7 @@ func (m *Manager) recordCommandHistory(
 ) error {
 	if isSessionDeletionCommand(request.Payload) ||
 		commandID == CommandLayoutUndo || commandID == CommandLayoutRedo ||
-		commandID == CommandWindowNavigate || commandID == CommandWindowStackSetActive {
+		commandID == CommandWindowNavigate || commandID == CommandWindowTabActivate {
 		return nil
 	}
 	config, err := effectiveConfig(workspaceDefaults, working.Overrides)

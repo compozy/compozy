@@ -89,6 +89,10 @@ func (h *BaseHandlers) resolveAuthoredAgentTargetForProfile(
 		agentPath:          authoredAgentPath(&resolved, name),
 		soulConfig:         resolved.Config.Agents.Soul,
 		heartbeatConfig:    resolved.Config.Agents.Heartbeat,
+		checkInLimits: &heartbeat.CheckInLimits{
+			MaxToolCalls:  resolved.Config.Agents.AlwaysOn.CheckInMaxToolCalls,
+			MaxWriteCalls: resolved.Config.Agents.AlwaysOn.CheckInMaxWriteCalls,
+		},
 	}.withAgentArtifacts(h.AgentCatalog, name, &resolved), nil
 }
 
@@ -99,6 +103,7 @@ func (t authoredAgentTarget) withAgentArtifacts(
 ) authoredAgentTarget {
 	for _, agent := range resolved.Agents {
 		if agent.Name == agentName {
+			t.readOnlyTools = heartbeat.AuthorityOverrides(agent.MCPServers)
 			t.agentLayer = agent.SourceLayer
 			break
 		}
@@ -117,6 +122,7 @@ func (t authoredAgentTarget) withAgentArtifacts(
 	if sourcePath := strings.TrimSpace(artifacts.Agent.SourcePath); sourcePath != "" {
 		t.agentPath = sourcePath
 	}
+	t.readOnlyTools = heartbeat.AuthorityOverrides(artifacts.Agent.MCPServers)
 	t.agentLayer = artifacts.Agent.SourceLayer
 	t.packageOwned = artifacts.PackageOwned
 	t.soulSourcePath = strings.TrimSpace(artifacts.SoulSourcePath)
@@ -148,6 +154,7 @@ func (t authoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarge
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.heartbeatConfig,
+		CheckInLimits: t.checkInLimits,
 	}
 }
 
@@ -288,6 +295,7 @@ func (t authoredAgentTarget) resolvePackageOwnedHeartbeat(
 			WorkspaceRoot: t.workspaceRoot,
 			Content:       []byte(*body),
 			Config:        t.heartbeatConfig,
+			CheckInLimits: t.checkInLimits,
 		})
 		if err != nil {
 			return policy, err
@@ -303,6 +311,7 @@ func (t authoredAgentTarget) resolvePackageOwnedHeartbeat(
 		WorkspaceRoot: t.workspaceRoot,
 		Content:       []byte(t.heartbeatBody),
 		Config:        t.heartbeatConfig,
+		CheckInLimits: t.checkInLimits,
 	})
 	if err != nil {
 		return policy, err

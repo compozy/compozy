@@ -94,6 +94,9 @@ func validateAgentMCPServersAndHooks(servers []MCPServer, hooks []hookspkg.HookD
 }
 
 func validateAgentRuntimeDefaults(agent AgentDef) error {
+	if err := ValidateAutoCompactWindow(agent.AutoCompactWindow, "agent.auto_compact_window"); err != nil {
+		return err
+	}
 	if effort := strings.TrimSpace(agent.ReasoningEffort); agent.ReasoningEffort != "" {
 		if effort != agent.ReasoningEffort || !reasoning.IsValid(effort) {
 			return &reasoning.InvalidEffortError{Path: "agent.reasoning_effort", Value: agent.ReasoningEffort}

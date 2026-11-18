@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 
 	"net/http"
 	"net/url"
@@ -33,7 +34,7 @@ func (s *LiveProviderSource) discoveryEnv(
 	ctx context.Context,
 	provider compozyconfig.ProviderConfig,
 ) ([]string, error) {
-	env := append([]string(nil), s.baseEnv...)
+	env := slices.Clone(s.baseEnv)
 	switch provider.EffectiveEnvPolicy() {
 	case compozyconfig.ProviderEnvPolicyIsolated:
 		env = procutil.IsolatedDaemonEnv(env)

@@ -50,9 +50,7 @@ export function SessionListThreadList({
   emptyMessage,
 }: SessionListThreadListProps) {
   const dnd = useSessionListDnd(undefined, { manual: false, reorderable: false });
-  const nestParents = threads.flatMap(thread => [thread.session, ...thread.childSessions]);
   const roots = new Map(threads.map(thread => [thread.session.id, thread.session]));
-  const threadActions = { ...sessionActions, nestParents };
   const rowLayout = (session: SessionPayload) => ({
     drag: dnd.sessionRow(
       session.id,
@@ -80,7 +78,7 @@ export function SessionListThreadList({
           onThreadBranchChange={onThreadBranchChange}
           onSelectSession={onSelectSession}
           selection={selection}
-          sessionActions={threadActions}
+          sessionActions={sessionActions}
           testIdPrefix={testIdPrefix}
         />
       ))}

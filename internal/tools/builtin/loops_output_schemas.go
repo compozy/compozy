@@ -60,6 +60,7 @@ const loopStatusOutputSchema = `{
 							"required":["gate_id","outcome"],
 							"properties":{
 								"gate_id":{"type":"string","minLength":1},
+								"item_index":{"type":"integer","minimum":0},
 								"outcome":{
 									"type":"string",
 									"enum":[
@@ -75,7 +76,7 @@ const loopStatusOutputSchema = `{
 							"additionalProperties":false
 						}
 					},
-					"outputs":{"type":"array","items":` + loopGenerationOutputSchema + `}
+					"outputs":{"type":"array","items":` + loopStatusGenerationOutputSchema + `}
 				},
 				"additionalProperties":false
 			}
@@ -116,12 +117,34 @@ const loopRunsOutputSchema = `{
 				"live":{"type":"integer","minimum":0},
 				"terminal":{"type":"integer","minimum":0},
 				"succeeded":{"type":"integer","minimum":0},
-				"failed":{"type":"integer","minimum":0}
+				"failed":{"type":"integer","minimum":0},
+				"historical":{"type":"integer","minimum":0}
 			},
 			"additionalProperties":false
 		},
 		"next_cursor":{"type":"string","description":"Opaque continuation cursor for the next page; ` +
 	`omitted when no further page exists."}
+	},
+	"additionalProperties":false
+}`
+
+const loopStatusGenerationOutputSchema = `{
+	"type":"object",
+	"required":["node_id","status"],
+	"properties":{
+		"generation":{"type":"integer","minimum":1},
+		"node_id":{"type":"string","minLength":1},
+		"item_index":{"type":"integer","minimum":0},
+		"status":{"type":"string"},
+		"output_ref":{"type":"string"},
+		"task_run_id":{"type":"string"},
+		"session_id":{"type":"string"},
+		"child_loop_run_id":{"type":"string"},
+		"resolved_runtime":{"type":"object"},
+		"attempt":{"type":"integer","minimum":1},
+		"next_attempt_at":{"type":"string","format":"date-time"},
+		"failure_class":{"type":"string"},
+		"disposition":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

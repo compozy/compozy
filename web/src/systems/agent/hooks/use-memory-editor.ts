@@ -13,8 +13,10 @@ import {
   memoryNoteMatches,
   memoryPercent,
   parseMemoryFile,
+  withMemoryKind,
   type MemoryFile,
   type MemoryFilter,
+  type MemoryKind,
   type MemoryNote,
 } from "../lib/agent-memory-notes";
 import { agentMemoryOptions } from "../lib/query-options";
@@ -119,12 +121,12 @@ export function useMemoryEditor(
       setAdding(true);
     },
     cancelAdding: () => setAdding(false),
-    add: (text: string, until?: string) => {
+    add: (text: string, until?: string, kind: MemoryKind = "note") => {
       const note: MemoryNote = {
         id: crypto.randomUUID(),
         text,
         gap: 0,
-        ...(until ? { date: today, until } : {}),
+        ...(kind === "rule" ? { kind } : until ? { date: today, until } : {}),
       };
       setNotes([note, ...notes]);
       setAdding(false);
@@ -134,6 +136,8 @@ export function useMemoryEditor(
     },
     update: (id: string, text: string) =>
       setNotes(notes.map(note => (note.id === id ? { ...note, text, line: undefined } : note))),
+    setKind: (id: string, kind: MemoryKind) =>
+      setNotes(notes.map(note => (note.id === id ? withMemoryKind(note, kind) : note))),
     remove: (id: string) => setNotes(notes.filter(note => note.id !== id)),
     restore: (revision: string) =>
       rollback.mutate(

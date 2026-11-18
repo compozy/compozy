@@ -5,6 +5,7 @@ import { cn, KindIcon } from "@compozy/ui";
 import { marketplaceIconURL } from "../lib/marketplace-icon";
 
 import {
+  marketplaceBrandFollowsTheme,
   marketplaceBrandKeyFor,
   marketplaceBrandRegistry,
 } from "../lib/marketplace-brand-registry";
@@ -105,15 +106,18 @@ class MarketplaceLogoBoundary extends Component<
 }
 
 /**
- * Entry logo ladder: feed `icon` → brand mark from the shared inventory → Boring Avatars marble
+ * Entry logo ladder: feed `icon` (unless a theme-following monochrome brand mark exists) → brand
+ * mark from the shared inventory → Boring Avatars marble
  * tile seeded by the entry id → monogram only when the tile fails to render. The marble tile is
  * the one authorized identity color on a resting row (DESIGN-NOTES Q3).
  */
 /** Render a CSP-compatible image, then the existing brand or generated fallback on failure. */
 function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntryLogoProps) {
   const [failedIcon, setFailedIcon] = useState<string>();
-  const icon = marketplaceIconURL(entry.icon);
   const brandKey = marketplaceBrandKeyFor(entry);
+  // A monochrome brand's feed image has a fixed ink that disappears on one theme; its shipped mark
+  // follows the text color instead, so it outranks the image.
+  const icon = marketplaceBrandFollowsTheme(brandKey) ? undefined : marketplaceIconURL(entry.icon);
   const wellClass = cn(
     "inline-flex shrink-0 items-center justify-center overflow-hidden text-fg",
     WELL_CLASS[size],

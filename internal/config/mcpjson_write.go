@@ -369,6 +369,9 @@ func (c *mcpJSONCollection) delete(name string) bool {
 
 func marshalMCPJSONServer(server MCPServer) (json.RawMessage, error) {
 	type writableMCPJSONServer struct {
+		ReadOnlyTools  []string           `json:"read_only_tools,omitempty"`
+		Reference      bool               `json:"reference,omitempty"`
+		SecretHeaders  map[string]string  `json:"secret_headers,omitempty"`
 		Transport      MCPServerTransport `json:"transport,omitempty"`
 		Command        string             `json:"command,omitempty"`
 		Args           []string           `json:"args,omitempty"`
@@ -385,6 +388,9 @@ func marshalMCPJSONServer(server MCPServer) (json.RawMessage, error) {
 		auth = &normalizedAuth
 	}
 	payload, err := json.Marshal(writableMCPJSONServer{
+		ReadOnlyTools:  append([]string(nil), server.ReadOnlyTools...),
+		Reference:      server.Reference,
+		SecretHeaders:  mergeStringMaps(nil, server.SecretHeaders),
 		Transport:      MCPServerTransport(strings.TrimSpace(string(server.Transport))),
 		Command:        strings.TrimSpace(server.Command),
 		Args:           append([]string(nil), server.Args...),

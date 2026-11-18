@@ -9,21 +9,26 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
-// Reconcile scans the sessions directory and reconciles the global session index.
+// Reconcile scans the sessions directory and reconciles the global session index. A session
+// whose files and catalog row are both unchanged since the last reconcile is not read again.
 func (o *Observer) Reconcile(ctx context.Context) (store.ReconcileResult, error) {
-	recovered, err := o.loadSessionMetadata(ctx)
+	startedAt := time.Now()
+	watermarks := o.loadReconcileWatermarks(ctx)
+	recovered, unchanged, err := o.loadSessionMetadata(ctx, watermarks)
 	if err != nil {
 		return store.ReconcileResult{}, err
 	}
 
 	sessions := make([]store.SessionInfo, 0, len(recovered))
 	creationIndexed := make([]string, 0)
+	stable := make([]string, 0, len(recovered))
 	for index := range recovered {
 		recoveredSession := &recovered[index]
 		created, err := o.reconcileRecoveredSessionCreation(ctx, recoveredSession)
@@ -33,21 +38,43 @@ func (o *Observer) Reconcile(ctx context.Context) (store.ReconcileResult, error)
 		if created {
 			creationIndexed = append(creationIndexed, recoveredSession.ID)
 		}
+		if !recoveredSession.unsettled {
+			stable = append(stable, recoveredSession.ID)
+		}
 		sessions = append(sessions, recoveredSession.SessionInfo)
 	}
 
-	result, err := o.registry.ReconcileSessions(ctx, sessions)
+	var result store.ReconcileResult
+	if reconciler, ok := o.registry.(store.SessionChangeReconciler); ok {
+		var changes store.SessionChangeReconcileResult
+		changes, err = reconciler.ReconcileSessionChanges(ctx, sessions, unchanged)
+		result = changes.ReconcileResult
+		watermarks.reconciled(changes.Written)
+	} else {
+		result, err = o.registry.ReconcileSessions(ctx, sessions)
+	}
 	if err != nil {
 		return store.ReconcileResult{}, fmt.Errorf("observe: reconcile sessions: %w", err)
 	}
 	result.Indexed = append(result.Indexed, creationIndexed...)
 	slices.Sort(result.Indexed)
+	watermarks.record(ctx, o, stable)
+	o.logger.Info("observe: session reconcile complete",
+		"read_sessions", len(recovered),
+		"unchanged_sessions", len(unchanged),
+		"indexed_sessions", len(result.Indexed),
+		"orphaned_sessions", len(result.Orphaned),
+		"duration_ms", time.Since(startedAt).Milliseconds(),
+	)
 
 	return result, nil
 }
 
 type recoveredSession struct {
 	store.SessionInfo
+	// unsettled marks a session whose metadata this reconcile had to reclassify or recover, so
+	// the next reconcile reads it again instead of trusting this one.
+	unsettled        bool
 	creationProfile  *store.SessionCreationProfile
 	creationIdentity *store.SessionCreationIdentity
 }
@@ -87,18 +114,28 @@ func (o *Observer) reconcileRecoveredSessionCreation(
 	return registration.Created, nil
 }
 
-func (o *Observer) loadSessionMetadata(ctx context.Context) ([]recoveredSession, error) {
+// loadSessionMetadata reads every session directory that is not proven unchanged and returns the
+// ids of the ones it left unread.
+func (o *Observer) loadSessionMetadata(
+	ctx context.Context,
+	watermarks *reconcileWatermarks,
+) ([]recoveredSession, []string, error) {
 	entries, err := os.ReadDir(o.homePaths.SessionsDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
+			return nil, nil, nil
 		}
-		return nil, fmt.Errorf("observe: read sessions directory %q: %w", o.homePaths.SessionsDir, err)
+		return nil, nil, fmt.Errorf("observe: read sessions directory %q: %w", o.homePaths.SessionsDir, err)
 	}
 
 	sessions := make([]recoveredSession, 0, len(entries))
+	unchanged := make([]string, 0)
 	for _, entry := range entries {
 		if !entry.IsDir() {
+			continue
+		}
+		if watermarks.unchanged(entry.Name()) {
+			unchanged = append(unchanged, entry.Name())
 			continue
 		}
 		recovered, ok := o.loadRecoveredSession(ctx, entry.Name())
@@ -111,7 +148,7 @@ func (o *Observer) loadSessionMetadata(ctx context.Context) ([]recoveredSession,
 		return cmp.Compare(a.ID, b.ID)
 	})
 
-	return sessions, nil
+	return sessions, unchanged, nil
 }
 
 func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (recoveredSession, bool) {
@@ -154,7 +191,9 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 		)
 		return recoveredSession{}, false
 	}
+	unsettled := false
 	if ownerAuthoritative && meta.WorktreeTransition != nil && meta.WorktreeTransition.Pending {
+		unsettled = true
 		bindingStore, ok := o.registry.(store.SessionWorktreeBindingStore)
 		if !ok {
 			o.logger.Warn("observe: worktree binding recovery store is unavailable", "session_id", sessionID)
@@ -165,8 +204,10 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 			return recoveredSession{}, false
 		}
 	}
-	normalized := o.normalizeRecoveredMeta(metaPath, &meta, ownerAuthoritative)
-	return recoveredSessionFromMeta(&normalized), true
+	normalized, reclassified := o.normalizeRecoveredMeta(metaPath, &meta, ownerAuthoritative)
+	recovered := recoveredSessionFromMeta(&normalized)
+	recovered.unsettled = unsettled || reclassified
+	return recovered, true
 }
 
 func (o *Observer) warnSkippedSessionRecovery(meta *store.SessionMeta, reason string) {
@@ -250,14 +291,15 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 	return recovered
 }
 
+// normalizeRecoveredMeta classifies inactive metadata and reports whether it had to change.
 func (o *Observer) normalizeRecoveredMeta(
 	path string,
 	meta *store.SessionMeta,
 	ownerAuthoritative bool,
-) store.SessionMeta {
+) (store.SessionMeta, bool) {
 	normalized, changed := session.ClassifyInactiveMetaForRecovery(o.now(), meta)
 	if meta == nil || !changed || !ownerAuthoritative {
-		return normalized
+		return normalized, changed
 	}
 
 	normalized.UpdatedAt = o.now()
@@ -268,8 +310,8 @@ func (o *Observer) normalizeRecoveredMeta(
 			"path", path,
 			"error", err,
 		)
-		return session.AnnotateUnpersistedRecovery(&normalized, err)
+		return session.AnnotateUnpersistedRecovery(&normalized, err), true
 	}
 
-	return normalized
+	return normalized, true
 }

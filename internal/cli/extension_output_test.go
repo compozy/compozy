@@ -9,12 +9,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/spf13/cobra"
@@ -271,6 +274,176 @@ func TestExtensionStatusShowsFailureSummary(t *testing.T) {
 
 func TestExtensionAgentPluginOutputContract(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve successful install output when home resolution fails", func(t *testing.T) {
+		t.Parallel()
+		deps := commandDeps{resolveHome: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{}, fmt.Errorf("home unavailable")
+		}}
+		item := ExtensionRecord{Name: "acme.tools", Format: string(extensionpkg.FormatAgentPlugin)}
+		report := extensionInstallValidationReport(deps, extensionInstallPlan{}, &item)
+		if report != nil {
+			t.Fatalf("install report = %+v, want unavailable", report)
+		}
+		bundle := extensionInstallSuccessBundle(&item, report)
+		for _, format := range []OutputFormat{OutputHuman, OutputJSON, OutputJSONL, OutputToon} {
+			output, err := renderExtensionOutput(t, bundle, format)
+			if err != nil {
+				t.Fatalf("install %s output error = %v", format, err)
+			}
+			if !strings.Contains(output, item.Name) {
+				t.Fatalf("install %s output = %q, want installed identity", format, output)
+			}
+			if format == OutputHuman {
+				for _, want := range []string{
+					"✓ install acme.tools", "warning: validation report is unavailable",
+					"next: compozy extension enable acme.tools", "Format:", "agent plugin",
+				} {
+					if !strings.Contains(output, want) {
+						t.Fatalf("install human output = %q, want %q", output, want)
+					}
+				}
+			}
+		}
+	})
+
+	// Invariant: report reloads retain the approved client identity across source directory names.
+	t.Run("Should report a root client plugin with its approved install identity", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		if err := os.WriteFile(
+			filepath.Join(root, "plugin.json"),
+			[]byte(`{"name":"Display Name","version":"1.2.0"}`),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		item := ExtensionRecord{Name: "acme.tools", Format: string(extensionpkg.FormatAgentPlugin)}
+		plan := extensionInstallPlan{Attempts: []InstallExtensionRequest{{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: root,
+		}}}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		deps := commandDeps{resolveHome: func() (compozyconfig.HomePaths, error) { return homePaths, nil }}
+		report := extensionInstallValidationReport(deps, plan, &item)
+		if report == nil || report.Status != "valid" || report.Name != item.Name {
+			t.Fatalf("install report = %+v, want valid approved identity %q", report, item.Name)
+		}
+		for _, format := range []OutputFormat{OutputHuman, OutputJSON} {
+			output, err := renderExtensionOutput(t, extensionInstallSuccessBundle(&item, report), format)
+			if err != nil || !strings.Contains(output, item.Name) {
+				t.Fatalf("install %s output = %q, error = %v", format, output, err)
+			}
+		}
+	})
+
+	t.Run("Should retain native precedence without resolving plugin data", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for name, content := range map[string]string{
+			"extension.toml": "[extension]\nname = \"acme@tools\"\nversion = \"1.0.0\"\nmin_compozy_version = \"0.3.0-beta.1\"\n",
+			"plugin.json":    `{"name":"client"}`,
+		} {
+			if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		prepared, err := prepareExtensionInstall(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		item := ExtensionRecord{Name: prepared.Manifest.Name, Format: string(extensionpkg.FormatCompozy)}
+		deps := commandDeps{resolveHome: func() (compozyconfig.HomePaths, error) {
+			t.Error("native report must not resolve plugin data")
+			return compozyconfig.HomePaths{}, fmt.Errorf("home unavailable")
+		}}
+		plan := extensionInstallPlan{Attempts: []InstallExtensionRequest{{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: root,
+		}}}
+		report := extensionInstallValidationReport(deps, plan, &item)
+		if report == nil || report.Status != "valid" || !report.DualManifest {
+			t.Fatalf("native install report = %+v, want valid dual manifest", report)
+		}
+		human, err := extensionInstallSuccessBundle(&item, report).human()
+		if err != nil || strings.Count(human, "(native manifest wins)") != 1 {
+			t.Fatalf("native install output = %q, %v; want one precedence note", human, err)
+		}
+	})
+
+	t.Run("Should reject foreign root schemas consistently with local installation", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, "plugin.json"),
+			[]byte(`{"$schema":"https://example.com/foreign.schema.json","name":"foreign"}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		report, validationErr := extensionpkg.ValidateBundleReport(root)
+		if validationErr == nil && report.Status == "valid" {
+			t.Fatalf("foreign schema accepted: %+v", report)
+		}
+		if _, err := prepareExtensionInstall(root); err == nil {
+			t.Fatal("local installer accepted foreign schema")
+		}
+	})
+
+	t.Run("Should accept root client manifests consistently with local installation", func(t *testing.T) {
+		t.Parallel()
+		root := filepath.Join(t.TempDir(), "client")
+		if err := os.MkdirAll(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "plugin.json"),
+			[]byte(`{"name":"Client Display Name"}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		report, err := extensionpkg.ValidateBundleReport(root)
+		if err != nil || report.Status != "valid" || report.Name != "client" {
+			t.Fatalf("root client validation = %+v, %v", report, err)
+		}
+		prepared, err := prepareExtensionInstall(root)
+		if err != nil || prepared.Manifest.Name != report.Name {
+			t.Fatalf("local installer identity = %+v, %v", prepared.Manifest, err)
+		}
+	})
+
+	t.Run("Should report MCP servers against installed data instead of source data", func(t *testing.T) {
+		t.Parallel()
+		root := filepath.Join(t.TempDir(), "source", "plugins", "approved")
+		if err := os.MkdirAll(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "mcp.json"), []byte(
+			`{"mcpServers":{"local":{"command":"node","cwd":"${CLAUDE_PLUGIN_DATA}/work"}}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		sourceData := filepath.Join(filepath.Dir(filepath.Dir(root)), "extension-data", "approved")
+		if err := os.MkdirAll(sourceData, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(t.TempDir(), filepath.Join(sourceData, "work")); err != nil {
+			t.Fatal(err)
+		}
+		preview, err := extensionpkg.ValidateBundleReport(root)
+		if err != nil || len(preview.WouldIngest) != 0 || len(preview.Issues) == 0 {
+			t.Fatalf("source validation = %+v, %v; want skipped server", preview, err)
+		}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		deps := commandDeps{resolveHome: func() (compozyconfig.HomePaths, error) { return homePaths, nil }}
+		item := ExtensionRecord{Name: "approved", Format: string(extensionpkg.FormatAgentPlugin)}
+		plan := extensionInstallPlan{Attempts: []InstallExtensionRequest{{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: root,
+		}}}
+		report := extensionInstallValidationReport(deps, plan, &item)
+		if report == nil || report.Status != "valid" || len(report.WouldIngest) != 1 || len(report.Issues) != 1 ||
+			report.Issues[0].Code != "client_mcp_discovered" {
+			t.Fatalf("installed report = %+v; want accepted MCP server", report)
+		}
+	})
 
 	report := &extensionpkg.ValidationReport{
 		Status: "valid", Format: string(extensionpkg.FormatAgentPlugin), Name: "acme.tools", Version: "1.2.0",
@@ -719,4 +892,41 @@ func renderExtensionOutput(t *testing.T, bundle outputBundle, format OutputForma
 	command.SetOut(&output)
 	err := writeCommandOutput(command, bundle)
 	return output.String(), err
+}
+
+func TestExtensionInstallEnableFailureOutput(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain successful install and provide enable retry", func(t *testing.T) {
+		t.Parallel()
+		item := ExtensionRecord{
+			Name:    "broken",
+			Version: "1.0.0",
+			InstallEnableError: &contract.ExtensionEnableError{
+				Error: "couldn't turn on broken",
+				Code:  "manifest_permission_denied",
+			},
+		}
+		bundle := extensionInstallSuccessBundle(&item, nil)
+		human, err := bundle.human()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(human, "couldn't turn on broken") ||
+			!strings.Contains(human, "manifest_permission_denied") ||
+			!strings.Contains(human, "Retry: compozy extension enable broken") {
+			t.Fatalf("human output = %q", human)
+		}
+		data, err := json.Marshal(bundle.jsonValue)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload contract.InstallExtensionResponse
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Extension.Enabled || payload.EnableError == nil ||
+			payload.EnableError.Code != "manifest_permission_denied" {
+			t.Fatalf("json = %s", data)
+		}
+	})
 }

@@ -1,3 +1,6 @@
+-- name: EventSummaryHeadSequence :one
+SELECT CAST(COALESCE(MAX(seq), 0) AS INTEGER) FROM event_summaries;
+
 -- name: InsertEventSummary :exec
 INSERT INTO event_summaries (
   profile_id,

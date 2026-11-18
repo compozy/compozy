@@ -11,6 +11,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func tokenUsageFromPromptResponse(turnID string, usage *wireUsage) TokenUsage {
@@ -23,8 +24,8 @@ func tokenUsageFromPromptResponse(turnID string, usage *wireUsage) TokenUsage {
 		OutputTokens:     usage.OutputTokens,
 		TotalTokens:      usage.TotalTokens,
 		ThoughtTokens:    usage.ThoughtTokens,
-		CacheReadTokens:  chooseInt64(usage.CachedReadTokens, usage.LegacyCacheReadTokens),
-		CacheWriteTokens: chooseInt64(usage.CachedWriteTokens, usage.LegacyCacheWriteTokens),
+		CacheReadTokens:  usage.CachedReadTokens,
+		CacheWriteTokens: usage.CachedWriteTokens,
 		Timestamp:        timeNowUTC(),
 	}
 }
@@ -164,6 +165,18 @@ func (p *AgentProcess) activeTurnID() string {
 		return ""
 	}
 	return active.turnID
+}
+
+// activeTraceContext returns the active prompt's turn ID with the span context of the turn that sent it, read together
+// so a permission wait is never parented to another turn.
+func (p *AgentProcess) activeTraceContext() (string, trace.SpanContext) {
+	p.promptMu.RLock()
+	defer p.promptMu.RUnlock()
+	active := p.activePrompt
+	if active == nil {
+		return "", trace.SpanContext{}
+	}
+	return active.turnID, active.traceCtx
 }
 
 func (p *AgentProcess) activeRunIdentity() (string, int64) {

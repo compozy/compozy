@@ -26,7 +26,7 @@ flowchart TD
 journey:
   id: J-administer-window-manager
   name: "Tune window behavior without partial state"
-  value_statement: "An operator can customize snapping, layout, focus, gaps, shortcuts, and edge bindings while preserving one validated runtime authority."
+  value_statement: "An operator can customize new-window placement, focus, gaps, shortcuts, and the desktops, tabs and splits of a layout while preserving one validated runtime authority."
   personas: [Bruno, Ada]
   entry_points:
     - url: "Settings / Window Management"
@@ -42,8 +42,8 @@ journey:
       verb: "Read behavior defaults, overrides, effective shortcuts, and the workspace layout"
       expected_observable: "Settings, CLI, HTTP, UDS, and the daemon snapshot expose the same supported values, effective bindings, and revision."
     - step: 2
-      verb: "Edit snapping, gaps, focus, shortcut arrays or ranges, bindings, a preset, or a declarative layout"
-      expected_observable: "The UI keeps the draft local and exposes conflict, platform-hazard, preset, or layout validation before commit."
+      verb: "Edit new-window placement, focus, gaps, shortcut arrays or ranges, a preset, or the desktops, tabs and splits of a declarative layout (including an imported version 4 or 5 file)"
+      expected_observable: "The UI keeps the draft local and exposes conflict, platform-hazard, preset, or layout validation before commit; retired config keys and shortcut bindings load with a warning or a retired mark and have no editing control."
     - step: 3
       verb: "Submit an invalid draft"
       expected_observable: "Stable diagnostics name each invalid path; no runtime value, topology, revision, event, or history entry changes."
@@ -74,3 +74,11 @@ design_reference:
   visual_contracts:
     - "task_05 VC-01..VC-06 — herdr-parity-settings-shortcuts.html"
   judgment_rule: "Judge the shortcut table, diagnostics, and Terminal preset against the locked board; the daemon effective keymap owns every rendered chord."
+
+qa-impact: 2026-11-13 window-tabs-split S10. Snapping, edge bindings, raise-on-focus, drag-away,
+group-move and floating placement were retired with tabs and splits; step 2 now edits new-window
+placement (New tab or Split beside focus), focus, gaps, shortcuts and the desktops → tabs → splits of
+the Project layout, and imports of version 4/5 files go through the daemon's `layout.replace`
+preview. Retired `[window_manager]` keys load with a warning (MS-window-manager-retired-config-keys)
+and retired shortcut bindings show as retired rows (MS-window-shortcut-retired-binding). Walk the
+journey with ET-layout-editor-import-legacy-document and MS-configure-window-manager.

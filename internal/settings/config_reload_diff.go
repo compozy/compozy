@@ -39,6 +39,14 @@ func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Co
 	if current.UserScope.WorkDir != desired.UserScope.WorkDir {
 		changed = append(changed, "user_scope.work_dir")
 	}
+	if current.Client.RequestTimeout != desired.Client.RequestTimeout {
+		changed = append(changed, "client.request_timeout")
+	}
+	// Log settings are restart-required, so they must appear in the diff: otherwise a
+	// live change next to a log change would report the whole reload as applied.
+	if current.Log != desired.Log {
+		changed = append(changed, "log.*")
+	}
 	changed = append(changed, diffProviderUsageSettings(current.ProviderUsage, desired.ProviderUsage)...)
 	if current.Subagents.ResultMaxChars != desired.Subagents.ResultMaxChars {
 		changed = append(changed, "subagents.result_max_chars")
@@ -60,6 +68,7 @@ func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Co
 	changed = append(changed, diffCmdPaletteConfig(current.CmdPalette, desired.CmdPalette)...)
 	changed = append(changed, diffAttentionSettings(current.Attention, desired.Attention)...)
 	changed = append(changed, diffObservabilitySettings(current.Observability, desired.Observability)...)
+	changed = append(changed, diffObservabilityOTelSettings(current.Observability.OTel, desired.Observability.OTel)...)
 	changed = append(changed, diffExtensionsSettings(current.Extensions, desired.Extensions)...)
 	changed = append(changed, diffMarketplaceCatalog(current.Marketplace.Catalog, desired.Marketplace.Catalog)...)
 	changed = append(changed, diffProviderSettings(current.Providers, desired.Providers)...)

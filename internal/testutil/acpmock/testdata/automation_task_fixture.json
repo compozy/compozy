@@ -32,6 +32,26 @@
                             "text": "Delegated task session responded."
                         }
                     ]
+                },
+                {
+                    "name": "long-manual-run",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Run the long manual automation."
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "delay",
+                                "delay_ms": 31000
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Long automation completed."
+                        }
+                    ]
                 }
             ]
         }

@@ -111,6 +111,9 @@ describe("AgentAvatar", () => {
       <AgentAvatar appearance={GENERATED} label="T" size={112} state="needs-you" />
     );
     expect(slot(container, "agent-avatar-needs-you")?.getAttribute("width")).toBe("18");
+    // Needs you wears the amber attention ink, never the volt brand (UT-014).
+    expect(slot(container, "agent-avatar-needs-you")).toHaveClass("text-attn");
+    expect(slot(container, "agent-avatar-needs-you")?.getAttribute("class")).not.toContain("brand");
     expect(slot(container, "agent-avatar-dot")).toBeNull();
 
     rerender(<AgentAvatar appearance={GENERATED} label="T" size={112} state="idle" />);

@@ -4,9 +4,9 @@ area: ET
 title: Launch or focus a session from the dock
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: Clicking Sessions at the top of the dock (the left rail) opens the new-session flow only when the workspace catalog is empty and otherwise opens the last created live session, focusing an existing window for that session when one is already open including minimized, off-desktop, or inactive-stack-tab windows; the Sessions item carries the active plate while that window is focused and its badge names what needs you ("Sessions — 1 needs you").
+expected: Clicking Sessions at the top of the dock (the left rail) opens the new-session flow only when the workspace catalog is empty and otherwise opens the last created live session, focusing an existing window for that session when one is already open, including a window on another desktop, in an inactive tab, or inside a split in an inactive tab; the Sessions item carries the active plate while that window is focused and its badge names what needs you ("Sessions — 1 needs you").
 entry_points: web dock Sessions (left rail) — click, ⌥-click, ⇧-click, right-click menu
-qa_status: skipped
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -40,3 +40,5 @@ qa-impact: 2026-09-30 shell-rail polish P6 — plain Sessions clicks keep the th
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Minimized windows and tab stacks are retired; a window is either open in a tab (alone or in a split) or closed. Expected rewritten: the existing session window is found on another desktop, in an inactive tab, or inside a split in an inactive tab. The dock right-click menu is now Open in new tab / Open in split / Open in new desktop / Go to tab (no Open in new window). Walk: open the last-created session, move its tab to another desktop and click Sessions (desktop switches, window focused); activate another tab and click again (its tab activates); split it with another window in a background tab and click again (that tab activates and the session member is focused). Reset for the current build.

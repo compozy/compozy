@@ -3,12 +3,28 @@ import {
   previewMarketplaceSource,
 } from "../adapters/marketplace-sources-api";
 import type { AddMarketplaceSourceRequest } from "../types";
-import { queryOptions } from "@tanstack/react-query";
-import { getMarketplaceCatalogEntry } from "../adapters/marketplace-api";
-import { MarketplaceApiError } from "../adapters/marketplace-api-error";
+import {
+  infiniteQueryOptions,
+  noop,
+  queryOptions,
+  skipToken,
+  type Query,
+} from "@tanstack/react-query";
+import {
+  browseMarketplace,
+  getMarketplaceCatalogEntry,
+  getMarketplaceSections,
+} from "../adapters/marketplace-api";
+import { isMarketplaceCursorStale, MarketplaceApiError } from "../adapters/marketplace-api-error";
 import { marketplaceKeys } from "./query-keys";
 import { readMarketplaceSnapshot } from "./catalog-snapshot";
-import type { MarketplaceCatalogOptions, MarketplaceCatalogEntryOptions } from "../types";
+import type {
+  MarketplaceCatalogOptions,
+  MarketplaceCatalogEntryOptions,
+  MarketplaceDestinationScope,
+  MarketplaceEnableFailures,
+  MarketplaceSectionsOptions,
+} from "../types";
 
 const MARKETPLACE_STALE_TIME = 60_000;
 
@@ -33,9 +49,106 @@ export function marketplaceCatalogOptions(options: MarketplaceCatalogOptions = {
     refetchInterval: query =>
       query.state.data?.pages.some(page => page.refreshing) ? 1_000 : false,
     staleTime: MARKETPLACE_STALE_TIME,
-    retry: (failures, error) =>
-      !(error instanceof MarketplaceApiError && error.status < 500) && failures < 2,
+    retry: retryMarketplaceRead,
     enabled,
+  });
+}
+
+function retryMarketplaceRead(failures: number, error: Error) {
+  return !(error instanceof MarketplaceApiError && error.status < 500) && failures < 2;
+}
+
+/**
+ * Browse home: one daemon read for Featured and every non-empty category, with one revision and
+ * one stale flag. A search edit keeps the previous sections until the new answer arrives.
+ */
+export function marketplaceSectionsOptions(
+  options: MarketplaceSectionsOptions = {},
+  enabled = true
+) {
+  const population = JSON.stringify(marketplaceKeys.sections({ ...options, q: undefined }));
+  return queryOptions({
+    queryKey: marketplaceKeys.sections(options),
+    queryFn: ({ signal }) => getMarketplaceSections(options, signal),
+    meta: { population },
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.meta?.population === population ? previousData : undefined,
+    refetchInterval: query => (query.state.data?.refreshing ? 1_000 : false),
+    staleTime: MARKETPLACE_STALE_TIME,
+    retry: retryMarketplaceRead,
+    enabled,
+  });
+}
+
+/** Marks the fetch that restarts a category after a stale cursor; identity is the marker. */
+const STALE_CURSOR_RESTART = {};
+
+/**
+ * Matches the category's stale-cursor restart while it is in flight. Load more waits for it: a
+ * next-page fetch would cancel the restart and keep the pages it was replacing.
+ */
+export function marketplaceCategoryRestartFilters(options: MarketplaceCatalogOptions) {
+  return {
+    queryKey: marketplaceKeys.category(options),
+    exact: true,
+    predicate: (query: Query) => query.state.fetchMeta === STALE_CURSOR_RESTART,
+  };
+}
+
+/**
+ * One category, daemon-paged by cursor; the cursor stays in `pageParam`. A stale cursor — met by
+ * Load more or by a background refetch — silently cancels that fetch, keeping the rows shown, and
+ * reads every loaded page again from page one with fresh cursors (US-002.EC-2). A restart that
+ * meets a stale cursor again fails with that error, so the page offers Retry.
+ */
+export function marketplaceCategoryOptions(options: MarketplaceCatalogOptions, enabled = true) {
+  const population = JSON.stringify(marketplaceKeys.category({ ...options, q: undefined }));
+  return infiniteQueryOptions({
+    queryKey: marketplaceKeys.category(options),
+    queryFn: async ({ client, pageParam, queryKey, signal }) => {
+      try {
+        return await browseMarketplace(
+          { ...options, limit: options.limit ?? 50, cursor: pageParam },
+          signal
+        );
+      } catch (error) {
+        const query = client.getQueryCache().find({ queryKey, exact: true });
+        if (
+          isMarketplaceCursorStale(error) &&
+          query &&
+          query.state.fetchMeta !== STALE_CURSOR_RESTART
+        ) {
+          // The restart's failure lands in the query state the page reads, not here.
+          query.fetch(undefined, { cancelRefetch: true, meta: STALE_CURSOR_RESTART }).catch(noop);
+        }
+        throw error;
+      }
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: lastPage => lastPage.next_cursor || undefined,
+    meta: { population },
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.meta?.population === population ? previousData : undefined,
+    // Follow the daemon's refresh flight like Browse does, so a starting catalog fills in.
+    refetchInterval: query =>
+      query.state.data?.pages.some(page => page.refreshing) ? 1_000 : false,
+    staleTime: MARKETPLACE_STALE_TIME,
+    retry: retryMarketplaceRead,
+    enabled: enabled && (options.category?.trim() ?? "") !== "",
+  });
+}
+
+/**
+ * Enable failures of one destination. The controller writes them with `setQueryData`; nothing
+ * fetches them (`skipToken`), so a marketplace invalidation leaves them alone and they outlive
+ * the page that recorded them until a Retry or Turn on succeeds.
+ */
+export function marketplaceEnableFailuresOptions(scope: MarketplaceDestinationScope) {
+  return queryOptions<MarketplaceEnableFailures>({
+    queryKey: marketplaceKeys.enableFailures(scope),
+    queryFn: skipToken,
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 }
 

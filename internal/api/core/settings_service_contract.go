@@ -30,6 +30,11 @@ type SettingsService interface {
 		ctx context.Context,
 		req settingspkg.CollectionItemDeleteRequest,
 	) (settingspkg.ApplyResult, error)
+	SetProviderEnabled(
+		ctx context.Context,
+		name string,
+		enabled bool,
+	) (settingspkg.ProviderItem, settingspkg.ApplyResult, error)
 	Reload(ctx context.Context) (settingspkg.ApplyResult, error)
 	ListApplyRecords(ctx context.Context, filter settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
 }

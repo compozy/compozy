@@ -18,18 +18,34 @@ type sessionProjectionEntry struct {
 }
 
 type projectionAvailabilityBatch struct {
-	provider ProjectionAvailabilityProvider
-	ids      []ToolID
+	provider    ProjectionAvailabilityProvider
+	ids         []ToolID
+	descriptors []Descriptor
 }
 
-func projectionAvailabilities(
+func (r *RuntimeRegistry) projectionAvailabilities(
 	ctx context.Context,
 	scope Scope,
 	entries []sessionProjectionEntry,
 ) map[ToolID]Availability {
+	cache, cached := ctx.Value(policyResolutionKey{}).(*policyResolutionCache)
+	key := policyResolutionScope{registry: r, scope: scope}
+	availability := make(map[ToolID]Availability)
+	if cached {
+		cache.availabilityMu.Lock()
+		maps.Copy(availability, cache.availabilities[key])
+		cache.availabilityMu.Unlock()
+	}
 	var batches map[int]*projectionAvailabilityBatch
 	for _, candidate := range entries {
 		entry := candidate.entry
+		if len(entry.conflicts) > 0 {
+			delete(availability, entry.descriptor.ID)
+			continue
+		}
+		if _, found := availability[entry.descriptor.ID]; found {
+			continue
+		}
 		provider, ok := entry.provider.(ProjectionAvailabilityProvider)
 		if !ok || len(entry.conflicts) > 0 {
 			continue
@@ -43,14 +59,21 @@ func projectionAvailabilities(
 			batches[entry.providerIndex] = batch
 		}
 		batch.ids = append(batch.ids, entry.descriptor.ID)
+		if _, mcp := provider.(*MCPProvider); mcp {
+			batch.descriptors = append(batch.descriptors, entry.descriptor)
+		}
 	}
 	if len(batches) == 0 {
-		return nil
+		return availability
 	}
-	availability := make(map[ToolID]Availability)
 	for _, providerIndex := range slices.Sorted(maps.Keys(batches)) {
 		batch := batches[providerIndex]
-		resolved := batch.provider.ProjectionAvailability(ctx, scope, batch.ids)
+		var resolved map[ToolID]Availability
+		if mcp, ok := batch.provider.(*MCPProvider); ok {
+			resolved = mcp.projectionAvailability(ctx, scope, batch.descriptors)
+		} else {
+			resolved = batch.provider.ProjectionAvailability(ctx, scope, batch.ids)
+		}
 		for _, id := range batch.ids {
 			value, found := resolved[id]
 			if !found {
@@ -59,11 +82,51 @@ func projectionAvailabilities(
 			availability[id] = validateProjectionAvailability(value)
 		}
 	}
+	if cached {
+		cache.availabilityMu.Lock()
+		if cache.availabilities == nil {
+			cache.availabilities = make(map[policyResolutionScope]map[ToolID]Availability)
+		}
+		cache.availabilities[key] = maps.Clone(availability)
+		cache.availabilityMu.Unlock()
+	}
 	return availability
+}
+
+// PolicyProjection projects an already resolved scope without reentering its policy resolver.
+func (r *RuntimeRegistry) PolicyProjection(ctx context.Context, scope Scope, inputs PolicyInputs) ([]ToolView, error) {
+	cache := &policyResolutionCache{values: map[policyResolutionScope]policyResolution{
+		{registry: r, scope: scope}: {inputs: clonePolicyInputs(inputs)},
+	}}
+	ctx = context.WithValue(ctx, policyResolutionKey{}, cache)
+	index, err := r.buildIndex(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	evaluator, err := r.evaluatorFor(ctx, scope, index.ids())
+	if err != nil {
+		return nil, err
+	}
+	views := make([]ToolView, 0, len(index.entries))
+	for _, entry := range index.entries {
+		decision, err := evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
+		if err != nil {
+			return nil, err
+		}
+		views = append(
+			views,
+			ToolView{
+				Descriptor: Descriptor{ID: entry.descriptor.ID, Source: entry.descriptor.Source},
+				Decision:   decision,
+			},
+		)
+	}
+	return views, nil
 }
 
 // DiagnosticProjection returns all indexed tools with effective diagnostics for the supplied scope.
 func (r *RuntimeRegistry) DiagnosticProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
+	ctx = r.ReadContext(ctx)
 	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return nil, err
@@ -80,11 +143,11 @@ func (r *RuntimeRegistry) DiagnosticProjection(ctx context.Context, scope Scope)
 			candidates = append(candidates, sessionProjectionEntry{entry: entry})
 		}
 	}
-	batched := projectionAvailabilities(ctx, scope, candidates)
+	batched := r.projectionAvailabilities(ctx, scope, candidates)
 	views := make([]ToolView, 0, len(index.entries))
 	for _, entry := range index.entries {
 		availability, found := batched[entry.descriptor.ID]
-		if !found {
+		if !found || len(entry.conflicts) > 0 {
 			availability = r.availabilityFor(ctx, scope, entry)
 		}
 		view, err := r.viewForAvailability(ctx, scope, evaluator, entry, availability)
@@ -117,14 +180,68 @@ func (r *RuntimeRegistry) viewForAvailability(
 		return ToolView{}, err
 	}
 	decision = applyAvailabilityDecision(decision, availability)
-	descriptor := entry.descriptor
-	if !entry.owned {
-		// Shared native descriptors must not leak mutable fields; index-owned clones already are private.
-		descriptor = cloneDescriptor(descriptor)
-	}
+	descriptor := projectionDescriptor(ctx, entry.descriptor)
 	return ToolView{
 		Descriptor:   descriptor,
 		Availability: availability,
 		Decision:     decision,
 	}, nil
+}
+
+func (r *RuntimeRegistry) availabilityFor(ctx context.Context, scope Scope, entry *registryEntry) Availability {
+	if len(entry.conflicts) > 0 {
+		return r.uncachedAvailabilityFor(ctx, scope, entry)
+	}
+	cache, cached := ctx.Value(policyResolutionKey{}).(*policyResolutionCache)
+	key := policyResolutionScope{registry: r, scope: scope}
+	if cached {
+		cache.availabilityMu.Lock()
+		availability, found := cache.availabilities[key][entry.descriptor.ID]
+		cache.availabilityMu.Unlock()
+		if found {
+			return availability
+		}
+	}
+	availability := r.uncachedAvailabilityFor(ctx, scope, entry)
+	if cached {
+		cache.availabilityMu.Lock()
+		if cache.availabilities == nil {
+			cache.availabilities = make(map[policyResolutionScope]map[ToolID]Availability)
+		}
+		if cache.availabilities[key] == nil {
+			cache.availabilities[key] = make(map[ToolID]Availability)
+		}
+		cache.availabilities[key][entry.descriptor.ID] = availability
+		cache.availabilityMu.Unlock()
+	}
+	return availability
+}
+
+func (r *RuntimeRegistry) uncachedAvailabilityFor(ctx context.Context, scope Scope, entry *registryEntry) Availability {
+	if len(entry.conflicts) > 0 {
+		return Availability{
+			Registered:  true,
+			Enabled:     true,
+			Conflicted:  true,
+			ReasonCodes: append([]ReasonCode(nil), entry.conflicts...),
+		}
+	}
+	handle, ok, err := entry.provider.Resolve(ctx, scope, entry.descriptor.ID)
+	if err != nil {
+		LogBackendFailure(ctx, entry.descriptor.ID, "tool_registry_resolve", err)
+		return Availability{
+			Registered:  true,
+			Enabled:     true,
+			ReasonCodes: []ReasonCode{ReasonBackendUnhealthy},
+		}
+	}
+	if !ok || isNilInterface(handle) {
+		return Availability{
+			Registered:  true,
+			Enabled:     true,
+			ReasonCodes: []ReasonCode{ReasonBackendNotExecutable},
+		}
+	}
+	availability := handle.Availability(ctx, scope)
+	return validateProjectionAvailability(availability)
 }

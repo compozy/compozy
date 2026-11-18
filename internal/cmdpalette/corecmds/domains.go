@@ -1,10 +1,12 @@
 package corecmds
 
 type domainDefinition struct {
-	id       string
-	title    string
-	icon     string
-	keywords []string
+	id    string
+	title string
+	// commandTitle replaces the default "Open <title>" palette row when set.
+	commandTitle string
+	icon         string
+	keywords     []string
 }
 
 var sharedAppViewDomains = []domainDefinition{

@@ -156,7 +156,13 @@ func (p *agyEntryPeer) dispatch(frame agyEntryEnvelope) {
 			return
 		}
 		p.logLine("session-new ok")
-		p.respond(frame.ID, map[string]any{"sessionId": "agy-entry-sess"})
+		p.respond(frame.ID, map[string]any{
+			"sessionId": "agy-entry-sess",
+			"configOptions": []map[string]any{{
+				"id": "mode", "name": "Mode", "type": "select", "currentValue": "yolo",
+				"options": []map[string]string{{"value": "yolo", "name": "Full access"}},
+			}},
+		})
 	case "authenticate":
 		var params struct {
 			MethodID string `json:"methodId"`

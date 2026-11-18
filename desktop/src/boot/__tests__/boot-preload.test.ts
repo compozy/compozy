@@ -49,6 +49,7 @@ describe("boot preload contract", () => {
     expect(validResponse("retry", { accepted: true })).toBe(true);
     expect(validResponse("copy_diagnostics", { copied: true })).toBe(true);
     expect(validResponse("open_logs", { opened: true })).toBe(true);
+    expect(validResponse("open_config", { opened: true })).toBe(true);
     expect(validResponse("quit", { quitting: true })).toBe(true);
     expect(validResponse("export_diagnostics", { bundle_path: "/tmp/x.tar.gz", bytes: 1 })).toBe(
       true
@@ -62,5 +63,15 @@ describe("boot preload contract", () => {
     expect(validParams("diagnose", { extra: true })).toBe(false);
     expect(validParams("export_diagnostics", { consent: true })).toBe(true);
     expect(validParams("export_diagnostics", {})).toBe(false);
+  });
+
+  it("Should accept only well-formed live boot detail", () => {
+    const serving = { readiness: "serving", step: "bootFinalize" };
+    const waiting = { wait: "runtime_mutation", owner_pid: 7 };
+    expect(validState({ state: "starting", attempt: 1, boot: serving })).toBe(true);
+    expect(validState({ state: "starting", attempt: 1, boot: waiting })).toBe(true);
+    for (const boot of [null, "serving", { wait: "other" }, { owner_pid: 0 }, { step: 1 }]) {
+      expect(validState({ state: "starting", attempt: 1, boot })).toBe(false);
+    }
   });
 });

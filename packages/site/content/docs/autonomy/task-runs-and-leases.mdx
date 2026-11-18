@@ -399,15 +399,8 @@ the block lane to a first-class `needs_attention` task status. The counter reset
 task completion — never on unblock or expiry.
 
 `needs_attention` is excluded from claim selection exactly like `blocked`, so an escalated task stops
-receiving new claims until an operator or agent recovers it:
-
-Tool path:
-
-```text
-compozy__task_recover  { "task_id": "task-123", "note": "fixed the credential" }
-```
-
-CLI path:
+receiving new claims until an operator recovers it. Task-level recovery is operator-only. A bound
+agent session cannot use `compozy__task_recover`, even after tool approval; ask the operator to run:
 
 ```bash
 compozy task recover task-123 --note "fixed the credential" -o json
@@ -471,7 +464,7 @@ cache-read, cache-write, and reasoning bucket; missing bucket rates never fall b
 | `task.blocked`         | A typed block was created on a task.                   |
 | `task.unblocked`       | A block was cleared explicitly or by transient expiry. |
 | `task.needs_attention` | The unblock-loop breaker escalated a task.             |
-| `task.recovered`       | An operator or agent recovered an escalated task.      |
+| `task.recovered`       | An operator recovered an escalated task.               |
 
 Blocking a running task also emits `task.run_released` for the parked run. See the
 [Hook Event Catalog](/docs/hooks/event-catalog) for payload shapes.

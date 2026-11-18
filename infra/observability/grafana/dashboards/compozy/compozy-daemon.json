@@ -1,0 +1,691 @@
+{
+    "uid": "compozy-daemon",
+    "title": "CompozyOS — daemon",
+    "tags": ["compozy", "otel"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "schemaVersion": 41,
+    "time": {
+        "from": "now-3h",
+        "to": "now"
+    },
+    "panels": [
+        {
+            "id": 17,
+            "type": "row",
+            "title": "Turns",
+            "collapsed": false,
+            "gridPos": {
+                "x": 0,
+                "y": 0,
+                "w": 24,
+                "h": 1
+            },
+            "panels": []
+        },
+        {
+            "id": 1,
+            "type": "stat",
+            "title": "Active sessions",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 1,
+                "w": 4,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "sum(compozy_session_active)",
+                    "legendFormat": "sessions",
+                    "exemplar": false
+                }
+            ]
+        },
+        {
+            "id": 2,
+            "type": "stat",
+            "title": "Active agents",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 4,
+                "y": 1,
+                "w": 4,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "sum(compozy_agent_active)",
+                    "legendFormat": "agents",
+                    "exemplar": false
+                }
+            ]
+        },
+        {
+            "id": 3,
+            "type": "stat",
+            "title": "Daemon uptime",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 8,
+                "y": 1,
+                "w": 4,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "max(compozy_uptime_seconds)",
+                    "legendFormat": "uptime",
+                    "exemplar": false
+                }
+            ]
+        },
+        {
+            "id": 4,
+            "type": "timeseries",
+            "title": "Turns per minute by outcome",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 1,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "sum by (compozy_outcome) (rate(compozy_session_turn_duration_seconds_count[$__rate_interval])) * 60",
+                    "legendFormat": "{{compozy_outcome}}",
+                    "exemplar": false
+                }
+            ]
+        },
+        {
+            "id": 5,
+            "type": "timeseries",
+            "title": "Turn duration p50/p95 by model",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 9,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.95, sum by (le,gen_ai_request_model) (rate(compozy_session_turn_duration_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p95 {{gen_ai_request_model}}",
+                    "exemplar": true
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "B",
+                    "expr": "histogram_quantile(0.5, sum by (le,gen_ai_request_model) (rate(compozy_session_turn_duration_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p50 {{gen_ai_request_model}}",
+                    "exemplar": true
+                }
+            ]
+        },
+        {
+            "id": 6,
+            "type": "timeseries",
+            "title": "Time to first token p95 by model",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 9,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.95, sum by (le,gen_ai_request_model) (rate(compozy_session_ttft_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "{{gen_ai_request_model}}",
+                    "exemplar": true
+                }
+            ]
+        },
+        {
+            "id": 18,
+            "type": "row",
+            "title": "Cost and tokens",
+            "collapsed": false,
+            "gridPos": {
+                "x": 0,
+                "y": 17,
+                "w": 24,
+                "h": 1
+            },
+            "panels": []
+        },
+        {
+            "id": 7,
+            "type": "timeseries",
+            "title": "Tokens/min by type",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 18,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "sum by (compozy_token_type) (rate(compozy_tokens_total[$__rate_interval])) * 60",
+                    "legendFormat": "{{compozy_token_type}}",
+                    "exemplar": false
+                }
+            ]
+        },
+        {
+            "id": 8,
+            "type": "bargauge",
+            "title": "Cost in range (USD) by model",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 18,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "currencyUSD"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "sum by (gen_ai_request_model, compozy_cost_status) (increase(compozy_cost_total[$__range]))",
+                    "legendFormat": "{{gen_ai_request_model}} ({{compozy_cost_status}})",
+                    "exemplar": false
+                }
+            ]
+        },
+        {
+            "id": 19,
+            "type": "row",
+            "title": "Tools and ACP",
+            "collapsed": false,
+            "gridPos": {
+                "x": 0,
+                "y": 26,
+                "w": 24,
+                "h": 1
+            },
+            "panels": []
+        },
+        {
+            "id": 9,
+            "type": "timeseries",
+            "title": "Tool call p95 by tool",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 27,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.95, sum by (le,compozy_tool) (rate(compozy_tool_call_duration_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "{{compozy_tool}}",
+                    "exemplar": true
+                }
+            ]
+        },
+        {
+            "id": 10,
+            "type": "timeseries",
+            "title": "Tool calls/min by outcome",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 27,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "sum by (compozy_outcome) (rate(compozy_tool_calls_total[$__rate_interval])) * 60",
+                    "legendFormat": "{{compozy_outcome}}",
+                    "exemplar": false
+                }
+            ]
+        },
+        {
+            "id": 11,
+            "type": "timeseries",
+            "title": "ACP RPC p95 by method",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 35,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.95, sum by (le,rpc_method) (rate(compozy_acp_rpc_duration_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "{{rpc_method}}",
+                    "exemplar": true
+                }
+            ]
+        },
+        {
+            "id": 12,
+            "type": "timeseries",
+            "title": "Agent errors and permission requests",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 35,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "sum by (gen_ai_system, error_type) (increase(compozy_agent_errors_total[$__rate_interval]))",
+                    "legendFormat": "error {{gen_ai_system}} {{error_type}}",
+                    "exemplar": false
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "B",
+                    "expr": "sum by (compozy_outcome) (increase(compozy_permission_requests_total[$__rate_interval]))",
+                    "legendFormat": "permission {{compozy_outcome}}",
+                    "exemplar": false
+                }
+            ]
+        },
+        {
+            "id": 20,
+            "type": "row",
+            "title": "Database (SQLite)",
+            "collapsed": false,
+            "gridPos": {
+                "x": 0,
+                "y": 43,
+                "w": 24,
+                "h": 1
+            },
+            "panels": []
+        },
+        {
+            "id": 13,
+            "type": "timeseries",
+            "title": "DB write p95 by operation",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 44,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.95, sum by (le,compozy_db_operation) (rate(compozy_db_write_duration_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "{{compozy_db_operation}}",
+                    "exemplar": true
+                }
+            ]
+        },
+        {
+            "id": 14,
+            "type": "timeseries",
+            "title": "DB write admission wait p95",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 44,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.95, sum by (le,compozy_db_operation) (rate(compozy_db_write_admission_wait_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "{{compozy_db_operation}}",
+                    "exemplar": false
+                }
+            ]
+        },
+        {
+            "id": 21,
+            "type": "row",
+            "title": "Spans (Tempo metrics-generator)",
+            "collapsed": false,
+            "gridPos": {
+                "x": 0,
+                "y": 52,
+                "w": 24,
+                "h": 1
+            },
+            "panels": []
+        },
+        {
+            "id": 15,
+            "type": "timeseries",
+            "title": "Span latency p95",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 53,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{service=\"compozy-daemon\"}[$__rate_interval])))",
+                    "legendFormat": "{{span_name}}",
+                    "exemplar": true
+                }
+            ]
+        },
+        {
+            "id": 16,
+            "type": "timeseries",
+            "title": "Error spans/s",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 53,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "refId": "A",
+                    "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=\"compozy-daemon\", status_code=\"STATUS_CODE_ERROR\"}[$__rate_interval]))",
+                    "legendFormat": "{{span_name}}",
+                    "exemplar": false
+                }
+            ]
+        },
+        {
+            "id": 22,
+            "type": "table",
+            "title": "Recent turns (click to open the trace)",
+            "datasource": {
+                "type": "tempo",
+                "uid": "tempo"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 61,
+                "w": 24,
+                "h": 9
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "datasource": {
+                        "type": "tempo",
+                        "uid": "tempo"
+                    },
+                    "queryType": "traceql",
+                    "query": "{resource.service.name=\"compozy-daemon\" && name=\"session.turn\"}",
+                    "limit": 50,
+                    "tableType": "traces"
+                }
+            ]
+        },
+        {
+            "id": 23,
+            "type": "logs",
+            "title": "Daemon logs",
+            "datasource": {
+                "type": "loki",
+                "uid": "loki"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 70,
+                "w": 24,
+                "h": 10
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "datasource": {
+                        "type": "loki",
+                        "uid": "loki"
+                    },
+                    "expr": "{service_name=\"compozy-daemon\"}"
+                }
+            ],
+            "options": {
+                "showTime": true,
+                "wrapLogMessage": true
+            }
+        }
+    ],
+    "links": [
+        {
+            "title": "Service graph (Tempo)",
+            "url": "/explore",
+            "type": "link"
+        }
+    ]
+}

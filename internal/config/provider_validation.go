@@ -158,3 +158,17 @@ func (a MCPAuthConfig) IsZero() bool {
 func (a MCPAuthConfig) Enabled() bool {
 	return !a.IsZero()
 }
+
+func ValidateAutoCompactWindow(value *int, path string) error {
+	if value != nil && (*value < 100000 || *value > 1000000) {
+		return ValidationError{Path: path, Message: "must be between 100000 and 1000000 tokens"}
+	}
+	return nil
+}
+
+func cloneAutoCompactWindow(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	return new(*value)
+}

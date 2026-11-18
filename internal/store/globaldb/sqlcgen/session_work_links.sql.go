@@ -42,7 +42,7 @@ const readSessionWorkFamily = `-- name: ReadSessionWorkFamily :many
 WITH RECURSIVE family(root_id, id, workspace_id, profile_id) AS (
  SELECT s.id AS root_id, s.id AS id, s.workspace_id AS workspace_id, s.profile_id AS profile_id FROM sessions s JOIN json_each(?1) i ON i.value = s.id
  UNION
- SELECT f.root_id, s.id, s.workspace_id, s.profile_id FROM sessions s JOIN family f ON s.parent_session_id = f.id
+ SELECT f.root_id, s.id, s.workspace_id, s.profile_id FROM sessions s INDEXED BY idx_sessions_parent JOIN family f ON s.parent_session_id = f.id
  WHERE s.workspace_id = f.workspace_id AND s.profile_id = f.profile_id AND COALESCE(s.lineage_kind, '') NOT IN ('fork', 'continue')
 )
 SELECT f.root_id, s.id, s.workspace_id, s.profile_id, s.name, COALESCE(s.worktree_id, '') AS worktree_id, COALESCE(w.name, '') AS worktree_name

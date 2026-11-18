@@ -34,6 +34,10 @@ func buildOperationRegistry() []OperationSpec {
 		registrySettingsFeatureOperations(),
 		registryProfileOperations(),
 		registryWorkspaceOperations(),
+		registryProjectFileOperations(),
+		registryProjectFileBytesOperations(),
+		registryProjectSearchOperations(),
+		registryProjectChangeOperations(),
 		registryWorktreeOperations(),
 	}
 	operations := make([]OperationSpec, 0)

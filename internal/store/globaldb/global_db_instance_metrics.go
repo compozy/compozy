@@ -27,5 +27,33 @@ func (r *InstanceRepo) Metrics(ctx context.Context, profileID, workspaceID strin
 			ProfileID: profileID, WorkspaceID: workspaceID,
 		},
 	)
-	return result, err
+	if err != nil {
+		return result, err
+	}
+	result.CheckInToolCalls = map[string]map[string]int64{}
+	calls, err := r.readQueries.CountScopedCheckInCalls(
+		ctx,
+		sqlcgen.CountScopedCheckInCallsParams{ProfileID: profileID, WorkspaceID: workspaceID},
+	)
+	if err != nil {
+		return result, err
+	}
+	for _, row := range calls {
+		if result.CheckInToolCalls[row.Access] == nil {
+			result.CheckInToolCalls[row.Access] = map[string]int64{}
+		}
+		result.CheckInToolCalls[row.Access][row.Decision] = row.Count
+	}
+	result.Picks = map[string]int64{}
+	picks, err := r.readQueries.CountScopedInstancePicks(
+		ctx,
+		sqlcgen.CountScopedInstancePicksParams{ProfileID: profileID, WorkspaceID: workspaceID},
+	)
+	if err != nil {
+		return result, err
+	}
+	for _, row := range picks {
+		result.Picks[row.Actor] = row.Count
+	}
+	return result, nil
 }

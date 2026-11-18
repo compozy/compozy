@@ -34,6 +34,8 @@ export interface RuntimeTriggerView {
   showFast: boolean;
   /** Sign-in or availability problem; provider-managed settings are a normal state. */
   warningLabel: string | null;
+  /** The value pins a provider turned off in Settings and the variant has room for the mark. */
+  showDisabledMark: boolean;
   /** Spoken value: provider/model, reasoning, speed, and warning, in reading order. */
   valueSummary: string;
 }
@@ -80,10 +82,12 @@ export function runtimeTriggerView(input: RuntimeTriggerInput): RuntimeTriggerVi
   const { meter, spoken: reasoningSpoken } = triggerMeter(input);
   const showFast = input.speed === "fast" && !compact;
   const warningLabel = warningLabelFor(input.needsAuth, input.model);
+  const providerDisabled = Boolean(provider?.disabled);
 
   const summaryParts = [
     compact ? providerName : `${providerName} / ${modelName}`,
     reasoningSpoken,
+    providerDisabled ? "provider disabled" : null,
     showFast ? "fast speed requested" : null,
     warningLabel?.toLowerCase() ?? null,
   ].filter((part): part is string => part !== null);
@@ -95,6 +99,7 @@ export function runtimeTriggerView(input: RuntimeTriggerInput): RuntimeTriggerVi
     meter,
     showFast,
     warningLabel,
+    showDisabledMark: providerDisabled && !compact,
     valueSummary: summaryParts.join(", "),
   };
 }

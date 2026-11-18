@@ -62,6 +62,22 @@ can cover a trusted command shape, but an unclassifiable command still prompts. 
 irreversible commands outside the fixed blocked set offer only one-time approval or rejection;
 blocked command shapes never run.
 
+An `allow-once` decision applies only to the approved invocation. It does not override session,
+workspace, profile, command-policy, or runtime-generation checks. If the prompt ends or its run is
+replaced while approval is pending, the command remains refused. A `tool_denied` response with
+`session_denied` explains whether the prompt is inactive, the run changed, the session scope differs,
+or an identity is missing. Inspect that message before requesting approval again; approval cannot
+restore a finished turn.
+
+For approval investigations, match the permission ledger's request ID to the daemon log record
+`native tool approval applied`. That record links `request_id` to `correlation_id`, session/run,
+runtime generation, approval label, and approval source, without logging command input or tokens.
+Use the correlation ID and run to find the final `tool.call_completed` or `tool.call_failed` event.
+An applied approval record is not proof of execution; the final event and terminal result establish
+the outcome. Run identity is bound before approval, so a conflicting run or generation is refused
+before authorization is consumed. Automatic/provider permission decisions remain distinct stages;
+correlate their own permission records when present.
+
 `terminal_write` uses the ordinary native-tool policy. It has no terminal-specific typing grant and
 does not depend on who opened the terminal. Existing tool-approval surfaces remain the source of
 truth for remembered native-tool decisions.

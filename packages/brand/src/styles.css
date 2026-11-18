@@ -1,0 +1,239 @@
+@import "tailwindcss";
+/* Faces of the v1.2.0 identity: Instrument Sans (display), Figtree (body/UI), Geist Mono. The
+   families themselves come from the @compozy/ui --font-* tokens; these imports ship the files. */
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/geist-mono";
+/* @compozy/ui owns every brand colour, font stack and gradient (ADR-002). The manual reads
+   them by name and never redefines a value. */
+@import "@compozy/ui/tokens.css";
+/* Live product pieces render @compozy/ui components (ADR-005); their utilities live there. */
+@source "../../ui/src/**/*.{ts,tsx}";
+
+/* Manual layout scale only: no colour lives here. */
+@theme {
+  --text-display: clamp(48px, 7.2vw, 112px);
+  --text-display--line-height: 0.98;
+  --text-display--letter-spacing: -0.03em;
+  --text-title: clamp(34px, 4.4vw, 60px);
+  --text-title--line-height: 1.04;
+  --text-title--letter-spacing: -0.03em;
+  --text-lead: clamp(19px, 1.6vw, 22px);
+  --text-lead--line-height: 1.5;
+  --radius-card: 20px;
+  --radius-hero: 28px;
+}
+
+@utility wrap {
+  width: 100%;
+  max-width: 1360px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 40px);
+}
+
+/* The brand's mono label (Foundations → Type: "Geist Mono · 11–13 px · uppercase, +10–12%").
+   It is the manual's own typographic spec, distinct from the product <Eyebrow> contract, so it
+   lives here once; callers adjust size or tracking with a single utility. */
+@utility mono-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Band variables: every manual part reads --b-*, so one card works on ink, paper and black.
+   Values resolve to @compozy/ui tokens; the paper band mixes the ink and light tokens. */
+@layer base {
+  html {
+    background: var(--color-rail);
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.6;
+    letter-spacing: normal;
+    color: var(--color-fg);
+    background: var(--color-rail);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    text-wrap: balance;
+  }
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    text-wrap: balance;
+  }
+  b,
+  strong {
+    font-weight: 600;
+  }
+  h1 em,
+  h2 em,
+  h3 em,
+  p em {
+    font-style: normal;
+    background: var(--gradient-brand);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  a {
+    color: inherit;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-cyan);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
+  ::selection {
+    background: var(--color-brand-volt);
+    color: var(--color-fg-strong);
+  }
+}
+
+body,
+.band-ink,
+.band-ink2,
+.band-black {
+  --b-fg: var(--color-fg);
+  --b-muted: var(--color-muted-foreground);
+  --b-line: var(--color-line);
+  --b-card: var(--color-canvas);
+  --b-card-2: var(--color-elevated);
+  --b-accent: var(--color-brand-cyan);
+  --b-surface: var(--color-rail);
+}
+.band-ink {
+  background: var(--color-rail);
+}
+.band-ink2 {
+  background: var(--color-canvas);
+  --b-card: var(--color-elevated);
+  --b-card-2: var(--color-rail-hover);
+  --b-line: var(--color-line-strong);
+}
+.band-black {
+  background: var(--color-black);
+  --b-card: var(--color-sunken);
+  --b-line: var(--color-line-soft);
+}
+.band-paper {
+  background: var(--color-fg);
+  --b-fg: var(--color-rail);
+  --b-muted: color-mix(in oklab, var(--color-rail) 62%, var(--color-fg));
+  --b-line: color-mix(in oklab, var(--color-rail) 12%, var(--color-fg));
+  --b-card: var(--color-fg-strong);
+  --b-card-2: color-mix(in oklab, var(--color-rail) 4%, var(--color-fg));
+  --b-accent: color-mix(in oklab, var(--color-brand-volt) 88%, var(--color-rail));
+  --b-surface: var(--color-fg);
+  color-scheme: light;
+}
+/* On paper the glint end of the brand gradient vanishes (1.1:1), so emphasis uses volt → sky:
+   sky holds 3:1 on paper, so this pair is for display headings only. */
+.band-paper h1 em,
+.band-paper h2 em,
+.band-paper h3 em {
+  background: linear-gradient(45deg, var(--color-brand-volt), var(--color-brand-sky));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+/* Body emphasis on paper stays flat volt (AA): the sky end is display-only. */
+.band-paper p em {
+  color: var(--b-accent);
+}
+/* A title word in flat glint where the gradient cannot print (Offline cover). */
+h1 em.em-glint {
+  background: none;
+  color: var(--color-brand-glint);
+  -webkit-text-fill-color: var(--color-brand-glint);
+}
+
+.band-paper,
+.band-ink,
+.band-ink2,
+.band-black {
+  color: var(--b-fg);
+}
+
+/* Scroll entrance, opt-in. Content stays visible without JS: only html.js hides it first. */
+.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.7s var(--ease-out),
+    transform 0.7s var(--ease-out);
+  transition-delay: var(--d, 0ms);
+}
+.js [data-reveal].is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Atmosphere visual: fills its positioned parent, picks the portrait crop in portrait boxes. */
+.cz-visual {
+  container-type: size;
+  background: var(--color-rail);
+}
+.cz-visual.band-paper {
+  background: var(--b-surface);
+}
+.cz-visual > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+.cz-visual > .cz-port {
+  display: none;
+}
+@container (orientation: portrait) {
+  .cz-visual > .cz-port {
+    display: block;
+  }
+  .cz-visual > .cz-land:has(+ .cz-port) {
+    display: none;
+  }
+}
+
+/* Atmosphere drifts slowly and never loops visibly. */
+@keyframes visual-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.02);
+  }
+  to {
+    transform: translate3d(-1.5%, -1%, 0) scale(1.05);
+  }
+}
+.visual-drift > img {
+  animation: visual-drift 24s var(--ease-in-out) infinite alternate;
+  transform-origin: 70% 60%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .js [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}

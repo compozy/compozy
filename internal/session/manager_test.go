@@ -740,6 +740,8 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			if resolvedWorkspace.Agents[index].Name != "coder" {
 				continue
 			}
+			// approve-edits keeps the approve-all provider mode out of the layered option set.
+			resolvedWorkspace.Agents[index].Permissions = string(compozyconfig.PermissionModeApproveEdits)
 			resolvedWorkspace.Agents[index].SetSpeed(speedpkg.SpeedFast)
 			resolvedWorkspace.Agents[index].SetACPOptions([]compozyconfig.ACPOptionSelection{
 				{ID: "context", ValueID: "1m"},
@@ -855,6 +857,60 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 		if got := readMeta(t, session.MetaPath()).Model; got != cursorModel {
 			t.Fatalf("meta.Model = %q, want %q", got, cursorModel)
+		}
+	})
+
+	t.Run("Should launch Cursor without an explicit effort", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, output, want string
+			speed              speedpkg.Speed
+		}{
+			{name: "Should select the supported normal default", output: cursorDefaultCatalogOutput, speed: speedpkg.SpeedNormal, want: "gemini-3.8-flash-low"},
+			{name: "Should select the supported Fast default", output: cursorDefaultCatalogOutput, speed: speedpkg.SpeedFast, want: "gemini-3.8-flash-low-fast"},
+			{name: "Should preserve a bare Fast transport beside an effort-specific normal transport", output: "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-fast - Gemini Flash Fast", speed: speedpkg.SpeedFast, want: "gemini-3.8-flash-fast"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				models := cursorCatalogModels(t, tc.output)
+				h := newHarness(t, WithModelCatalog(modelCatalogStub{models: models}))
+				session, err := h.manager.Create(
+					t.Context(),
+					new(
+						CreateOpts{
+							AgentName: "coder",
+							Provider:  "cursor",
+							Model:     "gemini-3.8-flash",
+							Speed:     tc.speed,
+							Workspace: h.workspaceID,
+						},
+					),
+				)
+				if err != nil {
+					t.Fatalf("Create() error = %v", err)
+				}
+				t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+				if got := h.driver.startCalls[0].LaunchModelID; got != tc.want {
+					t.Fatalf("LaunchModelID = %q, want %q", got, tc.want)
+				}
+			})
+		}
+		models := cursorCatalogModels(t, cursorDefaultCatalogOutput)
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: models}))
+		_, err := h.manager.Create(
+			t.Context(),
+			new(
+				CreateOpts{
+					AgentName:       "coder",
+					Provider:        "cursor",
+					Model:           "gemini-3.8-flash",
+					ReasoningEffort: "ultra",
+					Workspace:       h.workspaceID,
+				},
+			),
+		)
+		if !errors.Is(err, ErrInvalidRuntimeOverride) || !strings.Contains(err.Error(), `reasoning "ultra"`) {
+			t.Fatalf("Create(unsupported effort) = %v, want invalid override naming ultra", err)
 		}
 	})
 
@@ -1776,6 +1832,21 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 func TestCreateRequiresHostedMCPForRestrictedTools(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: a generated native delegation budget does not require hosted tools in direct mode.
+	// Owner: session MCP launch admission; canonical suite: restricted tools startup.
+	t.Run("Should allow direct sidecars alongside a generated delegation budget", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t, WithToolUniverse([]toolspkg.ToolID{toolspkg.ToolIDSkillView}))
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		if !active.Info().Lineage.PermissionPolicy.MaterializedTools {
+			t.Fatal("root delegation budget lacks provenance")
+		}
+		if len(h.driver.startCalls) != 1 {
+			t.Fatal("direct runtime was not started")
+		}
+	})
+
 	t.Run("Should fail before provider start when hosted launcher is unavailable", func(t *testing.T) {
 		t.Parallel()
 
@@ -2111,4 +2182,43 @@ func TestManagerProcessActivity(t *testing.T) {
 			t.Fatalf("empty manager demand = %v, %v", live, busy)
 		}
 	})
+}
+
+// cursorCatalogExecutor replaces only the provider command I/O boundary.
+type cursorCatalogExecutor string
+
+var _ modelcatalog.DiscoveryCommandExecutor = cursorCatalogExecutor("")
+
+func (output cursorCatalogExecutor) RunDiscoveryCommand(
+	context.Context,
+	modelcatalog.DiscoveryCommandRequest,
+) (modelcatalog.DiscoveryCommandResult, error) {
+	return modelcatalog.DiscoveryCommandResult{
+		Stdout: string(output),
+	}, nil
+}
+
+const cursorDefaultCatalogOutput = "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-low - Gemini Flash Low\ngemini-3.8-flash-low-fast - Gemini Flash Low Fast\ngemini-3.8-flash-high-fast - Gemini Flash High Fast"
+
+func cursorCatalogModels(t *testing.T, output string) []modelcatalog.Model {
+	t.Helper()
+	source, err := modelcatalog.NewLiveProviderSource(
+		"cursor",
+		compozyconfig.BuiltinProviders()["cursor"],
+		&modelcatalog.LiveProviderSourcesConfig{
+			BaseEnv: []string{
+				"HOME=" + t.TempDir(),
+			},
+			WorkingDir:      t.TempDir(),
+			CommandExecutor: cursorCatalogExecutor(output),
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := source.ListModels(t.Context(), modelcatalog.ListOptions{ProviderID: "cursor"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return modelcatalog.MergeRows(rows, modelcatalog.MergeOptions{})
 }

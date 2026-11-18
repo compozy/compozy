@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -1337,6 +1338,44 @@ func TestAugmentPrefixesFreshSituationWithoutRewritingMessage(t *testing.T) {
 
 func TestAugmentCompactsRepeatedSituationSections(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reuse lineage despite volatile session changes and resend real policy changes", func(t *testing.T) {
+		t.Parallel()
+		service := NewService(Deps{Now: fixedNow, SectionLimit: 2})
+		sess := newSituationCompactionSession()
+		sess.Lineage = &store.SessionLineage{}
+		for i := range 330 {
+			sess.Lineage.PermissionPolicy.Tools = append(
+				sess.Lineage.PermissionPolicy.Tools,
+				fmt.Sprintf("compozy__representative_tool_%03d", i),
+			)
+		}
+		first, err := service.Augment(t.Context(), sess, "first")
+		if err != nil {
+			t.Fatal(err)
+		}
+		sess.UpdatedAt = fixedTime().Add(time.Minute)
+		sess.Name = "Renamed"
+		sess.State = session.StateStarting
+		second, err := service.Augment(t.Context(), sess, "second")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("situation first=%d later=%d characters", len(first), len(second))
+		if len(second) >= 1000 || strings.Contains(second, "representative_tool") {
+			t.Fatalf("static lineage resent: %s", second)
+		}
+		if !strings.Contains(second, "Renamed") {
+			t.Fatal("volatile session update was lost")
+		}
+		sess.Lineage.PermissionPolicy.Tools = append(sess.Lineage.PermissionPolicy.Tools, "compozy__new_tool")
+		changed, err := service.Augment(t.Context(), sess, "changed")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(changed, "compozy__new_tool") {
+			t.Fatal("changed policy was not delivered")
+		}
+	})
 
 	t.Run("Should remind the main once at threshold and rearm after a usage drop", func(t *testing.T) {
 		t.Parallel()
@@ -1570,7 +1609,10 @@ func fixedTime() time.Time {
 
 func newSituationCompactionSession() *session.Session {
 	return &session.Session{
-		ID:           "sess-compact",
+		ID: "sess-compact",
+		Lineage: &store.SessionLineage{
+			PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"compozy__session_status"}},
+		},
 		Name:         "Compaction Session",
 		AgentName:    "coder",
 		Provider:     "codex",

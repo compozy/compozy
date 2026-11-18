@@ -17,6 +17,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
@@ -118,6 +119,81 @@ func TestProcessExitDiagnostics(t *testing.T) {
 		if strings.TrimSpace(status.Signal) == "" {
 			t.Fatalf("ExitStatus().Signal = %q, want terminating signal", status.Signal)
 		}
+	})
+}
+
+func TestProcessStdoutLifetime(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		scenario string
+		exitCode int
+	}{
+		{name: "Should retain stdout after successful exit", scenario: "raw_output"},
+		{name: "Should retain stdout after unsuccessful exit", scenario: "raw_output_exit_23", exitCode: 23},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			process := launchHelperProcess(t, tc.scenario, LaunchConfig{DisableTransport: true})
+			defer shutdownProcess(t, process)
+			select {
+			case <-process.Done():
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for helper process exit")
+			}
+			waitErr := process.Wait()
+			if (waitErr != nil) != (tc.exitCode != 0) {
+				t.Fatalf("Wait() error = %v, want exit code %d", waitErr, tc.exitCode)
+			}
+			if tc.exitCode != 0 {
+				exitErr, ok := errors.AsType[*exec.ExitError](waitErr)
+				if !ok || exitErr.ExitCode() != tc.exitCode {
+					t.Fatalf("Wait() error = %v, want ExitError with exit code %d", waitErr, tc.exitCode)
+				}
+			}
+			status, ok := process.ExitStatus()
+			if !ok || status.ExitCode != tc.exitCode {
+				t.Fatalf("ExitStatus() = %+v, %t; want exit code %d", status, ok, tc.exitCode)
+			}
+			output, err := io.ReadAll(process.Stdout())
+			if err != nil {
+				t.Fatalf("ReadAll(stdout) after exit error = %v", err)
+			}
+			if want := strings.Repeat("short-lived output\n", 64); string(output) != want {
+				t.Fatalf("stdout after exit = %q, want %q", output, want)
+			}
+			if _, err := process.Stdout().Read(make([]byte, 1)); !errors.Is(err, io.EOF) {
+				t.Fatalf("Read(stdout) after EOF error = %v, want EOF", err)
+			}
+		})
+	}
+
+	t.Run("Should bound the output drain when a writer remains open", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			reader, writer := io.Pipe()
+			t.Cleanup(func() {
+				if err := writer.Close(); err != nil {
+					t.Errorf("close retained writer: %v", err)
+				}
+			})
+			process := &Process{stdout: reader}
+			readerDone := make(chan struct{})
+			readErr := make(chan error, 1)
+			go func() {
+				defer close(readerDone)
+				_, err := io.Copy(io.Discard, reader)
+				readErr <- err
+			}()
+			if err := process.waitForStdout(readerDone); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("waitForStdout() error = %v, want deadline exceeded", err)
+			}
+			if err := <-readErr; !errors.Is(err, io.ErrClosedPipe) {
+				t.Fatalf("stdout drain error = %v, want closed pipe", err)
+			}
+		})
 	})
 }
 
@@ -225,6 +301,58 @@ func TestEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
 			}
 			if got, ok := lookupEnvForPlatform(updated, "PATH", tt.caseInsensitive); !ok || got != "/final" {
 				t.Fatalf("updated PATH = %q, %t; want /final, true", got, ok)
+			}
+		})
+	}
+}
+
+// Invariant: managed subprocesses never receive internal handoff variables, inherited or explicit.
+// not parallel: mutates process environment with t.Setenv.
+func TestManagedCommandDropsInternalHandoffEnv(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell to report the child environment")
+	}
+	const handoff = "COMPOZY_INTERNAL_RESTART_OPERATION_ID"
+	t.Setenv(handoff, "inherited")
+	t.Setenv("SUBPROCESS_ENV_MARKER", "inherited-marker")
+
+	for _, tc := range []struct {
+		name       string
+		env        []string
+		wantMarker string
+	}{
+		{name: "Should drop an inherited handoff from the child", wantMarker: "inherited-marker"},
+		{name: "Should preserve an explicitly empty child environment", env: []string{}},
+		{name: "Should preserve an environment emptied by handoff filtering", env: []string{handoff + "=explicit"}},
+		{
+			name:       "Should drop an explicit handoff from the child",
+			env:        []string{"PATH=" + os.Getenv("PATH"), handoff + "=explicit", "SUBPROCESS_ENV_MARKER=explicit-marker"},
+			wantMarker: "explicit-marker",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd, stdin, stdout, _, _, err := startManagedCommand(LaunchConfig{
+				Command: "/bin/sh",
+				Args:    []string{"-c", `echo "handoff=${` + handoff + `:-absent} marker=${SUBPROCESS_ENV_MARKER:-}"`},
+				Dir:     t.TempDir(),
+				Env:     tc.env,
+			})
+			if err != nil {
+				t.Fatalf("startManagedCommand() error = %v", err)
+			}
+			if err := stdin.Close(); err != nil {
+				t.Fatal(err)
+			}
+			output, readErr := io.ReadAll(stdout)
+			if waitErr := cmd.Wait(); waitErr != nil {
+				t.Fatalf("child wait error = %v", waitErr)
+			}
+			if readErr != nil {
+				t.Fatalf("read child output: %v", readErr)
+			}
+			want := "handoff=absent marker=" + tc.wantMarker
+			if got := strings.TrimSpace(string(output)); got != want {
+				t.Fatalf("child environment report = %q, want %q", got, want)
 			}
 		})
 	}
@@ -1289,6 +1417,11 @@ func launchHelperProcess(t *testing.T, scenario string, cfg LaunchConfig, extraE
 	if err != nil {
 		t.Fatalf("Launch(helper %s) error = %v", scenario, err)
 	}
+	t.Cleanup(func() {
+		if err := process.Stdout().Close(); err != nil {
+			t.Errorf("close helper stdout: %v", err)
+		}
+	})
 	return process
 }
 
@@ -1374,6 +1507,16 @@ func newHelperServer(scenario string, shutdownMarker string) *helperServer {
 }
 
 func (h *helperServer) run() int {
+	if h.scenario == "raw_output" || h.scenario == "raw_output_exit_23" {
+		if _, err := os.Stdout.WriteString(strings.Repeat("short-lived output\n", 64)); err != nil {
+			writeHelperDiagnostic("raw output: %v\n", err)
+			return 1
+		}
+		if h.scenario == "raw_output_exit_23" {
+			return 23
+		}
+		return 0
+	}
 	if h.scenario == "exit_23" {
 		writeHelperDiagnostic("fixture exiting with code 23\n")
 		return 23
@@ -1721,4 +1864,28 @@ func (h *helperServer) writeEnvelope(envelope any) error {
 
 func blockForever() {
 	select {}
+}
+
+func TestExecutableResolutionEnvironmentPresence(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject switching between inherited and explicit empty environments", func(t *testing.T) {
+		t.Parallel()
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, env := range [][]string{nil, {}} {
+			resolution := NewExecutableResolution(executable, env, "", executable, nil).Clone()
+			if _, err := resolution.Consume(executable, env, ""); err != nil {
+				t.Fatal(err)
+			}
+			changed := []string{}
+			if env != nil {
+				changed = nil
+			}
+			if _, err := resolution.Consume(executable, changed, ""); err == nil {
+				t.Fatal("changed environment presence accepted")
+			}
+		}
+	})
 }

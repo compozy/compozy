@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{"gen_ai_request_model":"other","gen_ai_system":"claude"},"value":[1794408324.453,"2"]},{"metric":{"gen_ai_request_model":"claude-opus-5-5","gen_ai_system":"claude"},"value":[1794408324.453,"4"]}]}}

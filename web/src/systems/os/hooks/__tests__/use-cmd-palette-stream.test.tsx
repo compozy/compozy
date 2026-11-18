@@ -11,6 +11,8 @@ import { act, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { StreamEventSource } from "@/lib/ticketed-event-source";
+import { agentAggregateOptions, agentKeys, agentsListOptions } from "@/systems/agent";
+import { extensionKeys, extensionsListOptions } from "@/systems/extensions";
 
 import {
   CMD_PALETTE_CATALOG_CHANGED_EVENT,
@@ -134,6 +136,22 @@ describe("useCmdPaletteStream (UT-104)", () => {
     expect(call?.predicate?.({ queryKey: ["cmd-palette", "catalog", "ws-other"] } as never)).toBe(
       false
     );
+    // The agent and extension rows read their own lists; an extension enable,
+    // disable, or removal must refresh them on the same event, with no reload.
+    const rowListKeys = [
+      agentsListOptions(WORKSPACE, "default").queryKey,
+      agentAggregateOptions([WORKSPACE, "ws-other"]).queryKey,
+      extensionsListOptions({ workspaceId: WORKSPACE, profileName: "default" }).queryKey,
+      extensionsListOptions().queryKey,
+    ];
+    for (const queryKey of rowListKeys) {
+      expect(call?.predicate?.({ queryKey } as never)).toBe(true);
+    }
+    // Unrelated agent and extension reads keep their cache.
+    expect(call?.predicate?.({ queryKey: agentKeys.detail("reviewer", WORKSPACE) } as never)).toBe(
+      false
+    );
+    expect(call?.predicate?.({ queryKey: extensionKeys.provenance("ext-a") } as never)).toBe(false);
   });
 
   it("Should reconcile on open because the stream carries no replay cursor", async () => {
@@ -144,7 +162,7 @@ describe("useCmdPaletteStream (UT-104)", () => {
     await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1));
   });
 
-  it("Should drop frames belonging to another workspace before any cache write", async () => {
+  it("Should drop frames belonging to another workspace before any cache write", () => {
     const { invalidate, sources } = harness();
     const [source] = sources;
     invalidate.mockClear();
@@ -153,7 +171,6 @@ describe("useCmdPaletteStream (UT-104)", () => {
       catalog_revision: "sha256:foreign",
     });
     source?.emit(CMD_PALETTE_CATALOG_CHANGED_EVENT, { workspace: WORKSPACE });
-    await new Promise(resolve => setTimeout(resolve, 0));
     expect(invalidate).not.toHaveBeenCalled();
   });
 
@@ -192,8 +209,7 @@ describe("useCmdPaletteStream (UT-104)", () => {
     const window = {
       app: "session" as const,
       desktopId: "desktop-1",
-      minimized: false,
-      stackActive: true,
+      shown: true,
     };
     expect(
       backgroundStreamsWithinConnectionBudget({
@@ -213,7 +229,15 @@ describe("useCmdPaletteStream (UT-104)", () => {
       backgroundStreamsWithinConnectionBudget({
         activeDesktopId: "desktop-1",
         connectionStatus: "connected",
-        windows: { first: { ...window, minimized: true } },
+        windows: { first: { ...window, shown: false } },
+      })
+    ).toBe(true);
+    // An empty desktop shows a New tab window, which holds no stream of its own.
+    expect(
+      backgroundStreamsWithinConnectionBudget({
+        activeDesktopId: "desktop-1",
+        connectionStatus: "connected",
+        windows: { first: { ...window, app: "new-tab" } },
       })
     ).toBe(true);
     expect(

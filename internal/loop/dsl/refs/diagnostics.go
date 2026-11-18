@@ -13,19 +13,25 @@ func availableNodeIDs(nodes map[string]NodeSchema) []string {
 	return available
 }
 
-func availableSchemaFields(current any) []string {
+func availableSchemaFields(current any, jsonSchema bool) []string {
 	switch typed := current.(type) {
 	case Schema:
-		return availableSchemaFields(map[string]any(typed))
+		return availableSchemaFields(map[string]any(typed), jsonSchema)
 	case map[string]any:
+		if jsonSchema {
+			if properties, ok := typed["properties"]; ok {
+				return availablePropertyKeys(properties)
+			}
+			if typed["type"] == schemaArrayType {
+				return availableSchemaFields(typed["items"], true)
+			}
+			return nil
+		}
 		if properties, ok := typed["properties"]; ok {
 			return availablePropertyKeys(properties)
 		}
-		if typed["type"] == "array" {
-			return availableSchemaFields(typed["items"])
-		}
-		if _, isTypedSchema := typed["type"]; isTypedSchema {
-			return nil
+		if typed["type"] == schemaArrayType {
+			return availableSchemaFields(typed["items"], false)
 		}
 		return sortedMapKeys(typed)
 	case map[string]Schema:
@@ -36,7 +42,7 @@ func availableSchemaFields(current any) []string {
 		if len(typed) == 0 {
 			return nil
 		}
-		return availableSchemaFields(typed[0])
+		return availableSchemaFields(typed[0], jsonSchema)
 	default:
 		return nil
 	}

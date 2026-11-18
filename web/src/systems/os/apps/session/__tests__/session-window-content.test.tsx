@@ -3,7 +3,9 @@
 // stops the session, and the window's notice slot surfaces the daemon's
 // runtime and stop truth with the one action that exists for each — a quiet
 // supervision episode is never a window notice. Shown in the Kanban board's drawer (#1052) the
-// content omits the sessions rail: the board beside it is the list.
+// content omits the sessions rail: the board beside it is the list. An always-on agent's main
+// session (#1303) drops the transcript's message trail and the composer's context meter. The
+// composer's context meter is the one toggle for the Context rail (#1487): pressed while open.
 // Owning layer: the session-window recovery and stop-attention actions.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { UIProvider } from "@compozy/ui";
@@ -44,6 +46,7 @@ const mocks = vi.hoisted(() => ({
     stopAttention: null as string | null,
     stopCompletionNote: false,
   },
+  alwaysOnMain: false,
   forkMutation: { isPending: false, mutate: vi.fn() },
   selectSession: vi.fn(),
   sessionThreadProps: vi.fn(),
@@ -54,42 +57,55 @@ vi.mock("../session-window-module-loader", () => ({
   loadSessionThread: async () => ({
     SessionThread: (props: Record<string, unknown>) => {
       mocks.sessionThreadProps(props);
-      return null;
+      // The composer slot the real thread renders: the window's production context control.
+      return (props.contextControl as ReactNode) ?? null;
     },
+  }),
+  // The Context rail's content is the inspector suite's; here it only marks that the rail opened.
+  loadSessionInspector: async () => ({
+    SessionInspector: () => <aside data-testid="session-context-rail" />,
   }),
 }));
 
-vi.mock("../use-session-window-controller", () => ({
-  useSessionWindowController: () => ({
-    clearDialog: { open: false },
-    commandCatalog: [],
-    commandCatalogStatus: "ready",
-    controls: mocks.controls,
-    inspector: { open: false },
-    sessionContext: { context: { state: "unknown" } },
-    sessionUsageTurns: {},
-    activityGoal: null,
-    inspectorUsage: null,
-    refreshCommandCatalog: vi.fn(),
-    promptRuntimeSnapshot: null,
-    sidebar: {
-      collapsedThreadIds: [],
-      subagentThreadIds: [],
-      disconnected: false,
-      onNewSession: vi.fn(),
-      onSelectSession: mocks.selectSession,
-      onThreadBranchChange: vi.fn(),
-      open: false,
-      rowDeleteDialog: { open: false },
-      rowProcessDialog: { open: false },
-      rowRenameDialog: { open: false },
-      rowLaterDialog: { open: false },
-      sessionActions: {},
-      sessions: [],
-      toggle: vi.fn(),
-    },
-  }),
-}));
+vi.mock("../use-session-window-controller", async () => {
+  const { useSessionInspectorState } =
+    await import("@/systems/session/hooks/use-session-inspector-state");
+  const { deriveSessionContext } = await import("@/systems/session/lib/session-context");
+  const { sessionContextFixture } = await import("@/systems/session/mocks/context-fixtures");
+  return {
+    useSessionWindowController: ({ sessionId }: { sessionId: string }) => ({
+      alwaysOnMain: mocks.alwaysOnMain,
+      clearDialog: { open: false },
+      commandCatalog: [],
+      commandCatalogStatus: "ready",
+      controls: mocks.controls,
+      // The production per-session inspector preference the composer's context control toggles.
+      inspector: useSessionInspectorState(sessionId),
+      review: { open: false },
+      sessionContext: { context: deriveSessionContext(sessionContextFixture) },
+      sessionUsageTurns: {},
+      activityGoal: null,
+      inspectorUsage: null,
+      refreshCommandCatalog: vi.fn(),
+      promptRuntimeSnapshot: null,
+      sidebar: {
+        collapsedThreadIds: [],
+        subagentThreadIds: [],
+        disconnected: false,
+        onNewSession: vi.fn(),
+        onSelectSession: mocks.selectSession,
+        onThreadBranchChange: vi.fn(),
+        open: false,
+        rowProcessDialog: { open: false },
+        rowRenameDialog: { open: false },
+        rowLaterDialog: { open: false },
+        sessionActions: {},
+        sessions: [],
+        toggle: vi.fn(),
+      },
+    }),
+  };
+});
 
 vi.mock("../use-session-window-derive", () => ({
   useSessionWindowDerive: () => ({
@@ -108,8 +124,9 @@ vi.mock("@/systems/session", async importOriginal => ({
   hasUnrecoverableRuntime: (session: SessionPayload) =>
     session.failure?.kind === "process_exit" && session.health?.health === "dead",
   SessionEnvironmentControl: () => null,
-  SessionContextControl: () => null,
   SessionComposerSubagents: () => null,
+  // The rail's activity reads the transcript the stubbed thread would provide.
+  useSessionContextActivity: () => null,
   SessionComposerMonitors: () => null,
   SessionPromptRuntimeSelector: () => null,
   SessionResumeFailure: ({ onRetry, retryLabel }: { onRetry: () => void; retryLabel?: string }) => (
@@ -145,6 +162,7 @@ vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 
 import { SessionWindowContent } from "../session-window-content";
 import { sessionInspectorFocusStore } from "@/systems/session/hooks/use-session-inspector-focus";
+import { sessionInspectorStore } from "@/systems/session/hooks/use-session-inspector-state";
 import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const deadSession: SessionPayload = {
@@ -255,6 +273,7 @@ describe("SessionWindowContent", () => {
     mocks.controls.isStopping = false;
     mocks.controls.isStopRetrying = false;
     mocks.controls.stopAttention = null;
+    mocks.alwaysOnMain = false;
     mocks.forkMutation.isPending = false;
     mocks.forkMutation.mutate.mockReset();
     mocks.selectSession.mockReset();
@@ -437,6 +456,44 @@ describe("SessionWindowContent", () => {
     );
     await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
     expect(screen.queryByTestId("session-rail-layout")).toBeNull();
+  });
+
+  it("Should drop the message trail and context meter only for an always-on main (#1303)", async () => {
+    const { unmount } = render(renderContent(quietSession));
+    await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
+    expect(mocks.sessionThreadProps.mock.lastCall?.[0]).toMatchObject({ messageTrail: true });
+    expect(mocks.sessionThreadProps.mock.lastCall?.[0].contextControl).toBeDefined();
+    unmount();
+
+    mocks.sessionThreadProps.mockReset();
+    mocks.alwaysOnMain = true;
+    render(renderContent(quietSession));
+    await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
+    const props = mocks.sessionThreadProps.mock.lastCall?.[0] as Record<string, unknown>;
+    expect(props).toMatchObject({ messageTrail: false });
+    expect(props.contextControl).toBeUndefined();
+    // The composer keeps the agent and activity controls the operator uses.
+    expect(props.subagentControl).toBeDefined();
+    expect(props.monitorControl).toBeDefined();
+  });
+
+  it("Should open and close the Context rail from the composer's context control (#1487)", async () => {
+    const session = { ...quietSession, id: "sess-context-toggle" } satisfies SessionPayload;
+    // The per-session preference is a module store: start closed even on a retried attempt.
+    sessionInspectorStore.trigger.inspectorClosed({ sessionId: session.id });
+    render(renderContent(session));
+
+    const control = await screen.findByTestId("composer-context-button");
+    expect(control).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("session-context-rail")).toBeNull();
+
+    fireEvent.click(control);
+    await waitFor(() => expect(control).toHaveAttribute("aria-pressed", "true"));
+    expect(await screen.findByTestId("session-context-rail")).toBeInTheDocument();
+
+    fireEvent.click(control);
+    await waitFor(() => expect(control).toHaveAttribute("aria-pressed", "false"));
+    expect(screen.queryByTestId("session-context-rail")).toBeNull();
   });
 
   it("Should restart a dead session as a recovery child in its workspace and select it", async () => {

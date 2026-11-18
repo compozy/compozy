@@ -226,7 +226,7 @@ func (a daemonSubagentWorktrees) Observe(ctx context.Context, ws, id, base strin
 	if err != nil || pr == nil {
 		return facts
 	}
-	facts.PRStatus = "none"
+	facts.PRStatus = forgePRStatusNone
 	if pr.PRNumber != nil && pr.PRState != nil {
 		facts.PRStatus = strings.ToLower(strings.TrimSpace(*pr.PRState))
 		if pr.Merged != nil && *pr.Merged {
@@ -244,3 +244,5 @@ func (a daemonSubagentWorktrees) Observe(ctx context.Context, ws, id, base strin
 	}
 	return facts
 }
+
+const forgePRStatusNone = "none"

@@ -20,6 +20,22 @@ const configMigrationOperation = "migrate"
 func loadPersistedConfigOverlay(
 	path string,
 	decode func([]byte, string) (configOverlay, error),
+) (configOverlay, error) {
+	return loadPersistedConfigOverlayWithLockState(path, decode, false)
+}
+
+// loadPersistedConfigOverlayLocked is used by effective-write validation while the write mutex is held.
+func loadPersistedConfigOverlayLocked(
+	path string,
+	decode func([]byte, string) (configOverlay, error),
+) (configOverlay, error) {
+	return loadPersistedConfigOverlayWithLockState(path, decode, true)
+}
+
+func loadPersistedConfigOverlayWithLockState(
+	path string,
+	decode func([]byte, string) (configOverlay, error),
+	lockHeld bool,
 ) (overlay configOverlay, err error) {
 	name := filepath.Base(path)
 	directory, err := fileutil.OpenDirectory(filepath.Dir(path))
@@ -41,7 +57,10 @@ func loadPersistedConfigOverlay(
 	if err != nil {
 		return overlay, FileError{Op: configMigrationOperation, Path: path, Err: err}
 	}
-	rendered, archived, err := archiveRetiredMemorySettings(rendered, path)
+	// required is the document after the migration whose publication must succeed. Every later
+	// step is a retired-key shim whose publication is best effort.
+	required := rendered
+	rendered, migration, err := migrateRetiredConfigKeys(rendered, path)
 	if err != nil {
 		return overlay, FileError{Op: configMigrationOperation, Path: path, Err: err}
 	}
@@ -49,19 +68,90 @@ func loadPersistedConfigOverlay(
 	if err != nil {
 		return overlay, err
 	}
-	if !bytes.Equal(rendered, contents) {
-		if publishErr := publishRetiredConfigArchive(directory, path, original, contents, rendered); publishErr != nil {
-			if len(archived) == 0 {
-				return configOverlay{}, publishErr
-			}
-			slog.Warn("config.retired_keys_archive_failed", "path", path, "reason", publishErr.Error())
-			return overlay, nil
+	if bytes.Equal(rendered, contents) {
+		return overlay, nil
+	}
+	publish := func(next []byte) error {
+		if lockHeld {
+			return publishRetiredConfigArchiveLocked(directory, path, original, contents, next, nil, nil)
 		}
-		if len(archived) > 0 {
-			slog.Warn("config.retired_keys_archived", "path", path, "keys", strings.Join(archived, ","))
-		}
+		return publishRetiredConfigArchive(directory, path, original, contents, next)
+	}
+	if !migration.changed() {
+		err = publish(rendered)
+	} else {
+		err = publishRetiredConfigKeys(directory, path, contents, required, rendered, migration, publish)
+	}
+	if err != nil {
+		return configOverlay{}, err
 	}
 	return overlay, nil
+}
+
+// retiredConfigMigration reports what the one-generation retired-key shims changed in one
+// persisted config document. Restored by #1618 because v0.6.1 removed them while v0.6.0 homes
+// still carried the values; remove this type, its helpers and their tests in v0.7.0.
+type retiredConfigMigration struct {
+	// archived names the retired tables and keys kept as inactive comments in the same file.
+	archived []string
+	// keyRemoved reports a removed permissions.provider_full_access line; the original bytes go
+	// to the sibling backup because that removal leaves no archive comment.
+	keyRemoved bool
+}
+
+func (m retiredConfigMigration) changed() bool {
+	return len(m.archived) > 0 || m.keyRemoved
+}
+
+func migrateRetiredConfigKeys(contents []byte, path string) ([]byte, retiredConfigMigration, error) {
+	rendered, archived, err := archiveRetiredMemorySettings(contents, path)
+	if err != nil {
+		return nil, retiredConfigMigration{}, err
+	}
+	rendered, migrated, err := migrateRetiredAlwaysOnTable(rendered, path)
+	if err != nil {
+		return nil, retiredConfigMigration{}, err
+	}
+	rendered, keyRemoved := removeRetiredProviderFullAccess(rendered, path)
+	return rendered, retiredConfigMigration{archived: append(archived, migrated...), keyRemoved: keyRemoved}, nil
+}
+
+// publishRetiredConfigKeys writes the migrated document. A retired key never blocks a start: when
+// the file cannot be rewritten the caller keeps the overlay decoded with the retired values
+// inactive, the file stays untouched, and the next load retries. Only a pending skill-marketplace
+// archive that is not accompanied by an archived table keeps its hard publication error.
+func publishRetiredConfigKeys(
+	directory *fileutil.Directory,
+	path string,
+	contents, required, rendered []byte,
+	migration retiredConfigMigration,
+	publish func([]byte) error,
+) error {
+	var publishErr error
+	if migration.keyRemoved {
+		publishErr = backupRetiredConfigOriginal(directory, path, contents)
+	}
+	if publishErr == nil {
+		publishErr = publish(rendered)
+	}
+	if publishErr == nil {
+		if len(migration.archived) > 0 {
+			slog.Warn("config.retired_keys_archived", "path", path, "keys", strings.Join(migration.archived, ","))
+		}
+		if migration.keyRemoved {
+			slog.Warn("config.retired_keys_removed",
+				"path", path,
+				"keys", strings.Join(retiredProviderFullAccessPath(), "."),
+				"backup", path+RetiredConfigKeysBackupSuffix,
+			)
+		}
+		return nil
+	}
+	slog.Warn("config.retired_keys_archive_failed", "path", path, "reason", publishErr.Error())
+	if len(migration.archived) > 0 || bytes.Equal(required, contents) {
+		return nil
+	}
+	return publish(required)
 }
 
 func publishRetiredConfigArchive(
@@ -69,6 +159,31 @@ func publishRetiredConfigArchive(
 	path string,
 	original os.FileInfo,
 	contents, rendered []byte,
+) error {
+	return publishRetiredConfigArchiveWithHook(directory, path, original, contents, rendered, nil, nil)
+}
+
+// publishRetiredConfigArchiveWithHook keeps the snapshot check adjacent to publication.
+// The hook exercises a concurrent save at the real file-write boundary in the owning suite.
+func publishRetiredConfigArchiveWithHook(
+	directory *fileutil.Directory,
+	path string,
+	original os.FileInfo,
+	contents, rendered []byte,
+	beforeCompare, afterCompare func(),
+) error {
+	configOverlayWriteMu.Lock()
+	defer configOverlayWriteMu.Unlock()
+	return publishRetiredConfigArchiveLocked(directory, path, original, contents, rendered, beforeCompare, afterCompare)
+}
+
+// publishRetiredConfigArchiveLocked holds the caller's config write lease through the rename.
+func publishRetiredConfigArchiveLocked(
+	directory *fileutil.Directory,
+	path string,
+	original os.FileInfo,
+	contents, rendered []byte,
+	beforeCompare, afterCompare func(),
 ) (err error) {
 	writable, err := directory.ReopenForMutation(filepath.Dir(path))
 	if err != nil {
@@ -76,16 +191,26 @@ func publishRetiredConfigArchive(
 	}
 	defer func() { err = errors.Join(err, writable.Close()) }()
 	name := filepath.Base(path)
-	current, info, err := writable.ReadRegularFile(name)
+	err = writable.AtomicWriteFileIf(name, rendered, privateFileMode, func() error {
+		if beforeCompare != nil {
+			beforeCompare()
+		}
+		current, info, err := writable.ReadRegularFile(name)
+		if err != nil {
+			return err
+		}
+		if !os.SameFile(original, info) || !bytes.Equal(contents, current) {
+			return errors.New("config changed during retirement migration")
+		}
+		if afterCompare != nil {
+			afterCompare()
+		}
+		return nil
+	})
 	if err != nil {
 		return FileError{Op: configMigrationOperation, Path: path, Err: err}
 	}
-	if !os.SameFile(original, info) || !bytes.Equal(contents, current) {
-		return FileError{
-			Op: configMigrationOperation, Path: path, Err: errors.New("config changed during retirement migration"),
-		}
-	}
-	return writePersistedFileInDirectory(writable, name, path, rendered, true)
+	return nil
 }
 
 func archiveRetiredSkillMarketplace(contents []byte, source string) ([]byte, error) {

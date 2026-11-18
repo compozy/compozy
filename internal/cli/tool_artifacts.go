@@ -31,17 +31,17 @@ func newToolArtifactReadCommand(deps commandDeps) *cobra.Command {
 	var flags toolArtifactReadFlags
 	cmd := &cobra.Command{
 		Use:   "read <artifact_uri>",
-		Short: "Read one workspace-scoped artifact page",
+		Short: "Read one retained artifact page",
 		Example: `  # Emit one page as structured JSON
   compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 -o json
 
   # Decode page bytes directly to stdout
-  compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 --offset 65536`,
+  compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 --offset 32768`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uri := strings.TrimSpace(args[0])
-			if _, err := toolspkg.ParseToolArtifactURI(uri); err != nil {
-				return writeToolCommandError(cmd, toolArtifactCommandError("artifact URI is invalid", err))
+			if _, parseErr := toolspkg.ParseToolArtifactURI(uri); parseErr != nil {
+				return writeToolCommandError(cmd, toolArtifactCommandError("artifact URI is invalid", parseErr))
 			}
 			if flags.offset < 0 || flags.limit < 0 || flags.limit > toolspkg.MaxToolArtifactPageBytes {
 				return writeToolCommandError(cmd, toolArtifactCommandError(
@@ -80,7 +80,10 @@ func newToolArtifactReadCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&flags.workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
 	cmd.Flags().Int64Var(&flags.offset, "offset", 0, "Zero-based byte offset")
-	cmd.Flags().Int64Var(&flags.limit, "limit", 0, "Page size in bytes (default and maximum 65536)")
+	cmd.Flags().Int64Var(&flags.limit, "limit", 0, fmt.Sprintf(
+		"Page size in bytes (default %d, maximum %d)",
+		toolspkg.DefaultToolArtifactPageBytes, toolspkg.MaxToolArtifactPageBytes,
+	))
 	return cmd
 }
 
@@ -103,8 +106,8 @@ func writeToolArtifactPage(cmd *cobra.Command, page ToolArtifactPageRecord) erro
 	if int64(len(decoded)) != page.Bytes {
 		return fmt.Errorf("cli: decoded tool artifact page has %d bytes, expected %d", len(decoded), page.Bytes)
 	}
-	if _, err := io.Copy(cmd.OutOrStdout(), bytes.NewReader(decoded)); err != nil {
-		return fmt.Errorf("cli: write tool artifact page: %w", err)
+	if _, copyErr := io.Copy(cmd.OutOrStdout(), bytes.NewReader(decoded)); copyErr != nil {
+		return fmt.Errorf("cli: write tool artifact page: %w", copyErr)
 	}
 	return nil
 }

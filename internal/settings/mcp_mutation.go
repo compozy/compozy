@@ -21,16 +21,30 @@ func (s *service) putMCPServer(
 	secrets MCPSecretValues,
 	preservation MCPSecretPreservation,
 	envPreservation []string,
+	importing bool,
 ) (MutationResult, error) {
+	s.mcpMutationMu.Lock()
+	defer s.mcpMutationMu.Unlock()
 	root, sources, err := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
 	if err != nil {
 		return MutationResult{}, err
+	}
+	if importing {
+		if err := s.validateMCPImportName(ctx, scope, workspaceID, profileName, name, sources); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	target, err := s.resolveMCPPutTarget(scope, root, profileName, name, selector, sources)
 	if err != nil {
 		return MutationResult{}, err
 	}
 
+	if importing && len(secrets.SecretHeaders) > 0 && isMCPDefinitionSidecarTarget(target.Kind()) {
+		target, err = compozyconfig.ResolveConfigWriteTarget(s.homePaths, root, scope.configWriteScope(), profileName)
+		if err != nil {
+			return MutationResult{}, err
+		}
+	}
 	normalized, err := s.normalizeAndValidateMCPServerWrite(
 		ctx, scope, workspaceID, profileName, name, target.Kind(), sources, server, preservation, envPreservation,
 	)
@@ -44,6 +58,9 @@ func (s *service) putMCPServer(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	if err := normalized.Validate("mcp_servers"); err != nil {
+		return MutationResult{}, validationError(err)
+	}
 	if err := normalizeMCPClientSecretOwner(&normalized, scope, scopeID, name); err != nil {
 		return MutationResult{}, err
 	}
@@ -55,39 +72,19 @@ func (s *service) putMCPServer(
 	}
 	secretMutations, err := s.storeMCPSecrets(ctx, secretWrites)
 	if err != nil {
-		return MutationResult{}, err
-	}
-	mutationOutcome, err := s.commitMCPServerDefinition(
-		ctx, scope, workspaceID, profileName, root, name, target, sources, normalized,
-	)
-	if err != nil {
-		var rollbackErr error
-		if mutationOutcome != mcpDefinitionMutationCommitted {
-			rollbackErr = s.rollbackMCPSecretMutations(ctx, secretMutations)
-		}
+		rollbackErr := s.rollbackUnreferencedMCPSecrets(ctx, scope, workspaceID, profileName, secretMutations)
 		return MutationResult{}, errors.Join(err, rollbackErr)
 	}
-	cleanupWarnings, err := s.executeMCPSecretCleanupPlan(
-		ctx,
-		scope,
-		workspaceID,
-		profileName,
-		root,
-		name,
-		target,
-		secretCleanup,
-		secretMutations,
-	)
-	if err != nil {
-		return MutationResult{}, err
+	write := mcpServerWrite{
+		scope: scope, workspaceID: workspaceID, profileName: profileName, root: root, name: name,
+		target: target, sources: sources, server: normalized,
 	}
-
-	result := mutationResultForCollection(CollectionMCPServers, scope, workspaceID, target.Kind())
-	result.ProfileName = profileName
-	result = mutationResultAtPath(result, target.Path())
-	result.Warnings = append(result.Warnings, cleanupWarnings...)
-	result.MCPServer = new(committedMCPServerItem(normalized, scope, workspaceID, profileName, target.Kind(), sources))
-	return result, nil
+	mutationOutcome, approvalWarning, err := s.commitMCPServerWithApproval(ctx, &write)
+	return s.finishMCPServerWrite(
+		ctx, MCPAuthTargetRequest{Scope: scope, WorkspaceID: workspaceID, ProfileName: profileName, Name: name},
+		root, target, sources, normalized, &secretCleanup, secretMutations,
+		importing, mutationOutcome, approvalWarning, err,
+	)
 }
 
 func normalizeMCPClientSecretOwner(server *compozyconfig.MCPServer, scope ScopeKind, scopeID, name string) error {
@@ -167,6 +164,9 @@ func (s *service) normalizeAndValidateMCPServerWrite(
 	}
 	if err := preserveMCPSecretBindings(name, target, sources, &server, preservation); err != nil {
 		return compozyconfig.MCPServer{}, err
+	}
+	if isMCPDefinitionSidecarTarget(target) && (len(server.Headers) > 0 || len(server.SecretHeaders) > 0) {
+		return compozyconfig.MCPServer{}, validationError(errors.New("settings: MCP headers require a config target"))
 	}
 	if err := s.validateMCPServerWrite(
 		ctx,
@@ -272,152 +272,80 @@ func upsertMCPServer(servers []compozyconfig.MCPServer, server compozyconfig.MCP
 	return append(servers, server)
 }
 
-func (s *service) deleteMCPServer(
+func (s *service) finishMCPServerWrite(
 	ctx context.Context,
-	scope ScopeKind,
-	workspaceID string,
-	profileName string,
-	name string,
-	selector TargetSelector,
-) (MutationResult, error) {
-	root, sources, err := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	target, err := s.resolveMCPDeleteTarget(scope, root, profileName, name, selector, sources)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	deletedSource, sourceFound := mcpSourceForTarget(name, target.Kind(), sources)
-	var ownedSecrets []ownedMCPSecretSnapshot
-	if sourceFound {
-		ownedSecrets, err = s.prepareOwnedMCPSecretDeletes(
-			ctx, scope, mcpScopeIdentifier(scope, workspaceID, profileName), deletedSource.Server,
-		)
-		if err != nil {
-			return MutationResult{}, fmt.Errorf("settings: prepare MCP server %q secret cleanup: %w", name, err)
-		}
-		ownedSecrets = excludeMCPSecretsReferencedByOtherSources(
-			ownedSecrets,
-			name,
-			target.Kind(),
-			sources,
-		)
-	}
-
-	rollbackDefinition := func() error {
-		if !sourceFound {
-			return fmt.Errorf("settings: MCP server %q rollback source is unavailable", name)
-		}
-		return s.writeMCPServer(root, name, target, deletedSource.Server)
-	}
-	mutationOutcome, err := s.withMCPAuthDefinitionMutation(
-		ctx,
-		scope,
-		workspaceID,
-		profileName,
-		name,
-		func() error { return s.deleteMCPServerDefinition(root, name, target) },
-		rollbackDefinition,
-	)
-	if mutationOutcome == mcpDefinitionMutationCommitted &&
-		scope == ScopeWorkspace && s.mcpDefinitionRetirer != nil {
-		s.mcpDefinitionRetirer.ForgetMCPServer(workspaceID, name)
-	}
-	if err != nil {
-		return MutationResult{}, err
-	}
-
-	return s.finishMCPServerDeletion(
-		ctx,
-		scope,
-		workspaceID,
-		profileName,
-		name,
-		root,
-		target,
-		deletedSource.Server,
-		ownedSecrets,
-	)
-}
-
-func (s *service) finishMCPServerDeletion(
-	ctx context.Context,
-	scope ScopeKind,
-	workspaceID string,
-	profileName string,
-	name string,
+	req MCPAuthTargetRequest,
 	root string,
 	target compozyconfig.WriteTarget,
-	deletedServer compozyconfig.MCPServer,
-	ownedSecrets []ownedMCPSecretSnapshot,
+	sources map[string][]mcpSourceEntry,
+	normalized compozyconfig.MCPServer,
+	secretCleanup *mcpSecretCleanupPlan,
+	secretMutations []mcpSecretMutation,
+	importing bool,
+	mutationOutcome mcpDefinitionMutationOutcome,
+	approvalWarning string,
+	err error,
 ) (MutationResult, error) {
+	scope, workspaceID, profileName, name := req.Scope, req.WorkspaceID, req.ProfileName, req.Name
+	var importWarning string
+	if err != nil {
+		if !importing || mutationOutcome != mcpDefinitionMutationCommitted {
+			var rollbackErr error
+			if mutationOutcome != mcpDefinitionMutationCommitted {
+				rollbackErr = s.rollbackUnreferencedMCPSecrets(ctx, scope, workspaceID, profileName, secretMutations)
+			}
+			return MutationResult{}, errors.Join(err, rollbackErr)
+		}
+		importWarning = mcpImportCleanupWarning(name)
+	}
+	var cleanupWarnings []string
+	if importWarning == "" {
+		cleanupWarnings, err = s.executeMCPSecretCleanupPlan(
+			ctx,
+			scope,
+			workspaceID,
+			profileName,
+			root,
+			name,
+			target,
+			*secretCleanup,
+			secretMutations,
+			importing,
+		)
+		if err != nil {
+			return MutationResult{}, err
+		}
+	}
+
 	result := mutationResultForCollection(CollectionMCPServers, scope, workspaceID, target.Kind())
 	result.ProfileName = profileName
 	result = mutationResultAtPath(result, target.Path())
-	if len(ownedSecrets) == 0 {
-		return result, nil
+	result.Warnings = append(result.Warnings, cleanupWarnings...)
+	if importWarning != "" {
+		result.Warnings = append(result.Warnings, importWarning)
 	}
-	cleanupCtx, cancel := mcpSecretRollbackContext(ctx)
-	cleanupOutcome, cleanupErr := s.deleteOwnedMCPSecrets(cleanupCtx, ownedSecrets)
-	cancel()
-	if cleanupErr == nil {
-		return result, nil
+	if approvalWarning != "" {
+		result.Warnings = append(result.Warnings, approvalWarning)
 	}
-
-	cleanupFailure := fmt.Errorf("settings: garbage-collect MCP server %q secrets: %w", name, cleanupErr)
-	if !cleanupOutcome.restorationComplete {
-		result.Warnings = []string{
-			"committed MCP deletion retained after partial secret cleanup rollback: " + cleanupFailure.Error(),
+	normalized.DefinitionSource = target.Path()
+	result.MCPServer = new(committedMCPServerItem(normalized, scope, workspaceID, profileName, target.Kind(), sources))
+	if s.mcpConsent != nil {
+		_, committed, readErr := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
+		if readErr == nil {
+			if entry, ok := mcpSourceForTarget(name, target.Kind(), committed); ok {
+				readErr = s.populateMCPServerStatuses(ctx, result.MCPServer, entry, true, false)
+			}
 		}
-		return result, nil
-	}
-	restoreErr := s.writeMCPServer(root, name, target, deletedServer)
-	if restoreErr != nil {
-		restoreErr = fmt.Errorf(
-			"settings: restore MCP server %q after secret cleanup failure: %w",
-			name,
-			restoreErr,
-		)
-		result.Warnings = []string{
-			"committed MCP deletion retained because its prior definition could not be restored: " +
-				errors.Join(cleanupFailure, restoreErr).Error(),
+		if readErr != nil {
+			result.Warnings = append(result.Warnings, "MCP server saved but consent status could not be loaded")
 		}
-		return result, nil
 	}
-	invalidateErr := s.invalidateMCPAuthAfterDefinitionRestore(scope, workspaceID, profileName, name)
-	return MutationResult{}, errors.Join(cleanupFailure, invalidateErr)
+	return result, nil
 }
 
-func (s *service) deleteMCPServerDefinition(root string, name string, target compozyconfig.WriteTarget) error {
-	if isMCPDefinitionSidecarTarget(target.Kind()) {
-		_, deleted, err := compozyconfig.DeleteMCPSidecarServer(s.homePaths, root, target, name)
-		if err != nil {
-			return fmt.Errorf("settings: delete MCP server %q: %w", name, err)
-		}
-		if !deleted {
-			return notFoundError(fmt.Errorf("settings: MCP server %q not found in %q", name, target.Kind()))
-		}
-		return nil
+func unavailableMCPWriteApprovalWarning(workspaceID string, err error) string {
+	if err == nil && workspaceID != "" {
+		return "MCP server saved but approval is unavailable; waiting for approval"
 	}
-	if _, err := compozyconfig.EditConfigOverlay(
-		s.homePaths,
-		root,
-		target,
-		func(editor *compozyconfig.OverlayEditor) error {
-			deleted, deleteErr := editor.DeleteArrayTableItem([]string{"mcp_servers"}, "name", name)
-			if deleteErr != nil {
-				return deleteErr
-			}
-			if !deleted {
-				return notFoundError(
-					fmt.Errorf("settings: MCP server %q not found in %q", name, target.Kind()),
-				)
-			}
-			return nil
-		},
-	); err != nil {
-		return fmt.Errorf("settings: delete MCP server %q: %w", name, err)
-	}
-	return nil
+	return ""
 }

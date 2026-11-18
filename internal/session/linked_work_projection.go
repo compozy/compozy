@@ -27,11 +27,20 @@ type linkedWorkReads struct {
 	repos     map[repositoryScope]string
 	defaults  map[BranchKey]bool
 	views     map[BranchKey]PullRequestView
+	keys      []BranchKey
 }
 
 // SessionLinkedWork projects a bounded catalog page and its scoped descendants
 // with batch storage/cache reads. No forge request is made per item.
 func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[string]LinkedWorkProjection, error) {
+	return m.sessionLinkedWork(ctx, infos, false)
+}
+
+func (m *Manager) sessionLinkedWork(
+	ctx context.Context,
+	infos []*Info,
+	refresh bool,
+) (map[string]LinkedWorkProjection, error) {
 	m.mu.RLock()
 	links, ok := m.branchSnapshots.(WorkLinkStore)
 	branches := m.branchSnapshots
@@ -52,6 +61,9 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 	reads, err := readLinkedWork(ctx, links, branches, reader, infos, ids)
 	if err != nil {
 		return nil, err
+	}
+	if refresh {
+		requestDisplayedLinkedWork(ctx, reader, reads, roots)
 	}
 	for _, member := range reads.family {
 		root := roots[member.RootID]
@@ -110,6 +122,7 @@ func readLinkedWork(
 			filtered = append(filtered, key)
 		}
 	}
+	reads.keys = filtered
 	reads.views = reader.PullRequests(ctx, filtered)
 	return reads, nil
 }

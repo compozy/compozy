@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -1231,6 +1232,95 @@ func TestSessionLaterCommandsForwardTheParkRequest(t *testing.T) {
 		}
 		if !slices.Equal(withChildren, []bool{true}) {
 			t.Fatalf("resume-later with_children = %v, want [true]", withChildren)
+		}
+	})
+}
+
+func TestSessionCleanupCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should only preview by default, deleting whole threads archived over 7 days ago", func(t *testing.T) {
+		t.Parallel()
+		var previews []contract.SessionHistoryCleanupRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref == "checkout" {
+					ref = "ws-checkout"
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: ref, RootDir: "/workspace/" + ref}}, nil
+			},
+			previewSessionHistoryCleanupFn: func(
+				_ context.Context, request contract.SessionHistoryCleanupRequest,
+			) (contract.SessionHistoryCleanupPreviewResponse, error) {
+				previews = append(previews, request)
+				return contract.SessionHistoryCleanupPreviewResponse{Plan: contract.SessionHistoryCleanupPlan{
+					Counts: contract.SessionHistoryCleanupCounts{Sessions: 2, Total: 2}, Threads: 2,
+				}}, nil
+			},
+		})
+		output, _, err := executeRootCommand(t, deps, "session", "cleanup", "--workspace", "checkout", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session cleanup) error = %v", err)
+		}
+		var preview contract.SessionHistoryCleanupPreviewResponse
+		if err := json.Unmarshal([]byte(output), &preview); err != nil {
+			t.Fatalf("json.Unmarshal(session cleanup) error = %v", err)
+		}
+		if preview.Plan.Counts.Total != 2 || len(previews) != 1 {
+			t.Fatalf("preview = %+v previews = %d, want one 2-session preview", preview.Plan, len(previews))
+		}
+		request := previews[0]
+		everything := contract.SessionHistoryCleanupSelection{Everything: true, Children: true, Subagents: true}
+		if request.WorkspaceID != "ws-checkout" || request.Delete != everything ||
+			request.OlderThanDays == nil || *request.OlderThanDays != 7 || request.ArchivedBefore != nil {
+			t.Fatalf("preview request = %+v, want everything older than 7 days in ws-checkout", request)
+		}
+	})
+
+	t.Run("Should start the selected cleanup with --yes", func(t *testing.T) {
+		t.Parallel()
+		var starts []contract.SessionHistoryCleanupRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			startSessionHistoryCleanupFn: func(
+				_ context.Context, request contract.SessionHistoryCleanupRequest,
+			) (contract.SessionHistoryCleanupStartResponse, error) {
+				starts = append(starts, request)
+				return contract.SessionHistoryCleanupStartResponse{
+					Run: contract.SessionHistoryCleanupRun{
+						ID:        "run-1",
+						State:     "running",
+						Total:     4,
+						StartedAt: fixedTestNow,
+					},
+				}, nil
+			},
+		})
+		output, _, err := executeRootCommand(t, deps, "session", "cleanup",
+			"--subagents", "--any-time", "--all-workspaces", "--yes", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session cleanup --yes) error = %v", err)
+		}
+		var started contract.SessionHistoryCleanupStartResponse
+		if err := json.Unmarshal([]byte(output), &started); err != nil {
+			t.Fatalf("json.Unmarshal(session cleanup --yes) error = %v", err)
+		}
+		if started.Run.ID != "run-1" || len(starts) != 1 {
+			t.Fatalf("started = %+v starts = %d, want run-1 started once", started.Run, len(starts))
+		}
+		request := starts[0]
+		if !request.AllWorkspaces || request.WorkspaceID != "" ||
+			request.Delete != (contract.SessionHistoryCleanupSelection{Subagents: true}) ||
+			request.OlderThanDays != nil || request.ArchivedBefore != nil {
+			t.Fatalf("start request = %+v, want subagents at any time across workspaces", request)
+		}
+	})
+
+	t.Run("Should refuse an unreadable --before date", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, &stubClient{})
+		_, _, err := executeRootCommand(t, deps, "session", "cleanup", "--before", "last week", "--all-workspaces")
+		if err == nil || !strings.Contains(err.Error(), "--before must be") {
+			t.Fatalf("executeRootCommand(session cleanup --before) error = %v, want an invalid --before", err)
 		}
 	})
 }
@@ -5148,12 +5238,16 @@ func TestSubagentCommands(t *testing.T) {
 	}{
 		{"list table", []string{"parent"}, "ID", false},
 		{"list JSON", []string{"parent", "--json"}, `"next_cursor":null`, false},
-		{"show workspace help", []string{"show", "--help"}, "fast path for show/cancel that avoids searching across workspaces", false},
-		{"cancel workspace help", []string{"cancel", "--help"}, "fast path for show/cancel that avoids searching across workspaces", false},
+		{"show workspace help", []string{"show", "--help"}, "fast path for show/cancel/delete that avoids searching across workspaces", false},
+		{"cancel workspace help", []string{"cancel", "--help"}, "fast path for show/cancel/delete that avoids searching across workspaces", false},
 		{"show result", []string{"show", "sub-1"}, "Result\nRecommendation", false},
 		{"show JSON", []string{"show", "sub-1", "--json"}, `"subagent_id":"sub-1"`, false},
 		{"cancel", []string{"cancel", "sub-1", "--reason", "done"}, "Cancel requested for sub-1 (Review).", false},
 		{"cancel JSON", []string{"cancel", "sub-1", "--json"}, `"status":"cancel_requested"`, false},
+		{"delete", []string{"delete", "sub-1"}, "Deleted subagent sub-1 (Review).", false},
+		{"delete JSON", []string{"delete", "sub-1", "--json"}, `"subagent_id":"sub-1"`, false},
+		{"delete native", []string{"delete", "native"}, "subagent_not_deletable", true},
+		{"delete missing", []string{"delete", "missing"}, "subagent_not_found: subagent missing not found", true},
 		{"invalid limit", []string{"parent", "--limit", "0"}, "--limit must be between 1 and 200", true},
 		{"missing session", []string{"missing"}, "session_not_found", true},
 		{"missing subagent", []string{"show", "missing"}, "subagent_not_found: subagent missing not found", true},
@@ -5177,6 +5271,12 @@ func TestSubagentCommands(t *testing.T) {
 			if exitCode != 0 || !strings.Contains(stdout, tc.want) {
 				t.Fatalf("output=%s exit=%d stderr=%s, want %q", stdout, exitCode, stderr, tc.want)
 			}
+			if strings.HasPrefix(tc.name, "delete") {
+				if len(client.deleted) != 1 || client.deleted[0].WorkspaceID != "ws-subagents" ||
+					client.deleted[0].ID != "sub-1" {
+					t.Fatalf("deleted calls = %+v", client.deleted)
+				}
+			}
 			if tc.name == "list table" {
 				for _, column := range []string{"TITLE", "RUNTIME", "STATUS", "ELAPSED", "codex/gpt-6.1-sol", "7s"} {
 					if !strings.Contains(stdout, column) {
@@ -5199,7 +5299,15 @@ func TestSubagentCommands(t *testing.T) {
 	})
 }
 
-type subagentCommandStub struct{ DaemonClient }
+type subagentDeleteCall struct {
+	WorkspaceID string
+	ID          string
+}
+
+type subagentCommandStub struct {
+	DaemonClient
+	deleted []subagentDeleteCall
+}
 
 var _ sessionSubagentsClient = (*subagentCommandStub)(nil)
 
@@ -5229,14 +5337,25 @@ func (s *subagentCommandStub) CancelSubagent(
 ) (contract.SubagentCancelPayload, error) {
 	return contract.SubagentCancelPayload{SubagentID: id, Status: "cancel_requested"}, nil
 }
+
+func (s *subagentCommandStub) DeleteSubagent(_ context.Context, workspaceID, id string) error {
+	if id == "native" {
+		return errors.New(
+			"subagent_not_deletable: provider-native subagents cannot be deleted; stop the parent turn instead",
+		)
+	}
+	s.deleted = append(s.deleted, subagentDeleteCall{WorkspaceID: workspaceID, ID: id})
+	return nil
+}
 func subagentCLIRecord() contract.SubagentPayload {
 	return contract.SubagentPayload{
-		SubagentID: "sub-1",
-		Title:      "Review",
-		Status:     "running",
-		Runtime:    contract.SubagentRuntimePayload{Provider: "codex", Model: "gpt-6.1-sol"},
-		StartedAt:  new(fixedTestNow.Add(-7 * time.Second)),
-		Result:     new("Recommendation"),
+		SubagentID:  "sub-1",
+		WorkspaceID: "ws-subagents",
+		Title:       "Review",
+		Status:      "running",
+		Runtime:     contract.SubagentRuntimePayload{Provider: "codex", Model: "gpt-6.1-sol"},
+		StartedAt:   new(fixedTestNow.Add(-7 * time.Second)),
+		Result:      new("Recommendation"),
 	}
 }
 
@@ -5671,6 +5790,235 @@ func TestSessionPendingDescendants(t *testing.T) {
 		if err != nil || !strings.Contains(toon, "child") ||
 			!strings.Contains(toon, expiresAt.UTC().Format(time.RFC3339)) {
 			t.Fatalf("pending toon = %q, %v", toon, err)
+		}
+	})
+}
+
+func TestSessionChanges(t *testing.T) {
+	t.Run("Should disclose incomplete reports and unavailable patches", func(t *testing.T) {
+		t.Parallel()
+		record := sessionChangesRecord{
+			Truncated: true, Totals: contract.ChangeTotalsPayload{Files: 3, Additions: 5, Partial: true},
+			Files: []contract.FileChangePayload{{Path: "a.go", Status: "modified"}},
+			Patches: []contract.ChangePatchPayload{
+				{Path: "large.go", TooLarge: true},
+				{Path: "missing.go"},
+				{Path: "secret.env", Sensitive: true},
+				{Path: "a.go", Patch: "diff --git a/a.go b/a.go\n"},
+			},
+		}
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				sessionChangesFn: func(context.Context, string, sessionChangesOptions) (sessionChangesRecord, error) { return record, nil },
+			},
+		)
+		stdout, _, err := executeRootCommand(t, deps, "session", "changes", "sess-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"Summary truncated at 1 file.", "Totals are a lower bound.", "large.go (patch too large to display)", "missing.go (patch unavailable)", "secret.env (sensitive)", "diff --git a/a.go b/a.go"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("missing %q in %s", want, stdout)
+			}
+		}
+		for _, flags := range [][]string{{"--json"}, {"-o", "jsonl"}} {
+			args := append([]string{"session", "changes", "sess-1"}, flags...)
+			stdout, _, err = executeRootCommand(t, deps, args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got sessionChangesRecord
+			if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, record) {
+				t.Fatalf("structured report changed for %v: %+v", flags, got)
+			}
+		}
+	})
+
+	t.Run("Should return requested patches beyond the capped summary", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock")}
+		client.httpClient = &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			body := `{"id":"sess-1","workspace_id":"ws-1"}`
+			if strings.HasSuffix(req.URL.Path, "/changes") {
+				calls++
+				body = `{"revision":"same","truncated":true,"files":[{"path":"a.go","fingerprint":"visible"}]}`
+			}
+			if strings.HasSuffix(req.URL.Path, "/patches") {
+				body = `{"revision":"same","patches":[{"path":"zz-last.go","fingerprint":"stable","patch":"diff"}]}`
+			}
+			return &http.Response{
+				StatusCode: 200,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(body)),
+			}, nil
+		})}
+		result, err := client.SessionChanges(
+			t.Context(),
+			"sess-1",
+			sessionChangesOptions{Scope: "uncommitted", Paths: []string{"zz-last.go"}},
+		)
+		if err != nil || calls != 1 || len(result.Patches) != 1 || result.Patches[0].Path != "zz-last.go" {
+			t.Fatalf("result=%+v calls=%d err=%v", result, calls, err)
+		}
+	})
+
+	t.Run("Should retain unavailable items alongside fenced patches", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock")}
+		client.httpClient = &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			body := `{"id":"sess-1","workspace_id":"ws-1"}`
+			if strings.HasSuffix(req.URL.Path, "/changes") {
+				calls++
+				body = `{"revision":"same","files":[{"path":"a.go","fingerprint":"visible"}]}`
+			}
+			if strings.HasSuffix(req.URL.Path, "/patches") {
+				body = `{"revision":"same","patches":[{"path":"a.go","fingerprint":"visible","patch":"diff"},{"path":"foo","fingerprint":"","patch":""}]}`
+			}
+			return &http.Response{
+				StatusCode: 200,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(body)),
+			}, nil
+		})}
+		result, err := client.SessionChanges(
+			t.Context(),
+			"sess-1",
+			sessionChangesOptions{Scope: "uncommitted", Paths: []string{"a.go", "foo"}},
+		)
+		if err != nil || calls != 1 || len(result.Patches) != 2 || result.Patches[0].Path != "a.go" ||
+			result.Patches[1].Path != "foo" {
+			t.Fatalf("result=%+v calls=%d err=%v", result, calls, err)
+		}
+	})
+
+	for _, continuous := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should retry mixed fingerprints continuous=%v", continuous), func(t *testing.T) {
+			t.Parallel()
+			summaries, patches := 0, 0
+			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock")}
+			client.httpClient = &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					body := `{"id":"sess-1","workspace_id":"ws-1"}`
+					switch {
+					case strings.HasSuffix(req.URL.Path, "/patches"):
+						patches++
+						fingerprint := fmt.Sprint(summaries)
+						if continuous || summaries == 1 {
+							fingerprint = "newer"
+						}
+						body = fmt.Sprintf(
+							`{"revision":"same","patches":[{"path":"a.go","fingerprint":%q}]}`,
+							fingerprint,
+						)
+					case strings.HasSuffix(req.URL.Path, "/changes"):
+						summaries++
+						body = fmt.Sprintf(
+							`{"revision":"same","files":[{"path":"a.go","fingerprint":%q}]}`,
+							fmt.Sprint(summaries),
+						)
+					}
+					return &http.Response{
+						StatusCode: 200,
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader(body)),
+					}, nil
+				}),
+			}
+			result, err := client.SessionChanges(
+				t.Context(),
+				"sess-1",
+				sessionChangesOptions{Scope: "uncommitted", Paths: []string{"a.go"}},
+			)
+			if summaries != 2 || patches != 2 {
+				t.Fatalf("requests summary=%d patches=%d", summaries, patches)
+			}
+			if continuous {
+				api, ok := errors.AsType[*daemonAPIError](err)
+				if !ok || api.payload.Code != "changes_stale" {
+					t.Fatalf("error=%v", err)
+				}
+				deps := newWorkspaceTestDeps(
+					t,
+					&stubClient{
+						sessionChangesFn: func(context.Context, string, sessionChangesOptions) (sessionChangesRecord, error) { return result, err },
+					},
+				)
+				_, _, commandErr := executeRootCommand(t, deps, "session", "changes", "sess-1")
+				if commandErr == nil || !strings.Contains(commandErr.Error(), "changes_stale") {
+					t.Fatalf("command error=%v", commandErr)
+				}
+				exit, ok := errors.AsType[*commandExitError](commandErr)
+				if !ok || exit.cliExitCode() != 1 {
+					t.Fatalf("exit error=%v", commandErr)
+				}
+			} else if err != nil || result.Files[0].Fingerprint != result.Patches[0].Fingerprint {
+				t.Fatalf("mixed result: %+v %v", result, err)
+			}
+		})
+	}
+
+	t.Parallel()
+	t.Run("Should render summary and forward patch options", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				sessionChangesFn: func(_ context.Context, id string, options sessionChangesOptions) (sessionChangesRecord, error) {
+					if id != "sess-1" || options.Scope != "uncommitted" || len(options.Paths) != 1 ||
+						options.Paths[0] != "c.go" ||
+						!options.Reveal {
+						t.Fatalf("request: %s %+v", id, options)
+					}
+					return sessionChangesRecord{
+						Scope:  "uncommitted",
+						Files:  []contract.FileChangePayload{{Path: "c.go", Status: "M", Additions: 3}},
+						Totals: contract.ChangeTotalsPayload{Files: 1, Additions: 3},
+					}, nil
+				},
+			},
+		)
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"changes",
+			"sess-1",
+			"--scope",
+			"uncommitted",
+			"--patch",
+			" c.go ",
+			"--reveal",
+		)
+		if err != nil || !strings.Contains(stdout, "c.go") || !strings.Contains(stdout, "1 files changed, +3") {
+			t.Fatalf("output %s error %v", stdout, err)
+		}
+	})
+	t.Run("Should preserve structured output and errors", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				sessionChangesFn: func(_ context.Context, _ string, options sessionChangesOptions) (sessionChangesRecord, error) {
+					if options.Base != "" {
+						return sessionChangesRecord{}, errors.New("base ref not found (base_not_found)")
+					}
+					return sessionChangesRecord{Revision: "sha256:test"}, nil
+				},
+			},
+		)
+		stdout, _, err := executeRootCommand(t, deps, "session", "changes", "sess-1", "--json")
+		if err != nil || !strings.Contains(stdout, `"revision": "sha256:test"`) {
+			t.Fatalf("output %s error %v", stdout, err)
+		}
+		_, _, err = executeRootCommand(t, deps, "session", "changes", "sess-1", "--base", "missing")
+		if err == nil || !strings.Contains(err.Error(), "base_not_found") {
+			t.Fatalf("error %v", err)
 		}
 	})
 }

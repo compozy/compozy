@@ -18,7 +18,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -34,6 +33,7 @@ import (
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -45,7 +45,10 @@ import (
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/telemetry"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
+	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -4081,6 +4084,156 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should refuse managed plaintext credentials on create and update before touching Vault", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		calls := 0
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(context.Context, string, string, string) (vault.Metadata, error) {
+				calls++
+				return vault.Metadata{}, nil
+			},
+		}
+		for _, method := range []string{http.MethodPost, http.MethodPut} {
+			for _, field := range []string{"secret_header_values", "secret_env_values"} {
+				path := "/agents"
+				if method == http.MethodPut {
+					path += "/managed"
+				}
+				body := `{"scope":"global","agent":{"name":"managed","provider":"codex","prompt":"Work.","mcp_servers":[{"name":"remote","` + field + `":{"TOKEN":"credential"}}]}}`
+				if method == http.MethodPut {
+					body = strings.Replace(body, `"scope":"global"`, `"expected_digest":"digest"`, 1)
+				}
+				req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set(agentidentity.HeaderSessionID, "sess-caller")
+				response := httptest.NewRecorder()
+				fixture.Engine.ServeHTTP(response, req)
+				var payload contract.ErrorPayload
+				decodeJSON(t, response.Body.Bytes(), &payload)
+				if response.Code != http.StatusForbidden || payload.Code != "mcp_secret_values_operator_only" {
+					t.Fatalf("%s %s = %d %s", method, field, response.Code, response.Body.String())
+				}
+			}
+		}
+		if calls != 0 {
+			t.Fatalf("managed calls wrote %d Vault values", calls)
+		}
+	})
+
+	t.Run("Should reject invalid raw header values before writing Vault", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		calls := 0
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(context.Context, string, string, string) (vault.Metadata, error) {
+				calls++
+				return vault.Metadata{}, nil
+			},
+		}
+		for _, tc := range []struct {
+			headers map[string]string
+			cause   string
+		}{
+			{map[string]string{"Authorization:": "credential"}, "invalid_header_name"},
+			{map[string]string{"Authorization": "first\r\nsecond"}, "invalid_header_value"},
+			{map[string]string{"Authorization": "one", "authorization": "two"}, "duplicate_header"},
+			{map[string]string{"X-Existing": "replacement"}, "duplicate_header"},
+			{map[string]string{"x-existing": "replacement"}, "duplicate_header"},
+		} {
+			body := mustJSON(
+				t,
+				contract.CreateAgentRequest{
+					Scope: contract.AgentCreateScopeGlobal,
+					Agent: contract.CreateAgentPayload{
+						Name:     "invalid_header",
+						Provider: "codex",
+						Prompt:   "Work.",
+						MCPServers: []contract.AgentMCPServerInput{
+							{
+								Name:               "remote",
+								Transport:          "http",
+								URL:                "https://example.com",
+								SecretHeaderValues: tc.headers,
+								SecretHeaders:      map[string]string{"X-Existing": "vault:mcp/shared/existing"},
+							},
+						},
+					},
+				},
+			)
+			resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+			if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), tc.cause) {
+				t.Fatalf("invalid header status = %d body=%s", resp.Code, resp.Body.String())
+			}
+		}
+		if calls != 0 {
+			t.Fatalf("invalid headers wrote %d Vault values", calls)
+		}
+	})
+
+	t.Run("Should remove a Vault value when PutSecret fails after storage", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		stored := map[string]string{}
+		failure := errors.New("Vault metadata readback failed")
+		calls := 0
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(_ context.Context, ref, _ string, value string) (vault.Metadata, error) {
+				calls++
+				stored[ref] = value
+				return vault.Metadata{}, failure
+			},
+			deleteSecretFn: func(_ context.Context, ref string) error { delete(stored, ref); return nil },
+		}
+		body := mustJSON(
+			t,
+			contract.CreateAgentRequest{
+				Scope: contract.AgentCreateScopeGlobal,
+				Agent: contract.CreateAgentPayload{
+					Name:     "failed_secret",
+					Provider: "codex",
+					Prompt:   "Work.",
+					MCPServers: []contract.AgentMCPServerInput{
+						{
+							Name:               "remote",
+							Transport:          "http",
+							URL:                "https://example.com",
+							SecretHeaderValues: map[string]string{"Authorization": "credential"},
+						},
+					},
+				},
+			},
+		)
+		response := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		if response.Code != http.StatusInternalServerError ||
+			!strings.Contains(response.Body.String(), failure.Error()) ||
+			calls != 1 ||
+			len(stored) != 0 {
+			t.Fatalf(
+				"post-storage rollback = status %d, calls %d, stored %d, %s",
+				response.Code,
+				calls,
+				len(stored),
+				response.Body.String(),
+			)
+		}
+	})
+
 	t.Run("Should create a global AGENT.md definition", func(t *testing.T) {
 		t.Parallel()
 
@@ -4170,7 +4323,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 	})
 
 	// IT-003: the exact _dx.md body with the v0.5.0 kind spelling creates an always-on agent.
-	t.Run("Should create an always-on agent from a stays_on request", func(t *testing.T) {
+	t.Run("Should reject a stays_on create request", func(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
@@ -4192,16 +4345,9 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
   "agent": { "name": "triage", "provider": "claude", "kind": "stays_on",
              "prompt": "Watch the repository and report what needs attention." } }`)
 		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
-		if resp.Code != http.StatusCreated {
-			t.Fatalf("create status = %d, want 201; body=%s", resp.Code, resp.Body.String())
-		}
-		var payload contract.AgentResponse
-		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if payload.Agent.Name != "triage" || payload.Agent.Kind != "always_on" {
-			t.Fatalf("created agent = %#v, want always_on triage", payload.Agent)
-		}
-		if strings.Contains(resp.Body.String(), "stays_on") {
-			t.Fatalf("create body = %s, want no stays_on", resp.Body.String())
+		if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "agent_kind_invalid") ||
+			!strings.Contains(resp.Body.String(), compozyconfig.ErrAgentKindInvalid.Error()) {
+			t.Fatalf("create: %d %s", resp.Code, resp.Body.String())
 		}
 	})
 
@@ -4508,8 +4654,18 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
+		stored := map[string]string{}
+		putCalls := 0
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(_ context.Context, ref, _ string, value string) (vault.Metadata, error) {
+				putCalls++
+				stored[ref] = value
+				return vault.Metadata{Ref: ref, Present: true}, nil
+			},
+			deleteSecretFn: func(_ context.Context, ref string) error { delete(stored, ref); return nil },
+		}
 		syncErr := errors.New("sync unavailable")
-		syncer := &recordingAgentDefinitionSync{errs: []error{syncErr, nil}}
+		syncer := &recordingAgentDefinitionSync{errs: []error{syncErr, syncErr}}
 		fixture.Handlers.AgentDefinitionSync = syncer
 		path := filepath.Join(
 			fixture.HomePaths.AgentsDir,
@@ -4522,6 +4678,14 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 				Name:     "rollback_agent",
 				Provider: "codex",
 				Prompt:   "Rollback on sync failure.",
+				MCPServers: []contract.AgentMCPServerInput{
+					{
+						Name:               "private",
+						Transport:          "http",
+						URL:                "https://example.com/mcp",
+						SecretHeaderValues: map[string]string{"Authorization": "write-only-credential"},
+					},
+				},
 			},
 		})
 
@@ -4539,6 +4703,12 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 		if syncer.calls != 2 {
 			t.Fatalf("Sync() calls = %d, want initial sync plus reconciliation", syncer.calls)
+		}
+		if putCalls != 1 {
+			t.Fatalf("PutSecret calls = %d, want 1", putCalls)
+		}
+		if len(stored) != 0 {
+			t.Fatal("failed creation retained newly written Vault credentials")
 		}
 	})
 
@@ -4719,6 +4889,220 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 }
 
 func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
+	t.Run("Should allow only one concurrent attachment update for one digest", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		current, err := compozyconfig.CreateAgentDefFile(
+			path,
+			compozyconfig.AgentDefinitionDraft{Name: "coder", Provider: "codex", Prompt: "Work."},
+			false,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest, err := compozyconfig.AgentDefinitionDigest(current)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture.Handlers.AgentDefinitionSync = &recordingAgentDefinitionSync{}
+		start := make(chan struct{})
+		results := make(chan int, 8)
+		for index := range 8 {
+			body := mustJSON(
+				t,
+				contract.UpdateAgentRequest{
+					ExpectedDigest: digest,
+					Agent: contract.CreateAgentPayload{
+						Name:     "coder",
+						Provider: "codex",
+						Prompt:   "Work.",
+						MCPServers: []contract.AgentMCPServerInput{
+							{Name: fmt.Sprintf("server-%d", index), Reference: true},
+						},
+					},
+				},
+			)
+			go func() {
+				<-start
+				results <- performRequest(t, fixture.Engine, http.MethodPut, "/agents/coder", body).Code
+			}()
+		}
+		close(start)
+		successes, conflicts := 0, 0
+		for range 8 {
+			switch status := <-results; status {
+			case http.StatusOK:
+				successes++
+			case http.StatusConflict:
+				conflicts++
+			default:
+				t.Fatalf("concurrent update status = %d", status)
+			}
+		}
+		if successes != 1 || conflicts != 7 {
+			t.Fatalf("updates = %d successes, %d conflicts", successes, conflicts)
+		}
+		loaded, err := compozyconfig.LoadAgentDefFile(path)
+		if err != nil || len(loaded.MCPServers) != 1 {
+			t.Fatalf("winner attachment = %#v, %v", loaded.MCPServers, err)
+		}
+	})
+	t.Run("Should attach MCP references and vault header credentials without changing tool access", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		current, err := compozyconfig.CreateAgentDefFile(
+			path,
+			compozyconfig.AgentDefinitionDraft{
+				Name:       "coder",
+				Provider:   "codex",
+				Prompt:     "Work.",
+				MCPServers: []compozyconfig.MCPServer{{Name: "legacy", Command: "old"}},
+			},
+			false,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest, err := compozyconfig.AgentDefinitionDigest(current)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stored := map[string]string{}
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(_ context.Context, ref, _ string, value string) (vault.Metadata, error) {
+				stored[ref] = value
+				return vault.Metadata{Ref: ref, Present: true}, nil
+			},
+			deleteSecretFn: func(_ context.Context, ref string) error { delete(stored, ref); return nil },
+		}
+		fixture.Handlers.AgentDefinitionSync = &recordingAgentDefinitionSync{}
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/coder",
+			mustJSON(
+				t,
+				contract.UpdateAgentRequest{
+					ExpectedDigest: digest,
+					Agent: contract.CreateAgentPayload{
+						Name:     "coder",
+						Provider: "codex",
+						Prompt:   "Work.",
+						MCPServers: []contract.AgentMCPServerInput{
+							{Name: "missing", Reference: true},
+							{
+								Name:               "private",
+								Transport:          "http",
+								URL:                "https://example.com/mcp",
+								SecretHeaderValues: map[string]string{"Authorization": "Bearer test-secret-value"},
+							},
+						},
+					},
+				},
+			),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s", resp.Code, resp.Body.String())
+		}
+		var response contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &response)
+		if len(response.Agent.Tools) != 0 || len(response.Agent.MCPServers) != 3 {
+			t.Fatalf("response = %#v", response.Agent)
+		}
+		if strings.Contains(resp.Body.String(), "test-secret-value") ||
+			strings.Contains(resp.Body.String(), "vault:mcp/") {
+			t.Fatal("response leaked credential material")
+		}
+		loaded, err := compozyconfig.LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ref string
+		for _, server := range loaded.MCPServers {
+			if server.Name == "private" {
+				ref = server.SecretHeaders["Authorization"]
+			}
+		}
+		if stored[ref] != "Bearer test-secret-value" {
+			t.Fatalf("header was not bound to Vault")
+		}
+		missingFound := false
+		for _, server := range response.Agent.MCPServers {
+			if server.Name == "missing" {
+				missingFound = true
+			}
+			if server.Name == "missing" && !server.BrokenReference {
+				t.Fatal("missing reference was not surfaced")
+			}
+		}
+		if !missingFound {
+			t.Fatal("response omitted missing reference")
+		}
+		markdown, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sidecar, err := os.ReadFile(filepath.Join(filepath.Dir(path), compozyconfig.MCPJSONName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(markdown, []byte("private")) || bytes.Contains(sidecar, []byte("test-secret-value")) {
+			t.Fatal("agent files contain misplaced definition or plaintext secret")
+		}
+		baselineServers := response.Agent.MCPServers
+		for _, tools := range [][]string{{"compozy__agent_list"}, {"compozy__agent_list", "compozy__skill_view"}} {
+			next := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPut,
+				"/agents/coder",
+				mustJSON(
+					t,
+					contract.UpdateAgentRequest{
+						ExpectedDigest: response.Agent.DefinitionDigest,
+						Agent: contract.CreateAgentPayload{
+							Name:     "coder",
+							Provider: "codex",
+							Prompt:   "Work.",
+							Tools:    tools,
+						},
+					},
+				),
+			)
+			if next.Code != http.StatusOK {
+				t.Fatalf("unrelated save status = %d body=%s", next.Code, next.Body.String())
+			}
+			var nextResponse contract.AgentResponse
+			decodeJSON(t, next.Body.Bytes(), &nextResponse)
+			response = nextResponse
+			latest, err := compozyconfig.LoadAgentDefFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			latestDigest, err := compozyconfig.AgentDefinitionDigest(latest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(response.Agent.MCPServers, baselineServers) ||
+				response.Agent.DefinitionDigest != latestDigest {
+				t.Fatalf("unrelated save lost effective servers or digest: %#v", response.Agent)
+			}
+		}
+	})
+
 	t.Parallel()
 
 	t.Run("Should duplicate effective package agents while preserving managed sources", func(t *testing.T) {
@@ -4967,6 +5351,35 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		if loaded.Model != "gpt-5" || loaded.Prompt != "After." {
 			t.Fatalf("effective source definition = %#v", loaded)
+		}
+		denied := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/code_implementer",
+			mustJSON(
+				t,
+				contract.UpdateAgentRequest{
+					ExpectedDigest: payload.Agent.DefinitionDigest,
+					Agent: contract.CreateAgentPayload{
+						Name:       "code_implementer",
+						Provider:   "codex",
+						Prompt:     "After.",
+						MCPServers: []contract.AgentMCPServerInput{{Name: "shared", Reference: true}},
+					},
+				},
+			),
+		)
+		if denied.Code != http.StatusForbidden || !strings.Contains(denied.Body.String(), "read-only") {
+			t.Fatalf("package attachment status = %d body=%s", denied.Code, denied.Body.String())
+		}
+		if _, err := os.Stat(
+			filepath.Join(filepath.Dir(path), compozyconfig.MCPJSONName),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("package sidecar was modified: %v", err)
 		}
 	})
 
@@ -6221,10 +6634,13 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 	t.Run("Should expose only unadopted workspace profile hints", func(t *testing.T) {
 		t.Parallel()
 
-		profiles := &workspaceHintProfileServiceStub{profiles: []profilepkg.WithCounts{
-			{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
-			{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive},
-		}}
+		profiles := &workspaceHintProfileServiceStub{
+			ProfileService: sessionProfileServiceStub{},
+			profiles: []profilepkg.WithCounts{
+				{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+				{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive},
+			},
+		}
 		fixture := newHandlerFixture(
 			t,
 			&testutil.StubSessionManager{},
@@ -6517,6 +6933,156 @@ func TestDaemonStatusProjectsSubprocessHealth(t *testing.T) {
 	})
 }
 
+// UT-025
+func TestDaemonStatusProjectsOTelExport(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		status telemetry.Status
+		want   string
+	}{
+		{
+			name: "Should match the healthy export example",
+			status: telemetry.Status{
+				State:        telemetry.StateOK,
+				Protocol:     "grpc",
+				EndpointHost: "collector.local:4317",
+				SampleRatio:  0.25,
+				Traces: telemetry.SignalStatus{
+					Enabled:      true,
+					LastExportAt: time.Date(2026, 11, 7, 14, 2, 11, 0, time.UTC),
+				},
+				Metrics: telemetry.SignalStatus{
+					Enabled:      true,
+					LastExportAt: time.Date(2026, 11, 7, 14, 2, 0, 0, time.UTC),
+				},
+			},
+			want: `{
+				"state": "ok",
+				"protocol": "grpc",
+				"endpoint_host": "collector.local:4317",
+				"sample_ratio": 0.25,
+				"forward_to_providers": false,
+				"traces": { "enabled": true, "last_export_at": "2026-11-07T14:02:11Z", "failed_exports": 0 },
+				"metrics": { "enabled": true, "last_export_at": "2026-11-07T14:02:00Z", "failed_exports": 0 },
+				"dropped_spans": 0
+			}`,
+		},
+		{
+			name: "Should match the degraded export example",
+			status: telemetry.Status{
+				State:        telemetry.StateDegraded,
+				Protocol:     "http/protobuf",
+				EndpointHost: "otlp.nr-data.net:4318",
+				SampleRatio:  1,
+				Traces: telemetry.SignalStatus{
+					Enabled:      true,
+					LastExportAt: time.Date(2026, 11, 7, 13, 40, 2, 0, time.UTC),
+				},
+				Metrics: telemetry.SignalStatus{
+					Enabled: true, LastExportAt: time.Date(2026, 11, 7, 13, 20, 0, 0, time.UTC),
+					LastErrorClass: "http_401", FailedExports: 12,
+				},
+			},
+			want: `{
+				"state": "degraded",
+				"protocol": "http/protobuf",
+				"endpoint_host": "otlp.nr-data.net:4318",
+				"sample_ratio": 1,
+				"forward_to_providers": false,
+				"traces": { "enabled": true, "last_export_at": "2026-11-07T13:40:02Z", "failed_exports": 0 },
+				"metrics": { "enabled": true, "last_export_at": "2026-11-07T13:20:00Z", "last_error_class": "http_401", "failed_exports": 12 },
+				"dropped_spans": 0
+			}`,
+		},
+		{
+			// The _dx.md examples keep both fields at their zero value, so they cannot show the mapping.
+			name: "Should project provider forwarding and dropped spans",
+			status: telemetry.Status{
+				State:              telemetry.StateOK,
+				Protocol:           "http/protobuf",
+				EndpointHost:       "localhost:4318",
+				SampleRatio:        1,
+				ForwardToProviders: true,
+				Traces:             telemetry.SignalStatus{Enabled: true},
+				Metrics:            telemetry.SignalStatus{},
+				DroppedSpans:       7,
+			},
+			want: `{
+				"state": "ok",
+				"protocol": "http/protobuf",
+				"endpoint_host": "localhost:4318",
+				"sample_ratio": 1,
+				"forward_to_providers": true,
+				"traces": { "enabled": true, "failed_exports": 0 },
+				"metrics": { "enabled": false, "failed_exports": 0 },
+				"dropped_spans": 7
+			}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newHandlerFixture(
+				t,
+				&testutil.StubSessionManager{},
+				okStatusObserver(),
+				testutil.StubWorkspaceService{},
+			)
+			fixture.Handlers.TelemetryStatus = func() (telemetry.Status, bool) { return tt.status, true }
+
+			otel := statusSection(t, fixture, "otel")
+			var got, want bytes.Buffer
+			if err := json.Compact(&got, otel); err != nil {
+				t.Fatalf("json.Compact(otel) error = %v", err)
+			}
+			if err := json.Compact(&want, []byte(tt.want)); err != nil {
+				t.Fatalf("json.Compact(want) error = %v", err)
+			}
+			if got.String() != want.String() {
+				t.Fatalf("status otel = %s, want %s", got.String(), want.String())
+			}
+		})
+	}
+
+	t.Run("Should omit otel until telemetry has started", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			okStatusObserver(),
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.TelemetryStatus = func() (telemetry.Status, bool) { return telemetry.Status{}, false }
+
+		if otel := statusSection(t, fixture, "otel"); otel != nil {
+			t.Fatalf("status otel = %s, want absent", otel)
+		}
+	})
+}
+
+func okStatusObserver() testutil.StubObserver {
+	return testutil.StubObserver{
+		HealthFn: func(context.Context) (observe.Health, error) {
+			return observe.Health{Status: "ok", Version: "dev"}, nil
+		},
+	}
+}
+
+func statusSection(t *testing.T, fixture handlerFixture, section string) json.RawMessage {
+	t.Helper()
+	response := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	var shape map[string]json.RawMessage
+	decodeJSON(t, response.Body.Bytes(), &shape)
+	return shape[section]
+}
+
 func TestDaemonStatusProjectsWorkspaceSkills(t *testing.T) {
 	t.Run("Should project skills from the requested workspace", func(t *testing.T) {
 		t.Parallel()
@@ -6595,6 +7161,30 @@ func (m *subprocessHealthSessionManager) SubprocessHealthSnapshots() []session.S
 func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: bounded identity reports the same lifecycle readiness without invoking diagnostics.
+	// Owner: shared API core; canonical suite: daemon drain/status.
+	t.Run("Should report readiness through bounded identity without aggregation", func(t *testing.T) {
+		t.Parallel()
+		manager := &testutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
+			t.Error("identity listed all sessions")
+			return nil, errors.New("unexpected aggregation")
+		}}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		controller := &testDrainController{}
+		fixture.Handlers.DrainController = controller
+		fixture.Engine.GET("/identity", fixture.Handlers.GetRuntimeIdentity)
+		for _, stopping := range []bool{false, true} {
+			controller.draining.Store(stopping)
+			response := performRequest(t, fixture.Engine, http.MethodGet, "/identity", nil)
+			var payload contract.RuntimeIdentityPayload
+			decodeJSON(t, response.Body.Bytes(), &payload)
+			if response.Code != http.StatusOK ||
+				!reflect.DeepEqual(payload.Daemon.Readiness, controller.DaemonReadiness()) {
+				t.Fatalf("identity readiness=%+v", payload.Daemon.Readiness)
+			}
+		}
+	})
+
 	t.Run("Should project drain state through status and doctor", func(t *testing.T) {
 		t.Parallel()
 
@@ -6652,6 +7242,11 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 		if statusPayload.Daemon.Status != string(contract.DrainStateDraining) {
 			t.Fatalf("daemon status = %q, want %q", statusPayload.Daemon.Status, contract.DrainStateDraining)
 		}
+		// Invariant: status carries the controller's lifecycle phase beside the unchanged status value.
+		if got := statusPayload.Daemon.Readiness; got == nil || got.Phase != contract.DaemonReadinessStopping ||
+			got.Step != "close_admission" {
+			t.Fatalf("daemon readiness = %#v, want the stopping phase and its step", got)
+		}
 
 		doctorResponse := performRequest(t, fixture.Engine, http.MethodGet, "/doctor?only=daemon", nil)
 		if doctorResponse.Code != http.StatusOK {
@@ -6691,6 +7286,9 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 		if activeStatusResponse.Code != http.StatusOK || activeStatus.Daemon.Status != "running" {
 			t.Fatalf("active daemon status = %d %#v, want running", activeStatusResponse.Code, activeStatus.Daemon)
 		}
+		if got := activeStatus.Daemon.Readiness; got == nil || got.Phase != contract.DaemonReadinessReady {
+			t.Fatalf("active daemon readiness = %#v, want the ready phase", got)
+		}
 	})
 }
 
@@ -6720,6 +7318,13 @@ func (c *testDrainController) DrainState() contract.DrainState {
 		return contract.DrainStateDraining
 	}
 	return contract.DrainStateActive
+}
+
+func (c *testDrainController) DaemonReadiness() *contract.DaemonReadinessPayload {
+	if c.draining.Load() {
+		return &contract.DaemonReadinessPayload{Phase: contract.DaemonReadinessStopping, Step: "close_admission"}
+	}
+	return &contract.DaemonReadinessPayload{Phase: contract.DaemonReadinessReady}
 }
 
 func (c *testDrainController) DrainStatus(context.Context) (contract.DrainStatusResponse, error) {
@@ -7205,10 +7810,7 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 		}
 	})
 	// UT-023: the v0.5.0 stays_on spelling is an input alias on PUT and both duplicate kinds.
-	t.Run("Should accept stays_on on update and duplicate and write always_on", func(t *testing.T) {
-		logs := &lockedLogBuffer{}
-		compozyconfig.RouteDeprecationWarnings(slog.New(slog.NewTextHandler(logs, nil)))
-		t.Cleanup(func() { compozyconfig.RouteDeprecationWarnings(nil) })
+	t.Run("Should reject stays_on on update and both duplicate locations", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			&testutil.StubSessionManager{},
@@ -7242,7 +7844,8 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 				},
 			}),
 		)
-		if resp.Code != http.StatusOK {
+		if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "agent_kind_invalid") ||
+			!strings.Contains(resp.Body.String(), compozyconfig.ErrAgentKindInvalid.Error()) {
 			t.Fatalf("PUT stays_on: %d %s", resp.Code, resp.Body.String())
 		}
 		assertAgentFileKind(t, path, "always_on")
@@ -7262,56 +7865,12 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 				"/agents/scout/duplicate",
 				mustJSON(t, tc.request),
 			)
-			if resp.Code != http.StatusCreated {
-				t.Fatalf("duplicate %s: %d %s", tc.name, resp.Code, resp.Body.String())
-			}
-			var copied contract.AgentResponse
-			decodeJSON(t, resp.Body.Bytes(), &copied)
-			if copied.Agent.Kind != "always_on" {
-				t.Fatalf("duplicate %s kind = %q, want always_on", tc.name, copied.Agent.Kind)
-			}
-			assertAgentFileKind(
-				t,
-				filepath.Join(fixture.HomePaths.AgentsDir, tc.name, compozyconfig.AgentDefinitionFileName),
-				"always_on",
-			)
-			if got := logs.count("source=request", "agent="+tc.name); got != 1 {
-				t.Fatalf("duplicate %s warnings = %d, want 1\n%s", tc.name, got, logs.String())
+			if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "agent_kind_invalid") ||
+				!strings.Contains(resp.Body.String(), compozyconfig.ErrAgentKindInvalid.Error()) {
+				t.Fatalf("duplicate: %d %s", resp.Code, resp.Body.String())
 			}
 		}
 	})
-}
-
-// lockedLogBuffer collects slog lines from concurrent handlers.
-type lockedLogBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *lockedLogBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *lockedLogBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
-}
-
-func (b *lockedLogBuffer) count(fragments ...string) int {
-	total := 0
-	for line := range strings.SplitSeq(b.String(), "\n") {
-		matched := line != ""
-		for _, fragment := range fragments {
-			matched = matched && strings.Contains(line, fragment)
-		}
-		if matched {
-			total++
-		}
-	}
-	return total
 }
 
 func assertAgentFileKind(t *testing.T, path string, want string) {
@@ -7378,4 +7937,382 @@ func TestDraftAgentInstructionsEndpoint(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant (UT-005/036): agent create and update commit sidecars before approval,
+// and surface approval failures without undoing durable authoring. Owner: API agent
+// authoring; canonical suite: handlers_test.go.
+func TestBaseHandlersWorkspaceAgentMCPApproval(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	path := filepath.Join(
+		root,
+		compozyconfig.DirName,
+		compozyconfig.ProfilesDirName,
+		"default",
+		compozyconfig.AgentsDirName,
+		"worker",
+		compozyconfig.AgentDefinitionFileName,
+	)
+	workspaces := testutil.StubWorkspaceService{
+		ResolveForProfileFn: func(_ context.Context, _, profile string) (workspacepkg.ResolvedWorkspace, error) {
+			resolved := workspacepkg.ResolvedWorkspace{
+				ID: "ws-agent", RootDir: root,
+				ProfileName: profile,
+				Config:      compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
+			}
+			if agent, err := compozyconfig.LoadAgentDefFile(path); err == nil {
+				resolved.Agents = []compozyconfig.AgentDef{agent}
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return resolved, err
+			}
+			return resolved, nil
+		},
+	}
+	fixture := newHandlerFixture(t, &testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces)
+	calls := 0
+	fixture.Handlers.Settings = &agentMCPApprovalSettings{
+		stubSettingsService: &stubSettingsService{},
+		record: func(_ context.Context, write settingspkg.WorkspaceMCPWrite) (string, error) {
+			calls++
+			if write.WorkspaceID != "ws-agent" || !strings.HasSuffix(write.SourceID, compozyconfig.MCPJSONName) {
+				t.Fatalf("approval identity=%+v", write)
+			}
+			if err := write.Write(); err != nil {
+				return "", err
+			}
+			committed, err := write.ReadCommitted()
+			if err != nil || committed.Command != write.Server.Command {
+				t.Fatalf("committed=%+v %v", committed, err)
+			}
+			return "saved but waiting for approval", nil
+		},
+	}
+	payload := contract.CreateAgentPayload{
+		Name:       "worker",
+		Provider:   "codex",
+		Prompt:     "Work.",
+		MCPServers: []contract.AgentMCPServerInput{{Name: "local", Command: "fixture", Args: []string{"first"}}},
+	}
+	created := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/agents",
+		mustJSON(
+			t,
+			contract.CreateAgentRequest{Scope: contract.AgentCreateScopeWorkspace, Workspace: "alpha", Agent: payload},
+		),
+	)
+	if created.Code != http.StatusCreated ||
+		!strings.Contains(created.Body.String(), "saved but waiting for approval") ||
+		calls != 1 {
+		t.Fatalf("create=%d %s calls=%d", created.Code, created.Body.String(), calls)
+	}
+	agent, err := compozyconfig.LoadAgentDefFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest, err := compozyconfig.AgentDefinitionDigest(agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload.MCPServers[0].Args = []string{"second"}
+	updated := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPut,
+		"/agents/worker",
+		mustJSON(t, contract.UpdateAgentRequest{Workspace: "alpha", ExpectedDigest: digest, Agent: payload}),
+	)
+	if updated.Code != http.StatusOK || !strings.Contains(updated.Body.String(), "saved but waiting for approval") ||
+		calls != 2 {
+		t.Fatalf("update=%d %s calls=%d", updated.Code, updated.Body.String(), calls)
+	}
+	agent, err = compozyconfig.LoadAgentDefFile(path)
+	if err != nil || len(agent.MCPServers) != 1 || len(agent.MCPServers[0].Args) != 1 ||
+		agent.MCPServers[0].Args[0] != "second" {
+		t.Fatalf("durable sidecar=%+v %v", agent.MCPServers, err)
+	}
+}
+
+type agentMCPApprovalSettings struct {
+	*stubSettingsService
+	record func(context.Context, settingspkg.WorkspaceMCPWrite) (string, error)
+}
+
+func (s *agentMCPApprovalSettings) RecordWorkspaceMCPWrite(
+	ctx context.Context,
+	write settingspkg.WorkspaceMCPWrite,
+) (string, error) {
+	return s.record(ctx, write)
+}
+
+// Invariant: MCP summary decorates detail only and scoped reads authorize before reading inventory. Owner: session HTTP core; canonical handler suite (UT-083).
+func TestSessionMCPDetailAndScope(t *testing.T) {
+	// Invariant: current summaries decorate HTTP detail without rebuilding the full MCP read model.
+	// Owner: shared HTTP/UDS handlers; canonical suite: MCP detail and scope.
+	t.Run("Should reuse the current summary on session detail", func(t *testing.T) {
+		t.Parallel()
+		info := testutil.NewSessionInfo("sess-mcp")
+		info.WorkspaceID, info.ProfileID = "ws-mcp", store.DefaultProfileID
+		base := &testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+		}
+		fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		reader := &sessionMCPSummaryHandlerStub{sessionMCPHandlerStub: &sessionMCPHandlerStub{
+			SessionManager: fixture.Handlers.Sessions,
+		}, summary: session.MCPSummary{Usable: 7, PendingReload: true}}
+		fixture.Handlers.Sessions = reader
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-mcp/sessions/sess-mcp", nil)
+		var payload contract.SessionResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || payload.Session.MCPSummary == nil ||
+			*payload.Session.MCPSummary != reader.summary || reader.reads != 0 {
+			t.Fatalf("detail=%d %s, full reads=%d", response.Code, response.Body.String(), reader.reads)
+		}
+	})
+	t.Parallel()
+	t.Run("Should omit waiting previews from app-token reads without mutating operator rows", func(t *testing.T) {
+		t.Parallel()
+		info := testutil.NewSessionInfo("sess-mcp")
+		info.WorkspaceID, info.ProfileID = "ws-mcp", store.DefaultProfileID
+		base := &testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+		}
+		fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		reader := &sessionMCPHandlerStub{
+			SessionManager: fixture.Handlers.Sessions,
+			result: session.MCP{
+				SessionID: info.ID,
+				CompozyServers: []session.MCPServerRow{
+					{
+						Name:    "docs",
+						State:   "waiting_approval",
+						Command: "private-command",
+						Args:    []string{"private-arg"},
+						URL:     "https://private.test",
+						Source:  session.MCPServerSource{Kind: "workspace", Path: "/private/path"},
+					},
+				},
+			},
+		}
+		fixture.Handlers.Sessions = reader
+		fixture.Engine.GET("/workspaces/:workspace_id/sessions/:session_id/mcp", fixture.Handlers.GetSessionMCP)
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet, "/workspaces/ws-mcp/sessions/sess-mcp/mcp", http.NoBody,
+		)
+		request = request.WithContext(core.ContextWithAppToken(request.Context(), gateway.AppToken{}))
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, request)
+		if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "private") ||
+			!strings.Contains(response.Body.String(), "waiting_approval") {
+			t.Fatalf("response=%d %s", response.Code, response.Body.String())
+		}
+		if reader.result.CompozyServers[0].Command != "private-command" {
+			t.Fatal("operator row was mutated")
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{"Should map unavailable checks to service unavailable", toolspkg.ErrToolUnavailable, 503},
+		{"Should map unavailable settings checks to service unavailable", settingspkg.ErrUnavailable, 503},
+		{"Should reject a disabled check source", toolspkg.NewValidationError("name", toolspkg.ReasonSourceDisabled, "source disabled"), 400},
+		{"Should map client cancellation", context.Canceled, 499},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			info := testutil.NewSessionInfo("sess-mcp")
+			info.WorkspaceID, info.ProfileID = "ws-mcp", store.DefaultProfileID
+			base := &testutil.StubSessionManager{
+				StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+			}
+			fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			fixture.Handlers.Sessions = &sessionMCPHandlerStub{SessionManager: fixture.Handlers.Sessions, err: tc.err}
+			fixture.Engine.POST(
+				"/workspaces/:workspace_id/sessions/:session_id/mcp/servers/:name/check",
+				fixture.Handlers.CheckSessionMCP,
+			)
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPost,
+				"/workspaces/ws-mcp/sessions/sess-mcp/mcp/servers/docs/check",
+				nil,
+			)
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != tc.status || payload.Error != tc.err.Error() {
+				t.Fatalf("response=%d %s, want %d %q", response.Code, response.Body.String(), tc.status, tc.err.Error())
+			}
+		})
+	}
+
+	t.Run("Should scope a check before forwarding its exact server owner", func(t *testing.T) {
+		t.Parallel()
+		info := testutil.NewSessionInfo("sess-mcp")
+		info.WorkspaceID, info.ProfileID = "ws-mcp", store.DefaultProfileID
+		base := &testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+		}
+		fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		checker := &sessionMCPHandlerStub{
+			SessionManager: fixture.Handlers.Sessions,
+			result:         session.MCP{SessionID: info.ID},
+		}
+		fixture.Handlers.Sessions = checker
+		fixture.Engine.POST(
+			"/workspaces/:workspace_id/sessions/:session_id/mcp/servers/:name/check",
+			fixture.Handlers.CheckSessionMCP,
+		)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-mcp/sessions/sess-mcp/mcp/servers/docs/check?owner=extension:docs",
+			nil,
+		)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "sess-mcp") ||
+			checker.checkName != "docs" ||
+			checker.checkOwner != "extension:docs" {
+			t.Fatalf("check = %d %s, %+v", response.Code, response.Body.String(), checker)
+		}
+		response = performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/foreign/sessions/sess-mcp/mcp/servers/docs/check",
+			nil,
+		)
+		if response.Code != http.StatusNotFound || !strings.Contains(response.Body.String(), "error") ||
+			checker.checks != 1 {
+			t.Fatalf("foreign check = %d %s, calls=%d", response.Code, response.Body.String(), checker.checks)
+		}
+	})
+
+	t.Run("Should return the session without a summary when the MCP read model fails", func(t *testing.T) {
+		t.Parallel()
+		info := testutil.NewSessionInfo("sess-mcp")
+		info.WorkspaceID = "ws-mcp"
+		info.ProfileID = store.DefaultProfileID
+		base := &testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+		}
+		fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture.Handlers.Sessions = &sessionMCPHandlerStub{
+			SessionManager: fixture.Handlers.Sessions,
+			err:            errors.New("session: MCP read model unavailable"),
+		}
+		detail := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-mcp/sessions/sess-mcp", nil)
+		if detail.Code != http.StatusOK {
+			t.Fatalf("detail %d: %s", detail.Code, detail.Body.String())
+		}
+		var payload contract.SessionResponse
+		if err := json.Unmarshal(detail.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Session.ID != info.ID || payload.Session.MCPSummary != nil {
+			t.Fatalf("session=%+v", payload.Session)
+		}
+	})
+	for _, count := range []int{0, 1} {
+		t.Run(fmt.Sprintf("Should decorate only detail for %d servers UT-083", count), func(t *testing.T) {
+			t.Parallel()
+			info := testutil.NewSessionInfo("sess-mcp")
+			info.WorkspaceID = "ws-mcp"
+			info.ProfileID = store.DefaultProfileID
+			base := &testutil.StubSessionManager{
+				StatusFn:  func(context.Context, string) (*session.Info, error) { return info, nil },
+				ListAllFn: func(context.Context) ([]*session.Info, error) { return []*session.Info{info}, nil },
+			}
+			fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			reader := &sessionMCPHandlerStub{
+				SessionManager: fixture.Handlers.Sessions,
+				result: session.MCP{
+					SessionID:  info.ID,
+					MCPSummary: session.MCPSummary{Attention: count},
+				},
+			}
+			if count > 0 {
+				reader.result.CompozyServers = []session.MCPServerRow{{Name: "linear", State: "needs_sign_in"}}
+			}
+			fixture.Handlers.Sessions = reader
+			fixture.Engine.GET("/workspaces/:workspace_id/sessions/:session_id/mcp", fixture.Handlers.GetSessionMCP)
+			detail := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-mcp/sessions/sess-mcp", nil)
+			if detail.Code != http.StatusOK {
+				t.Fatalf("detail %d: %s", detail.Code, detail.Body.String())
+			}
+			var payload contract.SessionResponse
+			if err := json.Unmarshal(detail.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if (payload.Session.MCPSummary != nil) != (count > 0) {
+				t.Fatalf("summary=%+v", payload.Session.MCPSummary)
+			}
+			list := core.SessionPayloadsFromInfos([]*session.Info{info})
+			data, err := json.Marshal(list)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), "mcp_summary") {
+				t.Fatalf("list contains summary: %s", data)
+			}
+			for _, path := range []string{"/workspaces/another/sessions/sess-mcp/mcp", "/workspaces/ws-mcp/sessions/sess-mcp/mcp?profile=other"} {
+				before := reader.reads
+				denied := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
+				if denied.Code == http.StatusOK || reader.reads != before || denied.Body.Len() == 0 {
+					t.Fatalf(
+						"scope leaked: %d %s reads %d -> %d",
+						denied.Code,
+						denied.Body.String(),
+						before,
+						reader.reads,
+					)
+				}
+			}
+		})
+	}
+}
+
+type sessionMCPHandlerStub struct {
+	checks                int
+	checkName, checkOwner string
+	core.SessionManager
+	result session.MCP
+	err    error
+	reads  int
+}
+
+var _ session.MCPReader = (*sessionMCPHandlerStub)(nil)
+
+func (s *sessionMCPHandlerStub) ListSessionMCP(context.Context, string) (session.MCP, error) {
+	s.reads++
+	return s.result, s.err
+}
+
+func (s *sessionMCPHandlerStub) CheckSessionMCP(_ context.Context, _ string, name, owner string) (session.MCP, error) {
+	s.checks++
+	s.checkName, s.checkOwner = name, owner
+	return s.result, s.err
+}
+
+type sessionMCPSummaryHandlerStub struct {
+	*sessionMCPHandlerStub
+	summary session.MCPSummary
+}
+
+var _ interface {
+	SessionMCPSummary(context.Context, string) (*session.MCPSummary, error)
+} = (*sessionMCPSummaryHandlerStub)(nil)
+
+func (s *sessionMCPSummaryHandlerStub) SessionMCPSummary(context.Context, string) (*session.MCPSummary, error) {
+	return &s.summary, nil
 }

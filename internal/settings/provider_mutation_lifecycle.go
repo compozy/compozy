@@ -12,14 +12,15 @@ import (
 )
 
 type providerWriteClassification struct {
-	modelOnly bool
-	noOp      bool
+	liveOnly bool
+	noOp     bool
 }
 
 func (s *service) classifyProviderWrite(
 	ctx context.Context,
 	name string,
 	settings ProviderSettings,
+	windowOnly bool,
 ) (providerWriteClassification, error) {
 	currentConfig, _, err := s.loadConfig(ctx, ScopeUser, "", "")
 	if err != nil {
@@ -33,7 +34,14 @@ func (s *service) classifyProviderWrite(
 	nextConfig := currentConfig
 	nextConfig.Providers = make(map[string]compozyconfig.ProviderConfig, len(currentConfig.Providers)+1)
 	maps.Copy(nextConfig.Providers, currentConfig.Providers)
-	nextConfig.Providers[name] = providerConfigFromSettings(settings)
+	nextProviderConfig := providerConfigFromSettings(settings)
+	nextProviderConfig.Enabled = cloneEnabled(currentConfig.Providers[name].Enabled)
+	nextConfig.Providers[name] = nextProviderConfig
+	if windowOnly {
+		provider := currentConfig.Providers[name]
+		provider.AutoCompactWindow = settings.AutoCompactWindow
+		nextConfig.Providers[name] = provider
+	}
 	if err := nextConfig.Validate(); err != nil {
 		return providerWriteClassification{}, validationError(
 			fmt.Errorf("validate provider %q mutation: %w", name, err),
@@ -53,14 +61,17 @@ func (s *service) classifyProviderWrite(
 
 	currentNormalized := providerConfigFromSettings(providerWriteSettingsFromConfig(name, currentProvider))
 	nextNormalized := providerConfigFromSettings(providerWriteSettingsFromConfig(name, nextProvider))
+	runtimeChanged := currentNormalized.EffectiveRuntimeMCP() != nextNormalized.EffectiveRuntimeMCP()
+	currentNormalized.RuntimeMCP = ""
+	nextNormalized.RuntimeMCP = ""
 	currentModels := currentNormalized.Models
 	nextModels := nextNormalized.Models
 	currentNormalized.Models = compozyconfig.ProviderModelsConfig{}
 	nextNormalized.Models = compozyconfig.ProviderModelsConfig{}
 	classification := providerWriteClassification{
-		modelOnly: reflect.DeepEqual(currentNormalized, nextNormalized),
+		liveOnly: reflect.DeepEqual(currentNormalized, nextNormalized),
 	}
-	if !classification.modelOnly || !reflect.DeepEqual(currentModels, nextModels) {
+	if runtimeChanged || !classification.liveOnly || !reflect.DeepEqual(currentModels, nextModels) {
 		return classification, nil
 	}
 	currentRawCurated := providerModelConfigsFromSettings(currentConfig.Providers[name].Models.Curated)
@@ -81,8 +92,8 @@ func providerWriteSettingsFromConfig(
 	return settings
 }
 
-func mutationResultForProvider(target WriteTargetKind, modelOnly bool) MutationResult {
-	if !modelOnly {
+func mutationResultForProvider(target WriteTargetKind, liveOnly bool) MutationResult {
+	if !liveOnly {
 		return mutationResultForCollection(CollectionProviders, ScopeUser, "", target)
 	}
 	return MutationResult{

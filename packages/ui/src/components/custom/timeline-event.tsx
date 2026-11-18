@@ -24,6 +24,7 @@ export interface TimelineEventProps extends Omit<React.ComponentProps<"li">, "ti
 const TONE_DOT: Record<PillTone, string> = {
   neutral: "bg-muted-foreground",
   brand: "bg-brand",
+  attn: "bg-attn",
   success: "bg-success",
   warning: "bg-warning",
   destructive: "bg-destructive",
@@ -33,6 +34,7 @@ const TONE_DOT: Record<PillTone, string> = {
 const TONE_ICON: Record<PillTone, string> = {
   neutral: "text-muted-foreground",
   brand: "text-brand",
+  attn: "text-attn",
   success: "text-success",
   warning: "text-warning",
   destructive: "text-destructive",

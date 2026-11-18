@@ -123,7 +123,7 @@ func TestSpawnWorkspaceAccess(t *testing.T) {
 		})
 		cleanupSessionStop(t, h, parent.ID)
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			Workspace:       foreign.ID,
@@ -155,7 +155,7 @@ func TestSpawnWorkspaceAccess(t *testing.T) {
 			}
 		}
 
-		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		_, err = h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			Workspace:       foreign.ID,
@@ -216,7 +216,7 @@ func TestSpawnWorkspaceAccess(t *testing.T) {
 		resolveErr := errors.New("workspace registry unavailable")
 		h.resolver.resolveErr = resolveErr
 
-		_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		_, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			Workspace:       "ws-other",
@@ -245,7 +245,7 @@ func TestSpawnWorkspaceAccess(t *testing.T) {
 		})
 		cleanupSessionStop(t, h, parent.ID)
 
-		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		_, err = h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			Workspace:       foreign.ID,
@@ -284,7 +284,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 				meta.Origin = f.origin(f.peer, 1)
 			}
 			f.driveTurn(t, meta)
-			child, err := f.h.manager.Spawn(t.Context(), SpawnOpts{
+			child, err := f.h.manager.Spawn(t.Context(), &SpawnOpts{
 				ParentSessionID: f.sender.ID, AgentName: "coder", TTL: time.Minute,
 			})
 			if err != nil {
@@ -338,7 +338,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		}
 		cleanupSessionStop(t, h, parent.ID)
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
@@ -373,7 +373,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		})
 		cleanupSessionStop(t, h, parent.ID)
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID:  parent.ID,
 			AgentName:        "coder",
 			Name:             "child worker",
@@ -434,7 +434,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		})
 		cleanupSessionStop(t, h, parent.ID)
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID:  parent.ID,
 			AgentName:        "coder",
 			TTL:              time.Minute,
@@ -470,12 +470,12 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 			IdempotencyKey:  "duplicate-spawn",
 		}
 
-		first, err := h.manager.Spawn(testutil.Context(t), opts)
+		first, err := h.manager.Spawn(testutil.Context(t), &opts)
 		if err != nil {
 			t.Fatalf("Spawn(first) error = %v", err)
 		}
 		cleanupSessionStop(t, h, first.ID)
-		second, err := h.manager.Spawn(testutil.Context(t), opts)
+		second, err := h.manager.Spawn(testutil.Context(t), &opts)
 		if err != nil {
 			t.Fatalf("Spawn(second) error = %v", err)
 		}
@@ -508,7 +508,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		}
 		cleanupSessionStop(t, h, parent.ID)
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
@@ -531,7 +531,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		missingErr := errors.New("worktree: missing")
 		worktreeResolver.setError(missingErr)
 		startsBefore := len(h.driver.startCalls)
-		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		_, err = h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
@@ -559,7 +559,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		})
 		cleanupSessionStop(t, h, parent.ID)
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID:    parent.ID,
 			AgentName:          "coder",
 			TTL:                time.Minute,
@@ -601,7 +601,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		}
 		cleanupSessionStop(t, h, parent.ID)
 
-		inherited, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		inherited, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
@@ -614,7 +614,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 			t.Fatalf("inherited child speed = %q, want %q", got, want)
 		}
 
-		overridden, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		overridden, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			Speed:           speedpkg.SpeedNormal,
@@ -649,7 +649,7 @@ func TestManagerSpawnStartsInternalRolesInputOnly(t *testing.T) {
 		})
 		cleanupSessionStop(t, h, parent.ID)
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID:  parent.ID,
 			AgentName:        "tool-coder",
 			Name:             "Session title",
@@ -683,7 +683,7 @@ func TestManagerSpawnStartsInternalRolesInputOnly(t *testing.T) {
 		})
 		cleanupSessionStop(t, h, parent.ID)
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
@@ -731,7 +731,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 			name: "missing TTL",
 			run: func(t *testing.T, h *harness, parent *Session) error {
 				t.Helper()
-				_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+				_, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       "coder",
 				})
@@ -743,7 +743,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 			name: "coordinator role",
 			run: func(t *testing.T, h *harness, parent *Session) error {
 				t.Helper()
-				_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+				_, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       "coder",
 					SpawnRole:       "coordinator",
@@ -757,7 +757,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 			name: "permission widening",
 			run: func(t *testing.T, h *harness, parent *Session) error {
 				t.Helper()
-				_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+				_, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       "coder",
 					TTL:             time.Minute,
@@ -780,7 +780,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 				foreign.ID = "ws-other"
 				foreign.Name = "other"
 				h.resolver.upsert(&foreign)
-				_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+				_, err = h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       "coder",
 					Workspace:       "ws-other",
@@ -794,7 +794,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 			name: "child cap",
 			run: func(t *testing.T, h *harness, parent *Session) error {
 				t.Helper()
-				child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+				child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       "coder",
 					TTL:             time.Minute,
@@ -803,7 +803,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 					return err
 				}
 				cleanupSessionStop(t, h, child.ID)
-				_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+				_, err = h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       "coder",
 					TTL:             time.Minute,
@@ -816,7 +816,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 			name: "max depth",
 			run: func(t *testing.T, h *harness, parent *Session) error {
 				t.Helper()
-				child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+				child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       "coder",
 					TTL:             time.Minute,
@@ -825,7 +825,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 					return err
 				}
 				cleanupSessionStop(t, h, child.ID)
-				_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+				_, err = h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 					ParentSessionID: child.ID,
 					AgentName:       "coder",
 					TTL:             time.Minute,
@@ -868,7 +868,7 @@ func TestManagerSpawnStoppedParentRules(t *testing.T) {
 			t.Fatalf("Stop(parent) error = %v", err)
 		}
 
-		_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		_, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
@@ -897,7 +897,7 @@ func TestManagerSpawnStoppedParentRules(t *testing.T) {
 				Tools: []string{testToolRead},
 			}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
 			cleanupSessionStop(t, h, parent.ID)
-			child, err := h.manager.Spawn(ctx, SpawnOpts{
+			child, err := h.manager.Spawn(ctx, &SpawnOpts{
 				ParentSessionID:  parent.ID,
 				AgentName:        "coder",
 				TTL:              time.Hour,
@@ -953,7 +953,7 @@ func TestManagerSpawnHooksCarryLineageAndCannotWidenPermissions(t *testing.T) {
 		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
 		cleanupSessionStop(t, h, parent.ID)
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID:  parent.ID,
 			AgentName:        "coder",
 			TTL:              time.Minute,
@@ -1002,7 +1002,7 @@ func TestManagerSpawnHooksCarryLineageAndCannotWidenPermissions(t *testing.T) {
 		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
 		cleanupSessionStop(t, h, parent.ID)
 
-		_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		_, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID:  parent.ID,
 			AgentName:        "coder",
 			TTL:              time.Minute,
@@ -1033,7 +1033,7 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 		}
 		cleanupSessionStop(t, h, goal.ID)
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: goal.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
@@ -1067,7 +1067,7 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 			t.Fatalf("Delete(provenance root) error = %v", err)
 		}
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: goal.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
@@ -1145,7 +1145,7 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 			cleanupSessionStop(t, h, goal.ID)
 		}
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: root.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
@@ -1178,7 +1178,7 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 			t.Fatalf("Create(second Goal) error = %v", err)
 		}
 		cleanupSessionStop(t, h, secondGoal.ID)
-		spawned, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		spawned, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: firstGoal.ID, AgentName: "coder", TTL: time.Minute,
 		})
 		if err != nil {
@@ -1391,7 +1391,7 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 			h.resolver.upsert(&workspace)
 			child, err := h.manager.Spawn(
 				t.Context(),
-				SpawnOpts{
+				&SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       "child",
 					Provider:        tt.override,
@@ -1463,7 +1463,7 @@ func TestSpawnProviderRouteOriginInheritance(t *testing.T) {
 		delete(workspace.Config.Providers, "opencode")
 		h.resolver.upsert(&workspace)
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			Workspace:       h.workspaceID,
@@ -1522,7 +1522,7 @@ func TestSpawnProviderRouteDiagnostics(t *testing.T) {
 			}
 			if _, err := h.manager.Spawn(
 				t.Context(),
-				SpawnOpts{ParentSessionID: parent.ID, AgentName: "child", TTL: time.Minute},
+				&SpawnOpts{ParentSessionID: parent.ID, AgentName: "child", TTL: time.Minute},
 			); !errors.Is(
 				err,
 				denied,
@@ -1596,7 +1596,7 @@ func TestManagerSpawnRunsAgentFallbackChain(t *testing.T) {
 			t.Fatalf("Create(parent) error = %v", err)
 		}
 		cleanupSessionStop(t, h, parent.ID)
-		return h.manager.Spawn(t.Context(), SpawnOpts{
+		return h.manager.Spawn(t.Context(), &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "reviewer", Workspace: h.workspaceID, TTL: time.Minute,
 		})
 	}
@@ -1697,7 +1697,7 @@ func TestSubagentSpawn(t *testing.T) {
 				opts.IsolatedWorktreeID = expected
 				opts.Subagent.Isolation, opts.Subagent.WorktreeID = "worktree", expected
 			}
-			prepared, _, _, err := h.manager.prepareSpawn(t.Context(), opts)
+			prepared, _, _, err := h.manager.prepareSpawn(t.Context(), &opts)
 			if mode == "rebind" {
 				if !errors.Is(err, ErrSubagentCapabilityDenied) ||
 					!strings.Contains(err.Error(), "inherited worktree binding is immutable") {
@@ -1748,7 +1748,7 @@ func TestSubagentSpawn(t *testing.T) {
 				IdempotencyKey:  "sub-test",
 				Subagent:        &hookspkg.SubagentSpawnPayload{Title: "Review", Role: "review", TaskChars: 7},
 			}
-			child, err := h.manager.Spawn(t.Context(), opts)
+			child, err := h.manager.Spawn(t.Context(), &opts)
 			if denyTTL {
 				if !errors.Is(err, ErrSubagentCapabilityDenied) {
 					t.Fatal(err)
@@ -1774,32 +1774,44 @@ func TestSubagentSpawn(t *testing.T) {
 				hooks.preCreate[0].Subagent.TaskChars != 7 {
 				t.Fatal(hooks.preCreate)
 			}
-			replay, err := h.manager.Spawn(t.Context(), opts)
+			replay, err := h.manager.Spawn(t.Context(), &opts)
 			if err != nil || replay.ID != child.ID {
 				t.Fatal(replay, err)
 			}
 			opts.IdempotencyKey = "sub-test-2"
-			second, err := h.manager.Spawn(t.Context(), opts)
+			second, err := h.manager.Spawn(t.Context(), &opts)
 			if err != nil {
 				t.Fatal(err)
 			}
 			cleanupSessionStop(t, h, second.ID)
 			opts.SpawnRole = DefaultSpawnRole
-			if _, err := h.manager.Spawn(t.Context(), opts); !errors.Is(err, ErrSpawnValidation) {
+			if _, err := h.manager.Spawn(t.Context(), &opts); !errors.Is(err, ErrSpawnValidation) {
 				t.Fatal(err)
 			}
 		})
 	}
 }
 
+// Invariant: spawn stores Rules 4-5 intent and ceilings while preserving category selection.
+// Owner: session spawn admission; canonical suite: TestManagerSpawnResolvesPermissionSelection.
 func TestManagerSpawnResolvesPermissionSelection(t *testing.T) {
 	t.Parallel()
 
 	const testToolWrite = "compozy__write"
 	parentPolicy := store.SessionPermissionPolicy{
-		Tools:      []string{testToolEdit, testToolRead, testToolShell},
-		Skills:     []string{"go", "tests"},
-		MCPServers: []string{"filesystem"},
+		ToolsMode:      store.PermissionInherit,
+		MCPServersMode: store.PermissionList,
+		Tools:          []string{testToolEdit, testToolRead, testToolShell},
+		Skills:         []string{"go", "tests"},
+		MCPServers:     []string{"filesystem"},
+	}
+	ancestor := []string{"filesystem"}
+	inherited := store.SessionPermissionPolicy{
+		ToolsMode:          store.PermissionInherit,
+		MCPServersMode:     store.PermissionInherit,
+		AncestorMCPCeiling: &ancestor,
+		Tools:              parentPolicy.Tools,
+		Skills:             parentPolicy.Skills,
 	}
 	catalog, err := toolspkg.NewToolsetCatalog(toolspkg.Toolset{
 		ID:    "compozy__files",
@@ -1811,19 +1823,35 @@ func TestManagerSpawnResolvesPermissionSelection(t *testing.T) {
 	universe := []toolspkg.ToolID{testToolEdit, testToolRead, testToolShell, testToolWrite}
 
 	tests := []struct {
-		name string
-		opts SpawnOpts
-		want store.SessionPermissionPolicy
+		name         string
+		materialized bool
+		opts         SpawnOpts
+		want         store.SessionPermissionPolicy
 	}{
 		{
-			name: "Should keep omitted lists empty without inheritance",
+			name:         "Should preserve generated tool grants through inheritance and hooks",
+			materialized: true,
+			opts:         SpawnOpts{InheritPermissions: true},
+			want: func() store.SessionPermissionPolicy {
+				policy := inherited
+				policy.MaterializedTools = true
+				return policy
+			}(),
+		},
+		{
+			name: "Should inherit scope intent but leave omitted skills empty without inheritance",
 			opts: SpawnOpts{},
-			want: store.SessionPermissionPolicy{},
+			want: store.SessionPermissionPolicy{
+				ToolsMode:          store.PermissionInherit,
+				MCPServersMode:     store.PermissionInherit,
+				AncestorMCPCeiling: &ancestor,
+				Tools:              parentPolicy.Tools,
+			},
 		},
 		{
 			name: "Should inherit every omitted category from the parent",
 			opts: SpawnOpts{InheritPermissions: true},
-			want: parentPolicy,
+			want: inherited,
 		},
 		{
 			name: "Should replace only the categories an inheriting request sets",
@@ -1831,20 +1859,32 @@ func TestManagerSpawnResolvesPermissionSelection(t *testing.T) {
 				InheritPermissions:  true,
 				PermissionNarrowing: &SubagentPermissionNarrowing{Tools: []string{testToolRead}, Skills: []string{}},
 			},
-			want: store.SessionPermissionPolicy{Tools: []string{testToolRead}, MCPServers: []string{"filesystem"}},
+			want: store.SessionPermissionPolicy{
+				ToolsMode:          store.PermissionList,
+				MCPServersMode:     store.PermissionInherit,
+				AncestorMCPCeiling: &ancestor,
+				Tools:              []string{testToolRead},
+			},
 		},
 		{
 			name: "Should select only parent-granted toolset members",
 			opts: SpawnOpts{Toolsets: []string{"compozy__files"}},
-			want: store.SessionPermissionPolicy{Tools: []string{testToolEdit, testToolRead}},
+			want: store.SessionPermissionPolicy{
+				ToolsMode:          store.PermissionList,
+				MCPServersMode:     store.PermissionInherit,
+				AncestorMCPCeiling: &ancestor,
+				Tools:              []string{testToolEdit, testToolRead},
+			},
 		},
 		{
 			name: "Should let toolsets replace an inherited tool ceiling",
 			opts: SpawnOpts{InheritPermissions: true, Toolsets: []string{"compozy__files"}},
 			want: store.SessionPermissionPolicy{
-				Tools:      []string{testToolEdit, testToolRead},
-				Skills:     []string{"go", "tests"},
-				MCPServers: []string{"filesystem"},
+				ToolsMode:          store.PermissionList,
+				MCPServersMode:     store.PermissionInherit,
+				AncestorMCPCeiling: &ancestor,
+				Tools:              []string{testToolEdit, testToolRead},
+				Skills:             []string{"go", "tests"},
 			},
 		},
 	}
@@ -1853,11 +1893,19 @@ func TestManagerSpawnResolvesPermissionSelection(t *testing.T) {
 			t.Parallel()
 
 			h := newHostedMCPHarness(t, WithToolsetCatalog(catalog), WithToolUniverse(universe))
-			parent := createSpawnParent(t, h, parentPolicy, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
+			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspace.Config.MCPServers = []compozyconfig.MCPServer{{Name: "filesystem", Command: "test-mcp"}}
+			h.resolver.upsert(&workspace)
+			ceiling := parentPolicy
+			ceiling.MaterializedTools = tt.materialized
+			parent := createSpawnParent(t, h, ceiling, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
 			cleanupSessionStop(t, h, parent.ID)
 			opts := tt.opts
 			opts.ParentSessionID, opts.AgentName, opts.TTL = parent.ID, "coder", time.Minute
-			child, err := h.manager.Spawn(testutil.Context(t), opts)
+			child, err := h.manager.Spawn(testutil.Context(t), &opts)
 			if err != nil {
 				t.Fatalf("Spawn() error = %v", err)
 			}
@@ -1866,7 +1914,70 @@ func TestManagerSpawnResolvesPermissionSelection(t *testing.T) {
 			if want := store.NormalizeSessionPermissionPolicy(tt.want); !reflect.DeepEqual(got, want) {
 				t.Fatalf("child permission policy = %#v, want %#v", got, want)
 			}
+			effective, err := h.manager.EffectiveMCPAuthority(
+				WithMCPAuthoritySession(t.Context(), child.Info()), child.ID,
+			)
+			if err != nil || !slices.Equal(effective.MCPServers, ancestor) {
+				t.Fatalf("effective child MCP servers = %v, error = %v; want %v", effective.MCPServers, err, ancestor)
+			}
 		})
+	}
+	// Invariant: default inheritance intersects live child tools with the parent's effective ceiling.
+	// Owner: session spawn admission; composition-root authority is the unit-test I/O boundary.
+	for _, deniedTool := range []string{"mcp__remote__read", "extension__example__read"} {
+		for _, explicit := range []bool{false, true} {
+			name := "Should narrow inherited " + deniedTool
+			if explicit {
+				name = "Should refuse an explicit request for " + deniedTool
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				h := newHostedMCPHarness(t)
+				parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
+					ToolsMode: store.PermissionInherit, MCPServersMode: store.PermissionInherit,
+					Tools: []string{testToolRead},
+				}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
+				cleanupSessionStop(t, h, parent.ID)
+				authority := h.manager.mcpAuthorityResolver()
+				h.manager.SetMCPAuthorityResolver(lineageAuthorityFunc(func(
+					ctx context.Context, id string,
+				) (store.SessionPermissionPolicy, error) {
+					policy, err := authority.EffectiveMCPAuthority(ctx, id)
+					if err != nil {
+						return policy, err
+					}
+					if id != parent.ID && policy.ToolsMode == store.PermissionInherit {
+						policy.Tools = append(slices.Clone(policy.Tools), deniedTool)
+					}
+					return store.NormalizeSessionPermissionPolicy(policy), nil
+				}))
+				opts := SpawnOpts{
+					ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute, InheritPermissions: true,
+				}
+				if explicit {
+					opts.PermissionNarrowing = &SubagentPermissionNarrowing{Tools: []string{deniedTool}}
+				}
+				child, err := h.manager.Spawn(t.Context(), &opts)
+				if explicit {
+					if !errors.Is(err, ErrSpawnPermissionDenied) {
+						t.Fatalf("explicit escalation = %v, want refusal", err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("default inheritance = %v", err)
+				}
+				cleanupSessionStop(t, h, child.ID)
+				stored := readMeta(t, child.MetaPath()).Lineage.PermissionPolicy
+				if stored.ToolsMode != store.PermissionList || !slices.Equal(stored.Tools, []string{testToolRead}) {
+					t.Fatalf("persisted child ceiling = %+v", stored)
+				}
+				effective, err := h.manager.EffectiveMCPAuthority(t.Context(), child.ID)
+				if err != nil || !slices.Equal(effective.Tools, []string{testToolRead}) {
+					t.Fatalf("effective child tools = %v, %v", effective.Tools, err)
+				}
+			})
+		}
 	}
 }
 
@@ -1916,7 +2027,7 @@ func TestManagerSpawnNamesTheRefusedPermission(t *testing.T) {
 			cleanupSessionStop(t, h, parent.ID)
 			opts := tt.opts
 			opts.ParentSessionID, opts.AgentName, opts.TTL = parent.ID, "coder", time.Minute
-			_, err := h.manager.Spawn(testutil.Context(t), opts)
+			_, err := h.manager.Spawn(testutil.Context(t), &opts)
 			if !errors.Is(err, ErrSpawnPermissionDenied) {
 				t.Fatalf("Spawn() error = %v, want %v", err, ErrSpawnPermissionDenied)
 			}
@@ -1951,7 +2062,7 @@ func TestManagerSpawnReportsTheExhaustedBudget(t *testing.T) {
 		})
 		cleanupSessionStop(t, h, parent.ID)
 		spawn := func() (*Session, error) {
-			return h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			return h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 				ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute,
 			})
 		}
@@ -1985,7 +2096,7 @@ func TestManagerSpawnReportsTheExhaustedBudget(t *testing.T) {
 		h := newHarness(t)
 		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{})
 		cleanupSessionStop(t, h, parent.ID)
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute,
 		})
 		if err != nil {
@@ -1993,7 +2104,7 @@ func TestManagerSpawnReportsTheExhaustedBudget(t *testing.T) {
 		}
 		cleanupSessionStop(t, h, child.ID)
 
-		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		_, err = h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: child.ID, AgentName: "coder", TTL: time.Minute,
 		})
 		depth, ok := errors.AsType[*SpawnDepthError](err)
@@ -2069,7 +2180,7 @@ func TestManagerSpawnReportsTheExhaustedBudget(t *testing.T) {
 				}
 				cleanupSessionStop(t, h, coordinator.ID)
 				spawn := func() (*Session, error) {
-					return h.manager.Spawn(testutil.Context(t), SpawnOpts{
+					return h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 						ParentSessionID: coordinator.ID, AgentName: "coder", TTL: time.Minute,
 					})
 				}

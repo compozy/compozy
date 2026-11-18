@@ -72,7 +72,17 @@ already active, so a retried call never adds a second wake.
 A `session` monitor lets an agent hand work to several sessions, end its turn, and get one wake when
 they are done. The wake lists each session and its state.
 
-- Sessions must be in the same project and profile.
+- Each target is checked through the [workspace access policy](/docs/sessions/permissions#cross-workspace-access)
+  as a read. An `approve-all` session can watch another project or profile.
+- Access is checked again before a wake or retained monitor result is returned, including authenticated
+  HTTP/UDS list and cancel responses. Results use the viewer's access. A target that is no
+  longer readable has no name or observed state in that result; it reads `unknown` with reason
+  `access_denied`. Names outside the viewer's scope have secrets redacted.
+- For a prompted read, **Always allow** saves the `monitor_create` read grant for that target scope;
+  wakes and later results honor it until it is revoked or the current policy refuses it.
+  **Allow once** admits only the current call. Later results and wakes need current authorization.
+- Target ownership is retained across restarts, so deleting a readable target still reports `gone`.
+  Access is checked against its captured workspace and profile when the session is no longer available.
 - By default a session counts once it is idle, needs input or approval, needs attention, stopped, or
   failed. Use `states` to narrow or widen that list.
 - A stopped, failed, archived, or deleted session always counts, so it can't leave the agent waiting.
@@ -90,6 +100,9 @@ they are done. The wake lists each session and its state.
 There is no generic polling kind for remote state. For work that is not a pull request, such as a
 deploy, the agent runs a bounded watch command in a terminal and monitors that terminal, setting
 `timeout_seconds` past the expected wait.
+
+Terminal and pull request monitors use the calling session's workspace and profile. They do not
+accept a workspace selector.
 
 ## Walkthrough: wait for a long command
 
@@ -138,8 +151,9 @@ Ask an agent to open a pull request and see it through, for example:
    }
    ```
 
-   The monitor follows the session's branch. Pass `branch` to watch another one. A default branch, or
-   a session with no branch, is refused. If the pull request does not exist yet, the monitor waits for it.
+   The monitor follows the session's branch. Pass `branch` to watch another one. For a GitHub fork,
+   pass `branch: "contributor:topic"` to select the fork owner and head branch explicitly. An
+   unqualified branch selects the base repository. A default branch, or a session with no branch, is refused. If the pull request does not exist yet, the monitor waits for it.
    It also waits when the branch only has a pull request that had already merged or closed, as a reused
    branch does: only a pull request the monitor saw open can end it.
 
@@ -159,7 +173,7 @@ What wakes the agent:
 | Change                                        | When the wake arrives                                                 |
 | --------------------------------------------- | --------------------------------------------------------------------- |
 | A check fails                                 | At the next read, about a minute. Failures already there wake at once |
-| All checks finish                             | At the next read, once per head                                       |
+| All checks finish                             | At the next read, once per observed round, including the first read   |
 | A new review or unresolved thread on the head | After 2 minutes of quiet, held at most 5, so a burst is one wake      |
 | The pull request merges or closes             | At the next read. This is the last wake                               |
 
@@ -168,8 +182,10 @@ What it deliberately does not wake on:
 - Reviews and threads already there when the monitor starts. Only new ones count.
 - A push by itself. A new head resets the checks and drops pending review activity. A review or thread
   that arrives late on the old head is ignored, though open threads stay in the count each wake reports.
-- A check rerun on the same head that passes. All checks finishing wakes once per head; a rerun wakes
-  the agent only if it fails.
+- An unchanged check summary. A late check or rerun on the same head can wake on completion when the
+  monitor saw checks go pending, or the completed summary shows more checks or a changed failure
+  result at the same total. A rerun that starts and ends between reads with the same summary is
+  indistinguishable.
 - Review text. The wake says who reviewed and how, and tells the agent to read the reviews itself,
   including the review body, because follow-ups can live only there.
 
@@ -177,8 +193,8 @@ If the forge cannot be reached, those failed reads are never treated as check re
 minutes of failures, one wake says the forge is unavailable and the monitor stays armed. If only reviews
 fail to load, checks keep working and reviews that arrive meanwhile are still reported once they can be
 read. Rate limits are respected, and sessions watching the same pull request share one read. A forge
-extension that does not report reviews still supports checks, and each wake says what it could not observe. Pull requests
-from forks are not visible to the monitor.
+extension that does not report reviews still supports checks, and each wake says what it could not observe. GitHub pull requests from forks require an explicit
+`owner:branch` selector.
 
 A pull request monitor keeps its slot for its whole life, and an always-on agent's session does not
 rotate while one is active.
@@ -207,7 +223,7 @@ curl http://127.0.0.1:2123/api/workspaces/<workspace>/sessions/<session>/monitor
 curl -X POST http://127.0.0.1:2123/api/workspaces/<workspace>/sessions/<session>/monitors/<monitor_id>/cancel
 ```
 
-Every session payload also carries `monitor_summary.active` while the session has active monitors.
+Full native session results (`result_view: "full"`) and HTTP/UDS session payloads carry `monitor_summary.active` while the session has active monitors.
 
 ## Managing monitors from the agent
 
@@ -229,9 +245,21 @@ Monitors are stored by the daemon and survive a restart. After the daemon comes 
   continuation is on, the session is not archived, and its route, permissions, and tool policy have
   not changed. Otherwise the monitor is listed as `interrupted`, with the reason, and nothing wakes
   the session.
+- Spawned worker owners follow the same recovery rules, including their TTL, spawn budget and
+  `auto_stop_on_parent` requirement. Delegated subagents retain their separate recovery owner.
 - A session you stopped on purpose is never resumed by a monitor; its monitors are canceled. While
   CompozyOS is still checking an owner after a restart, its monitors are listed as active. If the owner
   cannot be checked for a while, the check is retried for the monitor's own lifetime (at least 15 minutes)
   before the monitor is listed as `interrupted`. If you delete a session that is not running during that
   time, its monitors are canceled by the next check, within about 30 seconds, rather than at the moment of
   deletion.
+
+Canceled monitors omit `fired_at`; cancellation does not represent a wake. For repeating
+pull request monitors, `last_fired_at` still records any earlier wakes.
+
+Qualified pull-request branches use `owner:branch`, for example `acme:fix/native-tools`. The owner
+must be a GitHub account name, not `owner/repository`; whitespace inside either component is refused.
+
+A session monitor that has already matched a child's early-stop occurrence continues covering it
+when the operator views the child. A newer child turn creates a different occurrence. With several
+fired monitors, an unmatched outcome does not hide another monitor's matching outcome.

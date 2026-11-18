@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 60
   guidance:
     must_try:
-      - "Read the matrix cold: configured, auth, runtime, and probe must be four independent signals; tool count only on a succeeded probe; probe=skipped never a failure; stdio and non-OAuth servers must have no Authorize action; an unknown daemon status value must render neutral with the diagnostic preserved."
+      - "Read the matrix cold: configured, auth, runtime, and probe must be four independent signals; tool count only on a succeeded probe; probe=skipped never a failure; stdio, open remotes, and header-auth servers must have no Sign in action; a bare header-free HTTP remote challenged for OAuth must offer Sign in and finish with authenticated && token_present; an unknown daemon status value must render neutral with the diagnostic preserved."
       - "Begin authorization and immediately close the dialog; begin again (supersession); let a session sit past its 5-minute TTL; cancel at the provider — after every interruption the server's prior public status and any prior token must be visibly intact."
       - "On an already-authenticated server, run a re-authorization and fail it deliberately: the working credential must survive (token-preservation contract, Safety Invariant 7)."
       - "Confirm the waiting dialog always keeps the live begin URL copyable, and that a tools-probe success alone never flips the UI to authorized — only the refetched authenticated && token_present does."

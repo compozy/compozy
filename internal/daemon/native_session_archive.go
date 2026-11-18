@@ -95,7 +95,7 @@ func (n *daemonNativeTools) setSessionArchived(
 		}
 	}
 	payload := core.SessionPayloadFromInfo(info)
-	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+	return sessionRecordViews.result(req.View, payload)
 }
 
 // refuseCallerArchive denies an archive whose stop or tree reaches the caller,

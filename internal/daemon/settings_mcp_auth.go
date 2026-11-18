@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -12,18 +13,24 @@ import (
 )
 
 func newSettingsMCPAuthManagerWithConfig(
-	store mcpauth.TokenStore,
-	notifier mcpauth.LifecycleNotifier,
-	registrations mcpauth.RegistrationStore,
-	secretResolver mcpauth.SecretRefResolver,
-	oauthConfig compozyconfig.MCPOAuthConfig,
-	generation ...*mcpauth.MutationGeneration,
+	store mcpauth.TokenStore, registrations mcpauth.RegistrationStore,
+) (*mcpauth.Manager, error) {
+	return newSettingsMCPAuthManagerWithAuthorization(
+		store, nil, registrations, nil, compozyconfig.MCPOAuthConfig{}, nil,
+	)
+}
+
+func newSettingsMCPAuthManagerWithAuthorization(
+	store mcpauth.TokenStore, notifier mcpauth.LifecycleNotifier, registrations mcpauth.RegistrationStore,
+	secretResolver mcpauth.SecretRefResolver, oauthConfig compozyconfig.MCPOAuthConfig,
+	authorize func(context.Context, mcpauth.ServerConfig) error, generation ...*mcpauth.MutationGeneration,
 ) (*mcpauth.Manager, error) {
 	if store == nil {
 		return nil, nil
 	}
 	serviceOptions := []mcpauth.ServiceOption{
 		mcpauth.WithClientMetadataURL(oauthConfig.ClientMetadataURL),
+		mcpauth.WithNetworkAuthorization(authorize),
 		mcpauth.WithRegistrationStore(registrations),
 		mcpauth.WithSecretRefResolver(secretResolver),
 		mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))),
@@ -56,6 +63,9 @@ func (s *settingsRuntimeSurface) MCPAuthStatus(
 	}
 	status, err := s.mcpAuthManager.Status(ctx, cfg)
 	if err != nil {
+		if cfg.Implicit {
+			return unavailableMCPAuthStatus(cfg), nil
+		}
 		return mcpauth.Status{}, fmt.Errorf("daemon: load MCP auth status: %w", err)
 	}
 	return status, nil
@@ -67,6 +77,9 @@ func (s *settingsRuntimeSurface) MCPAuthBegin(
 	server compozyconfig.MCPServer,
 	callbackURL string,
 ) (mcpauth.BeginResult, error) {
+	if err := s.requireMCPConsent(ctx, target, server); err != nil {
+		return mcpauth.BeginResult{}, err
+	}
 	if s.mcpAuthManager == nil {
 		return mcpauth.BeginResult{}, errors.New("daemon: MCP auth manager is unavailable")
 	}
@@ -85,6 +98,9 @@ func (s *settingsRuntimeSurface) MCPAuthBeginStepUp(
 	approvedScopes []string,
 	approved bool,
 ) (mcpauth.BeginResult, error) {
+	if err := s.requireMCPConsent(ctx, target, server); err != nil {
+		return mcpauth.BeginResult{}, err
+	}
 	if s.mcpAuthManager == nil {
 		return mcpauth.BeginResult{}, errors.New("daemon: MCP auth manager is unavailable")
 	}
@@ -108,7 +124,13 @@ func (s *settingsRuntimeSurface) MCPAuthExchange(
 	if err != nil {
 		return mcpauth.Status{}, err
 	}
-	return s.mcpAuthManager.Exchange(ctx, cfg, input)
+	status, err := s.mcpAuthManager.Exchange(ctx, cfg, input)
+	if err == nil && status.Status == mcpauth.StatusAuthenticated {
+		if recoveryErr := s.recoverMCPAuthentication(ctx, target, server); recoveryErr != nil {
+			slog.WarnContext(ctx, "mcp.auth.recovery_failed", "server", target.ServerName)
+		}
+	}
+	return status, err
 }
 
 func (s *settingsRuntimeSurface) MCPAuthCallbackTarget(callbackURL string) (mcpauth.Target, error) {
@@ -131,7 +153,13 @@ func (s *settingsRuntimeSurface) MCPAuthCompleteCallback(
 	if err != nil {
 		return mcpauth.Status{}, err
 	}
-	return s.mcpAuthManager.ExchangeCallback(ctx, cfg, callbackURL)
+	status, err := s.mcpAuthManager.ExchangeCallback(ctx, cfg, callbackURL)
+	if err == nil && status.Status == mcpauth.StatusAuthenticated {
+		if recoveryErr := s.recoverMCPAuthentication(ctx, target, server); recoveryErr != nil {
+			slog.WarnContext(ctx, "mcp.auth.recovery_failed", "server", target.ServerName)
+		}
+	}
+	return status, err
 }
 
 func (s *settingsRuntimeSurface) MCPAuthInvalidate(target mcpauth.Target) error {
@@ -159,11 +187,10 @@ func (s *settingsRuntimeSurface) MCPAuthLogout(
 	if s.mcpAuthManager == nil {
 		return mcpauth.Status{}, errors.New("daemon: MCP auth manager is unavailable")
 	}
-	cfg, err := s.mcpAuthServerConfig(ctx, target, server)
-	if err != nil {
-		return mcpauth.Status{}, err
+	if err := s.mcpAuthManager.DeleteState(ctx, target); err != nil {
+		return mcpauth.Status{}, fmt.Errorf("daemon: delete MCP auth state: %w", err)
 	}
-	return s.mcpAuthManager.Logout(ctx, cfg)
+	return s.MCPAuthStatus(ctx, target, server)
 }
 
 func (s *settingsRuntimeSurface) mcpAuthServerConfig(
@@ -171,24 +198,48 @@ func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 	target mcpauth.Target,
 	server compozyconfig.MCPServer,
 ) (mcpauth.ServerConfig, error) {
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, server, s.secretResolver)
+	rendered, secrets, err := server.RenderInputs(func(ref string) (string, error) {
+		if s.secretResolver == nil {
+			return "", errors.New("daemon: secret resolver is unavailable")
+		}
+		return s.secretResolver(ctx, ref)
+	})
+	if err != nil {
+		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth inputs: %w", err)
+	}
+	rendered.Headers = server.Headers
+	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, rendered, s.secretResolver)
+	cfg.ConsentScope = mcpauth.ConsentScopeFromContext(ctx)
 	if err != nil {
 		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth config: %w", err)
+	}
+	cfg.DefinitionDigest, err = compozyconfig.MCPDefinitionDigest(server, s.digestKey)
+	if err != nil {
+		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: digest MCP auth definition: %w", err)
+	}
+	cfg.DisplayRemoteURL = rendered.URL
+	if len(secrets) > 0 {
+		cfg.DisplayRemoteURL = server.URL
 	}
 	return cfg, nil
 }
 
 func unavailableMCPAuthStatus(cfg mcpauth.ServerConfig) mcpauth.Status {
-	return mcpauth.Status{
+	status := mcpauth.Status{
 		Owner:       cfg.Target.Owner,
 		ServerName:  cfg.Target.ServerName,
 		Scope:       cfg.Target.Scope,
 		WorkspaceID: cfg.Target.WorkspaceID,
 		Status:      mcpauth.StatusNeedsLogin,
-		RemoteURL:   strings.TrimSpace(cfg.RemoteURL),
+		RemoteURL:   strings.TrimSpace(cfg.DisplayRemoteURL),
 		AuthType:    strings.TrimSpace(cfg.Type),
 		ClientID:    strings.TrimSpace(cfg.ClientID),
 		Scopes:      append([]string(nil), cfg.Scopes...),
 		Diagnostic:  "token store unavailable",
 	}
+	if cfg.Implicit {
+		status.Status = mcpauth.StatusUnconfigured
+		status.AuthType, status.Diagnostic = "", ""
+	}
+	return status
 }

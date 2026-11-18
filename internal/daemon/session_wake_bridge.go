@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -18,14 +19,25 @@ type sessionWakeSessionManager interface {
 
 type sessionWakeSessionResolver func() sessionWakeSessionManager
 
+type sessionWakeInstanceReader interface {
+	Get(context.Context, string) (agentinstance.Instance, error)
+}
+
 type sessionWakeBridge struct {
-	drainCtx context.Context
-	resolve  sessionWakeSessionResolver
-	logger   *slog.Logger
-	workers  *ownedWorkerGroup
+	drainCtx  context.Context
+	resolve   sessionWakeSessionResolver
+	logger    *slog.Logger
+	workers   *ownedWorkerGroup
+	instances sessionWakeInstanceReader
 }
 
 var _ session.SpawnWakeNotifier = (*sessionWakeBridge)(nil)
+
+func (bridge *sessionWakeBridge) configureInstances(state *bootState) {
+	if provider, ok := state.registry.(instanceRepositoryProvider); ok {
+		bridge.instances = provider.Instances()
+	}
+}
 
 func newSessionWakeBridge(
 	ctx context.Context,
@@ -71,7 +83,7 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 	}
 	complete, admitted := bridge.workers.Begin()
 	if !admitted {
-		return errors.New("daemon: session wake bridge is stopping")
+		return fmt.Errorf("%w: daemon session wake bridge is stopping", session.ErrSpawnWakeRetryable)
 	}
 	deliveryCtx := context.WithoutCancel(ctx)
 	sessions := bridge.resolve()
@@ -79,8 +91,9 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 		complete()
 		return session.ErrSpawnWakeSessionNotLive
 	}
-	creator, err := sessions.Status(deliveryCtx, creatorID)
-	if err != nil || creator == nil || creator.State != session.StateActive {
+	originalCreatorID := creatorID
+	creatorID, creator, err := bridge.creatorForWake(deliveryCtx, sessions, creatorID, normalized.Automatic)
+	if err != nil || !sessionWakeCreatorLive(creator, normalized.Automatic) {
 		complete()
 		if err != nil && !errors.Is(err, session.ErrSessionNotFound) &&
 			!errors.Is(err, session.ErrSessionNotActive) {
@@ -88,9 +101,31 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 		}
 		return fmt.Errorf("%w: %s", session.ErrSpawnWakeSessionNotLive, creatorID)
 	}
+	// The in-memory attention cache does not survive restart or eviction. Reuse
+	// the durable admission identity so replaying the same revision costs no turn.
+	alreadyAdmitted, ledgerErr := childWakeAdmitted(
+		deliveryCtx,
+		sessions,
+		creatorID,
+		normalized.WakeEventID,
+		originalCreatorID,
+	)
+	if ledgerErr != nil {
+		complete()
+		// No dispatch was attempted. A retry rechecks the durable identity before
+		// enqueueing, including when this failed read hid an earlier admission.
+		return fmt.Errorf("%w: %w", session.ErrSpawnWakeRetryable, ledgerErr)
+	}
+	if alreadyAdmitted {
+		complete()
+		return nil
+	}
+
 	events, err := sessions.PromptSynthetic(deliveryCtx, creatorID, session.SyntheticPromptOpts{
-		Message: sessionWakePromptMessage(normalized),
+		MessageID: normalized.WakeEventID,
+		Message:   sessionWakePromptMessage(normalized),
 		Metadata: acp.PromptSyntheticMeta{
+			Kind:           sessionWakeKind(normalized),
 			ChildSessionID: normalized.ChildSessionID,
 			ChildAgentName: normalized.ChildAgentName,
 			Badge:          string(normalized.Badge),
@@ -112,13 +147,64 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 	return nil
 }
 
+func sessionWakeCreatorLive(creator *session.Info, automatic bool) bool {
+	return creator != nil && creator.State == session.StateActive &&
+		(!automatic || creator.Later == nil && creator.ArchivedAt == nil)
+}
+
+func (bridge *sessionWakeBridge) creatorForWake(
+	ctx context.Context, sessions sessionWakeSessionManager, id string, automatic bool,
+) (string, *session.Info, error) {
+	creator, err := sessions.Status(ctx, id)
+	if err != nil || creator == nil || !automatic || creator.InstanceID == "" || bridge.instances == nil {
+		return id, creator, err
+	}
+	instance, err := bridge.instances.Get(ctx, creator.InstanceID)
+	if err != nil {
+		return id, nil, err
+	}
+	if instance.ArchivedAt != nil || instance.ProfileID != creator.ProfileID ||
+		instance.WorkspaceID != creator.WorkspaceID || instance.MainSessionID == "" {
+		return id, nil, session.ErrSpawnWakeSessionNotLive
+	}
+	if instance.MainSessionID == id {
+		return id, creator, nil
+	}
+	current, err := sessions.Status(ctx, instance.MainSessionID)
+	if err == nil && current != nil && (current.InstanceID != creator.InstanceID ||
+		current.WorkspaceID != creator.WorkspaceID || current.ProfileID != creator.ProfileID ||
+		current.ArchivedAt != nil || current.Later != nil) {
+		return id, nil, session.ErrSpawnWakeSessionNotLive
+	}
+	return instance.MainSessionID, current, err
+}
+
+func childWakeAdmitted(
+	ctx context.Context,
+	sessions sessionWakeSessionManager,
+	creatorID, wakeID, originalCreatorID string,
+) (bool, error) {
+	ledger, ok := sessions.(monitorWakeLedger)
+	if !ok {
+		return false, nil
+	}
+	admitted, err := ledger.SyntheticWakeAdmitted(ctx, creatorID, wakeID)
+	if err != nil {
+		return false, fmt.Errorf("daemon: read child wake admission for %q: %w", creatorID, err)
+	}
+	if !admitted && originalCreatorID != creatorID {
+		return ledger.SyntheticWakeAdmitted(ctx, originalCreatorID, wakeID)
+	}
+	return admitted, nil
+}
+
 func sessionWakePromptMessage(event session.SpawnWakeEvent) string {
 	child := event.ChildSessionID
 	if event.ChildAgentName != "" {
 		child += " (" + event.ChildAgentName + ")"
 	}
 	lines := []string{
-		"Session wake: child session " + child + " is " + string(event.Badge) + ".",
+		"Session wake: child session " + child + " reported " + string(event.Badge) + ".",
 		"Reason: " + string(event.Reason) + ".",
 		sessionWakeAction(event),
 	}
@@ -138,9 +224,23 @@ func sessionWakePromptMessage(event session.SpawnWakeEvent) string {
 	return session.SanitizeSpawnWakeText(strings.Join(lines, "\n"))
 }
 
+func sessionWakeKind(event session.SpawnWakeEvent) string {
+	if event.Automatic {
+		return session.SpawnWakeKindChildSettled
+	}
+	if event.EndedEarly {
+		return session.SpawnWakeKindEndedEarly
+	}
+	return ""
+}
+
 func sessionWakeAction(event session.SpawnWakeEvent) string {
 	if event.EndedEarly {
-		return "It stopped before delivering. Prompt it to continue, or stop it with compozy__session_stop."
+		if event.FinalAnswer == "" {
+			return "The final answer is unavailable. Inspect the child with compozy__session_history or " +
+				"compozy__session_events before deciding whether to prompt it again or stop it with compozy__session_stop."
+		}
+		return "Review its answer and decide whether to prompt it again or stop it with compozy__session_stop."
 	}
 	switch event.Badge {
 	case session.BadgeWaitingForInput:

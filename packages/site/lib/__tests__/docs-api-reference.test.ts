@@ -10,6 +10,12 @@ import { AppAllowedOperations } from "@/components/docs/app-allowed-operations";
 import { generateSDKCodeSamples, withSDKCodeSamples, type SDKSampleManifest } from "../sdk-samples";
 import { API_TAG_ICONS, DOCS_ICONS } from "../docs-icons";
 import { API_SECTIONS } from "../docs-navigation";
+import { apiOperationCount, apiOperations, operationAnchor } from "../api-reference";
+import {
+  apiOperationKey,
+  buildApiOperationFacts,
+  type ApiOpenAPIDocument,
+} from "../api-reference-build";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SITE_ROOT = resolve(HERE, "..", "..");
@@ -212,5 +218,73 @@ describe("api reference", () => {
     expect(html).toMatch(/<caption[^>]*>tasks<\/caption>/);
     expect(html.indexOf("listSessions")).toBeLessThan(html.indexOf("getTask"));
     expect(html.indexOf("getTask")).toBeLessThan(html.indexOf("listTasks"));
+  });
+});
+
+describe("apiOperationCount", () => {
+  it("Should count the endpoints a generated resource page passes to OpenAPIPage", () => {
+    const source = [
+      "export default function Layout(props) {",
+      '  return <OpenAPIPage document="compozy" webhooks={[]} operations={[{"path":"/api/sessions","method":"get"},{"path":"/api/sessions","method":"post"},{"path":"/api/sessions/{session_id}","method":"delete"}]} showTitle />;',
+      "}",
+    ].join("\n");
+    expect(apiOperationCount(source)).toBe(3);
+  });
+
+  it("Should report no endpoints for hand-written pages", () => {
+    expect(apiOperationCount('## API overview\n\nSee `{"path":"/api/x","method":"get"}`.')).toBe(0);
+  });
+});
+
+describe("buildApiOperationFacts", () => {
+  it("Should list every operation's parameters and body fields as the contract types them", () => {
+    const document = loadOpenAPI() as ApiOpenAPIDocument;
+    const facts = buildApiOperationFacts(document);
+    const operations = Object.entries(document.paths ?? {}).flatMap(([path, methods]) =>
+      Object.keys(methods).map(method => apiOperationKey(method, path))
+    );
+    expect(Object.keys(facts).sort()).toEqual(operations.sort());
+
+    const spawn = facts[apiOperationKey("post", "/api/agent/spawn")];
+    expect(spawn?.parameters).toContainEqual({
+      name: "X-Compozy-Session-ID",
+      in: "header",
+      type: "string",
+      required: true,
+      description: "Daemon-issued active session id",
+    });
+    expect(spawn?.body).toMatchObject({ contentType: "application/json", required: true });
+    expect(spawn?.body?.type).toBe("AgentSpawnRequest");
+    expect(spawn?.body?.fields).toContainEqual({
+      name: "agent_name",
+      type: "string",
+      required: true,
+    });
+    expect(spawn?.body?.fields).toContainEqual({ name: "model", type: "string", required: false });
+  });
+
+  it("Should read a generated page's operations in page order", () => {
+    const source =
+      '<OpenAPIPage operations={[{"path":"/api/b","method":"post"},{"path":"/api/a","method":"get"}]} />';
+    expect(apiOperations(source)).toEqual([
+      { method: "post", path: "/api/b" },
+      { method: "get", path: "/api/a" },
+    ]);
+  });
+});
+
+describe("operationAnchor", () => {
+  it("Should give every operation of the contract its own anchor, even when summaries repeat", () => {
+    const document = JSON.parse(readFileSync(OPENAPI_PATH, "utf8")) as {
+      paths: Record<string, Record<string, unknown>>;
+    };
+    const anchors = Object.entries(document.paths).flatMap(([path, methods]) =>
+      Object.keys(methods).map(method => operationAnchor(method, path))
+    );
+    expect(anchors.length).toBeGreaterThan(0);
+    expect(new Set(anchors).size).toBe(anchors.length);
+    expect(operationAnchor("get", "/api/workspaces/{workspace_id}/sessions")).toBe(
+      "op-get-api-workspaces-workspace-id-sessions"
+    );
   });
 });

@@ -117,8 +117,9 @@ func taskWorkspaceAccessAllowed(
 			WorkspaceID: strings.TrimSpace(actor.Scope.WorkspaceID),
 			Operator:    actor.Scope.Operator,
 		},
-		Target: workspaceaccess.ScopeTarget(strings.TrimSpace(targetWorkspaceID), actor.ReadScope.ProfileID),
-		Seam:   workspaceaccess.SeamTask,
+		Target:   workspaceaccess.ScopeTarget(strings.TrimSpace(targetWorkspaceID), actor.ReadScope.ProfileID),
+		ReadOnly: actor.readOnly,
+		Seam:     workspaceaccess.SeamTask,
 	})
 	if err != nil {
 		slog.ErrorContext(

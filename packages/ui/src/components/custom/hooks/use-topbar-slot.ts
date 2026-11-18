@@ -16,8 +16,17 @@ export interface TopbarSlotValue {
    * identity from loader data push it as a live node.
    */
   crumb?: React.ReactNode;
+  /**
+   * Tab-strip label when it differs from the head title (e.g. an app whose head
+   * keeps its fixed name while the tab names the open document). Falls back to `crumb`.
+   */
+  tabLabel?: string;
+  /** Window-level controls at the head's start edge, before the host context and the title. */
+  start?: React.ReactNode;
   /** Host context before the title, in place of the window's own. */
   leading?: React.ReactNode;
+  /** Window context controls right after the identity; they shrink before the title does. */
+  context?: React.ReactNode;
   /** Quiet identity glyph at window root (hidden when drill-in crumbs/back are set). */
   glyph?: React.ReactNode;
   /** Icon well by default; `state` renders a bare live-state mark for document windows. */
@@ -35,6 +44,11 @@ export interface TopbarSlotValue {
   onBack?: () => void;
   /** Action buttons in the trailing zone (≤1 primary + companions). */
   actions?: React.ReactNode;
+  /**
+   * The hairline between the status meta and the actions. Shown by default when both are set;
+   * `false` lets the actions read as one group with the status.
+   */
+  actionsDivider?: boolean;
   /** Overflow menu rendered last in the trailing zone. */
   overflow?: React.ReactNode;
   /**
@@ -67,8 +81,11 @@ function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue | null):
   if (a === b) return true;
   if (a == null || b == null) return false;
   return (
+    a.start === b.start &&
     a.leading === b.leading &&
     a.crumb === b.crumb &&
+    a.tabLabel === b.tabLabel &&
+    a.context === b.context &&
     a.glyph === b.glyph &&
     a.glyphPresentation === b.glyphPresentation &&
     a.count === b.count &&
@@ -76,6 +93,7 @@ function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue | null):
     a.crumbs === b.crumbs &&
     a.onBack === b.onBack &&
     a.actions === b.actions &&
+    a.actionsDivider === b.actionsDivider &&
     a.overflow === b.overflow &&
     a.toolbar === b.toolbar
   );

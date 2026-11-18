@@ -10,7 +10,7 @@ const meta: Meta<typeof Eyebrow> = {
     docs: {
       description: {
         component:
-          'Canonical eyebrow primitive — Geist sentence case 12 px / 510 / -0.005em by default. `variant="caps"` is the only opt-in: the fixed uppercase kicker rendition (11 px / 600 / +0.06em — a size step down with positive tracking, because uppercase reads optically larger). Both renditions are utilities in tokens-runtime.css, so there is still one eyebrow source with no free parameters (lesson L-022). Tone stays collapsed; apply text-color utilities through `className` when a tone is needed (`text-muted-foreground`, `text-subtle`, `text-brand`, signal palette).',
+          'Canonical eyebrow primitive — Geist sentence case 12 px / 510 / -0.005em by default. `variant="caps"` is the only opt-in: the fixed uppercase kicker rendition (11 px / 600 / +0.06em — a size step down with positive tracking, because uppercase reads optically larger). Both renditions are utilities in tokens-runtime.css, so there is still one eyebrow source with no free parameters (lesson L-022). Tone stays collapsed; apply text-color utilities through `className` when a tone is needed (`text-muted-foreground`, `text-subtle`, `text-brand-strong`, signal palette).',
       },
     },
   },
@@ -24,7 +24,7 @@ const TONES: { label: string; className: string }[] = [
   { label: "muted", className: "text-muted-foreground" },
   { label: "subtle", className: "text-subtle" },
   { label: "strong", className: "text-fg-strong" },
-  { label: "brand", className: "text-brand" },
+  { label: "brand", className: "text-brand-strong" },
   { label: "success", className: "text-success" },
   { label: "warning", className: "text-warning" },
   { label: "destructive", className: "text-destructive" },

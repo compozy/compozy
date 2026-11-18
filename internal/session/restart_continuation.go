@@ -13,24 +13,70 @@ import (
 
 var ErrRestartContinuationSkipped = errors.New("session: restart continuation requires operator input")
 
-// ResumeInterruptedSessions admits ordinary sessions; delegated and task sessions keep their owning recovery path.
+// ResumeInterruptedSessions admits ordinary sessions through a bounded pool; delegated and task
+// sessions keep their owning recovery path.
 func (m *Manager) ResumeInterruptedSessions(ctx context.Context) error {
 	infos, err := m.ListAll(ctx)
 	if err != nil {
 		return err
 	}
-	for _, info := range infos {
-		if info.Type != SessionTypeUser || info.StopReason != store.StopShutdown {
-			continue
-		}
-		if _, err := m.ResumeInterruptedSession(ctx, info.ID); err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
+	waiting := m.restartWaitingSessions(ctx, infos)
+	if err := runRestartResumes(ctx, planRestartResumes(infos), restartResumeConcurrency,
+		func(ctx context.Context, id string) {
+			resumed, err := m.ResumeInterruptedSession(ctx, id)
+			if err == nil && !resumed && waiting[id] {
+				err = m.resumeRestartWaitingSession(ctx, id)
+				resumed = err == nil
 			}
-			m.logger.WarnContext(ctx, "session: restart continuation unavailable", "session_id", info.ID, "error", err)
+			if err != nil && ctx.Err() == nil {
+				m.logger.WarnContext(ctx, "session: restart continuation unavailable", "session_id", id, "error", err)
+			} else if !resumed && ctx.Err() == nil {
+				m.logger.InfoContext(ctx, "session: restart continuation skipped", "session_id", id,
+					"reason", "no_pending_interruption")
+			}
+		}); err != nil {
+		return err
+	}
+	if err := m.recoverSpawnShutdownWakes(ctx, infos); err != nil {
+		return err
+	}
+	m.recoverChildSettleWakes(ctx, infos)
+	m.retryChildSettleWakes(ctx)
+	return ctx.Err()
+}
+
+// Idle instance mains and required worker parents reopen their binding without replaying a
+// completed turn. Preserve a refused binding in the existing restart history as well as the log.
+func (m *Manager) resumeRestartWaitingSession(ctx context.Context, id string) error {
+	meta, err := m.readMetaWithContext(ctx, id)
+	if err != nil {
+		return err
+	}
+	if checkpoint := meta.RestartBoundary; checkpoint != nil {
+		interrupted, err := m.restartEventExists(ctx, id, checkpoint.TurnID, restartInterruptedEvent)
+		if err != nil {
+			return err
+		}
+		if interrupted {
+			// A previously skipped interruption must not acquire an idle-session bypass.
+			return fmt.Errorf("%w: interrupted turn already settled", ErrRestartContinuationSkipped)
 		}
 	}
-	return nil
+	err = m.ResumeWaitingSession(ctx, id)
+	if err == nil {
+		m.logger.InfoContext(ctx, "session: waiting session reopened after restart", "session_id", id)
+		return nil
+	}
+	if meta.RestartBoundary == nil {
+		return err
+	}
+	checkpoint := *meta.RestartBoundary
+	checkpoint.Reason = "resume_failed"
+	if refusal, ok := errors.AsType[*MonitorOwnerIneligibleError](err); ok {
+		checkpoint.Reason = refusal.Reason
+	}
+	return errors.Join(err, m.appendRestartEvent(ctx, &meta, restartSkippedEvent, checkpoint,
+		"Session remains stopped after daemon restart: "+strings.ReplaceAll(checkpoint.Reason, "_", " ")+"."))
 }
 
 // ResumeInterruptedSession consumes a durable interruption through the existing prompt admission owner.
@@ -42,6 +88,10 @@ func (m *Manager) ResumeInterruptedSession(ctx context.Context, id string) (bool
 	meta, err := m.readMetaWithContext(ctx, id)
 	if err != nil {
 		return false, err
+	}
+	if normalizeSessionType(Type(meta.SessionType)) == SessionTypeSpawned {
+		m.spawnMu.Lock()
+		defer m.spawnMu.Unlock()
 	}
 	checkpoint, found, err := m.pendingRestartCheckpoint(ctx, &meta)
 	if err != nil || !found {

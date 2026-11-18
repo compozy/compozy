@@ -309,7 +309,7 @@ export function SessionLinksHeaderStage({ state }: { state: string }) {
     onPrompt: () => undefined,
   };
   const list = {
-    actions,
+    actions: { ...actions, worktreeAction: () => () => undefined },
     agentLabel: "Claude",
     items,
     listOpen: scenario.open && !scenario.narrow,
@@ -338,7 +338,6 @@ export function SessionLinksHeaderStage({ state }: { state: string }) {
             onClippedChange={setClipped}
             ownChip={{}}
             ownFacts={{ branch: "" }}
-            worktreeAction={() => () => undefined}
           />
         ) : null
       }

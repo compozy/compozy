@@ -28,12 +28,12 @@ var (
 var EnvNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 var vaultRefPattern = regexp.MustCompile(
-	`^vault:(providers|profiles|automation|mcp|hooks|extensions|sessions)/` +
+	`^vault:(providers|profiles|automation|mcp|hooks|extensions|sessions|observability)/` +
 		`[a-z0-9][a-z0-9_.-]*(?:/[A-Za-z0-9][A-Za-z0-9_.-]*)*$`,
 )
 
 var vaultRefPrefixPattern = regexp.MustCompile(
-	`^vault:(providers|profiles|automation|mcp|hooks|extensions|sessions)/` +
+	`^vault:(providers|profiles|automation|mcp|hooks|extensions|sessions|observability)/` +
 		`(?:[A-Za-z0-9][A-Za-z0-9_.-]*(?:/|$))*$`,
 )
 
@@ -42,6 +42,7 @@ var supportedNamespaces = map[string]struct{}{
 	"extensions":     {},
 	"hooks":          {},
 	"mcp":            {},
+	"observability":  {},
 	"providers":      {},
 	"profiles":       {},
 	typesSessionsKey: {},
@@ -126,7 +127,8 @@ func ValidateSecretRef(ref string) error {
 	normalized := NormalizeRef(ref)
 	if !vaultRefPattern.MatchString(normalized) {
 		return fmt.Errorf(
-			"%w: use vault:<namespace>/<path> with providers, profiles, automation, mcp, hooks, extensions, or sessions. "+
+			"%w: use vault:<namespace>/<path> with providers, profiles, automation, mcp, hooks, extensions, sessions, "+
+				"or observability. "+
 				"Path segments must start with a letter or digit and contain only letters, digits, dots, underscores, or hyphens; "+
 				"keep the first path segment lowercase",
 			ErrUnsupportedSecretRef,

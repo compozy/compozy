@@ -19,6 +19,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		kind     ValueKind
 		redacted bool
 	}{
+		{
+			name: "Should allow Claude compact window as tokens",
+			path: "providers.claude.auto_compact_window",
+			kind: ConfigValueInt,
+		},
 		{name: "Should allow rotation threshold", path: "agents.always_on.rotation_threshold", kind: ConfigValueFloat},
 		{name: "Should allow unattended limit", path: "agents.always_on.unattended_turn_limit", kind: ConfigValueInt},
 		{name: "Should allow instance limit", path: "agents.always_on.max_active_instances", kind: ConfigValueInt},
@@ -42,6 +47,10 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		{
 			name: "Should reject Vault key provider trust root",
 			path: "vault.key_provider", denial: ConfigPathTrustForbidden,
+		},
+		{
+			name: "Should allow provider enabled toggle",
+			path: "providers.gemini.enabled", kind: ConfigValueBool,
 		},
 		{
 			name: "Should allow provider steer capability mutation",
@@ -469,6 +478,39 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		{
 			name:   "Should reject Marketplace catalog feed trust root",
 			path:   "marketplace.catalog.base_url",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			// Telemetry settings decide what leaves the machine and where, so every OTLP key stays operator-only.
+			name:   "Should reject OTLP export switch trust root",
+			path:   "observability.otel.enabled",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject OTLP sample ratio trust root",
+			path:   "observability.otel.sample_ratio",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			// The collector endpoint decides where the resolved export headers are sent, so an agent that
+			// could rewrite it would redirect operator credentials to a host it controls.
+			name:   "Should reject OTLP export endpoint trust root",
+			path:   "observability.otel.endpoint",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject OTLP provider forwarding trust root",
+			path:   "observability.otel.forward_to_providers",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject OTLP header ref table trust root",
+			path:   "observability.otel.headers",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject OTLP header ref entry trust root",
+			path:   "observability.otel.headers.api-key",
 			denial: ConfigPathTrustForbidden,
 		},
 		{
@@ -928,66 +970,20 @@ func TestConfigOverlayHookDeclarationsAndValues(t *testing.T) {
 	}
 }
 
-// TestToolConfigPathAlias owns the UT-008 get/set mapping: agents.stays_on.* paths resolve to
-// agents.always_on.* with a deprecation flag; other paths are unchanged. Removal: v0.5.2.
 func TestToolConfigPathAlias(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Should classify a set on the old path as the new path", func(t *testing.T) {
-		t.Parallel()
-
-		policy, err := ClassifyToolConfigPath([]string{"agents", "stays_on", "max_proposals"})
-		if err != nil || policy.Denial != ConfigPathAllowed || policy.Kind != ConfigValueInt ||
-			!policy.DeprecatedAlias ||
-			strings.Join(policy.Segments, ".") != "agents.always_on.max_proposals" {
-			t.Fatalf("ClassifyToolConfigPath() = %+v, %v; want agents.always_on.max_proposals", policy, err)
-		}
-		current, err := ClassifyToolConfigPath([]string{"agents", "always_on", "max_proposals"})
-		if err != nil || current.DeprecatedAlias {
-			t.Fatalf("ClassifyToolConfigPath(new path) = %+v, %v; want no alias flag", current, err)
-		}
-	})
-
-	t.Run("Should read the effective value through the old path", func(t *testing.T) {
-		t.Parallel()
-
-		path, deprecated := CanonicalDottedConfigPath("agents.stays_on.approval_timeout")
-		if !deprecated || path != "agents.always_on.approval_timeout" {
-			t.Fatalf("CanonicalDottedConfigPath() = %q, %v", path, deprecated)
-		}
-		cfg := DefaultWithHome(HomePaths{})
-		cfg.Agents.AlwaysOn.ApprovalTimeout = 2 * time.Hour
-		entry, ok := EntryByPath(FlattenConfigEntries(RedactedConfigMap(&cfg)), path)
-		if !ok || fmt.Sprint(entry.Value) != "2h0m0s" {
-			t.Fatalf("EntryByPath(%q) = %+v, %v; want 2h", path, entry, ok)
-		}
-		if unchanged, deprecated := CanonicalDottedConfigPath("agents.heartbeat.enabled"); deprecated ||
-			unchanged != "agents.heartbeat.enabled" {
-			t.Fatalf("CanonicalDottedConfigPath(other) = %q, %v", unchanged, deprecated)
-		}
-	})
-
-	t.Run("Should read the whole table through the old table path", func(t *testing.T) {
-		t.Parallel()
-
-		path, deprecated := CanonicalDottedConfigPath("agents.stays_on")
-		if !deprecated || path != "agents.always_on" {
-			t.Fatalf("CanonicalDottedConfigPath(table) = %q, %v; want agents.always_on", path, deprecated)
-		}
-		cfg := DefaultWithHome(HomePaths{})
-		cfg.Agents.AlwaysOn.MaxProposals = 4
-		agents, ok := RedactedConfigMap(&cfg)["agents"].(map[string]any)
-		if !ok {
-			t.Fatal("RedactedConfigMap() has no agents table")
-		}
-		table, ok := agents["always_on"].(map[string]any)
-		if !ok || fmt.Sprint(table["max_proposals"]) != "4" {
-			t.Fatalf("agents.always_on table = %#v, want max_proposals 4", agents["always_on"])
-		}
-		for _, other := range []string{"agents", "agents.always_on", "agents.stays_onx"} {
-			if unchanged, deprecated := CanonicalDottedConfigPath(other); deprecated || unchanged != other {
-				t.Fatalf("CanonicalDottedConfigPath(%q) = %q, %v; want unchanged", other, unchanged, deprecated)
+	for _, raw := range []string{"agents.stays_on", "agents.stays_on.max_proposals", "agents.stays_on.approval_timeout", "agents. stays_on.max_proposals", " agents . stays_on . max_proposals "} {
+		t.Run("Should reject removed path "+raw, func(t *testing.T) {
+			t.Parallel()
+			if _, err := ParseDottedConfigPath(raw); err == nil || !strings.Contains(err.Error(), "agents.always_on") {
+				t.Fatalf("parse error = %v", err)
 			}
-		}
-	})
+			if _, err := ClassifyToolConfigPath(
+				strings.Split(raw, "."),
+			); err == nil ||
+				!strings.Contains(err.Error(), "agents.always_on") {
+				t.Fatalf("classify error = %v", err)
+			}
+		})
+	}
 }

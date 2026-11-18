@@ -780,3 +780,43 @@ func TestSubagentHookPayloads(t *testing.T) {
 		}
 	})
 }
+
+func TestToolResultViewPayloads(t *testing.T) {
+	t.Parallel()
+	for _, view := range []string{"", "compact", "full"} {
+		t.Run("Should encode optional view metadata for "+view, func(t *testing.T) {
+			t.Parallel()
+			ref := ToolCallRef{ToolID: "compozy__example", HasResultViews: view != "", PinnedResultView: view}
+			for _, payload := range []any{
+				ToolPreCallPayload{ToolCallRef: ref},
+				ToolPostCallPayload{ToolCallRef: ref, ResultView: view},
+				ToolPostErrorPayload{ToolCallRef: ref, Error: "failed"},
+			} {
+				encoded, err := json.Marshal(payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var fields map[string]json.RawMessage
+				if err := json.Unmarshal(encoded, &fields); err != nil {
+					t.Fatal(err)
+				}
+				if view == "" {
+					for _, key := range []string{"has_result_views", "pinned_result_view", "result_view"} {
+						if _, present := fields[key]; present {
+							t.Fatalf("single-result %T contains %s: %s", payload, key, encoded)
+						}
+					}
+					continue
+				}
+				if string(fields["has_result_views"]) != "true" ||
+					string(fields["pinned_result_view"]) != `"`+view+`"` {
+					t.Fatalf("%T lost view capability or pin: %s", payload, encoded)
+				}
+				if _, postCall := payload.(ToolPostCallPayload); postCall &&
+					string(fields["result_view"]) != `"`+view+`"` {
+					t.Fatalf("post-call result_view does not match %s: %s", view, encoded)
+				}
+			}
+		})
+	}
+}

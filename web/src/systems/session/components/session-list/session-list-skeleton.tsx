@@ -1,8 +1,14 @@
-import { Skeleton, SkeletonRegion, SkeletonText, cn } from "@compozy/ui";
+import {
+  Skeleton,
+  SkeletonRegion,
+  SkeletonText,
+  TreeBranch,
+  TreeBranchNode,
+  cn,
+} from "@compozy/ui";
 
 import { SESSION_LIST_BAR_CLASS } from "../../lib/session-list-bar-class";
 import { SESSION_SIDEBAR_MIN_WIDTH } from "../../lib/session-sidebar-width";
-import { BRANCH_NODE, BRANCH_RAIL } from "./session-list-branch-rail";
 import {
   SESSION_ROW_END_SLOT_FRAME,
   SESSION_ROW_FRAME,
@@ -81,14 +87,14 @@ function SessionThreadsSkeleton() {
       <SessionRowsSkeleton count={2} />
       <SessionRowSkeleton position={2} branch />
       {/* The live elbows are borders, not blocks: the rail rides one reveal so they do not appear alone. */}
-      <div aria-hidden="true" className={cn(BRANCH_RAIL, "animate-skeleton-reveal")}>
-        <div className={BRANCH_NODE}>
+      <TreeBranch aria-hidden="true" className="animate-skeleton-reveal">
+        <TreeBranchNode>
           <SessionRowSkeleton position={3} />
-        </div>
-        <div className={BRANCH_NODE}>
+        </TreeBranchNode>
+        <TreeBranchNode>
           <SessionRowSkeleton position={4} />
-        </div>
-      </div>
+        </TreeBranchNode>
+      </TreeBranch>
       <SessionRowsSkeleton count={6} offset={5} />
     </>
   );
@@ -161,7 +167,7 @@ export function SessionGroupsSkeleton() {
 /** A subagent row on its parent's rail at rest: the live row's frame with a status mark, title and trail. */
 function SessionSubagentRowSkeleton({ position }: { position: number }) {
   return (
-    <div className={BRANCH_NODE} aria-hidden="true">
+    <TreeBranchNode aria-hidden="true">
       <div className={SUBAGENT_ROW_FRAME}>
         <span className="flex justify-center">
           <Skeleton className="size-2 rounded-full" />
@@ -171,7 +177,7 @@ function SessionSubagentRowSkeleton({ position }: { position: number }) {
           <SkeletonText className="w-6" />
         </span>
       </div>
-    </div>
+    </TreeBranchNode>
   );
 }
 

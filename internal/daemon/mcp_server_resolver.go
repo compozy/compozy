@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/resources"
@@ -54,9 +55,12 @@ func resolveDaemonMCPServer(
 		return resolveDaemonMCPResource(ctx, state, source, name, definitionOwner)
 	}
 
-	for _, server := range state.cfg.MCPServers {
-		if strings.TrimSpace(server.Name) == name {
-			return userResolvedMCPServer(server), nil
+	// The publisher owns current declarations; boot config is only a fallback without it.
+	if state.toolMCPResources == nil {
+		for _, server := range state.cfg.MCPServers {
+			if strings.TrimSpace(server.Name) == name {
+				return userResolvedMCPServer(server), nil
+			}
 		}
 	}
 	providerNames := make([]string, 0, len(state.cfg.Providers))
@@ -99,8 +103,20 @@ func resolveDaemonMCPResource(
 		if err != nil {
 			return mcppkg.ResolvedServer{}, err
 		}
+		server, err = projectProfileConfigMCPServer(ctx, state, record, source.ProfileID, server)
+		if err != nil {
+			return mcppkg.ResolvedServer{}, err
+		}
 		return mcppkg.ResolvedServer{
-			Server: server, Target: target, HealthKey: extensionMCPHealthKey(ctx, state, record),
+			ReadOnlyOverrideOrigin: new(toolspkg.MCPReadOnlyOverrideOperatorConfig),
+			ConsentScope: mcpauth.ConsentScope{
+				ProfileID:   source.ProfileID,
+				WorkspaceID: source.WorkspaceID,
+				ResourceID:  source.ResourceID,
+			},
+			Server:    server,
+			Target:    target,
+			HealthKey: extensionMCPHealthKey(ctx, state, record),
 		}, nil
 	}
 	return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP resource %q is unavailable", resourceID)
@@ -126,8 +142,12 @@ func projectExtensionSecretHeaders(
 	if err != nil {
 		return compozyconfig.MCPServer{}, err
 	}
+	resourceKey := extensionpkg.ProfileInstanceKey(owner.ID, profileID, workspaceID)
 	if projectedProfileID := strings.TrimSpace(activeProfileID); projectedProfileID != "" {
 		profileID = projectedProfileID
+	}
+	if err := projectAgentPluginHeaderInputs(ctx, state, &server, resourceKey, profileID); err != nil {
+		return compozyconfig.MCPServer{}, err
 	}
 	bindings, err := state.extensionEnvBindings.ResolveEnvBindings(
 		ctx,
@@ -157,6 +177,74 @@ func projectExtensionSecretHeaders(
 	return server, nil
 }
 
+func projectAgentPluginHeaderInputs(
+	ctx context.Context,
+	state *bootState,
+	server *compozyconfig.MCPServer,
+	resourceKey extensionpkg.InstanceKey,
+	profileID string,
+) error {
+	runtime, ok := state.currentExtensionRuntime().(scopedExtensionRuntime)
+	if !ok || len(server.Headers) == 0 {
+		return nil
+	}
+	ext, err := runtime.GetForInstance(resourceKey)
+	if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("daemon: read MCP extension definition %q: %w", resourceKey.Name, err)
+	}
+	manifest, err := agentPluginMCPManifest(ext)
+	if err != nil {
+		return fmt.Errorf("daemon: load installed MCP extension definition %q: %w", resourceKey.Name, err)
+	}
+	if manifest == nil || manifest.Format != extensionpkg.FormatAgentPlugin {
+		return nil
+	}
+	server.AgentPlugin = true
+	inputIDs := manifest.AgentPluginHeaderSecretInputs()
+	names := server.OptionalHeaderSecretInputs()
+	for name := range names {
+		if _, declared := inputIDs[name]; !declared {
+			delete(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	bindings, err := state.extensionEnvBindings.ListEnvBindings(
+		ctx,
+		resourceKey.Name,
+		profileID,
+		resourceKey.WorkspaceID,
+	)
+	if err != nil {
+		return fmt.Errorf("daemon: list extension MCP header inputs for %q: %w", resourceKey.Name, err)
+	}
+	for name := range names {
+		server.InputValues[name] = compozyconfig.MCPInputValue{}
+	}
+	for _, binding := range bindings {
+		if _, declared := names[binding.EnvName]; declared &&
+			!binding.Inactive && binding.MCPServer == "" && binding.InputID == inputIDs[binding.EnvName] {
+			server.InputValues[binding.EnvName] = compozyconfig.MCPInputValue{SecretRef: binding.SecretRef}
+		}
+	}
+	return nil
+}
+
+func agentPluginMCPManifest(ext *extensionpkg.Extension) (*extensionpkg.Manifest, error) {
+	if ext == nil {
+		return nil, nil
+	}
+	// Secret writes invalidate the profile runtime, leaving its installation available.
+	if ext.Manifest == nil && ext.Info.Format == extensionpkg.FormatAgentPlugin {
+		return extensionpkg.LoadInstalledManifest(&ext.Info)
+	}
+	return ext.Manifest, nil
+}
+
 func mcpExtensionBindingOwner(
 	ctx context.Context,
 	state *bootState,
@@ -171,11 +259,11 @@ func mcpExtensionBindingOwner(
 		if !ok || state == nil || state.profiles == nil {
 			return "", "", errors.New("daemon: workspace-profile MCP resource requires profile catalog")
 		}
-		profile, err := state.profiles.GetByName(ctx, profileName)
+		profileID, err := mcpOwnerProfileID(ctx, state, profileName)
 		if err != nil {
 			return "", "", fmt.Errorf("daemon: resolve MCP resource profile %q: %w", profileName, err)
 		}
-		return strings.TrimSpace(profile.ID), strings.TrimSpace(workspaceID), nil
+		return strings.TrimSpace(profileID), strings.TrimSpace(workspaceID), nil
 	case resources.ResourceScopeKindWorkspace:
 		return store.DefaultProfileID, normalized.ID, nil
 	case resources.ResourceScopeKindUser:
@@ -187,8 +275,9 @@ func mcpExtensionBindingOwner(
 func userResolvedMCPServer(server compozyconfig.MCPServer) mcppkg.ResolvedServer {
 	name := strings.TrimSpace(server.Name)
 	return mcppkg.ResolvedServer{
-		Server: cloneDaemonMCPServer(server),
-		Target: (mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: name}).Normalize(),
+		ReadOnlyOverrideOrigin: new(toolspkg.MCPReadOnlyOverrideOperatorConfig),
+		Server:                 cloneDaemonMCPServer(server),
+		Target:                 (mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: name}).Normalize(),
 	}
 }
 
@@ -248,6 +337,7 @@ func mcpAuthTargetForResource(
 }
 
 func daemonMCPSources(ctx context.Context, state *bootState) ([]toolspkg.SourceRef, error) {
+	ctx = withMCPOwnerRead(ctx)
 	if state == nil {
 		return nil, nil
 	}
@@ -270,6 +360,9 @@ func daemonMCPSources(ctx context.Context, state *bootState) ([]toolspkg.SourceR
 		sources = append(sources, source)
 	}
 	for _, server := range state.cfg.MCPServers {
+		if state.toolMCPResources != nil && strings.TrimSpace(server.DefinitionSource) != "" {
+			continue
+		}
 		add(server, toolspkg.SourceRef{Scope: string(mcpauth.ScopeUser)})
 	}
 	providerNames := make([]string, 0, len(state.cfg.Providers))
@@ -318,12 +411,47 @@ func mcpResourceProjectionOwner(
 		if !ok || state == nil || state.profiles == nil {
 			return "", "", errors.New("daemon: workspace-profile MCP resource requires profile catalog")
 		}
-		profile, err := state.profiles.GetByName(ctx, profileName)
+		profileID, err := mcpOwnerProfileID(ctx, state, profileName)
 		if err != nil {
 			return "", "", fmt.Errorf("daemon: resolve MCP resource profile %q: %w", profileName, err)
 		}
-		return strings.TrimSpace(profile.ID), strings.TrimSpace(workspaceID), nil
+		return strings.TrimSpace(profileID), strings.TrimSpace(workspaceID), nil
 	default:
 		return "", "", fmt.Errorf("daemon: unsupported MCP resource scope %q", normalized.Kind)
 	}
+}
+
+// Workspace declarations overlay the active personal profile, but retain their workspace OAuth owner.
+func projectProfileConfigMCPServer(
+	ctx context.Context,
+	state *bootState,
+	record resources.Record[compozyconfig.MCPServer],
+	profileID string,
+	fallback compozyconfig.MCPServer,
+) (compozyconfig.MCPServer, error) {
+	if record.Scope.Kind != resources.ResourceScopeKindWorkspace || record.Owner.Kind == extensionResourceOwnerKind ||
+		record.Source != toolMCPSyncActor().Source || profileID == "" || profileID == store.DefaultProfileID {
+		return fallback, nil
+	}
+	if state.profiles == nil || state.workspaceResolver == nil {
+		return compozyconfig.MCPServer{}, errors.New("daemon: profile MCP config resolver is unavailable")
+	}
+	profileName, err := state.profiles.ProfileName(ctx, profileID)
+	if err != nil {
+		return compozyconfig.MCPServer{}, err
+	}
+	resolved, err := state.workspaceResolver.ResolveForProfile(ctx, record.Scope.ID, profileName)
+	if err != nil {
+		return compozyconfig.MCPServer{}, err
+	}
+	for _, server := range resolved.Config.MCPServers {
+		if strings.TrimSpace(server.Name) == strings.TrimSpace(record.Spec.Name) {
+			server.Owner = mcpDefinitionOwnerManual
+			return cloneDaemonMCPServer(server), nil
+		}
+	}
+	return compozyconfig.MCPServer{}, fmt.Errorf(
+		"daemon: workspace MCP declaration %q is unavailable",
+		record.Spec.Name,
+	)
 }

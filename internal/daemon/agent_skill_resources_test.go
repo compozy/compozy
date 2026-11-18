@@ -690,7 +690,7 @@ func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t
 						AgentName:       "marketer",
 						AgentResourceID: "agt-marketer",
 						SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/HEARTBEAT.md",
-						Body:            "Inspect campaign status and use Compozy task APIs.",
+						Body:            "---\ncheck_ins:\n  max_tool_calls: 30\n  max_write_calls: 7\n---\nInspect campaign status and use Compozy task APIs.",
 					},
 				}})
 
@@ -715,11 +715,12 @@ func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t
 				if got, want := artifacts.SoulBody, "Lead with campaign context."; got != want {
 					t.Fatalf("artifacts.SoulBody = %q, want %q", got, want)
 				}
-				if got, want := artifacts.HeartbeatBody, "Inspect campaign status and use Compozy task APIs."; got != want {
+				if got, want := artifacts.HeartbeatBody, "---\ncheck_ins:\n  max_tool_calls: 30\n  max_write_calls: 7\n---\nInspect campaign status and use Compozy task APIs."; got != want {
 					t.Fatalf("artifacts.HeartbeatBody = %q, want %q", got, want)
 				}
 
 				policy, ok, err := dependency.ResolveHeartbeatPolicy(t.Context(), heartbeat.AuthoringTarget{
+					CheckInLimits: &heartbeat.CheckInLimits{MaxToolCalls: 50, MaxWriteCalls: 10},
 					AgentName:     "marketer",
 					WorkspaceID:   "ws-1",
 					WorkspaceRoot: resolved.RootDir,

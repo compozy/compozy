@@ -6,7 +6,7 @@ export function useSignedOutProviders() {
   const signedOut = new Map<string, string>();
   for (const provider of providers.data?.providers ?? []) {
     const option = settingsProviderToOption(provider);
-    if (option.needs_auth) signedOut.set(option.id, option.name);
+    if (option.needs_auth && !option.disabled) signedOut.set(option.id, option.name);
   }
   return signedOut;
 }

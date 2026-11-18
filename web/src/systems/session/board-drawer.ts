@@ -14,4 +14,4 @@ export {
   SESSION_BOARD_DRAWER_SEARCH_KEY,
   sessionBoardDrawerOpen,
 } from "./lib/session-deeplink-search";
-export { sessionTreeParentId } from "./lib/session-hierarchy";
+export { sessionListParentId } from "./lib/session-hierarchy";

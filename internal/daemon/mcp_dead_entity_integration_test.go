@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -47,10 +48,11 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 					t.Errorf("GlobalDB.Close() error = %v", err)
 				}
 			})
+			workspaceRoot := t.TempDir()
 			if err := globalDB.InsertWorkspace(ctx, workspacepkg.Workspace{
 				ID:        workspaceID,
 				Name:      "Dead MCP integration",
-				RootDir:   t.TempDir(),
+				RootDir:   workspaceRoot,
 				CreatedAt: now,
 				UpdatedAt: now,
 			}); err != nil {
@@ -69,6 +71,22 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 					deadEntityMCPStatePathEnv: statePath,
 				},
 			}
+			server.DefinitionSource = filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName)
+			declaration, err := json.Marshal(map[string]any{"mcpServers": map[string]any{
+				server.Name: map[string]any{"command": server.Command, "args": server.Args, "env": server.Env},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeDaemonFile(t, server.DefinitionSource, string(declaration))
+			home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			resolver, err := workspacepkg.NewResolver(globalDB, workspacepkg.WithHomePaths(home))
+			if err != nil {
+				t.Fatal(err)
+			}
 			catalog := newResourceCatalog(cloneDaemonMCPServer)
 			catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{{
 				Kind:    compozyconfig.MCPServerResourceKind,
@@ -81,13 +99,30 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 				Spec: server,
 			}})
 			state := &bootState{
-				cfg:              compozyconfig.Config{},
-				registry:         globalDB,
-				mcpServerCatalog: catalog,
+				mcpDigestKeys:     vault.NewMCPDigestKeyProvider(t.TempDir()),
+				cfg:               compozyconfig.Config{},
+				registry:          globalDB,
+				workspaceResolver: resolver,
+				mcpServerCatalog:  catalog,
 				deadEntities: deadentity.New(
 					globalDB,
 					deadentity.WithClock(func() time.Time { return now }),
 				),
+			}
+			digest, err := state.mcpDefinitionDigest(server)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := globalDB.PutMCPServerApproval(ctx, store.MCPApproval{
+				ID:               "recovery-fixture-approval",
+				ProfileID:        store.DefaultProfileID,
+				WorkspaceID:      workspaceID,
+				ServerName:       server.Name,
+				SourceID:         filepath.ToSlash(filepath.Join(compozyconfig.DirName, compozyconfig.MCPJSONName)),
+				DefinitionDigest: digest,
+				ApprovedAt:       now,
+			}); err != nil {
+				t.Fatal(err)
 			}
 			daemon := &Daemon{getenv: os.Getenv}
 			provider, _, err := daemon.newDaemonMCPToolProvider(state)

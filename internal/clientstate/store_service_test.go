@@ -22,6 +22,45 @@ import (
 func TestEngineShouldHonorStoreContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should aggregate only live prefixed entries from selected workspace domains", func(t *testing.T) {
+		t.Parallel()
+		engine, _, _ := newTestEngine(t, testLimits())
+		for _, ws := range []WorkspaceID{"w1", "w2"} {
+			applyPut(t, engine, ws, "window-manager", "migration:profile-a", objectValue("status"), 0, ApplyOptions{})
+			applyPut(t, engine, ws, "window-manager", "snapshot:profile-a", objectValue("layout"), 0, ApplyOptions{})
+			applyPut(t, engine, ws, "other", "migration:profile-a", objectValue("unrelated"), 0, ApplyOptions{})
+		}
+		applyPut(t, engine, "w1", "window-manager", "migration:deleted", objectValue("deleted"), 0, ApplyOptions{})
+		if _, err := engine.Apply(
+			t.Context(),
+			"w1",
+			"window-manager",
+			[]Op{{Kind: OpDelete, Key: "migration:deleted"}},
+			ApplyOptions{},
+		); err != nil {
+			t.Fatal(err)
+		}
+		entries, err := engine.DomainEntriesByPrefix(
+			t.Context(),
+			[]WorkspaceID{"w1", "w2", "missing"},
+			"window-manager",
+			"migration:",
+		)
+		if err != nil || len(entries) != 2 {
+			t.Fatalf("aggregate=%+v error=%v", entries, err)
+		}
+		for _, ws := range []WorkspaceID{"w1", "w2"} {
+			if len(entries[ws]) != 1 || entries[ws][0].Key != "migration:profile-a" ||
+				!bytes.Equal(entries[ws][0].Value, objectValue("status")) {
+				t.Fatalf("workspace %s entries=%+v", ws, entries[ws])
+			}
+		}
+		entries, err = engine.DomainEntriesByPrefix(t.Context(), []WorkspaceID{"w2"}, "window-manager", "migration:")
+		if err != nil || len(entries) != 1 || len(entries["w2"]) != 1 {
+			t.Fatalf("selected=%+v error=%v", entries, err)
+		}
+	})
+
 	t.Run("Should create and read an identical first revision (UT-001)", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
@@ -820,4 +859,69 @@ func seedAheadStore(t *testing.T, path string) {
 	if err := db.Close(); err != nil {
 		t.Fatalf("Close(ahead store) error = %v", err)
 	}
+}
+
+func TestEngineCopy(t *testing.T) {
+	t.Run("Should copy original bytes with revision fencing and transactional rollback", func(t *testing.T) {
+		t.Parallel()
+		engine, _, _ := newTestEngine(t, testLimits())
+		original := applyPut(t, engine, "w1", "window_manager", "snapshot", objectValue("valid"), 0, ApplyOptions{})
+		raw := []byte("{unparseable\noriginal\x00")
+		err := engine.store.db.Update(func(tx *bolt.Tx) error {
+			bucket := tx.Bucket(workspaceBucketName("w1")).Bucket([]byte("window_manager"))
+			entry := original
+			entry.Value = raw
+			encoded, err := encodeEntry(entry)
+			if err != nil {
+				return err
+			}
+			return bucket.Put([]byte("snapshot"), encoded)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = engine.Apply(
+			t.Context(),
+			"w1",
+			"window_manager",
+			[]Op{{Kind: OpCopy, Key: "legacy", SourceKey: "snapshot", SourceRev: original.Rev + 1}},
+			ApplyOptions{},
+		)
+		if !errors.Is(err, ErrRevConflict) {
+			t.Fatalf("copy fence=%v", err)
+		}
+		_, err = engine.Apply(
+			t.Context(),
+			"w1",
+			"window_manager",
+			[]Op{
+				{Kind: OpCopy, Key: "legacy", SourceKey: "snapshot", SourceRev: original.Rev},
+				{Kind: OpDelete, Key: "missing"},
+			},
+			ApplyOptions{},
+		)
+		if !errors.Is(err, ErrNotFound) {
+			t.Fatalf("rollback=%v", err)
+		}
+		if _, err := engine.Get(t.Context(), "w1", "window_manager", "legacy"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("copy leaked from rollback: %v", err)
+		}
+		entries, err := engine.Apply(
+			t.Context(),
+			"w1",
+			"window_manager",
+			[]Op{
+				{Kind: OpCopy, Key: "legacy", SourceKey: "snapshot", SourceRev: original.Rev},
+				{Kind: OpPut, Key: "snapshot", Value: objectValue("replacement"), IfRev: original.Rev},
+			},
+			ApplyOptions{},
+		)
+		if err != nil || len(entries) != 2 {
+			t.Fatalf("copy=%+v error=%v", entries, err)
+		}
+		backup, err := engine.Get(t.Context(), "w1", "window_manager", "legacy")
+		if err != nil || !bytes.Equal(backup.Value, raw) {
+			t.Fatalf("backup=%q error=%v", backup.Value, err)
+		}
+	})
 }

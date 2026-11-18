@@ -23,10 +23,12 @@ func (d *Daemon) bootRuntimeServices(
 	if err := d.bootTerminal(ctx, state, cleanup); err != nil {
 		return err
 	}
+	if err := d.bootToolArtifacts(ctx, state, cleanup); err != nil {
+		return err
+	}
 	if err := recoverProfiles(ctx, state); err != nil {
 		return err
 	}
-	rewriteDaemonAgentKindAliases(d.homePaths, state.logger)
 	providerVault, err := d.buildProviderVault(state)
 	if err != nil {
 		return err

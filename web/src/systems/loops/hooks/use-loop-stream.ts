@@ -1,4 +1,4 @@
-import { useProfileReadScope } from "@/systems/profiles";
+import { useProfileReadScopeParams } from "@/systems/profiles";
 import { useEffect, useEffectEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@xstate/store-react";
@@ -95,7 +95,8 @@ export function useLoopStream(
     onError,
   }: UseLoopStreamOptions = {}
 ) {
-  const { params: profileParams } = useProfileReadScope();
+  // The shell owns profile hydration; a stream only observes its current scope.
+  const profileParams = useProfileReadScopeParams();
   const profileName = "profile" in profileParams ? profileParams.profile : null;
   const queryClient = useQueryClient();
   const lifecycleStore = useStore(loopStreamLifecycleLogic);

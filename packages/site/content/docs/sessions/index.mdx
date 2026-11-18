@@ -81,6 +81,23 @@ the daemon or database itself, use Operations after you identify the affected se
   enforced while the agent runs.
 </OperatorNote>
 
+## Review a session's files and changes
+
+A project session window has a **Review panel** on its right, toggled from the session header. Its
+**Changes** tab shows what the session changed against its base branch, or only its uncommitted
+edits. Its **Files** tab shows the project tree and a read-only file viewer. Both read the session's
+worktree when it has one, otherwise the project folder. The context control in the composer opens
+and closes the context sidebar. Opening the Review panel closes the context sidebar, and the other
+way around. The sidebar icon at the start of the session header shows or hides the sessions list, in
+every session, whether the list is open or closed.
+
+A file path in an assistant message is a link: a plain click opens it in the viewer at its line.
+In the desktop app, Cmd-click (macOS) or Ctrl-click opens it in your last-used
+[Open in](/docs/files/open-in) application instead. User-scope sessions have no project, so they
+have no Review panel. Read the same changes with
+[`compozy session changes`](/docs/cli/session/changes). See [Files and changes](/docs/files) and
+the [Review panel](/docs/files/review-panel) reference.
+
 ## Browse the session catalog
 
 `compozy session list -o json` returns a counted page owned by the daemon. Filter by workspace, exact
@@ -172,13 +189,13 @@ is rejected instead of crossing catalog boundaries. See the generated
 In the web shell, a new session reuses a Session window you already have instead of opening another
 one. This applies to every way of starting a session: the dock, **Session > New session**, the
 command palette and its shortcut, the **+** in a sessions list or folder, a Session window's sidebar,
-an agent page, the empty-desktop composer, and a prompt sent from the command palette.
+an agent page, and a prompt sent from the command palette.
 
 1. If the focused window is a Session window, the new session replaces the conversation in that
    window and the window keeps focus.
 2. Otherwise CompozyOS picks a Session window on the current desktop: one showing the empty session
-   list first, then the one you used most recently. A minimized window is restored. The window keeps
-   its tab, split, and position.
+   list first, then the one you used most recently. Its tab becomes active and the window keeps its
+   place in the tab bar or split.
 3. If the current desktop has no Session window, a new one opens.
 
 Pinned Session windows and windows on other desktops are never reused. The conversation that was on
@@ -291,16 +308,30 @@ parent and cannot be moved on their own. Archived sessions keep their folder whe
 ## Nest a session under another session
 
 A session started without a parent can become another session's child, so work an agent started
-on its own sits under the session it belongs to. In the sessions sidebar, drag a top-level session
-onto the middle of another session's row (anywhere on the row outside **Manual** sort); the row
-highlights when the drop is allowed. The confirmation offers **Undo**, and **Make top-level** in a
-nested session's row menu returns it later.
+on its own sits under the session it belongs to. There are three ways to do it:
+
+- Choose **Move under…** in the session's row menu (the `…` button or a right-click). A picker
+  searches the project's sessions by title or agent; use the arrow keys and Enter to choose the
+  new parent.
+- In the command palette, type `move` or `parent` while a session window is focused and choose
+  **Move under another session…** to open the same picker for that session.
+- In the sessions sidebar, drag a top-level session onto the middle of another session's row
+  (anywhere on the row outside **Manual** sort); the row highlights when the drop is allowed.
+
+The confirmation offers **Undo**. **Make top-level** in a nested session's row menu, or in its
+**Move under…** picker, returns it to the top level later. To move a nested session under a
+different parent, make it top-level first, then move it.
 
 The daemon checks every request. Both sessions must be user sessions in the same project and
-profile, neither can be archived, and the new parent can't be the session itself or one of its
-descendants. Subagents, spawned workers, and continued or forked sessions keep their lineage. Only
-the parent link changes: the session's children move with it, and its runtime, permissions, and
-spawn limits stay as they were.
+profile, neither can be archived, the new parent can't be in Later, and it can't be the session
+itself or one of its descendants. The picker lists only sessions that pass these checks. Subagents
+and spawned workers keep their lineage (take over a stopped spawned worker first). Only the parent
+link changes: the session's children move with it, and its runtime, permissions, and spawn limits
+stay as they were.
+
+Continued and forked sessions can't move under another session. Their parent link records the
+session they came from, which their origin pill and divider show; nesting them would replace that
+record. They stay top-level, and their picker says so instead of listing parents.
 
 ```bash
 compozy session reparent sess_child --parent sess_parent   # nest
@@ -342,7 +373,7 @@ owned by the target profile. The copy runs in that new worktree.
 The move is refused, with the reason in the dialog, when the session:
 
 - is running (stop it first)
-- has live or unarchived descendants (stop and archive them first)
+- has live descendants or unarchived descendants outside the original's subagent archive family (stop and archive them first)
 - is archived, nested under another session (make it top-level first), or is a subagent or spawned worker
 - has a worktree with uncommitted changes, a worktree another unarchived session still uses, a
   detached checkout, or a worktree that belongs to a task run
@@ -356,12 +387,18 @@ session or the daemon starts. If the daemon stops in the middle of a move, it se
 it starts again: a move whose copy was already created is completed, and any other is undone, so the
 original ends up unarchived and bound to a checkout of its branch.
 
+Stopped subagents in the original's archive family are archived with it.
 Archived, stopped descendants stay in the source profile with their lineage pointing to the
 archived original. The `session_move_to_profile_has_children` refusal counts only descendants
 that still need to be stopped or archived.
 
-Archived sessions that shared the moved worktree keep their history but lose that checkout; bind
-them to another worktree after unarchiving them.
+When unarchiving the recorded original of a completed move, bindings to its released checkout
+are cleared for the original and subagents, so they can resume in the workspace directory.
+Ordinary unarchive keeps the existing worktree binding without consulting Git, even when the
+checkout is missing; explicitly bind or unbind it before resuming. An unfinished move must settle
+before unarchive can proceed. Subagents with their own checkout keep it. A failed move restores inherited family bindings to
+the replacement source checkout. Other archived sessions that shared the moved worktree keep
+their history but lose that checkout; bind them to another worktree after unarchiving them.
 
 ```bash
 compozy session move-to-profile sess_1234 work -o json
@@ -393,14 +430,20 @@ an awaited reply, a Loop run, or a task lease (`waiting_on: "sessions"`), otherw
 `done` follows once the last of that work closes. The [sessions board](/docs/sessions/board) groups
 every badge into Needs you, Working, In review, and Done.
 
-A child session (one created with a parent) that ends a turn on its own with no linked pull
-request and nothing left running to resume it (no monitor, child session, awaited reply, Loop run,
+A child session (one created with a parent) that ends a turn on its own without answering its
+creator, with no linked pull request and nothing left running to resume it (no monitor, child session, awaited reply, Loop run,
 task lease, or pending question) is not `done`: it reads `needs-attention` with
 `attention: "ended_early"`, and the web app says "Stopped before delivering". Its parent receives
-one wake with the child's final answer, even when the parent opted out of completion wakes. The mark
+one wake with the child's final answer, even when the parent opted out of completion wakes. If the
+parent has a session monitor covering the child's needs-attention state, only that monitor wakes it.
+The alarm asks the parent to review the answer without assuming a code or PR deliverable. A queued
+alarm is discarded when the child starts another turn or its early-stop occurrence is cleared or
+replaced. Viewing the child alone does not cancel the parent's alarm. The mark
 survives runtime release and daemon restarts, and the child's next prompt clears it. Subagents and
 top-level sessions are never marked. A pull request opened during the turn, including on a branch
-the turn just created, counts as delivery. When the pull request lookup fails for a transient
+the turn just created, counts as delivery. An answer after the latest creator message consumed
+by that turn also counts, including a follow-up sent without `notify_on_complete`. Earlier-turn
+answers do not cover an unanswered follow-up. When the pull request lookup fails for a transient
 reason, such as a forge timeout, the turn is not marked; a repository without a supported remote is
 treated as having no pull request.
 
@@ -532,3 +575,18 @@ permissions for the two most common operator questions: "can I re-enter this liv
     meta="Secrets"
   />
 </RouteList>
+
+## Per-turn costs
+
+`compozy session usage <session-id> --turns -o json` shows the cost of each turn.
+When an agent reports a cumulative session cost, CompozyOS subtracts the previous report before
+adding it to the session and daily totals. A lower report contributes zero; its raw value is saved
+as the next turn's baseline. The baseline survives restarting CompozyOS or releasing an idle runtime.
+Adapters that report per-turn amounts keep their reported charges.
+
+A drop omits that one turn's cost, an undercount of at most one turn per drop. A restart whose first
+report equals or exceeds the previous total is still indistinguishable from continuation and can
+also undercount. These figures describe reported activity; they are not an invoice.
+
+The upgrade recomputes historical costs from complete per-session ledgers. Where the required evidence
+is missing or incomplete, cost becomes unknown. Tokens, turn counts and timestamps are preserved.

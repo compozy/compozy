@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -25,6 +26,106 @@ import (
 
 func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	t.Parallel()
+	t.Run("Should warn once and ignore every retired window-manager mutation", func(t *testing.T) {
+		t.Parallel()
+		for _, key := range []string{
+			"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap.edge_band", "snap.corner_reach",
+			"snap.exit_slack", "snap.repeat_ratios", "bindings.top_center", "bindings.bottom_center",
+		} {
+			t.Run(key, func(t *testing.T) {
+				t.Parallel()
+				client := &stubClient{reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
+					t.Fatal("retired mutation reached the daemon")
+					return SettingsMutationRecord{}, nil
+				}}
+				deps := newDefaultProfileWorkspaceTestDeps(t, client)
+				home, err := deps.resolveHome()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.MkdirAll(filepath.Dir(home.ConfigFile), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				const before = "[window_manager]\nhistory_limit = 61\nraise_on_focus = true\n"
+				if err := os.WriteFile(home.ConfigFile, []byte(before), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				out, stderr, err := executeRootCommand(
+					t,
+					deps,
+					"config",
+					"set",
+					"window_manager."+key,
+					"arbitrary retired value",
+					"--scope",
+					"user",
+					"-o",
+					"json",
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var record configSetRecord
+				if err := json.Unmarshal([]byte(out), &record); err != nil {
+					t.Fatal(err)
+				}
+				if record.Path != "window_manager."+key || record.Applied || record.RestartRequired ||
+					record.ApplyRecordID != "" {
+					t.Fatalf("ignored mutation receipt = %#v", record)
+				}
+				warning := windowmanager.RetiredConfigWarning(key, false)
+				if strings.TrimSpace(stderr) != warning {
+					t.Fatalf("stderr = %q, want one warning %q", stderr, warning)
+				}
+				after, err := os.ReadFile(home.ConfigFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(after) != before {
+					t.Fatalf("retired mutation changed config: %s", after)
+				}
+			})
+		}
+	})
+	t.Run("Should translate the retired floating policy before writing", func(t *testing.T) {
+		t.Parallel()
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		out, stderr, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"window_manager.new_window_policy",
+			"floating",
+			"--scope",
+			"user",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var record configSetRecord
+		if err := json.Unmarshal([]byte(out), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record.Value != "tab" ||
+			strings.TrimSpace(stderr) != windowmanager.RetiredConfigWarning("new_window_policy", true) {
+			t.Fatalf("translation = %#v, stderr = %q", record, stderr)
+		}
+		home, err := deps.resolveHome()
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := compozyconfig.LoadGlobalConfig(home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.WindowManager.NewWindowPolicy != compozyconfig.WindowNewPolicyTab {
+			t.Fatalf("stored policy = %s", cfg.WindowManager.NewWindowPolicy)
+		}
+	})
+
 	t.Run("Should persist reference-only session environment declarations", func(t *testing.T) {
 		t.Parallel()
 		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
@@ -219,8 +320,12 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig(window manager) error = %v", err)
 		}
-		if got := configured.WindowManager.Snap.RepeatRatios; len(got) != 3 || got[1] != 0.75 {
-			t.Fatalf("WindowManager.Snap.RepeatRatios = %#v, want [0.5 0.75 0.25]", got)
+		contents, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(contents), "repeat_ratios") {
+			t.Fatalf("config set persisted retired ratios: %s", contents)
 		}
 		if got, want := configured.WindowManager.Shortcuts["window.focus.left"], (windowmanager.ShortcutBinding{"alt+KeyH", "control+alt+shift+KeyH"}); !slices.Equal(
 			got,
@@ -572,6 +677,13 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 			wantApplied:   true,
 		},
 		{
+			name:          "Should apply the client request budget live",
+			path:          "client.request_timeout",
+			value:         "2m",
+			wantLifecycle: "live",
+			wantApplied:   true,
+		},
+		{
 			name:          "Should apply the Marketplace catalog base URL live",
 			path:          "marketplace.catalog.base_url",
 			value:         "http://127.0.0.1:64135",
@@ -658,6 +770,49 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should report a daemon restart for the OTel export switch [UT-008]", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		out, _, err := executeRootCommand(t, deps, "config", "set", "observability.otel.enabled", "true", "-o", "json")
+		if err != nil {
+			t.Fatalf("config set observability.otel.enabled error = %v", err)
+		}
+		var record configSetRecord
+		if err := json.Unmarshal([]byte(out), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config set observability.otel.enabled) error = %v", err)
+		}
+		if record.Value != true || record.Lifecycle != "restart-required" || record.NextAction != "restart-daemon" ||
+			record.Applied || !record.RestartRequired || record.RestartScope != "daemon" {
+			t.Fatalf(
+				"config set observability.otel.enabled record = %#v, want saved restart-required daemon restart",
+				record,
+			)
+		}
+	})
+
+	t.Run("Should reject an OTel endpoint carrying a secret without saving or echoing it", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		const endpoint = "https://user:s3cret@collector.example:4318/otlp?token=s3cret"
+		out, stderr, err := executeRootCommand(t, deps, "config", "set", "observability.otel.endpoint", endpoint)
+		if want := "observability.otel.endpoint must be an http(s) URL with a host"; err == nil ||
+			!strings.Contains(err.Error(), want) {
+			t.Fatalf("config set observability.otel.endpoint error = %v, want %q", err, want)
+		}
+		if strings.Contains(err.Error()+out+stderr, "s3cret") {
+			t.Fatalf("config set echoed the secret: err=%v stdout=%q stderr=%q", err, out, stderr)
+		}
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
+			t.Fatalf("global config stat error = %v, want no file written", err)
+		}
+	})
 
 	t.Run("Should reject global-only Marketplace catalog writes at workspace scope", func(t *testing.T) {
 		t.Parallel()
@@ -1254,7 +1409,7 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		}
 	})
 
-	t.Run("Should send only the selected shell font through the daemon", func(t *testing.T) {
+	t.Run("Should send only the selected shell appearance value through the daemon", func(t *testing.T) {
 		t.Parallel()
 
 		calls := 0
@@ -1300,6 +1455,26 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		if calls != 1 {
 			t.Fatalf("UpdateSettingsShell calls = %d, want unsafe font rejected before the daemon", calls)
 		}
+
+		if _, _, err := executeRootCommand(
+			t, deps, "config", "set", "shell.appearance.text_size", "large", "-o", "json",
+		); err != nil {
+			t.Fatalf("config set shell.appearance.text_size error = %v", err)
+		}
+		appearance = captured.Config.Appearance
+		if appearance == nil || appearance.MonoFont != nil || appearance.LetterSpacing != nil ||
+			appearance.TextSize == nil || *appearance.TextSize != contract.SettingsShellTextSizeLarge {
+			t.Fatalf("daemon shell payload = %#v, want only text_size=large", captured.Config)
+		}
+
+		if _, _, err := executeRootCommand(
+			t, deps, "config", "set", "shell.appearance.letter_spacing", "loose", "-o", "json",
+		); err == nil || !strings.Contains(err.Error(), "shell.appearance.letter_spacing") {
+			t.Fatalf("config set unknown letter_spacing error = %v, want shell.appearance.letter_spacing error", err)
+		}
+		if calls != 2 {
+			t.Fatalf("UpdateSettingsShell calls = %d, want unknown spacing rejected before the daemon", calls)
+		}
 	})
 
 	t.Run("Should unset a shell font from the user config", func(t *testing.T) {
@@ -1315,7 +1490,8 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		}
 		if err := os.WriteFile(
 			homePaths.ConfigFile,
-			[]byte("[shell.appearance]\nui_font = \"Inter\"\nmono_font = \"JetBrains Mono\"\n"),
+			[]byte("[shell.appearance]\nui_font = \"Inter\"\nmono_font = \"JetBrains Mono\"\n"+
+				"text_size = \"large\"\nletter_spacing = \"wide\"\n"),
 			0o600,
 		); err != nil {
 			t.Fatalf("WriteFile(config) error = %v", err)
@@ -1333,6 +1509,23 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		if loaded.Shell.Appearance.UIFont != "" || loaded.Shell.Appearance.MonoFont != "JetBrains Mono" {
 			t.Fatalf(
 				"appearance after unset = %#v, want default ui_font and preserved mono_font",
+				loaded.Shell.Appearance,
+			)
+		}
+
+		if _, _, err := executeRootCommand(
+			t, deps, "config", "unset", "shell.appearance.text_size", "-o", "json",
+		); err != nil {
+			t.Fatalf("config unset shell.appearance.text_size error = %v", err)
+		}
+		loaded, err = compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if loaded.Shell.Appearance.TextSize != "" ||
+			loaded.Shell.Appearance.LetterSpacing != compozyconfig.ShellLetterSpacingWide {
+			t.Fatalf(
+				"appearance after text_size unset = %#v, want default size and preserved wide spacing",
 				loaded.Shell.Appearance,
 			)
 		}
@@ -2691,6 +2884,12 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				wantAllowed: false,
 			},
 			{
+				name:        "Should allow provider enabled toggle",
+				path:        "providers.gemini.enabled",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
 				name:        "Should allow full roles section",
 				path:        "roles",
 				wantKind:    configSetTable,
@@ -2707,6 +2906,76 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				path:        "roles.coordinator.ttl",
 				wantKind:    configSetDuration,
 				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel export switch [UT-008]",
+				path:        "observability.otel.enabled",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel protocol [UT-008]",
+				path:        "observability.otel.protocol",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel endpoint [UT-008]",
+				path:        "observability.otel.endpoint",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel trace switch [UT-008]",
+				path:        "observability.otel.traces",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel metric switch [UT-008]",
+				path:        "observability.otel.metrics",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel sample ratio [UT-008]",
+				path:        "observability.otel.sample_ratio",
+				wantKind:    configSetFloat,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel metric interval [UT-008]",
+				path:        "observability.otel.metric_interval",
+				wantKind:    configSetDuration,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel service name [UT-008]",
+				path:        "observability.otel.service_name",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel slow write threshold [UT-008]",
+				path:        "observability.otel.slow_db_write_ms",
+				wantKind:    configSetInt,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow OTel provider forwarding [UT-008]",
+				path:        "observability.otel.forward_to_providers",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should leave the OTel header table to file edits",
+				path:        "observability.otel.headers",
+				wantAllowed: false,
+			},
+			{
+				name:        "Should leave single OTel header refs to file edits",
+				path:        "observability.otel.headers.api-key",
+				wantAllowed: false,
 			},
 			{name: "Should reject removed dream agent", path: "memory.dream.agent", wantAllowed: false},
 			{name: "Should reject removed dream enabled", path: "memory.dream.enabled", wantAllowed: false},
@@ -2925,70 +3194,182 @@ func TestTerminalConfigSetPathsMatchPublicSurface(t *testing.T) {
 	}
 }
 
-// TestConfigCommandsAlwaysOnPathAlias owns the CLI rows of UT-008: get, set and unset accept the
-// v0.5.0 agents.stays_on.* paths, warn on stderr, and operate on agents.always_on.*.
 func TestConfigCommandsAlwaysOnPathAlias(t *testing.T) {
 	t.Parallel()
+	for _, verb := range []string{"get", "set", "unset"} {
+		for _, path := range []struct {
+			name string
+			key  string
+		}{
+			{name: "retired path", key: "agents.stays_on.max_proposals"},
+			{name: "padded retired path", key: "agents. stays_on.max_proposals"},
+			{name: "retired path with padded segments", key: " agents . stays_on . max_proposals "},
+		} {
+			t.Run("Should reject "+path.name+" on "+verb, func(t *testing.T) {
+				t.Parallel()
+				deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+				args := []string{"config", verb, path.key}
+				if verb == "set" {
+					args = append(args, "3")
+				}
+				if _, _, err := executeRootCommand(
+					t,
+					deps,
+					args...); err == nil ||
+					!strings.Contains(err.Error(), "agents.always_on.max_proposals") {
+					t.Fatalf("error = %v", err)
+				}
+			})
+		}
+	}
+}
 
-	const warning = "warning: agents.stays_on is deprecated; use agents.always_on (removed in v0.5.2)"
-	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
-	out, stderr, err := executeRootCommand(t, deps, "config", "set", "agents.stays_on.max_proposals", "3", "-o", "json")
-	if err != nil {
-		t.Fatalf("config set old path error = %v", err)
-	}
-	var setRecord configSetRecord
-	if err := json.Unmarshal([]byte(out), &setRecord); err != nil {
-		t.Fatal(err)
-	}
-	if setRecord.Path != "agents.always_on.max_proposals" || !strings.Contains(stderr, warning) {
-		t.Fatalf("set record = %#v stderr = %q, want the new path and the warning", setRecord, stderr)
-	}
-	out, stderr, err = executeRootCommand(t, deps, "config", "get", "agents.stays_on.max_proposals", "-o", "json")
-	if err != nil {
-		t.Fatalf("config get old path error = %v", err)
-	}
-	var valueRecord configValueRecord
-	if err := json.Unmarshal([]byte(out), &valueRecord); err != nil {
-		t.Fatal(err)
-	}
-	if fmt.Sprint(valueRecord.Value) != "3" || !strings.Contains(stderr, warning) {
-		t.Fatalf("get record = %#v stderr = %q, want 3 and the warning", valueRecord, stderr)
-	}
-	out, stderr, err = executeRootCommand(t, deps, "config", "get", "agents.stays_on", "-o", "json")
-	if err != nil {
-		t.Fatalf("config get old table error = %v", err)
-	}
-	var tableRecord configValueRecord
-	if err := json.Unmarshal([]byte(out), &tableRecord); err != nil {
-		t.Fatal(err)
-	}
-	table, ok := tableRecord.Value.(map[string]any)
-	if tableRecord.Path != "agents.always_on" || !ok || fmt.Sprint(table["max_proposals"]) != "3" ||
-		!strings.Contains(stderr, warning) {
-		t.Fatalf(
-			"get table record = %#v stderr = %q, want the agents.always_on table and the warning",
-			tableRecord,
-			stderr,
+func TestConfigSetCarriesDaemonReloadWarnings(t *testing.T) {
+	t.Parallel()
+	t.Run("Should render daemon reload warnings in JSON and human output", func(t *testing.T) {
+		t.Parallel()
+
+		const warning = "providers gemini enabled change was not applied live: pending restart"
+		client := &stubClient{
+			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+				return DaemonStatus{Status: "running", PID: 42}, nil
+			},
+			reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
+				return SettingsMutationRecord{
+					Lifecycle:       contract.SettingsApplyLifecycleRestartRequired,
+					NextAction:      contract.SettingsApplyNextActionRestartDaemon,
+					RestartRequired: true,
+					Warnings:        []string{warning},
+				}, nil
+			},
+		}
+		deps := newDefaultProfileWorkspaceTestDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(pid int) bool { return pid == 42 }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+
+		out, _, err := executeRootCommand(t, deps, "config", "set", "providers.gemini.enabled", "false", "-o", "json")
+		if err != nil {
+			t.Fatalf("config set providers.gemini.enabled error = %v", err)
+		}
+		var record configSetRecord
+		if err := json.Unmarshal([]byte(out), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config set) error = %v", err)
+		}
+		if len(record.Warnings) != 1 || record.Warnings[0] != warning || !record.RestartRequired {
+			t.Fatalf("config set record = %#v, want the daemon warning and restart required", record)
+		}
+
+		human, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"providers.gemini.enabled",
+			"false",
+			"-o",
+			"human",
 		)
-	}
-	if _, stderr, err = executeRootCommand(
-		t,
-		deps,
-		"config",
-		"unset",
-		"agents.stays_on.max_proposals",
-		"-o",
-		"json",
-	); err != nil ||
-		!strings.Contains(stderr, warning) {
-		t.Fatalf("config unset old path = %q, %v; want the warning", stderr, err)
-	}
-	home, err := deps.resolveHome()
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := compozyconfig.LoadGlobalConfig(home)
-	if err != nil || cfg.Agents.AlwaysOn.MaxProposals != 2 {
-		t.Fatalf("MaxProposals after unset = %d, %v; want the default 2", cfg.Agents.AlwaysOn.MaxProposals, err)
-	}
+		if err != nil {
+			t.Fatalf("config set human error = %v", err)
+		}
+		if !strings.Contains(human, warning) {
+			t.Fatalf("config set human output = %q, want the warning", human)
+		}
+	})
+}
+
+// IT-007: CLI owns warning placement across bootstrap and effective config loads.
+func TestConfigShowRetiredWindowManagerKeys(t *testing.T) {
+	t.Run("Should print each retired key once on stderr for every config inspection verb", func(t *testing.T) {
+		client := &stubClient{reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
+			return SettingsMutationRecord{Applied: true}, nil
+		}}
+		deps := newDefaultProfileWorkspaceTestDeps(t, client)
+		home, err := deps.resolveHome()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("COMPOZY_HOME", home.HomeDir)
+		// Exercise the production bootstrap loader as well as each verb's effective-config load.
+		deps.loadConfig = nil
+		var logs bytes.Buffer
+		previousLogger := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+		t.Cleanup(func() { slog.SetDefault(previousLogger) })
+		if err := os.MkdirAll(filepath.Dir(home.ConfigFile), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(home.ConfigFile, []byte(`[window_manager]
+raise_on_focus = "invalid"
+drag_away_policy = 123
+group_move_modifier = false
+new_window_policy = "floating"
+[window_manager.snap]
+edge_band = -4
+corner_reach = "ignored"
+exit_slack = false
+repeat_ratios = false
+[window_manager.bindings]
+top_center = 123
+bottom_center = false
+`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		wantWarnings := []string{
+			windowmanager.RetiredConfigWarning("new_window_policy", true),
+		}
+		for _, key := range []string{
+			"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap.edge_band", "snap.corner_reach",
+			"snap.exit_slack", "snap.repeat_ratios", "bindings.top_center", "bindings.bottom_center",
+		} {
+			wantWarnings = append(wantWarnings, windowmanager.RetiredConfigWarning(key, false))
+		}
+		slices.Sort(wantWarnings)
+		for _, verb := range []string{"show", "get", "list", "validate", "reload"} {
+			t.Run("Should warn once for config "+verb, func(t *testing.T) {
+				args := []string{"config", verb}
+				if verb == "get" {
+					args = append(args, "window_manager")
+				}
+				args = append(args, "-o", "json")
+				stdout, stderr, err := executeRootCommand(t, deps, args...)
+				if err != nil {
+					t.Fatalf("config %s: %v stderr=%s", verb, err, stderr)
+				}
+				warnings := strings.Split(strings.TrimSpace(stderr), "\n")
+				slices.Sort(warnings)
+				if !slices.Equal(warnings, wantWarnings) || logs.Len() != 0 {
+					t.Fatalf(
+						"config %s stderr = %q, slog = %q; want exactly %q",
+						verb,
+						stderr,
+						logs.String(),
+						wantWarnings,
+					)
+				}
+				if !json.Valid([]byte(stdout)) || strings.Contains(stdout, "warning:") {
+					t.Fatalf("config %s stdout = %q", verb, stdout)
+				}
+				if verb != "show" {
+					return
+				}
+				var output configShowRecord
+				if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+					t.Fatal(err)
+				}
+				windowConfig := output.Config["window_manager"].(map[string]any)
+				if windowConfig["new_window_policy"] != "tab" {
+					t.Fatalf("config = %v", windowConfig)
+				}
+				for _, key := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
+					if _, present := windowConfig[key]; present {
+						t.Fatalf("retired key %s retained", key)
+					}
+				}
+			})
+		}
+	})
 }

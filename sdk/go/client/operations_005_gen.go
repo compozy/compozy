@@ -6,9 +6,120 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
+
+// CreateLoopParams carries the path, query, and header parameters.
+type CreateLoopParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// CreateLoop Create or fork a Loop definition
+func (c *Client) CreateLoop(ctx context.Context, params CreateLoopParams, body CreateLoopRequest) (*LoopResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateProfile Create a profile
+func (c *Client) CreateProfile(ctx context.Context, body CreateProfileRequest) (*Profile, error) {
+	path := "/api/profiles"
+	var out Profile
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateSessionParams carries the path, query, and header parameters.
+type CreateSessionParams struct {
+	Profile *string `url:"profile"`
+}
+
+// CreateSession Create a session
+func (c *Client) CreateSession(ctx context.Context, params CreateSessionParams, body CreateSessionRequest) (*SessionResponse, error) {
+	path := "/api/sessions"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateSessionFolderParams carries the path, query, and header parameters.
+type CreateSessionFolderParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// CreateSessionFolder Create a session folder
+func (c *Client) CreateSessionFolder(ctx context.Context, params CreateSessionFolderParams, body CreateSessionFolderRequest) (*SessionFolderResponse, error) {
+	path := "/api/workspaces/{workspace_id}/session-folders"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionFolderResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateSupportBundle Create a support bundle
+func (c *Client) CreateSupportBundle(ctx context.Context, body CreateSupportBundleRequest) (*SupportBundleOperationResponse, error) {
+	path := "/api/support/bundles"
+	var out SupportBundleOperationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateTaskParams carries the path, query, and header parameters.
+type CreateTaskParams struct {
+	Profile *string `url:"profile"`
+}
+
+// CreateTask Create a task
+func (c *Client) CreateTask(ctx context.Context, params CreateTaskParams, body CreateTaskRequest) (*TaskResponse, error) {
+	path := "/api/tasks"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // CreateTerminalParams carries the path, query, and header parameters.
 type CreateTerminalParams struct {
@@ -333,114 +444,4 @@ func (c *Client) DeleteLoopInputDefault(ctx context.Context, params DeleteLoopIn
 type DeleteProfileParams struct {
 	Name         string `url:"name"`
 	PlanRevision string `url:"plan_revision"`
-}
-
-// DeleteProfile Delete a profile
-func (c *Client) DeleteProfile(ctx context.Context, params DeleteProfileParams) (*DeleteProfileResponse, error) {
-	path := "/api/profiles/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("plan_revision", params.PlanRevision)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out DeleteProfileResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteResourceParams carries the path, query, and header parameters.
-type DeleteResourceParams struct {
-	Kind string `url:"kind"`
-	ID   string `url:"id"`
-}
-
-// DeleteResource Delete one desired-state resource on the local operator control plane
-func (c *Client) DeleteResource(ctx context.Context, params DeleteResourceParams, body DeleteResourceRequest) error {
-	path := "/api/resources/{kind}/{id}"
-	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	return c.doContent(ctx, "DELETE", path, nil, body, nil, "", "")
-}
-
-// DeleteSessionParams carries the path, query, and header parameters.
-type DeleteSessionParams struct {
-	Processes    *string `url:"processes"`
-	WorkspaceID  string  `url:"workspace_id"`
-	SessionID    string  `url:"session_id"`
-	WithChildren *bool   `url:"with_children"`
-	Profile      *string `url:"profile"`
-}
-
-// DeleteSession Delete one session and remove it from persisted history
-func (c *Client) DeleteSession(ctx context.Context, params DeleteSessionParams) error {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
-	query := url.Values{}
-	if params.Processes != nil {
-		query.Set("processes", *params.Processes)
-	}
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	if params.WithChildren != nil {
-		query.Set("with_children", strconv.FormatBool(*params.WithChildren))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteSessionAttachmentParams carries the path, query, and header parameters.
-type DeleteSessionAttachmentParams struct {
-	WorkspaceID  string  `url:"workspace_id"`
-	SessionID    string  `url:"session_id"`
-	AttachmentID string  `url:"attachment_id"`
-	Profile      *string `url:"profile"`
-}
-
-// DeleteSessionAttachment Delete a session attachment
-func (c *Client) DeleteSessionAttachment(ctx context.Context, params DeleteSessionAttachmentParams) error {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	path = strings.ReplaceAll(path, "{attachment_id}", url.PathEscape(params.AttachmentID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteSessionFolderParams carries the path, query, and header parameters.
-type DeleteSessionFolderParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	FolderID    string  `url:"folder_id"`
-	Profile     *string `url:"profile"`
-}
-
-// DeleteSessionFolder Delete a session folder; its sessions return to the workspace root
-func (c *Client) DeleteSessionFolder(ctx context.Context, params DeleteSessionFolderParams) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-folders/{folder_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

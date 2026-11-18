@@ -11,15 +11,6 @@ const ALLOW_PATH_SEGMENTS = ["__tests__", "/.storybook/", "/storybook-static/"];
 
 const ALLOW_FILE_SUFFIXES = [".test.tsx", ".test.ts", ".stories.tsx", ".stories.ts"];
 
-// Files whose entire purpose is to BE a typographic primitive (avatars whose
-// rendered glyph happens to use mono uppercase, custom site eyebrows, etc.).
-// New consumers go through `<Eyebrow>` from `@compozy/ui`; these declare it.
-const ALLOW_FILE_PATHS = [
-  "/packages/site/components/blog/mono-eyebrow.tsx",
-  "/packages/site/components/blog/date-stamp.tsx",
-  "/packages/site/components/blog/kind-chip.tsx",
-];
-
 // Structural HTML elements that legitimately receive eyebrow typography directly
 // (because they are the load-bearing semantic node for their context — `<dt>` in a
 // definition list, `<label>` for form controls, `<th>` table heads, breadcrumb
@@ -82,9 +73,6 @@ function isExemptPath(filename) {
   }
   for (const suf of ALLOW_FILE_SUFFIXES) {
     if (normalized.endsWith(suf)) return true;
-  }
-  for (const path of ALLOW_FILE_PATHS) {
-    if (normalized.endsWith(path) || normalized.includes(path)) return true;
   }
   return false;
 }

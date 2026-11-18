@@ -30,7 +30,7 @@ starting --> active: runtime restored
 active --> stopping: stop requested
 active --> stopping: shutdown or process exit
 stopping --> stopped: finalization complete`}
-  caption="CompozyOS creates an active logical session without starting ACP. Its first prompt binds a runtime; stopping normally finalizes the session through `stopping`."
+  caption="CompozyOS creates an active logical session without starting ACP. Its first prompt binds a runtime; stopping normally finalizes the session through the stopping state."
 />
 
 | State      | Meaning                                                                                                                                                                                                                                  | Valid live transition |
@@ -102,6 +102,18 @@ provider accepts. Routes refused before ACP acceptance are recorded as `session.
 `provider_failure` transcript markers; `runtime.effective` on `GET /api/sessions/{id}` shows the route that
 was accepted. See [provider recovery](/docs/agents/providers#recover-from-a-provider-refusal-before-acceptance).
 
+A continuation with an explicit provider/runtime selection uses that exact selection instead of walking the agent's
+fallback chain. If it cannot start, the request reports the launch failure and the new session
+remains unbound with a runtime diagnostic. The Continue dialog sends the full runtime displayed
+when you confirm, including model, reasoning effort, and speed, even when you keep its defaults.
+
+In the dialog's advanced options, **Provider default** launches the value the provider advertises as
+its default, sent as an explicit value because an omitted option keeps inheriting from the agent. If
+the provider advertises no default, Continue asks you to choose a value. Continue also refuses, before
+creating anything, a Cursor effort, speed, and thinking combination the model does not advertise, and
+an advanced setting you chose that the model no longer offers. An inherited unrestricted option that
+the agent's permission level excludes is not shown as active and is not sent.
+
 ### Creation provenance
 
 A session created from inside another session records that origin in its `lineage`:
@@ -139,7 +151,12 @@ parent:
 `continue` and `fork` sessions also carry `origin_agent_name`, and forks carry `origin_message_id`.
 Their `parent_session_id` names the source as provenance only: a continued or forked session is a new
 top-level session, so session lists show it as its own row rather than under its source, and it is not
-counted as the source's child (it never keeps the source alive). Spawned, provenance, and recovery
+counted as the source's child (it never keeps the source alive). A continuation keeps its predecessor's
+place in the list, though: continuing a child session (for example, one interrupted by a daemon
+restart) nests the new session under the same parent, and its catalog row carries that parent as
+`tree_parent_session_id`. Deleting an earlier continuation in the chain keeps that place; deleting
+the original child session, whose parent is the only record of the place, shows its continuations as
+top-level rows again. A continuation's permissions and lifecycle stay those of a top-level session. Spawned, provenance, and recovery
 sessions are children of their parent. The `parent=`/`root=` catalog filters match the stored fields
 as-is, so they include continued and forked sessions; read `lineage.kind` to tell them apart.
 A plain create accepts only `provenance` or `recovery`, and only together with a parent:
@@ -276,9 +293,18 @@ sign-in to come back and retries on its own, for every ACP provider:
   `runtime_recovery_started`, `runtime_recovery_succeeded`, and `runtime_recovery_exhausted` events
   and hooks report progress.
 
-When the window ends without a sign-in, the turn fails exactly as before: one terminal error with the
-usual `provider_error` guidance. Later turns in that session then fail right away instead of waiting
-again, until a turn completes. Cancelling the prompt stops the wait. Set
+When the window ends without a sign-in, the turn ends with one terminal error, login guidance, and
+`waiting-for-auth` attention. After signing in, send another prompt: CompozyOS stops the stale
+provider process and reloads the same conversation before sending it. A successful provider auth
+probe or Usage refresh also reloads matching auth-failed sessions in that profile, and wakes a retry
+immediately when recovery is still in progress, including a runtime-exit retry. Healthy sessions and other providers or
+account routes stay intact. A probe without a profile selector uses the default profile (or its
+calling managed session profile); Usage carries its selected profile. The exhausted automatic wait
+remains spent until a turn completes or the provider changes. Cancelling the prompt stops the wait.
+A runtime-exit retry that discovers a missing native login enters the sign-in recovery window.
+If retries exhaust with a model or configuration rejection, recovery ends with that diagnostic;
+it does not keep asking for sign-in or permission. The pinned model remains unchanged.
+Set
 `session.auth_recovery.enabled = false` to turn the wait off.
 
 Automatic replay can repeat a tool or external side effect whose completion was not persisted before
@@ -367,6 +393,11 @@ modes so operators and agents do not have to guess what happens when a prompt is
 `session.busy_input.default_mode` defaults to `steer`; `session.busy_input.queue_cap` bounds
 operator input in the persisted queue, and agent messages hold a separate pool of the same size.
 Monitor wakes merge into one row per session, so they never refuse the operator.
+Without native steering, operator guidance waits for active tools (`pending_boundary`)
+for up to `session.busy_input.steer_boundary_timeout` (`45s`). When all tools finish, or the
+timeout expires, the turn is canceled and the replacement runs. With no tool events, guidance
+queues after the turn (`after_turn`). `"0s"` restores immediate fallback; explicit interrupt
+is always immediate.
 
 The Web composer is available for active and eligible stopped `user`, `system`, `coordinator`, and
 `spawned` sessions. While one of these sessions is busy, the Web controls can queue a prompt, steer
@@ -433,7 +464,7 @@ wake is waiting to be delivered, until the watch expires after `session.messagin
 Opening a session, subscribing to its events, and provider-wait heartbeats do not renew work evidence.
 
 Inspect `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning`
-with `compozy session status <id> -o json`, the session resource, or `compozy__session_describe`.
+with `compozy session status <id> -o json`, the session resource, or `compozy__session_describe` with `result_view: "full"`.
 Signals are rebuilt from their owners after restart. They are not persisted as keep-alive flags.
 Expired evidence stops counting as work. A stale tool, stopping child, or Loop raises attention;
 a source inspection error is `unknown`, raises attention, and prevents an automatic inactivity stop
@@ -754,7 +785,8 @@ curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/st
 outcome, including the unverified attention branch. An already stopped session returns 200 without
 starting another operation. Closing the requesting client does not abandon an accepted stop.
 The governed native tool `compozy__session_stop` accepts the same `wait` choice and outcome fields.
-Its existing approval and same-workspace, non-self target rules still apply.
+Its approval and non-self target rules still apply. The target's workspace and profile are checked
+through the [workspace access policy](/docs/sessions/permissions#cross-workspace-access).
 
 For compatibility through v0.4, HTTP/UDS requests that omit `wait` retain synchronous 204 responses
 with a migration warning. Native calls that omit `wait` retain the previous synchronous result and
@@ -892,6 +924,59 @@ CompozyOS preserves or restores catalog truth instead of reporting a partially d
 Removing a session leaves its child sessions in place as top-level sessions. Add `--with-children`
 (`with_children=true` over HTTP and UDS) to remove them too, deepest first. Removal is not atomic: on
 a failure, the sessions it did not reach remain and the error names the child that failed.
+
+### Cleaning up archived history
+
+Archived sessions pile up. To delete many at once, open the Archived view in the sessions sidebar
+and choose **Clean up history…** in its footer. Pick what to delete and how old it must be:
+
+- **Everything** deletes each archived session with its child sessions and subagents. It is the
+  default, and it includes the other two choices.
+- **Child sessions** or **Subagents** alone delete only those and keep the main sessions.
+- **Archived** picks sessions archived more than 7, 15, or 30 days ago (7 is the default), before a
+  date you choose, or at any time. Child sessions and subagents follow their main session's
+  archive date.
+
+The dialog counts every session the cleanup deletes before you confirm, and the Delete button shows
+the same number. Above 100 sessions you type that number to confirm. Under All projects the count is
+also broken down per project.
+
+The cleanup runs in the background, a few sessions at a time, through the same path as a single
+removal. You can close the dialog while it runs; the footer shows `Deleting… X of N`, and **Stop**
+ends it after the deletes in progress. Sessions already deleted stay deleted.
+
+Only archived sessions are deleted:
+
+- A child session that is still in your session list or in Later stays, along with everything
+  under it.
+- A session archived after the count stays, so the cleanup never deletes more than the dialog
+  showed.
+- A session restored after the cleanup started is skipped.
+- An always-on agent's main session is never deleted.
+- Worktrees stay, as they do when you remove one session.
+
+If some sessions can't be deleted, the dialog lists each archived session that kept them, and
+**Try again** retries only those.
+
+The same cleanup is available to scripts and agents. It previews by default; nothing is deleted
+until you ask for it:
+
+```bash
+compozy session cleanup                                  # preview the current workspace
+compozy session cleanup --older-than 30 --all-workspaces --yes
+compozy session cleanup --subagents --any-time --yes     # keep main sessions
+compozy session cleanup status
+compozy session cleanup stop
+```
+
+Over HTTP and UDS, `POST /api/sessions/history-cleanup` previews with `dry_run: true` and otherwise
+starts the run (`202`). A preview returns `counted_at`; send it back with the start to delete no
+more than that preview counted. `GET /api/sessions/history-cleanup` reads the profile's running or latest
+run, and `POST /api/sessions/history-cleanup/stop` stops it. Each profile runs one cleanup at a
+time; a second start returns `409`. These routes are operator-only. Agents use
+`compozy__session_cleanup`: it previews unless `dry_run` is `false`, and deleting needs approval.
+While a run progresses, the catalog stream sends `session_catalog_changed` with kind
+`history_cleanup` for its profile, and a `deleted` event for each session it removes.
 
 ## Failure diagnostics
 

@@ -310,13 +310,16 @@ func (m *Manager) validateDeriveSource(ctx context.Context, spec deriveSpec, sna
 			return deriveErr(ErrDeriveSourceArchived, "session %s is archived; unarchive it first", spec.sourceID)
 		}
 	}
-	fences := spec.fences
+	return nil
+}
+
+func validateDeriveTranscript(fences DeriveFences, snapshot *deriveSnapshot) error {
 	if fences.ExpectedEpoch != nil && (*fences.ExpectedEpoch != snapshot.epoch ||
 		*fences.ExpectedGeneration != snapshot.generation ||
 		*fences.ExpectedMaxSequence != snapshot.maxSequence) {
 		return deriveErr(ErrDeriveFenceConflict, "transcript changed since the fences were read")
 	}
-	return nil
+	return snapshot.cutErr
 }
 
 // resolveDeriveTargetAgent resolves the child's agent in the source workspace.

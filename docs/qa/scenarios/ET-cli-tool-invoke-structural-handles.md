@@ -24,3 +24,9 @@ not a terminal verdict for this scenario.
 2026-10-02: Reopened the structural-redaction bug after native tool discovery schemas diverged between generic CLI invocation and direct HTTP/UDS. Public schema types and required-field names must remain usable even when a field describes credential requirements.
 
 2026-10-02 completed replay: full structured CLI/HTTP/UDS parity, successful cursor/hash/tool-ID reuse, cross-workspace refusals, live sensitive-key and free-text redaction, and removal/host cleanup all passed. Fix `196cd3010`; affected local gate green.
+
+QA impact 2026-11-10 — Native result views: inspect the default compact result and
+repeat with `result_view: "full"`. Reuse identity, follow-up fences and TTL values;
+permission policy and diagnostic detail require full. The bounded result-view walk
+is recorded in [the S10 report](../reports/2026-11-10-native-result-views.md); it does
+not replace this scenario's broader historical redaction/wake matrix.

@@ -1,0 +1,290 @@
+/* The journey panel: steps, counted work, notices, actions and technical details. */
+
+/* ── Panel: the journey ──────────────────────────────────────────────────────────────── */
+
+.boot__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 24px 24px 20px;
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.boot__steps {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.boot__step {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.boot__step::before {
+  content: "";
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--point);
+}
+.boot__step::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 3.5px;
+  inset-inline: 16px 8px;
+  block-size: 1px;
+  background: var(--line);
+}
+.boot__step:last-child::after {
+  display: none;
+}
+.boot__step[data-status="done"] {
+  color: var(--fg-2);
+}
+.boot__step[data-status="done"]::before,
+.boot__step[data-status="done"]::after {
+  background: var(--point-done);
+}
+.boot__step[data-status="current"],
+.boot__step[data-status="failed"] {
+  color: var(--strong);
+  font-weight: 500;
+}
+.boot__step[data-status="current"]::before {
+  background: var(--tone);
+  animation: boot-blink 2.4s var(--ease-loop) infinite;
+}
+.boot__step[data-status="failed"]::before {
+  background: var(--danger);
+}
+.boot__step-meta {
+  display: block;
+  min-block-size: 16px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 450;
+  font-variant-numeric: tabular-nums;
+}
+
+.boot__work {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  margin-block-start: 22px;
+  padding-block-start: 20px;
+  border-block-start: 1px solid var(--line);
+}
+.boot__work-head,
+.boot__work-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.boot__work-name {
+  margin: 0;
+  color: var(--strong);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: -0.01em;
+}
+.boot__work-count {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.boot__work-count b {
+  color: var(--strong);
+  font-size: 15px;
+  font-weight: 500;
+}
+.boot__field {
+  margin-block: 16px 14px;
+}
+.boot__work-foot {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.boot__work-foot span:last-child {
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.boot__notice {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  margin-block-start: auto;
+  padding-block-start: 14px;
+  border-block-start: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+.boot__notice::before {
+  content: "";
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--point-done);
+}
+.boot__notice[data-tone="warning"]::before {
+  background: var(--warning);
+}
+.boot__notice p {
+  margin: 0;
+}
+.boot__notice strong {
+  display: block;
+  color: var(--strong);
+  font-weight: 500;
+}
+.boot__notice-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Actions and diagnostics ─────────────────────────────────────────────────────────── */
+
+.boot__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: 22px;
+}
+.boot[data-layout="center"] .boot__actions {
+  justify-content: center;
+}
+.boot__btn,
+.boot__link,
+.boot__panel,
+.boot__runner-track {
+  -webkit-app-region: no-drag;
+}
+.boot__btn {
+  min-block-size: 34px;
+  border: 0;
+  border-radius: 999px;
+  padding-inline: 16px;
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 120ms var(--ease);
+}
+.boot__btn:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.boot__btn[data-size="sm"] {
+  min-block-size: 28px;
+  padding-inline: 12px;
+  font-size: 12px;
+}
+.boot__btn[data-variant="primary"] {
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+.boot__btn[data-variant="primary"]:hover:not(:disabled) {
+  background: var(--primary-hover);
+  box-shadow: none;
+}
+.boot__btn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+.boot__btn:focus-visible,
+.boot__link:focus-visible {
+  /* The product focus ring; the transparent outline stays visible in forced-colors mode. */
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
+}
+.boot__technical {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+}
+.boot__panel-title {
+  margin: 22px 0 0;
+  padding-block-start: 18px;
+  border-block-start: 1px solid var(--line);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 450;
+}
+/* A failure before any journey step has no step list: details open the panel. */
+.boot__steps:empty ~ .boot__technical .boot__panel-title {
+  margin-block-start: 0;
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+.boot__diagnostics {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  margin: 12px 0 0;
+  overflow-y: auto;
+}
+.boot__diagnostics div {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 12px;
+}
+.boot__diagnostics dt {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.boot__diagnostics dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.boot__panel-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: auto;
+  padding-block-start: 16px;
+}
+.boot__result {
+  position: absolute;
+  inset-block-end: 54px;
+  inset-inline-end: 56px;
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.boot__result[data-level="success"] {
+  color: var(--success);
+}
+.boot__result[data-level="error"] {
+  color: var(--danger);
+}
+.boot[data-layout="center"] .boot__result {
+  inset-inline: 0;
+  inset-block-end: 52px;
+  text-align: center;
+}

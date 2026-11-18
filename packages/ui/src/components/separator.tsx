@@ -49,7 +49,7 @@ function Separator({
           data-slot="separator-label"
           className={cn(
             "eyebrow shrink-0",
-            tone === "brand" ? "text-brand" : "text-subtle",
+            tone === "brand" ? "text-brand-strong" : "text-subtle",
             labelClassName
           )}
         >

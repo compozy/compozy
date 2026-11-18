@@ -1,10 +1,14 @@
 // Pure derivation of the session's undecided permission requests from the
 // transcript messages — the composer decision dock's data source. The runtime
 // appends permission data parts per request; the latest part per `request_id`
-// carries the current state, and a part with no normalized decision is pending.
+// carries the current state, and a part without a terminal outcome is pending.
 
 import type { PermissionDecision } from "../adapters/session-api";
-import { normalizePermissionDecision, toPermissionRequest } from "./message-parts";
+import {
+  normalizePermissionDecision,
+  permissionCancellationStatus,
+  toPermissionRequest,
+} from "./message-parts";
 import { primaryPermissionSubject } from "./permission-subject";
 import type { CompozyPermissionData, PermissionRequest } from "../types";
 
@@ -70,7 +74,11 @@ function latestPermissionParts(
 export function derivePendingPermissions(messages: readonly MessageLike[]): PermissionRequest[] {
   const pending: PermissionRequest[] = [];
   for (const data of latestPermissionParts(messages).values()) {
-    if (normalizePermissionDecision(data.decision) !== null) continue;
+    if (
+      normalizePermissionDecision(data.decision) !== null ||
+      permissionCancellationStatus(data) !== null
+    )
+      continue;
     pending.push(toPermissionRequest(data));
   }
   return pending;

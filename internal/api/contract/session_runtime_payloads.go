@@ -77,6 +77,7 @@ type ReplyWatchPayload struct {
 }
 
 type SessionPayload struct {
+	MCPSummary               *session.MCPSummary                  `json:"mcp_summary,omitempty"`
 	EffectivePermissions     string                               `json:"effective_permissions"`
 	PermissionModeDegraded   bool                                 `json:"permission_mode_degraded"`
 	LinkedWork               *SessionLinkedWorkSummary            `json:"linked_work,omitempty"`
@@ -88,6 +89,7 @@ type SessionPayload struct {
 	PullRequestLookup        *SessionPullRequestLookupPayload     `json:"pull_request_lookup"`
 	BoardColumn              session.BoardColumn                  `json:"board_column"`
 	ParentTitle              string                               `json:"parent_title,omitempty"`
+	TreeParentSessionID      string                               `json:"tree_parent_session_id,omitempty"`
 	WaitingOn                session.WaitingOn                    `json:"waiting_on,omitempty"`
 	Children                 *SessionChildrenPayload              `json:"children,omitzero"`
 	EffectiveWorkspaceAccess string                               `json:"effective_workspace_access"`

@@ -85,3 +85,5 @@ If identity becomes unreadable after acquisition, report the lookup error withou
 revision/generation or allowing takeover. With procfs restricted at initial creation, daemon
 and desktop startup retain timestamp-based identity. Close the app while a fenced CLI waits;
 the next local presence read must return the staged handoff with version and attempt details.
+
+2026-11-12 boot window redesign (#1549): a failed boot keeps the journey layout. The failed step is red and names its attempt (`Start · 5 of 5`, the attempt bound is now 5 in `app-state.schema.json`). Try again, Open logs and Quit sit under the message, and Technical details opens in the panel with Load, Copy and Export diagnostics. A step that stops advancing for two minutes shows "No progress for N minutes" with Open logs and Diagnostics before any error. Walk addition: stall a replacement migration and confirm that notice appears before the CLI's 5-minute stall failure. Status reset to untested.

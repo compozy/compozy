@@ -27,12 +27,7 @@ func applyCollectionLifecycle(
 			configLifecycle = lifecycle.LiveRemoveIfUnused
 		}
 	case CollectionMCPServers:
-		if operation == collectionMutationPut && !existedBefore {
-			configLifecycle = lifecycle.LiveAdd
-		}
-		if operation == collectionMutationDelete {
-			configLifecycle = lifecycle.LiveRemoveIfUnused
-		}
+		configLifecycle = lifecycle.Live
 	case CollectionHooks:
 		configLifecycle = lifecycle.RestartRequired
 	}

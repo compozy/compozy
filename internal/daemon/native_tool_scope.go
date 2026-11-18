@@ -107,6 +107,7 @@ func nativeAllowsMissingWorkspace(id toolspkg.ToolID) bool {
 		toolspkg.ToolIDSessionDescribe,
 		toolspkg.ToolIDSessionArchive,
 		toolspkg.ToolIDSessionUnarchive,
+		toolspkg.ToolIDSessionCleanup,
 		toolspkg.ToolIDSessionLater,
 		toolspkg.ToolIDSessionResumeLater,
 		toolspkg.ToolIDSessionMarkSeen:
@@ -158,17 +159,6 @@ func (n *daemonNativeTools) nativeWorkspaceID(
 	return workspaceID, nil
 }
 
-func nativeResolvedWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) (string, error) {
-	if resolved == nil {
-		return "", errors.New("daemon: resolved workspace is required")
-	}
-	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
-	if workspaceID == "" {
-		return "", errors.New("daemon: resolved workspace_id is empty")
-	}
-	return workspaceID, nil
-}
-
 func nativeResolvedRegistryWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) (string, error) {
 	if resolved == nil {
 		return "", errors.New("daemon: resolved workspace is required")
@@ -204,10 +194,14 @@ func (n *daemonNativeTools) nativeSessionInWorkspace(
 	// authorization a User-scope session of another profile stays out of reach.
 	if err == nil && workspaceID == "" && (info.ProfileID != scope.ProfileID || scope.ProfileID == "") &&
 		!toolspkg.SessionTargetAuthorized(ctx, info.ID) {
-		return nil, nativeWorkspaceAccessDeniedError(id)
+		return nil, toolspkg.NewWorkspaceAccessDeniedError(id,
+			"this operation requires authorization for the session's User profile")
 	}
 	if errors.Is(err, errSessionOutsideWorkspace) {
-		return nil, nativeWorkspaceAccessDeniedError(id)
+		return nil, toolspkg.NewWorkspaceAccessDeniedError(
+			id,
+			"this operation requires a session in the selected workspace",
+		)
 	}
 	return info, err
 }

@@ -1,3 +1,5 @@
+import { agentKeys } from "@/systems/agent/lib/query-keys";
+import { agentInstanceFixture } from "@/systems/agent/mocks";
 import { notificationKeys } from "@/systems/notifications";
 import {
   QueryClient,
@@ -13,7 +15,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
 import { primarySessionFixture } from "../../mocks/fixtures";
+import { filesKeys } from "@/systems/files";
+
 import { sessionKeys } from "../../lib/query-keys";
+import { sessionChangesKeys } from "../../lib/session-changes-query";
+import {
+  requestSessionReviewChanges,
+  sessionReviewPanelStore,
+  useSessionReviewPanelState,
+} from "../use-session-review-panel-state";
 import {
   sessionDetailOptions,
   sessionExpiredInteractionsOptions,
@@ -263,29 +273,34 @@ describe("useSessionCatalogStreams", () => {
     );
     const relayed = vi.mocked(fetchSessionPendingWithDescendants);
     const expired = vi.mocked(fetchSessionInteractions);
+    const readCounts = () => ({
+      canceled: expired.mock.calls.filter(([, , options]) => options?.status === "canceled").length,
+      timedOut: expired.mock.calls.filter(([, , options]) => options?.status === "timed_out")
+        .length,
+    });
     const settle = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
 
     await settle(1);
     expect(result.current.streamCovered).toBe(false);
     // Before the stream is live both reads keep their fallback polls.
     await settle(5_000);
-    expect(expired).toHaveBeenCalledTimes(2);
+    expect(readCounts()).toEqual({ canceled: 2, timedOut: 2 });
 
     act(() => source!.emit("open"));
     expect(result.current).toEqual({ streamCovered: true, foreignCovered: false });
     await settle(5_000);
     let relayedLive = relayed.mock.calls.length;
-    let expiredLive = expired.mock.calls.length;
+    let expiredLive = readCounts().canceled;
     // Only the 30s safety cadence remains, so neither 5s nor 15s fallback poll fires.
     await settle(15_000);
     expect(relayed).toHaveBeenCalledTimes(relayedLive);
-    expect(expired).toHaveBeenCalledTimes(expiredLive);
+    expect(readCounts()).toEqual({ canceled: expiredLive, timedOut: expiredLive });
     // The safety cadence still re-reads both covered reads while the stream stays live.
     await settle(15_000);
     expect(relayed).toHaveBeenCalledTimes(relayedLive + 1);
-    expect(expired).toHaveBeenCalledTimes(expiredLive + 1);
+    expect(readCounts()).toEqual({ canceled: expiredLive + 1, timedOut: expiredLive + 1 });
     relayedLive = relayed.mock.calls.length;
-    expiredLive = expired.mock.calls.length;
+    expiredLive = readCounts().canceled;
 
     // A catalog change in the read's workspace re-reads both; another workspace does not.
     act(() =>
@@ -306,7 +321,7 @@ describe("useSessionCatalogStreams", () => {
     );
     await settle(5_000);
     expect(relayed).toHaveBeenCalledTimes(relayedLive + 1);
-    expect(expired).toHaveBeenCalledTimes(expiredLive + 1);
+    expect(readCounts()).toEqual({ canceled: expiredLive + 1, timedOut: expiredLive + 1 });
 
     // Once the stream is lost past its grace the fallback polls return.
     act(() => source!.emit("error"));
@@ -314,7 +329,8 @@ describe("useSessionCatalogStreams", () => {
     expect(result.current.streamCovered).toBe(false);
     await settle(15_000);
     expect(relayed.mock.calls.length).toBeGreaterThan(relayedLive + 1);
-    expect(expired.mock.calls.length).toBeGreaterThan(expiredLive + 1);
+    expect(readCounts().canceled).toBeGreaterThan(expiredLive + 1);
+    expect(readCounts().timedOut).toBeGreaterThan(expiredLive + 1);
 
     unmount();
     expect(client.getQueryData(sessionKeys.catalogStreamStatus(source!.url))).toBe("disabled");
@@ -376,6 +392,38 @@ describe("useSessionCatalogStreams", () => {
 
     unmount();
     client.clear();
+  });
+
+  // UT-040: a pick, an auto pick or a finished check-in rereads that instance's report state.
+  it("Should mark an updated instance's reports and check-ins stale, and only that instance's", () => {
+    const queryClient = new QueryClient();
+    const own = [
+      agentKeys.instanceProjectedReports("ainst-1"),
+      agentKeys.instanceCheckIns("ainst-1"),
+    ];
+    const other = agentKeys.instanceProjectedReports("ainst-2");
+    for (const key of [...own, other]) queryClient.setQueryData(key, []);
+    const sources: FakeCatalogEventSource[] = [];
+    const { unmount } = renderHook(
+      () =>
+        useSessionCatalogStreams({
+          eventSourceFactory: url => {
+            const source = new FakeCatalogEventSource(url);
+            sources.push(source);
+            return source;
+          },
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    const live = sources.find(source => !source.closed);
+    act(() => {
+      live?.emit("agent_instance.updated", agentInstanceFixture({ id: "ainst-1" }));
+    });
+
+    for (const key of own) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(other)?.isInvalidated).toBe(false);
+    unmount();
   });
 
   it("Should keep late source status events behind the current connection generation", () => {
@@ -701,8 +749,34 @@ describe("useSessionCatalogStreams", () => {
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLayouts() });
     expect(invalidate).not.toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
-      expect.anything()
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") })
+    );
+  });
+
+  // #1717: a history cleanup's progress names only its profile; the run rereads, the lists wait
+  // for the per-session `deleted` events.
+  it("Should reread the history cleanup run on its progress without waking the lists", () => {
+    const queryClient = createQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    renderHook(() => useSessionCatalogStreams({ eventSourceFactory: factory }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    act(() => {
+      source.emit("session_catalog_changed", {
+        kind: "history_cleanup",
+        profile_id: "default",
+        profile_name: "default",
+        workspace_id: "",
+        session_id: "",
+      });
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.historyCleanup() });
+    expect(invalidate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") })
     );
   });
 
@@ -1415,6 +1489,62 @@ describe("useSessionCatalogStreams", () => {
       expect(fetchSessionTranscript).not.toHaveBeenCalled();
     }
   );
+
+  it("Should drop the old checkout's files and Changes and reset the Review panel on a location transition", async () => {
+    // Invariant: after the session's checkout changes, the Review panel never shows the previous
+    // checkout's files, search or diffs, and nothing chosen there (focused change, Changes base) carries over. Other sessions keep theirs. Owner: catalog reconciliation.
+    const queryClient = createQueryClient();
+    const root = { kind: "session" as const, workspaceId: WORKSPACE_ID, sessionId: SESSION_ID };
+    const entriesKey = filesKeys.entries(root, "", true);
+    const contentKey = filesKeys.content(root, "a.ts", false);
+    const changesKey = sessionChangesKeys.summary({
+      workspaceId: WORKSPACE_ID,
+      sessionId: SESSION_ID,
+    });
+    const otherKey = filesKeys.entries({ ...root, sessionId: "sess_other" }, "", true);
+    for (const key of [entriesKey, contentKey, changesKey, otherKey]) {
+      queryClient.setQueryData(key, { from: "old-checkout" });
+    }
+    vi.mocked(fetchSession).mockResolvedValue(sessionWithState("active"));
+    requestSessionReviewChanges(SESSION_ID, { path: "a.ts" });
+    sessionReviewPanelStore.trigger.changesPreferenceChanged({
+      sessionId: SESSION_ID,
+      patch: { base: "origin/old" },
+    });
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const { result } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        return useSessionReviewPanelState(SESSION_ID);
+      },
+      { wrapper: wrapper(queryClient) }
+    );
+    expect(result.current.focusedChange?.path).toBe("a.ts");
+    const rootKey = result.current.rootKey;
+
+    act(() => {
+      sources[0]?.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: WORKSPACE_ID,
+        session_id: SESSION_ID,
+        execution_location_changed: true,
+      });
+    });
+
+    await waitFor(() => expect(result.current.rootKey).toBe(rootKey + 1));
+    await waitFor(() => expect(queryClient.getQueryData(entriesKey)).toBeUndefined());
+    expect(queryClient.getQueryData(contentKey)).toBeUndefined();
+    expect(queryClient.getQueryData(changesKey)).toBeUndefined();
+    expect(queryClient.getQueryData(otherKey)).toEqual({ from: "old-checkout" });
+    expect(result.current.focusedChange).toBeNull();
+    expect(result.current.base).toBeUndefined();
+    expect(result.current.rootKey).toBe(rootKey + 1);
+  });
 
   it.each([false, true])(
     "Should wake a stopped session's mounted transcript after detail settles (upsert then layout during prior read: %s)",

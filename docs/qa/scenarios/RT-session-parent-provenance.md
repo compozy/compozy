@@ -20,4 +20,11 @@ Added by the session parent-provenance backend (2026-08-06): provenance-light li
 sessions across native tool, CLI, and HTTP/UDS create paths plus parent/root catalog filters.
 Flag only — walk in the next QA cycle.
 
+Release v0.7.1 regression: create a worktree-bound user session with `parent_session_id`,
+then call `compozy__session_changes` through its hosted MCP connection. The granted native
+tool remains callable and agrees with HTTP, UDS, and CLI. A provenance link must not turn
+the session's inherited native tools into an empty delegated ceiling. The existing
+`TestDaemonSearchSessionFilesWorktreeBoundIT005` Changes parity case owns this check;
+release-mode validation runs in CI.
+
 2026-08-06 walked in lab compozy-session-sidebar-parent-20260806-212647: CLI explicit --parent (parent/root/depth-1, user type, no governance fields), chained depth 2 under the original root, list --parent/--root filters (JSON + human Parent column), missing-parent and distinct-workspace rejections, HTTP explicit parent_session_id, and HTTP identity-header inference all passed live. Native-tool auto-link and reaper exclusion are covered by race-enabled suites (TestDaemonNativeTools, TestSpawnReaperSweep) since the lab carries no provider credentials. Verdict: pass.

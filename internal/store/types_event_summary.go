@@ -41,6 +41,16 @@ type EventSummaryContentState struct {
 
 // Validate ensures the summary contains the required identifying fields.
 func (s EventSummary) Validate() error {
+	return s.validate(false)
+}
+
+// ValidateUserSession validates a summary of a session that the catalog records
+// in the User scope, which has no workspace registration.
+func (s EventSummary) ValidateUserSession() error {
+	return s.validate(true)
+}
+
+func (s EventSummary) validate(userSession bool) error {
 	if err := requireField(s.ProfileID, "event summary profile_id"); err != nil {
 		return err
 	}
@@ -57,8 +67,10 @@ func (s EventSummary) Validate() error {
 	if eventSummaryAllowsGlobalScope(eventType) {
 		return nil
 	}
-	if err := requireField(s.WorkspaceID, "event summary workspace_id"); err != nil {
-		return err
+	if !userSession {
+		if err := requireField(s.WorkspaceID, "event summary workspace_id"); err != nil {
+			return err
+		}
 	}
 	if err := requireField(s.SessionID, "event summary session id"); err != nil {
 		return err

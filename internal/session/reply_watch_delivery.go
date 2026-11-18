@@ -82,7 +82,12 @@ func (s *replyWatchService) Deliver(ctx context.Context, id string) error {
 		return err
 	}
 	s.manager.logger.InfoContext(ctx, "reply_watch.delivered", "id", id, "route", "queued")
-	s.manager.startTrackedPromptTask(func() { s.manager.startNextQueuedInputPrompt(sender.ID) })
+	s.manager.startTrackedPromptTask(func() {
+		s.manager.startNextQueuedInputPrompt(sender.ID)
+		if session, ok := s.manager.Get(sender.ID); ok {
+			s.manager.schedulePromoteLongTurnQueuedInputs(session)
+		}
+	})
 	return nil
 }
 

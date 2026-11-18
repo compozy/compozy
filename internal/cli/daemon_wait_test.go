@@ -341,6 +341,141 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 		}
 	})
 
+	// Invariant: withdrawing discovery does not prove the signaled process has finished writing.
+	// Owner: CLI daemon lifecycle; canonical suite: daemon_wait_test.go.
+	t.Run("Should wait for process exit after discovery is removed or replaced", func(t *testing.T) {
+		t.Parallel()
+		for _, replacement := range []bool{false, true} {
+			name := "Should wait after discovery removal"
+			if replacement {
+				name = "Should wait after discovery replacement"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				deps := newTestDeps(t, &stubClient{}).withDefaults()
+				deps.pollInterval = time.Millisecond
+				info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+				deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+					if replacement {
+						return compozydaemon.Info{PID: 43, StartedAt: fixedTestNow.Add(time.Second)}, nil
+					}
+					return compozydaemon.Info{}, os.ErrNotExist
+				}
+				if !replacement {
+					deps.inspectProcess = func(int) (procutil.ScannedProcess, error) {
+						return procutil.ScannedProcess{}, errors.New("process inspection unavailable")
+					}
+				}
+				aliveChecks := 0
+				deps.processAlive = func(pid int) bool {
+					if pid != info.PID {
+						t.Fatalf("processAlive() PID = %d, want original PID %d", pid, info.PID)
+					}
+					aliveChecks++
+					return aliveChecks < 3
+				}
+				runtime, err := loadRuntimeContext(deps)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+				defer cancel()
+				status, err := waitForDaemonStop(ctx, deps, runtime, info)
+				if err != nil || status.Status != "stopped" || status.PID != info.PID || aliveChecks != 3 {
+					t.Fatalf(
+						"waitForDaemonStop() = %#v, %v; process probes = %d, want stopped after exit",
+						status,
+						err,
+						aliveChecks,
+					)
+				}
+			})
+		}
+	})
+
+	// Invariant: a recycled PID cannot keep the original daemon alive.
+	t.Run("Should report stopped when the PID belongs to another process", func(t *testing.T) {
+		t.Parallel()
+		deps := newTestDeps(t, &stubClient{}).withDefaults()
+		info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+		deps.processAlive = func(int) bool { return true }
+		deps.inspectProcess = func(pid int) (procutil.ScannedProcess, error) {
+			if pid != info.PID {
+				t.Fatalf("process identity = %d, want %d", pid, info.PID)
+			}
+			return procutil.ScannedProcess{PID: pid, StartedAt: info.StartedAt.Add(time.Minute)}, nil
+		}
+		deps.processOwnsFileLock = func(int, string) (bool, error) { return false, nil }
+		runtime, err := loadRuntimeContext(deps)
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, err := waitForDaemonStop(t.Context(), deps, runtime, info)
+		if err != nil || status.Status != "stopped" || status.PID != info.PID {
+			t.Fatalf("recycled PID status=%+v err=%v", status, err)
+		}
+	})
+
+	// Invariant: unreadable identity or clock drift is not proof that the daemon exited.
+	// Owner: CLI daemon lifecycle; canonical suite: TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits.
+	for _, test := range []struct {
+		name       string
+		inspectErr error
+		lockHeld   bool
+		lockErr    error
+	}{
+		{name: "Should wait through an unavailable process lookup", inspectErr: errors.New("lookup unavailable")},
+		{name: "Should wait through start-time drift while the daemon owns its lock", lockHeld: true},
+		{name: "Should wait through an unavailable lock-owner lookup", lockErr: os.ErrPermission},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			deps := newTestDeps(t, &stubClient{}).withDefaults()
+			deps.pollInterval = time.Millisecond
+			info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+			checks := 0
+			deps.processAlive = func(int) bool { checks++; return checks < 3 }
+			deps.inspectProcess = func(pid int) (procutil.ScannedProcess, error) {
+				return procutil.ScannedProcess{PID: pid, StartedAt: info.StartedAt.Add(time.Hour)}, test.inspectErr
+			}
+			deps.processOwnsFileLock = func(int, string) (bool, error) { return test.lockHeld, test.lockErr }
+			runtime, err := loadRuntimeContext(deps)
+			if err != nil {
+				t.Fatal(err)
+			}
+			status, err := waitForDaemonStop(t.Context(), deps, runtime, info)
+			if err != nil || status.Status != "stopped" || checks != 3 {
+				t.Fatalf("stop status=%+v err=%v checks=%d, want wait until exit", status, err, checks)
+			}
+		})
+	}
+
+	// Invariant: an exited, unreaped process cannot write to the home and must not delay stop.
+	// Owner: CLI daemon lifecycle; canonical suite: daemon_wait_test.go.
+	t.Run("Should report an unreaped zombie as stopped", func(t *testing.T) {
+		t.Parallel()
+		deps := newTestDeps(t, &stubClient{}).withDefaults()
+		deps.pollInterval = time.Millisecond
+		info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+		deps.processAlive = func(int) bool { return true }
+		deps.inspectProcess = func(pid int) (procutil.ScannedProcess, error) {
+			if pid != info.PID {
+				t.Fatalf("inspectProcess() PID = %d, want %d", pid, info.PID)
+			}
+			return procutil.ScannedProcess{PID: pid, Zombie: true}, nil
+		}
+		runtime, err := loadRuntimeContext(deps)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		status, err := waitForDaemonStop(ctx, deps, runtime, info)
+		if err != nil || status.Status != "stopped" || status.PID != info.PID {
+			t.Fatalf("waitForDaemonStop(zombie) = %#v, %v; want stopped", status, err)
+		}
+	})
+
 	t.Run("Should outlive the daemon graceful shutdown budget", func(t *testing.T) {
 		t.Parallel()
 
@@ -509,6 +644,89 @@ func TestStatusCommandReturnsDaemonStatus(t *testing.T) {
 			}
 		}
 	})
+
+	// UT-026: every row of the _dx.md OTel line table.
+	exported := time.Date(2026, 11, 7, 14, 2, 11, 0, time.UTC)
+	healthy := contract.OTelSignalStatusPayload{Enabled: true, LastExportAt: exported}
+	otelLines := []struct {
+		name string
+		otel *contract.OTelStatusPayload
+		want string
+	}{
+		{name: "Should render OTel disabled", otel: &contract.OTelStatusPayload{State: "disabled"}, want: "disabled"},
+		{
+			name: "Should render OTel inactive when local observability is off",
+			otel: &contract.OTelStatusPayload{State: "inactive_observability_disabled"},
+			want: "inactive (observability.enabled = false)",
+		},
+		{
+			name: "Should render healthy OTel export",
+			otel: &contract.OTelStatusPayload{
+				State: "ok", Protocol: "grpc", EndpointHost: "collector.local:4317", SampleRatio: 0.25,
+				Traces: healthy, Metrics: healthy,
+			},
+			want: "ok · grpc → collector.local:4317 · traces ok, metrics ok · sample 0.25",
+		},
+		{
+			name: "Should render OTel metrics off",
+			otel: &contract.OTelStatusPayload{
+				State: "ok", Protocol: "http/protobuf", EndpointHost: "localhost:4318", SampleRatio: 1, Traces: healthy,
+			},
+			want: "ok · http/protobuf → localhost:4318 · traces ok, metrics off · sample 1.0",
+		},
+		{
+			name: "Should render a degraded OTel signal with its failures",
+			otel: &contract.OTelStatusPayload{
+				State: "degraded", Protocol: "grpc", EndpointHost: "collector.local:4317", SampleRatio: 0.25,
+				Traces: healthy,
+				Metrics: contract.OTelSignalStatusPayload{
+					Enabled: true, LastExportAt: exported, LastErrorClass: "http_401", FailedExports: 12,
+				},
+			},
+			want: "degraded · grpc → collector.local:4317 · traces ok, metrics http_401 (12 failed) · sample 0.25",
+		},
+		{
+			name: "Should render OTel forwarding to providers",
+			otel: &contract.OTelStatusPayload{
+				State: "ok", Protocol: "grpc", EndpointHost: "collector.local:4317", SampleRatio: 0.25,
+				ForwardToProviders: true, Traces: healthy, Metrics: healthy,
+			},
+			want: "ok · grpc → collector.local:4317 · traces ok, metrics ok · sample 0.25 · forwarding to providers",
+		},
+		{
+			name: "Should render OTel signals pending before their first export",
+			otel: &contract.OTelStatusPayload{
+				State: "ok", Protocol: "http/protobuf", EndpointHost: "localhost:4318", SampleRatio: 1,
+				Traces:  contract.OTelSignalStatusPayload{Enabled: true},
+				Metrics: contract.OTelSignalStatusPayload{Enabled: true},
+			},
+			want: "ok · http/protobuf → localhost:4318 · traces pending, metrics pending · sample 1.0",
+		},
+		{name: "Should render unknown OTel status from an older daemon", want: "--"},
+	}
+	for _, tt := range otelLines {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newTestDeps(t, &stubClient{
+				statusFn: func(context.Context) (StatusRecord, error) {
+					return StatusRecord{
+						Daemon: DaemonStatus{Status: "ready", PID: 42, StartedAt: fixedTestNow},
+						OTel:   tt.otel,
+					}, nil
+				},
+			})
+
+			stdout, _, err := executeRootCommand(t, deps, "status")
+			if err != nil {
+				t.Fatalf("executeRootCommand() error = %v", err)
+			}
+			want := "\nOTel:               " + tt.want + "\n"
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("status output = %q, want line %q", stdout, want)
+			}
+		})
+	}
 }
 
 func TestDrainCommandsUpdateDaemonAdmission(t *testing.T) {
@@ -762,6 +980,7 @@ func TestDaemonClockDrift(t *testing.T) {
 				return true, nil
 			}
 			signaled := false
+			deps.processAlive = func(int) bool { return !signaled }
 			deps.signalProcess = func(pid int, signal syscall.Signal) error {
 				if pid != info.PID || signal != syscall.SIGTERM {
 					t.Fatalf("signal = %d, %v", pid, signal)

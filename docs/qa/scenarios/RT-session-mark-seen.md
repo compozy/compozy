@@ -60,3 +60,11 @@ offered Mark as seen only on dismissible sessions, never on the permission sessi
 button cleared the open failed session (footer 3 → 2 → 1). Screenshots are in the PR. Not walked:
 re-failing the same session after a resume (a killed runtime cannot be resumed from the CLI); the
 `trg_sessions_failure_seen_reset` store test owns that re-raise. Lab teardown was clean.
+
+QA impact 2026-11-10 (dismissal response read failure): let the initial Status and fenced
+dismissal succeed, then fail the final Status read. Require the canonical SQLite projection
+to be cleared and exactly one truthful clearing catalog event and attention hook before retry.
+Repeat mark-seen and require no duplicate event/hook or creator wake, including a child with
+notify_creator enabled and a return from Later. The existing Manager dismissal/ordering suite
+executes these SQLite schedules with an injected store read failure. The response still reports
+the read error; CI owns the broader transport/extension journey.

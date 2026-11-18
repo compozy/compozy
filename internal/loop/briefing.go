@@ -37,11 +37,17 @@ type Blocker struct {
 
 // RunOutcome carries the cause-aware terminal settlement and its durable timestamp.
 type RunOutcome struct {
-	Status    Status    `json:"status"`
-	Cause     string    `json:"cause"`
-	ActorKind string    `json:"actor_kind,omitempty"`
-	ActorRef  string    `json:"actor_ref,omitempty"`
-	At        time.Time `json:"at"`
+	Status    Status `json:"status"`
+	Cause     string `json:"cause"`
+	ActorKind string `json:"actor_kind,omitempty"`
+	ActorRef  string `json:"actor_ref,omitempty"`
+	// ReasonCode is the stable code of the terminal decision, such as no_ready_nodes.
+	ReasonCode string `json:"reason_code,omitempty"`
+	// NodeID names the graph node that decided the terminal, when one did.
+	NodeID NodeID `json:"node_id,omitempty"`
+	// Message explains the terminal decision for operators.
+	Message string    `json:"message,omitempty"`
+	At      time.Time `json:"at"`
 }
 
 // ArtifactAvailability states whether produced content can still be read.
@@ -344,6 +350,9 @@ func terminalBriefing(result Briefing, source *BriefingSource) Briefing {
 		result.Headline = terminalHeadline(*result.Outcome)
 	}
 	result.Detail = progressDetail(result.Progress)
+	if message := strings.TrimSpace(result.Outcome.Message); message != "" {
+		result.Detail = message + ". " + result.Detail
+	}
 	return result
 }
 

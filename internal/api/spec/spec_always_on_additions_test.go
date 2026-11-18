@@ -17,15 +17,28 @@ var alwaysOnHardeningAdditions = []struct {
 	pathPrefix string
 	keys       []string
 }{
+	// Managed harness controls are optional additions to these exact public contracts.
+	{"#/components/schemas/AgentEffectiveRuntimePayload", []string{"auto_compact_window", "lean_environment"}},
+	{"#/components/schemas/AgentPayload", []string{"auto_compact_window", "lean_environment"}},
+	{"#/components/schemas/CreateAgentPayload", []string{"auto_compact_window", "lean_environment"}},
+	{"#/components/schemas/DuplicateAgentOverrides", []string{"auto_compact_window", "lean_environment"}},
+	{"#/components/schemas/SettingsProviderSettingsPayload", []string{"auto_compact_window"}},
+	{"#/components/schemas/SettingsProviderWritePayload", []string{"auto_compact_window"}},
 	// Check-in sources add only these reviewed fields to the named wire components.
 	{"#/components/schemas/HeartbeatContextProjectionPayload", []string{"sources"}},
 	{"#/components/schemas/AgentInstancePayload", []string{"sources"}},
+	// #1393: only instances expose whether operator acknowledgement can clear attention.
+	{"#/components/schemas/AgentInstancePayload", []string{"attention_dismissible"}},
 	{"#/components/schemas/AgentInstanceCheckResponse", []string{"sources"}},
 	{"#/components/schemas/AgentInstanceCheckDigest", []string{"source"}},
 	{"#/components/schemas/AgentInstanceProposalSource", []string{"source_id", "source_ref", "item_key", "url"}},
 	{"#/components/schemas/AgentInstanceReportSource", []string{"source_id", "source_ref", "item_key", "url"}},
 	// Every session payload: the mode a session runs at, and whether the reviewer fell back.
 	{"#/", []string{"effective_permissions", "permission_mode_degraded"}},
+	// Held diagnostics are optional additions to these three exact contracts.
+	{"#/components/schemas/SendPromptResultPayload", []string{"held_reason", "held_instance_id"}},
+	{"#/components/schemas/SessionInputPayload", []string{"held_reason", "held_instance_id"}},
+	{"#/components/schemas/WorkSignal", []string{"held_reason", "held_instance_id"}},
 	// Queued input rows: input held while an always-on lineage is paused.
 	{"#/", []string{"held"}},
 	// Agent definitions: operator-only approval reach and exceptions.
@@ -38,6 +51,11 @@ var alwaysOnHardeningAdditions = []struct {
 	{"#/", []string{"unattended_turns", "unattended_turn_limit", "held_wakes", "next_wake"}},
 	// Provider summaries: the reviewer mode the `auto` level selects.
 	{"#/", []string{"reviewer_mode"}},
+	// Agent definitions and reachable peers: the input forms an always-on agent declares.
+	{"#/", []string{"accepts"}},
+	// Agent memory add: note (default) or operator rule.
+	{"#/components/schemas/AgentMemoryAddRequest", []string{"kind"}},
+	{"#/paths/~1api~1agents~1{name}~1memory~1entries", []string{"kind"}},
 	// Session catalog stream notifications carry the permission request they announce.
 	{"#/paths/~1api~1sessions~1catalog-stream", []string{"action", "kind", "resource"}},
 }
@@ -100,16 +118,93 @@ type approvedAdditionWalker struct {
 
 // alwaysOnHardeningEnumValues are the enum members the spec adds; no existing member is removed.
 var alwaysOnHardeningEnumValues = map[string][]string{
-	"#/components/schemas/CreateAgentPayload/properties/permissions":        {"approve-edits", "auto"},
-	"#/components/schemas/DuplicateAgentOverrides/properties/permissions":   {"approve-edits", "auto"},
-	"#/components/schemas/SettingsPermissionsPayload/properties/mode":       {"approve-edits", "auto"},
-	"#/components/schemas/GoalCommandResult/properties/reason_code":         {"goal_on_instance_main"},
-	"#/components/schemas/GoalSnapshot/properties/cause":                    {"goal_on_instance_main"},
-	"#/components/schemas/GoalTurn/properties/reason_code":                  {"goal_on_instance_main"},
-	"#/components/schemas/HeartbeatWakeDecisionPayload/properties/reason":   {"source_poll_in_flight"},
-	"#/components/schemas/HeartbeatWakeEventPayload/properties/reason":      {"source_poll_in_flight"},
-	"#/components/schemas/HeartbeatWakeStatePayload/properties/last_reason": {"source_poll_in_flight"},
-	"#/paths/~1api~1automation~1triggers/get/parameters/schema":             {"agent_instance"},
+	"#/components/schemas/WorkSignal/properties/kind":                     {"held_input"},
+	"#/components/schemas/SignalSourceState/properties/kind":              {"held_input"},
+	"#/components/schemas/CreateAgentPayload/properties/permissions":      {"approve-edits", "auto"},
+	"#/components/schemas/DuplicateAgentOverrides/properties/permissions": {"approve-edits", "auto"},
+	"#/components/schemas/SettingsPermissionsPayload/properties/mode":     {"approve-edits", "auto"},
+	"#/components/schemas/GoalCommandResult/properties/reason_code":       {"goal_on_instance_main"},
+	"#/components/schemas/GoalSnapshot/properties/cause":                  {"goal_on_instance_main"},
+	"#/components/schemas/GoalTurn/properties/reason_code":                {"goal_on_instance_main"},
+	"#/components/schemas/HeartbeatWakeDecisionPayload/properties/reason": {
+		"source_poll_in_flight",
+		"quiet",
+		"reported",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"digest_empty",
+		"digest_unchanged",
+		"policy_disabled",
+		"definition_not_always_on",
+		"definition_missing",
+		"no_slot",
+		"hook_cancelled", //nolint:misspell // Stored spelling.
+		"duplicate_suppressed",
+		"triage_unsupported",
+		"triage_output_invalid",
+		"triage_timeout",
+		"triage_interrupted",
+		"triage_config_unavailable",
+		"triage_failed",
+	},
+	"#/components/schemas/HeartbeatWakeEventPayload/properties/reason": {
+		"source_poll_in_flight",
+		"quiet",
+		"reported",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"digest_empty",
+		"digest_unchanged",
+		"policy_disabled",
+		"definition_not_always_on",
+		"definition_missing",
+		"no_slot",
+		"hook_cancelled", //nolint:misspell // Stored spelling.
+		"duplicate_suppressed",
+		"triage_unsupported",
+		"triage_output_invalid",
+		"triage_timeout",
+		"triage_interrupted",
+		"triage_config_unavailable",
+		"triage_failed",
+	},
+	"#/components/schemas/HeartbeatWakeStatePayload/properties/last_reason": {
+		"source_poll_in_flight",
+		"quiet",
+		"reported",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"digest_empty",
+		"digest_unchanged",
+		"policy_disabled",
+		"definition_not_always_on",
+		"definition_missing",
+		"no_slot",
+		"hook_cancelled", //nolint:misspell // Stored spelling.
+		"duplicate_suppressed",
+		"triage_unsupported",
+		"triage_output_invalid",
+		"triage_timeout",
+		"triage_interrupted",
+		"triage_config_unavailable",
+		"triage_failed",
+	},
+	"#/paths/~1api~1automation~1triggers/get/parameters/schema":           {"agent_instance"},
+	"#/components/schemas/HeartbeatWakeDecisionPayload/properties/source": {"timer", "instance_check"},
+	"#/components/schemas/HeartbeatWakeByPathRequest/properties/source":   {"timer", "instance_check"},
+	"#/components/schemas/HeartbeatWakeEventPayload/properties/source":    {"timer", "instance_check"},
+	"#/components/schemas/HeartbeatWakeDecisionPayload/properties/result": {
+		"quiet",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"reported",
+	},
+	"#/components/schemas/HeartbeatWakeEventPayload/properties/result": {
+		"quiet",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"reported",
+	},
+	"#/components/schemas/HeartbeatWakeStatePayload/properties/last_result": {
+		"quiet",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"reported",
+	},
 }
 
 // copyApprovedEnum extends a baseline enum with approved members the current document added.
@@ -303,11 +398,10 @@ func TestAgentKindRequestSchemas(t *testing.T) {
 				t.Fatalf("%s.kind is missing", name)
 			}
 			kind := ref.Value.Properties["kind"].Value
-			if !reflect.DeepEqual(kind.Enum, []any{"on_demand", "always_on", "stays_on"}) ||
-				!strings.Contains(kind.Description, "stays_on is the deprecated") ||
-				!strings.Contains(kind.Description, "v0.5.2") {
+			if !reflect.DeepEqual(kind.Enum, []any{"on_demand", "always_on"}) ||
+				kind.Description != agentKindRequestDescription {
 				t.Fatalf(
-					"%s.kind = %v %q, want the three kinds and the deprecation text",
+					"%s.kind = %v %q, want the two canonical kinds and identity description",
 					name,
 					kind.Enum,
 					kind.Description,

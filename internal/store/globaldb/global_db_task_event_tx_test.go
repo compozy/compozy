@@ -263,6 +263,76 @@ func TestGlobalDBCoordinatorCompletionShouldCommitCanonicalEventAtomically(t *te
 			t.Fatalf("terminal event completion_state = %v, want %q", got, want)
 		}
 	})
+
+	t.Run("Should record the coordinator terminal diagnosis on the terminal status event", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openLoopTestGlobalDB(t)
+		now := time.Date(2026, 8, 2, 20, 0, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-diagnosed-terminal", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(ctx, t, globalDB, loopRun.ID, "diagnosed-terminal", now)
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(), Now: now.Add(time.Second),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(loopRun.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{
+						{NodeID: "join", Status: "pending"},
+					}},
+				},
+				Terminal: &taskpkg.CoordinatorTerminal{
+					Status: string(looppkg.StatusFailed), Cause: string(looppkg.TransitionCauseContract),
+					ReasonCode: "no_ready_nodes", NodeID: "join",
+					Message: `node "join" can never run: dependencies never settled: review (pending)`,
+				},
+			},
+		}, looppkg.NewStoreFinalizer())
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
+			WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents() error = %v", err)
+		}
+		var terminalPayload map[string]any
+		for _, event := range events {
+			if event.Kind == loopRunEventStatusChanged {
+				if err := json.Unmarshal(event.Payload, &terminalPayload); err != nil {
+					t.Fatalf("unmarshal status event: %v", err)
+				}
+			}
+		}
+		want := map[string]any{
+			"status": "failed", "cause": "contract", "reason_code": "no_ready_nodes", "node_id": "join",
+			"message": `node "join" can never run: dependencies never settled: review (pending)`,
+		}
+		for key, value := range want {
+			if terminalPayload[key] != value {
+				t.Fatalf(
+					"terminal event %s = %v, want %v (payload %#v)",
+					key,
+					terminalPayload[key],
+					value,
+					terminalPayload,
+				)
+			}
+		}
+		if _, ok := terminalPayload["gate_id"]; ok {
+			t.Fatalf("terminal event gate_id = %v, want omitted when empty", terminalPayload["gate_id"])
+		}
+	})
 }
 
 func (o *recordingTaskEventCommitObserver) OnTaskEvent(ctx context.Context, record taskpkg.EventRecord) {

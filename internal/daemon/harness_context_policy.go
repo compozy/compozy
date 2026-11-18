@@ -31,6 +31,10 @@ func (r *HarnessContextResolver) resolveAugmenters(
 	if r.runtime.SkillsAugmenter && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		augmenters = append(augmenters, HarnessAugmenterSkills)
 	}
+	// Standing context follows every turn origin: always-on agents mostly run on wakes.
+	if r.runtime.StandingAugmenter && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
+		augmenters = append(augmenters, HarnessAugmenterStanding)
+	}
 	if turnCtx.Origin != TurnOriginUser {
 		return augmenters
 	}

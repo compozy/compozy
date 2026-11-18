@@ -1,0 +1,12 @@
+source_id|provider_id|source_kind|last_success_at|row_count
+builtin|claude|builtin|2026-11-11T14:45:30.698066997Z|5
+config|claude|config|2026-11-11T14:45:30.698066997Z|1
+models_dev|claude|models_dev|2026-11-11T14:39:48.235279473Z|18
+provider_live:claude|claude|provider_live|2026-11-11T14:44:37.439776815Z|14
+provider_live:claude|claude|provider_live|2026-11-11T14:45:01.893200280Z|14
+
+rows for claude-opus-5-5: source_id|source_kind|refreshed_at
+provider_live:claude|provider_live|2026-11-11T14:44:37.439776815Z
+provider_live:claude|provider_live|2026-11-11T14:45:01.893200280Z
+config|config|2026-11-11T14:45:30.698066997Z
+models_dev|models_dev|2026-11-11T14:39:48.235279473Z

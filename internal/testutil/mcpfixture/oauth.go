@@ -1,6 +1,7 @@
 package mcpfixture
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -31,6 +32,7 @@ const (
 
 // OAuthConfig configures the optional local OAuth surface around an MCP fixture.
 type OAuthConfig struct {
+	ResourceURL                                string
 	MCPPath                                    string
 	Scopes                                     []string
 	StepUpScope                                string
@@ -52,6 +54,7 @@ type OAuthEndpoints struct {
 
 // OAuthRequests records observable OAuth boundary inputs without emitting them to logs.
 type OAuthRequests struct {
+	MCPHeaders    []http.Header
 	Authorization []url.Values
 	Token         []url.Values
 	Registration  []map[string]any
@@ -87,7 +90,12 @@ func StartOAuthHTTP(t testing.TB, fixture *Fixture, config OAuthConfig) *OAuthHT
 func (s *OAuthHTTPServer) Requests() OAuthRequests {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	headers := make([]http.Header, len(s.requests.MCPHeaders))
+	for i, header := range s.requests.MCPHeaders {
+		headers[i] = header.Clone()
+	}
 	return OAuthRequests{
+		MCPHeaders:    headers,
 		Authorization: cloneValuesSlice(s.requests.Authorization),
 		Token:         cloneValuesSlice(s.requests.Token),
 		Registration:  cloneRegistrationSlice(s.requests.Registration),
@@ -160,6 +168,11 @@ func (s *OAuthHTTPServer) serveProtectedMCP(
 	request *http.Request,
 	endpoints OAuthEndpoints,
 ) {
+	headers := request.Header.Clone()
+	headers.Del("Authorization")
+	s.mu.Lock()
+	s.requests.MCPHeaders = append(s.requests.MCPHeaders, headers)
+	s.mu.Unlock()
 	if request.Header.Get("Authorization") != "Bearer "+AccessToken {
 		s.writeBearerChallenge(writer, endpoints.ProtectedResourceURL, "invalid_token", "")
 		return
@@ -234,12 +247,13 @@ func (s *OAuthHTTPServer) serveToken(writer http.ResponseWriter, request *http.R
 	switch values.Get("grant_type") {
 	case authorizationCodeGrant:
 		if values.Get(authorizationCodeParam) != AuthorizationCode || values.Get("code_verifier") == "" ||
-			values.Get(resourceParameter) != endpoints.MCPURL {
+			values.Get(resourceParameter) != cmp.Or(s.config.ResourceURL, endpoints.MCPURL) {
 			http.Error(writer, "invalid authorization code request", http.StatusBadRequest)
 			return
 		}
 	case refreshTokenGrant:
-		if values.Get("refresh_token") != RefreshToken || values.Get(resourceParameter) != endpoints.MCPURL {
+		if values.Get("refresh_token") != RefreshToken ||
+			values.Get(resourceParameter) != cmp.Or(s.config.ResourceURL, endpoints.MCPURL) {
 			http.Error(writer, "invalid refresh request", http.StatusBadRequest)
 			return
 		}

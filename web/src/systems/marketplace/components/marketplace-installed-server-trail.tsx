@@ -4,8 +4,8 @@ import { Button, DropdownMenuItem, Spinner } from "@compozy/ui";
 
 import {
   deriveMCPAuthFilter,
-  MCPAuthorizeDialog,
   MCPOverrideEditor,
+  MCPSignInPopover,
   useMCPDefinitionAuthorization,
   useMCPOverrideEditor,
   type SettingsMCPServerEntry,
@@ -53,9 +53,9 @@ function MarketplaceInstalledServerTrail(props: MarketplaceInstalledTrailProps) 
             target={target}
             live={live}
             pending={pending}
-            onAuthorize={entry => {
+            onAuthorize={(entry, trigger) => {
               const filter = deriveMCPAuthFilter(entry);
-              if (filter) authorization.authorize.requestAuthorize(filter, entry);
+              if (filter) authorization.authorize.requestAuthorize(filter, entry, trigger);
             }}
           />
         }
@@ -77,11 +77,7 @@ function MarketplaceInstalledServerTrail(props: MarketplaceInstalledTrailProps) 
           if (open) setMenuOpened(true);
         }}
       />
-      <MCPAuthorizeDialog
-        authorize={authorization.authorize}
-        scope={authorization.scope}
-        server={authorization.server}
-      />
+      <MCPSignInPopover authorize={authorization.authorize} server={authorization.server} />
       {override.editorProps ? <MCPOverrideEditor {...override.editorProps} /> : null}
     </>
   );
@@ -102,7 +98,7 @@ function MarketplaceInstalledServerLeading({
   target: MarketplaceInstalledTrailProps["item"]["extension"]["mcp_servers"][number] | undefined;
   live: ReturnType<typeof useMarketplaceExtensionMCPServer>;
   pending: boolean;
-  onAuthorize: (entry: SettingsMCPServerEntry) => void;
+  onAuthorize: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
 }) {
   const { extension } = item;
   const published = Boolean(target?.runtime_name?.trim());
@@ -122,9 +118,9 @@ function MarketplaceInstalledServerLeading({
           aria-label={`Authorize ${target.name} for ${name}`}
           data-testid={`marketplace-installed-authorize-${extension.name}`}
           disabled={pending || !live.server}
-          onClick={() => {
+          onClick={event => {
             const entry = live.server;
-            if (entry) onAuthorize(entry);
+            if (entry) onAuthorize(entry, event.currentTarget);
           }}
           size="sm"
           type="button"

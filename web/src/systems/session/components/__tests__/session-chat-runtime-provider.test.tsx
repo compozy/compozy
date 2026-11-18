@@ -1,3 +1,4 @@
+import { createEventRecorder } from "@/test/event-recorder";
 import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -876,7 +877,13 @@ describe("SessionChatRuntimeProvider", () => {
         pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/interactions`
       ) {
-        return jsonResponse({ interactions: settledInteractions });
+        return jsonResponse({
+          interactions: settledInteractions.filter(
+            row =>
+              !requestURL.searchParams.get("status") ||
+              row.status === requestURL.searchParams.get("status")
+          ),
+        });
       }
 
       if (
@@ -1230,7 +1237,7 @@ describe("SessionChatRuntimeProvider", () => {
         expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
       });
     });
-  }, 10_000);
+  });
 
   it("renders transcript rows when the runtime thread is transiently empty", async () => {
     transcriptMessages = sessionTranscriptFixture.slice(0, 3);
@@ -1246,7 +1253,7 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("Should show the skeleton on cold provider mount until the transcript resolves", async () => {
     const transcriptResponse = createDeferred<Response>();
@@ -1269,7 +1276,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
     expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
     expect(countTranscriptFetches(fetchMock)).toBe(1);
-  }, 10_000);
+  });
 
   it("Should keep the live EventSource closed when liveTailEnabled is false", async () => {
     const eventSourceFactory = vi.fn((url: string) => new FakeSessionEventSource(url));
@@ -1376,7 +1383,7 @@ describe("SessionChatRuntimeProvider", () => {
       expect(viewport.scrollTop).toBeGreaterThanOrEqual(320);
     });
     expect(screen.queryByRole("button", { name: "Load older messages" })).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("Should fail loudly when workspaceId is empty", () => {
     const queryClient = createQueryClient();
@@ -1972,6 +1979,67 @@ describe("SessionChatRuntimeProvider", () => {
     );
   });
 
+  // Invariant (issue #1798): the daemon addresses uploads by content, so two composer tiles
+  // holding the same image resolve to one attachment id. Pasting it again while the first
+  // upload is in flight, then sending, never registers that id twice as message attachment
+  // keys; each tile stays one attachment the prompt carries, matching the gallery's
+  // repeated-image convention.
+  // Owning layer: SessionAttachmentAdapter through the runtime provider. Canonical suite: this file.
+  it("Should send the same image pasted twice while uploading without colliding attachment keys", async () => {
+    const uploadGate = createDeferred<void>();
+    let uploadCount = 0;
+    attachmentUploadResponse = async () => {
+      uploadCount += 1;
+      await uploadGate.promise;
+      return jsonResponse(
+        {
+          attachment: {
+            bytes: 4,
+            created_at: "2026-08-15T00:00:00Z",
+            height: 10,
+            id: `att_${"a".repeat(64)}`,
+            kind: "image",
+            mime_type: "image/png",
+            name: "shot.png",
+            sha256: "a".repeat(64),
+            width: 16,
+          },
+        },
+        { status: 201 }
+      );
+    };
+    const user = userEvent.setup();
+    renderSessionThread();
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Same screenshot twice");
+    const screenshot = () => new File(["shot"], "shot.png", { type: "image/png" });
+    act(() => {
+      void requireComposerAui().composer.addAttachment(screenshot());
+      void requireComposerAui().composer.addAttachment(screenshot());
+    });
+    await waitFor(() => expect(uploadCount).toBe(2));
+    uploadGate.resolve();
+    await waitFor(() => expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(2));
+    await waitFor(() => expect(screen.getByTestId("composer-send-button")).toBeEnabled());
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    const promptRequest = fetchMock.mock.calls.find(([input]) =>
+      getPathname(input as RequestInfo | URL).endsWith("/prompt")
+    );
+    const body = JSON.parse(String((promptRequest?.[1] as RequestInit | undefined)?.body)) as {
+      attachments?: { id: string; kind: string }[];
+    };
+    expect(body.attachments?.map(attachment => attachment.kind)).toEqual(["image", "image"]);
+    expect(body.attachments?.map(attachment => attachment.id)).toEqual([
+      `att_${"a".repeat(64)}`,
+      `att_${"a".repeat(64)}`,
+    ]);
+    await waitFor(() => expect(composerText()).toBe(""));
+    expect(screen.getByTestId("composer-input")).toBeInTheDocument();
+  });
+
   // Invariant (issue #815): a prompt's draft is consumed only by the daemon's
   // acceptance. A runtime torn down mid-POST (navigation, a profile switch)
   // neither aborts the admission nor drops the draft: a refusal names its
@@ -2261,6 +2329,49 @@ describe("SessionChatRuntimeProvider", () => {
       );
     }
   );
+
+  // UT-W10 (spec mcp-extension-hot-activation, Rule 9): a reload that could not start the runtime
+  // refuses the prompt before acceptance (`409 session_mcp_reload_failed`), so that message's draft
+  // comes back to the composer and sending it again retries. An ambiguous 5xx stays unconfirmed:
+  // "Should retain a prompt answered with a 5xx as pending-ack instead of restoring the draft".
+  // Owning layer: chat-runtime send recovery. Canonical suite: this file.
+  it("UT-W10: Should restore the draft when an MCP reload refuses the prompt", async () => {
+    const answer = createDeferred<Response>();
+    promptResponsePromise = answer.promise;
+    const unconfirmed: string[] = [];
+    const user = userEvent.setup();
+    renderSessionThread({
+      includeToaster: true,
+      onUnconfirmedSend: messageId => unconfirmed.push(messageId),
+    });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Check Sentry now");
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    answer.resolve(
+      jsonResponse(
+        {
+          // The daemon's own sentence (`MCPReloadError.Error`), code suffix included.
+          error:
+            "Couldn't start Claude Code with the new MCP servers: exit status 1. Your message wasn't sent. (session_mcp_reload_failed)",
+          code: "session_mcp_reload_failed",
+          retryable: true,
+          client_message_id: lastPromptMessageID,
+          provider_error: "exit status 1",
+        },
+        { status: 409 }
+      )
+    );
+
+    expect(
+      await screen.findByText(
+        "Message not sent: Couldn't start Claude Code with the new MCP servers: exit status 1. Your draft was kept."
+      )
+    ).toBeInTheDocument();
+    await waitFor(() => expect(composerText()).toBe("Check Sentry now"));
+    expect(unconfirmed).toEqual([]);
+  });
 
   it("Should name the daemon's reason when it refuses a prompt", async () => {
     promptResponsePromise = Promise.resolve(
@@ -2637,7 +2748,7 @@ describe("SessionChatRuntimeProvider", () => {
         );
       })
     ).toBe(true);
-  }, 10_000);
+  });
 
   it("Should project a newly completed runtime message in its first committed frame", async () => {
     transcriptMessages = [];
@@ -2905,7 +3016,7 @@ describe("SessionChatRuntimeProvider", () => {
       expect(screen.getByRole("button", { name: "Clear test conversation" })).toBeEnabled();
     });
     expect(screen.queryByText(prompt)).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("keeps distinct runtime and durable message ids visible even when metadata matches", () => {
     const runtimeMessages = toReadonlyThreadMessages([
@@ -3093,7 +3204,7 @@ describe("SessionChatRuntimeProvider", () => {
 
     expect(screen.queryByTestId("runtime-activity-notice")).not.toBeInTheDocument();
     expect(screen.queryByText("Still working")).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("renders persisted session error events as failure notices", async () => {
     transcriptMessages = [
@@ -3134,7 +3245,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
       "peer disconnected before response"
     );
-  }, 10_000);
+  });
 
   it("does not render empty error chrome for incomplete message status without a detail", async () => {
     transcriptMessages = [
@@ -3168,7 +3279,7 @@ describe("SessionChatRuntimeProvider", () => {
 
     expect(screen.queryByTestId("session-message-error")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-error-notice")).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("keeps pending permissions out of the transcript and renders receipts for resolved ones", async () => {
     transcriptMessages = [
@@ -3217,7 +3328,7 @@ describe("SessionChatRuntimeProvider", () => {
     // composer instead (owned by session-decision-dock.test.tsx).
     expect(screen.queryByText(/pending\.txt/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   function pendingPermissionTranscript(requestId: string): TranscriptMessage[] {
     return [
@@ -3231,6 +3342,7 @@ describe("SessionChatRuntimeProvider", () => {
             data: {
               type: "permission",
               request_id: requestId,
+              turn_id: "turn_001",
               title: "compozy__terminal_exec",
               action: "session/request_permission",
               timestamp: "2026-09-05T10:00:00Z",
@@ -3281,7 +3393,10 @@ describe("SessionChatRuntimeProvider", () => {
 
     await act(async () => {
       await vi.waitFor(() =>
-        expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"])
+        expect(interactionFetchSearches(fetchMock)).toEqual([
+          "?status=canceled",
+          "?status=timed_out",
+        ])
       );
     });
     expect(screen.getByTestId("permission-waiting-line")).toBeInTheDocument();
@@ -3291,9 +3406,14 @@ describe("SessionChatRuntimeProvider", () => {
       await vi.advanceTimersByTimeAsync(5_500);
     });
 
-    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled", "?status=canceled"]);
+    expect(interactionFetchSearches(fetchMock)).toEqual([
+      "?status=canceled",
+      "?status=timed_out",
+      "?status=canceled",
+      "?status=timed_out",
+    ]);
     expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
-  }, 10_000);
+  });
 
   it("stops re-reading once every open ask has a settled row, keeps the receipt, and releases rewind", async () => {
     vi.useFakeTimers();
@@ -3315,7 +3435,7 @@ describe("SessionChatRuntimeProvider", () => {
       "Not decided · CompozyOS restarted before you answered — bun test did not run"
     );
     expect(screen.queryByTestId("permission-waiting-line")).not.toBeInTheDocument();
-    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"]);
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled", "?status=timed_out"]);
     // The other rewind blockers (pending clarifications, queued inputs) settle on
     // their own reads; the settled ask must not be the one holding rewind.
     await act(async () => {
@@ -3326,10 +3446,10 @@ describe("SessionChatRuntimeProvider", () => {
       await vi.advanceTimersByTimeAsync(11_000);
     });
 
-    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"]);
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled", "?status=timed_out"]);
     expect(screen.getByTestId("permission-expired-receipt")).toBeInTheDocument();
     expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
-  }, 10_000);
+  });
 
   // Invariant: selection/cancellation are local; submission rewinds once before sending,
   // even when the selected row disappears before the rewind response arrives.
@@ -3473,7 +3593,7 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"]);
-  }, 10_000);
+  });
 
   it("keeps a decided ask neutral when the daemon has no resolved row for it", async () => {
     vi.useFakeTimers();
@@ -3496,7 +3616,7 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"]);
-  }, 10_000);
+  });
 
   it("routes a clarify data event to the clarification receipt, not the activity notice", async () => {
     transcriptMessages = [
@@ -3540,7 +3660,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("clarification-receipt")).toHaveAttribute("data-status", "resolved");
     expect(screen.getByTestId("clarification-receipt-answer")).toHaveTextContent("production");
     expect(screen.queryByTestId("runtime-activity-notice")).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("renders mixed text, reasoning, and unregistered tool parts in order after disclosure", async () => {
     const user = userEvent.setup();
@@ -3616,7 +3736,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(within(chat).getByTestId("tool-call-row")).toHaveTextContent(
       "Searched the weblaunch note"
     );
-  }, 10_000);
+  });
 
   it("keeps unregistered data parts inside the settled turn fold instead of dropping them", async () => {
     const user = userEvent.setup();
@@ -3672,7 +3792,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(afterIndex).toBeGreaterThan(dataIndex);
     // The marker line names the raw event as mono meta — no payload preview card.
     expect(within(chat).getByTestId("session-data-part")).toHaveTextContent("data-provider-note");
-  }, 10_000);
+  });
 
   it("reconciles durable transcript after a live session stream event", async () => {
     transcriptMessages = sessionTranscriptFixture.slice(0, 1);
@@ -3723,7 +3843,7 @@ describe("SessionChatRuntimeProvider", () => {
     await waitFor(() => {
       expect(screen.getByText("Live reattached answer.")).toBeInTheDocument();
     });
-  }, 10_000);
+  });
 
   it("merges a same-fence durable snapshot without an extra transcript request", async () => {
     transcriptMessages = sessionTranscriptFixture.slice(0, 1);
@@ -3776,12 +3896,12 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     expect(countTranscriptFetches(fetchMock)).toBe(1);
-  }, 10_000);
+  });
 
   it("Should close the provider stream on terminal frames and reopen only after the session becomes live", async () => {
-    vi.useFakeTimers();
     transcriptMessages = sessionTranscriptFixture.slice(0, 1);
-    const sources: FakeSessionEventSource[] = [];
+    const opened = createEventRecorder<FakeSessionEventSource>();
+    const sources = opened.events;
     const queryClient = createQueryClient();
     const workspaceId = fixtureWorkspaceId();
     const sessionId = primarySessionFixture.id;
@@ -3791,16 +3911,14 @@ describe("SessionChatRuntimeProvider", () => {
       queryClient,
       eventSourceFactory: url => {
         const source = new FakeSessionEventSource(url);
-        sources.push(source);
+        opened.record(source);
         return source;
       },
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(sources).toHaveLength(1);
-      });
-    });
+    await opened.waitForCount(1);
+    expect(sources).toHaveLength(1);
+    vi.useFakeTimers();
 
     sessionDetailResponse = { ...primarySessionFixture, state: "stopped" };
     act(() => {
@@ -3827,20 +3945,18 @@ describe("SessionChatRuntimeProvider", () => {
 
     expect(sources[0]?.closed).toBe(true);
     expect(sources).toHaveLength(1);
+    vi.useRealTimers();
 
     act(() => {
       queryClient.setQueryData(sessionKeys.detail(workspaceId, sessionId), primarySessionFixture);
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(sources).toHaveLength(2);
-      });
-    });
+    await opened.waitForCount(2);
+    expect(sources).toHaveLength(2);
     expect(sources[1]?.url).toBe(
       `/api/workspaces/${workspaceId}/sessions/${sessionId}/stream?${SESSION_STREAM_QUERY}&after_sequence=1&epoch=1&generation=1`
     );
-  }, 10_000);
+  });
 
   it("Should expose transcript fetch failure through provider context while attempting the stream", async () => {
     transcriptFetchShouldFail = true;
@@ -3869,7 +3985,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(state).toHaveAttribute("data-is-error", "true");
     expect(state).toHaveTextContent("0");
     expect(state.getAttribute("data-error-message")).toContain("recorder temporarily unavailable");
-  }, 10_000);
+  });
 
   it("Should expose large transcript histories in order through a bounded DOM window", async () => {
     transcriptMessages = Array.from({ length: 80 }, (_, index) => ({
@@ -3895,5 +4011,5 @@ describe("SessionChatRuntimeProvider", () => {
         within(row).getByText(`Large transcript message ${rowIndexes[position]}`)
       ).toBeVisible();
     }
-  }, 10_000);
+  });
 });

@@ -21,6 +21,7 @@ export interface TasksDashboardStatusBreakdownProps {
 const TONE_FILL_CLASS: Record<PillTone, string> = {
   neutral: "bg-neutral",
   brand: "bg-brand",
+  attn: "bg-attn",
   success: "bg-success",
   warning: "bg-warning",
   destructive: "bg-destructive",

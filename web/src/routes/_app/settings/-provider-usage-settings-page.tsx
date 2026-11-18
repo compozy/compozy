@@ -65,7 +65,9 @@ export function ProviderUsageSettingsPage() {
       <ProviderUsageProvidersSection
         disabled={page.isSaving}
         draft={draft}
+        error={page.providersError}
         onChange={page.setDraft}
+        onRetry={page.handleRetryProviders}
         providers={page.providers}
       />
       <ProviderUsageKeychainSection

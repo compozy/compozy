@@ -39,6 +39,7 @@ func preStartSemanticFingerprint(
 		{"auth_login_command", strings.TrimSpace(provider.AuthLoginCmd)},
 		{"auth_acp_method", strings.TrimSpace(provider.AuthACPMethod)},
 		{"credential_slot_count", strconv.Itoa(len(slots))},
+		{"command_env_specified", preStartFingerprintBool(env.CommandEnv != nil)},
 		{"command_env_count", strconv.Itoa(len(env.CommandEnv))},
 		{"command_dir", env.CommandDir},
 		{"launch_executable_resolution_state", string(launchResolution.State())},

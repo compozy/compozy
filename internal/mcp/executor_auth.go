@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -17,9 +18,9 @@ const (
 	authStatusRefreshFailed = "refresh_failed"
 )
 
-func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved ResolvedServer) error {
+func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved *ResolvedServer) error {
 	server := resolved.Server
-	if server.EffectiveTransport() == compozyconfig.MCPServerTransportStdio || !server.Auth.Enabled() {
+	if !mcpauth.OAuthCapable(server) {
 		return nil
 	}
 	status, err := e.authStatus(ctx, resolved)
@@ -27,6 +28,11 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved ResolvedSe
 		return err
 	}
 	switch status.Status {
+	case string(mcpauth.StatusUnconfigured):
+		if server.Auth.IsZero() {
+			return nil
+		}
+		return toolspkg.MCPAuthRequiredError("", server.Name)
 	case string(mcpauth.StatusAuthenticated):
 		return nil
 	case string(mcpauth.StatusExpired):
@@ -41,6 +47,11 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved ResolvedSe
 			)
 		}
 		if refreshed.Status == string(mcpauth.StatusAuthenticated) {
+			if e.authRecovery != nil {
+				if err := e.authRecovery(ctx, resolved); err != nil {
+					slog.WarnContext(ctx, "mcp.auth.recovery_failed", "server", server.Name)
+				}
+			}
 			return nil
 		}
 		reason, ok := toolspkg.MCPAuthStatusReason(refreshed)
@@ -57,19 +68,22 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved ResolvedSe
 			reason = toolspkg.ReasonMCPAuthRequired
 		}
 		reason = e.authorizationFailureReason(ctx, resolved, reason)
+		if reason == toolspkg.ReasonMCPAuthRequired {
+			return toolspkg.MCPAuthRequiredError("", server.Name)
+		}
 		return unavailableAuthError(reason)
 	}
 }
 
 func (e *CallExecutor) authorizationFailureReason(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 	fallback toolspkg.ReasonCode,
 ) toolspkg.ReasonCode {
 	if e == nil || e.auth == nil || fallback != toolspkg.ReasonMCPAuthRequired {
 		return fallback
 	}
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, resolved.Server, nil)
+	cfg, err := e.serverAuthConfig(ctx, resolved, nil)
 	if err != nil {
 		return fallback
 	}
@@ -86,22 +100,19 @@ func (e *CallExecutor) authorizationFailureReason(
 
 func (e *CallExecutor) authStatus(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 ) (toolspkg.MCPAuthStatus, error) {
 	server := resolved.Server
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, server, e.resolveSecretRef)
+	cfg, err := e.serverAuthConfig(ctx, resolved, e.resolveSecretRef)
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: build auth config: %w", err)
 	}
-	if !server.Auth.Enabled() {
-		return redactedAuthStatus(mcpauth.Status{
-			Owner:       resolved.Target.Owner,
-			ServerName:  server.Name,
-			Scope:       resolved.Target.Scope,
-			WorkspaceID: resolved.Target.WorkspaceID,
-			Status:      mcpauth.StatusUnconfigured,
-			RemoteURL:   server.URL,
-		}), nil
+	unconfigured := mcpauth.Status{
+		Owner: resolved.Target.Owner, ServerName: server.Name, Scope: resolved.Target.Scope,
+		WorkspaceID: resolved.Target.WorkspaceID, Status: mcpauth.StatusUnconfigured, RemoteURL: server.URL,
+	}
+	if !mcpauth.OAuthCapable(server) || (server.Auth.IsZero() && e.auth == nil) {
+		return redactedAuthStatus(unconfigured), nil
 	}
 	if e.auth == nil {
 		return toolspkg.MCPAuthStatus{}, toolspkg.NewValidationError(
@@ -112,6 +123,9 @@ func (e *CallExecutor) authStatus(
 	}
 	status, err := e.auth.Status(ctx, cfg)
 	if err != nil {
+		if cfg.Implicit {
+			return redactedAuthStatus(unconfigured), nil
+		}
 		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: read auth status: %w", err)
 	}
 	return redactedAuthStatus(status), nil
@@ -119,7 +133,7 @@ func (e *CallExecutor) authStatus(
 
 func (e *CallExecutor) refreshAuth(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 ) (toolspkg.MCPAuthStatus, error) {
 	if e.auth == nil {
 		return toolspkg.MCPAuthStatus{}, toolspkg.NewValidationError(
@@ -128,7 +142,7 @@ func (e *CallExecutor) refreshAuth(
 			"mcp auth service is required for refresh",
 		)
 	}
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, resolved.Server, e.resolveSecretRef)
+	cfg, err := e.serverAuthConfig(ctx, resolved, e.resolveSecretRef)
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: build auth config: %w", err)
 	}
@@ -152,11 +166,11 @@ func (e *CallExecutor) refreshAuth(
 	return redactedAuthStatus(status), nil
 }
 
-func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved ResolvedServer) string {
+func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved *ResolvedServer) string {
 	if e == nil || e.auth == nil {
 		return ""
 	}
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, resolved.Server, nil)
+	cfg, err := e.serverAuthConfig(ctx, resolved, nil)
 	if err != nil {
 		return ""
 	}
@@ -202,4 +216,31 @@ func redactedAuthStatus(status mcpauth.Status) toolspkg.MCPAuthStatus {
 		TokenPresent: status.TokenPresent,
 		Diagnostic:   strings.TrimSpace(status.Diagnostic),
 	}
+}
+
+func (e *CallExecutor) serverAuthConfig(
+	ctx context.Context,
+	resolved *ResolvedServer,
+	resolve func(context.Context, string) (string, error),
+) (mcpauth.ServerConfig, error) {
+	server, secrets, err := resolved.Server.RenderInputs(
+		func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
+	)
+	if err != nil {
+		return mcpauth.ServerConfig{}, err
+	}
+	for _, secret := range secrets {
+		registerMCPRequestSecret(ctx, secret)
+	}
+	server.Headers = resolved.Server.Headers
+	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, server, resolve)
+	cfg.ConsentScope = resolved.ConsentScope
+	if cfg.ConsentScope == (mcpauth.ConsentScope{}) {
+		cfg.ConsentScope = mcpauth.ConsentScopeFromContext(ctx)
+	}
+	if err != nil {
+		return mcpauth.ServerConfig{}, err
+	}
+	cfg.DefinitionDigest, err = compozyconfig.MCPDefinitionDigest(resolved.Server, e.digestKey)
+	return cfg, err
 }

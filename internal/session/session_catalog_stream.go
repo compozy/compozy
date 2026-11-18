@@ -49,6 +49,10 @@ func (s CatalogScope) matches(event CatalogEvent) bool {
 		// subscribers of the owning profile reconcile it.
 		return s.AllWorkspaces && s.ReadScope.Matches(event.ProfileID)
 	}
+	if event.Kind == CatalogEventHistoryCleanup {
+		// One cleanup run serves the whole profile, whichever list watches it.
+		return s.ReadScope.Matches(event.ProfileID)
+	}
 	workspaceMatches := (s.WorkspaceID == workspaceaccess.UserSelector && event.WorkspaceID == "") || s.AllWorkspaces ||
 		strings.TrimSpace(event.WorkspaceID) == strings.TrimSpace(s.WorkspaceID)
 	return workspaceMatches && s.ReadScope.Matches(event.ProfileID)
@@ -78,6 +82,10 @@ const (
 	// workspace-order change. It names only the owning profile: All-projects
 	// clients reread the workspace layout.
 	CatalogEventWorkspaceLayout CatalogEventKind = "workspace_layout"
+	// CatalogEventHistoryCleanup reports progress or the end of a profile's
+	// archived-history cleanup. It names only the owning profile: clients reread
+	// the cleanup run.
+	CatalogEventHistoryCleanup CatalogEventKind = "history_cleanup"
 )
 
 // CatalogEvent identifies the workspace-scoped catalog snapshot to reconcile.
@@ -151,7 +159,7 @@ func (b *sessionCatalogBroadcaster) publish(event CatalogEvent) int {
 		return 0
 	}
 	if event.InstanceID == "" && strings.TrimSpace(event.SessionID) == "" &&
-		event.Kind != CatalogEventWorkspaceLayout &&
+		event.Kind != CatalogEventWorkspaceLayout && event.Kind != CatalogEventHistoryCleanup &&
 		(event.Kind != CatalogEventLayout || strings.TrimSpace(event.WorkspaceID) == "") {
 		return 0
 	}
@@ -226,6 +234,16 @@ func (m *Manager) publishSessionCatalogWakeForEvent(session *Session, event acp.
 		return
 	}
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, session.Info()))
+}
+
+// PublishHistoryCleanupChanged wakes every catalog subscriber of one profile
+// to reread its archived-history cleanup run.
+func (m *Manager) PublishHistoryCleanupChanged(profileID string) {
+	m.publishSessionCatalogEvent(CatalogEvent{
+		Name:      CatalogEventNameChanged,
+		Kind:      CatalogEventHistoryCleanup,
+		ProfileID: strings.TrimSpace(profileID),
+	})
 }
 
 // PublishSessionCatalogChanged wakes catalog subscribers for one session whose

@@ -57,6 +57,11 @@ Agents use `compozy__session_prompt` to address another session. Supply `session
 `"interrupt"` when the target is busy; without `mode`, `session.busy_input.default_mode` applies
 (`steer` by default). Retry with the same message and idempotency IDs. Every message costs the
 receiver a full turn, so send at milestones instead of streaming status updates.
+Outside an instance lineage, inspect a stopped receiver's stop reason and omit `mode` to deliberately
+reopen it. An explicit `queue`, `steer`, or `interrupt` returns `session_not_promptable` while it is stopped.
+Instance messages can instead be queued or held; that disposition alone does not confirm runtime recovery.
+A prompt refused during boot with `daemon_starting` and `retryable: true` can be retried after readiness
+with the same IDs.
 For a long-running receiver, prefer `steer` for anything it must see soon; `queue` only waits for the end
 of its current turn, which can be long. Set `supersede: true` on a status update so only your latest one
 stays queued; a superseding `steer` also cancels your older queued messages.
@@ -206,7 +211,7 @@ If the sender was stopped anyway (a daemon restart or an agent crash), the reply
 and delivers the wake once. A sender you stopped yourself stays stopped and receives the wake when you
 resume it.
 
-`compozy__session_status`, the session status HTTP response, and `compozy session status <id> -o json`
+`compozy__session_status` with `result_view: "full"`, the session status HTTP response, and `compozy session status <id> -o json`
 include `reply_watches` while they are `armed` or `fired`. Each item identifies the watch, target
 session, message, state, and creation time. The human CLI shows a **Waiting for replies** section.
 Delivered and abandoned watches disappear from this list.

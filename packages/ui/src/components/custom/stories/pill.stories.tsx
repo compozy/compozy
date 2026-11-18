@@ -342,7 +342,7 @@ export const Count: Story = {
     docs: {
       description: {
         story:
-          "`Pill.Count` is the compact numeric badge for unread and needs-you counts: solid accent orange, semibold (600) digits, capped at `9+`, and absent at zero.",
+          "`Pill.Count` is the compact numeric badge for unread and needs-you counts: solid needs-you amber, semibold (600) digits, capped at `9+`, and absent at zero.",
       },
     },
   },

@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"time"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 
 const (
 	baseURL                        = "http://unix"
-	defaultUnixSocketClientTimeout = 30 * time.Second
+	defaultUnixSocketClientTimeout = compozyconfig.DefaultClientRequestTimeout
 	defaultUserAgentName           = "compozy-cli"
 )
 

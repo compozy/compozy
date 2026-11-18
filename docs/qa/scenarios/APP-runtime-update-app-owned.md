@@ -61,3 +61,5 @@ the pre-upgrade database (lossless, resumable after interruption at any batch). 
 `TestDesktopRuntimeBootstrapReplacement`, desktop `bootstrap-state`/`bootstrap-event`. Lab
 evidence (300k rows, ~700 MB, replacement boot with a restart journal): progress advanced every
 ~1s from 0 to 300000 rows over ~28s, then the journal turned `ready` with progress cleared.
+
+2026-11-12 boot window redesign (#1549): the bundled-runtime replacement now reads "Updating CompozyOS" with the `0.5.4 → 0.6.0` pill and a working "What's new" link to the target release notes. The step list includes Upgrade data while the replacement migrates. Migrate events carry `completed`, `total` and `migration` (`telemetry_relocation`, `usage_cost_repair`, `session_history_upgrade`). The window shows `N of M sessions` or records, a percentage, and an estimate once the rate is known; it no longer shows the old "Upgrading data…" label. Owning suites: `TestDesktopRuntimeBootstrapReplacement` (counts and versions), `TestBootSessionRepair`, `TestGlobalDBUsageCostRepair`, desktop `boot-journey`. The long walk lives in APP-boot-long-data-upgrade. Status reset to untested.

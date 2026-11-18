@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -197,33 +196,20 @@ func (o *Observer) collectAgentProbeHealth(ctx context.Context) ([]acp.ProbeResu
 }
 
 func (o *Observer) collectFailureHealth(ctx context.Context) (FailureHealth, error) {
-	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{
-		ReadScope: store.ReadScope{AllProfiles: true},
-	})
+	summary, err := o.registry.SessionFailureSummary(ctx, store.ReadScope{AllProfiles: true})
 	if err != nil {
-		return FailureHealth{}, fmt.Errorf("observe: list sessions for failure health: %w", err)
+		return FailureHealth{}, fmt.Errorf("observe: read failure summary: %w", err)
 	}
-	health := FailureHealth{
-		Status: observeHealthStatusOK,
-		ByKind: make(map[store.FailureKind]int),
-	}
-	recent := make([]SessionFailureHealth, 0, len(sessions))
-	degradedTotal := 0
-	for i := range sessions {
-		info := &sessions[i]
-		if info.Failure == nil {
-			continue
+	health := FailureHealth{Status: observeHealthStatusOK, Total: summary.Total, ByKind: summary.ByKind}
+	for kind, count := range summary.ByKind {
+		if count > 0 && failureDegradesHealth(kind) {
+			health.Status = observeHealthStatusDegraded
 		}
+	}
+	for i := range summary.Recent {
+		info := &summary.Recent[i]
 		failure := info.Failure.Normalize()
-		if failure.IsZero() {
-			continue
-		}
-		health.Total++
-		health.ByKind[failure.Kind]++
-		if failureDegradesHealth(failure.Kind) {
-			degradedTotal++
-		}
-		recent = append(recent, SessionFailureHealth{
+		health.Recent = append(health.Recent, SessionFailureHealth{
 			SessionID:       strings.TrimSpace(info.ID),
 			AgentName:       strings.TrimSpace(info.AgentName),
 			Provider:        strings.TrimSpace(info.Provider),
@@ -237,18 +223,6 @@ func (o *Observer) collectFailureHealth(ctx context.Context) (FailureHealth, err
 	}
 	if health.Total == 0 {
 		health.ByKind = nil
-		health.Recent = nil
-	} else {
-		if degradedTotal > 0 {
-			health.Status = observeHealthStatusDegraded
-		}
-		slices.SortStableFunc(recent, func(a, b SessionFailureHealth) int {
-			return b.UpdatedAt.Compare(a.UpdatedAt)
-		})
-		if len(recent) > 10 {
-			recent = recent[:10]
-		}
-		health.Recent = recent
 	}
 	return health, nil
 }

@@ -79,6 +79,11 @@ Busy-target policy regression (#760)
 12. Eight consecutive queued agent messages and reply wakes dispatch as one turn: each keeps its own
     origin event and reply watch; a human entry is never merged.
 13. Promotion: keep B in one turn past `session.messaging.queue_promote_after` (shorten it for the lab).
+    With a selected runtime without ACP options and a live Claude binding carrying `mode=bypassPermissions`,
+    queue a session-reply wake and coalesced monitor wakes without explicit runtimes: both inject into
+    the same live turn after the threshold. An entry explicitly selecting different ACP options stays
+    queued, with a debug log containing `session_id`, `entry_id`, and `reason=runtime_mismatch` but no
+    runtime values. After-turn batching still compares the runtimes selected for the next prompt.
     A queued agent message is injected as steer with its original message id; with `0s` it keeps
     waiting; with a human entry waiting it is not promoted. As the operator, Steer an agent queue row
     (works) and try to replace it (409 `input_agent_authored`).
@@ -115,7 +120,7 @@ Busy-target policy regression (#760)
 5. From an always-on main, message a fresh idle child it created (`--parent`), with `runtime` set. The
    receipt reports `delivery: queued` and `target_session_id`, and the caller's MCP client accepts it:
    no "does not match the tool's output schema" error and no "Could not send" card (#1186). Validate
-   the `structuredContent` against the advertised output schema for direct, queued and held receipts.
+   the `structuredContent` against the descriptor contract obtained through tool info for direct, queued and held receipts.
 
 Automated backend owners: `TestAgentInstancePeers`, `TestGlobalDBSessionPromptAdmission`,
 `TestInstanceContextExhaustionIntegration` and `TestInstancePausedRuntimeIntegration`.
@@ -124,3 +129,16 @@ The real ACP journeys cover successor delivery and restart retention.
 QA verification 2026-11-03 (always-on peer addressing, soh/qa 583415ef5, isolated acpmock lab): Partial. `agent instance list --peers` returned name/description/scope/state rows. A native `compozy__session_prompt` with `agent: release-watch`, sent while it was paused, returned `delivery: held`. The queue row was `held: true` and stayed held with `unattended_turns` unchanged across a daemon restart. An operator resume delivered it in one turn (`turn-2b4a49e90d7d9360`), and a second resume added no prompt (`restart-retention.txt`). A human prompt on a paused main ran without resuming autonomy. A missing name returned code `agent_instance_not_found`, but the message is "Internal Server Error" (paper cut). Not walked: delivery to a rotated peer's successor, the denied-workspace peer filter, and a check calling the message tool.
 
 QA verification 2026-11-03 (#1186, isolated acpmock lab on the fix branch): Pass for step 5. An always-on main sent `compozy__session_prompt` with `runtime` to its fresh idle child through the hosted MCP proxy and got `delivery: queued` with `target_session_id`. The MCP TypeScript SDK's AJV validator accepted that `structuredContent` against the advertised schema; the same receipt against the previous schema reproduced the reported error verbatim. Held and direct receipts are owned by `TestInstancePausedRuntimeIntegration` and `TestReplyWatchNativeIntegration`.
+
+## Child wake fairness regression
+
+Keep a parent busy beyond `session.messaging.queue_promote_after`, with four children.
+Queue a reply from every child and two successive needs-attention revisions per child
+while terminal monitors fire. With injection support, every reply and only the current
+attention revision reaches the live turn. Otherwise they dispatch at the next boundary.
+A waiting operator input retains precedence. Add a covering session monitor and confirm
+its child's queued attention wake is discarded. Inspect `session.input_queue.synthetic_age`
+for `oldest_queued_synthetic_age_ms` and the session correlation fields.
+
+Verification: covered by the owning session queue/promotion and spawn-wake regressions;
+execution is pending CI. Local tests and scenario labs are prohibited for this dispatch.

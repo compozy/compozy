@@ -28,10 +28,8 @@ const fixturePath = path.resolve(
   "../../../internal/testutil/acpmock/testdata/browser_session_lifecycle_fixture.json"
 );
 
-// Floating windows keep the board window in its own frame, on top, instead of a background tab.
 test.use({
   runtimeOptions: {
-    newWindowPolicy: "floating",
     seed: { mockAgents: [{ fixturePath, fixtureAgent: agentName }] },
   },
 });
@@ -66,12 +64,16 @@ async function boardFacets(
   return payload.facets.board;
 }
 
-/** Opens a session window for `sessionId` through the window-manager authority. */
+/**
+ * Opens a session window for `sessionId` through the window-manager authority. The open carries
+ * no client, so it lands as a tab after the desktop's default tab without activating it.
+ */
 async function openSessionWindow(
   runtime: BrowserRuntime,
   workspaceId: string,
   sessionId: string
-): Promise<void> {
+): Promise<string> {
+  const windowId = `e2e-board-${sessionId}`;
   const base = `/api/workspaces/${encodeURIComponent(workspaceId)}/window-manager`;
   const snapshot = await runtime.requestJSON<{ revision: number }>(base);
   await runtime.requestJSON(`${base}/commands`, {
@@ -84,7 +86,7 @@ async function openSessionWindow(
       origin: "web-e2e",
       payload: {
         window: {
-          id: `e2e-board-${sessionId}`,
+          id: windowId,
           app: "session",
           instance_key: sessionId,
           route: {
@@ -92,12 +94,11 @@ async function openSessionWindow(
             search: {},
           },
           desktop_id: "desktop-default",
-          floating_rect: { x: 0.02, y: 0.06, width: 0.96, height: 0.88 },
-          insert_tiled: false,
         },
       },
     }),
   });
+  return windowId;
 }
 
 /**
@@ -124,7 +125,12 @@ async function openBoardPage(page: Page, runtime: BrowserRuntime, sessionId: str
   const workspace = await resolveWorkspace(runtime);
   await reloadDaemonServedPage(page, runtime, "/", { readyTestId: "os-desktop" });
   await ensureProjectWorkspace(page, runtime);
-  await openSessionWindow(runtime, workspace.id, sessionId);
+  const windowId = await openSessionWindow(runtime, workspace.id, sessionId);
+  // A client-less open does not change the tab this client is looking at; activate it.
+  await page
+    .getByTestId("os-tab-bar")
+    .locator(`[role="tab"][data-lead-window-id="${windowId}"]`)
+    .click();
   // The window surface holds both its head (topbar) and its body.
   const frame = sessionWindow(page, sessionId);
   await expect(frame).toBeVisible();

@@ -5,12 +5,18 @@
 // Owning layer: the shared browser stream transport.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createDeferred, createEventRecorder } from "@/test/event-recorder";
+
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { createStreamWebSocket } from "@/lib/ticketed-web-socket";
 
 class FakeWebSocket {
   static OPEN = 1;
-  static instances: FakeWebSocket[] = [];
+  static opened = createEventRecorder<FakeWebSocket>();
+
+  static get instances() {
+    return this.opened.events;
+  }
 
   onopen: ((event: Event) => void) | null = null;
   onmessage: ((event: MessageEvent<unknown>) => void) | null = null;
@@ -21,7 +27,7 @@ class FakeWebSocket {
   send = vi.fn();
 
   constructor(readonly url: string) {
-    FakeWebSocket.instances.push(this);
+    FakeWebSocket.opened.record(this);
   }
 
   close() {
@@ -64,7 +70,7 @@ const STREAM_PATH = "/api/workspaces/ws1/window-manager/stream?after_revision=1&
 describe("ticketed web socket", () => {
   beforeEach(() => {
     resetGatewayStreamAuth();
-    FakeWebSocket.instances = [];
+    FakeWebSocket.opened = createEventRecorder<FakeWebSocket>();
     vi.stubGlobal("WebSocket", FakeWebSocket);
   });
 
@@ -78,7 +84,8 @@ describe("ticketed web socket", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(listenerResponse("local")));
 
     const socket = createStreamWebSocket(STREAM_PATH);
-    await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    await FakeWebSocket.opened.waitForCount(1);
+    expect(FakeWebSocket.instances).toHaveLength(1);
 
     expect(FakeWebSocket.instances[0].url).toBe(`ws://${window.location.host}${STREAM_PATH}`);
     socket.close();
@@ -89,7 +96,8 @@ describe("ticketed web socket", () => {
 
     const socket = createStreamWebSocket(STREAM_PATH);
     expect(() => socket.send("before-open")).toThrow("The stream WebSocket is not open.");
-    await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    await FakeWebSocket.opened.waitForCount(1);
+    expect(FakeWebSocket.instances).toHaveLength(1);
     const native = FakeWebSocket.instances[0];
     native.readyState = 0;
     expect(() => socket.send("connecting")).toThrow("The stream WebSocket is not open.");
@@ -115,9 +123,11 @@ describe("ticketed web socket", () => {
     );
 
     const first = createStreamWebSocket(STREAM_PATH);
-    await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    await FakeWebSocket.opened.waitForCount(1);
+    expect(FakeWebSocket.instances).toHaveLength(1);
     const second = createStreamWebSocket(STREAM_PATH);
-    await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(2));
+    await FakeWebSocket.opened.waitForCount(2);
+    expect(FakeWebSocket.instances).toHaveLength(2);
 
     expect(FakeWebSocket.instances[0].url).toContain("&ticket=tkt_1");
     expect(FakeWebSocket.instances[1].url).toContain("&ticket=tkt_2");
@@ -138,10 +148,15 @@ describe("ticketed web socket", () => {
     const socket = createStreamWebSocket(STREAM_PATH);
     const closes: CloseEvent[] = [];
     const errors: Event[] = [];
-    socket.onclose = event => closes.push(event);
+    const closed = createDeferred<void>();
+    socket.onclose = event => {
+      closes.push(event);
+      closed.resolve();
+    };
     socket.onerror = event => errors.push(event);
 
-    await vi.waitFor(() => expect(closes).toHaveLength(1));
+    await closed.promise;
+    expect(closes).toHaveLength(1);
     expect(errors).toHaveLength(1);
     expect(FakeWebSocket.instances).toHaveLength(0);
   });

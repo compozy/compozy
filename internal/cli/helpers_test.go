@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -56,6 +57,8 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 }
 
 type stubClient struct {
+	removeWorktreesFn             func(context.Context, string, contract.RemoveWorktreesRequest) (contract.RemoveWorktreesResponse, error)
+	heartbeatAuthorityFn          func(context.Context, string, AgentQuery) (contract.HeartbeatAuthorityPayload, error)
 	permissionRollupFn            func(context.Context, PermissionRollupQuery) (contract.PermissionRollupResponse, error)
 	changeSessionWorktreeFn       func(context.Context, string, string, string) (SessionRecord, error)
 	listMarketplaceSourcesFn      func(context.Context) (contract.MarketplaceSourcesResponse, error)
@@ -135,6 +138,7 @@ type stubClient struct {
 	listSessionsFn            func(context.Context, SessionListQuery) ([]SessionRecord, error)
 	listSessionPageFn         func(context.Context, SessionListQuery) (SessionListPage, error)
 	mutateSessionGoalFn       func(context.Context, string, contract.SessionGoalCommandRequest) (contract.GoalCommandResult, error)
+	sessionChangesFn          func(context.Context, string, sessionChangesOptions) (sessionChangesRecord, error)
 	listSessionCommandsFn     func(context.Context, string) (SessionCommandsRecord, error)
 	createSessionFn           func(context.Context, CreateSessionRequest) (SessionRecord, error)
 	getSessionFn              func(context.Context, string) (SessionRecord, error)
@@ -147,8 +151,14 @@ type stubClient struct {
 	archiveSessionFn          func(
 		context.Context, string, bool, bool, contract.SessionProcessPolicy,
 	) (SessionRecord, error)
-	unarchiveSessionFn               func(context.Context, string) (SessionRecord, error)
-	moveSessionToLaterFn             func(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
+	unarchiveSessionFn             func(context.Context, string) (SessionRecord, error)
+	moveSessionToLaterFn           func(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
+	previewSessionHistoryCleanupFn func(
+		context.Context, contract.SessionHistoryCleanupRequest,
+	) (contract.SessionHistoryCleanupPreviewResponse, error)
+	startSessionHistoryCleanupFn func(
+		context.Context, contract.SessionHistoryCleanupRequest,
+	) (contract.SessionHistoryCleanupStartResponse, error)
 	resumeSessionFromLaterFn         func(context.Context, string, bool) (SessionRecord, error)
 	markSessionSeenFn                func(context.Context, string) (SessionRecord, error)
 	renameSessionFn                  func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
@@ -199,7 +209,7 @@ type stubClient struct {
 	resolveWorkspaceRefs  bool
 	updateWorkspaceFn     func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
 	deleteWorkspaceFn     func(context.Context, string) error
-	listWorktreesFn       func(context.Context, string, bool) (WorktreeListRecord, error)
+	listWorktreesFn       func(context.Context, string, bool, bool) (WorktreeListRecord, error)
 	createWorktreeFn      func(context.Context, string, WorktreeCreateRequest) (WorktreeRecord, error)
 	cancelWorktreeFn      func(context.Context, string, string) error
 	adoptWorktreeFn       func(context.Context, string, string) (WorktreeRecord, error)
@@ -359,15 +369,16 @@ type stubClient struct {
 	getAutomationJobFn        func(context.Context, string) (JobRecord, error)
 	updateAutomationJobFn     func(context.Context, string, AutomationJobUpdateRequest) (JobRecord, error)
 	deleteAutomationJobFn     func(context.Context, string) error
-	triggerAutomationJobFn    func(context.Context, string) (RunRecord, error)
-	automationJobRunsFn       func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
+	triggerAutomationJobFn    func(context.Context, string, ...time.Duration) (RunRecord, error)
+	automationJobRunsFn       func(context.Context, string, AutomationRunQuery) (AutomationRunListRecord, error)
 	listAutomationTriggersFn  func(context.Context, AutomationTriggerQuery) (AutomationTriggerListRecord, error)
 	createAutomationTriggerFn func(context.Context, AutomationTriggerCreateRequest) (TriggerRecord, error)
 	getAutomationTriggerFn    func(context.Context, string) (TriggerRecord, error)
 	updateAutomationTriggerFn func(context.Context, string, AutomationTriggerUpdateRequest) (TriggerRecord, error)
 	deleteAutomationTriggerFn func(context.Context, string) error
-	automationTriggerRunsFn   func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
-	listAutomationRunsFn      func(context.Context, AutomationRunQuery) ([]RunRecord, error)
+	automationTriggerRunsFn   func(context.Context, string, AutomationRunQuery) (AutomationRunListRecord, error)
+	listAutomationRunsFn      func(context.Context, AutomationRunQuery) (AutomationRunListRecord, error)
+	cancelAutomationRunFn     func(context.Context, string) (RunRecord, error)
 	getAutomationRunFn        func(context.Context, string) (RunRecord, error)
 	listTasksFn               func(context.Context, TaskListQuery) ([]TaskCatalogItemRecord, error)
 	createTaskFn              func(context.Context, CreateTaskRequest) (TaskRecord, error)
@@ -1345,6 +1356,34 @@ func (s *stubClient) UnarchiveSession(ctx context.Context, id string) (SessionRe
 	return SessionRecord{}, errors.New("unexpected UnarchiveSession call")
 }
 
+func (s *stubClient) PreviewSessionHistoryCleanup(
+	ctx context.Context,
+	request contract.SessionHistoryCleanupRequest,
+) (contract.SessionHistoryCleanupPreviewResponse, error) {
+	if s.previewSessionHistoryCleanupFn != nil {
+		return s.previewSessionHistoryCleanupFn(ctx, request)
+	}
+	return contract.SessionHistoryCleanupPreviewResponse{}, errors.New("unexpected PreviewSessionHistoryCleanup call")
+}
+
+func (s *stubClient) StartSessionHistoryCleanup(
+	ctx context.Context,
+	request contract.SessionHistoryCleanupRequest,
+) (contract.SessionHistoryCleanupStartResponse, error) {
+	if s.startSessionHistoryCleanupFn != nil {
+		return s.startSessionHistoryCleanupFn(ctx, request)
+	}
+	return contract.SessionHistoryCleanupStartResponse{}, errors.New("unexpected StartSessionHistoryCleanup call")
+}
+
+func (s *stubClient) GetSessionHistoryCleanup(context.Context) (contract.SessionHistoryCleanupRunResponse, error) {
+	return contract.SessionHistoryCleanupRunResponse{}, errors.New("unexpected GetSessionHistoryCleanup call")
+}
+
+func (s *stubClient) StopSessionHistoryCleanup(context.Context) (contract.SessionHistoryCleanupRunResponse, error) {
+	return contract.SessionHistoryCleanupRunResponse{}, errors.New("unexpected StopSessionHistoryCleanup call")
+}
+
 func (s *stubClient) MoveSessionToLater(
 	ctx context.Context,
 	id string,
@@ -1765,9 +1804,10 @@ func (s *stubClient) ListWorktrees(
 	ctx context.Context,
 	workspace string,
 	refresh bool,
+	includeRemoved bool,
 ) (WorktreeListRecord, error) {
 	if s.listWorktreesFn != nil {
-		return s.listWorktreesFn(ctx, workspace, refresh)
+		return s.listWorktreesFn(ctx, workspace, refresh, includeRemoved)
 	}
 	return WorktreeListRecord{}, errors.New("unexpected ListWorktrees call")
 }
@@ -2857,9 +2897,9 @@ func (s *stubClient) DeleteAutomationJob(ctx context.Context, id string) error {
 	return errors.New("unexpected DeleteAutomationJob call")
 }
 
-func (s *stubClient) TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error) {
+func (s *stubClient) TriggerAutomationJob(ctx context.Context, id string, timeout ...time.Duration) (RunRecord, error) {
 	if s.triggerAutomationJobFn != nil {
-		return s.triggerAutomationJobFn(ctx, id)
+		return s.triggerAutomationJobFn(ctx, id, timeout...)
 	}
 	return RunRecord{}, errors.New("unexpected TriggerAutomationJob call")
 }
@@ -2868,11 +2908,11 @@ func (s *stubClient) AutomationJobRuns(
 	ctx context.Context,
 	id string,
 	query AutomationRunQuery,
-) ([]RunRecord, error) {
+) (AutomationRunListRecord, error) {
 	if s.automationJobRunsFn != nil {
 		return s.automationJobRunsFn(ctx, id, query)
 	}
-	return nil, errors.New("unexpected AutomationJobRuns call")
+	return AutomationRunListRecord{}, errors.New("unexpected AutomationJobRuns call")
 }
 
 func (s *stubClient) ListAutomationTriggers(
@@ -2924,21 +2964,21 @@ func (s *stubClient) AutomationTriggerRuns(
 	ctx context.Context,
 	id string,
 	query AutomationRunQuery,
-) ([]RunRecord, error) {
+) (AutomationRunListRecord, error) {
 	if s.automationTriggerRunsFn != nil {
 		return s.automationTriggerRunsFn(ctx, id, query)
 	}
-	return nil, errors.New("unexpected AutomationTriggerRuns call")
+	return AutomationRunListRecord{}, errors.New("unexpected AutomationTriggerRuns call")
 }
 
 func (s *stubClient) ListAutomationRuns(
 	ctx context.Context,
 	query AutomationRunQuery,
-) ([]RunRecord, error) {
+) (AutomationRunListRecord, error) {
 	if s.listAutomationRunsFn != nil {
 		return s.listAutomationRunsFn(ctx, query)
 	}
-	return nil, errors.New("unexpected ListAutomationRuns call")
+	return AutomationRunListRecord{}, errors.New("unexpected ListAutomationRuns call")
 }
 
 func (s *stubClient) GetAutomationRun(ctx context.Context, id string) (RunRecord, error) {
@@ -3645,6 +3685,9 @@ func newTestDeps(t *testing.T, client DaemonClient) commandDeps {
 		processMatchesStartTime: func(int, time.Time) bool {
 			return true
 		},
+		inspectProcess: func(pid int) (procutil.ScannedProcess, error) {
+			return procutil.ScannedProcess{PID: pid}, nil
+		},
 		getwd: func() (string, error) {
 			return "/workspace/project", nil
 		},
@@ -3810,4 +3853,44 @@ func (s *stubClient) PermissionRollup(
 		return s.permissionRollupFn(ctx, q)
 	}
 	return contract.PermissionRollupResponse{}, nil
+}
+
+func (s *stubClient) SessionChanges(
+	ctx context.Context,
+	id string,
+	options sessionChangesOptions,
+) (sessionChangesRecord, error) {
+	return s.sessionChangesFn(ctx, id, options)
+}
+
+func (s *stubClient) HeartbeatAuthority(
+	ctx context.Context,
+	name string,
+	q AgentQuery,
+) (contract.HeartbeatAuthorityPayload, error) {
+	if s.heartbeatAuthorityFn != nil {
+		return s.heartbeatAuthorityFn(ctx, name, q)
+	}
+	return contract.HeartbeatAuthorityPayload{}, nil
+}
+func (s *stubClient) MutateHeartbeatAuthority(context.Context, string, AgentQuery, string, bool) error {
+	return nil
+}
+
+func (s *stubClient) CancelAutomationRun(ctx context.Context, id string) (RunRecord, error) {
+	if s.cancelAutomationRunFn != nil {
+		return s.cancelAutomationRunFn(ctx, id)
+	}
+	return RunRecord{}, errors.New("unexpected CancelAutomationRun call")
+}
+
+func (s *stubClient) RemoveWorktrees(
+	ctx context.Context,
+	workspace string,
+	request contract.RemoveWorktreesRequest,
+) (contract.RemoveWorktreesResponse, error) {
+	if s.removeWorktreesFn != nil {
+		return s.removeWorktreesFn(ctx, workspace, request)
+	}
+	return contract.RemoveWorktreesResponse{}, errors.New("unexpected RemoveWorktrees call")
 }

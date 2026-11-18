@@ -20,6 +20,7 @@ compozy agent heartbeat write <agent> [flags]
 ### Options
 
 ```
+      --approve-authority        Approve the displayed check-in authority
       --expected-digest string   Expected current Heartbeat digest for CAS
       --file string              Read authored context body from a file
   -h, --help                     help for write
@@ -27,6 +28,7 @@ compozy agent heartbeat write <agent> [flags]
       --if-match string          Alias for --expected-digest
       --stdin                    Read authored context body from stdin
       --workspace string         Override workspace context (ID, name, or path)
+      --yes                      Confirm authority approval with --approve-authority
 ```
 
 ### Options inherited from parent commands

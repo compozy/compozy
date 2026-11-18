@@ -7,7 +7,9 @@ import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
 
 import type { SessionListGroupBy, SessionListSort } from "../lib/session-list-preferences";
+import { sessionListShelfStore, type SessionListShelf } from "../lib/session-list-shelf";
 import {
+  closedSessionSidebarScopes,
   mergeSessionSidebarPreferences,
   migrateSessionSidebarPreferences,
   prunedSessionSidebarScopes,
@@ -89,6 +91,7 @@ function withScopeState(
     ...next,
     view: DEFAULT_SCOPE_STATE.view,
     hideChildren: DEFAULT_SCOPE_STATE.hideChildren,
+    showAutomation: DEFAULT_SCOPE_STATE.showAutomation,
     collapsedBoardColumns: previousShell?.collapsedBoardColumns ?? {},
     sort: previousShell?.sort ?? null,
     groupBy: previousShell?.groupBy ?? null,
@@ -138,6 +141,14 @@ export const sessionSidebarLogic = createStoreLogic({
       return withScopeState(context, event.scopeId, state => ({
         ...state,
         hideChildren: event.hideChildren,
+      }));
+    },
+    showAutomationChanged: (context, event: { scopeId: string; show: boolean }) => {
+      // Like the board's filter, showing automation runs never seeds new windows.
+      if (event.scopeId === SHELL_WORKTREE_SCOPE) return;
+      return withScopeState(context, event.scopeId, state => ({
+        ...state,
+        showAutomation: event.show,
       }));
     },
     boardColumnCollapsedChanged: (
@@ -298,7 +309,14 @@ export function pruneSessionSidebarScopes(
   partition: string,
   liveScopeIds: readonly string[]
 ): void {
+  const closed = closedSessionSidebarScopes(
+    sessionSidebarStore.getSnapshot().context.partitionByScope,
+    partition,
+    liveScopeIds
+  );
   sessionSidebarStore.trigger.scopesPruned({ partition, liveScopeIds });
+  // A closed window's shelf goes with its rail entry.
+  if (closed.length > 0) sessionListShelfStore.trigger.scopesReleased({ scopeIds: closed });
   persistSessionSidebarPrune(partition, liveScopeIds);
 }
 
@@ -375,6 +393,12 @@ export interface UseSessionSidebarStateResult {
   /** Project grouping lists projects with no sessions too (#1085); new windows inherit it. */
   showEmptyProjects: boolean;
   setShowEmptyProjects: (show: boolean) => void;
+  /** "Show automation runs" (#1355); per window, never inherited. */
+  showAutomation: boolean;
+  setShowAutomation: (show: boolean) => void;
+  /** The list's shelf (active, archive, or Later); per window, kept across selections, never persisted. */
+  shelf: SessionListShelf;
+  setShelf: (shelf: SessionListShelf) => void;
   /** Rail width in pixels: the operator's choice in this window, else the default. */
   width: number;
   setWidth: (width: number) => void;
@@ -394,6 +418,10 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
   );
   const state = useSelector(sessionSidebarStore, snapshot =>
     resolveSessionSidebarScope(snapshot.context.byScope, scopeId)
+  );
+  const shelf = useSelector(
+    sessionListShelfStore,
+    snapshot => snapshot.context.byScope[scopeId] ?? "active"
   );
 
   useEffect(() => {
@@ -426,6 +454,12 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
     showEmptyProjects: state.showEmptyProjects,
     setShowEmptyProjects: (show: boolean) =>
       sessionSidebarStore.trigger.showEmptyProjectsChanged({ scopeId, show }),
+    showAutomation: state.showAutomation,
+    setShowAutomation: (show: boolean) =>
+      sessionSidebarStore.trigger.showAutomationChanged({ scopeId, show }),
+    shelf,
+    setShelf: (nextShelf: SessionListShelf) =>
+      sessionListShelfStore.trigger.shelfChanged({ scopeId, shelf: nextShelf }),
     width: state.width ?? SESSION_SIDEBAR_DEFAULT_WIDTH,
     setWidth: (nextWidth: number) =>
       sessionSidebarStore.trigger.widthChanged({ scopeId, width: nextWidth }),

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -64,6 +65,22 @@ func TestPublishCatalog(t *testing.T) {
 	if err := run(t.Context(), []string{"publish", source, output}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
+	t.Run("Should keep committed feeds consistent with their authored sources", func(t *testing.T) {
+		t.Parallel()
+		for _, name := range []string{"extensions.json", "compatibility.json", "marketplaces.json"} {
+			committed, err := os.ReadFile(filepath.Join(source, "v3", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			generated, err := os.ReadFile(filepath.Join(output, "v3", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(committed, generated) {
+				t.Fatalf("%s differs from publication; run compozy-catalog publish", name)
+			}
+		}
+	})
 	t.Run("Should emit only the current catalog family with eighteen extensions [UT-054]", func(t *testing.T) {
 		t.Parallel()
 		files, err := os.ReadDir(output)
@@ -87,6 +104,16 @@ func TestPublishCatalog(t *testing.T) {
 			t.Fatalf("v3 version/count = %d/%d", document.ManifestVersion, len(document.Entries))
 		}
 		for _, entry := range document.Entries {
+			details, err := marketplace.ProjectEntry(entry)
+			if err != nil || details.Category.ID == marketplace.CategoryMore {
+				t.Fatalf("uncategorized %s: %+v, %v", entry.EntryID, details, err)
+			}
+			if entry.EntryID == "grafana" && len(details.Supersedes) != 4 {
+				t.Fatalf("Grafana alias curation = %+v", details)
+			}
+			if entry.EntryID == "notion" && (!details.Featured || len(details.Supersedes) != 2) {
+				t.Fatalf("Notion curation = %+v", details)
+			}
 			if entry.EntryID == "documentation-writer" || entry.EntryID == "repository-orientation" {
 				t.Fatalf("retired listing %q remains in v3", entry.EntryID)
 			}
@@ -99,8 +126,8 @@ func TestPublishCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(parsed.Entries) != 2 || parsed.Entries[0].Name != "claude-plugins-official" ||
-			parsed.Entries[0].Default != "on" || parsed.Entries[1].Name != "openai-codex" || parsed.Entries[1].Default != "off" {
+		if len(parsed.Entries) != 3 || parsed.Entries[0].Name != "claude-plugins-official" ||
+			parsed.Entries[0].Default != "on" || parsed.Entries[1].Name != "compozy-plugins" || parsed.Entries[1].Default != "on" || parsed.Entries[2].Name != "openai-codex" || parsed.Entries[2].Default != "off" {
 			t.Fatalf("presets = %#v", parsed.Entries)
 		}
 	})

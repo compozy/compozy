@@ -22,6 +22,7 @@ func TestGenerationHistoryProjection(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should seed initial generation history with schema-shaped zeros", testGenerationHistoryInitialGeneration)
+	t.Run("Should preserve pre-view defaults for every output source", testGenerationHistorySourceShapes)
 	t.Run("Should project every previous node and verdict", testGenerationHistoryPreviousGeneration)
 	t.Run("Should keep sparse later generations schema-total", testGenerationHistorySparseGeneration)
 	t.Run("Should expose only escalated classified failures to repair context", testGenerationHistoryRepairFailure)
@@ -662,4 +663,173 @@ func (r generationHistoryReaderStub) ListRouteCausingVerdicts(
 	generation int64,
 ) ([]gate.VerdictRecord, error) {
 	return append([]gate.VerdictRecord(nil), r.routeCauses[int(generation)]...), nil
+}
+
+func testGenerationHistorySourceShapes(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	typeShape := dsl.Schema{"type": "string", "id": "string"}
+	titleShape := dsl.Schema{"title": "string", "body": "string"}
+	definition := dsl.Definition{
+		Inputs: map[string]dsl.Input{"subject": {Type: dsl.InputTypeString}},
+		Graph: dsl.Graph{Nodes: []dsl.Node{
+			{
+				ID:    "t",
+				Class: dsl.NodeClassAction,
+				Kind:  "transform",
+				Params: dsl.NodeParams{
+					"map": map[string]any{
+						"score": map[string]any{"value": 1},
+						"label": map[string]any{"value": "label"},
+					},
+				},
+			},
+			{ID: "p_type", Class: dsl.NodeClassAction, Kind: "run-agent", Produces: typeShape},
+			{ID: "p_title", Class: dsl.NodeClassAction, Kind: "run-agent", Produces: titleShape},
+			{
+				ID:     "s_type",
+				Class:  dsl.NodeClassAction,
+				Kind:   "run-agent",
+				Params: dsl.NodeParams{"output_schema": typeShape},
+			},
+			{
+				ID:     "s_title",
+				Class:  dsl.NodeClassAction,
+				Kind:   "run-agent",
+				Params: dsl.NodeParams{"output_schema": titleShape},
+			},
+			{ID: "tool", Class: dsl.NodeClassAction, Kind: "compozy__fixture"},
+			{
+				ID:       "tool_decl",
+				Class:    dsl.NodeClassAction,
+				Kind:     "compozy__fixture",
+				Produces: dsl.Schema{"id": "string"},
+			},
+			{ID: "source_decl", Class: dsl.NodeClassSource, Kind: "input", InputRef: "subject", Produces: typeShape},
+			{
+				ID:    "goal",
+				Class: dsl.NodeClassAction,
+				Kind:  "goal",
+				Params: dsl.NodeParams{
+					"agent":     "codex",
+					"objective": "Return",
+					"max_turns": 1,
+					"judge":     []any{map[string]any{"id": "verify", "type": "command", "check": "true"}},
+					"output_schema": dsl.Schema{
+						"status": map[string]any{"type": "string", "enum": []any{"complete", "blocked"}},
+					},
+				},
+			},
+			{ID: "input", Class: dsl.NodeClassSource, Kind: "input", InputRef: "subject"},
+			{ID: "watch", Class: dsl.NodeClassSource, Kind: "watch-events"},
+			{
+				ID:     "await",
+				Class:  dsl.NodeClassAction,
+				Kind:   "run-loop",
+				Params: dsl.NodeParams{"loop": "child", "mode": "await"},
+			},
+			{
+				ID:     "detach",
+				Class:  dsl.NodeClassAction,
+				Kind:   "run-loop",
+				Params: dsl.NodeParams{"loop": "child", "mode": "detach"},
+			},
+			{
+				ID:     "ask",
+				Class:  dsl.NodeClassControl,
+				Kind:   "ask",
+				Params: dsl.NodeParams{"prompt": "Choose", "expect": titleShape},
+			},
+			{ID: "unknown", Class: dsl.NodeClassControl, Kind: "gate"},
+		}},
+	}
+	schemas := map[string]ToolSchemaSnapshot{
+		"compozy__fixture": {
+			ToolID: "compozy__fixture",
+			OutputSchema: json.RawMessage(
+				`{"type":"object","properties":{"id":{"type":"string"},"score":{"type":"number"}},"additionalProperties":false}`,
+			),
+		},
+	}
+	expected := map[string]any{
+		"t":           map[string]any{"label": nil, "score": nil},
+		"p_type":      "",
+		"s_type":      "",
+		"p_title":     map[string]any{"body": ""},
+		"s_title":     map[string]any{"body": ""},
+		"tool":        map[string]any{"id": "", "score": json.Number("0")},
+		"input":       "",
+		"tool_decl":   map[string]any{"id": ""},
+		"source_decl": "",
+		"goal":        map[string]any{"status": ""},
+		"watch":       map[string]any{"events": []any{}, "cursors": map[string]any{}},
+		"await":       "",
+		"detach":      map[string]any{"loop_run_id": ""},
+		"ask":         map[string]any{"body": ""},
+		"unknown":     map[string]any{},
+	}
+	history, err := ReadGenerationHistory(t.Context(), nil, Run{}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	namespace, err := runtimeNamespaceWithHistory(
+		Run{},
+		1,
+		definition.Graph,
+		newDefinitionControlTopology(definition, schemas),
+		nil,
+		history,
+		"",
+		0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, prefix := range []string{"previous", "best"} {
+		expectedNodes := map[string]any{}
+		for id, output := range expected {
+			row := map[string]any{"output": output}
+			if prefix == "previous" {
+				row["status"] = ""
+			}
+			expectedNodes[id] = row
+		}
+		actual := namespace[prefix].(map[string]any)["nodes"]
+		if !reflect.DeepEqual(actual, expectedNodes) {
+			t.Errorf("%s.nodes=%#v want %#v", prefix, actual, expectedNodes)
+		}
+	}
+	rendered, err := refs.RenderTemplateString(
+		"history",
+		"{{ .previous.nodes.t.output.score }}|{{ .best.nodes.t.output.label }}",
+		namespace,
+	)
+	if err != nil || rendered != "<no value>|<no value>" {
+		t.Errorf("rendered=%q err=%v", rendered, err)
+	}
+	compiler, err := refs.NewConditionCompiler(
+		refs.Namespace{
+			Nodes: map[string]refs.NodeSchema{
+				"t": {Output: refs.Schema{"score": "any", "label": "any"}, HasOutput: true},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, prefix := range []string{"previous", "best"} {
+		for _, tc := range []struct {
+			expression string
+			want       bool
+		}{{prefix + ".nodes.t.output.score == null", true}, {prefix + ".nodes.t.output.score != null && " + prefix + ".nodes.t.output.score > 0", false}} {
+			condition, err := compiler.Compile(tc.expression)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := condition.Evaluate(namespace)
+			if err != nil || got.Value != tc.want {
+				t.Errorf("%s=%#v err=%v", tc.expression, got, err)
+			}
+		}
+	}
 }

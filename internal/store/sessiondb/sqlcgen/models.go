@@ -70,18 +70,19 @@ type SessionDbOwner struct {
 }
 
 type TokenUsage struct {
-	TurnID           string          `json:"turn_id"`
-	InputTokens      sql.NullInt64   `json:"input_tokens"`
-	OutputTokens     sql.NullInt64   `json:"output_tokens"`
-	TotalTokens      sql.NullInt64   `json:"total_tokens"`
-	ThoughtTokens    sql.NullInt64   `json:"thought_tokens"`
-	CacheReadTokens  sql.NullInt64   `json:"cache_read_tokens"`
-	CacheWriteTokens sql.NullInt64   `json:"cache_write_tokens"`
-	ContextUsed      sql.NullInt64   `json:"context_used"`
-	ContextSize      sql.NullInt64   `json:"context_size"`
-	CostAmount       sql.NullFloat64 `json:"cost_amount"`
-	CostCurrency     sql.NullString  `json:"cost_currency"`
-	Timestamp        string          `json:"timestamp"`
+	TurnID             string          `json:"turn_id"`
+	InputTokens        sql.NullInt64   `json:"input_tokens"`
+	OutputTokens       sql.NullInt64   `json:"output_tokens"`
+	TotalTokens        sql.NullInt64   `json:"total_tokens"`
+	ThoughtTokens      sql.NullInt64   `json:"thought_tokens"`
+	CacheReadTokens    sql.NullInt64   `json:"cache_read_tokens"`
+	CacheWriteTokens   sql.NullInt64   `json:"cache_write_tokens"`
+	ContextUsed        sql.NullInt64   `json:"context_used"`
+	ContextSize        sql.NullInt64   `json:"context_size"`
+	CostAmount         sql.NullFloat64 `json:"cost_amount"`
+	ReportedCostAmount sql.NullFloat64 `json:"reported_cost_amount"`
+	CostCurrency       sql.NullString  `json:"cost_currency"`
+	Timestamp          string          `json:"timestamp"`
 }
 
 type TranscriptEntry struct {

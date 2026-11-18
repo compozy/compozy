@@ -6,6 +6,7 @@
  * run right now, which are still someone's to bind (US-022.AC-1).
  */
 import {
+  CORE_SHORTCUT_SOURCE,
   coveringShortcutFamily,
   expandShortcutOverrides,
   shortcutSourceLabel,
@@ -13,6 +14,8 @@ import {
   type WindowManagerSettingsSection,
   type WindowManagerShortcutMap,
 } from "@/systems/os";
+
+import { isRetiredShortcutId, retiredShortcutTitle } from "./window-manager-retired-shortcuts";
 
 export interface ShortcutTableRow {
   commandId: string;
@@ -29,6 +32,8 @@ export interface ShortcutTableRow {
   dormantReason: string | null;
   /** A chord a focused surface claims locally. */
   shadowedReason: string | null;
+  /** The action is retired: its stored binding loads and does nothing (US-018.EC-1). */
+  retired: boolean;
 }
 
 /**
@@ -73,7 +78,7 @@ export function buildShortcutTableRows(
   for (const entry of section.extensionDefaults) {
     if (entry.dormant) dormant.set(entry.commandId, entry.conflictWith);
   }
-  return section.commands.map(command => {
+  const rows = section.commands.map((command): ShortcutTableRow => {
     const bindings = effective[command.id] ?? [];
     const shadow = shadowed.find(entry => entry.actionIds.includes(command.id));
     const conflictWith = dormant.get(command.id);
@@ -96,7 +101,38 @@ export function buildShortcutTableRows(
         shadow === undefined
           ? null
           : `Shadowed while ${shadow.winner?.surface ?? "a local surface"} is focused — ${shadow.winner?.label ?? "its local action"} wins there.`,
+      retired: isRetiredShortcutId(command.id),
     };
+  });
+  return [...rows, ...retiredOverrideRows(overrides, new Set(rows.map(row => row.commandId)))];
+}
+
+/**
+ * A stored binding to a retired action has no registry command, so without its
+ * own row it would sit in `config.toml` unseen. It is listed with the chords it
+ * still holds, marked retired, and its reset removes it.
+ */
+function retiredOverrideRows(
+  overrides: WindowManagerShortcutMap,
+  listed: ReadonlySet<string>
+): ShortcutTableRow[] {
+  return Object.entries(overrides).flatMap(([commandId, bindings]) => {
+    if (!isRetiredShortcutId(commandId) || listed.has(commandId)) return [];
+    return [
+      {
+        commandId,
+        title: retiredShortcutTitle(commandId),
+        section: "window",
+        source: CORE_SHORTCUT_SOURCE,
+        sourceLabel: shortcutSourceLabel(CORE_SHORTCUT_SOURCE),
+        bindings,
+        overridden: true,
+        unbound: false,
+        dormantReason: null,
+        shadowedReason: null,
+        retired: true,
+      },
+    ];
   });
 }
 

@@ -21,7 +21,7 @@ import (
 type loopInputCatalogClient interface {
 	ListAgents(context.Context, AgentQuery) ([]AgentRecord, error)
 	ListSkills(context.Context, SkillQuery) ([]SkillRecord, error)
-	ListWorktrees(context.Context, string, bool) (WorktreeListRecord, error)
+	ListWorktrees(context.Context, string, bool, bool) (WorktreeListRecord, error)
 	ListSessions(context.Context, SessionListQuery) (SessionListPage, error)
 	ListWorkspaces(context.Context) ([]WorkspaceRecord, error)
 	ListVaultSecrets(context.Context, VaultListQuery) ([]VaultRecord, error)
@@ -222,7 +222,7 @@ func loopEntityCatalogChoices(
 		}
 		return sortedUniqueStrings(values), nil
 	case dsl.EntityKindWorktree:
-		items, err := client.ListWorktrees(ctx, workspaceID, false)
+		items, err := client.ListWorktrees(ctx, workspaceID, false, false)
 		if err != nil {
 			return nil, err
 		}

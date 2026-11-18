@@ -194,3 +194,17 @@ func BenchmarkCloneResolvedWorkspace(b *testing.B) {
 		cloneResolvedWorkspace(&resolved)
 	}
 }
+
+func BenchmarkResolveAgentConfigHit(b *testing.B) {
+	fixture := newBenchmarkResolverFixture(b)
+	fixture.resolver.snapshotTTL = time.Hour
+	if _, err := fixture.resolver.ResolveAgentConfig(fixture.ctx, fixture.workspace.ID, ""); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := fixture.resolver.ResolveAgentConfig(fixture.ctx, fixture.workspace.ID, ""); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

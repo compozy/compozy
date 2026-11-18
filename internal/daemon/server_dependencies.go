@@ -16,6 +16,7 @@ func (d *Daemon) prepareServerDependencies(ctx context.Context, state *bootState
 		return err
 	}
 	state.deps.Loops = loopAPI
+	state.deps.TelemetryStatus = state.ensureTelemetry().Status
 	if installer, ok := state.sessions.(goalCommandHandlerInstaller); ok {
 		if handler, handlerOK := loopAPI.(session.GoalCommandHandler); handlerOK {
 			installer.SetGoalCommandHandler(handler)

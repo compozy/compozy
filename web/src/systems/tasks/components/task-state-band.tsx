@@ -16,6 +16,7 @@ export interface TaskStateBandProps extends Omit<React.ComponentProps<"div">, "t
 const TONE_SURFACE: Record<PillTone, string> = {
   neutral: "border-transparent bg-card shadow-card",
   brand: "border-brand/40 bg-brand-tint shadow-none",
+  attn: "border-attn/40 bg-attn-tint shadow-none",
   info: "border-info/25 bg-info-tint shadow-none",
   success: "border-success/25 bg-success-tint shadow-none",
   warning: "border-warning/25 bg-warning-tint shadow-none",
@@ -25,6 +26,7 @@ const TONE_SURFACE: Record<PillTone, string> = {
 const TONE_TITLE: Record<PillTone, string> = {
   neutral: "text-fg-strong",
   brand: "text-fg-strong",
+  attn: "text-fg-strong",
   info: "text-info",
   success: "text-success",
   warning: "text-warning",

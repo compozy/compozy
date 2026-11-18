@@ -178,6 +178,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent-instances/{id}/reports/{report_id}/pick": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pick an instance proposal */
+    post: operations["pickAgentInstanceProposal"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent-instances/{id}/resume": {
     parameters: {
       query?: never;
@@ -642,6 +659,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agents/{name}/heartbeat/authority": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** show check-in authority */
+    get: operations["getAgentHeartbeatAuthority"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/heartbeat/authority/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** approve check-in authority */
+    post: operations["approveAgentHeartbeatAuthority"];
+    /** revoke check-in authority */
+    delete: operations["revokeAgentHeartbeatAuthority"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents/{name}/heartbeat/history": {
     parameters: {
       query?: never;
@@ -1036,7 +1088,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Trigger one automation job immediately */
+    /** Start one automation job and return its admission receipt */
     post: operations["triggerAutomationJob"];
     delete?: never;
     options?: never;
@@ -1072,6 +1124,23 @@ export interface paths {
     get: operations["getAutomationRun"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/automation/runs/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel an orphaned automation run */
+    post: operations["cancelAutomationRun"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2069,6 +2138,23 @@ export interface paths {
     put?: never;
     /** Refresh the extension catalog */
     post: operations["refreshMarketplaceCatalog"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/marketplace/sections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Browse Featured and category sections */
+    get: operations["getMarketplaceSections"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -3156,6 +3242,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/history-cleanup": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the selected profile's running or most recent archived-history cleanup */
+    get: operations["getSessionHistoryCleanup"];
+    put?: never;
+    /** Preview (dry_run) or start the background deletion of archived sessions archived before a cutoff: whole threads, or only their child sessions or subagents */
+    post: operations["planSessionHistoryCleanup"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/history-cleanup/stop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Stop the selected profile's running cleanup; sessions already deleted stay deleted */
+    post: operations["stopSessionHistoryCleanup"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{session_id}": {
     parameters: {
       query?: never;
@@ -3556,6 +3677,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/mcp-servers/{name}/approval": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Approve an exact workspace MCP definition */
+    put: operations["putSettingsMCPApproval"];
+    post?: never;
+    /** Revoke workspace MCP consent */
+    delete: operations["deleteSettingsMCPApproval"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/settings/mcp-servers/{name}/auth/begin": {
     parameters: {
       query?: never;
@@ -3618,6 +3757,23 @@ export interface paths {
     get: operations["getSettingsMCPAuthStatus"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/mcp-servers/{name}/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Retry one scoped MCP server runtime probe */
+    post: operations["checkSettingsMCPServer"];
     delete?: never;
     options?: never;
     head?: never;
@@ -3731,6 +3887,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/providers/{name}/enabled": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Enable or disable one provider */
+    patch: operations["setSettingsProviderEnabled"];
+    trace?: never;
+  };
   "/api/settings/reload": {
     parameters: {
       query?: never;
@@ -3764,6 +3937,40 @@ export interface paths {
     head?: never;
     /** Update the background-role routing settings section */
     patch: operations["updateSettingsRoles"];
+    trace?: never;
+  };
+  "/api/settings/runtime-mcp-servers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List runtime MCP servers from native configuration files */
+    get: operations["listRuntimeMCPServers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/runtime-mcp-servers/{runtime}/{name}/import": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Copy a runtime MCP server into CompozyOS */
+    post: operations["importRuntimeMCPServer"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/settings/shell": {
@@ -4892,7 +5099,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Search operator-visible registry tools */
+    /** Search operator-visible registry tools (default 20, maximum 100 per page) */
     post: operations["searchTools"];
     delete?: never;
     options?: never;
@@ -5292,6 +5499,91 @@ export interface paths {
     put?: never;
     /** Durably dismiss one automation suggestion */
     post: operations["dismissAutomationSuggestion"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/files/content": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read project file content */
+    get: operations["readFileContent"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/files/entries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List project file entries */
+    get: operations["listFileEntries"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/files/find": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Find project files */
+    get: operations["findFiles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/files/raw/{path}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream project file bytes */
+    get: operations["readFileBytes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/files/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search project file contents */
+    get: operations["searchFileContents"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -6058,6 +6350,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/changes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session changes */
+    get: operations["getSessionChanges"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/bases": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session changes */
+    get: operations["listSessionChangeBases"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session changes */
+    get: operations["getSessionChangeContents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session changes */
+    get: operations["getSessionChangePatches"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications": {
     parameters: {
       query?: never;
@@ -6220,6 +6580,91 @@ export interface paths {
     };
     /** Search files and folders under a session's working directory */
     get: operations["searchSessionFiles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read project file content */
+    get: operations["readSessionFileContent"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List project file entries */
+    get: operations["listSessionFileEntries"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Find project files */
+    get: operations["findSessionFiles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/files/raw/{path}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream session file bytes */
+    get: operations["readSessionFileBytes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search project file contents */
+    get: operations["searchSessionFileContents"];
     put?: never;
     post?: never;
     delete?: never;
@@ -6412,6 +6857,40 @@ export interface paths {
     put?: never;
     /** Mark a session's Needs you as seen until its next occurrence; a session waiting on an answer, a sign-in, or a stop is refused */
     post: operations["markSessionSeen"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session MCP availability without discovery; redacted definition previews appear only for waiting approval and never for app tokens */
+    get: operations["getSessionMCP"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Retry discovery for one session MCP server without restarting the runtime */
+    post: operations["checkSessionMCP"];
     delete?: never;
     options?: never;
     head?: never;
@@ -7046,7 +7525,8 @@ export interface paths {
     get: operations["getSubagent"];
     put?: never;
     post?: never;
-    delete?: never;
+    /** Delete a delegated subagent and its child session */
+    delete: operations["deleteSubagent"];
     options?: never;
     head?: never;
     patch?: never;
@@ -7499,6 +7979,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/window-manager/migration": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read window layout migration status */
+    get: operations["getWindowManagerMigration"];
+    put?: never;
+    /** Acknowledge or retry window layout migration */
+    post: operations["updateWindowManagerMigration"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/window-manager/preview": {
     parameters: {
       query?: never;
@@ -7579,6 +8077,23 @@ export interface paths {
     put?: never;
     /** Remove a discovered worktree */
     post: operations["removeDiscoveredWorktree"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Remove multiple worktrees or preview per-target removal risk */
+    post: operations["removeWorktrees"];
     delete?: never;
     options?: never;
     head?: never;
@@ -7705,6 +8220,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/files/raw/{path}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream worktree file bytes */
+    get: operations["readWorktreeFileBytes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status": {
     parameters: {
       query?: never;
@@ -7814,6 +8346,12 @@ export interface components {
       tool?: string;
       url?: string;
       view?: string;
+    };
+    ActionDecl: {
+      auto_accept: boolean;
+      id: string;
+      instructions: string;
+      title: string;
     };
     ActivityCost: {
       scope: string;
@@ -7943,8 +8481,11 @@ export interface components {
     };
     AgentEffectiveRuntimePayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
+      auto_compact_window?: number | null;
+      lean_environment?: boolean | null;
       model?: string;
       permissions?: string;
+      policy_excluded_acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       provider: string;
       reasoning_effort?: string;
       session_env?: {
@@ -8000,8 +8541,12 @@ export interface components {
       created_at: string;
       detail?: string;
       id: string;
+      occurrence_id: string;
+      proposals: components["schemas"]["CheckInProposalSummary"];
       reason: string;
       result: string;
+      tool_calls: components["schemas"]["CheckInToolCall"][];
+      tools_status: string;
     };
     AgentInstanceCheckInsResponse: {
       check_ins: components["schemas"]["AgentInstanceCheckInPayload"][];
@@ -8042,6 +8587,8 @@ export interface components {
     AgentInstancePayload: {
       activity: string;
       agent_name: string;
+      attention_dismissible: boolean;
+      authority_status: string;
       checks_enabled: boolean;
       created: boolean;
       /** Format: date-time */
@@ -8080,15 +8627,37 @@ export interface components {
       workspace_id: string;
     };
     AgentInstancePeer: {
+      accepts?: string[];
       description: string;
       name: string;
       scope: string;
       state: string;
     };
+    AgentInstancePickRequest: {
+      proposal: number | null;
+    };
+    AgentInstancePickResponse: {
+      pick: components["schemas"]["Pick"];
+    };
     AgentInstanceProposal: {
+      action?: components["schemas"]["AgentInstanceProposalAction"] | null;
+      /** @enum {string} */
+      auto_accept_status:
+        | "picked"
+        | "limit"
+        | "queue_full"
+        | "unapproved"
+        | "no_main"
+        | "inactive"
+        | "none";
       body: string;
       item_keys: string[];
       sources?: components["schemas"]["AgentInstanceProposalSource"][];
+      title: string;
+    };
+    AgentInstanceProposalAction: {
+      auto_accept: boolean;
+      id: string;
       title: string;
     };
     AgentInstanceProposalSource: {
@@ -8108,9 +8677,13 @@ export interface components {
       /** Format: date-time */
       created_at: string;
       detail?: string;
+      diagnostics?: string[];
       expired_by?: string;
       id: string;
       kind: string;
+      occurrence_id?: string;
+      picks: components["schemas"]["Pick"][];
+      picks_tracked: boolean;
       proposals?: components["schemas"]["AgentInstanceProposal"][];
       reason?: string;
       resource?: string;
@@ -8120,6 +8693,7 @@ export interface components {
       source?: components["schemas"]["AgentInstanceReportSource"] | null;
       state: string;
       tool?: string;
+      tool_calls: components["schemas"]["CheckInToolSummary"];
     };
     AgentInstanceReportSource: {
       event: string;
@@ -8155,15 +8729,46 @@ export interface components {
       max_spawn_depth: number;
       spawn_blocked_reason?: string;
     };
-    AgentMCPServerJSON: {
+    AgentMCPServerInput: {
       args?: string[];
-      auth?: components["schemas"]["SettingsMCPAuthConfigViewPayload"] | null;
+      auth?: components["schemas"]["SettingsMCPAuthConfigPayload"] | null;
       command?: string;
       env?: {
         [key: string]: string;
       };
       name: string;
+      read_only_tools?: string[];
+      reference?: boolean;
       secret_env?: {
+        [key: string]: string;
+      };
+      secret_env_values?: {
+        [key: string]: string;
+      };
+      secret_header_values?: {
+        [key: string]: string;
+      };
+      secret_headers?: {
+        [key: string]: string;
+      };
+      transport?: string;
+      url?: string;
+    };
+    AgentMCPServerJSON: {
+      args?: string[];
+      auth?: components["schemas"]["SettingsMCPAuthConfigViewPayload"] | null;
+      broken_reference?: boolean;
+      command?: string;
+      env?: {
+        [key: string]: string;
+      };
+      name: string;
+      read_only_tools?: string[];
+      reference?: boolean;
+      secret_env?: {
+        [key: string]: string;
+      };
+      secret_headers?: {
         [key: string]: string;
       };
       transport?: string;
@@ -8182,6 +8787,7 @@ export interface components {
       me: components["schemas"]["AgentMePayload"];
     };
     AgentMemoryAddRequest: {
+      kind?: string;
       text: string;
       until?: string;
     };
@@ -8254,10 +8860,12 @@ export interface components {
       retry_after_ms?: number;
     };
     AgentPayload: {
+      accepts?: string[];
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       appearance?: {
         [key: string]: unknown;
       };
+      auto_compact_window?: number | null;
       category_path?: string[];
       command?: string;
       definition_digest: string;
@@ -8270,6 +8878,7 @@ export interface components {
       kind?: string;
       label: string;
       layer?: string;
+      lean_environment?: boolean | null;
       mcp_servers?: components["schemas"]["AgentMCPServerJSON"][];
       model?: string;
       name: string;
@@ -8316,6 +8925,7 @@ export interface components {
     };
     AgentResponse: {
       agent: components["schemas"]["AgentPayload"];
+      warnings?: string[];
     };
     AgentSessionMetricsPayload: {
       active: number;
@@ -8644,6 +9254,7 @@ export interface components {
       finished: boolean;
       generation: number;
       id: string;
+      instance_id?: string;
       item_index: number;
       kind: string;
       loop_name?: string;
@@ -8653,6 +9264,7 @@ export interface components {
       redacted: boolean;
       request_kind?: string;
       run_id?: string;
+      session_type?: string;
       source_id: string;
       terminal_id?: string;
       title: string;
@@ -8774,6 +9386,10 @@ export interface components {
       expected_worktree_id?: string | null;
       worktree: string;
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     BindingsConfig: {
       bottom_center: string;
       top_center: string;
@@ -8838,7 +9454,12 @@ export interface components {
       /** @enum {string} */
       steer_capability: "steer_ext" | "concurrent_prompt" | "none";
       /** @enum {string} */
-      steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+      steer_delivery?:
+        | "injected"
+        | "pending_injection"
+        | "pending_boundary"
+        | "after_turn"
+        | "interrupt_fallback";
     };
     CancelTaskRequest: {
       metadata?: unknown;
@@ -8856,14 +9477,98 @@ export interface components {
       keywords?: string[];
       use_when?: string;
     };
+    ChangeBasePayload: {
+      merge_base_sha: string;
+      ref: string;
+      source: string;
+    };
+    ChangeBaseRefPayload: {
+      is_default?: boolean;
+      kind: string;
+      ref: string;
+      source?: string;
+    };
+    ChangeHeadPayload: {
+      branch: string;
+      sha: string;
+    };
+    ChangePatchPayload: {
+      fingerprint: string;
+      patch?: string;
+      path: string;
+      sensitive?: boolean;
+      too_large?: boolean;
+    };
     ChangeSet: {
       client_ids?: string[];
       desktop_ids?: string[];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       group_ids?: string[];
       node_ids?: string[];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_grouped?: string[];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_ungrouped?: string[];
+      tab_ids?: string[];
+      tab_split?: string[];
+      tab_unsplit?: string[];
       window_ids?: string[];
+    };
+    ChangeSidePayload: {
+      sensitive?: boolean;
+      text?: string | null;
+    };
+    ChangeTotalsPayload: {
+      additions: number;
+      deletions: number;
+      files: number;
+      partial?: boolean;
+    };
+    CheckInProposalSummary: {
+      /** Format: int64 */
+      auto_accepted: number;
+      /** Format: int64 */
+      waiting: number;
+    };
+    CheckInToolCall: {
+      access: string;
+      args_preview?: string;
+      backend: string;
+      decision: string;
+      deny_reason?: string;
+      /** Format: int64 */
+      duration_ms: number;
+      effect: string;
+      error_code?: string;
+      mcp_server?: string;
+      outcome: string;
+      /** Format: int64 */
+      seq: number;
+      tool_id: string;
+    };
+    CheckInToolSummary: {
+      /** Format: int64 */
+      denied: number;
+      /** Format: int64 */
+      total: number;
+      /** Format: int64 */
+      writes_done: number;
+      /** Format: int64 */
+      writes_maybe: number;
+    };
+    CheckInsPolicy: {
+      allow_writes?: string[];
+      max_tool_calls?: number | null;
+      max_write_calls?: number | null;
     };
     Chip: {
       count?: number | null;
@@ -9194,6 +9899,9 @@ export interface components {
     };
     ContractWindowManagerClientView: {
       active_desktop_id: string;
+      active_tab: {
+        [key: string]: string;
+      };
       attachment_token?: string;
       client_id: string;
       /** Format: date-time */
@@ -9205,6 +9913,10 @@ export interface components {
       kind: string;
       palette_context: components["schemas"]["WindowManagerPaletteContext"];
       presentation_revision: number;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_active: {
         [key: string]: string;
       };
@@ -9238,6 +9950,8 @@ export interface components {
         | "window.stack.set_active"
         | "window.pin"
         | "window.reopen"
+        | "window.tab.reorder"
+        | "window.tab.activate"
         | "layout.arrange"
         | "layout.resize"
         | "layout.frame_resize"
@@ -9252,12 +9966,11 @@ export interface components {
       workspace_id: string;
     };
     ContractWindowManagerDesktop: {
-      floating: string[];
-      floating_stacks: components["schemas"]["WindowManagerFloatingStack"][];
-      groups: components["schemas"]["ContractWindowManagerLayoutGroup"][];
+      active_tab_id: string;
       id: string;
       name: string;
       order: number;
+      tabs: components["schemas"]["ContractWindowManagerTab"][];
     };
     ContractWindowManagerErrorFrame: {
       error: components["schemas"]["ContractWindowManagerErrorPayload"];
@@ -9311,11 +10024,6 @@ export interface components {
       };
       workspace_id: string;
     };
-    ContractWindowManagerLayoutGroup: {
-      frame: components["schemas"]["NormalizedRect"];
-      id: string;
-      root: components["schemas"]["WindowManagerLayoutNode"];
-    };
     ContractWindowManagerLayoutReplaceRequest: {
       actor: components["schemas"]["WindowManagerActor"];
       client_id?: string | null;
@@ -9330,6 +10038,7 @@ export interface components {
     };
     ContractWindowManagerLayoutValidationResponse: {
       diagnostics?: components["schemas"]["Diagnostic"][];
+      document?: components["schemas"]["ContractWindowManagerLayoutDocument"] | null;
       valid: boolean;
       workspace_id: string;
     };
@@ -9337,6 +10046,7 @@ export interface components {
       changed: boolean;
       changes: components["schemas"]["ChangeSet"];
       client?: components["schemas"]["ContractWindowManagerClientView"] | null;
+      deprecations: components["schemas"]["Deprecation"][];
       diagnostics?: components["schemas"]["Diagnostic"][];
       snapshot: components["schemas"]["ContractWindowManagerSnapshot"];
     };
@@ -9344,6 +10054,7 @@ export interface components {
       applied: boolean;
       changes: components["schemas"]["ChangeSet"];
       client?: components["schemas"]["ContractWindowManagerClientView"] | null;
+      deprecations: components["schemas"]["Deprecation"][];
       diagnostics?: components["schemas"]["Diagnostic"][];
       rebased_from?: number;
       snapshot: components["schemas"]["ContractWindowManagerSnapshot"];
@@ -9351,6 +10062,7 @@ export interface components {
     ContractWindowManagerSnapshot: {
       closed_entry_count: number;
       desktops: components["schemas"]["ContractWindowManagerDesktop"][];
+      migration?: components["schemas"]["MigrationStatus"] | null;
       overrides: components["schemas"]["WorkspaceConfig"];
       revision: number;
       /** Format: date-time */
@@ -9368,6 +10080,11 @@ export interface components {
       /** @enum {string} */
       type: "snapshot";
       workspace_id: string;
+    };
+    ContractWindowManagerTab: {
+      id: string;
+      pinned: boolean;
+      root: components["schemas"]["WindowManagerLayoutNode"];
     };
     CoordinatorConfigPayload: {
       agent_name: string;
@@ -9404,6 +10121,7 @@ export interface components {
       appearance?: {
         [key: string]: unknown;
       };
+      auto_compact_window?: number | null;
       category_path?: string[];
       command?: string;
       deny_tools?: string[];
@@ -9411,11 +10129,13 @@ export interface components {
       display_name?: string | null;
       fallback_chain?: components["schemas"]["AgentFallbackRoutePayload"][];
       /**
-       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation.
        * @enum {string}
        */
-      kind?: "on_demand" | "always_on" | "stays_on";
+      kind?: "on_demand" | "always_on";
       label?: string;
+      lean_environment?: boolean | null;
+      mcp_servers?: components["schemas"]["AgentMCPServerInput"][];
       model?: string;
       name: string;
       permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
@@ -9589,10 +10309,17 @@ export interface components {
       http_host: string;
       http_port: number;
       pid: number;
+      readiness?: components["schemas"]["DaemonReadinessPayload"] | null;
       /** Format: date-time */
       started_at: string;
       user_home_dir: string;
       version: string;
+    };
+    DaemonReadinessPayload: {
+      phase: string;
+      /** Format: date-time */
+      since: string;
+      step?: string;
     };
     DaemonStatusPayload: {
       active_sessions: number;
@@ -9601,6 +10328,7 @@ export interface components {
       http_port: number;
       min_app_version: string;
       pid: number;
+      readiness?: components["schemas"]["DaemonReadinessPayload"] | null;
       schema_streams: components["schemas"]["SchemaStreamStatus"][];
       socket: string;
       /** Format: date-time */
@@ -9636,6 +10364,13 @@ export interface components {
     DeleteResourceRequest: {
       /** Format: int64 */
       expected_version: number;
+    };
+    Deprecation: {
+      code: string;
+      message: string;
+      removal_release: string;
+      replacement?: string;
+      surface: string;
     };
     DetailBody: {
       actions?: components["schemas"]["RowAction"][];
@@ -9715,6 +10450,7 @@ export interface components {
       appearance?: {
         [key: string]: unknown;
       };
+      auto_compact_window?: number | null;
       category_path?: string[];
       clear_acp_options?: boolean;
       clear_speed?: boolean;
@@ -9723,10 +10459,11 @@ export interface components {
       description?: string | null;
       display_name?: string | null;
       /**
-       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation.
        * @enum {string}
        */
-      kind?: "on_demand" | "always_on" | "stays_on";
+      kind?: "on_demand" | "always_on";
+      lean_environment?: boolean | null;
       model?: string;
       permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
       /** @enum {string} */
@@ -9747,10 +10484,10 @@ export interface components {
     };
     DuplicateAgentRequest: {
       /**
-       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation.
        * @enum {string}
        */
-      kind?: "on_demand" | "always_on" | "stays_on";
+      kind?: "on_demand" | "always_on";
       name: string;
       overrides?: components["schemas"]["DuplicateAgentOverrides"] | null;
       /** @enum {string} */
@@ -9806,6 +10543,7 @@ export interface components {
     };
     ErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -9814,6 +10552,8 @@ export interface components {
       };
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     ExecutionPolicy: {
@@ -9866,6 +10606,10 @@ export interface components {
       exists: boolean;
       name: string;
       needs_setup: boolean;
+    };
+    ExtensionEnableError: {
+      code: string;
+      error: string;
     };
     ExtensionEnablePreviewPayload: {
       agent_conflicts: string[];
@@ -10080,6 +10824,7 @@ export interface components {
     ExtensionValidatePayload: {
       consent_areas?: components["schemas"]["ConsentArea"][];
       format: string;
+      inputs?: components["schemas"]["MarketplaceInputPayload"][];
       issues: components["schemas"]["ValidationIssue"][];
       manifest?: components["schemas"]["ExtensionManifestSummary"] | null;
       name?: string;
@@ -10131,6 +10876,105 @@ export interface components {
       generation: number;
       node_id: string;
       total: number;
+    };
+    FileChangePayload: {
+      additions: number;
+      binary?: boolean;
+      deletions: number;
+      fingerprint: string;
+      generated?: boolean;
+      old_path?: string;
+      path: string;
+      sensitive?: boolean;
+      status: string;
+    };
+    FileContentResponse: {
+      image_base64?: string;
+      image_mime?: string;
+      kind: string;
+      language?: string;
+      path: string;
+      revision?: string;
+      root: components["schemas"]["FileRootPayload"];
+      sensitive?: boolean;
+      /** Format: int64 */
+      size: number;
+      text?: string | null;
+      truncated: boolean;
+    };
+    FileEntriesResponse: {
+      entries: components["schemas"]["FileEntryPayload"][];
+      path: string;
+      root: components["schemas"]["FileRootPayload"];
+      status_unavailable?: boolean;
+      truncated: boolean;
+    };
+    FileEntryPayload: {
+      contains_changes?: boolean;
+      git_status?: string;
+      ignored?: boolean;
+      kind: string;
+      name: string;
+      path: string;
+      sensitive?: boolean;
+      /** Format: int64 */
+      size?: number;
+      symlink?: boolean;
+    };
+    FileFindMatch: {
+      kind: string;
+      match_ranges: number[][];
+      path: string;
+      score: number;
+      sensitive?: boolean;
+    };
+    FileFindResponse: {
+      index_truncated: boolean;
+      indexed_files: number;
+      query: string;
+      results: components["schemas"]["FileFindMatch"][];
+      root: components["schemas"]["FileRootPayload"];
+    };
+    FileRootPayload: {
+      branch?: string;
+      kind: string;
+      name: string;
+      workspace_id: string;
+      worktree_id?: string;
+    };
+    FileSearchFile: {
+      matches: components["schemas"]["FileSearchMatch"][];
+      path: string;
+      truncated_matches?: boolean;
+    };
+    FileSearchMatch: {
+      column: number;
+      line: number;
+      ranges: number[][];
+      text: string;
+      text_offset: number;
+    };
+    FileSearchQuery: {
+      case_sensitive: boolean;
+      exclude: string[];
+      include: string[];
+      pattern: string;
+      regex: boolean;
+      whole_word: boolean;
+    };
+    FileSearchResponse: {
+      engine: string;
+      files: components["schemas"]["FileSearchFile"][];
+      query: components["schemas"]["FileSearchQuery"];
+      root: components["schemas"]["FileRootPayload"];
+      sensitive_excluded: number;
+      timed_out: boolean;
+      totals: components["schemas"]["FileSearchTotals"];
+      truncated: boolean;
+    };
+    FileSearchTotals: {
+      files: number;
+      matches: number;
     };
     FireLimitConfig: {
       max: number;
@@ -11053,6 +11897,15 @@ export interface components {
       kind: "user" | "agent" | "extension" | "system";
       ref?: string;
     };
+    HeartbeatAuthorityPayload: {
+      actions: components["schemas"]["ActionDecl"][];
+      check_ins: components["schemas"]["CheckInsPolicy"];
+      digest: string;
+      read_only_tools?: {
+        [key: string]: string[];
+      };
+      status: string;
+    };
     HeartbeatConfigProvenancePayload: {
       digest: string;
       subset: components["schemas"]["HeartbeatConfigSubsetPayload"];
@@ -11082,6 +11935,8 @@ export interface components {
       workspace_id?: string;
     };
     HeartbeatFrontmatterPayload: {
+      actions: components["schemas"]["ActionDecl"][];
+      check_ins: components["schemas"]["CheckInsPolicy"];
       context: components["schemas"]["HeartbeatContextProjectionPayload"];
       enabled: boolean;
       preferences: components["schemas"]["HeartbeatFrontmatterPreferencesPayload"];
@@ -11102,8 +11957,10 @@ export interface components {
       revision: components["schemas"]["HeartbeatRevisionPayload"];
     };
     HeartbeatPolicyPayload: {
+      actions: components["schemas"]["ActionDecl"][];
       active: boolean;
       agent_name?: string;
+      authority: components["schemas"]["HeartbeatAuthorityPayload"];
       config_digest?: string;
       config_provenance: components["schemas"]["HeartbeatConfigProvenancePayload"];
       /** Format: date-time */
@@ -11148,6 +12005,7 @@ export interface components {
       truncated: boolean;
     };
     HeartbeatPutByPathRequest: {
+      approve_authority_sha256?: string;
       body: string;
       expected_digest: string;
       idempotency_key?: string;
@@ -11255,7 +12113,7 @@ export interface components {
       idempotency_key?: string;
       session_id: string;
       /** @enum {string} */
-      source: "scheduler" | "manual" | "harness_reentry";
+      source: "timer" | "instance_check" | "scheduler" | "manual" | "harness_reentry";
       workspace_id?: string;
     };
     HeartbeatWakeDecisionPayload: {
@@ -11265,6 +12123,23 @@ export interface components {
       policy_snapshot_id?: string;
       /** @enum {string} */
       reason:
+        | "quiet"
+        | "reported"
+        | "cancelled"
+        | "digest_empty"
+        | "digest_unchanged"
+        | "policy_disabled"
+        | "definition_not_always_on"
+        | "definition_missing"
+        | "no_slot"
+        | "hook_cancelled"
+        | "duplicate_suppressed"
+        | "triage_unsupported"
+        | "triage_output_invalid"
+        | "triage_timeout"
+        | "triage_interrupted"
+        | "triage_config_unavailable"
+        | "triage_failed"
         | "source_poll_in_flight"
         | "wake_sent"
         | "heartbeat_disabled"
@@ -11282,7 +12157,15 @@ export interface components {
         | "synthetic_prompt_failed"
         | "wake_coalesced";
       /** @enum {string} */
-      result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+      result:
+        | "quiet"
+        | "cancelled"
+        | "reported"
+        | "sent"
+        | "skipped"
+        | "coalesced"
+        | "rate_limited"
+        | "failed";
       synthetic_prompt_id?: string;
       wake_event_id?: string;
     };
@@ -11297,6 +12180,23 @@ export interface components {
       policy_snapshot_id?: string;
       /** @enum {string} */
       reason:
+        | "quiet"
+        | "reported"
+        | "cancelled"
+        | "digest_empty"
+        | "digest_unchanged"
+        | "policy_disabled"
+        | "definition_not_always_on"
+        | "definition_missing"
+        | "no_slot"
+        | "hook_cancelled"
+        | "duplicate_suppressed"
+        | "triage_unsupported"
+        | "triage_output_invalid"
+        | "triage_timeout"
+        | "triage_interrupted"
+        | "triage_config_unavailable"
+        | "triage_failed"
         | "source_poll_in_flight"
         | "wake_sent"
         | "heartbeat_disabled"
@@ -11314,10 +12214,18 @@ export interface components {
         | "synthetic_prompt_failed"
         | "wake_coalesced";
       /** @enum {string} */
-      result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+      result:
+        | "quiet"
+        | "cancelled"
+        | "reported"
+        | "sent"
+        | "skipped"
+        | "coalesced"
+        | "rate_limited"
+        | "failed";
       session_id?: string;
       /** @enum {string} */
-      source: "scheduler" | "manual" | "harness_reentry";
+      source: "timer" | "instance_check" | "scheduler" | "manual" | "harness_reentry";
       synthetic_prompt_id?: string;
       workspace_id?: string;
     };
@@ -11329,6 +12237,23 @@ export interface components {
       coalesced_count: number;
       /** @enum {string} */
       last_reason?:
+        | "quiet"
+        | "reported"
+        | "cancelled"
+        | "digest_empty"
+        | "digest_unchanged"
+        | "policy_disabled"
+        | "definition_not_always_on"
+        | "definition_missing"
+        | "no_slot"
+        | "hook_cancelled"
+        | "duplicate_suppressed"
+        | "triage_unsupported"
+        | "triage_output_invalid"
+        | "triage_timeout"
+        | "triage_interrupted"
+        | "triage_config_unavailable"
+        | "triage_failed"
         | "source_poll_in_flight"
         | "wake_sent"
         | "heartbeat_disabled"
@@ -11346,7 +12271,15 @@ export interface components {
         | "synthetic_prompt_failed"
         | "wake_coalesced";
       /** @enum {string} */
-      last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+      last_result:
+        | "quiet"
+        | "cancelled"
+        | "reported"
+        | "sent"
+        | "skipped"
+        | "coalesced"
+        | "rate_limited"
+        | "failed";
       /** Format: date-time */
       last_wake_at?: string | null;
       /** Format: date-time */
@@ -11446,6 +12379,11 @@ export interface components {
       allow_unverified?: boolean;
       asset?: string;
       confirm_gateway_digest?: string;
+      /**
+       * @description Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
+       * @default false
+       */
+      enable: boolean;
       expected_digest?: string;
       inputs?: {
         [key: string]: components["schemas"]["Value"];
@@ -11453,6 +12391,8 @@ export interface components {
       /** @description Profile name. Omitted for a local operator keeps the installation available to all profiles. */
       profile?: string;
       ref: string;
+      /** @description Replace the installed extension of the same name. Applies to local_path installs only, since published sources replace implicitly. The previous version stays installed only when the replacement fails before the reinstall transaction completes; a failure after it returns, such as enable failing, does not restore it. A marketplace-owned name is refused with extension_name_conflict. Replacing a package attached outside the caller's workspace requires operator authority. */
+      replace?: boolean;
       /**
        * @description Overrides manifest server defaults. Mixed defaults require an explicit scope. A workspace default requires a workspace-bound caller or workspace_id.
        * @enum {string}
@@ -11467,8 +12407,17 @@ export interface components {
       /** @description Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound. */
       workspace_id?: string;
     };
+    InstallExtensionResponse: {
+      enable_error?: components["schemas"]["ExtensionEnableError"] | null;
+      extension: components["schemas"]["ExtensionPayload"];
+    };
+    Inventory: {
+      /** Format: date-time */
+      generated_at: string;
+      runtimes: components["schemas"]["Snapshot"][];
+    };
     /** @enum {string} */
-    IssueSeverity: "error" | "warning" | "warn";
+    IssueSeverity: "error" | "warning" | "warn" | "info";
     JobPayload: {
       agent_name: string;
       /** Format: date-time */
@@ -12596,6 +13545,37 @@ export interface components {
       registration?: string;
       scopes?: string[];
     };
+    MCPReloadRecord: {
+      /** Format: date-time */
+      at: string;
+      outcome: string;
+      reason: string;
+    };
+    MCPServerApproval: {
+      definition_digest: string;
+      reason?: string;
+    };
+    MCPServerRow: {
+      approval?: components["schemas"]["MCPServerApproval"] | null;
+      args?: string[];
+      callable_count: number;
+      command?: string;
+      name: string;
+      owner: string;
+      profile?: string;
+      reason: string;
+      scope?: string;
+      source: components["schemas"]["MCPServerSource"];
+      state: string;
+      tool_count: number;
+      transport?: string;
+      url?: string;
+      workspace_id?: string;
+    };
+    MCPServerSource: {
+      kind: string;
+      path?: string;
+    };
     MCPServerStatusPayload: {
       auth_status?: string;
       configured: boolean;
@@ -12610,6 +13590,11 @@ export interface components {
       tool_count?: number;
       transport?: string;
       workspace_id?: string;
+    };
+    MCPSummary: {
+      attention: number;
+      pending_reload: boolean;
+      usable: number;
     };
     ManagedExtensionRemovePayload: {
       data_path?: string;
@@ -12629,6 +13614,11 @@ export interface components {
       slug: string;
       status: string;
       warnings?: components["schemas"]["DiagnosticItem"][];
+    };
+    MarketplaceCategoryCount: {
+      count: number;
+      id: string;
+      label: string;
     };
     MarketplaceCursorStalePayload: {
       code: string;
@@ -12664,6 +13654,7 @@ export interface components {
       type: string;
     };
     MarketplaceListResponse: {
+      categories: components["schemas"]["MarketplaceCategoryCount"][];
       error?: string;
       error_class?: string;
       items: components["schemas"]["MarketplaceListingPayload"][];
@@ -12676,9 +13667,12 @@ export interface components {
     };
     MarketplaceListingPayload: {
       author?: string;
+      category: string;
+      category_label: string;
       description: string;
       digest_sha256: string;
       entry_id: string;
+      featured: boolean;
       format?: string;
       icon?: string;
       install_blocker?: string;
@@ -12715,6 +13709,21 @@ export interface components {
       error_class?: string;
       outcome: string;
       source: string;
+      stale: boolean;
+    };
+    MarketplaceSection: {
+      id: string;
+      items: components["schemas"]["MarketplaceListingPayload"][];
+      label: string;
+      total: number;
+    };
+    MarketplaceSectionsResponse: {
+      error?: string;
+      error_class?: string;
+      refreshing?: boolean;
+      revision: string;
+      sections: components["schemas"]["MarketplaceSection"][];
+      sources: components["schemas"]["MarketplaceSourceSummary"][];
       stale: boolean;
     };
     MarketplaceServerPayload: {
@@ -12794,6 +13803,34 @@ export interface components {
       direction: "maximize" | "minimize";
       /** Format: double */
       min_delta?: number | null;
+    };
+    /** @description Layout migration status. A conversion diagnostic is present in error only when state is failed; a successful retry clears error. */
+    MigrationStatus: {
+      acknowledged: boolean;
+      /** Format: date-time */
+      at?: string;
+      error?: components["schemas"]["Diagnostic"] | null;
+      /**
+       * Format: uint64
+       * @description Topology revision installed on conversion failure; cleared after a successful retry.
+       */
+      failure_revision?: number;
+      from_version?: number;
+      /** @enum {string} */
+      state: "none" | "migrated" | "failed";
+      summary?: components["schemas"]["MigrationSummary"] | null;
+      /** @description Number of set-aside layout backups currently retained for this profile; omitted when zero. */
+      superseded_backups?: number;
+    };
+    MigrationSummary: {
+      desktops: number;
+      floating_to_tabs: number;
+      islands_merged: number;
+      minimized_to_tabs: number;
+      pins_dropped: number;
+      tabs: number;
+      windows: number;
+      zoom_desktops_merged: number;
     };
     ModelCatalogCostPayload: {
       /** Format: double */
@@ -12876,6 +13913,10 @@ export interface components {
       /** Format: int64 */
       tokens: number;
     };
+    /**
+     * @deprecated
+     * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+     */
     NormalizedRect: {
       /** Format: double */
       height: number;
@@ -12885,6 +13926,26 @@ export interface components {
       x: number;
       /** Format: double */
       y: number;
+    };
+    OTelSignalStatusPayload: {
+      enabled: boolean;
+      /** Format: int64 */
+      failed_exports: number;
+      last_error_class?: string;
+      /** Format: date-time */
+      last_export_at?: string;
+    };
+    OTelStatusPayload: {
+      /** Format: int64 */
+      dropped_spans: number;
+      endpoint_host?: string;
+      forward_to_providers: boolean;
+      metrics: components["schemas"]["OTelSignalStatusPayload"];
+      protocol?: string;
+      /** Format: double */
+      sample_ratio: number;
+      state: string;
+      traces: components["schemas"]["OTelSignalStatusPayload"];
     };
     ObserveFailureHealthPayload: {
       by_kind?: {
@@ -13226,6 +14287,17 @@ export interface components {
       /** Format: date-time */
       until: string;
     };
+    Pick: {
+      action_id?: string;
+      actor: string;
+      /** Format: date-time */
+      picked_at: string;
+      proposal_index: number;
+      queue_entry_id: string;
+      report_id: string;
+      state: string;
+      target_session_id: string;
+    };
     PickFilesEffect: {
       directories?: boolean;
     };
@@ -13525,6 +14597,7 @@ export interface components {
       auth_status: components["schemas"]["ProviderAuthStatusPayload"];
       default: boolean;
       display_name?: string;
+      enabled: boolean;
       name: string;
       reviewer_mode: string;
       /** @enum {string} */
@@ -13598,6 +14671,7 @@ export interface components {
       balances: components["schemas"]["ProviderUsageBalance"][];
       /** Format: date-time */
       checked_at: string | null;
+      collector_id?: string;
       confidence: string;
       error: components["schemas"]["ProviderUsageError"] | null;
       /** Format: date-time */
@@ -13664,6 +14738,7 @@ export interface components {
     };
     PutSettingsMCPServerRequest: {
       preserve_env?: string[];
+      preserve_headers?: boolean;
       preserve_secrets?: components["schemas"]["SettingsMCPSecretPreservationPayload"] | null;
       secret_values?: components["schemas"]["SettingsMCPSecretValuesPayload"] | null;
       server: components["schemas"]["SettingsMCPServerPayload"];
@@ -13852,6 +14927,16 @@ export interface components {
       force?: boolean;
       path: string;
     };
+    RemoveWorktreesRequest: {
+      delete_branch?: boolean;
+      dry_run?: boolean;
+      force?: boolean;
+      targets: components["schemas"]["WorktreeRemovalTarget"][];
+    };
+    RemoveWorktreesResponse: {
+      dry_run: boolean;
+      results: components["schemas"]["WorktreeRemovalResult"][];
+    };
     RenameProfilePlan: {
       dormant_placements: components["schemas"]["ProfilePlacement"][];
       machine_folders: string[];
@@ -14029,6 +15114,14 @@ export interface components {
       /** Format: date-time */
       updated_at: string;
     };
+    ResultViewContract: {
+      digest?: string;
+      schema: unknown;
+    };
+    ResultViews: {
+      compact: components["schemas"]["ResultViewContract"];
+      full: components["schemas"]["ResultViewContract"];
+    };
     ResumeSessionFromLaterRequest: {
       with_children?: boolean;
     };
@@ -14205,6 +15298,9 @@ export interface components {
       /** Format: date-time */
       at: string;
       cause: string;
+      message?: string;
+      node_id?: string;
+      reason_code?: string;
       status: string;
     };
     RunPayload: {
@@ -14384,10 +15480,34 @@ export interface components {
       max_runtime_seconds: number;
       summary_max_bytes: number;
     };
+    RuntimeMCPImportRequest: {
+      name?: string;
+      profile?: string;
+      /** @enum {string} */
+      scope?: "user" | "profile" | "workspace" | "agent";
+      workspace_id?: string;
+    };
+    RuntimeMCPImportResponse: {
+      mcp_server: components["schemas"]["SettingsMCPServerItemPayload"];
+      notes: string[];
+      partial: boolean;
+      source: components["schemas"]["Server"];
+      warnings?: string[];
+    };
+    RuntimeMCPRow: {
+      name: string;
+      scope: string;
+      state: string;
+      transport: string;
+    };
     RuntimeMatch: {
       complexity?: string;
       id?: string;
       type?: string;
+    };
+    RuntimeMode: {
+      can_disable: boolean;
+      mode: string;
     };
     RuntimePolicy: {
       /** @enum {string} */
@@ -14536,6 +15656,8 @@ export interface components {
       /** Format: date-time */
       estimated_send_at?: string | null;
       goal?: components["schemas"]["GoalCommandResult"] | null;
+      held_instance_id?: string;
+      held_reason?: string;
       idempotency_key: string;
       message_id: string;
       mode?: string;
@@ -14549,13 +15671,36 @@ export interface components {
       reply_watch?: components["schemas"]["ReplyWatchRefPayload"] | null;
       status: string;
       /** @enum {string} */
-      steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+      steer_delivery?:
+        | "injected"
+        | "pending_injection"
+        | "pending_boundary"
+        | "after_turn"
+        | "interrupt_fallback";
       target_session_id?: string;
       target_workspace_id?: string;
       turn_id?: string;
     };
     SendPromptResultResponse: {
       prompt: components["schemas"]["SendPromptResultPayload"];
+    };
+    Server: {
+      also_in_compozy: boolean;
+      approval: string;
+      auth: string;
+      copy_blocked_reason: string;
+      copyable: boolean;
+      definition_digest: string;
+      enabled_in_runtime: boolean;
+      env_keys: string[];
+      header_keys: string[];
+      name: string;
+      runtime: string;
+      scope: string;
+      source_label: string;
+      source_path: string;
+      target: string;
+      transport: string;
     };
     SessionActivityHealthPayload: {
       current_tool?: string;
@@ -14713,6 +15858,35 @@ export interface components {
     SessionCatalogResponse: {
       page: components["schemas"]["SessionCatalogPagePayload"];
       sessions: components["schemas"]["SessionPayload"][];
+    };
+    SessionChangeBasesResponse: {
+      default: components["schemas"]["ChangeBaseRefPayload"] | null;
+      refs: components["schemas"]["ChangeBaseRefPayload"][];
+      resolvable: boolean;
+      truncated: boolean;
+    };
+    SessionChangeContentsResponse: {
+      fingerprint: string;
+      new?: components["schemas"]["ChangeSidePayload"] | null;
+      old?: components["schemas"]["ChangeSidePayload"] | null;
+      old_path?: string;
+      path: string;
+      revision: string;
+    };
+    SessionChangePatchesResponse: {
+      patches: components["schemas"]["ChangePatchPayload"][];
+      revision: string;
+    };
+    SessionChangesResponse: {
+      base: components["schemas"]["ChangeBasePayload"];
+      files: components["schemas"]["FileChangePayload"][];
+      head: components["schemas"]["ChangeHeadPayload"];
+      pull_request?: components["schemas"]["SessionPullRequestPayload"] | null;
+      revision: string;
+      root: components["schemas"]["FileRootPayload"];
+      scope: string;
+      totals: components["schemas"]["ChangeTotalsPayload"];
+      truncated: boolean;
     };
     SessionChildrenPayload: {
       done: number;
@@ -14919,6 +16093,7 @@ export interface components {
     SessionDeriveErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
       child_session_id?: string;
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -14927,6 +16102,8 @@ export interface components {
       };
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     SessionDerivePreviewResponse: {
@@ -15114,6 +16291,88 @@ export interface components {
     SessionHealthResponse: {
       health: components["schemas"]["SessionHealthPayload"];
     };
+    SessionHistoryCleanupChoices: {
+      children: number;
+      everything: number;
+      subagents: number;
+    };
+    SessionHistoryCleanupCounts: {
+      children: number;
+      sessions: number;
+      subagents: number;
+      total: number;
+    };
+    SessionHistoryCleanupFailure: {
+      code: string;
+      message: string;
+      session_id: string;
+      title: string;
+      workspace_id: string;
+    };
+    SessionHistoryCleanupPlan: {
+      /** Format: date-time */
+      archived_before?: string | null;
+      choices: components["schemas"]["SessionHistoryCleanupChoices"];
+      /** Format: date-time */
+      counted_at: string;
+      counts: components["schemas"]["SessionHistoryCleanupCounts"];
+      kept_live: number;
+      threads: number;
+      workspaces: components["schemas"]["SessionHistoryCleanupWorkspace"][];
+    };
+    SessionHistoryCleanupPreviewResponse: {
+      plan: components["schemas"]["SessionHistoryCleanupPlan"];
+    };
+    SessionHistoryCleanupRequest: {
+      all_workspaces?: boolean;
+      /** Format: date-time */
+      archived_before?: string | null;
+      /** Format: date-time */
+      counted_at?: string | null;
+      delete: components["schemas"]["SessionHistoryCleanupSelection"];
+      dry_run?: boolean;
+      older_than_days?: number | null;
+      session_ids?: string[];
+      workspace_id?: string;
+    };
+    SessionHistoryCleanupRun: {
+      all_workspaces?: boolean;
+      /** Format: date-time */
+      archived_before?: string | null;
+      /** Format: date-time */
+      counted_at: string;
+      delete: components["schemas"]["SessionHistoryCleanupSelection"];
+      deleted: number;
+      done: number;
+      failed_threads: number;
+      failures: components["schemas"]["SessionHistoryCleanupFailure"][];
+      /** Format: date-time */
+      finished_at?: string | null;
+      id: string;
+      profile_id: string;
+      skipped: number;
+      /** Format: date-time */
+      started_at: string;
+      state: string;
+      total: number;
+      workspace_id?: string;
+    };
+    SessionHistoryCleanupRunResponse: {
+      run: components["schemas"]["SessionHistoryCleanupRun"] | null;
+    };
+    SessionHistoryCleanupSelection: {
+      children: boolean;
+      everything: boolean;
+      subagents: boolean;
+    };
+    SessionHistoryCleanupStartResponse: {
+      plan: components["schemas"]["SessionHistoryCleanupPlan"];
+      run: components["schemas"]["SessionHistoryCleanupRun"];
+    };
+    SessionHistoryCleanupWorkspace: {
+      total: number;
+      workspace_id: string;
+    };
     SessionHistoryResponse: {
       history: components["schemas"]["TurnHistoryPayload"][];
     };
@@ -15143,6 +16402,8 @@ export interface components {
       /** Format: date-time */
       enqueued_at: string;
       held: boolean;
+      held_instance_id?: string;
+      held_reason?: string;
       id: string;
       idempotency_key?: string;
       mentions?: components["schemas"]["SessionInputMentionPayload"][];
@@ -15159,7 +16420,12 @@ export interface components {
       /** @enum {string} */
       status: "queued" | "dispatching" | "sent" | "failed" | "canceled";
       /** @enum {string} */
-      steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+      steer_delivery?:
+        | "injected"
+        | "pending_injection"
+        | "pending_boundary"
+        | "after_turn"
+        | "interrupt_fallback";
       target_turn_id?: string;
       text: string;
     };
@@ -15224,6 +16490,17 @@ export interface components {
       needs_you: number;
       pull_requests: number;
       total: number;
+    };
+    SessionMCP: {
+      attention: number;
+      compozy_servers: components["schemas"]["MCPServerRow"][];
+      last_reload?: components["schemas"]["MCPReloadRecord"] | null;
+      pending_reload: boolean;
+      runtime: string;
+      runtime_display_name: string;
+      runtime_servers: components["schemas"]["SessionRuntimeMCP"];
+      session_id: string;
+      usable: number;
     };
     SessionMonitorPayload: {
       branch?: string;
@@ -15318,6 +16595,7 @@ export interface components {
       later?: components["schemas"]["SessionLaterPayload"] | null;
       lineage?: components["schemas"]["SessionLineagePayload"] | null;
       linked_work?: components["schemas"]["SessionLinkedWorkSummary"] | null;
+      mcp_summary?: components["schemas"]["MCPSummary"] | null;
       monitor_summary?: components["schemas"]["SessionMonitorSummaryPayload"] | null;
       name?: string;
       parent_title?: string;
@@ -15359,6 +16637,7 @@ export interface components {
       supervision: components["schemas"]["SupervisionState"] | null;
       /** Format: int64 */
       transcript_epoch?: number;
+      tree_parent_session_id?: string;
       /** @enum {string} */
       type?: "user" | "system" | "coordinator" | "spawned";
       /** Format: date-time */
@@ -15482,6 +16761,7 @@ export interface components {
     SessionPullRequestErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
       cause?: string;
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -15491,6 +16771,8 @@ export interface components {
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       message: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     SessionPullRequestLookupPayload: {
@@ -15558,6 +16840,10 @@ export interface components {
     };
     SessionResponse: {
       session: components["schemas"]["SessionPayload"];
+    };
+    SessionRuntimeMCP: {
+      runtime_mcp: string;
+      servers: components["schemas"]["RuntimeMCPRow"][];
     };
     SessionRuntimePayload: {
       acp_caps?: components["schemas"]["ACPCapsPayload"] | null;
@@ -15789,6 +17075,9 @@ export interface components {
       /** Format: int64 */
       expected_revision: number | null;
       runtime: components["schemas"]["PromptRuntimeSelectionPayload"];
+    };
+    SetSettingsProviderEnabledRequest: {
+      enabled: boolean;
     };
     SettingsActionMetadataPayload: {
       available: boolean;
@@ -16193,6 +17482,9 @@ export interface components {
         | "spawn.ttl_expired"
         | "spawn.reaped"
         | "session.attention.changed"
+        | "window_manager.tab.split"
+        | "window_manager.tab.unsplit"
+        | "window_manager.tab.activated"
         | "window_manager.layout.applied"
         | "window_manager.desktop.created"
         | "window_manager.desktop.deleted"
@@ -16216,7 +17508,8 @@ export interface components {
         | "terminal.recording_started"
         | "terminal.recording_stopped"
         | "terminal.subscriber_evicted"
-        | "terminal.limit_rejected";
+        | "terminal.limit_rejected"
+        | "agent.instance.proposal.picked";
       /** @enum {string} */
       executor_kind?: "native" | "subprocess" | "wasm";
       matcher: components["schemas"]["HookMatcher"];
@@ -16316,9 +17609,32 @@ export interface components {
     SettingsLogTailEventPayload: {
       line: string;
     };
+    SettingsMCPApprovalPayload: {
+      /** Format: date-time */
+      approved_at?: string;
+      profile: string;
+      server_name: string;
+      state: string;
+      workspace_id: string;
+    };
+    SettingsMCPApprovalRequest: {
+      definition_digest: string;
+      profile?: string;
+      workspace_id: string;
+    };
+    SettingsMCPApprovalResponse: {
+      approval: components["schemas"]["SettingsMCPApprovalPayload"];
+    };
+    SettingsMCPApprovalStatePayload: {
+      definition_digest: string;
+      reason?: string;
+      required: boolean;
+      state: string;
+    };
     SettingsMCPAuthBeginRequest: {
       approve_scope_escalation?: boolean;
       approved_scopes?: string[];
+      definition_digest?: string;
       /** @enum {string} */
       mode: "automatic" | "manual";
     };
@@ -16388,17 +17704,22 @@ export interface components {
       };
     };
     SettingsMCPServerItemPayload: {
+      approval: components["schemas"]["SettingsMCPApprovalStatePayload"];
       args?: string[];
       auth?: components["schemas"]["SettingsMCPAuthConfigViewPayload"] | null;
       auth_status?: components["schemas"]["SettingsMCPAuthStatusPayload"] | null;
+      callable_in_sessions: boolean;
       catalog_entry?: string;
       catalog_version?: string;
       command?: string;
+      definition_source?: string;
       env_keys?: string[];
+      headers_configured?: boolean;
       name: string;
       override?: components["schemas"]["SettingsMCPExtensionOverridePayload"] | null;
       owner?: string;
       profile?: string;
+      read_only_tools?: string[];
       runtime_name?: string;
       runtime_status?: components["schemas"]["SettingsMCPServerRuntimeStatusPayload"] | null;
       /** @enum {string} */
@@ -16420,6 +17741,7 @@ export interface components {
         [key: string]: string;
       };
       name: string;
+      read_only_tools?: string[];
       secret_env?: {
         [key: string]: string;
       };
@@ -16582,6 +17904,10 @@ export interface components {
       source?: string;
       target_env: string;
     };
+    SettingsProviderEnabledResponse: {
+      apply: components["schemas"]["SettingsApplyResponse"];
+      provider: components["schemas"]["SettingsProviderItemPayload"];
+    };
     SettingsProviderFallbackPayload: {
       settings: components["schemas"]["SettingsProviderSettingsPayload"];
       source: components["schemas"]["SettingsSourceRefPayload"];
@@ -16657,15 +17983,18 @@ export interface components {
       auth_acp_method?: string;
       auth_mode?: string;
       auth_status_command?: string;
+      auto_compact_window?: number | null;
       base_url?: string;
       command?: string;
       command_inherited?: boolean;
       credential_slots?: components["schemas"]["SettingsProviderCredentialSlotPayload"][];
       display_name?: string;
+      enabled: boolean;
       env_policy?: string;
       harness?: string;
       home_policy?: string;
       models?: components["schemas"]["SettingsProviderModelsPayload"] | null;
+      runtime_mcp?: string;
       runtime_provider?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
@@ -16715,6 +18044,7 @@ export interface components {
       auth_login_command?: string | null;
       auth_mode?: string;
       auth_status_command?: string;
+      auto_compact_window?: number | null;
       base_url?: string;
       command?: string;
       credential_slots?: components["schemas"]["SettingsProviderCredentialSlotPayload"][];
@@ -16723,6 +18053,7 @@ export interface components {
       harness?: string;
       home_policy?: string;
       models?: components["schemas"]["SettingsProviderModelsPayload"] | null;
+      runtime_mcp?: string;
       runtime_provider?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
@@ -16792,7 +18123,11 @@ export interface components {
       workspace_id?: string;
     };
     SettingsShellAppearancePayload: {
+      /** @enum {string|null} */
+      letter_spacing?: "tight" | "default" | "relaxed" | "wide" | null;
       mono_font?: string | null;
+      /** @enum {string|null} */
+      text_size?: "small" | "default" | "large" | "larger" | null;
       ui_font?: string | null;
     };
     SettingsShellLegacyScopePayload: {
@@ -17240,6 +18575,10 @@ export interface components {
         | "failed"
         | "canceled";
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     SettingsWindowManagerBindingPayload: {
       /** @enum {string} */
       bottom_center: "none" | "reserved" | "zoom";
@@ -17253,11 +18592,19 @@ export interface components {
       title: string;
     };
     SettingsWindowManagerConfigPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       bindings: components["schemas"]["SettingsWindowManagerBindingPayload"];
       closed_entry_limit: number;
       /** @enum {string} */
       desktop_transition: "slide" | "crossfade" | "instant";
-      /** @enum {string} */
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       * @enum {string}
+       */
       drag_away_policy: "window" | "group";
       focus_follows_pointer: boolean;
       /** @enum {string} */
@@ -17267,18 +18614,33 @@ export interface components {
       global_shortcuts: {
         [key: string]: string;
       };
-      /** @enum {string} */
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       * @enum {string}
+       */
       group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
       history_limit: number;
       nav_stack_limit: number;
-      /** @enum {string} */
+      /**
+       * @description Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+       * @enum {string}
+       */
       new_window_policy: "floating" | "beside_focus" | "tab";
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       raise_on_focus: boolean;
       shortcuts: {
         [key: string]: string | string[];
       };
       /** @enum {string} */
       small_viewport_policy: "stack" | "reject";
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       snap: components["schemas"]["SettingsWindowManagerSnapPayload"];
       /** @enum {string} */
       swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
@@ -17378,6 +18740,10 @@ export interface components {
         | "marketplace";
       workspace_id?: string;
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     SettingsWindowManagerSnapPayload: {
       corner_reach: number;
       edge_band: number;
@@ -17396,7 +18762,8 @@ export interface components {
         | "scheduled_wait"
         | "awaiting_reply"
         | "active_monitor"
-        | "held_permission";
+        | "held_permission"
+        | "held_input";
       ref?: string;
       state: string;
     };
@@ -17548,6 +18915,10 @@ export interface components {
     SkillsResponse: {
       skills: components["schemas"]["SkillPayload"][];
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     SnapConfig: {
       /** Format: double */
       corner_reach: number;
@@ -17556,6 +18927,17 @@ export interface components {
       /** Format: double */
       exit_slack: number;
       repeat_ratios: number[];
+    };
+    Snapshot: {
+      config_files: string[];
+      display_name: string;
+      installed: boolean;
+      notes?: string[];
+      read_error?: string;
+      read_state: string;
+      runtime: string;
+      runtime_mcp: components["schemas"]["RuntimeMode"];
+      servers: components["schemas"]["Server"][];
     };
     SourceOutcome: {
       /** Format: int64 */
@@ -17631,6 +19013,7 @@ export interface components {
       health: components["schemas"]["ObserveHealthPayload"];
       log_tail: components["schemas"]["LogTailStatusPayload"];
       mcp_servers?: components["schemas"]["MCPServerStatusPayload"][];
+      otel?: components["schemas"]["OTelStatusPayload"] | null;
       providers?: components["schemas"]["ProviderStatusPayload"][];
       schema_version: string;
       sessions: components["schemas"]["SessionAggregatePayload"];
@@ -17722,6 +19105,10 @@ export interface components {
       number: number;
       state: string;
       url: string;
+    };
+    SubagentRemovedEvent: {
+      session_id: string;
+      subagent_id: string;
     };
     SubagentRuntimePayload: {
       agent: string;
@@ -18465,6 +19852,7 @@ export interface components {
     };
     TaskQueryErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -18474,6 +19862,8 @@ export interface components {
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       field: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     TaskQueueDepthPayload: {
@@ -18984,6 +20374,7 @@ export interface components {
       };
       output?: components["schemas"]["TerminalOutputShape"];
       visible?: boolean;
+      worktree?: string;
       yield_ms?: number;
     };
     TerminalExecResponse: {
@@ -19465,6 +20856,7 @@ export interface components {
         | "approval_rejected"
         | "attention_requires_action"
         | "compaction_unsupported"
+        | "daemon_starting"
         | "generation_fenced"
         | "input_request_already_answered"
         | "input_request_limit_reached"
@@ -19480,6 +20872,7 @@ export interface components {
         | "profile_selection_conflict"
         | "profile_session_conflict"
         | "profile_unavailable"
+        | "provider_disabled"
         | "reasoning_effort_unsupported"
         | "recording_already_started"
         | "recording_not_active"
@@ -19642,7 +21035,9 @@ export interface components {
       type: string;
     };
     ToolDescriptorPayload: {
+      access: string;
       backend: components["schemas"]["ToolBackendRefPayload"];
+      check_in_writable: boolean;
       concurrency_safe: boolean;
       description: string;
       destructive: boolean;
@@ -19655,6 +21050,7 @@ export interface components {
       open_world: boolean;
       output_schema?: unknown;
       output_schema_digest?: string;
+      output_views?: components["schemas"]["ResultViews"] | null;
       preview?: string;
       read_only: boolean;
       requires_interaction: boolean;
@@ -19669,6 +21065,7 @@ export interface components {
       visibility: "internal" | "operator" | "session" | "model";
     };
     ToolErrorPayload: {
+      client_message_id?: string;
       /** @enum {string} */
       code:
         | "agent_instance_not_found"
@@ -19676,6 +21073,7 @@ export interface components {
         | "approval_rejected"
         | "attention_requires_action"
         | "compaction_unsupported"
+        | "daemon_starting"
         | "generation_fenced"
         | "input_request_already_answered"
         | "input_request_limit_reached"
@@ -19691,6 +21089,7 @@ export interface components {
         | "profile_selection_conflict"
         | "profile_session_conflict"
         | "profile_unavailable"
+        | "provider_disabled"
         | "reasoning_effort_unsupported"
         | "recording_already_started"
         | "recording_not_active"
@@ -19738,6 +21137,7 @@ export interface components {
       layer?: string;
       message: string;
       partial_result?: components["schemas"]["ToolResult"] | null;
+      provider_error?: string;
       reason_codes?: (
         | "approval_canceled"
         | "approval_rejected"
@@ -19824,6 +21224,7 @@ export interface components {
         | "worktree_not_found"
         | "worktree_not_ready"
       )[];
+      retryable?: boolean;
       tool_id?: string;
     };
     ToolErrorResponse: {
@@ -19975,6 +21376,7 @@ export interface components {
     ToolSearchRequest: {
       agent_name?: string;
       limit?: number;
+      offset?: number;
       query: string;
       session_id?: string;
       workspace_id?: string;
@@ -19991,7 +21393,12 @@ export interface components {
       workspace_id?: string;
     };
     ToolsResponse: {
+      count: number;
+      has_more: boolean;
+      next_offset?: number;
+      offset?: number;
       tools: components["schemas"]["ToolPayload"][];
+      total: number;
     };
     ToolsetPayload: {
       expanded_tools?: string[];
@@ -20374,6 +21781,7 @@ export interface components {
       definition: components["schemas"]["LoopDefinitionDocument"];
     };
     ValidationIssue: {
+      code?: string;
       column?: number;
       field?: string;
       line?: number;
@@ -20381,7 +21789,7 @@ export interface components {
       path: string;
       scope?: string;
       /** @enum {string} */
-      severity: "error" | "warning" | "warn";
+      severity: "error" | "warning" | "warn" | "info";
     };
     Value:
       | {
@@ -20522,23 +21930,42 @@ export interface components {
       secondary_field_multiplier: number;
       version: number;
     };
+    WindowManagerActivateTabPayload: {
+      window_id: string;
+    };
     WindowManagerActor: {
       id?: string;
       kind?: string;
     };
     WindowManagerArrangeLayoutPayload: {
-      /** @enum {string} */
+      /**
+       * @description Deprecated value "stack": translated to adjacent tabs; removed in v0.8.0.
+       * @enum {string}
+       */
       arrangement: "horizontal" | "vertical" | "grid" | "stack" | "main_stack";
       desktop_id: string;
-      frame: components["schemas"]["NormalizedRect"];
-      group_id: string;
+      frame?: components["schemas"]["NormalizedRect"];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
+      group_id?: string;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       keep_frames?: boolean;
       resource_id?: string;
       window_ids: string[];
     };
     WindowManagerBalanceLayoutPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       group_id?: string | null;
       split_id?: string | null;
+      tab_id?: string | null;
     };
     WindowManagerClientContextInput: {
       destination_intent?: components["schemas"]["RouteIntent"] | null;
@@ -20563,6 +21990,9 @@ export interface components {
     };
     WindowManagerClientView: {
       active_desktop_id: string;
+      active_tab: {
+        [key: string]: string;
+      };
       attachment_token?: string;
       client_id: string;
       /** Format: date-time */
@@ -20574,6 +22004,10 @@ export interface components {
       kind: string;
       palette_context: components["schemas"]["WindowManagerPaletteContext"];
       presentation_revision: number;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_active: {
         [key: string]: string;
       };
@@ -20584,9 +22018,13 @@ export interface components {
       workspace_id: string;
     };
     WindowManagerCloseWindowPayload: {
-      minimize: boolean;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
+      minimize?: boolean;
       /** @enum {string} */
-      scope?: "tab" | "group" | "others" | "right";
+      scope?: "tab" | "group" | "others" | "right" | "left" | "all";
       window_id: string;
     };
     /** @description Semantic window-manager command selected by command_id */
@@ -20716,6 +22154,50 @@ export interface components {
           actor: components["schemas"]["WindowManagerActor"];
           client_id?: string | null;
           /** @enum {string} */
+          command_id: "window.tab.reorder";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerReorderStackPayload"];
+          rebase?: components["schemas"]["WindowManagerRebaseGuard"] | null;
+          workspace_id: string;
+        }
+      | {
+          actor: components["schemas"]["WindowManagerActor"];
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "window.tab.activate";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerSetStackActivePayload"];
+          rebase?: components["schemas"]["WindowManagerRebaseGuard"] | null;
+          workspace_id: string;
+        }
+      | {
+          actor: components["schemas"]["WindowManagerActor"];
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "window.resize";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerResizeWindowPayload"];
+          rebase?: components["schemas"]["WindowManagerRebaseGuard"] | null;
+          workspace_id: string;
+        }
+      | {
+          actor: components["schemas"]["WindowManagerActor"];
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "layout.frame_resize";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerFrameResizeLayoutPayload"];
+          rebase?: components["schemas"]["WindowManagerRebaseGuard"] | null;
+          workspace_id: string;
+        }
+      | {
+          actor: components["schemas"]["WindowManagerActor"];
+          client_id?: string | null;
+          /** @enum {string} */
           command_id: "window.pin";
           expected_revision: number;
           origin: string;
@@ -20780,7 +22262,7 @@ export interface components {
         }
       | {
           actor: components["schemas"]["WindowManagerActor"];
-          client_id: string;
+          client_id?: string | null;
           /** @enum {string} */
           command_id: "window.zoom";
           expected_revision: number;
@@ -20865,12 +22347,11 @@ export interface components {
       destination_id?: string | null;
     };
     WindowManagerDesktop: {
-      floating: string[];
-      floating_stacks: components["schemas"]["WindowManagerFloatingStack"][];
-      groups: components["schemas"]["ContractWindowManagerLayoutGroup"][];
+      active_tab_id: string;
       id: string;
       name: string;
       order: number;
+      tabs: components["schemas"]["ContractWindowManagerTab"][];
     };
     WindowManagerErrorFrame: {
       error: components["schemas"]["ContractWindowManagerErrorPayload"];
@@ -20926,6 +22407,8 @@ export interface components {
         | "window.stack.set_active"
         | "window.pin"
         | "window.reopen"
+        | "window.tab.reorder"
+        | "window.tab.activate"
         | "layout.arrange"
         | "layout.resize"
         | "layout.frame_resize"
@@ -20946,19 +22429,28 @@ export interface components {
       type: "event";
       workspace_id: string;
     };
-    WindowManagerFloatingStack: {
-      active_id?: string | null;
-      id: string;
-      minimized: boolean;
-      rect: components["schemas"]["NormalizedRect"];
-      window_ids: string[];
-    };
     WindowManagerFocusWindowPayload: {
       /** @enum {string} */
       direction?: "left" | "right" | "up" | "down";
       window_id?: string | null;
     };
+    WindowManagerFrameResizeLayoutPayload: {
+      desktop_id: string;
+      edits: components["schemas"]["WindowManagerGroupFrameEditPayload"][];
+    };
+    WindowManagerGroupFrameEditPayload: {
+      frame?: components["schemas"]["NormalizedRect"];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
+      group_id?: string;
+    };
     WindowManagerGroupWindowsPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       insert_index?: number | null;
       target_window_id: string;
       window_ids: string[];
@@ -20978,22 +22470,15 @@ export interface components {
       };
       workspace_id: string;
     };
-    WindowManagerLayoutGroup: {
-      frame: components["schemas"]["NormalizedRect"];
-      id: string;
-      root: components["schemas"]["WindowManagerLayoutNode"];
-    };
     WindowManagerLayoutNode: {
-      active_id?: string | null;
       /** @enum {string|null} */
       axis?: "horizontal" | "vertical" | null;
       children?: components["schemas"]["WindowManagerLayoutNode"][];
       id: string;
       /** @enum {string} */
-      kind: "leaf" | "split" | "stack";
+      kind: "leaf" | "split";
       weights?: number[];
       window_id?: string | null;
-      window_ids?: string[];
     };
     WindowManagerLayoutReplaceRequest: {
       actor: components["schemas"]["WindowManagerActor"];
@@ -21009,15 +22494,35 @@ export interface components {
     };
     WindowManagerLayoutValidationResponse: {
       diagnostics?: components["schemas"]["Diagnostic"][];
+      document?: components["schemas"]["ContractWindowManagerLayoutDocument"] | null;
       valid: boolean;
       workspace_id: string;
+    };
+    WindowManagerMigrationRequest: {
+      /** @enum {string} */
+      action: "ack" | "retry";
+      /** @description Replace the layout on retry when it changed after failure. */
+      replace?: boolean;
     };
     WindowManagerMoveWindowPayload: {
       destination_desktop_id: string;
       floating_rect?: components["schemas"]["NormalizedRect"] | null;
       move_group: boolean;
-      /** @enum {string} */
-      placement: "floating" | "before" | "after" | "left" | "right" | "top" | "bottom" | "center";
+      /**
+       * @description Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+       * @enum {string}
+       */
+      placement:
+        | "tab"
+        | "floating"
+        | "before"
+        | "after"
+        | "left"
+        | "right"
+        | "top"
+        | "bottom"
+        | "center";
+      target_tab_id?: string | null;
       target_window_id?: string | null;
       window_id: string;
     };
@@ -21038,6 +22543,10 @@ export interface components {
         }
     );
     WindowManagerOpenWindowPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       restore_window_id?: string | null;
       window: components["schemas"]["WindowManagerWindowSpecPayload"];
     };
@@ -21047,8 +22556,17 @@ export interface components {
       focused_session_state?: string;
       scope_global: boolean;
       shell_desktop: boolean;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       window_floating: boolean;
       window_focused: boolean;
+      window_in_split: boolean;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       window_stacked: boolean;
       workspace_trusted: boolean;
     };
@@ -21060,6 +22578,7 @@ export interface components {
       changed: boolean;
       changes: components["schemas"]["ChangeSet"];
       client?: components["schemas"]["ContractWindowManagerClientView"] | null;
+      deprecations: components["schemas"]["Deprecation"][];
       diagnostics?: components["schemas"]["Diagnostic"][];
       snapshot: components["schemas"]["ContractWindowManagerSnapshot"];
     };
@@ -21067,6 +22586,7 @@ export interface components {
       boundary_index?: number | null;
       source_node_id?: string | null;
       split_id?: string | null;
+      tab_id?: string | null;
       target_node_id?: string | null;
       window_id?: string | null;
     };
@@ -21080,6 +22600,10 @@ export interface components {
       index: number;
       window_id: string;
     };
+    WindowManagerReorderTabPayload: {
+      index: number;
+      window_id: string;
+    };
     WindowManagerReplaceLayoutPayload: {
       document: components["schemas"]["ContractWindowManagerLayoutDocument"];
     };
@@ -21089,25 +22613,18 @@ export interface components {
       delta: number;
       split_id: string;
     };
+    WindowManagerResizeWindowPayload: {
+      frame?: components["schemas"]["NormalizedRect"];
+      window_id: string;
+    };
     WindowManagerResult: {
       applied: boolean;
       changes: components["schemas"]["ChangeSet"];
       client?: components["schemas"]["ContractWindowManagerClientView"] | null;
+      deprecations: components["schemas"]["Deprecation"][];
       diagnostics?: components["schemas"]["Diagnostic"][];
       rebased_from?: number;
       snapshot: components["schemas"]["ContractWindowManagerSnapshot"];
-    };
-    WindowManagerReturnAnchor: {
-      child_index?: number | null;
-      desktop_id: string;
-      group_id?: string | null;
-      neighbor_ids?: string[];
-      parent_split_id?: string | null;
-      source_group?: components["schemas"]["ContractWindowManagerLayoutGroup"] | null;
-      source_revision: number;
-      /** Format: double */
-      weight?: number | null;
-      zoomed?: boolean;
     };
     WindowManagerSetStackActivePayload: {
       window_id: string;
@@ -21115,6 +22632,7 @@ export interface components {
     WindowManagerSnapshot: {
       closed_entry_count: number;
       desktops: components["schemas"]["ContractWindowManagerDesktop"][];
+      migration?: components["schemas"]["MigrationStatus"] | null;
       overrides: components["schemas"]["WorkspaceConfig"];
       revision: number;
       /** Format: date-time */
@@ -21140,6 +22658,11 @@ export interface components {
     WindowManagerSwitchDesktopPayload: {
       desktop_id: string;
     };
+    WindowManagerTab: {
+      id: string;
+      pinned: boolean;
+      root: components["schemas"]["WindowManagerLayoutNode"];
+    };
     WindowManagerToggleFloatingPayload: {
       floating_rect?: components["schemas"]["NormalizedRect"] | null;
       window_id: string;
@@ -21152,25 +22675,23 @@ export interface components {
     WindowManagerWindow: {
       app: string;
       desktop_id: string;
-      floating_rect: components["schemas"]["NormalizedRect"];
       id: string;
       instance_key?: string | null;
-      minimized: boolean;
       nav_stack: components["schemas"]["RouteIntent"][];
-      pinned: boolean;
-      /** @enum {string} */
-      placement: "tiled" | "stacked" | "floating";
-      return_anchor?: components["schemas"]["WindowManagerReturnAnchor"] | null;
       route: components["schemas"]["RouteIntent"];
-      zoomed: boolean;
+      tab_id: string;
     };
     WindowManagerWindowSpecPayload: {
       app: string;
       desktop_id: string;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       floating?: boolean;
-      floating_rect: components["schemas"]["NormalizedRect"];
+      floating_rect?: components["schemas"]["NormalizedRect"];
       id?: string;
-      insert_tiled: boolean;
+      insert_tiled?: boolean;
       instance_key?: string | null;
       route: components["schemas"]["RouteIntent"];
       stack_target_window_id?: string | null;
@@ -21200,6 +22721,8 @@ export interface components {
       supports_pr_discovery: boolean;
     };
     WorkSignal: {
+      held_instance_id?: string;
+      held_reason?: string;
       /** @enum {string} */
       kind:
         | "agent_progress"
@@ -21210,7 +22733,8 @@ export interface components {
         | "scheduled_wait"
         | "awaiting_reply"
         | "active_monitor"
-        | "held_permission";
+        | "held_permission"
+        | "held_input";
       ref?: string;
       /** Format: date-time */
       since: string;
@@ -21241,23 +22765,44 @@ export interface components {
       workspace_id: string;
     };
     WorkspaceConfig: {
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       bindings?: components["schemas"]["BindingsConfig"] | null;
       closed_entry_limit?: number | null;
       desktop_transition?: string | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       drag_away_policy?: string | null;
       focus_follows_pointer?: boolean | null;
       focus_policy?: string | null;
       focus_wrap?: boolean | null;
       gaps?: components["schemas"]["GapsConfig"] | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       group_move_modifier?: string | null;
       history_limit?: number | null;
       nav_stack_limit?: number | null;
+      /** @description Deprecated value "floating": translated to "tab"; removed in v0.8.0. */
       new_window_policy?: string | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       raise_on_focus?: boolean | null;
       shortcuts?: {
         [key: string]: string | string[];
       };
       small_viewport_policy?: string | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       snap?: components["schemas"]["SnapConfig"] | null;
       swap_modifier?: string | null;
     };
@@ -21464,6 +23009,15 @@ export interface components {
       error?: string;
       risk: components["schemas"]["WorktreeRemovalRiskPayload"];
     };
+    WorktreeRemovalResult: {
+      branch?: components["schemas"]["WorktreeBranchOutcomePayload"] | null;
+      code?: string;
+      error?: string;
+      risk?: components["schemas"]["WorktreeRemovalRiskPayload"] | null;
+      state: string;
+      target: components["schemas"]["WorktreeRemovalTarget"];
+      worktree_id?: string;
+    };
     WorktreeRemovalRiskPayload: {
       changed_files: number;
       deletions: number;
@@ -21471,6 +23025,11 @@ export interface components {
       insertions: number;
       leftover_files: number;
       unpushed_commits: number;
+    };
+    WorktreeRemovalTarget: {
+      expect_stale?: boolean;
+      path?: string;
+      ref?: string;
     };
     WorktreeRepoPayload: {
       diagnostic?: string;
@@ -22875,6 +24434,111 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceReportsResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  pickAgentInstanceProposal: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+        /** @description Report ID */
+        report_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentInstancePickRequest"];
+      };
+    };
+    responses: {
+      /** @description Picked */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstancePickResponse"];
         };
       };
       /** @description Invalid profile selection */
@@ -25655,6 +27319,226 @@ export interface operations {
       };
     };
   };
+  getAgentHeartbeatAuthority: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Check-in authority */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HeartbeatAuthorityPayload"];
+        };
+      };
+      /** @description Operator required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid authority */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority storage unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  approveAgentHeartbeatAuthority: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["HeartbeatScriptApprovalRequest"];
+      };
+    };
+    responses: {
+      /** @description Authority approved */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Operator required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid authority */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority storage unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  revokeAgentHeartbeatAuthority: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Authority revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Operator required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid authority */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority storage unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   listAgentHeartbeatHistory: {
     parameters: {
       query?: {
@@ -28280,7 +30164,9 @@ export interface operations {
         since?: string;
         /** @description Only runs started before this timestamp */
         until?: string;
-        /** @description Maximum number of records to return */
+        /** @description Continue after page.next_cursor with unchanged filters */
+        cursor?: string;
+        /** @description Page size (default 50, maximum 200; zero uses default) */
         limit?: number;
         /** @description Read one profile's rows by name */
         profile?: string;
@@ -28346,6 +30232,10 @@ export interface operations {
   triggerAutomationJob: {
     parameters: {
       query?: {
+        /** @description Wait for completion (default false); execution continues after the wait ends */
+        wait?: boolean;
+        /** @description Completion wait budget when wait=true (default 1m; positive duration up to 24h). On expiry returns the running admission receipt */
+        timeout?: string;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -28358,13 +30248,22 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
+      /** @description Admitted run with id and running status, or final result when wait=true; task and Loop targets retain delegated status */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": components["schemas"]["RunResponse"];
+        };
+      };
+      /** @description Invalid wait or completion budget */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
       /** @description Automation job not found */
@@ -28426,7 +30325,7 @@ export interface operations {
         since?: string;
         /** @description Only runs started before this timestamp */
         until?: string;
-        /** @description Maximum number of records to return */
+        /** @description Page size (default 50, maximum 200; zero uses default) */
         limit?: number;
         /** @description Read one profile's rows by name */
         profile?: string;
@@ -28505,6 +30404,68 @@ export interface operations {
       };
       /** @description Automation run not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  cancelAutomationRun: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Automation run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Canceled run or unchanged terminal run */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunResponse"];
+        };
+      };
+      /** @description Automation run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Run may still be executing or changed concurrently */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -28953,7 +30914,9 @@ export interface operations {
         since?: string;
         /** @description Only runs started before this timestamp */
         until?: string;
-        /** @description Maximum number of records to return */
+        /** @description Continue after page.next_cursor with unchanged filters */
+        cursor?: string;
+        /** @description Page size (default 50, maximum 200; zero uses default) */
         limit?: number;
         /** @description Read one profile's rows by name */
         profile?: string;
@@ -30110,7 +32073,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ExtensionResponse"];
+          "application/json": components["schemas"]["InstallExtensionResponse"];
         };
       };
       /** @description Invalid install request */
@@ -32084,6 +34047,9 @@ export interface operations {
           | "spawn.ttl_expired"
           | "spawn.reaped"
           | "session.attention.changed"
+          | "window_manager.tab.split"
+          | "window_manager.tab.unsplit"
+          | "window_manager.tab.activated"
           | "window_manager.layout.applied"
           | "window_manager.desktop.created"
           | "window_manager.desktop.deleted"
@@ -32107,7 +34073,8 @@ export interface operations {
           | "terminal.recording_started"
           | "terminal.recording_stopped"
           | "terminal.subscriber_evicted"
-          | "terminal.limit_rejected";
+          | "terminal.limit_rejected"
+          | "agent.instance.proposal.picked";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -32603,6 +34570,8 @@ export interface operations {
       query?: {
         /** @description Optional catalog search query */
         q?: string;
+        /** @description Optional CompozyOS category id */
+        category?: string;
         /** @description Maximum results from 1 to 100 */
         limit?: number;
         /** @description Opaque next_cursor from the previous page */
@@ -32792,6 +34761,64 @@ export interface operations {
         };
       };
       /** @description Marketplace catalog is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getMarketplaceSections: {
+    parameters: {
+      query?: {
+        /** @description Optional catalog search query */
+        q?: string;
+        /** @description Entries per section from 1 to 12; default 6 */
+        per_section?: number;
+        /** @description Installed-state projection scope */
+        scope?: "global" | "profile" | "workspace";
+        /** @description Required for profile scope */
+        profile?: string;
+        /** @description Required for workspace scope */
+        workspace_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MarketplaceSectionsResponse"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Catalog dependency is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -33282,6 +35309,15 @@ export interface operations {
       };
       /** @description Forbidden */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -33841,7 +35877,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Receipts committed atomically; source state unchanged */
+      /** @description Receipts committed atomically; bell layout-upgrade notices also acknowledged durably */
       204: {
         headers: {
           [name: string]: unknown;
@@ -37528,6 +39564,8 @@ export interface operations {
         exclude_instance_main?: boolean;
         /** @description Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it */
         exclude_finished_automation?: boolean;
+        /** @description Exclude every automation job or trigger run session the operator has not prompted, whatever its state; search, type, parent, root, archive=only and later=only reads ignore it */
+        exclude_automation?: boolean;
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
         /** @description Filter by exact session type */
@@ -37542,6 +39580,8 @@ export interface operations {
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
         root?: string;
+        /** @description Leave out this session and every session rooted at it (for example, a session's own tree) */
+        exclude_root?: string;
         /** @description Filter by exact bound worktree id */
         worktree?: string;
         /** @description Search session id, name, agent, or provider; title_agent searches visible title and agent */
@@ -37830,6 +39870,8 @@ export interface operations {
         exclude_instance_main?: boolean;
         /** @description Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it */
         exclude_finished_automation?: boolean;
+        /** @description Exclude every automation job or trigger run session the operator has not prompted from the counts, whatever its state; facets ignore the text query, so the counts keep excluding runs a search can list. type, parent, root, archive=only and later=only reads ignore it */
+        exclude_automation?: boolean;
         /** @description Workspace id or path */
         workspace_id?: string;
         /** @description Use the explicit all-workspaces aggregate */
@@ -37848,6 +39890,8 @@ export interface operations {
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
         root?: string;
+        /** @description Leave out this session and every session rooted at it (for example, a session's own tree) */
+        exclude_root?: string;
         /** @description Only count sessions eligible for explicit attach */
         resumable?: boolean;
         /** @description Filter by exact session state */
@@ -37915,6 +39959,197 @@ export interface operations {
         };
       };
       /** @description Session catalog facets are unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSessionHistoryCleanup: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionHistoryCleanupRunResponse"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  planSessionHistoryCleanup: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SessionHistoryCleanupRequest"];
+      };
+    };
+    responses: {
+      /** @description Dry run: the sessions the cleanup would delete */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionHistoryCleanupPreviewResponse"];
+        };
+      };
+      /** @description Accepted: the cleanup runs in the background; follow it with getSessionHistoryCleanup */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionHistoryCleanupStartResponse"];
+        };
+      };
+      /** @description Invalid cleanup request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description A cleanup is already running for this profile */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  stopSessionHistoryCleanup: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionHistoryCleanupRunResponse"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description No cleanup is running for this profile */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
       503: {
         headers: {
           [name: string]: unknown;
@@ -38304,6 +40539,7 @@ export interface operations {
           "text/event-stream":
             | components["schemas"]["SubagentsSnapshotEvent"]
             | components["schemas"]["SubagentUpdatedEvent"]
+            | components["schemas"]["SubagentRemovedEvent"]
             | components["schemas"]["SessionUsageChangedPayload"]
             | components["schemas"]["SessionConsumerDegradedPayload"]
             | components["schemas"]["SessionEventPayload"]
@@ -38572,6 +40808,15 @@ export interface operations {
       };
       /** @description Forbidden */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Replacement runtime failed its restart pre-flight; the running daemon was kept */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -39752,6 +41997,132 @@ export interface operations {
       };
     };
   };
+  putSettingsMCPApproval: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Configured MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SettingsMCPApprovalRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SettingsMCPApprovalResponse"];
+        };
+      };
+      /** @description Invalid MCP OAuth request or session */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP OAuth runtime is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  deleteSettingsMCPApproval: {
+    parameters: {
+      query: {
+        /** @description Workspace ID */
+        workspace_id: string;
+        /** @description Profile name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Configured MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Approval not required */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   beginSettingsMCPAuth: {
     parameters: {
       query: {
@@ -39807,6 +42178,15 @@ export interface operations {
       };
       /** @description MCP server or workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -39896,6 +42276,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -39966,6 +42355,15 @@ export interface operations {
       };
       /** @description MCP server or workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -40050,6 +42448,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -40060,6 +42467,92 @@ export interface operations {
         };
       };
       /** @description MCP OAuth runtime is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  checkSettingsMCPServer: {
+    parameters: {
+      query: {
+        /** @description Exact MCP settings scope */
+        scope: "user" | "profile" | "workspace";
+        /** @description Required when scope is workspace */
+        workspace_id?: string;
+        /** @description Required when scope is profile */
+        profile?: string;
+        /** @description Definition owner: manual or extension:<name>; omitted owner selects manual */
+        owner?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Configured MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description MCP check result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SettingsMCPServerItemPayload"];
+        };
+      };
+      /** @description Invalid MCP check request or disabled source */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP check canceled by client */
+      499: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP check runtime unavailable */
       503: {
         headers: {
           [name: string]: unknown;
@@ -40610,6 +43103,79 @@ export interface operations {
       };
     };
   };
+  setSettingsProviderEnabled: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Provider name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SetSettingsProviderEnabledRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SettingsProviderEnabledResponse"];
+        };
+      };
+      /** @description Invalid enabled payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Disabling the default provider is rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   reloadSettings: {
     parameters: {
       query?: never;
@@ -40729,6 +43295,136 @@ export interface operations {
       };
       /** @description Conflicting settings change */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listRuntimeMCPServers: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
+        workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
+        runtime?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Inventory"];
+        };
+      };
+      /** @description Invalid runtime or settings scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  importRuntimeMCPServer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Source runtime */
+        runtime: string;
+        /** @description URL-escaped runtime server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RuntimeMCPImportRequest"];
+      };
+    };
+    responses: {
+      /** @description Copied, possibly with partial cleanup warnings */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RuntimeMCPImportResponse"];
+        };
+      };
+      /** @description Invalid import request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Runtime server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Target name already exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Runtime source, transport or definition cannot be copied */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -47798,7 +50494,12 @@ export interface operations {
   };
   getWorkspace: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id or path */
@@ -47817,13 +50518,33 @@ export interface operations {
           "application/json": components["schemas"]["WorkspaceDetailPayload"];
         };
       };
-      /** @description Workspace not found */
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Workspace or requested profile not found */
       404: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Profile archived or unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Unknown workspace config keys (workspace_config_invalid) */
@@ -47876,6 +50597,15 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Removal held by a desktop layout that could not be read; retry finishes it */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -48233,6 +50963,455 @@ export interface operations {
       };
     };
   };
+  readFileContent: {
+    parameters: {
+      query: {
+        /** @description Optional worktree id */
+        worktree_id?: string;
+        /** @description Root-relative path */
+        path: string;
+        /** @description Reveal sensitive content; forbidden to app tokens */
+        reveal?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileContentResponse"];
+        };
+      };
+      /** @description File operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listFileEntries: {
+    parameters: {
+      query?: {
+        /** @description Optional worktree id */
+        worktree_id?: string;
+        /** @description Root-relative path */
+        path?: string;
+        /** @description Include ignored entries */
+        show_ignored?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileEntriesResponse"];
+        };
+      };
+      /** @description File operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  findFiles: {
+    parameters: {
+      query: {
+        /** @description Optional worktree id */
+        worktree_id?: string;
+        /** @description Search query */
+        q: string;
+        /** @description Result limit; defaults and clamps to 50 */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileFindResponse"];
+        };
+      };
+      /** @description Search failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  readFileBytes: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Root-relative file path; its slashes are path segments */
+        path: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description File bytes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description Requested byte range */
+      206: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description File unchanged since the supplied validator */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Requested range not satisfiable */
+      416: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  searchFileContents: {
+    parameters: {
+      query: {
+        /** @description Optional worktree id */
+        worktree_id?: string;
+        /** @description Search query */
+        q: string;
+        /** @description Use POSIX ERE */
+        regex?: boolean;
+        /** @description Match case */
+        case_sensitive?: boolean;
+        /** @description Match whole words */
+        whole_word?: boolean;
+        /** @description Root-relative globs; repeat at most ten times */
+        include?: string[];
+        /** @description Root-relative globs; repeat at most ten times */
+        exclude?: string[];
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileSearchResponse"];
+        };
+      };
+      /** @description Search failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   getHookRuns: {
     parameters: {
       query: {
@@ -48321,6 +51500,9 @@ export interface operations {
           | "spawn.ttl_expired"
           | "spawn.reaped"
           | "session.attention.changed"
+          | "window_manager.tab.split"
+          | "window_manager.tab.unsplit"
+          | "window_manager.tab.activated"
           | "window_manager.layout.applied"
           | "window_manager.desktop.created"
           | "window_manager.desktop.deleted"
@@ -48344,7 +51526,8 @@ export interface operations {
           | "terminal.recording_started"
           | "terminal.recording_stopped"
           | "terminal.subscriber_evicted"
-          | "terminal.limit_rejected";
+          | "terminal.limit_rejected"
+          | "agent.instance.proposal.picked";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */
@@ -52016,6 +55199,8 @@ export interface operations {
         exclude_instance_main?: boolean;
         /** @description Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it */
         exclude_finished_automation?: boolean;
+        /** @description Exclude every automation job or trigger run session the operator has not prompted, whatever its state; search, type, parent, root, archive=only and later=only reads ignore it */
+        exclude_automation?: boolean;
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
         /** @description Filter by exact session type */
@@ -52030,6 +55215,8 @@ export interface operations {
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
         root?: string;
+        /** @description Leave out this session and every session rooted at it (for example, a session's own tree) */
+        exclude_root?: string;
         /** @description Filter by exact bound worktree id */
         worktree?: string;
         /** @description Search session id, name, agent, or provider; title_agent searches visible title and agent */
@@ -52764,6 +55951,410 @@ export interface operations {
       };
     };
   };
+  getSessionChanges: {
+    parameters: {
+      query?: {
+        /** @description Changes scope */
+        scope?: "branch" | "uncommitted";
+        /** @description Optional base ref */
+        base?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionChangesResponse"];
+        };
+      };
+      /** @description Changes operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listSessionChangeBases: {
+    parameters: {
+      query?: {
+        /** @description Substring ref filter */
+        q?: string;
+        /** @description Default 200, maximum 500 */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionChangeBasesResponse"];
+        };
+      };
+      /** @description Changes operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSessionChangeContents: {
+    parameters: {
+      query: {
+        /** @description Changes scope */
+        scope?: "branch" | "uncommitted";
+        /** @description Optional base ref */
+        base?: string;
+        /** @description Summary revision fence */
+        revision: string;
+        /** @description Root-relative path */
+        path: string;
+        /** @description Aligned old path for renames */
+        old_path?: string;
+        /** @description Reveal sensitive contents; forbidden to app tokens */
+        reveal?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionChangeContentsResponse"];
+        };
+      };
+      /** @description Changes operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSessionChangePatches: {
+    parameters: {
+      query: {
+        /** @description Changes scope */
+        scope?: "branch" | "uncommitted";
+        /** @description Optional base ref */
+        base?: string;
+        /** @description Summary revision fence */
+        revision: string;
+        /** @description Root-relative path */
+        path: string[];
+        /** @description Aligned old path for renames */
+        old_path?: string[];
+        /** @description Reveal sensitive contents; forbidden to app tokens */
+        reveal?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionChangePatchesResponse"];
+        };
+      };
+      /** @description Changes operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   listSessionClarifications: {
     parameters: {
       query?: {
@@ -53425,6 +57016,457 @@ export interface operations {
         };
       };
       /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  readSessionFileContent: {
+    parameters: {
+      query: {
+        /** @description Root-relative path */
+        path: string;
+        /** @description Reveal sensitive content; forbidden to app tokens */
+        reveal?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileContentResponse"];
+        };
+      };
+      /** @description File operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listSessionFileEntries: {
+    parameters: {
+      query?: {
+        /** @description Root-relative path */
+        path?: string;
+        /** @description Include ignored entries */
+        show_ignored?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileEntriesResponse"];
+        };
+      };
+      /** @description File operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  findSessionFiles: {
+    parameters: {
+      query: {
+        /** @description Search query */
+        q: string;
+        /** @description Result limit; defaults and clamps to 50 */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileFindResponse"];
+        };
+      };
+      /** @description Search failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  readSessionFileBytes: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+        /** @description Root-relative file path; its slashes are path segments */
+        path: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description File bytes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description Requested byte range */
+      206: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description File unchanged since the supplied validator */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Requested range not satisfiable */
+      416: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  searchSessionFileContents: {
+    parameters: {
+      query: {
+        /** @description Search query */
+        q: string;
+        /** @description Use POSIX ERE */
+        regex?: boolean;
+        /** @description Match case */
+        case_sensitive?: boolean;
+        /** @description Match whole words */
+        whole_word?: boolean;
+        /** @description Root-relative globs; repeat at most ten times */
+        include?: string[];
+        /** @description Root-relative globs; repeat at most ten times */
+        exclude?: string[];
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileSearchResponse"];
+        };
+      };
+      /** @description Search failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
       500: {
         headers: {
           [name: string]: unknown;
@@ -54465,6 +58507,149 @@ export interface operations {
         };
       };
       /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSessionMCP: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionMCP"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session MCP read model unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  checkSessionMCP: {
+    parameters: {
+      query?: {
+        /** @description Definition owner; omitted owner selects manual */
+        owner?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+        /** @description Configured MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description MCP check result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionMCP"];
+        };
+      };
+      /** @description Invalid MCP check request or disabled source */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP check canceled by client */
+      499: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP check runtime unavailable */
       503: {
         headers: {
           [name: string]: unknown;
@@ -56441,6 +60626,7 @@ export interface operations {
           "text/event-stream":
             | components["schemas"]["SubagentsSnapshotEvent"]
             | components["schemas"]["SubagentUpdatedEvent"]
+            | components["schemas"]["SubagentRemovedEvent"]
             | components["schemas"]["SessionUsageChangedPayload"]
             | components["schemas"]["SessionConsumerDegradedPayload"]
             | components["schemas"]["SessionEventPayload"]
@@ -56500,7 +60686,7 @@ export interface operations {
         limit?: number;
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
-        /** @description Row order: newest first (default), or most urgent first (waiting, failed, working, queued, settled) then newest */
+        /** @description Row order: newest first (default), or most urgent first (waiting, working, failed, queued, settled) then newest */
         order?: "newest" | "urgency";
         /** @description Read one profile's rows by name */
         profile?: string;
@@ -57411,6 +61597,86 @@ export interface operations {
       };
       /** @description Session or subagent not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Subagents unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  deleteSubagent: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Subagent id */
+        subagent_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Capability denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session or subagent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Subagent is provider-native and follows its parent turn */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -59365,12 +63631,14 @@ export interface operations {
       query?: {
         /** @description Zero-based byte offset */
         offset?: number;
-        /** @description Page size in bytes; defaults to and is capped at 65536 */
+        /** @description Page size in bytes; defaults to 32768 and is capped at 65536 */
         limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
-        /** @description Durable workspace id */
+        /** @description Durable workspace id or @user */
         workspace_id: string;
         /** @description Opaque content-addressed artifact id */
         artifact_id: string;
@@ -59397,7 +63665,7 @@ export interface operations {
           "application/json": components["schemas"]["ToolErrorResponse"];
         };
       };
-      /** @description Artifact not found in the resolved workspace */
+      /** @description Artifact not found in the resolved workspace or User scope and profile */
       404: {
         headers: {
           [name: string]: unknown;
@@ -60168,13 +64436,160 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Validation result */
+      /** @description Validation diagnostics and the canonical v6 document when valid */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": components["schemas"]["ContractWindowManagerLayoutValidationResponse"];
+        };
+      };
+      /** @description Invalid window workspace binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Workspace or referenced entity not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Revision or state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Invalid window-manager request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+    };
+  };
+  getWindowManagerMigration: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MigrationStatus"];
+        };
+      };
+      /** @description Invalid window workspace binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Workspace or referenced entity not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Revision or state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Invalid window-manager request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+    };
+  };
+  updateWindowManagerMigration: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["WindowManagerMigrationRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MigrationStatus"];
         };
       };
       /** @description Invalid window workspace binding */
@@ -60376,6 +64791,8 @@ export interface operations {
       query?: {
         /** @description Refresh Git discovery and status */
         refresh?: boolean;
+        /** @description Include removed records (excluded by default) */
+        include_removed?: boolean;
       };
       header?: never;
       path: {
@@ -60682,6 +65099,100 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["WorktreeRemovalRefusalPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  removeWorktrees: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile. */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RemoveWorktreesRequest"];
+      };
+    };
+    responses: {
+      /** @description Per-target removal results or dry-run risk; inspect every result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RemoveWorktreesResponse"];
+        };
+      };
+      /** @description Invalid worktree request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree operation conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid worktree configuration */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
       /** @description Internal server error */
@@ -61328,6 +65839,115 @@ export interface operations {
       };
     };
   };
+  readWorktreeFileBytes: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Worktree id */
+        worktree_id: string;
+        /** @description Root-relative file path; its slashes are path segments */
+        path: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description File bytes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description Requested byte range */
+      206: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description File unchanged since the supplied validator */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Requested range not satisfiable */
+      416: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   getWorktreeStatus: {
     parameters: {
       query?: {
@@ -61488,6 +66108,8 @@ export interface operations {
         all_workspaces?: boolean;
         /** @description Repeatable project IDs or @user; requires all_workspaces=true */
         workspace_ids?: string[];
+        /** @description Include removed records (excluded by default) */
+        include_removed?: boolean;
       };
       header?: never;
       path?: never;

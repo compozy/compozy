@@ -344,7 +344,7 @@ export const SkippedContent: Story = {
   name: "VC-20 · Skipped content and falling behind",
   render: () => (
     <TerminalVisualStage>
-      <div className="flex flex-col gap-3 bg-terminal-bg px-3.5 py-3 font-mono text-code-block text-terminal-fg">
+      <div className="flex flex-col gap-3 bg-terminal-bg px-3.5 py-3 font-mono text-terminal text-terminal-fg">
         <span className="block">
           <span className="text-terminal-ansi-8">12:44:01</span> GET /api/journal 200 4.1ms
         </span>
@@ -356,6 +356,26 @@ export const SkippedContent: Story = {
       <TerminalStreamNotice
         code="slow_consumer"
         message="viewer queue was full for 10s"
+        onReconnect={NOOP}
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/**
+ * Attach attempts kept stalling before the daemon's first frame.
+ *
+ * The client stops retrying after repeated stalls rather than spinning on
+ * "Reconnecting…" forever, and hands the next attempt to the person.
+ */
+export const AttachTimeout: Story = {
+  name: "Attach timed out",
+  render: () => (
+    <TerminalVisualStage>
+      <div className="h-24 bg-terminal-bg" />
+      <TerminalStreamNotice
+        code="attach_timeout"
+        message="The terminal did not connect after 3 attempts."
         onReconnect={NOOP}
       />
     </TerminalVisualStage>
@@ -416,6 +436,33 @@ export const QuoteBlock: Story = {
       </div>
     </TerminalVisualStage>
   ),
+};
+
+/** A large selection, expanded: the excerpt scrolls inside a viewport-bounded body. */
+export const QuoteBlockLarge: Story = {
+  name: "Quote in the composer — large selection",
+  render: () => (
+    <TerminalVisualStage width="block">
+      <div className="p-4">
+        <TerminalQuoteBlock
+          onRemove={NOOP}
+          quote={buildTerminalQuote({
+            terminalId: DEV_SERVER_TERMINAL.id,
+            fromLine: 1,
+            lines: Array.from({ length: 300 }, (_, index) =>
+              index % 3 === 0 ? `step ${index + 1}` : `    at frame ${index + 1} (src/app.ts)`
+            ),
+          })}
+        />
+      </div>
+    </TerminalVisualStage>
+  ),
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole("button", { name: "Expand quote" }));
+    const excerpt = canvas.getByTestId("terminal-quote-lines");
+    await expect(excerpt.scrollHeight).toBeGreaterThan(excerpt.clientHeight);
+  },
+  tags: ["play-fn"],
 };
 
 /** With no session, the gesture offers a way in rather than dead-ending. */

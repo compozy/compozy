@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import {
   AssistantRuntimeProvider,
   MessageByIndexProvider,
@@ -7,7 +7,7 @@ import {
   type ThreadMessageLike,
 } from "@assistant-ui/react";
 import { fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
-import { act, createElement, Profiler, type ReactNode } from "react";
+import { act, createElement, Profiler, use, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
@@ -39,6 +39,7 @@ import { SessionSubagentsProvider } from "@/systems/session/contexts/session-sub
 import { useSubagentOrigin } from "@/systems/session/hooks/use-subagent-origin";
 import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagents";
 import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schemas";
+import { sessionSubagentRosterOptions } from "@/systems/session/lib/subagent-query-options";
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import { toThreadMessageLikes } from "@/systems/session/lib/session-thread-repository";
 import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
@@ -47,6 +48,7 @@ import type { SubagentRoster } from "@/systems/session/lib/subagent-roster";
 import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
 import type { SessionMessage, SessionPayload } from "@/systems/session/types";
 
+import { SessionSubagentDrawer } from "@/systems/os/apps/session/session-subagent-drawer";
 import { SessionNativeSubagentActivity } from "../session-native-subagent-activity";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import { subagentViewFromPayload } from "@/systems/session/lib/subagent-payload";
@@ -163,6 +165,7 @@ function renderRow(parts: SessionTimelinePart[], wrapper: ReturnType<typeof harn
 
 beforeEach(() => {
   vi.mocked(cancelSubagent).mockReset();
+  vi.mocked(fetchSessionSubagents).mockReset();
   vi.mocked(fetchSession).mockReset();
 });
 
@@ -324,6 +327,144 @@ describe("parent timeline activity across subagent updates (#835)", () => {
 });
 
 describe("subagent card drill-in (UT-W16)", () => {
+  // Invariant: a stale cached absence cannot close a newly selected drawer before confirmation.
+  // Owner: roster-to-drawer wiring; canonical suite: UT-W16.
+  it("Should keep inspection open while an older empty roster refetches", async () => {
+    const queued = view("sub-1", { status: "queued", child_session_id: null });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
+      rows: [],
+      staleIds: new Set(),
+      snapshotPending: true,
+    });
+    client.setQueryData(
+      sessionKeys.subagents(WORKSPACE_ID, SESSION_ID),
+      { pages: [{ subagents: [], next_cursor: null }], pageParams: [""] },
+      { updatedAt: Date.now() - 10_000 }
+    );
+    let confirm!: (page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void;
+    vi.mocked(fetchSessionSubagents).mockReturnValueOnce(
+      new Promise(resolve => {
+        confirm = resolve;
+      })
+    );
+    function OpenDrawer() {
+      useQuery(sessionSubagentRosterOptions(WORKSPACE_ID, SESSION_ID));
+      const drawer = use(SubagentDrawerContext);
+      return (
+        <button
+          type="button"
+          onClick={() => drawer?.open(queued, { newWindow: false }, WORKSPACE_ID)}
+        >
+          Inspect delegation
+        </button>
+      );
+    }
+    render(
+      <QueryClientProvider client={client}>
+        <UIProvider>
+          <SessionSubagentDrawer openSession={vi.fn()}>
+            <OpenDrawer />
+          </SessionSubagentDrawer>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Inspect delegation" }));
+    expect(await screen.findByText("Waiting for the subagent session to start.")).toBeVisible();
+    await act(async () => {
+      confirm({ subagents: [], next_cursor: null });
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Waiting for the subagent session to start.")
+      ).not.toBeInTheDocument()
+    );
+  });
+
+  // Invariant: a previous selection's list response cannot confirm absence for the next selection.
+  // Owner: roster-to-drawer wiring; canonical suite: UT-W16.
+  it("Should confirm a new selection after an earlier selection already fetched", async () => {
+    const first = view("sub-a", { status: "queued", child_session_id: null });
+    const next = view("sub-b", { status: "queued", child_session_id: null });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionSubagents).mockResolvedValueOnce({
+      subagents: [{ ...subagentPayload(first.id), status: "queued", child_session_id: null }],
+      next_cursor: null,
+    });
+    let confirm!: (page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void;
+    const { result } = renderHook(() => use(SubagentDrawerContext), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>
+          <UIProvider>
+            <SessionSubagentDrawer openSession={vi.fn()}>{children}</SessionSubagentDrawer>
+          </UIProvider>
+        </QueryClientProvider>
+      ),
+    });
+    act(() => result.current?.open(first, { newWindow: false }, WORKSPACE_ID));
+    await waitFor(() => expect(screen.getByText(first.title)).toBeVisible());
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    vi.mocked(fetchSessionSubagents).mockReturnValueOnce(
+      new Promise(resolve => {
+        confirm = resolve;
+      })
+    );
+    // The modal makes its background inert; another host can still select a new row.
+    act(() => result.current?.open(next, { newWindow: false }, WORKSPACE_ID));
+    expect(await screen.findByText(next.title)).toBeVisible();
+    await act(async () => {
+      confirm({ subagents: [], next_cursor: null });
+    });
+    await waitFor(() => expect(screen.queryByText(next.title)).not.toBeInTheDocument());
+  });
+
+  // Invariant: a complete authoritative roster removal closes inspection; partial loading does not.
+  // Owner: roster-to-drawer wiring; canonical suite: UT-W16.
+  it("Should close a selected drawer when the complete roster removes its row", async () => {
+    const queued = view("sub-1", { status: "queued", child_session_id: null });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Host = harness([queued], null, client);
+    function OpenDrawer() {
+      useQuery(sessionSubagentRosterOptions(WORKSPACE_ID, SESSION_ID));
+      const drawer = use(SubagentDrawerContext);
+      return (
+        <button
+          type="button"
+          onClick={() => drawer?.open(queued, { newWindow: false }, WORKSPACE_ID)}
+        >
+          Inspect delegation
+        </button>
+      );
+    }
+    render(
+      <SessionSubagentDrawer openSession={vi.fn()}>
+        <OpenDrawer />
+      </SessionSubagentDrawer>,
+      { wrapper: Host }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Inspect delegation" }));
+    expect(await screen.findByText("Waiting for the subagent session to start.")).toBeVisible();
+    vi.mocked(fetchSessionSubagents).mockReturnValueOnce(new Promise(() => undefined));
+    act(() =>
+      client.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
+        rows: [queued],
+        staleIds: new Set([queued.id]),
+      })
+    );
+    expect(screen.getByText("Waiting for the subagent session to start.")).toBeVisible();
+    act(() =>
+      client.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
+        rows: [],
+        staleIds: new Set(),
+      })
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Waiting for the subagent session to start.")
+      ).not.toBeInTheDocument()
+    );
+  });
+
   // Invariant: inspection selects a queued delegation before a child session exists.
   // Owner/canonical suite: provider → card → window drawer store wiring, UT-W16.
   it("Should select a queued subagent in the drawer before its child session exists", () => {
@@ -634,6 +775,50 @@ describe("composer subagents control (issue #766 wiring)", () => {
     expect(within(popover).getByRole("status")).toHaveTextContent("Loading subagents");
     expect(within(popover).queryByText("Nothing delegated yet.")).not.toBeInTheDocument();
     queryClient.clear();
+  });
+
+  // Invariant: confirmation refreshes cached pages before following their continuation.
+  // Owner: cold roster query orchestration; canonical suite: this wiring suite.
+  it("Should finish the confirmation refetch before walking the current roster pages", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(sessionKeys.subagents(WORKSPACE_ID, SESSION_ID), {
+      pages: [{ subagents: [subagentPayload("deleted")], next_cursor: "old-page-2" }],
+      pageParams: [""],
+    });
+    let confirm!: (page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void;
+    vi.mocked(fetchSessionSubagents)
+      .mockReturnValueOnce(
+        new Promise(resolve => {
+          confirm = resolve;
+        })
+      )
+      .mockResolvedValueOnce({ subagents: [subagentPayload("last")], next_cursor: null });
+    const { result } = renderHook(
+      () => useSessionSubagents(WORKSPACE_ID, SESSION_ID, { confirmOnMount: true }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetchSessionSubagents).mock.calls[0]?.[3]?.aborted).toBe(false);
+    expect(result.current.confirmed).toBe(false);
+    await act(async () => {
+      confirm({ subagents: [subagentPayload("current")], next_cursor: "new-page-2" });
+    });
+    await waitFor(() => expect(result.current.confirmed).toBe(true));
+    expect(result.current.subagents.map(row => row.id)).toEqual(["current", "last"]);
+    expect(fetchSessionSubagents).toHaveBeenLastCalledWith(
+      WORKSPACE_ID,
+      SESSION_ID,
+      { limit: 200, cursor: "new-page-2" },
+      expect.any(AbortSignal)
+    );
+    client.clear();
   });
 
   it("Should stop a failed cold page walk until the operator retries", async () => {

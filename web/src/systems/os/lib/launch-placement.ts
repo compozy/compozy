@@ -4,11 +4,11 @@ import type { OsOpenTarget, WindowManagerCommandOutcome } from "./os-types";
 
 /**
  * Explicit launch destinations (shell-rail P6). Plain activation stays
- * focus-first and lets the daemon's new-window policy — a tab in the focused
- * window by default — place whatever it has to open; these always create a
- * new instance where the operator asked for it.
+ * focus-first and lets the daemon's new-window policy — a tab after the active
+ * tab by default — place whatever it has to open; these always create a new
+ * instance where the operator asked for it.
  */
-export type LaunchPlacement = "tab" | "split" | "window" | "desktop";
+export type LaunchPlacement = "tab" | "split" | "desktop";
 
 export interface LaunchModifiers {
   altKey: boolean;
@@ -48,17 +48,15 @@ export async function launchInPlacement(
   const fresh: OsOpenTarget = { ...target, forceNewInstance: true };
   switch (placement) {
     case "tab": {
-      // Named explicitly so the tab holds under any configured policy; with
-      // nothing focused the daemon places the window on its own.
+      // Named explicitly so the tab lands after the focused window's tab under
+      // any configured policy; with nothing focused the daemon places it.
       const focusedId = ports.manager.getState().focusedId;
       return ports.coordinator.userOpen(
-        focusedId === null ? fresh : { ...fresh, stackTargetWindowId: focusedId }
+        focusedId === null ? fresh : { ...fresh, afterWindowId: focusedId }
       );
     }
     case "split":
       return ports.coordinator.userOpen({ ...fresh, placement: "split" });
-    case "window":
-      return ports.coordinator.userOpen({ ...fresh, placement: "floating" });
     case "desktop": {
       // Commands run in order, so the open lands after the switch: the empty
       // desktop gives the window the whole panel and the client its focus.

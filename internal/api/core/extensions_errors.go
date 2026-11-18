@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
+	"github.com/compozy/compozy/internal/resources"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -109,7 +110,8 @@ func classifyExtensionError(err error) extensionErrorKind {
 	case errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified),
 		errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked):
 		return extensionErrorUnprocessable
-	case errors.Is(err, marketplacepkg.ErrInstallSlugInvalid),
+	case errors.Is(err, resources.ErrValidation),
+		errors.Is(err, marketplacepkg.ErrInstallSlugInvalid),
 		errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch),
 		errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch),
 		errors.Is(err, extensionpkg.ErrManifestInvalid),

@@ -25,7 +25,7 @@ const BEAT: Record<AwayBeat, string> = {
   quiet: "bg-viz-other",
   reported: "bg-muted-foreground",
   failed: "bg-destructive",
-  "needs-you": "bg-brand",
+  "needs-you": "bg-attn",
 };
 
 const EVENT_ICON = { failed: CircleAlert, unanswered: ShieldAlert, reported: Sparkles };

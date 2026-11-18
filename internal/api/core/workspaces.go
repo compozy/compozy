@@ -12,9 +12,12 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
+
+const userScopeLabel = "User"
 
 // CreateWorkspace registers a workspace.
 func (h *BaseHandlers) CreateWorkspace(c *gin.Context) {
@@ -100,7 +103,13 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 		return
 	}
 
-	sessions, err := h.Sessions.ListForWorkspace(c.Request.Context(), resolved.WorkspaceID)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+
+	sessions, err := h.Sessions.ListForWorkspace(c.Request.Context(), resolved.ID)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -118,7 +127,7 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 	}
 	sessionPayloads, err := h.decorateSessionOwners(
 		c.Request.Context(),
-		SessionPayloadsForWorkspace(sessions, resolved.WorkspaceID),
+		SessionPayloadsForWorkspace(sessions, resolved.ID, readScope),
 	)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
@@ -128,7 +137,7 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.WorkspaceDetailPayload{
 		Workspace:    WorkspacePayloadFromWorkspace(resolved.Workspace),
 		Sessions:     sessionPayloads,
-		Agents:       AgentPayloadsFromEntries(agents),
+		Agents:       AgentPayloadsFromEntries(agents, &resolved.Config),
 		Skills:       WorkspaceSkillPayloads(resolved.Skills),
 		Providers:    SessionProviderOptionPayloadsFromConfig(&resolved.Config),
 		ProfileHints: profileHints,
@@ -282,16 +291,28 @@ func (h *BaseHandlers) UpdateWorkspace(c *gin.Context) {
 	})
 }
 
-// DeleteWorkspace unregisters a workspace.
+// DeleteWorkspace unregisters a workspace. A removal held after its registration was deleted
+// (an unusable layout answered 503) has no registration left; repeating the request by workspace
+// ID resumes it.
 func (h *BaseHandlers) DeleteWorkspace(c *gin.Context) {
-	workspace, err := h.Workspaces.Get(c.Request.Context(), workspaceRefFromRoute(c))
-	if err != nil {
-		h.respondError(c, StatusForWorkspaceError(err), err)
+	ref := workspaceRefFromRoute(c)
+	workspace, lookupErr := h.Workspaces.Get(c.Request.Context(), ref)
+	if lookupErr != nil && !errors.Is(lookupErr, workspacepkg.ErrWorkspaceNotFound) {
+		h.respondError(c, StatusForWorkspaceError(lookupErr), lookupErr)
 		return
 	}
+	workspaceID := workspace.ID
+	if lookupErr != nil {
+		workspaceID = ref
+	}
 
-	if err := h.Workspaces.Unregister(c.Request.Context(), workspace.ID); err != nil {
-		h.respondError(c, StatusForWorkspaceError(err), err)
+	if err := h.Workspaces.Unregister(c.Request.Context(), workspaceID); err != nil {
+		if lookupErr != nil && errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			h.respondError(c, StatusForWorkspaceError(lookupErr), lookupErr)
+			return
+		}
+		status, removalErr := workspaceRemovalError(workspaceID, err)
+		h.respondError(c, status, removalErr)
 		return
 	}
 
@@ -370,8 +391,17 @@ func (h *BaseHandlers) lookupWorkspaceID(ctx context.Context, ref string) (strin
 }
 
 // SessionPayloadsForWorkspace filters and converts sessions for one workspace.
-func SessionPayloadsForWorkspace(infos []*session.Info, workspaceID string) []contract.SessionPayload {
-	return SessionPayloadsFromInfos(
-		visibleSessionInfosInternal(filterSessionInfosByWorkspaceIDInternal(infos, workspaceID)),
-	)
+func SessionPayloadsForWorkspace(
+	infos []*session.Info,
+	workspaceID string,
+	readScope store.ReadScope,
+) []contract.SessionPayload {
+	visible := visibleSessionInfosInternal(filterSessionInfosByWorkspaceIDInternal(infos, workspaceID))
+	filtered := visible[:0]
+	for _, info := range visible {
+		if readScope.Matches(info.ProfileID) {
+			filtered = append(filtered, info)
+		}
+	}
+	return SessionPayloadsFromInfos(filtered)
 }

@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/store"
 )
 
 type promptRuntimePlan struct {
@@ -22,8 +21,10 @@ type promptRuntimePlan struct {
 	reloadACPSessionID string
 	// replayHistory carries the transcript into a bind that cannot load the prior session.
 	replayHistory bool
+	replayed      bool
 }
 
+// ensurePromptRuntime reserves runtime configuration and replaces auth-failed bindings before considering reuse.
 func (m *Manager) ensurePromptRuntime(
 	ctx context.Context,
 	session *Session,
@@ -43,17 +44,24 @@ func (m *Manager) ensurePromptRuntime(
 	if reservedProcess != snapshot.process {
 		return nil, errors.New("session: runtime process changed while reserving prompt")
 	}
-	controlsDrifted := runtimeControlsDrifted(&snapshot)
-	if snapshot.process != nil && runtimeSelectionsEqual(snapshot.selection, *selection) &&
-		!controlsDrifted {
+	if err := m.releaseAuthFailedRuntime(ctx, session, &snapshot); err != nil {
+		return nil, err
+	}
+	mcpChanged, reloadReason := false, ""
+	if activationCheckDue(ctx) {
+		mcpChanged, reloadReason = m.needsActivationReload(ctx, session)
+	}
+	if mcpChanged {
+		return m.reloadActivationRuntime(ctx, session, &snapshot, *selection, reloadReason)
+	}
+	if canReusePromptRuntime(&snapshot, *selection, mcpChanged) {
 		return snapshot.process, nil
 	}
-	plan, err := m.preparePromptRuntimePlan(ctx, session, *selection)
+	plan, err := m.preparePromptRuntimePlanForRoute(ctx, session, *selection, "", nil)
 	if err != nil {
 		return nil, err
 	}
-	if snapshot.process != nil && runtimeSelectionsEqual(snapshot.selection, plan.selection) &&
-		!controlsDrifted {
+	if canReusePromptRuntime(&snapshot, plan.selection, mcpChanged) {
 		return snapshot.process, nil
 	}
 	if err := m.validateExplicitStartModel(ctx, &plan.runtime, &plan.spec); err != nil {
@@ -66,10 +74,7 @@ func (m *Manager) ensurePromptRuntime(
 	}
 	if snapshot.process != nil &&
 		strings.TrimSpace(snapshot.selection.Provider) == strings.TrimSpace(plan.selection.Provider) {
-		runtimeProvider := strings.TrimSpace(plan.runtime.agent.RuntimeProvider)
-		if runtimeProvider == "" {
-			runtimeProvider = strings.TrimSpace(plan.runtime.agent.Provider)
-		}
+		runtimeProvider := firstTrimmedNonEmpty(plan.runtime.agent.RuntimeProvider, plan.runtime.agent.Provider)
 		if RuntimeStrategyForProvider(runtimeProvider) == acp.RuntimeApplicationSessionConfig {
 			if configurator, ok := m.driver.(RuntimeConfigurator); ok {
 				return m.configureOrReplacePromptRuntime(ctx, session, configurator, &snapshot, plan)
@@ -125,47 +130,6 @@ func runtimeControlsDrifted(snapshot *runtimeBindingSnapshot) bool {
 	currentSpeed := acp.CurrentSpeed(caps.ConfigOptions)
 	return selection.Speed != "" && acp.SupportsSpeed(selection.Speed, caps.ConfigOptions) &&
 		currentSpeed != selection.Speed
-}
-
-// Provider negotiation refusals are retried only by a subsequent prompt request;
-// replacing a healthy process cannot grant an unavailable capability or account tier.
-func runtimeConfigurationRefused(err error, process *AgentProcess) bool {
-	if _, ok := errors.AsType[*acp.NegotiationError](err); !ok || isProcessDone(process) {
-		return false
-	}
-	if failure, ok := acp.FailureFromError(err, store.FailurePrompt); ok {
-		switch failure.Kind {
-		case store.FailureTransport, store.FailureProcess, store.FailureCanceled, store.FailureTimeout:
-			return false
-		}
-	}
-	return true
-}
-
-// bindUnboundPromptRuntime owns the binds that differ for a session without a process:
-// a released idle runtime reloads its ACP session, a derived child binds its pending
-// route, and a logical session's first bind walks the agent's fallback_chain (ADR-004).
-func (m *Manager) bindUnboundPromptRuntime(
-	ctx context.Context,
-	session *Session,
-	snapshot *runtimeBindingSnapshot,
-	plan *promptRuntimePlan,
-) (*AgentProcess, bool, error) {
-	if snapshot.runtimeRelease != nil {
-		proc, err := m.rebindReleasedRuntime(ctx, session, snapshot, plan)
-		return proc, true, err
-	}
-	if pending := session.pendingRouteSnapshot(); pending != nil {
-		proc, handled, err := m.bindPendingRoute(ctx, session, snapshot, plan, *pending)
-		if handled {
-			return proc, true, err
-		}
-	}
-	if routes := fallbackRoutesForAgent(plan.runtime.agentDef); len(routes) > 0 {
-		proc, err := m.bindPromptRuntimeWithFallback(ctx, session, snapshot, plan, routes)
-		return proc, true, err
-	}
-	return nil, false, nil
 }
 
 // configurePromptRuntime classifies the primary refusal before rollback or cleanup can change liveness.
@@ -328,6 +292,8 @@ func (m *Manager) replacePromptRuntime(
 		return nil, acp.WrapAcceptedStart(candidate.SessionID, errors.Join(err, restoreErr, stopErr))
 	}
 
+	m.commitActivation(session, &runtime)
+	plan.replayed = plan.spec.resumeReplay
 	session.setProviderRouting(runtime.agent)
 	if plan.spec.resumeReplay {
 		m.stageResumeReplay(session.ID, plan.spec.resumeReplayBlock)
@@ -389,6 +355,13 @@ func (m *Manager) stopReplacedRuntime(session *Session, proc *AgentProcess, emit
 		if err := m.driver.Stop(stopCtx, proc); err != nil {
 			return err
 		}
+		verified, err := m.processExitVerified(proc)
+		if err != nil {
+			return err
+		}
+		if !verified {
+			return ErrStopVerificationFailed
+		}
 	}
 	if emitHook {
 		hookCtx, cancel := m.lifecycleCleanupContext()
@@ -449,10 +422,11 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
 	spec.command = strings.TrimSpace(command)
 	spec.sessionEnv = compozyconfig.MergeSessionEnv(nil, sessionEnv)
-	// The bound route records whether an unrestricted preference was already present at session start.
-	boundRoute := session.providerRoutingSnapshot()
-	dropInheritedUnrestricted := hasUnrestrictedACPMode(spec.provider, boundRoute.ACPOptionsValue())
-	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, dropInheritedUnrestricted)
+	// The provider route records whether an unrestricted preference was already present at session start.
+	providerRoute := session.providerRoutingSnapshot()
+	spec.admission, spec.boundRoute = admissionRuntimeChange, boundRoute(&meta)
+	dropInheritedUnrestricted := compozyconfig.HasUnrestrictedACPOption(spec.provider, providerRoute.ACPOptionsValue())
+	runtime, err := m.resolvePromptStartRuntime(ctx, session, &spec, dropInheritedUnrestricted)
 	if err != nil {
 		return nil, err
 	}
@@ -491,4 +465,9 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	return &promptRuntimePlan{
 		selection: resolvedSelection, spec: spec, runtime: runtime,
 	}, nil
+}
+
+func canReusePromptRuntime(snapshot *runtimeBindingSnapshot, selection RuntimeSelection, mcpChanged bool) bool {
+	return snapshot.process != nil && runtimeSelectionsEqual(snapshot.selection, selection) &&
+		!runtimeControlsDrifted(snapshot) && !mcpChanged
 }

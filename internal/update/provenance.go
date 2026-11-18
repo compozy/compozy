@@ -59,6 +59,20 @@ func DesktopRuntimeNewerThanBundle(
 	return comparison > 0, nil
 }
 
+// DesktopRuntimeVersion reports the release recorded for a desktop-owned runtime, or "" when the
+// runtime is not desktop-owned or its marker is unreadable. Callers use it only to describe a
+// version transition, so an unknown version never blocks provisioning.
+func DesktopRuntimeVersion(paths compozyconfig.HomePaths, binaryPath string) string {
+	if !RuntimeOwnedByDesktopApp(paths, binaryPath) {
+		return ""
+	}
+	marker, err := readDesktopProvenance(desktopProvenancePath(paths, binaryPath))
+	if err != nil {
+		return ""
+	}
+	return marker.RuntimeVersion
+}
+
 // DesktopRuntimeMatchesBundle verifies the installed bytes and release identity against a bundle.
 func DesktopRuntimeMatchesBundle(
 	paths compozyconfig.HomePaths,

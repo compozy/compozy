@@ -93,7 +93,7 @@ func TestTerminalAgentHandlersShouldExecuteEveryUnregisteredBody(t *testing.T) {
 			"exec",
 			http.MethodPost,
 			"/api/workspaces/workspace-a/terminals/exec",
-			`{"command":"server","yield_ms":250}`,
+			`{"command":"server","worktree":"wt-ready","yield_ms":250}`,
 			http.StatusAccepted,
 			[]string{
 				`"exit_code":null`,
@@ -187,7 +187,8 @@ func TestTerminalAgentHandlersShouldExecuteEveryUnregisteredBody(t *testing.T) {
 			}
 		})
 	}
-	if manager.exec.Actor.Kind != terminalpkg.ActorKindHuman || handle.signal != terminalpkg.SignalTERM ||
+	if manager.exec.Actor.Kind != terminalpkg.ActorKindHuman || manager.exec.Worktree != "wt-ready" ||
+		handle.signal != terminalpkg.SignalTERM ||
 		handle.rejected != "input-a" || handle.recordStarts != 1 || handle.recordStops != 1 {
 		t.Fatalf("handler actor/effects = manager:%#v handle:%#v", manager, handle)
 	}

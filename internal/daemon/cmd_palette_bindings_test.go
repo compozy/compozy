@@ -19,6 +19,34 @@ var testCmdPaletteProfileLens = cmdpalette.ScopedProfileLens(cmdpalette.DefaultP
 func TestCmdPaletteBindingsResolver(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: stored shortcut and palette aliases resolve at the catalog boundary; retired IDs are inert.
+	t.Run("Should translate window aliases and suppress retired bindings", func(t *testing.T) {
+		t.Parallel()
+		windowConfig := compozyconfig.DefaultWindowManagerConfig()
+		windowConfig.Shortcuts = map[string]windowmanager.ShortcutBinding{
+			"window.stack.reorder": {"alt+KeyR"}, "window.minimize": {"alt+KeyM"},
+			"window.merge_all": {"alt+KeyM"}, "window.tab.detach": {"alt+KeyM"},
+		}
+		paletteConfig := compozyconfig.CmdPaletteConfig{
+			Aliases: map[string]string{"window.stack.set_active": "activate"},
+		}
+		resolver := &cmdPaletteBindingsResolver{logger: discardLogger()}
+		bindings, aliases, err := resolver.resolveBindingsFromSnapshot("workspace-a", windowConfig, paletteConfig,
+			[]cmdpalette.CommandID{"window.tab.reorder", "window.tab.activate"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(bindings["window.tab.reorder"], []string{"alt+KeyR"}) ||
+			aliases["window.tab.activate"] != "activate" {
+			t.Fatalf("bindings=%v aliases=%v", bindings, aliases)
+		}
+		for _, id := range []cmdpalette.CommandID{"window.stack.reorder", "window.minimize", "window.merge_all", "window.tab.detach"} {
+			if _, active := bindings[id]; active {
+				t.Fatalf("retired binding %s resolves", id)
+			}
+		}
+	})
+
 	t.Run("Should resolve the Global desktop partition without a workspace overlay", func(t *testing.T) {
 		t.Parallel()
 

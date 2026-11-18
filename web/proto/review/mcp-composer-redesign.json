@@ -1,0 +1,397 @@
+{
+    "version": 3,
+    "key": "mcp-composer-redesign",
+    "sequence": 5,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "mcp-composer-redesign-1",
+            "slug": "mcp-composer-redesign",
+            "status": "resolved",
+            "createdAt": "2026-11-16T12:52:56.354Z",
+            "updatedAt": "2026-11-16T13:37:16.571Z",
+            "resolvedAt": "2026-11-16T13:37:07.697Z",
+            "context": {
+                "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
+                "state": "proposed",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1859,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > div",
+                "testId": null,
+                "tag": "div",
+                "text": "DaVinci Resolve Neon advos branas cap cua-driver higgsfield inspo linear-server Claude Code loads these by itself. Chan…",
+                "source": "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:199:5",
+                "sourceChain": [
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:199:5",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:276:9",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:352:11",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:326:7",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:307:5",
+                    "src/drafts/mcp-composer-redesign/index.proto.tsx:124:10",
+                    "src/components/assistant-ui/session-composer-action-row.tsx:314:9",
+                    "src/components/assistant-ui/session-composer-action-row.tsx:305:5"
+                ],
+                "rect": {
+                    "x": 1025,
+                    "y": 752,
+                    "width": 304,
+                    "height": 332
+                },
+                "rectNormalized": {
+                    "x": 0.551371705217859,
+                    "y": 0.6516464471403813,
+                    "width": 0.1635287789133943,
+                    "height": 0.2876949740034662
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "d1bd870b-0143-485d-8ec9-6ee1457f0ae2",
+                    "at": "2026-11-16T12:52:56.366Z",
+                    "editedAt": null,
+                    "body": "aqui não precisa desse padding left todo pra aninhar o conteudo, vamos colocar alinhado com o arrow mesmo",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "d730e30d-65ce-4b02-9ccc-ef5645b857d6",
+                    "at": "2026-11-16T13:37:07.696Z",
+                    "editedAt": "2026-11-16T13:37:16.571Z",
+                    "body": "Removed the pl-7 indent: CompozyOS rows and the 'Claude Code's own servers' rows now align with the section arrow (composer-mcp-popover.tsx, CompozyRow/RuntimeSection). Verified in a 1860px dark capture of state proposed and runtime-open.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "789197c7-914e-4841-a9b5-14cea64fec34",
+                            "name": "mcp-composer-redesign--proposed.png",
+                            "type": "image/png",
+                            "size": 248969,
+                            "width": 3720,
+                            "height": 2300,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "mcp-composer-redesign-2",
+            "slug": "mcp-composer-redesign",
+            "status": "resolved",
+            "createdAt": "2026-11-16T12:53:22.167Z",
+            "updatedAt": "2026-11-16T13:37:18.167Z",
+            "resolvedAt": "2026-11-16T13:37:16.934Z",
+            "context": {
+                "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
+                "state": "today",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1859,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section:nth-of-type(1) > span",
+                "testId": null,
+                "tag": "span",
+                "text": "CompozyOS",
+                "source": "src/systems/session/components/mcp-composer-control.tsx:135:7",
+                "sourceChain": [
+                    "src/systems/session/components/mcp-composer-control.tsx:135:7",
+                    "src/systems/session/components/mcp-composer-control.tsx:134:5",
+                    "src/systems/session/components/mcp-composer-control.tsx:209:9",
+                    "src/systems/session/components/mcp-composer-control.tsx:199:5",
+                    "src/drafts/mcp-composer-redesign/stage.tsx:39:7",
+                    "src/systems/session/components/mcp-composer-control.tsx:304:7",
+                    "src/systems/session/components/mcp-composer-control.tsx:275:5",
+                    "src/components/assistant-ui/session-composer-action-row.tsx:314:9"
+                ],
+                "rect": {
+                    "x": 1027,
+                    "y": 659,
+                    "width": 364,
+                    "height": 18
+                },
+                "rectNormalized": {
+                    "x": 0.5524475524475524,
+                    "y": 0.57105719237435,
+                    "width": 0.1958041958041958,
+                    "height": 0.01559792027729636
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "74e3dd68-9309-459f-b6d9-8e716558e1a2",
+                    "at": "2026-11-16T12:53:22.178Z",
+                    "editedAt": null,
+                    "body": "aqui faltou a logo do Compozy",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "82f344ef-6b56-403f-88c0-f5817740f002",
+                    "at": "2026-11-16T13:37:16.933Z",
+                    "editedAt": "2026-11-16T13:37:18.167Z",
+                    "body": "The CompozyOS section header now shows the Compozy symbol logo (Logo variant=symbol) before the label and count (composer-mcp-popover.tsx SectionHeader). The 'today' state renders the shipped control unchanged, so the logo appears in the proposed states. Verified in the proposed capture.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "e6e0850d-474a-458f-a99f-36960097fe82",
+                            "name": "mcp-composer-redesign--proposed.png",
+                            "type": "image/png",
+                            "size": 248969,
+                            "width": 3720,
+                            "height": 2300,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "mcp-composer-redesign-3",
+            "slug": "mcp-composer-redesign",
+            "status": "resolved",
+            "createdAt": "2026-11-16T12:54:42.266Z",
+            "updatedAt": "2026-11-16T13:37:19.605Z",
+            "resolvedAt": "2026-11-16T13:37:18.690Z",
+            "context": {
+                "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
+                "state": "sign-in-paste",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1859,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "[data-testid=\"mcp-sign-in-panel\"]",
+                "testId": "mcp-sign-in-panel",
+                "tag": "div",
+                "text": "Sign in to branas-dashboard Finish signing in in your browser This updates by itself when you're done. Open browser aga…",
+                "source": "src/drafts/mcp-redesign-shared/mcp-sign-in-panel.tsx:157:5",
+                "sourceChain": [
+                    "src/drafts/mcp-redesign-shared/mcp-sign-in-panel.tsx:157:5",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:111:9",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:70:7",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:68:5",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:100:7",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:157:5",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:258:11",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:256:7"
+                ],
+                "rect": {
+                    "x": 1357,
+                    "y": 638,
+                    "width": 264,
+                    "height": 300
+                },
+                "rectNormalized": {
+                    "x": 0.7299623453469607,
+                    "y": 0.5528596187175043,
+                    "width": 0.14201183431952663,
+                    "height": 0.25996533795493937
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "97db21cd-c2e5-4d1d-b07f-aadbbf5ded1f",
+                    "at": "2026-11-16T12:54:42.292Z",
+                    "editedAt": null,
+                    "body": "falta uma linha de divider entre o titulo e o conteudo como tem pra dividir o toggle do browser on another computer",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "70469d07-7e0a-4f58-90ee-89c79bbabbab",
+                    "at": "2026-11-16T13:37:18.689Z",
+                    "editedAt": "2026-11-16T13:37:19.605Z",
+                    "body": "All row panels now share one shell (mcp-redesign-shared/mcp-panel.tsx): icon well + title + subtitle header ruled from the body by border-line-soft, same rule as the 'Signing in on another computer?' section and the footer. Applies to sign-in, allow, issue and copy panels. Verified in sign-in-waiting, sign-in-paste and sign-in-scopes captures.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "8bb2be27-36a1-4e54-8fd1-70ca9b65128f",
+                            "name": "mcp-composer-redesign--sign-in-paste.png",
+                            "type": "image/png",
+                            "size": 330664,
+                            "width": 3720,
+                            "height": 2300,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "mcp-composer-redesign-4",
+            "slug": "mcp-composer-redesign",
+            "status": "resolved",
+            "createdAt": "2026-11-16T13:01:28.183Z",
+            "updatedAt": "2026-11-16T13:37:21.234Z",
+            "resolvedAt": "2026-11-16T13:37:20.174Z",
+            "context": {
+                "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
+                "state": "runtime-off",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1859,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "body > div:nth-of-type(2) > div > div > div:nth-of-type(1)",
+                "testId": null,
+                "tag": "div",
+                "text": "MCP servers",
+                "source": "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:327:9",
+                "sourceChain": [
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:327:9",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:326:7",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:307:5",
+                    "src/drafts/mcp-composer-redesign/index.proto.tsx:124:10",
+                    "src/components/assistant-ui/session-composer-action-row.tsx:314:9",
+                    "src/components/assistant-ui/session-composer-action-row.tsx:305:5",
+                    "src/drafts/always-on-agents-shared/transcript.tsx:168:19",
+                    "src/drafts/always-on-agents-shared/transcript.tsx:148:17"
+                ],
+                "rect": {
+                    "x": 1025,
+                    "y": 580,
+                    "width": 304,
+                    "height": 26
+                },
+                "rectNormalized": {
+                    "x": 0.551371705217859,
+                    "y": 0.5025996533795494,
+                    "width": 0.1635287789133943,
+                    "height": 0.022530329289428077
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "64b795e1-0f52-4268-9e99-61a6645b3ec5",
+                    "at": "2026-11-16T13:01:28.206Z",
+                    "editedAt": null,
+                    "body": "aqui falta um icone também para representar e um icone com uma tom mais escuro que a cor do title, pode ser no mesmo tom ali do \"23 tools\"",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "b625c5a0-f3d1-4ac1-87b1-46c1e8ba303d",
+                    "at": "2026-11-16T13:37:20.172Z",
+                    "editedAt": "2026-11-16T13:37:21.234Z",
+                    "body": "The popover header now leads with a Plug icon in text-faint (same tone as the '23 tools' counts), ruled from the list. Verified in runtime-off and proposed captures.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "c769bee7-4139-467e-a02e-0dfd68c1789b",
+                            "name": "mcp-composer-redesign--runtime-off.png",
+                            "type": "image/png",
+                            "size": 279845,
+                            "width": 3720,
+                            "height": 2300,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "mcp-composer-redesign-5",
+            "slug": "mcp-composer-redesign",
+            "status": "resolved",
+            "createdAt": "2026-11-16T13:38:54.921Z",
+            "updatedAt": "2026-11-16T14:13:48.794Z",
+            "resolvedAt": "2026-11-16T14:13:48.163Z",
+            "context": {
+                "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
+                "state": "proposed",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1859,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1)",
+                "testId": null,
+                "tag": "div",
+                "text": "CompozyOS 4",
+                "source": "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:245:5",
+                "sourceChain": [
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:245:5",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:273:7",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:376:13",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:372:9",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:348:7",
+                    "src/drafts/mcp-composer-redesign/composer-mcp-popover.tsx:329:5",
+                    "src/drafts/mcp-composer-redesign/index.proto.tsx:127:10",
+                    "src/components/assistant-ui/session-composer-action-row.tsx:314:9"
+                ],
+                "rect": {
+                    "x": 1023,
+                    "y": 891,
+                    "width": 308,
+                    "height": 24
+                },
+                "rectNormalized": {
+                    "x": 0.5502958579881657,
+                    "y": 0.7720970537261699,
+                    "width": 0.16568047337278108,
+                    "height": 0.02079722703639515
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "b1ebf372-f7d5-4fd1-8767-3fa2c2003baa",
+                    "at": "2026-11-16T13:38:55.831Z",
+                    "editedAt": null,
+                    "body": "na verdade vendo agora acho que não precisamos nem dessa linha aqui inteira, mostrar MCP server e os MCPs abaixo já é suficiente na realidade",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "ef979bda-3473-4a82-920b-0dd26976ffc5",
+                    "at": "2026-11-16T14:13:48.162Z",
+                    "editedAt": "2026-11-16T14:13:48.794Z",
+                    "body": "Removed the 'CompozyOS 4' row: the popover is now the 'MCP servers' header followed directly by the server rows, then the folded 'Claude Code's own servers' row (composer-mcp-popover.tsx, SectionHeader deleted). Verified in the proposed state at 1860px dark.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "8354150a-67da-41f3-b59d-1cf0597ab88e",
+                            "name": "r8-composer-proposed.png",
+                            "type": "image/png",
+                            "size": 44795,
+                            "width": 1400,
+                            "height": 700,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

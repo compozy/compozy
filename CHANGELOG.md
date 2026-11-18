@@ -5,6 +5,479 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.5 - 2026-11-18
+
+### Bug Fixes
+
+- Make maestro dispatch monitors mandatory and checkable
+- Wake always-on mains when provenance children settle (#1786)
+- Retain MCP tools through refreshable OAuth expiry (#1789)
+- Archive executor children during post-merge cleanup
+- Resolve supported defaults for Cursor reasoning (#1793)
+- Archive every session bound to a merged worktree during cleanup
+- Prevent session window crash when the same image is pasted twice (#1805)
+- Normalize remote MCP tool names (#1806)
+- Enable Agent Plugin MCP sign-in and secret bindings (#1810)
+- Leave an emptied desktop without tabs instead of seeding a New Tab (#1804)
+- Restore daemon boot and session authority reads (#1811)
+
+### Performance Improvements
+
+- Stop shell-wide re-renders that pushed tab switches over budget (#1792)
+- Reduce steady-state daemon policy and MCP CPU (#1802)
+
+### Testing
+
+- Enforce deterministic tests with landmines lint rules (#1808)
+
+## 0.7.4 - 2026-11-17
+
+### Bug Fixes
+
+- Authorize session orchestration through workspace policy (#1782)
+- Resume spawned workers and idle mains after daemon restart (#1783)
+
+### Features
+
+- Redesign MCP connection popovers, panels and dialogs (#1773)
+
+## 0.7.3 - 2026-11-16
+
+### Bug Fixes
+
+- Show reload failures on the closed composer MCP control (#1759)
+- Exempt PR-covered issues from the intake watchdog
+- Load trusted MCP sidecars before daemon validation (#1768)
+- Pass CA trust variables to extension, MCP and hook subprocesses (#1764)
+- Settle CompozyOS Loop joins behind an untaken gate route and explain contract failures (#1763)
+- Escape only fence characters in check-in source items (#1767)
+- Honor runtime providers for read-only triage (#1771)
+
+### Performance Improvements
+
+- Reduce retained-window and dock work on tab switches (#1742)
+- Reduce hosted MCP projection and status read overhead (#1774)
+
+## 0.7.2 - 2026-11-15
+
+### Bug Fixes
+
+- Reuse profile scope without loop stream lookups (#1740)
+- Retain managed subprocess stdout after exit (#1748)
+- Preserve session authority and accepted lifecycle changes (#1745)
+- Preserve long Loop gate leases and clean owned processes (#1746)
+- Settle deleted subagent children and deliver parent wakes (#1744)
+- Make the composer MCP control an icon-only neutral last control (#1757)
+- Open Settings when runtime MCP servers have no env or headers (#1756)
+- Authenticate daemon GitHub requests and honor rate limits (#1751)
+
+### Performance Improvements
+
+- Stop per-string secret encoding and per-session MCP discovery (#1755)
+
+## 0.7.1 - 2026-11-15
+
+### Bug Fixes
+
+- Re-check a stale needs_login provider after a verified usage collection (#1697)
+- Cap reasoning effort levels to the model profile (#1704)
+- Stop reporting a deleted child session as working (#1693)
+- Keep the Archived and Later session list views when opening a session (#1707)
+- Show the session's agent avatar on session tabs (#1710)
+- Stop E2E leak checks from matching Vite asset hashes (#1714)
+- List unfoldered sessions beside folders in Archived and Later (#1718)
+- Stop counting deleted subagent children as working (#1711)
+- Open transcript terminals bound to their project and never trap their window (#1719)
+- Keep session paging below the last row in folder lists (#1731)
+- Bound automation initialization retries without orphan sessions (#1730)
+- Bound session query quiescence before deletion
+- Show active child sessions and subagents first in the session list
+- Retry an unconfirmed ACP reasoning effort before failing the bind (#1681)
+- Preserve concurrent ACP configuration confirmations
+- Resolve live User MCP policy without a project lookup
+- Let daemon boot with archived sessions missing from disk
+- Wait for the model catalog before rejecting a model pin (#1689)
+- Ignore redundant ACP mode notifications
+- Settle failed subagent delegations and reconcile orphans at boot (#1686)
+- Preserve parent wakes after recovery cancellation
+- Preserve the final ACP confirmation window
+- Stop the child session when a subagent is canceled (#1688)
+- Wait for daemon process exit before cleaning SSH homes (#1726)
+- Cancel descendants below terminal delegated sessions
+- Host the rail delete confirmation at the shell (#1703)
+- Preserve same-workspace instance permission intent
+- Finish subagent roster deletion after caller disconnects
+- Close the deleted subagent drawer after confirmation
+- Avoid authority warnings for canceled session reads
+- Complete subagent deletion test payloads
+- Format hosted protocol fixture
+- Target pending focus in window layout commands
+- Preserve native tools for provenance sessions
+- Retain live streams across reordered event publication
+- Prevent project configuration from granting MCP consent
+- Authorize extension replacement across attachment profiles
+- Retry automation startup failures before provider acceptance
+- Preserve session tool access when upgrading from v0.7.0
+- Settle empty subagent wakes after deleting results
+- Delete retained sessions with missing history files
+- Preserve released subagent CLI error exits
+- Narrow default spawn tools to parent authority
+- Keep session deletion within source conventions
+- Format subagent CLI compatibility coverage
+- Correct formatting in release fixes
+- Preserve stricter workspace tool policies
+- Retain valid lineage in deletion identity fixture
+- Retain legacy delegated instance permission ceilings
+- Prepare catalog executable before timed E2E journeys
+- Keep E2E lane preparation within function size limits
+- Preserve unknown agent errors for stale derive previews
+- Finish accepted layout changes after client disconnects
+
+### Features
+
+- Clean up archived session history in bulk (#1717) (#1721)
+- Make MCP servers and extensions usable in open CompozyOS sessions on the next message (#1725)
+- Make the client request budget configurable (#1687)
+- Delete delegated subagents from their row menu (#1705)
+- Replace an installed extension on install (#1692)
+
+### Performance Improvements
+
+- Remove idle shell subscriptions from tab switching (#1701)
+- Settle the retained-window live-data lease so tab switches stop rewiring apps (#1729)
+- Avoid forced layout in the Tasks toolbar
+
+### Refactoring
+
+- Load session dialogs through the public barrel
+
+### Testing
+
+- Assert Markdown Preview default in Files E2E-002 (#1699)
+- Cover automation startup discard policy per attempt
+- Cover CLI timeout rejection through the default loader
+- Compose MCP authority and consent in integration fixtures
+- Use typed external policy values in User resolver contract
+- Include deleted subagents in queued wake fixtures
+- Give hosted protocol scenarios one MCP client owner
+- Cover active subagents and settled branch paging
+- Settle MCP summary before derivation source fences
+- Align CLI timeout coverage with Go conventions
+- Complete MCP authority integration fixture wiring
+- Bind focus intent to the controller fixture
+- Capture peer convergence CPU profiles for release diagnosis
+- Isolate remaining MCP integration fixtures
+- Capture remaining switch CPU work in CI
+- Retain provider configuration and resumed MCP launches
+- Establish restored automation tab selection
+- Expose consent projection failures in CI
+- Persist daemon policy integration agents
+- Retain switch profiles from passing CI samples
+- Preserve hosted client cleanup and stopped session recovery
+- Isolate the closed bridge port probe
+- Remove temporary release CPU profiling
+- Subscribe the consent client to catalog changes
+- Profile remaining peer convergence work
+- Remove temporary peer convergence profiling
+- Format session upgrade regression coverage
+- Wrap upgrade migration fixture queries
+- Upgrade permission intent fixtures through the migration stream
+- Align peer convergence profiles with long tasks
+- Start peer profiling before convergence warmup
+- Reuse permission intent migration prefix fixture
+- Wait for persisted terminal approval decisions
+
+## 0.7.0 - 2026-11-14
+
+### Bug Fixes
+
+- Download the recorded desktop release when the update feed is unreachable (#1643)
+- Keep continued child sessions in their parent's session tree (#1647)
+- Read the Claude Keychain login past a stale macOS credential file (#1648)
+- Promote synthetic wakes with live ACP defaults (#1650)
+- Count only closing PR references as issue-triage coverage
+- Repair the three web unit tests red on main after tabs and splits (#1672)
+- Reopen a window beside its former nested split branch (#1670)
+- Bound the composer terminal quote with inner scroll and collapse (#1684)
+- Acknowledge layout upgrade notices atomically and toast them once (#1671)
+- Make worktree removal responsive and recoverable (#1668)
+- Keep pane scroll positions across more tab and split moves (#1674)
+- Keep unsaved agent edits when a window command takes the editor away (#1676)
+- Resolve native tool supervision follow-ups (#1679)
+- Coalesce seam key repeat, admit tab-wide balance by fit, keep drags through own commands (#1675)
+- Settle the window-manager follow-ups from the tabs-and-splits delivery (#1677)
+- Keep one history entry per open-or-focus and carry the keyboard with own focus changes (#1678)
+
+### Features
+
+- Add a Move under parent picker for session organization (#1646)
+- Group CompozyOS menus into submenus with List and Kanban parity (#1652)
+- Replace floating windows with tabs and splits in the CompozyOS window manager (#1640)
+- **BREAKING:** replace floating windows with tabs and splits in the CompozyOS window manager (#1640)
+- Swap split windows from the Window menu, the palette, and shortcuts (#1673)
+- Preview Markdown, tables, HTML, notebooks, PDF and media in the CompozyOS Files viewer (#1694)
+
+### Performance Improvements
+
+- Reuse the session writer's transcript encode buffer across appends (#1634)
+- Read only triage rows in the periodic triage session sweep (#1636)
+- Reload skill watcher config only after its files change (#1627)
+- Share hosted MCP projection discovery across session streams (#1629)
+- Keep tab clicks outside drag geometry and isolate retained tabs (#1685)
+
+### Testing
+
+- Isolate the telemetry benchmark receiver process (#1639)
+- Assert exact agent terminal window identity in E2E and fix helper fallback (#1669)
+- Synchronize flaky runtime and browser assertions (#1662)
+- Drive the webhook Copy submenu from the keyboard (#1683)
+- Assert the unsaved guard dialog contract after Keep editing cancels a Discard (#1691)
+
+## 0.6.2 - 2026-11-13
+
+### Bug Fixes
+
+- Recover orphaned automation runs and expose cancellation (#1613)
+- Stop dropping mid-pass message promotions and race-scale flaky Go test waits (#1615)
+- Restore v0.6.0 config upgrades and make daemon boot and restart bounded (#1621)
+- Bound filtered logs stream polls by the ledger head (#1625)
+
+### Features
+
+- Optional OpenTelemetry trace and metric export (#1552)
+- Make the update button prominent with an animated brand border (#1623)
+
+### Performance Improvements
+
+- Read a session's instance binding by key instead of a catalog list (#1632)
+
+### Testing
+
+- Wait for obsolete attention wake settlement
+
+## 0.6.1 - 2026-11-12
+
+### Bug Fixes
+
+- Point the Atlassian extension at the v2 MCP endpoint (#1551)
+- Keep issue triage running when a gh search flag is rejected
+- Encode triage search queries and define retryable gh errors
+- Make issue intake failures reach maestro
+- Preserve requested reasoning during Goal rotation (#1555)
+- Align Loop ACP provenance with applied options (#1554)
+- Keep daemon booting with undefined disabled providers (#1556)
+- Isolate native tool state and enrich retired task results (#1558)
+- Honor recurring catch-up policies after host sleep (#1569)
+- Keep loaded transcript messages stable when a live entry rolls pages (#1571)
+- Retire stale terminal windows and open agent terminals on demand (#1570)
+- Keep skill documents inline without duplicate result content (#1575)
+- Recover heartbeat cadence after runtime configuration repairs (#1584)
+- Preserve exact Claude models during session recovery (#1560)
+- Watch explicitly selected fork pull requests (#1578)
+- Resolve current heartbeat policy for manual wakes (#1579)
+- Reconcile Goal ACP provenance and prove cleanup delivery (#1574)
+- Retire pre-view Loop pin translation in v0.6.1 (#1590)
+- Resume agent instances after daemon listeners start (#1591)
+- Accept check-in proposals with surrounding prose (#1589)
+- Keep UDS and HTTP harness lifecycle parity with standing context (#1594)
+- Reconnect the window-manager stream after a client-side failure (#1583)
+- Keep unusable SQLite controls from rejecting compliant heads (#1592)
+- Allow terminal exec to target managed worktrees (#1585)
+- Group native recovery reads and expose reply watches (#1576)
+- Avoid duplicate and stale child early-stop wakes (#1586)
+- Validate heartbeat health requests and synchronize daemon boot (#1582)
+- Return admitted automation runs before agent completion (#1587)
+- Retry terminal attach attempts that stall before ATTACHED (#1609)
+- Preserve exact Claude models on fresh startup (#1610)
+- Prevent child reply and attention wake starvation (#1604)
+- Keep boot window progress, attempts and versions accurate across retries
+
+### Features
+
+- Add bundled interface fonts, text size and letter spacing to CompozyOS Appearance (#1550)
+- Reveal model names and page the provider filter rail (#1536)
+- Bind operator rules and peer roster into always-on agent context (#1572)
+- Fold worktrees under projects in the terminal picker (#1599)
+- Redesign the desktop boot window with real upgrade progress (#1600)
+
+### Miscellaneous Tasks
+
+- Route workspace heartbeat triage to claude-haiku-5-5
+
+### Refactoring
+
+- Remove compatibility shims expired in v0.6.1 (#1593)
+- Split the desktop boot draft and address its review notes
+
+### Testing
+
+- Cover the composer context toggle and pin process fixture identities (#1577)
+- Expect the boot window font-src CSP in E2E-034
+
+## 0.6.0 - 2026-11-11
+
+### Bug Fixes
+
+- Publish User-scope instance reports, notifications and event summaries (#1410)
+- Preserve pre-permission assistant prose ordering (#1397)
+- Honor the runtime confirmed when continuing a session (#1417)
+- Order lifecycle attention baselines with permission publication (#1426)
+- Align continuation preflight and advanced default semantics (#1430)
+- Keep a reload from restoring All profiles after leaving it (#1443)
+- Retain canonical attention baselines through dismissal and shutdown (#1429)
+- Stop re-sending static prompt context and count provider costs per turn (#1437)
+- Publish committed dismissal when status lookup fails (#1446)
+- Refuse monitors that cannot resume Claude native subagents (#1450)
+- Settle native parent turns independently of attention badges (#1449)
+- Explain hosted terminal calls without an active run (#1452)
+- Clarify instance list capacity and missing target errors (#1454)
+- Preserve actionable skill catalog resolution failures (#1453)
+- Preserve newer native tracking during turn cancellation (#1458)
+- Stop pinning the embedded tailscale node to the default-route device (#1459)
+- Align batch session actions and bound parallel execution (#1469)
+- Cap open child-session lists at six with Show more (#1476)
+- Run providers unrestricted under Full access (#1477)
+- Bound session family traversal and refresh SQLite statistics (#1466)
+- Recover provider sessions after signing in again (#1483)
+- Keep file tree and diff path names readable on deep paths (#1482)
+- Bound native history and catalog reads (#1484)
+- Lead the session head with the list toggle and make the composer context control a toggle (#1490)
+- Retain persisted turn identity in native call tracking (#1496)
+- Show resumed Claude subagents as running (#1499)
+- Share one session batch lock and show progress on every running target (#1498)
+- List profile-only providers and mark a session's disabled provider (#1503)
+- Return compact records from native tools by default (#1515)
+- **BREAKING:** return compact records from native tools by default (#1515)
+- Keep daemon startup and instance pause available when a report fails to publish (#1492)
+- Reclaim oversized telemetry WAL allocation (#1501)
+- Preserve startup Stop ownership and Loop runtime provenance (#1500)
+- Restore main CI after the v0.6.0 release merges (#1527)
+- Start full access sessions without an advertised mode option (#1525)
+- Refresh hosted MCP catalogs and reduce native schema boot overhead (#1537)
+
+### Features
+
+- Seed a realistic always-on team in the demo seed (#1415)
+- Let operators disable providers they don't use (#1372)
+- Adopt the v1.2 brand identity, add the brand manual and redesign compozy.com (#1408)
+- Answer provider interactive questions through ACP elicitation (#1478)
+- Group the session list by project by default (#1488)
+
+### Performance Improvements
+
+- Stop unchanged workspace-catalog polls from re-rendering the shell (#1457)
+
+### Testing
+
+- Isolate migration-tail timeout from fixture admission (#1423)
+- Cover permission dispatch with a full event channel (#1427)
+- Assert pending permission blocker on dismissal retry (#1455)
+- Serve every agent-editors request so MSW never opens a real socket (#1456)
+- Strengthen routing, file reveal and automation page coverage (#1495)
+- Finish followed sessions before daemon teardown (#1497)
+
+## 0.5.5 - 2026-11-09
+
+### Bug Fixes
+
+- Keep SQLite statement journals in memory during write transactions (#1367)
+- Hide automation-run sessions from the session list (#1366)
+- Make TestSetProcessGroupNiceness deterministic and document the setpriority fork race (#1373)
+- Keep session owner snapshots valid while the writer appends WAL frames (#1371)
+- Let triage cleanup wait for the full stop ladder before archiving (#1365)
+- Keep internal daemon handoff variables out of session and terminal environments (#1364)
+- Prevent source executable contention and isolate cooldown fixtures (#1375)
+- Keep the Files identity in its window head and route transcript paths to Files tabs (#1378)
+- Return main CI to green after the 2026-11-08 merges (#1380)
+- Apply Linux launch niceness before exec (#1386)
+- Preserve prompt completion across concurrent steering events (#1376)
+- Move core WAL restart synchronization to maintenance (#1377)
+- Settle automation fires after agent startup failures (#1389)
+- Preserve explicitly empty environments through process launch (#1390)
+- Wait for archive responses before retiring session windows (#1392)
+- Name automation and always-on sessions by origin and keep relative times live (#1391)
+- Clear acknowledged always-on agent attention (#1395)
+- Retain lifecycle ownership across startup and shutdown races (#1394)
+- Recover acknowledged attention without blocking live sessions (#1396)
+- Retain startup recovery through process and storage failures (#1398)
+- Preserve attention publication ordering and lifetimes (#1401)
+- Preserve failed startup event sequences and cleanup ownership (#1404)
+- Bind approvals to run identity and explain terminal denials (#1412)
+
+### Features
+
+- Browse the CompozyOS marketplace by category with one-step Add and a curated plugin catalog (#1360)
+- Let always-on check-ins call the agent's tools and auto-accept declared proposals (#1385)
+
+### Testing
+
+- Repair check-in proposal pick runtime fixtures (#1406)
+
+## 0.5.4 - 2026-11-07
+
+### Bug Fixes
+
+- Retain oversized tool results in User sessions (#1322)
+- Allow profile moves with stopped subagent descendants (#1321)
+- Compare SQLite commit pauses against paired storage tails (#1325)
+- Accept fenced proactive triage replies (#1319)
+- Preserve managed Goal pause ownership until coordinator settlement (#1329)
+- Read proactive check events in heartbeat status (#1332)
+- Hold MCP server form errors until a field is touched (#1338)
+- Settle expired permissions and stopped session interactions (#1335)
+- Keep the CompozyOS desktop window open when Settings restarts the daemon (#1339)
+- Compact always-on agent cards and hide deleted agents (#1341)
+- Keep dispatched children responsive after definition pauses (#1333)
+- Defer oversized invoked skills to skill_view instead of failing dispatch (#1330)
+- Refresh MCP tools in open sessions (#1342)
+- Preserve permission recovery reports and terminal refusals (#1347)
+
+### Features
+
+- Route new issues through an unattended issue vetter
+- Add a desktop download page and header download CTA to the site
+- Add daily CompozyOS daemon log triage agent (#1353)
+- Add project file explorer, file viewer and session Changes panel (#1351)
+
+### Refactoring
+
+- Rename the workspace always-on agents by their pipeline role
+
+### Testing
+
+- Observe paused child monitor settlement before receipts (#1349)
+
+## 0.5.3 - 2026-11-06
+
+### Bug Fixes
+
+- Show a pending runtime switch on session rows (#1294)
+- Allow profile moves with archived descendants (#1299)
+- Wake pull request monitors when merge conflicts appear (#1289)
+- Keep code_implementer working until its item is done
+- Hide session chrome that doesn't apply to always-on main sessions (#1304)
+- Defer fallback steering until active tools finish (#1296)
+- Enable sign-in for bare OAuth MCP remotes (#1308)
+- Let agents attach MCP servers (#1309)
+- Align OAuth browser journeys with sign-in action (#1310)
+- Keep native CLI sign-in verdicts truthful (#1278)
+- Load skill resources in User sessions (#1312)
+- Back off provider usage 429s, collect each account once, and re-verify native sign-in after restart (#1307)
+- Keep CompozyOS usage aliases on their own account (#1280)
+
+### Features
+
+- Remove retired agent kind compatibility inputs (#1295)
+- Add a Marketplace MCPs view with a Plugins | MCPs toggle (#1306)
+
+### Performance Improvements
+
+- Batch forge lookups and refresh displayed branches on demand (#1291)
+
+### Testing
+
+- Give the post-upgrade phase of the destructive-cut reopen test its own budget
+
 ## 0.5.2 - 2026-11-04
 
 ### Bug Fixes
@@ -1251,6 +1724,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.7.5]: https://github.com/compozy/compozy/compare/v0.7.4...v0.7.5
+[0.7.4]: https://github.com/compozy/compozy/compare/v0.7.3...v0.7.4
+[0.7.3]: https://github.com/compozy/compozy/compare/v0.7.2...v0.7.3
+[0.7.2]: https://github.com/compozy/compozy/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/compozy/compozy/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/compozy/compozy/compare/v0.6.2...v0.7.0
+[0.6.2]: https://github.com/compozy/compozy/compare/v0.6.1...v0.6.2
+[0.6.1]: https://github.com/compozy/compozy/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/compozy/compozy/compare/v0.5.5...v0.6.0
+[0.5.5]: https://github.com/compozy/compozy/compare/v0.5.4...v0.5.5
+[0.5.4]: https://github.com/compozy/compozy/compare/v0.5.3...v0.5.4
+[0.5.3]: https://github.com/compozy/compozy/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/compozy/compozy/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/compozy/compozy/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/compozy/compozy/compare/v0.4.8...v0.5.0

@@ -132,6 +132,20 @@ func (s SessionConfigOptionSelection) request(
 	}, nil
 }
 
+// ConfirmedSessionConfigOptionSelections returns only selections confirmed by unique provider options.
+func ConfirmedSessionConfigOptionSelections(
+	selections []SessionConfigOptionSelection,
+	options []SessionConfigOption,
+) []SessionConfigOptionSelection {
+	return slices.DeleteFunc(
+		CloneSessionConfigOptionSelections(selections),
+		func(selection SessionConfigOptionSelection) bool {
+			option, ok := findConfigOptionByID(options, selection.ID)
+			return !ok || !selection.matches(option)
+		},
+	)
+}
+
 func (s SessionConfigOptionSelection) matches(option SessionConfigOption) bool {
 	normalized, err := s.normalize()
 	if err != nil || strings.TrimSpace(option.ID) != normalized.ID {

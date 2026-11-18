@@ -33,6 +33,12 @@ export const TONE_CLASSES: Record<PillTone, ToneClasses> = {
     tint: "bg-brand-tint",
     solid: "bg-brand text-brand-ink",
   },
+  attn: {
+    text: "text-attn",
+    bg: "bg-attn",
+    tint: "bg-attn-tint",
+    solid: "bg-attn text-canvas",
+  },
   success: {
     text: "text-success",
     bg: "bg-success",

@@ -366,13 +366,13 @@ func TestAgentResourceCodecKindAlias(t *testing.T) {
 		t.Fatalf("NewAgentResourceCodec() error = %v", err)
 	}
 	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
-	t.Run("Should decode stays_on as always_on", func(t *testing.T) {
+	t.Run("Should reject retired kind", func(t *testing.T) {
 		t.Parallel()
 
 		got, err := codec.DecodeAndValidate(t.Context(), scope,
 			[]byte(`{"name":"triage","prompt":"Watch.","kind":"stays_on"}`))
-		if err != nil || got.Kind != AgentKindAlwaysOn {
-			t.Fatalf("DecodeAndValidate() = %q, %v; want always_on", got.Kind, err)
+		if !errors.Is(err, ErrAgentKindInvalid) {
+			t.Fatalf("DecodeAndValidate() = %q, %v; want invalid kind", got.Kind, err)
 		}
 	})
 	t.Run("Should reject an unknown kind", func(t *testing.T) {

@@ -93,6 +93,32 @@ func (q *Queries) CountActiveAgentInstances(ctx context.Context, profileID strin
 	return count, err
 }
 
+const countCheckInProposalStates = `-- name: CountCheckInProposalStates :one
+SELECT
+ CAST(COALESCE(SUM(CASE WHEN p.actor = 'auto_accept' THEN 1 ELSE 0 END),0) AS INTEGER) AS auto_accepted,
+ CAST(COALESCE(SUM(CASE WHEN p.report_id IS NULL THEN 1 ELSE 0 END),0) AS INTEGER) AS waiting
+FROM agent_instance_reports r, json_each(r.payload, '$.proposals') proposal
+LEFT JOIN agent_instance_proposal_picks p ON p.report_id = r.id AND p.proposal_index = CAST(proposal.key AS INTEGER)
+WHERE r.instance_id = ?1 AND r.source_key = ?2 AND r.kind = 'proposal'
+`
+
+type CountCheckInProposalStatesParams struct {
+	InstanceID string `json:"instance_id"`
+	SourceKey  string `json:"source_key"`
+}
+
+type CountCheckInProposalStatesRow struct {
+	AutoAccepted int64 `json:"auto_accepted"`
+	Waiting      int64 `json:"waiting"`
+}
+
+func (q *Queries) CountCheckInProposalStates(ctx context.Context, arg CountCheckInProposalStatesParams) (CountCheckInProposalStatesRow, error) {
+	row := q.db.QueryRowContext(ctx, countCheckInProposalStates, arg.InstanceID, arg.SourceKey)
+	var i CountCheckInProposalStatesRow
+	err := row.Scan(&i.AutoAccepted, &i.Waiting)
+	return i, err
+}
+
 const countInstanceHeldWakes = `-- name: CountInstanceHeldWakes :one
 WITH RECURSIVE instance_sessions(id, profile_id) AS (
  SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
@@ -107,6 +133,11 @@ FROM session_input_queue q JOIN instance_sessions s ON s.id = q.session_id
 JOIN sessions current ON current.id = s.id
 WHERE q.status = 'queued' AND q.origin_class <> 'human'
 AND q.session_generation = current.input_generation
+AND EXISTS (
+ SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
+ WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
+ AND (current.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+)
 `
 
 func (q *Queries) CountInstanceHeldWakes(ctx context.Context, instanceID string) (int64, error) {
@@ -155,6 +186,46 @@ func (q *Queries) CountInstancePausesByReason(ctx context.Context, arg CountInst
 	return items, nil
 }
 
+const countScopedCheckInCalls = `-- name: CountScopedCheckInCalls :many
+SELECT c.access, c.decision, COUNT(*) AS count FROM agent_instance_check_tool_calls c
+JOIN agent_instances i ON i.id = c.instance_id
+WHERE i.profile_id = ?1 AND i.workspace_id = ?2 GROUP BY c.access, c.decision
+`
+
+type CountScopedCheckInCallsParams struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type CountScopedCheckInCallsRow struct {
+	Access   string `json:"access"`
+	Decision string `json:"decision"`
+	Count    int64  `json:"count"`
+}
+
+func (q *Queries) CountScopedCheckInCalls(ctx context.Context, arg CountScopedCheckInCallsParams) ([]CountScopedCheckInCallsRow, error) {
+	rows, err := q.db.QueryContext(ctx, countScopedCheckInCalls, arg.ProfileID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountScopedCheckInCallsRow{}
+	for rows.Next() {
+		var i CountScopedCheckInCallsRow
+		if err := rows.Scan(&i.Access, &i.Decision, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countScopedInstanceHeldInputs = `-- name: CountScopedInstanceHeldInputs :one
 WITH RECURSIVE instance_sessions(id, profile_id) AS (
  SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
@@ -169,6 +240,11 @@ FROM session_input_queue q JOIN instance_sessions s ON s.id = q.session_id
 JOIN sessions current ON current.id = s.id
 WHERE q.status = 'queued' AND q.origin_class <> 'human'
 AND q.session_generation = current.input_generation
+AND EXISTS (
+ SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
+ WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
+ AND (current.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+)
 `
 
 type CountScopedInstanceHeldInputsParams struct {
@@ -181,6 +257,45 @@ func (q *Queries) CountScopedInstanceHeldInputs(ctx context.Context, arg CountSc
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const countScopedInstancePicks = `-- name: CountScopedInstancePicks :many
+SELECT p.actor, COUNT(*) AS count FROM agent_instance_proposal_picks p
+JOIN agent_instances i ON i.id = p.instance_id
+WHERE i.profile_id = ?1 AND i.workspace_id = ?2 GROUP BY p.actor
+`
+
+type CountScopedInstancePicksParams struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type CountScopedInstancePicksRow struct {
+	Actor string `json:"actor"`
+	Count int64  `json:"count"`
+}
+
+func (q *Queries) CountScopedInstancePicks(ctx context.Context, arg CountScopedInstancePicksParams) ([]CountScopedInstancePicksRow, error) {
+	rows, err := q.db.QueryContext(ctx, countScopedInstancePicks, arg.ProfileID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountScopedInstancePicksRow{}
+	for rows.Next() {
+		var i CountScopedInstancePicksRow
+		if err := rows.Scan(&i.Actor, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteUnstartedAgentInstance = `-- name: DeleteUnstartedAgentInstance :execrows
@@ -270,13 +385,40 @@ func (q *Queries) GetAgentInstance(ctx context.Context, id string) (AgentInstanc
 	return i, err
 }
 
+const getHeldSessionInput = `-- name: GetHeldSessionInput :one
+SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+ ELSE instance.pause_reason END AS TEXT) AS pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
+FROM sessions target
+JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+JOIN agent_instances instance ON instance.id = root.instance_id
+JOIN session_input_queue q ON q.session_id = target.id AND q.session_generation = target.input_generation
+WHERE target.id = ?1 AND instance.state = 'paused'
+  AND (target.instance_id = instance.id
+    OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+  AND q.status = 'queued' AND q.origin_class <> 'human'
+GROUP BY instance.id, instance.pause_reason
+`
+
+type GetHeldSessionInputRow struct {
+	ID          string `json:"id"`
+	PauseReason string `json:"pause_reason"`
+	Since       string `json:"since"`
+}
+
+func (q *Queries) GetHeldSessionInput(ctx context.Context, sessionID string) (GetHeldSessionInputRow, error) {
+	row := q.db.QueryRowContext(ctx, getHeldSessionInput, sessionID)
+	var i GetHeldSessionInputRow
+	err := row.Scan(&i.ID, &i.PauseReason, &i.Since)
+	return i, err
+}
+
 const getInstanceCaller = `-- name: GetInstanceCaller :one
 WITH RECURSIVE ancestry(id, parent_session_id, instance_id) AS (
 SELECT id, parent_session_id, instance_id FROM sessions WHERE id=?1
 UNION
 SELECT s.id, s.parent_session_id, s.instance_id FROM sessions s JOIN ancestry a ON s.id=a.parent_session_id
 )
-SELECT s.id, s.agent_name, s.profile_id, s.permission_policy_json, s.effective_workspace_access,
+SELECT s.id, s.agent_name, s.profile_id, s.permission_policy_json, s.effective_workspace_access, s.lineage_kind, s.session_type,
 COALESCE((SELECT i.id FROM ancestry a JOIN agent_instances i ON i.id=a.instance_id LIMIT 1),'') AS originating_instance_id,
 COALESCE((SELECT MAX(i.depth) FROM ancestry a JOIN agent_instances i ON i.id=a.instance_id),0) AS instance_depth
 FROM sessions s WHERE s.id=?1
@@ -288,6 +430,8 @@ type GetInstanceCallerRow struct {
 	ProfileID                string `json:"profile_id"`
 	PermissionPolicyJson     string `json:"permission_policy_json"`
 	EffectiveWorkspaceAccess string `json:"effective_workspace_access"`
+	LineageKind              string `json:"lineage_kind"`
+	SessionType              string `json:"session_type"`
 	OriginatingInstanceID    any    `json:"originating_instance_id"`
 	InstanceDepth            any    `json:"instance_depth"`
 }
@@ -301,6 +445,8 @@ func (q *Queries) GetInstanceCaller(ctx context.Context, sessionID string) (GetI
 		&i.ProfileID,
 		&i.PermissionPolicyJson,
 		&i.EffectiveWorkspaceAccess,
+		&i.LineageKind,
+		&i.SessionType,
 		&i.OriginatingInstanceID,
 		&i.InstanceDepth,
 	)
@@ -317,6 +463,28 @@ func (q *Queries) GetInstanceMainAttempt(ctx context.Context, instanceID sql.Nul
 	var id string
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getSessionInputHold = `-- name: GetSessionInputHold :one
+SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+ ELSE instance.pause_reason END AS TEXT) AS pause_reason FROM sessions target
+JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+JOIN agent_instances instance ON instance.id = root.instance_id
+WHERE target.id = ?1 AND instance.state = 'paused'
+  AND (target.instance_id = instance.id
+    OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+`
+
+type GetSessionInputHoldRow struct {
+	ID          string `json:"id"`
+	PauseReason string `json:"pause_reason"`
+}
+
+func (q *Queries) GetSessionInputHold(ctx context.Context, sessionID string) (GetSessionInputHoldRow, error) {
+	row := q.db.QueryRowContext(ctx, getSessionInputHold, sessionID)
+	var i GetSessionInputHoldRow
+	err := row.Scan(&i.ID, &i.PauseReason)
+	return i, err
 }
 
 const insertAgentInstance = `-- name: InsertAgentInstance :exec
@@ -355,6 +523,28 @@ func (q *Queries) InsertAgentInstance(ctx context.Context, arg InsertAgentInstan
 	return err
 }
 
+const instanceHasLiveInteractions = `-- name: InstanceHasLiveInteractions :one
+WITH RECURSIVE instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
+ WHERE i.id = ?1 AND s.profile_id = i.profile_id
+ UNION
+ SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
+ WHERE s.profile_id = parent.profile_id
+)
+SELECT EXISTS (
+ SELECT 1 FROM session_pending_interactions p JOIN instance_sessions s ON p.session_id = s.id
+ JOIN sessions live ON live.id = s.id
+ WHERE p.status IN ('pending', 'orphaned') AND live.state <> 'stopped'
+)
+`
+
+func (q *Queries) InstanceHasLiveInteractions(ctx context.Context, instanceID string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, instanceHasLiveInteractions, instanceID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const instanceNeedsAttention = `-- name: InstanceNeedsAttention :one
 WITH RECURSIVE instance_sessions(id, profile_id) AS (
  SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
@@ -368,6 +558,8 @@ SELECT EXISTS (
  WHERE p.status IN ('pending', 'orphaned')
 ) OR EXISTS (
  SELECT 1 FROM agent_instance_reports r WHERE r.instance_id = ?1 AND r.state = 'pending' AND r.kind = 'failure'
+ AND r.created_at > COALESCE((SELECT last_seen_at FROM agent_instance_seen
+ WHERE instance_id = r.instance_id AND operator_id = 'local-operator'), '')
 )
 `
 
@@ -475,13 +667,18 @@ func (q *Queries) ListAgentInstances(ctx context.Context, arg ListAgentInstances
 const listInstanceQueuedSessions = `-- name: ListInstanceQueuedSessions :many
 WITH RECURSIVE instance_sessions(id, profile_id) AS (
  SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
- WHERE i.id = ?2 AND s.profile_id = i.profile_id AND i.state = 'active' AND i.archived_at IS NULL
+ WHERE i.id = ?2 AND s.profile_id = i.profile_id AND (i.state = 'active' OR (i.state = 'paused' AND i.pause_reason IN ('definition_missing', 'definition_not_always_on'))) AND i.archived_at IS NULL
  UNION
  SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
  WHERE s.profile_id = parent.profile_id
 )
 SELECT s.id FROM sessions s JOIN instance_sessions lineage ON lineage.id = s.id
 WHERE s.id > ?1 AND s.archived_at IS NULL
+AND NOT EXISTS (
+ SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
+ WHERE root.id = COALESCE(NULLIF(s.root_session_id, ''), s.id) AND i.state = 'paused'
+ AND (s.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+)
 AND (s.state <> 'stopped' OR s.id = (SELECT agent_instances.main_session_id FROM agent_instances WHERE agent_instances.id = ?2))
 AND EXISTS (SELECT 1 FROM session_input_queue q WHERE q.session_id = s.id
  AND q.status = 'queued' AND q.session_generation = s.input_generation)
@@ -567,8 +764,10 @@ func (q *Queries) ListInstancesForReconciliation(ctx context.Context, arg ListIn
 }
 
 const pauseAgentInstance = `-- name: PauseAgentInstance :execrows
-UPDATE agent_instances SET state = 'paused', pause_reason = ?, updated_at = ?
-WHERE id = ? AND state = 'active' AND archived_at IS NULL
+UPDATE agent_instances SET state = 'paused', pause_reason = ?1, updated_at = ?2
+WHERE id = ?3 AND archived_at IS NULL
+AND (state = 'active' OR (state = 'paused' AND ?1 = 'manual'
+ AND pause_reason IN ('definition_missing', 'definition_not_always_on')))
 `
 
 type PauseAgentInstanceParams struct {
@@ -639,6 +838,25 @@ type StampInstanceMainSessionParams struct {
 
 func (q *Queries) StampInstanceMainSession(ctx context.Context, arg StampInstanceMainSessionParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, stampInstanceMainSession, arg.InstanceID, arg.SessionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const tripInstanceUnattendedPause = `-- name: TripInstanceUnattendedPause :execrows
+UPDATE agent_instances SET state = 'paused', pause_reason = 'unattended', updated_at = ?1
+WHERE id = ?2 AND archived_at IS NULL
+AND (state = 'active' OR (state = 'paused' AND pause_reason IN ('definition_missing', 'definition_not_always_on')))
+`
+
+type TripInstanceUnattendedPauseParams struct {
+	Now string `json:"now"`
+	ID  string `json:"id"`
+}
+
+func (q *Queries) TripInstanceUnattendedPause(ctx context.Context, arg TripInstanceUnattendedPauseParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, tripInstanceUnattendedPause, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}

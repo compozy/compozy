@@ -147,7 +147,10 @@ human decision. A finished run's duration in Runs still includes the elapsed wai
 - **Pause** is a **generation-boundary** operation, not a mid-node cancellation. The daemon records a pause
   intent; the in-flight generation's already-claimed nodes finish; the status flips `running →
 paused` only at the boundary. Pause is hidden or disabled outside `running`.
-- **Resume** continues a paused (or pause-requested) run.
+- **Resume** continues a paused (or pause-requested) run. In v0.6.1, runs started before v0.6.0
+  can fail their next tool action with `ActionContractStale` (`action_contract_stale`): the
+  one-release translation for pre-result-view pins has ended. Start a new run from the definition
+  with `compozy loop run --name <name>` to pin current contracts; Resume does not refresh the old pins.
 - **Cancel run** immediately fences new work and commits `canceled` with cause `operator_cancel`.
   After that commit, the daemon concurrently stops every session owned by the run. A stop that does
   not complete is kept in a durable cleanup queue and retried after transient failures or a daemon
@@ -223,11 +226,11 @@ and outcome filters together and return to the unfiltered roster.
 Use the detail surface when you need provenance or gate decisions. List surfaces stay deliberately
 small.
 
-| Surface                                        | Shape                                                                                                                                                                                                                                                                                                                       |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `compozy loop status` / `compozy__loop_status` | The detail includes raw `executed_definition`, input-resolved `materialized_contract`, and the snapshot-pinned `effective_config` with per-field `sources`; `run` includes optional `completed_at`, `best_generation`, and `best_score`; `generations[]` includes `parent_generation`, `origin`, `verdicts[]`, and outputs. |
-| `compozy loop runs` / `compozy__loop_runs`     | Each run summary includes optional `best_generation`/`best_score`; it never embeds generation history.                                                                                                                                                                                                                      |
-| Loop catalog list                              | `last_run` includes optional `best_generation`/`best_score`; it never embeds generation history.                                                                                                                                                                                                                            |
+| Surface                                        | Shape                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `compozy loop status` / `compozy__loop_status` | `run` includes optional `completed_at`, `best_generation`, and `best_score`; `generations[]` includes `parent_generation`, `origin`, `verdicts[]`, and outputs in compact too. Request native `result_view: "full"` for raw `executed_definition`, input-resolved `materialized_contract`, and snapshot-pinned `effective_config` with per-field `sources`. CLI keeps the complete detail. |
+| `compozy loop runs` / `compozy__loop_runs`     | Each run summary includes optional `best_generation`/`best_score`; it never embeds generation history.                                                                                                                                                                                                                                                                                     |
+| Loop catalog list                              | `last_run` includes optional `best_generation`/`best_score`; it never embeds generation history.                                                                                                                                                                                                                                                                                           |
 
 The best fields are omitted until an approved finite score establishes a baseline. A detailed JSON
 response can therefore look like this:

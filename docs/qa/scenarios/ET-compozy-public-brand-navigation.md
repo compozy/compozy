@@ -89,3 +89,22 @@ brand journeys or claim real-provider execution or a comparative coding-agent be
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+## 2026-11-08 brand identity v1.2 slice
+
+Spec `.compozy/tasks/brand-site/` (E2E-003). The site keeps its layouts and copy until the site
+redesign; this slice swaps marks, tokens and fonts. Acceptance for this slice:
+
+1. Home and the launch post `/blog/introducing-compozyos` render with volt accents, Figtree body text
+   and the new blue-to-cyan Compozy lockup; no `#e8572a` appears in the rendered HTML.
+2. `/favicon.svg`, `/favicon.ico`, `/apple-touch-icon.png` and the `/site.webmanifest` icons are the
+   new symbol; the manifest `theme_color` and `background_color` are `#0a0a0a`.
+3. `/opengraph-image` renders the new lockup, Instrument Sans display type and Geist Mono labels, with
+   no Playfair, JetBrains Mono or orange (`packages/site/lib/__tests__/opengraph-image.test.tsx`
+   owns the negative assertions).
+
+Slice validation: passed against `next dev` on the integration branch
+(`/tmp/brand-s8-shots/12-site-home.png`, `13-site-og.png`, `14-site-launch-post.png`). Known gap
+outside this slice: the landing H1, home title, `site-config` description, OG headline and
+`llms.txt` still carry the retired headline "The system around the agent, already built." until the
+site redesign adopts the `COPY.md` hero lock.

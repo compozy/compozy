@@ -73,7 +73,11 @@ func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (
 			"session_id", meta.ID, "copy_session_id", derived.ChildSessionID, "error", err,
 		)
 	}
-	m.closeProfileMove(execCtx, journal, meta.ID)
+	if err := m.recordCompletedProfileMove(execCtx, &move); err != nil {
+		m.logger.Warn("session.profile_move.completion_record_failed", "session_id", meta.ID, "error", err)
+	} else {
+		m.closeProfileMove(execCtx, journal, meta.ID)
+	}
 	result := MoveToProfileResult{Copy: derived.Child, Original: original, WorktreeID: relocation.worktreeID}
 	if plan.checkout != nil {
 		result.Branch = plan.checkout.Branch

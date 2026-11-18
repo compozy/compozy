@@ -12,6 +12,7 @@ type writeAdmission struct {
 	changed     chan struct{}
 	busy        bool
 	interactive int
+	maintenance int
 	users       int
 }
 
@@ -53,8 +54,23 @@ func registerWriteAdmission(db *sql.DB) (*writeAdmission, func()) {
 // acquire waits for the local transaction owner without reserving a database
 // connection or spending the retry budget for actual SQLite BUSY responses.
 func (a *writeAdmission) acquire(ctx context.Context, background bool) (func(), error) {
+	return a.acquirePriority(ctx, background, false)
+}
+
+func (a *writeAdmission) acquireMaintenance(ctx context.Context) (func(), error) {
+	return a.acquirePriority(ctx, false, true)
+}
+
+func (a *writeAdmission) acquirePriority(ctx context.Context, background, maintenance bool) (func(), error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if maintenance {
+		a.maintenance++
+		defer func() {
+			a.maintenance--
+			a.notify()
+		}()
+	}
 	if !background {
 		a.interactive++
 		defer func() {
@@ -66,7 +82,7 @@ func (a *writeAdmission) acquire(ctx context.Context, background bool) (func(), 
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("store: wait for local sqlite writer admission: %w", err)
 		}
-		if !a.busy && (!background || a.interactive == 0) {
+		if !a.busy && (!background || a.interactive == 0) && (maintenance || a.maintenance == 0) {
 			a.busy = true
 			return func() {
 				a.mu.Lock()

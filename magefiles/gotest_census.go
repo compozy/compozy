@@ -21,6 +21,8 @@ const (
 )
 
 type goTestCensus struct {
+	Integration             *goTestCensus      `json:"integration,omitempty"`
+	SourceRun               string             `json:"sourceRun,omitempty"`
 	DefaultPackageSeconds   float64            `json:"defaultPackageSeconds"`
 	DefaultSplitTestSeconds float64            `json:"defaultSplitTestSeconds"`
 	Packages                map[string]float64 `json:"packages"`

@@ -10,6 +10,260 @@ import (
 	"strings"
 )
 
+// GetAgent Get one agent definition by name, optionally resolved for a workspace
+func (c *Client) GetAgent(ctx context.Context, params GetAgentParams) (*AgentResponse, error) {
+	path := "/api/agents/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentActivityParams carries the path, query, and header parameters.
+type GetAgentActivityParams struct {
+	Name    string  `url:"name"`
+	Days    *int    `url:"days"`
+	Profile *string `url:"profile"`
+}
+
+// GetAgentActivity Read agent activity across authorized workspaces
+func (c *Client) GetAgentActivity(ctx context.Context, params GetAgentActivityParams) (*AgentActivityResponse, error) {
+	path := "/api/agents/{name}/activity"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Days != nil {
+		query.Set("days", strconv.Itoa(*params.Days))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentActivityResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentContextParams carries the path, query, and header parameters.
+type GetAgentContextParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
+// GetAgentContext Return the bounded calling-agent situation context
+func (c *Client) GetAgentContext(ctx context.Context, params GetAgentContextParams) (*AgentContextResponse, error) {
+	path := "/api/agent/context"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	var out AgentContextResponse
+	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentCoordinatorConfigParams carries the path, query, and header parameters.
+type GetAgentCoordinatorConfigParams struct {
+	XCompozySessionID string  `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string  `url:"X-Compozy-Agent"`
+	Workspace         *string `url:"workspace"`
+}
+
+// GetAgentCoordinatorConfig Read resolved coordinator config for the calling agent workspace
+func (c *Client) GetAgentCoordinatorConfig(ctx context.Context, params GetAgentCoordinatorConfigParams) (*AgentCoordinatorConfigResponse, error) {
+	path := "/api/agent/coordinator/config"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentCoordinatorConfigResponse
+	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentDefinitionSoulParams carries the path, query, and header parameters.
+type GetAgentDefinitionSoulParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// GetAgentDefinitionSoul Inspect the resolved Soul read model for an agent definition
+func (c *Client) GetAgentDefinitionSoul(ctx context.Context, params GetAgentDefinitionSoulParams) (*AgentSoulPayload, error) {
+	path := "/api/agents/{name}/soul"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSoulPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentHeartbeatParams carries the path, query, and header parameters.
+type GetAgentHeartbeatParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// GetAgentHeartbeat Inspect the resolved Heartbeat policy for an agent definition
+func (c *Client) GetAgentHeartbeat(ctx context.Context, params GetAgentHeartbeatParams) (*HeartbeatPolicyPayload, error) {
+	path := "/api/agents/{name}/heartbeat"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatPolicyPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentHeartbeatAuthorityParams carries the path, query, and header parameters.
+type GetAgentHeartbeatAuthorityParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// GetAgentHeartbeatAuthority show check-in authority
+func (c *Client) GetAgentHeartbeatAuthority(ctx context.Context, params GetAgentHeartbeatAuthorityParams) (*HeartbeatAuthorityPayload, error) {
+	path := "/api/agents/{name}/heartbeat/authority"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatAuthorityPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentHeartbeatSourcesParams carries the path, query, and header parameters.
+type GetAgentHeartbeatSourcesParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// GetAgentHeartbeatSources List check-in source kinds, scripts and effective limits
+func (c *Client) GetAgentHeartbeatSources(ctx context.Context, params GetAgentHeartbeatSourcesParams) (*HeartbeatSourceCatalogPayload, error) {
+	path := "/api/agents/{name}/heartbeat/sources"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatSourceCatalogPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentHeartbeatStatusParams carries the path, query, and header parameters.
+type GetAgentHeartbeatStatusParams struct {
+	Name                    string  `url:"name"`
+	WorkspaceID             *string `url:"workspace_id"`
+	SessionID               *string `url:"session_id"`
+	IncludeSessionHealth    *bool   `url:"include_session_health"`
+	IncludeRecentWakeEvents *bool   `url:"include_recent_wake_events"`
+	Profile                 *string `url:"profile"`
+}
+
+// GetAgentHeartbeatStatus Read Heartbeat policy status, wake state, and optional session health
+func (c *Client) GetAgentHeartbeatStatus(ctx context.Context, params GetAgentHeartbeatStatusParams) (*HeartbeatStatusResponse, error) {
+	path := "/api/agents/{name}/heartbeat/status"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.SessionID != nil {
+		query.Set("session_id", *params.SessionID)
+	}
+	if params.IncludeSessionHealth != nil {
+		query.Set("include_session_health", strconv.FormatBool(*params.IncludeSessionHealth))
+	}
+	if params.IncludeRecentWakeEvents != nil {
+		query.Set("include_recent_wake_events", strconv.FormatBool(*params.IncludeRecentWakeEvents))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentInstanceParams carries the path, query, and header parameters.
+type GetAgentInstanceParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetAgentInstance Get an agent instance
 func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstanceParams) (*AgentInstanceResponse, error) {
 	path := "/api/agent-instances/{id}"
@@ -184,263 +438,4 @@ type GetAutomationJobParams struct {
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetAutomationJob Get one automation job
-func (c *Client) GetAutomationJob(ctx context.Context, params GetAutomationJobParams) (*JobResponse, error) {
-	path := "/api/automation/jobs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out JobResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAutomationRunParams carries the path, query, and header parameters.
-type GetAutomationRunParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetAutomationRun Get one automation run
-func (c *Client) GetAutomationRun(ctx context.Context, params GetAutomationRunParams) (*RunResponse, error) {
-	path := "/api/automation/runs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RunResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAutomationTriggerParams carries the path, query, and header parameters.
-type GetAutomationTriggerParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetAutomationTrigger Get one automation trigger
-func (c *Client) GetAutomationTrigger(ctx context.Context, params GetAutomationTriggerParams) (*TriggerResponse, error) {
-	path := "/api/automation/triggers/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TriggerResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetCmdPalettePersonalizationParams carries the path, query, and header parameters.
-type GetCmdPalettePersonalizationParams struct {
-	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetCmdPalettePersonalization Get command palette personalization summary
-func (c *Client) GetCmdPalettePersonalization(ctx context.Context, params GetCmdPalettePersonalizationParams) (*CmdPalettePersonalizationResponse, error) {
-	path := "/api/cmd-palette/personalization"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPalettePersonalizationResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetCmdPaletteRankSignalsParams carries the path, query, and header parameters.
-type GetCmdPaletteRankSignalsParams struct {
-	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetCmdPaletteRankSignals Get command palette rank signals
-func (c *Client) GetCmdPaletteRankSignals(ctx context.Context, params GetCmdPaletteRankSignalsParams) (*CmdPaletteRankSignalsResponse, error) {
-	path := "/api/cmd-palette/rank-signals"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPaletteRankSignalsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetCmdPaletteViewParams carries the path, query, and header parameters.
-type GetCmdPaletteViewParams struct {
-	ID          string  `url:"id"`
-	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetCmdPaletteView Get one declarative command palette view
-func (c *Client) GetCmdPaletteView(ctx context.Context, params GetCmdPaletteViewParams) (*CmdPaletteViewEnvelope, error) {
-	path := "/api/cmd-palette/views/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPaletteViewEnvelope
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetDoctorParams carries the path, query, and header parameters.
-type GetDoctorParams struct {
-	Only    *string `url:"only"`
-	Exclude *string `url:"exclude"`
-	Quiet   *bool   `url:"quiet"`
-}
-
-// GetDoctor Run runtime diagnostics
-func (c *Client) GetDoctor(ctx context.Context, params GetDoctorParams) (*DoctorPayload, error) {
-	path := "/api/doctor"
-	query := url.Values{}
-	if params.Only != nil {
-		query.Set("only", *params.Only)
-	}
-	if params.Exclude != nil {
-		query.Set("exclude", *params.Exclude)
-	}
-	if params.Quiet != nil {
-		query.Set("quiet", strconv.FormatBool(*params.Quiet))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out DoctorPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionParams carries the path, query, and header parameters.
-type GetExtensionParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// GetExtension Get one installed extension
-func (c *Client) GetExtension(ctx context.Context, params GetExtensionParams) (*ExtensionResponse, error) {
-	path := "/api/extensions/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionInventoryParams carries the path, query, and header parameters.
-type GetExtensionInventoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// GetExtensionInventory List shipped and live resources for one extension
-func (c *Client) GetExtensionInventory(ctx context.Context, params GetExtensionInventoryParams) (*ExtensionInventoryPayload, error) {
-	path := "/api/extensions/{name}/inventory"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionInventoryPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionLogsParams carries the path, query, and header parameters.
-type GetExtensionLogsParams struct {
-	Name        string  `url:"name"`
-	Workspace   *string `url:"workspace"`
-	Profile     *string `url:"profile"`
-	Follow      *string `url:"follow"`
-	After       *string `url:"after"`
-	StreamEpoch *string `url:"stream_epoch"`
 }

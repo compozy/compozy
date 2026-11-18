@@ -51,6 +51,7 @@ type stubSettingsService struct {
 	DeleteCollectionItemFn      func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error)
 	ApplyCollectionDeleteFn     func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.ApplyResult, error)
 	ReloadFn                    func(context.Context) (settingspkg.ApplyResult, error)
+	SetProviderEnabledFn        func(context.Context, string, bool) (settingspkg.ProviderItem, settingspkg.ApplyResult, error)
 	ListApplyRecordsFn          func(context.Context, settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
 	LastGetSectionRequest       settingspkg.SectionRequest
 	LastUpdateSectionRequest    settingspkg.SectionUpdateRequest
@@ -226,6 +227,17 @@ func (s *stubSettingsService) ApplyCollectionDelete(
 		return settingsTestApplyResultForScope(settingspkg.SectionName(req.Collection), req.Scope, req.WorkspaceID), nil
 	}
 	return s.ApplyCollectionDeleteFn(ctx, req)
+}
+
+func (s *stubSettingsService) SetProviderEnabled(
+	ctx context.Context,
+	name string,
+	enabled bool,
+) (settingspkg.ProviderItem, settingspkg.ApplyResult, error) {
+	if s.SetProviderEnabledFn == nil {
+		return settingspkg.ProviderItem{Name: name, Enabled: enabled}, settingsTestApplyResult(""), nil
+	}
+	return s.SetProviderEnabledFn(ctx, name, enabled)
 }
 
 func (s *stubSettingsService) Reload(ctx context.Context) (settingspkg.ApplyResult, error) {

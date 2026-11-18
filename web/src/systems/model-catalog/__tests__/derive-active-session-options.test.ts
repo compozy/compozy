@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { deriveActiveSessionOptions } from "../lib/derive-active-session-options";
+import { toRuntimeModelOptions } from "../lib/to-runtime-selector-options";
 import type { ProviderModelPayload } from "../types";
 
 // Invariant: session option defaults come from the typed public descriptor and
@@ -83,6 +84,26 @@ const codexCatalog: ProviderModelPayload[] = [
 ];
 
 describe("deriveActiveSessionOptions", () => {
+  it("Should show the Cursor default resolved by discovery from supported bindings", () => {
+    const model: ProviderModelPayload = {
+      ...codexCatalog[0]!,
+      provider_id: "cursor",
+      model_id: "gemini-3.8-flash",
+      reasoning_efforts: ["low", "high"],
+      default_reasoning_effort: "low",
+      configurations: [
+        { reasoning_effort: "high", fast: false },
+        { reasoning_effort: "low", fast: false },
+        { reasoning_effort: "low", fast: true },
+      ],
+    };
+    const result = deriveActiveSessionOptions({ catalog: [model], selectedModel: model.model_id });
+    const selectorModel = toRuntimeModelOptions([model])[0]!;
+    expect(selectorModel.default_effort).toBe("low");
+    expect(result.defaultReasoning).toBe(selectorModel.default_effort);
+    expect(result.reasoningOptions.map(option => option.value)).toEqual(["low", "high"]);
+  });
+
   it("Should derive catalog model options when no ACP config option is present", () => {
     const result = deriveActiveSessionOptions({
       catalog: codexCatalog,
@@ -242,6 +263,89 @@ describe("deriveActiveSessionOptions", () => {
     expect(result.defaultReasoning).toBe("high");
     // A live ACP config option is authoritative for the source.
     expect(result.reasoningSource).toBe("acp");
+  });
+
+  it("Should filter ACP reasoning values by the selected model's advertised efforts", () => {
+    const result = deriveActiveSessionOptions({
+      catalog: [
+        {
+          ...visibleCatalogFlags,
+          provider_id: "claude",
+          model_id: "claude-fable-5-1",
+          availability_state: "available_live",
+          available: true,
+          stale: false,
+          sources: [],
+          supports_reasoning: true,
+          reasoning_efforts: ["low", "high", "max"],
+        },
+      ],
+      selectedModel: "claude-fable-5-1",
+      configOptions: [
+        {
+          id: "reasoning_effort",
+          kind: "enum",
+          current_value_id: "medium",
+          values: [
+            { value: "default" },
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High" },
+            { value: "max", label: "Max" },
+            { value: "future-effort" },
+          ],
+        },
+      ],
+    });
+
+    // The live option can only narrow the model's levels: no default stop, no
+    // level the model does not advertise, and ACP labels survive.
+    expect(result.reasoningOptions).toEqual([
+      { value: "low", label: "Low", source: "acp" },
+      { value: "high", label: "High", source: "acp" },
+      { value: "max", label: "Max", source: "acp" },
+    ]);
+    expect(result.reasoningSupported).toBe(true);
+    expect(result.reasoningOverrideAvailable).toBe(true);
+    // The ACP current value `medium` was removed by the ceiling, so no default remains selectable.
+    expect(result.defaultReasoning).toBeNull();
+  });
+
+  it("Should keep advertised order and labels when ACP repeats or reorders values", () => {
+    const result = deriveActiveSessionOptions({
+      catalog: [
+        {
+          ...visibleCatalogFlags,
+          provider_id: "claude",
+          model_id: "claude-fable-5-1",
+          availability_state: "available_live",
+          available: true,
+          stale: false,
+          sources: [],
+          supports_reasoning: true,
+          reasoning_efforts: ["high", "low"],
+        },
+      ],
+      selectedModel: "claude-fable-5-1",
+      configOptions: [
+        {
+          id: "reasoning_effort",
+          kind: "enum",
+          current_value_id: "low",
+          values: [
+            { value: "low", label: "Low" },
+            { value: "low", label: "Low again" },
+            { value: "high", label: "High" },
+          ],
+        },
+      ],
+    });
+
+    expect(result.reasoningOptions).toEqual([
+      { value: "high", label: "High", source: "acp" },
+      { value: "low", label: "Low", source: "acp" },
+    ]);
+    expect(result.defaultReasoning).toBe("low");
   });
 
   it("Should treat catalog rows as the only authority when ACP exposes no values for reasoning", () => {

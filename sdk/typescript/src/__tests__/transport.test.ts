@@ -1,3 +1,4 @@
+import { once } from "node:events";
 import { PassThrough } from "node:stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -150,17 +151,23 @@ describe("StdioTransport", () => {
   });
 
   it("ignores notifications with no id field", async () => {
-    const { input, frames, transport } = createTransport();
+    const { input, output, frames, transport } = createTransport();
     const handler = vi.fn(async () => ({ ok: true }));
 
     transport.handle("health_check", handler);
     transport.start();
     input.write(`${JSON.stringify({ jsonrpc: "2.0", method: "health_check", params: {} })}\n`);
 
-    await new Promise(resolve => setTimeout(resolve, 25));
+    // A valid request on the same input proves readline has delivered the prior line.
+    transport.handle("barrier", async () => null);
+    const response = once(output, "data");
+    input.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "barrier" })}\n`);
+    await response;
 
     expect(handler).not.toHaveBeenCalled();
-    expect(frames).toHaveLength(0);
+    expect(frames.map(frame => JSON.parse(frame))).toEqual([
+      { jsonrpc: "2.0", id: 1, result: null },
+    ]);
   });
 
   it("returns method not found for unknown inbound methods", async () => {

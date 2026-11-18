@@ -25,6 +25,8 @@ function harness() {
   } as unknown as BrowserWindow;
   let target: ProductTarget | null = { window, origin: ORIGIN };
   const open = vi.fn<FileOpener["open"]>(async () => ({ status: "opened" }));
+  const listOpenTargets = vi.fn(async () => []);
+  const openWith = vi.fn(async () => ({ status: "opened" as const }));
   const controller = new ProductBridgeController({
     ipcMain: {
       handle: (channel: string, listener: Handler) => {
@@ -36,14 +38,23 @@ function harness() {
     shortcuts: {} as GlobalShortcutPolicy,
     theme: { set: vi.fn() },
     directories: { pick: vi.fn() },
-    files: { open },
+    files: {
+      open,
+      listOpenTargets,
+      openWith,
+    },
     productTarget: () => target,
   });
   controller.register();
-  const invoke = async (event: Partial<IpcMainInvokeEvent>, params: unknown = PARAMS) =>
-    await handler!(event as IpcMainInvokeEvent, "files.open_in_editor", params);
+  const invoke = async (
+    event: Partial<IpcMainInvokeEvent>,
+    params: unknown = PARAMS,
+    method = "files.open_in_editor"
+  ) => await handler!(event as IpcMainInvokeEvent, method, params);
   return {
     invoke,
+    listOpenTargets,
+    openWith,
     open,
     window,
     productEvent: { sender: productContents, senderFrame: mainFrame } as never,
@@ -91,5 +102,21 @@ describe("product bridge controller", () => {
       run.invoke(run.productEvent, { ...PARAMS, roots: ["//host/share"] })
     ).rejects.toThrow("parameters are invalid");
     expect(run.open).not.toHaveBeenCalled();
+  });
+  it("Should authorize both target operations against the product main frame", async () => {
+    const h = harness();
+    expect(await h.invoke(h.productEvent, {}, "files.list_open_targets")).toEqual([]);
+    expect(h.listOpenTargets).toHaveBeenCalledOnce();
+    expect(
+      await h.invoke(h.productEvent, { ...PARAMS, target: "cursor" }, "files.open_with")
+    ).toEqual({ status: "opened" });
+    expect(h.openWith).toHaveBeenCalledWith({ ...PARAMS, target: "cursor" }, h.window);
+    h.detach();
+    await expect(h.invoke(h.productEvent, {}, "files.list_open_targets")).rejects.toThrow(
+      "not allowed"
+    );
+    await expect(
+      h.invoke(h.productEvent, { ...PARAMS, target: "cursor" }, "files.open_with")
+    ).rejects.toThrow("not allowed");
   });
 });

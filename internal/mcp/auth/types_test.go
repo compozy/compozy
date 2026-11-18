@@ -84,6 +84,38 @@ func TestTargetValidateWorkspaceProfileIdentity(t *testing.T) {
 
 func TestServerConfigValidate(t *testing.T) {
 	t.Parallel()
+	t.Run("Should allow implicit OAuth only for header-free HTTP remotes", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name    string
+			server  compozyconfig.MCPServer
+			capable bool
+		}{
+			{"Should discover bare HTTP", compozyconfig.MCPServer{Name: "fixture", Transport: "http", URL: "https://example.test/mcp"}, true},
+			{"Should keep explicit OAuth with auxiliary headers", compozyconfig.MCPServer{Name: "fixture", Transport: "http", URL: "https://example.test/mcp", Headers: map[string]string{"X-Version": "1"}, Auth: compozyconfig.MCPAuthConfig{Registration: "auto"}}, true},
+			{"Should exclude plain headers", compozyconfig.MCPServer{Name: "fixture", Transport: "http", URL: "https://example.test/mcp", Headers: map[string]string{"X-Key": "value"}}, false},
+			{"Should exclude secret headers", compozyconfig.MCPServer{Name: "fixture", Transport: "http", URL: "https://example.test/mcp", SecretHeaders: map[string]string{"X-Key": "env:MCP_KEY"}}, false},
+			{"Should exclude stdio", compozyconfig.MCPServer{Name: "fixture", Command: "fixture"}, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				cfg, err := ServerConfigFromMCP(
+					t.Context(),
+					Target{Scope: ScopeUser, ServerName: "fixture"},
+					tc.server,
+					nil,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := cfg.Type == authTypeOAuth &&
+					cfg.registrationStrategy() == RegistrationAuto; got != tc.capable {
+					t.Fatalf("OAuth capability = %v, want %v", got, tc.capable)
+				}
+			})
+		}
+	})
+
 	t.Run("Should authorize configured client secrets before resolving them", func(t *testing.T) {
 		t.Parallel()
 		for _, target := range []Target{

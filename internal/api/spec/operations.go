@@ -26,6 +26,8 @@ func Operations() []OperationSpec {
 	ops = append(ops, providerUsageOperations()...)
 	ops = append(ops, marketplaceOperations()...)
 	ops = append(ops, settingsMCPAuthOperations()...)
+	ops = append(ops, checkSettingsMCPOperationSpec())
+	ops = append(ops, settingsMCPApprovalOperations()...)
 	ops = append(ops, providerOperations()...)
 	ops = append(ops, windowManagerOperations()...)
 	ops = append(ops, terminalOperations()...)

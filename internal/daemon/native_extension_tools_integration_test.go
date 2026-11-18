@@ -30,6 +30,7 @@ import (
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -268,6 +269,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		deps.ExtensionRuntime = func() extensionRuntime { return manager }
 		deps.WorkspaceResolver = resolver
 		deps.ExtensionConfig.Sources.GitHub.BaseURL = publishServer.URL
+		deps.ExtensionHTTPClient = publishServer.Client()
 		deps.ExtensionSecrets = nativeExtensionSecretResolver{
 			values: map[string]string{"env:GITHUB_TOKEN": publishCredential},
 		}
@@ -526,9 +528,10 @@ func TestNativeExtensionToolsPortableContract(t *testing.T) {
 
 	t.Run("Should reject an unrelated plugin manifest", func(t *testing.T) {
 		unrelated := t.TempDir()
+		// A schema-less root plugin.json is a client-root plugin; only a foreign $schema is unrelated.
 		if err := os.WriteFile(
 			filepath.Join(unrelated, "plugin.json"),
-			[]byte(`{"name":"npm-package"}`),
+			[]byte(`{"$schema":"https://example.com/other/plugin.schema.json","name":"npm-package"}`),
 			0o600,
 		); err != nil {
 			t.Fatalf("os.WriteFile(unrelated plugin.json) error = %v", err)
@@ -814,7 +817,7 @@ func newNativeExtensionPublishServer(
 	t.Helper()
 	capture := &nativeExtensionPublishCapture{}
 	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	server = httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		payload, err := io.ReadAll(request.Body)
 		if err != nil {
 			http.Error(writer, "read request", http.StatusInternalServerError)
@@ -916,6 +919,7 @@ func bindNativeExtensionIntegrationSession(t *testing.T, deps *daemonNativeTools
 	}
 	manager, err := session.NewManager(
 		session.WithHomePaths(deps.HomePaths),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithDriver(newHarnessIntegrationDriver()),
 		session.WithWorkspaceResolver(&harnessIntegrationWorkspaceResolver{resolved: resolved}),
 		session.WithSessionIDGenerator(func() (string, error) { return id, nil }),
@@ -923,6 +927,8 @@ func bindNativeExtensionIntegrationSession(t *testing.T, deps *daemonNativeTools
 	if err != nil {
 		t.Fatal(err)
 	}
+	// This fixture has no external MCP sources; source admission belongs to daemon composition.
+	manager.SetMCPAuthorityResolver(sessionMCPAuthorityStub{})
 	created, err := manager.Create(
 		t.Context(),
 		new(session.CreateOpts{

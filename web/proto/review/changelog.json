@@ -1,0 +1,88 @@
+{
+    "version": 3,
+    "key": "changelog",
+    "sequence": 1,
+    "review": {
+        "status": "approved",
+        "updatedAt": "2026-11-10T01:13:48.122Z"
+    },
+    "events": [
+        {
+            "id": "f5e8bd88-12e5-4689-abdd-b93a35e49cc8",
+            "type": "approved",
+            "at": "2026-11-10T01:13:48.122Z",
+            "author": "reviewer",
+            "commit": "e696a57b86be49f9b12c1a6a6840c112780d0578",
+            "openCount": 0
+        }
+    ],
+    "comments": [
+        {
+            "id": "changelog-1",
+            "slug": "changelog",
+            "status": "resolved",
+            "createdAt": "2026-11-10T00:53:46.063Z",
+            "updatedAt": "2026-11-10T00:55:30.180Z",
+            "resolvedAt": "2026-11-10T00:55:30.180Z",
+            "context": {
+                "commit": "e696a57b86be49f9b12c1a6a6840c112780d0578",
+                "state": "list",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1440,
+                    "height": 674
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "li:nth-of-type(1) > article",
+                "testId": null,
+                "tag": "article",
+                "text": "v0.5.5 Nov 9, 2026 Browse the CompozyOS marketplace by category with one-step Add and a curated plugin catalog Automati…",
+                "source": "src/drafts/changelog/timeline.tsx:164:7",
+                "sourceChain": [
+                    "src/drafts/changelog/timeline.tsx:164:7",
+                    "src/drafts/changelog/timeline.tsx:155:5",
+                    "src/drafts/changelog/timeline.tsx:263:11",
+                    "src/drafts/changelog/timeline.tsx:261:7",
+                    "src/drafts/changelog/timeline.tsx:257:5",
+                    "src/drafts/changelog/timeline.tsx:322:11",
+                    "src/drafts/changelog/timeline.tsx:320:9",
+                    "src/drafts/changelog/timeline.tsx:314:5"
+                ],
+                "rect": {
+                    "x": 346,
+                    "y": 128.3984375,
+                    "width": 974,
+                    "height": 892
+                },
+                "rectNormalized": {
+                    "x": 0.24027777777777778,
+                    "y": 0.19050213278931752,
+                    "width": 0.6763888888888889,
+                    "height": 1.3234421364985163
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "d1efeaa8-d285-465d-b72b-7c074fd83f45",
+                    "at": "2026-11-10T00:53:46.079Z",
+                    "editedAt": null,
+                    "body": "pode dar mais espaço left entre esse box e a linha da timeline",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "b22394a7-ab7b-4939-a6e3-ba28fc43d29a",
+                    "at": "2026-11-10T00:55:30.179Z",
+                    "editedAt": null,
+                    "body": "Aumentei o espaço entre a linha da timeline e os cards: de 28px para 48px no desktop e de 18px para 26px no mobile (timeline.tsx, coluna da linha e posição dos nós). O conector entre o nó e o card acompanhou a mudança, e o ramo das betas também. Conferido em navegador real em 1440 (Stable e Include betas) e em 390, sem overflow nem erros de JavaScript; proto check, typecheck e lint passaram.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        }
+    ]
+}

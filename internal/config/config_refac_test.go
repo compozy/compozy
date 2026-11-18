@@ -1,6 +1,7 @@
 package config
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -9,6 +10,61 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
+
+func TestMCPOverlayHeadersStayBoundToEndpoint(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name              string
+		overlay           string
+		wantHeaders       map[string]string
+		wantSecretHeaders map[string]string
+	}{
+		{
+			name:              "Should retain inherited headers when the endpoint is unchanged",
+			overlay:           `url = "https://original.test/mcp"`,
+			wantHeaders:       map[string]string{"X-Key": "original-key"},
+			wantSecretHeaders: map[string]string{"Authorization": "env:ORIGINAL_TOKEN"},
+		},
+		{
+			name:    "Should drop inherited headers when a workspace changes the host",
+			overlay: `url = "https://workspace.test/mcp"`,
+		},
+		{
+			name:    "Should drop inherited headers when a workspace changes the path",
+			overlay: `url = "https://original.test/other"`,
+		},
+		{
+			name: "Should use only replacement headers for a changed endpoint",
+			overlay: `url = "https://workspace.test/mcp"
+headers = { X-Workspace = "workspace-key" }
+secret_headers = { X-Token = "env:WORKSPACE_TOKEN" }`,
+			wantHeaders:       map[string]string{"X-Workspace": "workspace-key"},
+			wantSecretHeaders: map[string]string{"X-Token": "env:WORKSPACE_TOKEN"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := Config{MCPServers: []MCPServer{{
+				Name: "remote", Transport: MCPServerTransportHTTP, URL: "https://original.test/mcp",
+				Headers:       map[string]string{"X-Key": "original-key"},
+				SecretHeaders: map[string]string{"Authorization": "env:ORIGINAL_TOKEN"},
+			}}}
+			path := filepath.Join(t.TempDir(), ConfigName)
+			writeFile(t, path, "[[mcp_servers]]\nname = \"remote\"\n"+tc.overlay+"\n")
+			if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+				t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+			}
+			if len(cfg.MCPServers) != 1 {
+				t.Fatalf("MCPServers count = %d, want 1", len(cfg.MCPServers))
+			}
+			server := cfg.MCPServers[0]
+			if !maps.Equal(server.Headers, tc.wantHeaders) || !maps.Equal(server.SecretHeaders, tc.wantSecretHeaders) {
+				t.Fatal("headers crossed the endpoint boundary or lost their replacement")
+			}
+		})
+	}
+}
 
 func TestApplyMCPServerOverlaysNormalizesNameCollisions(t *testing.T) {
 	t.Parallel()

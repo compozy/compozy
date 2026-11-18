@@ -299,6 +299,7 @@ hooks.
 | Provider omits default model                   | Resolved model may be empty.                                                                             |
 | Provider lacks `session/load`                  | Resume fails.                                                                                            |
 | Stored ACP session is missing upstream         | CompozyOS clears the stale ACP session ID and starts a fresh ACP session for the same CompozyOS session. |
+| Stored ACP session belongs to another backend  | CompozyOS starts a fresh ACP session for the same CompozyOS session and replays the stored transcript.   |
 | Agent requests a filesystem or terminal action | CompozyOS evaluates the inbound permission policy before serving the request.                            |
 
 ## Related pages

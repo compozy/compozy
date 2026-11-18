@@ -3,11 +3,13 @@ package pluginsource
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -22,7 +24,7 @@ import (
 
 func TestFetchGitHubMarketplace(t *testing.T) {
 	t.Parallel()
-	for _, location := range []string{"marketplace.json", ".claude-plugin/marketplace.json"} {
+	for _, location := range []string{"marketplace.json", ".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"} {
 		t.Run("Should fetch "+location+" from the exact resolved commit", func(t *testing.T) {
 			t.Parallel()
 			commit := strings.Repeat("a", 40)
@@ -44,6 +46,9 @@ func TestFetchGitHubMarketplace(t *testing.T) {
 			wantCalls := 2
 			if location != "marketplace.json" {
 				wantCalls = 3
+				if location == codexDocumentPath {
+					wantCalls = 4
+				}
 			}
 			if err != nil || doc.Name != "team" || doc.Path != location || doc.SourceRef != "github:owner/repo" ||
 				doc.ResolvedRef != "github:owner/repo@"+commit || calls != wantCalls {
@@ -72,7 +77,7 @@ func TestFetchGitHubMarketplace(t *testing.T) {
 				switch body {
 				case "missing":
 					missing, ok := errors.AsType[*NotMarketplaceError](err)
-					if !ok || len(missing.Checked) != 2 || calls != 3 {
+					if !ok || len(missing.Checked) != 3 || calls != 4 {
 						t.Fatalf("missing documents = %v, requests %d", err, calls)
 					}
 				case `{"plugins":`:
@@ -87,7 +92,7 @@ func TestFetchGitHubMarketplace(t *testing.T) {
 			}
 		},
 	)
-	t.Run("Should expose rate limiting without recommending credentials for a public source", func(t *testing.T) {
+	t.Run("Should expose rate limiting with actionable authentication guidance", func(t *testing.T) {
 		t.Parallel()
 		calls := 0
 		source := githubMarketplaceSource(t, func(request *http.Request) (*http.Response, error) {
@@ -99,7 +104,7 @@ func TestFetchGitHubMarketplace(t *testing.T) {
 		_, err := source.Fetch(t.Context())
 		failure, ok := errors.AsType[*SourceError](err)
 		if !ok || !errors.Is(err, ErrSourceUnreachable) || failure.Reason != "rate_limited" || calls != 1 ||
-			strings.Contains(err.Error(), "GITHUB_TOKEN") {
+			!strings.Contains(err.Error(), "gh auth login") {
 			t.Fatalf("rate limit = %v, requests %d", err, calls)
 		}
 	})
@@ -161,13 +166,56 @@ func TestFetchGitHubMarketplace(t *testing.T) {
 			if strings.Contains(err.Error(), "private") {
 				t.Fatal("source diagnostic exposed private transport details")
 			}
+			if errors.Is(tc.cause, outboundpolicy.ErrInsecureTransport) && !strings.Contains(err.Error(), "use HTTPS") {
+				t.Fatal("insecure transport failure omitted recovery guidance")
+			}
 		})
 	}
 }
 
 func TestGitHubMarketplaceCredentialIsolation(t *testing.T) {
+	// Invariant: the daemon credential reaches the configured HTTPS or exact loopback HTTP API origin.
+	t.Run("Should authenticate HTTPS and loopback HTTP catalog requests", func(t *testing.T) {
+		t.Setenv("GITHUB_TOKEN", "marketplace-sentinel")
+		for _, secure := range []bool{true, false} {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				want := "Bearer marketplace-sentinel"
+				if r.Header.Get("Authorization") != want {
+					t.Error("unexpected catalog authentication")
+				}
+				body := `{"plugins":[]}`
+				if strings.Contains(r.URL.Path, "/commits/") {
+					body = strings.Repeat("a", 40)
+				}
+				if _, err := io.WriteString(w, body); err != nil {
+					t.Error(err)
+				}
+			})
+			var server *httptest.Server
+			if secure {
+				server = httptest.NewTLSServer(handler)
+			} else {
+				server = httptest.NewServer(handler)
+			}
+			t.Cleanup(server.Close)
+			source, err := NewGitHubSource(
+				"owner/repo",
+				WithGitHubBaseURL(server.URL),
+				WithGitHubHTTPClient(server.Client()),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := source.Fetch(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if err := source.Close(); err != nil {
+				t.Error(err)
+			}
+		}
+	})
 	// not parallel: ambient credentials are set only within this serial test.
-	t.Run("Should ignore ambient tokens and cookies without mutating the supplied client", func(t *testing.T) {
+	t.Run("Should reuse GitHub credentials without cookies or mutating the supplied client", func(t *testing.T) {
 		t.Setenv("GITHUB_TOKEN", "test-ambient-token")
 		jar, err := cookiejar.New(nil)
 		if err != nil {
@@ -178,8 +226,9 @@ func TestGitHubMarketplaceCredentialIsolation(t *testing.T) {
 		client := &http.Client{
 			Jar: jar,
 			Transport: marketplaceRoundTripper(func(request *http.Request) (*http.Response, error) {
-				if request.Header.Get("Authorization") != "" || request.Header.Get("Cookie") != "" {
-					t.Error("marketplace request carried ambient credentials")
+				if request.Header.Get("Authorization") != "Bearer test-ambient-token" ||
+					request.Header.Get("Cookie") != "" {
+					t.Error("marketplace request must reuse the token without cookies")
 				}
 				if strings.Contains(request.URL.Path, "/commits/") {
 					return marketplaceHTTPResponse(t, request, http.StatusOK, strings.Repeat("a", 40)), nil
@@ -213,10 +262,13 @@ func (f marketplaceRoundTripper) RoundTrip(request *http.Request) (*http.Respons
 
 func githubMarketplaceSource(t *testing.T, handler marketplaceRoundTripper) *GitHubSource {
 	t.Helper()
-	source, err := NewGitHubSource("owner/repo", WithGitHubHTTPClient(&http.Client{Transport: handler}))
+	// General fetch/error fixtures remain anonymous; the credential-isolation suite owns authentication.
+	source, err := NewGitHubSource("owner/repo", WithGitHubBaseURL("https://api.example.test"),
+		WithGitHubHTTPClient(&http.Client{Transport: handler}))
 	if err != nil {
 		t.Fatal(err)
 	}
+	github.WithToken("")(source.client)
 	t.Cleanup(func() {
 		if err := source.Close(); err != nil {
 			t.Error(err)
@@ -235,7 +287,7 @@ func marketplaceHTTPResponse(t *testing.T, request *http.Request, status int, bo
 
 func TestReadMarketplaceDirectory(t *testing.T) {
 	t.Parallel()
-	for _, location := range []string{"marketplace.json", ".claude-plugin/marketplace.json"} {
+	for _, location := range []string{"marketplace.json", ".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"} {
 		t.Run("Should read the document at "+location, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
@@ -253,6 +305,7 @@ func TestReadMarketplaceDirectory(t *testing.T) {
 		root := t.TempDir()
 		writeMarketplaceDocument(t, root, "marketplace.json", []byte(`{"name":"root","plugins":[]}`))
 		writeMarketplaceDocument(t, root, ".claude-plugin/marketplace.json", []byte(`{"name":"nested","plugins":[]}`))
+		writeMarketplaceDocument(t, root, codexDocumentPath, []byte(`{"name":"codex","plugins":[]}`))
 		doc, err := ReadDirectory(t.Context(), root)
 		if err != nil || doc.Name != "root" || doc.Path != "marketplace.json" {
 			t.Fatalf("root precedence = %+v, %v", doc, err)
@@ -262,6 +315,21 @@ func TestReadMarketplaceDirectory(t *testing.T) {
 			t.Fatalf("malformed root = %v", err)
 		}
 	})
+	t.Run("Should prefer Claude over Codex and refuse a malformed Claude document", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeMarketplaceDocument(t, root, clientDocumentPath, []byte(`{"name":"claude","plugins":[]}`))
+		writeMarketplaceDocument(t, root, codexDocumentPath, []byte(`{"name":"codex","plugins":[]}`))
+		doc, err := ReadDirectory(t.Context(), root)
+		if err != nil || doc.Name != "claude" || doc.Path != clientDocumentPath {
+			t.Fatalf("document = %+v, %v", doc, err)
+		}
+		writeMarketplaceDocument(t, root, clientDocumentPath, []byte(`{"plugins":`))
+		if _, err := ReadDirectory(t.Context(), root); !errors.Is(err, ErrNotMarketplace) {
+			t.Fatalf("malformed Claude document = %v", err)
+		}
+	})
+
 	t.Run("Should distinguish missing documents from an unreachable source", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
@@ -274,7 +342,10 @@ func TestReadMarketplaceDirectory(t *testing.T) {
 			_, err := ReadDirectory(t.Context(), root)
 			missing, ok := errors.AsType[*NotMarketplaceError](err)
 			if !ok || !errors.Is(err, ErrNotMarketplace) || errors.Is(err, ErrSourceUnreachable) ||
-				!reflect.DeepEqual(missing.Checked, []string{"marketplace.json", ".claude-plugin/marketplace.json"}) {
+				!reflect.DeepEqual(
+					missing.Checked,
+					[]string{"marketplace.json", ".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"},
+				) {
 				t.Fatalf("missing document = %v", err)
 			}
 		}
@@ -287,11 +358,14 @@ func TestReadMarketplaceDirectory(t *testing.T) {
 		t.Parallel()
 		outside := t.TempDir()
 		writeMarketplaceDocument(t, outside, "marketplace.json", []byte(`{"plugins":[]}`))
-		for _, location := range []string{"marketplace.json", ".claude-plugin"} {
+		for _, location := range []string{"marketplace.json", ".claude-plugin", ".agents", ".agents/plugins", codexDocumentPath} {
 			root := t.TempDir()
 			target := outside
-			if location == "marketplace.json" {
-				target = filepath.Join(outside, location)
+			if strings.HasSuffix(location, "marketplace.json") {
+				target = filepath.Join(outside, "marketplace.json")
+			}
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(root, location)), 0o700); err != nil {
+				t.Fatal(err)
 			}
 			if err := os.Symlink(target, filepath.Join(root, location)); err != nil {
 				t.Fatal(err)
@@ -409,6 +483,52 @@ func TestDecodePluginDocument(t *testing.T) {
 			t.Fatalf("archive plugin = %+v", doc.Plugins[2])
 		}
 	})
+	t.Run("Should decode url and git-subdir repositories and curated metadata", func(t *testing.T) {
+		t.Parallel()
+		doc, err := DecodeDocument([]byte(`{"plugins":[
+ {"name":"whole","source":{"source":"url","url":"https://gitlab.com/o/r.git","ref":"main"},"category":"database","x-compozy":{"category":"data","featured":true,"supersedes":["other/whole"]}},
+ {"name":"sub","source":{"source":"git-subdir","url":"https://github.com/o/mono.git","path":"plugins/x","ref":"4f2a9c1"}}]}`))
+		if err != nil || len(doc.Plugins) != 2 || len(doc.Diagnostics) != 0 {
+			t.Fatalf("document = %+v, %v", doc, err)
+		}
+		if doc.Plugins[0].Source != (PluginSource{Kind: SourceURL, Ref: "https://gitlab.com/o/r.git", GitRef: "main"}) ||
+			doc.Plugins[1].Source != (PluginSource{Kind: SourceGitSubdir, Ref: "https://github.com/o/mono.git", Path: "plugins/x", GitRef: "4f2a9c1"}) {
+			t.Fatalf("sources = %+v", doc.Plugins)
+		}
+		plugin := doc.Plugins[0]
+		if plugin.Category != "database" || plugin.CompozyCategory != "data" || !plugin.Featured ||
+			!reflect.DeepEqual(plugin.Supersedes, []string{"other/whole"}) {
+			t.Fatalf("metadata = %+v", plugin)
+		}
+	})
+	t.Run("Should drop invalid repository objects without exposing credentials", func(t *testing.T) {
+		t.Parallel()
+		for _, source := range []string{
+			`{"source":"git-subdir","url":"https://gitlab.com/o/r"}`,
+			`{"source":"git-subdir","url":"https://gitlab.com/o/r","path":"../x"}`,
+			`{"source":"git-subdir","url":"https://gitlab.com/o/r","path":"a/../x"}`,
+			`{"source":"git-subdir","url":"https://gitlab.com/o/r","path":"/x"}`,
+			`{"source":"git-subdir","url":"https://gitlab.com/o/r","path":"C:\\x"}`,
+			`{"source":"git-subdir","url":"http://gitlab.com/o/r","path":"x"}`,
+			`{"source":"url","url":"http://gitlab.com/o/r"}`,
+			`{"source":"url","url":"https://u:secret@gitlab.com/o/r"}`,
+			`{"source":"url","url":"https://gitlab.com/o/r?token=secret"}`,
+			`{"source":"url","url":"https://gitlab.com/o/r#secret"}`,
+		} {
+			doc, err := DecodeDocument(
+				[]byte(`{"plugins":[{"name":"bad","source":` + source + `},{"name":"healthy","source":"."}]}`),
+			)
+			if err != nil || len(doc.Plugins) != 1 || doc.Plugins[0].Name != "healthy" || len(doc.Diagnostics) != 1 {
+				t.Fatalf("document = %+v, %v", doc, err)
+			}
+			diagnostic := doc.Diagnostics[0]
+			if diagnostic.Plugin != "bad" || diagnostic.Code != "unsupported_source" ||
+				strings.Contains(diagnostic.Message, "secret") {
+				t.Fatalf("diagnostic = %+v", diagnostic)
+			}
+		}
+	})
+
 	t.Run("Should ignore optional metadata drift and retain paths for confinement at resolution", func(t *testing.T) {
 		t.Parallel()
 		doc, err := DecodeDocument([]byte(`{"name":42,"owner":[],"plugins":[{"name":"tool","source":"../outside",
@@ -478,4 +598,21 @@ func TestDecodePluginDocument(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestSourceSHAPin(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"url", "git-subdir", "github"} {
+		t.Run("Should prefer immutable SHA for "+kind, func(t *testing.T) {
+			t.Parallel()
+			source, err := decodePluginSource(
+				json.RawMessage(
+					`{"source":"` + kind + `","url":"https://github.com/owner/repo.git","repo":"owner/repo","path":"tool","ref":"main","sha":"0123456789012345678901234567890123456789"}`,
+				),
+			)
+			if err != nil || source.GitRef != "0123456789012345678901234567890123456789" {
+				t.Fatalf("source = %+v, error = %v", source, err)
+			}
+		})
+	}
 }

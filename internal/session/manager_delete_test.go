@@ -154,6 +154,182 @@ func (f sessionWindowReconcilerFunc) ReconcileDeletedSession(
 
 func TestManagerDelete(t *testing.T) {
 	t.Parallel()
+	// Invariant: contention respects the caller deadline without staging or losing history.
+	// Owner: Manager deletion admission; canonical suite: TestManagerDelete.
+	t.Run("Should cancel lifecycle admission and allow deletion after contention", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatal(err)
+		}
+		info, err := h.manager.prepareSessionDelete(t.Context(), created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.manager.lifecycleMu.Lock()
+		unlock := sync.OnceFunc(h.manager.lifecycleMu.Unlock)
+		defer unlock()
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		defer cancel()
+		deleted := make(chan error, 1)
+		go func() { deleted <- h.manager.deletePreparedSession(ctx, created.ID, info, nil) }()
+		select {
+		case err := <-deleted:
+			if !errors.Is(err, context.DeadlineExceeded) ||
+				!strings.Contains(err.Error(), "await delete lifecycle lock") {
+				t.Fatalf("Delete(contended) error = %v", err)
+			}
+		case <-testutil.Context(t).Done():
+			t.Fatal("deletion ignored its deadline while waiting for the lifecycle lock")
+		}
+		if _, err := os.Stat(created.DBPath()); err != nil {
+			t.Fatalf("history changed before admission: %v", err)
+		}
+		assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+		unlock()
+		if err := h.manager.Delete(t.Context(), created.ID); err != nil {
+			t.Fatalf("Delete(after contention) error = %v", err)
+		}
+	})
+
+	// Invariant: recovery uses the verified database owner independently of reconciliation scope.
+	// Owner: Manager deletion recovery; canonical suite: TestManagerDelete.
+	t.Run("Should recover a receipt whose reconciliation workspace differs from its owner", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		created := createSession(t, h)
+		if err := h.manager.Stop(ctx, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		info, err := h.manager.Status(ctx, created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(created.MetaPath()); err != nil {
+			t.Fatal(err)
+		}
+		info.WorkspaceID = "reconciliation-workspace"
+		staged, err := h.manager.stageSessionDirectoryDeleteWithoutAttachments(ctx, created.ID, info)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := staged.capabilities.Release(); err != nil {
+			t.Fatal(err)
+		}
+		if err := catalog.DeleteSession(ctx, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		recovered := newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		shutdownQueryStoreRuntimeForTest(t, recovered)
+		assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+		if _, err := os.Stat(created.SessionDir()); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("deleted session directory error = %v", err)
+		}
+	})
+
+	// Invariant: a stuck reader bounds deletion without losing history or blocking retry.
+	// Owner: session deletion; canonical Manager suite over the real read-only pool and SQLite.
+	for _, test := range []struct {
+		name           string
+		quiesceTimeout time.Duration
+		callerTimeout  time.Duration
+	}{
+		{
+			name:           "Should bound deletion without a caller deadline and allow retry",
+			quiesceTimeout: 20 * time.Millisecond,
+		},
+		{
+			name:           "Should honor an earlier caller deadline while waiting for readers",
+			quiesceTimeout: time.Hour,
+			callerTimeout:  500 * time.Millisecond,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			catalog := newRecordingSessionCatalog()
+			h := newHarness(
+				t,
+				WithSessionCatalog(catalog),
+				withDefaultQueryStoreRuntime(),
+				WithQueryQuiesceTimeout(test.quiesceTimeout),
+			)
+			shutdownQueryStoreRuntimeForTest(t, h.manager)
+			session := createSession(t, h)
+			if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+			attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "keep-me")
+			owner := testSessionDBOwner(session.ID, session.WorkspaceID)
+			reader, err := h.manager.queryStoreRuntime.Open(t.Context(), owner, session.DBPath())
+			if err != nil {
+				t.Fatalf("Open(stored reader) error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := reader.Close(testutil.Context(t)); err != nil {
+					t.Errorf("Close(stored reader cleanup) error = %v", err)
+				}
+			})
+			deleteCtx := context.WithoutCancel(t.Context())
+			if test.callerTimeout > 0 {
+				var cancel context.CancelFunc
+				deleteCtx, cancel = context.WithTimeout(deleteCtx, test.callerTimeout)
+				defer cancel()
+			}
+			deleteDone := make(chan error, 1)
+			started := time.Now()
+			go func() { deleteDone <- h.manager.Delete(deleteCtx, session.ID) }()
+			select {
+			case err := <-deleteDone:
+				if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), session.ID) {
+					t.Fatalf("Delete() error = %v, want per-session deadline error", err)
+				}
+			case <-testutil.Context(t).Done():
+				t.Fatal("Delete() did not finish with a held read lease")
+			}
+			if test.callerTimeout == 0 {
+				limit := test.quiesceTimeout + testutil.Scaled(t, time.Second)
+				if elapsed := time.Since(started); elapsed > limit {
+					t.Fatalf("Delete() took %v, want configured reader wait within %v", elapsed, limit)
+				}
+			}
+			if test.callerTimeout == 0 && deleteCtx.Err() != nil {
+				t.Fatalf("quiescence timeout canceled caller context: %v", deleteCtx.Err())
+			}
+			if _, ok := catalog.get(session.ID); !ok {
+				t.Fatal("quiescence timeout removed the catalog row")
+			}
+			if _, err := os.Stat(session.DBPath()); err != nil {
+				t.Fatalf("Stat(preserved database) error = %v", err)
+			}
+			if payload, err := os.ReadFile(attachmentPath); err != nil || string(payload) != "keep-me" {
+				t.Fatalf("ReadFile(preserved attachment) = %q, %v", payload, err)
+			}
+			assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+			probe, err := h.manager.queryStoreRuntime.Open(t.Context(), owner, session.DBPath())
+			if err != nil {
+				t.Fatalf("Open(after quiescence timeout) error = %v", err)
+			}
+			if err := probe.Close(t.Context()); err != nil {
+				t.Fatalf("Close(probe) error = %v", err)
+			}
+			if err := reader.Close(t.Context()); err != nil {
+				t.Fatalf("Close(stored reader) error = %v", err)
+			}
+			if err := h.manager.Delete(t.Context(), session.ID); err != nil {
+				t.Fatalf("Delete(retry) error = %v", err)
+			}
+			if _, ok := catalog.get(session.ID); ok {
+				t.Fatal("retry retained the deleted catalog row")
+			}
+			if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("Stat(after retry) error = %v, want not found", err)
+			}
+		})
+	}
+
 	// Invariant: with the opt-in the tree goes deepest first, so a failure leaves
 	// what remains reachable from the root; without it only the target goes.
 	t.Run("Should delete descendants deepest first, then the root", func(t *testing.T) {
@@ -222,6 +398,170 @@ func TestManagerDelete(t *testing.T) {
 		}
 		if _, err := h.manager.Status(t.Context(), child.ID); err != nil {
 			t.Fatalf("Status(child) after parent delete = %v, want reachable", err)
+		}
+	})
+
+	// Invariant (#1717): the archived-only delete removes a session only while it
+	// is archived and still owned by the expected profile and workspace; any other
+	// target is refused before anything stops and the session stays.
+	// Owner: session deletion over the real global catalog.
+	t.Run("Should delete an archived session only inside its owner's scope", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		live := createSession(t, h.harness)
+		archived := createSession(t, h.harness)
+		if err := h.manager.Stop(t.Context(), archived.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, archived.ID); err != nil {
+			t.Fatalf("Archive() error = %v", err)
+		}
+		info, err := h.manager.Status(t.Context(), archived.ID)
+		if err != nil || info.ArchivedAt == nil {
+			t.Fatalf("Status(archived) = %+v, error = %v, want archived", info, err)
+		}
+		owner := store.ArchivedSessionDelete{
+			SessionID: archived.ID, ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+		}
+
+		refused := []store.ArchivedSessionDelete{
+			{SessionID: live.ID, ProfileID: owner.ProfileID, WorkspaceID: owner.WorkspaceID},
+			{SessionID: archived.ID, ProfileID: "other-profile", WorkspaceID: owner.WorkspaceID},
+			{SessionID: archived.ID, ProfileID: owner.ProfileID, WorkspaceID: "ws-other"},
+		}
+		for _, target := range refused {
+			if err := h.manager.DeleteArchived(t.Context(), target); !errors.Is(err, store.ErrSessionNotArchived) {
+				t.Fatalf("DeleteArchived(%+v) error = %v, want ErrSessionNotArchived", target, err)
+			}
+			if _, err := h.manager.Status(t.Context(), target.SessionID); err != nil {
+				t.Fatalf("Status(%s) after refused delete = %v, want it kept", target.SessionID, err)
+			}
+		}
+
+		if err := h.manager.DeleteArchived(t.Context(), owner); err != nil {
+			t.Fatalf("DeleteArchived(owner) error = %v", err)
+		}
+		if _, err := h.manager.Status(t.Context(), archived.ID); !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("Status(archived) after delete = %v, want not found", err)
+		}
+		if _, err := h.manager.Status(t.Context(), live.ID); err != nil {
+			t.Fatalf("Status(live) after archived delete = %v, want reachable", err)
+		}
+	})
+
+	// Invariant: missing stopped history is explicitly deletable through the manager, with archive scope guards intact.
+	// Owner: session manager deletion; this suite uses the real global catalog.
+	for _, archivedOnly := range []bool{false, true} {
+		for _, missingDirectory := range []bool{false, true} {
+			name := fmt.Sprintf(
+				"Should delete missing stopped history archived=%t directory=%t",
+				archivedOnly,
+				missingDirectory,
+			)
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				h := newDeriveHarness(t)
+				session := createSession(t, h.harness)
+				if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+					t.Fatal(err)
+				}
+				if archivedOnly {
+					if _, err := h.manager.Archive(t.Context(), h.workspaceID, session.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				attachmentPath := ""
+				if !missingDirectory {
+					attachmentPath = writeSessionAttachmentFixture(t, h.harness, session.ID, "delete-me")
+				}
+				if missingDirectory {
+					if err := os.RemoveAll(session.SessionDir()); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.Remove(store.SessionMetaFile(session.SessionDir())); err != nil {
+					t.Fatal(err)
+				}
+				target := store.ArchivedSessionDelete{
+					SessionID: session.ID, ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+				}
+				if archivedOnly {
+					for _, refused := range []store.ArchivedSessionDelete{
+						{SessionID: session.ID, ProfileID: "other-profile", WorkspaceID: h.workspaceID},
+						{SessionID: session.ID, ProfileID: target.ProfileID, WorkspaceID: "other-workspace"},
+					} {
+						err := h.manager.DeleteArchived(t.Context(), refused)
+						if !errors.Is(err, store.ErrSessionNotArchived) {
+							t.Fatalf("DeleteArchived(wrong scope) = %v", err)
+						}
+					}
+					if err := h.manager.DeleteArchived(t.Context(), target); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					err := h.manager.DeleteArchived(t.Context(), target)
+					if !errors.Is(err, store.ErrSessionNotArchived) {
+						t.Fatalf("DeleteArchived(unarchived) = %v", err)
+					}
+					if err := h.manager.Delete(t.Context(), session.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				rows, err := h.db.ListSessions(t.Context(), store.SessionListQuery{
+					ReadScope: store.ReadScope{AllProfiles: true}, ID: session.ID,
+					Archive: store.SessionArchiveInclude, Limit: 1,
+				})
+				if err != nil || len(rows) != 0 {
+					t.Fatalf("catalog after delete = %+v, %v", rows, err)
+				}
+				if _, err := os.Lstat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("deleted session files remain: %v", err)
+				}
+				if attachmentPath != "" {
+					if _, err := os.Stat(attachmentPath); !errors.Is(err, os.ErrNotExist) {
+						t.Fatalf("deleted attachment remains: %v", err)
+					}
+				}
+				assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+				if err := (historyCleanupDeleter{manager: h.manager}).DeleteArchived(t.Context(), target); err != nil {
+					t.Fatalf("cleanup of already absent catalog row = %v", err)
+				}
+			})
+		}
+	}
+
+	t.Run("Should keep a catalog row when cleanup cannot prove its metadata identity", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		session := createSession(t, h.harness)
+		if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, session.ID); err != nil {
+			t.Fatal(err)
+		}
+		metaPath := store.SessionMetaFile(session.SessionDir())
+		meta := readMeta(t, metaPath)
+		meta.ID = "different-session"
+		meta.Lineage.RootSessionID = meta.ID
+		payload, err := json.Marshal(meta)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(metaPath, payload, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		err = (historyCleanupDeleter{manager: h.manager}).DeleteArchived(t.Context(), store.ArchivedSessionDelete{
+			SessionID: session.ID, ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+		})
+		if !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("cleanup of mismatched metadata = %v, want failed delete", err)
+		}
+		rows, err := h.db.ListSessions(t.Context(), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, ID: session.ID,
+			Archive: store.SessionArchiveInclude, Limit: 1,
+		})
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("catalog after refused cleanup = %+v, %v", rows, err)
 		}
 	})
 
@@ -811,6 +1151,7 @@ func TestManagerDelete(t *testing.T) {
 					t,
 					WithSessionCatalog(catalog),
 					withDefaultQueryStoreRuntime(),
+					WithQueryQuiesceTimeout(100*time.Millisecond),
 				)
 				shutdownQueryStoreRuntimeForTest(t, h.manager)
 				session := createSession(t, h)
@@ -826,9 +1167,21 @@ func TestManagerDelete(t *testing.T) {
 					return nil
 				}})
 				deleteErr := errors.New("catalog delete failed")
-				catalog.deleteErr = deleteErr
+				deleteCtx, cancelDelete := context.WithCancel(testutil.Context(t))
+				defer cancelDelete()
+				// A slow catalog failure must leave rollback alive past the reader-wait budget.
+				catalog.deleteHook = func(ctx context.Context, _ string) error {
+					select {
+					case <-time.After(200 * time.Millisecond):
+						// Cancellation at the catalog failure must not strand staged history.
+						cancelDelete()
+						return deleteErr
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				}
 
-				err := h.manager.Delete(testutil.Context(t), session.ID)
+				err := h.manager.Delete(deleteCtx, session.ID)
 				if !errors.Is(err, deleteErr) {
 					t.Fatalf("Delete() error = %v, want %v", err, deleteErr)
 				}
@@ -981,6 +1334,7 @@ func TestManagerDelete(t *testing.T) {
 			run: func(t *testing.T) {
 				tests := []struct {
 					name           string
+					missingMeta    bool
 					catalogKnown   bool
 					catalogPresent bool
 					wantRestored   bool
@@ -999,6 +1353,15 @@ func TestManagerDelete(t *testing.T) {
 						name:         "Should finish deletion when the catalog no longer owns the session",
 						catalogKnown: true,
 					},
+				}
+				for _, present := range []bool{false, true} {
+					tests = append(tests, struct {
+						name                                                    string
+						missingMeta, catalogKnown, catalogPresent, wantRestored bool
+					}{
+						name:        fmt.Sprintf("Should recover missing metadata with catalog present=%t", present),
+						missingMeta: true, catalogKnown: true, catalogPresent: present, wantRestored: present,
+					})
 				}
 				for _, test := range tests {
 					t.Run(test.name, func(t *testing.T) {
@@ -1020,6 +1383,11 @@ func TestManagerDelete(t *testing.T) {
 						info, err := h.manager.Status(ctx, session.ID)
 						if err != nil {
 							t.Fatalf("Status() error = %v", err)
+						}
+						if test.missingMeta {
+							if err := os.Remove(session.MetaPath()); err != nil {
+								t.Fatal(err)
+							}
 						}
 						staged, err := h.manager.stageSessionDirectoryDelete(ctx, session.ID, info)
 						if err != nil {

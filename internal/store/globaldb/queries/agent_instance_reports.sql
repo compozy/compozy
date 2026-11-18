@@ -97,3 +97,9 @@ DELETE FROM agent_instance_reports WHERE id IN (
 
 -- name: MarkIndeterminateReportNoted :exec
 UPDATE agent_instance_reports SET recovery_noted = 1 WHERE id = ? AND state = 'indeterminate';
+
+-- name: UpdateInstanceReportPickDecisions :exec
+UPDATE agent_instance_reports SET payload = ? WHERE id = ?;
+
+-- name: AuthorityNoticeSent :one
+SELECT COUNT(*) FROM heartbeat_authority_approvals WHERE profile_id = ? AND definition_dir = ? AND notified_sha256 = ?;

@@ -1,0 +1,70 @@
+---
+title: Files and changes
+description: Browse a project's files, read them in the app, search them, and review what a session changed.
+---
+
+An agent works in your project's files. CompozyOS lets you see that work without leaving the app:
+browse the project tree, read any file with syntax highlighting, search by name or by content, and
+review what a session changed against its base branch. Everything is read-only. CompozyOS never
+writes to the project from these views.
+
+These views live in two places:
+
+- **The Files app** in the dock opens a project's files in their own window: the tree, a file
+  viewer, and search, with a picker for the project and for the root (the project folder or one of
+  its worktrees).
+- **The Review panel** in a session window shows the session's **Changes**: its diff, rooted at the
+  session's worktree when it has one, otherwise at the project folder.
+
+A file path in an assistant message is a link. A plain click opens it in the project's Files app,
+as a tab beside the session, on the session's root and at the path's line, in the browser and in
+the desktop app alike. In the desktop app, **Open in** sends the file to an installed
+editor or reveals it in Finder.
+
+## Choose a path
+
+| Goal                                                        | Start here                                 |
+| ----------------------------------------------------------- | ------------------------------------------ |
+| Review a session's work from the transcript to the diff     | [Tutorial](/docs/files/tutorial)           |
+| Compare a branch with its base, or check uncommitted edits  | [Review panel](/docs/files/review-panel)   |
+| Understand what the viewer shows for each kind of file      | [File viewer](/docs/files/file-viewer)     |
+| Jump to a file by name or search text across the project    | [Search files](/docs/files/search)         |
+| Browse a project or worktree without opening a session      | [Files app](/docs/files/files-app)         |
+| Send a file to Cursor, VS Code, Zed, or another desktop app | [Open in another app](/docs/files/open-in) |
+
+## What stays private
+
+These views read only inside a registered project or one of its worktrees. Responses use paths
+relative to that root, never absolute host paths, and the `.git` folder is never served.
+
+- **Sensitive files** such as `.env`, `.env.*`, private keys, and other credential files show a
+  **Sensitive file** notice instead of their contents. **Show contents** reveals one file for that
+  view only. `.env.example`, `.env.sample`, and `.env.template` are ordinary files. A symlink that
+  points to a sensitive file is treated the same way.
+- **Search** never returns matches from sensitive files. It reports how many it skipped.
+- **User-scope sessions** have no project, so they have no Review panel. Paths in their messages
+  stay plain text.
+- **Profiles** see only their own projects, worktrees, and sessions.
+
+<OperatorNote label="External apps cannot reveal">
+  Requests made with an app token, from an [external app](/docs/apps), cannot reveal sensitive
+  contents. They fail with `403 reveal_forbidden`. Only you, from the app, the CLI, or a local
+  client, can choose **Show contents**.
+</OperatorNote>
+
+## For agents and scripts
+
+The views read the same daemon routes that scripts can call. Twelve `GET` operations under
+`/api/workspaces/{workspace_id}` cover the tree, file contents, Go to file, content search, and
+session changes. Each has a project form (with an optional `worktree_id`) and a session form. See
+the generated [Workspaces API reference](/docs/api/workspaces) for parameters and response shapes.
+HTTP and UDS expose the same handlers, and the TypeScript and Go clients include them.
+
+Session changes are also available from the terminal and to agents:
+
+- CLI: [`compozy session changes`](/docs/cli/session/changes) prints the summary, and `--patch`
+  adds patches for chosen files.
+- Agents: the `compozy__session_changes` native tool returns the same summary and bounded patches.
+
+There are no file list, read, or search native tools: an agent already reads files through its own
+provider tools.

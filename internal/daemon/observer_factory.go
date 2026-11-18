@@ -31,6 +31,7 @@ func (d *Daemon) applyObserverFactoryDefault() {
 			observe.WithLogger(deps.Logger),
 			observe.WithStartTime(deps.StartedAt),
 			observe.WithObservabilityConfig(deps.Config.Observability),
+			observe.WithEventMetrics(eventMetrics{}),
 			observe.WithAgentProbeSource(
 				agentProbeTargetSource(configState, deps.AgentCatalog, deps.Logger),
 				activeConfig.Observability.AgentProbeTimeoutOrDefault(),

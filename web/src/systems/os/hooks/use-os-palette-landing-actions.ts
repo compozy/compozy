@@ -1,5 +1,9 @@
 import { notifyUser } from "@/lib/user-feedback";
-import { consumeChooseSessionTerminalQuote, requestSessionLinkDialog } from "@/systems/session";
+import {
+  consumeChooseSessionTerminalQuote,
+  requestSessionLinkDialog,
+  requestSessionParentPicker,
+} from "@/systems/session";
 import {
   DESTINATION_COPY,
   ownerDataScope,
@@ -22,6 +26,9 @@ import { useOsShell } from "./use-os-shell";
 
 interface UseOsPaletteLandingActionsOptions {
   close: () => void;
+  /** The palette is choosing a destination: for a New Tab window, or for an empty desktop. */
+  destination: boolean;
+  /** The New Tab window the pick replaces; null on an empty desktop. */
   destinationWindowId: string | null;
   entities: OsPaletteEntities;
   registeredWorkspaces: readonly WorkspacePayload[];
@@ -31,6 +38,7 @@ interface UseOsPaletteLandingActionsOptions {
 
 export function useOsPaletteLandingActions({
   close,
+  destination,
   destinationWindowId,
   entities,
   registeredWorkspaces,
@@ -43,13 +51,20 @@ export function useOsPaletteLandingActions({
     instanceKey?: string;
     route?: OsWindowRoute;
   }) => {
-    if (destinationWindowId === null) return;
+    if (!destination) return;
     windowManagerStore.trigger.paletteIntentCleared();
-    void coordinator
-      .userOpen({ ...target, stackTargetWindowId: destinationWindowId })
-      .then(openedId => {
-        if (openedId !== null) void manager.closeWindow(destinationWindowId);
-      });
+    // An empty desktop has no tab to replace, and another client may have closed the New Tab
+    // already (#1799): either way the pick opens unanchored, with nothing left to close.
+    if (
+      destinationWindowId === null ||
+      manager.getState().windows[destinationWindowId] === undefined
+    ) {
+      void coordinator.userOpen(target);
+      return;
+    }
+    void coordinator.userOpen({ ...target, afterWindowId: destinationWindowId }).then(openedId => {
+      if (openedId !== null) void manager.closeWindow(destinationWindowId);
+    });
   };
   const landSession = (session: OsPaletteSessionResult) => {
     if (session.busy) return;
@@ -73,6 +88,7 @@ export function useOsPaletteLandingActions({
   };
 
   return {
+    destination,
     destinationWindowId,
     goToTab: (windowId: string) => {
       close();
@@ -81,7 +97,7 @@ export function useOsPaletteLandingActions({
     landSession,
     openSession: (session: OsPaletteSessionResult) => {
       if (session.busy) return;
-      if (destinationWindowId !== null) {
+      if (destination) {
         consumeChooseSessionTerminalQuote(session.sessionId);
         close();
         pickDestination({
@@ -101,6 +117,10 @@ export function useOsPaletteLandingActions({
     linkSession: (sessionId: string) => {
       close();
       requestSessionLinkDialog(sessionId);
+    },
+    moveSession: (sessionId: string) => {
+      close();
+      requestSessionParentPicker(sessionId);
     },
     pickDestination,
     selectWorktree: (entry: OsPaletteWorktreeResult) => {

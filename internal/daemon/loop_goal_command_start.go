@@ -237,6 +237,9 @@ func (s *daemonLoopAPIService) resolveGoalRuntime(
 			Field: watchEventsPayloadProviderKey, Value: resolved.Provider, Reason: "unknown_provider",
 		})
 	}
+	if err := requireLoopRuntimeProviderEnabled(&cfg, provider, "goal_start"); err != nil {
+		return nil, err
+	}
 	resolved.Provider = provider
 	if strings.TrimSpace(resolved.Model) == "" {
 		if provider == compozyconfig.CanonicalProviderName(originProvider) {

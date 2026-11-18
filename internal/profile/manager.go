@@ -52,19 +52,20 @@ type AutomationReconciler interface {
 }
 
 type Manager struct {
-	userJournal UserJournalRemover
-	automations AutomationReconciler
-	store       *globaldb.GlobalDB
-	home        compozyconfig.HomePaths
-	now         func() time.Time
-	entropy     io.Reader
-	logger      *slog.Logger
-	events      EventRecorder
-	placements  PlacementCatalog
-	desktops    DesktopPartitionCatalog
-	selections  *selectionStore
-	vaultRefs   *vault.ProfileRefRewriter
-	opMu        sync.Mutex
+	userJournal   UserJournalRemover
+	userArtifacts UserToolArtifactRemover
+	automations   AutomationReconciler
+	store         *globaldb.GlobalDB
+	home          compozyconfig.HomePaths
+	now           func() time.Time
+	entropy       io.Reader
+	logger        *slog.Logger
+	events        EventRecorder
+	placements    PlacementCatalog
+	desktops      DesktopPartitionCatalog
+	selections    *selectionStore
+	vaultRefs     *vault.ProfileRefRewriter
+	opMu          sync.Mutex
 }
 
 type Option func(*Manager) error

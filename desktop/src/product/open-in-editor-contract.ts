@@ -12,6 +12,8 @@ export const MAX_OPEN_ROOTS = 8;
 const MAX_POSITION = 999_999_999;
 
 export const OPEN_IN_EDITOR_ERROR_CODES = [
+  "target_unknown",
+  "target_unavailable",
   "not_found",
   "not_a_file",
   "editor_invalid",
@@ -109,5 +111,35 @@ export function validOpenInEditorResult(value: unknown): value is OpenInEditorRe
     typeof value.code === "string" &&
     ERROR_CODES.has(value.code) &&
     typeof value.message === "string"
+  );
+}
+
+export interface OpenTarget {
+  id: string;
+  label: string;
+  kind: "editor" | "reveal";
+  supportsLine: boolean;
+}
+export interface OpenWithParams extends OpenInEditorParams {
+  target: string;
+}
+export function validOpenWithParams(value: unknown): value is OpenWithParams {
+  if (!isRecord(value) || typeof value.target !== "string" || value.target.length > 64)
+    return false;
+  const { target: _target, ...params } = value;
+  return validOpenInEditorParams(params);
+}
+export function validOpenTargets(value: unknown): value is OpenTarget[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      item =>
+        isRecord(item) &&
+        Object.keys(item).length === 4 &&
+        typeof item.id === "string" &&
+        typeof item.label === "string" &&
+        (item.kind === "editor" || item.kind === "reveal") &&
+        typeof item.supportsLine === "boolean"
+    )
   );
 }

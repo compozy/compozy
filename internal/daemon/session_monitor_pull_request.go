@@ -124,7 +124,8 @@ func monitorPullRequestObservation(
 	}
 	observation := monitorpkg.PullRequestObservation{
 		Lookup: monitorpkg.PullRequestFound, Number: *facts.PRNumber, URL: facts.PRURL,
-		State: *facts.PRState, Head: facts.HeadSHA, ReviewsFailed: facts.ReviewsUnavailable,
+		State: *facts.PRState, Head: facts.HeadSHA, Base: facts.Base, Mergeable: facts.Mergeable,
+		ReviewsFailed: facts.ReviewsUnavailable,
 	}
 	if checks := facts.Checks; checks != nil && checks.State != pullRequestChecksUnknown {
 		observation.Checks = &monitorpkg.PullRequestChecks{

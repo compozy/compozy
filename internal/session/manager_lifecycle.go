@@ -288,98 +288,14 @@ func sessionStoppedTranscriptMarker(event acp.AgentEvent) (string, string, map[s
 	}
 }
 
-// persistFailedStart retains failed sessions so asynchronous startup errors remain inspectable.
-func (m *Manager) persistFailedStart(
-	ctx context.Context,
-	session *Session,
-	startErr error,
-	notify bool,
-) error {
-	if ctx == nil {
-		return errors.New("session: failed start persistence context is required")
-	}
-	if session == nil || startErr == nil {
-		return nil
-	}
-
-	failure := sessionFailureFromError(startErr, store.FailureStartup)
-	var bundleErr error
-	failure, bundleErr = m.attachCrashBundleToFailure(ctx, session, failure, startErr, "")
-	summary := failureSummary(failure, startErr.Error())
-	stopReason := failureStopReason(failure)
-	now := m.now()
-
-	session.setStopClassification(stopReason, summary)
-	session.setFailure(failure)
-	session.markExited(now)
-	session.markStartFailed(now)
-
-	var errs []error
-	errs = appendLifecycleErr(errs, bundleErr)
-	errs = appendLifecycleErr(errs, m.persistSessionLifecycleState(ctx, session, true))
-	errs = appendLifecycleErr(errs, m.recordFailedStartEvents(ctx, session, failure, startErr, stopReason))
-	if notify {
-		m.notifyFailedStart(ctx, session)
-	}
-	return errors.Join(errs...)
-}
-
 func (m *Manager) notifyFailedStart(ctx context.Context, session *Session) {
 	if m.notifier == nil {
 		return
 	}
+	session.lifecycleNotifyMu.Lock()
+	defer session.lifecycleNotifyMu.Unlock()
 	m.notifier.OnSessionCreated(ctx, session)
 	m.notifier.OnSessionStopped(ctx, session)
-}
-
-// recordFailedStartEvents keeps recoverable ACP load negotiation out of the replay transcript.
-func (m *Manager) recordFailedStartEvents(
-	ctx context.Context,
-	session *Session,
-	failure *store.SessionFailure,
-	startErr error,
-	stopReason store.StopReason,
-) error {
-	turnID, err := m.newPromptTurnID()
-	if err != nil {
-		return err
-	}
-	stopTurnID, err := m.newPromptTurnID()
-	if err != nil {
-		return err
-	}
-	summary := failureSummary(failure, startErr.Error())
-	now := m.now()
-	errorEvent := m.normalizeEvent(session, turnID, acp.AgentEvent{
-		Type:      acp.EventTypeError,
-		TurnID:    turnID,
-		Timestamp: now,
-		Error:     summary,
-		Failure:   store.CloneSessionFailure(failure),
-	})
-	stopEvent := m.normalizeEvent(session, stopTurnID, acp.AgentEvent{
-		Type:       EventTypeSessionStopped,
-		TurnID:     stopTurnID,
-		Timestamp:  now,
-		StopReason: string(stopReason),
-		Error:      summary,
-		Failure:    store.CloneSessionFailure(failure),
-	})
-	if err := errors.Join(
-		m.recordEvent(ctx, session, errorEvent),
-		m.recordEvent(ctx, session, stopEvent),
-	); err != nil {
-		return err
-	}
-	if acp.IsLoadSessionResourceMissing(startErr) || errors.Is(startErr, acp.ErrAgentDoesNotSupportSession) {
-		return nil
-	}
-	if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(stopEvent); ok {
-		return m.recordTranscriptMarker(ctx, session, stopTurnID, transcriptMarkerInput{
-			Kind: kind, Summary: summary, Evidence: evidence,
-		})
-	}
-	return nil
 }
 
 func (m *Manager) closeSessionRecorder(session *Session) error {

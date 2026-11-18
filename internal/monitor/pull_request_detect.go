@@ -32,12 +32,21 @@ func detectPullRequest(cur prCursor, obs PullRequestObservation, now time.Time) 
 		next.EndedNumber = obs.Number
 		return PullRequestChanges{}, next
 	}
-	changes := PullRequestChanges{Number: obs.Number, URL: obs.URL, State: obs.State, Head: obs.Head}
+	changes := PullRequestChanges{Number: obs.Number, URL: obs.URL, State: obs.State, Head: obs.Head, Base: obs.Base}
 	next = resetForNewPullRequest(next, obs)
 	next.URL = obs.URL
 	if terminal {
 		changes.Terminal, changes.Wake = obs.State, true
 		return flushBurst(changes, next)
+	}
+	switch obs.Mergeable {
+	case "conflicting":
+		changes.Conflict = !next.Conflicting
+		changes.Wake = changes.Conflict
+		next.Conflicting = true
+	case "mergeable":
+		changes.ConflictCleared = true
+		next.Conflicting = false
 	}
 	next = detectChecks(&changes, next, obs.Checks)
 	next = detectReviews(&changes, next, obs, now, missedReads)
@@ -64,11 +73,12 @@ func detectOutage(cur prCursor, obs PullRequestObservation, now time.Time) (Pull
 // resetForNewPullRequest drops what belongs to a superseded head. A new head does not wake by itself, and
 // a different pull request on the branch also starts a new review baseline.
 func resetForNewPullRequest(next prCursor, obs PullRequestObservation) prCursor {
-	if next.Number == obs.Number && next.Head == obs.Head {
+	if next.Number == obs.Number && (obs.Head == "" || next.Head == obs.Head) {
 		return next
 	}
 	if next.Number != obs.Number {
 		next.ReviewsBaselined, next.Burst = false, nil
+		next.Conflicting = false
 		next.SeenReviews, next.SeenThreads = nil, nil
 	}
 	if burst := next.Burst; burst != nil {
@@ -83,7 +93,8 @@ func resetForNewPullRequest(next prCursor, obs PullRequestObservation) prCursor 
 		next.Burst = nil
 	}
 	next.Number, next.Head = obs.Number, obs.Head
-	next.Failed, next.FailedNames, next.Finished = 0, nil, false
+	next.Failed, next.FailedNames, next.Finished, next.FinishedTotal = 0, nil, false, 0
+	next.SmallerFailed, next.SmallerFailedNames = 0, nil
 	return next
 }
 
@@ -94,10 +105,27 @@ func detectChecks(changes *PullRequestChanges, next prCursor, checks *PullReques
 	changes.ChecksKnown = true
 	changes.Passed, changes.Failed, changes.Pending = checks.Passed, checks.Failed, checks.Pending
 	changes.FailedNames = checks.FailedNames
+	total := checks.Passed + checks.Failed
+	if checks.Pending == 0 && total == 0 {
+		return next
+	}
+	if checks.Pending > 0 {
+		// A pending read starts a new round for failures seen only in smaller snapshots.
+		next.SmallerFailed, next.SmallerFailedNames = 0, nil
+	}
+	var newFailureName bool
 	for _, name := range checks.FailedNames {
-		if !slices.Contains(next.FailedNames, name) {
+		if slices.Contains(next.FailedNames, name) {
+			continue
+		}
+		newFailureName = true
+		if !slices.Contains(next.SmallerFailedNames, name) {
 			changes.NewlyFailed = append(changes.NewlyFailed, name)
 		}
+	}
+	changes.FailureRose = checks.Failed > max(next.Failed, next.SmallerFailed)
+	if checks.Pending == 0 && total < next.FinishedTotal {
+		return rememberSmallerCheckFailures(changes, next, checks)
 	}
 	// With more failures than names, a named failure that goes away while the total holds means an unnamed
 	// one took its place. Comparing against the stored names reports that swap once.
@@ -105,14 +133,47 @@ func detectChecks(changes *PullRequestChanges, next prCursor, checks *PullReques
 		slices.ContainsFunc(next.FailedNames, func(name string) bool {
 			return !slices.Contains(checks.FailedNames, name)
 		})
-	changes.FailureRose = swapped || checks.Failed > next.Failed
-	if len(changes.NewlyFailed) > 0 || changes.FailureRose {
-		changes.Wake = true
-	}
+	changes.FailureRose = changes.FailureRose || swapped
+	changes.Wake = changes.Wake || len(changes.NewlyFailed) > 0 || changes.FailureRose
+	next = trackCheckRound(changes, next, total, newFailureName || swapped)
 	next.Failed, next.FailedNames = checks.Failed, checks.FailedNames
-	if checks.Pending == 0 && checks.Passed+checks.Failed > 0 && !next.Finished {
-		next.Finished, changes.AllFinished, changes.Wake = true, true, true
+	return next
+}
+
+func trackCheckRound(changes *PullRequestChanges, next prCursor, total int, newFailure bool) prCursor {
+	if changes.Pending > 0 {
+		next.Finished, next.FinishedTotal = false, 0
+		return next
 	}
+	// Late checks and reruns can finish between polls and only change the completed summary.
+	grew := next.FinishedTotal > 0 && total > next.FinishedTotal
+	if !next.Finished || grew || changes.Failed != next.Failed || newFailure {
+		next.Finished, next.FinishedTotal = true, total
+		next.SmallerFailed, next.SmallerFailedNames = 0, nil
+		changes.AllFinished, changes.Wake = true, true
+	} else if next.FinishedTotal == 0 {
+		next.FinishedTotal = total
+	}
+	return next
+}
+
+func rememberSmallerCheckFailures(changes *PullRequestChanges, next prCursor, checks *PullRequestChecks) prCursor {
+	if !changes.FailureRose && len(changes.NewlyFailed) == 0 {
+		return next
+	}
+	changes.Wake = true
+	next.SmallerFailed = max(next.SmallerFailed, checks.Failed)
+	// Keep the latest observation intact when older names exceed the cursor's budget.
+	names := slices.Clone(checks.FailedNames)
+	for _, name := range next.SmallerFailedNames {
+		if len(names) >= maxTrackedFailedNames {
+			break
+		}
+		if !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
+	next.SmallerFailedNames = names
 	return next
 }
 
@@ -246,6 +307,7 @@ func flushBurst(changes PullRequestChanges, next prCursor) (PullRequestChanges, 
 // mergePullRequestChanges folds what later reports into what is already waiting for the next fire. It
 // keeps everything the agent still has to hear, except what a new head or pull request superseded.
 func mergePullRequestChanges(carry, later PullRequestChanges) PullRequestChanges {
+	carry, later = reconcileQueuedConflict(carry, later)
 	if carry.Head != "" && later.Head != "" && (carry.Head != later.Head || carry.Number != later.Number) {
 		carry = PullRequestChanges{}
 	}
@@ -269,6 +331,10 @@ func mergePullRequestChanges(carry, later PullRequestChanges) PullRequestChanges
 		}
 	}
 	merged = mergeReviewActivity(carry, later, merged)
+	merged.Conflict = merged.Conflict || carry.Conflict
+	if merged.Base == "" {
+		merged.Base = carry.Base
+	}
 	merged.FailureRose = merged.FailureRose || carry.FailureRose
 	merged.AllFinished = merged.AllFinished || carry.AllFinished
 	merged.ForgeDown = merged.ForgeDown || carry.ForgeDown
@@ -285,4 +351,25 @@ func mergeReviewActivity(first, second, into PullRequestChanges) PullRequestChan
 	into.Reviews = reviews[max(len(reviews)-maxBurstReviews, 0):]
 	into.NewThreads = first.NewThreads + second.NewThreads
 	return into
+}
+
+func reconcileQueuedConflict(carry, later PullRequestChanges) (PullRequestChanges, PullRequestChanges) {
+	if !carry.Conflict || carry.Number != later.Number {
+		return carry, later
+	}
+	switch {
+	case later.ConflictCleared:
+		carry.Conflict = false
+		carry.Wake = len(carry.NewlyFailed) > 0 || carry.FailureRose || carry.AllFinished ||
+			len(carry.Reviews) > 0 || carry.NewThreads > 0 || carry.Terminal != "" ||
+			carry.ForgeDown || carry.ReviewsDown || carry.TimedOut || carry.FireCapHit
+	case later.Head != "" && carry.Head != later.Head:
+		if later.Base == "" {
+			later.Base = carry.Base
+		}
+		later.Conflict, later.Wake = true, true
+	case later.Base != "":
+		carry.Base = later.Base
+	}
+	return carry, later
 }

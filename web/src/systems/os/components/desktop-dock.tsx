@@ -37,7 +37,7 @@ const WAKE =
   "transition-[opacity,filter] duration-shell-slow ease-spring motion-reduce:transition-none";
 
 /**
- * The wired dock: floating renders the left rail beside the desktop; compact
+ * The wired dock: the split presentation renders the left rail beside the desk; compact
  * renders the full-width bottom tab bar. Each claims its own row/column of the
  * shell grid (`DesktopShellScopedBody`) and carries the rail-foot controls.
  * Entries and activation semantics live in `useDesktopDock`.
@@ -67,7 +67,7 @@ export function DesktopDock({
   if (presentation === "compact") {
     return (
       <OsDockTabBar
-        className={cn("col-span-full row-start-3", dormancy)}
+        className={cn("col-span-full row-start-4", dormancy)}
         items={entries}
         onSelect={handleSelect}
         onPreload={canPreload ? handlePreload : undefined}
@@ -86,7 +86,7 @@ export function DesktopDock({
 
   return (
     <OsDock
-      className={cn("col-start-1 row-start-2", dormancy)}
+      className={cn("col-start-1 row-span-2 row-start-2", dormancy)}
       items={entries}
       onSelect={handleSelect}
       onPreload={canPreload ? handlePreload : undefined}

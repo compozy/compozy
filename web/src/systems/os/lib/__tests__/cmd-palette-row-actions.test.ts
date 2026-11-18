@@ -81,7 +81,6 @@ const TAB: OsPaletteTabResult = {
   label: "Tasks",
   desktopName: "Alpha",
   needsInput: false,
-  minimized: false,
 };
 
 const DOMAIN_ROW: OsPaletteDomainRow = {

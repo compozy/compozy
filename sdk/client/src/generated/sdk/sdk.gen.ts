@@ -49,6 +49,9 @@ import type {
   ApplySettingsUpdateData,
   ApplySettingsUpdateErrors,
   ApplySettingsUpdateResponses,
+  ApproveAgentHeartbeatAuthorityData,
+  ApproveAgentHeartbeatAuthorityErrors,
+  ApproveAgentHeartbeatAuthorityResponses,
   ApproveAgentHeartbeatScriptData,
   ApproveAgentHeartbeatScriptErrors,
   ApproveAgentHeartbeatScriptResponses,
@@ -109,6 +112,9 @@ import type {
   BulkForceReleaseTaskRunsData,
   BulkForceReleaseTaskRunsErrors,
   BulkForceReleaseTaskRunsResponses,
+  CancelAutomationRunData,
+  CancelAutomationRunErrors,
+  CancelAutomationRunResponses,
   CancelLoopNodeData,
   CancelLoopNodeErrors,
   CancelLoopNodeResponses,
@@ -151,6 +157,12 @@ import type {
   CheckAgentInstanceData,
   CheckAgentInstanceErrors,
   CheckAgentInstanceResponses,
+  CheckSessionMCPData,
+  CheckSessionMCPErrors,
+  CheckSessionMCPResponses,
+  CheckSettingsMCPServerData,
+  CheckSettingsMCPServerErrors,
+  CheckSettingsMCPServerResponses,
   CheckSettingsUpdateData,
   CheckSettingsUpdateErrors,
   CheckSettingsUpdateResponses,
@@ -292,12 +304,18 @@ import type {
   DeleteSettingsHookData,
   DeleteSettingsHookErrors,
   DeleteSettingsHookResponses,
+  DeleteSettingsMCPApprovalData,
+  DeleteSettingsMCPApprovalErrors,
+  DeleteSettingsMCPApprovalResponses,
   DeleteSettingsMCPServerData,
   DeleteSettingsMCPServerErrors,
   DeleteSettingsMCPServerResponses,
   DeleteSettingsProviderData,
   DeleteSettingsProviderErrors,
   DeleteSettingsProviderResponses,
+  DeleteSubagentData,
+  DeleteSubagentErrors,
+  DeleteSubagentResponses,
   DeleteTaskData,
   DeleteTaskErrors,
   DeleteTaskExecutionProfileData,
@@ -403,6 +421,12 @@ import type {
   FanOutTaskRunsData,
   FanOutTaskRunsErrors,
   FanOutTaskRunsResponses,
+  FindFilesData,
+  FindFilesErrors,
+  FindFilesResponses,
+  FindSessionFilesData,
+  FindSessionFilesErrors,
+  FindSessionFilesResponses,
   ForceFailTaskRunData,
   ForceFailTaskRunErrors,
   ForceFailTaskRunResponses,
@@ -432,6 +456,9 @@ import type {
   GetAgentDefinitionSoulErrors,
   GetAgentDefinitionSoulResponses,
   GetAgentErrors,
+  GetAgentHeartbeatAuthorityData,
+  GetAgentHeartbeatAuthorityErrors,
+  GetAgentHeartbeatAuthorityResponses,
   GetAgentHeartbeatData,
   GetAgentHeartbeatErrors,
   GetAgentHeartbeatResponses,
@@ -556,6 +583,9 @@ import type {
   GetMarketplaceCatalogEntryData,
   GetMarketplaceCatalogEntryErrors,
   GetMarketplaceCatalogEntryResponses,
+  GetMarketplaceSectionsData,
+  GetMarketplaceSectionsErrors,
+  GetMarketplaceSectionsResponses,
   GetObserveOverviewData,
   GetObserveOverviewErrors,
   GetObserveOverviewResponses,
@@ -609,6 +639,15 @@ import type {
   GetSessionByIDData,
   GetSessionByIDErrors,
   GetSessionByIDResponses,
+  GetSessionChangeContentsData,
+  GetSessionChangeContentsErrors,
+  GetSessionChangeContentsResponses,
+  GetSessionChangePatchesData,
+  GetSessionChangePatchesErrors,
+  GetSessionChangePatchesResponses,
+  GetSessionChangesData,
+  GetSessionChangesErrors,
+  GetSessionChangesResponses,
   GetSessionCommandsData,
   GetSessionCommandsErrors,
   GetSessionCommandsResponses,
@@ -620,9 +659,15 @@ import type {
   GetSessionHealthData,
   GetSessionHealthErrors,
   GetSessionHealthResponses,
+  GetSessionHistoryCleanupData,
+  GetSessionHistoryCleanupErrors,
+  GetSessionHistoryCleanupResponses,
   GetSessionHistoryData,
   GetSessionHistoryErrors,
   GetSessionHistoryResponses,
+  GetSessionMCPData,
+  GetSessionMCPErrors,
+  GetSessionMCPResponses,
   GetSessionOwnerData,
   GetSessionOwnerErrors,
   GetSessionOwnerResponses,
@@ -753,6 +798,9 @@ import type {
   GetVaultSecretMetadataData,
   GetVaultSecretMetadataErrors,
   GetVaultSecretMetadataResponses,
+  GetWindowManagerMigrationData,
+  GetWindowManagerMigrationErrors,
+  GetWindowManagerMigrationResponses,
   GetWindowManagerSnapshotData,
   GetWindowManagerSnapshotErrors,
   GetWindowManagerSnapshotResponses,
@@ -771,6 +819,9 @@ import type {
   HeartbeatAgentTaskRunData,
   HeartbeatAgentTaskRunErrors,
   HeartbeatAgentTaskRunResponses,
+  ImportRuntimeMCPServerData,
+  ImportRuntimeMCPServerErrors,
+  ImportRuntimeMCPServerResponses,
   InspectRunData,
   InspectRunErrors,
   InspectRunResponses,
@@ -867,6 +918,9 @@ import type {
   ListExtensionSecretsResponses,
   ListExtensionsErrors,
   ListExtensionsResponses,
+  ListFileEntriesData,
+  ListFileEntriesErrors,
+  ListFileEntriesResponses,
   ListGatewayDevicesData,
   ListGatewayDevicesErrors,
   ListGatewayDevicesResponses,
@@ -942,6 +996,12 @@ import type {
   ListRolesData,
   ListRolesErrors,
   ListRolesResponses,
+  ListRuntimeMCPServersData,
+  ListRuntimeMCPServersErrors,
+  ListRuntimeMCPServersResponses,
+  ListSessionChangeBasesData,
+  ListSessionChangeBasesErrors,
+  ListSessionChangeBasesResponses,
   ListSessionClarificationsData,
   ListSessionClarificationsErrors,
   ListSessionClarificationsResponses,
@@ -954,6 +1014,9 @@ import type {
   ListSessionFacetsData,
   ListSessionFacetsErrors,
   ListSessionFacetsResponses,
+  ListSessionFileEntriesData,
+  ListSessionFileEntriesErrors,
+  ListSessionFileEntriesResponses,
   ListSessionFoldersData,
   ListSessionFoldersErrors,
   ListSessionFoldersResponses,
@@ -1113,9 +1176,15 @@ import type {
   PauseTaskData,
   PauseTaskErrors,
   PauseTaskResponses,
+  PickAgentInstanceProposalData,
+  PickAgentInstanceProposalErrors,
+  PickAgentInstanceProposalResponses,
   PinCmdPaletteCommandData,
   PinCmdPaletteCommandErrors,
   PinCmdPaletteCommandResponses,
+  PlanSessionHistoryCleanupData,
+  PlanSessionHistoryCleanupErrors,
+  PlanSessionHistoryCleanupResponses,
   PrepareProfileArchiveData,
   PrepareProfileArchiveErrors,
   PrepareProfileArchiveResponses,
@@ -1179,6 +1248,9 @@ import type {
   PutSettingsHookData,
   PutSettingsHookErrors,
   PutSettingsHookResponses,
+  PutSettingsMCPApprovalData,
+  PutSettingsMCPApprovalErrors,
+  PutSettingsMCPApprovalResponses,
   PutSettingsMCPServerData,
   PutSettingsMCPServerErrors,
   PutSettingsMCPServerResponses,
@@ -1194,9 +1266,21 @@ import type {
   QueryTerminalJournalData,
   QueryTerminalJournalErrors,
   QueryTerminalJournalResponses,
+  ReadFileBytesData,
+  ReadFileBytesErrors,
+  ReadFileBytesResponses,
+  ReadFileContentData,
+  ReadFileContentErrors,
+  ReadFileContentResponses,
   ReadSessionAttachmentBytesData,
   ReadSessionAttachmentBytesErrors,
   ReadSessionAttachmentBytesResponses,
+  ReadSessionFileBytesData,
+  ReadSessionFileBytesErrors,
+  ReadSessionFileBytesResponses,
+  ReadSessionFileContentData,
+  ReadSessionFileContentErrors,
+  ReadSessionFileContentResponses,
   ReadTaskRunResultData,
   ReadTaskRunResultErrors,
   ReadTaskRunResultResponses,
@@ -1206,6 +1290,9 @@ import type {
   ReadToolArtifactData,
   ReadToolArtifactErrors,
   ReadToolArtifactResponses,
+  ReadWorktreeFileBytesData,
+  ReadWorktreeFileBytesErrors,
+  ReadWorktreeFileBytesResponses,
   RecordCmdPaletteUsageData,
   RecordCmdPaletteUsageErrors,
   RecordCmdPaletteUsageResponses,
@@ -1284,6 +1371,9 @@ import type {
   RemoveWorktreeData,
   RemoveWorktreeErrors,
   RemoveWorktreeResponses,
+  RemoveWorktreesData,
+  RemoveWorktreesErrors,
+  RemoveWorktreesResponses,
   RenameGatewayDeviceData,
   RenameGatewayDeviceErrors,
   RenameGatewayDeviceResponses,
@@ -1371,6 +1461,9 @@ import type {
   RetryTaskRunData,
   RetryTaskRunErrors,
   RetryTaskRunResponses,
+  RevokeAgentHeartbeatAuthorityData,
+  RevokeAgentHeartbeatAuthorityErrors,
+  RevokeAgentHeartbeatAuthorityResponses,
   RevokeAgentHeartbeatScriptData,
   RevokeAgentHeartbeatScriptErrors,
   RevokeAgentHeartbeatScriptResponses,
@@ -1404,9 +1497,15 @@ import type {
   SearchAgentMemoryData,
   SearchAgentMemoryErrors,
   SearchAgentMemoryResponses,
+  SearchFileContentsData,
+  SearchFileContentsErrors,
+  SearchFileContentsResponses,
   SearchGlobalSessionTranscriptData,
   SearchGlobalSessionTranscriptErrors,
   SearchGlobalSessionTranscriptResponses,
+  SearchSessionFileContentsData,
+  SearchSessionFileContentsErrors,
+  SearchSessionFileContentsResponses,
   SearchSessionFilesData,
   SearchSessionFilesErrors,
   SearchSessionFilesResponses,
@@ -1437,6 +1536,9 @@ import type {
   SetSessionRuntimeData,
   SetSessionRuntimeErrors,
   SetSessionRuntimeResponses,
+  SetSettingsProviderEnabledData,
+  SetSettingsProviderEnabledErrors,
+  SetSettingsProviderEnabledResponses,
   SetTaskExecutionProfileData,
   SetTaskExecutionProfileErrors,
   SetTaskExecutionProfileResponses,
@@ -1466,6 +1568,9 @@ import type {
   SteerSessionPromptResponses,
   StopSessionData,
   StopSessionErrors,
+  StopSessionHistoryCleanupData,
+  StopSessionHistoryCleanupErrors,
+  StopSessionHistoryCleanupResponses,
   StopSessionResponses,
   SubmitTaskRunReviewVerdictData,
   SubmitTaskRunReviewVerdictErrors,
@@ -1581,6 +1686,9 @@ import type {
   UpdateTaskData,
   UpdateTaskErrors,
   UpdateTaskResponses,
+  UpdateWindowManagerMigrationData,
+  UpdateWindowManagerMigrationErrors,
+  UpdateWindowManagerMigrationResponses,
   UpdateWorkspaceData,
   UpdateWorkspaceErrors,
   UpdateWorkspaceResponses,
@@ -1961,6 +2069,33 @@ export class agents extends HeyApiClient {
       responseStyle: "data",
       url: "/api/agent-instances/{id}/reports",
       ...options,
+    });
+  }
+
+  /**
+   * Pick an instance proposal
+   */
+  public pickAgentInstanceProposal<ThrowOnError extends boolean = true>(
+    options: Options<PickAgentInstanceProposalData, ThrowOnError>
+  ): RequestResult<
+    PickAgentInstanceProposalResponses,
+    PickAgentInstanceProposalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      PickAgentInstanceProposalResponses,
+      PickAgentInstanceProposalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/reports/{report_id}/pick",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 
@@ -2359,6 +2494,79 @@ export class agents extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/agents/{name}/heartbeat",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * show check-in authority
+   */
+  public getAgentHeartbeatAuthority<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentHeartbeatAuthorityData, ThrowOnError>
+  ): RequestResult<
+    GetAgentHeartbeatAuthorityResponses,
+    GetAgentHeartbeatAuthorityErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetAgentHeartbeatAuthorityResponses,
+      GetAgentHeartbeatAuthorityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/authority",
+      ...options,
+    });
+  }
+
+  /**
+   * revoke check-in authority
+   */
+  public revokeAgentHeartbeatAuthority<ThrowOnError extends boolean = true>(
+    options: Options<RevokeAgentHeartbeatAuthorityData, ThrowOnError>
+  ): RequestResult<
+    RevokeAgentHeartbeatAuthorityResponses,
+    RevokeAgentHeartbeatAuthorityErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      RevokeAgentHeartbeatAuthorityResponses,
+      RevokeAgentHeartbeatAuthorityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/authority/approve",
+      ...options,
+    });
+  }
+
+  /**
+   * approve check-in authority
+   */
+  public approveAgentHeartbeatAuthority<ThrowOnError extends boolean = true>(
+    options: Options<ApproveAgentHeartbeatAuthorityData, ThrowOnError>
+  ): RequestResult<
+    ApproveAgentHeartbeatAuthorityResponses,
+    ApproveAgentHeartbeatAuthorityErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ApproveAgentHeartbeatAuthorityResponses,
+      ApproveAgentHeartbeatAuthorityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/authority/approve",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -3415,7 +3623,7 @@ export class automation extends HeyApiClient {
   }
 
   /**
-   * Trigger one automation job immediately
+   * Start one automation job and return its admission receipt
    */
   public triggerAutomationJob<ThrowOnError extends boolean = true>(
     options: Options<TriggerAutomationJobData, ThrowOnError>
@@ -3469,6 +3677,24 @@ export class automation extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/automation/runs/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Cancel an orphaned automation run
+   */
+  public cancelAutomationRun<ThrowOnError extends boolean = true>(
+    options: Options<CancelAutomationRunData, ThrowOnError>
+  ): RequestResult<CancelAutomationRunResponses, CancelAutomationRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CancelAutomationRunResponses,
+      CancelAutomationRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/automation/runs/{id}/cancel",
       ...options,
     });
   }
@@ -5962,6 +6188,29 @@ export class marketplace extends HeyApiClient {
   }
 
   /**
+   * Browse Featured and category sections
+   */
+  public getMarketplaceSections<ThrowOnError extends boolean = true>(
+    options?: Options<GetMarketplaceSectionsData, ThrowOnError>
+  ): RequestResult<
+    GetMarketplaceSectionsResponses,
+    GetMarketplaceSectionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      GetMarketplaceSectionsResponses,
+      GetMarketplaceSectionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/marketplace/sections",
+      ...options,
+    });
+  }
+
+  /**
    * List global plugin marketplace sources
    *
    * @stability experimental
@@ -6638,6 +6887,56 @@ export class settings extends HeyApiClient {
   }
 
   /**
+   * Revoke workspace MCP consent
+   */
+  public deleteSettingsMCPApproval<ThrowOnError extends boolean = true>(
+    options: Options<DeleteSettingsMCPApprovalData, ThrowOnError>
+  ): RequestResult<
+    DeleteSettingsMCPApprovalResponses,
+    DeleteSettingsMCPApprovalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      DeleteSettingsMCPApprovalResponses,
+      DeleteSettingsMCPApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/mcp-servers/{name}/approval",
+      ...options,
+    });
+  }
+
+  /**
+   * Approve an exact workspace MCP definition
+   */
+  public putSettingsMCPApproval<ThrowOnError extends boolean = true>(
+    options: Options<PutSettingsMCPApprovalData, ThrowOnError>
+  ): RequestResult<
+    PutSettingsMCPApprovalResponses,
+    PutSettingsMCPApprovalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).put<
+      PutSettingsMCPApprovalResponses,
+      PutSettingsMCPApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/mcp-servers/{name}/approval",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * Begin daemon-mediated OAuth for one MCP server
    */
   public beginSettingsMCPAuth<ThrowOnError extends boolean = true>(
@@ -6733,6 +7032,29 @@ export class settings extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/settings/mcp-servers/{name}/auth/status",
+      ...options,
+    });
+  }
+
+  /**
+   * Retry one scoped MCP server runtime probe
+   */
+  public checkSettingsMCPServer<ThrowOnError extends boolean = true>(
+    options: Options<CheckSettingsMCPServerData, ThrowOnError>
+  ): RequestResult<
+    CheckSettingsMCPServerResponses,
+    CheckSettingsMCPServerErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      CheckSettingsMCPServerResponses,
+      CheckSettingsMCPServerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/mcp-servers/{name}/check",
       ...options,
     });
   }
@@ -6969,6 +7291,33 @@ export class settings extends HeyApiClient {
   }
 
   /**
+   * Enable or disable one provider
+   */
+  public setSettingsProviderEnabled<ThrowOnError extends boolean = true>(
+    options: Options<SetSettingsProviderEnabledData, ThrowOnError>
+  ): RequestResult<
+    SetSettingsProviderEnabledResponses,
+    SetSettingsProviderEnabledErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).patch<
+      SetSettingsProviderEnabledResponses,
+      SetSettingsProviderEnabledErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/providers/{name}/enabled",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * Reconcile config.toml with the daemon active generation
    */
   public reloadSettings<ThrowOnError extends boolean = true>(
@@ -7018,6 +7367,56 @@ export class settings extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/settings/roles",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List runtime MCP servers from native configuration files
+   */
+  public listRuntimeMCPServers<ThrowOnError extends boolean = true>(
+    options?: Options<ListRuntimeMCPServersData, ThrowOnError>
+  ): RequestResult<
+    ListRuntimeMCPServersResponses,
+    ListRuntimeMCPServersErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListRuntimeMCPServersResponses,
+      ListRuntimeMCPServersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/runtime-mcp-servers",
+      ...options,
+    });
+  }
+
+  /**
+   * Copy a runtime MCP server into CompozyOS
+   */
+  public importRuntimeMCPServer<ThrowOnError extends boolean = true>(
+    options: Options<ImportRuntimeMCPServerData, ThrowOnError>
+  ): RequestResult<
+    ImportRuntimeMCPServerResponses,
+    ImportRuntimeMCPServerErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ImportRuntimeMCPServerResponses,
+      ImportRuntimeMCPServerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/runtime-mcp-servers/{runtime}/{name}/import",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -7874,6 +8273,79 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/sessions/facets",
+      ...options,
+    });
+  }
+
+  /**
+   * Get the selected profile's running or most recent archived-history cleanup
+   */
+  public getSessionHistoryCleanup<ThrowOnError extends boolean = true>(
+    options?: Options<GetSessionHistoryCleanupData, ThrowOnError>
+  ): RequestResult<
+    GetSessionHistoryCleanupResponses,
+    GetSessionHistoryCleanupErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      GetSessionHistoryCleanupResponses,
+      GetSessionHistoryCleanupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/history-cleanup",
+      ...options,
+    });
+  }
+
+  /**
+   * Preview (dry_run) or start the background deletion of archived sessions archived before a cutoff: whole threads, or only their child sessions or subagents
+   */
+  public planSessionHistoryCleanup<ThrowOnError extends boolean = true>(
+    options: Options<PlanSessionHistoryCleanupData, ThrowOnError>
+  ): RequestResult<
+    PlanSessionHistoryCleanupResponses,
+    PlanSessionHistoryCleanupErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      PlanSessionHistoryCleanupResponses,
+      PlanSessionHistoryCleanupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/history-cleanup",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Stop the selected profile's running cleanup; sessions already deleted stay deleted
+   */
+  public stopSessionHistoryCleanup<ThrowOnError extends boolean = true>(
+    options?: Options<StopSessionHistoryCleanupData, ThrowOnError>
+  ): RequestResult<
+    StopSessionHistoryCleanupResponses,
+    StopSessionHistoryCleanupErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).post<
+      StopSessionHistoryCleanupResponses,
+      StopSessionHistoryCleanupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/history-cleanup/stop",
       ...options,
     });
   }
@@ -8902,6 +9374,42 @@ export class sessions extends HeyApiClient {
   }
 
   /**
+   * Read session MCP availability without discovery; redacted definition previews appear only for waiting approval and never for app tokens
+   */
+  public getSessionMCP<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionMCPData, ThrowOnError>
+  ): RequestResult<GetSessionMCPResponses, GetSessionMCPErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionMCPResponses,
+      GetSessionMCPErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp",
+      ...options,
+    });
+  }
+
+  /**
+   * Retry discovery for one session MCP server without restarting the runtime
+   */
+  public checkSessionMCP<ThrowOnError extends boolean = true>(
+    options: Options<CheckSessionMCPData, ThrowOnError>
+  ): RequestResult<CheckSessionMCPResponses, CheckSessionMCPErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CheckSessionMCPResponses,
+      CheckSessionMCPErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check",
+      ...options,
+    });
+  }
+
+  /**
    * List a session's monitors
    */
   public listSessionMonitors<ThrowOnError extends boolean = true>(
@@ -9748,6 +10256,24 @@ export class sessions extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * Delete a delegated subagent and its child session
+   */
+  public deleteSubagent<ThrowOnError extends boolean = true>(
+    options: Options<DeleteSubagentData, ThrowOnError>
+  ): RequestResult<DeleteSubagentResponses, DeleteSubagentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      DeleteSubagentResponses,
+      DeleteSubagentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/subagents/{subagent_id}",
+      ...options,
     });
   }
 
@@ -12014,6 +12540,293 @@ export class workspaces extends HeyApiClient {
   }
 
   /**
+   * Read project file content
+   */
+  public readFileContent<ThrowOnError extends boolean = true>(
+    options: Options<ReadFileContentData, ThrowOnError>
+  ): RequestResult<ReadFileContentResponses, ReadFileContentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ReadFileContentResponses,
+      ReadFileContentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/content",
+      ...options,
+    });
+  }
+
+  /**
+   * List project file entries
+   */
+  public listFileEntries<ThrowOnError extends boolean = true>(
+    options: Options<ListFileEntriesData, ThrowOnError>
+  ): RequestResult<ListFileEntriesResponses, ListFileEntriesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListFileEntriesResponses,
+      ListFileEntriesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/entries",
+      ...options,
+    });
+  }
+
+  /**
+   * Find project files
+   */
+  public findFiles<ThrowOnError extends boolean = true>(
+    options: Options<FindFilesData, ThrowOnError>
+  ): RequestResult<FindFilesResponses, FindFilesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      FindFilesResponses,
+      FindFilesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/find",
+      ...options,
+    });
+  }
+
+  /**
+   * Stream project file bytes
+   */
+  public readFileBytes<ThrowOnError extends boolean = true>(
+    options: Options<ReadFileBytesData, ThrowOnError>
+  ): RequestResult<ReadFileBytesResponses, ReadFileBytesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ReadFileBytesResponses,
+      ReadFileBytesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/raw/{path}",
+      ...options,
+    });
+  }
+
+  /**
+   * Search project file contents
+   */
+  public searchFileContents<ThrowOnError extends boolean = true>(
+    options: Options<SearchFileContentsData, ThrowOnError>
+  ): RequestResult<SearchFileContentsResponses, SearchFileContentsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      SearchFileContentsResponses,
+      SearchFileContentsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/search",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public getSessionChanges<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionChangesData, ThrowOnError>
+  ): RequestResult<GetSessionChangesResponses, GetSessionChangesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionChangesResponses,
+      GetSessionChangesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public listSessionChangeBases<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionChangeBasesData, ThrowOnError>
+  ): RequestResult<
+    ListSessionChangeBasesResponses,
+    ListSessionChangeBasesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionChangeBasesResponses,
+      ListSessionChangeBasesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/bases",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public getSessionChangeContents<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionChangeContentsData, ThrowOnError>
+  ): RequestResult<
+    GetSessionChangeContentsResponses,
+    GetSessionChangeContentsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetSessionChangeContentsResponses,
+      GetSessionChangeContentsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public getSessionChangePatches<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionChangePatchesData, ThrowOnError>
+  ): RequestResult<
+    GetSessionChangePatchesResponses,
+    GetSessionChangePatchesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetSessionChangePatchesResponses,
+      GetSessionChangePatchesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches",
+      ...options,
+    });
+  }
+
+  /**
+   * Read project file content
+   */
+  public readSessionFileContent<ThrowOnError extends boolean = true>(
+    options: Options<ReadSessionFileContentData, ThrowOnError>
+  ): RequestResult<
+    ReadSessionFileContentResponses,
+    ReadSessionFileContentErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ReadSessionFileContentResponses,
+      ReadSessionFileContentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content",
+      ...options,
+    });
+  }
+
+  /**
+   * List project file entries
+   */
+  public listSessionFileEntries<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionFileEntriesData, ThrowOnError>
+  ): RequestResult<
+    ListSessionFileEntriesResponses,
+    ListSessionFileEntriesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionFileEntriesResponses,
+      ListSessionFileEntriesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries",
+      ...options,
+    });
+  }
+
+  /**
+   * Find project files
+   */
+  public findSessionFiles<ThrowOnError extends boolean = true>(
+    options: Options<FindSessionFilesData, ThrowOnError>
+  ): RequestResult<FindSessionFilesResponses, FindSessionFilesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      FindSessionFilesResponses,
+      FindSessionFilesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find",
+      ...options,
+    });
+  }
+
+  /**
+   * Stream session file bytes
+   */
+  public readSessionFileBytes<ThrowOnError extends boolean = true>(
+    options: Options<ReadSessionFileBytesData, ThrowOnError>
+  ): RequestResult<
+    ReadSessionFileBytesResponses,
+    ReadSessionFileBytesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ReadSessionFileBytesResponses,
+      ReadSessionFileBytesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/raw/{path}",
+      ...options,
+    });
+  }
+
+  /**
+   * Search project file contents
+   */
+  public searchSessionFileContents<ThrowOnError extends boolean = true>(
+    options: Options<SearchSessionFileContentsData, ThrowOnError>
+  ): RequestResult<
+    SearchSessionFileContentsResponses,
+    SearchSessionFileContentsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      SearchSessionFileContentsResponses,
+      SearchSessionFileContentsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search",
+      ...options,
+    });
+  }
+
+  /**
    * List workspace terminals
    */
   public listTerminals<ThrowOnError extends boolean = true>(
@@ -12655,6 +13468,56 @@ export class workspaces extends HeyApiClient {
   }
 
   /**
+   * Read window layout migration status
+   */
+  public getWindowManagerMigration<ThrowOnError extends boolean = true>(
+    options: Options<GetWindowManagerMigrationData, ThrowOnError>
+  ): RequestResult<
+    GetWindowManagerMigrationResponses,
+    GetWindowManagerMigrationErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetWindowManagerMigrationResponses,
+      GetWindowManagerMigrationErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/window-manager/migration",
+      ...options,
+    });
+  }
+
+  /**
+   * Acknowledge or retry window layout migration
+   */
+  public updateWindowManagerMigration<ThrowOnError extends boolean = true>(
+    options: Options<UpdateWindowManagerMigrationData, ThrowOnError>
+  ): RequestResult<
+    UpdateWindowManagerMigrationResponses,
+    UpdateWindowManagerMigrationErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      UpdateWindowManagerMigrationResponses,
+      UpdateWindowManagerMigrationErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/window-manager/migration",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * Preview one semantic window-manager command
    */
   public previewWindowManagerCommand<ThrowOnError extends boolean = true>(
@@ -12678,6 +13541,29 @@ export class workspaces extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * Stream worktree file bytes
+   */
+  public readWorktreeFileBytes<ThrowOnError extends boolean = true>(
+    options: Options<ReadWorktreeFileBytesData, ThrowOnError>
+  ): RequestResult<
+    ReadWorktreeFileBytesResponses,
+    ReadWorktreeFileBytesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ReadWorktreeFileBytesResponses,
+      ReadWorktreeFileBytesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/files/raw/{path}",
+      ...options,
     });
   }
 }
@@ -12848,7 +13734,7 @@ export class tools extends HeyApiClient {
   }
 
   /**
-   * Search operator-visible registry tools
+   * Search operator-visible registry tools (default 20, maximum 100 per page)
    */
   public searchTools<ThrowOnError extends boolean = true>(
     options: Options<SearchToolsData, ThrowOnError>
@@ -13153,6 +14039,28 @@ export class worktrees extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/worktrees/discovered/remove",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove multiple worktrees or preview per-target removal risk
+   */
+  public removeWorktrees<ThrowOnError extends boolean = true>(
+    options: Options<RemoveWorktreesData, ThrowOnError>
+  ): RequestResult<RemoveWorktreesResponses, RemoveWorktreesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RemoveWorktreesResponses,
+      RemoveWorktreesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/worktrees/remove",
       ...options,
       headers: {
         "Content-Type": "application/json",

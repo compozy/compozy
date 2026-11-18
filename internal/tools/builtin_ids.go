@@ -27,13 +27,16 @@ const (
 	// ToolIDSkillView reads one skill and its verified body.
 	ToolIDSkillView ToolID = "compozy__skill_view"
 	// ToolIDCommandList lists the unified command catalog for one session.
-	ToolIDCommandList ToolID = "compozy__command_list"
+	ToolIDSessionChanges ToolID = "compozy__session_changes"
+	ToolIDCommandList    ToolID = "compozy__command_list"
 	// ToolIDSessionList lists runtime sessions.
 	ToolIDSessionList ToolID = "compozy__session_list"
 	// ToolIDSessionArchive archives one stopped runtime session.
 	ToolIDSessionArchive ToolID = "compozy__session_archive"
 	// ToolIDSessionUnarchive restores one archived runtime session.
 	ToolIDSessionUnarchive ToolID = "compozy__session_unarchive"
+	// ToolIDSessionCleanup previews or deletes archived session history in bulk.
+	ToolIDSessionCleanup ToolID = "compozy__session_cleanup"
 	// ToolIDSessionLater stops a session tree and parks it in Later.
 	ToolIDSessionLater ToolID = "compozy__session_later"
 	// ToolIDSessionResumeLater returns a parked session to the normal flow.
@@ -319,6 +322,8 @@ const (
 	ToolIDAutomationRunsList ToolID = "compozy__automation_runs_list"
 	// ToolIDAutomationRunsGet reads one automation run record through the automation manager.
 	ToolIDAutomationRunsGet ToolID = "compozy__automation_runs_get"
+	// ToolIDAutomationRunsCancel settles an orphaned automation run without interrupting live execution.
+	ToolIDAutomationRunsCancel ToolID = "compozy__automation_runs_cancel"
 	// ToolIDAutomationSuggestionsList lists workspace-scoped automation suggestions.
 	ToolIDAutomationSuggestionsList ToolID = "compozy__automation_suggestions_list"
 	// ToolIDAutomationSuggestionsAccept accepts one suggestion and creates its Job.
@@ -326,7 +331,8 @@ const (
 	// ToolIDAutomationSuggestionsDismiss durably dismisses one suggestion.
 	ToolIDAutomationSuggestionsDismiss ToolID = "compozy__automation_suggestions_dismiss"
 	// ToolIDMarketplaceSearch searches the shared marketplace discovery plane.
-	ToolIDMarketplaceSearch ToolID = "compozy__marketplace_search"
+	ToolIDMarketplaceCategories ToolID = "compozy__marketplace_categories"
+	ToolIDMarketplaceSearch     ToolID = "compozy__marketplace_search"
 	// ToolIDMarketplaceSources lists global experimental marketplace sources.
 	ToolIDMarketplaceSources ToolID = "compozy__marketplace_sources"
 	// ToolIDResourcesList lists desired-state resource records.
@@ -336,7 +342,11 @@ const (
 	// ToolIDResourcesSnapshot reads a filtered desired-state resource snapshot.
 	ToolIDResourcesSnapshot ToolID = "compozy__resources_snapshot"
 	// ToolIDMCPStatus probes one configured MCP server without exposing login/logout as tools.
-	ToolIDMCPStatus ToolID = "compozy__mcp_status"
+	ToolIDMCPImport      ToolID = "compozy__mcp_import"
+	ToolIDMCPAllow       ToolID = "compozy__mcp_allow"
+	ToolIDMCPStatus      ToolID = "compozy__mcp_status"
+	ToolIDSessionMCPList ToolID = "compozy__session_mcp_list"
+	ToolIDMCPList        ToolID = "compozy__mcp_list"
 	// ToolIDMCPAuthStatus reads redacted MCP auth diagnostics for one configured server.
 	ToolIDMCPAuthStatus ToolID = "compozy__mcp_auth_status"
 )

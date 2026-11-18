@@ -94,6 +94,9 @@ type Classification struct {
 	Message string
 	Kind    ProviderFailureKind
 	Action  ProviderFailureAction
+	// Unverified marks the native-CLI fallback that only says "run a probe for live status". It is
+	// the one declared result a stored live verdict may replace; a resolver error is current and wins.
+	Unverified bool
 }
 
 // ClassifyDeclared classifies provider readiness without executing a probe.
@@ -133,11 +136,12 @@ func ClassifyDeclared(
 		return missingCLIClassification(env.Normalize().ProviderName, nativeCLI), nil
 	}
 	return Classification{
-		State:   ProviderAuthStateUnknown,
-		Code:    diagcontract.CodeProviderClassificationUnknown,
-		Message: "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
-		Kind:    ProviderFailureUnknown,
-		Action:  ProviderFailureActionInspect,
+		State:      ProviderAuthStateUnknown,
+		Code:       diagcontract.CodeProviderClassificationUnknown,
+		Message:    "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
+		Kind:       ProviderFailureUnknown,
+		Action:     ProviderFailureActionInspect,
+		Unverified: true,
 	}, nil
 }
 

@@ -1,3 +1,4 @@
+import { readArchivedDescendants } from "@/systems/session/lib/session-tree";
 import { toast } from "@compozy/ui";
 import type { QueryClient } from "@tanstack/react-query";
 
@@ -48,6 +49,22 @@ export async function settleTreeTarget(
     await run();
   } catch (error) {
     if (action !== "delete" || !covered || !isSessionUnavailable(error)) throw error;
+  }
+}
+
+/** A host callback failing does not undo an archive the daemon confirmed. */
+export async function notifyArchivedSessions(
+  queryClient: QueryClient,
+  session: SessionPayload,
+  trees: SessionTrees | undefined,
+  onSuccess?: (session: SessionPayload) => void | Promise<void>
+): Promise<void> {
+  const children = await readArchivedDescendants(queryClient, trees?.get(session.id) ?? []);
+  const results = await Promise.allSettled(
+    [session, ...children].map(target => onSuccess?.(target))
+  );
+  for (const result of results) {
+    if (result.status === "rejected") reportActionError("archive", result.reason);
   }
 }
 

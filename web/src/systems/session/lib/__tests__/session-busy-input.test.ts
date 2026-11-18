@@ -53,6 +53,28 @@ describe("session busy-input read models", () => {
     ).toBe("interrupt_fallback");
   });
 
+  it("Should retain boundary and after-turn receipts in the composer read model", () => {
+    for (const delivery of ["pending_boundary", "after_turn"] as const) {
+      expect(
+        sessionSteerDelivery({
+          busy_input: { default_mode: "steer", steer_capability: "none", steer_delivery: delivery },
+        })
+      ).toBe(delivery);
+      expect(
+        sessionSendOutcomeFromResult({
+          status: "steering",
+          disposition: "steering",
+          steer_delivery: delivery,
+          delivery: "after_turn",
+          idempotency_key: "boundary-key",
+          message_id: "boundary-message",
+          queue_position: 0,
+          replayed: false,
+        })?.steerDelivery
+      ).toBe(delivery);
+    }
+  });
+
   it("Should let the current capability win over the last send's delivery", () => {
     // The provider changed since the last steer: the record is stale, the capability is not.
     expect(

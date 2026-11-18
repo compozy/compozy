@@ -86,7 +86,7 @@ Use the sanitized `SessionsStability/Working/LongSummaries` story, then repeat t
 relevant transcript flow against the isolated browser runtime. At 360, 860, and
 1600 px, summaries stay on one line: tool/reasoning/live/activity/Goal text uses a
 maximum 24 rem readable measure; headings use at most 20 rem. Smaller containers
-shrink these bounds. Session sidebar and deck tabs retain their existing tighter
+shrink these bounds. Session sidebar and desktop tab bar tabs retain their existing tighter
 constraints. Full message bodies and intentionally expanded content remain readable.
 
 - Inspect a multiline heredoc, an unbroken path, Unicode graphemes, a provider title
@@ -195,3 +195,28 @@ sanitized projection of the reported session renders in
 `SessionsStability/Working/SteeredWakesMidTool` and `…/SteeredWakesRedactedIdentity`
 with a uniform rhythm (before: an empty 22 px shell and a turn gap after every
 piece). Not walked: a live-runtime parent turn with real subagent wakes.
+
+Long transcript, first live tool call (issue #1559): once a session holds more
+than one transcript page (200 entries), every new live entry rolls one entry
+across each loaded page boundary. The rows already on screen must stay the same
+rendered rows: no re-render or re-measure of history, and the viewport stays
+pinned to the end while following.
+
+Walk: in a session with several hundred entries whose newest entry is an
+inbound session-message card ("Reply requested"), let the turn start and run
+its first tool call. Expect the live "Running …" row to appear under the card
+in the same painted frame as the end pin, with every older row moving only by
+the new row's height and keeping its rendered state; later tool calls of the
+turn update the same row in place.
+
+Verification 2026-11-12 (issue #1559): isolated lab daemon with acpmock agents
+(~400 entries, a real `compozy__session_prompt` inbound card, a held running
+tool) and a Storybook replay of a 1,200-entry real always-on transcript. After
+the fix the appended entry no longer re-creates the loaded messages: history
+row renders on that frame 15 → 1 and the 54–73 ms long task at the frame is
+gone (Storybook replay); painted-frame traces show a single clean transition.
+In the lab (~400 entries, a loaded machine) frame timing stayed noisy.
+The reported visual jump was not reproduced in either environment before the
+fix; see the PR for the measurements.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Per-pane deck tabs are retired; the bounded-summary note now names the desktop tab bar's tabs, whose titles still truncate inside their own tighter bound. Wording only; the summary bounds this scenario verifies are unchanged. Status unchanged.

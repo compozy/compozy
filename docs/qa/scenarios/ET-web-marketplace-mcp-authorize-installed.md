@@ -18,6 +18,10 @@ overlaps: ET-web-mcp-authorize; ET-web-mcp-authorize-manual; ET-web-mcp-status-m
 
 QA 2026-09-13: the current hard-cut contract passed the scoped live/API/browser walks and applicable unchanged owning integration checks. See the dated report for exact evidence and boundaries; historical notes below do not redefine the current catalog.
 
+QA impact 2026-11-17 (#1800). In Settings → MCP servers, check a client Agent Plugin with optional
+credential headers and a fake OAuth authority. A Bearer challenge that advertises protected-resource
+metadata offers **Sign in** for that extension owner. Complete the fake sign-in and verify the
+MCP tools are available. A plain 401 from the same shape of plugin shows **Access denied**.
 
 ## Current walk — Marketplace catalog hardcut
 
@@ -76,3 +80,5 @@ and remained unauthenticated. Human consent and the post-exchange token-present 
 2026-08-13 re-walk: the live Global marketplace opened an Airtable install with no prior credential state and the exact destination statement "Installs at Global — available in every workspace." Real OAuth consent and token-presence confirmation remain blocked-verify.
 
 CI repair impact 2026-09-13: opening extension details or Installed must not start an MCP subprocess or create PLUGIN_DATA. Show readiness only from a completed exchange for the exact published resource; a sibling scope or an old generation cannot supply it. Owner-qualified auth state remains a passive credential read. Explicit Settings probes may establish readiness for subsequent extension reads.
+
+QA impact 2026-11-16 (MCP UX redesign S3): Edit configuration now opens "Set up <server>": "What it needs" holds the editable address/headers or settings, the package declaration moved under a "Technical details" fold (address, how agents call it, added by, scope, sign-in, version), and the footer reads Reset to extension defaults / Cancel / Save. Save still PUTs the override and Reset still DELETEs it. Not walked; status unchanged.

@@ -1,0 +1,124 @@
+---
+title: MCP servers
+description: How CompozyOS gives agent sessions MCP tools, when a change reaches a session that is already open, and how to fix a tool the agent can't call.
+---
+
+An MCP server gives agents extra tools: a Linear server lets an agent read your issues, a Sentry
+server lets it look at errors. CompozyOS sessions see two kinds of MCP servers:
+
+- **CompozyOS servers** are the ones CompozyOS manages: added in **Settings → MCP servers**, written in
+  [`mcp.json`](/docs/configuration/mcp-json) or `config.toml`, or shipped by an
+  [extension](/docs/extensions). CompozyOS starts them, signs in to them and passes their tools to
+  every session through its own MCP proxy.
+- **Runtime servers** are the ones a coding agent CLI loads from its own files, for example the
+  servers in Claude Code's `~/.claude.json` or Codex's `~/.codex/config.toml`. CompozyOS lists them
+  read-only so you can see what each runtime loads. See [Runtime servers](/docs/mcp/runtime-servers).
+
+## Changes reach open sessions on the next message
+
+You don't need to stop, restart or fork a session to give it a new server. After you add, enable,
+approve or sign in to a server, or install or enable an extension, the session you already have open
+can use the new tools **from your next message**. Removing a server, disabling it, revoking its
+approval or signing out takes its tools away on the next call.
+
+When a change is waiting, the session's MCP control says **Updates on your next message**. When you send the
+message, CompozyOS reloads the agent's runtime first if the runtime can't pick up new tools by itself,
+keeping the whole conversation. A turn that is already running is never interrupted. The transcript
+then shows one quiet line:
+
+| Line                                                                               | What happened                                                                                    |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **MCP servers updated** · `sentry` added                                           | The runtime reloaded with the new tools.                                                         |
+| **MCP servers updated** · conversation continued from history                      | The runtime couldn't resume its own conversation, so CompozyOS continued it from the transcript. |
+| **Couldn't start Claude Code with the new MCP servers** · your message wasn't sent | No runtime could start. The message goes back to the composer; send it again to retry.           |
+
+Forks, continued sessions and child sessions follow the current server set too. A child session
+stays limited only when it was started with an explicit list of MCP servers.
+
+## Who can turn a server on
+
+Adding a server through CompozyOS is your consent. These servers are usable right away:
+
+- servers you add in Settings, or copy in from a runtime;
+- servers in your own files under `~/.compozy` (personal and profile `mcp.json` or `config.toml`);
+- servers of an extension you installed and enabled.
+
+Servers declared in a **project's files** (`<project>/.compozy/mcp.json`, the project's
+`config.toml`, or an agent or skill folder inside the project) arrive with the repository, so a commit
+could add them without you knowing. They **wait for your approval** and never start until you allow
+them. See [Project servers need approval](/docs/mcp/project-servers).
+
+## Check what a session can use
+
+The composer of every session with MCP servers has an **MCP servers** control: the plug icon at the
+end of the composer's toolbar. Hover it to see how many servers the session can use right now. It
+shows a dot in its top corner when a server needs attention and one in its bottom corner when a
+change applies on your next message. Open it to see:
+
+- **your CompozyOS servers**: a ready server shows its tool count; one that needs you shows the one
+  action that fixes it — **Sign in**, **Review** (a project server waiting for your approval), or
+  **Not working** (why it failed, with **Check again**). Each opens a small panel beside the row;
+- **Off in this session**: servers the session is limited from, folded;
+- **the runtime's own servers** (for example **Claude Code's own servers**): folded and read-only.
+
+The gear in the header opens Settings → MCP servers.
+
+The same list is available from the CLI:
+
+```bash
+compozy session mcp <session-id>
+```
+
+```text
+SESSION sess-27200ac31012601a · claude · 2 usable
+COMPOZYOS SERVERS
+  github                   Ready                        26 tools
+  linear                   Needs sign-in                0 tools
+    Sign in to linear in CompozyOS
+  branas-dashboard         Applies on your next message 0 tools
+RUNTIME SERVERS (Claude Code)
+  cua-driver               Loaded by Claude Code
+```
+
+Agents read it with the `compozy__session_mcp_list` native tool, and apps with
+`GET /api/workspaces/{workspace_id}/sessions/{session_id}/mcp`. None of them start or contact a
+server; they report what CompozyOS already knows.
+
+## States and fixes
+
+OAuth access tokens renew when CompozyOS next discovers or calls the server. An expired access
+token with a usable refresh token keeps the server's tools in open sessions, so routine expiry
+does not require signing in again. Passive status reads may still report `expired` together with
+`token_present: true` and `refreshable: true` until the next use.
+
+If the OAuth server is temporarily unavailable, the call can fail while the tools stay listed.
+Retries use a shared backoff with jitter, from about one second up to one minute. Try the call
+again after the connection recovers. If the server rejects the refresh token as invalid or revoked,
+the tools are withdrawn and the server needs sign-in. Expiry without a usable refresh token also
+needs sign-in.
+
+Successful sign-in or renewal clears an old authentication-related dead-server mark. Connection
+failures continue to use the normal server recovery checks. Refresh-failure logs identify the
+server, cause class, and attempt count without including credentials.
+
+| State                             | Meaning                                                            | Fix                                                                                                               |
+| --------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| **Ready**                         | The agent can call its tools.                                      | —                                                                                                                 |
+| **Applies on your next message**  | Added or changed since the runtime started.                        | Send your next message.                                                                                           |
+| **Needs sign-in**                 | The server uses OAuth and has no valid sign-in.                    | **Sign in** in the MCP control or Settings, or `compozy mcp auth login <name>`.                                   |
+| **Waiting for approval**          | A project-file server you haven't allowed, or one that changed.    | **Review**, then **Allow**, or `compozy mcp allow <name> --workspace <project>`.                                  |
+| **Failed** (Couldn't connect)     | CompozyOS couldn't start or reach the server.                      | **Not working** in the MCP control or Settings shows what it said; fix it, then **Check again**.                  |
+| **Not available in this session** | The session was started with a list of servers that leaves it out. | Start a new session without that limit.                                                                           |
+| **Loaded by Claude Code**         | A runtime server the runtime loads by itself.                      | Manage it in the runtime, or [copy it to CompozyOS](/docs/mcp/runtime-servers#step-2-copy-a-server-to-compozyos). |
+| **Off in CompozyOS sessions**     | A runtime server that `runtime_mcp = "off"` keeps out of sessions. | Turn the runtime's switch back on.                                                                                |
+
+When an agent calls a tool it can't use, the error names the fix, for example
+`sentry is waiting for approval in compozy. Allow it in Settings → MCP servers.` or
+`linear needs sign-in. Sign in to linear in CompozyOS (Settings → MCP servers).`
+
+## Next steps
+
+- [Add a server and use it](/docs/mcp/add-a-server) in a session that is already open.
+- [Approve project servers](/docs/mcp/project-servers).
+- [See and copy runtime servers](/docs/mcp/runtime-servers), and turn a runtime's own servers off.
+- [`mcp.json` reference](/docs/configuration/mcp-json) for every field and scope.

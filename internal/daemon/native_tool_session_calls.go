@@ -49,7 +49,7 @@ func (n *daemonNativeTools) sessionStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{nativeToolsSessionKey: owned[0]}, payload.ID)
+	return sessionRecordViews.result(req.View, owned[0])
 }
 
 func (n *daemonNativeTools) commandList(
@@ -92,10 +92,7 @@ func (n *daemonNativeTools) commandList(
 		)
 	}
 	payload := core.SessionCommandsResponseFromCatalog(catalog)
-	return structuredResult(map[string]any{
-		"commands": payload.Commands,
-		"revision": payload.Revision,
-	}, fmt.Sprintf("%d commands", len(payload.Commands)))
+	return commandListViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) sessionHealth(
@@ -154,6 +151,12 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 		return toolspkg.ToolResult{}, err
 	}
 	sessionID := strings.TrimSpace(input.SessionID)
+	if input.IncludeSessionHealth && sessionID == "" {
+		return toolspkg.ToolResult{}, nativeInputError(
+			req.ToolID,
+			errors.New("session_id is required when include_session_health is true"),
+		)
+	}
 	if sessionID != "" {
 		if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, target.workspaceID, sessionID); err != nil {
 			return toolspkg.ToolResult{}, err
@@ -173,6 +176,7 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 	}
 	if input.IncludeRecentWakeEvents && n.deps.WakeEvents != nil {
 		events, err := n.deps.WakeEvents.ListHeartbeatWakeEvents(ctx, heartbeat.WakeEventListQuery{
+			ProfileID:   target.profileID,
 			WorkspaceID: target.workspaceID,
 			AgentName:   target.agentName,
 			SessionID:   sessionID,
@@ -193,7 +197,7 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 	if err := contract.ValidateAuthoredContextRedacted(payload); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"heartbeat": payload}, string(payload.ValidationStatus))
+	return agentHeartbeatStatusViews.result(req.View, payload)
 }
 
 // agentHeartbeatWake requests a Heartbeat wake using the caller Profile and workspace identity.
@@ -221,13 +225,20 @@ func (n *daemonNativeTools) agentHeartbeatWake(
 	if source == "" {
 		source = heartbeat.WakeSourceManual
 	}
+	if !heartbeat.ValidWakeSource(source) {
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, fmt.Errorf(
+			"invalid source %q; accepted values: %s",
+			source, heartbeat.WakeSourceNames,
+		))
+	}
 	decision, err := n.deps.HeartbeatWake.Wake(ctx, heartbeat.WakeRequest{
-		ProfileID:   target.profileID,
-		WorkspaceID: target.workspaceID,
-		AgentName:   target.agentName,
-		SessionID:   sessionID,
-		Source:      source,
-		DryRun:      input.DryRun,
+		PolicyTarget: new(target.heartbeatAuthoringTarget()),
+		ProfileID:    target.profileID,
+		WorkspaceID:  target.workspaceID,
+		AgentName:    target.agentName,
+		SessionID:    sessionID,
+		Source:       source,
+		DryRun:       input.DryRun,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -380,11 +391,8 @@ func (n *daemonNativeTools) sessionDescribe(
 	if resolved.RootMissing {
 		payload.Diagnostics = core.MissingWorkspaceDiagnostics(resolved.ID)
 	}
-	return structuredResult(map[string]any{
-		nativeToolsSessionKey:     payload,
-		nativeToolsEventsKey:      eventPayload,
-		nativeToolsEventsPageKey:  eventsPage,
-		nativeToolsHistoryKey:     sessionHistoryPayload(history, info),
-		nativeToolsHistoryPageKey: historyPage,
-	}, info.ID)
+	return sessionDescribeViews.result(req.View, sessionDescribeResult{
+		Session: payload, Events: eventPayload, EventsPage: eventsPage,
+		History: sessionHistoryPayload(history, info), HistoryPage: historyPage,
+	})
 }

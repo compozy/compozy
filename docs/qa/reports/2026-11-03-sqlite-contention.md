@@ -767,3 +767,172 @@ the session file retains the previously documented file-level `t.Setenv` heurist
 Main's provider usage/auth-verdict updates through `d731d2c34` were then integrated without
 conflicts or changes to the SQLite migration history. The source-generation and runtime gates
 for the complete integrated head remain CI-owned.
+
+## Paired transcript COMMIT tail investigation (2026-11-06)
+
+Issue #1324 reports intermittent rejection of unrelated changes by an absolute
+one-second transaction-hold rule. Eight downloaded CI artifacts (five unrelated
+branch families, five failed and three successful runs) show runner-level I/O
+variation in both implementations. Values below are the four untraced
+`transcript_write.max_ms` samples, rounded to milliseconds. The baseline is fixed
+at `d35c63c9a`; the workload source is identical on both binaries in each run.
+
+| Run | Original result | Baseline maxima (ms) | Head maxima (ms) | Median paired head/max(1000, baseline) |
+| --- | --- | --- | --- | ---: |
+| [42058979018](https://github.com/compozy/compozy/actions/runs/42058979018) | fail | 1582, 1577, 1522, 1621 | 1132, 937, 1230, 915 | 0.655 |
+| [42096490378](https://github.com/compozy/compozy/actions/runs/42096490378) | pass | 441, 348, 300, 433 | 407, 461, 466, 435 | 0.448 |
+| [42108792199](https://github.com/compozy/compozy/actions/runs/42108792199) | fail | 1663, 1031, 1888, 994 | 792, 1124, 911, 1007 | 0.745 |
+| [42134569510](https://github.com/compozy/compozy/actions/runs/42134569510) | fail | 1345, 2010, 1570, 1864 | 841, 965, 1120, 929 | 0.562 |
+| [42260720041](https://github.com/compozy/compozy/actions/runs/42260720041) | fail | 1461, 1843, 2001, 2003 | 1120, 1090, 975, 984 | 0.541 |
+| [42269076695](https://github.com/compozy/compozy/actions/runs/42269076695) | pass | 286, 330, 332, 345 | 281, 318, 477, 301 | 0.309 |
+| [42273817122 attempt 2](https://github.com/compozy/compozy/actions/runs/42273817122/attempts/2) | fail | 1564, 1643, 1819, 1230 | 928, 1234, 930, 1133 | 0.672 |
+| [42277313061](https://github.com/compozy/compozy/actions/runs/42277313061) | pass | 365, 277, 320, 369 | 325, 322, 429, 402 | 0.364 |
+
+In #1322's failed attempt, three session transactions finish within 41 ms of one
+another, across independent session writers: elapsed 1125/1112/1084 ms, callback
+5/1/0 ms, COMMIT 1120/1111/1083 ms. Head operations have zero errors, all retention
+work completes, upgrade/reopen preserves the all-column hash and 830,020 rows,
+and every throughput comparison passes. The baseline transcript tail in that
+same pair is 1230 ms. The separate Go diagnostic replay has no warnings.
+
+The retained `head-writes.strace` from run 42108792199 contains 57 successful
+`fsync` calls above 500 ms; the longest take 964.758, 962.548 and 962.135 ms on
+session 24/00/12 `events.db-wal` files. Independent WALs stall together. This is
+consistent with a shared storage sync stall, not one SQLite writer lock. The
+source uses NORMAL synchronous mode and disables automatic checkpoints on runtime
+writers; maintenance uses a dedicated connection. WAL sync is still required at
+WAL reuse/checkpoint boundaries. The 1 GiB migration finishes before timed trials;
+each trial uses a fresh, fsynced copy. It is not executing inside these COMMITs.
+
+Attribution limit: untraced failed trials have no syscall trace, so the exact
+kernel/device cause of each 1.1-second pause cannot be proven. The separate
+ptrace run is diagnostic evidence, not an unperturbed timing measurement. The
+cross-run baseline/head correlation, small callback times and simultaneous WAL
+sync stalls support runner I/O variance; no production defect was demonstrated.
+Production durability, checkpoints, deadlines and warnings are unchanged.
+
+The initial runner revision uses paired transcript maxima with the original 1000 ms floor
+and no added relative margin. Its median paired ratio must be at most 1. Each
+session transcript warning additionally must have a sub-second callback, a
+COMMIT of at least one second and total elapsed time within its own pair's
+budget. Unknown warnings, other database/operation holds, operation failures,
+retention and upgrade checks remain strict. Missing/invalid samples or baseline
+transcript errors invalidate calibration. JSON preserves all raw warnings; the Markdown report lists every head warning
+with its individual paired-COMMIT decision and budget.
+
+Replaying all eight retained results through the revised decision passes the
+specific #1322 failure and preserves all three original passes. Four historical
+runs still fail: 42058979018 has background/telemetry holds; 42108792199 has a
+core state-update hold; 42134569510 and 42260720041 include baseline transcript
+errors and telemetry holds. This change does not claim to explain or exempt those
+other signatures. The table ratios use all historical pairs for description;
+acceptance excludes erroneous baseline calibration and rejects the experiment.
+No pre-fix jobs were rerun to manufacture a pass.
+
+The existing runner decision suite owns the invariant: shared I/O can explain a
+transcript COMMIT warning only within its own pair; a good median or unrelated
+slow baseline cannot conceal a head-only hold. It also checks sustained tail
+regressions without warnings, invalid samples, baseline errors and unchanged
+strict correctness. CI owns the full paired workload and real-daemon exercise.
+
+Impact: CI acceptance and its internal JSON/report receipts only. Native tools,
+CLI/HTTP/UDS, hooks/extensions/config, workspace isolation, persisted user state,
+Web, site docs and `skills/compozy/` are unchanged. No user-facing QA scenario
+changes; this report and the paired experiment are the owning QA surfaces.
+
+
+### Telemetry COMMIT evidence from the first PR-head run
+
+The first complete [PR-head run 42289506367](https://github.com/compozy/compozy/actions/runs/42289506367)
+on `1b3e179dc` failed for two telemetry `coalesced background writes` transactions,
+not for transcript acceptance. All four head trials had zero operation errors,
+no throughput regressions, complete retention and preserved upgrade data. Paired
+transcript maxima were baseline 1247/1189/1438/1346 ms and head
+968/878/1072/912 ms (median ratio 0.742). Head trials 0 and 2 emitted telemetry
+holds of 1072/1389 ms, with callbacks 25/343 ms and COMMITs 1046/1046 ms. Both
+whole holds fit their own baseline transcript pair (1247/1438 ms).
+
+The same run's `head-writes.strace` records 23 successful fsync calls above
+500 ms. A telemetry WAL fsync started at Unix time 1793998172.037015 and took
+882.255 ms; multiple independent session WAL fsyncs started around
+1793998171.825 and took up to 1122.390 ms. Their intervals overlap. This extends
+the shared-storage evidence to telemetry rather than assuming the transcript
+signature alone covers every source of the reported flake. The untraced
+COMMIT's exact syscall remains inferred, with the same ptrace attribution limit.
+
+Final acceptance includes only these two measured COMMIT signatures, each with
+sub-second callback work, COMMIT >= 1000 ms and the entire hold within its own
+baseline transcript budget. The baseline predates the telemetry split, so its
+common transcript workload is the storage control; unlike telemetry transaction
+layouts are not compared directly. Core holds, background callback holds,
+checkpoint/admission diagnostics and operation errors remain strict. Baseline
+transcript failures still invalidate calibration. No relative margin or retry
+policy was added. Replaying the failing real artifact through this revision
+passes with no throughput, correctness or tail rejection. The existing decision
+suite adds the invariant that telemetry needs its exact signature and own valid
+storage pair; callback holds, different operations/databases and head-only sync
+pauses remain failures. Seventeen focused decision tests pass. CI still owns the
+two consecutive successful runs on the final head.
+
+## Unusable transcript controls and absolute-budget proof (2026-11-12)
+
+The historical decision above rejected the whole experiment when a baseline
+transcript control failed, even if its head independently met the original
+one-second budget. [Run 43162767413](https://github.com/compozy/compozy/actions/runs/43162767413/job/130997667189)
+isolates that defect without changing the workload: artifact 13919751814 has
+zero head operation failures, no invalid head trial, no throughput regression,
+and four successful retention sweeps (17.153–18.672 seconds, 43,169 rows each).
+The only rejection is the incomplete baseline transcript control in pair 1:
+ten deadlines, while that pair's head maximum is 901.140154 ms.
+
+An unusable control still cannot calibrate or exempt a COMMIT warning. Its pair
+now uses the absolute 1,000 ms budget and requires its individual head maximum
+to meet that ceiling, even if the median passes. Missing or invalid head samples
+remain failures. All four ratios remain in the median. Valid baseline controls
+retain their existing decision exactly; `budget_basis` identifies the source
+of each budget.
+
+This correction assumes the most restrictive possible valid control. Every
+valid baseline budget is at least 1,000 ms, so a head that meets this absolute
+ceiling would meet any valid paired budget. Rejecting it would reject a result
+that every possible valid baseline budget would accept. This
+changes the invalid-control decision; it does not increase any threshold,
+extend any deadline, exempt a core hold, or discard a failed sample.
+
+[CI replay 43165507841](https://github.com/compozy/compozy/actions/runs/43165507841)
+reevaluates the unchanged recorded samples, without another workload run.
+Artifact 13919936553 preserves both decisions. Pair 1 changes from a missing
+ratio to 0.901140154 against the absolute floor; all four ratios produce median
+0.6019772794156284. The false tail rejection clears; the existing head
+correctness and throughput decisions do not change.
+
+| Retained evidence                                         | Disposition under the corrected rule                                                                                                                                                                          |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Original run 42710409599, attempt 1, artifact 13716188062 | Still rejected: uncalibrated head maxima above 1,000 ms and ineligible warning records.                                                                                                                       |
+| Original run 42710409599, attempt 2, artifact 13717033637 | Still rejected: core state-update hold, 1,039 ms elapsed / 9 ms callback / 1,030 ms COMMIT.                                                                                                                   |
+| Run 43141054510, artifact 13910975853                     | Still rejected: head-0 retention is 31,881.290 ms; head-3 telemetry warning lacks a complete paired control. Head-0's telemetry warning itself fits its complete pair, contrary to the initial issue comment. |
+| Uninstrumented run 43162767413, artifact 13919751814      | Its sole invalid-control rejection clears, as the unchanged-input CI receipt demonstrates. This is decision validation, not a new performance measurement.                                                    |
+
+The original-trial traced [run 43162055138](https://github.com/compozy/compozy/actions/runs/43162055138)
+has zero head errors or warnings, transcript maxima 359.253 / 291.211 /
+250.182 / 475.863 ms, and complete baseline transcript pairs. It did not
+reproduce the historical core pause. It is diagnostic only and does not count
+as an uninstrumented acceptance pass. The trace buffer changes heap/GC behavior
+and an abrupt kill loses it. [Run 43164794524](https://github.com/compozy/compozy/actions/runs/43164794524)
+generates syscall, scheduling and synchronization profiles from those same
+recordings in CI. Aggregate goroutine delays are not individual wall times.
+
+The old core COMMIT's exact syscall or scheduling cause cannot be recovered
+from a different execution. Its timestamp clustering with session COMMITs is
+consistent with shared storage delay, without proving that attribution or
+excluding an intermittent current-storage defect. No storage implementation
+change or core-warning exemption is justified by these observations. The
+unattributed historical core hold remains a residual for issue #1433.
+
+Two consecutive uninstrumented green SQLite jobs on the final head remain
+required. A green run with four complete paired controls also satisfies the
+old decision rule literally; a green using an absolute-floor pair relies on
+the narrowly proved correction above. No such final-head results are claimed
+by this section. The existing decision suite owns coverage; validation runs
+only in CI. User data, schema, migration, public surfaces, Web and scenario
+contracts remain unchanged.

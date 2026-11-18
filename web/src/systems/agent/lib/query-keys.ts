@@ -15,11 +15,12 @@ export const agentKeys = {
   catalogByWorkspace: (workspace: string) => [...agentKeys.catalogs(), workspace.trim()] as const,
   catalog: (workspace: string, filters: AgentCatalogStableFilter = {}) =>
     [...agentKeys.catalogByWorkspace(workspace), normalizeAgentCatalogFilter(filters)] as const,
+  /** Every All projects catalog read, across Project-filter selections. */
+  aggregates: () => [...agentKeys.catalogs(), "@aggregate"] as const,
   /** The All projects catalog, per Project-filter selection; lives under `catalogs()`. */
   aggregate: (workspaceIds: readonly string[], filters: AgentCatalogStableFilter = {}) =>
     [
-      ...agentKeys.catalogs(),
-      "@aggregate",
+      ...agentKeys.aggregates(),
       [...workspaceIds].sort().join(","),
       normalizeAgentCatalogFilter(filters),
     ] as const,
@@ -38,6 +39,11 @@ export const agentKeys = {
   skillReview: (id: string, profile = "") => [...agentKeys.skillReviews(), id, profile] as const,
   instanceIndeterminateReports: (id: string) =>
     [...agentKeys.instanceReports(id), "indeterminate"] as const,
+  /** Every kept report with its live picks and tool calls; transcript parts select theirs. */
+  instanceProjectedReports: (id: string) =>
+    [...agentKeys.instanceReports(id), "projected"] as const,
+  instanceOccurrenceCheckIn: (id: string, occurrence: string) =>
+    [...agentKeys.instanceCheckIns(id), "occurrence", occurrence] as const,
   /** Definitions a scope can start: one `group=agent` read per scope and profile. */
   alwaysOnCatalog: (workspace: string, profile = "default") =>
     [...agentKeys.catalogs(), "@always-on", workspace, profile] as const,
@@ -66,6 +72,9 @@ export const agentKeys = {
     [...agentKeys.memory(name, workspace, profile), "history"] as const,
   heartbeat: (name: string, workspace?: string | null, profile = "default") =>
     [...agentKeys.detail(name, workspace, profile), "heartbeat"] as const,
+  /** The tools the agent sees in a scope; the Heartbeat page picks check-in writes from it. */
+  tools: (name: string, workspace?: string | null, profile = "default") =>
+    [...agentKeys.detail(name, workspace, profile), "tools"] as const,
   heartbeatHistory: (name: string, workspace?: string | null, profile = "default") =>
     [...agentKeys.heartbeat(name, workspace, profile), "history"] as const,
   heartbeatSources: (name: string, workspace?: string | null, profile = "default") =>

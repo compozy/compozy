@@ -88,5 +88,13 @@ func (n *daemonNativeTools) loopFork(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(request.ToolID, err)
 	}
-	return structuredResult(response, fmt.Sprintf("fork run %s created", response.Run.ID))
+	return (resultViews[*contract.ForkLoopResponse]{
+		Compact: viewLoopFork,
+		Preview: func(*contract.ForkLoopResponse) string {
+			return fmt.Sprintf("fork run %s created", response.Run.ID)
+		},
+	}).result(
+		request.View,
+		&response,
+	)
 }

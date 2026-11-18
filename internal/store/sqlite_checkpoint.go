@@ -6,25 +6,51 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 )
 
 var errSQLiteCheckpointBusy = errors.New("store: sqlite wal checkpoint is busy")
 
-// PassiveCheckpointer owns WAL maintenance independently of writer admission and
-// writer-pool capacity. Its owner disables wal_autocheckpoint on runtime writers
-// and closes this worker before the database's final shutdown checkpoint.
+// PassiveCheckpointer owns WAL maintenance and joins it before final shutdown.
 type PassiveCheckpointer struct {
-	cancel context.CancelFunc
-	done   chan struct{}
-	err    error
+	cancel        context.CancelFunc
+	done          chan struct{}
+	err           error
+	restart       *walRestartGuard
+	walPath       string
+	truncateAbove int64
+}
+
+// WithWALTruncation enables nonwaiting reclamation above thresholdBytes; nonpositive values disable it.
+func WithWALTruncation(thresholdBytes int64) func(*PassiveCheckpointer) {
+	return func(p *PassiveCheckpointer) { p.truncateAbove = thresholdBytes }
 }
 
 // OpenPassiveCheckpointer starts periodic PASSIVE checkpoints on an existing
 // database. PASSIVE never waits for readers or the WAL writer; unfinished work
 // is retried on the next tick instead of extending a foreground COMMIT.
-func OpenPassiveCheckpointer(ctx context.Context, path string) (*PassiveCheckpointer, error) {
+func OpenPassiveCheckpointer(
+	ctx context.Context,
+	path string,
+	options ...func(*PassiveCheckpointer),
+) (*PassiveCheckpointer, error) {
+	return openPassiveCheckpointer(ctx, path, false, options...)
+}
+
+// OpenRestartCheckpointer also assigns WAL-header synchronization to maintenance.
+func OpenRestartCheckpointer(ctx context.Context, path string) (*PassiveCheckpointer, error) {
+	return openPassiveCheckpointer(ctx, path, true)
+}
+
+// openPassiveCheckpointer gives maintenance an independent lifetime and joins its handle on shutdown.
+func openPassiveCheckpointer(
+	ctx context.Context,
+	path string,
+	restart bool,
+	options ...func(*PassiveCheckpointer),
+) (*PassiveCheckpointer, error) {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return nil, errors.New("store: checkpoint database path is required")
@@ -36,28 +62,90 @@ func OpenPassiveCheckpointer(ctx context.Context, path string) (*PassiveCheckpoi
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	workerCtx, cancel := context.WithCancel(context.Background())
-	worker := &PassiveCheckpointer{cancel: cancel, done: make(chan struct{})}
+	worker := &PassiveCheckpointer{cancel: cancel, done: make(chan struct{}), walPath: cleanPath + "-wal"}
+	for _, option := range options {
+		option(worker)
+	}
+	if restart {
+		worker.restart, err = openWALRestartGuard(ctx, workerCtx, db, cleanPath)
+		if err != nil {
+			cancel()
+			return nil, errors.Join(err, db.Close())
+		}
+	}
 	go worker.run(workerCtx, db)
 	return worker, nil
 }
 
+// run checkpoints each second and refreshes statistics hourly, backing off after failed attempts.
 func (p *PassiveCheckpointer) run(ctx context.Context, db *sql.DB) {
 	defer func() {
-		p.err = db.Close()
+		p.err = errors.Join(p.restart.close(), db.Close())
 		close(p.done)
 	}()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	var nextOptimizeAt time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			if err := CheckpointPassive(ctx, db); err != nil && ctx.Err() == nil && !IsSQLiteBusy(err) {
+		case now := <-ticker.C:
+			if err := p.checkpoint(ctx, db); err != nil && ctx.Err() == nil && !IsSQLiteBusy(err) {
 				slog.Warn("sqlite passive checkpoint failed", "error", err)
+			}
+			if !now.Before(nextOptimizeAt) {
+				if err := optimizeSQLite(ctx, db); err != nil {
+					nextOptimizeAt = now.Add(time.Minute)
+					if ctx.Err() == nil && !IsSQLiteBusy(err) && !errors.Is(err, context.DeadlineExceeded) {
+						slog.Warn("sqlite statistics maintenance failed", "error", err)
+					}
+				} else {
+					nextOptimizeAt = now.Add(time.Hour)
+				}
 			}
 		}
 	}
+}
+
+// optimizeSQLite bounds statistics maintenance with cancellation on the nonwaiting maintenance handle.
+func optimizeSQLite(ctx context.Context, db *sql.DB) error {
+	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	// Maintenance has no query history; consider all tables while retaining SQLite's analysis limit.
+	if _, err := db.ExecContext(ctx, "PRAGMA optimize = 0x10012"); err != nil {
+		return fmt.Errorf("store: optimize sqlite statistics: %w", err)
+	}
+	return nil
+}
+
+// checkpoint keeps WAL reclamation on maintenance connections with nonwaiting SQLite lock admission.
+func (p *PassiveCheckpointer) checkpoint(ctx context.Context, db *sql.DB) error {
+	if p.restart != nil {
+		return p.restart.checkpoint(ctx, db)
+	}
+	if err := CheckpointPassive(ctx, db); err != nil {
+		return err
+	}
+	if p.truncateAbove <= 0 {
+		return nil
+	}
+	info, err := os.Stat(p.walPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("store: stat sqlite wal: %w", err)
+	}
+	if info.Size() <= p.truncateAbove {
+		return nil
+	}
+	// The maintenance handle has busy_timeout(0); contention defers reclamation to a later tick.
+	var busy, frames, copied int
+	if err := db.QueryRowContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)").Scan(&busy, &frames, &copied); err != nil {
+		return fmt.Errorf("store: reclaim sqlite wal: %w", err)
+	}
+	return nil
 }
 
 // Close cancels maintenance and waits until it exits or ctx ends.

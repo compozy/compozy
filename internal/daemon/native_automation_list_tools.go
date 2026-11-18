@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -46,7 +45,7 @@ func (n *daemonNativeTools) automationJobsList(
 			Limit:      page.Limit,
 		},
 	}
-	return structuredResult(response, fmt.Sprintf("%d of %d automation jobs", len(payload), page.Total))
+	return jobListViews.result(req.View, response)
 }
 
 func (n *daemonNativeTools) automationTriggersList(
@@ -83,7 +82,7 @@ func (n *daemonNativeTools) automationTriggersList(
 			Limit:      page.Limit,
 		},
 	}
-	return structuredResult(response, fmt.Sprintf("%d of %d automation triggers", len(payload), page.Total))
+	return triggerListViews.result(req.View, response)
 }
 
 type automationJobsListInput struct {

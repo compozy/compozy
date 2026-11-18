@@ -117,5 +117,9 @@ func (n *daemonNativeTools) desktopClients(
 		Revision:    snapshot.Revision,
 		Clients:     clients,
 	}
-	return structuredResult(payload, fmt.Sprintf("listed %d desktop clients", len(payload.Clients)))
+	views := desktopClientsViews
+	views.Preview = func(p windowManagerClientsResult) string {
+		return fmt.Sprintf("listed %d desktop clients", len(p.Clients))
+	}
+	return views.result(req.View, payload)
 }

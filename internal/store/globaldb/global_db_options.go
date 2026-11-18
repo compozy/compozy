@@ -15,6 +15,7 @@ type openConfig struct {
 	openSessionEventMetadata store.SessionEventMetadataOpener
 	operatorHomeDir          string
 	migrationProgress        MigrationProgressFunc
+	now                      func() time.Time
 }
 
 // WithSessionEventMetadataOpener supplies the per-session replay reader used by watch-events.
@@ -44,6 +45,14 @@ func WithHealthFlushInterval(interval time.Duration) OpenOption {
 		if interval > 0 {
 			config.healthFlushInterval = interval
 		}
+	}
+}
+
+// WithClock replaces the wall clock repositories stamp records with. Fixture writers such as
+// the demo seed use it to place records on a reproducible timeline; the daemon keeps the default.
+func WithClock(now func() time.Time) OpenOption {
+	return func(config *openConfig) {
+		config.now = now
 	}
 }
 

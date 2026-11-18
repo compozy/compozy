@@ -252,7 +252,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopInspect,
-				Input:  json.RawMessage(`{"name":"release"}`),
+				Input:  json.RawMessage(`{"name":"release","result_view":"full"}`),
 			},
 		)
 		if err != nil {
@@ -1123,7 +1123,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			toolspkg.Scope{Operator: true, WorkspaceID: "registry-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopStatus,
-				Input:  json.RawMessage(`{"run_id":"run-1"}`),
+				Input:  json.RawMessage(`{"run_id":"run-1","result_view":"full"}`),
 			},
 		)
 		if err != nil {
@@ -1542,6 +1542,8 @@ func nativeLoopNodeMutationRecorder(
 }
 
 type nativeLoopServiceStub struct {
+	getLoopRequestFn       func(context.Context, string, string, int, string, int) (contract.LoopRequestPayload, error)
+	listLoopRequestsFn     func(context.Context, string, core.LoopRequestListQuery) (contract.LoopRequestsResponse, error)
 	listLoopsFn            func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error)
 	createLoopFn           func(context.Context, string, contract.CreateLoopRequest) (contract.LoopResponse, error)
 	getLoopFn              func(context.Context, string, string) (contract.LoopResponse, error)
@@ -1994,21 +1996,26 @@ func (s *nativeLoopServiceStub) ApproveLoopRun(
 }
 
 func (s *nativeLoopServiceStub) ListLoopRequests(
-	context.Context,
-	string,
-	core.LoopRequestListQuery,
+	ctx context.Context,
+	workspace string,
+	query core.LoopRequestListQuery,
 ) (contract.LoopRequestsResponse, error) {
+	if s.listLoopRequestsFn != nil {
+		return s.listLoopRequestsFn(ctx, workspace, query)
+	}
 	return contract.LoopRequestsResponse{}, errors.New("unexpected ListLoopRequests call")
 }
 
 func (s *nativeLoopServiceStub) GetLoopRequest(
-	context.Context,
-	string,
-	string,
-	int,
-	string,
-	int,
+	ctx context.Context,
+	workspace, run string,
+	generation int,
+	node string,
+	item int,
 ) (contract.LoopRequestPayload, error) {
+	if s.getLoopRequestFn != nil {
+		return s.getLoopRequestFn(ctx, workspace, run, generation, node, item)
+	}
 	return contract.LoopRequestPayload{}, errors.New("unexpected GetLoopRequest call")
 }
 

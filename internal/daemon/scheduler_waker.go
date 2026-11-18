@@ -248,6 +248,7 @@ func (w *schedulerSessionWaker) configureHeartbeatWake(
 	store any,
 	sessions SessionManager,
 	config compozyconfig.HeartbeatConfig,
+	options ...heartbeat.WakeOption,
 ) error {
 	if w == nil || !config.Enabled {
 		return nil
@@ -260,7 +261,7 @@ func (w *schedulerSessionWaker) configureHeartbeatWake(
 	if !ok {
 		return nil
 	}
-	service, err := heartbeat.NewManagedWakeService(wakeStore, healthReader, w, config)
+	service, err := heartbeat.NewManagedWakeService(wakeStore, healthReader, w, config, options...)
 	if err != nil {
 		return fmt.Errorf("daemon: create scheduler heartbeat wake service: %w", err)
 	}

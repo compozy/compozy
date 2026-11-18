@@ -82,16 +82,33 @@ function ModelRowLabel({
 
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
-      <span
-        className={cn(
-          "truncate text-small-body font-medium",
-          selected ? "font-semibold text-fg" : "text-fg"
-        )}
-      >
-        {model.name}
-      </span>
+      {/* Pointer-only reveal for the visually truncated name: the option's
+          accessible name already carries the full text, and a focusable
+          trigger inside a listbox option would break the combobox pattern. */}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span
+              className={cn(
+                "min-w-0 truncate text-small-body font-medium",
+                selected ? "font-semibold text-fg" : "text-fg"
+              )}
+            />
+          }
+        >
+          {model.name}
+        </TooltipTrigger>
+        <TooltipContent>{model.name}</TooltipContent>
+      </Tooltip>
       {modelProvider ? (
-        <span className="truncate text-small-body text-muted-foreground">{modelProvider}</span>
+        <Tooltip>
+          <TooltipTrigger
+            render={<span className="min-w-0 truncate text-small-body text-muted-foreground" />}
+          >
+            {modelProvider}
+          </TooltipTrigger>
+          <TooltipContent>{modelProvider}</TooltipContent>
+        </Tooltip>
       ) : null}
       <span className="sr-only">from {providerName}</span>
       {modelReasons(model) ? (

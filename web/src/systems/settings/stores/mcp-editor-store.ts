@@ -49,6 +49,7 @@ export const mcpEditorLogic = createStoreLogic<
     };
     saveSucceeded: { attempt: number; name: string; result: SettingsMutationResult };
     targetChanged: { target: SettingsMCPServerTarget };
+    scopeChanged: { scope: SettingsLayeredScope; workspaceId?: string };
   }
 >({
   context: (): MCPEditorFlow => ({
@@ -99,11 +100,19 @@ export const mcpEditorLogic = createStoreLogic<
       context.editor.mode === "closed"
         ? undefined
         : { ...context, editor: { ...context.editor, target: event.target } },
+    // Only a new server picks where it lives; an existing one keeps its definition's scope.
+    scopeChanged: (context, event: { scope: SettingsLayeredScope; workspaceId?: string }) =>
+      context.editor.mode !== "create" || context.pendingSaveAttempt !== null
+        ? undefined
+        : {
+            ...context,
+            editor: { ...context.editor, scope: event.scope, workspaceId: event.workspaceId },
+          },
   },
 });
 
 function mcpSaveMessage(name: string, result: SettingsMutationResult): string {
   const target = result.write_target ?? "write target unavailable";
-  const lifecycle = result.restart_required ? "restart required" : "applied now";
-  return `Saved "${name}" · ${target} · ${lifecycle}`;
+  if (result.restart_required) return `Saved "${name}" · ${target} · restart required`;
+  return `Saved "${name}" · ${target}. Open sessions use it from their next message.`;
 }

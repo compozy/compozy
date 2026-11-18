@@ -89,3 +89,5 @@ revision once; the next offline open should hydrate it if IndexedDB completed th
 Page termination does not guarantee completion. The existing catalog-hook suite covers
 pagehide persistence and controlled burst coalescing; a real reload/offline walk remains
 CI-owned under the host-overload restriction for this fix.
+
+qa-impact: 2026-11-13 #1658 added four bindable, unbound window commands `window.swap.left|right|up|down` (palette Swap left/right/up/down, Tiling section, split only). Walk: in Settings › Shortcuts the four rows show no chord; record a chord for `window.swap.right`; it saves without a conflict, the Keyboard shortcuts dialog and the palette row show it, and pressing it in a split swaps the focused window with its right neighbour.

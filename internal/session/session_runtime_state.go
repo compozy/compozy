@@ -12,31 +12,37 @@ import (
 )
 
 type runtimeBindingSnapshot struct {
-	runtimeStrategy        acp.RuntimeApplicationStrategy
-	process                *AgentProcess
-	selection              RuntimeSelection
-	status                 RuntimeStatus
-	transition             RuntimeTransitionStrategy
-	failure                string
-	generation             int64
-	recovery               *store.SessionRuntimeRecovery
-	acpSessionID           string
-	acceptedRoute          *store.SessionAcceptedRoute
-	acceptedCommand        string
-	acceptedSessionEnv     compozyconfig.SessionEnv
-	pendingResumeReplay    string
-	acpCaps                acp.Caps
-	acpCapsKnown           bool
-	speedResolution        *speedpkg.Resolution
-	liveness               *store.SessionLivenessMeta
-	agentDef               compozyconfig.AgentDef
-	advertisedCommands     []store.SessionAdvertisedCommand
-	startupManifest        acp.StartupManifest
-	nativeToolsUnavailable bool
-	runtimeRelease         *runtimeRelease
-	configUnverified       bool
+	activation              activationState
+	hostedMCPDigest         string
+	directMCPDigest         string
+	hostedMCPRequiresReload bool
+	runtimeStrategy         acp.RuntimeApplicationStrategy
+	process                 *AgentProcess
+	selection               RuntimeSelection
+	status                  RuntimeStatus
+	transition              RuntimeTransitionStrategy
+	sessionFailure          *store.SessionFailure
+	failure                 string
+	generation              int64
+	recovery                *store.SessionRuntimeRecovery
+	acpSessionID            string
+	acceptedRoute           *store.SessionAcceptedRoute
+	acceptedCommand         string
+	acceptedSessionEnv      compozyconfig.SessionEnv
+	pendingResumeReplay     string
+	acpCaps                 acp.Caps
+	acpCapsKnown            bool
+	speedResolution         *speedpkg.Resolution
+	liveness                *store.SessionLivenessMeta
+	agentDef                compozyconfig.AgentDef
+	advertisedCommands      []store.SessionAdvertisedCommand
+	startupManifest         acp.StartupManifest
+	nativeToolsUnavailable  bool
+	runtimeRelease          *runtimeRelease
+	configUnverified        bool
 }
 
+// runtimeBindingSnapshot captures the accepted binding and failure state for transactional rollback.
 func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 	if s == nil {
 		return runtimeBindingSnapshot{}
@@ -44,8 +50,12 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return runtimeBindingSnapshot{
-		runtimeStrategy: s.runtimeStrategyLocked(),
-		process:         s.process,
+		activation:              s.activation.clone(),
+		hostedMCPDigest:         s.hostedMCPDigest,
+		directMCPDigest:         s.directMCPDigest,
+		hostedMCPRequiresReload: s.hostedMCPRequiresReload,
+		runtimeStrategy:         s.runtimeStrategyLocked(),
+		process:                 s.process,
 		selection: RuntimeSelection{
 			Provider:        s.Provider,
 			Model:           s.Model,
@@ -55,6 +65,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 		},
 		status:                 s.RuntimeStatus,
 		transition:             s.RuntimeTransition,
+		sessionFailure:         store.CloneSessionFailure(s.failure),
 		failure:                s.RuntimeFailure,
 		generation:             s.RuntimeGeneration,
 		recovery:               store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
@@ -131,6 +142,7 @@ func (s *Session) completeRecoveryTransition(
 	return previous, nil
 }
 
+// completeRuntimeTransitionLocked commits the replacement and clears auth attention only for a new process.
 func (s *Session) completeRuntimeTransitionLocked(
 	proc *AgentProcess,
 	selection RuntimeSelection,
@@ -156,6 +168,9 @@ func (s *Session) completeRuntimeTransitionLocked(
 	s.runtimeConfigUnverified = false
 	s.RuntimeRecovery = nil
 	if proc != nil && proc != previous {
+		if s.failure != nil && s.failure.Kind == store.FailureProviderAuth {
+			s.failure = nil
+		}
 		s.RuntimeGeneration++
 	}
 	s.updateFromProcessLocked(proc, now, strings.TrimSpace(selection.Model) == "")
@@ -213,6 +228,9 @@ func (s *Session) abandonAutomaticRecovery(now time.Time) bool {
 		return false
 	}
 	s.RuntimeStatus = RuntimeStatusReady
+	if s.process == nil || isProcessDone(s.process) {
+		s.RuntimeStatus = RuntimeStatusUnbound
+	}
 	s.RuntimeFailure = ""
 	s.RuntimeRecovery = nil
 	if !now.IsZero() {
@@ -273,8 +291,16 @@ func (s *Session) restoreRecoveryBinding(
 	}
 }
 
+// restoreRuntimeBindingLocked restores the accepted binding and its auth failure after an unsuccessful transition.
 func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, failure string, now time.Time) {
 	s.process = snapshot.process
+	if s.failure == nil && snapshot.sessionFailure != nil && snapshot.sessionFailure.Kind == store.FailureProviderAuth {
+		s.failure = store.CloneSessionFailure(snapshot.sessionFailure)
+	}
+	s.activation = snapshot.activation.clone()
+	s.hostedMCPDigest = snapshot.hostedMCPDigest
+	s.directMCPDigest = snapshot.directMCPDigest
+	s.hostedMCPRequiresReload = snapshot.hostedMCPRequiresReload
 	s.runtimeRelease = snapshot.runtimeRelease
 	s.Provider = snapshot.selection.Provider
 	s.Model = snapshot.selection.Model

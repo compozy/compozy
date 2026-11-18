@@ -32,6 +32,11 @@ const (
 	defaultClientVersion        = "dev"
 )
 
+// defaultModelCatalogBudget bounds how long a model pin waits for a catalog that the
+// provider publishes only after session/new: opencode announces the builtin catalog
+// there and the full catalog seconds later via config_option_update.
+const defaultModelCatalogBudget = 15 * time.Second
+
 var (
 	// ErrAgentDoesNotSupportSession reports that resume was requested for an ACP agent without session/load support.
 	ErrAgentDoesNotSupportSession = errors.New("acp: agent does not support session/load")
@@ -70,6 +75,8 @@ type Driver struct {
 	permissionWait         time.Duration
 	permissionWaitResolver PermissionWaitResolver
 	processRecordTimeout   time.Duration
+	configSettleBudget     time.Duration
+	modelCatalogBudget     time.Duration
 	launcher               Launcher
 	toolHost               ToolHost
 	processRegistry        *toolruntime.Registry
@@ -191,6 +198,8 @@ func New(opts ...Option) *Driver {
 		promptDrainWait:      defaultPromptDrain,
 		permissionWait:       defaultPermissionWait,
 		processRecordTimeout: defaultProcessRecordTimeout,
+		configSettleBudget:   defaultConfigSettleBudget,
+		modelCatalogBudget:   defaultModelCatalogBudget,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -217,6 +226,9 @@ func New(opts ...Option) *Driver {
 	}
 	if driver.processRecordTimeout <= 0 {
 		driver.processRecordTimeout = defaultProcessRecordTimeout
+	}
+	if driver.modelCatalogBudget <= 0 {
+		driver.modelCatalogBudget = defaultModelCatalogBudget
 	}
 	if driver.launcher == nil {
 		driver.launcher = newLocalLauncher(driver.logger, driver.stopTimeout, driver.agentNiceness)

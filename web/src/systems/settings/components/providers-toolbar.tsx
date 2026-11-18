@@ -19,6 +19,7 @@ const STATUS_LABEL: Record<ProviderStateLabel | "all", string> = {
   "needs-sign-in": "Needs sign-in",
   "auth-unknown": "Sign-in unverified",
   "auth-unavailable": "Sign-in unavailable",
+  disabled: "Disabled",
 };
 
 export interface ProvidersToolbarProps {

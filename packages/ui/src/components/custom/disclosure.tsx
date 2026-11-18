@@ -25,9 +25,17 @@ export interface DisclosureProps extends Omit<
   size?: "sm" | "md";
   /** Keep the panel in the DOM while closed (preserves form state and anchors). */
   keepMounted?: boolean;
+  /**
+   * Keep the closed panel in the DOM as `hidden="until-found"`: find-in-page and a link to an id
+   * inside it open it, as a closed `<details>` does. Implies `keepMounted`.
+   */
+  hiddenUntilFound?: boolean;
   className?: string;
   triggerProps?: Omit<React.ComponentProps<typeof CollapsibleTrigger>, "children"> & DataAttributes;
-  contentProps?: Omit<React.ComponentProps<typeof CollapsibleContent>, "children" | "keepMounted"> &
+  contentProps?: Omit<
+    React.ComponentProps<typeof CollapsibleContent>,
+    "children" | "keepMounted" | "hiddenUntilFound"
+  > &
     DataAttributes;
 }
 
@@ -42,6 +50,7 @@ function Disclosure({
   variant = "inline",
   size = "sm",
   keepMounted = false,
+  hiddenUntilFound = false,
   className,
   triggerProps,
   contentProps,
@@ -56,7 +65,9 @@ function Disclosure({
       data-variant={variant}
       className={cn(
         "flex min-w-0 flex-col",
-        framed && "overflow-hidden rounded-lg bg-sunken",
+        // `overflow-hidden` drops a flex item's min height to 0, so a framed panel in a scrolling
+        // flex column would be squashed to nothing; it keeps its own height instead.
+        framed && "shrink-0 overflow-hidden rounded-lg bg-sunken",
         className
       )}
       {...rootProps}
@@ -86,7 +97,8 @@ function Disclosure({
       </CollapsibleTrigger>
       <CollapsibleContent
         data-slot="disclosure-content"
-        keepMounted={keepMounted}
+        // Base UI ignores (and warns about) an explicit `keepMounted` beside `hiddenUntilFound`.
+        {...(hiddenUntilFound ? { hiddenUntilFound } : { keepMounted })}
         className={cn(framed ? "border-t border-line-soft" : "pt-2", contentClassName)}
         {...restContent}
       >

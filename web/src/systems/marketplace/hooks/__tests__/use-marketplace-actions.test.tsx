@@ -64,7 +64,14 @@ describe("marketplace acquisition cache boundaries", () => {
     );
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
     expect(result.current.listing.data).toBeUndefined();
-    act(() => result.current.install.mutate({ ref: "compozy/otel-bridge", source: "curated" }));
+    act(() =>
+      result.current.install.mutate({
+        enable: false,
+        ref: "compozy/otel-bridge",
+        replace: false,
+        source: "curated",
+      })
+    );
     await waitFor(() =>
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] })
     );

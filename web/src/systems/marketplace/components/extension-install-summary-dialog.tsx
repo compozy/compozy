@@ -116,8 +116,9 @@ function summaryDialogModel(props: SummaryDialogProps) {
   return {
     name: props.preview.name,
     definitions: props.preview.inputs,
-    actionLabel: "Install",
-    pendingLabel: "Installing…",
+    // Catalog review confirms Add: install and turn on in one step.
+    actionLabel: "Add",
+    pendingLabel: "Adding…",
     description: props.entry.description,
     preview:
       props.preview.declared_profiles.length > 0 || props.preview.placements.length > 0

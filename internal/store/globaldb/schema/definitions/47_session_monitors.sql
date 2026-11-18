@@ -30,7 +30,9 @@ CREATE TABLE session_monitors (
   -- Session monitors: the watched sessions and accepted states, and each target's state when it fired.
   target_session_ids TEXT NOT NULL DEFAULT '[]',
   states TEXT NOT NULL DEFAULT '[]',
-  targets TEXT NOT NULL DEFAULT '[]'
+  targets TEXT NOT NULL DEFAULT '[]',
+  -- Immutable target owners for access checks after deletion, private to the daemon.
+  target_scopes TEXT NOT NULL DEFAULT '[]'
 );
 CREATE INDEX idx_session_monitors_session ON session_monitors (session_id);
 CREATE INDEX idx_session_monitors_status ON session_monitors (status, fired_at);

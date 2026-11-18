@@ -12,10 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var ErrMarketplaceCursorStale = errors.New("marketplace: catalog revision changed")
+var ErrMarketplaceCursorStale = errors.New("marketplace_cursor_stale: Catalog changed; restart from the first page")
 
 // MarketplaceListRequest carries canonical catalog pagination and installed-state scope.
 type MarketplaceListRequest struct {
+	Category    string
 	Query       string
 	Cursor      string
 	Limit       int
@@ -32,7 +33,10 @@ func (h *BaseHandlers) ListMarketplace(c *gin.Context) {
 		return
 	}
 
-	limit := maxMarketplaceLimit
+	limit := 100
+	if c.Query("category") != "" {
+		limit = 50
+	}
 	var err error
 	if c.Query("limit") != "" {
 		limit, err = marketplaceLimit(c.Query("limit"))
@@ -46,7 +50,7 @@ func (h *BaseHandlers) ListMarketplace(c *gin.Context) {
 		return
 	}
 	response, err := h.MarketplaceList(c.Request.Context(), MarketplaceListRequest{
-		Query: c.Query("q"), Cursor: c.Query("cursor"), Limit: limit,
+		Category: c.Query("category"), Query: c.Query("q"), Cursor: c.Query("cursor"), Limit: limit,
 		Scope: c.Query("scope"), WorkspaceID: c.Query("workspace_id"), ProfileName: c.Query("profile"), Actor: actor,
 	})
 	if err != nil {
@@ -65,7 +69,10 @@ func (h *BaseHandlers) MarketplaceList(
 	}
 	limit := request.Limit
 	if limit == 0 {
-		limit = maxMarketplaceLimit
+		limit = 100
+		if request.Category != "" {
+			limit = 50
+		}
 	}
 	limit, err := marketplaceLimitValue(limit)
 	if err != nil {
@@ -76,53 +83,45 @@ func (h *BaseHandlers) MarketplaceList(
 		return contract.MarketplaceListResponse{}, err
 	}
 	scope.actor = request.Actor
+	category, err := marketplaceBrowseCategory(request.Category)
+	if err != nil {
+		return contract.MarketplaceListResponse{}, err
+	}
+	scope.category = request.Category
 	query := marketplacepkg.NormalizeQuery(request.Query)
 	offset, fence, err := marketplaceCursorOffset(request.Cursor, query, scope)
 	if err != nil {
 		return contract.MarketplaceListResponse{}, err
 	}
-	page, err := h.MarketplaceCatalog.Browse(ctx, query, offset, limit)
-	if err != nil {
-		return contract.MarketplaceListResponse{}, normalizeCuratedMarketplaceError(err)
-	}
-	if fence != "" && fence != page.Revision {
-		return contract.MarketplaceListResponse{}, ErrMarketplaceCursorStale
-	}
 	installed, err := h.extensionInstallIndex(ctx, scope)
 	if err != nil {
 		return contract.MarketplaceListResponse{}, err
 	}
-	response := contract.MarketplaceListResponse{
-		Total:      page.Total,
-		Revision:   page.Revision,
-		Stale:      page.Stale,
-		Refreshing: page.Refreshing,
-		ErrorClass: page.ErrorClass,
-		Error:      h.marketplaceCatalogDiagnostic(page.LastError),
-		Items: make(
-			[]contract.MarketplaceListingPayload,
-			0,
-			len(page.Entries),
-		),
-		Sources: []contract.MarketplaceSourceSummary{},
+	origins := make([]marketplacepkg.Origin, 0, len(installed.byOrigin))
+	for origin := range installed.byOrigin {
+		origins = append(origins, origin)
 	}
-	for _, source := range page.Sources {
-		if source.Enabled {
-			response.Sources = append(response.Sources, marketplaceSourceSummary(source))
-		}
+	page, err := h.MarketplaceCatalog.BrowseFiltered(
+		ctx,
+		marketplacepkg.BrowseFilter{Query: query, Category: category, Installed: origins},
+		offset,
+		limit,
+	)
+	if err != nil {
+		return contract.MarketplaceListResponse{}, normalizeCuratedMarketplaceError(err)
 	}
-	for _, entry := range page.Entries {
-		listing, err := h.catalogMarketplaceListing(ctx, entry, installed)
-		if err != nil {
-			return contract.MarketplaceListResponse{}, err
-		}
-		normalizeCatalogListing(&listing)
-		response.Items = append(response.Items, listing)
+	cursorRevision := marketplacePopulationRevision(page.Revision, origins)
+	if fence != "" && fence != cursorRevision {
+		return contract.MarketplaceListResponse{}, ErrMarketplaceCursorStale
+	}
+	response, err := h.marketplacePagePayload(ctx, page, installed)
+	if err != nil {
+		return contract.MarketplaceListResponse{}, err
 	}
 	response.NextCursor, err = marketplaceNextCursor(
 		query,
 		scope,
-		page.Revision,
+		cursorRevision,
 		offset+len(page.Entries),
 		offset+len(page.Entries) < page.Total,
 	)
@@ -168,6 +167,12 @@ func (h *BaseHandlers) GetMarketplaceCatalogEntry(c *gin.Context) {
 }
 
 func normalizeCatalogListing(listing *contract.MarketplaceListingPayload) {
+	if listing.Category == "" {
+		categories := marketplacepkg.Categories()
+		fallback := categories[len(categories)-1]
+		listing.Category, listing.CategoryLabel = string(fallback.ID), fallback.Label
+	}
+
 	if listing.SourceRef == marketplacepkg.CompozyCatalogRef {
 		listing.Source = marketplacepkg.CompozyCatalogSource
 		listing.InstallSlug = "compozy/" + listing.EntryID
@@ -191,4 +196,57 @@ func marketplaceSourceSummary(state marketplacepkg.SourceState) contract.Marketp
 		source.LastReadAt = new(state.FetchedAt)
 	}
 	return source
+}
+
+func marketplaceBrowseCategory(value string) (marketplacepkg.CategoryID, error) {
+	if value == "" || value == marketplacepkg.CategoryFeatured {
+		return marketplacepkg.CategoryID(value), nil
+	}
+	return marketplacepkg.ParseCategoryID(value)
+}
+
+func (h *BaseHandlers) marketplacePagePayload(
+	ctx context.Context,
+	page marketplacepkg.BrowseResult,
+	installed marketplaceInstallIndex,
+) (contract.MarketplaceListResponse, error) {
+	response := contract.MarketplaceListResponse{
+		Total:      page.Total,
+		Revision:   page.Revision,
+		Stale:      page.Stale,
+		Refreshing: page.Refreshing,
+		ErrorClass: page.ErrorClass,
+		Error:      h.marketplaceCatalogDiagnostic(page.LastError),
+		Items: make(
+			[]contract.MarketplaceListingPayload,
+			0,
+			len(page.Entries),
+		),
+		Sources: []contract.MarketplaceSourceSummary{},
+	}
+	for _, count := range page.Categories {
+		response.Categories = append(
+			response.Categories,
+			contract.MarketplaceCategoryCount{
+				ID:    string(count.Category.ID),
+				Label: count.Category.Label,
+				Count: count.Count,
+			},
+		)
+	}
+	for _, source := range page.Sources {
+		if source.Enabled {
+			response.Sources = append(response.Sources, marketplaceSourceSummary(source))
+		}
+	}
+	for _, entry := range page.Entries {
+		listing, err := h.catalogMarketplaceListing(ctx, entry, installed)
+		if err != nil {
+			return contract.MarketplaceListResponse{}, err
+		}
+		normalizeCatalogListing(&listing)
+		response.Items = append(response.Items, listing)
+	}
+
+	return response, nil
 }

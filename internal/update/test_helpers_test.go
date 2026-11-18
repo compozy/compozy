@@ -71,6 +71,8 @@ func newManagerWithExecutable(t *testing.T, cfg *Config) (*Manager, string) {
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
+	// Unit fixtures opt in to credential I/O only when authentication is their invariant.
+	manager.githubCredentials = nil
 	return manager, executablePath
 }
 

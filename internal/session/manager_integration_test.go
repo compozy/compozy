@@ -6,9 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -24,9 +27,11 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
+	shellquote "github.com/kballard/go-shellquote"
 )
 
 func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
@@ -627,7 +632,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		assertIntegrationFileContent(t, filepath.Join(worktreeA, "isolated.txt"), "worktree-a\n")
 		assertIntegrationFileContent(t, filepath.Join(worktreeB, "isolated.txt"), "worktree-b\n")
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute,
 		})
 		if err != nil {
@@ -666,7 +671,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 
 		runSessionIntegrationGit(t, h.workspace, "worktree", "remove", "--force", worktreeA)
 		startsBeforeRefusal := len(h.driver.startCalls)
-		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		_, err = h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute,
 		})
 		if !errors.Is(err, missingErr) {
@@ -1475,7 +1480,7 @@ func TestManagerIntegrationUserLifecycle(t *testing.T) {
 					t.Fatal(err)
 				}
 				resolved.ID, resolved.WorkspaceID, resolved.Scope = "", "", workspacepkg.ScopeUser
-				userResolver := userLifecycleResolver{WorkspaceResolver: h.resolver, resolved: resolved}
+				userResolver := &userLifecycleResolver{WorkspaceResolver: h.resolver, resolved: resolved}
 				h.manager = newManagerWithHarness(t, h, WithWorkspaceResolver(userResolver), WithSessionCatalog(db))
 				cleanupTestManager(t, h.manager)
 				opts := CreateOpts{Scope: workspacepkg.ScopeUser, AgentName: "coder"}
@@ -1561,7 +1566,7 @@ func TestManagerIntegrationUserLifecycle(t *testing.T) {
 				}
 				child, err := h.manager.Spawn(
 					ctx,
-					SpawnOpts{ParentSessionID: created.ID, AgentName: "coder", TTL: time.Minute},
+					&SpawnOpts{ParentSessionID: created.ID, AgentName: "coder", TTL: time.Minute},
 				)
 				if err != nil {
 					t.Fatal(err)
@@ -1590,23 +1595,6 @@ func TestManagerIntegrationUserLifecycle(t *testing.T) {
 			},
 		)
 	}
-}
-
-type userLifecycleResolver struct {
-	WorkspaceResolver
-	resolved workspacepkg.ResolvedWorkspace
-}
-
-var _ workspacepkg.UserRuntimeResolver = userLifecycleResolver{}
-
-func (r userLifecycleResolver) ResolveUser(
-	_ context.Context,
-	profileID string,
-) (workspacepkg.ResolvedWorkspace, error) {
-	resolved := r.resolved
-	resolved.ProfileID = profileID
-	resolved.ProfileName = "default"
-	return resolved, nil
 }
 
 // sessionBindingIntegrationResolver uses real worktree usage leases and SQLite.
@@ -1665,4 +1653,55 @@ func (c cancelBindingCatalog) UpdateSessionWorktreeBinding(
 ) error {
 	c.cancel()
 	return c.GlobalDB.UpdateSessionWorktreeBinding(ctx, update)
+}
+
+func TestManagerIntegrationCursorDefaultReasoning(t *testing.T) {
+	t.Parallel()
+	// Invariant: the discovered default launches successfully across real ACP and SQLite boundaries.
+	t.Run("Should complete a Cursor prompt through the catalog default transport", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("native Cursor shell fixture requires Unix")
+		}
+		dir := t.TempDir()
+		fixture := filepath.Join(dir, "cursor.json")
+		if err := os.WriteFile(fixture, []byte(`{"version":2,"agents":[{"name":"cursor-default","provider":"cursor","turns":[{"name":"reply","match":{"user_text":"cursor default prompt"},"steps":[{"kind":"assistant","text":"cursor default response"}]}]}]}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		command := acpmock.BuildCommand(acpmock.RequireDriver(t), fixture, "cursor-default", "", "cursor")
+		wrapper := filepath.Join(dir, "cursor-agent")
+		// The provider accepts only the exact default alias, proving launch negotiation before inference.
+		script := "#!/bin/sh\n[ \"$*\" = '--model gemini-3.8-flash-low acp' ] || exit 42\nexec " + command + "\n"
+		if err := os.WriteFile(wrapper, []byte(script), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		h := newHarness(t)
+		h.cfg.Providers["cursor"] = compozyconfig.BuiltinProviders()["cursor"]
+		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{ID: h.workspaceID, RootDir: h.workspace, Name: h.workspaceName, Config: h.cfg,
+			Agents: []compozyconfig.AgentDef{{Name: "coder", Provider: "cursor", Command: shellquote.Join(wrapper, "acp"), Prompt: "Exercise the Cursor default transport."}},
+		})
+		driver := newIntegrationACPDriver(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))), acp.WithStopTimeout(100*time.Millisecond))
+		h.manager = newManagerWithHarness(t, h, WithDriver(NewACPDriverAdapter(driver)), WithModelCatalog(modelCatalogStub{models: cursorCatalogModels(t, cursorDefaultCatalogOutput)}))
+		sess, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Provider: "cursor", Model: "gemini-3.8-flash", Workspace: h.workspaceID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, sess.ID) })
+		events, err := h.manager.Prompt(t.Context(), sess.ID, "cursor default prompt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, event := range collectEvents(t, events) {
+			if event.Type == acp.EventTypeAgentMessage && event.Text == "cursor default response" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("real ACP prompt did not return the expected response")
+		}
+		if got := readMeta(t, sess.MetaPath()).Model; got != "gemini-3.8-flash" {
+			t.Fatalf("persisted logical model = %q", got)
+		}
+	})
 }

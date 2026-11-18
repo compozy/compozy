@@ -168,7 +168,19 @@ func TestExecuteContextLocalDatabaseMigrationErrors(t *testing.T) {
 				if got := payload.Diagnostic.Evidence["surface"]; got != tt.surface {
 					t.Fatalf("ExecuteContext(%s) surface = %#v, want %q", tt.name, got, tt.surface)
 				}
-				if got := payload.Diagnostic.Evidence["offending_path"]; got != canonicalPath {
+				reportedPath, ok := payload.Diagnostic.Evidence["offending_path"].(string)
+				if !ok {
+					t.Fatalf(
+						"ExecuteContext(%s) path = %#v, want a string",
+						tt.name,
+						payload.Diagnostic.Evidence["offending_path"],
+					)
+				}
+				resolvedPath, err := filepath.EvalSymlinks(reportedPath)
+				if err != nil {
+					t.Fatalf("EvalSymlinks(reported path) error = %v", err)
+				}
+				if got := resolvedPath; got != canonicalPath {
 					t.Fatalf("ExecuteContext(%s) path = %#v, want %q", tt.name, got, canonicalPath)
 				}
 				if !strings.Contains(

@@ -72,6 +72,7 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithSkillResourceSyncer(deps.SkillResources),
 		httpapi.WithRuntimeMemorySnapshotSource(deps.RuntimeMemory),
 		httpapi.WithHostLoadSnapshotSource(deps.HostLoad),
+		httpapi.WithTelemetryStatus(deps.TelemetryStatus),
 		httpapi.WithDeadEntitySource(deps.DeadEntities),
 		httpapi.WithExtensionService(deps.Extensions),
 		httpapi.WithOpenAPIDocument(runtimeOpenAPIDocument),
@@ -84,9 +85,8 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 			httpapi.WithAppTokenAuth(deps.AppTokens, appAccessPolicy()),
 		)
 	}
-	return options
+	return append(options, httpProjectFileOptions(deps)...)
 }
-
 func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 	options := []udsapi.Option{
 		udsapi.WithHomePaths(deps.HomePaths),
@@ -113,6 +113,8 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithToolArtifactStore(deps.ToolArtifacts),
 		udsapi.WithSessionAttachmentStore(deps.SessionAttachments),
 		udsapi.WithSessionFileSearcher(deps.SessionFiles),
+		udsapi.WithFileTreeReader(deps.FileTree),
+		udsapi.WithSessionChangesReader(deps.SessionChanges),
 		udsapi.WithToolApprovalIssuer(deps.ToolApprovals),
 		udsapi.WithToolApprovalGrantService(deps.ApprovalGrants),
 		udsapi.WithApprovalCoordinator(deps.ApprovalCoordinator),
@@ -154,6 +156,7 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithSkillResourceSyncer(deps.SkillResources),
 		udsapi.WithRuntimeMemorySnapshotSource(deps.RuntimeMemory),
 		udsapi.WithHostLoadSnapshotSource(deps.HostLoad),
+		udsapi.WithTelemetryStatus(deps.TelemetryStatus),
 		udsapi.WithDeadEntitySource(deps.DeadEntities),
 		udsapi.WithExtensionService(deps.Extensions),
 		udsapi.WithHostedMCP(deps.HostedMCP),
@@ -165,4 +168,11 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		options = append(options, udsapi.WithAppTokenManager(deps.AppTokens))
 	}
 	return options
+}
+
+func httpProjectFileOptions(deps *RuntimeDeps) []httpapi.Option {
+	return []httpapi.Option{
+		httpapi.WithFileTreeReader(deps.FileTree),
+		httpapi.WithSessionChangesReader(deps.SessionChanges),
+	}
 }

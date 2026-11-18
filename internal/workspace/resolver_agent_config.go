@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -12,9 +13,10 @@ import (
 )
 
 type cachedAgentConfig struct {
-	resolved   ResolvedAgentConfig
-	snapshots  map[string]filesnap.Snapshot
-	lastAccess time.Time
+	resolved    ResolvedAgentConfig
+	snapshots   map[string]filesnap.Snapshot
+	lastAccess  time.Time
+	validatedAt time.Time
 }
 
 type workspaceAgentState struct {
@@ -33,12 +35,22 @@ func (r *Resolver) ResolveAgentConfig(ctx context.Context, ref, profileName stri
 			return ResolvedAgentConfig{}, err
 		}
 	}
+	if ParseRef(ref).Kind == RefUser {
+		return r.resolveAgentConfig(ctx, Workspace{}, "", profileName, profileID)
+	}
 	ws, identity, err := r.resolveRegistration(ctx, ref)
 	if err != nil {
 		return ResolvedAgentConfig{}, err
 	}
-	scan, err := r.scanAgentConfig(ctx, ws, profileName)
-	if err != nil {
+	return r.resolveAgentConfig(ctx, ws, identity.WorkspaceID, profileName, profileID)
+}
+
+func (r *Resolver) resolveAgentConfig(
+	ctx context.Context,
+	ws Workspace,
+	workspaceID, profileName, profileID string,
+) (ResolvedAgentConfig, error) {
+	if err := checkContext(ctx); err != nil {
 		return ResolvedAgentConfig{}, err
 	}
 	cacheKey := workspaceProfileCacheKey(ws.ID, profileName)
@@ -46,28 +58,49 @@ func (r *Resolver) ResolveAgentConfig(ctx context.Context, ref, profileName stri
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
 	cached := r.agentConfigCache[cacheKey]
+	generation := r.agentConfigGeneration
 	if cached != nil && sameWorkspaceRuntimeInputs(cached.resolved.Workspace, ws) &&
-		filesnap.Equal(cached.snapshots, scan.snapshots) {
+		r.snapshotTTL > 0 && !now.Before(cached.validatedAt) && now.Sub(cached.validatedAt) < r.snapshotTTL {
 		cached.lastAccess = now
+		r.touchAgentConfigObservationLocked(cacheKey, nil, now)
 		resolved := cloneResolvedAgentConfig(&cached.resolved)
 		r.mu.Unlock()
 		resolved.Workspace = cloneWorkspace(ws)
-		resolved.WorkspaceID, resolved.ProfileID = identity.WorkspaceID, profileID
+		resolved.WorkspaceID, resolved.ProfileID = workspaceID, profileID
 		return resolved, nil
 	}
-	agentConfigGeneration := r.agentConfigGeneration
+	r.mu.Unlock()
+	scan, err := r.scanAgentConfig(ctx, ws, profileName)
+	if err != nil {
+		return ResolvedAgentConfig{}, err
+	}
+	r.mu.Lock()
+	cached = r.agentConfigCache[cacheKey]
+	if cached != nil && sameWorkspaceRuntimeInputs(cached.resolved.Workspace, ws) &&
+		generation == r.agentConfigGeneration && filesnap.Equal(cached.snapshots, scan.snapshots) {
+		cached.lastAccess = now
+		r.touchAgentConfigObservationLocked(cacheKey, nil, now)
+		cached.validatedAt = now
+		resolved := cloneResolvedAgentConfig(&cached.resolved)
+		r.mu.Unlock()
+		resolved.Workspace = cloneWorkspace(ws)
+		resolved.WorkspaceID, resolved.ProfileID = workspaceID, profileID
+		return resolved, nil
+	}
 	r.mu.Unlock()
 	resolved, err := r.buildResolvedAgentConfig(ctx, ws, scan.agents, profileName)
 	if err != nil {
 		return ResolvedAgentConfig{}, err
 	}
-	resolved.WorkspaceID, resolved.ProfileID = identity.WorkspaceID, profileID
+	resolved.WorkspaceID, resolved.ProfileID = workspaceID, profileID
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
-	if agentConfigGeneration == r.agentConfigGeneration {
+	if generation == r.agentConfigGeneration {
 		r.agentConfigCache[cacheKey] = &cachedAgentConfig{
 			resolved: cloneResolvedAgentConfig(&resolved), snapshots: cloneSnapshots(scan.snapshots), lastAccess: now,
+			validatedAt: now,
 		}
+		r.touchAgentConfigObservationLocked(cacheKey, scan.snapshots, now)
 	}
 	r.mu.Unlock()
 	return resolved, nil
@@ -110,6 +143,18 @@ func (r *Resolver) scanAgentConfig(ctx context.Context, ws Workspace, profileNam
 			return workspaceScan{}, err
 		}
 		if err := scanAgentSource(root, scan.snapshots, &scan.agents); err != nil {
+			return workspaceScan{}, err
+		}
+		// Remember missing roots too, so creation is observable without re-discovery.
+		if err := addDependencySnapshot(root.AgentsDir(), scan.snapshots); err != nil {
+			return workspaceScan{}, err
+		}
+	}
+	for _, agent := range scan.agents {
+		if err := addDependencySnapshot(
+			filepath.Join(filepath.Dir(agent.path), compozyconfig.MCPJSONName),
+			scan.snapshots,
+		); err != nil {
 			return workspaceScan{}, err
 		}
 	}
@@ -168,6 +213,12 @@ func (r *Resolver) evictAgentConfigCacheLocked(cutoff time.Time) {
 	for key, cached := range r.agentConfigCache {
 		if cached.lastAccess.Before(cutoff) {
 			delete(r.agentConfigCache, key)
+		}
+	}
+	for key, observed := range r.agentConfigObserved {
+		_, watched := r.agentConfigWatched[key]
+		if !watched && observed.lastAccess.Before(cutoff) {
+			delete(r.agentConfigObserved, key)
 		}
 	}
 }

@@ -219,7 +219,7 @@ export const BackFromLater: Story = {
 
 const CARD_ACTIONS: SessionLifecycleActionHandlers = {
   pendingAction: null,
-  pendingSessionId: null,
+  pendingSessionIds: [],
   onStop: fn(),
   onRename: fn(),
   onArchive: fn(),

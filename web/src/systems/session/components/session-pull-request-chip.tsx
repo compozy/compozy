@@ -7,7 +7,7 @@ import {
   GitBranchIcon,
   type LucideIcon,
 } from "@compozy/ui/icons";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
 import {
   cn,
@@ -34,9 +34,10 @@ import {
 } from "../lib/pull-request-signal";
 import type { PullRequestExitPlanView } from "../lib/pull-request-actions";
 import type { SessionPullRequestFacts } from "../lib/session-pull-request";
+import type { SessionPullRequestPromptKind } from "../lib/pull-request-menu-tree";
 import {
   SessionPullRequestMenu,
-  type SessionPullRequestPromptKind,
+  type SessionPullRequestMenuProps,
 } from "./session-pull-request-menu";
 
 export interface SessionPullRequestChipProps {
@@ -50,8 +51,10 @@ export interface SessionPullRequestChipProps {
   onExitAction?: (action: string) => void;
   onRefresh?: () => void;
   onPrompt?: (kind: SessionPullRequestPromptKind, text: string) => void;
-  /** Rows after the delivery actions in the menu. */
-  menuFooter?: ReactNode;
+  /** Opens the Review panel on Changes (US-007.AC-8); absent in user scope. */
+  onReviewChanges?: () => void;
+  /** The linked item's own verbs: where it runs, its child session, link and unlink. */
+  link?: Pick<SessionPullRequestMenuProps, "worktree" | "onOpenSession" | "onLink" | "onUnlink">;
   /** Opens with the menu shown (prototypes and stories). */
   defaultMenuOpen?: boolean;
 }
@@ -69,7 +72,8 @@ export function SessionPullRequestChip({
   onExitAction,
   onRefresh,
   onPrompt,
-  menuFooter,
+  onReviewChanges,
+  link,
   defaultMenuOpen = false,
 }: SessionPullRequestChipProps) {
   const [menuOpen, setMenuOpen] = useState(defaultMenuOpen);
@@ -105,14 +109,16 @@ export function SessionPullRequestChip({
         </TooltipContent>
       </Tooltip>
       <SessionPullRequestMenu
+        {...link}
+        branch={facts.branch}
         controllable={controllable}
         exitPlan={exitPlan}
         exitRunning={exitRunning}
-        footer={menuFooter}
         observedAt={facts.pull_request_lookup?.observed_at}
         onExitAction={onExitAction}
         onPrompt={onPrompt}
         onRefresh={onRefresh}
+        onReviewChanges={onReviewChanges}
         pullRequest={facts.pull_request}
         refreshing={refreshing}
       />

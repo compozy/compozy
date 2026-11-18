@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>;
 const AVATAR_IMAGE_SRC =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="%23E8572A"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-family="system-ui" font-size="16" font-weight="600">PN</text></svg>'
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="%232F5BFF"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-family="system-ui" font-size="16" font-weight="600">PN</text></svg>'
   );
 
 const BROKEN_IMAGE_SRC = "https://example.invalid/avatar-does-not-exist.png";

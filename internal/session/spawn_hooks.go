@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -15,9 +16,18 @@ import (
 func (m *Manager) dispatchSpawnPreCreate(
 	ctx context.Context,
 	parent *Info,
-	opts SpawnOpts,
+	optsInput *SpawnOpts,
 	lineage *store.SessionLineage,
 ) (SpawnOpts, *store.SessionLineage, error) {
+	opts := *optsInput
+	parentPolicy, err := m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, parent), parent.ID)
+	if err != nil {
+		return SpawnOpts{}, nil, err
+	}
+	childPolicy, err := m.effectiveSpawnAuthority(ctx, parent, &opts)
+	if err != nil {
+		return SpawnOpts{}, nil, err
+	}
 	expectedSubagent := opts.Subagent
 	if expectedSubagent != nil {
 		expected := *expectedSubagent
@@ -28,8 +38,8 @@ func (m *Manager) dispatchSpawnPreCreate(
 		Subagent:          opts.Subagent,
 		Timestamp:         m.now().UTC(),
 		SpawnContext:      spawnHookContext(parent, nil, lineage, opts.AgentName, opts.SpawnRole),
-		ParentPermissions: hookPermissionSetFromPolicy(parent.Lineage.PermissionPolicy),
-		ChildPermissions:  hookPermissionSetFromPolicy(opts.PermissionPolicy),
+		ParentPermissions: hookPermissionSetFromPolicy(parentPolicy),
+		ChildPermissions:  hookPermissionSetFromPolicy(childPolicy),
 	}
 	result, err := m.hooks.spawn().DispatchSpawnPreCreate(ctx, payload)
 	if err != nil {
@@ -60,32 +70,62 @@ func (m *Manager) dispatchSpawnPreCreate(
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %s", ErrSpawnPermissionDenied, reason)
 	}
 
+	if err := validateSubagentSpawnHook(opts.SpawnRole, expectedSubagent, &result); err != nil {
+		return SpawnOpts{}, nil, err
+	}
+	opts.AgentName = strings.TrimSpace(result.AgentName)
+	opts.SpawnRole = normalizeSpawnRole(result.SpawnRole)
+	opts.TTL = time.Duration(result.TTLSeconds) * time.Second
+	narrowed := policyFromHookPermissionSet(result.ChildPermissions)
+	if err := ValidatePermissionSubset(childPolicy, narrowed); err != nil {
+		return SpawnOpts{}, nil, err
+	}
+	applySpawnHookPermissions(&opts, childPolicy, narrowed)
+	normalized, err := normalizeSpawnOpts(&opts)
+	if err != nil {
+		return SpawnOpts{}, nil, err
+	}
+	lineage, err = m.spawnLineage(ctx, parent, &normalized)
+	if err != nil {
+		return SpawnOpts{}, nil, err
+	}
+	return normalized, lineage, nil
+}
+
+func applySpawnHookPermissions(opts *SpawnOpts, childPolicy, narrowed store.SessionPermissionPolicy) {
+	opts.PermissionPolicy = store.NormalizeSessionPermissionPolicy(opts.PermissionPolicy)
+	opts.PermissionPolicy.Skills = narrowed.Skills
+	opts.PermissionPolicy.WorkspacePaths = narrowed.WorkspacePaths
+	if !slices.Equal(childPolicy.Tools, narrowed.Tools) {
+		opts.PermissionPolicy.Tools = narrowed.Tools
+		opts.PermissionPolicy.ToolsMode = store.PermissionList
+		opts.PermissionPolicy.MaterializedTools = false
+	}
+	if !slices.Equal(childPolicy.MCPServers, narrowed.MCPServers) {
+		opts.PermissionPolicy.MCPServers = narrowed.MCPServers
+		opts.PermissionPolicy.MCPServersMode = store.PermissionList
+	}
+}
+
+func validateSubagentSpawnHook(
+	role string,
+	expectedSubagent *hookspkg.SubagentSpawnPayload,
+	result *hookspkg.SpawnPreCreatePayload,
+) error {
 	if expectedSubagent != nil &&
 		(result.Subagent == nil || result.Subagent.Isolation != expectedSubagent.Isolation ||
 			result.Subagent.WorktreeID != expectedSubagent.WorktreeID) {
-		return SpawnOpts{}, nil, &SubagentError{
+		return &SubagentError{
 			Code:    subagentCapabilityDeniedCode,
 			Message: "inherited worktree binding is immutable",
 			Err:     ErrSubagentCapabilityDenied,
 		}
 	}
-	if opts.SpawnRole == store.SubagentSpawnRole &&
+	if role == store.SubagentSpawnRole &&
 		(result.TTLSeconds != 0 || result.SpawnRole != store.SubagentSpawnRole) {
-		return SpawnOpts{}, nil, ErrSubagentCapabilityDenied
+		return ErrSubagentCapabilityDenied
 	}
-	opts.AgentName = strings.TrimSpace(result.AgentName)
-	opts.SpawnRole = normalizeSpawnRole(result.SpawnRole)
-	opts.TTL = time.Duration(result.TTLSeconds) * time.Second
-	opts.PermissionPolicy = policyFromHookPermissionSet(result.ChildPermissions)
-	normalized, err := normalizeSpawnOpts(opts)
-	if err != nil {
-		return SpawnOpts{}, nil, err
-	}
-	lineage, err = m.spawnLineage(ctx, parent, normalized)
-	if err != nil {
-		return SpawnOpts{}, nil, err
-	}
-	return normalized, lineage, nil
+	return nil
 }
 
 func (m *Manager) dispatchSpawnCreated(ctx context.Context, parent *Info, child *Info) error {
@@ -93,14 +133,22 @@ func (m *Manager) dispatchSpawnCreated(ctx context.Context, parent *Info, child 
 		return nil
 	}
 	lineage := store.NormalizeSessionLineage(child.ID, child.Lineage)
+	parentPolicy, err := m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, parent), parent.ID)
+	if err != nil {
+		return err
+	}
+	childPolicy, err := m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, child), child.ID)
+	if err != nil {
+		return err
+	}
 	payload := hookspkg.SpawnCreatedPayload{
 		Event:             hookspkg.HookSpawnCreated,
 		Timestamp:         m.now().UTC(),
 		SpawnContext:      spawnHookContext(parent, child, lineage, child.AgentName, lineage.SpawnRole),
-		ParentPermissions: hookPermissionSetFromPolicy(parent.Lineage.PermissionPolicy),
-		ChildPermissions:  hookPermissionSetFromPolicy(lineage.PermissionPolicy),
+		ParentPermissions: hookPermissionSetFromPolicy(parentPolicy),
+		ChildPermissions:  hookPermissionSetFromPolicy(childPolicy),
 	}
-	_, err := m.hooks.spawn().DispatchSpawnCreated(ctx, payload)
+	_, err = m.hooks.spawn().DispatchSpawnCreated(ctx, payload)
 	return err
 }
 

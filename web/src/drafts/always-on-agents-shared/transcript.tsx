@@ -92,12 +92,15 @@ function ComposerRuntime({
   return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
 }
 
-function ModelControl({ disabled }: { disabled: boolean }) {
-  const [value, setValue] = useState<RuntimeSelectorValue>({
-    provider: "claude",
-    model: "claude-opus-5-5",
-    reasoning_effort: "",
-  });
+export interface DraftRuntime {
+  provider: string;
+  model: string;
+}
+
+const DEFAULT_RUNTIME: DraftRuntime = { provider: "claude", model: "claude-opus-5-5" };
+
+function ModelControl({ disabled, runtime }: { disabled: boolean; runtime: DraftRuntime }) {
+  const [value, setValue] = useState<RuntimeSelectorValue>({ ...runtime, reasoning_effort: "" });
   return (
     <RuntimeSelector
       disabled={disabled}
@@ -116,7 +119,9 @@ export function DraftComposer({
   disabled = false,
   above,
   environmentControl,
+  mcpControl,
   onSend,
+  runtime = DEFAULT_RUNTIME,
 }: {
   placeholder: string;
   /** Text already in the composer, for the states that show a message mid-write. */
@@ -126,7 +131,11 @@ export function DraftComposer({
   above?: ReactNode;
   /** The environment chip the real composer carries beside the attach button. */
   environmentControl?: ReactNode;
+  /** The MCP control, last in the tool group as in the real composer. */
+  mcpControl?: ReactNode;
   onSend?: (text: string) => void;
+  /** The session's runtime and model, shown in the composer's runtime picker. */
+  runtime?: DraftRuntime;
 }) {
   return (
     <ComposerRuntime onSend={onSend}>
@@ -164,13 +173,14 @@ export function DraftComposer({
                     }}
                     busyInputSteerDelivery={null}
                     environmentControl={environmentControl}
+                    mcpControl={mcpControl}
                     handleInterruptAction={ignore}
                     handleQueueAction={ignore}
                     handleSteerAction={ignore}
                     onCancelPrompt={ignore}
                     promptEmbeddedContextCapability="supported"
                     promptImageCapability="supported"
-                    runtimeControl={<ModelControl disabled={disabled} />}
+                    runtimeControl={<ModelControl disabled={disabled} runtime={runtime} />}
                     sessionId="draft-session"
                   />
                 </ComposerPrimitive.Root>

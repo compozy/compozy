@@ -132,6 +132,7 @@ function SessionListGroupSplit({
     lens: group.lens,
     workspaces,
     shelf: view.shelf,
+    showAutomation: view.showAutomation,
     search: view.groupFilters.q,
     worktreeId: view.worktreeId,
     enabled: true,

@@ -89,7 +89,7 @@ func (r *nativeToolHookRunner) PostCall(
 		PayloadBase: r.base(hookspkg.HookToolPostCall), SessionContext: sessionCtx,
 		TurnID:      call.TurnID,
 		ToolCallRef: nativeHookToolRef(descriptor, call), ToolInput: call.Input,
-		Title: result.Preview, ToolResult: encoded,
+		Title: result.Preview, ToolResult: encoded, ResultView: string(call.View),
 	})
 	if err != nil {
 		return result, err
@@ -178,9 +178,11 @@ func (r *nativeToolHookRunner) base(event hookspkg.HookEvent) hookspkg.PayloadBa
 
 func nativeHookToolRef(descriptor toolspkg.Descriptor, call toolspkg.CallRequest) hookspkg.ToolCallRef {
 	return hookspkg.ToolCallRef{
-		ToolID:     call.ToolID.String(),
-		ToolCallID: call.ToolCallID,
-		ReadOnly:   descriptor.ReadOnly,
+		ToolID:           call.ToolID.String(),
+		ToolCallID:       call.ToolCallID,
+		ReadOnly:         descriptor.ReadOnly,
+		HasResultViews:   descriptor.ResultViews() != nil,
+		PinnedResultView: string(call.PinnedView),
 	}
 }
 

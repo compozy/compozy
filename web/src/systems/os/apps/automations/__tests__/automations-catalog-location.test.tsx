@@ -1,7 +1,8 @@
 // Suite: Automations catalog location
 // Invariant: the window layer turns the listing model into the right chrome — first-run
 //   starts and suggestions without a toolbar, the runtime-off alert with its way to Settings,
-//   the partial-failure alert naming the failed kind with its "—" count, and the footer truth.
+//   the partial-failure alert naming the failed kind with its "—" count, the footer truth, and
+//   the inspect sheet a row's Inspect opens.
 // Boundary IN: the useAutomationsPage model (mocked) and the route search.
 // Boundary OUT: data loading and merging (use-automations-page suite), rows (listing suite).
 import { render, screen, within } from "@testing-library/react";
@@ -69,7 +70,6 @@ function page(overrides: Record<string, unknown> = {}) {
     canLoadMore: false,
     clearFilters: vi.fn(),
     confirmDelete: vi.fn(),
-    copyLink: vi.fn(),
     counts: { all: 7, schedule: 4, event: 3 },
     create: vi.fn(),
     deletePending: false,
@@ -81,6 +81,9 @@ function page(overrides: Record<string, unknown> = {}) {
     loadedCount: 0,
     firstRun: false,
     hasActiveFilters: false,
+    inspect: vi.fn(),
+    inspectEntity: undefined,
+    inspectOpen: false,
     isFetchingMore: false,
     isLoading: false,
     isPaused: false,
@@ -100,6 +103,7 @@ function page(overrides: Record<string, unknown> = {}) {
     searchQuery: "",
     setDeleteTarget: vi.fn(),
     setEnabledFilter: vi.fn(),
+    setInspectOpen: vi.fn(),
     setLoopFilter: vi.fn(),
     setProjectFilter: vi.fn(),
     setSearchQuery: vi.fn(),
@@ -254,5 +258,23 @@ describe("AutomationsCatalogLocation", () => {
       "daemon offline"
     );
     expect(screen.getByTestId("automation-delete-dialog")).toBeVisible();
+  });
+
+  it("Should inspect a row's automation from its menu in a sheet over the listing", async () => {
+    const user = userEvent.setup();
+    const inspect = vi.fn();
+    const target = storyViews[0]!;
+    renderLocation({ inspect, items: storyViews });
+
+    await user.click(screen.getByRole("button", { name: `More actions for ${target.name}` }));
+    await user.click(await screen.findByRole("menuitem", { name: "Inspect" }));
+    expect(inspect).toHaveBeenCalledWith(target);
+    expect(screen.queryByTestId("automation-inspect-sheet")).not.toBeInTheDocument();
+
+    renderLocation({ inspectEntity: automationStoryJobs[0], inspectOpen: true, items: storyViews });
+    // The sheet names the automation it inspects; its entry animation starts at opacity 0.
+    expect(await screen.findByTestId("automation-inspect-sheet")).toHaveTextContent(
+      "This is a job in the daemon's terms."
+    );
   });
 });

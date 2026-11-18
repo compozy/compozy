@@ -5,7 +5,8 @@
 // model renders an inapplicable stored grouping as none and serves a stored `manual` sort as
 // `last_activity` outside one pair, without rewriting either preference. A collapsed group stays
 // collapsed when the list remounts (selecting a session remounts the window's content) and opens
-// only on the operator's toggle. Workspace working marks
+// only on the operator's toggle; the window's Archived or Later shelf survives that remount too
+// (#1706). Workspace working marks
 // read the same all-workspaces aggregate instead of one catalog read per workspace.
 // Owning layer: session-list query hooks; session catalog I/O is the mocked boundary.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -38,7 +39,11 @@ import { fetchSessions } from "../../adapters/session-api";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
 import { sessionCatalogOptions, sessionFacetsOptions } from "../../lib/session-catalog-options";
 import { useSessionListGroups, type SessionListGroupsInput } from "../use-session-list-groups";
-import { SESSION_LIST_MANUAL_SORT_NOTE, useSessionListView } from "../use-session-list-view";
+import {
+  SESSION_LIST_MANUAL_SORT_NOTE,
+  SESSION_LIST_SHELF_SORT_NOTE,
+  useSessionListView,
+} from "../use-session-list-view";
 import { useWorkspaceWorkingSessions } from "../use-workspace-working-sessions";
 
 // The instance row isn't under test here, and these suites count catalog reads.
@@ -260,22 +265,31 @@ describe("useSessionListGroups", () => {
     );
   });
 
-  it("Should count finished automation runs only while a search can reach them", async () => {
+  it("Should count automation runs only while a search or the window's filter shows them", async () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue(facetsResponse());
     const { rerender } = renderHook(
-      ({ search }: { search?: string }) => useSessionListGroups(groupsInput({ search })),
-      { wrapper, initialProps: {} }
+      ({ search, showAutomation }: { search?: string; showAutomation?: boolean }) =>
+        useSessionListGroups(groupsInput({ search, showAutomation })),
+      { wrapper, initialProps: {} as { search?: string; showAutomation?: boolean } }
     );
     await waitFor(() =>
       expect(fetchSessionFacets).toHaveBeenLastCalledWith(
-        expect.objectContaining({ exclude_finished_automation: true }),
+        expect.objectContaining({ exclude_automation: true }),
         expect.any(AbortSignal)
       )
     );
     rerender({ search: "nightly" });
     await waitFor(() =>
       expect(fetchSessionFacets).toHaveBeenLastCalledWith(
-        expect.not.objectContaining({ exclude_finished_automation: true }),
+        expect.not.objectContaining({ exclude_automation: true }),
+        expect.any(AbortSignal)
+      )
+    );
+    vi.mocked(fetchSessionFacets).mockClear();
+    rerender({ showAutomation: true });
+    await waitFor(() =>
+      expect(fetchSessionFacets).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ exclude_automation: true }),
         expect.any(AbortSignal)
       )
     );
@@ -460,6 +474,40 @@ describe("useSessionListView", () => {
     );
     expect(settingsWrites()).toEqual([]);
   });
+
+  // #1716: manual order serves every folder member before the root, so a folder longer than a
+  // page hid the unfoldered archived sessions. Archived and Later project lists read activity
+  // order, which lists unfoldered sessions next to folders on every page.
+  it("Should serve a stored manual sort as last activity in the Archived and Later shelves", async () => {
+    shell.sort = "manual";
+    act(() => setActiveWorkspaceId("ws-alpha"));
+    const { result } = renderHook(() => useSessionListView(), { wrapper });
+    await waitFor(() =>
+      expect(fetchSessionCatalogPage).toHaveBeenCalledWith(
+        expect.objectContaining({ workspace_id: "ws-alpha", sort: "manual" }),
+        expect.any(AbortSignal)
+      )
+    );
+
+    for (const shelf of ["archive", "later"] as const) {
+      act(() => result.current.setShelf(shelf));
+      await waitFor(() =>
+        expect(fetchSessionCatalogPage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            workspace_id: "ws-alpha",
+            sort: "last_activity",
+            ...(shelf === "archive" ? { archive: "only" } : { later: "only" }),
+          }),
+          expect.any(AbortSignal)
+        )
+      );
+      expect(result.current.sort).toBe("manual");
+      expect(result.current.sortNote).toBe(SESSION_LIST_SHELF_SORT_NOTE);
+    }
+    act(() => result.current.setShelf("active"));
+    expect(result.current.sortNote).toBeNull();
+    expect(settingsWrites()).toEqual([]);
+  });
   // #1085: with empty projects hidden, a reorder of the projects on screen writes the hidden
   // ones back into their slots instead of letting the daemon move them after the listed ones.
   it("Should keep a hidden empty project in its slot when the shown projects reorder", async () => {
@@ -545,6 +593,42 @@ describe("useSessionListView", () => {
     act(() => remounted.result.current.toggleGroup(key));
     expect(remounted.result.current.collapsedGroupKeys.has(key)).toBe(false);
     expect(settingsWrites()).toEqual([]);
+  });
+
+  // Issue #1706: opening a session from the Archived or Later view remounts the list the same way;
+  // the shelf is the window's too, so the remounted list keeps reading that population.
+  it("Should keep each window's Archived or Later shelf across a selection remount", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const inWindow = (scopeId: string) => {
+      const withClient = clientWrapper(client);
+      return ({ children }: { children: ReactNode }) =>
+        createElement(
+          WindowScopeContext,
+          { value: scopeId },
+          createElement(withClient, null, children)
+        );
+    };
+    const later = renderHook(() => useSessionListView(), { wrapper: inWindow("w-1706-later") });
+    const archive = renderHook(() => useSessionListView(), { wrapper: inWindow("w-1706-archive") });
+    act(() => later.result.current.setShelf("later"));
+    act(() => archive.result.current.setShelf("archive"));
+    later.unmount();
+    archive.unmount();
+
+    const laterAgain = renderHook(() => useSessionListView(), {
+      wrapper: inWindow("w-1706-later"),
+    });
+    const archiveAgain = renderHook(() => useSessionListView(), {
+      wrapper: inWindow("w-1706-archive"),
+    });
+    expect(laterAgain.result.current.shelf).toBe("later");
+    expect(laterAgain.result.current.groupFilters).toMatchObject({ later: "only" });
+    expect(archiveAgain.result.current.shelf).toBe("archive");
+    expect(archiveAgain.result.current.groupFilters).toMatchObject({ archive: "only" });
+
+    act(() => laterAgain.result.current.setShelf("active"));
+    expect(laterAgain.result.current.groupFilters).not.toHaveProperty("later");
+    expect(archiveAgain.result.current.shelf).toBe("archive");
   });
 
   it("W-15: Should preserve each window's folds when a provisional profile resolves", async () => {

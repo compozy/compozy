@@ -30,6 +30,11 @@ func newCiphertextIdentity(ref string, kind string) (ciphertextIdentity, error) 
 	return ciphertextIdentity{ref: normalizedRef, kind: strings.TrimSpace(kind)}, nil
 }
 
+// MCP copies preserve literal values, including empty env and header values.
+func (i ciphertextIdentity) allowsEmptyLiteral() bool {
+	return strings.HasPrefix(i.ref, "vault:mcp/") && (i.kind == "mcp_env" || i.kind == "mcp_header")
+}
+
 func (i ciphertextIdentity) additionalData() []byte {
 	data := make([]byte, 0, len(ciphertextAADLabel)+len(i.ref)+len(i.kind)+20)
 	data = append(data, ciphertextAADLabel...)
@@ -43,7 +48,7 @@ func encryptValue(key []byte, plaintext string, identity ciphertextIdentity) (st
 	if len(key) != keySizeBytes {
 		return "", fmt.Errorf("vault: key must be %d bytes", keySizeBytes)
 	}
-	if strings.TrimSpace(plaintext) == "" {
+	if strings.TrimSpace(plaintext) == "" && !identity.allowsEmptyLiteral() {
 		return "", ErrMissingSecret
 	}
 	block, err := aes.NewCipher(key)

@@ -156,9 +156,11 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 		)
 		topology, err := fixture.manager.Execute(t.Context(), windowmanager.CommandRequest{
 			WorkspaceID: "workspace-a", ExpectedRevision: created.Snapshot.Revision,
-			Payload: windowmanager.CreateDesktopCommand{
-				DesktopID: "desktop-b", Name: "Third",
-			},
+			// The first tab of client-a's empty desktop changes its view, so it is repaired.
+			Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
+				ID: "first", App: "tasks", DesktopID: "desktop-a",
+				Route: windowmanager.RouteIntent{Pathname: "/tasks", Search: windowmanager.RouteSearch{}},
+			}},
 		})
 		if err != nil {
 			t.Fatalf("Execute(topology) error = %v", err)
@@ -170,6 +172,17 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 		if eventFrame.Type != contract.WindowManagerFrameEvent ||
 			eventFrame.Revision != contract.WindowManagerRevision(topology.Snapshot.Revision) {
 			t.Fatalf("event after client-b mutation = %+v", eventFrame)
+		}
+
+		var repairedFrame contract.WindowManagerClientFrame
+		if readErr := connection.ReadJSON(&repairedFrame); readErr != nil {
+			t.Fatalf("ReadJSON(repaired client) error = %v", readErr)
+		}
+		if repairedFrame.Type != contract.WindowManagerFrameClient ||
+			repairedFrame.Client.ClientID != clientA ||
+			repairedFrame.Client.ActiveTab["desktop-a"] != string(topology.Snapshot.Desktops[1].ActiveTabID) ||
+			len(repairedFrame.Client.ActiveTab) != 1 {
+			t.Fatalf("topology repair frame = %+v", repairedFrame)
 		}
 
 		if err := fixture.manager.UnregisterClient(t.Context(), "workspace-a", clientA); err != nil {
@@ -188,6 +201,16 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 	t.Run("Should replace client-owned palette context over the bound stream", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)
+		// A window for the client to focus: a fresh desktop has no tabs (#1799).
+		if _, err := fixture.manager.Execute(t.Context(), windowmanager.CommandRequest{
+			WorkspaceID: "workspace-a",
+			Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
+				ID: "focused", App: "tasks",
+				Route: windowmanager.RouteIntent{Pathname: "/tasks", Search: windowmanager.RouteSearch{}},
+			}},
+		}); err != nil {
+			t.Fatalf("Execute(window.open) error = %v", err)
+		}
 		registered, err := fixture.manager.RegisterClient(t.Context(), windowmanager.ClientRegistration{
 			WorkspaceID: "workspace-a",
 			ClientID:    "client-a",
@@ -251,7 +274,7 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 			!context.WorkspaceTrusted ||
 			context.DestinationIntent == nil ||
 			context.DestinationIntent.Pathname != "/sessions/session-a" ||
-			context.WindowFocused || context.DesktopWindowCount != 0 {
+			!context.WindowFocused || context.DesktopWindowCount != 1 {
 			t.Fatalf("client context frame = %+v", clientFrame)
 		}
 	})

@@ -227,6 +227,59 @@ describe("toRuntimeModelOptions", () => {
     ]);
   });
 
+  it("Should intersect advertised efforts with the configuration coordinates", () => {
+    const [option] = toRuntimeModelOptions([
+      payload({
+        model_id: "gpt",
+        reasoning_efforts: ["low", "high", "max"],
+        configurations: [
+          { reasoning_effort: "low", fast: false },
+          { reasoning_effort: "medium", fast: true },
+          { reasoning_effort: "high", fast: true },
+        ],
+        // "max" is advertised but has no configuration coordinate here — the
+        // intersection drops it, so the default must not claim it either.
+        default_reasoning_effort: "max",
+      }),
+    ]);
+
+    expect(option.efforts).toEqual(["low", "high"]);
+    expect(option.default_effort).toBe("");
+  });
+
+  it("Should keep the advertised order and dedupe while intersecting", () => {
+    const [option] = toRuntimeModelOptions([
+      payload({
+        model_id: "gpt",
+        reasoning_efforts: ["max", "low", "high", "low"],
+        configurations: [
+          { reasoning_effort: "low" },
+          { reasoning_effort: "medium" },
+          { reasoning_effort: "high" },
+          { reasoning_effort: "max" },
+        ],
+      }),
+    ]);
+
+    expect(option.efforts).toEqual(["max", "low", "high"]);
+  });
+
+  it("Should keep configurations-only and advertised-only effort sets unchanged", () => {
+    const [configuredOnly, advertisedOnly] = toRuntimeModelOptions([
+      payload({
+        model_id: "configured",
+        configurations: [
+          { reasoning_effort: "low", fast: true },
+          { reasoning_effort: "high", fast: false },
+        ],
+      }),
+      payload({ model_id: "advertised", reasoning_efforts: ["low", "high", "max"] }),
+    ]);
+
+    expect(configuredOnly.efforts).toEqual(["low", "high"]);
+    expect(advertisedOnly.efforts).toEqual(["low", "high", "max"]);
+  });
+
   it("Should expose typed catalog option descriptors without transport identifiers", () => {
     const [option] = toRuntimeModelOptions([
       payload({

@@ -20,6 +20,8 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
@@ -38,7 +40,7 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 		t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
 	}
 	artifactContent := []byte(`{"version":"compozy.tool-result/v1","tail":"D6-TAIL"}`)
-	artifactRef, err := artifactStore.Put(t.Context(), "ws-1", artifactContent)
+	artifactRef, err := artifactStore.Put(t.Context(), workspaceaccess.ScopeTarget("ws-1", ""), artifactContent)
 	if err != nil {
 		t.Fatalf("artifactStore.Put() error = %v", err)
 	}
@@ -109,6 +111,11 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 			toolspkg.Scope{WorkspaceID: "ws-1", Operator: true},
 			toolspkg.SearchQuery{Query: "skill", Limit: 1},
 		)
+		expectedPayload.Count = 1
+		expectedPayload.Total = 2
+		expectedPayload.NextOffset = 1
+		expectedPayload.HasMore = true
+
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,
@@ -128,6 +135,31 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 		var cliPayload ToolsResponseRecord
 		decodeJSONOutput(t, stdout, &cliPayload)
 		assertContractJSONEqual(t, cliPayload, expectedPayload)
+		next, _, err := executeRootCommand(
+			t,
+			deps,
+			"tool",
+			"search",
+			"skill",
+			"--limit",
+			"1",
+			"--offset",
+			"1",
+			"--workspace",
+			"ws-1",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var nextPage ToolsResponseRecord
+		decodeJSONOutput(t, next, &nextPage)
+		if nextPage.Offset != 1 || nextPage.Count != 1 || nextPage.Total != 2 || nextPage.HasMore ||
+			nextPage.NextOffset != 0 || len(nextPage.Tools) != 1 || nextPage.Tools[0].Descriptor.ToolID == cliPayload.Tools[0].Descriptor.ToolID {
+			t.Fatalf("incorrect search continuation: %#v", nextPage)
+		}
+
 	})
 
 	t.Run("Should match tool invoke payload", func(t *testing.T) {
@@ -167,7 +199,13 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 	})
 
 	t.Run("Should match artifact paging and decoded human output", func(t *testing.T) {
-		expected, err := artifactStore.ReadPage(t.Context(), "ws-1", artifactRef.URI, 2, 7)
+		expected, err := artifactStore.ReadPage(
+			t.Context(),
+			workspaceaccess.ScopeTarget("ws-1", ""),
+			artifactRef.URI,
+			2,
+			7,
+		)
 		if err != nil {
 			t.Fatalf("artifactStore.ReadPage() error = %v", err)
 		}
@@ -277,7 +315,7 @@ func expectedCLIToolListPayload(
 	if err != nil {
 		t.Fatalf("registry.List() error = %v", err)
 	}
-	return ToolsResponseRecord{Tools: core.ToolPayloadsFromViews(views)}
+	return ToolsResponseRecord{Tools: core.ToolPayloadsFromViews(views), Count: len(views), Total: len(views)}
 }
 
 func expectedCLIToolSearchPayload(

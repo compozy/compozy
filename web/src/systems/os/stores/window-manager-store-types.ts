@@ -1,15 +1,7 @@
-import type {
-  BeginLayoutGestureInput,
-  FinishLayoutGestureInput,
-  GestureCancelReason,
-  GestureDecision,
-  LayoutGestureSession,
-} from "../lib/layout-gesture-session";
 import type { OsWindowRoute } from "../lib/os-types";
 import type { PaletteViewId } from "../lib/palette-view-registry";
 import type { PaletteViewFrame } from "../lib/palette-view-stack";
 import type { SeamPreview } from "../lib/seam-preview";
-import type { SnapCorner, SnapSide, SnapTarget } from "../lib/snap-targets";
 import type {
   DesktopId,
   LayoutRevision,
@@ -42,6 +34,12 @@ export interface DesktopOverviewSegmentRequest {
   readonly anchorDesktopId: DesktopId;
 }
 
+/** A desktop menu action the overview finishes on its card: rename, or close with a destination. */
+export interface DesktopOverviewDesktopAction {
+  readonly desktopId: DesktopId;
+  readonly action: "rename" | "close";
+}
+
 export interface DesktopTransitionIntent {
   readonly fromDesktopId: DesktopId;
   readonly toDesktopId: DesktopId;
@@ -58,28 +56,13 @@ export interface WindowRouteIntent {
 }
 
 /**
- * Shell-palette request raised from inside a window (new-tab picker, deck `+`).
- * The palette consumes it as a destination scope for that window (US-005).
+ * Shell-palette request raised from a New Tab window (new-tab picker, tab bar `+`) or from an
+ * empty desktop. The palette consumes it as a destination scope (US-005): the pick replaces that
+ * window, or, with no window (`null`), becomes the empty desktop's first tab (#1799).
  */
 export interface WindowPaletteIntent {
   readonly kind: "destination";
-  readonly windowId: string;
-}
-
-/**
- * A deck advertising itself as the drop target of the active window drag
- * (US-014): the insertion affordance is visible, and releasing commits ONE
- * `window.stack.group{insert_index}` — anywhere else cancels.
- */
-export interface DeckDropTarget {
-  readonly frameId: string;
-  readonly targetWindowId: string;
-  readonly insertIndex: number;
-}
-
-export interface WindowPlacementCycle {
-  readonly edge: SnapSide | SnapCorner;
-  readonly nextStep: number;
+  readonly windowId: string | null;
 }
 
 export interface PendingWindowManagerCommand {
@@ -121,6 +104,7 @@ export interface WindowManagerStoreState {
   readonly workArea: WindowManagerWorkArea | null;
   readonly activeOverlay: WindowManagerOverlay | null;
   readonly overviewSegmentRequest: DesktopOverviewSegmentRequest | null;
+  readonly overviewDesktopAction: DesktopOverviewDesktopAction | null;
   readonly transitionIntent: DesktopTransitionIntent | null;
   readonly routeIntents: Readonly<Record<string, WindowRouteIntent>>;
   readonly paletteIntent: WindowPaletteIntent | null;
@@ -132,9 +116,6 @@ export interface WindowManagerStoreState {
    * destination.
    */
   readonly paletteViewStack: readonly PaletteViewFrame[];
-  readonly deckDropTarget: DeckDropTarget | null;
-  readonly placementCycles: Readonly<Record<string, WindowPlacementCycle>>;
-  readonly gesture: LayoutGestureSession | null;
   readonly seamPreview: SeamPreview | null;
   readonly commandState: WindowManagerCommandState;
 }
@@ -147,6 +128,8 @@ export type WindowManagerStoreEvents = {
   overlayOpened: { overlay: WindowManagerOverlay };
   overlayClosed: {};
   overviewSegmentRequested: { request: DesktopOverviewSegmentRequest };
+  overviewDesktopActionRequested: { request: DesktopOverviewDesktopAction };
+  overviewDesktopActionConsumed: {};
   desktopStateObserved: {
     activeDesktopId: string;
     reconciledIntent: DesktopTransitionIntent | null;
@@ -160,21 +143,8 @@ export type WindowManagerStoreEvents = {
   paletteViewPushed: { viewId: PaletteViewId };
   paletteViewPopped: {};
   paletteViewStackSet: { stack: readonly PaletteViewFrame[] };
-  deckDropTargeted: { target: DeckDropTarget };
-  deckDropCleared: { frameId?: string };
-  placementCycleAdvanced: { windowId: string; edge: SnapSide | SnapCorner };
-  placementTargetTracked: { windowId: string; edge: SnapSide | SnapCorner | null };
   seamPreviewSet: { preview: SeamPreview };
   seamPreviewCleared: {};
-  gestureBegan: BeginLayoutGestureInput;
-  gesturePreviewed: {
-    point: PixelPoint;
-    preview: SnapTarget | null;
-    currentWorkArea: PixelRect;
-  };
-  gestureCancelled: { reason: GestureCancelReason; point?: PixelPoint };
-  gestureFinished: FinishLayoutGestureInput;
-  gestureCleared: {};
   commandBegan: { command: PendingWindowManagerCommand };
   commandCompleted: {
     commandId: string;
@@ -198,10 +168,4 @@ export type WindowManagerStoreEvents = {
 
 export type WindowManagerStoreEmitted = {
   commandAccepted: { commandId: string };
-  gestureDecisionResolved: { decision: GestureDecision };
-  placementCycleResolved: {
-    windowId: string;
-    edge: SnapSide | SnapCorner;
-    cycleStep: number;
-  };
 };

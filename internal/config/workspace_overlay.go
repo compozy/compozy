@@ -29,7 +29,7 @@ func loadWorkspaceOverlayForWrite(
 	if target.isConfigTarget() && samePath(target.path, path) {
 		return loadWorkspaceConfigOverlayBytes(rendered, path)
 	}
-	return loadPersistedConfigOverlay(path, loadWorkspaceConfigOverlayBytes)
+	return loadPersistedConfigOverlayLocked(path, loadWorkspaceConfigOverlayBytes)
 }
 
 func loadWorkspaceConfigOverlayBytes(contents []byte, source string) (configOverlay, error) {
@@ -77,6 +77,9 @@ func validateWorkspaceConfigOverlay(path string, overlay *configOverlay) error {
 	if overlay.Marketplace != nil {
 		return fmt.Errorf("workspace config %q: marketplace catalog settings are global-only", path)
 	}
+	if overlay.Client.RequestTimeout != nil {
+		return fmt.Errorf("workspace config %q: client settings are global-only", path)
+	}
 	if overlay.Gateway != nil {
 		return fmt.Errorf("workspace config %q: gateway settings are global-only", path)
 	}
@@ -88,6 +91,9 @@ func validateWorkspaceConfigOverlay(path string, overlay *configOverlay) error {
 	}
 	if overlay.Vault != nil {
 		return fmt.Errorf("workspace config %q: vault key settings are global-only", path)
+	}
+	if overlay.Observability.OTel != nil {
+		return fmt.Errorf("workspace config %q: observability.otel settings are global-only", path)
 	}
 	if overlay.MCP.StatusProbeTimeout != nil || overlay.MCP.Stdio != (mcpStdioOverlay{}) {
 		return fmt.Errorf("workspace config %q: mcp.status_probe_timeout and mcp.stdio settings are global-only", path)

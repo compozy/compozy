@@ -95,7 +95,7 @@ function SchedulerStatusMeta({ status }: { status: SchedulerStatus | null }) {
       </span>
       <MetaDot />
       <span
-        className={counts.needsAttention > 0 ? "text-brand" : undefined}
+        className={counts.needsAttention > 0 ? "text-attn" : undefined}
         data-testid="scheduler-controls-needs-attention-count"
       >
         {counts.needsAttention} need attention

@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"strings"
+	"slices"
 )
 
 type indexedPolicyEvaluator interface {
@@ -23,15 +23,23 @@ func (e *EffectivePolicyEvaluator) Evaluate(
 }
 
 func (e *EffectivePolicyEvaluator) evaluateIndexed(
-	_ context.Context,
+	ctx context.Context,
 	_ Scope,
 	d Descriptor,
 ) (EffectiveToolDecision, error) {
-	return e.evaluateCall(d, nil)
+	return e.evaluateCallContext(ctx, d, nil)
 }
 
 // evaluateCall keeps all policy restrictions and only refines the approval ceiling.
 func (e *EffectivePolicyEvaluator) evaluateCall(d Descriptor, input json.RawMessage) (EffectiveToolDecision, error) {
+	return e.evaluateCallContext(context.Background(), d, input)
+}
+
+func (e *EffectivePolicyEvaluator) evaluateCallContext(
+	ctx context.Context,
+	d Descriptor,
+	input json.RawMessage,
+) (EffectiveToolDecision, error) {
 	decision := EffectiveToolDecision{
 		VisibleToOperator:    true,
 		VisibleToSession:     true,
@@ -45,12 +53,6 @@ func (e *EffectivePolicyEvaluator) evaluateCall(d Descriptor, input json.RawMess
 		HookResult:           policyResultAllowed,
 	}
 
-	if e.inputs.TriageReadOnly &&
-		(!isReadOnlyAutoApprovable(d) || d.Source.Kind != SourceBuiltin ||
-			strings.HasPrefix(string(d.ID), "compozy__terminal_")) {
-		denyDecision(&decision, ReasonPolicyDenied)
-		return decision, nil
-	}
 	if e.inputs.ToolsDisabled {
 		denyDecision(&decision, ReasonSourceDisabled)
 		// The restrictions below still apply when tools are disabled: their reasons let callers tell a
@@ -70,8 +72,16 @@ func (e *EffectivePolicyEvaluator) evaluateCall(d Descriptor, input json.RawMess
 	if requiresSourceApproval {
 		requireApproval(&decision, e.inputs.ApprovalAvailable)
 	}
-	if e.permissionMode() != PermissionModeApproveReads || !isInstanceSelfServiceCall(d, input) {
+	if d.ID == ToolIDMCPAllow {
+		requireApproval(&decision, e.inputs.ApprovalAvailable)
+	}
+	if e.inputs.CheckIn == nil && !e.inputSkipsPermissionCeiling(d, input) {
 		e.applyPermissionCeiling(d, &decision)
+	}
+	if e.inputs.CheckIn != nil {
+		if reason := e.inputs.CheckIn.denial(ctx, d, input); reason != "" {
+			denyDecision(&decision, reason)
+		}
 	}
 	return decision, nil
 }
@@ -95,7 +105,14 @@ func (e *EffectivePolicyEvaluator) applyRestrictions(d Descriptor, decision *Eff
 		return true
 	}
 	if e.inputs.Session.Enforced {
-		if _, ok := e.sessionAllowed[d.ID]; !ok {
+		_, allowed := e.sessionAllowed[d.ID]
+		if d.Source.Kind == SourceExtension && e.inputs.Session.ExtensionsInherit {
+			allowed = true
+		}
+		if d.Source.Kind == SourceMCP {
+			allowed = e.sessionAllowsMCP(d)
+		}
+		if !allowed {
 			denyDecision(decision, ReasonSessionDenied)
 			decision.SessionPolicyResult = policyResultDenied
 			return true
@@ -149,4 +166,38 @@ func isInstanceSelfServiceCall(d Descriptor, input json.RawMessage) bool {
 	default:
 		return false
 	}
+}
+
+func (e *EffectivePolicyEvaluator) sessionAllowsMCP(d Descriptor) bool {
+	name := mcpSourceServerName(d.Source)
+	if e.inputs.MCPResourceNames != nil && d.Source.ResourceID != "" {
+		name = e.inputs.MCPResourceNames[d.Source.ResourceID]
+		if name == "" {
+			return false
+		}
+	}
+	if !slices.Contains(e.inputs.Session.MCPServers, name) {
+		return false
+	}
+	if _, allowed := e.sessionAllowed[d.ID]; allowed {
+		return true
+	}
+	if !e.inputs.Session.MCPByServer {
+		return false
+	}
+	owner, err := MCPToolOwner(d.ID)
+	if err != nil {
+		return false
+	}
+	for id := range e.sessionAllowed {
+		narrowed, err := MCPToolOwner(id)
+		if err == nil && narrowed == owner {
+			return false
+		}
+	}
+	return true
+}
+
+func (e *EffectivePolicyEvaluator) EvaluateInput(d Descriptor, input json.RawMessage) (EffectiveToolDecision, error) {
+	return e.evaluateCall(d, input)
 }

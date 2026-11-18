@@ -5,11 +5,16 @@ import { useEffect, useState } from "react";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import { useSession } from "@/systems/session";
-import { isReservedDesktopPartition, useBreadthMode } from "@/systems/workspace";
+import {
+  GLOBAL_DESKTOP_WORKSPACE_ID,
+  isReservedDesktopPartition,
+  useBreadthMode,
+} from "@/systems/workspace";
 
 import type { OsShellHandle } from "../contexts/os-shell-context";
 import { ClientCommandChannel } from "../lib/client-command-channel";
 import { TerminalWindowClose } from "../lib/terminal-window-close";
+import { composeCloseGuards, UnsavedWindowClose } from "../lib/unsaved-window-close";
 import {
   resolveLivePaletteClientContext,
   selectPaletteDestinationRoute,
@@ -24,19 +29,24 @@ import {
   windowManagerKeys,
   windowManagerSnapshotOptions,
 } from "../lib/window-manager-query";
-import { RoutingCoordinator, type OsRouterPort } from "../lib/routing-coordinator";
+import { RoutingCoordinator } from "../lib/routing-coordinator";
+import { connectRouterEntries, RouterEntryBridge } from "../lib/router-entry-bridge";
+import { RoutingEntryLedger } from "../lib/routing-entry-ledger";
 import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier";
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
 import { selectFocusedSessionId } from "./use-focused-session-id";
 import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconciliation";
 import { useProfileSwitchWindowSweep } from "./use-profile-switch-window-sweep";
 import { useWindowScopePruning } from "./use-window-scope-pruning";
-import { useWindowManagerClient } from "./use-window-manager-client";
+import { clientRestore, useWindowManagerClient } from "./use-window-manager-client";
+import { useRestoredClientFocus } from "./use-restored-client-focus";
 import { useWindowManagerStream } from "./use-window-manager-stream";
 import { useWindowPaletteIntent } from "./use-window-manager-store";
 
 export interface DesktopChromeModel {
   terminalClose: TerminalWindowClose;
+  /** Holds operator closes of windows whose editors have unsaved edits (#1653). */
+  unsavedClose: UnsavedWindowClose;
   shell: OsShellHandle;
   query: UseQueryResult<WindowManagerSnapshot, Error>;
   /** The attachment this shell speaks for; the palette projection needs its context. */
@@ -45,16 +55,6 @@ export interface DesktopChromeModel {
   clientCommandChannel: ClientCommandChannel;
   /** The profile whose desk this render presents; the runtime catches up in effects. */
   profileId: string;
-}
-
-function navigateTo(
-  router: ReturnType<typeof useRouter>,
-  route: { pathname: string; search: Record<string, unknown> },
-  replace: boolean
-): void {
-  const href = `${route.pathname}${router.options.stringifySearch(route.search)}`;
-  if (replace) router.history.replace(href);
-  else router.history.push(href);
 }
 
 function streamError(error: Error | WindowManagerErrorPayload): Error {
@@ -100,27 +100,46 @@ export function useDesktopChrome(
   const globalShortcuts = useGlobalShortcutReconciliation(configQuery.data?.globalShortcuts);
   const [manager] = useState(() => new WindowManagerRuntime(queryClient));
   const [terminalClose] = useState(() => new TerminalWindowClose());
+  const [unsavedClose] = useState(() => new UnsavedWindowClose());
+  // All projects reaches the terminal guard as itself, not as a missing project:
+  // an unbound terminal window there closes view-only instead of being trapped.
+  const terminalCloseWorkspaceId =
+    activeWorkspaceId === GLOBAL_DESKTOP_WORKSPACE_ID
+      ? GLOBAL_DESKTOP_WORKSPACE_ID
+      : terminalWorkspaceId;
   useEffect(() => {
-    manager.setCloseGuard(terminalClose.guard(terminalWorkspaceId, queryClient));
+    // Unsaved edits ask first: keeping them must not leave a terminal already terminated.
+    manager.setCloseGuard(
+      composeCloseGuards(
+        unsavedClose.guard,
+        terminalClose.guard(terminalCloseWorkspaceId, queryClient)
+      ),
+      unsavedClose.settled
+    );
     return () => {
+      unsavedClose.cancel();
       terminalClose.cancel();
       manager.setCloseGuard(null);
     };
-  }, [manager, terminalClose, terminalWorkspaceId, profileId, queryClient]);
+  }, [manager, terminalClose, unsavedClose, terminalCloseWorkspaceId, profileId, queryClient]);
   // The seam is built deeper in the tree (it needs the shell's own handlers), so
   // the stream reaches it through a ref rather than the shell reaching upward.
   const [clientCommandChannel] = useState(() => new ClientCommandChannel());
-  const [shell] = useState<OsShellHandle>(() => {
-    const port: OsRouterPort = {
-      navigate: route => navigateTo(router, route, false),
-      replace: route => navigateTo(router, route, true),
-    };
-    return {
-      projection: manager.projectionAtom,
-      manager,
-      coordinator: new RoutingCoordinator(manager, port),
-    };
-  });
+  const [entries] = useState(() => new RoutingEntryLedger());
+  const [bridge] = useState(
+    () =>
+      new RouterEntryBridge(
+        router.history,
+        route => `${route.pathname}${router.options.stringifySearch(route.search)}`
+      )
+  );
+  const [shell] = useState<OsShellHandle>(() => ({
+    projection: manager.projectionAtom,
+    manager,
+    coordinator: new RoutingCoordinator(manager, bridge.port, entries),
+  }));
+  // Every history change reaches the ledger as it happens, before the router reports its route.
+  useEffect(() => connectRouterEntries(router, bridge, entries), [router, bridge, entries]);
   const focusedSessionId = useAtom(manager.projectionAtom, selectFocusedSessionId);
   const destinationRoute = useAtom(manager.projectionAtom, state =>
     selectPaletteDestinationRoute(state, paletteIntent?.windowId)
@@ -141,6 +160,13 @@ export function useDesktopChrome(
     [manager, shell]
   );
 
+  // A client view held behind this client's focuses is authoritative state once adopted, like
+  // one adopted on arrival below.
+  useEffect(
+    () => manager.onHeldClientAdopted(() => shell.coordinator.reportAuthoritativeState()),
+    [manager, shell]
+  );
+
   useEffect(() => {
     if (activeWorkspaceId === null) {
       manager.unbind();
@@ -158,6 +184,16 @@ export function useDesktopChrome(
     manager.setLoadError(client.error);
     shell.coordinator.reportAuthoritativeState();
   }, [activeWorkspaceId, client.client, client.error, manager, profileId, shell]);
+
+  // A re-registration after a lost one (a daemon restart) refocuses the window this page had
+  // focused (#1655).
+  useRestoredClientFocus({
+    manager,
+    restoredFocus: client.restoredFocus,
+    settle: client.restoreSettled,
+    snapshotRevision: query.data?.revision ?? null,
+    client: client.client,
+  });
 
   // After the rebind above, so the sweep reads the target desk rather than the one it replaced.
   useProfileSwitchWindowSweep(shell, activeWorkspaceId);
@@ -201,12 +237,14 @@ export function useDesktopChrome(
     onClientCommand: (command, reply) => {
       return clientCommandChannel.execute(command.op, command.payload, reply);
     },
-    onClientInvalidated: client.reregister,
+    // The view this page showed, read before the registration it belonged to is dropped.
+    onClientInvalidated: () => client.reregister(clientRestore(manager.getState().client)),
     onError: error => manager.setLoadError(streamError(error)),
   });
 
   return {
     terminalClose,
+    unsavedClose,
     shell,
     query,
     client: client.client,

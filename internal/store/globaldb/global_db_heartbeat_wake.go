@@ -293,9 +293,13 @@ func (g *HeartbeatRepo) ListHeartbeatWakeEvents(
 		store.StringClause("reason", string(query.Reason)),
 	)
 	if profileID := strings.TrimSpace(query.ProfileID); profileID != "" {
-		where = append(where, `EXISTS (SELECT 1 FROM sessions
-			WHERE sessions.id = agent_heartbeat_wake_events.session_id AND sessions.profile_id = ?)`)
-		args = append(args, profileID)
+		where = append(where, `(
+			(instance_id <> '' AND EXISTS (SELECT 1 FROM agent_instances
+				WHERE agent_instances.id = agent_heartbeat_wake_events.instance_id AND agent_instances.profile_id = ?))
+			OR (instance_id = '' AND EXISTS (SELECT 1 FROM sessions
+				WHERE sessions.id = agent_heartbeat_wake_events.session_id AND sessions.profile_id = ?))
+		)`)
+		args = append(args, profileID, profileID)
 	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += heartbeatOrderByCreatedDesc

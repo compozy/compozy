@@ -512,92 +512,97 @@ func TestPromptInputCompositeBlankOutputPreservesLastValidMessage(t *testing.T) 
 // Invariant: upgraded prompts preserve active context without retired memory frames.
 // Owner: daemon composition; canonical suite: prompt_input_composite.
 func TestPromptInputCompositeUpgradedPromptContent(t *testing.T) {
-	t.Run("Should preserve soul skills and situation after loading retired settings [UT-018]", func(t *testing.T) {
-		t.Parallel()
-		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := compozyconfig.EnsureHomeLayout(home); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(home.ConfigFile, []byte("[memory]\nenabled = true\n"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := compozyconfig.LoadForHome(home); err != nil {
-			t.Fatal(err)
-		}
-		workspaceRoot := filepath.Join(home.HomeDir, "workspace")
-		resolver := NewHarnessContextResolver(
-			HarnessRuntimeSignals{
-				SkillsPromptSectionEnabled:    true,
-				SituationPromptSectionEnabled: true,
-				SkillsAugmenter:               true,
-				SituationAugmenter:            true,
-			},
-		)
-		descriptors := defaultStartupPromptSectionDescriptors(staticPromptProvider("STARTUP_SKILLS"), nil)
-		descriptors = append(
-			descriptors,
-			PromptSectionDescriptor{
-				Name:      string(HarnessPromptSectionSituation),
-				Position:  PromptSectionPositionPrepend,
-				Provider:  staticPromptProvider("STARTUP_SITUATION"),
-				Predicate: policyIncludesSection(HarnessPromptSectionSituation),
-			},
-		)
-		assembler := NewComposedAssembler(
-			WithSectionSelector(NewSectionSelector(resolver, nil)),
-			WithPromptSectionDescriptors(descriptors...),
-		)
-		workspace := testResolvedWorkspace(workspaceRoot)
-		startup, err := assembler.AssembleStartup(
-			t.Context(),
-			session.StartupPromptContext{
-				SessionType:  session.SessionTypeUser,
-				SoulSnapshot: testPromptSoulSnapshot(t, "PERSONA_BODY"),
-			},
-			testPromptAgent("Base prompt."),
-			&workspace,
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		augmenter, err := newPromptInputCompositeAugmenter(
-			discardLogger(),
-			resolver,
-			nil,
-			defaultPromptInputAugmenterDescriptors(
-				func(_ context.Context, _ *session.Session, message string) (string, error) {
-					return "CURRENT_SKILLS\n\n" + message, nil
+	t.Run(
+		"Should preserve soul skills and situation after loading archived retired settings [UT-018]",
+		func(t *testing.T) {
+			t.Parallel()
+			home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := compozyconfig.EnsureHomeLayout(home); err != nil {
+				t.Fatal(err)
+			}
+			archived := "# Archived retired memory and compaction settings; these values are inactive.\n" +
+				"# [memory]\n# enabled = true\n"
+			if err := os.WriteFile(home.ConfigFile, []byte(archived), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := compozyconfig.LoadForHome(home); err != nil {
+				t.Fatal(err)
+			}
+			workspaceRoot := filepath.Join(home.HomeDir, "workspace")
+			resolver := NewHarnessContextResolver(
+				HarnessRuntimeSignals{
+					SkillsPromptSectionEnabled:    true,
+					SituationPromptSectionEnabled: true,
+					SkillsAugmenter:               true,
+					SituationAugmenter:            true,
 				},
-				func(_ context.Context, _ *session.Session, message string) (string, error) {
-					return "TURN_SITUATION\n\n" + message, nil
+			)
+			descriptors := defaultStartupPromptSectionDescriptors(staticPromptProvider("STARTUP_SKILLS"), nil)
+			descriptors = append(
+				descriptors,
+				PromptSectionDescriptor{
+					Name:      string(HarnessPromptSectionSituation),
+					Position:  PromptSectionPositionPrepend,
+					Provider:  staticPromptProvider("STARTUP_SITUATION"),
+					Predicate: policyIncludesSection(HarnessPromptSectionSituation),
 				},
-			)...)
-		if err != nil {
-			t.Fatal(err)
-		}
-		turn, err := augmenter(t.Context(), newPromptInputTestSession(workspaceRoot), "request")
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, want := range []string{"PERSONA_BODY", "STARTUP_SKILLS", "STARTUP_SITUATION"} {
-			if !strings.Contains(startup, want) {
-				t.Fatalf("startup = %q, want %q", startup, want)
+			)
+			assembler := NewComposedAssembler(
+				WithSectionSelector(NewSectionSelector(resolver, nil)),
+				WithPromptSectionDescriptors(descriptors...),
+			)
+			workspace := testResolvedWorkspace(workspaceRoot)
+			startup, err := assembler.AssembleStartup(
+				t.Context(),
+				session.StartupPromptContext{
+					SessionType:  session.SessionTypeUser,
+					SoulSnapshot: testPromptSoulSnapshot(t, "PERSONA_BODY"),
+				},
+				testPromptAgent("Base prompt."),
+				&workspace,
+			)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		for _, want := range []string{"CURRENT_SKILLS", "TURN_SITUATION", "request"} {
-			if !strings.Contains(turn, want) {
-				t.Fatalf("turn = %q, want %q", turn, want)
+			augmenter, err := newPromptInputCompositeAugmenter(
+				discardLogger(),
+				resolver,
+				nil,
+				defaultPromptInputAugmenterDescriptors(
+					func(_ context.Context, _ *session.Session, message string) (string, error) {
+						return "CURRENT_SKILLS\n\n" + message, nil
+					},
+					func(_ context.Context, _ *session.Session, message string) (string, error) {
+						return "TURN_SITUATION\n\n" + message, nil
+					},
+				)...)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		for _, retired := range []string{"# Persistent Memory", "<compozy_checkpoint_summary>", "<turn-recall>", "<workspace-knowledge-snapshot>"} {
-			if strings.Contains(startup, retired) || strings.Contains(turn, retired) {
-				t.Fatalf("delivered retired frame %q", retired)
+			turn, err := augmenter(t.Context(), newPromptInputTestSession(workspaceRoot), "request")
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-	})
+			for _, want := range []string{"PERSONA_BODY", "STARTUP_SKILLS", "STARTUP_SITUATION"} {
+				if !strings.Contains(startup, want) {
+					t.Fatalf("startup = %q, want %q", startup, want)
+				}
+			}
+			for _, want := range []string{"CURRENT_SKILLS", "TURN_SITUATION", "request"} {
+				if !strings.Contains(turn, want) {
+					t.Fatalf("turn = %q, want %q", turn, want)
+				}
+			}
+			for _, retired := range []string{"# Persistent Memory", "<compozy_checkpoint_summary>", "<turn-recall>", "<workspace-knowledge-snapshot>"} {
+				if strings.Contains(startup, retired) || strings.Contains(turn, retired) {
+					t.Fatalf("delivered retired frame %q", retired)
+				}
+			}
+		},
+	)
 }
 
 func TestPromptInputContributionRunes(t *testing.T) {

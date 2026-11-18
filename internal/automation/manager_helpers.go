@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"maps"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -31,6 +32,16 @@ func countEnabledTriggers(triggers []Trigger) int {
 		}
 	}
 	return count
+}
+
+// automationIDPattern matches the job and trigger ids this package generates: dynamic `job-`/`trg-`
+// ids (store.NewID) and configuration- or suggestion-derived ids (stableConfigID).
+var automationIDPattern = regexp.MustCompile(`^(?:(?:job|trg)-[0-9a-f]{16}|(?:jobcfg|trgcfg|jobsug)_[0-9a-f]{16})$`)
+
+// IsAutomationID reports whether value is a generated job or trigger id. Caller-authored ids are free
+// text and do not match.
+func IsAutomationID(value string) bool {
+	return automationIDPattern.MatchString(value)
 }
 
 func configJobID(scope Scope, workspaceID string, name string) string {

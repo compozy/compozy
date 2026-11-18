@@ -1,0 +1,92 @@
+---
+id: ET-mcp-project-server-approval
+area: ET
+title: A project-file MCP server waits for digest-bound approval and is never started before it
+persona: Dora
+journey: J-offer-runnable-capabilities
+expected: A committed `.compozy/mcp.json` server reads Waiting for approval in Settings and in the session MCP control; it is never started, probed or contacted before approval; Allow binds the current definition digest and the next message calls it; editing the file returns it to waiting (Changed since you allowed it); revoke withdraws it on the next call; approvals do not leak to another workspace.
+entry_points: web Settings → MCP servers (Project) → Allow → review panel → Allow; session composer MCP control → Allow; compozy mcp allow <server> --workspace <ws> [--digest|--revoke]; compozy__mcp_allow; PUT|DELETE /api/settings/mcp-servers/{name}/approval
+qa_status: untested
+bug_ids:
+fix_status:
+retest_status:
+fix_commits:
+evidence:
+last_report:
+overlaps: ET-cli-mcp-runtime-verbs; RT-mcp-stdio-session-reuse
+---
+
+Covers E2E-005 (US-005, Rules 1–3).
+
+Lab: `eng-qa-bootstrap` isolated lab (unique `COMPOZY_HOME`, ports and socket), built from the
+integrated `feat/mcp-hot-activation` head, default `tools.policy.external_default = "disabled"`, real
+provider CLIs signed in through the lab's provider homes. Echo fixture: a Streamable HTTP or stdio MCP
+server exposing an `echo` tool (for example `npx -y @modelcontextprotocol/server-everything`).
+Capture every command with timestamp and output, plus a screenshot of each Web state named below.
+Project fixture: commit `.compozy/mcp.json` declaring `sentry` as a stdio wrapper around the echo
+fixture that appends one line to `$LAB/starts.log` on every start.
+
+Steps:
+
+1. Open the project as a workspace; create a Claude session in it and send one message.
+2. Settings → MCP servers → Project: `sentry` reads "Waiting for approval · Added by a file in this
+   project" with Allow; header meta "1 waiting for approval". The composer MCP control shows the same.
+   `starts.log` is empty (no discovery, probe or launch). Screenshots.
+3. `compozy mcp list --workspace <ws> --compozy-only -o json`: `approval.state: "waiting"`,
+   `reason: "new"`, `callable_in_sessions: false`; record `definition_digest`.
+4. In the session, "call sentry echo": the error reads "sentry is waiting for approval in <ws>.
+   Allow it in Settings → MCP servers."
+5. An agent calling `compozy__mcp_allow` must receive an operator approval request in every
+   permission mode, including `approve-all`; without an approval bridge the call fails closed.
+   Click Allow in the MCP control. Send "call sentry echo". It succeeds; `starts.log` has one line.
+6. Edit an argument in `.compozy/mcp.json`. The row returns to "Waiting for approval · Changed since
+   you allowed it"; the old digest is refused:
+   `compozy mcp allow sentry --workspace <ws> --digest <old>` → `mcp_approval_definition_changed`.
+7. `compozy mcp allow sentry --workspace <ws>` (prints the definition, then "Allowed sentry in <ws>
+   for profile default. Sessions can use it from their next message.").
+8. `compozy mcp allow sentry --workspace <ws> --revoke`; the next call fails with `source_disabled`.
+9. Open a second workspace with the same file: `sentry` is waiting there too (no cross-workspace leak).
+
+Release CI follow-up 2026-11-15: the real hosted-client leg in
+`TestDaemonWorkspaceMCPExecutionConsent` opts in to MCP 2026 tool-list change notifications,
+so its private 60-second SDK cache invalidates after revoke and same-definition Settings approval.
+The existing waiting/allowed/revoked/reapproved listing and call assertions remain intact. This
+corrects the fixture's protocol setup; daemon consent, cache TTL and user-facing behavior are unchanged.
+All temporary consent/proxy diagnostics were removed after diagnosis. CI verification is pending;
+no local QA ran under release mode.
+10. `compozy mcp allow linear --workspace <ws>` for a personal server → `mcp_approval_not_required`.
+
+Pass: no process start before approval; every message matches `_dx.md` Errors.
+
+src: .compozy/tasks/mcp-extension-hot-activation/_tests.md
+
+QA impact 2026-11-14 keyed digest consistency: for an OAuth project server, retain the
+`definition_digest` from the list response, then use that exact value for Allow and sign-in.
+Sign-in must pass the consent gate without a false definition-changed error. Restart the
+isolated daemon with the same home; the listed digest and stored approval must remain valid.
+Edit the definition afterwards and confirm the old digest is refused. Local execution was
+not performed for this repair under the operator's CI-only directive; integration owns this walk.
+
+QA impact 2026-11-15 (release M1): while user/profile policy is disabled, add
+`[tools.policy] external_default = "enabled"` and `trusted_sources = ["mcp:sentry"]` to both
+workspace and workspace-profile config. The server must remain waiting, with no process launch
+and one ignored-grant warning per daemon process across repeated reads. For an unapproved fixture,
+put `enabled` in user or personal profile config with no project restriction and confirm it admits
+the server. Then set `ask` or `disabled` in each project layer: the server must return to waiting
+without starting. A later workspace-profile `enabled` cannot undo a workspace restriction. Verify
+that a project trust list retains only inherited entries, that `[]` removes them all, and that an
+omitted list inherits them; project files cannot add trusted sources.
+No local walk runs in release mode; main CI owns config and MCP consent integration evidence.
+
+QA impact 2026-11-16 (MCP redesign S2): in Settings, Allow opens the "Allow <server>?" review
+panel beside the button, showing what it runs (command and arguments, or the remote address) and
+whether a project file added or changed it; nothing is sent until the panel's Allow. A refused Allow
+(definition changed) still reads "Changed since you allowed it" on the row. The composer control's
+Allow is unchanged in this slice.
+
+QA impact 2026-11-16 (MCP redesign S5): the composer row reads "Review"; it opens the "Allow
+<server>?" panel beside the row with what it runs, "Defined in" (the row's `source.path`), and the
+subtitle "Added by <file> in this project" or "Changed in <file> since you allowed it". "Allow from
+next message" sends the row's own `workspace_id`, `profile` and `approval.definition_digest` (no
+Settings list lookup). A refused Allow (`mcp_approval_definition_changed`) closes the panel, toasts
+"<server> changed since you looked at it…", and rereads the session's servers.

@@ -28,6 +28,9 @@ type MigrationStream struct {
 	VersionTable string
 	LegacyTables []string
 	Bootstrap    *MigrationBootstrap
+	// Reconciliation optionally completes one published migration whose schema
+	// change already exists without its recorded version.
+	Reconciliation *MigrationReconciliation
 }
 
 // StreamStatus describes the applied state of one migration stream.
@@ -57,6 +60,9 @@ func Apply(ctx context.Context, db *sql.DB, stream MigrationStream) error {
 	}
 	if bootstrapped {
 		return logAppliedMigrationStream(ctx, db, stream, inspection.directory.sumDigest, startedAt)
+	}
+	if err := reconcileMigrationStream(ctx, db, stream, inspection); err != nil {
+		return err
 	}
 	stepper, err := newMigrationStepperFromInspection(db, stream, inspection)
 	if err != nil {

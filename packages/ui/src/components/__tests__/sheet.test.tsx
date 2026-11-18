@@ -43,7 +43,7 @@ describe("Sheet", () => {
     await waitFor(() => expect(screen.getByText("Configure agent")).toBeInTheDocument());
     const popup = screen.getByRole("dialog");
     expect(popup).toHaveAttribute("data-side", "left");
-  }, 15_000);
+  });
 
   it("Should close on Escape", async () => {
     const user = userEvent.setup();

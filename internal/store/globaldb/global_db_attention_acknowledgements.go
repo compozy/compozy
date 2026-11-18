@@ -76,39 +76,50 @@ func (r *NotificationRepo) CaptureAttentionSnapshot(
 	return snapshot, unread, nil
 }
 
-// AcknowledgeAttentionSnapshot commits all requested receipts in one statement or none.
-func (r *NotificationRepo) AcknowledgeAttentionSnapshot(
+// AttentionSnapshotOccurrences resolves only members of a valid frozen population.
+func (r *NotificationRepo) AttentionSnapshotOccurrences(
 	ctx context.Context, scope attention.Scope, snapshot, occurrence string,
-) error {
-	if err := r.checkReady(ctx, "acknowledge attention snapshot"); err != nil {
-		return err
+) ([]string, error) {
+	if err := r.checkReady(ctx, "read attention snapshot"); err != nil {
+		return nil, err
 	}
 	if err := scope.Validate(); err != nil {
-		return err
+		return nil, err
 	}
 	raw, err := r.readQueries.GetAttentionSnapshot(ctx, sqlcgen.GetAttentionSnapshotParams{
 		ID: snapshot, ProfileID: scope.ProfileID, ActorKind: scope.ActorKind, ActorID: scope.ActorID,
 		Population: scope.Population, Now: store.FormatTimestamp(r.now()),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return attention.ErrSnapshotUnavailable
+		return nil, attention.ErrSnapshotUnavailable
 	}
 	if err != nil {
-		return fmt.Errorf("store: read attention snapshot: %w", err)
+		return nil, fmt.Errorf("store: read attention snapshot: %w", err)
+	}
+	var ids []string
+	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
+		return nil, fmt.Errorf("store: decode attention snapshot: %w", err)
 	}
 	if occurrence != "" {
-		var ids []string
-		if err := json.Unmarshal([]byte(raw), &ids); err != nil {
-			return fmt.Errorf("store: decode attention snapshot: %w", err)
-		}
 		if !slices.Contains(ids, occurrence) {
-			return attention.ErrSnapshotUnavailable
+			return nil, attention.ErrSnapshotUnavailable
 		}
-		encoded, err := json.Marshal([]string{occurrence})
-		if err != nil {
-			return fmt.Errorf("store: encode attention receipt: %w", err)
-		}
-		raw = string(encoded)
+		return []string{occurrence}, nil
+	}
+	return ids, nil
+}
+
+// AcknowledgeAttentionSnapshot commits all requested receipts in one statement or none.
+func (r *NotificationRepo) AcknowledgeAttentionSnapshot(
+	ctx context.Context, scope attention.Scope, snapshot, occurrence string,
+) error {
+	ids, err := r.AttentionSnapshotOccurrences(ctx, scope, snapshot, occurrence)
+	if err != nil {
+		return err
+	}
+	raw, err := json.Marshal(ids)
+	if err != nil {
+		return fmt.Errorf("store: encode attention receipts: %w", err)
 	}
 	if err := r.executeWriteQuery(
 		ctx,
@@ -116,7 +127,7 @@ func (r *NotificationRepo) AcknowledgeAttentionSnapshot(
 		func(ctx context.Context, queries *sqlcgen.Queries) error {
 			return queries.AcknowledgeAttentionOccurrences(ctx, sqlcgen.AcknowledgeAttentionOccurrencesParams{
 				ProfileID: scope.ProfileID, ActorKind: scope.ActorKind, ActorID: scope.ActorID,
-				OccurrenceIds: raw, Now: store.FormatTimestamp(r.now()),
+				OccurrenceIds: string(raw), Now: store.FormatTimestamp(r.now()),
 			})
 		},
 	); err != nil {

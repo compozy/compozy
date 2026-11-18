@@ -6,13 +6,14 @@ import (
 )
 
 type terminalExecInput struct {
-	Command string                  `json:"command"`
-	Args    []string                `json:"args,omitempty"`
-	Cwd     string                  `json:"cwd,omitempty"`
-	Env     map[string]string       `json:"env,omitempty"`
-	YieldMS int                     `json:"yield_ms,omitzero"`
-	Visible bool                    `json:"visible,omitzero"`
-	Output  terminalpkg.OutputShape `json:"output,omitzero"`
+	Worktree string                  `json:"worktree,omitempty"`
+	Command  string                  `json:"command"`
+	Args     []string                `json:"args,omitempty"`
+	Cwd      string                  `json:"cwd,omitempty"`
+	Env      map[string]string       `json:"env,omitempty"`
+	YieldMS  int                     `json:"yield_ms,omitzero"`
+	Visible  bool                    `json:"visible,omitzero"`
+	Output   terminalpkg.OutputShape `json:"output,omitzero"`
 }
 
 type terminalOpenInput struct {

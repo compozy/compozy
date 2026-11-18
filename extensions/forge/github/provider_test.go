@@ -8,12 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -305,6 +307,62 @@ func TestProvider(t *testing.T) {
 	t.Parallel()
 	// Invariant: discovery scopes search to the repository and preserves PR number, title and branch.
 	// Owner: forge provider I/O; canonical provider suite.
+	for _, tc := range []struct {
+		name, state string
+		mergeable   *bool
+		want        string
+	}{
+		{"dirty", "dirty", new(false), "conflicting"},
+		{"clean", "clean", new(true), "mergeable"},
+		{"draft conflict", "draft", new(false), "conflicting"},
+		{"retarget", "dirty", new(false), "conflicting"},
+		{"unknown", "unknown", new(false), "unknown"},
+		{"null", "dirty", nil, "unknown"},
+		{"head mismatch", "dirty", new(false), "unknown"},
+		{"closed detail", "dirty", new(false), "unknown"},
+	} {
+		t.Run("Should map REST mergeability "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			var details atomic.Int32
+			provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				pull := pullPayload{
+					Number: 7, HTMLURL: "https://github.com/acme/repo/pull/7", State: "open",
+					UpdatedAt: time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC),
+					Head:      pullRef{Ref: "topic", SHA: "a"}, Base: pullRef{Ref: "main"},
+				}
+				pull.Head.Repo = &struct {
+					FullName string `json:"full_name"`
+				}{FullName: "acme/repo"}
+				if r.URL.Path == "/repos/acme/repo/pulls/7" {
+					details.Add(1)
+					pull.Mergeable, pull.MergeableState = tc.mergeable, tc.state
+					if tc.name == "head mismatch" {
+						pull.Head.SHA = "b"
+					}
+					if tc.name == "closed detail" {
+						pull.State = "closed"
+					}
+					if tc.name == "retarget" {
+						pull.Base.Ref = "release"
+					}
+					writeJSON(t, w, http.StatusOK, pull)
+				} else {
+					writeJSON(t, w, http.StatusOK, []pullPayload{pull})
+				}
+			})
+			defer closeServer()
+			got, err := provider.restDisplayStatus(
+				t.Context(), repository{owner: "acme", name: "repo"}, "topic", "token",
+			)
+			wantBase := "main"
+			if tc.name == "retarget" {
+				wantBase = "release"
+			}
+			if err != nil || got.Mergeable != tc.want || got.Base != wantBase || details.Load() != 1 {
+				t.Fatalf("status = %+v, err = %v, detail calls = %d", got, err, details.Load())
+			}
+		})
+	}
 	t.Run("Should discover a bounded page and resolve PR identity", func(t *testing.T) {
 		t.Parallel()
 		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
@@ -437,13 +495,26 @@ func TestProvider(t *testing.T) {
 		)
 	}
 
-	for _, scenario := range []string{"open first", "terminal newest", "incomplete", "bounded"} {
+	for _, scenario := range []string{"open first", "terminal newest", "incomplete", "bounded", "qualified fork"} {
 		t.Run("Should preserve REST display selection for "+scenario, func(t *testing.T) {
 			t.Parallel()
 			provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/graphql" {
 					w.WriteHeader(http.StatusNotFound)
 					return
+				}
+				if r.URL.Path == "/repos/acme/repo/pulls/3" || r.URL.Path == "/repos/acme/repo/pulls/2" {
+					if scenario != "open first" && scenario != "qualified fork" {
+						t.Error("unexpected detail lookup")
+					}
+					writeJSON(t, w, http.StatusOK, pullPayload{
+						Number: 3, State: "open", Head: pullRef{SHA: "abc"},
+						Mergeable: new(false), MergeableState: "dirty",
+					})
+					return
+				}
+				if scenario == "qualified fork" && r.URL.Query().Get("head") != "fork:topic" {
+					t.Errorf("head=%q, want fork:topic", r.URL.Query().Get("head"))
 				}
 				if r.URL.Query().Get("sort") != "updated" || r.URL.Query().Get("direction") != "desc" {
 					t.Errorf("selection query=%s", r.URL.RawQuery)
@@ -486,11 +557,15 @@ func TestProvider(t *testing.T) {
 				writeJSON(t, w, http.StatusOK, pulls)
 			})
 			defer closeServer()
+			branch, want := "topic", 3
+			if scenario == "qualified fork" {
+				branch, want = "fork:topic", 2
+			}
 			got, err := provider.Status(
 				t.Context(),
 				extensioncontract.ForgeStatusRequest{
 					RemoteURLs: []string{"https://github.com/acme/repo"},
-					Branch:     "topic",
+					Branch:     branch,
 				},
 			)
 			if err != nil {
@@ -502,7 +577,7 @@ func TestProvider(t *testing.T) {
 				}
 				return
 			}
-			if got.PRNumber == nil || *got.PRNumber != 3 || got.Selection != "complete" {
+			if got.PRNumber == nil || *got.PRNumber != want || got.Selection != "complete" {
 				t.Fatalf("selection=%#v", got)
 			}
 		})
@@ -707,37 +782,47 @@ func TestProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reconcile only the exact draft delivery candidate", func(t *testing.T) {
-		t.Parallel()
-		draft := true
-		candidate := pullPayload{Number: 44, HTMLURL: "https://github.com/acme/repo/pull/44", State: "open",
-			Head: pullRef{Ref: "feature/exit", SHA: "reviewed-sha"}, Base: pullRef{Ref: "main"}, Draft: &draft}
-		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet || r.URL.Query().Get("state") != "open" {
-				t.Errorf("unexpected candidate lookup %s %s", r.Method, r.URL)
+	for _, branch := range []string{"feature/exit", "contributor:feature/exit"} {
+		t.Run("Should reconcile only the exact draft delivery candidate for "+branch, func(t *testing.T) {
+			t.Parallel()
+			draft := true
+			candidate := pullPayload{Number: 44, HTMLURL: "https://github.com/acme/repo/pull/44", State: "open",
+				Head: pullRef{Ref: "feature/exit", SHA: "reviewed-sha"}, Base: pullRef{Ref: "main"}, Draft: &draft}
+			provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Query().Get("state") != "open" {
+					t.Errorf("unexpected candidate lookup %s %s", r.Method, r.URL)
+				}
+				wantHead := branch
+				if !strings.Contains(branch, ":") {
+					wantHead = "acme:" + branch
+				}
+				if r.URL.Query().Get("head") != wantHead {
+					t.Errorf("head=%q, want %q", r.URL.Query().Get("head"), wantHead)
+				}
+				writeJSON(t, w, http.StatusOK, []pullPayload{candidate})
+			})
+			defer closeServer()
+			status, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{
+				RemoteURLs: []string{
+					"https://github.com/acme/repo",
+				},
+				Branch:  branch,
+				Base:    "main",
+				HeadSHA: "reviewed-sha",
+			})
+			if err != nil || status.Head != "feature/exit" || status.Base != "main" ||
+				status.HeadSHA != "reviewed-sha" || status.Draft == nil || !*status.Draft {
+				t.Fatalf("exact candidate status = %#v, %v", status, err)
 			}
-			writeJSON(t, w, http.StatusOK, []pullPayload{candidate})
+			request := createRequest()
+			request.HeadSHA = "reviewed-sha"
+			request.Head = branch
+			created, err := provider.CreatePR(t.Context(), request)
+			if err != nil || created.Status != "opened_existing" || created.Number != candidate.Number {
+				t.Fatalf("reconciled create = %#v, %v", created, err)
+			}
 		})
-		defer closeServer()
-		status, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{
-			RemoteURLs: []string{
-				"https://github.com/acme/repo",
-			},
-			Branch:  "feature/exit",
-			Base:    "main",
-			HeadSHA: "reviewed-sha",
-		})
-		if err != nil || status.Head != "feature/exit" || status.Base != "main" || status.HeadSHA != "reviewed-sha" ||
-			status.Draft == nil || !*status.Draft {
-			t.Fatalf("exact candidate status = %#v, %v", status, err)
-		}
-		request := createRequest()
-		request.HeadSHA = "reviewed-sha"
-		created, err := provider.CreatePR(t.Context(), request)
-		if err != nil || created.Status != "opened_existing" || created.Number != candidate.Number {
-			t.Fatalf("reconciled create = %#v, %v", created, err)
-		}
-	})
+	}
 
 	for _, mismatch := range []string{"base", "head", "sha", "draft", "unknown draft", "ambiguous"} {
 		t.Run("Should reject mismatched delivery "+mismatch+" before publishing", func(t *testing.T) {
@@ -852,7 +937,7 @@ func TestProvider(t *testing.T) {
 
 const emptyGraphChecks = `{"data":{"repository":{"object":{"oid":"head-a"}}}}`
 
-const graphOpenPull = `{"data":{"repository":{"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`
+const graphOpenPull = `{"data":{"repository":{"terminalPullRequests":{"nodes":[]},"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`
 
 func graphTopicRequest() extensioncontract.ForgeStatusRequest {
 	return extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"}
@@ -899,6 +984,362 @@ func writeGraphBody(t *testing.T, w http.ResponseWriter, body string) {
 // Owner: GitHub provider; canonical httptest provider suite.
 func TestProviderGraphQL(t *testing.T) {
 	t.Parallel()
+	// Invariant: one repository lookup uses aliases and all PR states without interpolating branch values.
+	t.Run("Should batch branches in one repository query", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			var input struct {
+				Query     string
+				Variables map[string]any
+			}
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+				return
+			}
+			if input.Variables["owner"] != "acme" || input.Variables["branch0"] != "feature/one" ||
+				input.Variables["branch1"] != "feature/two" ||
+				strings.Contains(input.Query, "feature/") ||
+				strings.Count(
+					input.Query,
+					"states:[OPEN]",
+				) != 2 || strings.Count(input.Query, "states:[MERGED,CLOSED]") != 2 {
+				t.Errorf("batch query=%s vars=%v", input.Query, input.Variables)
+			}
+			writeGraphBody(
+				t,
+				w,
+				`{"data":{"repository":{"branch0Open":{"nodes":[{"number":1,"state":"OPEN"}]},"branch0Terminal":{"nodes":[]},"branch1Open":{"nodes":[]},"branch1Terminal":{"nodes":[{"number":2,"state":"MERGED"}]}}}}`,
+			)
+		})
+		defer closeServer()
+		batch := &pullBatch{branches: []string{"feature/one", "feature/two"}, done: make(chan struct{})}
+		provider.batchCtx = t.Context()
+		provider.runPullBatch(t.Context(), pullBatchKey{}, repository{owner: "acme", name: "repo"}, "secret", batch)
+		if batch.err != nil || calls.Load() != 1 || batch.pages["feature/one"][0].Nodes[0].Number != 1 ||
+			batch.pages["feature/two"][1].Nodes[0].Number != 2 {
+			t.Fatalf("batch=%+v calls=%d", batch, calls.Load())
+		}
+	})
+	// Invariant: concurrent callers share one lookup, and one caller's cancellation leaves its siblings' results intact.
+	t.Run("Should coalesce concurrent callers and isolate a canceled caller", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		received := make(chan struct{})
+		release := make(chan struct{})
+		releaseHandler := sync.OnceFunc(func() { close(release) })
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			var input struct{ Variables map[string]any }
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+				return
+			}
+			close(received)
+			<-release
+			var pages []string
+			for i := range 3 {
+				number := slices.Index(
+					[]string{"one", "two", "three"},
+					strings.TrimPrefix(fmt.Sprint(input.Variables[fmt.Sprintf("branch%d", i)]), "feature/"),
+				) + 1
+				pages = append(
+					pages,
+					fmt.Sprintf(
+						`"branch%dOpen":{"nodes":[{"number":%d,"state":"OPEN"}]},"branch%dTerminal":{"nodes":[]}`,
+						i,
+						number,
+						i,
+					),
+				)
+			}
+			writeGraphBody(t, w, `{"data":{"repository":{`+strings.Join(pages, ",")+`}}}`)
+		})
+		defer closeServer()
+		defer releaseHandler()
+		flush := make(chan struct{})
+		provider.batchFlush = flush
+		repo := repository{owner: "acme", name: "repo"}
+		canceledCtx, cancel := context.WithCancel(t.Context())
+		type outcome struct {
+			branch string
+			pages  [2]graphPage
+			err    error
+		}
+		results := make(chan outcome, 3)
+		for _, branch := range []string{"feature/one", "feature/two", "feature/three"} {
+			ctx := t.Context()
+			if branch == "feature/two" {
+				ctx = canceledCtx
+			}
+			go func() {
+				pages, err := provider.batchedPullPages(ctx, repo, branch, "secret")
+				results <- outcome{branch, pages, err}
+			}()
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for joined := 0; joined < 3; time.Sleep(time.Millisecond) {
+			provider.batchMu.Lock()
+			joined = 0
+			for _, batch := range provider.batches {
+				joined += len(batch.branches)
+			}
+			batches := len(provider.batches)
+			provider.batchMu.Unlock()
+			if batches > 1 || time.Now().After(deadline) {
+				t.Fatalf("callers joined=%d across %d batches, want 3 in one batch", joined, batches)
+			}
+		}
+		close(flush)
+		<-received
+		cancel()
+		first := <-results
+		if first.branch != "feature/two" || !errors.Is(first.err, context.Canceled) {
+			t.Fatalf("first outcome=%+v, want canceled feature/two", first)
+		}
+		releaseHandler()
+		for range 2 {
+			got := <-results
+			want := map[string]int{"feature/one": 1, "feature/three": 3}[got.branch]
+			if got.err != nil || len(got.pages[0].Nodes) != 1 || got.pages[0].Nodes[0].Number != want {
+				t.Fatalf("sibling outcome=%+v, want PR %d", got, want)
+			}
+		}
+		if calls.Load() != 1 {
+			t.Fatalf("GraphQL calls=%d, want one shared lookup", calls.Load())
+		}
+	})
+	// Invariant: provider shutdown cancels waiting callers, joins batch workers, and rejects later lookups.
+	t.Run("Should cancel waiting callers when the provider closes", func(t *testing.T) {
+		t.Parallel()
+		received := make(chan struct{})
+		provider, closeServer := testProvider(t, func(_ http.ResponseWriter, r *http.Request) {
+			// Drain the body so the server observes the client's cancellation.
+			if _, err := io.Copy(io.Discard, r.Body); err != nil {
+				t.Error(err)
+			}
+			close(received)
+			<-r.Context().Done()
+		})
+		defer closeServer()
+		repo := repository{owner: "acme", name: "repo"}
+		errs := make(chan error, 1)
+		go func() {
+			_, err := provider.batchedPullPages(t.Context(), repo, "feature/one", "secret")
+			errs <- err
+		}()
+		<-received
+		provider.closeBatches()
+		if err := <-errs; !errors.Is(err, context.Canceled) {
+			t.Fatalf("waiting caller err=%v after provider shutdown, want context.Canceled", err)
+		}
+		if _, err := provider.batchedPullPages(
+			t.Context(),
+			repo,
+			"feature/two",
+			"secret",
+		); !errors.Is(
+			err,
+			context.Canceled,
+		) {
+			t.Fatalf("lookup after shutdown err=%v, want context.Canceled", err)
+		}
+	})
+	t.Run("Should prefer an open PR over a newer terminal PR", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			var input struct{ Query string }
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+				return
+			}
+			if strings.Contains(input.Query, "$branch") {
+				writeGraphBody(
+					t,
+					w,
+					`{"data":{"repository":{"terminalPullRequests":{"nodes":[{"number":3,"state":"MERGED","updatedAt":"2026-08-12T11:00:00Z","headRepository":{"nameWithOwner":"acme/repo"}}]},"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}]}}}}`,
+				)
+				return
+			}
+			if strings.Contains(input.Query, "$oid") {
+				writeGraphBody(t, w, emptyGraphChecks)
+				return
+			}
+			writeGraphBody(t, w, `{"data":{"repository":{"pullRequest":{}}}}`)
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), graphTopicRequest())
+		if err != nil || got.PRNumber == nil || *got.PRNumber != 2 || *got.PRState != "open" {
+			t.Fatalf("status=%+v err=%v", got, err)
+		}
+	})
+	t.Run("Should mark HTTP 200 GraphQL errors as failed calls", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			writeGraphBody(t, w, `{"errors":[{"type":"SERVICE_UNAVAILABLE"}]}`)
+		})
+		defer closeServer()
+		provider.api.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		if _, err := provider.Status(t.Context(), graphTopicRequest()); err == nil {
+			t.Fatal("GraphQL execution error unexpectedly succeeded")
+		}
+		var record map[string]any
+		if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record["status"] != float64(200) || record["api"] != "graphql" ||
+			record["source"] != "forge/status/pull_lookup" ||
+			record["failed"] != true {
+			t.Fatalf("GraphQL error log=%s", logs.String())
+		}
+	})
+	// Invariant: only a typed GraphQL RATE_LIMITED error marks a call rate limited; payload text never does.
+	t.Run("Should not mark REST payload text as a GraphQL rate limit", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, http.StatusOK, map[string]any{"title": "RATE_LIMITED"})
+		})
+		defer closeServer()
+		provider.api.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		var out map[string]any
+		if err := provider.api.request(
+			t.Context(),
+			http.MethodGet,
+			"/repos/acme/repo/pulls/1",
+			"secret",
+			nil,
+			&out,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(logs.String(), "graphql_rate_limited") {
+			t.Fatalf("REST payload text marked a GraphQL rate limit: %s", logs.String())
+		}
+	})
+	// Invariant: a GraphQL body that cannot decode into the typed response is logged as a failed call.
+	t.Run("Should mark undecodable GraphQL responses as failed calls", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			writeGraphBody(t, w, `{"data":{"repository":"unexpected"}}`)
+		})
+		defer closeServer()
+		provider.api.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		if _, err := provider.Status(t.Context(), graphTopicRequest()); err == nil ||
+			!strings.Contains(err.Error(), "decode response") {
+			t.Fatalf("Status err=%v, want a decode response failure", err)
+		}
+		var record map[string]any
+		if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record["api"] != "graphql" || record["failed"] != true {
+			t.Fatalf("decode failure log=%s", logs.String())
+		}
+	})
+	t.Run("Should attribute rate limited calls without logging credentials", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "300")
+			w.Header().Set("X-RateLimit-Reset", "1800000000")
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusForbidden)
+			writeGraphBody(t, w, `{"message":"secondary rate limit secret"}`)
+		})
+		defer closeServer()
+		provider.api.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		got, err := provider.Capabilities(
+			t.Context(),
+			extensioncontract.ForgeCapabilitiesRequest{RemoteURLs: []string{"https://github.com/acme/repo"}},
+		)
+		if err != nil || got.Cause != "rate_limited" {
+			t.Fatalf("capabilities=%+v err=%v", got, err)
+		}
+		var record map[string]any
+		if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record["source"] != "forge/capabilities" || record["method"] != "GET" || record["api"] != "rest" ||
+			record["status"] != float64(403) ||
+			record["remaining_quota"] != float64(300) ||
+			record["secondary_limit"] != true ||
+			record["retry_after_seconds"] != float64(60) ||
+			record["reset_at"] == nil ||
+			record["retry_at"] == nil ||
+			strings.Contains(logs.String(), "secret") {
+			t.Fatalf("log=%s", logs.String())
+		}
+	})
+	t.Run("Should select an explicitly qualified fork head and read its checks and reviews", func(t *testing.T) {
+		t.Parallel()
+		for _, state := range []string{"OPEN", "MERGED", "CLOSED"} {
+			t.Run(state, func(t *testing.T) {
+				t.Parallel()
+				var checks, reviews atomic.Int32
+				provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+					var input struct {
+						Query     string
+						Variables map[string]any
+					}
+					if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+						t.Error(err)
+						w.WriteHeader(http.StatusBadRequest)
+						return
+					}
+					switch {
+					case strings.Contains(input.Query, "$branch"):
+						if input.Variables["branch0"] != "topic" {
+							t.Errorf("branch=%v, want topic", input.Variables["branch0"])
+						}
+						alias, otherAlias := "pullRequests", "terminalPullRequests"
+						if state != "OPEN" {
+							alias, otherAlias = "terminalPullRequests", "pullRequests"
+						}
+						writeGraphBody(
+							t,
+							w,
+							fmt.Sprintf(
+								`{"data":{"repository":{%q:{"nodes":[]},%q:{"nodes":[{"number":2,"state":"OPEN","headRefOid":"base-head","headRepository":{"nameWithOwner":"acme/repo"}},{"number":7,"state":%q,"headRefOid":"fork-head","headRepository":{"nameWithOwner":"contributor/renamed-fork"}}]}}}}`,
+								otherAlias,
+								alias,
+								state,
+							),
+						)
+					case strings.Contains(input.Query, "$oid"):
+						checks.Add(1)
+						if input.Variables["oid"] != "fork-head" {
+							t.Errorf("oid=%v, want fork-head", input.Variables["oid"])
+						}
+						writeGraphBody(
+							t,
+							w,
+							`{"data":{"repository":{"object":{"oid":"fork-head","statusCheckRollup":{"contexts":{"totalCount":1,"checkRunCountsByState":[{"state":"SUCCESS","count":1}],"statusContextCountsByState":[],"nodes":[]}}}}}}`,
+						)
+					default:
+						reviews.Add(1)
+						writeGraphBody(t, w, `{"data":{"repository":{"pullRequest":{}}}}`)
+					}
+				})
+				defer closeServer()
+				request := graphTopicRequest()
+				request.Branch = "contributor:topic"
+				got, err := provider.Status(t.Context(), request)
+				wantReviews := int32(0)
+				if state == "OPEN" {
+					wantReviews = 1
+				}
+				if err != nil || got.PRNumber == nil || *got.PRNumber != 7 || got.HeadSHA != "fork-head" ||
+					got.PRState == nil || !strings.EqualFold(*got.PRState, state) ||
+					got.Checks == nil || got.Checks.State != "passing" || checks.Load() != 1 || reviews.Load() != wantReviews {
+					t.Fatalf("observation=%#v err=%v checks=%d reviews=%d", got, err, checks.Load(), reviews.Load())
+				}
+			})
+		}
+	})
 	t.Run("Should skip forks and read complete checks for the selected immutable head", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
@@ -917,18 +1358,21 @@ func TestProviderGraphQL(t *testing.T) {
 				if input.Variables["oid"] != "head-a" {
 					t.Errorf("checks oid=%v", input.Variables["oid"])
 				}
-				_, _ = w.Write(
-					[]byte(
-						`{"data":{"repository":{"object":{"oid":"head-a","statusCheckRollup":{"contexts":{"totalCount":102,"checkRunCountsByState":[{"state":"SUCCESS","count":100},{"state":"FAILURE","count":1}],"statusContextCountsByState":[{"state":"PENDING","count":1}],"nodes":[{"name":"lint","conclusion":"FAILURE"}]}}}}}}`,
-					),
+				writeGraphBody(
+					t,
+					w,
+					`{"data":{"repository":{"object":{"oid":"head-a","statusCheckRollup":{"contexts":{"totalCount":102,`+
+						`"checkRunCountsByState":[{"state":"SUCCESS","count":98},{"state":"NEUTRAL","count":1},`+
+						`{"state":"SKIPPED","count":1},{"state":"FAILURE","count":1}],`+
+						`"statusContextCountsByState":[{"state":"PENDING","count":1}],"nodes":[{"name":"lint","conclusion":"FAILURE"}]}}}}}}`,
 				)
 				return
 			}
-			_, _ = w.Write(
-				[]byte(
-					`{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}},{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"},"reviewDecision":"APPROVED","mergeable":"MERGEABLE"}],"pageInfo":{"hasNextPage":false}}}}}`,
-				),
-			)
+			writeGraphBody(t, w, `{"data":{"repository":{"terminalPullRequests":{"nodes":[]},"pullRequests":{"nodes":[`+
+				`{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}},`+
+				`{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a",`+
+				`"headRepository":{"nameWithOwner":"acme/repo"},"reviewDecision":"APPROVED","mergeable":"MERGEABLE"}],`+
+				`"pageInfo":{"hasNextPage":false}}}}}`)
 		})
 		defer closeServer()
 		got, err := provider.Status(
@@ -1170,7 +1614,7 @@ func TestProviderGraphQL(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			body := `{"data":{"repository":{"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"MERGED","merged":true,"headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`
+			body := `{"data":{"repository":{"pullRequests":{"nodes":[]},"terminalPullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"MERGED","merged":true,"headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`
 			switch {
 			case strings.Contains(input.Query, "$oid"):
 				body = emptyGraphChecks
@@ -1192,10 +1636,10 @@ func TestProviderGraphQL(t *testing.T) {
 		var calls atomic.Int32
 		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
 			calls.Add(1)
-			_, _ = w.Write(
-				[]byte(
-					`{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}}`,
-				),
+			writeGraphBody(
+				t,
+				w,
+				`{"data":{"repository":{"terminalPullRequests":{"nodes":[]},"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}}`,
 			)
 		})
 		defer closeServer()
@@ -1203,7 +1647,7 @@ func TestProviderGraphQL(t *testing.T) {
 			t.Context(),
 			extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"},
 		)
-		if err != nil || got.PRNumber != nil || got.Selection != "incomplete" || calls.Load() != 4 {
+		if err != nil || got.PRNumber != nil || got.Selection != "incomplete" || calls.Load() != 2 {
 			t.Fatalf("bounded=%#v %v calls=%d", got, err, calls.Load())
 		}
 	})
@@ -1221,7 +1665,7 @@ func TestProviderGraphQL(t *testing.T) {
 			}
 			_, _ = w.Write(
 				[]byte(
-					`{"data":{"repository":{"pullRequests":{"nodes":[{"number":2,"state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`,
+					`{"data":{"repository":{"terminalPullRequests":{"nodes":[]},"pullRequests":{"nodes":[{"number":2,"state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`,
 				),
 			)
 		})
@@ -1316,7 +1760,7 @@ func testProvider(t *testing.T, handler http.HandlerFunc) (*Provider, func()) {
 		api: githubClient{baseURL: server.URL, client: server.Client()},
 		now: func() time.Time { return time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC) },
 	}
-	return provider, server.Close
+	return provider, func() { provider.closeBatches(); server.Close() }
 }
 
 func createRequest() extensioncontract.ForgePRCreateRequest {

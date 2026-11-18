@@ -4,6 +4,7 @@ import {
   KeyRound,
   ListChecks,
   MessageCircleQuestionMark,
+  PanelsTopLeft,
   TriangleAlert,
   type LucideIcon,
 } from "@compozy/ui/icons";
@@ -31,7 +32,7 @@ function loopIcon(state: "waiting" | "attention"): LucideIcon {
   return state === "waiting" ? LOOP_STORY_ICONS.waiting : LOOP_STORY_ICONS.attention;
 }
 
-const NEEDS_YOU_TONE = "bg-brand-tint text-brand";
+const NEEDS_YOU_TONE = "bg-attn-tint text-attn";
 
 function NonSessionMark({ icon, tone }: { icon: LucideIcon; tone: string }) {
   return (
@@ -42,6 +43,13 @@ function NonSessionMark({ icon, tone }: { icon: LucideIcon; tone: string }) {
       <Icon as={icon} size="xs" />
     </span>
   );
+}
+
+const INFO_TONE = "bg-info-tint text-info";
+
+/** A layout upgrade is news, not a request: the info tone the agent notices use. */
+export function LayoutUpgradeMark() {
+  return <NonSessionMark icon={PanelsTopLeft} tone={INFO_TONE} />;
 }
 
 function RowMark({ row }: { row: OsAttentionRow }) {
@@ -68,6 +76,8 @@ function RowMark({ row }: { row: OsAttentionRow }) {
           tone={row.state === "waiting" ? NEEDS_YOU_TONE : "bg-warning-tint text-warning"}
         />
       );
+    case "layout-upgrade":
+      return <LayoutUpgradeMark />;
   }
 }
 
@@ -108,6 +118,8 @@ function rowReason(row: OsAttentionRow): ReactNode {
       );
     case "loop-node":
       return row.state;
+    case "layout-upgrade":
+      return row.reason;
   }
 }
 
@@ -116,6 +128,7 @@ function rowWorkspace(row: OsAttentionRow): string | null {
     case "session":
     case "loop-request":
     case "terminal-input":
+    case "layout-upgrade":
       return row.workspaceLabel;
     case "task":
     case "loop-node":
@@ -128,6 +141,7 @@ function rowIsStale(row: OsAttentionRow): boolean {
     case "session":
     case "loop-request":
     case "terminal-input":
+    case "layout-upgrade":
       return row.stale;
     case "task":
     case "loop-node":
@@ -186,6 +200,7 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
         ) : null}
         {isSession ? <Time iso={row.changedAt} /> : null}
         {isTerminalInput ? <Time iso={row.requestedAt} /> : null}
+        {row.kind === "layout-upgrade" ? <Time iso={row.occurredAt} /> : null}
         {isLoopRequest ? (
           <span className="flex flex-col items-end">
             <Time iso={row.openedAt} />

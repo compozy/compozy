@@ -16,4 +16,6 @@ type DaemonIdentityPayload struct {
 	HTTPPort    int       `json:"http_port"`
 	UserHomeDir string    `json:"user_home_dir"`
 	Version     string    `json:"version"`
+	// Readiness is absent from older daemons. Reading it never runs diagnostics.
+	Readiness *DaemonReadinessPayload `json:"readiness,omitzero"`
 }

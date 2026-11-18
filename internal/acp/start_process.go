@@ -5,13 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/procutil"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/providerenv"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/telemetry"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
 
@@ -36,7 +39,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		Args:               append([]string(nil), identity.spec.Args...),
 		Cwd:                normalized.Cwd,
 		AdditionalDirs:     append([]string(nil), normalized.AdditionalDirs...),
-		Env:                append([]string(nil), normalized.Env...),
+		Env:                launchEnv(ctx, normalized),
 	})
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -118,7 +121,10 @@ func (d *Driver) configureAgentConnection(process *AgentProcess, handle Handle, 
 		process.handleInbound,
 		handle.Stdin(),
 		&connectionStartupReader{reader: handle.Stdout(), ready: ready},
-		acpsdk.ConnectionOptions{NotificationQueueOverflow: acpsdk.NotificationQueueOverflowBlock},
+		acpsdk.ConnectionOptions{
+			NotificationQueueOverflow:          acpsdk.NotificationQueueOverflowBlock,
+			WaitForNotificationsBeforeRequests: true,
+		},
 	)
 	process.conn.SetLogger(d.logger)
 	close(ready)
@@ -185,6 +191,8 @@ func (d *Driver) newAgentProcess(
 		pendingPermissions:     make(map[string]*pendingPermission),
 		permissionTimeout:      d.permissionWait,
 		permissionWaitResolver: d.permissionWaitResolver,
+		permissionEventHandler: normalized.PermissionEventHandler,
+		elicitationAsker:       startElicitationAsker(normalized),
 		compozySessionID:       normalized.CompozySessionID,
 		controlTimeout:         d.controlTimeout,
 		systemPrompt:           normalized.SystemPrompt,
@@ -193,6 +201,15 @@ func (d *Driver) newAgentProcess(
 		promptCacheControl:     promptCacheControlForStartOpts(normalized),
 		executionPolicy:        normalized.ExecutionPolicyValue(),
 	}
+}
+
+// startElicitationAsker reads the session-owned operator question channel that
+// rides with the approval policy bound to this launch.
+func startElicitationAsker(opts StartOpts) ElicitationAsker {
+	if opts.PermissionPolicy == nil {
+		return nil
+	}
+	return opts.PermissionPolicy.ElicitationAsker
 }
 
 func (d *Driver) registerAgentProcess(ctx context.Context, process *AgentProcess) error {
@@ -243,6 +260,11 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 				WriteTextFile: true,
 			},
 			Terminal: true,
+			// Form elicitation is the only operator question channel this client
+			// renders; URL elicitation stays unadvertised.
+			Elicitation: &acpsdk.ElicitationCapabilities{
+				Form: &acpsdk.ElicitationFormCapabilities{},
+			},
 			Session: &acpsdk.ClientSessionCapabilities{
 				Compaction: &acpsdk.CompactionCapabilities{},
 			},
@@ -275,4 +297,13 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 		PromptEmbeddedContext: initializeResponse.AgentCapabilities.PromptCapabilities.EmbeddedContext,
 	}, nil, nil))
 	return nil
+}
+
+// launchEnv is the provider environment; ctx carries the acp.process.spawn span, whose traceparent is forwarded.
+func launchEnv(ctx context.Context, opts StartOpts) []string {
+	env := slices.Clone(opts.Env)
+	if opts.ForwardTraceParent {
+		env = providerenv.ApplyTraceParent(env, telemetry.TraceParent(ctx))
+	}
+	return env
 }

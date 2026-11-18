@@ -11,7 +11,7 @@ const meta: Meta<typeof CodeBlock> = {
     docs: {
       description: {
         component:
-          "Code block per DESIGN.md §4. Canvas-deep container, JetBrains Mono body at 14px/1.6, Vitesse syntax highlighting via Shiki, optional language eyebrow, and a ghost copy button with success/failure feedback. Plain code by default; `showPrompt` opts into the accent `$ ` shell prompt for real terminal transcripts.",
+          "Code block per DESIGN.md §4. Canvas-deep container, Geist Mono body at 14px/1.6, Vitesse syntax highlighting via Shiki, optional language eyebrow, and a ghost copy button with success/failure feedback. Plain code by default; `showPrompt` opts into the accent `$ ` shell prompt for real terminal transcripts.",
       },
     },
   },
@@ -86,6 +86,33 @@ export const UnknownLanguageFallback: Story = {
           "Unsupported language labels remain visible, but the body falls back to escaped plain text.",
       },
     },
+  },
+};
+
+export const PrerenderedLines: Story = {
+  tags: ["play-fn"],
+  args: {
+    code: "compozy daemon start",
+    language: "bash",
+    highlighted: (
+      <code>
+        <span style={{ color: "#4d9375" }}>compozy</span>{" "}
+        <span style={{ color: "#c98a7d" }}>daemon start</span>
+      </code>
+    ),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Lines highlighted by the caller at build time (the site's MDX pipeline) render inside the frame as given; the client highlighter does not run.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const root = canvasElement.querySelector('[data-slot="code-block"]');
+    await expect(root).toHaveAttribute("data-highlight-state", "highlighted");
+    await expect(within(canvasElement).getByText("compozy")).toBeVisible();
   },
 };
 

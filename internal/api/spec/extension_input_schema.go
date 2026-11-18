@@ -17,6 +17,11 @@ func customizeExtensionInputValueSchema(schema *openapi3.Schema) {
 }
 
 func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
+	if enable := schema.Properties["enable"]; enable != nil && enable.Value != nil {
+		enable.Value.Default = false
+		enable.Value.Description = "Enable after installation under the same operation lock. " +
+			"Activation failure returns 201 with enable_error and retains the installed package and inputs."
+	}
 	if source := schema.Properties["source"]; source != nil && source.Value != nil {
 		source.Value.Enum = []any{"curated", "marketplace", "github", "git", "local_path"}
 		source.Value.Description = "Use marketplace for a registered plugin source and include the listed expected_digest."
@@ -36,6 +41,15 @@ func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
 	}
 	if digest := schema.Properties["expected_digest"]; digest != nil && digest.Value != nil {
 		digest.Value.Pattern = `^[a-fA-F0-9]{64}$`
+	}
+	if replace := schema.Properties["replace"]; replace != nil && replace.Value != nil {
+		// A schema default makes openapi-typescript require this optional request field.
+		replace.Value.Description = "Replace the installed extension of the same name. Applies to local_path " +
+			"installs only, since published sources replace implicitly. The previous version stays installed " +
+			"only when the replacement fails before the reinstall transaction completes; a failure after it " +
+			"returns, such as enable failing, does not restore it. A marketplace-owned name is refused with " +
+			"extension_name_conflict. Replacing a package attached outside the caller's workspace requires " +
+			"operator authority."
 	}
 }
 

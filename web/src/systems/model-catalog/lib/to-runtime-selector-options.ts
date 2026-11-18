@@ -94,8 +94,7 @@ function normalizeConfigOptions(
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function modelEfforts(
-  rawEfforts: ProviderModelPayload["reasoning_efforts"],
+function configurationEfforts(
   configurations: RuntimeModelConfiguration[] | undefined
 ): RuntimeModelOption["efforts"] {
   const configured = configurations
@@ -104,8 +103,39 @@ function modelEfforts(
       (effort): effort is NonNullable<typeof effort> =>
         typeof effort === "string" && isReasoningEffort(effort)
     );
-  const candidates = configurations ? (configured ?? []) : (rawEfforts ?? []);
-  return [...new Set(candidates.filter(isReasoningEffort))];
+  return [...new Set(configured ?? [])];
+}
+
+/**
+ * The model's advertised levels are the ceiling for every live or provider list:
+ * keep the advertised order, drop values the model cannot honor, dedupe. An
+ * empty advertised list imposes no ceiling, so the candidates keep their own
+ * order. This mirrors the live-session overlay rule in the prompt runtime.
+ */
+export function restrictReasoningEfforts(
+  advertised: RuntimeModelOption["efforts"],
+  candidates: readonly string[]
+): RuntimeModelOption["efforts"] {
+  const valid = candidates.filter(isReasoningEffort);
+  if (advertised.length === 0) return [...new Set(valid)];
+  const allowed = new Set<string>(valid);
+  return [...new Set(advertised.filter(effort => allowed.has(effort)))];
+}
+
+function modelEfforts(
+  rawEfforts: ProviderModelPayload["reasoning_efforts"],
+  configurations: RuntimeModelConfiguration[] | undefined
+): RuntimeModelOption["efforts"] {
+  const advertised = (rawEfforts ?? []).filter(isReasoningEffort);
+  if (!configurations) return [...new Set(advertised)];
+  const configured = configurationEfforts(configurations);
+  // A matrix without effort coordinates stays authoritative for Fast only, so it
+  // exposes no selectable reasoning level (existing configurations-only behavior).
+  if (configured.length === 0) return [];
+  if (advertised.length === 0) return configured;
+  // Both authorities are known: a configuration coordinate is only selectable
+  // when the model advertises that level too.
+  return restrictReasoningEfforts(advertised, configured);
 }
 
 export interface ToRuntimeModelOptionsInput {

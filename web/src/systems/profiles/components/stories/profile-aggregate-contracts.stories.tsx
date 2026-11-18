@@ -27,7 +27,7 @@ import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const ACTIONS: SessionLifecycleActionHandlers = {
   pendingAction: null,
-  pendingSessionId: null,
+  pendingSessionIds: [],
   onArchive: fn(),
   onDelete: fn(),
   onRename: fn(),

@@ -11,7 +11,7 @@ import { HttpResponse, type HttpHandler } from "msw";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UIProvider } from "@compozy/ui";
+import { UIProvider, type MenuTreeNode } from "@compozy/ui";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { createMswFetch } from "@/test/msw-fetch";
 
@@ -20,7 +20,7 @@ import {
   type SessionProfileMoveHandle,
 } from "../../contexts/session-profile-move-context-value";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
-import { useSessionRowMenuItems } from "../../hooks/use-session-row-menu-items";
+import { useSessionRowMenuTree } from "../../hooks/use-session-row-menu-tree";
 import { deriveSourceSessionFixture } from "../../mocks/derive-fixtures";
 import type { SessionPayload } from "../../types";
 import { SessionProfileMoveDialog } from "../session-profile-move-dialog";
@@ -149,19 +149,34 @@ describe("Move to profile row verb", () => {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <SessionProfileMoveContext value={handle}>{children}</SessionProfileMoveContext>
     );
-    return renderHook(() => useSessionRowMenuItems(session, actions), { wrapper }).result.current;
+    const nodes = renderHook(
+      () => useSessionRowMenuTree(session, actions, { testIdPrefix: "session-row" }),
+      { wrapper }
+    ).result.current;
+    return flattenMenu(nodes);
   }
 
-  it("Should offer every other active profile and open the dialog for the chosen one", () => {
+  /** Every node of the tree, submenus and groups included, depth first. */
+  function flattenMenu(nodes: readonly MenuTreeNode[]): MenuTreeNode[] {
+    return nodes.flatMap(node =>
+      node.kind === "sub" || node.kind === "group" ? [node, ...flattenMenu(node.children)] : [node]
+    );
+  }
+
+  it("Should offer every other active profile under Move and open the dialog for the chosen one", () => {
     const request = vi.fn();
     const items = menuItems(source, {
       targets: [{ id: "profile-default", name: "default" }, target],
       request,
     });
-    const verb = items.find(item => item.id === "move-to-profile");
+    const move = items.find(item => item.id === "move");
+    const verb =
+      move?.kind === "sub" ? move.children.find(item => item.id === "move-to-profile") : undefined;
+    const choices = verb?.kind === "sub" ? verb.children : [];
 
-    expect(verb?.choices?.map(choice => choice.label)).toEqual(["work"]);
-    verb?.choices?.[0]?.onSelect();
+    expect(choices.map(choice => (choice.kind === "item" ? choice.label : null))).toEqual(["work"]);
+    const choice = choices[0];
+    if (choice?.kind === "item") choice.onSelect?.();
     expect(request).toHaveBeenCalledExactlyOnceWith(source, target);
   });
 

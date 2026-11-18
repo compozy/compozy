@@ -53,6 +53,16 @@ func ValidateMCPSecretRefAccess(ref string, target MCPSecretTarget) error {
 // NormalizeMCPClientSecretRef enforces configured client-secret ownership before resolution.
 func NormalizeMCPClientSecretRef(ref string, target MCPSecretTarget) (string, error) {
 	ref = NormalizeRef(ref)
+	if strings.HasPrefix(ref, "vault:extensions/") {
+		extension, ok := strings.CutPrefix(NormalizeMCPOwner(target.Owner), "extension:")
+		if !ok {
+			return "", errors.New("vault: extension client secret requires extension owner")
+		}
+		if err := ValidateExtensionSecretRefOwner(ref, extension); err != nil {
+			return "", err
+		}
+		return ref, nil
+	}
 	if err := ValidateRefNamespace(ref, "mcp"); err != nil {
 		return "", err
 	}

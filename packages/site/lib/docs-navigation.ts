@@ -1,4 +1,4 @@
-import type { Root } from "fumadocs-core/page-tree";
+import type { Node, Root } from "fumadocs-core/page-tree";
 import rootMeta from "@/content/docs/meta.json";
 
 type ApiSection = { label: string; ids: string[] };
@@ -110,4 +110,123 @@ export function assertDocsTreeComplete(tree: Root): void {
         "Every listed id must be a top-level folder or page under content/docs."
     );
   }
+}
+
+/** One section tab: the pages between two labeled separators of the root `meta.json`. */
+export interface DocsSection {
+  id: string;
+  label: string;
+  /** Distinct pages in the section, a folder's landing page counted once. */
+  count: number;
+  items: Node[];
+}
+
+/** A sidebar row as far as folder state cares: its key, landing page and children. */
+interface NavFolderNode {
+  key: string;
+  url?: string;
+  separator?: boolean;
+  children?: readonly NavFolderNode[];
+}
+
+/** Whether `url` is this row's page or a page somewhere inside it. */
+export function containsUrl(node: NavFolderNode, url: string): boolean {
+  if (node.url === url) return true;
+  return (node.children ?? []).some(child => !child.separator && containsUrl(child, url));
+}
+
+/** The keys of the folders that hold the page at `url`: its folder and that folder's ancestors. */
+export function foldersHolding(nodes: readonly NavFolderNode[], url: string): string[] {
+  return nodes.flatMap(node => {
+    if (node.separator || !node.children?.length || !containsUrl(node, url)) return [];
+    return [node.key, ...foldersHolding(node.children, url)];
+  });
+}
+
+/** `/docs/sessions/lifecycle/` and `/docs/sessions/lifecycle` name the same page. */
+export function normalizeDocsUrl(url: string): string {
+  const path = url.split(/[?#]/, 1)[0] ?? "";
+  return path.length > 1 ? path.replace(/\/+$/, "") : path;
+}
+
+function plainName(name: unknown): string {
+  return typeof name === "string" || typeof name === "number" ? String(name) : "";
+}
+
+function sectionIdOf(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/** Every page URL under `nodes`, the folder landing pages included. */
+export function collectPageUrls(nodes: readonly Node[], into = new Set<string>()): Set<string> {
+  for (const node of nodes) {
+    if (node.type === "page") {
+      into.add(normalizeDocsUrl(node.url));
+    } else if (node.type === "folder") {
+      if (node.index) into.add(normalizeDocsUrl(node.index.url));
+      collectPageUrls(node.children, into);
+    }
+  }
+  return into;
+}
+
+const SECTIONS = new WeakMap<Root, DocsSection[]>();
+
+/**
+ * The section tabs: the root page tree split on its labeled separators, in sidebar order. The pages
+ * ahead of the first separator (the docs home and "How to use these docs") belong to no section.
+ * Computed once per tree, so 777 statically generated pages share one pass.
+ */
+export function docsSections(tree: Root): DocsSection[] {
+  const cached = SECTIONS.get(tree);
+  if (cached) return cached;
+  const sections: DocsSection[] = [];
+  let current: DocsSection | null = null;
+  for (const node of tree.children) {
+    if (node.type === "separator") {
+      const label = plainName(node.name);
+      current = { id: sectionIdOf(label), label, count: 0, items: [] };
+      sections.push(current);
+      continue;
+    }
+    current?.items.push(node);
+  }
+  for (const section of sections) section.count = collectPageUrls(section.items).size;
+  SECTIONS.set(tree, sections);
+  return sections;
+}
+
+/** Where a section tab lands: the first page of its first folder. */
+export function firstPageUrl(nodes: readonly Node[]): string | null {
+  for (const node of nodes) {
+    if (node.type === "page") return node.url;
+    if (node.type !== "folder") continue;
+    if (node.index) return node.index.url;
+    const nested = firstPageUrl(node.children);
+    if (nested !== null) return nested;
+  }
+  return null;
+}
+
+/** The top-level path segments (`sessions`, `cli`) each section owns, for matching a pathname. */
+export function sectionHeads(section: DocsSection): string[] {
+  const heads = new Set<string>();
+  for (const url of collectPageUrls(section.items)) {
+    const head = url.replace(/^\/docs\/?/, "").split("/")[0];
+    if (head) heads.add(head);
+  }
+  return [...heads];
+}
+
+/** The section whose top-level folders contain `pathname`; `null` outside every section. */
+export function currentSectionId(
+  sections: readonly { id: string; heads: readonly string[] }[],
+  pathname: string
+): string | null {
+  const head = pathname.replace(/^\/docs\/?/, "").split("/")[0];
+  if (!head) return null;
+  return sections.find(section => section.heads.includes(head))?.id ?? null;
 }

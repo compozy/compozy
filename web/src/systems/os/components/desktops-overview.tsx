@@ -1,6 +1,5 @@
 import { MonitorUp, Plus, RefreshCw } from "@compozy/ui/icons";
-import { useRef } from "react";
-import type * as React from "react";
+import type { PointerEvent } from "react";
 
 import {
   Alert,
@@ -17,52 +16,36 @@ import {
   cn,
 } from "@compozy/ui";
 
+import type { SessionPayload } from "@/systems/session";
+
+import { useDesktopsOverviewInitialFocus } from "../hooks/use-desktops-overview-initial-focus";
+import type {
+  DesktopOverviewAction,
+  DesktopOverviewFocusSegment,
+  DesktopsOverviewState,
+} from "../lib/desktops-overview-model";
+import type { OsWindow } from "../lib/os-types";
+import type { TabId } from "../lib/window-manager-types";
 import { DesktopsOverviewGrid, DesktopsOverviewSkeleton } from "./desktops-overview-grid";
-
-export interface DesktopOverviewWindow {
-  id: string;
-  title: string;
-  detail?: string;
-}
-
-export interface DesktopOverviewItem {
-  id: string;
-  name: string;
-  /** A non-interactive thumbnail projected from the authoritative layout. */
-  thumbnail: React.ReactNode;
-  /** Work-area width over height; the thumbnail box keeps the desk's shape. */
-  aspectRatio?: number;
-  windows: readonly DesktopOverviewWindow[];
-  /** A window on this desktop needs you. */
-  needsYou?: boolean;
-  /** The live switch chord for this position ("⌃1"), when bound. */
-  switchShortcut?: string | null;
-}
-
-export type DesktopsOverviewState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "conflict"; message: string }
-  | {
-      status: "ready";
-      desktops: readonly DesktopOverviewItem[];
-      activeDesktopId: string | null;
-    };
-
-export interface DesktopOverviewFocusSegment {
-  readonly direction: "earlier" | "later";
-  readonly hiddenDesktopIds: readonly string[];
-}
 
 export interface DesktopsOverviewProps {
   open: boolean;
   /**
-   * The desk's overlay host: the overview covers the desk only, leaving the
-   * topbar and rail in place. Omitted, it covers the viewport.
+   * The shell's overlay host: the overview covers the tab bar and the desk, leaving the
+   * menubar and rail in place. Omitted, it covers the viewport.
    */
   container?: HTMLElement | null;
   state: DesktopsOverviewState;
   initialFocusSegment?: DesktopOverviewFocusSegment | null;
+  /** Opened from a desktop indicator's menu: the card finishes the action, focus lands in it. */
+  desktopAction?: DesktopOverviewAction | null;
+  /** The card applied `desktopAction`; the owner clears it so a card remount does not reapply it. */
+  onDesktopActionApplied?: () => void;
+  /**
+   * A tab is being dragged: the overview is a drop surface and is not modal, so it neither traps
+   * focus nor makes the dragged tab inert, and the release is not an outside press.
+   */
+  dropSurface?: boolean;
   busy?: boolean;
   canMutate?: boolean;
   onOpenChange: (open: boolean) => void;
@@ -71,17 +54,20 @@ export interface DesktopsOverviewProps {
   onRenameDesktop: (desktopId: string, name: string) => void;
   onReorderDesktop: (desktopId: string, targetIndex: number) => void;
   onDeleteDesktop: (desktopId: string, transferToDesktopId: string | null) => void;
-  onMoveWindow: (windowId: string, sourceDesktopId: string, destinationDesktopId: string) => void;
+  /** "Move a tab ▸": the tab of `leadWindowId`, split included, joins the destination's bar. */
+  onMoveTab: (leadWindowId: string, destinationDesktopId: string) => void;
+  /** Choosing a tab: switch to its desktop and activate it; the overview then closes. */
+  onChooseTab: (desktopId: string, windowId: string) => void;
+  /** A press on a tab row; it becomes a tab drag toward another card. */
+  onTabPointerDown?: (tabId: TabId, event: PointerEvent<HTMLElement>) => void;
+  /** The card a dragged tab would move to on release. */
+  dropTargetDesktopId?: string | null;
+  /** What the drag moves: a whole tab, or one window leaving its split (a window head). */
+  dragKind?: "tab" | "window";
+  /** Live session facts for tab titles and signals. */
+  sessionOf?: (win: OsWindow) => SessionPayload | undefined;
   onRetry?: () => void;
   onResolveConflict?: () => void;
-}
-
-function nearestHiddenDesktopId(
-  segment: DesktopOverviewFocusSegment | null | undefined
-): string | null {
-  if (!segment) return null;
-  if (segment.direction === "later") return segment.hiddenDesktopIds[0] ?? null;
-  return segment.hiddenDesktopIds[segment.hiddenDesktopIds.length - 1] ?? null;
 }
 
 /** On-demand, daemon-backed management surface for persistent workspace desktops. */
@@ -90,6 +76,9 @@ export function DesktopsOverview({
   container = null,
   state,
   initialFocusSegment,
+  desktopAction = null,
+  onDesktopActionApplied,
+  dropSurface = false,
   busy = false,
   canMutate = true,
   onOpenChange,
@@ -98,26 +87,30 @@ export function DesktopsOverview({
   onRenameDesktop,
   onReorderDesktop,
   onDeleteDesktop,
-  onMoveWindow,
+  onMoveTab,
+  onChooseTab,
+  onTabPointerDown,
+  dropTargetDesktopId = null,
+  dragKind = "tab",
+  sessionOf = noSession,
   onRetry,
   onResolveConflict,
 }: DesktopsOverviewProps) {
-  const initialFocusRef = useRef<HTMLButtonElement | null>(null);
   const ready = state.status === "ready" ? state : null;
+  const { initialFocusRef, initialFocusDesktopId } = useDesktopsOverviewInitialFocus(
+    open,
+    desktopAction,
+    initialFocusSegment,
+    ready
+  );
   const empty = ready?.desktops.length === 0;
-  const requestedFocusDesktopId =
-    nearestHiddenDesktopId(initialFocusSegment) ?? ready?.activeDesktopId ?? null;
-  const initialFocusDesktopId =
-    ready?.desktops.some(desktop => desktop.id === requestedFocusDesktopId) === true
-      ? requestedFocusDesktopId
-      : null;
   const mutationsDisabled = busy || !canMutate;
 
   return (
     <OverlayContainerContext value={container}>
       <Dialog
         open={open}
-        modal
+        modal={!dropSurface}
         disablePointerDismissal={false}
         onOpenChange={(next, details) => {
           // The All desktops button toggles the overview itself; an outside
@@ -134,7 +127,8 @@ export function DesktopsOverview({
           aria-describedby={undefined}
           className={cn(
             "inset-0 h-full max-h-none w-full max-w-none translate-x-0 translate-y-0 sm:max-w-none",
-            "flex flex-col gap-4.5 overflow-y-auto rounded-none bg-desk px-8 py-7 shadow-none",
+            // The dialog's overlay is the one scrim; the popup itself stays clear.
+            "flex flex-col gap-5 overflow-y-auto rounded-none bg-transparent px-8 py-7 shadow-none",
             "origin-center transition-[opacity,scale] duration-shell-base ease-spring",
             "data-starting-style:scale-98.5 data-starting-style:opacity-0 motion-reduce:transition-none"
           )}
@@ -146,13 +140,15 @@ export function DesktopsOverview({
                 <DialogTitle className="text-heading font-medium tracking-tight text-fg">
                   Desktops
                 </DialogTitle>
-                <p className="text-meta text-muted-foreground">
-                  Each desktop keeps its own windows, tabs and layout
-                </p>
+                <p className="text-meta text-fg-2">Each desktop keeps its own tabs</p>
               </div>
               <div className="ml-auto flex items-center gap-2">
                 {ready && !empty ? (
-                  <CreateDesktopButton disabled={mutationsDisabled} onClick={onCreateDesktop} />
+                  <CreateDesktopButton
+                    disabled={mutationsDisabled}
+                    variant="secondary"
+                    onClick={onCreateDesktop}
+                  />
                 ) : null}
                 <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
                   Done
@@ -170,7 +166,7 @@ export function DesktopsOverview({
               <Empty
                 icon={MonitorUp}
                 title="No desktops"
-                description="Add a desktop to arrange windows."
+                description="Add a desktop to open tabs on it."
                 action={
                   <CreateDesktopButton disabled={mutationsDisabled} onClick={onCreateDesktop} />
                 }
@@ -183,13 +179,19 @@ export function DesktopsOverview({
                 busy={mutationsDisabled}
                 initialFocusDesktopId={initialFocusDesktopId}
                 initialFocusRef={initialFocusRef}
+                desktopAction={desktopAction}
+                onDesktopActionApplied={onDesktopActionApplied}
+                sessionOf={sessionOf}
+                dropTargetDesktopId={dropTargetDesktopId}
+                dragKind={dragKind}
                 onOpenChange={onOpenChange}
-                onCreateDesktop={onCreateDesktop}
                 onSwitchDesktop={onSwitchDesktop}
                 onRenameDesktop={onRenameDesktop}
                 onReorderDesktop={onReorderDesktop}
                 onDeleteDesktop={onDeleteDesktop}
-                onMoveWindow={onMoveWindow}
+                onMoveTab={onMoveTab}
+                onChooseTab={onChooseTab}
+                onTabPointerDown={onTabPointerDown}
               />
             ) : null}
           </TooltipProvider>
@@ -203,9 +205,21 @@ function isDesktopsToggle(target: EventTarget | null | undefined): boolean {
   return target instanceof Element && target.closest('[data-slot="os-menubar-desktops"]') !== null;
 }
 
-function CreateDesktopButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+function noSession(): undefined {
+  return undefined;
+}
+
+function CreateDesktopButton({
+  disabled,
+  variant = "default",
+  onClick,
+}: {
+  disabled: boolean;
+  variant?: "default" | "secondary";
+  onClick: () => void;
+}) {
   return (
-    <Button type="button" disabled={disabled} onClick={onClick}>
+    <Button type="button" variant={variant} disabled={disabled} onClick={onClick}>
       <Plus aria-hidden="true" data-icon="inline-start" />
       New desktop
     </Button>

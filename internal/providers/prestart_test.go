@@ -56,6 +56,45 @@ func TestSessionEnvRedaction(t *testing.T) {
 func TestPreStarter(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should bypass a cached auth refusal during credential recovery", func(t *testing.T) {
+		t.Parallel()
+		starter := NewPreStarter()
+		provider := compozyconfig.ProviderConfig{
+			Command:       "provider acp",
+			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+			AuthStatusCmd: "provider auth status",
+		}
+		valid, calls := false, 0
+		env := &ProbeEnv{
+			ProviderName:  "provider-a",
+			PreStartScope: preStartTestScope("one"),
+			CommandEnv:    []string{"PATH=/provider/bin"},
+			LookPath:      func(string) (string, error) { return "/provider/bin/provider", nil },
+			RunCommand: func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
+				calls++
+				if valid {
+					return ProviderAuthCommandResult{Stdout: "authenticated"}, nil
+				}
+				return ProviderAuthCommandResult{ExitCode: 1, Stderr: "not logged in"}, nil
+			},
+		}
+		for range 2 {
+			if report := starter.PreStart(t.Context(), provider, env); report.Item == nil {
+				t.Fatal("expected sign-in refusal")
+			}
+		}
+		if calls != 1 {
+			t.Fatalf("calls = %d, want cached refusal", calls)
+		}
+		valid, env.BypassCache = true, true
+		assertNoPreStartReport(t, starter.PreStart(t.Context(), provider, env))
+		env.BypassCache = false
+		assertNoPreStartReport(t, starter.PreStart(t.Context(), provider, env))
+		if calls != 2 {
+			t.Fatalf("calls = %d, want a fresh auth proof", calls)
+		}
+	})
+
 	t.Run("Should return nil item when auth mode is none", func(t *testing.T) {
 		t.Parallel()
 
@@ -203,10 +242,17 @@ func TestPreStarter(t *testing.T) {
 		}
 		verdicts := NewAuthVerdicts()
 		declared := Classification{
-			State: ProviderAuthStateUnknown,
-			Code:  diagcontract.CodeProviderClassificationUnknown,
+			State:      ProviderAuthStateUnknown,
+			Code:       diagcontract.CodeProviderClassificationUnknown,
+			Unverified: true,
 		}
-		if got, checkedAt := verdicts.Apply("acme", provider, declared); got.State != ProviderAuthStateUnknown ||
+		sessionEnv := []string{"HOME=/seat-a", "PATH=/session/bin"}
+		if got, checkedAt := verdicts.Apply(
+			"acme",
+			provider,
+			sessionEnv,
+			declared,
+		); got.State != ProviderAuthStateUnknown ||
 			!checkedAt.IsZero() {
 			t.Fatalf("Apply(before probe) = %q at %v, want unverified", got.State, checkedAt)
 		}
@@ -216,6 +262,7 @@ func TestPreStarter(t *testing.T) {
 		prepared.Command = "/bin/acme acp"
 		report := NewPreStarter(WithAuthVerdicts(verdicts)).PreStart(testutil.Context(t), prepared, &ProbeEnv{
 			ProviderName: "acme",
+			CommandEnv:   sessionEnv,
 			LookPath:     func(string) (string, error) { return "/bin/acme", nil },
 			RunCommand: func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
 				return ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
@@ -223,22 +270,57 @@ func TestPreStarter(t *testing.T) {
 		})
 		assertNoPreStartReport(t, report)
 
-		got, checkedAt := verdicts.Apply("acme", provider, declared)
+		got, checkedAt := verdicts.Apply("acme", provider, []string{"HOME=/seat-a", "PATH=/daemon/bin"}, declared)
 		if got.State != ProviderAuthStateAuthenticated || checkedAt.IsZero() {
 			t.Fatalf("Apply(after probe) = %q at %v, want authenticated with a check time", got.State, checkedAt)
 		}
-		verdicts.Record("acme", provider, Classification{State: ProviderAuthStateNeedsLogin}, time.Unix(0, 0))
-		if got, _ := verdicts.Apply("acme", provider, declared); got.State != ProviderAuthStateAuthenticated {
+		verdicts.Record(
+			"acme",
+			provider,
+			sessionEnv,
+			Classification{State: ProviderAuthStateNeedsLogin},
+			time.Unix(0, 0),
+		)
+		if got, _ := verdicts.Apply(
+			"acme",
+			provider,
+			sessionEnv,
+			declared,
+		); got.State != ProviderAuthStateAuthenticated {
 			t.Fatalf("Apply(after an older probe finished) = %q, want the newer verdict kept", got.State)
 		}
 		missing := Classification{State: ProviderAuthStateMissingCLI}
-		if got, _ := verdicts.Apply("acme", provider, missing); got.State != ProviderAuthStateMissingCLI {
+		if got, _ := verdicts.Apply("acme", provider, sessionEnv, missing); got.State != ProviderAuthStateMissingCLI {
 			t.Fatalf("Apply(missing CLI) = %q, want the current declared state to win", got.State)
 		}
 		changed := provider
 		changed.AuthStatusCmd = "acme whoami"
-		if got, _ := verdicts.Apply("acme", changed, declared); got.State != ProviderAuthStateUnknown {
+		if got, _ := verdicts.Apply("acme", changed, sessionEnv, declared); got.State != ProviderAuthStateUnknown {
 			t.Fatalf("Apply(changed config) = %q, want the verdict invalidated", got.State)
+		}
+	})
+
+	t.Run("Should record a pre-start verdict only for the session auth home", func(t *testing.T) {
+		t.Parallel()
+
+		provider := compozyconfig.ProviderConfig{
+			Command:       "acme acp",
+			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+			AuthStatusCmd: "acme auth status",
+		}
+		verdicts := NewAuthVerdicts()
+		report := NewPreStarter(WithAuthVerdicts(verdicts)).PreStart(testutil.Context(t), provider, &ProbeEnv{
+			ProviderName: "acme",
+			CommandEnv:   []string{"HOME=/seat-b"},
+			LookPath:     func(string) (string, error) { return "/bin/acme", nil },
+			RunCommand: func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
+				return ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
+			},
+		})
+		assertNoPreStartReport(t, report)
+
+		if _, ok := verdicts.Lookup("acme", provider, []string{"HOME=/daemon"}); ok {
+			t.Fatal("Lookup(daemon home) found the verdict recorded for a session home")
 		}
 	})
 }
@@ -633,6 +715,22 @@ func TestPreStarterCachesOnlyMatchingFinalScope(t *testing.T) {
 
 func TestPreStarterCachesOnlyMatchingFinalProbeIdentity(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should distinguish inherited and explicitly empty environments", func(t *testing.T) {
+		t.Parallel()
+		var key preStartCacheHMACKey
+		inherited, ok := preStartSemanticFingerprint(key, compozyconfig.ProviderConfig{}, &ProbeEnv{})
+		if !ok {
+			t.Fatal("inherited fingerprint failed")
+		}
+		empty, ok := preStartSemanticFingerprint(key, compozyconfig.ProviderConfig{}, &ProbeEnv{CommandEnv: []string{}})
+		if !ok {
+			t.Fatal("empty fingerprint failed")
+		}
+		if inherited == empty {
+			t.Fatal("environment presence missing from cache identity")
+		}
+	})
 
 	t.Run("Should distinguish final command environment and auth configuration", func(t *testing.T) {
 		t.Parallel()

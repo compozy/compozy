@@ -21,15 +21,6 @@ export function minimumForNode(
   minimums: WindowMinimums
 ): PixelSize {
   if (node.kind === "leaf") return minimumForWindow(node.windowId, minimums);
-  if (node.kind === "stack") {
-    return node.windowIds.reduce<PixelSize>((maximum, windowId) => {
-      const minimum = minimumForWindow(windowId, minimums);
-      return {
-        width: Math.max(maximum.width, minimum.width),
-        height: Math.max(maximum.height, minimum.height),
-      };
-    }, EMPTY_MINIMUM);
-  }
   const children = node.children.map(child => minimumForNode(child, innerGap, minimums));
   const gapTotal = innerGap * Math.max(0, children.length - 1);
   if (node.axis === "horizontal") {
@@ -44,24 +35,8 @@ export function minimumForNode(
   };
 }
 
-/**
- * The smallest extent at which a node still renders. A split that cannot fit
- * its children projects as an adaptive stack, so the floor is the largest
- * single-window minimum among its descendants — the stack's minimum.
- */
-export function adaptiveFloorForNode(node: LayoutNode, minimums: WindowMinimums): PixelSize {
-  return descendantWindowIds(node).reduce<PixelSize>((maximum, windowId) => {
-    const minimum = minimumForWindow(windowId, minimums);
-    return {
-      width: Math.max(maximum.width, minimum.width),
-      height: Math.max(maximum.height, minimum.height),
-    };
-  }, EMPTY_MINIMUM);
-}
-
 /** Every window under a node, in tree order. */
 export function descendantWindowIds(node: LayoutNode): WindowId[] {
   if (node.kind === "leaf") return [node.windowId];
-  if (node.kind === "stack") return [...node.windowIds];
   return node.children.flatMap(descendantWindowIds);
 }

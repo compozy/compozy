@@ -303,6 +303,36 @@ describe("WindowManagerShortcutTable", () => {
     expect(updateWindowManagerBindingsMock().mock.calls[1]?.[0].shortcuts).toEqual({});
   });
 
+  it("Should mark a stored binding to a retired action and remove it on reset", async () => {
+    const user = userEvent.setup();
+    renderTable(
+      sectionFrom(wire => {
+        wire.config.shortcuts = {
+          ...wire.config.shortcuts,
+          "window.zoom": ["control+alt+Enter"],
+        };
+      })
+    );
+
+    const row = screen.getByTestId("window-manager-shortcut-window.zoom");
+    expect(row).toHaveAttribute("data-state", "retired");
+    expect(within(row).getByTestId("shortcut-retired-flag")).toBeInTheDocument();
+    expect(screen.getByTestId("shortcut-recorder-window.zoom")).toBeDisabled();
+    // A kept command keeps its ordinary row.
+    expect(screen.getByTestId("window-manager-shortcut-window.tab.new")).not.toHaveAttribute(
+      "data-state",
+      "retired"
+    );
+    expect(screen.queryAllByTestId("shortcut-retired-flag")).toHaveLength(1);
+
+    await user.click(screen.getByTestId("shortcut-reset-window.zoom"));
+
+    await waitFor(() => expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(1));
+    const sent = updateWindowManagerBindingsMock().mock.calls[0]?.[0].shortcuts;
+    expect(sent).not.toHaveProperty("window.zoom");
+    expect(sent).toHaveProperty("window.tab.new");
+  });
+
   it("Should reject an alias holding whitespace without asking the daemon [UT-149]", async () => {
     const user = userEvent.setup();
     renderTable();

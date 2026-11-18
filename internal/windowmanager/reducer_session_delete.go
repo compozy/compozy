@@ -12,13 +12,6 @@ func (r *reducer) retireDeletedSessionWindows(snapshot *Snapshot, sessionID stri
 	if sessionID == "" {
 		return false, fmt.Errorf("deleted session id is required: %w", ErrInvalidCommand)
 	}
-	emptyRoute, err := CanonicalRouteIntent(RouteIntent{
-		Pathname: sessionEmptyRoutePath,
-		Search:   RouteSearch{},
-	})
-	if err != nil {
-		return false, fmt.Errorf("session empty route: %w: %w", err, ErrInvalidCommand)
-	}
 	historyMatch := historyContainsDeletedSession(snapshot.History, sessionID)
 	windowIDs := make([]WindowID, 0)
 	for windowID, window := range snapshot.Windows {
@@ -33,10 +26,8 @@ func (r *reducer) retireDeletedSessionWindows(snapshot *Snapshot, sessionID stri
 		if !exists || !windowBelongsToSession(window, sessionID) {
 			continue
 		}
-		window.Route = emptyRoute
-		window.InstanceKey = nil
-		window.NavStack = nil
-		snapshot.Windows[windowID] = window
+		removeWindow(snapshot, windowID)
+		delete(snapshot.Windows, windowID)
 		r.changes.window(windowID)
 		changed = true
 	}
@@ -106,17 +97,9 @@ func removeDeletedSessionClosedEntries(snapshot *Snapshot, sessionID string) boo
 		if len(remaining) == 0 {
 			continue
 		}
-		if len(remaining) != len(entry.Windows) && entry.ActiveID != nil {
-			activePresent := slices.ContainsFunc(remaining, func(window Window) bool {
-				return window.ID == *entry.ActiveID
-			})
-			if !activePresent {
-				activeID := remaining[0].ID
-				entry.ActiveID = &activeID
-			}
-		}
+
 		entry.Windows = remaining
-		entries = append(entries, entry)
+		entries = append(entries, pruneClosedEntry(entry))
 	}
 	if !changed {
 		return false

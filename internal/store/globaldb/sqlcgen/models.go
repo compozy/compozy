@@ -53,6 +53,7 @@ type AgentHeartbeatWakeEvent struct {
 	Detail            string         `json:"detail"`
 	DeniedCalls       int64          `json:"denied_calls"`
 	OccurrenceID      string         `json:"occurrence_id"`
+	ToolsStatus       string         `json:"tools_status"`
 	InstanceID        string         `json:"instance_id"`
 	SyntheticPromptID sql.NullString `json:"synthetic_prompt_id"`
 	CreatedAt         string         `json:"created_at"`
@@ -91,6 +92,25 @@ type AgentInstance struct {
 	ArchivedAt        sql.NullString `json:"archived_at"`
 }
 
+type AgentInstanceCheckToolCall struct {
+	InstanceID   string         `json:"instance_id"`
+	OccurrenceID string         `json:"occurrence_id"`
+	Seq          int64          `json:"seq"`
+	ToolID       string         `json:"tool_id"`
+	Backend      string         `json:"backend"`
+	McpServer    sql.NullString `json:"mcp_server"`
+	Access       string         `json:"access"`
+	Decision     string         `json:"decision"`
+	DenyReason   sql.NullString `json:"deny_reason"`
+	Outcome      string         `json:"outcome"`
+	Effect       string         `json:"effect"`
+	ErrorCode    sql.NullString `json:"error_code"`
+	ArgsPreview  sql.NullString `json:"args_preview"`
+	DurationMs   sql.NullInt64  `json:"duration_ms"`
+	CreatedAt    string         `json:"created_at"`
+	UpdatedAt    string         `json:"updated_at"`
+}
+
 type AgentInstanceEvent struct {
 	ID           string         `json:"id"`
 	InstanceID   string         `json:"instance_id"`
@@ -107,6 +127,17 @@ type AgentInstancePausedRun struct {
 	RunKind    string `json:"run_kind"`
 	RunID      string `json:"run_id"`
 	PausedAt   string `json:"paused_at"`
+}
+
+type AgentInstanceProposalPick struct {
+	ReportID        string         `json:"report_id"`
+	ProposalIndex   int64          `json:"proposal_index"`
+	InstanceID      string         `json:"instance_id"`
+	ActionID        sql.NullString `json:"action_id"`
+	Actor           string         `json:"actor"`
+	TargetSessionID string         `json:"target_session_id"`
+	QueueEntryID    sql.NullString `json:"queue_entry_id"`
+	PickedAt        string         `json:"picked_at"`
 }
 
 type AgentInstanceReport struct {
@@ -694,6 +725,15 @@ type GatewaySurfaceExposure struct {
 	ConsentedAt   sql.NullString `json:"consented_at"`
 }
 
+type HeartbeatAuthorityApproval struct {
+	NotifiedSha256 string `json:"notified_sha256"`
+	ProfileID      string `json:"profile_id"`
+	DefinitionDir  string `json:"definition_dir"`
+	Sha256         string `json:"sha256"`
+	ApprovedAt     string `json:"approved_at"`
+	ApprovedVia    string `json:"approved_via"`
+}
+
 type HeartbeatSourceScriptApproval struct {
 	ProfileID     string `json:"profile_id"`
 	DefinitionDir string `json:"definition_dir"`
@@ -1277,6 +1317,16 @@ type McpOauthRegistration struct {
 	UpdatedAt                  string         `json:"updated_at"`
 }
 
+type McpServerApproval struct {
+	ID               string `json:"id"`
+	ProfileID        string `json:"profile_id"`
+	WorkspaceID      string `json:"workspace_id"`
+	ServerName       string `json:"server_name"`
+	SourceID         string `json:"source_id"`
+	DefinitionDigest string `json:"definition_digest"`
+	ApprovedAt       string `json:"approved_at"`
+}
+
 type ModelCatalogExecutionContext struct {
 	ContextID          string `json:"context_id"`
 	Scope              string `json:"scope"`
@@ -1679,6 +1729,7 @@ type SessionInputQueue struct {
 	Status                   string         `json:"status"`
 	Mode                     string         `json:"mode"`
 	Delivery                 string         `json:"delivery"`
+	SupersededBy             sql.NullString `json:"superseded_by"`
 	SteerDelivery            sql.NullString `json:"steer_delivery"`
 	Text                     string         `json:"text"`
 	SyntheticPromptJson      sql.NullString `json:"synthetic_prompt_json"`
@@ -1761,6 +1812,7 @@ type SessionMonitor struct {
 	TargetSessionIds   string        `json:"target_session_ids"`
 	States             string        `json:"states"`
 	Targets            string        `json:"targets"`
+	TargetScopes       string        `json:"target_scopes"`
 }
 
 type SessionPendingInteraction struct {
@@ -2337,6 +2389,11 @@ type ToolProcess struct {
 	CreatedAt      string         `json:"created_at"`
 	UpdatedAt      string         `json:"updated_at"`
 	CompletedAt    sql.NullString `json:"completed_at"`
+}
+
+type UsageCostRepairState struct {
+	Singleton int64 `json:"singleton"`
+	Pending   int64 `json:"pending"`
 }
 
 type UserScopeMigration struct {

@@ -73,11 +73,10 @@ const client: WindowManagerRegisteredClientView = {
   activeDesktopId: "desktop:main",
   focusedWindowId: null,
   focusOrder: [],
-  stackActive: {},
+  activeTab: {},
   paletteContext: {
     windowFocused: false,
-    windowFloating: false,
-    windowStacked: false,
+    windowInSplit: false,
     desktopWindowCount: 0,
     scopeGlobal: false,
     shellDesktop: false,

@@ -15,6 +15,7 @@ type Service interface {
 	ListCollection(ctx context.Context, req CollectionRequest) (CollectionEnvelope, error)
 	PutCollectionItem(ctx context.Context, req CollectionItemPutRequest) (MutationResult, error)
 	ApplyCollectionItem(ctx context.Context, req CollectionItemPutRequest) (ApplyResult, error)
+	SetProviderEnabled(ctx context.Context, name string, enabled bool) (ProviderItem, ApplyResult, error)
 	ApplyProviderModelCuration(
 		ctx context.Context,
 		req ProviderModelCurationRequest,

@@ -17,7 +17,7 @@ export function isSubagentSession(session: SessionPayload): boolean {
 }
 
 /**
- * The parent a session nests under. Continued and forked sessions are new
+ * The parent a session is governed under. Continued and forked sessions are new
  * top-level sessions the operator started; their source is provenance (the
  * origin pill and divider), not hierarchy. Spawned, provenance and recovery
  * children nest.
@@ -28,12 +28,26 @@ export function sessionTreeParentId(session: SessionPayload): string {
 }
 
 /**
- * Nest every session whose hierarchy parent is present in the same page under
- * that parent. Missing parents and cycle participants stay roots so nothing
+ * The parent a session's row nests under in the session list. A continuation
+ * keeps its predecessor's place: the catalog resolves the parent its continue
+ * chain began under (`tree_parent_session_id`), so a child continued after an
+ * interruption stays in its orchestrator's thread (#1644). Continuations of
+ * top-level sessions and forks stay roots; the source remains the origin pill.
+ */
+export function sessionListParentId(session: SessionPayload): string {
+  if (sessionOriginKind(session) === "continue") {
+    return session.tree_parent_session_id?.trim() ?? "";
+  }
+  return sessionTreeParentId(session);
+}
+
+/**
+ * Nest every session whose list parent is present in the same page under that
+ * parent. Missing parents and cycle participants stay roots so nothing
  * silently vanishes behind pagination or malformed lineage.
  */
 export function buildSessionTree(sessions: readonly SessionPayload[]): SessionListTree {
-  const parentById = new Map(sessions.map(session => [session.id, sessionTreeParentId(session)]));
+  const parentById = new Map(sessions.map(session => [session.id, sessionListParentId(session)]));
   const cycleParticipants = findCycleParticipants(parentById);
   const roots: SessionPayload[] = [];
   const childrenByParent = new Map<string, SessionPayload[]>();
@@ -157,4 +171,25 @@ export function childSessionSignalState(
     if (signal === null || CHILD_SIGNAL_RANK[state] > CHILD_SIGNAL_RANK[signal]) signal = state;
   }
   return signal;
+}
+
+/**
+ * Active child work: a child that needs you, failed or stalled, or is in
+ * flight — the states a folded branch signals on its toggle.
+ */
+export function isActiveChildSession(session: SessionPayload): boolean {
+  const { state } = sessionBadgeSignal(session.badge);
+  return state === "attention" || state === "failed" || state === "running";
+}
+
+/**
+ * A thread's children with active work first (#1732), so an open branch never
+ * hides it behind "Show more". Both parts keep their incoming list order, so
+ * ties stay stable and a child returns to its place once it settles.
+ */
+export function activeChildSessionsFirst(children: readonly SessionPayload[]): SessionPayload[] {
+  const active: SessionPayload[] = [];
+  const rest: SessionPayload[] = [];
+  for (const child of children) (isActiveChildSession(child) ? active : rest).push(child);
+  return [...active, ...rest];
 }

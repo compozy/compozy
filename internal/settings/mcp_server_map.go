@@ -23,6 +23,12 @@ func mcpServerMap(server compozyconfig.MCPServer) map[string]any {
 	if len(server.SecretEnv) > 0 {
 		values["secret_env"] = cloneStringMap(server.SecretEnv)
 	}
+	if len(server.Headers) > 0 {
+		values["headers"] = cloneStringMap(server.Headers)
+	}
+	if len(server.SecretHeaders) > 0 {
+		values["secret_headers"] = cloneStringMap(server.SecretHeaders)
+	}
 	if strings.TrimSpace(server.URL) != "" {
 		values["url"] = strings.TrimSpace(server.URL)
 	}

@@ -40,7 +40,13 @@ function PanelBody({
         onPatch={page.patchDraft}
         readOnly={readOnly || page.phase === "denied"}
       />
-      <AgentSettingsMcpSection agent={agent} />
+      <AgentSettingsMcpSection
+        agent={agent}
+        draft={draft}
+        onPatch={page.patchDraft}
+        readOnly={readOnly || page.phase === "denied" || page.phase === "saving"}
+        workspaceId={page.runtimeWorkspaceId}
+      />
     </div>
   );
 }

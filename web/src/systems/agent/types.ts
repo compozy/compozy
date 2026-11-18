@@ -117,6 +117,10 @@ export interface AgentInstancePayload {
   activity: AgentInstanceActivity;
   now: string;
   needs_attention: boolean;
+  attention_dismissible?: OperationResponse<
+    "listAgentInstances",
+    200
+  >["instances"][number]["attention_dismissible"];
   pause_reason: AgentInstancePauseReason;
   /** Empty until the main session exists. */
   main_session_id: string;
@@ -136,6 +140,8 @@ export interface AgentInstancePayload {
   unattended_turn_limit?: number;
   /** Non-human input held while paused, delivered on resume. */
   held_wakes?: number;
+  /** `none`, `approved` or `unapproved`: whether its check-in changes have your approval. */
+  authority_status?: string;
   /** How each declared check-in source last went; absent from daemons without sources. */
   sources?: AgentInstanceSourceStatus[];
   created_at: string;
@@ -192,16 +198,36 @@ export type AgentInstanceReportKind =
   | "approval_expired"
   | "interrupted"
   | "rotation_failed"
-  | "rotation_deferred";
+  | "rotation_deferred"
+  | "activity";
 
 export type AgentInstanceReportState = "pending" | "reserved" | "delivered" | "indeterminate";
+
+export type AgentInstanceProposalPick = OperationResponse<"pickAgentInstanceProposal", 200>["pick"];
+
+/** `none`, `picked`, `limit`, `queue_full` or `unapproved`. */
+export type AutoAcceptStatus = string;
+
+export interface AgentInstanceReportProposal {
+  title: string;
+  body: string;
+  action?: { id: string; title: string; auto_accept: boolean } | null;
+  auto_accept_status?: AutoAcceptStatus;
+}
 
 export interface AgentInstanceReport {
   id: string;
   kind: AgentInstanceReportKind;
   state: AgentInstanceReportState;
   created_at: string;
-  proposals?: { title: string; body: string }[];
+  proposals?: AgentInstanceReportProposal[];
+  /** Picks are durable on reports published with this flag; older ones infer from the chat. */
+  picks_tracked?: boolean;
+  picks?: AgentInstanceProposalPick[];
+  /** The check-in's tool calls, counted; rows come from its occurrence. */
+  tool_calls?: { total: number; writes_done: number; writes_maybe: number; denied: number };
+  /** The check-in behind the report; absent on reports no check-in wrote. */
+  occurrence_id?: string;
   reason?: string;
   detail?: string;
   session_id?: string;

@@ -29,7 +29,7 @@ type sessionWriteRequest struct {
 	kind     sessionWriteKind
 	event    store.SessionEvent
 	events   []store.SessionEvent
-	usage    store.TokenUsage
+	usage    *store.TokenUsage
 	hook     hookspkg.HookRunRecord
 	archive  store.EventArchiveRequest
 	rewind   *store.ConversationRewindRequest
@@ -76,6 +76,8 @@ type SessionDB struct {
 
 	// transcriptFolds is touched only by the writer goroutine.
 	transcriptFolds transcriptFoldCache
+	// projectionEncoder is touched only by the writer goroutine.
+	projectionEncoder projectionMessageEncoder
 	// walTruncateBytes overrides the live WAL truncation bound when positive.
 	walTruncateBytes atomic.Int64
 	// walMaintenanceDelayOverride overrides the idle WAL maintenance delay, in nanoseconds, when positive.

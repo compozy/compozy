@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
@@ -49,17 +50,17 @@ func (n *daemonNativeTools) agentMemoryCaller(
 	}
 	if info == nil || info.ProfileID == "" || info.ProfileID != scope.ProfileID || info.AgentName != scope.AgentName ||
 		info.WorkspaceID != scope.WorkspaceID {
-		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
+		return agentmemory.Key{}, "", nativeAgentMemoryDeniedError(id)
 	}
 	if n.deps.AgentInstances == nil {
-		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
+		return agentmemory.Key{}, "", nativeAgentMemoryDeniedError(id)
 	}
 	instances := n.deps.AgentInstances()
 	if instances == nil {
-		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
+		return agentmemory.Key{}, "", nativeAgentMemoryDeniedError(id)
 	}
 	if err := instances.Authority.AuthorizeMemory(ctx, info.ID, info.AgentName, info.ProfileID); err != nil {
-		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
+		return agentmemory.Key{}, "", nativeAgentMemoryDeniedError(id)
 	}
 	resolved, err := n.nativeSkillWorkspace(ctx, info.ProfileID, info.WorkspaceID)
 	if err != nil {
@@ -75,7 +76,8 @@ func (n *daemonNativeTools) agentMemoryCaller(
 			continue
 		}
 		if entry.Def.EffectiveKind() != compozyconfig.AgentKindAlwaysOn {
-			return agentmemory.Key{}, "", nativeInputError(id, errors.New("agent_not_always_on"))
+			return agentmemory.Key{}, "", nativeInputError(id,
+				errors.New("agent_not_always_on: memory requires the owning always-on-agent main session"))
 		}
 		if entry.MemoryOrigin == "" {
 			return agentmemory.Key{}, "", nativeUnavailableError(id, "agent memory identity unavailable")
@@ -91,6 +93,10 @@ func (n *daemonNativeTools) agentMemoryCaller(
 		}, source, nil
 	}
 	return agentmemory.Key{}, "", nativeUnavailableError(id, "agent definition unavailable")
+}
+
+func nativeAgentMemoryDeniedError(id toolspkg.ToolID) error {
+	return toolspkg.NewWorkspaceAccessDeniedError(id, "agent memory requires the owning always-on-agent main session")
 }
 
 func (n *daemonNativeTools) agentMemoryCall(
@@ -114,12 +120,12 @@ func (n *daemonNativeTools) agentMemoryCall(
 		result = map[string]any{agentMemoryDigestKey: doc.Digest, "budget": doc.Budget}
 	case toolspkg.ToolIDAgentMemoryReplace:
 		var doc agentmemory.Document
-		doc, err = n.deps.AgentMemory.Replace(key, input.Match, input.Text)
+		doc, err = n.deps.AgentMemory.AsAgent().Replace(key, input.Match, input.Text)
 		result = map[string]any{agentMemoryDigestKey: doc.Digest}
 	case toolspkg.ToolIDAgentMemoryRemove:
 		var doc agentmemory.Document
 		var removed int
-		doc, removed, err = n.deps.AgentMemory.Remove(key, input.Match)
+		doc, removed, err = n.deps.AgentMemory.AsAgent().Remove(key, input.Match)
 		result = map[string]any{agentMemoryDigestKey: doc.Digest, "removed": removed}
 	case toolspkg.ToolIDAgentMemorySearch:
 
@@ -145,6 +151,17 @@ func (n *daemonNativeTools) agentMemoryCall(
 		result = map[string]any{"results": results}
 	default:
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, errors.New("unknown agent memory operation"))
+	}
+	if errors.Is(err, agentmemory.ErrRuleProtected) {
+		// A generic invalid-input message would hide why the write failed and who can make it.
+		message := agentmemory.ErrRuleProtected.Error() + ": operator rules are changed only by the " +
+			"operator (compozy agent memory add|replace|remove, or the agent's Memory editor)"
+		toolErr := toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied, req.ToolID, message,
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err), toolspkg.ReasonPolicyDenied,
+		)
+		toolErr.PublicMessage = message
+		return toolspkg.ToolResult{}, toolErr
 	}
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)

@@ -31,11 +31,11 @@ describe("StateGlyph", () => {
     expect(glyph).not.toHaveAttribute("aria-hidden");
   });
 
-  it("Should map attention to the accent and never to the warning amber", () => {
+  it("Should map attention to the needs-you amber, never brand or warning", () => {
     const { container } = render(<StateGlyph state="attention" />);
     const glyph = container.querySelector('[data-slot="state-glyph"]');
-    expect(glyph).toHaveClass("text-brand");
-    expect(glyph?.getAttribute("class")).not.toContain("warning");
+    expect(glyph).toHaveClass("text-attn");
+    expect(glyph?.getAttribute("class")).not.toMatch(/warning|brand/);
   });
 
   it.each([

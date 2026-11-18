@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -27,6 +28,7 @@ type ServiceOption func(*Service)
 
 // Service executes OAuth 2.1 authorization-code flows for remote MCP servers.
 type Service struct {
+	authorizeNetwork  func(context.Context, ServerConfig) error
 	store             TokenStore
 	registrations     RegistrationStore
 	client            *http.Client
@@ -37,6 +39,10 @@ type Service struct {
 	generation        *MutationGeneration
 	secretResolver    SecretRefResolver
 	clientMetadataURL string
+	logger            *slog.Logger
+	refreshBackoff    time.Duration
+	refreshBackoffMax time.Duration
+	refreshTimeout    time.Duration
 }
 
 // NewService constructs an MCP auth service.
@@ -51,6 +57,10 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 		secureClient:      operatorClient,
 		catalogClient:     securehttp.NewClient(),
 		generation:        NewMutationGeneration(),
+		logger:            slog.Default(),
+		refreshBackoff:    time.Second,
+		refreshBackoffMax: time.Minute,
+		refreshTimeout:    30 * time.Second,
 		clientMetadataURL: compozyconfig.DefaultMCPClientMetadataURL,
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -81,21 +91,14 @@ type httpDoer interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-func (s *Service) clientFor(cfg ServerConfig) httpDoer {
-	if strings.TrimSpace(cfg.CatalogEntry) != "" {
-		return s.catalogClient
-	}
-	if s.secureClient != nil {
-		return s.secureClient
-	}
-	return s.client
-}
+func (s *Service) clientFor(cfg ServerConfig) httpDoer { return s.sdkHTTPClientFor(cfg) }
 
 func (s *Service) sdkHTTPClientFor(cfg ServerConfig) *http.Client {
+	base := s.client
 	if strings.TrimSpace(cfg.CatalogEntry) != "" {
-		return s.catalogClient.HTTPClient()
+		base = s.catalogClient.HTTPClient()
 	}
-	return s.client
+	return s.authorizedHTTPClient(cfg, base)
 }
 
 // LoginState holds the short-lived in-memory authorization flow state.
@@ -274,13 +277,10 @@ func (s *Service) postForm(
 		return tokenEndpointResponse{}, fmt.Errorf("mcp auth: decode token response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return tokenEndpointResponse{}, fmt.Errorf(
-			"mcp auth: token endpoint rejected request with HTTP %d",
-			resp.StatusCode,
-		)
+		return tokenEndpointResponse{}, newTokenEndpointError(resp.StatusCode, payload.Error)
 	}
 	if strings.TrimSpace(payload.Error) != "" {
-		return tokenEndpointResponse{}, errors.New("mcp auth: token endpoint returned an error")
+		return tokenEndpointResponse{}, newTokenEndpointError(resp.StatusCode, payload.Error)
 	}
 	return payload, nil
 }
@@ -410,7 +410,7 @@ func statusFromTokenWithDiagnostic(
 		Scope:       cfg.Target.Scope,
 		WorkspaceID: cfg.Target.WorkspaceID,
 		Status:      StatusNeedsLogin,
-		RemoteURL:   strings.TrimSpace(cfg.RemoteURL),
+		RemoteURL:   cfg.publicRemoteURL(),
 		AuthType:    strings.TrimSpace(cfg.Type),
 		ClientID:    strings.TrimSpace(cfg.ClientID),
 		Scopes:      trimStrings(cfg.Scopes),

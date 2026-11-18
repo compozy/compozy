@@ -3,6 +3,25 @@ import type { SessionReportData } from "../types";
 export interface ReportProposal {
   title: string;
   body: string;
+  /** The declared action the check-in tagged it with. */
+  action?: { id: string; title: string; autoAccept: boolean };
+  /** `picked`, `limit`, `queue_full`, `unapproved`, `no_main`, `inactive` or `none`. */
+  autoAcceptStatus?: string;
+}
+
+/** One durable pick of a proposal, projected from the daemon's queue. */
+export interface ReportPick {
+  index: number;
+  actor: "operator" | "auto_accept" | string;
+  /** `queued`, `delivered`, `cancelled` or `failed`. */
+  state: string;
+}
+
+export interface ReportToolSummary {
+  total: number;
+  writes_done: number;
+  writes_maybe: number;
+  denied: number;
 }
 
 /**
@@ -28,6 +47,11 @@ export interface ReportItemSource {
 
 export interface ReportPayload {
   proposals: ReportProposal[];
+  /** Picks are durable; without it, the pick is read from the chat (older reports). */
+  picksTracked: boolean;
+  picks: ReportPick[];
+  toolCalls?: ReportToolSummary;
+  occurrenceId?: string;
   /** A proposed skill's review (S9); the card offers Review, not pick. */
   skillReviewId?: string;
   source?: ReportEventSource;
@@ -58,6 +82,62 @@ export function isLostWake(kind: string, cause: string | undefined, reason?: str
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function count(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function proposalOf(item: unknown): ReportProposal[] {
+  const raw = record(item);
+  const title = text(raw?.title);
+  if (!raw || !title) return [];
+  const action = record(raw.action);
+  const id = text(action?.id);
+  return [
+    {
+      title,
+      body: text(raw.body) ?? "",
+      ...(action && id
+        ? {
+            action: {
+              id,
+              title: text(action.title) ?? id,
+              autoAccept: action.auto_accept === true,
+            },
+          }
+        : {}),
+      ...(text(raw.auto_accept_status) ? { autoAcceptStatus: text(raw.auto_accept_status) } : {}),
+    },
+  ];
+}
+
+function picksOf(value: unknown): ReportPick[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(item => {
+    const raw = record(item);
+    if (!raw || typeof raw.proposal_index !== "number") return [];
+    return [
+      { index: raw.proposal_index, actor: text(raw.actor) ?? "", state: text(raw.state) ?? "" },
+    ];
+  });
+}
+
+function toolSummary(value: unknown): ReportToolSummary | undefined {
+  const raw = record(value);
+  if (!raw) return undefined;
+  return {
+    total: count(raw.total),
+    writes_done: count(raw.writes_done),
+    writes_maybe: count(raw.writes_maybe),
+    denied: count(raw.denied),
+  };
 }
 
 function eventSource(value: unknown): ReportEventSource | undefined {
@@ -120,10 +200,11 @@ export function reportPayload(data: SessionReportData): ReportPayload {
   ) as Record<string, unknown>;
   const proposals = Array.isArray(raw.proposals) ? raw.proposals : [];
   return {
-    proposals: proposals.flatMap(item => {
-      const title = text((item as { title?: unknown } | null)?.title);
-      return title ? [{ title, body: text((item as { body?: unknown }).body) ?? "" }] : [];
-    }),
+    proposals: proposals.flatMap(proposalOf),
+    picksTracked: raw.picks_tracked === true,
+    picks: picksOf(raw.picks),
+    toolCalls: toolSummary(raw.tool_calls),
+    occurrenceId: text(raw.occurrence_id),
     skillReviewId: text(raw.skill_review_id),
     source: eventSource(raw.source),
     itemSources: itemSources(raw, proposals),
@@ -139,6 +220,23 @@ export function reportPayload(data: SessionReportData): ReportPayload {
     tool: text(raw.tool),
     expiredBy: text(raw.expired_by),
   };
+}
+
+/** The live fields a report read projects: picks, proposal status and tool calls. */
+const PROJECTED_FIELDS = ["proposals", "picks", "picks_tracked", "tool_calls", "occurrence_id"];
+
+/**
+ * The transcript's copy of a report with the daemon's current projection laid over it. Without a
+ * projection (the report aged out of the daemon's keep), the transcript copy stands.
+ */
+export function withProjection(data: SessionReportData, projected: unknown): SessionReportData {
+  const live = record(projected);
+  if (!live) return data;
+  const payload = { ...record(data.payload) };
+  for (const field of PROJECTED_FIELDS) {
+    if (live[field] !== undefined) payload[field] = live[field];
+  }
+  return { ...data, payload };
 }
 
 interface ThreadMessageLike {
@@ -162,7 +260,7 @@ function messageText(message: ThreadMessageLike) {
 /** A choice sends its title as an ordinary prompt, so that prompt is the record of the pick. */
 export function pickedProposal(
   messages: readonly ThreadMessageLike[],
-  proposals: readonly ReportProposal[],
+  proposals: readonly { title: string }[],
   reportedAt: string
 ): string | undefined {
   const since = Date.parse(reportedAt);

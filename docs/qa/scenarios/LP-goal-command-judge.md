@@ -72,3 +72,17 @@ judges. CLI, HTTP, native, and Web exposed Waiting; 44 Goals had no duplicate tu
 The child-only restart case failed because the stopped parent did not consume the queued wake.
 The recovery, delivery-handoff, pending-compaction, queued-input deferral, pause deadline, and
 narrow-screen fixes require a new-head runtime/rendered rewalk before delivery.
+
+### Requested reasoning during Goal recovery
+
+Start a run-owned Goal with empty/default reasoning intent and a provider reporting `medium`.
+Force context recovery to rotate the binding. The replacement must retain empty reasoning intent,
+pass pinned creation-profile validation, and resume Goal work. Repeat with explicit reasoning
+intent and confirm it survives a differing provider observation. Borrowed-origin rotation keeps
+its existing observed-runtime behavior and reseed approval requirement. Requested ACP options
+must remain intact. Speed resolution is unchanged by this reasoning correction.
+
+The focused automated boundary checks are
+`TestExecutorShouldRecoverWithoutAnAdvertisedCompactionCommand` and
+`TestValidatePinnedRuntimeShouldRejectRuntimeDivergence`; the managed runtime integration suite
+owns durable binding creation/retry. These checks do not establish live-provider acceptance.

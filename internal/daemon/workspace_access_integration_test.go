@@ -19,11 +19,13 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -35,6 +37,85 @@ const (
 
 func TestWorkspaceAccessIntegration(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should orchestrate and wake across real session managers in isolated workspaces", func(t *testing.T) {
+		t.Parallel()
+		ownerManager, owner := newWorkspaceAccessIntegrationSession(t, nil, compozyconfig.PermissionModeApproveAll)
+		targetManager, target := newWorkspaceAccessIntegrationSessionInWorkspace(
+			t,
+			nil,
+			compozyconfig.PermissionModeApproveAll,
+			workspaceAccessIntegrationTarget,
+		)
+		manager := &workspaceAccessIntegrationTargetSessions{
+			Manager: targetManager,
+			owner:   ownerManager,
+			ownerID: owner.ID,
+		}
+		source, err := newWorkspaceAccessModeSource(manager)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy, err := workspaceaccess.New(
+			workspaceaccess.Deps{Facts: source, Consent: newWorkspaceAccessConsentCache(),
+				Audit: workspaceAccessIntegrationAuditStub{}, Log: slog.New(slog.DiscardHandler)},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wakes := make(chan session.SyntheticPromptOpts, 1)
+		delivery := workspaceAccessIntegrationWakeDelivery{sessions: manager, owner: ownerManager, wakes: wakes}
+		service, err := monitorpkg.NewService(t.Context(), nil, &monitorSessionWaker{
+			sessions:        func() monitorSessionManager { return delivery },
+			workspaceAccess: func() workspaceaccess.Policy { return policy },
+		}, monitorpkg.WithSessionTargets(monitorSessionTargets{sessions: func() any { return manager }}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t), WorkspaceAccess: policy,
+			Monitors: func() *monitorpkg.Service { return service },
+		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
+		scope := toolspkg.Scope{
+			SessionID:   owner.ID,
+			WorkspaceID: owner.WorkspaceID,
+			ProfileID:   store.DefaultProfileID,
+			AgentName:   "coder",
+		}
+		for _, call := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDMonitorCreate, fmt.Sprintf(`{"kind":"session","description":"continue after stop","target_session_ids":[%q],"states":["stopped"]}`, target.ID)},
+			{toolspkg.ToolIDSessionWait, fmt.Sprintf(`{"session_id":%q,"until":["idle"],"timeout_ms":1000}`, target.ID)},
+			{toolspkg.ToolIDSessionStop, fmt.Sprintf(`{"session_id":%q,"wait":true}`, target.ID)},
+		} {
+			if _, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{ToolID: call.id, Input: json.RawMessage(call.input)},
+			); err != nil {
+				t.Fatalf("Call(%s) = %v", call.id, err)
+			}
+		}
+		select {
+		case wake := <-wakes:
+			if !strings.Contains(wake.Message, "<state>stopped</state>") || !strings.Contains(wake.Message, target.ID) {
+				t.Fatalf("wake = %s", wake.Message)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatal("foreign stop did not wake the owning session")
+		}
+		info, err := targetManager.Status(t.Context(), target.ID)
+		if err != nil || info.State != session.StateStopped {
+			t.Fatalf("target = %#v, %v", info, err)
+		}
+	})
 
 	t.Run("Should IT-003 persist one queryable audit summary per decision", func(t *testing.T) {
 		t.Parallel()
@@ -278,6 +359,12 @@ func newWorkspaceAccessIntegrationSession(
 	permissions compozyconfig.PermissionMode,
 ) (*session.Manager, *session.Session) {
 	t.Helper()
+	return newWorkspaceAccessIntegrationSessionInWorkspace(t, notifier, permissions, workspaceAccessIntegrationHome)
+}
+
+func newWorkspaceAccessIntegrationSessionInWorkspace(t *testing.T, notifier session.Notifier,
+	permissions compozyconfig.PermissionMode, workspaceID string) (*session.Manager, *session.Session) {
+	t.Helper()
 	ctx := testutil.Context(t)
 	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
@@ -293,7 +380,7 @@ func newWorkspaceAccessIntegrationSession(
 	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig("test-workspace-access-driver")
 	resolved := workspacepkg.ResolvedWorkspace{
-		ID:      workspaceAccessIntegrationHome,
+		ID:      workspaceID,
 		RootDir: root,
 		Name:    "workspace",
 		Config:  cfg,
@@ -304,8 +391,25 @@ func newWorkspaceAccessIntegrationSession(
 		}},
 	}
 	driver := newWorkspaceAccessIntegrationDriver()
+	db, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(homePaths.HomeDir, store.GlobalDatabaseName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+			t.Error(err)
+		}
+	})
+	now := time.Now().UTC()
+	if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+		ID: workspaceID, Name: resolved.Name, RootDir: root, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	opts := []session.Option{
 		session.WithHomePaths(homePaths),
+		session.WithSessionCatalog(db),
+		session.WithSessionInputQueueStore(db),
 		session.WithWorkspaceResolver(workspaceAccessIntegrationResolver{resolved: resolved}),
 		session.WithDriver(driver),
 		session.WithStore(
@@ -328,20 +432,19 @@ func newWorkspaceAccessIntegrationSession(
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
+	// This fixture has no external MCP sources; source admission belongs to daemon composition.
+	manager.SetMCPAuthorityResolver(sessionMCPAuthorityStub{})
 	managed, err := manager.Create(ctx, new(session.CreateOpts{
 		AgentName:   "coder",
-		Workspace:   workspaceAccessIntegrationHome,
+		Workspace:   workspaceID,
 		Permissions: permissions,
 	}))
 	if err != nil {
 		t.Fatalf("Manager.Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		info, statusErr := manager.Status(testutil.Context(t), managed.ID)
-		if statusErr == nil && info.State != session.StateStopped {
-			if stopErr := manager.Stop(testutil.Context(t), managed.ID); stopErr != nil {
-				t.Fatalf("Manager.Stop(cleanup) error = %v", stopErr)
-			}
+		if err := manager.Shutdown(context.WithoutCancel(ctx)); err != nil {
+			t.Errorf("Manager.Shutdown() error = %v", err)
 		}
 	})
 	return manager, managed
@@ -613,4 +716,39 @@ func (r workspaceAccessIntegrationResolver) Get(ctx context.Context, ref string)
 		return workspacepkg.Workspace{}, err
 	}
 	return workspacepkg.Workspace{ID: resolved.ID, Name: resolved.Name, RootDir: resolved.RootDir}, nil
+}
+
+// The boundary reads both managers, while lifecycle operations address the target's real manager.
+type workspaceAccessIntegrationTargetSessions struct {
+	*session.Manager
+	owner   *session.Manager
+	ownerID string
+}
+
+func (m *workspaceAccessIntegrationTargetSessions) Status(ctx context.Context, id string) (*session.Info, error) {
+	if id == m.ownerID {
+		return m.owner.Status(ctx, id)
+	}
+	return m.Manager.Status(ctx, id)
+}
+
+type workspaceAccessIntegrationWakeDelivery struct {
+	sessions nativeToolPolicySessionReader
+	owner    *session.Manager
+	wakes    chan<- session.SyntheticPromptOpts
+}
+
+func (w workspaceAccessIntegrationWakeDelivery) Status(ctx context.Context, id string) (*session.Info, error) {
+	return w.sessions.Status(ctx, id)
+}
+func (w workspaceAccessIntegrationWakeDelivery) EnqueueSyntheticWake(ctx context.Context, id string,
+	opts session.SyntheticPromptOpts) (store.SessionInputQueueEntry, error) {
+	row, err := w.owner.EnqueueSyntheticWake(ctx, id, opts)
+	if err == nil {
+		select {
+		case w.wakes <- opts:
+		case <-ctx.Done():
+		}
+	}
+	return row, err
 }

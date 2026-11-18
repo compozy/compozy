@@ -32,6 +32,7 @@ func providerUsageTraySignal(v providerusage.TraySignal) contract.ProviderUsageT
 func providerUsageSnapshot(v providerusage.Snapshot) contract.ProviderUsageTarget {
 	return contract.ProviderUsageTarget{
 		ProviderID:    v.ProviderID,
+		CollectorID:   v.CollectorID,
 		ProviderName:  v.ProviderName,
 		Status:        string(v.Status),
 		Source:        usagePointer(v.Source, providerUsageSource),

@@ -1,4 +1,5 @@
 import { useSelector } from "@xstate/store-react";
+import { useMemo } from "react";
 
 import { toast } from "@compozy/ui";
 
@@ -6,10 +7,18 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { isAgentDigestConflict } from "../adapters/agent-api";
 import {
+  isDuplicateDraftStore,
+  retainedDraftKey,
+  retainedEditorDraft,
+} from "../lib/retained-editor-drafts";
+import {
+  countEditorDocumentChanges,
   createEditorDocumentStore,
   shouldAdoptSnapshot,
+  type EditorDocumentContext,
   type EditorSnapshot,
 } from "../stores/agent-editor-document-store";
+import { useRetainedEditorDraft } from "./use-retained-editor-draft";
 
 export interface UseEditorDocumentArgs<TForm> {
   /** Identity of the file; a new key is a new editor. */
@@ -43,15 +52,36 @@ export function useEditorDocument<TForm>({
   reread,
   savedCopy,
 }: UseEditorDocumentArgs<TForm>) {
-  const create = () => createEditorDocumentStore(snapshot);
-  const { store } = useStoreBinding(
+  const draftKey = retainedDraftKey("document", resourceKey);
+  // Edits kept from an editor of this file that went away unsaved come back as unsaved (#1653);
+  // a store replaced under the same key (a reload, following the server) does not resume them.
+  const resume = () =>
+    createEditorDocumentStore(
+      snapshot,
+      retainedEditorDraft<EditorDocumentContext<TForm>>(draftKey)
+    );
+  const { replace, store } = useStoreBinding(
     resourceKey,
-    create,
-    create,
+    resume,
+    (previous, previousKey) =>
+      previousKey === resourceKey && !isDuplicateDraftStore(previous)
+        ? createEditorDocumentStore(snapshot)
+        : resume(),
     (current, key) =>
       current.key !== key ||
       shouldAdoptSnapshot(current.store.getSnapshot().context, snapshot, countChanges)
   );
+  const draftPolicy = useMemo(
+    () => ({
+      isDirty: (context: EditorDocumentContext<TForm>) =>
+        countEditorDocumentChanges(context, countChanges) > 0,
+      isBusy: (context: EditorDocumentContext<TForm>) => context.phase === "saving",
+      idle: (context: EditorDocumentContext<TForm>) =>
+        context.phase === "saving" ? { ...context, phase: "idle" as const } : context,
+    }),
+    [countChanges]
+  );
+  const { forget } = useRetainedEditorDraft(draftKey, store, draftPolicy, replace);
   const document = useSelector(store, state => state.context);
   const { baseline, form, raw, conflict, phase, problem } = document;
 
@@ -84,11 +114,13 @@ export function useEditorDocument<TForm>({
     }
   };
 
+  // Changes whenever the document's state does; opaque to the editor's views.
+  const revision: unknown = document;
   const shownSource = raw ?? (baseline.block ? baseline.source : compose(form));
-  const rawChanges = raw !== null && raw !== baseline.source ? 1 : 0;
-  const formChanges = baseline.block ? 0 : countChanges(form, baseline.form);
 
   return {
+    resourceKey,
+    revision,
     baseline,
     form,
     raw,
@@ -97,11 +129,14 @@ export function useEditorDocument<TForm>({
     problem,
     source: shownSource,
     block: baseline.block,
-    changes: formChanges + rawChanges,
+    changes: countEditorDocumentChanges(document, countChanges),
     setForm: (next: TForm) => store.trigger.formChanged({ form: next }),
     setRaw: (next: string) =>
       store.trigger.rawChanged({ raw: next === compose(form) ? null : next }),
-    discard: () => store.trigger.discarded(),
+    discard: () => {
+      store.trigger.discarded();
+      forget();
+    },
     save,
     chooseTheirs: () => store.trigger.theirsChosen(),
   };

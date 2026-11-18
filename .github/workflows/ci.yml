@@ -3,14 +3,18 @@ name: CI
 # Lanes:
 # - Fast lane (preflight, lint, typecheck, unit, build) gates every pull request
 #   through `Verify (fmt, lint, unit, build)`, limited to the changed areas.
-# - Heavy lane (Go integration contracts, Windows, runtime/web/desktop E2E) gates
-#   through `E2E (combined lane)`. With the repository variable CI_MERGE_QUEUE
-#   set to `true`, pull requests defer it to the merge queue (`merge_group`)
-#   unless they carry the `ci:full` label or change the CI pipeline itself.
+# - Heavy lane (full Go integration, Windows, runtime/web/desktop E2E) gates
+#   through `E2E (combined lane)` in merge groups, on main pushes and nightly.
+#   CI_MERGE_QUEUE=true defers PR heavy checks to the queue; `ci:full`, release
+#   PRs and CI changes opt in early. Explicit false enables the backend fallback;
+#   an absent variable preserves the existing PR opt-in policy.
 # - The nightly schedule runs every lane on main.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   merge_group:
+    types: [checks_requested]
+    branches: [main]
   push:
     branches:
       - main
@@ -19,14 +23,15 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Pull requests keep only their newest run; every main, merge-queue and
-  # scheduled commit finishes, so main stays verified and seeds the caches.
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || format('{0}-{1}', github.event_name, github.sha) }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # PRs and replacement groups for the same queue ref keep only their newest
+  # run. Every main/scheduled commit finishes and seeds the caches.
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.ref || format('{0}-{1}', github.event_name, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 env:
   CGO_ENABLED: 0
   GO_VERSION: "1.27.3"
+  COMPOZY_GO_TEST_JSONFILE_DIR: /tmp/gotest-json
   # Turborepo remote cache (Vercel): jobs exchange the GitHub OIDC token for a
   # short-lived Turborepo token (revoked at job end). Pull requests read the
   # shared cache; push and workflow_dispatch lanes upload. Fork PRs skip the
@@ -79,6 +84,9 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
       heavy: ${{ steps.filter.outputs.heavy }}
+      release_pr: ${{ steps.filter.outputs.release_pr }}
+      workspaces: ${{ steps.filter.outputs.workspaces }}
+      frontend_lanes: ${{ steps.filter.outputs.frontend_lanes }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -91,59 +99,76 @@ jobs:
         id: filter
         env:
           EVENT_NAME: ${{ github.event_name }}
-          MERGE_QUEUE: ${{ vars.CI_MERGE_QUEUE == 'true' }}
+          MERGE_QUEUE: ${{ vars.CI_MERGE_QUEUE }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BASE_REF: ${{ github.base_ref }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
-          GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           CURRENT_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
+          workspaces='["*"]'
           zero_sha='0000000000000000000000000000000000000000'
           base_sha=""
           head_sha=""
           case "$EVENT_NAME" in
             pull_request) base_sha="$PR_BASE_SHA"; head_sha="$PR_HEAD_SHA" ;;
-            merge_group) base_sha="$GROUP_BASE_SHA"; head_sha="$GROUP_HEAD_SHA" ;;
             push) base_sha="$PUSH_BEFORE_SHA"; head_sha="$CURRENT_SHA" ;;
           esac
 
-          if [[ "$EVENT_NAME" == "schedule" || "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=false'
+          # Merge groups verify the complete combined tree, including release
+          # PRs whose earlier integration run belonged to Release. Never defer
+          # a merge-group dependency to a pull_request-only workflow.
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=true'
           elif [[ -n "$base_sha" && "$base_sha" != "$zero_sha" && -n "$head_sha" ]] &&
             git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"; then
-            areas=$(git diff --name-only "$base_sha" "$head_sha" | scripts/ci-changes.sh)
+            if git diff --name-only --no-renames -z "$base_sha" "$head_sha" > /tmp/ci-paths; then
+              areas=$(tr '\0' '\n' < /tmp/ci-paths | scripts/ci-changes.sh)
+              workspaces=$(python3 scripts/ci-workspaces.py < /tmp/ci-paths)
+              if [[ "$workspaces" != '[]' ]]; then
+                areas=${areas//web=false/web=true}
+              fi
+            else
+              areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=true'
+            fi
           else
             echo "Base commit $base_sha is unavailable; treating every area as changed."
-            areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=false'
+            areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=true'
           fi
 
-          # The heavy lane runs everywhere except pull requests in merge-queue
-          # mode, where the merge group runs it once before main. A pull request
-          # opts back in with the `ci:full` label (read live, so a re-run sees a
-          # label added after the push) or by changing the CI pipeline itself.
+          # Non-PR events always run heavy lanes. The variable is a staged
+          # rollout/rollback switch: explicit false enables backend PR fallback;
+          # an unset variable keeps today's opt-in behavior until activation.
+          release_pr=false
+          if [[ "$EVENT_NAME" == "pull_request" ]] &&
+             [[ "$PR_BASE_REF" == main || "$PR_BASE_REF" == release/v* ]] &&
+             [[ "$PR_TITLE" == 'build: release '* || "$PR_BASE_REF" == release/v* ]]; then
+            release_pr=true
+          fi
           heavy=true
-          if [[ "$MERGE_QUEUE" == "true" ]]; then
-            case "$EVENT_NAME" in
-              pull_request)
-                heavy=false
-                if grep -qx 'ci_infra=true' <<<"$areas"; then
-                  heavy=true
-                elif gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name' | grep -qx 'ci:full'; then
-                  heavy=true
-                fi
-                ;;
-              push) heavy=false ;;
-            esac
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            heavy=false
+            if [[ "$release_pr" == true || "$PR_TITLE" == 'build: release '* ]] ||
+               grep -qx 'ci_infra=true' <<<"$areas" ||
+               { [[ "$MERGE_QUEUE" == false ]] && grep -qx 'backend=true' <<<"$areas"; }; then
+              heavy=true
+            else
+              labels=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name')
+              if grep -qx 'ci:full' <<<"$labels"; then heavy=true; fi
+            fi
           fi
 
           {
             grep -E '^(backend|web|desktop)=' <<<"$areas"
             echo "heavy=$heavy"
+            echo "release_pr=$release_pr"
+            echo "workspaces=$workspaces"
+            echo "frontend_lanes=$(python3 scripts/ci-workspaces.py --lanes <<<"$workspaces")"
           } | tee -a "$GITHUB_OUTPUT"
 
   preflight:
@@ -160,6 +185,7 @@ jobs:
           # must not block preflight when their indexes are inconsistent.
           test -f /etc/apt/sources.list.d/ubuntu.sources
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get "${apt_sources[@]}" update
           sudo apt-get "${apt_sources[@]}" install --yes ripgrep
           rg --version
@@ -185,16 +211,23 @@ jobs:
       - name: Verify product language
         run: make product-language-check
 
-  frontend:
-    name: Frontend (lint, typecheck, test, build)
+  frontend-tasks:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.changes.outputs.frontend_lanes) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: changes
     if: needs.changes.outputs.web == 'true'
+    env:
+      CI_WEB_SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v7
 
       - name: Set up Go for scaffold tests
+        if: matrix.lane != 'lint' && matrix.lane != 'web-tests'
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -208,10 +241,10 @@ jobs:
       - name: Restore Turbo cache
         uses: actions/cache/restore@v6
         with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ github.run_id }}
+          path: .turbo/cache
+          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ matrix.shard || 'all' }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-
+            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ matrix.shard || 'all' }}-
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
 
@@ -225,38 +258,57 @@ jobs:
       - name: Run frontend verification
         env:
           COMPOZY_CODEGEN_CHECKED: "1"
-        run: |
-          bun run lint
-          bunx turbo run typecheck test --filter='!@compozy/desktop' --log-order=stream
-          bunx turbo run build --filter=./web
-          bunx turbo run test:package --filter=@compozy/client
+          CI_WORKSPACES: ${{ needs.changes.outputs.workspaces }}
+        run: python3 scripts/ci-frontend.py '${{ matrix.lane }}'
 
-      - name: Verify app SDK documentation and package preparation
-        run: |
-          bunx turbo run build --filter=@compozy/site
-          scripts/publish-sdk-package.sh --dry-run sdk/typescript 0.0.0-beta.0 beta
-          scripts/publish-sdk-package.sh --dry-run sdk/client 0.0.0-beta.0 beta
+      - name: Report Turbo receipts and audit a cached test
+        if: matrix.lane != 'lint'
+        env:
+          COMPOZY_CODEGEN_CHECKED: "1"
+        run: python3 scripts/ci-turbo-report.py
 
-      - name: Verify bounded transcript retention
-        run: >-
-          bun scripts/bench-session-retention.mjs
-          web/src/systems/session/lib/session-thread-repository.ts 4000 1 16777216
+      - name: Upload Turbo timing receipts
+        if: always() && matrix.lane != 'lint'
+        uses: actions/upload-artifact@v7
+        with:
+          name: turbo-receipts-${{ matrix.lane }}-${{ strategy.job-index }}
+          path: .turbo/runs/*.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload frontend artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: frontend-verify-artifacts
-          path: web/dist
+          name: frontend-verify-artifacts-${{ matrix.lane }}-${{ strategy.job-index }}
+          path: |
+            web/dist
+            web/.turbo/turbo-test.log
           if-no-files-found: ignore
           retention-days: 7
+          include-hidden-files: true
 
       - name: Save Turbo cache
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/cache/save@v6
         with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ github.run_id }}
+          path: .turbo/cache
+          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ matrix.shard || 'all' }}-${{ github.run_id }}
+
+  # Preserve the canonical check and needs ID consumed by the fast-lane gate.
+  # always() prevents a failed/canceled shard from skipping this aggregate.
+  frontend:
+    name: Frontend (web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [changes, frontend-tasks]
+    if: always() && needs.changes.outputs.web == 'true'
+    steps:
+      - name: Require every selected frontend task
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          FRONTEND_RESULT: ${{ needs.frontend-tasks.result }}
+        run: test "$CHANGES_RESULT" = success && test "$FRONTEND_RESULT" = success
 
   go-static:
     name: Go (format, lint)
@@ -270,6 +322,7 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
           install-golangci-lint: "true"
           save-cache: ${{ env.SAVE_CACHE }}
@@ -288,6 +341,23 @@ jobs:
           make fmt-check
           make source-size
           make go-lint
+
+      - name: Prepare contract test receipts
+        run: mkdir -p /tmp/gotest-json
+
+      - name: Verify integration selection and census contracts
+        env:
+          CGO_ENABLED: "1"
+        run: >-
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5
+          --jsonfile /tmp/gotest-json/gotest-mage.json --packages ./magefiles -- -race -tags=mage
+          -run '^Test(Integration|GlobalDBIntegration|GoTest|LoadGoTestCensus|Census|Partition|MissingPackage|Flake|Perf)'
+          -count=1 -timeout=5m
+
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: go-static
 
       - name: Save golangci-lint cache
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -357,6 +427,7 @@ jobs:
         run: |
           test -f /etc/apt/sources.list.d/ubuntu.sources
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get "${apt_sources[@]}" update
           sudo apt-get "${apt_sources[@]}" install --no-install-recommends --yes zsh
           # Runner-provided completion directories can be group/world writable.
@@ -371,6 +442,11 @@ jobs:
       - name: Run Go runtime verification
         run: make test
 
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: go-test-${{ matrix.shard_index }}
+
       - name: Upload gotestsum timing data
         if: always()
         uses: actions/upload-artifact@v7
@@ -380,82 +456,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # Main, merge groups, nightly and ci:full PRs own full integration here.
+  # Release PRs call the same reusable workflow from Release, gating dry-run.
   go-integration:
-    # Fixed integration contracts run beside the duration-balanced unit shards
-    # instead of stretching the shards they used to ride on.
-    name: Go integration contracts
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    name: Go integration
     needs: changes
-    if: needs.changes.outputs.heavy == 'true' && needs.changes.outputs.backend == 'true'
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: ./.github/actions/setup-go
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          save-cache: ${{ env.SAVE_CACHE }}
-
-      - name: Build ACP mock fixture driver
-        timeout-minutes: 5
-        env:
-          CGO_ENABLED: "1"
-          COMPOZY_TEST_ACPMOCK_DRIVER_BIN: ${{ runner.temp }}/acpmock-driver
-        run: |
-          go build -o "$COMPOZY_TEST_ACPMOCK_DRIVER_BIN" ./internal/testutil/acpmock/cmd/acpmock-driver
-          printf 'COMPOZY_TEST_ACPMOCK_DRIVER_BIN=%s\n' "$COMPOZY_TEST_ACPMOCK_DRIVER_BIN" >> "$GITHUB_ENV"
-
-      - *install-terminal-scenario-shell
-
-      - name: Verify zsh startup contracts
-        env:
-          CGO_ENABLED: "1"
-        run: go test -race -count=1 -timeout=2m -v ./internal/terminal/pty -run '^TestShellIntegrationContract$'
-
-      - name: Verify background role configuration through CLI HTTP and UDS
-        env:
-          CGO_ENABLED: "1"
-        run: |
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_status_test.go
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_resolver_integration_test.go
-          go test -race -tags=integration -count=1 -timeout=5m -v ./internal/daemon -run '^TestRoleResolverIntegration$'
-
-      - name: Verify overlay catalog with ACP subprocesses and SQLite
-        env:
-          CGO_ENABLED: "1"
-        run: go test -race -tags=integration -count=1 -timeout=5m ./internal/modelcatalog
-
-      - name: Verify Marketplace publication and acquisition with real SQLite
-        env:
-          CGO_ENABLED: "1"
-        run: >-
-          go test -race -tags=integration -count=1 -timeout=5m
-          ./internal/daemon ./internal/extension
-          -run '^(TestHookBindingResourceReconcileFiresToolHookThroughSessionNotifier|TestAgentSkillPublicationAndBootRebuild|TestToolMCPStaticPublicationAndBootRebuild|TestPluginCatalogInstallability|TestClientPluginManagedInstall|TestPluginMarketplaceAcquisitionLifecycle|TestManagedAgentPluginDataLifecycle|TestManagerDevelopmentLifecycle|TestVerifyDevGeneration)$'
-
-      - name: Verify Goal cancellation and stopped-session deletion with real SQLite
-        env:
-          CGO_ENABLED: "1"
-        run: |
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/store/globaldb/global_db_goal_turn_runtime_integration_test.go
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/loop_goal_managed_runtime_integration_test.go
-          go test -race -tags=integration -count=1 -timeout=5m \
-            ./internal/store/globaldb ./internal/daemon \
-            -run '^(TestGoalTurnRuntimeLifecycleIntegration|TestGoalSessionOutboxIntegration|TestLoopGoalManagedRuntimeIntegration)$'
-
-      - name: Verify managed delivery recovery with real Git and forge HTTP
-        env:
-          CGO_ENABLED: "1"
-        run: >-
-          go test -race -tags=integration -count=1 -timeout=5m -v
-          ./internal/worktree
-          -run '^(TestWorktreeLifecycleIntegration|TestWorktreeManagedDeliveryIntegration)$'
-
-      - name: Verify disposable frozen executor recovery
-        env:
-          CGO_ENABLED: "1"
-        run: go test -race -tags=integration -count=1 -timeout=5m -v ./internal/session -run '^TestManagerIntegrationSupervisedWorkRecovery$'
+    if: needs.changes.outputs.heavy == 'true' && needs.changes.outputs.backend == 'true' && needs.changes.outputs.release_pr != 'true'
+    uses: ./.github/workflows/go-integration.yml
+    with:
+      save-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
   sdk-go-test:
     name: Go SDK (race test)
@@ -469,6 +478,7 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
           save-cache: ${{ env.SAVE_CACHE }}
 
@@ -476,9 +486,14 @@ jobs:
         run: |
           go -C sdk/go build ./...
           go -C sdk/go vet ./...
-          go -C sdk/go test -race -parallel=4 ./...
+          go run github.com/magefile/mage@v1.17.2 testSDKGo
         env:
           CGO_ENABLED: 1
+
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: sdk-go-test
 
   go-build:
     name: Go (build, boundaries)
@@ -512,13 +527,23 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
           save-cache: ${{ env.SAVE_CACHE }}
 
       - name: Verify Darwin hosted MCP peer identity
-        run: go test ./internal/mcp -run '^TestPeerInfoFromUnixConnIdentifiesLocalPeer$' -count=1
+        run: |
+          mkdir -p /tmp/gotest-json
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 \
+            --jsonfile /tmp/gotest-json/gotest-darwin.json --packages ./internal/mcp -- \
+            -run '^TestPeerInfoFromUnixConnIdentifiesLocalPeer$' -count=1
         env:
           CGO_ENABLED: 0
+
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: go-peer-darwin
 
   go-terminal-windows:
     name: Go (Windows terminal runtime)
@@ -548,12 +573,17 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
           save-cache: ${{ env.SAVE_CACHE }}
 
+      - name: Prepare Windows test receipts
+        shell: bash
+        run: mkdir -p .tmp/gotest-json
+
       - name: Verify Windows hosted MCP peer identity
         run: >-
-          go test ./internal/mcp
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-1.json --packages "./internal/mcp" --
           -run '^(TestPeerInfo|TestWindowsPeerIdentity)'
           -count=1
         env:
@@ -561,15 +591,20 @@ jobs:
 
       - name: Verify Windows terminal runtime
         run: >-
-          go test ./internal/procutil ./internal/terminal/pty ./internal/terminal
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-2.json --packages "./internal/procutil ./internal/terminal/pty ./internal/terminal" --
           -run '^(TestWindowsProcessHandleTermination|TestWindowsPTYHardening|TestWindowsPipeRuntime|TestWindowsDefaultShellResolution|TestResolveCapabilities)$'
           -count=1
         env:
           CGO_ENABLED: 0
 
+      - name: Verify Windows managed stdout lifetime
+        run: gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-3.json --packages "./internal/subprocess" -- -run '^TestProcessStdoutLifetime$' -count=1
+        env:
+          CGO_ENABLED: 0
+
       - name: Verify read-only config and retirement migration on Windows
         run: >-
-          go test ./internal/config
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-4.json --packages "./internal/config" --
           -run '^(TestPersistedOverlayWindowsReadPermissions|TestLoadConfigArchivesRetiredSkillAcquisition)$'
           -count=1
         env:
@@ -577,7 +612,7 @@ jobs:
 
       - name: Verify Windows private files and Gateway recovery
         run: >-
-          go test ./internal/fileutil ./internal/cli
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-5.json --packages "./internal/fileutil ./internal/cli" --
           -run '^(TestAtomicRemoveFileRemovesFileAndRejectsUnsafeTargets|TestWindowsPrivateFiles|TestGatewayCredentialStore|TestGatewayProfileTransactionLock|TestGatewayProfileTransactionJournal|TestGatewayProfileTransactionRecovery|TestGatewayProfileTransactionJournalPath)$'
           -count=1
         env:
@@ -585,7 +620,7 @@ jobs:
 
       - name: Verify Windows startup, rooted writes, and session deletion
         run: >-
-          go test ./internal/daemon ./internal/fileutil ./internal/session ./internal/profile
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-6.json --packages "./internal/daemon ./internal/fileutil ./internal/session ./internal/profile" --
           -run '^(TestUpdateLock|TestWindowsDirectoryMoveNoReplaceContract|TestWindowsDirectoryCreationThroughReadOnlyAncestor|TestManagerQueriesUseWorkspaceRegistration|TestNormalizeIdentitySymbols|TestManagerDelete)/(Should_remove_the_committed_bound_tree_without_a_private_directory_leak|Should_reject_a_concurrent_runtime_mutation|Should_replace_a_stale_owner_with_the_caller_identity|Should_create_descendants_without_requesting_write_access_to_an_existing_ancestor|Should_list_and_inspect_stopped_sessions_without_resolving_runtime_resources|Should_recognize_the_entire_catalog_with_either_LF_or_CRLF_line_endings|Should_remove_a_stopped_user_session_from_durable_counts|Should_wait_for_active_stored_readers_before_committing_deletion|Should_restore_the_staged_directory_when_catalog_deletion_fails|Should_recover_an_interrupted_staged_tombstone_from_every_catalog_state)$'
           -count=1
         env:
@@ -593,7 +628,7 @@ jobs:
 
       - name: Verify Windows skill cache and detached log rotation
         run: >-
-          go test ./internal/filesnap ./internal/skillscan ./internal/cli
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-7.json --packages "./internal/filesnap ./internal/skillscan ./internal/cli" --
           -run '^(TestFromInfo|TestDirectoryResultUnchanged|TestSpawnDetachedDaemonProcess|TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv)$'
           -count=1
         env:
@@ -605,10 +640,17 @@ jobs:
           CGO_ENABLED: 0
 
       - name: Exercise repeated native Windows CLI and OS keyring recovery
-        run: go test -tags integration ./internal/cli -run '^TestWindowsGatewayCLI$' -count=1 -v
+        run: gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-8.json --packages "./internal/cli" -- -tags integration -run '^TestWindowsGatewayCLI$' -count=1 -v
         env:
           CGO_ENABLED: 0
           COMPOZY_TEST_BINARY: ${{ runner.temp }}/compozy-gateway-test.exe
+
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        env:
+          COMPOZY_GO_TEST_JSONFILE_DIR: .tmp/gotest-json
+        with:
+          job: go-windows
 
   desktop:
     name: Desktop (format, lint, test, build)
@@ -678,21 +720,13 @@ jobs:
       ]
     if: always()
     steps:
+      - uses: actions/checkout@v7
       - name: Require every fast lane the change needs
         env:
           RESULTS: ${{ toJSON(needs) }}
+          GATE_KIND: fast
         run: &require-lanes |
-          set -euo pipefail
-          # Detect changes and preflight always run. A lane may skip only
-          # because its area or the heavy lane was not selected; failed and
-          # cancelled lanes fail the gate.
-          jq -e '.changes.result == "success"' <<<"$RESULTS" >/dev/null || {
-            echo "Detect changes did not succeed"; exit 1; }
-          failed=$(jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key): \(.value.result)"' <<<"$RESULTS")
-          if [[ -n "$failed" ]]; then
-            echo "Lanes did not succeed:"; echo "$failed"; exit 1
-          fi
-          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$RESULTS"
+          scripts/ci-changes.sh --require-lanes "$GATE_KIND" <<<"$RESULTS"
 
   e2e-runtime:
     name: E2E runtime
@@ -740,6 +774,11 @@ jobs:
         env:
           CGO_ENABLED: 0
           CI: "true"
+
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: e2e-runtime
 
       - name: Upload runtime E2E artifacts on failure
         if: failure()
@@ -800,6 +839,11 @@ jobs:
           CI: "true"
           COMPOZY_E2E_WEB_SHARD: ${{ matrix.shard }}/6
 
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: e2e-web-${{ matrix.shard }}
+
       - name: Upload session lifecycle QA evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -833,6 +877,15 @@ jobs:
         with:
           name: session-bulk-delete-evidence-shard-${{ matrix.shard }}
           path: .tmp/playwright/test-results/*session-bulk-act*/compozy-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload subagent drawer QA evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: subagent-drawer-evidence-shard-${{ matrix.shard }}
+          path: .tmp/playwright/test-results/*session-subagent*/compozy-artifacts
           if-no-files-found: ignore
           retention-days: 7
 
@@ -884,6 +937,7 @@ jobs:
       - name: Allow the Chromium user namespace sandbox
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes openbox
 
@@ -910,6 +964,11 @@ jobs:
           CGO_ENABLED: 0
           CI: "true"
 
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: e2e-desktop
+
       - name: Upload desktop E2E artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -923,7 +982,8 @@ jobs:
 
   e2e-combined:
     # Gates the heavy lane. It succeeds without running heavy jobs when the
-    # pull request defers them to the merge queue.
+    # pull request defers them to the queue. Both aggregates always report
+    # the same names on pull_request and merge_group; require only those names.
     name: E2E (combined lane)
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -931,11 +991,104 @@ jobs:
       [changes, preflight, go-integration, go-terminal-windows, e2e-runtime, e2e-web, e2e-desktop]
     if: always()
     steps:
+      - uses: actions/checkout@v7
       - name: Require every heavy lane the change needs
         env:
           RESULTS: ${{ toJSON(needs) }}
+          GATE_KIND: heavy
         run: *require-lanes
 
-      - name: Note a deferred heavy lane
+      - name: Note an unselected heavy lane
         if: needs.changes.outputs.heavy != 'true'
-        run: echo "::notice title=Heavy lane deferred::Integration, Windows and E2E lanes run in the merge queue. Add the ci:full label and re-run to run them here."
+        run: echo "::notice title=Heavy lane deferred::Integration, Windows and E2E lanes run in merge groups, on main pushes and nightly. Add the ci:full label to run them here."
+
+  e2e-perf:
+    name: Nightly E2E-023 performance census
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: changes
+    # Informational on explicitly opted-in PRs; deliberately outside both merge
+    # aggregators and Release publication dependencies. Never retry a failed census.
+    if: github.event_name == 'schedule' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:full'))
+    outputs:
+      rejected: ${{ steps.judge.outcome == 'failure' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          build-cache-job: go-build
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "true"
+      - *install-terminal-scenario-shell
+      - name: Collect five complete performance samples without retries
+        id: samples
+        run: make test-e2e-web
+        env:
+          CI: "true"
+          COMPOZY_E2E_PERF: "1"
+      - name: Judge the median against the unchanged 50 ms budget
+        id: judge
+        # Provisioning/build failures produce no report and belong to their own
+        # failing step. A successful collection must produce a judgeable report;
+        # incomplete or functionally failed reports still get judged.
+        if: always() && (steps.samples.outcome == 'success' || hashFiles('.tmp/playwright/playwright-web.json') != '')
+        shell: bash
+        run: |
+          mkdir -p .tmp/playwright
+          go run github.com/magefile/mage@v1.17.2 testPerfCensus .tmp/playwright/playwright-web.json 2>&1 | tee .tmp/playwright/perf-judgment.txt
+      - name: Retain every performance sample
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-perf-census
+          path: .tmp/playwright
+          if-no-files-found: error
+          retention-days: 14
+
+  e2e-perf-issue:
+    name: Update performance census tracking issue
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: e2e-perf
+    if: always() && !cancelled() && needs.e2e-perf.outputs.rejected == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    # Serialize the small issue update only; every independent census can run.
+    concurrency:
+      group: e2e-perf-tracking-issue
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: e2e-perf-census
+          path: .tmp/playwright
+      - name: Update the performance tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPOZY_FLAKE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash .github/scripts/perf-census-issue.sh .tmp/playwright/perf-judgment.txt
+
+  flake-census:
+    name: Collect recovered test flakes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      [
+        go-static,
+        go-test,
+        sdk-go-test,
+        go-integration,
+        go-peer-darwin,
+        go-terminal-windows,
+        e2e-runtime,
+        e2e-web,
+        e2e-desktop,
+      ]
+    if: always() && !cancelled()
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/collect-flakes

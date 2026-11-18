@@ -19,7 +19,7 @@ import (
 const nativeSpawnRefusalMaxBytes = 2048
 
 type nativeSessionSpawner interface {
-	Spawn(context.Context, session.SpawnOpts) (*session.Session, error)
+	Spawn(context.Context, *session.SpawnOpts) (*session.Session, error)
 	ResolveSpawnWorkspace(context.Context, string, string) (string, error)
 	SendSpawnPrompt(context.Context, session.SpawnPromptRequest) (session.SendPromptResult, error)
 }
@@ -56,6 +56,11 @@ func (n *daemonNativeTools) sessionSpawn(
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	info := child.Info()
+	if authority, ok := n.deps.Sessions.(session.MCPAuthorityResolver); ok {
+		if err := session.PopulateEffectiveMCPAuthority(ctx, authority, info); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
 	if info == nil || info.Lineage == nil || info.Lineage.TTLExpiresAt == nil {
 		return toolspkg.ToolResult{}, errors.New("daemon: spawned session is missing lineage")
 	}
@@ -83,7 +88,7 @@ func (n *daemonNativeTools) sessionSpawn(
 			payload["prompt"] = core.SpawnPromptPayloadFromResult(result)
 		}
 	}
-	return structuredResult(payload, info.ID)
+	return sessionSpawnViews.result(req.View, payload)
 }
 
 // resolveNativeSpawnPlacement picks the child workspace and, for a worktree-bound spawn,
@@ -119,12 +124,12 @@ func (n *daemonNativeTools) resolveNativeSpawnPlacement(
 	return workspaceID, target, nil
 }
 
-func nativeSpawnOpts(input nativeSessionSpawnInput, parentID string, workspaceID string) session.SpawnOpts {
+func nativeSpawnOpts(input nativeSessionSpawnInput, parentID string, workspaceID string) *session.SpawnOpts {
 	autoStop := true
 	if input.AutoStopOnParent != nil {
 		autoStop = *input.AutoStopOnParent
 	}
-	return session.SpawnOpts{
+	return &session.SpawnOpts{
 		ParentSessionID:  parentID,
 		AgentName:        strings.TrimSpace(input.AgentName),
 		Provider:         strings.TrimSpace(input.Provider),

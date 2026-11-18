@@ -14,16 +14,16 @@ flowchart TD
     K -->|pointer or URL| O[Open an app, session, or global dialog]
     O --> T{Target already open?}
     T -->|yes| F[Focus the existing semantic window]
-    T -->|no| N[Create one window at its declared default size]
+    T -->|no| N[Create one window in a new tab]
     F --> G{Join related work?}
     N --> G
-    G -->|yes| D[Group into a tab frame and activate one member]
-    G -->|no| M[Move, resize, minimize, restore, or switch workspace]
+    G -->|yes| D[Split it with related work in one tab]
+    G -->|no| M[Switch tabs, resize the split, move to a tab or desktop, or switch workspace]
     D --> M
     M --> VZ{Window remains user-visible?}
     VZ -->|yes| R[Reload or reconnect]
     VZ -->|no| S[Suspend that window's streams, polling, and clocks]
-    S --> RS[Restore the window and reconcile current server state]
+    S --> RS[Show the window again and reconcile current server state]
     RS --> R
     R --> C{Server and client topology agree?}
     C -->|no| B[Blocker: duplicate, lost, or falsely active surface]
@@ -48,7 +48,7 @@ journey:
   actions:
     - step: 1
       verb: "Open the same app through multiple shell entry points"
-      expected_observable: "One semantic window is created or focused, with the declared route and default size"
+      expected_observable: "One semantic window is created in a new tab or focused, with the declared route"
     - step: 2
       verb: "Use live shortcuts and nested palette views to reach a session"
       expected_observable: "Editable-field precedence, per-level query isolation, filters, breadcrumb, backspace-pop, Escape reset, and the cross-workspace landing all follow the daemon effective keymap"
@@ -56,8 +56,8 @@ journey:
       verb: "Open and dismiss global Sessions, Shortcuts, and About surfaces"
       expected_observable: "The keyboard reference reflects live alternates and ranges; dialog ownership, keyboard focus, and dismissal remain consistent"
     - step: 4
-      verb: "Group related windows into tabs, arrange frames, hide one app, and restore it"
-      expected_observable: "Visible sibling windows stay current; minimized, off-desktop, and inactive-stack apps suspend their own external work and reconcile current server state when restored"
+      verb: "Split related windows in one tab, arrange the split, hide one app in another tab or desktop, and show it again"
+      expected_observable: "Visible sibling windows stay current; off-desktop and inactive-tab apps suspend their own external work and reconcile current server state when shown again"
     - step: 5
       verb: "Reload and continue from the restored shell"
       expected_observable: "URL, active workspace, and visible windows converge without duplicates or lost routes"
@@ -71,7 +71,7 @@ journey:
     - at_step: 2
       how: "Dismiss a global modal or leave during a disconnected state."
       resume: "Reopen from another shell entry point; no resource mutation or duplicate window remains."
-  crosses: [web-router, window-manager, tab-deck, document-visibility, live-streams, polling, dock, menubar, command-palette, session-catalog, accessibility, connection-state]
+  crosses: [web-router, window-manager, tab-bar, document-visibility, live-streams, polling, dock, menubar, command-palette, session-catalog, accessibility, connection-state]
 ```
 
 design_reference:
@@ -80,3 +80,9 @@ design_reference:
     - "task_05 VC-07..VC-08 — herdr-parity-cheatsheet.html"
     - "task_06 VC-01..VC-05 — herdr-parity-palette-sessions.html"
   judgment_rule: "Judge only the cheatsheet and palette pieces against the locked boards; live shell chrome, runtime rows, and daemon chords remain authoritative."
+
+qa-impact: 2026-11-13 window-tabs-split S10. Default window sizes, tab frames, minimize and restore
+were retired: a window opens in a new tab (or a split beside focus), related work shares a split in
+one tab, and a hidden window is one in an inactive tab or on another desktop. The flow and steps 1
+and 4 were rewritten to that model. Walk with ET-hidden-window-live-resources and
+ET-web-window-routing-lifecycle.

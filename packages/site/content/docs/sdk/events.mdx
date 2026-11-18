@@ -1,0 +1,79 @@
+---
+title: Events
+description: Follow server-sent event operations, with reconnection handled for you.
+---
+
+<SdkLangBar />
+
+## Subscribe to a stream
+
+The TypeScript client reconnects dropped event streams and 5xx responses with `Last-Event-ID`, starting at 500 ms and doubling to 8 seconds. It also reconnects after a clean server close, so end the subscription by aborting its signal. It stops after 20 consecutive failed reconnects; a received frame resets that count. A 4xx stops immediately. Go streams do not reconnect: they return `io.EOF` when the server closes them.
+
+<SdkSymbol lang="ts">
+
+```ts title="Signature"
+compozy.events<Id extends SseOperationId>(
+  operationId: Id,
+  options: SseOptions<Id>
+): AsyncIterable<StreamEvent<SseFrame<Id>>>
+```
+
+<SdkFields title="Options">
+  <SdkField name="path" type="object">
+    The operation's path parameters.
+  </SdkField>
+  <SdkField name="query" type="object">
+    The operation's query parameters.
+  </SdkField>
+  <SdkField name="signal" type="AbortSignal">
+    Abort the signal to end the subscription.
+  </SdkField>
+</SdkFields>
+
+`options` is required: pass `{}` to an operation without parameters. Each frame carries `data`, and `event` and `id` when the server sent them.
+
+```ts title="Example"
+const controller = new AbortController();
+for await (const frame of compozy.events("streamSession", {
+  path: { workspace_id: workspace.id, session_id: session.id },
+  signal: controller.signal,
+})) {
+  console.log(frame.event, frame.id, frame.data);
+}
+```
+
+</SdkSymbol>
+
+<SdkSymbol lang="go">
+
+```go title="Signature"
+func (s *Stream[T]) Next() (Frame[T], error)
+func (s *Stream[T]) Close() error
+```
+
+Each generated SSE method, such as `StreamSession`, returns a `*Stream[T]` typed by its frame. `Next()` returns `io.EOF` when the server closes the stream, and a `*StreamError` for malformed data or a broken connection. Call `Close()` when you stop early; it may run while `Next()` is waiting.
+
+<SdkFields title="Fields">
+  <SdkField name="Event" type="string" />
+  <SdkField name="ID" type="string" />
+  <SdkField name="Data" type="T">
+    The frame's decoded JSON.
+  </SdkField>
+</SdkFields>
+
+```go title="Example"
+c, err := client.New(ctx)
+if err != nil { return err }
+
+stream, err := c.StreamSession(ctx, client.StreamSessionParams{WorkspaceID: "workspace_id", SessionID: "session_id"})
+if err != nil { return err }
+defer stream.Close()
+for {
+  frame, err := stream.Next()
+  if errors.Is(err, io.EOF) { break }
+  if err != nil { return err }
+  fmt.Println(frame.Data)
+}
+```
+
+</SdkSymbol>

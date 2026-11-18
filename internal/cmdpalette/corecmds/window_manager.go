@@ -8,32 +8,27 @@ import (
 )
 
 var windowManagerTitles = map[windowmanager.CommandID]string{
-	windowmanager.CommandDesktopCreate:        "Create desktop",
-	windowmanager.CommandDesktopUpdate:        "Update desktop",
-	windowmanager.CommandDesktopReorder:       "Reorder desktop",
-	windowmanager.CommandDesktopSwitch:        "Switch desktop",
-	windowmanager.CommandDesktopDelete:        "Delete desktop",
-	windowmanager.CommandWindowOpen:           "Open window",
-	windowmanager.CommandWindowNavigate:       "Navigate window",
-	windowmanager.CommandWindowClose:          "Close window",
-	windowmanager.CommandWindowFocus:          "Focus window",
-	windowmanager.CommandWindowMove:           "Move window",
-	windowmanager.CommandWindowResize:         "Resize window",
-	windowmanager.CommandWindowSwap:           "Swap windows",
-	windowmanager.CommandWindowToggleFloating: "Toggle floating window",
-	windowmanager.CommandWindowZoom:           "Zoom window",
-	windowmanager.CommandWindowStackGroup:     "Group windows",
-	windowmanager.CommandWindowStackReorder:   "Reorder window stack",
-	windowmanager.CommandWindowStackSetActive: "Activate stacked window",
-	windowmanager.CommandWindowPin:            "Pin window",
-	windowmanager.CommandWindowReopen:         "Reopen window",
-	windowmanager.CommandLayoutArrange:        "Arrange layout",
-	windowmanager.CommandLayoutResize:         "Resize layout",
-	windowmanager.CommandLayoutFrameResize:    "Resize layout frame",
-	windowmanager.CommandLayoutBalance:        "Balance layout",
-	windowmanager.CommandLayoutUndo:           "Undo layout",
-	windowmanager.CommandLayoutRedo:           "Redo layout",
-	windowmanager.CommandLayoutReplace:        "Replace layout",
+	windowmanager.CommandDesktopCreate:     "Create desktop",
+	windowmanager.CommandDesktopUpdate:     "Update desktop",
+	windowmanager.CommandDesktopReorder:    "Reorder desktop",
+	windowmanager.CommandDesktopSwitch:     "Switch desktop",
+	windowmanager.CommandDesktopDelete:     "Delete desktop",
+	windowmanager.CommandWindowOpen:        "Open window",
+	windowmanager.CommandWindowNavigate:    "Navigate window",
+	windowmanager.CommandWindowClose:       "Close window",
+	windowmanager.CommandWindowFocus:       "Focus window",
+	windowmanager.CommandWindowMove:        "Move window",
+	windowmanager.CommandWindowSwap:        "Swap windows",
+	windowmanager.CommandWindowTabActivate: "Activate tab",
+	windowmanager.CommandWindowTabReorder:  "Reorder tab",
+	windowmanager.CommandWindowPin:         "Pin window",
+	windowmanager.CommandWindowReopen:      "Reopen window",
+	windowmanager.CommandLayoutArrange:     "Arrange layout",
+	windowmanager.CommandLayoutResize:      "Resize layout",
+	windowmanager.CommandLayoutBalance:     "Balance layout",
+	windowmanager.CommandLayoutUndo:        "Undo layout",
+	windowmanager.CommandLayoutRedo:        "Redo layout",
+	windowmanager.CommandLayoutReplace:     "Replace layout",
 }
 
 func windowManagerCommands() []cmdpalette.Descriptor {
@@ -44,6 +39,9 @@ func windowManagerCommands() []cmdpalette.Descriptor {
 	commands := make([]cmdpalette.Descriptor, 0, len(windowmanager.CommandIDs()))
 	for _, windowManagerID := range windowmanager.CommandIDs() {
 		id := cmdpalette.CommandID(windowManagerID)
+		if windowManagerRetiredCommand(windowManagerID) {
+			continue
+		}
 		if _, exists := shellIDs[id]; exists {
 			continue
 		}
@@ -69,4 +67,15 @@ func clientContextRequirement(id cmdpalette.CommandID) []cmdpalette.Predicate {
 		}}
 	}
 	return nil
+}
+
+func windowManagerRetiredCommand(id windowmanager.CommandID) bool {
+	switch id {
+	case windowmanager.CommandWindowToggleFloating, windowmanager.CommandWindowZoom, windowmanager.CommandWindowResize,
+		windowmanager.CommandLayoutFrameResize, windowmanager.CommandWindowStackGroup,
+		windowmanager.CommandWindowStackReorder, windowmanager.CommandWindowStackSetActive:
+		return true
+	default:
+		return false
+	}
 }

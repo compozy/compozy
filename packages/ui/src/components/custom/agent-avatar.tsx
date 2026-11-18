@@ -144,13 +144,13 @@ function SymbolMark({
   );
 }
 
-/** A small triangle with soft corners in the Needs you orange, in the signal dot's slot. */
+/** A small triangle with soft corners in the Needs you amber, in the signal dot's slot. */
 function NeedsYouMark({ size }: { size: number }) {
   const px = Math.min(NEEDS_YOU_MAX_PX, Math.max(8, Math.round(size * 0.3)));
   return (
     <svg
       aria-hidden="true"
-      className="absolute -top-0.5 -right-0.5 text-brand"
+      className="absolute -top-0.5 -right-0.5 text-attn"
       data-slot="agent-avatar-needs-you"
       height={px}
       viewBox="0 0 12 12"

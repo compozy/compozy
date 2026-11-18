@@ -32,6 +32,7 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/resources"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -39,6 +40,8 @@ import (
 )
 
 type stubSettingsService struct {
+	CheckMCPServerFn     func(context.Context, settingspkg.MCPAuthTargetRequest) (settingspkg.MCPServerItem, error)
+	SetMCPApprovalFn     func(context.Context, settingspkg.MCPAuthTargetRequest, string, bool) (store.MCPApproval, error)
 	GetSectionFn         func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
 	UpdateSectionFn      func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error)
 	ApplySectionFn       func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error)
@@ -54,6 +57,7 @@ type stubSettingsService struct {
 	DeleteItemFn         func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error)
 	ApplyDeleteFn        func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.ApplyResult, error)
 	ReloadFn             func(context.Context) (settingspkg.ApplyResult, error)
+	SetProviderEnabledFn func(context.Context, string, bool) (settingspkg.ProviderItem, settingspkg.ApplyResult, error)
 	ListApplyRecordsFn   func(context.Context, settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
 	PendingRestartFn     func(context.Context) (bool, error)
 
@@ -286,6 +290,17 @@ func (s *stubSettingsService) ApplyCollectionDelete(
 	return defaultApplyResult(settingspkg.SectionName(req.Collection)), nil
 }
 
+func (s *stubSettingsService) SetProviderEnabled(
+	ctx context.Context,
+	name string,
+	enabled bool,
+) (settingspkg.ProviderItem, settingspkg.ApplyResult, error) {
+	if s.SetProviderEnabledFn == nil {
+		return settingspkg.ProviderItem{Name: name, Enabled: enabled}, defaultApplyResult(""), nil
+	}
+	return s.SetProviderEnabledFn(ctx, name, enabled)
+}
+
 func (s *stubSettingsService) Reload(ctx context.Context) (settingspkg.ApplyResult, error) {
 	s.ReloadCalls++
 	if s.ReloadFn != nil {
@@ -516,6 +531,8 @@ func newSettingsHandlerFixture(
 
 func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings := engine.Group("/api/settings")
+	settings.PUT("/mcp-servers/:name/approval", handlers.PutSettingsMCPApproval)
+	settings.DELETE("/mcp-servers/:name/approval", handlers.DeleteSettingsMCPApproval)
 	settings.GET("/shell", handlers.GetSettingsShell)
 	settings.PATCH("/shell", handlers.UpdateSettingsShell)
 	settings.GET("/apply", handlers.ListSettingsApplyRecords)
@@ -551,6 +568,7 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.GET("/providers/:name", handlers.GetSettingsProvider)
 	settings.PUT("/providers/:name", handlers.PutSettingsProvider)
 	settings.DELETE("/providers/:name", handlers.DeleteSettingsProvider)
+	settings.PATCH("/providers/:name/enabled", handlers.SetSettingsProviderEnabled)
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
 	settings.GET("/mcp-servers/:name", handlers.GetSettingsMCPServer)
 	settings.GET("/mcp-servers/:name/auth/status", handlers.GetSettingsMCPAuthStatus)
@@ -571,6 +589,51 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 
 func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 	t.Parallel()
+	t.Run("Should return one checked item using the exact auth target selectors", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		svc := &stubSettingsService{
+			CheckMCPServerFn: func(_ context.Context, req settingspkg.MCPAuthTargetRequest) (settingspkg.MCPServerItem, error) {
+				calls++
+				if req.Name != "docs" || req.Owner != "extension:docs" || req.Scope != settingspkg.ScopeProfile ||
+					req.ProfileName != "work" ||
+					req.WorkspaceID != "ws-one" {
+					t.Fatalf("target = %+v", req)
+				}
+				return settingspkg.MCPServerItem{
+					Name:             "docs",
+					Owner:            req.Owner,
+					DefinitionSource: "/project/mcp.json",
+					RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{
+						State:     settingspkg.MCPServerRuntimeStateReady,
+						ToolCount: 2,
+					},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "http", svc, nil)
+		fixture.Engine.POST("/api/settings/mcp-servers/:name/check", fixture.Handlers.CheckSettingsMCPServer)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/api/settings/mcp-servers/docs/check?scope=profile&workspace_id=ws-one&profile=work&owner=extension:docs",
+			nil,
+		)
+		var item contract.SettingsMCPServerItemPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &item); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || item.DefinitionSource != "/project/mcp.json" ||
+			item.RuntimeStatus == nil ||
+			item.RuntimeStatus.ToolCount != 2 {
+			t.Fatalf("response = %d %+v", response.Code, item)
+		}
+		response = performRequest(t, fixture.Engine, http.MethodPost, "/api/settings/mcp-servers/docs/check", nil)
+		if response.Code != http.StatusBadRequest || calls != 1 || !strings.Contains(response.Body.String(), "scope") {
+			t.Fatalf("missing scope = %d %s, calls=%d", response.Code, response.Body.String(), calls)
+		}
+	})
 
 	t.Run("Should keep OAuth secrets out of handler responses", func(t *testing.T) {
 		t.Parallel()
@@ -1436,9 +1499,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					FocusPolicy:         compozyconfig.WindowFocusDirectional,
 					FocusWrap:           true,
 					FocusFollowsPointer: true,
-					RaiseOnFocus:        false,
-					DragAwayPolicy:      compozyconfig.WindowDragAwayGroup,
-					GroupMoveModifier:   "control",
 					SwapModifier:        "meta",
 					HistoryLimit:        77,
 					NavStackLimit:       66,
@@ -1446,15 +1506,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					DesktopTransition:   compozyconfig.WindowDesktopTransitionCrossfade,
 					Gaps: compozyconfig.WindowManagerGapsConfig{
 						Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,
-					},
-					Snap: compozyconfig.WindowManagerSnapConfig{
-						EdgeBand:     40,
-						CornerReach:  180,
-						ExitSlack:    20,
-						RepeatRatios: []float64{0.4, 0.7, 0.3},
-					},
-					Bindings: compozyconfig.WindowManagerBindingConfig{
-						TopCenter: "none", BottomCenter: "zoom",
 					},
 					Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
 					GlobalShortcuts: map[string]string{
@@ -1694,8 +1745,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				FocusWrap:           true,
 				FocusFollowsPointer: true,
 				RaiseOnFocus:        false,
-				DragAwayPolicy:      contract.SettingsWindowDragAwayPolicyGroup,
-				GroupMoveModifier:   contract.SettingsWindowDragModifierControl,
+				DragAwayPolicy:      contract.SettingsWindowDragAwayPolicyWindow,
+				GroupMoveModifier:   contract.SettingsWindowDragModifierNone,
 				SwapModifier:        contract.SettingsWindowDragModifierMeta,
 				HistoryLimit:        77,
 				NavStackLimit:       66,
@@ -1704,13 +1755,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				Gaps: contract.SettingsWindowManagerGapsPayload{
 					Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,
 				},
-				Snap: contract.SettingsWindowManagerSnapPayload{
-					EdgeBand: 40, CornerReach: 180, ExitSlack: 20,
-					RepeatRatios: []float64{0.4, 0.7, 0.3},
-				},
+				Snap: contract.SettingsWindowManagerSnapPayload{RepeatRatios: []float64{}},
 				Bindings: contract.SettingsWindowManagerBindingPayload{
 					TopCenter:    contract.SettingsWindowBindingActionNone,
-					BottomCenter: contract.SettingsWindowBindingActionZoom,
+					BottomCenter: contract.SettingsWindowBindingActionNone,
 				},
 				Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
 				GlobalShortcuts: map[string]string{
@@ -2256,13 +2304,13 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject window-manager stack without an edge-center target", func(t *testing.T) {
+	t.Run("Should reject invalid window-manager gaps before mutation", func(t *testing.T) {
 		t.Parallel()
 
 		service := &stubSettingsService{}
 		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
 		config := validSettingsWindowManagerConfigPayload()
-		config.Bindings.TopCenter = contract.SettingsWindowBindingAction("stack")
+		config.Gaps.Inner = -1
 
 		resp := performRequest(
 			t,
@@ -2279,8 +2327,8 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		}
 		var payload contract.ErrorPayload
 		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if !strings.Contains(payload.Error, "window_manager.bindings.top_center") {
-			t.Fatalf("payload.Error = %q, want binding validation path", payload.Error)
+		if !strings.Contains(payload.Error, "window_manager.gaps.inner") {
+			t.Fatalf("payload.Error = %q, want gap validation path", payload.Error)
 		}
 	})
 
@@ -2675,6 +2723,48 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 		}
 	})
 
+	t.Run("Should ignore retired zero values in a v0.6 window-manager request", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{
+			ApplySectionFn: func(_ context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error) {
+				if req.WindowManager == nil || req.WindowManager.NewWindowPolicy != compozyconfig.WindowNewPolicyTab ||
+					req.WindowManager.HistoryLimit != 77 {
+					t.Fatalf("legacy request reached runtime: %#v", req.WindowManager)
+				}
+				return settingspkg.ApplyResult{Section: req.Section, Scope: req.Scope, Applied: true}, nil
+			},
+			GetSectionFn: func(_ context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
+				return settingspkg.SectionEnvelope{
+					Section: req.Section,
+					Scope:   settingspkg.ScopeUser,
+					WindowManager: &settingspkg.WindowManagerSection{
+						Config: compozyconfig.DefaultWindowManagerConfig(),
+					},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		config := validSettingsWindowManagerConfigPayload()
+		config.NewWindowPolicy = contract.SettingsWindowNewPolicyFloating
+		config.DragAwayPolicy, config.GroupMoveModifier = "", ""
+		config.Snap = contract.SettingsWindowManagerSnapPayload{}
+		config.Bindings = contract.SettingsWindowManagerBindingPayload{TopCenter: "stack"}
+		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/window-manager",
+			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: &config}))
+		var result contract.SettingsWindowManagerMutationResponse
+		decodeJSON(t, response.Body.Bytes(), &result)
+		if response.Code != http.StatusOK || service.ApplySectionCalls != 1 || service.UpdateSectionCalls != 0 ||
+			result.Config.NewWindowPolicy != contract.SettingsWindowNewPolicyTab {
+			t.Fatalf(
+				"legacy request response=%d %+v; applies=%d updates=%d",
+				response.Code,
+				result,
+				service.ApplySectionCalls,
+				service.UpdateSectionCalls,
+			)
+		}
+	})
+
 	t.Run("Should echo the window-manager section with its failed apply receipt", func(t *testing.T) {
 		t.Parallel()
 		service := &stubSettingsService{
@@ -2826,7 +2916,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 					req.WindowManager.HistoryLimit != 77 ||
 					req.WindowManager.NavStackLimit != 66 ||
 					req.WindowManager.ClosedEntryLimit != 18 ||
-					!reflect.DeepEqual(req.WindowManager.Snap.RepeatRatios, []float64{0.4, 0.7, 0.3}) ||
+					req.WindowManager.Gaps.Inner != 12 ||
 					!reflect.DeepEqual(
 						req.WindowManager.Shortcuts["desktop.switch.next"],
 						windowmanager.ShortcutBinding{"Meta+ArrowRight"},
@@ -3176,6 +3266,22 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 					t.Fatalf("hooks payload = %#v, want capture hook", payload)
 				}
 			},
+		},
+		{
+			name:   "Should update only the provider compaction window",
+			method: http.MethodPut,
+			path:   "/api/settings/providers/claude",
+			body: contract.PutSettingsProviderRequest{
+				Settings: contract.SettingsProviderWritePayload{AutoCompactWindow: new(200000)},
+			},
+			assert: func(t *testing.T, service *stubSettingsService) {
+				t.Helper()
+				provider := service.LastPutCollectionRequest.Provider
+				if provider == nil || provider.AutoCompactWindow == nil || *provider.AutoCompactWindow != 200000 {
+					t.Fatalf("provider compaction update = %+v", provider)
+				}
+			},
+			assertResponse: assertAppliedSettingsMutation,
 		},
 		{
 			name:   "put provider",
@@ -3658,12 +3764,20 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 			)
 		}
 
+		// Invariant: the v0.6 public response retains retired fields until v0.8.0.
 		var wire struct {
+			Config      map[string]json.RawMessage `json:"config"`
 			Defaults    map[string]json.RawMessage `json:"defaults"`
 			Diagnostics json.RawMessage            `json:"diagnostics"`
 			Effective   map[string]json.RawMessage `json:"effective_shortcuts"`
 		}
 		decodeJSON(t, resp.Body.Bytes(), &wire)
+		for _, key := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
+			if _, exists := wire.Config[key]; !exists {
+				t.Errorf("config.%s is missing from the v0.6 compatibility response", key)
+			}
+		}
+
 		if got, want := string(wire.Diagnostics), "[]"; got != want {
 			t.Errorf("diagnostics = %s, want %s", got, want)
 		}
@@ -4038,7 +4152,10 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 			t.Run("Should decode the shared request", func(t *testing.T) {
 				t.Parallel()
 				service := &stubSettingsService{
-					ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+					ListCollectionFn: func(_ context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+						if !req.SkipRuntimeStatus {
+							t.Fatal("definition GET requested a runtime probe")
+						}
 						return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{
 							{
 								Name:        "github",
@@ -4817,6 +4934,81 @@ func TestSettingsShellAppearance(t *testing.T) {
 			t.Fatalf("response must serialize the default ui_font explicitly: %s", response.Body.String())
 		}
 	})
+	t.Run("Should store a default text size as a reset and always return both steps", func(t *testing.T) {
+		t.Parallel()
+		cfg := compozyconfig.DefaultShellConfig()
+		cfg.Appearance.LetterSpacing = compozyconfig.ShellLetterSpacingWide
+		service := &stubSettingsService{
+			ApplySectionFn: func(_ context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error) {
+				want := compozyconfig.ShellAppearanceConfig{TextSizeExplicit: true}
+				if req.Shell == nil || req.Shell.Appearance != want {
+					t.Fatalf("appearance request = %#v, want text_size reset with spacing preserved", req.Shell)
+				}
+				return settingspkg.ApplyResult{
+					Section: settingspkg.SectionShell,
+					Scope:   settingspkg.ScopeUser,
+					Applied: true,
+				}, nil
+			},
+			GetSectionFn: func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
+				return settingspkg.SectionEnvelope{
+					Section: settingspkg.SectionShell,
+					Scope:   settingspkg.ScopeUser,
+					Shell:   &settingspkg.ShellSection{Config: cfg},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/shell",
+			[]byte(`{"config":{"sessions":{},"appearance":{"text_size":"default"}}}`),
+		)
+		var payload contract.SettingsShellMutationResponse
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		appearance := payload.Config.Appearance
+		if response.Code != http.StatusOK || appearance == nil || appearance.TextSize == nil ||
+			appearance.LetterSpacing == nil || *appearance.TextSize != contract.SettingsShellTextSizeDefault ||
+			*appearance.LetterSpacing != contract.SettingsShellLetterSpacingWide {
+			t.Fatalf("response=%d %s", response.Code, response.Body.String())
+		}
+	})
+	t.Run("Should reject an unknown text size before applying settings", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/shell",
+			[]byte(`{"config":{"sessions":{},"appearance":{"text_size":"huge"}}}`),
+		)
+		if response.Code != http.StatusBadRequest ||
+			!strings.Contains(response.Body.String(), "shell_config_invalid") ||
+			!strings.Contains(response.Body.String(), "shell.appearance.text_size") ||
+			service.ApplySectionCalls != 0 {
+			t.Fatalf("response=%d %s", response.Code, response.Body.String())
+		}
+	})
+	t.Run("Should reject an empty written step instead of resetting it", func(t *testing.T) {
+		t.Parallel()
+		for _, body := range []string{
+			`{"config":{"sessions":{},"appearance":{"text_size":""}}}`,
+			`{"config":{"sessions":{},"appearance":{"letter_spacing":""}}}`,
+		} {
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/shell", []byte(body))
+			if response.Code != http.StatusBadRequest ||
+				!strings.Contains(response.Body.String(), "shell_config_invalid") ||
+				service.ApplySectionCalls != 0 {
+				t.Fatalf("%s: response=%d %s", body, response.Code, response.Body.String())
+			}
+		}
+	})
 	t.Run("Should reject an unsafe font family before applying settings", func(t *testing.T) {
 		t.Parallel()
 		service := &stubSettingsService{}
@@ -4834,4 +5026,92 @@ func TestSettingsShellAppearance(t *testing.T) {
 			t.Fatalf("response=%d %s", response.Code, response.Body.String())
 		}
 	})
+}
+
+func (s *stubSettingsService) SetMCPApproval(
+	ctx context.Context,
+	req settingspkg.MCPAuthTargetRequest,
+	digest string,
+	revoke bool,
+) (store.MCPApproval, error) {
+	if s.SetMCPApprovalFn != nil {
+		return s.SetMCPApprovalFn(ctx, req, digest, revoke)
+	}
+	return store.MCPApproval{}, settingspkg.ErrUnavailable
+}
+
+// Invariant: approval HTTP responses preserve scope, domain codes and body/status
+// parity with UDS. Owner: shared API handlers; canonical Settings suite.
+func TestSettingsMCPApprovalHandlers(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		code   string
+		status int
+	}{{"", 200}, {"mcp_approval_definition_changed", 409}, {"mcp_approval_not_required", 409}, {"mcp_server_not_found", 404}} {
+		t.Run("Should report approval "+tc.code, func(t *testing.T) {
+			t.Parallel()
+			service := &stubSettingsService{
+				SetMCPApprovalFn: func(_ context.Context, req settingspkg.MCPAuthTargetRequest, digest string, revoke bool) (store.MCPApproval, error) {
+					if req.Name != "sentry" || req.WorkspaceID != "ws-project" || req.ProfileName != "work" ||
+						req.Scope != settingspkg.ScopeProfile ||
+						(!revoke && digest != "observed") {
+						t.Fatalf("approval lost identity: %+v %s", req, digest)
+					}
+					if tc.code != "" {
+						return store.MCPApproval{}, &settingspkg.MCPApprovalError{
+							Code:    tc.code,
+							Message: "approval rejected",
+						}
+					}
+					return store.MCPApproval{
+						ServerName:  req.Name,
+						WorkspaceID: req.WorkspaceID,
+						ApprovedAt:  time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC),
+					}, nil
+				},
+			}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPut,
+				"/api/settings/mcp-servers/sentry/approval",
+				[]byte(`{"workspace_id":"ws-project","profile":"work","definition_digest":"observed"}`),
+			)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body)
+			}
+			if tc.code != "" {
+				var payload contract.ErrorPayload
+				decodeJSON(t, response.Body.Bytes(), &payload)
+				if payload.Code != tc.code {
+					t.Fatalf("domain code=%+v", payload)
+				}
+			} else {
+				var payload contract.SettingsMCPApprovalResponse
+				decodeJSON(t, response.Body.Bytes(), &payload)
+				if payload.Approval.State != "allowed" || payload.Approval.Profile != "work" ||
+					payload.Approval.ApprovedAt.IsZero() {
+					t.Fatalf("approval=%+v", payload)
+				}
+				response = performRequest(
+					t,
+					fixture.Engine,
+					http.MethodDelete,
+					"/api/settings/mcp-servers/sentry/approval?workspace_id=ws-project&profile=work",
+					nil,
+				)
+				if response.Code != http.StatusNoContent || response.Body.Len() != 0 {
+					t.Fatalf("revoke=%d %s", response.Code, response.Body)
+				}
+			}
+		})
+	}
+}
+
+func (s *stubSettingsService) CheckMCPServer(
+	ctx context.Context,
+	req settingspkg.MCPAuthTargetRequest,
+) (settingspkg.MCPServerItem, error) {
+	return s.CheckMCPServerFn(ctx, req)
 }

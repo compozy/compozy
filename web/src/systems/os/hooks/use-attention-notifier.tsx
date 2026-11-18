@@ -29,6 +29,7 @@ import {
   type AttentionJumpTarget,
 } from "./use-attention-jump";
 import { useAttentionPolicy } from "./use-attention-policy";
+import { useLayoutUpgradeToast } from "./use-layout-upgrade-toast";
 import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 const TOAST_DURATION_MS = 8_000;
@@ -175,11 +176,19 @@ export function useAttentionNotifier({
   useEffect(() => {
     if (!bellOpen) return;
     for (const id of toast.activeIds()) {
-      if (/^(needs-you|finished|agent|attention-overflow):/.test(String(id))) {
+      if (/^(needs-you|finished|agent|attention-overflow|layout-upgrade):/.test(String(id))) {
         toast.dismiss(id);
       }
     }
   }, [bellOpen]);
+
+  useLayoutUpgradeToast({
+    sections,
+    bellOpen,
+    toasts: policy.toasts,
+    mutedWorkspaceIds: policy.mutedWorkspaceIds,
+    onOpenBell,
+  });
 
   const render = (batch: AttentionDelivery[]) => {
     if (batch.length === 0) return;

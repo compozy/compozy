@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/compozy/compozy/internal/fileutil"
 )
@@ -15,6 +16,7 @@ var ErrSourceUnreachable = errors.New("source_unreachable")
 const (
 	rootDocumentPath   = "marketplace.json"
 	clientDocumentPath = ".claude-plugin/marketplace.json"
+	codexDocumentPath  = ".agents/plugins/marketplace.json"
 )
 
 type NotMarketplaceError struct {
@@ -44,30 +46,34 @@ func ReadDirectory(ctx context.Context, root string) (document Document, err err
 		return Document{}, fmt.Errorf("%w: open marketplace folder: %w", ErrSourceUnreachable, err)
 	}
 	defer func() { err = errors.Join(err, directory.Close()) }()
-	document, err = readDirectoryDocument(ctx, directory)
-	if err == nil {
-		document.Path = rootDocumentPath
-		return document, nil
+	for _, location := range []string{rootDocumentPath, clientDocumentPath, codexDocumentPath} {
+		document, err = readDocumentAt(ctx, directory, location)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err == nil {
+			document.Path = location
+		}
+		return document, err
 	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return Document{}, err
+	return Document{}, missingMarketplaceDocument()
+}
+
+func readDocumentAt(
+	ctx context.Context,
+	directory *fileutil.Directory,
+	location string,
+) (document Document, err error) {
+	name, rest, nested := strings.Cut(location, "/")
+	if !nested {
+		return readDirectoryDocument(ctx, directory)
 	}
-	child, err := directory.OpenDirectory(".claude-plugin")
-	if errors.Is(err, os.ErrNotExist) {
-		return Document{}, missingMarketplaceDocument()
-	}
+	child, err := directory.OpenDirectory(name)
 	if err != nil {
 		return Document{}, fmt.Errorf("%w: open marketplace document directory: %w", ErrSourceUnreachable, err)
 	}
 	defer func() { err = errors.Join(err, child.Close()) }()
-	document, err = readDirectoryDocument(ctx, child)
-	if errors.Is(err, os.ErrNotExist) {
-		return Document{}, missingMarketplaceDocument()
-	}
-	if err == nil {
-		document.Path = clientDocumentPath
-	}
-	return document, err
+	return readDocumentAt(ctx, child, rest)
 }
 
 func readDirectoryDocument(ctx context.Context, directory *fileutil.Directory) (document Document, err error) {
@@ -87,5 +93,5 @@ func readDirectoryDocument(ctx context.Context, directory *fileutil.Directory) (
 }
 
 func missingMarketplaceDocument() error {
-	return &NotMarketplaceError{Checked: []string{rootDocumentPath, clientDocumentPath}}
+	return &NotMarketplaceError{Checked: []string{rootDocumentPath, clientDocumentPath, codexDocumentPath}}
 }

@@ -262,7 +262,7 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	if !strings.Contains(content, `title: "compozy"`) {
 		t.Error("compozy.mdx frontmatter should have title 'compozy'")
 	}
-	if !strings.Contains(content, `description: "CompozyOS — the system around your agents, already built"`) {
+	if !strings.Contains(content, `description: "CompozyOS — the autonomous control plane for your agents"`) {
 		t.Error("compozy.mdx should preserve the root Short verbatim from Cobra")
 	}
 

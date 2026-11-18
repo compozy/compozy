@@ -4,15 +4,15 @@ area: MS
 title: An always-on agent's reports, relayed approvals and supersede states read in its main session
 persona: Dora
 journey: J-31
-expected: A report lands in the transcript without starting a turn. Picking a proposal sends one ordinary prompt and folds to "You picked". After an absence with enough heartbeats, a While you were away card tells the night and only what needs you stays a card. Asks from child sessions dock on the main session with who asked and where, and answering settles the child's request. Expired, provider-ended and interrupted runs each say what happened and offer one ordinary prompt. A superseded session is read-only and links to the current one.
-entry_points: web Sessions window; main session opened from the avatar row
-qa_status: pass
-bug_ids:
+expected: A report lands in the transcript without starting a turn. Picking a proposal records the pick through the daemon (`POST /api/agent-instances/{id}/reports/{report_id}/pick`), which queues one prompt to the main session, and folds to "You picked"; auto-accepted proposals show "Auto-accepted" with the action title and no Pick button, and limit, queue-full, unapproved and failed picks say why in plain words. A report shows "Check-in used N tools · M changes · K blocked" with the call list, an activity report says what the check-in changed, and reports published before pick tracking keep the transcript inference. After an absence with enough heartbeats, a While you were away card tells the night and only what needs you stays a card. Asks from child sessions dock on the main session with who asked and where, and answering settles the child's request. Expired, provider-ended and interrupted runs each say what happened and offer one ordinary prompt. A superseded session is read-only and links to the current one.
+entry_points: web Sessions window; main session opened from the avatar row; POST /api/agent-instances/{id}/reports/{report_id}/pick; GET /api/agent-instances/{id}/reports|check-ins?occurrence=
+qa_status: partial
+bug_ids: BUG-20261108-aocit-web-change-count, BUG-20261108-aocit-away-activity, BUG-20261108-aocit-history-told
 fix_status: fixed
-retest_status: pending
-fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981
-evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk)
-last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
+retest_status: pass
+fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981, 0f89127b3, a0c7e5b44, 12400691f
+evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk); .compozy/tasks/always-on-check-in-tools/qa-walk/ (gitignored, aocit/qa worktree; 2026-11-08 #1357 Web walk)
+last_report: docs/qa/reports/2026-11-08-always-on-check-in-tools-qa.md
 overlaps: MS-web-stays-on-placement, ET-native-tool-approval-grants, MS-always-on-check-in-sources
 ---
 
@@ -417,3 +417,89 @@ data and render as plain text. The source journey that produces these reports is
 `MS-always-on-check-in-sources`. Owner: `session-report-part.test.tsx`. Not walked.
 
 QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): reports and pause copy read always-on ("<Agent> is no longer always-on" for `definition_not_always_on`), scheduled runs read heartbeat, and the timeout and threshold keys live under `agents.always_on`. Not walked; S4 walks it on the integration head.
+
+## Check-in picks, tool calls and activity (#1357)
+
+Spec: `.compozy/tasks/always-on-check-in-tools/` (`_uiux.md` U1–U5). The journeys that produce
+these reports are owned by `MS-always-on-check-in-sources` §8; this section walks the main-session
+transcript only. Use one instance with an approved authority block declaring an `auto_accept`
+action, a fixture MCP server, and a real provider.
+
+1. **Pick through the daemon (U1).** On a report with two waiting proposals, press Pick on the
+   second. The browser sends `POST …/reports/{report_id}/pick` with `{"proposal":1}` and no
+   chat message; while pending the choices are disabled (`aria-busy`). The proposal folds to
+   "You picked" and the main session receives one queued prompt. Reload: the state comes from
+   the projected reports read, not the transcript. Pick the same proposal from the CLI first in
+   a second tab: the Web refreshes on the instance's catalog-changed event and shows it picked.
+2. **Auto-accepted (U2).** A proposal picked by auto-accept shows the "Auto-accepted" chip and
+   the action title, with no Pick button. When every proposal was auto-accepted, the footer
+   changes accordingly.
+3. **Waiting with a reason (U2).** `auto_accept_status: limit` shows "Daily auto-accept limit
+   reached", `queue_full` "The agent is busy; pick it when ready", and `unapproved` "Waiting for
+   your approval of check-in changes"; each keeps a working Pick button. `no_main` shows "The agent has no main session" and `inactive` shows "The agent was paused"; both keep Pick.
+4. **Pick failed (U1).** Pause the instance and pick: an inline alert explains the failure in
+   plain words with the daemon code (`instance_not_active`); nothing is queued. Picking a
+   proposal already picked from the CLI shows `proposal_already_picked`.
+5. **Tool-call line (U3).** A report from a check-in that used tools shows "Check-in used N
+   tools · M changes · K blocked"; the line is hidden when N = 0. The disclosure is a button with
+   `aria-expanded`; opening it lists tool title, server, Read/Change, Allowed or the blocked
+   reason in plain words ("Not allowed in check-ins", "Would need your approval", "Not available
+   in check-ins", "Tool limit reached", "Blocked"), "May have changed" for `effect: maybe`, and
+   the duration.
+   Read calls retain `effect: none` even after errors, cancellation, or an orphaned call becomes
+   `unknown`; a read-only occurrence creates no activity report.
+6. **Activity report (U4).** A check-in that wrote and found nothing publishes a report titled
+   "The check-in made N change(s)" (or "…may have changed something" for only `maybe` writes),
+   with the tool list open by default and no proposals or Pick buttons.
+7. **Check-ins history (U5).** On the agent's Heartbeat page, an occurrence that used tools is
+   not folded into the quiet run and opens the same list; `tools_status` disabled/unavailable
+   reads "Tools off" / "Tools unavailable".
+8. **Historical reports.** A report published before this change (no `picks_tracked`) still
+   folds to "You picked" from the transcript inference and offers Pick only where the transcript
+   can still send.
+
+Focused automation: `session-report-part.test.tsx` (UT-040–UT-042),
+`use-session-catalog-streams.test.tsx`, `agent-editor-files.test.ts` (U5), `session-away.test.ts`
+(activity reports in the away digest) and the S3 Storybook evidence under the S3 worktree.
+
+QA walk 2026-11-08 (`aocit/qa`, real browser against the lab, Claude): steps 1, 2 (chip and
+action title), 3 (`limit`), 4 (`instance_not_active`), 5, 6 and 7 pass after three Web fixes.
+The Heartbeat history counted reads as changes (`0f89127b3`). The away digest filed activity
+reports as "went wrong" and folded them as "Still in the same conversation" (`a0c7e5b44`). The
+history called a check-in that wrote "All quiet" (`12400691f`). An activity report is a card only
+when the away digest does not fold it: mark the instance seen first. A CLI pick refreshes an open
+tab within a second, so step 1's stale-tab `proposal_already_picked` was not reachable by hand.
+Not walked: step 3's `queue_full`/`unapproved`, the all-auto-accepted footer, and step 8. Report:
+`docs/qa/reports/2026-11-08-always-on-check-in-tools-qa.md`.
+
+## Acknowledge instance attention
+
+1. Start with an instance showing failure attention and a stopped main or descendant with an
+   unanswered permission or orphaned clarification. Keep another instance untouched as a control.
+2. Open the avatar hover card and choose **Mark as seen**. Verify the triangle clears without reload,
+   stopped interactions become canceled, and failure reports remain readable with unchanged
+   provider delivery state. Check another open client receives the catalog update.
+3. With a live pending request in the current main or a live child, mark seen again. The request
+   remains answerable and attention remains until the operator answers it.
+4. Publish a newer failure. Attention returns. Repeat acknowledgement through CLI and HTTP;
+   their results agree with the UI. Native tool calls still require operator authority.
+5. Verify a failed acknowledgement shows an error and keeps the attention mark. Check keyboard
+   access to the hover card action and a narrow viewport. Other instances/profiles remain untouched.
+
+Acknowledgement recovery under delayed or failed storage reads is covered by the canonical
+`TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen` suite: the response must not wait
+for reconciliation, an unrelated live permission must still commit, a recovered stopped session
+publishes one attention edge before the instance update, and shutdown cancels and joins the worker.
+`TestInstanceSeen` separately proves a newer stopped request alone keeps instance attention raised.
+
+The same owning suites also verify that deletion of an acknowledged descendant cannot hold the
+instance notification indefinitely, that catalog reads and lock waits cancel on shutdown, and that
+an older clearing edge cannot follow a newer permission edge for the same resumed session.
+
+QA impact 2026-11-09 (User-scope reports): repeat the journey with an instance created by
+`compozy agent instance create <agent> --global`. A proposal, fatigue or unattended report must
+leave `pending` on the next maintenance sweep, land in the User main session transcript, and raise
+its operator notification; the daemon log must not repeat `publish report … attention profile id
+and workspace id are required`. The User scope has no workspace mute, so its reports are never
+muted. Focused coverage: `TestInstanceReportPublication` (real `ReportPublisher.Sweep`, SQLite
+report store and attention repository).

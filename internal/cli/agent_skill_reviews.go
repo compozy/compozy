@@ -47,7 +47,7 @@ func newAgentSkillCommand(deps commandDeps) *cobra.Command {
 	root := &cobra.Command{Use: "skill", Short: "Manage proposed agent skills (experimental)"}
 	review := &cobra.Command{Use: "review", Short: "Review proposed skill contents before activation"}
 	root.AddCommand(review)
-	for _, action := range []string{agentListKey, configShowKey, "approve", "reject"} {
+	for _, action := range []string{agentListKey, configShowKey, loopApproveKey, "reject"} {
 		review.AddCommand(newAgentSkillReviewAction(deps, action))
 	}
 	return root
@@ -69,7 +69,7 @@ func newAgentSkillReviewAction(deps commandDeps, action string) *cobra.Command {
 		cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from next_cursor")
 		cmd.Flags().IntVar(&limit, "limit", 50, "Page size (1-100)")
 	}
-	if action == "approve" || action == "reject" {
+	if action == loopApproveKey || action == "reject" {
 		cmd.Flags().StringVar(&digest, "expected-digest", "", "Require the digest shown during review")
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {

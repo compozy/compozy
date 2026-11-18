@@ -15,6 +15,8 @@ const (
 	configShellAppearanceKey = "appearance"
 	configShellUIFontKey     = "ui_font"
 	configShellMonoFontKey   = "mono_font"
+	configShellTextSizeKey   = "text_size"
+	configShellSpacingKey    = "letter_spacing"
 )
 
 func shellConfigSetPathKinds() map[string]configSetValueKind {
@@ -24,6 +26,8 @@ func shellConfigSetPathKinds() map[string]configSetValueKind {
 		configShellKey + "." + configShellSessionsKey + "." + automationScopeKey:       configSetString,
 		configShellKey + "." + configShellAppearanceKey + "." + configShellUIFontKey:   configSetString,
 		configShellKey + "." + configShellAppearanceKey + "." + configShellMonoFontKey: configSetString,
+		configShellKey + "." + configShellAppearanceKey + "." + configShellTextSizeKey: configSetString,
+		configShellKey + "." + configShellAppearanceKey + "." + configShellSpacingKey:  configSetString,
 	}
 }
 
@@ -57,14 +61,20 @@ func applyShellConfigValue(cfg *compozyconfig.ShellConfig, path []string, value 
 	return cfg.Validate()
 }
 
-func applyShellAppearanceValue(cfg *compozyconfig.ShellConfig, path []string, family string) error {
+func applyShellAppearanceValue(cfg *compozyconfig.ShellConfig, path []string, value string) error {
 	switch path[2] {
 	case configShellUIFontKey:
-		cfg.Appearance.UIFont = family
+		cfg.Appearance.UIFont = value
 		cfg.Appearance.UIFontExplicit = true
 	case configShellMonoFontKey:
-		cfg.Appearance.MonoFont = family
+		cfg.Appearance.MonoFont = value
 		cfg.Appearance.MonoFontExplicit = true
+	case configShellTextSizeKey:
+		cfg.Appearance.TextSize = compozyconfig.ShellTextSize(value)
+		cfg.Appearance.TextSizeExplicit = true
+	case configShellSpacingKey:
+		cfg.Appearance.LetterSpacing = compozyconfig.ShellLetterSpacing(value)
+		cfg.Appearance.LetterSpacingExplicit = true
 	default:
 		return fmt.Errorf("cli: unsupported shell config path %q", strings.Join(path, "."))
 	}
@@ -75,10 +85,17 @@ func applyShellAppearanceValue(cfg *compozyconfig.ShellConfig, path []string, fa
 func settingsShellUpdatePayload(cfg compozyconfig.ShellConfig, path []string) contract.SettingsShellPayload {
 	if path[1] == configShellAppearanceKey {
 		appearance := &contract.SettingsShellAppearancePayload{}
-		if path[2] == configShellUIFontKey {
+		switch path[2] {
+		case configShellUIFontKey:
 			appearance.UIFont = &cfg.Appearance.UIFont
-		} else {
+		case configShellMonoFontKey:
 			appearance.MonoFont = &cfg.Appearance.MonoFont
+		case configShellTextSizeKey:
+			size := contract.SettingsShellTextSize(cfg.Appearance.TextSize.Normalized())
+			appearance.TextSize = &size
+		case configShellSpacingKey:
+			spacing := contract.SettingsShellLetterSpacing(cfg.Appearance.LetterSpacing.Normalized())
+			appearance.LetterSpacing = &spacing
 		}
 		return contract.SettingsShellPayload{Appearance: appearance}
 	}

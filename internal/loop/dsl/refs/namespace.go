@@ -56,9 +56,14 @@ type Namespace struct {
 
 // NodeSchema exposes the referenceable output/status shape for one node.
 type NodeSchema struct {
-	Output      Schema
-	HasOutput   bool
-	HasProgress bool
+	Output         Schema
+	FallbackOutput Schema
+	// OutputJSONSchema distinguishes normalized/descriptor schemas from field maps.
+	OutputJSONSchema bool
+	ResultViewOutput bool
+	HasOutput        bool
+	HasProgress      bool
+	AllowOpenOutput  bool
 }
 
 // Reference records one resolved template or CEL path.
@@ -71,6 +76,7 @@ type Reference struct {
 type Error struct {
 	Code             string
 	Path             []string
+	ReferencePath    []string
 	DeepestValidPath []string
 	AvailableFields  []string
 	AvailableNodes   []string
@@ -154,7 +160,11 @@ func (n Namespace) validateInputPath(path []string) *Error {
 	if !ok {
 		return newPathError(CodeUnknownReference, path, "unknown input %q", path[1])
 	}
-	return validateSchemaPath(schema, path[2:], path)
+	err := validateSchemaPath(schema, path[2:], path, false, true)
+	if err != nil && n.InputPathUnproven(path) {
+		return nil
+	}
+	return err
 }
 
 func (n Namespace) validateNodePath(path []string) *Error {
@@ -181,7 +191,7 @@ func (n Namespace) validateNodePath(path []string) *Error {
 		if !node.HasOutput {
 			return nil
 		}
-		return validateSchemaPath(node.Output, path[3:], path)
+		return node.validateOutputPath(path[3:], path)
 	case namespaceProgress:
 		if !node.HasProgress {
 			return newPathError(CodeUnknownReference, path, "node %q does not expose fan-out progress", path[1])
@@ -202,25 +212,29 @@ func validateProgressPath(path []string, fieldIndex int) *Error {
 	return nil
 }
 
-func validateSchemaPath(schema Schema, path []string, original []string) *Error {
+func validateSchemaPath(schema Schema, path []string, original []string, allowOpen, jsonSchema bool) *Error {
 	if len(path) == 0 {
 		return nil
 	}
-	if len(schema) == 0 {
+	if len(schema) == 0 && !allowOpen {
 		return newPathError(CodeUnresolvablePath, original, "schema has no child fields")
 	}
 
 	current := any(map[string]any(schema))
 	for idx, segment := range path {
-		next, ok := childSchema(current, segment)
+		next, ok := childSchema(current, segment, jsonSchema)
+		if !ok && allowOpen && openSchemaObject(current) {
+			return nil
+		}
 		if !ok {
 			base := len(original) - len(path)
 			invalidPath := append([]string(nil), original[:base+idx+1]...)
 			deepest := append([]string(nil), original[:base+idx]...)
-			available := availableSchemaFields(current)
+			available := availableSchemaFields(current, jsonSchema)
 			return &Error{
 				Code:             CodeUnresolvablePath,
 				Path:             invalidPath,
+				ReferencePath:    append([]string(nil), original...),
 				DeepestValidPath: deepest,
 				AvailableFields:  available,
 				Message:          schemaPathMessage(original, deepest, available),
@@ -231,11 +245,22 @@ func validateSchemaPath(schema Schema, path []string, original []string) *Error 
 	return nil
 }
 
-func childSchema(current any, segment string) (any, bool) {
+func childSchema(current any, segment string, jsonSchema bool) (any, bool) {
 	switch typed := current.(type) {
 	case Schema:
-		return childSchema(map[string]any(typed), segment)
+		return childSchema(map[string]any(typed), segment, jsonSchema)
 	case map[string]any:
+		if jsonSchema {
+			if properties, ok := typed["properties"]; ok {
+				return childFromProperties(properties, segment)
+			}
+			if typed["type"] == schemaArrayType {
+				if items, ok := typed["items"]; ok {
+					return childSchema(items, segment, true)
+				}
+			}
+			return nil, false
+		}
 		if properties, ok := typed["properties"]; ok {
 			if child, found := childFromProperties(properties, segment); found {
 				return child, true
@@ -244,10 +269,9 @@ func childSchema(current any, segment string) (any, bool) {
 		if child, ok := typed[segment]; ok {
 			return child, true
 		}
-		if typed["type"] == "array" {
-			if items, ok := typed["items"]; ok {
-				return childSchema(items, segment)
-			}
+
+		if typed["type"] == schemaArrayType {
+			return childSchema(typed["items"], segment, false)
 		}
 		return nil, false
 	case map[string]Schema:
@@ -257,7 +281,7 @@ func childSchema(current any, segment string) (any, bool) {
 		if len(typed) == 0 {
 			return nil, false
 		}
-		return childSchema(typed[0], segment)
+		return childSchema(typed[0], segment, jsonSchema)
 	case string:
 		return nil, false
 	default:
@@ -280,8 +304,9 @@ func childFromProperties(properties any, segment string) (any, bool) {
 
 func newPathError(code string, path []string, format string, args ...any) *Error {
 	return &Error{
-		Code:    code,
-		Path:    append([]string(nil), path...),
-		Message: fmt.Sprintf(format, args...),
+		Code:          code,
+		Path:          append([]string(nil), path...),
+		ReferencePath: append([]string(nil), path...),
+		Message:       fmt.Sprintf(format, args...),
 	}
 }

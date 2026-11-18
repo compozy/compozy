@@ -58,7 +58,9 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
 vi.mock("@/systems/workspace/hooks/use-active-worktree", () => ({
   useScopedWorktreeFilter: vi.fn(),
 }));
-vi.mock("../use-worktree-scope", () => ({ useFocusedWorktreeScopeId: vi.fn(() => "window:one") }));
+vi.mock("../use-worktree-scope", () => ({
+  useFocusedWorktreeReadScopeId: vi.fn(() => "window:one"),
+}));
 vi.mock("@/systems/loops", () => ({
   useLoopNodeExists: vi.fn(() => false),
   useLoopRequestAttention: vi.fn(() => ({
@@ -462,12 +464,12 @@ describe("useOsAttention", () => {
     expect(result.current.notificationCount).toBe(230);
   });
 
-  it("Should title an untitled session occurrence as its window does, never by its raw id", () => {
+  it("Should title a session occurrence as its window does, never by its raw id or a hidden origin", () => {
     vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({ data: [] }));
     notificationResponse = {
       snapshot: "snapshot",
-      total: 1,
-      needs_you: 1,
+      total: 2,
+      needs_you: 2,
       finished: 0,
       items: [
         {
@@ -486,11 +488,30 @@ describe("useOsAttention", () => {
           redacted: false,
           finished: false,
         },
+        {
+          id: "automation-occurrence",
+          kind: "session",
+          source_id: "sess-triage-run",
+          workspace_id: "ws-other",
+          workspace_label: "other",
+          title: "issue-triage",
+          detail: "failed",
+          badge: "failed",
+          agent_name: "issue-triage",
+          session_type: "system",
+          occurred_at: "2026-09-10T11:00:00Z",
+          item_index: 0,
+          generation: 0,
+          redacted: false,
+          finished: false,
+        },
       ],
     };
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+    // An automation run is named by its job even when the job and its agent share a name (#1388).
     expect(result.current.sections.needsYou).toEqual([
       expect.objectContaining({ kind: "session", title: "New session" }),
+      expect.objectContaining({ kind: "session", title: "issue-triage" }),
     ]);
   });
 

@@ -69,7 +69,13 @@ func (s *daemonExtensionService) previewExtension(
 	ctx context.Context,
 	name string,
 ) (contract.ExtensionEnablePreviewPayload, error) {
-	ext, desired, err := s.desiredExtensionKit(ctx, name)
+	return s.previewExtensionTarget(ctx, name, extensionMutationTarget{profile: extensionDefaultProfileLens()})
+}
+
+func (s *daemonExtensionService) previewExtensionTarget(
+	ctx context.Context, name string, target extensionMutationTarget,
+) (contract.ExtensionEnablePreviewPayload, error) {
+	ext, desired, err := s.desiredExtensionKitTarget(ctx, name, target)
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
@@ -77,7 +83,7 @@ func (s *daemonExtensionService) previewExtension(
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
-	status, err := s.Status(ctx, name)
+	status, err := s.installedTargetStatus(ctx, name, target)
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
@@ -201,6 +207,12 @@ func (s *daemonExtensionService) desiredExtensionKit(
 	ctx context.Context,
 	name string,
 ) (*extensionpkg.Extension, []extensionpkg.KitItem, error) {
+	return s.desiredExtensionKitTarget(ctx, name, extensionMutationTarget{profile: extensionDefaultProfileLens()})
+}
+
+func (s *daemonExtensionService) desiredExtensionKitTarget(
+	ctx context.Context, name string, target extensionMutationTarget,
+) (*extensionpkg.Extension, []extensionpkg.KitItem, error) {
 	ext, err := s.runtime.InspectPackageResources(ctx, strings.TrimSpace(name))
 	if err != nil {
 		return nil, nil, err
@@ -217,7 +229,8 @@ func (s *daemonExtensionService) desiredExtensionKit(
 			strings.TrimSpace(ext.Info.ManifestPath),
 		)
 	}
-	items, err := s.projectExtensionInputKitItems(ctx, ext, extensionDefaultProfileLens().ID)
+	ext.Status.WorkspaceID = target.scope.WorkspaceID
+	items, err := s.projectExtensionInputKitItems(ctx, ext, target.profile.ID)
 	if err != nil {
 		return nil, nil, err
 	}

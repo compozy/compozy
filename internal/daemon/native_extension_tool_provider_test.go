@@ -247,6 +247,41 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep hosted projection visibility shareable through the workspace wrapper", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: wrapping the extension provider keeps peers of one listing scope in one
+		// projection visibility class; an inner provider without a declared scope stays per scope.
+		visibility := func(inner toolspkg.Provider, scope toolspkg.Scope) (string, bool) {
+			t.Helper()
+			registry, err := toolspkg.NewRegistry(
+				toolspkg.WithProviders(newDaemonScopedExtensionToolProvider(
+					inner, &daemonExtensionWorkspaceResolverStub{},
+				)),
+				toolspkg.WithPolicyInputs(toolspkg.DefaultPolicyInputs(), toolspkg.ToolsetCatalog{}),
+			)
+			if err != nil {
+				t.Fatalf("NewRegistry() error = %v", err)
+			}
+			return registry.ProjectionVisibility(t.Context(), scope)
+		}
+		scoped := &daemonExtensionScopedProviderStub{
+			daemonExtensionProviderStub: &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}},
+		}
+		first, firstKnown := visibility(scoped, toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-1"})
+		second, secondKnown := visibility(scoped, toolspkg.Scope{SessionID: "sess-b", WorkspaceID: "ws-1"})
+		other, otherKnown := visibility(scoped, toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-2"})
+		if !firstKnown || !secondKnown || !otherKnown || first != second || first == other {
+			t.Fatalf("scoped classes = %q/%t, %q/%t, %q/%t", first, firstKnown, second, secondKnown, other, otherKnown)
+		}
+		unscoped := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
+		first, firstKnown = visibility(unscoped, toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-1"})
+		second, secondKnown = visibility(unscoped, toolspkg.Scope{SessionID: "sess-b", WorkspaceID: "ws-1"})
+		if !firstKnown || !secondKnown || first == second {
+			t.Fatalf("unscoped classes = %q/%t, %q/%t", first, firstKnown, second, secondKnown)
+		}
+	})
+
 	t.Run("Should attach resolved workspace authority to workspace-bound extension calls", func(t *testing.T) {
 		t.Parallel()
 
@@ -319,6 +354,16 @@ func (p *daemonExtensionBatchProviderStub) ProjectionAvailability(
 		availability[id] = p.handle.Availability(ctx, scope)
 	}
 	return availability
+}
+
+type daemonExtensionScopedProviderStub struct {
+	*daemonExtensionProviderStub
+}
+
+var _ toolspkg.ProjectionScopeProvider = (*daemonExtensionScopedProviderStub)(nil)
+
+func (p *daemonExtensionScopedProviderStub) ProjectionScope(scope toolspkg.Scope) toolspkg.Scope {
+	return toolspkg.Scope{ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID}
 }
 
 var _ toolspkg.Provider = (*daemonExtensionProviderStub)(nil)

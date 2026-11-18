@@ -64,6 +64,8 @@ export interface MCPDraft {
   // remote fields
   url: string;
   oauth: MCPOAuthDraft;
+  headersEndpoint?: string;
+  readOnlyTools?: string[];
 }
 
 export interface MCPDraftErrors {
@@ -120,7 +122,7 @@ export function emptyDraft(transport: MCPTransport = "stdio"): MCPDraft {
 export function withTransport(draft: MCPDraft, transport: MCPTransport): MCPDraft {
   if (draft.transport === transport) return draft;
   if (transport === "stdio") {
-    return { ...draft, transport, url: "", oauth: emptyOAuth() };
+    return { ...draft, transport, url: "", oauth: emptyOAuth(), headersEndpoint: undefined };
   }
   return { ...draft, transport, command: "", args: [], env: [], secretEnv: [] };
 }
@@ -161,12 +163,14 @@ export function toDraft(entry: SettingsMCPServerEntry): MCPDraft {
     : emptyOAuth();
   return {
     name: entry.name,
+    readOnlyTools: entry.read_only_tools ? [...entry.read_only_tools] : undefined,
     transport,
     command: entry.command ?? "",
     args: [...(entry.args ?? [])],
     env,
     secretEnv,
     url: entry.url ?? "",
+    headersEndpoint: entry.headers_configured ? entry.url : undefined,
     oauth,
   };
 }
@@ -180,6 +184,7 @@ export function withoutMCPSecretPreservation(draft: MCPDraft): MCPDraft {
   });
   return {
     ...draft,
+    headersEndpoint: undefined,
     env: draft.env.map(entry => ({ ...entry, originalKey: undefined })),
     secretEnv: draft.secretEnv.map(entry => ({
       ...entry,
@@ -229,6 +234,11 @@ function resolveSecretEnvBinding(entry: MCPSecretEnvEntry): SecretResolution {
   return resolved;
 }
 
+/** Whether a named secret key would save without a value, Vault ref, or kept binding. */
+export function isSecretEnvUnset(entry: MCPSecretEnvEntry): boolean {
+  return entry.key.trim() !== "" && resolveSecretEnvBinding(entry).kind === "none";
+}
+
 function collectEnv(pairs: MCPEnvPair[]): {
   values: Record<string, string>;
   preserved: string[];
@@ -264,11 +274,9 @@ export function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
   const name = draft.name.trim();
   if (draft.transport === "stdio") {
     const server: ServerBody = { name, transport: "stdio", command: draft.command.trim() };
-    const args = draft.args.flatMap(arg => {
-      const trimmed = arg.trim();
-      return trimmed ? [trimmed] : [];
-    });
-    if (args.length > 0) server.args = args;
+    if (draft.readOnlyTools) server.read_only_tools = [...draft.readOnlyTools];
+    // Arguments go to the program exactly as written: an empty or padded value is deliberate.
+    if (draft.args.length > 0) server.args = [...draft.args];
     const env = collectEnv(draft.env);
     if (Object.keys(env.values).length > 0) server.env = env.values;
     const keptRefs: Record<string, string> = {};
@@ -294,7 +302,9 @@ export function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
     return request;
   }
   const server: ServerBody = { name, transport: draft.transport, url: draft.url.trim() };
+  if (draft.readOnlyTools) server.read_only_tools = [...draft.readOnlyTools];
   const request: SettingsMCPServerRequest = { server };
+  if (draft.headersEndpoint) request.preserve_headers = true;
   if (draft.oauth.enabled) {
     const auth: AuthBody = { registration: draft.oauth.registration };
     if (draft.oauth.issuerUrl.trim()) auth.issuer_url = draft.oauth.issuerUrl.trim();
@@ -359,6 +369,9 @@ export function validateDraft(draft: MCPDraft): MCPDraftValidation {
   } else {
     if (draft.url.trim().length === 0) {
       errors.url = `URL is required for ${draft.transport} transport`;
+    }
+    if (draft.headersEndpoint && draft.headersEndpoint.trim() !== draft.url.trim()) {
+      errors.url = "Headers can only be kept for the same server URL";
     }
     const forbidden = hasRemoteForbiddenFields(draft);
     if (forbidden) errors.remoteFields = forbidden;

@@ -2,7 +2,7 @@ package contract
 
 import "time"
 
-// AttentionNotificationPayload describes one occurrence without changing its source's attention state.
+// AttentionNotificationPayload describes one unread occurrence, including layout-upgrade notices.
 type AttentionNotificationPayload struct {
 	ID             string    `json:"id"`
 	Kind           string    `json:"kind"`
@@ -23,6 +23,10 @@ type AttentionNotificationPayload struct {
 	RequestKind    string    `json:"request_kind,omitempty"`
 	TerminalID     string    `json:"terminal_id,omitempty"`
 	Redacted       bool      `json:"redacted"`
+	// SessionType and InstanceID let a session row name a non-operator origin, as the session
+	// payload's type and instance_id do.
+	SessionType string `json:"session_type,omitempty"`
+	InstanceID  string `json:"instance_id,omitempty"`
 }
 
 // AttentionNotificationsResponse carries exact unread counts and a snapshot covering every page.

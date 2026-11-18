@@ -10,10 +10,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,6 +40,53 @@ type nativeExtensionSource struct {
 	latestVersion string
 	downloads     map[string]*registrypkg.DownloadResult
 	download      func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error)
+}
+
+// Invariant: transient registry sources share only their owning service's upstream quota deadline.
+func TestExtensionMarketplaceSourceBackoff(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10))
+		http.Error(w, "rate limited", http.StatusForbidden)
+	}))
+	t.Cleanup(server.Close)
+	cfg := compozyconfig.ExtensionsConfig{}
+	cfg.Sources.GitHub.Enabled = true
+	cfg.Sources.GitHub.BaseURL = server.URL
+	service := &daemonExtensionService{extensionConfig: cfg}
+	for range 2 {
+		sources, err := service.marketplaceSourceLoader()(t.Context())
+		if err != nil || len(sources) != 1 {
+			t.Fatalf("sources = %v, %v", sources, err)
+		}
+		_, err = sources[0].Search(t.Context(), "plugin", registrypkg.SearchOpts{})
+		if err == nil || !strings.Contains(err.Error(), "retry after") {
+			t.Fatalf("quota error = %v", err)
+		}
+		if err := sources[0].Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("requests during backoff = %d", calls.Load())
+	}
+	other := &daemonExtensionService{extensionConfig: cfg}
+	sources, err := other.marketplaceSourceLoader()(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sources[0].Search(t.Context(), "plugin", registrypkg.SearchOpts{}); err == nil {
+		t.Fatal("missing quota failure")
+	}
+	if err := sources[0].Close(); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 2 {
+		t.Fatal("quota state leaked between service owners")
+	}
 }
 
 func TestNativeExtensionScopedActorContextShouldCarryProfileScope(t *testing.T) {
@@ -71,6 +122,14 @@ type nativeExtensionCatalog struct {
 	entry   *marketplacepkg.Entry
 	entries map[string]*marketplacepkg.Entry
 	err     error
+}
+
+func (c nativeExtensionCatalog) BrowseFiltered(
+	ctx context.Context,
+	filter marketplacepkg.BrowseFilter,
+	offset, limit int,
+) (marketplacepkg.BrowseResult, error) {
+	return c.Browse(ctx, filter.Query, offset, limit)
 }
 
 func (nativeExtensionCatalog) Close(context.Context) error { return nil }
@@ -167,6 +226,22 @@ func (s *nativeExtensionSource) Close() error {
 }
 
 func TestDaemonNativeExtensionTools(t *testing.T) {
+	// Invariant: extension access refusals keep their established public error code and truthful scope requirement.
+	// Owner: native extension errors; canonical suite: TestDaemonNativeExtensionTools.
+	t.Run("Should preserve the extension permission error code for reads and writes", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDExtensionsInventory, toolspkg.ToolIDExtensionsInstall} {
+			err := nativeExtensionToolError(id, taskpkg.ErrPermissionDenied)
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || toolErr.Code != toolspkg.ErrorCodeBackendFailed || !errors.Is(err, taskpkg.ErrPermissionDenied) ||
+				!strings.Contains(
+					toolErr.Message,
+					"extension access",
+				) || !strings.Contains(toolErr.Message, "operator") {
+				t.Fatalf("permission error = %#v, want compatible scope refusal", err)
+			}
+		}
+	})
 	// Invariant: global native reads retain the selected profile even without a workspace.
 	// Owner: native extension boundary. Canonical suite: TestDaemonNativeExtensionTools.
 	t.Run("Should forward named profiles for list info and provenance", func(t *testing.T) {
@@ -472,6 +547,59 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		if !ok || string(toolErr.Code) != diagnosticcontract.CodeExtensionAgentPluginNotManifest ||
 			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonExtensionValidationFailed) {
 			t.Fatalf("nativeExtensionToolError(portable) = %#v, want branchable portable code", err)
+		}
+	})
+
+	t.Run("Should install and enable through the native contract", func(t *testing.T) {
+		t.Parallel()
+		deps, extensions, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		fixture := writeNativeLocalExtensionFixture(t, "native-add", "1.0.0")
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(
+				fmt.Sprintf(`{"source":"local_path","ref":%q,"enable":true,"allow_unverified":true}`, fixture),
+			),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"enabled":true`))
+		persisted, err := extensions.Get("native-add")
+		if err != nil || !persisted.Enabled {
+			t.Fatalf("persisted=%#v err=%v", persisted, err)
+		}
+	})
+
+	t.Run("Should replace a local extension through the native contract", func(t *testing.T) {
+		t.Parallel()
+		deps, extensions, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		first := writeNativeLocalExtensionFixture(t, "native-replace", "1.0.0")
+		if _, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(fmt.Sprintf(
+				`{"source":"local_path","ref":%q,"allow_unverified":true}`, first,
+			)),
+		}); err != nil {
+			t.Fatalf("Registry.Call(extensions_install) error = %v", err)
+		}
+
+		second := writeNativeLocalExtensionFixture(t, "native-replace", "2.0.0")
+		if _, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(fmt.Sprintf(
+				`{"source":"local_path","ref":%q,"allow_unverified":true,"replace":true}`, second,
+			)),
+		}); err != nil {
+			t.Fatalf("Registry.Call(extensions_install replace) error = %v", err)
+		}
+		installed, err := extensions.Get("native-replace")
+		if err != nil {
+			t.Fatalf("extension registry Get(replace) error = %v", err)
+		}
+		if installed.Version != "2.0.0" {
+			t.Fatalf("replacement version = %q, want 2.0.0", installed.Version)
 		}
 	})
 
@@ -835,7 +963,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
-			Input:  json.RawMessage(`{"source":"curated","ref":"acme/tool-ext"}`),
+			Input:  json.RawMessage(`{"source":"curated","ref":"acme/tool-ext","result_view":"full"}`),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(curated extension install) error = %v", err)
@@ -1112,7 +1240,7 @@ func nativeExtensionTarGzWithGateway(
 	t.Helper()
 
 	integrationManifestSections := ""
-	runtimeCapabilities := `provides = ["memory.backend"]`
+	runtimeCapabilities := `provides = []`
 	runtimePermissions := `requires = ["sessions/list"]`
 	if strings.TrimSpace(permission) != "" {
 		runtimeCapabilities = "provides = []"
@@ -1195,7 +1323,7 @@ description = "Native local tool test extension"
 min_compozy_version = "0.5.0"
 
 [capabilities]
-provides = ["memory.backend"]
+provides = []
 
 [permissions]
 requires = ["sessions/list"]
@@ -1207,4 +1335,8 @@ requires = ["sessions/list"]
 		t.Fatalf("os.WriteFile(VERSION.txt) error = %v", err)
 	}
 	return dir
+}
+
+func (nativeExtensionCatalog) Sections(context.Context, string, int) (marketplacepkg.SectionsResult, error) {
+	return marketplacepkg.SectionsResult{}, errors.New("unexpected sections read")
 }

@@ -135,7 +135,7 @@ func newAgentHeartbeatSourcesCommand(deps commandDeps) *cobra.Command {
 func newHeartbeatScriptApprovalCommand(deps commandDeps, revoke bool) *cobra.Command {
 	verb := loopApproveKey
 	if revoke {
-		verb = "revoke"
+		verb = authorityRevokeAction
 	}
 	var yes bool
 	var hash string

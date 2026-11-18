@@ -1,4 +1,6 @@
 export const CHANGELOG_CUTOFF_TAG = "v0.3.0-beta.1";
+/** The last stable release before the cutoff: the first betas on the line branched off it. */
+export const CHANGELOG_BASE_TAG = "v0.2.15";
 export const CHANGELOG_REVALIDATE_SECONDS = 300;
 export const COMPOZY_REPOSITORY = {
   owner: "compozy",
@@ -22,12 +24,6 @@ export interface ChangelogHeading {
   level: number;
 }
 
-export interface ChangelogCategory {
-  id: string;
-  label: string;
-  itemCount: number;
-}
-
 export interface ChangelogRelease {
   version: string;
   name: string | null;
@@ -40,7 +36,6 @@ export interface ChangelogRelease {
   assets: ChangelogAsset[];
   sourceArchiveUrl: string;
   sourceZipUrl: string;
-  categories: ChangelogCategory[];
   headings: ChangelogHeading[];
   pullRequestNumbers: number[];
 }

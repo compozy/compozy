@@ -41,7 +41,8 @@ type exactRunClaimStore interface {
 }
 
 type workspaceAccessIntegrationPolicy struct {
-	requests []workspaceaccess.Request
+	requests          []workspaceaccess.Request
+	deniedWorkspaceID string
 }
 
 func (p *workspaceAccessIntegrationPolicy) Authorize(
@@ -50,8 +51,9 @@ func (p *workspaceAccessIntegrationPolicy) Authorize(
 ) (workspaceaccess.Decision, error) {
 	p.requests = append(p.requests, req)
 	return workspaceaccess.Decision{
-		Allowed: req.Actor.Kind == workspaceaccess.ActorAgentSession,
-		Source:  workspaceaccess.SourcePermissionMode,
+		Allowed: req.Actor.Kind == workspaceaccess.ActorAgentSession &&
+			(p.deniedWorkspaceID == "" || req.Target.WorkspaceID != p.deniedWorkspaceID),
+		Source: workspaceaccess.SourcePermissionMode,
 	}, nil
 }
 
@@ -2694,6 +2696,109 @@ func TestTaskManagerCatalogMatchesCanonicalDependencyStatusIntegration(t *testin
 
 func TestTaskManagerCatalogWorkspaceAccessIntegration(t *testing.T) {
 	t.Parallel()
+	// Invariant: catalog pages hide denied execution details while preserving canonical pagination and aggregates.
+	// Owner: task service over real SQLite; canonical suite: TestTaskManagerCatalogWorkspaceAccessIntegration.
+	t.Run("Should hide a denied execution workspace from public catalog pages", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTaskManagerGlobalDB(t)
+		privateID := registerTaskManagerWorkspace(t, db, "catalog-private-run", t.TempDir())
+		fixture := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(&integrationSessionExecutor{}))
+		operator, err := taskpkg.DeriveHumanActorContext("catalog-operator", taskpkg.OriginKindCLI, "task.list")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Other User task",
+		}, operator); err != nil {
+			t.Fatal(err)
+		}
+		record, err := fixture.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal,
+			Title: "User task with private execution", Priority: taskpkg.PriorityUrgent,
+		}, operator)
+		if err != nil {
+			t.Fatal(err)
+		}
+		run, err := fixture.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: record.ID}, operator)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.StartRun(ctx, run.ID, taskpkg.StartRun{}, operator); err != nil {
+			t.Fatal(err)
+		}
+		// Global tasks can retain runs bound to a project without changing their own scope.
+		if _, err := db.DB().
+			ExecContext(ctx, "UPDATE task_runs SET workspace_id = ? WHERE id = ?", privateID, run.ID); err != nil {
+			t.Fatal(err)
+		}
+		privateTask, err := fixture.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: privateID,
+			Title:       "Private blocker",
+		}, operator)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := fixture.AddDependency(ctx, taskpkg.AddDependency{
+			TaskID: record.ID, DependsOnTaskID: privateTask.ID, Kind: taskpkg.DependencyKindBlocks,
+		}, operator); err != nil {
+			t.Fatal(err)
+		}
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithWorkspaceAccessPolicy(
+			&workspaceAccessIntegrationPolicy{deniedWorkspaceID: privateID},
+		))
+		agent, err := taskpkg.DeriveUserSessionActorContextForOrigin(
+			"sess-user-catalog", store.DefaultProfileID, taskpkg.OriginKindAgentSession, "",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, scope := range []taskpkg.CatalogScope{taskpkg.CatalogScopeGlobal, taskpkg.CatalogScopeAll} {
+			t.Run("Should preserve counted pagination for "+string(scope), func(t *testing.T) {
+				query := taskpkg.CatalogQuery{
+					ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
+					Scope:         scope,
+					Sort:          taskpkg.CatalogSortPriority,
+					Limit:         1,
+					IncludeDrafts: true,
+				}
+				canonicalQuery := query
+				canonicalQuery.Scope = taskpkg.CatalogScopeGlobal
+				canonical, err := fixture.ListTaskCatalog(ctx, canonicalQuery, operator)
+				if err != nil || len(canonical.Tasks) != 1 || canonical.Tasks[0].ID != record.ID ||
+					canonical.Tasks[0].ActiveRun == nil || canonical.Tasks[0].CurrentRunID != run.ID {
+					t.Fatalf("ListTaskCatalog(operator) = %#v, %v, want the private run", canonical, err)
+				}
+				page, err := manager.ListTaskCatalog(ctx, query, agent)
+				if err != nil || len(page.Tasks) != 1 {
+					t.Fatalf("ListTaskCatalog(agent) = %#v, %v", page, err)
+				}
+				item := page.Tasks[0]
+				if item.ID != record.ID || item.ActiveRun != nil || item.CurrentRunID != "" {
+					t.Fatalf("catalog exposed denied execution: %#v", item)
+				}
+				if item.Status != taskpkg.TaskStatusInProgress || item.DependencyCount != 1 ||
+					!item.LastActivityAt.Equal(canonical.Tasks[0].LastActivityAt) {
+					t.Fatalf("catalog changed canonical task state or aggregate counts: %#v", item)
+				}
+				if page.Total != canonical.Total || page.Limit != canonical.Limit ||
+					page.HasMore != canonical.HasMore ||
+					page.NextCursor != canonical.NextCursor ||
+					!slices.Equal(page.StatusFacets, canonical.StatusFacets) ||
+					!slices.Equal(page.OwnerFacets, canonical.OwnerFacets) {
+					t.Fatalf("catalog metadata = %#v, want canonical metadata %#v", page, canonical)
+				}
+				query.Cursor = page.NextCursor
+				next, err := manager.ListTaskCatalog(ctx, query, agent)
+				if err != nil || len(next.Tasks) != 1 || next.Tasks[0].ID == record.ID || next.HasMore ||
+					next.Total != page.Total {
+					t.Fatalf("next catalog page = %#v, %v, want remaining User task", next, err)
+				}
+			})
+		}
+	})
 
 	ctx := t.Context()
 	db := openTaskManagerGlobalDB(t)

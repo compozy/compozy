@@ -72,3 +72,17 @@ func (h *BaseHandlers) respondExtensionEnablementError(c *gin.Context, err error
 	}
 	h.respondExtensionError(c, ExtensionStatusCode(err), err)
 }
+
+// ExtensionEnableFailure returns redacted install-time failure details using the caller masking policy.
+func ExtensionEnableFailure(err error, maskInternal bool) contract.ExtensionEnableError {
+	code := "extension_enable_failed"
+	if payload, ok := ExtensionAcquisitionErrorPayload(err); ok {
+		code = payload.Code
+	} else if ExtensionStatusCode(err) == http.StatusForbidden {
+		code = "manifest_permission_denied"
+	}
+	return contract.ExtensionEnableError{
+		Error: ErrorPayloadForStatus(ExtensionStatusCode(err), err, maskInternal).Error,
+		Code:  code,
+	}
+}

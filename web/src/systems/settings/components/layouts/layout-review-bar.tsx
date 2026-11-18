@@ -1,6 +1,7 @@
 import { Button, Pill, Spinner } from "@compozy/ui";
 
 import type { WindowManagerLayoutEditorModel } from "../../hooks/use-window-manager-layout-editor";
+import { layoutChangeSummary } from "../../lib/window-manager-layout-change-summary";
 
 interface LayoutReviewBarProps {
   editor: WindowManagerLayoutEditorModel;
@@ -9,9 +10,9 @@ interface LayoutReviewBarProps {
 type ReviewTone = "neutral" | "warning" | "success" | "destructive";
 
 /**
- * The gate between an edit and the workspace. It is docked inside the stage
- * rather than floating: the layout document and the global settings are two
- * different saves, and two overlapping floating bars is how the old page read.
+ * The gate between an edit and the workspace. It is docked inside the stage,
+ * not overlaid on the page: the layout document and the global settings are
+ * two different saves, and two overlapping save bars is how the old page read.
  *
  * Apply stays shut until the daemon has validated *this* draft — the review is
  * keyed by a fingerprint of the document, so a single keystroke afterwards
@@ -119,32 +120,12 @@ function describe(
         tone: "success",
       };
     }
-    return { message: `Checked · ${changeSummary(preview.changes)}`, tone: "success" };
+    return { message: `Checked · ${layoutChangeSummary(preview)}`, tone: "success" };
   }
   return {
     message: "Unreviewed edits · CompozyOS checks them before they apply",
     tone: "warning",
   };
-}
-
-function changeSummary(changes: {
-  desktopIds: string[];
-  groupIds: string[];
-  nodeIds: string[];
-  windowIds: string[];
-}): string {
-  const parts = [
-    plural(changes.desktopIds.length, "desktop"),
-    plural(changes.groupIds.length, "group"),
-    plural(changes.nodeIds.length, "branch"),
-    plural(changes.windowIds.length, "window"),
-  ].filter((part): part is string => part !== null);
-  return parts.length === 0 ? "nothing changes" : `changes ${parts.join(", ")}`;
-}
-
-function plural(count: number, noun: string): string | null {
-  if (count === 0) return null;
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function errorMessage(error: unknown): string | null {

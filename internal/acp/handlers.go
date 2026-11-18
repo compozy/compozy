@@ -66,9 +66,6 @@ type wireUsage struct {
 	ThoughtTokens     *int64 `json:"thoughtTokens,omitzero"`
 	CachedReadTokens  *int64 `json:"cachedReadTokens,omitzero"`
 	CachedWriteTokens *int64 `json:"cachedWriteTokens,omitzero"`
-	// compat(v0.4.0→v0.5.0, remove in v0.6.0)
-	LegacyCacheReadTokens  *int64 `json:"cacheReadTokens,omitzero"`
-	LegacyCacheWriteTokens *int64 `json:"cacheWriteTokens,omitzero"`
 }
 
 type wireUsageUpdate struct {
@@ -124,6 +121,8 @@ func (p *AgentProcess) handleInboundRequest(
 		return handleInboundRequest(ctx, params, p.handleWriteTextFile)
 	case acpsdk.ClientMethodSessionRequestPermission:
 		return handleInboundRequest(ctx, params, p.handleRequestPermission)
+	case acpsdk.ClientMethodElicitationCreate:
+		return p.handleCreateElicitation(ctx, params)
 	case acpsdk.ClientMethodTerminalCreate:
 		return handleInboundRequest(ctx, params, p.handleCreateTerminal)
 	case acpsdk.ClientMethodTerminalKill:
@@ -241,7 +240,7 @@ func (p *AgentProcess) resolvePermissionRequest(
 	if p.executionPolicy == ExecutionPolicyTriage {
 		return p.triagePermission(ctx, request)
 	}
-	turnID := p.activeTurnID()
+	turnID, turnSpan := p.activeTraceContext()
 	resource, title := permissionRequestDisplay(request)
 	sessionID := string(request.SessionId)
 	toolCallID := strings.TrimSpace(string(request.ToolCall.ToolCallId))
@@ -275,12 +274,15 @@ func (p *AgentProcess) resolvePermissionRequest(
 
 	digest := permissionRequestDigest(request)
 	denialEpoch := p.permissionDenials.Epoch()
-	if p.permissionDenials.Contains(digest) {
+	if denialActor, denied := p.permissionDenials.lookup(digest); denied {
 		slog.InfoContext(ctx, "permission.repeat_denied", "session_id", sessionID, "request_id", requestID)
 		outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
 		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
 		p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource,
 			appliedDecision, "repeat_denied", raw)
+		if cancellationActor == permissionActorSystem && denialActor == permissionActorTimeout {
+			return acpsdk.RequestPermissionResponse{Outcome: outcome}, ErrPermissionExpired
+		}
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	}
 	requestID, pending, err := p.registerPendingPermission(turnID, request)
@@ -289,23 +291,28 @@ func (p *AgentProcess) resolvePermissionRequest(
 	}
 	defer p.clearPendingPermission(requestID)
 	raw := buildPermissionEventRaw(requestID, decisionPending, request)
-	wait := p.permissionTimeoutOrDefault()
-	expiresAt := timeNowUTC().Add(wait)
+	expiresAt := pending.expiresAt
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, "", "", raw, expiresAt)
+	wait := max(time.Until(expiresAt), 0)
 
+	waitSpan := startPermissionWaitSpan(ctx, turnSpan)
 	decision, actor := p.awaitPendingPermission(ctx, pending, wait, cancellationActor)
 	outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
 	if appliedDecision == "" {
 		appliedDecision = decisionCanceled
 	}
+	endPermissionWaitSpan(waitSpan, appliedDecision)
 	if p.permissionExpiryCountsAsDenial(actor, decision) {
-		p.permissionDenials.Record(digest, denialEpoch)
+		p.permissionDenials.record(digest, denialEpoch, actor)
 	}
 	if cancellationActor == permissionActorProvider {
 		p.rememberHostedApproval(request, appliedDecision)
 	}
 	raw = buildPermissionEventRaw(requestID, appliedDecision, request)
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, actor, raw)
+	if cancellationActor == permissionActorSystem && actor == permissionActorTimeout {
+		return acpsdk.RequestPermissionResponse{Outcome: outcome}, ErrPermissionExpired
+	}
 	return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 }
 
@@ -323,12 +330,15 @@ func (p *AgentProcess) awaitPendingPermission(
 	case decision := <-pending.response:
 		return decision, pending.resolvedBy
 	case <-timer.C:
-		return p.expirePendingPermission(pending, decisionRejectOnce, "timeout")
+		return p.expirePendingPermission(pending, decisionRejectOnce, permissionActorTimeout)
 	case <-p.permissionConnectionDone():
-		return p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
+		return p.expirePendingPermission(pending, decisionCanceled, permissionActorSystem)
 	case <-ctx.Done():
+		if p.stopWasRequested() || p.permissionConnectionClosed() {
+			cancellationActor = permissionActorSystem
+		}
 		if cancellationActor == permissionActorSystem && errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
-			cancellationActor = "timeout"
+			cancellationActor = permissionActorTimeout
 		}
 		return p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
 	}

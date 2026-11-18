@@ -75,14 +75,14 @@ function ArgTag({ change }: { change: ProposedArgRow["change"] }) {
   }
   if (change === "added") {
     return (
-      <span className="inline-flex items-center gap-1 font-sans text-form-hint font-medium text-brand">
+      <span className="inline-flex items-center gap-1 font-sans text-form-hint font-medium text-brand-strong">
         <Pencil aria-hidden="true" className="size-2.5" />
         added
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 font-sans text-form-hint font-medium text-brand">
+    <span className="inline-flex items-center gap-1 font-sans text-form-hint font-medium text-brand-strong">
       <Pencil aria-hidden="true" className="size-2.5" />
       changed
     </span>

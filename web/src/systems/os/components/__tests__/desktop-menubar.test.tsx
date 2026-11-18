@@ -61,7 +61,6 @@ vi.mock("../../hooks/use-menubar-actions", () => ({
   useMenubarActions: () => ({
     menusVisible: false,
     canOpenApps: false,
-    windowCommands: {},
     openApp: vi.fn(),
     openUpdates: vi.fn(),
     newAgent: vi.fn(),

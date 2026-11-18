@@ -17,6 +17,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 const (
@@ -78,6 +79,13 @@ func (e *CallExecutor) resolveMCPStdioSpec(
 	server compozyconfig.MCPServer,
 	target mcpauth.Target,
 ) (mcpStdioSpec, error) {
+	server.Args = trimStrings(server.Args)
+	server, inputSecrets, err := server.RenderInputs(
+		func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
+	)
+	if err != nil {
+		return mcpStdioSpec{}, err
+	}
 	slot, err := target.Key()
 	if err != nil {
 		return mcpStdioSpec{}, fmt.Errorf("mcp: derive stdio target identity: %w", err)
@@ -89,10 +97,10 @@ func (e *CallExecutor) resolveMCPStdioSpec(
 	spec := mcpStdioSpec{
 		slot:    slot,
 		command: strings.TrimSpace(server.Command),
-		args:    trimStrings(server.Args),
+		args:    slices.Clone(server.Args),
 		env:     env,
 		dir:     strings.TrimSpace(server.CWD),
-		secrets: secrets,
+		secrets: append(secrets, inputSecrets...),
 	}
 	spec.digest = spec.identityDigest()
 	return spec, nil
@@ -181,7 +189,12 @@ func mcpStdioHomePrefix(targetKey string) string {
 }
 
 func mcpServerEnv(env map[string]string) []string {
-	merged := mcpStdioBaseEnv()
+	return mcpServerEnvWith(env, os.LookupEnv)
+}
+
+// mcpServerEnvWith builds the child environment from lookup, so tests need no process environment.
+func mcpServerEnvWith(env map[string]string, lookup func(string) (string, bool)) []string {
+	merged := mcpStdioBaseEnv(lookup)
 	for key, value := range env {
 		trimmedKey := strings.TrimSpace(key)
 		if trimmedKey == "" {
@@ -199,19 +212,17 @@ func mcpServerEnv(env map[string]string) []string {
 	return values
 }
 
-func mcpStdioBaseEnv() map[string]string {
-	keys := []string{
+func mcpStdioBaseEnv(lookup func(string) (string, bool)) map[string]string {
+	keys := append([]string{
 		"PATH",
 		"SystemRoot",
 		"WINDIR",
 		"COMSPEC",
 		"PATHEXT",
-		"SSL_CERT_FILE",
-		"SSL_CERT_DIR",
-	}
+	}, procutil.CATrustEnvKeys()...)
 	base := make(map[string]string, len(keys))
 	for _, key := range keys {
-		if value, ok := os.LookupEnv(key); ok {
+		if value, ok := lookup(key); ok {
 			base[key] = value
 		}
 	}

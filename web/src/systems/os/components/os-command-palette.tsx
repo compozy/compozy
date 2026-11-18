@@ -181,9 +181,11 @@ export function OsCommandPalette({
       className="top-[9vh] shell-wide:top-[16vh] sm:max-w-(--width-modal-sm)"
       description={
         activeView?.description ??
-        (root.destination
-          ? "Choose what to open in this tab"
-          : "Search apps, sessions, and actions")
+        (!root.destination
+          ? "Search apps, sessions, and actions"
+          : root.destinationWindowId === null
+            ? "Choose what to open on this desktop"
+            : "Choose what to open in this tab")
       }
       open={open}
       title={activeView?.title ?? (root.destination ? "Choose a destination" : "Command palette")}

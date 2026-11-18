@@ -70,6 +70,8 @@ type SessionMeta struct {
 	*SessionExecutionLocationState
 	// Absent in older documents: their persisted execution location remains unchanged.
 	WorktreeTransition *SessionWorktreeTransition `json:"worktree_transition,omitzero"`
+	// Completed move provenance gates cleanup after the open journal is deleted.
+	CompletedProfileMove *SessionProfileMove `json:"completed_profile_move,omitzero"`
 
 	SessionType            string          `json:"session_type,omitempty"`
 	Lineage                *SessionLineage `json:"lineage,omitzero"`

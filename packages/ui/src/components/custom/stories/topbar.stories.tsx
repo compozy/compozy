@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { LayoutDashboard, ListChecks } from "../../../icons";
+import { LayoutDashboard, ListChecks, PanelLeft } from "../../../icons";
 import { Button } from "../../button";
 import { ListingToolbar } from "../listing-toolbar";
 import { RouteNav } from "../route-nav";
@@ -56,6 +56,41 @@ export const LeadingContext: Story = {
         leading={<span className="text-body text-muted-foreground">checkout-api</span>}
         glyph={<LayoutDashboard />}
         title="Dashboard"
+      />
+    </TopbarSlotProvider>
+  ),
+};
+
+function StartControlSetup() {
+  useTopbarSlot({
+    start: (
+      <Button aria-label="Close sessions sidebar" aria-pressed size="icon-sm" variant="quiet">
+        <PanelLeft aria-hidden="true" className="size-4" />
+      </Button>
+    ),
+    status: <span className="text-xs text-subtle">Always-on</span>,
+    actions: (
+      <Button aria-label="Agent actions" size="icon-sm" variant="quiet">
+        <TopbarOverflowIcon className="size-4" />
+      </Button>
+    ),
+    actionsDivider: false,
+  });
+  return null;
+}
+
+/**
+ * T1c · Start control — a window-level panel toggle leads the head, before the host context;
+ * actions that read as one group with the status drop the hairline between them.
+ */
+export const StartControl: Story = {
+  args: {},
+  render: () => (
+    <TopbarSlotProvider>
+      <StartControlSetup />
+      <Topbar
+        leading={<span className="text-body text-muted-foreground">checkout-api</span>}
+        title="Release agent"
       />
     </TopbarSlotProvider>
   ),

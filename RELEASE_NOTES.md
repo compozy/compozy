@@ -1,3 +1,1851 @@
+## 0.7.5 - 2026-11-18
+
+### Bug Fixes
+
+- Make maestro dispatch monitors mandatory and checkable
+- Wake always-on mains when provenance children settle (#1786)
+- Retain MCP tools through refreshable OAuth expiry (#1789)
+- Archive executor children during post-merge cleanup
+- Resolve supported defaults for Cursor reasoning (#1793)
+- Archive every session bound to a merged worktree during cleanup
+- Prevent session window crash when the same image is pasted twice (#1805)
+- Normalize remote MCP tool names (#1806)
+- Enable Agent Plugin MCP sign-in and secret bindings (#1810)
+- Leave an emptied desktop without tabs instead of seeding a New Tab (#1804)
+- Restore daemon boot and session authority reads (#1811)
+
+### Performance Improvements
+
+- Stop shell-wide re-renders that pushed tab switches over budget (#1792)
+- Reduce steady-state daemon policy and MCP CPU (#1802)
+
+### Testing
+
+- Enforce deterministic tests with landmines lint rules (#1808)
+
+## 0.7.4 - 2026-11-17
+
+### Bug Fixes
+
+- Authorize session orchestration through workspace policy (#1782)
+- Resume spawned workers and idle mains after daemon restart (#1783)
+
+### Features
+
+- Redesign MCP connection popovers, panels and dialogs (#1773)
+
+## 0.7.3 - 2026-11-16
+
+### Bug Fixes
+
+- Show reload failures on the closed composer MCP control (#1759)
+- Exempt PR-covered issues from the intake watchdog
+- Load trusted MCP sidecars before daemon validation (#1768)
+- Pass CA trust variables to extension, MCP and hook subprocesses (#1764)
+- Settle CompozyOS Loop joins behind an untaken gate route and explain contract failures (#1763)
+- Escape only fence characters in check-in source items (#1767)
+- Honor runtime providers for read-only triage (#1771)
+
+### Performance Improvements
+
+- Reduce retained-window and dock work on tab switches (#1742)
+- Reduce hosted MCP projection and status read overhead (#1774)
+
+## 0.7.2 - 2026-11-15
+
+### Bug Fixes
+
+- Reuse profile scope without loop stream lookups (#1740)
+- Retain managed subprocess stdout after exit (#1748)
+- Preserve session authority and accepted lifecycle changes (#1745)
+- Preserve long Loop gate leases and clean owned processes (#1746)
+- Settle deleted subagent children and deliver parent wakes (#1744)
+- Make the composer MCP control an icon-only neutral last control (#1757)
+- Open Settings when runtime MCP servers have no env or headers (#1756)
+- Authenticate daemon GitHub requests and honor rate limits (#1751)
+
+### Performance Improvements
+
+- Stop per-string secret encoding and per-session MCP discovery (#1755)
+
+### Release Notes
+
+#### Fixes
+
+##### Reuse existing GitHub credentials and honor quota deadlines
+
+GitHub update checks, marketplace sources and extension discovery use `GITHUB_TOKEN` from the
+daemon environment, then the daemon user's `gh auth token` login for `https://api.github.com`,
+then anonymous access. Custom API origins never receive the CLI's github.com credential.
+Credentials require HTTPS, with existing local HTTP registries preserved on `127.0.0.1`, `::1`,
+or `localhost` at the exact configured origin and port, including publishing. Other HTTP GitHub
+API endpoints fail before sending a request and explain how to switch to HTTPS.
+
+Quota failures honor GitHub's retry deadlines, preserve the last good plugin catalog, and explain
+how to authenticate or retry. A new login takes effect after the retry deadline or a daemon restart.
+
+##### Reuse the current profile when opening Loop streams
+
+Loop run streams reuse the active or window-pinned profile without starting extra profile lookups when they open or close.
+
+##### Preserve session authority and finish accepted cleanup and layout changes
+
+Legacy sessions belonging to delegated always-on instances again retain their own tool and MCP
+server restrictions after upgrading. Corrected catalog permission intent also applies when a
+development build wrote stale intent markers into a session's metadata.
+
+Deleting stopped history whose metadata is missing now removes its event database and attachments,
+with the same owner checks and recoverable staging as normal deletion. Subagent cancellation finishes
+its accepted settlement after a client disconnects. Failed roster removal leaves a terminal row that
+can be deleted again even after its removal deadline expires. Archived cleanup bounds individual
+deletions, including lifecycle-lock admission, and stops cached child
+activity atomically. Raw session streams end on a replayed stop and fall back to polling after a failed
+gap read.
+
+Accepted layout replacements, migration actions, layout profile writes and client changes now survive
+client disconnection within a bounded lifetime. Workspace checks and revision/version conflicts still
+apply. Automation detail stays in its loading state while its window acquires live data, subagent
+pages avoid duplicate rows, and removing an inspected subagent elsewhere closes its drawer after
+confirmation for the current selection.
+`compozy daemon stop` recognizes recycled process IDs. Automation waits and batch worktree removal
+honor the configured client request budget.
+
+### Migration
+
+Migration 00204 appends a permission-intent correction; shipped 00202 and 00203 remain unchanged.
+Stored lists and ancestor ceilings are retained. The original second-resolution 00202 cutoff is
+preserved: rows in its ambiguous fractional second are not widened automatically. An affected user
+can explicitly re-grant tool or MCP access to that session. Malformed historical permission JSON still
+requires diagnosis rather than silently skipping shipped integrity failures.
+
+## 0.7.1 - 2026-11-15
+
+### Bug Fixes
+
+- Re-check a stale needs_login provider after a verified usage collection (#1697)
+- Cap reasoning effort levels to the model profile (#1704)
+- Stop reporting a deleted child session as working (#1693)
+- Keep the Archived and Later session list views when opening a session (#1707)
+- Show the session's agent avatar on session tabs (#1710)
+- Stop E2E leak checks from matching Vite asset hashes (#1714)
+- List unfoldered sessions beside folders in Archived and Later (#1718)
+- Stop counting deleted subagent children as working (#1711)
+- Open transcript terminals bound to their project and never trap their window (#1719)
+- Keep session paging below the last row in folder lists (#1731)
+- Bound automation initialization retries without orphan sessions (#1730)
+- Bound session query quiescence before deletion
+- Show active child sessions and subagents first in the session list
+- Retry an unconfirmed ACP reasoning effort before failing the bind (#1681)
+- Preserve concurrent ACP configuration confirmations
+- Resolve live User MCP policy without a project lookup
+- Let daemon boot with archived sessions missing from disk
+- Wait for the model catalog before rejecting a model pin (#1689)
+- Ignore redundant ACP mode notifications
+- Settle failed subagent delegations and reconcile orphans at boot (#1686)
+- Preserve parent wakes after recovery cancellation
+- Preserve the final ACP confirmation window
+- Stop the child session when a subagent is canceled (#1688)
+- Wait for daemon process exit before cleaning SSH homes (#1726)
+- Cancel descendants below terminal delegated sessions
+- Host the rail delete confirmation at the shell (#1703)
+- Preserve same-workspace instance permission intent
+- Finish subagent roster deletion after caller disconnects
+- Close the deleted subagent drawer after confirmation
+- Avoid authority warnings for canceled session reads
+- Complete subagent deletion test payloads
+- Format hosted protocol fixture
+- Target pending focus in window layout commands
+- Preserve native tools for provenance sessions
+- Retain live streams across reordered event publication
+- Prevent project configuration from granting MCP consent
+- Authorize extension replacement across attachment profiles
+- Retry automation startup failures before provider acceptance
+- Preserve session tool access when upgrading from v0.7.0
+- Settle empty subagent wakes after deleting results
+- Delete retained sessions with missing history files
+- Preserve released subagent CLI error exits
+- Narrow default spawn tools to parent authority
+- Keep session deletion within source conventions
+- Format subagent CLI compatibility coverage
+- Correct formatting in release fixes
+- Preserve stricter workspace tool policies
+- Retain valid lineage in deletion identity fixture
+- Retain legacy delegated instance permission ceilings
+- Prepare catalog executable before timed E2E journeys
+- Keep E2E lane preparation within function size limits
+- Preserve unknown agent errors for stale derive previews
+- Finish accepted layout changes after client disconnects
+
+### Features
+
+- Clean up archived session history in bulk (#1717) (#1721)
+- Make MCP servers and extensions usable in open CompozyOS sessions on the next message (#1725)
+- Make the client request budget configurable (#1687)
+- Delete delegated subagents from their row menu (#1705)
+- Replace an installed extension on install (#1692)
+
+### Performance Improvements
+
+- Remove idle shell subscriptions from tab switching (#1701)
+- Settle the retained-window live-data lease so tab switches stop rewiring apps (#1729)
+- Avoid forced layout in the Tasks toolbar
+
+### Refactoring
+
+- Load session dialogs through the public barrel
+
+### Testing
+
+- Assert Markdown Preview default in Files E2E-002 (#1699)
+- Cover automation startup discard policy per attempt
+- Cover CLI timeout rejection through the default loader
+- Compose MCP authority and consent in integration fixtures
+- Use typed external policy values in User resolver contract
+- Include deleted subagents in queued wake fixtures
+- Give hosted protocol scenarios one MCP client owner
+- Cover active subagents and settled branch paging
+- Settle MCP summary before derivation source fences
+- Align CLI timeout coverage with Go conventions
+- Complete MCP authority integration fixture wiring
+- Bind focus intent to the controller fixture
+- Capture peer convergence CPU profiles for release diagnosis
+- Isolate remaining MCP integration fixtures
+- Capture remaining switch CPU work in CI
+- Retain provider configuration and resumed MCP launches
+- Establish restored automation tab selection
+- Expose consent projection failures in CI
+- Persist daemon policy integration agents
+- Retain switch profiles from passing CI samples
+- Preserve hosted client cleanup and stopped session recovery
+- Isolate the closed bridge port probe
+- Remove temporary release CPU profiling
+- Subscribe the consent client to catalog changes
+- Profile remaining peer convergence work
+- Remove temporary peer convergence profiling
+- Format session upgrade regression coverage
+- Wrap upgrade migration fixture queries
+- Upgrade permission intent fixtures through the migration stream
+- Align peer convergence profiles with long tasks
+- Start peer profiling before convergence warmup
+- Reuse permission intent migration prefix fixture
+- Wait for persisted terminal approval decisions
+
+### Release Notes
+
+#### Features
+
+##### MCP servers and extensions work in open sessions from the next message
+
+Adding, enabling or signing in to an MCP server, or installing or enabling an extension, now makes
+its tools callable in the sessions you already have open, from your next message. You no longer stop,
+resume or fork a session to pick up a server, and forks, continued sessions and child sessions follow
+the current server set too. Removing, disabling or signing out withdraws the tools on the next call.
+When a runtime can't refresh its tool list by itself, CompozyOS reloads it once before your message,
+keeps the conversation, and records one quiet "MCP servers updated" line in the transcript. If the
+runtime can't start, the message is not sent and goes back to the composer; send it again to retry.
+
+Each session shows which servers it can use. The new **MCP** control in the composer, `compozy
+session mcp <id>` and the `compozy__session_mcp_list` native tool list every configured server with
+its state (Ready, Applies on your next message, Needs sign-in, Waiting for approval, Couldn't connect,
+Not available in this session) and the action that fixes it.
+
+**Runtime MCP servers.** Settings → MCP servers and Marketplace → MCPs now also list, read-only, the MCP
+servers each coding agent CLI loads from its own files (Claude Code, Codex, Gemini CLI, OpenCode, Kimi
+CLI, Qwen Code, GitHub Copilot CLI, Cursor Agent, Antigravity and Pi), grouped by runtime. CompozyOS
+only reads those files: it never edits them, runs the runtime, connects to the servers or reads a
+keychain. **Copy to CompozyOS** (`compozy mcp import <runtime>/<server>`) turns a runtime server into a
+CompozyOS server, storing its values as Vault secrets. The new `[providers.<id>] runtime_mcp = "off"`
+setting, also a switch in Settings, stops Claude Code, GitHub Copilot CLI or Qwen Code from loading
+their own servers in CompozyOS sessions, from each session's next message.
+
+New CLI verbs `compozy mcp list`, `compozy mcp allow`, `compozy mcp import` and `compozy session mcp`,
+native tools `compozy__mcp_list`, `compozy__mcp_allow`, `compozy__mcp_import` and
+`compozy__session_mcp_list`, and the matching HTTP/UDS routes are additive.
+
+## Migration notes
+
+- **Project MCP servers need approval.** A server declared in a project's files
+  (`.compozy/mcp.json`, the project's `config.toml`, `.compozy/profiles/<name>/…`, or an agent or skill
+  folder inside the project) now waits for your approval, bound to its exact definition, before any
+  session can call it. Allow it with **Allow** in Settings or the session's MCP control, or
+  `compozy mcp allow <server> --workspace <project>`. Editing the definition asks again. Servers you
+  add through CompozyOS, servers in your own `~/.compozy` files and servers of enabled extensions need
+  no approval.
+- **Unapproved project servers no longer start.** Before this release, CompozyOS could start an
+  unapproved project stdio server during tool discovery or a Settings status probe. A server waiting
+  for approval is now never started, connected to or signed in to.
+- **`external_default = "ask"` is stricter for project servers.** `tools.policy.external_default` keeps
+  its values and default, but now applies only to servers without your consent. With `ask`, an
+  unapproved project server used to be callable after a per-call prompt; it now waits for approval and
+  is never started. Servers with consent still prompt on each call under `ask`. `enabled` still admits
+  project servers without approval.
+- **`external_default = "disabled"` no longer blocks servers you set up yourself.** With `disabled`
+  (the default), only project servers waiting for approval stay blocked. Servers you add through
+  CompozyOS, servers in your own `~/.compozy` files, servers of enabled extensions and project servers
+  you allowed are now callable. If you relied on `disabled` to block every external MCP server,
+  disable or remove the servers you don't want sessions to use.
+- **Spawned sessions inherit the parent's MCP servers and tools by default.** A child session or
+  subagent spawned without an explicit MCP server or tool list now follows its parent's current
+  servers and tools instead of starting with none. It never gets more than its parent. To keep a child
+  narrower, name its MCP servers and tools when you spawn it.
+- **Session MCP limits are stored as intent.** Stored sessions and always-on instance ceilings are
+  upgraded in place by an automatic database migration that records whether each one follows the
+  current server set or keeps an explicit list. Nothing is lost, and archived sessions and stopped
+  instances are covered. Rows written by an older binary during a downgrade window are still read
+  correctly by a compatibility decoder in this release and the next one; that decoder is removed in
+  the release after next. Upgrade through this release (or the next) before skipping further ahead
+  with a database an older binary wrote to after this upgrade.
+- **Existing v0.7.0 sessions keep their access.** The corrective migration also covers databases that
+  already applied the initial intent backfill in a development build. Empty provenance policies and
+  older root budgets without materialization flags follow the current native, extension and MCP
+  catalog. Forks, continued sessions and recovery sessions refresh their native tools too. Spawned
+  and coordinator limits, explicit `allowed_tools` profiles, ancestor ceilings and lists authored
+  after the intent upgrade remain enforced. After upgrade, legacy descendants without a spawn
+  marker may gain access to additional tools and servers within their always-on instance's ceiling.
+  Delegated sessions never exceed their instance ceiling.
+- The public lineage `permission_policy.mcp_servers` now reports the session's effective server list.
+
+#### Fixes
+
+##### Automation backoff retries unaccepted provider startup failures
+
+`retry.strategy = "backoff"` again retries ACP startup, process-exit, handshake, and protocol
+failures before session acceptance, including a crash at spawn, package preparation failure, or
+`session/new` error. The existing retry count and delay apply, including to repeated typed startup
+configuration failures. A provider that already accepted the session is never started again by a
+startup retry. Cancellation, authentication failures, errors without an ACP startup classification
+(such as agent-definition validation), and cleanup that retains ownership stay terminal. Exhausted
+retries preserve the final failed session and diagnostics.
+
+##### Delete archived history whose session files are missing
+
+Archived sessions retained after their files disappear can now be deleted explicitly or through archived history cleanup. Cleanup reports a deletion only when the catalog entry was removed or confirmed already gone.
+
+##### Extension replacement respects profile ownership before publication
+
+An agent can replace a local extension only when every installation belongs to its workspace and
+its own profile or all profiles. An attachment in another profile requires operator authority.
+Replacement also resolves the selected installation before staging, so a denied or missing target
+never temporarily publishes candidate code to another installation.
+
+##### Keep layout changes when the page reloads
+
+Tab pins and other accepted layout changes now finish saving when the page reloads immediately after the change.
+
+##### Project configuration cannot grant MCP consent to itself
+
+Security change: workspace and workspace-profile configuration can only restrict inherited external
+tool policy. `tools.policy.external_default` keeps the stricter value (`disabled` before `ask` before
+`enabled`), and `trusted_sources` retains only entries already trusted by the preceding layer.
+Omitting the trust list inherits it; an empty list removes all trust. Attempted project grants are
+ignored with one warning per daemon process. Put intentional grants in user or personal profile
+config. Project files and existing explicit server approvals are preserved.
+
+##### Narrow inherited child tools to the parent agent's permissions
+
+Spawning a less restricted child agent with default inheritance now narrows any broader effective tool set to the parent's permissions. Explicit requests for tools outside the parent's permissions are still refused.
+
+##### Preserve subagent CLI error compatibility
+
+`compozy session subagents` list, show and cancel keep the v0.7.0 exit code 1 for daemon errors and print each error once, including when a workspace is selected explicitly.
+
+##### Keep subagent completion wakes flowing after deletion
+
+Deleting the only result in a queued subagent completion now cancels the empty wake completely, so later subagents can still wake their parent.
+
+## 0.7.0 - 2026-11-14
+
+### Bug Fixes
+
+- Download the recorded desktop release when the update feed is unreachable (#1643)
+- Keep continued child sessions in their parent's session tree (#1647)
+- Read the Claude Keychain login past a stale macOS credential file (#1648)
+- Promote synthetic wakes with live ACP defaults (#1650)
+- Count only closing PR references as issue-triage coverage
+- Repair the three web unit tests red on main after tabs and splits (#1672)
+- Reopen a window beside its former nested split branch (#1670)
+- Bound the composer terminal quote with inner scroll and collapse (#1684)
+- Acknowledge layout upgrade notices atomically and toast them once (#1671)
+- Make worktree removal responsive and recoverable (#1668)
+- Keep pane scroll positions across more tab and split moves (#1674)
+- Keep unsaved agent edits when a window command takes the editor away (#1676)
+- Resolve native tool supervision follow-ups (#1679)
+- Coalesce seam key repeat, admit tab-wide balance by fit, keep drags through own commands (#1675)
+- Settle the window-manager follow-ups from the tabs-and-splits delivery (#1677)
+- Keep one history entry per open-or-focus and carry the keyboard with own focus changes (#1678)
+
+### Features
+
+- Add a Move under parent picker for session organization (#1646)
+- Group CompozyOS menus into submenus with List and Kanban parity (#1652)
+- Replace floating windows with tabs and splits in the CompozyOS window manager (#1640)
+- **BREAKING:** replace floating windows with tabs and splits in the CompozyOS window manager (#1640)
+- Swap split windows from the Window menu, the palette, and shortcuts (#1673)
+- Preview Markdown, tables, HTML, notebooks, PDF and media in the CompozyOS Files viewer (#1694)
+
+### Performance Improvements
+
+- Reuse the session writer's transcript encode buffer across appends (#1634)
+- Read only triage rows in the periodic triage session sweep (#1636)
+- Reload skill watcher config only after its files change (#1627)
+- Share hosted MCP projection discovery across session streams (#1629)
+- Keep tab clicks outside drag geometry and isolate retained tabs (#1685)
+
+### Testing
+
+- Isolate the telemetry benchmark receiver process (#1639)
+- Assert exact agent terminal window identity in E2E and fix helper fallback (#1669)
+- Synchronize flaky runtime and browser assertions (#1662)
+- Drive the webhook Copy submenu from the keyboard (#1683)
+- Assert the unsaved guard dialog contract after Keep editing cancels a Discard (#1691)
+
+### Release Notes
+
+#### Breaking Changes
+
+##### Windows are now tabs and splits
+
+The CompozyOS window manager is now as simple as a browser. Each desktop has one tab bar, a tab holds one window or several windows split side by side, and a window only opens or closes. Floating windows, minimize, zoom, snapping and tabs inside a pane are gone, and with them the windows that could get hidden, overlap or end up off-screen.
+
+- **Tab bar.** Open, close, reorder, pin and reopen tabs the way you do in a browser. Tabs shrink to fit, then scroll with a list of the ones that do not fit. The bar is one keyboard stop: Left, Right, Home and End move between tabs. Right-click a tab for **Pin tab**, **Move left** / **Move right**, **Split with ▸**, **Arrange ▸**, **Move to desktop ▸** and the close set (**Close tab**, **Close other tabs**, **Close tabs to the right**, **Close tabs to the left**, **Close all tabs**), which skips pinned tabs.
+- **Splits by drag.** Drag a tab down onto a window and drop it on the side you want. Near the outer edge of the work area the drop covers the whole edge. Drag a window by its header to move it inside the tab, or hold Shift to swap two windows.
+- **Resize at the seams only.** Drag the line between two windows, or focus it and use the arrow keys; double-click it to make both sides equal. **Arrange ▸** offers **Main and stack**, **Columns**, **Grid** and **Balance sizes**.
+- **Move to new tab replaces maximize.** A window in a split has **Move to new tab** in its header and in the Window menu, or you can drag its header up onto the tab bar.
+- **Desktops.** The desktops overview lists each desktop's tabs, reorders desktops by drag, takes tabs dropped on a card and closes a desktop in place after you choose where its tabs go. The desktop dots in the top bar have a menu (**Rename**, **Move left**, **Move right**, **Close desktop**, **New desktop**) and accept a dragged tab. Moving a tab to another desktop leaves you on the desktop you are on. A desktop that holds only New tab placeholders counts as empty, so `compozy desktop delete` removes it without `--destination`.
+- **Each screen keeps its own active tab.** Two browsers or app windows on one workspace each have their own active tab, so switching tabs in one never moves the other.
+- **Settings › Layouts** edits a saved layout as desktops, their tabs and the splits inside each tab, and imports layouts saved by earlier versions.
+- **Agents and scripts** split, unsplit and move with `compozy window move` and `compozy__window_move` (new `--placement tab` and `--tab` / `target_tab_id`), reorder tabs with the new `compozy window reorder`, close with the new scopes `left` and `all`, balance a whole tab with `layout balance --tab`, and get the hook events `window_manager.tab.split`, `window_manager.tab.unsplit` and `window_manager.tab.activated`.
+
+## Migration notes
+
+**Your layout is converted once, on the first start of v0.7.0.** No window, route, navigation history or desktop is lost:
+
+- Tiled windows keep their splits and become tabs. Windows that shared one pane as tabs become adjacent tabs, with the active one in place.
+- Floating windows, floating tab groups and minimized windows become tabs after the tiled ones.
+- Windows snapped side by side become one split tab when they line up; otherwise each becomes its own tab.
+- A window that was zoomed onto its own desktop returns, as its own tab, to the desktop it came from.
+
+**What the upgrade discards:** the positions and sizes of floating windows, island frames, the minimized and zoomed state, the saved spot a minimized or zoomed window would have returned to, the grouping of several tabs inside one pane, the pin of a window that ends up inside a split (a pinned window that becomes its own tab stays pinned), the desktops that zoom created, and undo/redo history.
+
+The notification bell tells you what happened with **Your windows are now tabs** and the number of floating and minimized windows that became tabs, and a toast shows it once. Marking it read once clears it in every window. Agents and scripts read the same status with `compozy layout migration status` (or `migration` in `compozy layout get` and `compozy__layout_get`) and dismiss it with `compozy layout migration ack`.
+
+**If the conversion fails, nothing is lost.** CompozyOS keeps your previous layout exactly as it was stored, opens the workspace on a desktop with one New tab window so you can keep working, and shows **We could not move your layout to tabs** with **Retry** and **Dismiss** (dismissing keeps the saved copy). `compozy layout migration retry` runs the conversion again; it is refused when you changed the layout after the failure, and `--replace` replaces your current layout with the converted one. In the app the notice then offers **Replace current layout**, which asks you to confirm and does the same. The saved copy is kept until a retry succeeds. After a successful conversion the saved copy is removed when you first start v0.8.0. Earlier saved copies set aside by a later upgrade (see below) follow the conversion they belonged to: a copy from a successful conversion is also removed when you first start v0.8.0, and a copy from a failed conversion is kept until you delete its workspace or profile.
+
+**Saved layout profiles and extension layouts** are converted too. Saved profiles are rewritten to layout document version 6 at the first start. Layout documents of version 4 and 5 keep loading everywhere (`compozy layout apply`, `layout validate`, `layout-profile put`, extension `window_layouts`) for good; `compozy layout export` always writes version 6.
+
+**Do not downgrade to v0.6 after upgrading.** v0.6 cannot read a converted layout: it deletes it and opens the workspace on a default desktop, and it rejects saved profiles of version 6 as an unsupported version. The original v0.6 layout is still stored, but v0.6 does not restore it, and upgrading again converts whatever layout you used on v0.6 instead. Nothing stored is lost on the way back up, even when the first conversion failed: if the layout you used on v0.6 differs from the saved copy, the earlier copy is set aside, unchanged, in the same write that saves the new one, and the migration status counts the copies kept in `superseded_backups`. **Retry**, **Dismiss** and `compozy layout migration retry [--replace]` then act on the newest saved copy. If keeping the extra copy would exceed the workspace's storage quota, nothing is changed: every stored layout and copy stays as it was, that workspace's layout answers `window_manager_unavailable` with the diagnostic `snapshot_key_quota`, and CompozyOS keeps serving the other workspaces. If you must go back, export your layouts first with `compozy layout export`.
+
+A layout saved by a newer CompozyOS (layout version 7 or later) is left untouched and is not converted: that workspace's layout answers `window_manager_unavailable` until you run the newer version again. CompozyOS still starts, logs the skipped workspace (`window_manager.partition_reconciliation_skipped`), and serves every other workspace. The same holds for a layout whose upgrade was refused by the storage quota: it is retried on every load, changes nothing while the quota is exceeded, and answers `window_manager_unavailable` with the diagnostic `snapshot_key_quota`. Two cleanups that touch every stored layout clean every layout CompozyOS can use but cannot finish while a layout it cannot read or cannot write (either case) is stored: deleting a session succeeds and removes its windows from every usable layout, and the rest is retried in the background (logged as `session: retained deletion tombstone for window reconciliation retry`); removing a workspace deletes that workspace's own layouts first, whatever their state, then cleans every other usable layout and fails with an internal error (HTTP 500) naming the unusable layout of another workspace, and completes when you repeat it once that layout is usable again.
+
+**Retired surfaces keep working until v0.8.0** and say what to use instead where they are used. Retired commands, command IDs and command fields answer with a `deprecations` entry (`code`, `surface`, `replacement`, `removal_release: "v0.8.0"`, `message`) in the result, which the CLI prints as one `warning:` line on stderr. Retired `config.toml` keys warn once when the configuration loads, retired shortcut bindings are logged as deprecated and marked retired in Settings, and `compozy hooks list` warns about hooks on retired events. Settings API fields and result fields that are now always empty carry no warning in the response; the OpenAPI document marks them deprecated.
+
+| Retired                                                                                                                                                                                                                  | Until v0.8.0                                                                                     | Use instead                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `compozy window float`, `compozy__window_float`, command `window.toggle_floating`                                                                                                                                        | Does nothing                                                                                     | `window move --placement tab`                                                                              |
+| `compozy window zoom`, `compozy__window_zoom`, `window.zoom`                                                                                                                                                             | Does nothing                                                                                     | `window move --placement tab`                                                                              |
+| `compozy window resize`, `compozy__window_resize`, `window.resize`                                                                                                                                                       | Does nothing                                                                                     | `layout resize`                                                                                            |
+| `compozy layout frame-resize`, `compozy__layout_frame_resize`, `layout.frame_resize`                                                                                                                                     | Does nothing                                                                                     | `layout resize`                                                                                            |
+| `compozy window group`, `compozy__window_group`, `window.stack.group`                                                                                                                                                    | Each window becomes a tab after the target                                                       | `window move --placement tab`                                                                              |
+| Command IDs `window.stack.reorder`, `window.stack.set_active`                                                                                                                                                            | Aliases                                                                                          | `window.tab.reorder`, `window.tab.activate`                                                                |
+| `window open --floating`, `--rect`, `--restore` (`floating`, `floating_rect`, `restore_window_id`)                                                                                                                       | Opens a tab; ignored; activates that window's tab                                                | `window open`, `window activate`                                                                           |
+| `window close --minimize` (`minimize`)                                                                                                                                                                                   | Does nothing: the window stays open                                                              | `window close`                                                                                             |
+| `window move --placement floating`, `--rect`                                                                                                                                                                             | Treated as `--placement tab`; ignored                                                            | `window move --placement tab`                                                                              |
+| `layout arrange --arrangement stack`, `--frame`, `--group`, `--keep-frames`                                                                                                                                              | Adjacent tabs; ignored                                                                           | `layout arrange`                                                                                           |
+| `layout balance --group` (`group_id`)                                                                                                                                                                                    | Alias of `--tab`                                                                                 | `layout balance --tab`                                                                                     |
+| `window group --insert-index` (`insert_index`)                                                                                                                                                                           | Ignored, with no deprecation of its own: the command reports only its `window.stack.group` entry | `window move --placement tab` (the entry's replacement), then `window reorder --index` to position the tab |
+| `window.move` with an empty or missing `placement` over HTTP/UDS or `compozy__window_move`                                                                                                                               | Treated as `tab`, with the deprecation `window.move.placement=empty`                             | `"placement": "tab"`                                                                                       |
+| Palette command IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`, `layout.frame_resize`, `window.stack.group`                                    | Still invocable as no-ops (`applied: false` with a deprecation); no longer listed                | The live command for the action                                                                            |
+| Settings API `GET`/`PATCH /api/settings/window-manager` fields `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap`, `bindings`, and `new_window_policy: "floating"`                                      | Returned with fixed values; ignored on save                                                      | Omit them                                                                                                  |
+| `compozy__window_list` `include_minimized`                                                                                                                                                                               | Ignored: every window is listed                                                                  | —                                                                                                          |
+| `changes.group_ids`, `stack_grouped`, `stack_ungrouped`; client `stack_active`; `palette_context.window_floating`, `window_stacked`                                                                                      | Always empty or `false`; `window_stacked` mirrors `window_in_split`                              | `tab_ids`, `tab_split`, `tab_unsplit`, `active_tab`, `window_in_split`                                     |
+| Hook `window_manager.stack.activated`                                                                                                                                                                                    | Fires together with `tab.activated`                                                              | `window_manager.tab.activated`                                                                             |
+| `config.toml` `[window_manager]` `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap.*`, `bindings.top_center`, `bindings.bottom_center`                                                                  | Ignored with one warning                                                                         | Remove the key                                                                                             |
+| `new_window_policy = "floating"`                                                                                                                                                                                         | Loads as `"tab"` with a warning                                                                  | `"tab"` or `"beside_focus"`                                                                                |
+| Shortcut IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.tile.top-left`, `window.tile.top-right`, `window.tile.bottom-left`, `window.tile.bottom-right`, `window.merge_all`, `window.tab.detach` | Load and do nothing; Settings marks them retired                                                 | Remove the binding; `window.unsplit` replaces `window.tab.detach`                                          |
+
+`window.tile.left`, `right`, `top` and `bottom` now move the focused window to that edge of its tab. The new shortcuts `window.unsplit` (**Move to new tab**), `window.tab.move_left` and `window.tab.move_right` are unbound by default. `compozy window move` now defaults to `--placement tab` instead of `floating`. `compozy window swap` and `compozy__window_swap` swap two windows of the same tab; other pairs are rejected with `window_manager_invalid_command`.
+
+**Accepted breaks, with no compatibility window:**
+
+- Results that contain the layout have a new shape with no version 5 form, because version 5 cannot describe a tab bar of splits: the snapshot (`version: 6`, `desktops[].tabs[]` each with a split tree, `windows[].tab_id`), desktops, windows, layout documents and closed entries, wherever they are returned — HTTP/UDS snapshots and command results, the window-manager stream, `compozy__layout_get`, `compozy__desktop_list`, `compozy__window_list`, CLI JSON output and the generated SDK types. Client views report `active_tab` instead of `stack_active`. `compozy window list` shows `TAB`, `TAB INDEX`, `ACTIVE`, `PINNED` and `MEMBERS`, and its JSON rows carry `tab_id` and `tab_index` instead of `stack_id` and `member_order`.
+- The hook events `window_manager.stack.grouped` and `window_manager.stack.ungrouped` have no equivalent. Hooks that subscribe to them still load until v0.8.0, never fire, and `compozy hooks list` warns about them. Use `window_manager.tab.split` and `window_manager.tab.unsplit`.
+
+#### Features
+
+##### Choose a parent for a session from its menu or the command palette
+
+Nesting a session under another used to need a drag, or a submenu that listed only the sessions already loaded in the sidebar.
+
+- **Move under….** A session's row menu and right-click menu open a parent picker that searches the project's sessions by title or agent. Arrow keys and Enter choose the new parent, and the confirmation offers Undo.
+- **From the command palette.** With a session window focused, type `move` or `parent` and choose "Move under another session…" to open the same picker.
+- **Back to the top level.** On a nested session, the picker offers Make top-level, as the row menu does.
+- **Continued and forked sessions stay put.** Their picker explains that they stay linked to the session they came from instead of listing parents. The daemon's refusal now says the same.
+
+##### Swap two windows of a split from the Window menu, the palette, or a shortcut
+
+Two windows of a split could trade places only by dragging one header onto the other with Shift held.
+
+- **Window › Swap.** With a window in a split focused, **Swap ▸** lists **Left**, **Right**, **Up** and **Down** for each side that has a neighbour. The focused window trades places with that neighbour and keeps focus.
+- **From the command palette.** Type `swap` and choose **Swap left**, **Swap right**, **Swap up** or **Swap down**. A side with no window does nothing; swaps never wrap around.
+- **Your own shortcut.** The four commands (`window.swap.left`, `.right`, `.up`, `.down`) ship unbound. Assign a chord in Settings › Shortcuts. Existing shortcut settings load unchanged.
+- **One undo step.** Layout undo puts both windows back.
+
+#### Fixes
+
+##### Claude usage reads the macOS Keychain login past a stale credential file
+
+On macOS, an expired, malformed or unscoped `.credentials.json` left in Claude Code's
+config directory no longer reports Claude usage as signed out while Claude Code is
+logged in through the Keychain. With Keychain access allowed, CompozyOS reads the
+Keychain login through its existing silent, cached path; without consent it asks for
+Keychain access instead of asking you to log in again. A usable credential file still
+takes precedence and never triggers a Keychain read. Linux and Windows are unchanged.
+
+Migration notes: no action needed. Existing consent settings and credential stores
+are preserved.
+
+##### Large terminal quotes in the composer stay a bounded size
+
+Sending a large terminal selection to a conversation no longer fills the screen. The quote in the composer has a bounded height with its own scroll, keeps the terminal's line breaks and spacing, and can be collapsed with its chevron; quotes longer than 12 lines start collapsed. The composer input and controls stay visible on desktop and phone-width windows.
+
+Migration notes: no action needed.
+
+##### Continued child sessions stay under their parent in the session list
+
+Continuing a child session no longer moves the new session to the top of the session list. When an orchestrator continues a worker, for example after a daemon restart stopped it, the continuation now appears in the orchestrator's thread next to the session it continues. This also holds when a session is continued more than once. Continuations of top-level sessions and forks still show as top-level sessions, and the continued session still names its source as "Continued from".
+
+Only placement in the list changes. Permissions, lifecycle and child counts work as before: a continuation is not counted as one of the parent's children and does not stop when the parent stops. Session list and detail reads now include `tree_parent_session_id`, the parent a continuation is listed under. Sessions continued before this release move under their parent the next time the list loads; no migration is needed.
+
+##### Desktop app updates download on networks that block the update feed
+
+When the desktop app cannot reach its update feed, it now downloads the release the daemon already selected straight from the GitHub release and verifies it against the release's signed checksum. A failed update now says which network error stopped the download, such as `net::ERR_CONNECTION_CLOSED`, instead of "The app update could not be installed."
+
+Migration notes: the fix ships in the updater itself. If updating from 0.6.0, 0.6.1, or 0.6.2 keeps failing with a connection error, download this release once from the GitHub release page and install it manually; later updates use the fallback automatically.
+
+##### Hosted MCP sessions share tool discovery
+
+CompozyOS reuses MCP tool discovery across open sessions with the same provider listing scope during each refresh window, reducing repeated discovery and descriptor processing. Sessions retain their own tool permissions and availability checks, and separate workspaces and profiles keep separate listings. Catalog changes retain the existing refresh bound.
+
+##### The layout upgrade notice reads atomically and toasts once
+
+Marking the "Your windows are now tabs" bell notice read now records every listed
+upgrade together before updating the stored layouts, so a failure no longer leaves
+the bell partly read; if updating a stored layout fails, the next bell read
+finishes it. Upgrades over several projects
+show one toast naming them instead of one identical toast each, and an upgrade that
+was already announced does not toast again after a reload.
+
+Migration notes: no action needed.
+
+##### Native tool supervision follow-ups
+
+Native tools and subagent supervision handle several edge cases more reliably. One failed native-result row no longer stops other replay work. A failed MCP discovery attempt is retried by peers instead of being shared as a complete tool list, while healthy tools stay available. Monitors on child sessions no longer depend on whether you viewed the child. Scheduler and harness heartbeat wakes use the agent's current heartbeat policy. A native approval that expires is reported as `approval_timed_out` with guidance to ask again, instead of looking like an explicit rejection.
+
+Migration notes: no action needed.
+
+##### Panes keep their scroll position across more tab and split moves
+
+Moving a window between tabs and splits keeps your place more reliably. A session
+transcript returns to the same text after a tab switch or a width change and no longer
+drifts forward once shown; a turn that started while its tab was hidden is shown when you
+come back. Lists such as the Files tree keep their offset after a tab drag into a split,
+a list beside a detail keeps its offset after a later move, and a list that an in-window
+navigation sends to the top right after a tab switch stays at the top. Moving a shown
+window into a new tab with `compozy window move --placement tab` keeps its pane open
+instead of reloading it.
+
+Migration notes: no action needed.
+
+##### Reopening a window closed beside a nested split restores the whole branch
+
+Reopen closed tab (⌘⇧T) now brings back a window that was closed beside a nested split in its
+original slot and share: with A on the left and B over C on the right, closing and reopening A
+returns it as the left column beside the B/C branch instead of squeezing it next to B. When the
+branch's windows no longer sit together, the window returns beside its former neighbor as before.
+
+Migration notes: no action needed. Windows closed before this release reopen with the previous
+single-neighbor behavior.
+
+##### Responsive worktree removal with batch previews
+
+Registered worktrees now leave the active checkout path before a paced background worker deletes their files. Large dependency trees no longer hold the repository lock throughout file deletion. Cleanup pauses during CPU pressure, resumes leftovers on startup and falls back to synchronous removal when staging cannot rename the checkout.
+
+The worktree removal CLI, native tool and HTTP/UDS API accept batches with per-target outcomes and a `dry_run` risk preview. Existing single-target request and response shapes are preserved. Failed fenced reads restore the original record, and repeating removal reconciles abandoned `removing` records without restarting the daemon.
+
+Migration notes: no action needed. Background cleanup may retain staged bytes under the managed worktrees root until CPU pressure subsides.
+
+Collection rediscovers profile-specific roots after restart and only empties CompozyOS-owned trash. Existing trash folders stay untouched, submodule checkouts retain Git's synchronous safety checks, and CLI batch timeouts scale with the number of targets.
+
+Interrupted staging now restores verified checkout bytes before retrying safety checks. Failed restores keep the removal fence and preserve staged changes across retries and daemon recovery.
+
+After staged safety checks succeed, CompozyOS durably records removal approval before clearing Git registration. Recovery uses that approval to finish an interrupted state write without restoring a broken checkout. External Git pruning alone never authorizes deletion of refused staged changes.
+
+Configured worktrees roots reached through directory symlinks support staged removal, recovery and clean rollback without stranding the checkout. Literal percent signs and Unicode directory names remain unchanged when resolving those roots.
+
+##### Seam resizing stops with the key and Balance sizes never collapses a split
+
+Holding an arrow key on a split seam against a slow daemon no longer keeps resizing after the key is released: the steps that wait behind a resize in flight on that seam are sent as one resize. Balance sizes for a whole tab (tab menu, Window › Arrange, command palette) now applies the same fit check as double-clicking a seam: it evens only the splits that can be evened together without showing a split one window at a time. A balance or move made by the same window during a seam drag re-bases the drag instead of cancelling it, the seam's limit state appears with the frame that reaches the clamp, and queued seam input deadlines use a monotonic clock.
+
+Migration notes: no action needed.
+
+##### Idle skill watcher polls use less CPU
+
+CompozyOS reuses workspace and profile skill settings while their configuration files stay unchanged, reducing idle daemon CPU use with many workspaces. Configuration edits, including file creation and deletion, still take effect on the next skill watcher poll.
+
+Migration notes: no action needed.
+
+##### Synthetic wakes reach long turns with provider defaults
+
+CompozyOS promotes queued session replies, monitor wakes, and child completion wakes into long-running turns even when the provider adds ACP defaults to the live runtime. Inputs with an explicit different runtime still wait for their own turn, and debug logs identify runtime-mismatch skips without exposing runtime values.
+
+Migration notes: no action needed.
+
+##### Lower memory allocation while streaming long agent turns
+
+CompozyOS reuses each session writer's transcript encoding buffer, reducing allocation pressure while long, tool-heavy agent turns stream. Transcript contents and write durability stay unchanged, and oversized buffers are released after both successful and failed encodes.
+
+##### Lower background session maintenance overhead
+
+CompozyOS now reads only triage sessions during periodic triage cleanup, reducing background CPU and metadata-cache pressure for large session histories. Deleted session metadata is evicted without waiting for a full session listing, including when a metadata read overlaps deletion. Archive and retention behavior stays unchanged.
+
+##### Agent editors ask before a window command discards unsaved edits
+
+Unsaved edits in the agent editors (Instructions, Heartbeat, Memory, the authored SOUL and HEARTBEAT files, Permissions and the Tools panel) are no longer lost when the window manager takes the editor away. Closing the window or tab with Cmd+W, a close from the menu, or a bulk close now asks first; a bulk close asks once for every affected window. Navigation started from outside the window, such as `compozy window navigate` or a project switch, keeps the draft in memory instead: the editor shows it as unsaved when you return, and saving it goes through the usual conflict check.
+
+Migration notes: no action needed.
+
+##### Back returns to the previous window, and the keyboard follows your focus
+
+Opening or focusing a window from the dock, the palette or a menu now adds exactly one browser history entry, so one Back returns to the window you came from. Before, dock **Files** could overwrite the previous entry and Back stayed on Files.
+
+When you move focus yourself (directional focus, next or previous tab, **Focus last window**, the dock, the palette, a menu, Back or Forward), the keyboard now moves into the window you focused: to the field you last typed in there, or to the window itself. Focus sent from the CLI or another client still moves only the focused window and leaves the keyboard where you are typing.
+
+After a daemon restart, an open browser or desktop client comes back on the desktop it was showing, with the same window focused, if both still exist.
+
+Migration notes: no action needed.
+
+##### Window manager follow-ups for tabs and splits
+
+Several rough edges left after tabs and splits are fixed:
+
+- Editing a shortcut at project scope now saves only what differs from the inherited settings, so later user-level changes still reach that project. Existing project files load the same values; the next project save drops copies equal to the inherited value.
+- Agent and extension rows in the command palette update without a reload, and a disabled extension shows "disabled" instead of a health word.
+- A terminal window that hit the per-project terminal limit opens a terminal as soon as a slot frees up. Dismissing the limit dialog shows the empty state with its open control.
+- Removing a project whose window layout can't be read answers `503 window_manager_unavailable` with the project and ID to retry, instead of a generic 500. Retrying `compozy workspace remove` finishes the removal.
+- `compozy hooks list` shows a user-level hook once instead of once per registered project. JSON output is unchanged.
+- The tab context menu groups its commands the same way as the other CompozyOS menus.
+
+Migration notes: no action needed.
+
+## 0.6.2 - 2026-11-13
+
+### Bug Fixes
+
+- Recover orphaned automation runs and expose cancellation (#1613)
+- Stop dropping mid-pass message promotions and race-scale flaky Go test waits (#1615)
+- Restore v0.6.0 config upgrades and make daemon boot and restart bounded (#1621)
+- Bound filtered logs stream polls by the ledger head (#1625)
+
+### Features
+
+- Optional OpenTelemetry trace and metric export (#1552)
+- Make the update button prominent with an animated brand border (#1623)
+
+### Performance Improvements
+
+- Read a session's instance binding by key instead of a catalog list (#1632)
+
+### Testing
+
+- Wait for obsolete attention wake settlement
+
+### Release Notes
+
+#### Features
+
+##### Export daemon traces and metrics with OpenTelemetry
+
+CompozyOS can now export daemon traces and metrics to an OpenTelemetry collector over OTLP HTTP or gRPC. Export is off by default. Operators enable it through the global `observability.otel.*` settings, store authentication in environment or vault-backed header refs, and check export health with `compozy status`. Exported values are sanitized, and collector failures never fail a session turn. The repository includes a local Grafana, Tempo, Loki and Prometheus stack under `infra/observability/`.
+
+Migration notes: provider processes no longer inherit `OTEL_*` or `TRACEPARENT` from the daemon environment, including when daemon export is off. If you previously used that inheritance for independent provider telemetry, move those variables into the agent's `session_env`. Alternatively, enable daemon export and `observability.otel.forward_to_providers` to share its collector settings. Existing local observability keeps working; the status API gains an optional `otel` object.
+
+##### A more visible update button
+
+When a new CompozyOS version is available, the Update button in the top bar now has an animated border in the brand gradient, so updates are easier to notice. The animation stops while the update installs, and the border stays static when reduced motion is on.
+
+#### Fixes
+
+##### Automation jobs recover after a restart
+
+Automation jobs blocked as `self_overlap` by an orphaned run after a restart now recover automatically, preserving their run history and recording why the old run failed. Use `compozy automation runs cancel <run-id>` to cancel a stuck run whose session is missing or stopped. Live executions must be stopped through their owning session, Loop or Task first.
+
+##### The desktop boot window names a config file error
+
+When CompozyOS cannot load your `config.toml`, the desktop boot window now says so. It used to report that the daemon was "listening but unhealthy", retry five times, and end on a generic start failure, even when the running daemon was healthy. It now stops at once, names the file and the settings it does not recognize or the line of invalid TOML, and adds **Open config file** next to **Try again** and **Open logs**.
+
+Migration notes: no action needed.
+
+##### Restarts are faster and no longer look like a hang
+
+Restarting CompozyOS, from the desktop app, `compozy daemon relaunch` or an update, used to take longer the more sessions you had ever created, and could stall for a minute or more with no sign of progress.
+
+- **The app opens sooner.** The daemon serves your sessions, transcripts and status as soon as it is listening, then resumes interrupted sessions in the background, several at a time. The boot window names the step in progress, and sessions that are still coming back show as resuming.
+- **Startup cost follows what changed.** Sessions that have not changed since the last start are no longer reopened, repaired and re-indexed on every boot.
+- **Shutdown is bounded.** A restart no longer waits up to 30 seconds for turns that are saved and resumed anyway, no new provider process starts once shutdown begins, the database is always checkpointed, and the process is guaranteed to exit.
+- **A bad update no longer leaves you without a daemon.** Before the running daemon stops, the replacement is checked against your config and pending database migrations. If it cannot start, the running daemon stays up and the restart reports why.
+- **Interrupted sessions continue on their own more often.** A leftover infrastructure error from an earlier start, such as a tool connection timeout, no longer pauses a session with "restart continuation requires operator input". Real agent failures still wait for you.
+- **An interrupted upgrade no longer blocks startup.** A session database that already had the `reported_cost_amount` column without its migration recorded now finishes that migration instead of failing with `duplicate column name`.
+
+The desktop app also waits for a restart or update that is already running instead of failing with "runtime mutation in progress", and no longer gives up on a daemon that is still starting after 45 seconds.
+
+Migration notes: no action needed. `compozy daemon status` and `daemon.json` gain a readiness phase (`starting`, `serving`, `ready`, `stopping`); `status: running` still means fully ready, so existing scripts keep working.
+
+##### Idle filtered log streams use less daemon CPU
+
+Keeping the desktop or web app open no longer makes a quiet, filtered log stream rescan retained event history every second. Live streams start at the physical ledger head and advance past events that do not match their filters, while full pages and reconnect cursors continue draining without skipping delayed events. No migration or operator action is required.
+
+##### Always-on agents recover after the provider backend changes
+
+An always-on agent no longer gets stuck when its provider account or backend changes, for example after you switch Codex `model_provider`. Before, the provider refused to reopen the agent's saved thread ("This chat uses openai, but your current provider is ..."), CompozyOS retried on every wake, the main session filled with identical load failures, and the agent's queue stopped draining.
+
+CompozyOS now recognizes that refusal as permanent. On the next wake it starts a new provider thread under the same session, replays the stored transcript into it, and shows one notice that the provider backend changed. The session, its transcript, queued inputs and agent memory are kept, and the queue drains again. Ordinary sessions recover the same way. Other load failures still retry the saved thread.
+
+For a main session that cannot resume for any other reason, `compozy agent instance clear-main <agent-or-instance-id>` and the operator-only `compozy__agent_instance_clear_main` tool start it over with a fresh conversation. They keep the instance, the session ID, queued inputs and agent memory, and discard the main's conversation.
+
+Migration notes: no action needed.
+
+##### Messages sent during a long turn are no longer delayed
+
+A message from another session that arrived while a long-running turn was already checking its queue could wait for the next supervisor tick before being delivered. Those requests are now merged into the pass that is running, so the message reaches the agent right away.
+
+##### CompozyOS starts again with settings v0.6.0 still accepted
+
+Updating to v0.6.1 could leave the desktop app on "CompozyOS could not start". v0.6.1 treated several settings as errors that v0.6.0 still accepted, and the only way out was to edit files by hand.
+
+CompozyOS now starts with those settings present and handles each one for you:
+
+- **`permissions.provider_full_access` in `config.toml`.** The key stopped doing anything in v0.6.0. CompozyOS removes that line, changes nothing else, and keeps the original next to the file as `config.toml.retired-keys.bak`.
+- **Retired memory and compaction settings in `config.toml`.** `[memory]`, the Dream, checkpoint summary, memory extractor and memory controller roles, `[session.compaction]`, `memory.consolidated` automation triggers and the `compaction_reason` / `compaction_strategy` hook matchers move to a commented block at the end of the same file. The values are kept and no longer apply.
+- **The earlier always-on agent settings.** A config table or an `AGENT.md` that still uses the kind name from before v0.5.1 is updated to `always_on` in place.
+- **`compaction_reason` and `compaction_strategy` in `AGENT.md` hooks.** The two keys are ignored and the file is left as it is.
+
+This covers the global, profile and workspace files, including a workspace config you pull after updating. If a file cannot be rewritten, for example in a read-only folder, CompozyOS ignores the retired settings, starts anyway, and tries again on the next start.
+
+An installed extension whose packaged resources no longer load is now skipped with a warning in the log. Your other extensions and CompozyOS itself start normally.
+
+Migration notes: no action needed. `permissions.mode` still selects the provider access level, and `compaction_trigger` replaces the two retired hook matchers. CompozyOS stops accepting these settings in v0.7.0, so let it rewrite your files, or update the ones it could not rewrite, before then.
+
+##### Session status uses less CPU and memory
+
+CompozyOS now reads only the instance binding it needs when checking a session's status, reducing repeated database work and memory allocations in busy daemons with large session catalogs. Session status and access rules stay the same.
+
+## 0.6.1 - 2026-11-12
+
+### Bug Fixes
+
+- Point the Atlassian extension at the v2 MCP endpoint (#1551)
+- Keep issue triage running when a gh search flag is rejected
+- Encode triage search queries and define retryable gh errors
+- Make issue intake failures reach maestro
+- Preserve requested reasoning during Goal rotation (#1555)
+- Align Loop ACP provenance with applied options (#1554)
+- Keep daemon booting with undefined disabled providers (#1556)
+- Isolate native tool state and enrich retired task results (#1558)
+- Honor recurring catch-up policies after host sleep (#1569)
+- Keep loaded transcript messages stable when a live entry rolls pages (#1571)
+- Retire stale terminal windows and open agent terminals on demand (#1570)
+- Keep skill documents inline without duplicate result content (#1575)
+- Recover heartbeat cadence after runtime configuration repairs (#1584)
+- Preserve exact Claude models during session recovery (#1560)
+- Watch explicitly selected fork pull requests (#1578)
+- Resolve current heartbeat policy for manual wakes (#1579)
+- Reconcile Goal ACP provenance and prove cleanup delivery (#1574)
+- Retire pre-view Loop pin translation in v0.6.1 (#1590)
+- Resume agent instances after daemon listeners start (#1591)
+- Accept check-in proposals with surrounding prose (#1589)
+- Keep UDS and HTTP harness lifecycle parity with standing context (#1594)
+- Reconnect the window-manager stream after a client-side failure (#1583)
+- Keep unusable SQLite controls from rejecting compliant heads (#1592)
+- Allow terminal exec to target managed worktrees (#1585)
+- Group native recovery reads and expose reply watches (#1576)
+- Avoid duplicate and stale child early-stop wakes (#1586)
+- Validate heartbeat health requests and synchronize daemon boot (#1582)
+- Return admitted automation runs before agent completion (#1587)
+- Retry terminal attach attempts that stall before ATTACHED (#1609)
+- Preserve exact Claude models on fresh startup (#1610)
+- Prevent child reply and attention wake starvation (#1604)
+- Keep boot window progress, attempts and versions accurate across retries
+
+### Features
+
+- Add bundled interface fonts, text size and letter spacing to CompozyOS Appearance (#1550)
+- Reveal model names and page the provider filter rail (#1536)
+- Bind operator rules and peer roster into always-on agent context (#1572)
+- Fold worktrees under projects in the terminal picker (#1599)
+- Redesign the desktop boot window with real upgrade progress (#1600)
+
+### Miscellaneous Tasks
+
+- Route workspace heartbeat triage to claude-haiku-5-5
+
+### Refactoring
+
+- Remove compatibility shims expired in v0.6.1 (#1593)
+- Split the desktop boot draft and address its review notes
+
+### Testing
+
+- Cover the composer context toggle and pin process fixture identities (#1577)
+- Expect the boot window font-src CSP in E2E-034
+
+### Release Notes
+
+#### Fixes
+
+##### Agent terminals no longer leave stale windows behind
+
+Terminals that agents open now stay in the **Terminal** list until you open one, instead of opening a desktop window each time. Before, every agent terminal created a window that outlived the process, so desktops filled with windows that restored as "This terminal isn't here" and the Terminal dock item could show a terminal as open when none was running.
+
+When an agent's terminal exits, or any terminal is cleaned up, its windows close on every desktop, and Undo or Reopen cannot bring them back. Terminal windows left over from before a daemon restart are removed at startup. Terminal output history and recordings are kept.
+
+Migration notes: no action needed. Open an agent's terminal from the Terminal list or from the link in the transcript.
+
+##### The daemon starts faster with always-on agents running
+
+Restarting CompozyOS with active always-on agents no longer stalls startup. Before, each agent's main session resumed before the daemon was listening, so its CompozyOS tools waited out a connection deadline and failed before a retry, adding that delay per agent before the desktop app was ready. Always-on agents now resume once the daemon is accepting connections, and connect on the first attempt.
+
+`compozy app status` also no longer rejects the desktop app's state while it is still starting.
+
+Migration notes: no action needed.
+
+##### Always-on check-ins and heartbeats recover on their own
+
+Several problems that could leave an always-on agent's check-ins stuck are fixed:
+
+- A check-in reply that wraps its proposal in a sentence or two of commentary is accepted. Before, any text around the JSON rejected the reply, and repeated rejections could pause the agent. A reply with more than one candidate is still rejected, and the failure report now names the reason.
+- After you fix the triage model or runtime configuration that made a check-in fail, the agent schedules its next check within its normal cadence instead of waiting up to a day. Its status explains the earlier failure and that you can run a check now.
+- A manual heartbeat wake uses the `HEARTBEAT.md` currently on disk, the same policy status shows. Before, a file edited in the repository could look active in status while a wake returned `heartbeat_no_policy`.
+- A heartbeat status request that asks for session health without a session ID is rejected as invalid input instead of returning `session_not_found`.
+
+Migration notes: no action needed.
+
+##### The Atlassian extension uses Atlassian's v2 MCP endpoint
+
+The Atlassian extension 1.0.1 connects to `https://mcp.atlassian.com/v2/mcp`, the endpoint Atlassian recommends. On some sites, Jira, Confluence and Rovo Search calls through the old endpoint failed with `401 Unauthorized; scope does not match` even after a successful sign-in.
+
+Migration notes: update the Atlassian extension to 1.0.1 from the Marketplace and sign in again when prompted.
+
+##### Supervising child sessions sends one accurate wake
+
+A parent session that watches a child with a session monitor now gets one wake when the child stops early, from that monitor. Before, it could also get a second early-stop wake that assumed the child should have opened a pull request and could arrive after the child had already moved on. The early-stop wake now asks the parent to review the child's answer, and is dropped if the child has started a newer turn.
+
+Compact session records from native tools now include pending reply watches, so a parent can see what it is waiting on without requesting the full record.
+
+A Claude subagent's answer is no longer lost or marked failed when the provider reuses its call ID in a later turn, and a background subagent's late summary is kept after its turn finishes.
+
+Migration notes: no action needed.
+
+##### Child replies reach a busy parent session during its turn
+
+A parent session busy with a long turn now receives replies and needs-attention wakes from its child sessions during that turn. Before, monitor wakes were delivered while child replies and attention wakes waited until the turn ended. Each reply keeps its own identity, and a needs-attention wake is dropped when the child has moved on or a session monitor already covers that state. When a pending permission or question changes, the parent gets a fresh wake, so the current state is never lost.
+
+A child that answers a follow-up from the session that created it is no longer flagged as stopped before delivering just because it opened no pull request.
+
+Migration notes: no action needed.
+
+##### New Claude sessions start on the exact model you selected
+
+A new Claude session started with a full model ID such as `claude-opus-5-5` could fail at startup when Claude's model list offered only older IDs or aliases, while the same model worked on another attempt. New sessions, including input-only sessions, now register the selected model the same way resumed sessions already did, so they start on that exact model. If Claude refuses or ignores the model, the session fails once with an error that names the provider and the model. It never switches to an alias or an older model.
+
+Migration notes: no action needed.
+
+##### Claude sessions recover with their exact model after you sign in again
+
+A Claude session pinned to a full model ID such as `claude-opus-5-5` now resumes on that model after a sign-in recovery. Before, a reloaded session could see only a stale or offline model list that left out the pinned model, so recovery failed with a model error even after you signed back in and **Usage** showed the account as healthy.
+
+CompozyOS now checks Claude's local sign-in state before it selects a model, keeps the session's exact model through the reload, and reports the real cause when recovery still fails: a missing sign-in, a model the provider refuses, or the last replacement error. A parent watching a child that is waiting for you to sign in is now told so, instead of being told the child is waiting for permission.
+
+Migration notes: no action needed.
+
+##### The daemon starts when a disabled provider has no definition
+
+A profile with `[providers.<id>] enabled = false` for a provider that has no built-in or configured definition no longer stops the daemon from starting. Disabled providers are no longer validated until you enable them, and provider usage skips a provider it cannot resolve and logs a warning instead of failing for every provider. An enabled provider, or the default provider, must still be fully defined.
+
+Migration notes: no action needed.
+
+##### Pull request monitors can watch fork pull requests
+
+A `pull_request` monitor can now watch a pull request opened from a fork. Pass the branch as `owner:branch`, for example `alice:fix-login`. Before, the monitor registered but never saw the pull request, because only branches in the base repository were matched. A plain branch name still selects a branch in the base repository, and a malformed `owner:branch` value is rejected when you create the monitor.
+
+A canceled monitor also no longer reports its cancellation time as `fired_at`.
+
+Migration notes: no action needed.
+
+##### Loop and Goal runs keep the runtime you asked for
+
+Loop and Goal status now shows the correct source for each applied Agent Client Protocol (ACP) option, the settings CompozyOS sends to the agent when it starts: options added by the agent definition show `agent`, and options the provider could not apply no longer list a source. Before, the report could leave an agent-added option without a source or keep one for an option that was skipped.
+
+A Goal that rotates to a fresh session after its context fills now asks for the reasoning level you requested, including the provider default. Before, it could ask for the level the provider had reported, which failed the Goal's runtime check and stopped recovery.
+
+Migration notes: no action needed.
+
+##### Triggering a job returns its run right away
+
+`compozy automation jobs trigger <id>` now returns as soon as the job's agent accepts the
+prompt, with the run id and `running` status, and exits 0. The run keeps going in the daemon,
+which still owns retries, the final result and session cleanup. Before, the command waited for
+the whole agent turn, so a turn longer than 30 seconds made the CLI report a request timeout
+while the run kept going, and you never got its run id.
+
+The HTTP/UDS trigger route and the `compozy__automation_jobs_trigger` native tool return the
+running run the same way.
+
+## Migration notes
+
+A successful trigger now confirms that the run started, not that it finished. Scripts that
+treated it as completion must ask to wait or follow the returned run id:
+
+- CLI: `compozy automation jobs trigger <id> --wait --timeout 5m -o json`
+- HTTP/UDS: `POST /api/automation/jobs/{id}/trigger?wait=true&timeout=5m`
+- Native tool: `{"job_id":"<id>","wait":true,"timeout":"5m"}`
+
+The wait defaults to one minute and accepts any positive duration up to 24 hours. If the run
+finishes in time, you get its final result; a run that fails within the wait returns its error
+and exits nonzero, as before. If the wait runs out, you get the running run and the CLI still
+exits 0; the run is not canceled, and you can read its outcome later by run id. Invalid input,
+errors before the run starts, and daemon or connection errors still exit nonzero. A timeout
+without wait is rejected (`--timeout` requires `--wait`).
+
+Task and Loop targets return their delegated receipts immediately, as before, even with
+`--wait`. Extension host trigger calls still wait for completion. The `wait` and `timeout`
+inputs are additive: no route, command, tool id, response field or stored data is removed or
+renamed, and a retried manual run keeps its run id.
+
+##### Compatibility shims scheduled for v0.6.1 are removed
+
+v0.6.0 was the last release that migrated or silently ignored the retired declarations below
+(#1518). v0.6.1 removes those compatibility shims (#1593). Most old declarations now fail the
+normal validation for their file instead of being migrated or ignored, and CompozyOS no longer
+rewrites them. The table notes the exceptions. Current declarations behave as before.
+
+## Migration notes
+
+**Upgrade through v0.6.0 first** if you skipped it. Start v0.6.0 once with every user, profile,
+workspace and workspace-profile configuration in place so it migrates old files, resolve any
+deferred-migration warning, and remove anything below that is still left over before you
+upgrade; v0.6.1 refuses to load configuration that still contains it. Existing archived comments, SQL migration history, memory files, transcripts and
+retained extension registrations are not deleted.
+
+| Removed in v0.6.1                                                                                                                                                                                                                                                                                                                                                              | Use instead                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The agent kind renamed to always-on in v0.5.1, in a persisted `AGENT.md` `kind`, decoded and rewritten on load                                                                                                                                                                                                                                                                 | `kind: always_on`. Files v0.6.0 could not rewrite (read-only, or shipped in an extension) must be edited at their source; extension authors publish a new version.                        |
+| `config.toml` agent tables under that renamed kind, migrated on load                                                                                                                                                                                                                                                                                                           | `[agents.always_on]`                                                                                                                                                                      |
+| Archiving retired memory and compaction settings from `config.toml` on start: `[memory]` and its sub-tables, `[roles.dream]`, `[roles.checkpoint_summary]`, `[roles.memory_extractor]`, `[roles.memory_controller]`, `[session.compaction]`, `[[automation.triggers]]` with `event = "memory.consolidated"`, and hook matcher keys `compaction_reason` / `compaction_strategy` | Delete them. They now fail configuration validation.                                                                                                                                      |
+| Ignoring the hook matcher keys `compaction_reason` and `compaction_strategy` in `config.toml` hooks, extension manifest hooks, `AGENT.md` and `SKILL.md`                                                                                                                                                                                                                       | `compaction_trigger` in config, extension or skill hooks. `AGENT.md` hooks cannot target context events.                                                                                  |
+| Dropping `memory.backend` from an extension manifest's `capabilities.provides`, and `memory/recall`, `memory/store`, `memory/forget`, `memory.read` and `memory.write` from its `permissions.requires`                                                                                                                                                                         | Remove them from the extension source and publish a new version. Installed packages are never edited.                                                                                     |
+| Skipping extension automation resources triggered by `memory.consolidated`                                                                                                                                                                                                                                                                                                     | Remove the resource.                                                                                                                                                                      |
+| Ignoring `memory_policy` in `SOUL.md`                                                                                                                                                                                                                                                                                                                                          | Delete the field. It now gets the normal unsupported-field diagnostic.                                                                                                                    |
+| Dropping retired memory tool IDs and the `compozy__memory` / `compozy__memory_admin` toolsets from agent, profile and session tool policies                                                                                                                                                                                                                                    | Remove them. Retired toolsets fail catalog validation. Exact retired `compozy__memory_*` IDs are still accepted but match no tool, and an explicit allow-list stays restricted.           |
+| The `permissions.provider_full_access` key, a no-op with a warning in v0.6.0                                                                                                                                                                                                                                                                                                   | `permissions.mode` (`approve-all` for **Full access**). The old key is now unknown.                                                                                                       |
+| Agent Client Protocol (ACP) usage aliases `cacheReadTokens` / `cacheWriteTokens`                                                                                                                                                                                                                                                                                               | ACP adapters must send `cachedReadTokens` / `cachedWriteTokens`. The aliases are no longer counted toward cache usage; nothing fails.                                                     |
+| Automatic transfer of bundled `dev-cycle` extension state to `spec-cycle`                                                                                                                                                                                                                                                                                                      | Re-enter its inputs and credentials on `spec-cycle`, then run the removal command `compozy doctor` suggests for each `dev-cycle` installation. The old state stays in place until you do. |
+| Treating a launch that a stop canceled before v0.4.8 as canceled instead of failed when you take over the session, so it could resume                                                                                                                                                                                                                                          | Take over those sessions while still on v0.6.0. Normal session recovery is unchanged.                                                                                                     |
+
+Marketplace source management (`compozy marketplace sources`) is still experimental. Only the
+expired "through v0.6.0" date was removed from its help text. The full upgrade steps are in the
+migration guide.
+
+##### Loop tool pins use only their selected result view
+
+v0.6.1 removes the one-release compatibility translation for Loop tool pins created before native
+tool result views shipped in v0.6.0 (#1432). Tool actions compare their pinned input and selected
+output contract directly with the live tool. The automatic full-result fallback, pre-view input
+digest translation, and table translating superseded output-schema digests have been removed.
+
+## Migration notes
+
+Unfinished Loop runs started before v0.6.0 can no longer resume actions using pre-view tool pins.
+The next affected action fails with `ActionContractStale` (`action_contract_stale`). Start a new
+run from the existing definition with `compozy loop run --name <name>` to pin current tool contracts.
+Resuming the old run does not refresh its pins. Review definitions that read full-only fields
+and add literal `result_view: full` to those nodes before starting the replacement run.
+
+Definitions, completed runs, and their history are preserved. Runs started with current per-view
+pins continue to use their selected contract, including after a daemon restart. No database,
+configuration, CLI, HTTP/UDS, native tool ID, or hook shape changes in this removal.
+
+##### Scheduled jobs follow their catch-up policy after your computer sleeps
+
+When your computer sleeps through several runs of a recurring job, the job now follows its `catch_up_policy` when your computer wakes up. Before, a daemon that kept running through the sleep replayed every missed run regardless of policy. `coalesce` and `run_once_on_catchup` run once for the latest missed time, `replay` runs each missed time in order, and `skip_missed` checks the earliest missed run against the grace period: outside it, the backlog is recorded as one skipped run; within it, the latest missed time runs once. The job keeps its original schedule afterwards.
+
+Migration notes: no action needed.
+
+##### Reading a skill reference returns it once
+
+`compozy__skill_view` now returns a skill document once, in the result's structured content, with a short summary as display text. Before, it returned the full document twice, so a large reference could exceed the result size budget and come back as an artifact to page through instead of inline text. Clients that read only text still receive the complete document.
+
+`compozy__tool_artifact_read` now returns 32 KiB pages by default so each page fits comfortably in one response. You can still request up to 64 KiB per page.
+
+Migration notes: no action needed.
+
+##### Long transcripts stay steady when a turn starts
+
+In a long session, the transcript no longer flickers or stutters when the first tool call of a turn appears. Before, once a session held more than a page of history, each new entry made the app treat the whole loaded transcript as changed and redraw every message. Messages that did not change now keep their place and are not redrawn.
+
+Migration notes: no action needed.
+
+##### Terminal windows no longer hang on "Connecting…"
+
+A **Terminal** window in the Web UI could stay on "Connecting…" forever, with no prompt and no error, most often with the daemon in WSL2 and the browser on Windows. Each connection attempt now has a 10-second deadline. A stalled attempt is retried automatically and the window shows "Reconnecting…". After three stalled attempts in a row, the window says it couldn't connect to the terminal and offers **Reconnect**.
+
+Migration notes: no action needed.
+
+##### Terminal commands can run in a managed worktree
+
+`compozy__terminal_exec` now accepts a managed worktree by ID or name, the same way opening a terminal does. Use the native tool's `worktree` input, the HTTP/UDS request field, or `compozy terminal exec --worktree <id-or-name>`. Before, a session not bound to a worktree could open a terminal there but could not run a command in it: exec rejected the checkout as `invalid_cwd`.
+
+Relative working directories resolve inside the selected worktree, and the worktree cannot be removed while the command is still running.
+
+Migration notes: no action needed.
+
+##### Window layout saving recovers without a reload
+
+If the app hit an error while syncing the window layout, it now reconnects on its own. Before, the menubar kept showing "Can't save window layout — retrying" with no detail, every dock item stayed disabled, and window commands did nothing until you reloaded the app. The message now shows the underlying error, the app reconnects with increasing delays, and the dock works again as soon as the layout syncs.
+
+Migration notes: no action needed.
+
+## 0.6.0 - 2026-11-11
+
+### Bug Fixes
+
+- Publish User-scope instance reports, notifications and event summaries (#1410)
+- Preserve pre-permission assistant prose ordering (#1397)
+- Honor the runtime confirmed when continuing a session (#1417)
+- Order lifecycle attention baselines with permission publication (#1426)
+- Align continuation preflight and advanced default semantics (#1430)
+- Keep a reload from restoring All profiles after leaving it (#1443)
+- Retain canonical attention baselines through dismissal and shutdown (#1429)
+- Stop re-sending static prompt context and count provider costs per turn (#1437)
+- Publish committed dismissal when status lookup fails (#1446)
+- Refuse monitors that cannot resume Claude native subagents (#1450)
+- Settle native parent turns independently of attention badges (#1449)
+- Explain hosted terminal calls without an active run (#1452)
+- Clarify instance list capacity and missing target errors (#1454)
+- Preserve actionable skill catalog resolution failures (#1453)
+- Preserve newer native tracking during turn cancellation (#1458)
+- Stop pinning the embedded tailscale node to the default-route device (#1459)
+- Align batch session actions and bound parallel execution (#1469)
+- Cap open child-session lists at six with Show more (#1476)
+- Run providers unrestricted under Full access (#1477)
+- Bound session family traversal and refresh SQLite statistics (#1466)
+- Recover provider sessions after signing in again (#1483)
+- Keep file tree and diff path names readable on deep paths (#1482)
+- Bound native history and catalog reads (#1484)
+- Lead the session head with the list toggle and make the composer context control a toggle (#1490)
+- Retain persisted turn identity in native call tracking (#1496)
+- Show resumed Claude subagents as running (#1499)
+- Share one session batch lock and show progress on every running target (#1498)
+- List profile-only providers and mark a session's disabled provider (#1503)
+- Return compact records from native tools by default (#1515)
+- **BREAKING:** return compact records from native tools by default (#1515)
+- Keep daemon startup and instance pause available when a report fails to publish (#1492)
+- Reclaim oversized telemetry WAL allocation (#1501)
+- Preserve startup Stop ownership and Loop runtime provenance (#1500)
+- Restore main CI after the v0.6.0 release merges (#1527)
+- Start full access sessions without an advertised mode option (#1525)
+- Refresh hosted MCP catalogs and reduce native schema boot overhead (#1537)
+
+### Features
+
+- Seed a realistic always-on team in the demo seed (#1415)
+- Let operators disable providers they don't use (#1372)
+- Adopt the v1.2 brand identity, add the brand manual and redesign compozy.com (#1408)
+- Answer provider interactive questions through ACP elicitation (#1478)
+- Group the session list by project by default (#1488)
+
+### Performance Improvements
+
+- Stop unchanged workspace-catalog polls from re-rendering the shell (#1457)
+
+### Testing
+
+- Isolate migration-tail timeout from fixture admission (#1423)
+- Cover permission dispatch with a full event channel (#1427)
+- Assert pending permission blocker on dismissal retry (#1455)
+- Serve every agent-editors request so MSW never opens a real socket (#1456)
+- Strengthen routing, file reveal and automation page coverage (#1495)
+- Finish followed sessions before daemon teardown (#1497)
+
+### Release Notes
+
+#### Features
+
+##### The session list groups by project by default
+
+Under **All projects**, the session list and the board now group sessions by project out of the box. Before, a fresh install showed one flat list that mixed every project's sessions, and most people switched **View options → Group by** to **Project** by hand. A list that shows one project stays flat, as before.
+
+Migration notes: no action needed, and nothing in `config.toml` is rewritten. Only an unset `shell.sessions.group_by` changes, from `none` to `project`; this includes configs that still carry the deprecated `shell.sessions.scope` without `group_by`. A stored `group_by = "none"` keeps the flat list, and a window where you already picked a grouping keeps its choice. To go back to the flat list everywhere, run `compozy config set shell.sessions.group_by none`.
+
+#### Fixes
+
+##### Long child-session lists show six and a Show more
+
+An expanded session in the list shows at most six child sessions, followed by **Show more**, matching the subagents list. A child that is selected, open or needs you stays visible even past the cap.
+
+Migration notes: no action needed.
+
+##### The session list loads faster on large databases
+
+Reading a session's family of related sessions no longer falls back to a slow query plan on databases that have never been analyzed, which made the session list and board noticeably slower and kept the daemon busy. CompozyOS now refreshes SQLite's statistics during routine maintenance and pins the traversal to the parent index, so these reads stay fast as the database grows.
+
+Migration notes: no action needed.
+
+##### Full access runs the provider unrestricted
+
+**Full access** (`approve-all`) now runs the provider at its unrestricted level, the level you picked. New Codex sessions start in `agent-full-access`, Claude Code in `bypassPermissions`, Google Antigravity in `yolo`, and GitHub Copilot CLI with `allow_all = on`. Before, Codex under Full access still started in its own Auto review mode unless `permissions.provider_full_access = true` was also set, a key the Settings app never showed. Codex then stopped work such as `git push` or `gh issue create` and asked you to approve each one.
+
+**Auto-review** (`auto`) is unchanged and still selects the provider's reviewer mode. An agent that chooses its own narrower provider mode keeps it, and a session started at a narrower level never inherits the unrestricted mode.
+
+Migration notes: this widens what Codex and Copilot sessions can do when they run at Full access, which is the default level. Unrestricted provider commands run with your user's access inside the CompozyOS workspace and operating-system boundaries. To keep the provider's reviewer, set **Settings → General → Permissions** to **Auto-review**, or set `permissions.mode = "auto"` or an agent's `permissions: auto`. The new mode applies when a session starts or resumes. `permissions.provider_full_access` is deprecated and has no effect: CompozyOS still loads it in v0.6.0 and logs a warning naming `permissions.mode`. Remove it from `config.toml`; v0.6.1 deletes the key and rejects it as unknown.
+
+##### Native tools return compact records by default
+
+99 native tools now return a compact record by default. Pass `result_view: "full"` for
+the complete record. The other 189 tools return a single result and reject the selector.
+Identity, follow-up handles, failures, stop reasons, pending interactions and pagination
+remain in compact. Requested content is never trimmed to meet a size target.
+
+## Migration notes
+
+This is the operator-approved hard cut in #1432. There is no global default override.
+HTTP/UDS session responses and `compozy session` output keep their shape.
+
+- Agent prompt: instruct the agent to pass `result_view: "full"` on calls reading moved fields.
+- Loop node: add literal `result_view: full` to `params`. Validation reports
+  `result_view_field_requires_full` with the source node and path; templates fail with
+  `result_view_not_literal`. Review edits cannot change the selected view.
+- Hook: when `has_result_views` is true and `pinned_result_view` is absent, patch
+  `tool_input` in `tool.pre_call` to include `result_view: "full"`. The agent receives
+  full too. Overriding a Loop pin fails with `tool_denied` / `result_view_pinned`.
+  `tool.post_call.result_view` reports the returned view.
+- Managed-session MCP client: send `"result_view":"full"` in call `arguments`.
+  MCP clients no longer receive `outputSchema` for any native tool. Read contracts with
+  `compozy__tool_info`, CLI tool info or HTTP/UDS descriptors (`output_views`).
+  `structuredContent`, serialized text, continuation envelopes and typed errors are unchanged.
+  `compozy mcp serve` has a separate `compozy_host__*` Host API projection without views.
+- CLI script: put `"result_view":"full"` in `compozy tool invoke --input`.
+
+Discover both schemas and digests through `compozy__tool_info` or `compozy tool info`.
+`output_schema` remains the compact contract. Invalid or non-string selectors, and a
+selector on a single-result native tool, fail with `tool_invalid_input` (or the tool's
+existing `invalid_request`) / `schema_invalid`, before execution. Extension and MCP
+sidecar tools retain their own input semantics.
+
+### Defaults that changed
+
+The following inventory names every tool with a changed default and the fields moved to full.
+The full result preserves the previous complete record.
+For open historical full schemas, inspect a real full result to discover undeclared fields.
+
+`compozy__session_archive`, `compozy__session_continue`, `compozy__session_create`,
+`compozy__session_describe`, `compozy__session_fork`, `compozy__session_later`,
+`compozy__session_list`, `compozy__session_mark_seen`, `compozy__session_move_to_profile`,
+`compozy__session_rename`, `compozy__session_reparent`, `compozy__session_resume_later`,
+`compozy__session_rewind`, `compozy__session_runtime_clear`, `compozy__session_runtime_set`,
+`compozy__session_status`, `compozy__session_unarchive`, `compozy__session_worktree_bind`,
+`compozy__session_worktree_unbind`:
+
+Shared record (under `session`, `sessions[]` or `original`): `activity`, `attach_expires_at`,
+`attachable`, `attached_to`, `attention_changed_at`, `available_commands`, `busy_input`,
+`derivation`, `diagnostics`, `effective_permissions`, `effective_workspace_access`, `escalated`,
+`folder_id`, `health`, `instance_id`, `linked_work`, `monitor_summary`, `parent_title`,
+`process_summary`, `profile_archived`, `profile_color`, `profile_emoji`, `profile_icon`,
+`profile_name`, `pull_request_lookup`, `reply_watches`, `returned_from_later_at`, `scope`,
+`supervision`, `verified`, `working_dir`, `workspace_path`, `worktree_binding`, `runtime.acp_caps`,
+`runtime.acp_session_id`, `runtime.last_known`, `runtime.recovery`, `runtime.requested`,
+`runtime.selected`, `runtime.transition`, `lineage.auto_stop_on_parent`, `lineage.notify_creator`,
+`lineage.origin_agent_name`, `lineage.origin_message_id`, `lineage.permission_policy`,
+`lineage.spawn_depth`, `lineage.spawn_role`. Optional fields move only when the full record carries
+them. `session_list` retains `sessions[].folder_id` and `sessions[].health`.
+
+`compozy__agent_create`:
+
+`agent.acp_options`, `agent.appearance`, `agent.auto_compact_window`, `agent.command`,
+`agent.deny_tools`, `agent.display_name`, `agent.effective_runtime.acp_options`,
+`agent.effective_runtime.auto_compact_window`, `agent.effective_runtime.lean_environment`,
+`agent.effective_runtime.policy_excluded_acp_options`, `agent.effective_runtime.session_env`,
+`agent.effective_runtime.session_env_status`, `agent.effective_runtime.sources`,
+`agent.fallback_chain`, `agent.lean_environment`, `agent.mcp_servers`, `agent.model`,
+`agent.permission_rules`, `agent.permissions`, `agent.prompt`, `agent.provider`,
+`agent.reasoning_effort`, `agent.resolved_appearance`, `agent.session_approval`,
+`agent.session_env`, `agent.shadows`, `agent.skills`, `agent.speed`, `agent.tools`,
+`agent.toolsets`, `agent.workspace_access`
+
+`compozy__agent_heartbeat_sources`:
+
+`kinds[].params_schema`, `scripts[].approved_sha256`, `scripts[].last_modified`, `scripts[].line_count`, `scripts[].path`, `scripts[].sha256`
+
+`compozy__agent_heartbeat_status`:
+
+`heartbeat.config_digest`, `heartbeat.digest`, `heartbeat.preferences`, `heartbeat.source_path`
+
+`compozy__agent_instance_archive`, `compozy__agent_instance_checks`,
+`compozy__agent_instance_create`, `compozy__agent_instance_ensure_main`,
+`compozy__agent_instance_get`, `compozy__agent_instance_pause`, `compozy__agent_instance_resume`:
+
+`instance.created_at`, `instance.last_wake_at`, `instance.next_wake_at`, `instance.now`,
+`instance.provider`, `instance.quiet_streak`, `instance.resolved_appearance`,
+`instance.sources[].last_item_count`, `instance.sources[].last_polled_at`,
+`instance.sources[].last_success_at`, `instance.sources[].script_path`,
+`instance.sources[].script_sha256`, `instance.updated_at`
+
+`compozy__agent_instance_list`:
+
+`instances[].created_at`, `instances[].last_wake_at`, `instances[].next_wake_at`, `instances[].now`,
+`instances[].provider`, `instances[].quiet_streak`, `instances[].resolved_appearance`,
+`instances[].sources[].last_item_count`, `instances[].sources[].last_polled_at`,
+`instances[].sources[].last_success_at`, `instances[].sources[].script_path`,
+`instances[].sources[].script_sha256`, `instances[].updated_at`
+
+`compozy__agent_list`:
+
+`agents[].acp_options`, `agents[].appearance`, `agents[].auto_compact_window`, `agents[].command`,
+`agents[].deny_tools`, `agents[].display_name`, `agents[].effective_runtime.acp_options`,
+`agents[].effective_runtime.auto_compact_window`, `agents[].effective_runtime.lean_environment`,
+`agents[].effective_runtime.policy_excluded_acp_options`, `agents[].effective_runtime.session_env`,
+`agents[].effective_runtime.session_env_status`, `agents[].effective_runtime.sources`,
+`agents[].fallback_chain`, `agents[].lean_environment`, `agents[].mcp_servers`, `agents[].model`,
+`agents[].permission_rules`, `agents[].permissions`, `agents[].prompt`, `agents[].provider`,
+`agents[].reasoning_effort`, `agents[].resolved_appearance`, `agents[].session_approval`,
+`agents[].session_env`, `agents[].shadows`, `agents[].skills`, `agents[].speed`, `agents[].tools`,
+`agents[].toolsets`, `agents[].workspace_access`
+
+`compozy__automation_jobs_create`, `compozy__automation_jobs_disable`,
+`compozy__automation_jobs_enable`, `compozy__automation_jobs_get`,
+`compozy__automation_jobs_update`:
+
+`job.created_at`, `job.fire_limit`, `job.loop_target.input_mapping`, `job.loop_target.inputs`,
+`job.profile_color`, `job.profile_icon`, `job.prompt`, `job.retry`, `job.scheduler.catch_up_policy`,
+`job.scheduler.job_id`, `job.scheduler.last_fire_id`, `job.scheduler.last_run_at`,
+`job.scheduler.last_scheduled_at`, `job.scheduler.misfire_grace_seconds`,
+`job.scheduler.next_run_at`, `job.scheduler.updated_at`, `job.task.description`, `job.updated_at`,
+`job.task.owner`
+
+`compozy__automation_jobs_list`:
+
+`jobs[].created_at`, `jobs[].fire_limit`, `jobs[].loop_target.input_mapping`,
+`jobs[].loop_target.inputs`, `jobs[].profile_color`, `jobs[].profile_icon`, `jobs[].prompt`,
+`jobs[].retry`, `jobs[].scheduler.catch_up_policy`, `jobs[].scheduler.job_id`,
+`jobs[].scheduler.last_fire_id`, `jobs[].scheduler.last_run_at`,
+`jobs[].scheduler.last_scheduled_at`, `jobs[].scheduler.misfire_grace_seconds`,
+`jobs[].scheduler.next_run_at`, `jobs[].scheduler.updated_at`, `jobs[].task.description`,
+`jobs[].updated_at`, `jobs[].task.owner`
+
+`compozy__automation_suggestions_accept`:
+
+`job.created_at`, `job.fire_limit`, `job.loop_target.input_mapping`, `job.loop_target.inputs`,
+`job.profile_color`, `job.profile_icon`, `job.prompt`, `job.retry`, `job.scheduler.catch_up_policy`,
+`job.scheduler.job_id`, `job.scheduler.last_fire_id`, `job.scheduler.last_run_at`,
+`job.scheduler.last_scheduled_at`, `job.scheduler.misfire_grace_seconds`,
+`job.scheduler.next_run_at`, `job.scheduler.updated_at`, `job.task.description`, `job.updated_at`,
+`suggestion.payload.created_at`, `suggestion.payload.fire_limit`,
+`suggestion.payload.loop_target.input_mapping`, `suggestion.payload.loop_target.inputs`,
+`suggestion.payload.profile_color`, `suggestion.payload.profile_icon`, `suggestion.payload.prompt`,
+`suggestion.payload.retry`, `suggestion.payload.scheduler.catch_up_policy`,
+`suggestion.payload.scheduler.job_id`, `suggestion.payload.scheduler.last_fire_id`,
+`suggestion.payload.scheduler.last_run_at`, `suggestion.payload.scheduler.last_scheduled_at`,
+`suggestion.payload.scheduler.misfire_grace_seconds`, `suggestion.payload.scheduler.next_run_at`,
+`suggestion.payload.scheduler.updated_at`, `suggestion.payload.task.description`,
+`suggestion.payload.updated_at`, `suggestion.payload.task.owner`, `job.task.owner`
+
+`compozy__automation_suggestions_dismiss`:
+
+`suggestion.payload.created_at`, `suggestion.payload.fire_limit`,
+`suggestion.payload.loop_target.input_mapping`, `suggestion.payload.loop_target.inputs`,
+`suggestion.payload.profile_color`, `suggestion.payload.profile_icon`, `suggestion.payload.prompt`,
+`suggestion.payload.retry`, `suggestion.payload.scheduler.catch_up_policy`,
+`suggestion.payload.scheduler.job_id`, `suggestion.payload.scheduler.last_fire_id`,
+`suggestion.payload.scheduler.last_run_at`, `suggestion.payload.scheduler.last_scheduled_at`,
+`suggestion.payload.scheduler.misfire_grace_seconds`, `suggestion.payload.scheduler.next_run_at`,
+`suggestion.payload.scheduler.updated_at`, `suggestion.payload.task.description`,
+`suggestion.payload.updated_at`, `suggestion.payload.task.owner`
+
+`compozy__automation_suggestions_list`:
+
+`suggestions[].payload.created_at`, `suggestions[].payload.fire_limit`,
+`suggestions[].payload.loop_target.input_mapping`, `suggestions[].payload.loop_target.inputs`,
+`suggestions[].payload.profile_color`, `suggestions[].payload.profile_icon`,
+`suggestions[].payload.prompt`, `suggestions[].payload.retry`,
+`suggestions[].payload.scheduler.catch_up_policy`, `suggestions[].payload.scheduler.job_id`,
+`suggestions[].payload.scheduler.last_fire_id`, `suggestions[].payload.scheduler.last_run_at`,
+`suggestions[].payload.scheduler.last_scheduled_at`,
+`suggestions[].payload.scheduler.misfire_grace_seconds`,
+`suggestions[].payload.scheduler.next_run_at`, `suggestions[].payload.scheduler.updated_at`,
+`suggestions[].payload.task.description`, `suggestions[].payload.updated_at`,
+`suggestions[].payload.task.owner`
+
+`compozy__automation_triggers_create`, `compozy__automation_triggers_disable`,
+`compozy__automation_triggers_enable`, `compozy__automation_triggers_get`,
+`compozy__automation_triggers_update`:
+
+`trigger.created_at`, `trigger.filter`, `trigger.fire_limit`, `trigger.loop_target.input_mapping`,
+`trigger.loop_target.inputs`, `trigger.profile_color`, `trigger.profile_icon`, `trigger.prompt`,
+`trigger.retry`, `trigger.updated_at`, `trigger.webhook_secret_hash`
+
+`compozy__automation_triggers_list`:
+
+`triggers[].created_at`, `triggers[].filter`, `triggers[].fire_limit`,
+`triggers[].loop_target.input_mapping`, `triggers[].loop_target.inputs`, `triggers[].profile_color`,
+`triggers[].profile_icon`, `triggers[].prompt`, `triggers[].retry`, `triggers[].updated_at`,
+`triggers[].webhook_secret_hash`
+
+`compozy__cmd_palette_list`:
+
+`commands[].action`, `commands[].alias`, `commands[].availability_exempt`, `commands[].bindings`,
+`commands[].execution`, `commands[].global_shortcut`, `commands[].icon`, `commands[].keywords`,
+`commands[].section`, `commands[].when`
+
+`compozy__command_list`:
+
+`commands[].description`, `commands[].placements`
+
+`compozy__desktop_clients`:
+
+`clients[].connected_at`, `clients[].focus_order`, `clients[].global_shortcuts`, `clients[].palette_context`, `clients[].stack_active`
+
+`compozy__extensions_build`:
+
+`build.manifest.capabilities`, `build.manifest.description`, `build.manifest.gateway`,
+`build.manifest.inputs`, `build.manifest.min_compozy_version`, `build.manifest.permissions`,
+`build.manifest.profiles`, `build.manifest.requires_env`, `build.manifest.resources`,
+`build.manifest.subprocess`
+
+`compozy__extensions_dev`, `compozy__extensions_info`, `compozy__extensions_install`, `compozy__extensions_reload`:
+
+`extension.bound_env_keys`, `extension.capabilities`, `extension.contents`, `extension.description`,
+`extension.diagnostics[].data_freshness`, `extension.diagnostics[].doc_url`,
+`extension.diagnostics[].evidence`, `extension.layout`, `extension.marketplace`,
+`extension.permissions`, `extension.pid`, `extension.provenance`, `extension.requires_env`,
+`extension.trust.warnings[].data_freshness`, `extension.trust.warnings[].doc_url`,
+`extension.trust.warnings[].evidence`, `extension.uptime_seconds`
+
+`compozy__extensions_list`:
+
+`extensions[].bound_env_keys`, `extensions[].capabilities`, `extensions[].contents`,
+`extensions[].description`, `extensions[].diagnostics[].data_freshness`,
+`extensions[].diagnostics[].doc_url`, `extensions[].diagnostics[].evidence`, `extensions[].layout`,
+`extensions[].marketplace`, `extensions[].permissions`, `extensions[].pid`,
+`extensions[].provenance`, `extensions[].requires_env`,
+`extensions[].trust.warnings[].data_freshness`, `extensions[].trust.warnings[].doc_url`,
+`extensions[].trust.warnings[].evidence`, `extensions[].uptime_seconds`
+
+`compozy__goal_control`:
+
+`snapshot.context.nudge_ratio`, `snapshot.context.ratio`, `snapshot.context.reported_at`, `snapshot.context.size`, `snapshot.context.used`, `snapshot.contract_summary`, `snapshot.objective`
+
+`compozy__goal_get`:
+
+`goal.context.nudge_ratio`, `goal.context.ratio`, `goal.context.reported_at`, `goal.context.size`, `goal.context.used`, `goal.contract_summary`, `goal.objective`
+
+`compozy__layout_get`, `compozy__layout_preview`:
+
+`snapshot.closed_entries`, `snapshot.history`
+
+`compozy__loop_configure`, `compozy__loop_inspect`:
+
+`effective_config`
+
+`compozy__loop_create`:
+
+`loop.catalog`, `loop.definition`, `loop.effective_config`, `loop.effective_lifecycle`
+
+`compozy__loop_fork`, `compozy__loop_run`:
+
+`run.inputs`, `run.profile_color`, `run.profile_icon`, `run.profile_name`, `run.reattempt_strategy`,
+`run.start_metadata`, `run.started_by_kind`, `run.started_by_ref`, `run.started_origin_kind`,
+`run.started_origin_ref`
+
+`compozy__loop_list`:
+
+`loops[].catalog`, `loops[].contract`, `loops[].inputs`, `loops[].start`
+
+`compozy__loop_node_amend`:
+
+`amendment.amended`, `amendment.original`
+
+`compozy__loop_nodes`:
+
+`items[].output.resolved_runtime`
+
+`compozy__loop_requests`:
+
+`items[].context`, `items[].edit_schema`, `items[].expect`, `items[].proposed_preview`, `items[].respond_schema`
+
+`compozy__loop_runs`:
+
+`runs[].inputs`, `runs[].profile_color`, `runs[].profile_icon`, `runs[].profile_name`,
+`runs[].reattempt_strategy`, `runs[].start_metadata`, `runs[].started_by_kind`,
+`runs[].started_by_ref`, `runs[].started_origin_kind`, `runs[].started_origin_ref`
+
+`compozy__loop_status`:
+
+`amendments[].amended`, `amendments[].original`, `effective_config`, `executed_definition`, `generations[].outputs[].resolved_runtime`, `generations[].verdicts[].criteria[].evidence`, `generations[].verdicts[].criteria[].payload`, `materialized_contract`, `requests[].context`, `requests[].edit_schema`, `requests[].expect`, `requests[].proposed_preview`, `requests[].respond_schema`, `run.inputs`, `run.profile_color`, `run.profile_icon`, `run.profile_name`, `run.reattempt_strategy`, `run.start_metadata`, `run.started_by_kind`, `run.started_by_ref`, `run.started_origin_kind`, `run.started_origin_ref`
+
+`compozy__marketplace_search`:
+
+`items[].category_label`, `items[].icon`, `items[].manage_path`, `items[].published_at`,
+`items[].trust.warnings[].data_freshness`, `items[].trust.warnings[].doc_url`,
+`items[].trust.warnings[].evidence`, `items[].updated_at`
+
+`compozy__marketplace_sources`:
+
+`sources[].diagnostics[].data_freshness`, `sources[].diagnostics[].doc_url`, `sources[].diagnostics[].evidence`
+
+`compozy__observe_metrics`:
+
+`health.activities[].elapsed_ms`, `health.activities[].elapsed_seconds`,
+`health.activities[].idle_seconds`, `health.activities[].last_activity_at`,
+`health.activities[].last_activity_detail`, `health.activities[].last_activity_kind`,
+`health.activities[].last_progress_at`, `health.activities[].turn_source`,
+`health.activities[].turn_started_at`, `health.agent_probes[].checked_at`,
+`health.agent_probes[].command`, `health.agent_probes[].duration_ms`,
+`health.agent_probes[].executable`, `health.global_db_size_bytes`,
+`health.persistence.global_db_size_bytes`, `health.persistence.session_db_size_bytes`,
+`health.retention.deleted_event_summaries`, `health.retention.deleted_permission_log_rows`,
+`health.retention.deleted_token_stats`, `health.retention.deleted_token_usage_daily`,
+`health.retention.last_cutoff_at`, `health.retention.last_sweep_at`,
+`health.retention.retention_days`, `health.retention.sweep_interval_seconds`,
+`health.session_db_size_bytes`
+
+`compozy__provider_models_curate`:
+
+`apply.agent_name`, `apply.profile`, `apply.scope`, `apply.section`, `apply.workspace_id`, `apply.write_target`, `model.config_options`, `model.context_window`, `model.cost`, `model.max_input_tokens`, `model.max_output_tokens`, `model.reasoning_apply`, `model.reasoning_known`, `model.reasoning_source`, `model.refreshed_at`, `model.release_date`, `model.sources[].priority`, `model.sources[].refreshed_at`
+
+`compozy__provider_models_list`:
+
+`models[].config_options`, `models[].context_window`, `models[].cost`, `models[].max_input_tokens`,
+`models[].max_output_tokens`, `models[].reasoning_apply`, `models[].reasoning_known`,
+`models[].reasoning_source`, `models[].refreshed_at`, `models[].release_date`,
+`models[].sources[].priority`, `models[].sources[].refreshed_at`
+
+`compozy__resources_list`, `compozy__resources_snapshot`:
+
+`records[].spec`
+
+`compozy__session_spawn`:
+
+`permissions`
+
+`compozy__skill_list`, `compozy__skill_search`:
+
+`skills[].description`, `skills[].dir`, `skills[].metadata`, `skills[].provenance`;
+`skills[].diagnostics` when all entries are healthy (see below)
+
+`compozy__subagent_capabilities`:
+
+`providers[].models`
+
+`compozy__task_cancel`, `compozy__task_child_create`, `compozy__task_create`, `compozy__task_update`:
+
+`task.auto_enqueue_on_ready`, `task.created_by`, `task.description`, `task.grant_ceiling`,
+`task.metadata`, `task.origin`, `task.wake_creator`
+
+`compozy__task_fanout_runs`, `compozy__task_run_list`:
+
+`runs[].claim_token_hash`, `runs[].idempotency_key`, `runs[].metadata`, `runs[].origin`,
+`runs[].preferred_capabilities`, `runs[].required_capabilities`
+
+`compozy__task_list`:
+
+`tasks[].auto_enqueue_on_ready`, `tasks[].created_by`, `tasks[].origin`, `tasks[].profile_color`,
+`tasks[].profile_icon`, `tasks[].profile_name`, `tasks[].wake_creator`
+
+`compozy__task_read`:
+
+`task.children[].auto_enqueue_on_ready`, `task.children[].created_by`, `task.children[].origin`,
+`task.children[].profile_color`, `task.children[].profile_icon`, `task.children[].profile_name`,
+`task.children[].wake_creator`, `task.designation_rollups`, `task.events`,
+`task.runs[].claim_token_hash`, `task.runs[].designation`, `task.runs[].idempotency_key`,
+`task.runs[].metadata`, `task.runs[].origin`, `task.runs[].profile_color`,
+`task.runs[].profile_icon`, `task.runs[].profile_name`, `task.summary.auto_enqueue_on_ready`,
+`task.summary.created_by`, `task.summary.origin`, `task.summary.profile_color`,
+`task.summary.profile_icon`, `task.summary.profile_name`, `task.summary.wake_creator`,
+`task.task.auto_enqueue_on_ready`, `task.task.created_by`, `task.task.origin`,
+`task.task.profile_color`, `task.task.profile_icon`, `task.task.profile_name`,
+`task.task.wake_creator`
+
+`compozy__task_recover`:
+
+`task.auto_enqueue_on_ready`, `task.created_by`, `task.description`, `task.metadata`, `task.origin`,
+`task.profile_color`, `task.profile_icon`, `task.profile_name`, `task.wake_creator`
+
+`compozy__task_run_review_list`:
+
+`reviews[].created_at`, `reviews[].review_text`, `reviews[].reviewed_by`, `reviews[].routed_at`,
+`reviews[].started_at`, `reviews[].updated_at`
+
+`compozy__task_run_review_request`:
+
+`review.created_at`, `review.review_text`, `review.reviewed_by`, `review.routed_at`, `review.started_at`, `review.updated_at`
+
+`compozy__task_run_review_submit`:
+
+`continuation_run.claim_token_hash`, `continuation_run.idempotency_key`, `continuation_run.metadata`, `continuation_run.origin`, `continuation_run.preferred_capabilities`, `continuation_run.required_capabilities`, `review.created_at`, `review.review_text`, `review.reviewed_by`, `review.routed_at`, `review.started_at`, `review.updated_at`
+
+`compozy__tool_approvals_list`:
+
+`grants[].profile_color`, `grants[].profile_emoji`, `grants[].profile_icon`, `grants[].profile_name`
+
+`compozy__tool_approvals_set`:
+
+`grant.profile_color`, `grant.profile_emoji`, `grant.profile_icon`, `grant.profile_name`
+
+`compozy__tool_list`:
+
+`tools[].decision.agent_policy_result`, `tools[].decision.availability_result`,
+`tools[].decision.hook_result`, `tools[].decision.registry_policy_result`,
+`tools[].decision.session_policy_result`, `tools[].decision.source_policy_result`,
+`tools[].decision.system_permission_mode`, `tools[].decision.visible_to_operator`,
+`tools[].decision.visible_to_session`, `tools[].descriptor.concurrency_safe`,
+`tools[].descriptor.destructive`, `tools[].descriptor.input_schema_digest`,
+`tools[].descriptor.max_result_bytes`, `tools[].descriptor.open_world`,
+`tools[].descriptor.output_schema_digest`, `tools[].descriptor.read_only`,
+`tools[].descriptor.requires_interaction`, `tools[].descriptor.toolsets`
+
+`compozy__tool_search`:
+
+`tools[].decision.agent_policy_result`, `tools[].decision.availability_result`,
+`tools[].decision.hook_result`, `tools[].decision.registry_policy_result`,
+`tools[].decision.session_policy_result`, `tools[].decision.source_policy_result`,
+`tools[].decision.system_permission_mode`, `tools[].decision.visible_to_operator`,
+`tools[].decision.visible_to_session`, `tools[].descriptor.access`, `tools[].descriptor.backend`,
+`tools[].descriptor.check_in_writable`, `tools[].descriptor.concurrency_safe`,
+`tools[].descriptor.destructive`, `tools[].descriptor.display_title`,
+`tools[].descriptor.friendly_verb`, `tools[].descriptor.idempotent`,
+`tools[].descriptor.input_error_code`, `tools[].descriptor.input_schema`,
+`tools[].descriptor.input_schema_digest`, `tools[].descriptor.max_result_bytes`,
+`tools[].descriptor.open_world`, `tools[].descriptor.output_schema`,
+`tools[].descriptor.output_schema_digest`, `tools[].descriptor.output_views.compact.schema`,
+`tools[].descriptor.output_views.full.schema`, `tools[].descriptor.preview`,
+`tools[].descriptor.read_only`, `tools[].descriptor.requires_interaction`,
+`tools[].descriptor.reserved_workspace_partition`, `tools[].descriptor.search_hints`,
+`tools[].descriptor.source`, `tools[].descriptor.tags`, `tools[].descriptor.toolsets`,
+`tools[].descriptor.visibility`
+
+`compozy__workspace_describe`:
+
+`agents[].acp_options`, `agents[].appearance`, `agents[].auto_compact_window`,
+`agents[].category_path`, `agents[].command`, `agents[].definition_digest`, `agents[].deny_tools`,
+`agents[].effective_runtime`, `agents[].fallback_chain`, `agents[].label`,
+`agents[].lean_environment`, `agents[].mcp_servers`, `agents[].permission_rules`,
+`agents[].permissions`, `agents[].prompt`, `agents[].resolved_appearance`,
+`agents[].session_approval`, `agents[].session_env`, `agents[].shadows`, `agents[].skills`,
+`agents[].tools`, `agents[].toolsets`, `agents[].workspace_access`, `providers[].auth_mode`,
+`providers[].env_policy`, `providers[].harness`, `providers[].home_policy`,
+`providers[].runtime_live_apply`, `providers[].runtime_provider`, `providers[].runtime_strategy`,
+`sessions[].activity`, `sessions[].attach_expires_at`, `sessions[].attachable`,
+`sessions[].attached_to`, `sessions[].attention_changed_at`, `sessions[].available_commands`,
+`sessions[].busy_input`, `sessions[].derivation`, `sessions[].diagnostics`,
+`sessions[].effective_permissions`, `sessions[].effective_workspace_access`, `sessions[].escalated`,
+`sessions[].folder_id`, `sessions[].health`, `sessions[].instance_id`,
+`sessions[].lineage.auto_stop_on_parent`, `sessions[].lineage.notify_creator`,
+`sessions[].lineage.origin_agent_name`, `sessions[].lineage.origin_message_id`,
+`sessions[].lineage.permission_policy`, `sessions[].lineage.spawn_depth`,
+`sessions[].lineage.spawn_role`, `sessions[].linked_work`, `sessions[].monitor_summary`,
+`sessions[].parent_title`, `sessions[].process_summary`, `sessions[].profile_archived`,
+`sessions[].profile_color`, `sessions[].profile_emoji`, `sessions[].profile_icon`,
+`sessions[].profile_name`, `sessions[].pull_request_lookup`, `sessions[].reply_watches`,
+`sessions[].returned_from_later_at`, `sessions[].runtime.acp_caps`,
+`sessions[].runtime.acp_session_id`, `sessions[].runtime.last_known`, `sessions[].runtime.recovery`,
+`sessions[].runtime.requested`, `sessions[].runtime.selected`, `sessions[].runtime.transition`,
+`sessions[].scope`, `sessions[].supervision`, `sessions[].verified`, `sessions[].working_dir`,
+`sessions[].workspace_path`, `sessions[].worktree_binding`, `skills[].dir`
+
+`compozy__worktree_list`:
+
+`worktrees[].base_ref`, `worktrees[].created_at`, `worktrees[].created_head`,
+`worktrees[].profile_color`, `worktrees[].profile_emoji`, `worktrees[].profile_icon`,
+`worktrees[].profile_name`, `worktrees[].run_namespace`, `worktrees[].updated_at`
+
+Compact session records retain `stop_cause`, `permission_mode_degraded`,
+`attention_dismissible`, `lineage.ttl_expires_at` and `lineage.spawn_budget`.
+Compact heartbeat status retains policy `snapshot_id`. Approval grants retain `profile_archived`;
+task review records retain `delivery_id`; Loop status retains gate criterion prompts.
+Skill list/search omit diagnostics only when every entry is valid and verification passed,
+with no warnings, failure or activation reasons; otherwise the entire diagnostic list stays.
+
+### Schema corrections and existing runs
+
+Eight declared schemas now accept fields already returned: `loop_runs`
+(`aggregates.historical`); `loop_status` (`generations[].outputs[].session_id`,
+`generations[].verdicts[].item_index`,
+`requests[].profile_id`, `requests[].workspace_id`); `loop_request` and `loop_requests`
+(`profile_id`, `workspace_id`); `loop_nodes` (`items[].workspace_id`,
+`items[].output.session_id`); `cmd_palette_invoke` (`profile_lens`);
+`tool_approvals_set` and `tool_approvals_list` (`access_scope`). Only `loop_request`
+and `cmd_palette_invoke` change single-result output digests; their input digests stay.
+
+Pre-view Loop snapshots translate to the full contract for this release, including the
+superseded digests of those eight tools. The translation and superseded-digest table
+are removed in the next release after this one (#1462). Existing YAML is not rewritten.
+Automation job/trigger schemas do not reference native tool result fields.
+
+The PR inventory records every tool, classification reason and fixture sizes. Those
+examples are not production averages. Hosted tools/list with 288 tools and 99 view adopters
+shrinks from 1,088,135 to 347,863 bytes after removing output schemas, below the 744,687-byte
+pre-feature baseline. The model-facing name, description and inputSchema projection stays
+207,320 bytes. These are discovery bytes, not measured model tokens.
+The separate Host API projection is unchanged.
+
+##### Sessions recover after you sign in to the provider again
+
+A session no longer stays stuck after its provider account signs out. Before, signing out of a provider CLI such as Claude Code while a session was open made the next turn count through the provider's retry attempts and then hang, even after you signed back in and **Usage** showed the new account; only restarting the daemon brought the session back.
+
+Now a sign-in failure leaves the session waiting for you to sign in. Once the credentials are valid again, the next prompt rebuilds that session's provider process and resumes the conversation, and a provider sign-in check or **Usage** refresh that sees valid credentials recovers the matching sessions too. Other sessions and providers are not touched, and the daemon keeps running.
+
+Migration notes: no action needed.
+
+##### File trees stay readable on deep paths
+
+The file tree in a session's **Changes** panel and in the **Files** app keeps names readable on long, deeply nested paths. Before, names collapsed to a couple of characters with the ellipsis drawn over the text, directory names were clipped on the left, indentation pushed rows against the right edge, and the git status and line counts overlapped the name.
+
+Folders that contain a single folder now collapse into one row, names truncate with one clean ellipsis that keeps the extension, and the status column never overlaps the name. The diff list in **Changes** keeps the file name and its nearest folders visible and shortens the shared prefix instead.
+
+Migration notes: no action needed.
+
+##### Batch session actions match the single-session menu and run in parallel
+
+Selecting several sessions now offers the actions that apply to multiple sessions, using the single-session menu's names. Mark as seen, Make top-level and Copy titles join the selection menu. Batch Stop, Archive, Unarchive, Delete, Mark as seen, Make top-level and Later actions run in parallel instead of one at a time. Batch worktree actions run in parallel too. At most three requests run at once, every running session shows its own progress, and actions that would overlap a running batch are blocked until it finishes.
+
+Migration notes: no action needed.
+
+##### The session list toggle leads the session header
+
+The button that shows or hides the session list now sits first in the session header, before the project name, in every session window. Before, it sat among the actions on the right, and in an always-on session it disappeared once the list was hidden, leaving no way to bring the list back from the header.
+
+The context panel now opens and closes from the context button in the message box, which works as a toggle. A regular session's header actions are **Stop** and **Changes**. A read-only superseded session keeps the header's context toggle because it has no message box. An always-on agent's main session keeps **Always-on**, the **…** menu, and toggles for the **Changes** and context panels while each panel is open.
+
+Migration notes: no action needed; keyboard shortcuts and command palette entries for these panels are unchanged.
+
+## 0.5.5 - 2026-11-09
+
+### Bug Fixes
+
+- Keep SQLite statement journals in memory during write transactions (#1367)
+- Hide automation-run sessions from the session list (#1366)
+- Make TestSetProcessGroupNiceness deterministic and document the setpriority fork race (#1373)
+- Keep session owner snapshots valid while the writer appends WAL frames (#1371)
+- Let triage cleanup wait for the full stop ladder before archiving (#1365)
+- Keep internal daemon handoff variables out of session and terminal environments (#1364)
+- Prevent source executable contention and isolate cooldown fixtures (#1375)
+- Keep the Files identity in its window head and route transcript paths to Files tabs (#1378)
+- Return main CI to green after the 2026-11-08 merges (#1380)
+- Apply Linux launch niceness before exec (#1386)
+- Preserve prompt completion across concurrent steering events (#1376)
+- Move core WAL restart synchronization to maintenance (#1377)
+- Settle automation fires after agent startup failures (#1389)
+- Preserve explicitly empty environments through process launch (#1390)
+- Wait for archive responses before retiring session windows (#1392)
+- Name automation and always-on sessions by origin and keep relative times live (#1391)
+- Clear acknowledged always-on agent attention (#1395)
+- Retain lifecycle ownership across startup and shutdown races (#1394)
+- Recover acknowledged attention without blocking live sessions (#1396)
+- Retain startup recovery through process and storage failures (#1398)
+- Preserve attention publication ordering and lifetimes (#1401)
+- Preserve failed startup event sequences and cleanup ownership (#1404)
+- Bind approvals to run identity and explain terminal denials (#1412)
+
+### Features
+
+- Browse the CompozyOS marketplace by category with one-step Add and a curated plugin catalog (#1360)
+- Let always-on check-ins call the agent's tools and auto-accept declared proposals (#1385)
+
+### Testing
+
+- Repair check-in proposal pick runtime fixtures (#1406)
+
+### Release Notes
+
+#### Fixes
+
+##### Automation runs stay out of the session list
+
+Sessions started by an automation job or trigger no longer show up in the session list, the board or their counts, and a new run no longer takes the selection. Before, a scheduled run appeared at the top of the list as "New session" with a working spinner while it ran. Each run stays reachable from the Automations run view and through search, and a run that needs you still reaches you through attention toasts and notifications.
+
+To see them, turn on **Show automation runs** in the list's or board's **View options**. Each window remembers the choice. A run you prompted yourself stays on the list. Loop and Task sessions are unchanged. The dock's Sessions launcher now opens your newest own session, never an automation run.
+
+Migration notes: no action needed; existing runs follow the same rule after upgrading. `compozy session list` and `compozy__session_list` keep returning every session. The API does too, unless a client passes the new `exclude_automation=true` query parameter on `GET /api/sessions` or `GET /api/sessions/facets`. `exclude_finished_automation=true` keeps its meaning.
+
+## 0.5.4 - 2026-11-07
+
+### Bug Fixes
+
+- Retain oversized tool results in User sessions (#1322)
+- Allow profile moves with stopped subagent descendants (#1321)
+- Compare SQLite commit pauses against paired storage tails (#1325)
+- Accept fenced proactive triage replies (#1319)
+- Preserve managed Goal pause ownership until coordinator settlement (#1329)
+- Read proactive check events in heartbeat status (#1332)
+- Hold MCP server form errors until a field is touched (#1338)
+- Settle expired permissions and stopped session interactions (#1335)
+- Keep the CompozyOS desktop window open when Settings restarts the daemon (#1339)
+- Compact always-on agent cards and hide deleted agents (#1341)
+- Keep dispatched children responsive after definition pauses (#1333)
+- Defer oversized invoked skills to skill_view instead of failing dispatch (#1330)
+- Refresh MCP tools in open sessions (#1342)
+- Preserve permission recovery reports and terminal refusals (#1347)
+
+### Features
+
+- Route new issues through an unattended issue vetter
+- Add a desktop download page and header download CTA to the site
+- Add daily CompozyOS daemon log triage agent (#1353)
+- Add project file explorer, file viewer and session Changes panel (#1351)
+
+### Refactoring
+
+- Rename the workspace always-on agents by their pipeline role
+
+### Testing
+
+- Observe paused child monitor settlement before receipts (#1349)
+
+### Release Notes
+
+#### Fixes
+
+##### A denser Agents list
+
+- **Compact always-on cards.** Always-on agents now use a smaller card: five per row on a wide window instead of three, with the description on one line and status and recent activity at a glance. Twenty agents fit on one screen.
+- **Deleted agents are gone.** An always-on agent whose definition was deleted no longer lingers in the list or in the filter counts, and no longer opens a "not found" page.
+
+##### Always-on agents keep working through pauses, renames and failed checks
+
+- **Work dispatched by a paused agent keeps going.** If an always-on agent's definition was deleted or renamed, the sessions it had started stopped receiving their own monitor wakes and messages, and looked like they were just waiting. Those sessions now keep running. When input really is held, the reason and the agent holding it are shown, and the session asks for your attention instead of waiting silently.
+- **Proactive checks accept fenced replies.** A check failed with "The proactive check returned an invalid response" when the model wrapped a valid answer in a Markdown code block. Fenced answers are now accepted, and a rejected answer is recorded in the failure report with its contents redacted. A failed check never drops the items it was looking at; the next check sees them again.
+- **Heartbeat status opens again.** Reading an always-on agent's heartbeat status failed with `invalid wake event: invalid source "timer"` once proactive checks had run. Check runs now appear in the heartbeat history.
+- **Pausing an agent with a running Goal.** Pausing an always-on agent while one of its Goals was finishing a turn could lose track of that pause, so the Goal kept running or could not be resumed. Pause and resume now hold through that window.
+
+##### Restarting CompozyOS from Settings keeps the app open
+
+Some settings ask you to restart CompozyOS. Clicking **Restart** used to close the whole desktop app whenever the restart took more than a few seconds, for example with busy sessions or a data migration, and you had to open it again by hand. The window now stays open. It shows that CompozyOS is restarting, reconnects to the new daemon and returns you to where you were. Runtime updates that restart the daemon get the same treatment.
+
+##### MCP servers reach your open sessions
+
+Adding or signing in to an MCP server could show it as Ready in Settings while a session that was already open still reported it as unavailable. MCP servers declared in your user or profile `mcp.json` could also be missing from new sessions. Open sessions now pick up an MCP server as soon as you add or authorize it, and lose access when you sign out, disable or remove it, without restarting CompozyOS or losing the conversation. Claude sessions refresh their tool list in place. Codex sessions reload at the next turn boundary, because Codex does not yet re-list MCP tools mid-session.
+
+##### Expired permission requests no longer stay pending
+
+A permission request that expired, or whose session was stopped, could stay **pending** for hours. The session kept showing "waiting for auth" with approval buttons that failed. Requests now close when they expire and when their session stops, is force-stopped or crashes, and the session's attention state clears. Requests left over from before a daemon restart are settled when it starts again. Answering one that already closed explains that it expired. Thanks to @zaptoscompany for the detailed report.
+
+##### Smaller fixes
+
+- **Large skills no longer fail the prompt.** Invoking a skill whose instructions are too large for the turn used to fail the whole prompt with "session prompt dispatch is indeterminate". The agent now gets a pointer to read the skill with `skill_view` instead. Thanks to @madtocc for the fix.
+- **Large tool results in User sessions.** Oversized results such as a long `skill_view` are now saved and readable in User sessions, not just in projects. Thanks to @zaptoscompany for the report.
+- **Moving a session with stopped sub-agents.** A session whose sub-agents are stopped but not archived can now move to another profile.
+- **Add MCP server form.** The form no longer shows "required" errors before you type anything. Errors appear after you leave a field empty or try to save.
+
+## 0.5.3 - 2026-11-06
+
+### Bug Fixes
+
+- Show a pending runtime switch on session rows (#1294)
+- Allow profile moves with archived descendants (#1299)
+- Wake pull request monitors when merge conflicts appear (#1289)
+- Keep code_implementer working until its item is done
+- Hide session chrome that doesn't apply to always-on main sessions (#1304)
+- Defer fallback steering until active tools finish (#1296)
+- Enable sign-in for bare OAuth MCP remotes (#1308)
+- Let agents attach MCP servers (#1309)
+- Align OAuth browser journeys with sign-in action (#1310)
+- Keep native CLI sign-in verdicts truthful (#1278)
+- Load skill resources in User sessions (#1312)
+- Back off provider usage 429s, collect each account once, and re-verify native sign-in after restart (#1307)
+- Keep CompozyOS usage aliases on their own account (#1280)
+
+### Features
+
+- Remove retired agent kind compatibility inputs (#1295)
+- Add a Marketplace MCPs view with a Plugins | MCPs toggle (#1306)
+
+### Performance Improvements
+
+- Batch forge lookups and refresh displayed branches on demand (#1291)
+
+### Testing
+
+- Give the post-upgrade phase of the destructive-cut reopen test its own budget
+
+### Release Notes
+
+#### Breaking Changes
+
+##### Retired agent kind inputs now report actionable errors
+
+The release after v0.5.2 removes the agent kind input aliases retained since v0.5.1.
+Use `always_on` in definitions, CLI flags, HTTP/UDS requests and native creation.
+
+## Migration notes
+
+Persisted `[agents.stays_on]` tables migrate on load to `[agents.always_on]`. Canonical keys
+win conflicts; original values and source text are retained as inactive comments. Persisted
+AGENT.md files migrate when loaded from any discovery root, including extension roots.
+Writable user-owned scalar layouts update only the kind value. Extension packages are never edited. Read-only files and unsupported edit layouts
+still decode as `always_on` and log guidance to update the source before v0.6.0.
+This single persisted-file shim generation is scheduled for removal in v0.6.0.
+CLI/native `agents.stays_on.*` paths still fail with replacement guidance; public creation,
+update and duplicate inputs still reject the retired kind. Database rows already migrated in v0.5.1.
+
+- Old kinds fail with `agent_kind_invalid`: "agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)".
+- Old tables in persisted config files migrate on load; API/config mutation paths reject the retired key.
+- Old config paths fail with `removed config key "agents.stays_on.max_proposals": use "agents.always_on.max_proposals"` (with the requested suffix).
+
+No new database migration is needed: v0.5.1 already migrated persisted rows.
+
+#### Fixes
+
+##### Provider usage works with several accounts and profiles
+
+If you run more than one Claude account through provider aliases (for example `claude-mm1` with its own `CLAUDE_CONFIG_DIR`), or use more than one profile, Provider usage now behaves correctly.
+
+- **No more 429 storms.** A rate-limit reply with `Retry-After: 0` made CompozyOS retry right away and get rate-limited again. Every 429 now pauses that account for at least 5 minutes, longer if it repeats.
+- **One request per account.** Each profile used to collect the same account separately. Collection is now shared per account, so two profiles no longer double the requests.
+- **Aliases show their own account.** An alias whose launch command doesn't set its own account variable used to show the default account's quota. It now shows no usage instead of the wrong one.
+- **Toggles and logos for aliases.** Settings → Provider usage lists every eligible alias with an on/off switch and its provider's logo, and you can edit the provider list while collection is off.
+
+##### Provider sign-in status stays accurate
+
+The sign-in badge for CLI providers could be wrong in a few cases. It now reports what is actually true.
+
+- **After a restart.** Sign-in used to show as unverified until a session started or you clicked **Check sign-in**. The daemon now checks each installed CLI provider once in the background after it starts.
+- **When the CLI is broken.** A saved **Ready** no longer hides a CLI that can't be found or run.
+- **With a different account folder.** A session that signs in with another `HOME`, `CLAUDE_CONFIG_DIR` or `CODEX_HOME` no longer marks the default account as Ready.
+- **After a timeout.** A check that timed out is no longer recorded as **Needs login**.
+- **Ready looks ready.** The Ready dot in Settings now uses the success color.
+
+##### Smaller fixes
+
+- **Skills in User sessions.** User sessions can read a bundled skill's resource files again. Thanks to @zaptoscompany for the detailed report.
+- **Pending model switch is visible.** When you switch a running session to another provider, its sidebar row and board card show `current → next` until the next message applies it.
+- **Cleaner always-on sessions.** An always-on agent's main session hides controls that don't apply to it, such as the linked-work chip, Stop session and the sidebar toggles.
+- **PR monitors notice merge conflicts.** A session watching a pull request now wakes up once when the PR starts to conflict with its base branch.
+- **Moving sessions between profiles.** A session whose sub-sessions are all stopped and archived can now move to another profile.
+- **Fewer GitHub calls.** Branch and PR lookups are batched, and branches you're looking at refresh on demand.
+
+##### Steering no longer cancels a running tool
+
+Some providers can't take a message in the middle of a turn. With those, sending a message while the agent was running a tool could cancel the tool right away. CompozyOS now waits until the running tools finish, then delivers your message. It waits at most 45 seconds, which you can change with `session.busy_input.steer_boundary_timeout`. Providers that can take messages mid-turn get them right away, as before.
+
+#### Highlights
+
+##### Sign in to MCP servers, attach them to agents, and find them in the Marketplace
+
+MCP servers are now easier to reach and connect, wherever you start.
+
+- **Sign in to any OAuth remote.** A plain HTTP MCP remote that reported **Needs sign-in** used to offer only Edit, and `compozy mcp login` rejected it. Remotes without custom headers now discover their authorization server and register a client automatically, so **Sign in** just works from Settings and the CLI. The Advanced editor has a working **Use OAuth** toggle. Remotes that authenticate with headers are left alone.
+- **Attach MCP servers to an agent.** An agent's Tools sheet showed its MCP servers but could not add one. It now offers **Add MCP server**: pick a configured server or create a new connection. Configured servers are saved by name in the agent's `mcp.json`, so they follow later edits to that server. If the server is removed, it shows **Broken reference**. Secrets stay in your Vault.
+- **MCPs in the Marketplace.** A **Plugins | MCPs** toggle next to the Marketplace search opens your MCP servers with the same status, sign-in, edit and remove actions as Settings, plus **Add MCP server**.
+
 ## 0.5.2 - 2026-11-04
 
 ### Bug Fixes
@@ -408,10 +2256,10 @@ The agent kind that keeps running on its own is now called **Always-on**, and it
 
 ### Migration notes
 
-v0.5.1 upgrades in place: v0.5.0 files, config, request values, and stored rows keep working through v0.5.1. Readers of emitted `kind`, reason, and error values must update now (see below). Every alias below is removed in **v0.5.2**.
+v0.5.1 upgrades in place: v0.5.0 files, config, request values, and stored rows keep working through v0.5.1. Readers of emitted `kind`, reason, and error values must update now (see below). Every alias below is removed in **the release after v0.5.2**.
 
 - **Update the daemon together with the CLI.** The CLI doesn't check the daemon's version. A v0.5.1 CLI always sends `always_on`, which a v0.5.0 daemon rejects.
-- **AGENT.md `kind: stays_on` → `kind: always_on`.** The old value loads as `always_on` through v0.5.1, and the daemon logs one warning per file. On boot, the daemon rewrites the `kind` value of every AGENT.md under `$COMPOZY_HOME/agents` and `$COMPOZY_HOME/profiles/<profile>/agents`. It changes no other byte and logs each rewrite and each skip. AGENT.md files in a repository, a workspace profile, or an extension are never rewritten, so edit those yourself before v0.5.2.
+- **AGENT.md `kind: stays_on` → `kind: always_on`.** The old value loads as `always_on` through v0.5.1, and the daemon logs one warning per file. On boot, the daemon rewrites the `kind` value of every AGENT.md under `$COMPOZY_HOME/agents` and `$COMPOZY_HOME/profiles/<profile>/agents`. It changes no other byte and logs each rewrite and each skip. AGENT.md files in a repository, a workspace profile, or an extension are never rewritten, so edit those yourself before upgrading beyond v0.5.2.
 - **`[agents.stays_on]` → `[agents.always_on]`.** The old table is read with one warning per process, and a key set in `[agents.always_on]` wins. `compozy config get|set|unset` and `compozy__config_*` accept `agents.stays_on.*` paths, warn, and operate on `agents.always_on.*`. `unset` through either spelling clears the key from both tables in the file it edits. Defaults are unchanged.
 - **`--kind stays_on` → `--kind always_on`.** The CLI accepts the old value with a stderr warning.
 - **Request enums vs. emitted values.** Request `kind` fields (create, update, duplicate, its `overrides.kind`, and `compozy__agent_create`) accept `on_demand`, `always_on`, or the deprecated `stays_on`. The generated TypeScript and Go request types widen to match. Responses, events, tool results, and CLI `-o json` emit `always_on` from this release on, so readers that compare `kind` to `stays_on` break now.
@@ -419,7 +2267,7 @@ v0.5.1 upgrades in place: v0.5.0 files, config, request values, and stored rows 
 - **`agent_not_stays_on` → `agent_not_always_on`.** The error code changes at once. The experimental agent memory routes break with no compatibility window.
 - **Startup section `stays_on_doctrine` → `always_on_doctrine`.** The tag is now `<compozy-always-on-doctrine>`. Startup-section diagnostics show the new name.
 - **Permission labels.** Only the labels changed. `deny-all`, `approve-reads`, `approve-edits`, `auto`, and `approve-all` are unchanged in files, config, and the API.
-- **v0.5.2 removes every shim.** That covers the `stays_on` kind alias, `[agents.stays_on]`, the `agents.stays_on.*` paths, the `stays_on` request enum value, and the boot rewrite. After that, `stays_on` fails with an error that names `always_on`.
+- **The release after v0.5.2 removes every shim.** That covers the `stays_on` kind alias, `[agents.stays_on]`, the `agents.stays_on.*` paths, the `stays_on` request enum value, and the boot rewrite. After that, `stays_on` fails with an error that names `always_on`.
 
 ## 0.5.0 - 2026-11-03
 

@@ -18,6 +18,7 @@ import type { OsAppId, OsPresentation } from "../lib/os-types";
 import type { SessionPayload } from "@/systems/session";
 import { useAttentionJump } from "./use-attention-jump";
 import { useDesktop } from "./use-desktop";
+import { useOpenFilesApp } from "./use-open-files-app";
 import { useOsShell } from "./use-os-shell";
 import { useSessionLaunchCatalog } from "./use-session-launch-catalog";
 
@@ -38,8 +39,8 @@ export interface UseDesktopDockOptions {
   onNewSession: () => void;
   onPreload?: DockPreload;
   /**
-   * Catalog truth for the Terminal launcher. When omitted, Terminal follows
-   * the same open-window rule as every other app (isolated dock tests).
+   * Catalog truth for the Terminal launcher. When omitted, Terminal stays
+   * idle until live catalog data is available; saved windows alone never imply a live terminal.
    */
   terminalLive?: boolean;
   /**
@@ -50,10 +51,9 @@ export interface UseDesktopDockOptions {
 }
 
 /**
- * Dock view-model: registry order with running/active/minimized/badge state
- * and the open-or-minimize activation semantics (tab-bar taps never minimize —
- * os-v2.js:462). A plain launch that has to open follows the daemon's
- * new-window policy (a tab in the focused window by default).
+ * Dock view-model: registry order with running/active/badge state and
+ * focus-first activation. A plain launch that has to open follows the daemon's
+ * new-window policy (a tab after the active tab by default).
  */
 export function useDesktopDock(
   badges: OsAttentionBadges,
@@ -62,6 +62,7 @@ export function useDesktopDock(
   const { manager, coordinator } = useOsShell();
   const launchCatalog = useSessionLaunchCatalog();
   const jumpToSession = useAttentionJump();
+  const openFiles = useOpenFilesApp();
   const presentation = useDesktop(state => state.presentation);
   const commandsAvailable = useDesktop(windowManagerCommandsAvailable);
   // Dock state aggregates every instance of an app (ADR-010 §3): the icon
@@ -104,11 +105,8 @@ export function useDesktopDock(
       name: app.id === sessionApp.id ? "Sessions" : app.title,
       icon: dockIconForApp(app),
       running:
-        app.id === "terminal" && terminalLive !== undefined
-          ? terminalLive
-          : state === "open" || state === "focused",
-      active: state === "focused",
-      minimized: state === "minimized",
+        app.id === "terminal" ? terminalLive === true : state === "open" || state === "focused",
+      active: state === "focused" && (app.id !== "terminal" || terminalLive === true),
       badge: dockBadgeFor(app, badges),
     };
   });
@@ -151,8 +149,12 @@ export function useDesktopDock(
         .catch(() => notifyUser({ message: "Couldn't load sessions. Try again.", tone: "error" }));
       return;
     }
-    // Repeat activation cycles the app's instances (ADR-002); minimizing the
-    // focused one only makes sense when it is the app's sole instance.
+    // Files opens or focuses the active project's window, never another project's (US-002.AC-2).
+    if (appId === "files" && openFiles !== null) {
+      openFiles();
+      return;
+    }
+    // Repeat activation cycles the app's instances (ADR-002).
     const target = activationTarget(
       state.windows,
       state.client?.focusOrder ?? [],
@@ -167,13 +169,6 @@ export function useDesktopDock(
         return;
       }
       void coordinator.userOpen({ app: appId });
-      return;
-    }
-    // Tab-bar semantics (compact): tap = switch to, never minimize. A minimized
-    // target is always restored, even while the client frame still names it
-    // as focused (the topology can report the minimize first).
-    if (target.id === state.focusedId && !target.minimized && presentation === "floating") {
-      void coordinator.userMinimize(target.id);
       return;
     }
     void coordinator.userActivateWindow(target.id);

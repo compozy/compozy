@@ -189,6 +189,19 @@ func (q *Queries) GetInstanceOccurrence(ctx context.Context, arg GetInstanceOccu
 	return i, err
 }
 
+const getInstanceWakeDiagnostic = `-- name: GetInstanceWakeDiagnostic :one
+SELECT reason FROM agent_heartbeat_wake_events
+WHERE instance_id=? AND NOT (source='instance_check' AND result IN ('skipped','cancelled'))
+ORDER BY created_at DESC,id DESC LIMIT 1
+`
+
+func (q *Queries) GetInstanceWakeDiagnostic(ctx context.Context, instanceID string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getInstanceWakeDiagnostic, instanceID)
+	var reason string
+	err := row.Scan(&reason)
+	return reason, err
+}
+
 const getInstanceWakeState = `-- name: GetInstanceWakeState :one
 SELECT instance_id, next_wake_at, last_wake_at, last_digest, last_digest_at, automation_cursor, unattended_turns, engaged_at, events_omitted, quiet_streak, failure_streak, occurrence_id, triage_session_id, occurrence_started_at, rotation_due_session, occurrence_cancelled FROM agent_instance_wake_state WHERE instance_id = ?
 `
@@ -219,9 +232,9 @@ func (q *Queries) GetInstanceWakeState(ctx context.Context, instanceID string) (
 
 const insertInstanceWakeEvent = `-- name: InsertInstanceWakeEvent :exec
 INSERT INTO agent_heartbeat_wake_events
-(id,workspace_id,agent_name,source,result,reason,detail,denied_calls,occurrence_id,instance_id,created_at,expires_at)
+(id,workspace_id,agent_name,source,result,reason,detail,denied_calls,occurrence_id,instance_id,created_at,expires_at,tools_status)
 SELECT ?1,workspace_id,agent_name,?2,?3,?4,
-?5,?6,?7,?8,?9,?10
+?5,?6,?7,?8,?9,?10,?11
 FROM agent_instances WHERE agent_instances.id=?8
 `
 
@@ -236,6 +249,7 @@ type InsertInstanceWakeEventParams struct {
 	InstanceID   string `json:"instance_id"`
 	CreatedAt    string `json:"created_at"`
 	ExpiresAt    string `json:"expires_at"`
+	ToolsStatus  string `json:"tools_status"`
 }
 
 func (q *Queries) InsertInstanceWakeEvent(ctx context.Context, arg InsertInstanceWakeEventParams) error {
@@ -250,6 +264,7 @@ func (q *Queries) InsertInstanceWakeEvent(ctx context.Context, arg InsertInstanc
 		arg.InstanceID,
 		arg.CreatedAt,
 		arg.ExpiresAt,
+		arg.ToolsStatus,
 	)
 	return err
 }
@@ -360,7 +375,7 @@ func (q *Queries) ListInflightInstanceWakes(ctx context.Context) ([]AgentInstanc
 }
 
 const listInstanceCheckIns = `-- name: ListInstanceCheckIns :many
-SELECT e.id, e.result, e.reason, e.detail, e.created_at FROM agent_heartbeat_wake_events e
+SELECT e.id, e.result, e.reason, e.detail, e.created_at, e.occurrence_id, e.tools_status FROM agent_heartbeat_wake_events e
 WHERE e.instance_id=?1
 AND (?2='' OR (e.created_at, e.id) <
  (SELECT c.created_at, c.id FROM agent_heartbeat_wake_events c WHERE c.instance_id=?1 AND c.id=?2))
@@ -374,11 +389,13 @@ type ListInstanceCheckInsParams struct {
 }
 
 type ListInstanceCheckInsRow struct {
-	ID        string `json:"id"`
-	Result    string `json:"result"`
-	Reason    string `json:"reason"`
-	Detail    string `json:"detail"`
-	CreatedAt string `json:"created_at"`
+	ID           string `json:"id"`
+	Result       string `json:"result"`
+	Reason       string `json:"reason"`
+	Detail       string `json:"detail"`
+	CreatedAt    string `json:"created_at"`
+	OccurrenceID string `json:"occurrence_id"`
+	ToolsStatus  string `json:"tools_status"`
 }
 
 func (q *Queries) ListInstanceCheckIns(ctx context.Context, arg ListInstanceCheckInsParams) ([]ListInstanceCheckInsRow, error) {
@@ -396,6 +413,8 @@ func (q *Queries) ListInstanceCheckIns(ctx context.Context, arg ListInstanceChec
 			&i.Reason,
 			&i.Detail,
 			&i.CreatedAt,
+			&i.OccurrenceID,
+			&i.ToolsStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -418,6 +437,29 @@ WHERE id = ?1 AND unattended_counted = 0
 // Claims the row's single unattended count; a retried turn finds it already set.
 func (q *Queries) MarkSessionInputUnattendedCounted(ctx context.Context, id string) (int64, error) {
 	result, err := q.db.ExecContext(ctx, markSessionInputUnattendedCounted, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const recoverConfigRejectedInstanceWake = `-- name: RecoverConfigRejectedInstanceWake :execrows
+UPDATE agent_instance_wake_state SET quiet_streak=0, failure_streak=0,
+next_wake_at=CASE WHEN next_wake_at>?1 THEN ?1 ELSE next_wake_at END
+WHERE agent_instance_wake_state.instance_id=?2 AND occurrence_id=''
+AND EXISTS (SELECT 1 FROM agent_instances i WHERE i.id=agent_instance_wake_state.instance_id AND i.state='active' AND i.archived_at IS NULL AND i.checks_enabled=1)
+AND (SELECT reason FROM agent_heartbeat_wake_events e WHERE e.instance_id=agent_instance_wake_state.instance_id
+AND NOT (e.source='instance_check' AND e.result IN ('skipped','cancelled'))
+ORDER BY e.created_at DESC,e.id DESC LIMIT 1)='triage_config_unavailable'
+`
+
+type RecoverConfigRejectedInstanceWakeParams struct {
+	NextWakeAt string `json:"next_wake_at"`
+	InstanceID string `json:"instance_id"`
+}
+
+func (q *Queries) RecoverConfigRejectedInstanceWake(ctx context.Context, arg RecoverConfigRejectedInstanceWakeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recoverConfigRejectedInstanceWake, arg.NextWakeAt, arg.InstanceID)
 	if err != nil {
 		return 0, err
 	}

@@ -11,6 +11,8 @@ import (
 
 // ToolDescriptorPayload is the public descriptor shape exposed by daemon APIs.
 type ToolDescriptorPayload struct {
+	CheckInWritable     bool                  `json:"check_in_writable"`
+	Access              string                `json:"access"`
 	ToolID              tools.ToolID          `json:"tool_id"`
 	Backend             ToolBackendRefPayload `json:"backend"`
 	DisplayTitle        string                `json:"display_title,omitempty"`
@@ -19,6 +21,7 @@ type ToolDescriptorPayload struct {
 	Description         string                `json:"description"`
 	InputSchema         json.RawMessage       `json:"input_schema"`
 	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
+	OutputViews         *tools.ResultViews    `json:"output_views,omitempty"`
 	InputSchemaDigest   string                `json:"input_schema_digest"`
 	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
 	Source              ToolSourceRefPayload  `json:"source"`
@@ -94,7 +97,12 @@ type ToolPayload struct {
 
 // ToolsResponse returns a registry projection.
 type ToolsResponse struct {
-	Tools []ToolPayload `json:"tools"`
+	Tools      []ToolPayload `json:"tools"`
+	Offset     int           `json:"offset,omitzero"`
+	Count      int           `json:"count"`
+	Total      int           `json:"total"`
+	NextOffset int           `json:"next_offset,omitzero"`
+	HasMore    bool          `json:"has_more"`
 }
 
 // ToolResponse returns one registry tool projection.
@@ -104,6 +112,7 @@ type ToolResponse struct {
 
 // ToolSearchRequest filters the scoped registry projection.
 type ToolSearchRequest struct {
+	Offset      int    `json:"offset,omitzero"`
 	Query       string `json:"query"`
 	Limit       int    `json:"limit,omitzero"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
@@ -217,6 +226,10 @@ type ToolsetResponse struct {
 
 // ToolErrorPayload is the structured error envelope for tool registry routes.
 type ToolErrorPayload struct {
+	Retryable       bool   `json:"retryable,omitzero"`
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	ProviderError   string `json:"provider_error,omitempty"`
+
 	Code          tools.ErrorCode            `json:"code"`
 	Message       string                     `json:"message"`
 	ToolID        tools.ToolID               `json:"tool_id,omitempty"`

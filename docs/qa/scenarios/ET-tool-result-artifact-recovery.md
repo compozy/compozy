@@ -4,7 +4,7 @@ area: ET
 title: Recover one oversized tool result across public surfaces
 persona: Rafa
 journey: J-14
-expected: An oversized post-hook redacted tool result keeps a truthful preview, opens as exact ordered bytes in Web, native tool, CLI, HTTP, and UDS, remains isolated to its workspace, survives daemon restart until deterministic retention removes it, and preserves a bounded partial result if persistence fails.
+expected: An oversized post-hook redacted tool result keeps a truthful preview, opens as exact ordered bytes in Web, native tool, CLI, HTTP, and UDS, remains isolated to its workspace or profile-owned User scope, survives daemon restart until deterministic retention removes it, and preserves a bounded partial result if persistence fails.
 entry_points: Web session tool-result card; compozy__tool_artifact_read; compozy tool artifact read; GET /api/workspaces/:workspace_id/tool-artifacts/:artifact_id
 qa_status: blocked-verify
 bug_ids:
@@ -17,7 +17,7 @@ overlaps:
 ---
 
 Invoke a deterministic tool whose final post-hook, redacted result exceeds its effective result
-budget and includes a multi-byte character across the 64 KiB page boundary. Confirm the transcript
+budget and includes a multi-byte character across the default 32 KiB page boundary. Confirm the transcript
 keeps the bounded preview and one opaque artifact URI. Open every page in Web, then repeat through
 the native reader, CLI, HTTP, and UDS; concatenate bytes in offset order and require the same
 canonical JSON envelope on every surface.
@@ -29,8 +29,8 @@ fabricated durable URI. Confirm the Web card preserves the preview through loadi
 retry states.
 
 Through hosted MCP, call an oversized native tool (for example `compozy__session_events` with
-`limit: 1000` on a session above the budget) from a real MCP client that validates output schemas
-(Claude Code). Require a successful call whose `structuredContent` is the continuation envelope
+`limit: 1000` on a session above the budget) from a real MCP client
+(Claude Code). Confirm hosted native tools omit `outputSchema` and preserve `structuredContent`. Require a successful call whose `structuredContent` is the continuation envelope
 (`truncated: true`, `truncated_from_bytes`, `preview`, `artifacts[].uri`, `read_tool`), then page
 the artifact with `compozy__tool_artifact_read` to `eof` and match the retained bytes to the URI
 digest. Confirm `compozy__session_events` and `compozy__session_history` without `limit` return
@@ -74,3 +74,39 @@ resource with local references. Current-head CI owns the remaining integration g
 The same complete-turn invariant applies when walking backward with `next_before_sequence`:
 late events of the selected turn must remain present even if they occur beyond that turn-start
 cursor. The real-SQLite regression follows both cursor directions and checks the full old turn.
+
+QA impact 2026-11-06 (issue #1316): repeat the native walk in a User session with
+`compozy__skill_view` of `compozy` resource `references/runtime-operations.md` with a reduced
+32 KiB result budget. Require one retained artifact and page `compozy__tool_artifact_read`
+from offset zero through every `next_offset` until `eof`; the decoded envelope must contain
+the complete structured resource and preserve display redactions. Repeat the read through
+`GET /api/workspaces/@user/tool-artifacts/:artifact_id` and the operator CLI with `--workspace
+@user`, using the producing profile. Workspace-to-User, User-to-workspace, and other-profile User
+reads must return the same not-found shape as a missing artifact. Reopen the filesystem store
+and exercise shared count, byte, and age retention over workspace and User artifacts.
+Focused owning suites cover this behavior; previous provider-walk evidence above remains historical.
+
+Workspace artifacts keep their existing workspace-only ownership and disk layout, including
+artifacts produced before the upgrade from a non-default profile. No profile migration is applied
+to these existing workspace artifacts; User artifacts have a separate profile-owned namespace.
+
+Profile deletion removes that profile's User artifacts through its recoverable lifecycle
+journal. A failed removal keeps the operation retryable; retry/recovery preserves other
+profiles' User artifacts and all workspace artifacts. The artifact store is initialized
+before boot replays profile operations.
+
+QA impact 2026-11-09 (User-session event summaries): after the User walk above, read
+`compozy logs --session <user-session-id> -o json`. The session's `tool_call`, `tool_result` and
+`usage` summaries must be present with an empty workspace id, and the daemon log must not report
+`observe: write event summary failed … event summary workspace_id is required`. A summary for a
+session the catalog does not know still requires a workspace. Focused coverage:
+`TestUserEventSummarySelection` (real SQLite) and `TestValidationHelpersAndPathUtilities`.
+
+QA impact 2026-11-12 (issue #1564): at the default 256 KiB result budget, read a bundled
+reference around 168 KB through `compozy__skill_view` and require an inline canonical envelope
+with one complete document in `structured.content`, a short display summary, and unchanged
+verified text. Compare envelope bytes with JSON-encoded document bytes plus bounded metadata.
+Repeat with a reduced 32 KiB result budget to exercise retained-result recovery and the User
+isolation checks above. Default artifact reads must return 32 KiB decoded pages and stay below
+128 KiB after base64 and the hosted MCP JSON-text/structured transport duplication. Explicit
+64 KiB pages remain accepted. CI owns regression verification; no local runtime walk was run.

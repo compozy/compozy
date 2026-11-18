@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/session/inputqueue"
+	"github.com/compozy/compozy/internal/sessioncleanup"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -73,6 +74,8 @@ type CreateOpts struct {
 	// DiscardStartFailure prevents internal retry attempts from leaving durable
 	// session artifacts when provider startup fails before Create returns.
 	DiscardStartFailure bool
+	// DiscardStartFailureWhen selects unaccepted startup failures owned by an internal retry policy.
+	DiscardStartFailureWhen func(error) bool
 	// deriveSelectsRuntime records the explicit runtime fields as the child's selected runtime.
 	deriveSelectsRuntime bool
 }
@@ -110,6 +113,7 @@ type HostedMCPLauncher interface {
 
 // HostedMCPLaunchRequest describes the session identity for a hosted MCP entry.
 type HostedMCPLaunchRequest struct {
+	EagerTools  bool
 	SessionID   string
 	ProfileID   string
 	WorkspaceID string
@@ -141,14 +145,18 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
+	childWakePending           sync.Map
+	checkInToolsDisabled       bool
+	mcpAuthority               atomic.Pointer[MCPAuthorityResolver]
 	instanceCeiling            InstanceCeilingReader
 	instancePaused             func(context.Context, store.InstancePauseTrip) error
 	metadataCacheMu            sync.Mutex
 	metadataCache              map[string]cachedSessionMetadata
+	metadataCacheGeneration    uint64
 	restartInputsHeld          sync.Map
 	daemonShutdown             atomic.Pointer[daemonShutdownStop]
+	daemonShutdownTurnGrace    time.Duration
 	pullRequestReader          PullRequestReader
-	catalogRefreshes           map[[32]byte]time.Time
 	branchSnapshots            BranchSnapshotReader
 	branchSnapshotSaver        BranchSnapshotSaver
 	replyWatches               ReplyWatchService
@@ -160,10 +168,11 @@ type Manager struct {
 	supervisionMu              sync.Mutex
 	workSignals                *WorkSignalRegistry
 	mu                         sync.RWMutex
-	lifecycleMu                sync.Mutex
+	lifecycleMu                lifecycleMutex
 	worktreeDeliveryFences     map[string]bool
 	worktreeBindingUses        map[string]int
 	worktreeBindingNotifiers   []WorktreeBindingNotifier
+	providerAuthRecovery       providerAuthRecoveryLifecycle
 	sessions                   map[string]*Session
 	pending                    map[string]sessionReservation
 	finalizing                 map[string]*sessionFinalization
@@ -196,7 +205,13 @@ type Manager struct {
 	streamEvents            *sessionEventBroadcaster
 	catalogEventsMu         sync.Mutex
 	catalogEvents           *sessionCatalogBroadcaster
+	historyCleanupMu        sync.Mutex
+	historyCleanup          *sessioncleanup.Service
+	historyCleanupClosed    bool
+	attentionPublished      map[string]store.SessionAttention
 	attentionCommitMu       sync.Mutex
+	attentionCommitLocks    map[string]*attentionCommitLock
+	attentionReconciliation attentionReconciliationLifecycle
 	presenceMu              sync.Mutex
 	presenceLeases          map[sessionPresenceKey]sessionPresenceLease
 	notifyMu                sync.Mutex
@@ -204,6 +219,8 @@ type Manager struct {
 	attentionWorkspaceMutes AttentionWorkspaceMuteReader
 	notifyLastBySession     map[string]time.Time
 	waitRegistry            *sessionWaitRegistry
+	clarifyMu               sync.RWMutex
+	clarify                 toolspkg.ClarifyBroker
 	spawnWakeMu             sync.Mutex
 	spawnWakeEventIDs       map[string]struct{}
 	spawnWakeEventOrder     []string
@@ -219,20 +236,25 @@ type Manager struct {
 	windowReconciliationWG     sync.WaitGroup
 	turnEndNotifier            TurnEndNotifier
 	spawnWakeNotifier          SpawnWakeNotifier
+	spawnWakeCoverage          func(string, *Info, Badge) bool
 	inputAugmenter             PromptInputAugmenter
 	commandService             CommandService
 	inputQueue                 *inputqueue.Service
+	queuedTurnLinks            queuedTurnLinks
 	inputQueueStore            store.SessionInputQueueStore
 	promptAdmissionStore       store.SessionPromptAdmissionStore
 	attachmentOpener           AttachmentOpener
 	attachmentScopeLease       attachmentScopeLease
 	managedInputLifecycle      ManagedInputLifecycle
 	workAdmission              admission.Checker
+	transportsListening        chan struct{}
+	transportsListeningOnce    sync.Once
 	goalCommandHandler         GoalCommandHandler
 	startupOverlay             StartupPromptOverlay
 	hooks                      HookSet
 	agentResolver              AgentResolver
 	providerSecrets            ProviderSecretResolver
+	providerTelemetryEnv       func() []string
 	profileNames               ProfileNameResolver
 	modelCatalog               modelcatalog.Service
 	skillRegistry              SkillRegistry
@@ -242,7 +264,10 @@ type Manager struct {
 	toolsetCatalog               toolspkg.ToolsetCatalog
 	toolUniverse                 []toolspkg.ToolID
 	mcpResolver                  MCPResolver
+	mcpConsentFilter             MCPConsentFilter
 	hostedMCP                    HostedMCPLauncher
+	runtimeMCPInventory          RuntimeMCPInventory
+	mcpReader                    MCPReader
 	soulStore                    SoulSnapshotStore
 	soulRunChecker               SoulRunActivityChecker
 	sessionHealthStore           HealthStore
@@ -260,6 +285,7 @@ type Manager struct {
 	openQueryStore               QueryStoreOpener
 	queryStoreExplicit           bool
 	queryStoreRuntime            *queryStoreRuntime
+	queryQuiesceTimeout          time.Duration
 	assembler                    PromptAssembler
 	supervision                  compozyconfig.SessionSupervisionConfig
 	stopConfig                   compozyconfig.SessionStopConfig

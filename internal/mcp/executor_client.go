@@ -12,7 +12,9 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/mcp/securehttp"
+	"github.com/compozy/compozy/internal/mcppolicy"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
 	"github.com/compozy/compozy/internal/version"
@@ -31,8 +33,18 @@ const maxAuthorizationChallengeDrainBytes = int64(64 << 10)
 
 func (e *CallExecutor) openClient(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 	authorizationHeader string,
+) (*managedMCPClient, error) {
+	rendered := *resolved
+	if err := e.renderHTTPServer(ctx, &rendered); err != nil {
+		return nil, err
+	}
+	return e.openRenderedClient(ctx, &rendered, authorizationHeader)
+}
+
+func (e *CallExecutor) openRenderedClient(
+	ctx context.Context, resolved *ResolvedServer, authorizationHeader string,
 ) (*managedMCPClient, error) {
 	server := resolved.Server
 	transport := server.EffectiveTransport()
@@ -41,7 +53,11 @@ func (e *CallExecutor) openClient(
 		if e.stdioPool != nil {
 			return e.openPooledStdioClient(ctx, resolved)
 		}
-		launch, err := e.newMCPStdioLaunch(ctx, server, resolved.Target)
+		spec, err := e.clientStdioSpec(ctx, resolved)
+		if err != nil {
+			return nil, err
+		}
+		launch, err := newMCPStdioProcess(ctx, spec, mcpStdioLayout{}, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -74,6 +90,33 @@ func (e *CallExecutor) openClient(
 	}
 }
 
+func (e *CallExecutor) renderHTTPServer(ctx context.Context, resolved *ResolvedServer) error {
+	if resolved.Server.EffectiveTransport() != compozyconfig.MCPServerTransportHTTP {
+		return nil
+	}
+	rendered, secrets, err := resolved.Server.RenderInputs(
+		func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
+	)
+	if err != nil {
+		return err
+	}
+	if err := mcppolicy.ValidateRemoteURL(rendered.URL); err != nil {
+		return errors.New("mcp: invalid rendered endpoint")
+	}
+	for _, secret := range secrets {
+		registerMCPRequestSecret(ctx, secret)
+	}
+	// Rendering can omit optional Agent Plugin headers, so use the authored definition here.
+	resolved.requireResourceMetadata = resolved.Server.Auth.IsZero() && mcpauth.OAuthWithPluginHeaders(resolved.Server)
+	resolved.Server = rendered
+	headers, err := e.resolveMCPRequestHeaders(ctx, rendered)
+	if err != nil {
+		return err
+	}
+	resolved.requestHeaders = headers
+	return nil
+}
+
 func (e *CallExecutor) connectClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.ClientSession, error) {
 	return connectMCPClient(ctx, transport)
 }
@@ -103,8 +146,8 @@ func connectMCPClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.
 	return session, nil
 }
 
-func (e *CallExecutor) openPooledStdioClient(ctx context.Context, resolved ResolvedServer) (*managedMCPClient, error) {
-	spec, err := e.mcpStdioSpec(ctx, resolved.Server, resolved.Target)
+func (e *CallExecutor) openPooledStdioClient(ctx context.Context, resolved *ResolvedServer) (*managedMCPClient, error) {
+	spec, err := e.clientStdioSpec(ctx, resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +156,16 @@ func (e *CallExecutor) openPooledStdioClient(ctx context.Context, resolved Resol
 		return nil, err
 	}
 	return &managedMCPClient{session: lease.session.session, release: lease.release}, nil
+}
+
+func (e *CallExecutor) clientStdioSpec(ctx context.Context, resolved *ResolvedServer) (mcpStdioSpec, error) {
+	if resolved.listingSpec == nil {
+		return e.mcpStdioSpec(ctx, resolved.Server, resolved.Target)
+	}
+	if err := e.prepareMCPDataDir(resolved.Server); err != nil {
+		return mcpStdioSpec{}, err
+	}
+	return *resolved.listingSpec, nil
 }
 
 func closeMCPClient(client *managedMCPClient) error {
@@ -147,7 +200,7 @@ func releaseMCPClient(client *managedMCPClient, callErr error) error {
 
 func (e *CallExecutor) httpClientWithAuthorization(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 	authorizationHeader string,
 ) (*http.Client, error) {
 	client := e.httpClientForServer(resolved)
@@ -155,13 +208,22 @@ func (e *CallExecutor) httpClientWithAuthorization(
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
-	headers, err := e.resolveMCPRequestHeaders(ctx, resolved.Server)
-	if err != nil {
-		return nil, err
+	headers := resolved.requestHeaders
+	if headers == nil {
+		var err error
+		headers, err = e.resolveMCPRequestHeaders(ctx, resolved.Server)
+		if err != nil {
+			return nil, err
+		}
 	}
-	configureMCPRedirectPolicy(client, resolved.Server.Auth.Enabled(), authorizationHeader != "" || len(headers) > 0)
+	configureMCPRedirectPolicy(
+		client,
+		resolved.Server.Auth.Enabled() || authorizationHeader != "",
+		authorizationHeader != "" || len(headers) > 0,
+	)
 	client.Transport = authorizationRoundTripper{
 		next: transport, header: authorizationHeader, headers: headers,
+		requireMetadata: resolved.requireResourceMetadata,
 	}
 	return client, nil
 }
@@ -216,7 +278,7 @@ func (e *CallExecutor) resolveMCPRequestHeaders(
 	return headers, nil
 }
 
-func (e *CallExecutor) httpClientForServer(resolved ResolvedServer) *http.Client {
+func (e *CallExecutor) httpClientForServer(resolved *ResolvedServer) *http.Client {
 	if strings.TrimSpace(resolved.Server.CatalogEntry) != "" {
 		return securehttp.NewClient(securehttp.WithTimeout(e.timeout)).HTTPClient()
 	}
@@ -224,9 +286,10 @@ func (e *CallExecutor) httpClientForServer(resolved ResolvedServer) *http.Client
 }
 
 type authorizationRoundTripper struct {
-	next    http.RoundTripper
-	header  string
-	headers http.Header
+	next            http.RoundTripper
+	header          string
+	headers         http.Header
+	requireMetadata bool
 }
 
 func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -245,6 +308,10 @@ func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Respo
 		return nil, err
 	}
 	if authErr := authorizationChallengeError(response); authErr != nil {
+		if errors.Is(authErr, ErrAuthorizationRequired) && t.requireMetadata && t.header == "" &&
+			mcpauth.AdvertisedProtectedResourceMetadataURL(response.Header, request.URL.String()) == "" {
+			authErr = errRemoteAuthenticationRejected
+		}
 		return nil, errors.Join(authErr, drainAndCloseAuthorizationChallenge(response.Body))
 	}
 	return response, nil

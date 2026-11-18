@@ -13,13 +13,15 @@ import (
 func (h *BaseHandlers) mcpServerStatusPayloads(
 	ctx context.Context,
 	workspaceID string,
+	cached bool,
 ) ([]contract.MCPServerStatusPayload, error) {
 	if h.Settings == nil {
 		return nil, nil
 	}
 	request := settingspkg.CollectionRequest{
-		Collection: settingspkg.CollectionMCPServers,
-		Scope:      settingspkg.ScopeUser,
+		Collection:          settingspkg.CollectionMCPServers,
+		Scope:               settingspkg.ScopeUser,
+		CachedRuntimeStatus: cached,
 	}
 	if workspaceID = strings.TrimSpace(workspaceID); workspaceID != "" {
 		request.Scope = settingspkg.ScopeWorkspace
@@ -30,13 +32,13 @@ func (h *BaseHandlers) mcpServerStatusPayloads(
 		return nil, err
 	}
 	payloads := make([]contract.MCPServerStatusPayload, 0, len(envelope.MCPServers))
-	for _, server := range envelope.MCPServers {
-		payloads = append(payloads, mcpServerStatusPayload(server))
+	for i := range envelope.MCPServers {
+		payloads = append(payloads, mcpServerStatusPayload(&envelope.MCPServers[i]))
 	}
 	return payloads, nil
 }
 
-func mcpServerStatusPayload(server settingspkg.MCPServerItem) contract.MCPServerStatusPayload {
+func mcpServerStatusPayload(server *settingspkg.MCPServerItem) contract.MCPServerStatusPayload {
 	payload := contract.MCPServerStatusPayload{
 		Name:          strings.TrimSpace(server.Name),
 		Scope:         strings.TrimSpace(string(server.Scope)),

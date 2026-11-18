@@ -2,6 +2,10 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Logo } from "../logo";
+import { LOGO_SYMBOL_PNG_256 } from "../logo-symbol.generated";
+import { LOGO_LOCKUP, LOGO_WORDMARK } from "../logo-wordmark.generated";
+
+const RETIRED_ACCENT = /#e8572a/i;
 
 describe("Logo", () => {
   it("renders the full logo variant by default", () => {
@@ -10,29 +14,39 @@ describe("Logo", () => {
     const logo = screen.getByRole("img", { name: "Compozy" });
     expect(logo).toHaveAttribute("data-slot", "logo");
     expect(logo).toHaveAttribute("data-variant", "logo");
-    expect(logo).toHaveAttribute("viewBox", "0 0 1965 355");
-    expect(logo.querySelector("g")).not.toBeNull();
-    expect(logo.querySelector('g[transform="translate(430 10.5)"]')).not.toBeNull();
+    expect(logo).toHaveAttribute("viewBox", LOGO_LOCKUP.viewBox);
+    expect(logo.querySelector("image")).toHaveAttribute("href", LOGO_SYMBOL_PNG_256);
+    const wordmark = logo.querySelector(
+      `g[transform="translate(${LOGO_LOCKUP.wordmark.x} ${LOGO_LOCKUP.wordmark.y})"] path`
+    );
+    expect(wordmark).toHaveAttribute("d", LOGO_WORDMARK.d);
+    expect(logo.outerHTML).not.toMatch(RETIRED_ACCENT);
   });
 
-  it("renders the symbol variant with the square symbol viewBox", () => {
-    const { container } = render(<Logo variant="symbol" label="Compozy symbol" />);
+  it("renders the symbol variant as the generated raster symbol", () => {
+    render(<Logo variant="symbol" label="Compozy symbol" />);
 
     const logo = screen.getByRole("img", { name: "Compozy symbol" });
     expect(logo).toHaveAttribute("data-variant", "symbol");
-    expect(logo).toHaveAttribute("viewBox", "0 0 355 355");
-    expect(container.querySelector('rect[fill="#E8572A"]')).not.toBeNull();
+    expect(logo).toHaveAttribute("viewBox", "0 0 256 256");
+    const image = logo.querySelector("image");
+    expect(image?.getAttribute("href")).toMatch(/^data:image\/png;base64,/);
+    expect(image).toHaveAttribute("href", LOGO_SYMBOL_PNG_256);
+    expect(logo.querySelector("path")).toBeNull();
   });
 
-  it("renders the lettering variant with the lettering viewBox", () => {
+  it("renders the lettering variant as the vector wordmark", () => {
     render(<Logo variant="lettering" label="Compozy lettering" />);
 
     const logo = screen.getByRole("img", { name: "Compozy lettering" });
     expect(logo).toHaveAttribute("data-variant", "lettering");
-    expect(logo).toHaveAttribute("viewBox", "0 0 1535 334");
-    expect(logo.querySelector('path[fill="currentColor"]')).not.toBeNull();
-    expect(logo.querySelector('path[fill="#E8572A"]')).not.toBeNull();
-    expect(logo.querySelector("rect")).toBeNull();
+    expect(logo).toHaveAttribute("viewBox", LOGO_WORDMARK.viewBox);
+    const paths = logo.querySelectorAll("path");
+    expect(paths).toHaveLength(1);
+    expect(paths[0]).toHaveAttribute("fill", "currentColor");
+    expect(paths[0]).toHaveAttribute("d", LOGO_WORDMARK.d);
+    expect(logo.outerHTML).not.toMatch(RETIRED_ACCENT);
+    expect(logo.querySelector("image")).toBeNull();
     expect(logo.querySelector("text")).toBeNull();
   });
 

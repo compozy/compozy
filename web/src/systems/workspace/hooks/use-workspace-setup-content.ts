@@ -48,7 +48,7 @@ export function useWorkspaceSetupContent({
   const [submissionMode, setSubmissionMode] = useState<SubmissionMode>(null);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const workspaces = useWorkspaces({ enabled });
+  const registeredWorkspaces = useWorkspaces({ enabled }).data;
 
   /**
    * Typing or picking a root only updates the draft. Registration happens once,
@@ -93,7 +93,7 @@ export function useWorkspaceSetupContent({
   const rootField = useDirectoryPathField({
     value: draft.rootDir,
     onValueChange: selectRoot,
-    isProject: path => (workspaces.data ?? []).some(workspace => workspace.root_dir === path),
+    isProject: path => (registeredWorkspaces ?? []).some(workspace => workspace.root_dir === path),
     enabled,
   });
 

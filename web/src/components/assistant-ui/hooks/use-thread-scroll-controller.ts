@@ -10,11 +10,14 @@ import {
   NEW_TURN_ANCHOR_OFFSET_PX,
   shouldMaintainEnd,
 } from "../timeline-scroll-anchoring";
+import { isRenderedElement } from "@/lib/scroll-owner";
+
 import { estimateMessageSize, VIRTUAL_MESSAGE_ESTIMATE } from "../timeline-row-estimates";
 import { useOptionalThreadScrollStore, type ThreadScrollStore } from "./thread-scroll-context";
 import { firstVisibleRow, landMessageRow, lastVisibleRow } from "./thread-scroll-landing";
 import { threadScrollLogic, threadScrollMode } from "./thread-scroll-store";
 import { pinToEnd, useThreadScrollGestures } from "./use-thread-scroll-gestures";
+import { observeRenderedElementOffset, useThreadScrollResume } from "./use-thread-scroll-resume";
 
 const LOAD_OLDER_CONTROL_ESTIMATE = 48;
 const VIRTUAL_OVERSCAN = 6;
@@ -93,6 +96,24 @@ export function measureVirtualRow(
   return virtualizer.options.estimateSize(virtualizer.indexFromElement(element));
 }
 
+/**
+ * A row's height while the viewport is rendered; while it is not (its pane hidden), the height
+ * the row already had: a hidden row reports 0, and booking that would collapse the transcript
+ * and lose the reader's place.
+ */
+function measureRenderedRow(
+  element: HTMLDivElement,
+  entry: ResizeObserverEntry | undefined,
+  virtualizer: Virtualizer<HTMLDivElement, HTMLDivElement>
+): number {
+  const viewport = virtualizer.scrollElement;
+  if (viewport !== null && !isRenderedElement(viewport)) {
+    const known = virtualizer.measurementsCache[virtualizer.indexFromElement(element)];
+    if (known !== undefined) return known.size;
+  }
+  return measureVirtualRow(element, entry, virtualizer);
+}
+
 function observeViewportRect(
   virtualizer: Virtualizer<HTMLDivElement, HTMLDivElement>,
   publish: (rect: { width: number; height: number }) => void
@@ -100,6 +121,8 @@ function observeViewportRect(
   const viewport = virtualizer.scrollElement;
   if (!viewport) return undefined;
   const measure = () => {
+    // A hidden viewport has no box; its last rect still describes the rows it shows.
+    if (!isRenderedElement(viewport)) return;
     publish({
       width: viewport.clientWidth || INITIAL_VIEWPORT_RECT.width,
       height: viewport.clientHeight || INITIAL_VIEWPORT_RECT.height,
@@ -151,6 +174,7 @@ export function useThreadScrollController(
     count: messageCount + leadingItemCount,
     getScrollElement: () => viewportRef.current,
     observeElementRect: observeViewportRect,
+    observeElementOffset: observeRenderedElementOffset,
     estimateSize: virtualIndex => {
       if (includeLoadOlderControl && virtualIndex === 0) {
         return LOAD_OLDER_CONTROL_ESTIMATE;
@@ -165,7 +189,7 @@ export function useThreadScrollController(
       }
       return messages[virtualIndex - leadingItemCount]?.id ?? virtualIndex;
     },
-    measureElement: measureVirtualRow,
+    measureElement: measureRenderedRow,
     initialRect: INITIAL_VIEWPORT_RECT,
     overscan: VIRTUAL_OVERSCAN,
     // React 19 rejects TanStack Virtual's default flushSync notification while
@@ -176,7 +200,8 @@ export function useThreadScrollController(
     scrollEndThreshold: FOLLOW_REARM_BAND_PX,
     scrollToFn: (offset, options, instance) => {
       const viewport = instance.scrollElement;
-      if (!viewport) return;
+      // A hidden viewport cannot hold an offset; resuming on show restores the position.
+      if (!viewport || !isRenderedElement(viewport)) return;
       const scrollState = store.getSnapshot().context;
       const mode = threadScrollMode(scrollState);
       if (
@@ -198,6 +223,43 @@ export function useThreadScrollController(
       });
     },
   });
+
+  // The new-turn anchor: the sent bubble held near the top, or following once the reply outgrew
+  // the reserved space. Applied on each commit while rendered, and on show for a turn that
+  // started while the pane was hidden. Returns whether a turn was placed.
+  const placeTurn = useRef<(viewport: HTMLDivElement) => boolean>(() => false);
+  useLayoutEffect(() => {
+    placeTurn.current = viewport => {
+      const scrollState = store.getSnapshot().context;
+      const anchorIndex = scrollState.anchorIndex;
+      if (threadScrollMode(scrollState) !== "anchoring-new-turn" || anchorIndex === null) {
+        return false;
+      }
+      const viewportHeight = Math.max(
+        viewport.clientHeight,
+        virtualizer.scrollRect?.height ?? INITIAL_VIEWPORT_RECT.height
+      );
+      const metrics = getAnchoredTurnMetrics({
+        state: createVirtualizerMeasurementState(virtualizer, viewportHeight),
+        anchorIndex: anchorIndex + leadingItemCount,
+        composerOverlayHeight: scrollState.composerOverlayHeight,
+        anchorOffset: NEW_TURN_ANCHOR_OFFSET_PX,
+      });
+      if (!metrics) return false;
+      if (metrics.overflowsUsableViewport) {
+        // The reply outgrew the reserved space: following takes over.
+        store.trigger.anchorOutgrown();
+        virtualizer.scrollToEnd();
+      } else {
+        virtualizer.scrollToOffset(Math.max(0, metrics.anchorTop - NEW_TURN_ANCHOR_OFFSET_PX));
+      }
+      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
+      return true;
+    };
+  });
+
+  useThreadScrollGestures(viewportRef, store);
+  const endResumeHold = useThreadScrollResume(viewportRef, virtualizer, store, placeTurn);
 
   const scrollToEnd = () => {
     store.trigger.scrollToEndRequested();
@@ -232,6 +294,8 @@ export function useThreadScrollController(
   ) => {
     const viewport = viewportRef.current;
     if (!viewport) return Promise.resolve(false);
+    // The jump owns the viewport: a resume still holding the reader's row lets go.
+    endResumeHold.current();
     store.trigger.navigationJumpRequested();
     return landMessageRow({
       estimateOffset: () => {
@@ -253,6 +317,7 @@ export function useThreadScrollController(
     const anchor = firstVisibleRow(viewport);
     const messageId = anchor?.dataset.messageId;
     if (!anchor || !messageId) return;
+    endResumeHold.current();
     store.trigger.historyPageRequested({
       messageId,
       offsetTop: anchor.getBoundingClientRect().top - viewport.getBoundingClientRect().top,
@@ -305,8 +370,6 @@ export function useThreadScrollController(
     return () => cancelAnimationFrame(animationFrame);
   }, [historyAnchor, leadingItemCount, messageCount, messages, store, viewportRef, virtualizer]);
 
-  useThreadScrollGestures(viewportRef, store);
-
   // End-maintenance: streaming growth (content) and composer growth (viewport
   // shrink) keep the pin while following, and only then; a disclosure holds it
   // for two frames so opening a fold never yanks (ADR-007).
@@ -315,6 +378,7 @@ export function useThreadScrollController(
     const content = contentRef.current;
     if (!viewport || !content) return undefined;
     const maintain = () => {
+      if (!isRenderedElement(viewport)) return;
       if (!shouldMaintainEnd(store.getSnapshot().context.ownership)) return;
       pinToEnd(viewport, store);
     };
@@ -369,31 +433,11 @@ export function useThreadScrollController(
     const lastUserIndex = findLastUserIndex(messages);
     const lastUserId = lastUserIndex >= 0 ? (messages[lastUserIndex]?.id ?? null) : null;
     store.trigger.messagesCommitted({ count: messageCount, lastUserId, lastUserIndex });
-    const scrollState = store.getSnapshot().context;
-    const mode = threadScrollMode(scrollState);
-
-    const anchorIndex = scrollState.anchorIndex;
-    if (mode === "anchoring-new-turn" && anchorIndex !== null) {
-      const viewportHeight = Math.max(
-        viewport.clientHeight,
-        virtualizer.scrollRect?.height ?? INITIAL_VIEWPORT_RECT.height
-      );
-      const metrics = getAnchoredTurnMetrics({
-        state: createVirtualizerMeasurementState(virtualizer, viewportHeight),
-        anchorIndex: anchorIndex + leadingItemCount,
-        composerOverlayHeight: scrollState.composerOverlayHeight,
-        anchorOffset: NEW_TURN_ANCHOR_OFFSET_PX,
-      });
-      if (!metrics) return;
-      if (metrics.overflowsUsableViewport) {
-        // The reply outgrew the reserved space: following takes over.
-        store.trigger.anchorOutgrown();
-        virtualizer.scrollToEnd();
-        store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
-        return;
-      }
-      virtualizer.scrollToOffset(Math.max(0, metrics.anchorTop - NEW_TURN_ANCHOR_OFFSET_PX));
-      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
+    // Rows that arrive while the pane is hidden are booked; the resume on show places them.
+    if (!isRenderedElement(viewport)) return;
+    const mode = threadScrollMode(store.getSnapshot().context);
+    if (mode === "anchoring-new-turn") {
+      placeTurn.current(viewport);
       return;
     }
 

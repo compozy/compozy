@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
 	"sync"
 
 	burnttoml "github.com/BurntSushi/toml"
@@ -14,6 +15,12 @@ import (
 const configBaseURLKey = "base_url"
 
 var warnShellScopeDeprecation = sync.OnceFunc(func() { slog.Warn(ShellScopeDeprecationWarning) })
+
+var warnWorkspaceToolConsentPolicy = sync.OnceFunc(func() {
+	slog.Warn(
+		"config: workspace tools.policy grants ignored; configure consent and trust in user or profile config",
+	)
+})
 
 // ApplyConfigOverlayFile deep-merges an optional TOML config file into dst.
 func ApplyConfigOverlayFile(path string, dst *Config) error {
@@ -33,13 +40,15 @@ func ApplyConfigOverlayFile(path string, dst *Config) error {
 }
 
 func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) error {
+	if roleSource == RoleFieldSourceWorkspace || roleSource == RoleFieldSourceWorkspaceProfile {
+		overlay.Tools.Policy.restrictTo(dst.Tools.Policy)
+	}
 	if roleSource != RoleFieldSourceGlobal && overlay.Agents.Heartbeat.Sources.present() {
 		slog.Warn("config: [agents.heartbeat.sources] is daemon-wide; overlay ignored")
 		overlay.Agents.Heartbeat.Sources = heartbeatSourcesOverlay{}
 	}
-	if roleSource != RoleFieldSourceGlobal && overlay.Permissions.ProviderFullAccess != nil &&
-		*overlay.Permissions.ProviderFullAccess {
-		return fmt.Errorf("permissions.provider_full_access can only be enabled in the global config")
+	if err := rejectWorkspaceProviderEnabled(overlay, roleSource); err != nil {
+		return err
 	}
 	if err := overlay.Apply(dst); err != nil {
 		return err
@@ -76,13 +85,28 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 	if err != nil {
 		return overlay, FileError{Op: "decode", Path: source, Err: err}
 	}
+	for i := range overlay.MCPServers {
+		overlay.MCPServers[i].definitionSource = source
+	}
+	for name, provider := range overlay.Providers {
+		for i := range provider.MCPServers {
+			provider.MCPServers[i].definitionSource = source
+		}
+		overlay.Providers[name] = provider
+	}
 
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
-		undecoded = withoutDynamicLoopInputKeys(undecoded)
+		undecoded = withoutRetiredProviderFullAccessKeys(withoutDynamicLoopInputKeys(undecoded))
 		if len(undecoded) == 0 {
 			return overlay, nil
 		}
 		unknown := &UnknownKeysError{Path: source, Keys: uniqueTOMLKeys(undecoded)}
+		for _, key := range undecoded {
+			if err := ValidateRemovedConfigPath(key); err != nil {
+				unknown.Err = err
+				return overlay, unknown
+			}
+		}
 		if err := rejectRemovedLoopRuntimeKeys(source, undecoded); err != nil {
 			unknown.Err = err
 			return overlay, unknown
@@ -228,7 +252,7 @@ func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 }
 
 func (o agentsOverlay) Apply(dst *AgentsConfig) {
-	o.applyAlwaysOn(&dst.AlwaysOn)
+	o.AlwaysOn.Apply(&dst.AlwaysOn)
 	o.Soul.Apply(&dst.Soul)
 	o.Heartbeat.Apply(&dst.Heartbeat)
 	applyAgentOverrideOverlays(o.Overrides, &dst.Overrides)
@@ -311,7 +335,21 @@ func (o permissionsOverlay) Apply(dst *PermissionsConfig) {
 	if o.Mode != nil {
 		dst.Mode = *o.Mode
 	}
-	if o.ProviderFullAccess != nil {
-		dst.ProviderFullAccess = *o.ProviderFullAccess
+}
+
+// rejectWorkspaceProviderEnabled keeps providers.<id>.enabled in the global and profile layers
+// (BR-2): provider usage resolves per profile, so a workspace value could not apply consistently.
+func rejectWorkspaceProviderEnabled(overlay *configOverlay, roleSource string) error {
+	if roleSource != RoleFieldSourceWorkspace && roleSource != RoleFieldSourceWorkspaceProfile {
+		return nil
 	}
+	for _, name := range slices.Sorted(maps.Keys(overlay.Providers)) {
+		if overlay.Providers[name].Enabled != nil {
+			return ValidationError{
+				Path:    "providers." + name + ".enabled",
+				Message: "can only be set in the global or profile config",
+			}
+		}
+	}
+	return nil
 }

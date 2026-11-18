@@ -1,6 +1,7 @@
 package config
 
 import (
+	"slices"
 	"strings"
 	"time"
 )
@@ -108,9 +109,10 @@ type SessionSupervisionConfig struct {
 
 // SessionBusyInputConfig controls operator input submitted while a turn is active.
 type SessionBusyInputConfig struct {
-	DefaultMode  string `toml:"default_mode,omitempty"`
-	QueueCap     int    `toml:"queue_cap,omitempty"`
-	MaxTextBytes int    `toml:"max_text_bytes,omitempty"`
+	SteerBoundaryTimeout time.Duration `toml:"steer_boundary_timeout"`
+	DefaultMode          string        `toml:"default_mode,omitempty"`
+	QueueCap             int           `toml:"queue_cap,omitempty"`
+	MaxTextBytes         int           `toml:"max_text_bytes,omitempty"`
 }
 
 const (
@@ -159,8 +161,7 @@ const AlwaysOnDefaultPermissionMode = PermissionModeApproveEdits
 
 // PermissionsConfig defines the global default permission policy.
 type PermissionsConfig struct {
-	Mode               PermissionMode `toml:"mode"`
-	ProviderFullAccess bool           `toml:"provider_full_access,omitempty"`
+	Mode PermissionMode `toml:"mode"`
 }
 
 const acpModeAuto = "auto"
@@ -210,13 +211,36 @@ func IsUnrestrictedACPOption(provider, optionID, valueID string) bool {
 	}
 }
 
-// ObservabilityConfig controls global event retention settings.
+// HasUnrestrictedACPOption reports whether any selection bypasses the provider's approvals.
+func HasUnrestrictedACPOption(provider string, options []ACPOptionSelection) bool {
+	return slices.ContainsFunc(options, func(option ACPOptionSelection) bool {
+		return IsUnrestrictedACPOption(provider, option.ID, option.ValueID)
+	})
+}
+
+// ExcludesInheritedUnrestrictedACPOptions reports whether a session start removes unrestricted
+// options from its inherited agent layer. Only approve-all keeps them, and removal applies once
+// the agent definition authored one or the bound route recorded one at session start.
+func ExcludesInheritedUnrestrictedACPOptions(
+	provider string,
+	permissions PermissionMode,
+	authored []ACPOptionSelection,
+	routeInherited bool,
+) bool {
+	if permissions == PermissionModeApproveAll {
+		return false
+	}
+	return routeInherited || HasUnrestrictedACPOption(provider, authored)
+}
+
+// ObservabilityConfig controls global event retention and OTLP export settings.
 type ObservabilityConfig struct {
 	Enabled           bool                          `toml:"enabled"`
 	RetentionDays     int                           `toml:"retention_days"`
 	MaxGlobalBytes    int64                         `toml:"max_global_bytes"`
 	AgentProbeTimeout time.Duration                 `toml:"agent_probe_timeout"`
 	Transcripts       ObservabilityTranscriptConfig `toml:"transcripts"`
+	OTel              ObservabilityOTelConfig       `toml:"otel"`
 }
 
 // ObservabilityTranscriptConfig configures transcript capture and retention.

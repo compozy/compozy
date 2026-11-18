@@ -6,7 +6,11 @@ import { CenteredSurface } from "@/storybook/story-layout";
 
 import { sessionListViewFixture } from "../../mocks/session-list-view-fixtures";
 import { SessionSidebar } from "../session-sidebar";
-import { BRANCH_SESSIONS, SUBAGENT_BRANCH_HANDLERS } from "./session-sidebar-branch-fixtures";
+import {
+  ACTIVE_CHILD_SESSIONS,
+  BRANCH_SESSIONS,
+  SUBAGENT_BRANCH_HANDLERS,
+} from "./session-sidebar-branch-fixtures";
 
 const meta: Meta<typeof SessionSidebar> = {
   title: "systems/session/components/SessionSidebar/Branches",
@@ -84,7 +88,7 @@ export const BranchIndicators: Story = {
     onNewSession: fn(),
     sessionActions: {
       pendingAction: null,
-      pendingSessionId: null,
+      pendingSessionIds: [],
       onArchive: fn(),
       onDelete: fn(),
       onRename: fn(),
@@ -143,5 +147,19 @@ export const SegmentedSwitch: Story = {
     await expect(
       await canvas.findByTestId("session-sidebar-subagents-sess-ship")
     ).toBeInTheDocument();
+  },
+};
+
+/**
+ * Issue #1732: ten child sessions with the working 8th and the waiting 9th past the six-row cap.
+ * Active children lead the open list, so neither hides behind "Show more".
+ */
+export const ActiveChildrenFirst: Story = {
+  ...BranchIndicators,
+  args: {
+    ...BranchIndicators.args,
+    sessions: ACTIVE_CHILD_SESSIONS,
+    collapsedThreadIds: [],
+    currentSessionId: "sess-release",
   },
 };

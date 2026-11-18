@@ -9,14 +9,23 @@ import (
 )
 
 type acceptedSessionStart struct {
-	spec           *sessionStartSpec
-	runtime        sessionStartRuntime
-	session        *Session
-	storage        sessionStartStorage
-	run            *sessionStartRun
-	proc           *AgentProcess
-	async          bool
-	persistFailure bool
+	spec    *sessionStartSpec
+	runtime sessionStartRuntime
+	session *Session
+	storage sessionStartStorage
+	run     *sessionStartRun
+	proc    *AgentProcess
+	// processStopPending retains the owned call result; each attempt cancels its cleanup context.
+	processStopPending <-chan error
+	async              bool
+	persistFailure     bool
+	// cleanupPending transfers start-run completion to recorder cleanup.
+	cleanupPending bool
+	// recorderClosing distinguishes joining Close from retrying an unfinished write.
+	recorderClosing bool
+	// shutdownInterrupted keeps the start failure in the run result across settlement retries.
+	shutdownInterrupted bool
+	retainedFailure     *failedStartRetention
 }
 
 // acceptSessionStart resolves routing before persistence so invalid configuration cannot create sessions.
@@ -78,6 +87,7 @@ func (m *Manager) acceptSessionStart(
 	spec.resolveDefinitionPermissionPolicy(runtime.agentDef)
 	session := spec.newStartingSession(runtime.agent, runtime.agentDef, storage, m.now())
 	session.followUpMode = m.busyInputDefaultMode
+	session.steerBoundaryTimeout = m.busyInput.SteerBoundaryTimeout
 	session.pendingDeriveReceipt = cloneDerivationReceipt(spec.deriveReceipt)
 	if err := m.registerStarting(session); err != nil {
 		cleanupErr := m.cleanupFailedStart(storage.sessionDir, storage.recorder, nil)
@@ -140,6 +150,11 @@ func (m *Manager) persistAcceptedStart(ctx context.Context, spec *sessionStartSp
 	}
 	if spec.deriveReceipt != nil {
 		return m.persistSessionMetadataOnly(session)
+	}
+	if spec.startAction == sessionStartActionCreate {
+		if err := m.registerChildSettleWake(ctx, session.Info()); err != nil {
+			return err
+		}
 	}
 	return m.persistSessionLifecycleState(ctx, session, true)
 }

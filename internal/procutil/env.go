@@ -3,13 +3,52 @@ package procutil
 import (
 	"os"
 	"path"
+	"slices"
 	"strings"
 )
 
+// InternalHandoffEnvPrefix marks variables that carry one-shot handoff state between a
+// CompozyOS process and the specific process it launches. They must never reach ordinary children.
+const InternalHandoffEnvPrefix = "COMPOZY_INTERNAL_"
+
+// caTrustEnvKeys name the CA bundles that let children trust a TLS-inspecting network (Netskope,
+// Zscaler, corporate proxies). They hold public file paths, never sensitive values.
+var caTrustEnvKeys = []string{"NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE", "SSL_CERT_DIR", "SSL_CERT_FILE"}
+
+// CATrustEnvKeys returns the CA trust variables every allowlisted child environment passes through.
+func CATrustEnvKeys() []string {
+	return slices.Clone(caTrustEnvKeys)
+}
+
 // FilteredDaemonEnv returns process environment entries safe to pass to child processes.
+// It drops credential-shaped variables and internal handoff variables.
 func FilteredDaemonEnv(base []string) []string {
-	env := append([]string(nil), base...)
-	if len(env) == 0 {
+	return filterDaemonEnv(base, false)
+}
+
+// WithoutInternalHandoffEnv returns a copy of env without internal handoff variables.
+func WithoutInternalHandoffEnv(env []string) []string {
+	filtered := make([]string, 0, len(env))
+	for _, entry := range env {
+		name, _, _ := strings.Cut(entry, "=")
+		if InternalHandoffEnvName(name) {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+	return filtered
+}
+
+// InternalHandoffEnvName reports whether name is an internal handoff variable.
+func InternalHandoffEnvName(name string) bool {
+	return strings.HasPrefix(strings.ToUpper(strings.TrimSpace(name)), InternalHandoffEnvPrefix)
+}
+
+// filterDaemonEnv keeps internal handoff variables only for detached launches, whose callers set
+// them explicitly for the process they target.
+func filterDaemonEnv(base []string, keepInternalHandoff bool) []string {
+	env := base
+	if env == nil {
 		env = os.Environ()
 	}
 
@@ -29,7 +68,7 @@ func FilteredDaemonEnv(base []string) []string {
 		if len(parts) != 2 {
 			continue
 		}
-		if SensitiveEnvName(parts[0]) {
+		if SensitiveEnvName(parts[0]) || (!keepInternalHandoff && InternalHandoffEnvName(parts[0])) {
 			continue
 		}
 		if appImage != "" {
@@ -79,8 +118,8 @@ func appImageLibraryPath(value, appDir string) string {
 // needed to launch local subprocesses. It intentionally drops all non-allowlisted
 // daemon variables, including provider CLI credentials.
 func IsolatedDaemonEnv(base []string) []string {
-	env := append([]string(nil), base...)
-	if len(env) == 0 {
+	env := base
+	if env == nil {
 		env = os.Environ()
 	}
 
@@ -91,7 +130,7 @@ func IsolatedDaemonEnv(base []string) []string {
 			continue
 		}
 		name := strings.ToUpper(strings.TrimSpace(parts[0]))
-		if SensitiveEnvName(name) || !safeDaemonEnvName(name) {
+		if SensitiveEnvName(name) || InternalHandoffEnvName(name) || !safeDaemonEnvName(name) {
 			continue
 		}
 		filtered = append(filtered, entry)
@@ -154,6 +193,8 @@ func safeDaemonEnvName(name string) bool {
 		"PROVIDER_CODEX_HOME":
 		return true
 	default:
-		return strings.HasPrefix(name, "LC_") || strings.HasPrefix(name, "XDG_")
+		return strings.HasPrefix(name, "LC_") ||
+			strings.HasPrefix(name, "XDG_") ||
+			slices.Contains(caTrustEnvKeys, name)
 	}
 }

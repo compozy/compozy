@@ -7,6 +7,8 @@ import {
   type ShortcutMap,
 } from "@/systems/os";
 
+import { withoutRetiredShortcuts } from "./window-manager-retired-shortcuts";
+
 export const TERMINAL_SHORTCUT_PRESET: ShortcutMap = {
   "window.focus.left": ["control+ArrowLeft", "alt+KeyH"],
   "window.focus.down": ["control+ArrowDown", "alt+KeyJ"],
@@ -14,7 +16,6 @@ export const TERMINAL_SHORTCUT_PRESET: ShortcutMap = {
   "window.focus.right": ["control+ArrowRight", "alt+KeyL"],
   "window.focus.last": ["control+alt+KeyO", "alt+KeyO"],
   "window.close": ["meta+KeyW", "alt+KeyW"],
-  "window.zoom": ["control+alt+KeyZ", "alt+KeyY"],
   "window.tab.new": ["meta+KeyT", "alt+KeyT"],
   "window.tab.next": ["control+Tab", "control+alt+KeyL"],
   "window.tab.previous": ["control+shift+Tab", "control+alt+KeyH"],
@@ -22,8 +23,6 @@ export const TERMINAL_SHORTCUT_PRESET: ShortcutMap = {
   "window.tab.last": ["control+alt+Digit9"],
   "session.cycle.next": ["control+shift+ArrowDown", "control+alt+KeyJ"],
   "session.cycle.previous": ["control+shift+ArrowUp", "control+alt+KeyK"],
-  "window.tile.bottom-left": ["control+alt+shift+KeyJ"],
-  "window.tile.bottom-right": ["control+alt+shift+KeyK"],
   "session.focus.attention": ["control+alt+KeyA", "alt+KeyI"],
   "workspace.picker": ["meta+shift+KeyO", "meta+control+KeyP"],
   "workspace.cycle.next": ["meta+shift+BracketRight", "meta+control+KeyJ"],
@@ -39,7 +38,6 @@ export const TERMINAL_SHORTCUT_PRESET_TOML = `[window_manager.shortcuts]
 "window.focus.right" = ["control+ArrowRight", "alt+KeyL"]
 "window.focus.last" = ["control+alt+KeyO", "alt+KeyO"]
 "window.close" = ["meta+KeyW", "alt+KeyW"]
-"window.zoom" = ["control+alt+KeyZ", "alt+KeyY"]
 "window.tab.new" = ["meta+KeyT", "alt+KeyT"]
 "window.tab.next" = ["control+Tab", "control+alt+KeyL"]
 "window.tab.previous" = ["control+shift+Tab", "control+alt+KeyH"]
@@ -47,8 +45,6 @@ export const TERMINAL_SHORTCUT_PRESET_TOML = `[window_manager.shortcuts]
 "window.tab.last" = "control+alt+Digit9"
 "session.cycle.next" = ["control+shift+ArrowDown", "control+alt+KeyJ"]
 "session.cycle.previous" = ["control+shift+ArrowUp", "control+alt+KeyK"]
-"window.tile.bottom-left" = "control+alt+shift+KeyJ"
-"window.tile.bottom-right" = "control+alt+shift+KeyK"
 "session.focus.attention" = ["control+alt+KeyA", "alt+KeyI"]
 "workspace.picker" = ["meta+shift+KeyO", "meta+control+KeyP"]
 "workspace.cycle.next" = ["meta+shift+BracketRight", "meta+control+KeyJ"]
@@ -78,7 +74,10 @@ export function previewTerminalShortcutPreset(
   const before = effectiveShortcutMap(defaults, overrides);
   const afterOverrides = applyTerminalShortcutPreset(overrides).overrides;
   const after = effectiveShortcutMap(defaults, afterOverrides);
-  const conflicts = findShortcutConflicts(afterOverrides, defaults);
+  const conflicts = findShortcutConflicts(
+    withoutRetiredShortcuts(afterOverrides),
+    withoutRetiredShortcuts(defaults)
+  );
   const beforeRows = new Map(
     deriveShortcutCheatsheet(before, overrides, actions).map(row => [row.id, row.bindings])
   );

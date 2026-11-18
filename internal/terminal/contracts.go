@@ -69,6 +69,7 @@ type OpenRequest struct {
 }
 
 type ExecRequest struct {
+	Worktree     string
 	WS           string
 	Command      string
 	Args         []string

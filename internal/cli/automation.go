@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"strings"
+	"time"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/spf13/cobra"
@@ -304,23 +305,40 @@ func newAutomationJobsDeleteCommand(deps commandDeps) *cobra.Command {
 }
 
 func newAutomationJobsTriggerCommand(deps commandDeps) *cobra.Command {
+	var wait bool
+	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:   "trigger <id>",
 		Short: "Force an immediate automation job run",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("timeout") && !wait {
+				return errors.New("--timeout requires --wait")
+			}
+			var waitTimeout []time.Duration
+			if wait {
+				if _, err := automationpkg.ParseJobWaitTimeout(true, timeout.String()); err != nil {
+					return err
+				}
+				waitTimeout = append(waitTimeout, timeout)
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
 
-			run, err := client.TriggerAutomationJob(cmd.Context(), args[0])
+			run, err := client.TriggerAutomationJob(cmd.Context(), args[0], waitTimeout...)
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, automationRunBundle(run))
 		},
 	}
+	cmd.Flags().BoolVar(&wait, "wait", false, "Wait for the run to finish")
+	cmd.Flags().DurationVar(
+		&timeout, "timeout", automationpkg.DefaultJobWaitTimeout,
+		"Completion wait budget with --wait (up to 24h; expiry returns the running receipt)",
+	)
 	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
@@ -331,6 +349,7 @@ func newAutomationJobsHistoryCommand(deps commandDeps) *cobra.Command {
 		sinceRaw  string
 		untilRaw  string
 		last      int
+		cursor    string
 	)
 
 	cmd := &cobra.Command{
@@ -343,7 +362,7 @@ func newAutomationJobsHistoryCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			query, err := parseAutomationRunListQuery(statusRaw, sinceRaw, untilRaw, last, deps.now)
+			query, err := parseAutomationRunListQuery(statusRaw, sinceRaw, untilRaw, last, cursor, deps.now)
 			if err != nil {
 				return err
 			}
@@ -357,10 +376,11 @@ func newAutomationJobsHistoryCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&statusRaw, automationStatusKey, "", "Filter by run status")
 	cmd.Flags().
-		StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
+		StringVar(&sinceRaw, "since", "", automationRunSinceHelp)
 	cmd.Flags().
-		StringVar(&untilRaw, "until", "", "Show runs until an RFC3339 timestamp or relative duration")
-	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
+		StringVar(&untilRaw, "until", "", automationRunUntilHelp)
+	cmd.Flags().IntVar(&last, "last", 50, "Maximum runs per page (0 uses 50; maximum 200)")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue after page.next_cursor (time filters must be RFC3339)")
 	configureProfileReadCommand(cmd, deps)
 	return cmd
 }

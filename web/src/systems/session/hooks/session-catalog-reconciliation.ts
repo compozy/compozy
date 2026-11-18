@@ -7,6 +7,7 @@ import { invalidateSessionByIdReads } from "../lib/session-query-invalidation";
 import { queryKeyHasScope } from "../lib/session-query-policy";
 import { isLiveSessionState } from "../lib/session-stream-liveness";
 import type { SessionCatalogEventPayload, SessionPayload } from "../types";
+import { resetSessionRootReads } from "./session-root-change";
 
 /**
  * Re-reads the session detail, then wakes a stopped session's mounted transcript.
@@ -102,10 +103,7 @@ export function createSessionReadReconciler(queryClient: QueryClient) {
       if (closed) return;
       // Location reads are independent of detail/transcript reconciliation.
       if (payload?.execution_location_changed === true) {
-        const queryKey = sessionKeys.fileSearchRoot(payload.workspace_id, sessionId);
-        void queryClient.cancelQueries({ queryKey }).then(() => {
-          if (!closed) return queryClient.invalidateQueries({ queryKey });
-        });
+        void resetSessionRootReads(queryClient, payload.workspace_id, sessionId, () => !closed);
       }
       // Upserts carry a transcript obligation that later layout/attention wakes cannot erase.
       const queued = pending.get(sessionId);
@@ -157,7 +155,7 @@ function catalogReadAffected(key: QueryKey, change: CatalogChange | undefined): 
  * (the expiring session upserts, and the reconnect after a restart wakes every scope).
  * While the stream is live these reads keep only a safety cadence, so its wake re-reads them.
  */
-const STREAM_COVERED_INTERACTIONS: ReadonlySet<unknown> = new Set(["descendants", "canceled"]);
+const STREAM_COVERED_INTERACTIONS: ReadonlySet<unknown> = new Set(["descendants", "settled"]);
 
 function isStreamCoveredInteractionRead(
   key: QueryKey,

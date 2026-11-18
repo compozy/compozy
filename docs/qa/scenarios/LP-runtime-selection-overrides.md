@@ -23,3 +23,26 @@ QA impact 2026-08-24: the matcher changed, so the prior pass and its stale evide
 Verification 2026-08-24: `blocked-verify`. CLI, HTTP, and UDS dry-runs proved only parity of the effective ordered three-rule configuration. Real CLI run `looprun-a7c7dc7d16f7ea2e` durably emitted `runtime_applied` for the matrix task (`codex/gpt-5.6-luna/high`), but the live action did not settle, so the mixed batch's per-item `resolved_runtime` and provenance remain unproved. After cancellation the isolated daemon recorded `loop: transition conflict: Goal session cleanup ... payload changed`. A fresh supported-model mixed batch (`looprun-1bea18dfb47059ae`) did not advance beyond generation start during bounded polling. The exact lab evidence is the `evidence` path above; this is not a pass claim.
 
 src: .compozy/tasks/compozy-migration/task_06.md
+
+QA impact 2026-11-11 (#1517): after a mixed batch settles, restart the isolated runtime and compare
+each item's applied ACP options and per-option provenance across HTTP, UDS, CLI, native status and
+replayed `runtime_applied` SSE frames. Include the automatic Codex Full access mode; absent options
+remain omitted. The storage contract also covers an explicitly false boolean option. Historical
+append-only events are not rewritten by the serializer repair.
+
+Focused verification 2026-11-11: the existing applied-runtime storage case fails before the repair
+and passes afterward, including boolean false and per-option provenance. The existing mixed/matrix
+runtime integration and cross-surface restart/replay case pass with SQLite and the isolated ACP
+test peer. This verifies the projection leg; it does not change the historical live-provider
+scenario verdict above.
+
+QA impact (#1520, #1526): applied ACP provenance is rebuilt per applied option. In the
+run-agent action checks, an agent-added mode gets `agent` alongside a node-authored
+`fast_mode=false`; a skipped mode loses its source entry while surviving node provenance
+is retained. Reuse the existing runtime integration for persisted and replayed projections;
+these metadata repairs do not alter runtime selection or the historical live-provider verdict.
+
+Focused verification 2026-11-11 (#1520, #1526): the three action cases fail on the original
+implementation and pass after the repair. The unchanged runtime integration passes, including
+persisted/read projections and replay after isolated daemon restart. Scoped Loop lint reports
+zero issues for both normal and integration build tags; broad gates remain CI-owned.

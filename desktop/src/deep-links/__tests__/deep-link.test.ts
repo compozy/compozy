@@ -2,7 +2,7 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { linuxDesktopEntry, registerLinuxDesktop } from "../linux-registration";
 
@@ -70,52 +70,61 @@ describe("Linux URI registration", () => {
     );
     expect(() => linuxDesktopEntry("/tmp/a\nExec=other", "1.2.3")).toThrow("Invalid desktop entry");
   });
+});
 
-  // Invariant: MIME registration terminates a stalled child and releases startup within a bounded time.
-  // Owner: desktop protocol registration. Canonical suite: deep-link.test.ts.
-  it.skipIf(process.platform === "win32")(
-    "Should terminate a stalled MIME registration process",
-    async () => {
-      const directory = await mkdtemp(join(tmpdir(), "compozy-mime-"));
-      const executable = join(directory, "xdg-mime");
-      const pidFile = join(directory, "child.pid");
-      let childStopped = false;
-      let cleanupError: unknown;
-      try {
-        await writeFile(
-          executable,
-          `#!${process.execPath}
+// Invariant: MIME registration terminates a stalled child and releases startup within a bounded time.
+// Owner: desktop protocol registration. Canonical suite: deep-link.test.ts.
+describe.skipIf(process.platform === "win32")("stalled Linux MIME registration", () => {
+  let directory: string | undefined;
+  let pidFile: string;
+  let registration: PromiseSettledResult<void>;
+  let childStopped = false;
+
+  // Arrange a real stalled process. The production deadline itself is five seconds.
+  beforeAll(async () => {
+    directory = await mkdtemp(join(tmpdir(), "compozy-mime-"));
+    const executable = join(directory, "xdg-mime");
+    pidFile = join(directory, "child.pid");
+    await writeFile(
+      executable,
+      `#!${process.execPath}
 require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
 process.on("SIGTERM", () => {});
 setInterval(() => {}, 1000);
 `
-        );
-        await chmod(executable, 0o755);
-        vi.stubEnv("PATH", directory + delimiter + (process.env.PATH ?? ""));
-        await expect(
-          registerLinuxDesktop("/tmp/CompozyOS.AppImage", "1.2.3", directory)
-        ).rejects.toMatchObject({ killed: true, signal: "SIGKILL" });
+    );
+    await chmod(executable, 0o755);
+    vi.stubEnv("PATH", directory + delimiter + (process.env.PATH ?? ""));
+    [registration] = await Promise.allSettled([
+      registerLinuxDesktop("/tmp/CompozyOS.AppImage", "1.2.3", directory),
+    ]);
+  }, 15_000);
+
+  afterAll(async () => {
+    vi.unstubAllEnvs();
+    if (!directory) return;
+    try {
+      if (!childStopped) {
         const childPID = Number(await readFile(pidFile, "utf8"));
-        expect(() => process.kill(childPID, 0)).toThrowError(
-          expect.objectContaining({ code: "ESRCH" })
-        );
-        childStopped = true;
-      } finally {
-        vi.unstubAllEnvs();
-        // Clean up only the child created by this fixture if an assertion failed before its exit.
-        try {
-          if (!childStopped) {
-            const childPID = Number(await readFile(pidFile, "utf8"));
-            process.kill(childPID, "SIGKILL");
-          }
-        } catch (error) {
-          const code = (error as NodeJS.ErrnoException).code;
-          if (code !== "ENOENT" && code !== "ESRCH") cleanupError = error;
-        }
-        await rm(directory, { recursive: true, force: true });
+        process.kill(childPID, "SIGKILL");
       }
-      if (cleanupError) throw cleanupError;
-    },
-    15_000
-  );
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ESRCH") throw error;
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("Should terminate a stalled MIME registration process", async () => {
+    expect(registration).toMatchObject({
+      status: "rejected",
+      reason: { killed: true, signal: "SIGKILL" },
+    });
+    const childPID = Number(await readFile(pidFile, "utf8"));
+    expect(() => process.kill(childPID, 0)).toThrowError(
+      expect.objectContaining({ code: "ESRCH" })
+    );
+    childStopped = true;
+  });
 });

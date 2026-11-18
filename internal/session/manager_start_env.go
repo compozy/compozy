@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/providerenv"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -24,6 +25,7 @@ func (m *Manager) sessionStartOpts(
 		strings.TrimSpace(s.reasoningEffort),
 	)
 	env = setSessionStartEnvValue(env, "COMPOZY_HOME", m.homePaths.HomeDir)
+	env, forwardTraceParent := m.forwardProviderTelemetry(env, s.sessionID, resolved.Name)
 	providerID := strings.TrimSpace(resolved.RuntimeProvider)
 	if providerID == "" {
 		providerID = strings.TrimSpace(resolved.Provider)
@@ -41,39 +43,54 @@ func (m *Manager) sessionStartOpts(
 	shellWaitGuard := m.sessionCanRedirectShellWaits(s, resolved)
 	opts := acp.StartOpts{
 		PermissionPolicy: &acp.StartPermissionPolicy{
-			Rules: configuredPermissionRules(s.permissionRules), Denials: session.permissionDenialsState(),
+			Rules:   configuredPermissionRules(s.permissionRules),
+			Denials: session.permissionDenialsState(),
+			// Provider questions and tool approvals share one session operator.
+			ElicitationAsker: m.elicitationAsker(
+				s.sessionID,
+				s.workspace.ID,
+				s.profileID,
+				resolved.Name,
+				s.sessionType,
+			),
 		},
-		AgentName:         resolved.Name,
-		CompozySessionID:  s.sessionID,
-		WorkspaceID:       s.workspace.ID,
-		ProfileID:         s.profileID,
-		RuntimeGeneration: max(session.RuntimeGeneration, 1),
-		Command:           resolved.Command,
-		Cwd:               s.cwd,
-		AdditionalDirs:    s.executionAdditionalDirs(),
-		Env:               env,
-		MCPServers:        mcpServers,
-		Permissions:       m.startPermissions(startSpecPermissions(s, resolved.Permissions)),
-		SystemPrompt:      resolved.Prompt,
-		PreferredModel:    preferredModel,
-		LaunchModelID:     launchModelID,
-		ReasoningEffort:   strings.TrimSpace(s.reasoningEffort),
-		Speed:             s.speed,
-		ACPOptions:        acp.CloneSessionConfigOptionSelections(s.acpOptions),
-		ResumeSessionID:   s.acpSessionID,
-		InputOnly:         IsInternalSpawnRole(store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole),
-		ShellWaitGuard:    shellWaitGuard,
-		ToolGateway:       newProviderNativeToolGateway(m, session, s.runtimeMode, shellWaitGuard),
+		AgentName:          resolved.Name,
+		CompozySessionID:   s.sessionID,
+		WorkspaceID:        s.workspace.ID,
+		ProfileID:          s.profileID,
+		RuntimeGeneration:  max(session.RuntimeGeneration, 1),
+		Command:            resolved.Command,
+		Cwd:                s.cwd,
+		AdditionalDirs:     s.executionAdditionalDirs(),
+		Env:                env,
+		MCPServers:         mcpServers,
+		Permissions:        m.startPermissions(startSpecPermissions(s, resolved.Permissions)),
+		SystemPrompt:       resolved.Prompt,
+		PreferredModel:     preferredModel,
+		LaunchModelID:      launchModelID,
+		ReasoningEffort:    strings.TrimSpace(s.reasoningEffort),
+		Speed:              s.speed,
+		ACPOptions:         acp.CloneSessionConfigOptionSelections(s.acpOptions),
+		ResumeSessionID:    s.acpSessionID,
+		InputOnly:          IsInternalSpawnRole(store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole),
+		ShellWaitGuard:     shellWaitGuard,
+		ForwardTraceParent: forwardTraceParent,
+		LeanEnvironment:    sessionLeanEnvironment(s.sessionType, resolved.LeanEnvironmentValue()),
+		IsolateProviderMCP: sessionIsolatesProviderMCP(
+			session.AgentDefinition().EffectiveKind(), resolved.LeanEnvironmentValue(),
+		),
+		PermissionEventHandler: m.permissionEventHandler(session),
+		ToolGateway:            newProviderNativeToolGateway(m, session, s.runtimeMode, shellWaitGuard),
 		ActivateMCPServers: m.sessionMCPServerActivator(
 			s.sessionID,
 			mcpServers,
 		),
 	}
 	if s.sessionType == SessionTypeTriage {
+		session.checkInToolsStatus = s.checkInToolsStatus
 		opts.SetExecutionPolicy(acp.ExecutionPolicyTriage)
 		opts.Permissions = compozyconfig.PermissionModeApproveReads
-		opts.MCPServers = nil
-		opts.ActivateMCPServers = nil
+		opts.CheckInTools = len(mcpServers) > 0
 		opts.ShellWaitGuard = false
 	}
 	return applyProviderRuntimeAdapter(resolved, opts)
@@ -189,4 +206,31 @@ func sessionEnvironmentKey(name string) string {
 		return strings.ToUpper(name)
 	}
 	return name
+}
+
+// sessionIsolatesProviderMCP keeps an always-on agent's tool surface to what
+// CompozyOS passes and governs. A long-lived agent otherwise inherits every MCP
+// server and connector of the operator's own Claude setup, outside tool policy.
+// An authored lean_environment decides instead: true is the wider lean mode,
+// false opts back into the operator's environment.
+func sessionIsolatesProviderMCP(agentKind string, authoredLean *bool) bool {
+	return agentKind == compozyconfig.AgentKindAlwaysOn && authoredLean == nil
+}
+
+func sessionLeanEnvironment(sessionType Type, authored *bool) bool {
+	if sessionType == SessionTypeSystem || sessionType == SessionTypeTriage {
+		return true
+	}
+	return authored != nil && *authored
+}
+
+// forwardProviderTelemetry applies the operator's provider telemetry forwarding to env and reports whether the
+// provider also gets the spawn's TRACEPARENT. It runs before agent-defined session_env and command assignments are
+// applied, so agent OTEL_* values win.
+func (m *Manager) forwardProviderTelemetry(env []string, sessionID, agentName string) ([]string, bool) {
+	var forward []string
+	if m.providerTelemetryEnv != nil {
+		forward = m.providerTelemetryEnv()
+	}
+	return providerenv.ApplyTelemetryForwarding(env, forward, sessionID, agentName), len(forward) > 0
 }

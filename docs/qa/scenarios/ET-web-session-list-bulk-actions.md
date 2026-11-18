@@ -4,7 +4,7 @@ area: ET
 title: Select and act on sessions in the shared workspace list
 persona: Bruno
 journey: J-14
-expected: Both the session window sidebar and Sessions modal support a transient selection in workspace scope. Eligible actions run sequentially through existing session mutations. Selection follows current catalog membership; successful Stop keeps rows selected, Archive and Unarchive prune rows that leave the view, and failed rows remain selected. Delete confirms the set, reports progress, and retries only failed sessions.
+expected: Both the session window sidebar and Sessions modal support a transient selection in workspace scope. Eligible actions run with bounded concurrency through existing session mutations; related session trees retain their ordering. Selection follows current catalog membership; successful Stop keeps rows selected, Archive and Unarchive prune rows that leave the view, and failed rows remain selected. Delete confirms the set, reports progress, and retries only failed sessions.
 entry_points: SessionSidebar; Sessions modal in workspace scope; row checkboxes and modifier clicks; Selected sessions toolbar
 qa_status: skipped
 overlaps: ET-web-session-sidebar-threads; ET-web-session-folders-manual-order
@@ -47,7 +47,7 @@ selection controls in the in-window sidebar and the dock's Sessions modal.
    preserves selection. With one selected session the existing singular dialog is
    unchanged before deletion. A one-session bulk failure shows the daemon error
    and offers Retry 1 and Close. More than five targets show five rows plus the overflow count.
-7. Confirm: deletion progresses sequentially, Cancel/close are unavailable, and
+7. Confirm: deletion progresses with at most three independent trees in flight, Cancel/close are unavailable, and
    neither the dialog nor its host dismisses on Esc/outside click. On success the
    dialog closes, one toast reports the deleted count, rows disappear from the
    real catalog, and selection clears while the host remains open.
@@ -61,7 +61,7 @@ selection controls in the in-window sidebar and the dock's Sessions modal.
    The deterministic lifecycle suite owns this I/O failure case when a real
    failure cannot be induced safely.
 
-9. With folders in the workspace, the More menu starts with Move to folder; moving
+9. With folders in the workspace, the More menu's Move ▸ starts with the Folder group; moving
    the selection into a folder or out of folders, and dragging a selected row, are
    specified and walked in ET-web-session-folders-manual-order. While a folder move
    runs, the selection bar's actions are disabled, and a running lifecycle batch
@@ -112,18 +112,73 @@ report's session matrix in a future QA cycle.
 Added 2026-10-29. Walk in both the session window sidebar and the Sessions modal, flat and
 grouped (Group by project under All projects).
 
-1. With no selection, right-click a row: the per-session menu (Copy session ID, Copy title,
+1. With no selection, right-click a row: the per-session menu (Copy ▸, Move ▸,
    Archive/Stop and archive session, Delete session) opens for that row, unchanged.
 2. Select one row and right-click it: still the per-session menu for that row.
 3. Select two or more rows and right-click any selected row (or focus it and press Shift+F10):
    the menu is headed "N sessions" and offers the selection bar's More verbs with the same
-   counts and eligibility (Move to folder when folders exist, Stop · N active, Archive · N
-   stopped or Stop and archive · N sessions, Unarchive · N archived), plus Copy session IDs
-   (one ID per line, "Session IDs copied") and Delete N sessions, which opens the same set
-   confirmation as the toolbar. No single-session verb appears.
+   counts and eligibility (Move ▸ with the Folder group when folders exist, Stop · N active,
+   Archive · N stopped or Stop and archive · N sessions, Unarchive · N archived), plus Copy ▸
+   Copy session IDs (one ID per line, "Session IDs copied") and Delete N sessions, which opens
+   the same set confirmation as the toolbar. No single-session verb appears, and a verb no
+   selected session can take is absent.
 4. Right-click a row outside the selection (Finder convention): the selection becomes that one
    row, the bar reads "1 selected", and the per-session menu opens for it.
 5. Select a parent and its own child, plus a session with another child. Delete shows the child
    count without the selected child and unchecked. Check it and confirm: the parent's tree goes in
    one request, the selected child reads done without a second request, and a failure keeps its row
    in the result list. Bulk archive asks once with the same count, checked by default.
+
+## Batch menu parity and concurrency (#1464)
+
+Select dismissible Needs you sessions and provenance children alongside ordinary sessions. Both
+the selection toolbar and selected-row context menu offer Mark as seen, Move ▸ Make top-level and
+Copy ▸ Copy titles with the row menu's eligibility. Copy titles preserves selection order. Rename, Fork and
+Continue with another agent remain single-session actions. Mark as seen clears only dismissible
+attention; Make top-level detaches only eligible nested user sessions. Ineligible rows are counted
+with a reason, and failed requests name each target without hiding successes.
+
+For about 15 sessions, exercise Stop, Archive, Stop and archive, Delete, Later, Unarchive and Mark
+as seen. Observe up to three independent trees progressing together; parent/child archive and
+delete operations retain root-before-covered-child ordering. Compare elapsed time with the
+sequential baseline, retaining errors and retry receipts. Verify a batch stays locked until its
+last outstanding request completes, even when later requests finish first.
+
+Issue #1464 evidence (2026-11-10): see
+[the targeted validation report](../reports/2026-11-10-issue-1464.md). The report distinguishes
+rendered session-menu/lifecycle checks, real API/Git timings, deterministic partial-failure
+coverage, and the public screenshot-upload blocker. This does not replace unrelated journeys
+in this scenario.
+
+## Batch follow-ups: progress, shared admission and lineage lock (#1470, #1472, #1475)
+
+Added 2026-11-11. Hold several genuine requests in flight (for example, with browser network
+latency emulation on an isolated lab) while walking these checks.
+
+1. Select at least four eligible independent sessions and run Make top-level, Back from Later,
+   Stop, Archive, Unarchive or Mark as seen. Press Done to clear the selection while requests are
+   in flight: every row whose request is running shows a spinner on its row-actions control,
+   queued and finished rows do not, and every row's controls stay disabled until the last request
+   settles. Failures keep their per-target receipt.
+2. Start a batch from one family (for example Back from Later) and immediately invoke another
+   (Make top-level, Unarchive): the second is declined and sends no request, so at most three
+   requests are in flight. Invoking it again after the first batch settles runs it normally.
+3. Start a single Move under (a row drop or the parent picker) or Make top-level and, before it settles, invoke Make
+   top-level on a selection: the batch is declined and sends no request. Invoking it again after
+   the single move settles detaches every target. While a batch Make top-level runs, a row drop,
+   a single Make top-level or a nest toast's Undo is declined; other batch families (Stop,
+   Archive, Mark as seen) leave single lineage moves available.
+
+The lifecycle hook suite (`use-session-actions.test.tsx`) owns same-turn admission in every
+family order, running-target progress transitions and the singular/batch lineage boundary; the
+session list suite owns per-row progress and the row lock.
+
+Evidence (2026-11-11, PR #1498): an isolated lab daemon built from the branch served the branch web
+bundle; four nested sessions under distinct roots were detached with genuine `DELETE .../parent`
+requests held in the browser. Checks 1 and 3 passed in the rendered session sidebar: three rows
+showed progress with all 16 row controls disabled, the queued fourth row gained progress when a
+slot freed, and a batch Make top-level issued no request while a single Make top-level was held;
+invoked again after it settled, it detached all three (daemon reads confirmed every lineage change). Check 2
+needs two invocations within one React turn, which a pointer cannot produce; the lifecycle hook
+suite owns it. At rest the end slot shows the time, so progress appears on hover or focus, as
+before #1472.

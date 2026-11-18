@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
@@ -16,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/toolruntime"
 	"github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -196,9 +198,23 @@ func loopJudgeStopCause(err error) (session.StopCause, string) {
 
 type loopGateCommandRunner struct {
 	workspaceResolver workspacepkg.RuntimeResolver
+	processRegistry   *toolruntime.Registry
+	// shutdownGrace bounds SIGTERM before the command's process group is killed; zero uses the default.
+	shutdownGrace time.Duration
+	// drainTimeout bounds the captured output drain after the shell exits; zero uses the default.
+	drainTimeout time.Duration
 }
 
 var _ gate.CommandRunner = loopGateCommandRunner{}
+
+// outputDrainTimeout resolves the output drain bound with the same zero-means-default rule as the
+// shutdown grace.
+func (r loopGateCommandRunner) outputDrainTimeout() time.Duration {
+	if r.drainTimeout <= 0 {
+		return loopGateCommandOutputDrain
+	}
+	return r.drainTimeout
+}
 
 func (r loopGateCommandRunner) RunCommand(
 	ctx context.Context,
@@ -236,18 +252,34 @@ func (r loopGateCommandRunner) RunCommand(
 	}
 	// #nosec G204 -- shell composition is the authored command contract. Runtime values can reach
 	// this boundary only through command templates whose emitted actions end in shellQuote.
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	//nolint:noctx // CommandContext kills only the shell pid; runLoopGateCommandTree owns group termination.
+	cmd := exec.Command("sh", "-c", command)
 	cmd.Dir = rootDir
 	cmd.Env = acp.DaemonMatchedEnv(cmd.Environ())
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err = cmd.Run()
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	finished := make(chan struct{})
+	defer close(finished)
+	var handle *toolruntime.Handle
+	err = runLoopGateCommandTree(runCtx, cmd, r.shutdownGrace, r.outputDrainTimeout(), func() error {
+		var registerErr error
+		handle, registerErr = r.registerCommand(runCtx, req, cmd, cancel, finished)
+		return registerErr
+	})
+	r.completeCommand(ctx, handle, err)
 	exitCode := 0
 	if err != nil {
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
-			exitCode = exitErr.ExitCode()
+		// A process-group cleanup failure is not the command's exit status, so it is reported before
+		// the nested exit error is matched.
+		if _, cleanupFailed := errors.AsType[*loopGateCommandCleanupError](err); cleanupFailed {
+			return gate.CommandResult{}, err
+		}
+		if exitErr, ok := errors.AsType[*loopGateCommandExitError](err); ok {
+			exitCode = exitErr.code
 		} else {
 			return gate.CommandResult{}, err
 		}

@@ -37,7 +37,12 @@ func (d *Daemon) bootSessionSupervision(ctx context.Context, state *bootState, c
 		}
 	}
 	sources := sessionWorkSources{state: state, manager: manager, now: d.now}
+	manager.ConfigureSpawnWakeCoverage(sources.creatorMonitorCovers)
 	manager.SetWorkSignalSources(
+		session.WorkSignalSource{
+			Kind:   session.WorkSignalHeldInput,
+			Source: session.SignalSourceFunc(sources.heldInputs),
+		},
 		session.WorkSignalSource{Kind: session.WorkSignalToolRunning, Source: session.SignalSourceFunc(sources.tools)},
 		session.WorkSignalSource{
 			Kind:   session.WorkSignalActiveChild,
@@ -98,6 +103,7 @@ func (d *Daemon) bootInstanceMaintenance(
 	cleanup *bootCleanup,
 	interval time.Duration,
 ) error {
+	lastAuditSweep := time.Time{}
 	worker := retention.NewPeriodicWorker("instance maintenance", func(ctx context.Context) error {
 		var reconcileErr error
 		if state.agentInstances != nil {
@@ -108,7 +114,17 @@ func (d *Daemon) bootInstanceMaintenance(
 			_, retentionErr = provider.InstanceReports().
 				SweepTerminalReports(ctx, d.now(), state.cfg.Agents.Heartbeat.WakeEventRetention, 1000)
 		}
-		return errors.Join(reconcileErr, sweepInstanceReports(ctx, state), retentionErr)
+		var auditErr error
+		if provider, ok := state.registry.(instanceRepositoryProvider); ok && provider.Instances() != nil {
+			if d.now().Sub(lastAuditSweep) >= 24*time.Hour {
+				auditErr = provider.Instances().
+					SweepCheckInToolCalls(ctx, d.now().Add(-state.cfg.Agents.AlwaysOn.CheckInAuditRetention))
+				if auditErr == nil {
+					lastAuditSweep = d.now()
+				}
+			}
+		}
+		return errors.Join(reconcileErr, sweepInstanceReports(ctx, state), retentionErr, auditErr)
 	}, interval, func(err error) { state.logger.Error("instance maintenance failed", "error", err) })
 	if err := worker.Start(ctx); err != nil {
 		return fmt.Errorf("daemon: start instance maintenance: %w", err)

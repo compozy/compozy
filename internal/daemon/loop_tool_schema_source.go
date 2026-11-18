@@ -65,11 +65,13 @@ func (s *loopToolSchemaSource) Snapshot(toolID string) (looppkg.ToolSchemaSnapsh
 		return looppkg.ToolSchemaSnapshot{}, false
 	}
 	return looppkg.ToolSchemaSnapshot{
-		ToolID:             snapshot.ToolID,
-		InputSchema:        cloneLoopSchemaRaw(snapshot.InputSchema),
-		OutputSchema:       cloneLoopSchemaRaw(snapshot.OutputSchema),
-		InputSchemaDigest:  snapshot.InputSchemaDigest,
-		OutputSchemaDigest: snapshot.OutputSchemaDigest,
+		ToolID:                 snapshot.ToolID,
+		InputSchema:            cloneLoopSchemaRaw(snapshot.InputSchema),
+		OutputSchema:           cloneLoopSchemaRaw(snapshot.OutputSchema),
+		InputSchemaDigest:      snapshot.InputSchemaDigest,
+		OutputSchemaDigest:     snapshot.OutputSchemaDigest,
+		FullOutputSchema:       cloneLoopSchemaRaw(snapshot.FullOutputSchema),
+		FullOutputSchemaDigest: snapshot.FullOutputSchemaDigest,
 	}, true
 }
 
@@ -84,13 +86,18 @@ func (s *loopToolSchemaSource) load() {
 	s.schemas = make(map[toolspkg.ToolID]looppkg.ToolSchemaSnapshot, len(views))
 	for i := range views {
 		descriptor := views[i].Descriptor
-		s.schemas[descriptor.ID] = looppkg.ToolSchemaSnapshot{
+		snapshot := looppkg.ToolSchemaSnapshot{
 			ToolID:             descriptor.ID.String(),
 			InputSchema:        cloneLoopSchemaRaw(descriptor.InputSchema),
 			OutputSchema:       cloneLoopSchemaRaw(descriptor.OutputSchema),
 			InputSchemaDigest:  strings.TrimSpace(descriptor.InputSchemaDigest),
 			OutputSchemaDigest: strings.TrimSpace(descriptor.OutputSchemaDigest),
 		}
+		if views := descriptor.ResultViews(); views != nil {
+			snapshot.FullOutputSchema = cloneLoopSchemaRaw(views.Full.Schema)
+			snapshot.FullOutputSchemaDigest = strings.TrimSpace(views.Full.Digest)
+		}
+		s.schemas[descriptor.ID] = snapshot
 	}
 }
 

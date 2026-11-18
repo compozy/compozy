@@ -124,7 +124,8 @@ func (r *Resolver) packageSnapshot(
 		}
 		return snapshot, false, nil
 	}
-	if source.Kind != SourceGitHub && source.Kind != SourceHTTPS {
+	if source.Kind != SourceGitHub && source.Kind != SourceHTTPS && source.Kind != SourceURL &&
+		source.Kind != SourceGitSubdir {
 		return nil, false, errors.New("unsupported_source")
 	}
 	snapshot, err := r.Sources.openPlugin(ctx, source)

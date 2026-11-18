@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -148,6 +149,13 @@ func TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots(t *te
 			Meta: skillspkg.SkillMeta{Name: "custom"}, Origin: "team-skills",
 			RootDir: workspaceClaude.RootDir, Enabled: true,
 		}
+		workspaceClaude.FilePath = filepath.Join(workspaceClaude.RootDir, workspaceClaude.Meta.Name, "SKILL.md")
+		if err := os.MkdirAll(filepath.Dir(workspaceClaude.FilePath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(workspaceClaude.FilePath, []byte("Native body"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 		if filter(workspaceClaude) {
 			t.Fatal("workspace claude winner retained, want suppressed for Claude")
 		}
@@ -225,6 +233,15 @@ func TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots(t *te
 				candidate := &skillspkg.Skill{
 					Meta: skillspkg.SkillMeta{Name: "matrix-skill"}, Origin: test.origin,
 					RootDir: test.root, Enabled: true,
+				}
+				if !test.wantKeep {
+					candidate.FilePath = filepath.Join(candidate.RootDir, candidate.Meta.Name, "SKILL.md")
+					if err := os.MkdirAll(filepath.Dir(candidate.FilePath), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(candidate.FilePath, []byte("Native matrix body"), 0o600); err != nil {
+						t.Fatal(err)
+					}
 				}
 				got := true
 				if filter := matrix.Policy.SkillInjectionFilter; filter != nil {

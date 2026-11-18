@@ -45,6 +45,8 @@ export class ProductWindow {
   readonly #crashes = new CrashRecoveryBudget();
   #window: BrowserWindow | null = null;
   #ready = false;
+  /** The last main-frame load failed, so the window shows an error page instead of the product. */
+  #loadFailed = false;
   #navigating = false;
   #zoomLevel = 0;
   #spellcheck: SpellcheckSettings | undefined;
@@ -180,10 +182,51 @@ export class ProductWindow {
     window.webContents.openDevTools({ mode: "detach" });
   }
 
+  /** True while the window shows a loaded page of its runtime, not a failed or pending load. */
+  isLoaded(): boolean {
+    const window = this.#window;
+    if (!window || window.isDestroyed()) return false;
+    return this.#ready && !this.#loadFailed;
+  }
+
+  /** Reloads the current route from the runtime, bypassing the HTTP cache like every shell load. */
+  async reload(): Promise<void> {
+    const window = this.#window;
+    if (!window || window.isDestroyed()) return;
+    await window.loadURL(window.webContents.getURL() || this.#origin, SHELL_LOAD_OPTIONS);
+  }
+
   async flushState(): Promise<void> {
     if (this.#saveTimer) clearTimeout(this.#saveTimer);
     this.#saveTimer = null;
     await this.#save();
+  }
+
+  /** The current product path with its query, or `null` before load or on the default view. */
+  route(): string | null {
+    const window = this.#window;
+    if (!window || window.isDestroyed()) return null;
+    try {
+      const url = new URL(window.webContents.getURL());
+      if (url.origin !== new URL(this.#origin).origin || url.pathname === "/") return null;
+      return `${url.pathname}${url.search}`;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Destroys the window even when its state cannot be saved, so a runtime recovery never leaves
+   * a stale window beside its replacement. The save failure still rejects.
+   */
+  async discard(): Promise<void> {
+    try {
+      await this.flushState();
+    } finally {
+      const window = this.#window;
+      if (window && !window.isDestroyed()) window.destroy();
+      this.#window = null;
+    }
   }
 
   async close(): Promise<void> {
@@ -207,7 +250,12 @@ export class ProductWindow {
       );
       if (template.length) Menu.buildFromTemplate(template).popup({ window });
     });
+    window.webContents.on("did-fail-load", (_event, code, _description, _url, isMainFrame) => {
+      // -3 is a navigation the shell or the page replaced, not a page that failed to load.
+      if (isMainFrame && code !== -3) this.#loadFailed = true;
+    });
     window.webContents.on("did-finish-load", () => {
+      this.#loadFailed = false;
       window.webContents.setZoomLevel(this.#zoomLevel);
       this.#scheduleSave();
       if (!this.#ready) {

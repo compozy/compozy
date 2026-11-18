@@ -54,3 +54,16 @@ func (g *GlobalDB) CountProfileEventSummaries(ctx context.Context, profileID str
 		Scan(&count)
 	return count, err
 }
+
+// EventSummaryHeadSequence returns the unscoped physical ledger position, never a row.
+func (g *GlobalDB) EventSummaryHeadSequence(ctx context.Context) (int64, error) {
+	if err := g.ObserveRepo.checkReady(ctx, "read event summary head sequence"); err != nil {
+		return 0, err
+	}
+	// Sequences are assigned at telemetry commit; pending publications receive later sequences.
+	head, err := g.telemetry.EventSummaryHeadSequence(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("store: read event summary head sequence: %w", err)
+	}
+	return head, nil
+}

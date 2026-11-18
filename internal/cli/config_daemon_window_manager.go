@@ -2,39 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
-
-func assignWindowManagerValue[T any](path []string, value any, target *T, want string) error {
-	typed, err := requireWindowManagerValue[T](path, value, want)
-	if err != nil {
-		return err
-	}
-	*target = typed
-	return nil
-}
-
-func requireWindowManagerValue[T any](path []string, value any, want string) (T, error) {
-	typed, ok := value.(T)
-	if ok {
-		return typed, nil
-	}
-	var zero T
-	return zero, unexpectedWindowManagerConfigValue(path, value, want)
-}
-
-func unexpectedWindowManagerConfigValue(path []string, value any, want string) error {
-	return fmt.Errorf(
-		"cli: config set %q expects a %s payload, got %T",
-		strings.Join(path, "."),
-		want,
-		value,
-	)
-}
 
 func settingsWindowManagerPayloadFromConfig(
 	cfg compozyconfig.WindowManagerConfig,
@@ -45,9 +17,6 @@ func settingsWindowManagerPayloadFromConfig(
 		FocusPolicy:         contract.SettingsWindowFocusPolicy(cfg.FocusPolicy),
 		FocusWrap:           cfg.FocusWrap,
 		FocusFollowsPointer: cfg.FocusFollowsPointer,
-		RaiseOnFocus:        cfg.RaiseOnFocus,
-		DragAwayPolicy:      contract.SettingsWindowDragAwayPolicy(cfg.DragAwayPolicy),
-		GroupMoveModifier:   contract.SettingsWindowDragModifier(cfg.GroupMoveModifier),
 		SwapModifier:        contract.SettingsWindowDragModifier(cfg.SwapModifier),
 		HistoryLimit:        cfg.HistoryLimit,
 		NavStackLimit:       cfg.NavStackLimit,
@@ -57,13 +26,12 @@ func settingsWindowManagerPayloadFromConfig(
 			Inner: cfg.Gaps.Inner, Top: cfg.Gaps.Top, Right: cfg.Gaps.Right,
 			Bottom: cfg.Gaps.Bottom, Left: cfg.Gaps.Left,
 		},
-		Snap: contract.SettingsWindowManagerSnapPayload{
-			EdgeBand: cfg.Snap.EdgeBand, CornerReach: cfg.Snap.CornerReach,
-			ExitSlack: cfg.Snap.ExitSlack, RepeatRatios: append([]float64(nil), cfg.Snap.RepeatRatios...),
-		},
+		// Retained wire placeholders for v0.6 readers; removed in v0.8.0.
+		DragAwayPolicy:    contract.SettingsWindowDragAwayPolicyWindow,
+		GroupMoveModifier: contract.SettingsWindowDragModifierNone,
+		Snap:              contract.SettingsWindowManagerSnapPayload{RepeatRatios: []float64{}},
 		Bindings: contract.SettingsWindowManagerBindingPayload{
-			TopCenter:    contract.SettingsWindowBindingAction(cfg.Bindings.TopCenter),
-			BottomCenter: contract.SettingsWindowBindingAction(cfg.Bindings.BottomCenter),
+			TopCenter: contract.SettingsWindowBindingActionNone, BottomCenter: contract.SettingsWindowBindingActionNone,
 		},
 		Shortcuts:       windowmanager.CloneShortcutMap(cfg.Shortcuts),
 		GlobalShortcuts: windowmanager.CloneGlobalShortcutMap(cfg.GlobalShortcuts),

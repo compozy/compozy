@@ -26,7 +26,7 @@ function clampRound(value: number, min: number, max: number): number {
 
 /**
  * One integer pixel value, dragged where it lives and stepped with the arrow
- * keys. Every guide on the spacing and snapping cards uses this, so the two
+ * keys. Every guide on the spacing card uses this, so the two
  * input paths cannot drift apart — and no geometry value on the page needs a
  * number field to be reachable.
  */

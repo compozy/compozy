@@ -45,7 +45,7 @@ func (r *CoordinatorRunner) buildInitialControlAwareCoordinatorPlan(
 		newInitialControlEvalContext(
 			ctx, run, generation, resolved, topology, effective, r.gateEvaluator, r.store,
 			r.controls, r.runtimeCatalog, fanOutWidth, r.watchRuntime(), r.watchEventsRuntime(),
-			gateEvaluations, history, scheduledAt,
+			gateEvaluations, history, scheduledAt, r.now,
 		),
 		&plan,
 		&outputs,
@@ -102,13 +102,14 @@ func newInitialControlEvalContext(
 	gateEvaluations *gateEvaluationCollector,
 	history GenerationHistory,
 	scheduledAt time.Time,
+	clock func() time.Time,
 ) *controlEvalContext {
 	return &controlEvalContext{
 		ctx: ctx, run: run, generation: generation, resolved: resolved, topology: topology,
 		effective: effective, gateEvaluator: gateEvaluator, gateDecisions: gateDecisions,
 		nodeControls: nodeControls, runtimeCatalog: runtimeCatalog, fanOutWidth: fanOutWidth,
 		watchRuntime: watchRuntime, watchEventsRuntime: watchEventsRuntime,
-		gateEvaluations: gateEvaluations, history: history, now: scheduledAt.UTC(),
+		gateEvaluations: gateEvaluations, history: history, now: scheduledAt.UTC(), clock: clock,
 	}
 }
 
@@ -302,7 +303,7 @@ func evaluateControlNodeKind(
 			node,
 			outputs,
 			eval.gateEvaluations,
-			eval.now,
+			eval.clock,
 		)
 		if err != nil || terminal == nil || terminal.Status != string(StatusNeedsApproval) {
 			return gateOutput, terminal, err

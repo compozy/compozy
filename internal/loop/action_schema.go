@@ -174,61 +174,6 @@ func normalizeLoopSchema(schema dsl.Schema) (map[string]any, error) {
 	}, nil
 }
 
-func isFullJSONSchema(schema map[string]any) bool {
-	fullKeys := map[string]struct{}{
-		"$defs":                           {},
-		"$id":                             {},
-		"$schema":                         {},
-		jsonSchemaAdditionalPropertiesKey: {},
-		jsonSchemaAllOfKey:                {},
-		jsonSchemaAnyOfKey:                {},
-		"contains":                        {},
-		"contentEncoding":                 {},
-		"contentMediaType":                {},
-		"const":                           {},
-		jsonSchemaDefaultKey:              {},
-		"dependentRequired":               {},
-		jsonSchemaDependentSchemasKey:     {},
-		"description":                     {},
-		jsonSchemaEnumKey:                 {},
-		"examples":                        {},
-		"exclusiveMaximum":                {},
-		"exclusiveMinimum":                {},
-		"format":                          {},
-		"if":                              {},
-		jsonSchemaItemsKey:                {},
-		"maxItems":                        {},
-		"maxLength":                       {},
-		"maxProperties":                   {},
-		"maximum":                         {},
-		"minItems":                        {},
-		"minLength":                       {},
-		"minProperties":                   {},
-		"minimum":                         {},
-		"multipleOf":                      {},
-		"not":                             {},
-		jsonSchemaOneOfKey:                {},
-		"pattern":                         {},
-		"prefixItems":                     {},
-		jsonSchemaPropertiesKey:           {},
-		"propertyNames":                   {},
-		jsonSchemaRequiredKey:             {},
-		jsonSchemaThenKey:                 {},
-		jsonSchemaTitleKey:                {},
-		jsonSchemaTypeKey:                 {},
-		"unevaluatedProperties":           {},
-		jsonSchemaEntityKindKey:           {},
-	}
-	hasKeyword := false
-	for key := range schema {
-		if _, ok := fullKeys[key]; !ok {
-			return false
-		}
-		hasKeyword = true
-	}
-	return hasKeyword
-}
-
 func shorthandPropertySchema(value any) any {
 	switch typed := value.(type) {
 	case string:
@@ -431,4 +376,59 @@ func validJSONObject(candidate string) (json.RawMessage, bool) {
 		return nil, false
 	}
 	return json.RawMessage(candidate), true
+}
+
+func isFullJSONSchema(schema map[string]any) bool {
+	fullKeys := map[string]struct{}{
+		"$defs":                 {},
+		"$id":                   {},
+		"$schema":               {},
+		"additionalProperties":  {},
+		"allOf":                 {},
+		"anyOf":                 {},
+		"contains":              {},
+		"contentEncoding":       {},
+		"contentMediaType":      {},
+		"const":                 {},
+		"default":               {},
+		"dependentRequired":     {},
+		"dependentSchemas":      {},
+		"description":           {},
+		"enum":                  {},
+		"examples":              {},
+		"exclusiveMaximum":      {},
+		"exclusiveMinimum":      {},
+		"format":                {},
+		"if":                    {},
+		"items":                 {},
+		"maxItems":              {},
+		"maxLength":             {},
+		"maxProperties":         {},
+		"maximum":               {},
+		"minItems":              {},
+		"minLength":             {},
+		"minProperties":         {},
+		"minimum":               {},
+		"multipleOf":            {},
+		"not":                   {},
+		"oneOf":                 {},
+		"pattern":               {},
+		"prefixItems":           {},
+		"properties":            {},
+		"propertyNames":         {},
+		"required":              {},
+		"then":                  {},
+		"title":                 {},
+		"type":                  {},
+		"unevaluatedProperties": {},
+		"x-compozy-kind":        {},
+	}
+	hasKeyword := false
+	for key := range schema {
+		if _, ok := fullKeys[key]; !ok {
+			return false
+		}
+		hasKeyword = true
+	}
+	return hasKeyword
 }

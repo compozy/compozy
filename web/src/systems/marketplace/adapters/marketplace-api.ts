@@ -8,6 +8,9 @@ import type {
   MarketplaceCatalogEntryResponse,
   MarketplaceCatalogQuery,
   MarketplaceCatalogEntryQuery,
+  MarketplaceSectionsOptions,
+  MarketplaceSectionsQuery,
+  MarketplaceSectionsResponse,
 } from "../types";
 
 export { MarketplaceApiError };
@@ -30,12 +33,34 @@ export async function browseMarketplace(
 ): Promise<MarketplaceCatalogResponse> {
   const query: MarketplaceCatalogQuery = {
     q: normalizeOptionalText(options.q),
+    category: normalizeOptionalText(options.category),
     limit: options.limit,
     cursor: normalizeOptionalText(options.cursor),
     profile: normalizeOptionalText(options.profileName),
     ...scopeQuery(options.workspaceId),
   };
   const { data, error, response } = await apiClient.GET("/api/marketplace", {
+    params: { query },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw marketplaceApiError("Failed to load the marketplace", response, error);
+  }
+  return requireResponseData(data, response, "Failed to load the marketplace");
+}
+
+/** Browse home: Featured then non-empty categories, grouped and counted by the daemon. */
+export async function getMarketplaceSections(
+  options: MarketplaceSectionsOptions = {},
+  signal?: AbortSignal
+): Promise<MarketplaceSectionsResponse> {
+  const query: MarketplaceSectionsQuery = {
+    q: normalizeOptionalText(options.q),
+    per_section: options.perSection,
+    profile: normalizeOptionalText(options.profileName),
+    ...scopeQuery(options.workspaceId),
+  };
+  const { data, error, response } = await apiClient.GET("/api/marketplace/sections", {
     params: { query },
     signal,
   });

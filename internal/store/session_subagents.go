@@ -234,19 +234,19 @@ const (
 	SubagentOrderUrgency = "urgency"
 )
 
-// SubagentUrgencyRank orders rows most urgent first, as clients display them:
-// waiting, failed, working (a resumed child included), queued, then settled.
+// SubagentUrgencyRank orders rows active work first, as clients display them:
+// waiting, working (a resumed child included), then failed, queued, settled.
 // It mirrors the ranking in ListSubagentsByParentUrgency.
 func SubagentUrgencyRank(row SessionSubagent) int {
 	if IsSubagentStatusTerminal(row.Status) && row.ChildActivity == SubagentChildActivityWorking {
-		return 2
+		return 1
 	}
 	switch row.Status {
 	case SubagentStatusWaiting:
 		return 0
-	case SubagentStatusFailed:
-		return 1
 	case SubagentStatusRunning:
+		return 1
+	case SubagentStatusFailed:
 		return 2
 	case SubagentStatusQueued:
 		return 3
@@ -261,9 +261,9 @@ type SubagentPage struct {
 	NextCursor string
 }
 
-// NativeMissingResultCursor is the (settled_at, id) position of the last
-// missing-result row returned; the zero value starts from the newest row.
-type NativeMissingResultCursor struct {
+// NativeReplayCursor is the (settled_at, id) position of the last
+// replay candidate returned; the zero value starts from the newest row.
+type NativeReplayCursor struct {
 	SettledAt time.Time
 	ID        string
 }
@@ -309,6 +309,8 @@ type SubagentDisposeFilter struct {
 type SubagentStore interface {
 	HasSubagentCommittedAdmission(ctx context.Context, workspaceID, childID, subagentID string) (bool, error)
 	AssociateSubagentWorktree(ctx context.Context, row SessionSubagent) error
+	// RecordSubagentWorktreeFacts verifies creation and checkout identity without changing terminal state.
+	RecordSubagentWorktreeFacts(ctx context.Context, observed SessionSubagent) (SessionSubagent, error)
 	SetSubagentWorktreeCleanup(ctx context.Context, id, state string) error
 	ListSubagentWorktreeCleanupPending(ctx context.Context) ([]SessionSubagent, error)
 	ReserveSubagent(ctx context.Context, row SessionSubagent) (SessionSubagent, bool, error)
@@ -318,6 +320,10 @@ type SubagentStore interface {
 	// DeleteReserved removes a row still `queued` with no child (spawn.pre_create denial:
 	// no session and no row, IT-022). It returns ErrSubagentNotFound for any other row.
 	DeleteReserved(ctx context.Context, id string) error
+	// DeleteSubagent permanently removes one workspace-scoped row in any status. Child
+	// session removal belongs to the caller; it returns ErrSubagentNotFound for a row
+	// outside the workspace or already gone.
+	DeleteSubagent(ctx context.Context, workspaceID, id string) error
 	GetSubagent(ctx context.Context, workspaceID, id string) (SessionSubagent, error)
 	GetSubagentByID(ctx context.Context, id string) (SessionSubagent, error)
 	GetSubagentByChild(ctx context.Context, childSessionID string) (SessionSubagent, error)
@@ -335,6 +341,7 @@ type SubagentStore interface {
 		ctx context.Context, id string, usage SubagentUsage, at time.Time,
 	) (SessionSubagent, bool, error)
 	UpdateSubagentState(ctx context.Context, id, status, workState string, at time.Time) (SessionSubagent, bool, error)
+	ResumeNativeSubagent(ctx context.Context, id, turn string, at time.Time) (SessionSubagent, bool, error)
 	FinalizeSubagent(ctx context.Context, in SubagentFinalize) (SessionSubagent, bool, error)
 	// UpdateSubagentChildActivity records a delegated child's liveness; it never changes status.
 	UpdateSubagentChildActivity(
@@ -363,11 +370,11 @@ type SubagentStore interface {
 	// EnrichNativeSubagentResult fills a terminal native row's missing result. It
 	// never changes status, settlement, delivery, or child activity.
 	EnrichNativeSubagentResult(ctx context.Context, in NativeSubagentResultEnrichment) (SessionSubagent, bool, error)
-	// ListNativeMissingResult returns at most limit terminal native rows settled
-	// since the cutoff whose result is still missing, newest first, strictly
+	// ListNativeReplayCandidates returns at most limit terminal native rows settled
+	// since the cutoff, including rows with results, newest first, strictly
 	// after the cursor (zero for the first page).
-	ListNativeMissingResult(
-		ctx context.Context, since time.Time, after NativeMissingResultCursor, limit int,
+	ListNativeReplayCandidates(
+		ctx context.Context, since time.Time, after NativeReplayCursor, limit int,
 	) ([]SessionSubagent, error)
 	ListOpenWakes(ctx context.Context) ([]SessionSubagentWake, error)
 	ListPending(ctx context.Context, parentID string) ([]SessionSubagent, error)

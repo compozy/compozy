@@ -91,18 +91,42 @@ walk for step 8 remains pending instance service boot wiring.
 
 Pinning and recent-use ordering are outside this regression.
 
-### Project context menu on every project surface (issue #1029)
+### One project menu on every project surface (issues #1029, session-menus)
 
-Repeat step 2's Archive project / Remove project entry from each surface where a project
-appears; each opens the same actions and confirm dialog, and none shows the browser's native
-Copy menu:
+Every surface where a project appears opens the same grouped menu, right-click or `…`, in this
+order: **New ▸** (New session, New folder, Add always-on agent), **Open files**, **Move ▸**
+(the profile's project folders other than the current one, Move out of folder when the project
+sits in one, then Move project up/down where the surface shows manual order), **Archive
+project**, and **Remove project** last in the destructive tone. A verb the surface cannot reach
+is absent, never a dead row; an archived project (Settings) offers only Unarchive project and
+Remove project; under All profiles Move ▸ is absent (project folders belong to one profile).
 
-- the overview tile (right-click, or focus the tile and press Shift+F10);
+1. From each surface below, choose **New ▸ New session**: session creation opens on that
+   project, even while the menubar is focused on a different project (the session is created
+   there, starts at that project's root rather than the focused project's worktree, and the
+   destination switches to it once created). Choose **New ▸ New folder**: the name dialog creates a session folder in that
+   project. Choose **Open files**: that project's Files window opens. From the overview, each of
+   these verbs also closes the overview.
+2. From each surface, choose **Move ▸** and a folder: the project moves into it (the session
+   list grouped by project under All projects shows it on that folder's rail); Move out of folder
+   takes it back to the root.
+3. Repeat step 2's Archive project / Remove project entry from each surface; each opens the same
+   confirm dialog, and none shows the browser's native Copy menu.
+
+Surfaces and the verbs each one reaches:
+
+- the overview tile (right-click, or focus the tile and press Shift+F10) and the focused tile's
+  `…`: every verb except Add always-on agent and Move project up/down;
+- a project row in Settings › General › Projects (`…`): the same as the overview tile;
 - a project group header in the session list and Sessions modal under All projects with Group
-  by project (right-click, or Shift+F10 on the group toggle); the User and profile group
-  headers have no project menu;
-- a project swimlane header on the Sessions board grouped by project;
-- a project row in the menubar workspace menu (right-click or Shift+F10): the workspace menu
+  by project (right-click, or Shift+F10 on the group toggle): every verb, the New ▸ verbs being
+  the header `+`'s (Add always-on agent opens its picker over the `+`), with Move project
+  up/down inside project folders; the User group header keeps only its Move ▸ inside project
+  folders, and profile group headers have no project menu;
+- a project swimlane header on the Sessions board grouped by project: every verb except Add
+  always-on agent and Move project up/down;
+- a project row in the menubar workspace menu (right-click or Shift+F10): every verb except Add
+  always-on agent and Move project up/down; the workspace menu
   closes and the project menu opens at the pointer; Archive project keeps its confirm open
   after the menu closes. Dismiss the project menu with Escape before choosing an action:
   focus must return to the project menubar trigger, even though the source row has unmounted.

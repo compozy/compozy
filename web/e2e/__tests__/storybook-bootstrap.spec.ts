@@ -77,7 +77,7 @@ test("registers the MSW worker, guards local APIs, and renders route-story deep 
     });
     const loopsWindow = page.getByRole("region", { name: "Loops window" });
     await expect(loopsWindow).toBeVisible();
-    await expect(loopsWindow).toHaveAttribute("data-stack-active", "");
+    await expect(loopsWindow).toHaveAttribute("data-shown", "");
     const catalogFrame = await page.evaluate(
       () =>
         new Promise<string>((resolve, reject) => {

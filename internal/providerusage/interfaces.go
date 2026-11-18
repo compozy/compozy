@@ -7,14 +7,15 @@ import (
 
 // Target is one profile-scoped provider route whose usage is collected.
 type Target struct {
-	ProfileID        string
-	ProviderID       string // canonical Compozy provider ID
-	CollectorID      string // collector family; empty means ProviderID (aliases resolve via runtime_provider)
-	ProviderName     string // catalog display name
-	RouteFingerprint string // daemon-derived; never caller-supplied
-	Status           Status // Empty means eligible for collection.
-	Error            *UsageError
-	Route            ResolvedRoute
+	ProfileID            string
+	ProviderID           string // canonical Compozy provider ID
+	CollectorID          string // collector family; empty means ProviderID (aliases resolve via runtime_provider)
+	ProviderName         string // catalog display name
+	AuthRouteFingerprint string
+	RouteFingerprint     string // daemon-derived; never caller-supplied
+	Status               Status // Empty means eligible for collection.
+	Error                *UsageError
+	Route                ResolvedRoute
 }
 
 // Collector returns the collector family that owns this target.
@@ -31,6 +32,16 @@ type ResolvedRoute struct {
 	NativeCommand  string            // resolved native CLI path when the provider has one ("" if absent)
 	BoundSecrets   map[string]string // slot -> value, only slots declared by the provider
 	KeychainAccess bool              // operator consent recorded in config
+}
+
+// AccountSelector is implemented by native-CLI collectors whose account is chosen by a route
+// variable. SelectorKey names the variable an alias's own launch command must assign for env, after
+// the collector's precedence: the dedicated account variable even when the lookup would fall back
+// to its HOME-derived default (Claude, Codex, Kimi CLI), or the variable a home-based collector reads
+// (Cursor, Gemini). It must share that precedence with the credential lookup. "" means the
+// collector has no such variable.
+type AccountSelector interface {
+	SelectorKey(env []string) string
 }
 
 // TargetResolver lists the enabled targets for one profile.

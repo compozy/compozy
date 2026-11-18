@@ -130,7 +130,7 @@ export const NodeMenus: Story = {
   args: {},
   render: () => (
     <div className="min-h-dvh bg-canvas p-6">
-      <Eyebrow className="text-brand">Node row menu</Eyebrow>
+      <Eyebrow className="text-brand-strong">Node row menu</Eyebrow>
       <p className="mt-1 mb-4 text-small-body text-muted-foreground">
         The verb set is whatever the node&apos;s payload allows — nothing more.
       </p>
@@ -148,7 +148,7 @@ export const NodeMenuOpen: Story = {
   args: {},
   render: () => (
     <div className="min-h-dvh bg-canvas p-6">
-      <Eyebrow className="text-brand">Node row menu — quarantined</Eyebrow>
+      <Eyebrow className="text-brand-strong">Node row menu — quarantined</Eyebrow>
       <p className="mt-1 mb-4 text-small-body text-muted-foreground">
         Requeue is the recovery verb; resume is never offered for a set-aside lane.
       </p>
@@ -239,7 +239,7 @@ export const ResumeModes: Story = {
   args: {},
   render: () => (
     <div className="min-h-dvh bg-canvas p-6">
-      <Eyebrow className="text-brand">Node row menu — paused</Eyebrow>
+      <Eyebrow className="text-brand-strong">Node row menu — paused</Eyebrow>
       <p className="mt-1 mb-4 text-small-body text-muted-foreground">
         Three resume modes; requeue stays absent because a paused lane was never quarantined.
       </p>
@@ -259,7 +259,7 @@ export const RunningMenuOpen: Story = {
   args: {},
   render: () => (
     <div className="min-h-dvh bg-canvas p-6">
-      <Eyebrow className="text-brand">Node row menu — running</Eyebrow>
+      <Eyebrow className="text-brand-strong">Node row menu — running</Eyebrow>
       <p className="mt-1 mb-4 text-small-body text-muted-foreground">
         Nothing is parked, so no resume is offered; nothing was set aside, so no requeue.
       </p>
@@ -279,7 +279,7 @@ export const WaitingMenuOpen: Story = {
   args: {},
   render: () => (
     <div className="min-h-dvh bg-canvas p-6">
-      <Eyebrow className="text-brand">Node row menu — waiting</Eyebrow>
+      <Eyebrow className="text-brand-strong">Node row menu — waiting</Eyebrow>
       <p className="mt-1 mb-4 text-small-body text-muted-foreground">
         A by-hand resume stands in for the event this lane is waiting for.
       </p>
@@ -299,7 +299,7 @@ export const RunCancel: Story = {
   args: {},
   render: () => (
     <div className="min-h-dvh bg-canvas p-6">
-      <Eyebrow className="text-brand">Run controls</Eyebrow>
+      <Eyebrow className="text-brand-strong">Run controls</Eyebrow>
       <p className="mt-1 mb-4 text-small-body text-muted-foreground">
         Cancel closes the run immediately and stops active sessions automatically.
       </p>

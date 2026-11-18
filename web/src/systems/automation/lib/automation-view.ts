@@ -22,7 +22,6 @@ import {
   automationScopeLabel,
   formatRelativeTime,
 } from "./automation-formatters";
-import { triggerWebhookPath } from "./automation-rule";
 import type { AutomationJob, AutomationRunStatus, AutomationTrigger } from "../types";
 
 export type {
@@ -71,10 +70,10 @@ export interface AutomationView {
   /** Jobs: `scheduler.next_run_at ?? next_run`. */
   nextRunAt?: string;
   lastRun?: AutomationLastRun;
-  /** Webhook public link path, when the trigger has a full identity. */
-  webhookPath?: string;
   /** Webhooks only: the public link is published and reachable. */
   publicLinkLive?: boolean;
+  /** The published public link, only while it is live: what Copy link hands out. */
+  publicUrl?: string;
   canRunNow: boolean;
   canEdit: boolean;
   detailPath: AutomationDetailPath;
@@ -125,9 +124,9 @@ export function toAutomationView(
   const nextRunAt = isAutomationTrigger(entity)
     ? undefined
     : nonEmpty(entity.scheduler?.next_run_at ?? entity.next_run);
-  const webhookPath = isAutomationTrigger(entity)
-    ? (triggerWebhookPath(entity) ?? undefined)
-    : undefined;
+  const ingress =
+    isAutomationTrigger(entity) && entity.event === "webhook" ? entity.ingress : undefined;
+  const publicUrl = ingress?.reachability === "live" ? nonEmpty(ingress.url?.trim()) : undefined;
   return {
     kind,
     id: entity.id,
@@ -145,10 +144,10 @@ export function toAutomationView(
     profileName: entity.profile_name,
     ...(nextRunAt ? { nextRunAt } : {}),
     ...(lastRun ? { lastRun } : {}),
-    ...(webhookPath ? { webhookPath } : {}),
     ...(isAutomationTrigger(entity) && entity.event === "webhook"
-      ? { publicLinkLive: entity.ingress?.reachability === "live" }
+      ? { publicLinkLive: ingress?.reachability === "live" }
       : {}),
+    ...(publicUrl ? { publicUrl } : {}),
     canRunNow: kind === "job",
     canEdit: entity.source === "dynamic",
     detailPath: detailPathOf(kind, entity.id),

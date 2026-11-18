@@ -22,11 +22,10 @@ func (r *reducer) createDesktop(snapshot *Snapshot, command CreateDesktopCommand
 		name = nextDesktopName(snapshot)
 	}
 	desktop := Desktop{
-		ID:       desktopID,
-		Name:     name,
-		Order:    len(snapshot.Desktops),
-		Groups:   []LayoutGroup{},
-		Floating: []WindowID{},
+		ID:    desktopID,
+		Name:  name,
+		Order: len(snapshot.Desktops),
+		Tabs:  []Tab{},
 	}
 	insertIndex := len(snapshot.Desktops)
 	if command.AfterID != nil {

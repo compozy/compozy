@@ -395,6 +395,35 @@ func (q *Queries) ListTranscriptChanges(ctx context.Context, arg ListTranscriptC
 	return items, nil
 }
 
+const listTranscriptCostEntryKeysForUpgrade = `-- name: ListTranscriptCostEntryKeysForUpgrade :many
+SELECT DISTINCT transcript_entry_key FROM events
+WHERE archived = 0 AND transcript_entry_key != '' AND json_valid(content)
+  AND json_type(content, '$.usage.ReportedCostAmount') IN ('real', 'integer')
+`
+
+func (q *Queries) ListTranscriptCostEntryKeysForUpgrade(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscriptCostEntryKeysForUpgrade)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var transcript_entry_key string
+		if err := rows.Scan(&transcript_entry_key); err != nil {
+			return nil, err
+		}
+		items = append(items, transcript_entry_key)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTranscriptEntriesBefore = `-- name: ListTranscriptEntriesBefore :many
 SELECT message_json, start_sequence, updated_sequence, event_type, marker_json
 FROM transcript_entries

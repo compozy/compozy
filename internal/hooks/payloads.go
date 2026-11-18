@@ -91,9 +91,11 @@ type ContextBlock struct {
 
 // ToolCallRef identifies a tool invocation in hook payloads.
 type ToolCallRef struct {
-	ToolCallID string `json:"tool_call_id,omitempty"`
-	ToolID     string `json:"tool_id,omitempty"`
-	ReadOnly   bool   `json:"read_only,omitempty"`
+	ToolCallID       string `json:"tool_call_id,omitempty"`
+	ToolID           string `json:"tool_id,omitempty"`
+	ReadOnly         bool   `json:"read_only,omitempty"`
+	HasResultViews   bool   `json:"has_result_views,omitempty"`
+	PinnedResultView string `json:"pinned_result_view,omitempty"`
 }
 
 // ToolLocation captures one path-scoped tool location.

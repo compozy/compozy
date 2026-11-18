@@ -203,7 +203,7 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 			ID: id, SessionID: normalized.SessionID, Kind: normalized.Kind, Description: normalized.Description,
 			TerminalID: normalized.TerminalID, Until: normalized.Until, Pattern: normalized.Pattern,
 			Branch: normalized.Branch, Status: StatusActive, CreatedAt: now, DeadlineAt: now.Add(window),
-			TargetSessionIDs: normalized.Targets, States: normalized.States,
+			TargetSessionIDs: normalized.Targets, States: normalized.States, TargetScopes: normalized.TargetScopes,
 		},
 		pullRequest: newPullRequestWatch(normalized, target),
 		terminalKey: terminalKey(normalized),
@@ -247,7 +247,7 @@ func (s *Service) reuse(spec Spec) (Monitor, bool) {
 	reused := existing.state
 	reused.Reused = true
 	s.logLifecycle("monitor.reused", reused, "registered")
-	return reused, true
+	return reused.observable(), true
 }
 
 func (s *Service) startLocked(item *entry, spec Spec, watch Watch, now time.Time) (Monitor, error) {
@@ -262,7 +262,7 @@ func (s *Service) startLocked(item *entry, spec Spec, watch Watch, now time.Time
 		reused := existing.state
 		reused.Reused = true
 		s.logLifecycle("monitor.reused", reused, "registered")
-		return reused, nil
+		return reused.observable(), nil
 	}
 	if err := s.admitLocked(item); err != nil {
 		return Monitor{}, err
@@ -280,7 +280,7 @@ func (s *Service) startLocked(item *entry, spec Spec, watch Watch, now time.Time
 		defer cancel()
 		s.run(runCtx, item, created, spec, watch)
 	})
-	return created, nil
+	return created.observable(), nil
 }
 
 // List returns the session's monitors, active first, newest first within each group.
@@ -290,7 +290,7 @@ func (s *Service) List(sessionID string) []Monitor {
 	s.pruneSessionLocked(sessionID, s.now())
 	items := make([]Monitor, 0, len(s.sessions[sessionID]))
 	for _, item := range s.sessions[sessionID] {
-		items = append(items, item.state)
+		items = append(items, item.state.observable())
 	}
 	slices.SortFunc(items, compareMonitors)
 	return items

@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import type { FileViewerTarget } from "@/systems/files";
+
+import { openFilePathInViewer } from "../file-path-viewer-route";
 
 import {
   detectFilePath,
   filePathBasename,
   resolveFilePath,
+  resolveRootRelative,
   type FilePathToken,
 } from "../file-path-links";
 
@@ -129,5 +134,95 @@ describe("resolveFilePath", () => {
     expect(
       resolveFilePath(token("src\\main.ts", true), { workingDir: "C:\\repo" }, { windows: true })
     ).toBe("C:\\repo\\src\\main.ts");
+  });
+});
+
+// Suite: root-relative resolution for the in-app viewer (file-explorer UT-048..UT-050).
+// Invariant: a transcript token maps to a path under the session root, or to "outside" with the
+// path as written; `..` and `~/` never escape the root lexically.
+describe("resolveRootRelative", () => {
+  const token = (text: string, windows = false) => {
+    const detected = detectFilePath(text, "inline_code", { windows });
+    if (!detected) throw new Error(`not a path: ${text}`);
+    return detected;
+  };
+
+  it("Should resolve a relative token with its line inside the root (UT-048)", () => {
+    expect(
+      resolveRootRelative(token("internal/a.go:42"), { root: "/r", workingDir: "/r" })
+    ).toEqual({ inside: true, path: "internal/a.go", line: 42 });
+    expect(resolveRootRelative(token("main.go:12"), { root: "/r", workingDir: "/r/cmd" })).toEqual({
+      inside: true,
+      path: "cmd/main.go",
+      line: 12,
+    });
+    expect(resolveRootRelative(token("/r/web/src/main.tsx:3:4"), { root: "/r/" })).toEqual({
+      inside: true,
+      path: "web/src/main.tsx",
+      line: 3,
+      column: 4,
+    });
+  });
+
+  it("Should report absolute paths outside the root and resolve home paths under it (UT-049)", () => {
+    expect(resolveRootRelative(token("/tmp/report.md"), { root: "/r" })).toEqual({
+      inside: false,
+      path: "/tmp/report.md",
+    });
+    expect(resolveRootRelative(token("/rx/a.ts"), { root: "/r" })).toMatchObject({ inside: false });
+    expect(
+      resolveRootRelative(token("~/dev/app/web/main.tsx"), {
+        root: "/Users/d/dev/app",
+        home: "/Users/d",
+      })
+    ).toEqual({ inside: true, path: "web/main.tsx" });
+    expect(
+      resolveRootRelative(token("~/dev/app/web/main.tsx"), { root: "/Users/d/dev/app" })
+    ).toMatchObject({ inside: false });
+  });
+
+  it("Should never climb above the root with dot segments (UT-050)", () => {
+    expect(
+      resolveRootRelative(token("../../etc/passwd"), { root: "/r", workingDir: "/r/a" })
+    ).toEqual({ inside: false, path: "../../etc/passwd" });
+    expect(resolveRootRelative(token("../b.ts"), { root: "/r", workingDir: "/r/a" })).toEqual({
+      inside: true,
+      path: "b.ts",
+    });
+    expect(resolveRootRelative(token("/r/../r2/x.ts"), { root: "/r" })).toMatchObject({
+      inside: false,
+    });
+  });
+
+  it("Should resolve Windows drive paths case-insensitively on a Windows desktop", () => {
+    expect(
+      resolveRootRelative(
+        token("c:\\Repo\\web\\a.ts", true),
+        { root: "C:\\repo" },
+        { windows: true }
+      )
+    ).toEqual({ inside: true, path: "web/a.ts" });
+  });
+});
+
+// Suite: viewer link routing (file-explorer UT-051). Invariant: the last click wins; an earlier
+// click whose root read resolves later never replaces the newer target (US-005.EC-4).
+describe("openFilePathInViewer", () => {
+  it("Should open only the second of two quick clicks (UT-051)", async () => {
+    const opened: FileViewerTarget[] = [];
+    const roots: ((root: { root: string }) => void)[] = [];
+    const route = {
+      sessionId: "sess-race",
+      resolveRoot: vi.fn(() => new Promise<{ root: string }>(resolve => roots.push(resolve))),
+      open: (target: FileViewerTarget) => opened.push(target),
+    };
+    const first = openFilePathInViewer(detectFilePath("a.go:1", "inline_code")!, route);
+    const second = openFilePathInViewer(detectFilePath("b/c.go:2", "inline_code")!, route);
+    roots[1]?.({ root: "/r" });
+    await second;
+    roots[0]?.({ root: "/r" });
+    await first;
+    expect(opened).toHaveLength(1);
+    expect(opened[0]).toMatchObject({ kind: "file", path: "b/c.go", line: 2 });
   });
 });

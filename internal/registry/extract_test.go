@@ -1175,3 +1175,55 @@ func writeTestFile(t *testing.T, path string, content string) {
 		t.Fatalf("WriteFile(%q) error = %v", path, err)
 	}
 }
+
+func TestExtractDeferredLinks(t *testing.T) {
+	t.Parallel()
+	for _, fixture := range []struct {
+		name    string
+		entries []tarEntry
+		limits  ExtractionLimits
+		want    error
+	}{
+		{name: "Should reject a file beneath a deferred link", entries: []tarEntry{
+			{name: "alias", typeflag: tar.TypeSymlink, linkname: "data"},
+			{name: "alias/file", content: "payload"},
+		}, want: ErrPathTraversesSymlink},
+		{name: "Should reject replacement of an implicit directory with a link", entries: []tarEntry{
+			{name: "alias/file", content: "payload"},
+			{name: "alias", typeflag: tar.TypeSymlink, linkname: "data"},
+		}, want: ErrArchiveDuplicateEntry},
+		{name: "Should count deferred links against the node quota", entries: []tarEntry{
+			{name: "data/file", content: "payload"},
+			{name: "alias", typeflag: tar.TypeSymlink, linkname: "data"},
+		}, limits: ExtractionLimits{MaxFiles: 2}, want: errArchiveTooManyFiles},
+		{name: "Should reserve implicit parents without creating a link", entries: []tarEntry{
+			{name: "data", content: "payload"},
+			{name: "nested/alias", typeflag: tar.TypeSymlink, linkname: "../data"},
+		}},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			limits := fixture.limits
+			limits.Symlinks = make(map[string]string)
+			err := ExtractArchive(
+				t.Context(),
+				bytes.NewReader(mustTarGz(t, fixture.entries)),
+				openArchiveTestRoot(t, root),
+				limits,
+				"application/gzip",
+			)
+			if !errors.Is(err, fixture.want) {
+				t.Fatalf("deferred extraction = %v, want %v", err, fixture.want)
+			}
+			if fixture.want == nil {
+				if limits.Symlinks["nested/alias"] != "../data" {
+					t.Fatalf("deferred links = %v", limits.Symlinks)
+				}
+				if _, err := os.Lstat(filepath.Join(root, "nested", "alias")); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("link created during extraction: %v", err)
+				}
+			}
+		})
+	}
+}

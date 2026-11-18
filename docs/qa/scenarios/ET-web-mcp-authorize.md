@@ -4,8 +4,8 @@ area: ET
 title: MCP OAuth authorize/repair flow (browser auto path)
 persona: Bruno
 journey: J-mcp-authorize-repair
-expected: Authorize on a needs_login OAuth remote begins an explicit `mode=automatic` daemon PKCE session and always renders the live `auth/begin` authorization_url copyable (browser open optional). The waiting dialog polls the scoped list and confirms ONLY on `authenticated && token_present`. A tools/list-style success alone never flips the UI. Automatic begin failure offers retry and a manual-callback fallback; cancel/failure preserves the prior public status and token.
-entry_points: web `/mcp` Authorize action; `POST /api/settings/mcp-servers/{name}/auth/begin`; daemon callback `GET /api/mcp/oauth/callback`
+expected: Sign in on a needs_login OAuth remote begins an explicit `mode=automatic` daemon PKCE session and always renders the live `auth/begin` authorization_url copyable (browser open optional). The waiting sign-in panel polls the scoped list and confirms ONLY on `authenticated && token_present`. A tools/list-style success alone never flips the UI. Automatic begin failure offers retry and a manual-callback fallback; cancel/failure preserves the prior public status and token.
+entry_points: web `/settings/mcp` Sign in action; `POST /api/settings/mcp-servers/{name}/auth/begin`; daemon callback `GET /api/mcp/oauth/callback`
 qa_status: blocked-verify
 bug_ids: BUG-20260715-mcp-oauth-name-segment
 fix_status: fixed
@@ -21,6 +21,12 @@ story: As a builder I authorize a remote MCP server from the product, following 
 src: docs/design/opendesign/mcp-management.html
 
 inventory: Needs QA
+
+CI repair retest 2026-11-05: the existing `marketplace.spec.ts` browser OAuth journey
+passes against the fake authorization server and an isolated real daemon after selecting
+the current **Sign in** action. The previous **Authorize** selector timed out before
+OAuth began; the later connection refusal came from fixture cleanup. Token exchange
+and scoped-list confirmation assertions remain intact. This does not establish vendor consent.
 
 Historical QA note: the begin-attempt race and truthful begin-failure recovery remain pending.
 
@@ -48,3 +54,15 @@ scopes are requested, cancel preserves the existing token, and approval sends
 QA result 2026-07-30: the installed Linear target truthfully exposed the authorization handoff and
 remained authorization-required; the UI did not claim completion or expose token material. Human
 Linear consent and the resulting authenticated refetch remain `blocked-verify`.
+
+QA impact 2026-11-14 (MCP hot activation spec): Sign in on a project server waiting for approval sends the row's `definition_digest`, so one click allows and signs in. Sign in is also offered from the session composer MCP control (ET-mcp-signin-from-session-control); a completed sign-in reaches open sessions on their next message.
+
+QA impact 2026-11-16 (MCP redesign S2): the authorize dialog is gone. Sign in / Reauthorize opens
+the sign-in panel beside the pressed button (Settings row, Marketplace Set up / Authorize, composer
+row) and opens the browser by itself (a tab reserved by the press, navigated when `auth/begin`
+answers; the desktop app hands the address to the system browser). The panel shows three steps,
+Open again ↗, a copy-link button, and confirms ("Connected to <server>", with the server's real tool
+count) only on `authenticated && token_present`. Begin failure reads "Sign-in didn't finish" with
+"Nothing changed: <server> keeps its previous sign-in." and Try again; extra scopes show "<server> asks
+for more access" with Not now / Continue before any begin. Verify: a popup blocker never blocks the
+tab, a failed begin closes the reserved tab, closing the panel cancels the attempt.

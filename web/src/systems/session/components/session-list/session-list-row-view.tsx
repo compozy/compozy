@@ -13,7 +13,7 @@ import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { HTMLAttributes, ReactElement, ReactNode } from "react";
-import type { SessionRowLayoutMenu } from "../session-row-context-menu";
+import type { SessionRowLayoutMenu } from "../../lib/session-menu-tree";
 import type {
   SessionDragHandlers,
   SessionDropPosition,

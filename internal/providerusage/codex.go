@@ -43,8 +43,13 @@ type codexConfig struct {
 	BaseURL string `toml:"chatgpt_base_url"`
 }
 
+// SelectorKey implements AccountSelector.
+func (*CodexCollector) SelectorKey([]string) string { return codexHomeKey }
+
+const codexHomeKey = "CODEX_HOME"
+
 func codexHome(t Target) string {
-	if home := routeEnv(t, "CODEX_HOME"); home != "" {
+	if home := routeEnv(t, codexHomeKey); home != "" {
 		return home
 	}
 	if home := routeEnv(t, "HOME"); home != "" {

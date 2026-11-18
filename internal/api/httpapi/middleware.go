@@ -127,7 +127,7 @@ func corsMiddlewareWithForwardedTarget(boundHost string, allowForwardedTarget bo
 func setBrowserAccessHeaders(headers http.Header) {
 	headers.Set(
 		"Access-Control-Allow-Headers",
-		"Authorization, Content-Type, Last-Event-ID, Accept, X-Compozy-Client-ID",
+		"Authorization, Content-Type, Last-Event-ID, Accept, Cache-Control, X-Compozy-Client-ID",
 	)
 	headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 	headers.Set(

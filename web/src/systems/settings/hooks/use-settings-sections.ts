@@ -60,7 +60,9 @@ export function useSettingsAttention(filter: SettingsAttentionFilter) {
   const queryClient = useQueryClient();
   const query = useQuery(settingsAttentionOptions(filter));
   const { scope, profile } = filter;
-  useWorkspaces();
+  // Keeps the catalog observed for the reconcile subscription below; the render
+  // reads none of it, so no catalog refresh re-renders the attention surfaces.
+  useWorkspaces({ notifyOnChangeProps: [] });
 
   useEffect(() => {
     const workspaceKey = workspaceKeys.list();

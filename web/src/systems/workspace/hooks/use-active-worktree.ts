@@ -30,6 +30,14 @@ export interface ActiveWorktreeSelection {
   fallback: { worktreeId: string; name: string | null; reason: WorktreeFallbackReason } | null;
 }
 
+/**
+ * Every scope's stored selection. A caller that resolves a scope it reads from another store
+ * selects `effectiveWorktreeScopeId` there, so it re-renders only when the entry read changes.
+ */
+export function useWorktreeSelectionsByScope(): Readonly<Record<string, string | null>> {
+  return useSelector(activeWorkspaceSelectors.worktreeByScope);
+}
+
 export function useSelectedWorktreeId(scopeId: string): string | null {
   const byScope = useSelector(activeWorkspaceSelectors.worktreeByScope);
   return resolveScopedWorktreeId(byScope, scopeId);

@@ -3,7 +3,9 @@ import { AgentAvatar, Pill, StateGlyph, useTopbarSlot } from "@compozy/ui";
 import {
   agentAvatarAppearance,
   agentInstanceAvatarState,
+  alwaysOnMainInstance,
   useAgentInstances,
+  type AgentInstancePayload,
 } from "@/systems/agent";
 import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 import { PROFILE_SPRITE_URL } from "@/systems/profiles";
@@ -20,6 +22,7 @@ import { SessionMarkSeenAction } from "../components/session-mark-seen-action";
 import { SessionPrimaryAction } from "../components/session-primary-action";
 import { sessionProcessPorts, sessionRunningProcesses } from "../lib/session-processes";
 import { SessionPanelToggle } from "../components/session-panel-toggle";
+import { SessionReviewPanelToggle } from "../components/session-review-panel";
 import { AlwaysOnAgentMenu } from "../components/always-on/always-on-agent-menu";
 
 import type { WorktreePayload } from "@/systems/workspace";
@@ -32,6 +35,8 @@ import { isOwnBranch, type SessionLinkedWorkItem } from "../lib/session-linked-w
 import { sessionPullRequestFacts, sessionWaitingOn } from "../lib/session-pull-request";
 import { isUserControllableSession } from "../lib/session-running";
 import { requestSessionLinkDialog } from "./use-session-link-dialog";
+import { requestSessionReviewChanges } from "./use-session-review-panel-state";
+import { sessionHasFileRoot } from "../lib/session-file-root";
 import type { SessionLinkedWorkModel } from "./use-session-linked-work";
 import type { SessionPayload } from "../types";
 import { SessionStatusLine } from "../components/session-status-line";
@@ -71,6 +76,9 @@ interface UseSessionTopbarSlotInput {
   isStopping: boolean;
   isUnarchiving: boolean;
   inspectorOpen: boolean;
+  /** The Review panel (Changes); its toggle is absent for a session without a file root. */
+  reviewOpen: boolean;
+  onReviewToggle: () => void;
   sidebarOpen: boolean;
   /** Absent for workspace-root sessions: commit/push/create-PR never appear there. */
   pullRequestExit?: SessionTopbarPullRequestExit;
@@ -86,6 +94,12 @@ interface UseSessionTopbarSlotInput {
   /** The connection chip (S4): mounts in the status slot's reserved trailing position, before the actions. */
   transportChip?: React.ReactNode;
   onInspectorToggle: () => void;
+  /**
+   * The composer carries the context control that opens and closes the inspector (#1487). A window
+   * without it (a read-only superseded session) keeps the inspector toggle in the head instead.
+   * Defaults to true.
+   */
+  composerContextControl?: boolean;
   onSidebarToggle: () => void;
   onStop: (processes?: SessionProcessPolicy) => void;
   onUnarchive: () => void;
@@ -143,22 +157,94 @@ function useLinkedWorkList(
         else linkedWork.refresh(item);
       },
       onPrompt: input.onSendPrompt,
+      ...(input.worktreeAction ? { worktreeAction: input.worktreeAction } : {}),
+      // The session's own branch diff (US-007.AC-8): Branch scope, absent in user scope.
+      ...(sessionHasFileRoot(session.workspace_id)
+        ? {
+            onReviewChanges: () => requestSessionReviewChanges(session.id, { scope: "branch" }),
+          }
+        : {}),
     },
   };
 }
 
 /** The delivery actions a chip carries for the session's own branch. */
 function ownChipActions({
+  session,
   pullRequestExit,
   pullRequestRefresh,
 }: UseSessionTopbarSlotInput): SessionLinkedWorkStatusProps["ownChip"] {
   return {
+    // The session's own branch diff (US-007.AC-8): Branch scope, absent in user scope.
+    onReviewChanges: sessionHasFileRoot(session.workspace_id)
+      ? () => requestSessionReviewChanges(session.id, { scope: "branch" })
+      : undefined,
     exitPlan: pullRequestExit?.plan,
     exitRunning: pullRequestExit?.running ?? false,
     onExitAction: pullRequestExit?.onAction,
     onRefresh: pullRequestRefresh?.refresh,
     refreshing: pullRequestRefresh?.refreshing ?? false,
   };
+}
+
+/**
+ * An ordinary session's head: linked work entry, run verbs, then the Changes toggle. The composer's
+ * context control opens and closes the inspector; a window without one keeps the head toggle.
+ */
+function sessionActions(
+  input: UseSessionTopbarSlotInput,
+  actions: ReturnType<typeof sessionTopbarActions>,
+  linkedList: SessionLinkedWorkListProps
+) {
+  const { session, linkedWork } = input;
+  return (
+    <>
+      {linkedWork.clipped ? <SessionLinkedWorkNarrowEntry {...linkedList} /> : null}
+      <SessionMarkSeenAction session={session} />
+      <SessionPrimaryAction
+        key={session.id}
+        {...input}
+        {...actions}
+        runningProcesses={sessionRunningProcesses(session)}
+        processPorts={sessionProcessPorts(session)}
+      />
+      <SessionReviewPanelToggle
+        workspaceId={session.workspace_id}
+        open={input.reviewOpen}
+        onToggle={input.onReviewToggle}
+      />
+      {input.composerContextControl === false ? (
+        <SessionPanelToggle
+          panel="inspector"
+          open={input.inspectorOpen}
+          onToggle={input.onInspectorToggle}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * An always-on agent's main (#1303): the Always-on label and the agent's `…` menu, which owns its
+ * lifecycle, without linked work, Stop or the Changes toggle. These actions publish with
+ * `actionsDivider: false`, so they sit right after the status with no hairline between them. Its
+ * composer has no context control, so a panel that is still open (a kept preference, or the
+ * inspector a subagent link opened) keeps its toggle as the way to close it.
+ */
+function alwaysOnMainActions(input: UseSessionTopbarSlotInput, instance: AgentInstancePayload) {
+  return (
+    <>
+      <Pill size="sm">Always-on</Pill>
+      <AlwaysOnAgentMenu instance={instance} />
+      <SessionMarkSeenAction session={input.session} />
+      {input.reviewOpen ? (
+        <SessionPanelToggle panel="review" open onToggle={input.onReviewToggle} />
+      ) : null}
+      {input.inspectorOpen ? (
+        <SessionPanelToggle panel="inspector" open onToggle={input.onInspectorToggle} />
+      ) : null}
+    </>
+  );
 }
 
 /** Publishes lifecycle actions into the owning session window's topbar. */
@@ -177,13 +263,23 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { linkedWork } = input;
   const glyphState = sessionBadgeSignal(sessionBadgeOf(session), sessionWaitingOn(session)).state;
 
-  // A main session is the agent's own conversation, so the agent names it.
-  const instance = useAgentInstances().find(row => row.main_session_id === session.id);
+  // A main session is the agent's own conversation, so the agent names it. It accumulates linked
+  // work indefinitely, so its head carries no linked chip (#1303).
+  const instance = alwaysOnMainInstance(useAgentInstances(), session.id);
   const { registeredWorkspaces } = useActiveWorkspace();
   const workspaceNames = new Map(registeredWorkspaces.map(row => [row.id, row.name]));
   const linkedList = useLinkedWorkList(input, actions.lifecycleControllable, workspaceNames);
 
   useTopbarSlot({
+    // The sessions list toggle leads every session head, open or closed (#1487); the board drawer
+    // has no rail to toggle.
+    start: inWindow ? (
+      <SessionPanelToggle
+        panel="sidebar"
+        open={input.sidebarOpen}
+        onToggle={input.onSidebarToggle}
+      />
+    ) : undefined,
     leading: inWindow ? (
       <WorkspaceBadge
         identity={workspaceBadgeIdentity(session.workspace_id ?? "", workspaceNames)}
@@ -206,18 +302,18 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     crumb: instance?.label ?? getSessionDisplayTitle(session),
     status: (
       <span className="flex min-w-0 items-center gap-2">
-        {instance ? <Pill size="sm">Always-on</Pill> : null}
         {/* Keyed by session: the head outlives a session switch, and an open list must not. */}
-        <SessionLinkedWorkStatus
-          key={session.id}
-          {...linkedList}
-          lead={linkedWork.lead}
-          count={linkedWork.count}
-          onClippedChange={linkedWork.setClipped}
-          ownChip={ownChipActions(input)}
-          ownFacts={sessionPullRequestFacts(session)}
-          worktreeAction={input.worktreeAction}
-        />
+        {instance ? null : (
+          <SessionLinkedWorkStatus
+            key={session.id}
+            {...linkedList}
+            lead={linkedWork.lead}
+            count={linkedWork.count}
+            onClippedChange={linkedWork.setClipped}
+            ownChip={ownChipActions(input)}
+            ownFacts={sessionPullRequestFacts(session)}
+          />
+        )}
         <SessionStatusLine
           onOpenOriginSource={input.onOpenOriginSource}
           origin={input.origin}
@@ -244,33 +340,11 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
         ) : null}
       </span>
     ),
-    // The run verbs lead; the two panel toggles trail as quiet icons.
-    actions: (
-      <>
-        {linkedWork.clipped ? <SessionLinkedWorkNarrowEntry {...linkedList} /> : null}
-        {instance ? <AlwaysOnAgentMenu instance={instance} /> : null}
-        <SessionMarkSeenAction session={session} />
-        <SessionPrimaryAction
-          key={session.id}
-          {...input}
-          {...actions}
-          runningProcesses={sessionRunningProcesses(session)}
-          processPorts={sessionProcessPorts(session)}
-        />
-        {inWindow ? (
-          <SessionPanelToggle
-            panel="sidebar"
-            open={input.sidebarOpen}
-            onToggle={input.onSidebarToggle}
-          />
-        ) : null}
-        <SessionPanelToggle
-          panel="inspector"
-          open={input.inspectorOpen}
-          onToggle={input.onInspectorToggle}
-        />
-      </>
-    ),
+    // The run verbs lead; the Changes toggle trails as a quiet icon.
+    actions: instance
+      ? alwaysOnMainActions(input, instance)
+      : sessionActions(input, actions, linkedList),
+    actionsDivider: !instance,
     // Per-session verbs live in the session list row menus; the head keeps only the view toggle.
     overflow: inWindow ? (
       <SessionViewToggle onValueChange={view.setView} value={view.view} />

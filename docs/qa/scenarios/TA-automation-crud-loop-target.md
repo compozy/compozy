@@ -68,3 +68,33 @@ SQLite audit 2026-10-09: Hold an external writer during scheduled claim and trig
 See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
 for exact verification and limits. These backend checks do not replace or promote the
 scenario's historical browser/provider verdict.
+
+QA impact 2026-11-12 (#1608): simulate a daemon restart with `scheduled`/`running` history
+whose sessions are missing or stopped. Confirm each row is retained as `failed` with
+`orphaned_after_restart` and an end time, and the next scheduled fire dispatches instead
+of `self_overlap`. A live session must remain blocking. Cancel an orphan using
+`automation runs cancel`, HTTP/UDS `POST /api/automation/runs/{id}/cancel`, or
+`compozy__automation_runs_cancel`; verify the canceled receipt, retained history and
+idempotent retry. Live sessions, delegated executions and sessionless admissions must be
+refused without mutation; other profiles must remain inaccessible. Owning manager and
+handler/CLI suites cover these contracts with real SQLite at the persistence boundary.
+Local tests and runtime QA are prohibited for this parallel dispatch; CI evidence is pending.
+
+QA impact 2026-11-14 (#1720): run a scheduled agent with `retry = { strategy = "backoff",
+max_retries = 2, base_delay = "2s" }`. Delay the first ACP initialize handshake beyond its
+control deadline, then allow the next attempt to initialize. Verify one scheduled fire completes
+with attempt 2 and no intermediate failed session or attention entry. Keep timing out to verify
+three total attempts, delays of two and four seconds, and one retained final failure with diagnostics.
+Repeat with process crash at spawn, package preparation failure, and `session/new` protocol
+failure before acceptance: backoff must retry the same fire. A repeated typed startup configuration
+failure exhausts the configured retry budget. Repeat with `retry.strategy = "none"`, authentication
+refusal, untyped agent-definition validation, explicit cancellation, and failed cleanup: none may
+start another attempt. A provider that
+already accepted a session must not be started again. Scheduler integration owns policy/fire identity;
+session lifecycle tests own real SQLite/artifact retention. CI and provider replay remain pending;
+local verification is forbidden for this dispatch.
+
+QA impact 2026-11-15 (release M6): startup/process/handshake/protocol failures before acceptance
+retain v0.7.0 backoff coverage. Accepted-start failures of every eligible kind remain terminal and
+retain diagnostics. `TestSchedulerIntegrationStartupFailure` owns the real SQLite scheduler/fire
+integration; CI and provider replay remain pending and no local verification is permitted.

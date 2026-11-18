@@ -39,6 +39,127 @@ import (
 // Invariant: restart recovery admits one continuation per interrupted turn and honors explicit stops and opt-out.
 // Owner: session manager; canonical resume suite. The ACP boundary is fake; checkpoints and admissions use SQLite.
 func TestResumeInterruptedSession(t *testing.T) {
+	// Invariant: an idle instance main reopens once without replay; a refused binding records its
+	// cause, while ordinary idle sessions and explicit stops remain stopped. Owner: restart recovery.
+	for _, tc := range []struct {
+		name                                   string
+		instance, disabled, explicit, wantLive bool
+	}{
+		{name: "Should reopen an idle instance main without replaying its completed turn", instance: true, wantLive: true},
+		{name: "Should record why an idle instance main cannot resume", instance: true, disabled: true},
+		{name: "Should preserve an explicit idle instance stop", instance: true, explicit: true},
+		{name: "Should explain why an ordinary idle session has no continuation"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := openManagerInputQueueStore(t)
+			logs := newCaptureLogHandler()
+			h := newHarness(t, WithSessionCatalog(db), WithSessionInputQueueStore(db),
+				WithSessionPromptAdmissionStore(db), WithLogger(slog.New(logs)),
+				WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}))
+			registerManagerInputQueueWorkspace(t, db, h)
+			main := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, main.ID) })
+			stream, err := h.manager.Prompt(t.Context(), main.ID, "finish this turn")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, stream)
+			if tc.instance {
+				if _, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+					ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: main.AgentName,
+					PermissionCeiling: "{}", CreatedByKind: "human",
+				}, main.ID, 10); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cause := CauseShutdown
+			if tc.explicit {
+				cause = CauseUserRequested
+			}
+			if err := h.manager.StopWithCause(t.Context(), main.ID, cause, "daemon restart"); err != nil {
+				t.Fatal(err)
+			}
+			if tc.disabled {
+				h.resolver.mu.Lock()
+				workspace := h.resolver.byRef[h.workspaceID]
+				workspace.Config.Session.Restart.AutoContinue = false
+				h.resolver.byRef[h.workspaceID] = workspace
+				h.resolver.mu.Unlock()
+			}
+			for range 2 {
+				if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, live := h.manager.Get(main.ID)
+			if live != tc.wantLive || len(managerPromptCalls(h)) != 1 {
+				t.Fatalf(
+					"live=%t prompts=%d; want live=%t with no replay",
+					live,
+					len(managerPromptCalls(h)),
+					tc.wantLive,
+				)
+			}
+			if tc.disabled {
+				record, found := logs.FindByMessage("session: restart continuation unavailable")
+				if !found || !strings.Contains(record.Attrs["error"], "disabled") ||
+					record.Attrs["session_id"] != main.ID {
+					t.Fatalf("missing boot refusal cause: %+v", logs.Records())
+				}
+				rows, err := h.manager.Events(t.Context(), main.ID, store.EventQuery{Type: restartSkippedEvent})
+				if err != nil || len(rows) != 1 {
+					t.Fatalf("restart refusal events=%d: %v", len(rows), err)
+				}
+				checkpoint, err := decodeRestartCheckpoint(rows[0])
+				if err != nil || checkpoint.Reason != "disabled" {
+					t.Fatalf("restart refusal=%+v: %v", checkpoint, err)
+				}
+			} else if !tc.instance {
+				record, found := logs.FindByMessage("session: restart continuation skipped")
+				if !found || record.Attrs["reason"] != "no_pending_interruption" {
+					t.Fatalf("missing idle recovery explanation: %+v", logs.Records())
+				}
+			}
+		})
+	}
+	t.Run("Should leave an idle parent stopped when its idle worker has no continuation", func(t *testing.T) {
+		db := openManagerInputQueueStore(t)
+		opts := []Option{WithSessionCatalog(db), WithSessionInputQueueStore(db),
+			WithSessionPromptAdmissionStore(db)}
+		h := newHarness(t, opts...)
+		registerManagerInputQueueWorkspace(t, db, h)
+		parent := createSession(t, h)
+		stream, err := h.manager.Prompt(t.Context(), parent.ID, "finished work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		child, err := h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: parent.ID,
+			AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.StopWithCause(t.Context(), child.ID, CauseShutdown, "daemon restart"); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.StopWithCause(t.Context(), parent.ID, CauseShutdown, "daemon restart"); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		h.manager = newManagerWithHarness(t, h, opts...)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		starts := len(h.driver.startCalls)
+		for range 2 {
+			if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if len(h.driver.startCalls) != starts {
+				t.Fatal("idle worker reopened a parent without pending work")
+			}
+		}
+	})
 	for _, tc := range []struct {
 		name        string
 		restart     bool
@@ -54,7 +175,27 @@ func TestResumeInterruptedSession(t *testing.T) {
 		cancelRace  bool
 		instance    string
 		wantResume  bool
+		spawned     bool
+		expired     bool
+		parentStop  bool
+		userStop    bool
+		archived    bool
+		noParent    bool
+		independent bool
+		budget      bool
+		idleParent  bool
 	}{
+		{name: "Should continue a spawned worker after restart", restart: true, spawned: true, wantResume: true},
+		{name: "Should reopen an idle shutdown parent before its worker", restart: true, spawned: true, idleParent: true, wantResume: true},
+		{name: "Should leave an idle parent stopped when its worker completed during drain", restart: true, spawned: true, idleParent: true, completed: true},
+		{name: "Should leave an idle parent stopped when its worker exhausted its budget", restart: true, spawned: true, idleParent: true, budget: true},
+		{name: "Should keep an expired worker stopped", restart: true, spawned: true, expired: true},
+		{name: "Should keep an archived worker stopped", restart: true, spawned: true, archived: true},
+		{name: "Should keep a worker stopped when its auto-stop parent is missing", restart: true, spawned: true, noParent: true},
+		{name: "Should continue an independent worker without its parent", restart: true, spawned: true, noParent: true, independent: true, wantResume: true},
+		{name: "Should respect an exhausted child budget", restart: true, spawned: true, budget: true},
+		{name: "Should keep a worker stopped when its auto-stop parent stopped", restart: true, spawned: true, parentStop: true},
+		{name: "Should keep an explicitly stopped worker stopped", restart: true, spawned: true, userStop: true},
 		{name: "Should resume an interrupted turn exactly once", restart: true, wantResume: true},
 		{name: "Should preserve explicit permission overrides", restart: true, wantResume: true, permissions: compozyconfig.PermissionModeApproveReads},
 		{name: "Should preserve policy checks after a later batched input", restart: true, changed: "policy", batched: true},
@@ -71,6 +212,8 @@ func TestResumeInterruptedSession(t *testing.T) {
 		{name: "Should not continue a turn canceled before the shutdown scan captured it", restart: true, cancelRace: true},
 		{name: "Should hold a paused instance continuation until resume", restart: true, instance: "paused", wantResume: true},
 		{name: "Should count an active instance continuation once", restart: true, instance: "active", wantResume: true},
+		{name: "Should not reopen a blocked instance as idle on the next recovery", restart: true,
+			instance: "active", interaction: store.PendingInteractionKindClarify},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			admissions := openManagerInputQueueStore(t)
@@ -85,6 +228,27 @@ func TestResumeInterruptedSession(t *testing.T) {
 				Workspace: h.workspaceID, Permissions: tc.permissions}))
 			if err != nil {
 				t.Fatal(err)
+			}
+			var parent *Session
+			if tc.spawned {
+				parent = target
+				if tc.budget {
+					parent.Lineage.SpawnBudget.MaxChildren = 1
+				}
+				if tc.idleParent {
+					registerManagerInputQueueSession(t, admissions, h, parent)
+					stream, err := h.manager.Prompt(t.Context(), parent.ID, "wait for the worker")
+					if err != nil {
+						t.Fatal(err)
+					}
+					collectEvents(t, stream)
+				}
+				t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+				target, err = h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: parent.ID,
+					AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true})
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 			registerManagerInputQueueSession(t, admissions, h, target)
 			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
@@ -172,7 +336,11 @@ func TestResumeInterruptedSession(t *testing.T) {
 				close(source)
 				collectEvents(t, stream)
 			}
-			if err := h.manager.StopWithCause(t.Context(), target.ID, CauseShutdown, "daemon restart"); err != nil {
+			cause := CauseShutdown
+			if tc.userStop {
+				cause = CauseUserRequested
+			}
+			if err := h.manager.StopWithCause(t.Context(), target.ID, cause, "daemon restart"); err != nil {
 				t.Fatal(err)
 			}
 			if !tc.completed {
@@ -207,22 +375,92 @@ func TestResumeInterruptedSession(t *testing.T) {
 			if err := h.manager.CaptureRestartInterruptions(t.Context(), infos); err != nil {
 				t.Fatal(err)
 			}
-			resumed, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID)
+			simulateDaemonRestart(h.manager)
+			if tc.expired {
+				meta := readMeta(t, target.MetaPath())
+				meta.Lineage.TTLExpiresAt = new(h.manager.now().Add(-time.Hour))
+				if err := store.WriteSessionMeta(target.MetaPath(), &meta); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.noParent {
+				meta := readMeta(t, target.MetaPath())
+				meta.Lineage.ParentSessionID = "missing-parent"
+				meta.Lineage.AutoStopOnParent = !tc.independent
+				if err := store.WriteSessionMeta(target.MetaPath(), &meta); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.archived {
+				info, err := h.manager.Status(t.Context(), target.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := admissions.RegisterSession(
+					t.Context(),
+					new(sessionCatalogInfoFromRuntime(info)),
+				); err != nil {
+					t.Fatal(err)
+				}
+				h.manager.sessionCatalog = admissions
+				t.Cleanup(func() { h.manager.sessionCatalog = nil })
+				if _, err := h.manager.Archive(t.Context(), h.workspaceID, target.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.budget {
+				sibling, err := h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: parent.ID,
+					AgentName: "coder", TTL: time.Hour})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { reportSessionStop(t, h, sibling.ID) })
+			}
+			if tc.idleParent {
+				if err := h.manager.StopWithCause(t.Context(), parent.ID, CauseShutdown, "daemon restart"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.parentStop {
+				if err := h.manager.Stop(t.Context(), parent.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			starts := len(h.driver.startCalls)
+			var resumed bool
+			switch {
+			case tc.instance != "":
+				h.manager.sessionCatalog = admissions
+				err = h.manager.ResumeInterruptedSessions(t.Context())
+				_, resumed = h.manager.Get(target.ID)
+				if err == nil && !tc.wantResume {
+					err = h.manager.ResumeInterruptedSessions(t.Context())
+					_, resumed = h.manager.Get(target.ID)
+				}
+			case tc.spawned && (tc.wantResume || tc.idleParent):
+				err = h.manager.ResumeInterruptedSessions(t.Context())
+				_, resumed = h.manager.Get(target.ID)
+			default:
+				resumed, err = h.manager.ResumeInterruptedSession(t.Context(), target.ID)
+			}
 			if err != nil && !errors.Is(err, ErrRestartContinuationSkipped) {
 				t.Fatal(err)
 			}
 			if resumed != tc.wantResume {
 				t.Fatalf("resumed = %t, want %t; error %v", resumed, tc.wantResume, err)
 			}
+			if tc.idleParent && !tc.wantResume && len(h.driver.startCalls) != starts {
+				t.Fatal("refused worker reopened its idle parent")
+			}
 			if resumed {
-				if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
+				if got := h.driver.startCalls[len(h.driver.startCalls)-1].ResumeSessionID; got != originalACP {
 					t.Fatalf("resumed ACP = %q, want %q", got, originalACP)
 				}
 			}
 			if repeated, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID); err != nil || repeated {
 				t.Fatalf("repeated recovery = %t, %v", repeated, err)
 			}
-			if tc.instance != "" {
+			if tc.instance != "" && tc.wantResume {
 				assertInstanceRestartContinuation(t, h, admissions, target.ID, instanceID, tc.instance == "paused")
 			}
 			if tc.queued {
@@ -245,6 +483,9 @@ func TestResumeInterruptedSession(t *testing.T) {
 			prompts := len(h.driver.promptCalls)
 			h.driver.mu.Unlock()
 			want := 1
+			if tc.idleParent {
+				want++
+			}
 			if tc.wantResume {
 				want++
 			}
@@ -450,6 +691,20 @@ func (r *restartSkipFaultRecorder) AppendEventIfAbsent(
 	return r.EventRecorder.(idempotentSessionEventAppender).AppendEventIfAbsent(ctx, event)
 }
 
+// providerMismatchLoadError reproduces the session/load refusal codex-acp returns after
+// `model_provider` changes, wrapped the way the ACP driver reports a failed load.
+func providerMismatchLoadError(opts acp.StartOpts) error {
+	return acp.WrapFailure(store.FailureLoad, "ACP session/load failed", fmt.Errorf(
+		"%w: load session %q for %q: %w",
+		acp.ErrLoadSessionFailed,
+		opts.ResumeSessionID,
+		opts.AgentName,
+		&acpsdk.RequestError{Code: -32603, Message: "Internal error", Data: map[string]any{
+			"details": "This chat uses openai, but your current provider is cliproxyapi. Switch to openai to continue.",
+		}},
+	))
+}
+
 // assertInstanceRestartContinuation proves an instance lineage's continuation runs through the durable
 // selector: held while paused (Paused Outcomes: restart continuation) and counted once when it runs.
 func assertInstanceRestartContinuation(
@@ -505,10 +760,23 @@ func TestResumeMonitorOwner(t *testing.T) {
 		changed      string
 		noBinding    bool
 		fromBoundary bool
+		spawned      bool
+		expired      bool
+		parentStop   bool
+		idleParent   bool
 		wantResume   bool
 		wantErr      string
 	}{
 		{name: "Should readmit an idle owner interrupted by a restart", cause: CauseShutdown, wantResume: true},
+		{name: "Should readmit a spawned monitor owner after restart", cause: CauseShutdown, spawned: true, wantResume: true},
+		{name: "Should reopen an idle shutdown parent for its worker monitor", cause: CauseShutdown, spawned: true, idleParent: true, wantResume: true},
+		{name: "Should leave an idle parent stopped for an expired monitor owner", cause: CauseShutdown, spawned: true, idleParent: true, expired: true, wantErr: "expired"},
+		{name: "Should leave an idle parent stopped for a changed monitor policy", cause: CauseShutdown, spawned: true, idleParent: true, changed: "policy", wantErr: "permissions_changed"},
+		{name: "Should leave an idle parent stopped for a changed monitor route", cause: CauseShutdown, spawned: true, idleParent: true, changed: "route", wantErr: "route_changed"},
+		{name: "Should leave an idle parent stopped for an explicitly stopped monitor owner", cause: CauseUserRequested, spawned: true, idleParent: true, wantErr: ErrMonitorOwnerStopped.Error()},
+		{name: "Should keep an explicitly stopped spawned monitor owner stopped", cause: CauseUserRequested, spawned: true, wantErr: ErrMonitorOwnerStopped.Error()},
+		{name: "Should refuse an expired spawned monitor owner", cause: CauseShutdown, spawned: true, expired: true, wantErr: "expired"},
+		{name: "Should refuse a spawned monitor owner whose parent stopped", cause: CauseShutdown, spawned: true, parentStop: true, wantErr: "parent_stopped"},
 		{
 			name: "Should never revive an owner stopped on purpose", cause: CauseUserRequested,
 			wantErr: ErrMonitorOwnerStopped.Error(),
@@ -535,6 +803,23 @@ func TestResumeMonitorOwner(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			if tc.spawned {
+				parent := target
+				if tc.idleParent {
+					stream, err := h.manager.Prompt(t.Context(), parent.ID, "wait for worker progress")
+					if err != nil {
+						t.Fatal(err)
+					}
+					collectEvents(t, stream)
+				}
+				target, err = h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: parent.ID,
+					AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+				t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			}
 			if tc.fromBoundary && !tc.noBinding {
 				stream, err := h.manager.Prompt(t.Context(), target.ID, "wait for external work")
 				if err != nil {
@@ -552,6 +837,32 @@ func TestResumeMonitorOwner(t *testing.T) {
 			originalACP := target.Info().ACPSessionID
 			if err := h.manager.StopWithCause(t.Context(), target.ID, tc.cause, "daemon restart"); err != nil {
 				t.Fatal(err)
+			}
+			if tc.expired {
+				meta := readMeta(t, target.MetaPath())
+				meta.Lineage.TTLExpiresAt = new(h.manager.now().Add(-time.Hour))
+				if err := store.WriteSessionMeta(target.MetaPath(), &meta); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.parentStop {
+				if err := h.manager.Stop(t.Context(), target.Info().Lineage.ParentSessionID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.idleParent {
+				if err := h.manager.StopWithCause(t.Context(), target.Info().Lineage.ParentSessionID,
+					CauseShutdown, "daemon restart"); err != nil {
+					t.Fatal(err)
+				}
+				if err := h.manager.Shutdown(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				h.manager = newManagerWithHarness(t, h,
+					WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}))
+				if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if tc.disabled || tc.changed != "" {
 				h.resolver.mu.Lock()
@@ -580,13 +891,20 @@ func TestResumeMonitorOwner(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
+				if got := h.driver.startCalls[len(h.driver.startCalls)-1].ResumeSessionID; got != originalACP {
 					t.Fatalf("resumed ACP = %q, want %q", got, originalACP)
 				}
 				if err := resume(); err != nil {
 					t.Fatalf("resuming a live owner error = %v, want nil", err)
 				}
-				if len(h.driver.startCalls) != 2 {
+				wantStarts := 2
+				if tc.spawned {
+					wantStarts++
+				}
+				if tc.idleParent {
+					wantStarts++
+				}
+				if len(h.driver.startCalls) != wantStarts {
 					t.Fatalf("starts = %d, want the owner resumed once", len(h.driver.startCalls))
 				}
 				return
@@ -600,7 +918,11 @@ func TestResumeMonitorOwner(t *testing.T) {
 			if got != tc.wantErr {
 				t.Fatalf("error = %v, want %s", err, tc.wantErr)
 			}
-			if len(h.driver.startCalls) != 1 {
+			wantStarts := 1
+			if tc.spawned {
+				wantStarts++
+			}
+			if len(h.driver.startCalls) != wantStarts {
 				t.Fatalf("starts = %d, want the owner left stopped", len(h.driver.startCalls))
 			}
 		})
@@ -1273,6 +1595,177 @@ func TestResumeReplayFallback(t *testing.T) {
 		collectEvents(t, prompt)
 		assertResumeReplayEqualsPrunedEvents(t, h.driver.promptCalls[0].Message, eventsBeforeResume)
 		assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 1)
+	})
+
+	// Invariant: a provider account/backend mismatch is a permanent load failure. Repeated instance
+	// wakes try the stored provider thread once, leave one failure row and one recovery notice, keep
+	// the transcript, and drain the queue on a fresh thread. Owner: session resume; canonical suite:
+	// manager_resume_test.go. The ACP boundary is fake; the queue and instance rows use real SQLite.
+	t.Run("Should replace a provider thread owned by another backend once across repeated instance wakes",
+		func(t *testing.T) {
+			t.Parallel()
+
+			admissions := openManagerInputQueueStore(t)
+			h := newHarness(
+				t,
+				WithSessionPromptAdmissionStore(admissions),
+				WithSessionInputQueueStore(admissions),
+			)
+			registerManagerInputQueueWorkspace(t, admissions, h)
+			main := createSession(t, h)
+			registerManagerInputQueueSession(t, admissions, h, main)
+			t.Cleanup(func() { reportSessionStop(t, h, main.ID) })
+			if _, err := admissions.Instances().Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: main.AgentName,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main.ID, 10); err != nil {
+				t.Fatal(err)
+			}
+			recordResumeReplayFixture(t, h.manager, main, "provider-mismatch-context")
+			originalACP := main.Info().ACPSessionID
+			if err := h.manager.Stop(t.Context(), main.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+			eventsBeforeResume := readStoredEvents(t, main)
+			if _, _, err := admissions.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+				ID: "provider-mismatch-queued", SessionID: main.ID, Text: "queued instance work",
+				QueueCap: 3, Now: h.manager.now(),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+				if opts.ResumeSessionID != "" {
+					return nil, providerMismatchLoadError(opts)
+				}
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+			}
+
+			for wake := range 3 {
+				if err := h.manager.ReleaseInstanceInputs(t.Context(), main.ID); err != nil {
+					t.Fatalf("ReleaseInstanceInputs(wake %d) error = %v", wake, err)
+				}
+			}
+			waitForCondition(t, "queued instance input after provider mismatch", func() bool {
+				return len(managerPromptCalls(h)) == 1
+			})
+			if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+
+			h.driver.mu.Lock()
+			starts := append([]acp.StartOpts(nil), h.driver.startCalls...)
+			h.driver.mu.Unlock()
+			if len(starts) != 3 || starts[1].ResumeSessionID != originalACP || starts[2].ResumeSessionID != "" {
+				t.Fatalf(
+					"provider starts = %d, want create, one load of %q and one fresh thread",
+					len(starts),
+					originalACP,
+				)
+			}
+			prompt := managerPromptCalls(h)[0].Message
+			if strings.Count(prompt, resumeReplayOpenTag) != 1 ||
+				!strings.Contains(prompt, "provider-mismatch-context") ||
+				!strings.Contains(prompt, "queued instance work") {
+				t.Fatalf("drained prompt lacks replayed context or queued work: %q", prompt)
+			}
+			resumed, ok := h.manager.Get(main.ID)
+			if !ok {
+				t.Fatal("recovered instance main is not active")
+			}
+			if got := resumed.Info().ACPSessionID; got == "" || got == originalACP {
+				t.Fatalf("recovered ACPSessionID = %q, want a fresh provider thread", got)
+			}
+			events := readStoredEvents(t, resumed)
+			failures := 0
+			for _, event := range events {
+				if event.Type == acp.EventTypeError {
+					failures++
+				}
+			}
+			if failures != 1 {
+				t.Fatalf("load failure rows = %d, want 1", failures)
+			}
+			for _, original := range eventsBeforeResume {
+				if !slices.ContainsFunc(events, func(event store.SessionEvent) bool {
+					return event.ID == original.ID && event.Content == original.Content
+				}) {
+					t.Fatalf("provider mismatch recovery lost durable event %q", original.ID)
+				}
+			}
+			messages, err := transcript.Assemble(events)
+			if err != nil {
+				t.Fatalf("transcript.Assemble(events) error = %v", err)
+			}
+			notices := 0
+			for _, message := range messages {
+				if message.Role == transcript.RoleSystem && message.Content == providerMismatchMarkerSummary {
+					notices++
+				}
+			}
+			if notices != 1 {
+				t.Fatalf("provider mismatch notices = %d, want 1", notices)
+			}
+		})
+
+	// Invariant: an unclassified session/load failure is transient. Each resume retries the stored
+	// provider thread and never rotates to a fresh one. Owner: session resume; canonical suite:
+	// manager_resume_test.go.
+	t.Run("Should keep retrying the stored provider thread after a transient load failure", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		originalACP := session.Info().ACPSessionID
+		if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		var healthy atomic.Bool
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.ResumeSessionID == "" {
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+			}
+			if healthy.Load() {
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, opts.ResumeSessionID), nil
+			}
+			return nil, acp.WrapFailure(store.FailureLoad, "ACP session/load failed", fmt.Errorf(
+				"%w: load session %q for %q: %w",
+				acp.ErrLoadSessionFailed,
+				opts.ResumeSessionID,
+				opts.AgentName,
+				&acpsdk.RequestError{Code: -32603, Message: "Internal error"},
+			))
+		}
+
+		for attempt := range 2 {
+			if _, err := h.manager.Resume(t.Context(), session.ID); !errors.Is(err, acp.ErrLoadSessionFailed) {
+				t.Fatalf("Resume(attempt %d) error = %v, want %v", attempt, err, acp.ErrLoadSessionFailed)
+			}
+			if got := derefString(readMeta(t, session.MetaPath()).ACPSessionID); got != originalACP {
+				t.Fatalf("meta ACPSessionID after transient failure = %q, want %q", got, originalACP)
+			}
+		}
+		healthy.Store(true)
+		resumed, err := h.manager.Resume(t.Context(), session.ID)
+		if err != nil {
+			t.Fatalf("Resume(after transient failures) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+
+		h.driver.mu.Lock()
+		starts := append([]acp.StartOpts(nil), h.driver.startCalls...)
+		h.driver.mu.Unlock()
+		if len(starts) != 4 {
+			t.Fatalf("provider starts = %d, want create and three loads", len(starts))
+		}
+		for _, start := range starts[1:] {
+			if start.ResumeSessionID != originalACP {
+				t.Fatalf("retry ResumeSessionID = %q, want %q", start.ResumeSessionID, originalACP)
+			}
+		}
+		if got := resumed.Info().ACPSessionID; got != originalACP {
+			t.Fatalf("resumed ACPSessionID = %q, want %q", got, originalACP)
+		}
+		assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 0)
 	})
 
 	t.Run("Should not stage replay when session load succeeds", func(t *testing.T) {

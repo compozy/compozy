@@ -64,9 +64,7 @@ func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 	return finishHostedToolResult(&sdkmcp.CallToolResult{Content: content}, result, isError)
 }
 
-// hostedDeclaredToolResult projects a result for a tool that advertises an output schema. MCP
-// clients reject a successful result without structuredContent, so a result lacking an object
-// payload carries the structured result envelope the widened schema accepts.
+// hostedDeclaredToolResult preserves structured envelopes for tools with declared result contracts.
 func hostedDeclaredToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 	converted, err := hostedToolResult(result)
 	if err != nil {

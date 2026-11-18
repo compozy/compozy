@@ -5,7 +5,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import type { BrowserRuntime } from "../fixtures/runtime";
-import { sessionWindow } from "../fixtures/os-navigation";
+import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
 import { sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -71,9 +71,18 @@ interface WorktreeRecord {
   origin: string;
 }
 
-async function listWorktrees(runtime: BrowserRuntime, workspaceId: string, refresh = false) {
+async function listWorktrees(
+  runtime: BrowserRuntime,
+  workspaceId: string,
+  refresh = false,
+  includeRemoved = false
+) {
+  const query = new URLSearchParams({
+    refresh: String(refresh),
+    include_removed: String(includeRemoved),
+  });
   return runtime.requestJSON<{ worktrees: WorktreeRecord[]; discovered: Array<{ path: string }> }>(
-    `/api/workspaces/${workspaceId}/worktrees${refresh ? "?refresh=true" : ""}`
+    `/api/workspaces/${workspaceId}/worktrees?${query}`
   );
 }
 
@@ -310,6 +319,14 @@ test("operator adopts a discovered worktree by selecting it", async ({ appPage, 
   await repo.addExternalWorktree("northstar-spike", "spike/sqlite-vacuum");
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
+  // Give each window its own root selection: adoption must update the focused
+  // window as well as the ambient shell default, preserving the other window.
+  await selectWorkspace(appPage, workspace.id);
+  await openAppWindow(appPage, "Dashboard", "dashboard");
+  await selectWorkspace(appPage, workspace.id);
+  await openAppWindow(appPage, "Tasks", "tasks");
+  await selectWorkspace(appPage, workspace.id);
+
   await openWorkspaceNest(appPage, workspace.id);
   const discoveredRow = appPage.getByTestId(/^os-worktree-option-discovered:/).first();
   await expect(discoveredRow).toBeVisible();
@@ -332,6 +349,14 @@ test("operator adopts a discovered worktree by selecting it", async ({ appPage, 
       { timeout: 30_000 }
     )
     .toBe(true);
+
+  const selectedWorktree = appPage.locator('[data-slot="os-menubar-worktree"]');
+  await expect(selectedWorktree).toBeVisible();
+  const adoptedSelection = await selectedWorktree.innerText();
+  await openAppWindow(appPage, "Dashboard", "dashboard");
+  await expect(selectedWorktree).toHaveCount(0);
+  await openAppWindow(appPage, "Tasks", "tasks");
+  await expect(selectedWorktree).toHaveText(adoptedSelection);
 });
 
 test("operator sees adoption refused for the main checkout with the directory untouched", async ({
@@ -400,7 +425,7 @@ test("operator must pass the force doorway before a dirty worktree is removed", 
   await expect
     .poll(
       async () => {
-        const listing = await listWorktrees(runtime, workspace.id, true);
+        const listing = await listWorktrees(runtime, workspace.id, true, true);
         return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
       },
       { timeout: 30_000 }
@@ -941,7 +966,7 @@ test("operator reads cleanup evidence before removing a finished worktree", asyn
   await expect
     .poll(
       async () => {
-        const listing = await listWorktrees(runtime, workspace.id, true);
+        const listing = await listWorktrees(runtime, workspace.id, true, true);
         return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
       },
       { timeout: 30_000 }
@@ -1058,7 +1083,7 @@ for (const surface of ["menubar", "overview"] as const) {
     await dialog.getByRole("button", { name: "Remove 4 worktrees", exact: true }).click();
     await expect(dialog.getByRole("status")).toContainText("3 of 4 done · 1 failed");
     await appPage.screenshot({ path: testInfo.outputPath(`${surface}-partial-result.png`) });
-    const partial = await listWorktrees(runtime, workspace.id, true);
+    const partial = await listWorktrees(runtime, workspace.id, true, true);
     expect(partial.worktrees.find(row => row.id === clean.id)?.state).toBe("removed");
     expect(partial.worktrees.find(row => row.id === dirty.id)?.state).toBe("ready");
     expect(partial.worktrees.some(row => row.id === missing.id)).toBe(false);
@@ -1068,7 +1093,7 @@ for (const surface of ["menubar", "overview"] as const) {
     await expect(dialog.getByRole("status")).toContainText("4 of 4 done");
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await appPage.reload({ waitUntil: "domcontentloaded" });
-    const final = await listWorktrees(runtime, workspace.id, true);
+    const final = await listWorktrees(runtime, workspace.id, true, true);
     expect(final.worktrees.find(row => row.id === dirty.id)?.state).toBe("removed");
     expect(final.worktrees.some(row => row.id === missing.id)).toBe(false);
     expect(final.discovered.some(row => row.path.endsWith("external-work"))).toBe(false);

@@ -8,7 +8,6 @@ import (
 
 func configApplyFailure(
 	subsystem string,
-	category string,
 	summary string,
 	err error,
 ) settingspkg.ApplyFailure {
@@ -17,7 +16,7 @@ func configApplyFailure(
 		Diagnostic: diagnostics.NewItem(diagnostics.ItemSpec{
 			ID:            "config.apply." + subsystem + "_sync_failed",
 			Code:          diagnosticcontract.CodeConfigPartialFailure,
-			Category:      category,
+			Category:      diagnosticcontract.CategoryConfig,
 			Title:         summary,
 			Message:       diagnostics.RedactAndBound(err.Error(), 1024),
 			Severity:      diagnosticcontract.SeverityError,

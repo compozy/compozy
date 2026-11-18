@@ -1,0 +1,2 @@
+refs: rollup.png
+Use case: event mockup. Asset: 4:5. Subject: a tall roll-up banner standing at the entrance of a tech event venue (concrete floor, glass doors), the banner prints Image 1 exactly; a couple of anonymous people blurred in the background. Image 1 is the EXACT finished artwork: do not redraw, retype, recolour or add elements; keep it faithful and legible. Style: realistic photograph, natural soft light, neutral cool environment. No other logos or readable text. Avoid: glossy render look, neon, warm tones.

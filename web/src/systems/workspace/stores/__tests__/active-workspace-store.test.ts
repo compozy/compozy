@@ -25,6 +25,7 @@ import {
   activeWorkspaceStore,
   clearActiveWorkspaceSelection,
   disableAllProjects,
+  effectiveWorktreeScopeId,
   enableAllProjects,
   focusUser,
   pruneWorktreeScopes,
@@ -188,6 +189,23 @@ describe("active workspace worktree scope", () => {
     expect(context().worktreeByScope[WINDOW_ONE]).toBe("wt_payments_retry");
     expect(context().worktreeByScope[WINDOW_TWO]).toBe("wt_auth_refresh");
     expect(context().selectedWorkspaceId).toBe(WORKSPACE);
+  });
+
+  it("Should read the shell entry for windows that never chose and their own otherwise", () => {
+    setActiveWorktreeId(SHELL_WORKTREE_SCOPE, WORKSPACE, "wt_payments_retry");
+    setActiveWorktreeId(WINDOW_ONE, WORKSPACE, null);
+    const byScope = context().worktreeByScope;
+
+    // The shell reads this entry by value, so a focus change between such windows changes nothing.
+    expect(effectiveWorktreeScopeId(byScope, WINDOW_TWO)).toBe(SHELL_WORKTREE_SCOPE);
+    expect(effectiveWorktreeScopeId(byScope, WINDOW_USER)).toBe(SHELL_WORKTREE_SCOPE);
+    // An explicit pick, the workspace root included, is the window's own.
+    expect(effectiveWorktreeScopeId(byScope, WINDOW_ONE)).toBe(WINDOW_ONE);
+    for (const scopeId of [WINDOW_ONE, WINDOW_TWO, SHELL_WORKTREE_SCOPE]) {
+      expect(resolve(effectiveWorktreeScopeId(byScope, scopeId)).selectedWorktreeId).toBe(
+        resolve(scopeId).selectedWorktreeId
+      );
+    }
   });
 
   it("Should clear one scope without touching its sibling", () => {

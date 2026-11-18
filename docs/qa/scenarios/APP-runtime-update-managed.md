@@ -6,7 +6,7 @@ persona: Dora
 journey: J-desktop-update-moment
 expected: With a package-manager-owned runtime (e.g. homebrew) and a newer version available, the update surface shows availability plus the exact channel command, no binary is modified anywhere (mtime unchanged), and after the user updates through their channel the surface clears with no residual pending state.
 entry_points: Settings → General → Updates in Chrome or the app on a managed-install home; GET /api/settings/update; compozy update --check -o json
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status: 
 retest_status: 
@@ -27,3 +27,5 @@ the verbatim recommendation string, a binary mtime/hash comparison proving zero 
 cleared surface after the external update. The inconclusive-provenance branch (marker hash
 mismatch) is walked on at least one OS. Overlap: APP-runtime-update-app-owned owns the apply
 branch (canonical for the shared update surface).
+
+2026-11-12 boot window redesign (#1549): a managed runtime is never replaced, so this branch shows no Install or Upgrade data steps. If the app attaches to the managed runtime, the window stays centered on "Connecting to CompozyOS". Walk addition: confirm no version pill or step list appears for a managed runtime. Status reset to untested.

@@ -207,7 +207,8 @@ function ContextJourney() {
     <>
       <SessionContextControl
         context={deriveSessionContext(sessionContextFixture)}
-        onOpen={() => inspector.setOpen(true)}
+        open={inspector.open}
+        onToggle={inspector.toggle}
       />
       {inspector.open ? (
         <SessionInspector context={deriveSessionContext(sessionContextFixture)} />
@@ -240,7 +241,8 @@ function compactionMarker(overrides: Partial<CompactionMarker>): CompactionMarke
 }
 
 describe("Session context", () => {
-  it("Should open the tab-less sidebar from the keyboard and share its preference", async () => {
+  // #1487: the composer control is the one open/close control for the Context rail.
+  it("Should open and close the tab-less sidebar from the keyboard and share its preference", async () => {
     window.localStorage.clear();
     const user = userEvent.setup();
     render(<ContextJourney />);
@@ -273,6 +275,14 @@ describe("Session context", () => {
     ]);
     expect(window.localStorage.getItem("compozy:session:inspector:v2")).toContain(
       '"context-journey":true'
+    );
+    expect(button).toHaveAttribute("aria-pressed", "true");
+
+    await user.keyboard("{Enter}");
+    expect(screen.queryByRole("complementary", { name: "Context" })).toBeNull();
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(window.localStorage.getItem("compozy:session:inspector:v2")).toContain(
+      '"context-journey":false'
     );
   });
 
@@ -316,7 +326,7 @@ describe("Session context", () => {
       // This case owns tooltip content, not the primitive's hover delay.
       render(
         <TooltipProvider delay={0}>
-          <SessionContextControl context={deriveSessionContext(context)} onOpen={vi.fn()} />
+          <SessionContextControl context={deriveSessionContext(context)} onToggle={vi.fn()} />
         </TooltipProvider>
       );
       await user.hover(screen.getByRole("button", { name: label }));
@@ -336,7 +346,7 @@ describe("Session context", () => {
     });
     render(
       <TooltipProvider delay={0}>
-        <SessionContextControl context={context} onOpen={vi.fn()} />
+        <SessionContextControl context={context} onToggle={vi.fn()} />
       </TooltipProvider>
     );
     await user.hover(screen.getByRole("button"));
@@ -640,7 +650,7 @@ describe("Fable context surface corrections", () => {
     render(
       <SessionContextControl
         context={deriveSessionContext(undefined, { loading: true })}
-        onOpen={vi.fn()}
+        onToggle={vi.fn()}
       />
     );
     const button = screen.getByRole("button", { name: "Context usage loading" });

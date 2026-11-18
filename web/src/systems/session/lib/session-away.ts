@@ -62,12 +62,32 @@ export function reportClock(iso: string) {
 
 function beatOf(report: AgentInstanceReport): AwayBeat {
   if (report.kind === "proposal") return "needs-you";
-  if (report.kind === "rotation_deferred") return "reported";
+  if (report.kind === "rotation_deferred" || report.kind === "activity") return "reported";
   return "failed";
+}
+
+/** A check-in that changed things with its tools, told the way its own report card is. */
+function activityEvent(report: AgentInstanceReport, time: string): AwayEvent {
+  const done = report.tool_calls?.writes_done ?? 0;
+  const maybe = report.tool_calls?.writes_maybe ?? 0;
+  return {
+    id: report.id,
+    tone: "reported",
+    title:
+      done === 0
+        ? "A check-in may have changed something"
+        : `A check-in made ${done} ${done === 1 ? "change" : "changes"}`,
+    description:
+      maybe > 0
+        ? `${maybe} ${maybe === 1 ? "call" : "calls"} may have changed something.`
+        : "It used the tools you approved for check-ins.",
+    time,
+  };
 }
 
 function eventOf(report: AgentInstanceReport): AwayEvent {
   const time = reportClock(report.created_at);
+  if (report.kind === "activity") return activityEvent(report, time);
   if (report.kind === "approval_expired") {
     return {
       id: report.id,

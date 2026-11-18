@@ -54,6 +54,7 @@ func runDaemonTests(m *testing.M) (code int) {
 func isDaemonTestHelperProcess() bool {
 	for _, name := range []string{
 		"COMPOZY_DAEMON_GOLEAK_HELPER",
+		"COMPOZY_GATE_DETACHED_HOLDER",
 		"COMPOZY_TEST_DAEMON_ENV_HELPER",
 		"COMPOZY_TEST_DAEMON_EXTENSION_HELPER",
 		"COMPOZY_TEST_DAEMON_SESSION_STOP_HELPER",

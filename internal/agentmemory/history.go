@@ -94,6 +94,10 @@ func (s *Store) History(key Key) ([]Revision, error) {
 }
 
 func (s *Store) Rollback(key Key, revision string) (Document, error) {
+	return s.rollback(key, revision, false)
+}
+
+func (s *Store) rollback(key Key, revision string, guardRules bool) (Document, error) {
 	return s.update(key, func(string) (string, error) {
 		dir, err := s.directory(key)
 		if err != nil {
@@ -109,7 +113,7 @@ func (s *Store) Rollback(key Key, revision string) (Document, error) {
 			}
 		}
 		return "", os.ErrNotExist
-	}, false)
+	}, false, guardRules)
 }
 
 func (s *Store) Retire(key Key, now time.Time) error {

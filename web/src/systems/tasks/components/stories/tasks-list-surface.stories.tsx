@@ -3,7 +3,7 @@ import { ListChecks } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { UIProvider, useTopbarSlot } from "@compozy/ui";
-import { OsWindowFrame } from "@/systems/os/components";
+import { OsWindowSurface } from "@/systems/os/components";
 import { ownerFromRow } from "@/systems/profiles";
 
 import { TasksListSurface } from "../tasks-list-surface";
@@ -101,7 +101,10 @@ function Stateful(props: TasksListStoryProps) {
   return (
     <UIProvider reducedMotion="always">
       <div className="flex h-screen items-center justify-center bg-rail p-10">
-        <OsWindowFrame className="h-full max-h-[720px] w-full max-w-[1080px]" title="Tasks">
+        <OsWindowSurface
+          className="h-full max-h-[720px] w-full max-w-[1080px] flex-none border border-line shadow-elevated"
+          title="Tasks"
+        >
           <TasksListStoryRoute
             ownerFilter={ownerFilter}
             priorityFilter={priorityFilter}
@@ -118,7 +121,7 @@ function Stateful(props: TasksListStoryProps) {
             statusFilter={statusFilter}
             tasks={tasks}
           />
-        </OsWindowFrame>
+        </OsWindowSurface>
       </div>
     </UIProvider>
   );

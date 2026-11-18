@@ -12,6 +12,7 @@ import {
   CommandSelectShell,
   CommandSelectTrigger,
   Eyebrow,
+  Pill,
   Spinner,
   Timeline,
   TimelineEvent,
@@ -32,6 +33,7 @@ import type {
   AgentInstancePayload,
   AgentInstanceSourceOutcome,
 } from "../../types";
+import { CheckInHistoryToolCalls } from "../check-in-tool-calls";
 import { CheckInSourceStatus } from "./check-in-source-row";
 import { DayStrip, DayStripKey, EditorCard } from "./rich-controls";
 
@@ -329,6 +331,14 @@ export function RecentCard({ activity }: { activity: CheckInsEditorModel["activi
               description={item.description}
               icon={item.failed ? TriangleAlert : item.told ? MessageCircle : undefined}
               key={item.key}
+              meta={
+                item.toolCalls || item.tools ? (
+                  <>
+                    {item.tools ? <Pill size="xs">{item.tools}</Pill> : null}
+                    {item.toolCalls ? <CheckInHistoryToolCalls calls={item.toolCalls} /> : null}
+                  </>
+                ) : undefined
+              }
               time={item.time}
               title={item.title}
               tone={item.failed ? "destructive" : "neutral"}

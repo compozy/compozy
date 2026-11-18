@@ -22,7 +22,7 @@ vi.mock("../../adapters/window-manager-layouts-api", async importOriginal => {
 });
 
 import { WindowManagerSettingsApplyError } from "../../adapters/window-manager-layouts-api";
-import { windowManagerSettingsConfigToWire } from "../../lib/window-manager-layout-schema";
+import { windowManagerSettingsConfigToWire } from "../../lib/window-manager-settings-wire";
 import {
   applyTerminalShortcutPreset,
   previewTerminalShortcutPreset,
@@ -40,8 +40,6 @@ const SHORTCUT_DEFAULTS = {
   "window.tile.left": ["control+alt+ArrowLeft"],
   "window.focus.up": ["control+ArrowUp"],
   "window.focus.down": ["control+ArrowDown"],
-  "window.tile.bottom-left": ["control+alt+KeyJ"],
-  "window.tile.bottom-right": ["control+alt+KeyK"],
   "sidebar.toggle": ["meta+KeyB"],
   "window.tab.jump.1": ["meta+Digit1"],
   "window.tab.jump.2": ["meta+Digit2"],
@@ -64,22 +62,17 @@ const SHORTCUT_DEFAULTS = {
 } as const;
 
 const CONFIG: WindowManagerConfig = {
-  newWindowPolicy: "floating",
+  newWindowPolicy: "tab",
   smallViewportPolicy: "stack",
   focusPolicy: "click_directional",
   focusWrap: true,
   focusFollowsPointer: false,
-  raiseOnFocus: true,
-  dragAwayPolicy: "window",
-  groupMoveModifier: "alt",
   swapModifier: "shift",
   historyLimit: 100,
   navStackLimit: 50,
   closedEntryLimit: 20,
   desktopTransition: "slide",
   gaps: { inner: 8, top: 8, right: 8, bottom: 8, left: 8 },
-  snap: { edgeBand: 24, cornerReach: 96, exitSlack: 16, repeatRatios: [0.5, 0.33, 0.67] },
-  bindings: { topCenter: "zoom", bottomCenter: "none" },
   shortcuts: {},
   globalShortcuts: {},
   shortcutDefaults: SHORTCUT_DEFAULTS,
@@ -309,30 +302,17 @@ describe("useWindowManagerConfigEditor", () => {
     expect(result.current.canSave).toBe(false);
   });
 
-  it("Should reject duplicate repeat widths at the daemon's precision", () => {
-    const { result } = renderEditor();
-    act(() => {
-      result.current.setDraft(current => ({
-        ...current,
-        snap: { ...current.snap, repeatRatios: [0.5, 0.5000001] },
-      }));
-    });
-
-    expect(fields(result.current.problems)).toEqual(["repeatRatios"]);
-    expect(result.current.canSave).toBe(false);
-  });
-
-  it("Should name gaps and snap separately when both are out of range", () => {
+  it("Should name gaps when they leave their range", () => {
     const { result } = renderEditor();
     act(() => {
       result.current.setDraft(current => ({
         ...current,
         gaps: { ...current.gaps, inner: 90 },
-        snap: { ...current.snap, edgeBand: 2 },
       }));
     });
 
-    expect(fields(result.current.problems)).toEqual(["gaps", "snap"]);
+    expect(fields(result.current.problems)).toEqual(["gaps"]);
+    expect(result.current.canSave).toBe(false);
   });
 
   // Chord collisions are no longer a draft concern: shortcuts left this editor
@@ -390,9 +370,9 @@ describe("Terminal shortcut preset", () => {
 
     expect(preview.map(change => change.actionId)).toEqual(Object.keys(TERMINAL_SHORTCUT_PRESET));
     expect(preview.some(change => change.hazards.includes("altgr"))).toBe(true);
-    expect(
-      preview.find(change => change.actionId === "window.tile.bottom-left")?.hazards
-    ).toContain("displaced-default");
+    expect(preview.find(change => change.actionId === "window.focus.down")?.hazards).toContain(
+      "displaced-default"
+    );
     expect(preview.find(change => change.actionId === "window.tab.jump")?.before).toEqual([
       "meta+Digit1..8",
     ]);
@@ -410,6 +390,21 @@ describe("Terminal shortcut preset", () => {
         .find(change => change.actionId === "window.focus.left")
         ?.conflicts.some(conflict => conflict.kind === "blocked")
     ).toBe(true);
+  });
+
+  it("Should not let a stored binding to a retired action block a preset chord", () => {
+    // The daemon skips retired ids, so the chord a retired override still holds is free.
+    const preview = previewTerminalShortcutPreset(
+      { "window.zoom": ["control+ArrowLeft"] },
+      SHORTCUT_DEFAULTS,
+      PRESET_ACTIONS
+    );
+
+    expect(
+      preview
+        .find(change => change.actionId === "window.focus.left")
+        ?.conflicts.some(conflict => conflict.actionIds.includes("window.zoom"))
+    ).toBe(false);
   });
 
   it("Should apply atomically, re-apply idempotently, and restore only touched keys [UT-064]", () => {

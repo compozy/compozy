@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -256,6 +257,69 @@ func TestStreamLogsPollsForNewEvents(t *testing.T) {
 	}
 }
 
+func TestStreamLogsResumePages(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should drain full legacy resume pages before advancing to the head", func(t *testing.T) {
+		t.Parallel()
+
+		done := make(chan struct{})
+		boundary := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+		events := make([]store.EventSummary, 202)
+		for index := range events {
+			events[index] = store.EventSummary{
+				ID: "delayed", Sequence: int64(index + 1), Type: "settings.changed",
+				Timestamp: boundary.Add(time.Hour),
+			}
+		}
+		events[0].Timestamp = boundary.Add(2 * time.Hour)
+		calls := 0
+		observer := stubObserver{
+			EventSequenceHeadFn: func(context.Context) (int64, error) { return 500, nil },
+			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
+				calls++
+				if !query.Since.Equal(boundary) {
+					t.Fatalf("resume since = %v, want %v", query.Since, boundary)
+				}
+				switch calls {
+				case 1:
+					if query.Limit != 1 || query.Forward || query.SequenceOrder {
+						t.Fatalf("legacy initial query = %#v, want timestamp-ordered page of one", query)
+					}
+					return events[:1], nil
+				case 2:
+					if query.AfterSequence != 1 || !query.Forward || query.Limit != 200 {
+						t.Fatalf("first poll = %#v, want 200 rows after sequence 1", query)
+					}
+					return events[1:201], nil
+				default:
+					if query.AfterSequence != 201 || !query.Forward {
+						t.Fatalf("second poll = %#v, want read after sequence 201", query)
+					}
+					close(done)
+					return events[201:], nil
+				}
+			},
+		}
+		handlers := newTestHandlers(t, &stubSessionManager{}, observer, newTestHomePaths(t))
+		handlers.setStreamDone(done)
+		recorder := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/logs/stream?limit=1", http.NoBody)
+		req.Header.Set("Last-Event-ID", boundary.Format(time.RFC3339Nano)+"|legacy-id")
+		newTestRouter(t, handlers).ServeHTTP(recorder, req)
+
+		records := parseSSE(t, recorder.Body.String())
+		if recorder.Code != http.StatusOK || len(records) != len(events) {
+			t.Fatalf("stream status/count = %d/%d, want 200/%d", recorder.Code, len(records), len(events))
+		}
+		for index, record := range records {
+			if record.ID != core.LogEventID(events[index]) {
+				t.Fatalf("record %d ID = %q, want %q", index, record.ID, core.LogEventID(events[index]))
+			}
+		}
+	})
+}
+
 func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 	t.Parallel()
 
@@ -267,13 +331,11 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 		callCount := 0
 		boundary := time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
 		observer := stubObserver{
+			EventSequenceHeadFn: func(context.Context) (int64, error) { return 40, nil },
 			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
 				callCount++
-				if callCount == 1 {
-					return []store.EventSummary{{ID: "sum-retained", Sequence: 40, Timestamp: boundary}}, nil
-				}
 				if query.Limit <= 0 || query.Limit > 500 || query.AfterSequence != 40 || !query.Forward {
-					t.Fatalf("live-only query = %#v, want bounded read after the connection's durable cursor", query)
+					t.Fatalf("live-only query = %#v, want bounded read after the connection's durable head", query)
 				}
 				close(done)
 				return []store.EventSummary{{
@@ -299,8 +361,8 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 		)
 		engine.ServeHTTP(recorder, req)
 
-		if got, want := callCount, 2; got != want {
-			t.Fatalf("QueryEvents() calls = %d, want %d head/read calls", got, want)
+		if got, want := callCount, 1; got != want {
+			t.Fatalf("QueryEvents() calls = %d, want %d live read without a retained-history scan", got, want)
 		}
 		if records := parseSSE(
 			t,
@@ -308,6 +370,54 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 		); len(records) != 1 ||
 			records[0].ID != core.LogEventID(store.EventSummary{Sequence: 41, Timestamp: boundary.Add(time.Second)}) {
 			t.Fatalf("live-only records = %#v, want one event", records)
+		}
+	})
+
+	t.Run("Should advance past unmatched events when the filter matches nothing", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		done := make(chan struct{})
+		heads := []int64{40, 55}
+		headCalls := 0
+		var afterSequences []int64
+		observer := stubObserver{
+			EventSequenceHeadFn: func(context.Context) (int64, error) {
+				head := heads[min(headCalls, len(heads)-1)]
+				headCalls++
+				return head, nil
+			},
+			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
+				if !query.Forward {
+					t.Fatalf("poll query = %#v, want forward read", query)
+				}
+				afterSequences = append(afterSequences, query.AfterSequence)
+				if len(afterSequences) == 2 {
+					close(done)
+				}
+				return nil, nil
+			},
+		}
+		handlers := newTestHandlers(t, &stubSessionManager{}, observer, homePaths)
+		handlers.setStreamDone(done)
+		engine := newTestRouter(t, handlers)
+
+		recorder := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/api/logs/stream?component=profile&replay=false",
+			http.NoBody,
+		)
+		engine.ServeHTTP(recorder, req)
+
+		// Other components appended 15 rows before the first poll. The second poll
+		// must start after them instead of rereading from sequence 40.
+		if want := []int64{40, 55}; !slices.Equal(afterSequences, want) {
+			t.Fatalf("poll AfterSequence = %v, want %v", afterSequences, want)
+		}
+		if records := parseSSE(t, recorder.Body.String()); len(records) != 0 {
+			t.Fatalf("records = %#v, want none for an unmatched filter", records)
 		}
 	})
 

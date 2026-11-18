@@ -13,7 +13,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { GET as getInstallScriptRoute } from "../../app/install.sh/route";
 import { siteRoot } from "../content-test-utils";
 import { INSTALL_SCRIPT_TEMPLATE } from "../install/template-content";
@@ -36,7 +36,7 @@ const renderScriptPath = resolve(repoRoot, "scripts/render-install-script.sh");
 const installPagePath = resolve(siteRoot, "content/docs/getting-started/installation.mdx");
 const migrationPagePath = resolve(siteRoot, "content/docs/migration/index.mdx");
 const launchPostPath = resolve(siteRoot, "content/blog/posts/introducing-compozyos.mdx");
-const landingInstallPath = resolve(siteRoot, "components/landing/install-section.tsx");
+const landingContentPath = resolve(siteRoot, "components/landing/content.ts");
 const readmePath = resolve(repoRoot, "README.md");
 const rootMigrationGuidePath = resolve(repoRoot, "MIGRATION_GUIDE.md");
 const homebrewNoticePath = resolve(repoRoot, "docs/release/homebrew-beta-notice.md");
@@ -567,17 +567,20 @@ describe("public install contract", () => {
     }
   });
 
-  it.each([
+  describe.each([
     { label: "compatible v3", version: "v3.1.3", versionStatus: 0, bootstraps: false },
     { label: "incompatible v2", version: "v2.6.2", versionStatus: 0, bootstraps: true },
     { label: "unreadable version", version: "", versionStatus: 1, bootstraps: true },
-  ])(
-    "selects the trusted verifier for a $label local cosign",
-    async testCase => {
-      const root = mkdtempSync(resolve(tmpdir(), "compozy-install-local-cosign-"));
-      try {
-        const localArgsPath = join(root, "local-cosign-args.txt");
-        const localCosignBody = `#!/bin/sh
+  ])("$label local cosign", testCase => {
+    let root: string | undefined;
+    let localArgsPath: string;
+    let install: Awaited<ReturnType<typeof runFixtureInstallWithLocalCosign>>;
+
+    // Budget the real fixture server and verifier subprocesses separately from the assertions.
+    beforeAll(async () => {
+      root = mkdtempSync(resolve(tmpdir(), "compozy-install-local-cosign-"));
+      localArgsPath = join(root, "local-cosign-args.txt");
+      const localCosignBody = `#!/bin/sh
 if [ "\${1:-}" = "version" ]; then
   printf 'GitVersion: ${testCase.version}\\n'
   exit ${testCase.versionStatus}
@@ -585,26 +588,25 @@ fi
 printf '%s\\n' "$@" > "${localArgsPath}"
 exit 0
 `;
-        const { downloadedArgsPath, result } = await runFixtureInstallWithLocalCosign(
-          root,
-          localCosignBody
-        );
+      install = await runFixtureInstallWithLocalCosign(root, localCosignBody);
+    }, 20_000);
 
-        expect(result.status, result.stderr || result.stdout).toBe(0);
-        expect(existsSync(localArgsPath)).toBe(!testCase.bootstraps);
-        expect(existsSync(downloadedArgsPath)).toBe(testCase.bootstraps);
-        if (testCase.bootstraps) {
-          expect(result.stdout).toContain("downloading pinned cosign verifier " + cosignVersion);
-        } else {
-          expect(result.stdout).toContain("using compatible local cosign v3");
-        }
-      } finally {
-        rmSync(root, { recursive: true, force: true });
+    afterAll(() => {
+      if (root) rmSync(root, { recursive: true, force: true });
+    });
+
+    it("selects the trusted verifier", () => {
+      const { downloadedArgsPath, result } = install;
+      expect(result.status, result.stderr || result.stdout).toBe(0);
+      expect(existsSync(localArgsPath)).toBe(!testCase.bootstraps);
+      expect(existsSync(downloadedArgsPath)).toBe(testCase.bootstraps);
+      if (testCase.bootstraps) {
+        expect(result.stdout).toContain("downloading pinned cosign verifier " + cosignVersion);
+      } else {
+        expect(result.stdout).toContain("using compatible local cosign v3");
       }
-      // Spawns real cosign fixture processes — the default 5s trips under full-verify load.
-    },
-    20_000
-  );
+    });
+  });
 
   it("fails provenance verification without falling back from compatible local cosign v3", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "compozy-install-cosign-rejection-"));
@@ -669,7 +671,7 @@ exit 23
       rootMigrationGuidePath,
       installPagePath,
       migrationPagePath,
-      landingInstallPath,
+      landingContentPath,
       homebrewNoticePath,
       releaseHeaderPath,
       releaseFooterPath,
@@ -685,10 +687,10 @@ exit 23
     const installPage = readSiteFile(installPagePath);
     const launchPost = readSiteFile(launchPostPath);
     const readme = readSiteFile(readmePath);
-    const landing = readSiteFile(landingInstallPath);
+    const landing = readSiteFile(landingContentPath);
 
     for (const command of [VERIFIED_INSTALLER_COMMAND, NPM_INSTALL_COMMAND]) {
-      const missingPrimaryCommand = [readmePath, landingInstallPath, installPagePath]
+      const missingPrimaryCommand = [readmePath, installPagePath]
         .filter(path => !readSiteFile(path).includes(command))
         .map(path => relative(repoRoot, path));
       expect(missingPrimaryCommand, command).toEqual([]);
@@ -721,6 +723,9 @@ exit 23
     expect(readme).toContain("go install github.com/compozy/compozy@");
     expect(readme).toContain(latestReleaseUrl);
     expect(readme).toContain(firstSessionCommand);
+    // The landing renders the shared install constants instead of copying them.
+    expect(landing).toContain('from "@/lib/release/install-commands"');
+    expect(landing).toContain('command: "compozy install"');
     expect(landing).toContain(firstSessionCommand);
     for (const guidePath of [rootMigrationGuidePath, migrationPagePath]) {
       expect(readSiteFile(guidePath)).toContain(latestReleaseUrl);

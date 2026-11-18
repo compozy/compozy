@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 
 import { useProfileReadScope, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
@@ -29,6 +27,7 @@ import { useSessionCatalog } from "./use-session-catalog";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import {
   useSessionListGroups,
+  useSessionListArchivedCount,
   useSessionListLaterCount,
   useSessionListTotals,
   type SessionListTotals,
@@ -45,6 +44,10 @@ import { useProjectFolderGroups, type WorkspaceLayout } from "./use-workspace-la
 /** Shown in the toolbar while the stored `manual` sort cannot apply to what is listed. */
 export const SESSION_LIST_MANUAL_SORT_NOTE =
   "Manual order applies inside one project and profile. Group the list to use it.";
+
+/** The archive and Later list by last activity whatever the stored sort (#1716). */
+export const SESSION_LIST_SHELF_SORT_NOTE =
+  "Archived and Later sessions list by last activity. Manual order applies to the active list.";
 
 const SESSION_LIST_PAGE_SIZE = 100;
 
@@ -75,11 +78,16 @@ export interface SessionListViewModel {
   shelf: SessionListShelf;
   /** Sessions parked in Later across the list's scope; `undefined` until counted. */
   laterCount?: number;
+  /** Archived sessions across the list's scope, counted on the archive shelf only. */
+  archivedCount?: number;
   setSort: (sort: SessionListSort) => void;
   setGroupBy: (groupBy: SessionListGroupBy) => void;
   /** Project grouping also lists projects with no sessions in view (#1085); per window. */
   showEmptyProjects: boolean;
   setShowEmptyProjects: (show: boolean) => void;
+  /** "Show automation runs" (#1355): automation job and trigger sessions join the list. */
+  showAutomation: boolean;
+  setShowAutomation: (show: boolean) => void;
   setShelf: (shelf: SessionListShelf) => void;
   /** Group-by groups from server facets; empty while flat. */
   groups: SessionListGroupSpec[];
@@ -103,6 +111,8 @@ export interface SessionListViewModel {
   scopeLabel: string | null;
   /** The list's one concrete scope: a workspace id or `@user`; `null` under All projects. */
   focusedWorkspaceId: string | null;
+  /** The list spans every project (and User scope). */
+  allProjects?: boolean;
   focusedScopeName: string;
   /** Resolves a row's owner tag. Only called while `aggregate` is true. */
   ownerOf: (session: ProfileOwnerLabel) => ProfileOwner;
@@ -140,8 +150,9 @@ export interface SessionListViewModel {
  * session remounts the window's content, so state held here would reset; held
  * in the rail, a selection, a focus change, or a reload never reopens a group
  * the operator closed. Only the operator's toggle opens or closes one.
- * The archive and Later stay deliberately transient — ways of looking at the
- * list right now, not preferences worth keeping.
+ * The shelf (active, archive, or Later) is per window for the same reason and
+ * survives a selection too (#1706), but stays deliberately transient — a way of
+ * looking at the list right now, not a preference worth keeping across a reload.
  */
 export function useSessionListView(
   options: {
@@ -165,7 +176,6 @@ export function useSessionListView(
     committedValue: remoteSearch,
     setDraftValue: setSearch,
   } = useDebouncedInput({ externalValue: "", onCommit: () => undefined });
-  const [shelf, setShelf] = useState<SessionListShelf>("active");
   const enabled = options.enabled ?? true;
   const searchSettled = search === remoteSearch;
   const scope = options.scope === undefined ? dataScope : options.scope;
@@ -174,10 +184,23 @@ export function useSessionListView(
   const flat = groupBy === "none";
   const pair = sessionListPair(scope, profile.params);
 
-  const groupFilters = sessionListGroupFiltersFor(remoteSearch, options.worktreeId, shelf);
+  const showAutomation = sidebar.showAutomation;
+  const shelf = sidebar.shelf;
+  const groupFilters = sessionListGroupFiltersFor(
+    remoteSearch,
+    options.worktreeId,
+    shelf,
+    showAutomation
+  );
   const catalog = useSessionCatalog(
     scope,
-    { ...groupFilters, sort: sessionListSortParam(preferences.sort, pair !== null) },
+    {
+      ...groupFilters,
+      sort: sessionListSortParam(preferences.sort, {
+        singlePair: pair !== null,
+        shelved: shelf !== "active",
+      }),
+    },
     enabled && flat
   );
   const grouping = useSessionListGroups({
@@ -186,6 +209,7 @@ export function useSessionListView(
     lens: profile.params,
     workspaces,
     shelf,
+    showAutomation,
     search: remoteSearch,
     worktreeId: options.worktreeId,
     enabled,
@@ -211,6 +235,7 @@ export function useSessionListView(
     search: remoteSearch,
     worktreeId: options.worktreeId,
     shelf,
+    showAutomation,
     enabled,
   });
   const laterCount = useSessionListLaterCount({
@@ -218,6 +243,12 @@ export function useSessionListView(
     lens: profile.params,
     worktreeId: options.worktreeId,
     enabled,
+  });
+  // The cleanup covers the whole scope, so its count ignores the worktree filter.
+  const archivedCount = useSessionListArchivedCount({
+    scope,
+    lens: profile.params,
+    enabled: enabled && shelf === "archive",
   });
   const awaiting = awaitingReads(
     flat ? settledSearchCatalog(catalog, searchSettled) : undefined,
@@ -248,15 +279,18 @@ export function useSessionListView(
     storedGroupBy: preferences.groupBy,
     groupBy,
     groupByOptions: availableSessionListGroupBys(breadth),
-    sortNote: manualSortNote(preferences.sort, manualBlocked),
+    sortNote: manualSortNote(preferences.sort, manualBlocked, shelf),
     newFolderUnavailable: newFolderUnavailableReason(flat, pair !== null, breadth, groupBy),
     shelf,
     laterCount,
+    archivedCount,
     setSort: preferences.setSort,
     setGroupBy: preferences.setGroupBy,
     showEmptyProjects: sidebar.showEmptyProjects,
     setShowEmptyProjects: sidebar.setShowEmptyProjects,
-    setShelf,
+    showAutomation,
+    setShowAutomation: sidebar.setShowAutomation,
+    setShelf: sidebar.setShelf,
     groups,
     groupsLoading: awaiting.groupsLoading,
     groupsError: grouping.error,
@@ -276,6 +310,7 @@ export function useSessionListView(
     aggregate: profile.aggregate,
     scopeLabel: profile.scopeLabel,
     focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
+    allProjects: breadth.allProjects,
     focusedScopeName: focusedScopeName(scope, workspaces),
     ownerOf: profile.ownerOf,
     badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
@@ -305,7 +340,8 @@ function hiddenProjectGroupKeys(
 function sessionListGroupFiltersFor(
   search: string,
   worktreeId: string | undefined,
-  shelf: SessionListShelf
+  shelf: SessionListShelf,
+  showAutomation: boolean
 ): SessionListFilters {
   return {
     include_health: true,
@@ -314,7 +350,7 @@ function sessionListGroupFiltersFor(
     search_fields: "title_agent",
     subagents: sessionListSubagentsParam(search),
     worktree: worktreeId,
-    ...sessionListShelfFilters(shelf),
+    ...sessionListShelfFilters(shelf, showAutomation),
   };
 }
 
@@ -346,8 +382,14 @@ function settledSearchCatalog<C extends { paging: boolean; next: boolean; previo
   };
 }
 
-function manualSortNote(sort: string, manualBlocked: boolean): string | null {
-  return sort === "manual" && manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
+function manualSortNote(
+  sort: string,
+  manualBlocked: boolean,
+  shelf: SessionListShelf
+): string | null {
+  if (sort !== "manual") return null;
+  if (shelf !== "active") return SESSION_LIST_SHELF_SORT_NOTE;
+  return manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
 }
 
 function newFolderUnavailableReason(

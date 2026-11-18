@@ -8,6 +8,7 @@ import (
 )
 
 type loadOptions struct {
+	windowManagerWarning      func(string, bool)
 	workspaceRoot             string
 	profileName               string
 	skipDotEnv                bool
@@ -108,6 +109,7 @@ func Load(opts ...LoadOption) (Config, error) {
 		options.skipWorkspaceOverlayFiles,
 		options.skipValidate,
 		lookup,
+		options.windowManagerWarning,
 	)
 }
 
@@ -142,6 +144,7 @@ func LoadForHome(homePaths HomePaths, opts ...LoadOption) (Config, error) {
 		options.skipWorkspaceOverlayFiles,
 		options.skipValidate,
 		lookup,
+		options.windowManagerWarning,
 	)
 }
 
@@ -152,12 +155,20 @@ func loadWithHome(
 	skipWorkspaceOverlayFiles bool,
 	skipValidate bool,
 	lookup envLookup,
+	warning func(string, bool),
 ) (Config, error) {
 	cfg := DefaultWithHome(homePaths)
+	cfg.WindowManager.retiredKeyWarning = windowManagerWarningOnce(warning)
+	// The daemon applies the same layer at boot, so config inspection reports what it exports with. Process
+	// environment only: OTel export is operator policy, never set from a workspace .env file.
+	ApplyOTelEnvironment(&cfg, func(key string) string {
+		value, _ := processEnvLookup(key)
+		return value
+	})
 	if err := ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global config: %w", err)
 	}
-	if err := applyConfigMCPSidecarFile(globalMCPJSONFile(homePaths), &cfg); err != nil {
+	if err := ApplyConfigMCPSidecarFile(globalMCPJSONFile(homePaths), &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
 	}
 	profileName = strings.TrimSpace(profileName)
@@ -172,7 +183,7 @@ func loadWithHome(
 		); err != nil {
 			return Config{}, fmt.Errorf("load profile config: %w", err)
 		}
-		if err := applyConfigMCPSidecarFile(profileMCPJSONFile(homePaths, profileName), &cfg); err != nil {
+		if err := ApplyConfigMCPSidecarFile(profileMCPJSONFile(homePaths, profileName), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load profile MCP JSON: %w", err)
 		}
 	}
@@ -180,7 +191,7 @@ func loadWithHome(
 		if err := applyWorkspaceConfigOverlayFile(workspaceConfigFile(workspaceRoot), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load workspace config: %w", err)
 		}
-		if err := applyConfigMCPSidecarFile(workspaceMCPJSONFile(workspaceRoot), &cfg); err != nil {
+		if err := ApplyConfigMCPSidecarFile(workspaceMCPJSONFile(workspaceRoot), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load workspace MCP JSON: %w", err)
 		}
 		if profileName != "" {
@@ -191,7 +202,7 @@ func loadWithHome(
 			); err != nil {
 				return Config{}, fmt.Errorf("load workspace profile config: %w", err)
 			}
-			if err := applyConfigMCPSidecarFile(
+			if err := ApplyConfigMCPSidecarFile(
 				workspaceProfileMCPJSONFile(workspaceRoot, profileName),
 				&cfg,
 			); err != nil {
@@ -214,4 +225,18 @@ func loadWithHome(
 	}
 
 	return cfg, nil
+}
+
+func windowManagerWarningOnce(warning func(string, bool)) func(string, bool) {
+	if warning == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	return func(key string, translated bool) {
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		warning(key, translated)
+	}
 }

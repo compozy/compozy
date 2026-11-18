@@ -55,7 +55,7 @@ export async function GET() {
   const body = [
     "# CompozyOS Documentation",
     "",
-    "> CompozyOS is the system around the agent, already built: it keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble. Loops, triggers, permissions, approvals, and history come built in.",
+    "> CompozyOS is the autonomous control plane for your agents: it keeps every agent session visible and steerable and lets always-on agents check in on their own, without anyone watching each terminal. Loops, triggers, permissions, approvals, and history come built in.",
     "",
     section("Current release and migration", releaseLines),
     ...groupOrder().map(group => section(group, linesByGroup.get(group) ?? [])),

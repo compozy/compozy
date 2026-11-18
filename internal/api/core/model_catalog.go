@@ -79,6 +79,11 @@ func (h *BaseHandlers) OpenAIModels(c *gin.Context) {
 		RespondOpenAIError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
 		return
 	}
+	models, err = h.selectableModels(c, models)
+	if err != nil {
+		RespondOpenAIError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
+		return
+	}
 	c.JSON(http.StatusOK, OpenAIModelListPayloadFromModels(models))
 }
 
@@ -184,6 +189,11 @@ func (h *BaseHandlers) listProviderModels(c *gin.Context, providerParam string) 
 		return
 	}
 	models, err := service.ListModels(c.Request.Context(), opts)
+	if err != nil {
+		RespondError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
+		return
+	}
+	models, err = h.selectableModels(c, models)
 	if err != nil {
 		RespondError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
 		return

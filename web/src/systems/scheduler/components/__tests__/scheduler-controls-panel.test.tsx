@@ -85,10 +85,8 @@ describe("SchedulerControlsPanel", () => {
     expect(screen.getByTestId("scheduler-controls-needs-attention-count")).toHaveTextContent(
       "1 need attention"
     );
-    // Needs-attention waits on a person: the needs-you accent, not the warning amber.
-    expect(screen.getByTestId("scheduler-controls-needs-attention-count")).toHaveClass(
-      "text-brand"
-    );
+    // Needs-attention waits on a person: the needs-you amber (`attn`), never brand.
+    expect(screen.getByTestId("scheduler-controls-needs-attention-count")).toHaveClass("text-attn");
   });
 
   it("requires a reason before pausing scheduler dispatch", async () => {

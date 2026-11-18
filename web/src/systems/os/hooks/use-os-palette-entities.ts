@@ -11,6 +11,7 @@ import {
 import { type ProfileOwner, useProfileReadScope } from "@/systems/profiles";
 import {
   DESTINATION_COPY,
+  SHELL_WORKTREE_SCOPE,
   sortWorktreeNestEntries,
   toWorktreeNestEntries,
   useScopedWorktreeFilter,
@@ -34,7 +35,6 @@ import {
 import { composePaletteSessionPage, keepServerSessions } from "../lib/palette-session-filters";
 import { applyPaletteWorktreeSelection } from "../lib/os-palette-worktree-selection";
 import { useDesktop } from "./use-desktop";
-import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 import type { CmdPaletteRankSignals } from "../lib/cmd-palette-types";
 import { normalizeRankingText } from "../lib/ranking/normalize";
 import { rankCandidates } from "../lib/ranking/rank";
@@ -45,7 +45,6 @@ export interface OsPaletteTabResult {
   label: string;
   desktopName: string;
   needsInput: boolean;
-  minimized: boolean;
 }
 
 export interface OsPaletteSessionResult {
@@ -73,6 +72,8 @@ export interface OsPaletteEntities {
   selectWorktree(entry: OsPaletteWorktreeResult): void;
   /** The focused session, when the query reaches its link command. */
   readonly linkSessionId?: string | null;
+  /** The focused session, when the query reaches its Move under… command. */
+  readonly moveSessionId?: string | null;
 }
 
 export interface OsPaletteWorktreeResult extends WorktreeNestEntry {
@@ -143,7 +144,14 @@ function rankEntityRows<T>(
   };
 }
 
-const LINK_COMMAND_LABEL = "Link a pull request or branch";
+const LINK_COMMAND = {
+  label: "Link a pull request or branch",
+  keywords: ["pull request", "branch", "link"],
+};
+const MOVE_UNDER_COMMAND = {
+  label: "Move under another session",
+  keywords: ["parent", "nest", "move", "top-level"],
+};
 
 /** The session the focused window shows, for commands that act on it. */
 function focusedSessionId(state: Pick<OsDesktopRuntimeStore, "focusedId" | "windows">) {
@@ -151,17 +159,32 @@ function focusedSessionId(state: Pick<OsDesktopRuntimeStore, "focusedId" | "wind
   return focused && osAppId(focused.app) === "session" ? focused.instanceKey : null;
 }
 
-/** The focused session, when the query can reach its link command from this page. */
-function usePaletteLinkCommand(
+/** Closed palettes ignore focus publications; opening reads the current target. */
+export function usePaletteFocus(open: boolean) {
+  return useDesktop(
+    state =>
+      open
+        ? {
+            worktreeScopeId: state.focusedId ?? SHELL_WORKTREE_SCOPE,
+            sessionId: focusedSessionId(state),
+          }
+        : null,
+    shallowEqual
+  );
+}
+
+/** The focused session, when the query can reach one of its commands from this page. */
+function paletteFocusedSessionCommand(
+  focusedSession: string | null,
+  command: { label: string; keywords: string[] },
   query: string,
   destination: boolean,
   signals: CmdPaletteRankSignals | null
 ): string | null {
-  const focusedSession = useDesktop(focusedSessionId);
   const candidates = !destination && focusedSession && query.trim() !== "" ? [focusedSession] : [];
   const ranked = rankEntityRows(
     candidates,
-    id => ({ id, label: LINK_COMMAND_LABEL, keywords: ["pull request", "branch", "link"] }),
+    id => ({ id, label: command.label, keywords: command.keywords }),
     "Session",
     query,
     signals,
@@ -192,7 +215,8 @@ export function useOsPaletteEntities({
   const searchPending = remoteQuery !== query.trim();
   const profile = useProfileReadScope();
   const queryEnabled = paletteEntityQueryEnabled(destination, query, signals);
-  const worktreeScopeId = useFocusedWorktreeScopeId();
+  const focus = usePaletteFocus(open);
+  const worktreeScopeId = focus?.worktreeScopeId ?? SHELL_WORKTREE_SCOPE;
   const project = dataScope?.kind === "project";
   const all = dataScope?.kind === "all";
   const worktreesQuery = useWorktrees(activeWorkspaceId, {
@@ -223,7 +247,20 @@ export function useOsPaletteEntities({
   });
   const sessionSearchRan =
     remoteQuery !== "" && paletteEntityQueryEnabled(destination, remoteQuery, signals);
-  const linkSessionId = usePaletteLinkCommand(query, destination, signals);
+  const linkSessionId = paletteFocusedSessionCommand(
+    focus?.sessionId ?? null,
+    LINK_COMMAND,
+    query,
+    destination,
+    signals
+  );
+  const moveSessionId = paletteFocusedSessionCommand(
+    focus?.sessionId ?? null,
+    MOVE_UNDER_COMMAND,
+    query,
+    destination,
+    signals
+  );
   const tabs = usePaletteTabs(open, destinationWindowId, sessions.sessions);
 
   const worktrees = projectPaletteWorktrees(
@@ -270,6 +307,7 @@ export function useOsPaletteEntities({
     worktrees: rankedWorktrees.rows,
     worktreeTotal: rankedWorktrees.total,
     linkSessionId,
+    moveSessionId,
     selectWorktree: entry =>
       applyPaletteWorktreeSelection({
         worktreeScopeId,
@@ -396,16 +434,14 @@ function projectPaletteTabs(
       const label =
         app === "session" && session
           ? getSessionDisplayTitle(session)
-          : typeof slot?.crumb === "string"
-            ? slot.crumb
-            : getOsAppDescriptor(app).title;
+          : (slot?.tabLabel ??
+            (typeof slot?.crumb === "string" ? slot.crumb : getOsAppDescriptor(app).title));
       tabs.push({
         windowId: win.id,
         app,
         label,
         desktopName: desktopNames.get(win.desktopId) ?? "",
         needsInput: session !== undefined && isNeedsYouSession(session),
-        minimized: win.minimized,
       });
     }
     tabs.sort((left, right) => left.label.localeCompare(right.label));

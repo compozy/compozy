@@ -35,6 +35,8 @@ func ReadSessionMeta(path string) (SessionMeta, error) {
 	// Boundary upgrade (SD-013): documents written before lineage kinds existed read
 	// the same kind the catalog backfill wrote. The next lifecycle write persists it.
 	UpgradeSessionLineageKind(meta.SessionType, meta.Lineage)
+	meta.Lineage = NormalizeSessionLineage(meta.ID, meta.Lineage)
+	meta.Lineage.PermissionPolicy = DecodeIntent(meta.Lineage.PermissionPolicy, meta.Lineage.Kind, meta.SessionType)
 	if err := meta.Validate(); err != nil {
 		return SessionMeta{}, err
 	}

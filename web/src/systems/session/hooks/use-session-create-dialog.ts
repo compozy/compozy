@@ -99,14 +99,15 @@ export function useSessionCreateDialogViewModel(
   );
   const { pendingSubmit } = flow;
   // Each opening starts from the prefill; under All projects the picked project
-  // (or User) is the destination, otherwise the menubar destination is.
+  // (or User) is the destination, otherwise the project the opening named, else the
+  // menubar destination.
   const target = useSessionCreateTarget({
     resetKey: flow.open,
     focusedBinding,
     seed: flow.target,
   });
   const destination = resolveSessionCreateDestination(
-    target.projectAxis
+    target.projectAxis || target.namedProject
       ? {
           activeWorkspace: target.workspace,
           projectWorkspaceId: target.workspace?.id ?? null,
@@ -115,6 +116,8 @@ export function useSessionCreateDialogViewModel(
         }
       : { activeWorkspace, projectWorkspaceId, dataScope, userHomeDir }
   );
+  // A named project the catalog has not confirmed blocks creation instead of falling back.
+  const binding = target.namedProjectUnresolved ? null : destination.binding;
   const agentList = useSessionCreateAgents({ destination, target, open: flow.open, agents });
   const selectedAgentName = draft.agentName;
   const environment = useSessionEnvironment({
@@ -126,15 +129,16 @@ export function useSessionCreateDialogViewModel(
       );
       store.trigger.environmentSelected({ environment: next });
     },
-    enabled: flow.open && destination.scope === "project" && destination.binding !== null,
+    enabled: flow.open && destination.scope === "project" && binding !== null,
   });
 
   const submit = useSessionCreateSubmit({
     agents: agentList,
-    binding: destination.binding,
+    binding,
     environment,
     environmentWorkspaceId: destination.environmentWorkspaceId,
     runtimeWorkspaceId: destination.runtimeWorkspaceId,
+    actingWorkspaceId: activeWorkspace?.id ?? null,
     scope: destination.scope,
     store,
     target,
@@ -155,7 +159,7 @@ export function useSessionCreateDialogViewModel(
     scope: destination.scope,
     destinationLabel: destination.destinationLabel,
     sessionRoot: destination.sessionRoot,
-    destinationReady: destination.binding !== null,
+    destinationReady: binding !== null,
     sessionName: draft.sessionName,
     selectedAgentName,
     isSubmitting,
@@ -236,5 +240,12 @@ function useSessionCreateAgents({
     profile: target.profile,
   });
   if (query.data) return query.data;
-  return runtimeWorkspaceId && !target.projectAxis && !target.profileAxis ? (agents ?? []) : [];
+  // The shell's agents belong to its own project: never stand in for another target's.
+  return runtimeWorkspaceId &&
+    !target.projectAxis &&
+    !target.profileAxis &&
+    !target.namedProject &&
+    !target.namedProjectUnresolved
+    ? (agents ?? [])
+    : [];
 }

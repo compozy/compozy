@@ -53,3 +53,15 @@ windows rather than per request; discovery inside a window fails fast without re
 the mark/recovery path with this pacing; the scenario remains `blocked-verify`.
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-011-only-runnable-skills-are-offered-dead-sidecars-self-recover
+
+QA impact 2026-11-17 (#1785): also seed an old authentication-related dead mark for an OAuth
+server. Successful sign-in (callback and manual exchange) and call-time refresh clear its mark
+without a restart. A usable refreshed credential can recover through an existing auth dead mark;
+health-only dead marks keep the ordinary probe schedule. Confirm an identical server in another
+workspace/profile keeps its mark. Never use the operator's real OAuth credentials for this walk.
+Focused daemon tests cover real SQLite and a local OAuth/MCP fixture; the broader Web/provider
+scenario retains its existing QA verdict until that walk is performed.
+
+QA impact 2026-11-17 (#1794, daemon CPU hot paths):
+Ordinary discovery shares unchanged listings for at least three seconds. Explicit checks and due dead-entity probes still force real discovery; failure retention and recovery must remain observable without restart. The existing daemon sidecar integration suite is the transport canary for this change.
+See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).

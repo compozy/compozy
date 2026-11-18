@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-import type { SessionSelectionVerbs } from "../hooks/use-session-list-bulk-selection";
+import type { SessionSelectionVerbs } from "../lib/session-selection-verbs";
 import type { SessionSelectionStore } from "../hooks/use-session-selection";
 import type { SessionListGroupRowsStore } from "./session-list-group-selection-context-value";
 

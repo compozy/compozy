@@ -1,0 +1,923 @@
+// Suite: OS tab bar
+// Invariant: the bar renders the active desktop's tabs in order with the client's active tab
+// selected, activates a tab through its lead window, closes it by button, middle click, and menu
+// (never a pinned tab by middle click), skips pinned tabs in bulk closes, keeps one tab stop that
+// follows the active tab while focus is outside the bar, hands focus on when the focused tab
+// closes, returns focus to the tab a menu came from when Escape closes it or a submenu item runs,
+// and opens the overflow list only when tabs at the floor no longer fit. The tab menu groups its
+// items (Pin, Move ▸, Split with ▸, Arrange ▸, Close tab, Close ▸, Reopen closed tab), offers a menu
+// equivalent for every drag (Move ▸ Left/Right within the pin range, Split with ▸, Arrange ▸),
+// leaves out items that cannot apply and the submenus they empty, and offers no retired control.
+// A session tab's tile shows its agent's face (an always-on main's instance avatar, else the
+// agent's configured appearance, from the list or the open window's detail read) and keeps the
+// generic mark for a session with no agent (#1709). The session lookup every tab takes keeps its
+// identity while the sessions it holds are unchanged, so a bar re-render keeps unchanged tabs (#1736).
+// Owning layer: OsTabBar + useOsTabBar over the shell projection. Width rules: lib/tab-width.
+// Boundary OUT: runtime command execution and daemon reducers.
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type * as React from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { TooltipProvider } from "@compozy/ui";
+
+import {
+  AgentIdentityCatalogContext,
+  type AgentIdentitySource,
+  type AgentInstancePayload,
+} from "@/systems/agent";
+import { agentInstanceFixture } from "@/systems/agent/mocks";
+import { useProfileReadScopeParams } from "@/systems/profiles";
+import { sessionScopedDetailOptions, type SessionPayload } from "@/systems/session";
+import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
+
+import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
+import type { WindowManagerCommandOutcome, WindowManagerController } from "../../lib/os-types";
+import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
+import type {
+  LayoutTab,
+  WindowManagerConfig,
+  WindowManagerSnapshot,
+  WindowManagerWindow,
+} from "../../lib/window-manager-types";
+import { buildOsDesktopRuntimeView } from "../../lib/window-manager-view";
+import { windowManagerStore } from "../../stores/window-manager-store";
+import { useTabSessions } from "../../hooks/use-os-tab-bar";
+import { OsTabBar } from "../os-tab-bar";
+
+vi.mock("@/systems/workspace", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace")>()),
+  useActiveWorkspace: () => ({ runtimeWorkspaceId: null }),
+}));
+
+let sessionRows: SessionPayload[] = [];
+let instanceRows: AgentInstancePayload[] = [];
+let agentCatalog: AgentIdentitySource[] | undefined;
+let queryClient: QueryClient;
+
+// The hooks' own modules: their barrels load the shell back through their imports, so a barrel
+// mock would not reach this bar.
+vi.mock("@/systems/session/hooks/use-sessions", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session/hooks/use-sessions")>()),
+  useSessions: () => ({ data: sessionRows }),
+}));
+
+// The detail read's I/O boundary: an open session the list page misses fetches through it.
+const { fetchSessionById } = vi.hoisted(() => ({
+  fetchSessionById: vi.fn<(id: string) => Promise<SessionPayload>>(),
+}));
+vi.mock("@/systems/session/adapters/session-owner-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session/adapters/session-owner-api")>()),
+  fetchSessionById,
+}));
+
+vi.mock("@/systems/agent/hooks/use-agent-instances", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/hooks/use-agent-instances")>()),
+  useAgentInstances: () => instanceRows,
+}));
+
+const CONFIG: WindowManagerConfig = {
+  newWindowPolicy: "tab",
+  smallViewportPolicy: "stack",
+  focusPolicy: "click_directional",
+  focusWrap: true,
+  focusFollowsPointer: false,
+  swapModifier: "shift",
+  historyLimit: 50,
+  navStackLimit: 50,
+  closedEntryLimit: 20,
+  desktopTransition: "slide",
+  gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+  shortcuts: {},
+  globalShortcuts: {},
+  shortcutDefaults: {},
+  effectiveShortcuts: {},
+};
+
+function win(id: string, app: string, tabId: string): WindowManagerWindow {
+  return {
+    id,
+    app,
+    instanceKey: null,
+    route: { pathname: `/${app}`, search: {} },
+    navStack: [],
+    desktopId: "desktop:main",
+    tabId,
+  };
+}
+
+function solo(id: string, windowId: string, pinned = false): LayoutTab {
+  return { id, pinned, root: { id: `leaf:${windowId}`, kind: "leaf", windowId } };
+}
+
+const TABS: LayoutTab[] = [
+  solo("tab:dash", "w-dash", true),
+  solo("tab:tasks", "w-tasks"),
+  {
+    id: "tab:split",
+    pinned: false,
+    root: {
+      id: "split:1",
+      kind: "split",
+      axis: "horizontal",
+      weights: [0.5, 0.5],
+      children: [
+        { id: "leaf:w-agents", kind: "leaf", windowId: "w-agents" },
+        { id: "leaf:w-loops", kind: "leaf", windowId: "w-loops" },
+      ],
+    },
+  },
+  solo("tab:vault", "w-vault"),
+];
+
+function snapshot(
+  tabs: LayoutTab[] = TABS,
+  closedEntryCount = 1,
+  activeTabId = "tab:tasks",
+  secondDesktop = false,
+  extraWindows: WindowManagerWindow[] = []
+): WindowManagerSnapshot {
+  // A second desktop, "Review", holding one tab of its own: a Move ▸ To desktop destination.
+  const review = { ...win("w-review", "tasks", "tab:review"), desktopId: "desktop:review" };
+  return {
+    version: 6,
+    workspaceId: "workspace:test",
+    revision: 3,
+    desktops: [
+      { id: "desktop:main", name: "Main", order: 0, tabs, activeTabId },
+      ...(secondDesktop
+        ? [
+            {
+              id: "desktop:review",
+              name: "Review",
+              order: 1,
+              tabs: [solo("tab:review", "w-review")],
+              activeTabId: "tab:review",
+            },
+          ]
+        : []),
+    ],
+    windows: {
+      "w-dash": win("w-dash", "dashboard", "tab:dash"),
+      "w-tasks": win("w-tasks", "tasks", "tab:tasks"),
+      "w-agents": win("w-agents", "agents", "tab:split"),
+      "w-loops": win("w-loops", "loops", "tab:split"),
+      "w-vault": win("w-vault", "vault", "tab:vault"),
+      ...(secondDesktop ? { "w-review": review } : {}),
+      ...Object.fromEntries(extraWindows.map(extra => [extra.id, extra])),
+    },
+    closedEntryCount,
+    overrides: {},
+    migration: null,
+    updatedAt: "2026-11-12T00:00:00Z",
+  };
+}
+
+function outcome(): WindowManagerCommandOutcome {
+  return { accepted: true, completion: Promise.resolve(true) };
+}
+
+let stripWidth = 1200;
+
+class ResizeObserverMock {
+  constructor(private readonly callback: ResizeObserverCallback) {}
+  observe(target: Element) {
+    this.callback(
+      [{ target, contentRect: new DOMRectReadOnly(0, 0, stripWidth, 40) } as ResizeObserverEntry],
+      this as unknown as ResizeObserver
+    );
+  }
+  unobserve() {}
+  disconnect() {}
+}
+
+interface BarOptions {
+  tabs?: LayoutTab[];
+  focusOrder?: string[];
+  closedEntryCount?: number;
+  /** The desktop's active tab; the client keeps no override of its own. */
+  activeTabId?: string;
+  /** Adds the "Review" desktop, a destination for Move ▸ To desktop. */
+  secondDesktop?: boolean;
+  /** Windows the extra `tabs` hold beyond the fixed set, e.g. session windows. */
+  extraWindows?: WindowManagerWindow[];
+}
+
+function barState(options: BarOptions) {
+  return buildOsDesktopRuntimeView({
+    viewportWidth: 1440,
+    snapshot: snapshot(
+      options.tabs,
+      options.closedEntryCount,
+      options.activeTabId,
+      options.secondDesktop,
+      options.extraWindows
+    ),
+    globalConfig: CONFIG,
+    client: {
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:main",
+      focusedWindowId: "w-tasks",
+      focusOrder: options.focusOrder ?? ["w-tasks"],
+      activeTab: {},
+      connectedAt: "2026-11-12T00:00:00Z",
+    },
+    workArea: { x: 0, y: 0, w: 1440, h: 800 },
+    workAreaOrigin: { x: 0, y: 0 },
+    seamPreview: null,
+    routeIntents: {},
+    connectionStatus: "connected",
+    loadError: null,
+    wallpaper: "flat",
+    reduceMotion: false,
+  });
+}
+
+type MenuUser = ReturnType<typeof userEvent.setup>;
+
+/**
+ * Opens a submenu from the keyboard and resolves once focus sits inside it. jsdom has no geometry
+ * for a submenu's hover guard, so a pointer crossing from its trigger may close it on the way.
+ */
+async function openSubmenu(user: MenuUser, triggerTestId: string): Promise<HTMLElement> {
+  const trigger = await screen.findByTestId(triggerTestId);
+  await waitFor(() => expect(trigger.closest('[role="menu"]')).toBeInTheDocument());
+  act(() => trigger.focus());
+  await user.keyboard("{ArrowRight}");
+  return waitFor(() => {
+    const submenu = document.activeElement?.closest<HTMLElement>('[role="menu"]');
+    expect(submenu).toBeTruthy();
+    expect(submenu).not.toContainElement(trigger);
+    return submenu!;
+  });
+}
+
+/** The names of a menu's own items, in order; a submenu's items portal outside it. */
+function itemNames(menu: HTMLElement): string[] {
+  return within(menu)
+    .getAllByRole("menuitem")
+    .map(item => item.textContent?.trim() ?? "");
+}
+
+function renderBar(options: BarOptions = {}) {
+  const projection = createWindowManagerProjectionAtom(barState(options));
+  const manager = {
+    getState: () => projection.get(),
+    closeWindowScoped: vi.fn(async () => true),
+    pinWindow: vi.fn(() => outcome()),
+    reopenWindow: vi.fn(() => outcome()),
+    moveWindowToDesktop: vi.fn(),
+    moveTab: vi.fn(),
+    splitWithTab: vi.fn(),
+    arrangeLayout: vi.fn(),
+    balanceTab: vi.fn(),
+  } as unknown as WindowManagerController;
+  const coordinator = {
+    userFocus: vi.fn(async () => true),
+    userClose: vi.fn(async () => true),
+    userOpen: vi.fn(async () => "w-new"),
+  };
+  const shell = { projection, manager, coordinator } as unknown as OsShellHandle;
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <AgentIdentityCatalogContext value={() => agentCatalog}>
+        <OsShellContext.Provider value={shell}>
+          <TooltipProvider delay={0}>
+            {children}
+            {/* A focus target past the bar, standing in for the window content. */}
+            <button type="button">Outside</button>
+          </TooltipProvider>
+        </OsShellContext.Provider>
+      </AgentIdentityCatalogContext>
+    </QueryClientProvider>
+  );
+  render(<OsTabBar />, { wrapper });
+  /** Replaces the projection, as a daemon snapshot or client view update would. */
+  const update = (next: BarOptions) => act(() => projection.set(barState(next)));
+  return { manager, coordinator, update };
+}
+
+beforeEach(() => {
+  stripWidth = 1200;
+  sessionRows = [];
+  instanceRows = [];
+  agentCatalog = undefined;
+  fetchSessionById.mockReset();
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  act(() => windowManagerStore.trigger.paletteIntentCleared());
+});
+
+describe("OsTabBar", () => {
+  it("Should render the desktop's tabs in bar order with the client's active tab selected", () => {
+    renderBar();
+    const tabs = within(screen.getByTestId("os-tab-bar")).getAllByRole("tab");
+
+    expect(tabs.map(tab => tab.getAttribute("data-testid"))).toEqual([
+      "os-tab-tab:dash",
+      "os-tab-tab:tasks",
+      "os-tab-tab:split",
+      "os-tab-tab:vault",
+    ]);
+    expect(screen.getByTestId("os-tab-tab:tasks")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("os-tab-tab:dash")).toHaveAttribute("data-pinned");
+    expect(screen.getByTestId("os-tab-tab:split")).toHaveAccessibleName("Agents and 1 more");
+  });
+
+  it("Should name a split by the member this client focused last", () => {
+    renderBar({ focusOrder: ["w-loops", "w-tasks"] });
+
+    expect(screen.getByTestId("os-tab-tab:split")).toHaveAttribute(
+      "data-lead-window-id",
+      "w-loops"
+    );
+  });
+
+  it("Should activate a tab through its lead window", () => {
+    const { coordinator } = renderBar();
+
+    fireEvent.click(screen.getByTestId("os-tab-tab:vault"));
+
+    expect(coordinator.userFocus).toHaveBeenCalledWith("w-vault");
+  });
+
+  it("Should close a single-window tab through the operator guard and a split as one tab", () => {
+    const { coordinator, manager } = renderBar();
+
+    const closeOf = (tabId: string) =>
+      screen
+        .getByTestId(`os-tab-${tabId}`)
+        .closest('[data-slot="os-tab"]')!
+        .querySelector<HTMLButtonElement>('[data-slot="os-tab-close"]')!;
+    fireEvent.click(closeOf("tab:tasks"));
+    fireEvent.click(closeOf("tab:split"));
+
+    expect(coordinator.userClose).toHaveBeenCalledWith("w-tasks");
+    expect(manager.closeWindowScoped).toHaveBeenCalledWith("w-agents", "group");
+  });
+
+  it("Should close an unpinned tab on middle click and never a pinned one", () => {
+    const { coordinator } = renderBar();
+
+    fireEvent(
+      screen.getByTestId("os-tab-tab:vault"),
+      new MouseEvent("auxclick", { bubbles: true, button: 1 })
+    );
+    fireEvent(
+      screen.getByTestId("os-tab-tab:dash"),
+      new MouseEvent("auxclick", { bubbles: true, button: 1 })
+    );
+
+    expect(coordinator.userClose).toHaveBeenCalledExactlyOnceWith("w-vault");
+    const pinnedPlate = screen.getByTestId("os-tab-tab:dash").closest('[data-slot="os-tab"]')!;
+    expect(pinnedPlate.querySelector('[data-slot="os-tab-close"]')).toBeNull();
+  });
+
+  it("Should close a pinned split tab whole on middle click [US-002.AC-4, EC-3]", () => {
+    const pinnedSplit: LayoutTab = { ...TABS[2]!, pinned: true };
+    const { coordinator, manager } = renderBar({ tabs: [TABS[0]!, pinnedSplit, TABS[1]!] });
+
+    fireEvent(
+      screen.getByTestId("os-tab-tab:split"),
+      new MouseEvent("auxclick", { bubbles: true, button: 1 })
+    );
+
+    expect(manager.closeWindowScoped).toHaveBeenCalledExactlyOnceWith("w-agents", "group");
+    expect(coordinator.userClose).not.toHaveBeenCalled();
+  });
+
+  it("Should keep one tab stop on the active tab and move focus with the arrow keys, Home and End", async () => {
+    const user = userEvent.setup();
+    const { coordinator } = renderBar();
+    const tab = (tabId: string) => screen.getByTestId(`os-tab-${tabId}`);
+
+    expect(
+      within(screen.getByTestId("os-tab-bar"))
+        .getAllByRole("tab")
+        .map(element => element.tabIndex)
+    ).toEqual([-1, 0, -1, -1]);
+    // The close buttons are not tab stops of their own.
+    expect(
+      tab("tab:tasks").closest('[data-slot="os-tab"]')!.querySelector('[data-slot="os-tab-close"]')
+    ).toHaveAttribute("tabindex", "-1");
+
+    act(() => tab("tab:tasks").focus());
+    await user.keyboard("{ArrowRight}");
+    expect(tab("tab:split")).toHaveFocus();
+    expect(tab("tab:split").tabIndex).toBe(0);
+    expect(tab("tab:tasks").tabIndex).toBe(-1);
+    await user.keyboard("{End}");
+    expect(tab("tab:vault")).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(tab("tab:dash")).toHaveFocus();
+    await user.keyboard("{ArrowLeft}");
+    expect(tab("tab:vault")).toHaveFocus();
+    await user.keyboard("{Home}");
+    expect(tab("tab:dash")).toHaveFocus();
+    // Moving focus never activates; Enter on the focused tab does.
+    expect(coordinator.userFocus).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowRight}{Enter}");
+    expect(coordinator.userFocus).toHaveBeenCalledExactlyOnceWith("w-tasks");
+  });
+
+  it("Should enter the bar on the active tab once focus has left it [R2-11]", async () => {
+    const user = userEvent.setup();
+    const { update } = renderBar();
+    const stops = () =>
+      within(screen.getByTestId("os-tab-bar"))
+        .getAllByRole("tab")
+        .map(element => element.tabIndex);
+
+    act(() => screen.getByTestId("os-tab-tab:dash").focus());
+    expect(stops()).toEqual([0, -1, -1, -1]);
+    await user.click(screen.getByRole("button", { name: "Outside" }));
+    // Focus left the bar: the stop is the active tab again, not the tab focused last.
+    expect(stops()).toEqual([-1, 0, -1, -1]);
+    // The active tab changes while focus is elsewhere (a shortcut): the stop follows it.
+    update({ activeTabId: "tab:vault" });
+    expect(stops()).toEqual([-1, -1, -1, 0]);
+    // Back into the bar past New tab: Shift+Tab lands on the active tab, the bar's one stop.
+    await user.tab({ shift: true });
+    expect(screen.getByRole("button", { name: /^New tab/ })).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.getByTestId("os-tab-tab:vault")).toHaveFocus();
+  });
+
+  it("Should hand focus to the tab that becomes active when the focused tab closes [R2-11]", async () => {
+    const user = userEvent.setup();
+    const { coordinator, update } = renderBar();
+
+    act(() => screen.getByTestId("os-tab-tab:tasks").focus());
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    await user.click(await screen.findByRole("menuitem", { name: /^Close tab(?!s)/ }));
+    expect(coordinator.userClose).toHaveBeenCalledExactlyOnceWith("w-tasks");
+
+    update({ tabs: TABS.filter(tab => tab.id !== "tab:tasks"), activeTabId: "tab:split" });
+    expect(screen.queryByTestId("os-tab-tab:tasks")).toBeNull();
+    expect(screen.getByTestId("os-tab-tab:split")).toHaveFocus();
+  });
+
+  it("Should hand focus to the active tab when a tab closes by its focused X button [R3-08]", async () => {
+    const user = userEvent.setup();
+    const { coordinator, update } = renderBar();
+    const stops = () =>
+      within(screen.getByTestId("os-tab-bar"))
+        .getAllByRole("tab")
+        .map(element => element.tabIndex);
+
+    // Focus rests on a tab that is not the active one, then moves to another tab's X.
+    act(() => screen.getByTestId("os-tab-tab:dash").focus());
+    const vaultClose = screen
+      .getByTestId("os-tab-tab:vault")
+      .closest('[data-slot="os-tab"]')!
+      .querySelector<HTMLElement>('[data-slot="os-tab-close"]')!;
+    await user.click(vaultClose);
+    expect(coordinator.userClose).toHaveBeenCalledExactlyOnceWith("w-vault");
+
+    update({ tabs: TABS.filter(tab => tab.id !== "tab:vault") });
+    // The active tab, not the tab focused before the X, takes focus and the one stop.
+    expect(screen.getByTestId("os-tab-tab:tasks")).toHaveFocus();
+    expect(stops()).toEqual([-1, 0, -1]);
+  });
+
+  it("Should hand focus on once a closing tab's menu lets focus go, and never take it from the menu [R3-08]", async () => {
+    const { update } = renderBar();
+    // Stands in for the tab's menu outliving its tab for a moment while it closes.
+    const menu = document.createElement("div");
+    menu.setAttribute("role", "menu");
+    const item = document.createElement("button");
+    item.setAttribute("role", "menuitem");
+    menu.append(item);
+    document.body.append(menu);
+
+    act(() => screen.getByTestId("os-tab-tab:tasks").focus());
+    act(() => item.focus());
+    update({ tabs: TABS.filter(tab => tab.id !== "tab:tasks"), activeTabId: "tab:split" });
+    expect(item).toHaveFocus();
+
+    act(() => menu.remove());
+    await waitFor(() => expect(screen.getByTestId("os-tab-tab:split")).toHaveFocus());
+  });
+
+  it("Should return focus to the tab a menu opened by keyboard came from when Escape closes it [F9]", async () => {
+    const user = userEvent.setup();
+    renderBar();
+    // A tab that is not the active one, so it is off the bar's stop while its menu holds focus.
+    const dash = screen.getByTestId("os-tab-tab:dash");
+
+    act(() => dash.focus());
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    await waitFor(() =>
+      expect(screen.getByRole("menu").contains(document.activeElement)).toBe(true)
+    );
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(dash).toHaveFocus());
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByTestId("os-tab-tab:tasks")).toHaveFocus();
+  });
+
+  it("Should return focus to the tab a right-click menu came from when Escape closes it [F9]", async () => {
+    const user = userEvent.setup();
+    renderBar();
+    const vault = screen.getByTestId("os-tab-tab:vault");
+
+    act(() => screen.getByRole("button", { name: "Outside" }).focus());
+    fireEvent.contextMenu(vault);
+    await waitFor(() =>
+      expect(screen.getByRole("menu").contains(document.activeElement)).toBe(true)
+    );
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(vault).toHaveFocus());
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.getByTestId("os-tab-tab:split")).toHaveFocus();
+  });
+
+  it("Should leave focus in a menubar menu that took it while a tab's menu was closing [E2E-013]", async () => {
+    renderBar();
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:vault"));
+    const tabMenu = await screen.findByRole("menu");
+    await waitFor(() => expect(tabMenu.contains(document.activeElement)).toBe(true));
+    // The menubar's Window menu as it renders: a menu, but not a context menu.
+    const windowMenu = document.createElement("div");
+    windowMenu.setAttribute("role", "menu");
+    windowMenu.dataset.slot = "menubar-content";
+    const item = document.createElement("div");
+    item.setAttribute("role", "menuitem");
+    item.tabIndex = -1;
+    windowMenu.append(item);
+    document.body.append(windowMenu);
+
+    act(() => item.focus());
+    fireEvent.keyDown(tabMenu, { key: "Escape" });
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="context-menu-content"]')).toBeNull()
+    );
+
+    expect(item).toHaveFocus();
+    windowMenu.remove();
+  });
+
+  it("Should hand focus to the first tab when tabs remain but none is active [R3-08]", () => {
+    // The active tab's window is not projected, so the bar shows no active tab.
+    const ghost = solo("tab:ghost", "w-ghost");
+    const { update } = renderBar({
+      tabs: [solo("tab:tasks", "w-tasks"), solo("tab:vault", "w-vault"), ghost],
+      activeTabId: "tab:ghost",
+    });
+    expect(
+      within(screen.getByTestId("os-tab-bar"))
+        .getAllByRole("tab")
+        .map(element => element.getAttribute("aria-selected"))
+    ).toEqual(["false", "false"]);
+
+    act(() => screen.getByTestId("os-tab-tab:vault").focus());
+    update({ tabs: [solo("tab:tasks", "w-tasks"), ghost], activeTabId: "tab:ghost" });
+    expect(screen.getByTestId("os-tab-tab:tasks")).toHaveFocus();
+  });
+
+  it("Should hand focus to New tab when the focused tab was the last one [R2-11]", () => {
+    const { update } = renderBar({ tabs: [solo("tab:tasks", "w-tasks")] });
+
+    act(() => screen.getByTestId("os-tab-tab:tasks").focus());
+    update({ tabs: [] });
+    expect(screen.getByRole("button", { name: /^New tab/ })).toHaveFocus();
+  });
+
+  it("Should run bulk closes from the tab menu and offer Unpin instead of Close on a pinned tab", async () => {
+    const user = userEvent.setup();
+    const { manager } = renderBar();
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
+    await openSubmenu(user, "os-tab-close-menu-tab:split");
+    await user.click(await screen.findByRole("menuitem", { name: "Tabs to the left" }));
+    expect(manager.closeWindowScoped).toHaveBeenCalledWith("w-agents", "left");
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="context-menu-content"]')).toBeNull()
+    );
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:dash"));
+    expect(await screen.findByRole("menuitem", { name: "Unpin tab" })).toBeInTheDocument();
+    // "Close tab" may carry its shortcut in the name; the Close ▸ trigger must not match.
+    expect(screen.queryByRole("menuitem", { name: /^Close tab/ })).toBeNull();
+    // Every other tab is unpinned and to its right: a close that reaches nothing is absent
+    // (US-006.EC-4, `_uiux.md` S7), while the ones that reach tabs stay.
+    const close = await openSubmenu(user, "os-tab-close-menu-tab:dash");
+    expect(itemNames(close)).toEqual(["Other tabs", "Tabs to the right", "All tabs"]);
+  });
+
+  it("Should leave out bulk closes that reach no tab on a bar of one unpinned tab [US-006.EC-4]", async () => {
+    const user = userEvent.setup();
+    renderBar({ tabs: [solo("tab:tasks", "w-tasks")] });
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
+    const menu = await screen.findByRole("menu");
+    // Nothing to move, split with or arrange: those submenus are gone, not left empty.
+    expect(itemNames(menu)).toEqual(["Pin tab", "Close tab", "Close", "Reopen closed tab"]);
+    expect(screen.queryByTestId("os-tab-move-menu-tab:tasks")).toBeNull();
+    expect(screen.queryByTestId("os-tab-split-with-menu-tab:tasks")).toBeNull();
+    expect(screen.queryByTestId("os-tab-arrange-menu-tab:tasks")).toBeNull();
+    // The tab itself is unpinned, so "All tabs" still closes something; nothing else does.
+    const close = await openSubmenu(user, "os-tab-close-menu-tab:tasks");
+    expect(itemNames(close)).toEqual(["All tabs"]);
+  });
+
+  it("Should offer Reopen closed tab only while a closed entry exists [US-006.EC-4]", async () => {
+    const user = userEvent.setup();
+    const { manager } = renderBar({ closedEntryCount: 1 });
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
+    await user.click(await screen.findByRole("menuitem", { name: /^Reopen closed tab/ }));
+    expect(manager.reopenWindow).toHaveBeenCalledOnce();
+  });
+
+  it("Should leave Reopen closed tab out of the menu when nothing was closed [US-006.EC-4]", async () => {
+    renderBar({ closedEntryCount: 0 });
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
+    expect(await screen.findByRole("menuitem", { name: "Pin tab" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /^Reopen closed tab/ })).toBeNull();
+  });
+
+  it("Should move a tab one step within its range and leave out moves past the range [US-012]", async () => {
+    const user = userEvent.setup();
+    const { manager } = renderBar();
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
+    // The first regular tab cannot move among the pins; with one desktop there is no To desktop.
+    let move = await openSubmenu(user, "os-tab-move-menu-tab:tasks");
+    expect(itemNames(move)).toEqual(["Right"]);
+    await user.click(within(move).getByRole("menuitem", { name: "Right" }));
+    expect(manager.moveTab).toHaveBeenCalledExactlyOnceWith("w-tasks", "right");
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="context-menu-content"]')).toBeNull()
+    );
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:vault"));
+    move = await openSubmenu(user, "os-tab-move-menu-tab:vault");
+    expect(itemNames(move)).toEqual(["Left"]);
+    await user.click(within(move).getByRole("menuitem", { name: "Left" }));
+    expect(manager.moveTab).toHaveBeenLastCalledWith("w-vault", "left");
+    // A submenu item hands focus back to the tab the menu came from, off the bar's one stop.
+    await waitFor(() => expect(screen.getByTestId("os-tab-tab:vault")).toHaveFocus());
+  });
+
+  it("Should group the tab menu into Move, Split with, Arrange and Close submenus", async () => {
+    const user = userEvent.setup();
+    const { manager } = renderBar({ secondDesktop: true });
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
+    const menu = await screen.findByRole("menu");
+    expect(itemNames(menu)).toEqual([
+      "Pin tab",
+      "Move",
+      "Split with",
+      "Arrange",
+      "Close tab",
+      "Close",
+      "Reopen closed tab",
+    ]);
+    expect(within(menu).getAllByRole("separator")).toHaveLength(2);
+
+    // Move ▸: the steps, then every other desktop by name under To desktop.
+    const move = await openSubmenu(user, "os-tab-move-menu-tab:split");
+    expect(itemNames(move)).toEqual(["Left", "Right", "Review"]);
+    expect(within(move).getByText("To desktop")).toBeInTheDocument();
+    await user.click(within(move).getByRole("menuitem", { name: "Review" }));
+    expect(manager.moveWindowToDesktop).toHaveBeenCalledExactlyOnceWith(
+      "w-agents",
+      "desktop:review"
+    );
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="context-menu-content"]')).toBeNull()
+    );
+
+    // Close ▸ on a middle tab: every bulk close reaches a tab.
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
+    const close = await openSubmenu(user, "os-tab-close-menu-tab:split");
+    expect(itemNames(close)).toEqual([
+      "Other tabs",
+      "Tabs to the right",
+      "Tabs to the left",
+      "All tabs",
+    ]);
+  });
+
+  it("Should split with another tab and arrange or balance from the tab menu [US-012.AC-3, AC-4]", async () => {
+    const user = userEvent.setup();
+    const { manager } = renderBar();
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
+    act(() => screen.getByTestId("os-tab-split-with-menu-tab:tasks").focus());
+    await user.keyboard("{ArrowRight}");
+    // Every other tab is offered, never the tab itself.
+    expect(await screen.findByTestId("os-tab-split-with-tab:vault")).toBeInTheDocument();
+    expect(screen.queryByTestId("os-tab-split-with-tab:tasks")).toBeNull();
+    await user.click(screen.getByTestId("os-tab-split-with-tab:vault"));
+    expect(manager.splitWithTab).toHaveBeenCalledExactlyOnceWith("tab:tasks", "tab:vault");
+
+    // The split tab's menu opens while the first one may still be leaving: once only one menu is
+    // left, the closed menu's return focus must not have pulled focus out of the open one.
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
+    const arrange = screen.getByTestId("os-tab-arrange-menu-tab:split");
+    act(() => arrange.focus());
+    await waitFor(() => expect(screen.getAllByRole("menu")).toHaveLength(1));
+    expect(arrange).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    const grid = await screen.findByRole("menuitem", { name: "Grid" });
+    expect(itemNames(grid.closest<HTMLElement>('[role="menu"]')!)).toEqual([
+      "Main and stack",
+      "Columns",
+      "Grid",
+      "Balance sizes",
+    ]);
+    await user.click(grid);
+    expect(manager.arrangeLayout).toHaveBeenCalledExactlyOnceWith("w-agents", "grid");
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
+    act(() => screen.getByTestId("os-tab-arrange-menu-tab:split").focus());
+    await user.keyboard("{ArrowRight}");
+    await user.click(await screen.findByRole("menuitem", { name: "Balance sizes" }));
+    expect(manager.balanceTab).toHaveBeenCalledExactlyOnceWith("tab:split");
+  });
+
+  it("Should offer no retired window control in the tab menu [US-018.AC-1]", async () => {
+    renderBar();
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
+    await screen.findByRole("menuitem", { name: "Pin tab" });
+    for (const retired of [/minimi[sz]e/i, /zoom/i, /float/i, /maximi[sz]e/i, /corner|quarter/i]) {
+      expect(screen.queryByRole("menuitem", { name: retired })).toBeNull();
+    }
+  });
+
+  it("Should open a New Tab after the active tab and raise its destination picker", async () => {
+    const { coordinator } = renderBar();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^New tab/ }));
+    });
+
+    expect(coordinator.userOpen).toHaveBeenCalledWith({ app: "new-tab", afterWindowId: "w-tasks" });
+    expect(windowManagerStore.getSnapshot().context.paletteIntent).toEqual({
+      kind: "destination",
+      windowId: "w-new",
+    });
+  });
+
+  it("Should show the overflow list only once tabs at the floor no longer fit", () => {
+    stripWidth = 1200;
+    renderBar();
+    expect(screen.queryByRole("button", { name: "All 4 tabs" })).toBeNull();
+  });
+
+  it("Should list every tab in the overflow menu when the strip is too narrow", async () => {
+    const user = userEvent.setup();
+    stripWidth = 120;
+    const { coordinator } = renderBar();
+
+    await user.click(screen.getByRole("button", { name: "All 4 tabs" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Vault" }));
+
+    expect(coordinator.userFocus).toHaveBeenCalledWith("w-vault");
+  });
+
+  it("Should mark each session tab with its agent's face and keep the generic mark without one [#1709]", async () => {
+    const sessionWindow = (id: string, sessionId: string): WindowManagerWindow => ({
+      ...win(id, "session", `tab:${id}`),
+      instanceKey: sessionId,
+      route: { pathname: `/sessions/${sessionId}`, search: {} },
+    });
+    const session = (id: string, agentName: string): SessionPayload => ({
+      ...primarySessionFixture,
+      id,
+      name: id,
+      agent_name: agentName,
+      workspace_id: "ws-compozy",
+      profile_name: "default",
+    });
+    sessionRows = [
+      session("sess-main", "maestro"),
+      session("sess-review", "reviewer"),
+      session("sess-plain", ""),
+    ];
+    // An open session older than the list's first page: its window's detail read holds it.
+    const { result: scope } = renderHook(() => useProfileReadScopeParams(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    queryClient.setQueryData(
+      sessionScopedDetailOptions("sess-old", scope.current).queryKey,
+      session("sess-old", "reviewer")
+    );
+    // A cold one: nothing cached, so its detail is fetched once the list has answered.
+    fetchSessionById.mockImplementation(async id => session(id, "reviewer"));
+    instanceRows = [
+      agentInstanceFixture({
+        agent_name: "maestro",
+        label: "Maestro",
+        main_session_id: "sess-main",
+        resolved_appearance: { version: 1, avatar: "icon", icon: "crown", color: "#e0a030" },
+      }),
+    ];
+    agentCatalog = [
+      {
+        name: "reviewer",
+        label: "Code Reviewer",
+        resolved_appearance: {
+          version: 1,
+          avatar: "icon",
+          icon: "search-check",
+          color: "#3a7bd5",
+        },
+      },
+    ];
+    const sessionWindows = [
+      sessionWindow("w-main", "sess-main"),
+      sessionWindow("w-review-session", "sess-review"),
+      sessionWindow("w-plain", "sess-plain"),
+      sessionWindow("w-old", "sess-old"),
+      sessionWindow("w-cold", "sess-cold"),
+    ];
+    renderBar({
+      tabs: [...TABS, ...sessionWindows.map(item => solo(`tab:${item.id}`, item.id))],
+      extraWindows: sessionWindows,
+    });
+
+    const markOf = (tabId: string) =>
+      screen
+        .getByTestId(`os-tab-${tabId}`)
+        .querySelector<HTMLElement>('[data-slot="agent-avatar"]');
+    const main = markOf("tab:w-main");
+    const review = markOf("tab:w-review-session");
+
+    // The always-on main shows its instance's avatar, background plate and glyph together.
+    expect(main).toHaveAttribute("aria-label", "Maestro");
+    expect(main?.querySelector('[data-background="plate"]')).not.toBeNull();
+    expect(main?.querySelector("use")?.getAttribute("href")).toMatch(/#crown$/);
+    // Another agent's session shows that agent's configured icon, not the always-on face.
+    expect(review).toHaveAttribute("aria-label", "Code Reviewer");
+    expect(review?.querySelector('[data-background="plate"]')).not.toBeNull();
+    expect(review?.querySelector("use")?.getAttribute("href")).toMatch(/#search-check$/);
+    // A session missing from the list still shows its agent, from the detail its window reads,
+    // cached or fetched; a listed session never reads its detail.
+    expect(markOf("tab:w-old")).toHaveAttribute("aria-label", "Code Reviewer");
+    await waitFor(() =>
+      expect(markOf("tab:w-cold")).toHaveAttribute("aria-label", "Code Reviewer")
+    );
+    const fetched = fetchSessionById.mock.calls.map(([id]) => id);
+    expect(fetched).toContain("sess-cold");
+    expect(fetched).not.toContain("sess-main");
+    expect(fetched).not.toContain("sess-review");
+    expect(fetched).not.toContain("sess-plain");
+    // A session with no agent and every non-session tab keep their generic mark.
+    expect(markOf("tab:w-plain")).toBeNull();
+    expect(markOf("tab:tasks")).toBeNull();
+    expect(markOf("tab:split")).toBeNull();
+  });
+  it("Should keep the tab session lookup while its sessions are unchanged [#1736]", () => {
+    const session = (id: string, name: string): SessionPayload => ({
+      ...primarySessionFixture,
+      id,
+      name,
+    });
+    sessionRows = [session("sess-a", "Alpha"), session("sess-b", "Beta")];
+    const { result, rerender } = renderHook(
+      ({ ids }: { ids: readonly string[] }) => useTabSessions(ids),
+      {
+        initialProps: { ids: ["sess-a"] as readonly string[] },
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    const first = result.current;
+    expect(first.get("sess-a")?.name).toBe("Alpha");
+
+    // A re-render that reads the same sessions (a tab switch) hands every tab the same lookup.
+    rerender({ ids: ["sess-a"] });
+    expect(result.current).toBe(first);
+
+    // A changed session is a new lookup that shows the change.
+    sessionRows = [session("sess-a", "Alpha renamed"), sessionRows[1]!];
+    rerender({ ids: ["sess-a"] });
+    expect(result.current).not.toBe(first);
+    expect(result.current.get("sess-a")?.name).toBe("Alpha renamed");
+  });
+});

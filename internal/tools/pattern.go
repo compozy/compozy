@@ -66,7 +66,15 @@ func (p ToolPattern) Match(id ToolID) bool {
 		return false
 	}
 	if p.wildcard {
-		return strings.HasPrefix(id.String(), p.prefix)
+		remainder, matches := strings.CutPrefix(id.String(), p.prefix)
+		if !matches {
+			return false
+		}
+		// A legacy tool prefix of raw_* stops at the dedicated encoding segment.
+		legacyToolPrefix := strings.HasPrefix(p.prefix, mcpNamespace+"__") &&
+			strings.HasSuffix(p.prefix, "__"+mcpRawToolSegment+"_") &&
+			strings.Count(p.prefix, "__") == 2
+		return !legacyToolPrefix || !strings.HasPrefix(remainder, "_x")
 	}
 	return p.exact == id
 }

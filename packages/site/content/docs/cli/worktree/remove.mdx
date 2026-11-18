@@ -8,13 +8,14 @@ description: "Remove a worktree"
 Remove a worktree
 
 ```
-compozy worktree remove <ref> | --path <path> [flags]
+compozy worktree remove <ref> [<ref>...] | --path <path> [flags]
 ```
 
 ### Options
 
 ```
       --delete-branch      Also delete the local branch; root HEAD and default branches are kept, unmerged ones need --force
+      --dry-run            Preview per-target risk without removing worktrees or running hooks
       --force              Confirm destructive removal; with --delete-branch, also delete an unmerged branch
   -h, --help               help for remove
       --path string        Remove a discovered (not adopted) worktree by its listed path; its branch is kept
@@ -43,5 +44,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy worktree remove <ref> | --path <path> -o json
+compozy worktree remove <ref> [<ref>...] | --path <path> -o json
 ```

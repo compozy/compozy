@@ -48,6 +48,13 @@ export type Action = {
   view?: string;
 };
 
+export type ActionDecl = {
+  auto_accept: boolean;
+  id: string;
+  instructions: string;
+  title: string;
+};
+
 export type ActivityCost = {
   scope: string;
   tokens: number;
@@ -196,8 +203,11 @@ export type AgentDraftRuntime = {
 
 export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
+  auto_compact_window?: number | null;
+  lean_environment?: boolean | null;
   model?: string;
   permissions?: string;
+  policy_excluded_acp_options?: Array<AgentACPOptionSelection>;
   provider: string;
   reasoning_effort?: string;
   session_env?: {
@@ -256,8 +266,12 @@ export type AgentInstanceCheckInPayload = {
   created_at: string;
   detail?: string;
   id: string;
+  occurrence_id: string;
+  proposals: CheckInProposalSummary;
   reason: string;
   result: string;
+  tool_calls: Array<CheckInToolCall>;
+  tools_status: string;
 };
 
 export type AgentInstanceCheckInsResponse = {
@@ -305,6 +319,8 @@ export type AgentInstanceOccurrenceResponse = {
 export type AgentInstancePayload = {
   activity: string;
   agent_name: string;
+  attention_dismissible: boolean;
+  authority_status: string;
   checks_enabled: boolean;
   created: boolean;
   created_at: string;
@@ -337,16 +353,40 @@ export type AgentInstancePayload = {
 };
 
 export type AgentInstancePeer = {
+  accepts?: Array<string>;
   description: string;
   name: string;
   scope: string;
   state: string;
 };
 
+export type AgentInstancePickRequest = {
+  proposal: number | null;
+};
+
+export type AgentInstancePickResponse = {
+  pick: Pick;
+};
+
 export type AgentInstanceProposal = {
+  action?: AgentInstanceProposalAction | null;
+  auto_accept_status:
+    | "picked"
+    | "limit"
+    | "queue_full"
+    | "unapproved"
+    | "no_main"
+    | "inactive"
+    | "none";
   body: string;
   item_keys: Array<string>;
   sources?: Array<AgentInstanceProposalSource>;
+  title: string;
+};
+
+export type AgentInstanceProposalAction = {
+  auto_accept: boolean;
+  id: string;
   title: string;
 };
 
@@ -367,9 +407,13 @@ export type AgentInstanceReportPayload = {
   cause?: string;
   created_at: string;
   detail?: string;
+  diagnostics?: Array<string>;
   expired_by?: string;
   id: string;
   kind: string;
+  occurrence_id?: string;
+  picks: Array<Pick>;
+  picks_tracked: boolean;
   proposals?: Array<AgentInstanceProposal>;
   reason?: string;
   resource?: string;
@@ -379,6 +423,7 @@ export type AgentInstanceReportPayload = {
   source?: AgentInstanceReportSource | null;
   state: string;
   tool?: string;
+  tool_calls: CheckInToolSummary;
 };
 
 export type AgentInstanceReportSource = {
@@ -420,15 +465,41 @@ export type AgentLimitsPayload = {
   spawn_blocked_reason?: string;
 };
 
-export type AgentMCPServerJSON = {
+export type AgentMCPServerInput = {
   args?: Array<string>;
-  auth?: SettingsMCPAuthConfigViewPayload | null;
+  auth?: SettingsMCPAuthConfigPayload | null;
   command?: string;
   env?: {
     [key: string]: string;
   };
   name: string;
+  read_only_tools?: Array<string>;
+  reference?: boolean;
   secret_env?: {
+    [key: string]: string;
+  };
+  secret_headers?: {
+    [key: string]: string;
+  };
+  transport?: string;
+  url?: string;
+};
+
+export type AgentMCPServerJSON = {
+  args?: Array<string>;
+  auth?: SettingsMCPAuthConfigViewPayload | null;
+  broken_reference?: boolean;
+  command?: string;
+  env?: {
+    [key: string]: string;
+  };
+  name: string;
+  read_only_tools?: Array<string>;
+  reference?: boolean;
+  secret_env?: {
+    [key: string]: string;
+  };
+  secret_headers?: {
     [key: string]: string;
   };
   transport?: string;
@@ -450,6 +521,7 @@ export type AgentMeResponse = {
 };
 
 export type AgentMemoryAddRequest = {
+  kind?: string;
   text: string;
   until?: string;
 };
@@ -537,10 +609,12 @@ export type AgentNotifyResponse = {
 };
 
 export type AgentPayload = {
+  accepts?: Array<string>;
   acp_options?: Array<AgentACPOptionSelection>;
   appearance?: {
     [key: string]: unknown;
   };
+  auto_compact_window?: number | null;
   category_path?: Array<string>;
   command?: string;
   definition_digest: string;
@@ -553,6 +627,7 @@ export type AgentPayload = {
   kind?: string;
   label: string;
   layer?: string;
+  lean_environment?: boolean | null;
   mcp_servers?: Array<AgentMCPServerJSON>;
   model?: string;
   name: string;
@@ -598,6 +673,7 @@ export type AgentProbeHealthPayload = {
 
 export type AgentResponse = {
   agent: AgentPayload;
+  warnings?: Array<string>;
 };
 
 export type AgentSessionMetricsPayload = {
@@ -948,6 +1024,7 @@ export type AttentionNotificationPayload = {
   finished: boolean;
   generation: number;
   id: string;
+  instance_id?: string;
   item_index: number;
   kind: string;
   loop_name?: string;
@@ -956,6 +1033,7 @@ export type AttentionNotificationPayload = {
   redacted: boolean;
   request_kind?: string;
   run_id?: string;
+  session_type?: string;
   source_id: string;
   terminal_id?: string;
   title: string;
@@ -1076,6 +1154,11 @@ export type BindSessionWorktreeRequest = {
   worktree: string;
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type BindingsConfig = {
   bottom_center: string;
   top_center: string;
@@ -1139,7 +1222,12 @@ export type BulkForceTaskRunResponse = {
 export type BusyInputState = {
   default_mode: string;
   steer_capability: "steer_ext" | "concurrent_prompt" | "none";
-  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+  steer_delivery?:
+    | "injected"
+    | "pending_injection"
+    | "pending_boundary"
+    | "after_turn"
+    | "interrupt_fallback";
 };
 
 export type CancelTaskRequest = {
@@ -1162,14 +1250,103 @@ export type CatalogMeta = {
   use_when?: string;
 };
 
+export type ChangeBasePayload = {
+  merge_base_sha: string;
+  ref: string;
+  source: string;
+};
+
+export type ChangeBaseRefPayload = {
+  is_default?: boolean;
+  kind: string;
+  ref: string;
+  source?: string;
+};
+
+export type ChangeHeadPayload = {
+  branch: string;
+  sha: string;
+};
+
+export type ChangePatchPayload = {
+  fingerprint: string;
+  patch?: string;
+  path: string;
+  sensitive?: boolean;
+  too_large?: boolean;
+};
+
 export type ChangeSet = {
   client_ids?: Array<string>;
   desktop_ids?: Array<string>;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   group_ids?: Array<string>;
   node_ids?: Array<string>;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   stack_grouped?: Array<string>;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   stack_ungrouped?: Array<string>;
+  tab_ids?: Array<string>;
+  tab_split?: Array<string>;
+  tab_unsplit?: Array<string>;
   window_ids?: Array<string>;
+};
+
+export type ChangeSidePayload = {
+  sensitive?: boolean;
+  text?: string | null;
+};
+
+export type ChangeTotalsPayload = {
+  additions: number;
+  deletions: number;
+  files: number;
+  partial?: boolean;
+};
+
+export type CheckInProposalSummary = {
+  auto_accepted: number;
+  waiting: number;
+};
+
+export type CheckInToolCall = {
+  access: string;
+  args_preview?: string;
+  backend: string;
+  decision: string;
+  deny_reason?: string;
+  duration_ms: number;
+  effect: string;
+  error_code?: string;
+  mcp_server?: string;
+  outcome: string;
+  seq: number;
+  tool_id: string;
+};
+
+export type CheckInToolSummary = {
+  denied: number;
+  total: number;
+  writes_done: number;
+  writes_maybe: number;
+};
+
+export type CheckInsPolicy = {
+  allow_writes?: Array<string>;
+  max_tool_calls?: number | null;
+  max_write_calls?: number | null;
 };
 
 export type Chip = {
@@ -1482,6 +1659,9 @@ export type ContractWindowManagerClientRegistration = {
 
 export type ContractWindowManagerClientView = {
   active_desktop_id: string;
+  active_tab: {
+    [key: string]: string;
+  };
   attachment_token?: string;
   client_id: string;
   connected_at: string;
@@ -1492,6 +1672,11 @@ export type ContractWindowManagerClientView = {
   kind: string;
   palette_context: WindowManagerPaletteContext;
   presentation_revision: number;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   stack_active: {
     [key: string]: string;
   };
@@ -1526,6 +1711,8 @@ export type ContractWindowManagerCommandRequest = {
     | "window.stack.set_active"
     | "window.pin"
     | "window.reopen"
+    | "window.tab.reorder"
+    | "window.tab.activate"
     | "layout.arrange"
     | "layout.resize"
     | "layout.frame_resize"
@@ -1541,12 +1728,11 @@ export type ContractWindowManagerCommandRequest = {
 };
 
 export type ContractWindowManagerDesktop = {
-  floating: Array<string>;
-  floating_stacks: Array<WindowManagerFloatingStack>;
-  groups: Array<ContractWindowManagerLayoutGroup>;
+  active_tab_id: string;
   id: string;
   name: string;
   order: number;
+  tabs: Array<ContractWindowManagerTab>;
 };
 
 export type ContractWindowManagerErrorPayload = {
@@ -1584,12 +1770,6 @@ export type ContractWindowManagerLayoutDocument = {
   workspace_id: string;
 };
 
-export type ContractWindowManagerLayoutGroup = {
-  frame: NormalizedRect;
-  id: string;
-  root: WindowManagerLayoutNode;
-};
-
 export type ContractWindowManagerLayoutReplaceRequest = {
   actor: WindowManagerActor;
   client_id?: string | null;
@@ -1606,6 +1786,7 @@ export type ContractWindowManagerLayoutValidationRequest = {
 
 export type ContractWindowManagerLayoutValidationResponse = {
   diagnostics?: Array<Diagnostic>;
+  document?: ContractWindowManagerLayoutDocument | null;
   valid: boolean;
   workspace_id: string;
 };
@@ -1614,6 +1795,7 @@ export type ContractWindowManagerPreview = {
   changed: boolean;
   changes: ChangeSet;
   client?: ContractWindowManagerClientView | null;
+  deprecations: Array<Deprecation>;
   diagnostics?: Array<Diagnostic>;
   snapshot: ContractWindowManagerSnapshot;
 };
@@ -1622,6 +1804,7 @@ export type ContractWindowManagerResult = {
   applied: boolean;
   changes: ChangeSet;
   client?: ContractWindowManagerClientView | null;
+  deprecations: Array<Deprecation>;
   diagnostics?: Array<Diagnostic>;
   rebased_from?: number;
   snapshot: ContractWindowManagerSnapshot;
@@ -1630,6 +1813,7 @@ export type ContractWindowManagerResult = {
 export type ContractWindowManagerSnapshot = {
   closed_entry_count: number;
   desktops: Array<ContractWindowManagerDesktop>;
+  migration?: MigrationStatus | null;
   overrides: WorkspaceConfig;
   revision: number;
   updated_at: string;
@@ -1638,6 +1822,12 @@ export type ContractWindowManagerSnapshot = {
     [key: string]: WindowManagerWindow;
   };
   workspace_id: string;
+};
+
+export type ContractWindowManagerTab = {
+  id: string;
+  pinned: boolean;
+  root: WindowManagerLayoutNode;
 };
 
 export type CoordinatorConfigPayload = {
@@ -1676,6 +1866,7 @@ export type CreateAgentPayload = {
   appearance?: {
     [key: string]: unknown;
   };
+  auto_compact_window?: number | null;
   category_path?: Array<string>;
   command?: string;
   deny_tools?: Array<string>;
@@ -1683,10 +1874,12 @@ export type CreateAgentPayload = {
   display_name?: string | null;
   fallback_chain?: Array<AgentFallbackRoutePayload>;
   /**
-   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
    */
-  kind?: "on_demand" | "always_on" | "stays_on";
+  kind?: "on_demand" | "always_on";
   label?: string;
+  lean_environment?: boolean | null;
+  mcp_servers?: Array<AgentMCPServerInput>;
   model?: string;
   name: string;
   permission_rules?: Array<AgentPermissionRulePayload>;
@@ -1865,9 +2058,16 @@ export type DaemonIdentityPayload = {
   http_host: string;
   http_port: number;
   pid: number;
+  readiness?: DaemonReadinessPayload | null;
   started_at: string;
   user_home_dir: string;
   version: string;
+};
+
+export type DaemonReadinessPayload = {
+  phase: string;
+  since: string;
+  step?: string;
 };
 
 export type DaemonStatusPayload = {
@@ -1877,6 +2077,7 @@ export type DaemonStatusPayload = {
   http_port: number;
   min_app_version: string;
   pid: number;
+  readiness?: DaemonReadinessPayload | null;
   schema_streams: Array<SchemaStreamStatus>;
   socket: string;
   started_at: string;
@@ -1913,6 +2114,14 @@ export type DeleteProfileResponse = {
 
 export type DeleteResourceRequest = {
   expected_version: number;
+};
+
+export type Deprecation = {
+  code: string;
+  message: string;
+  removal_release: string;
+  replacement?: string;
+  surface: string;
 };
 
 export type DetailBody = {
@@ -2000,6 +2209,7 @@ export type DuplicateAgentOverrides = {
   appearance?: {
     [key: string]: unknown;
   };
+  auto_compact_window?: number | null;
   category_path?: Array<string>;
   clear_acp_options?: boolean;
   clear_speed?: boolean;
@@ -2008,9 +2218,10 @@ export type DuplicateAgentOverrides = {
   description?: string | null;
   display_name?: string | null;
   /**
-   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
    */
-  kind?: "on_demand" | "always_on" | "stays_on";
+  kind?: "on_demand" | "always_on";
+  lean_environment?: boolean | null;
   model?: string;
   permission_rules?: Array<AgentPermissionRulePayload>;
   permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
@@ -2030,9 +2241,9 @@ export type DuplicateAgentOverrides = {
 
 export type DuplicateAgentRequest = {
   /**
-   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
    */
-  kind?: "on_demand" | "always_on" | "stays_on";
+  kind?: "on_demand" | "always_on";
   name: string;
   overrides?: DuplicateAgentOverrides | null;
   scope?: "workspace" | "global";
@@ -2093,6 +2304,7 @@ export type Error = {
 
 export type ErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -2101,6 +2313,8 @@ export type ErrorPayload = {
   };
   diagnostic?: DiagnosticItem | null;
   error: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -2157,6 +2371,11 @@ export type ExtensionDeclaredProfilePayload = {
   exists: boolean;
   name: string;
   needs_setup: boolean;
+};
+
+export type ExtensionEnableError = {
+  code: string;
+  error: string;
 };
 
 export type ExtensionEnablePreviewPayload = {
@@ -2425,6 +2644,115 @@ export type FanoutRollup = {
   generation: number;
   node_id: string;
   total: number;
+};
+
+export type FileChangePayload = {
+  additions: number;
+  binary?: boolean;
+  deletions: number;
+  fingerprint: string;
+  generated?: boolean;
+  old_path?: string;
+  path: string;
+  sensitive?: boolean;
+  status: string;
+};
+
+export type FileContentResponse = {
+  image_base64?: string;
+  image_mime?: string;
+  kind: string;
+  language?: string;
+  path: string;
+  revision?: string;
+  root: FileRootPayload;
+  sensitive?: boolean;
+  size: number;
+  text?: string | null;
+  truncated: boolean;
+};
+
+export type FileEntriesResponse = {
+  entries: Array<FileEntryPayload>;
+  path: string;
+  root: FileRootPayload;
+  status_unavailable?: boolean;
+  truncated: boolean;
+};
+
+export type FileEntryPayload = {
+  contains_changes?: boolean;
+  git_status?: string;
+  ignored?: boolean;
+  kind: string;
+  name: string;
+  path: string;
+  sensitive?: boolean;
+  size?: number;
+  symlink?: boolean;
+};
+
+export type FileFindMatch = {
+  kind: string;
+  match_ranges: Array<Array<number>>;
+  path: string;
+  score: number;
+  sensitive?: boolean;
+};
+
+export type FileFindResponse = {
+  index_truncated: boolean;
+  indexed_files: number;
+  query: string;
+  results: Array<FileFindMatch>;
+  root: FileRootPayload;
+};
+
+export type FileRootPayload = {
+  branch?: string;
+  kind: string;
+  name: string;
+  workspace_id: string;
+  worktree_id?: string;
+};
+
+export type FileSearchFile = {
+  matches: Array<FileSearchMatch>;
+  path: string;
+  truncated_matches?: boolean;
+};
+
+export type FileSearchMatch = {
+  column: number;
+  line: number;
+  ranges: Array<Array<number>>;
+  text: string;
+  text_offset: number;
+};
+
+export type FileSearchQuery = {
+  case_sensitive: boolean;
+  exclude: Array<string>;
+  include: Array<string>;
+  pattern: string;
+  regex: boolean;
+  whole_word: boolean;
+};
+
+export type FileSearchResponse = {
+  engine: string;
+  files: Array<FileSearchFile>;
+  query: FileSearchQuery;
+  root: FileRootPayload;
+  sensitive_excluded: number;
+  timed_out: boolean;
+  totals: FileSearchTotals;
+  truncated: boolean;
+};
+
+export type FileSearchTotals = {
+  files: number;
+  matches: number;
 };
 
 export type FireLimitConfig = {
@@ -3322,6 +3650,16 @@ export type HeartbeatActorPayload = {
   ref?: string;
 };
 
+export type HeartbeatAuthorityPayload = {
+  actions: Array<ActionDecl>;
+  check_ins: CheckInsPolicy;
+  digest: string;
+  read_only_tools?: {
+    [key: string]: Array<string>;
+  };
+  status: string;
+};
+
 export type HeartbeatConfigProvenancePayload = {
   digest: string;
   subset: HeartbeatConfigSubsetPayload;
@@ -3353,6 +3691,8 @@ export type HeartbeatDeleteByPathRequest = {
 };
 
 export type HeartbeatFrontmatterPayload = {
+  actions: Array<ActionDecl>;
+  check_ins: CheckInsPolicy;
   context: HeartbeatContextProjectionPayload;
   enabled: boolean;
   preferences: HeartbeatFrontmatterPreferencesPayload;
@@ -3377,8 +3717,10 @@ export type HeartbeatMutationResponse = {
 };
 
 export type HeartbeatPolicyPayload = {
+  actions: Array<ActionDecl>;
   active: boolean;
   agent_name?: string;
+  authority: HeartbeatAuthorityPayload;
   config_digest?: string;
   config_provenance: HeartbeatConfigProvenancePayload;
   created_at?: string | null;
@@ -3422,6 +3764,7 @@ export type HeartbeatPromptContributionPayload = {
 };
 
 export type HeartbeatPutByPathRequest = {
+  approve_authority_sha256?: string;
   body: string;
   expected_digest: string;
   idempotency_key?: string;
@@ -3533,7 +3876,7 @@ export type HeartbeatWakeByPathRequest = {
   dry_run?: boolean;
   idempotency_key?: string;
   session_id: string;
-  source: "scheduler" | "manual" | "harness_reentry";
+  source: "timer" | "instance_check" | "scheduler" | "manual" | "harness_reentry";
   workspace_id?: string;
 };
 
@@ -3543,6 +3886,23 @@ export type HeartbeatWakeDecisionPayload = {
   policy_digest?: string;
   policy_snapshot_id?: string;
   reason:
+    | "quiet"
+    | "reported"
+    | "cancelled"
+    | "digest_empty"
+    | "digest_unchanged"
+    | "policy_disabled"
+    | "definition_not_always_on"
+    | "definition_missing"
+    | "no_slot"
+    | "hook_cancelled"
+    | "duplicate_suppressed"
+    | "triage_unsupported"
+    | "triage_output_invalid"
+    | "triage_timeout"
+    | "triage_interrupted"
+    | "triage_config_unavailable"
+    | "triage_failed"
     | "source_poll_in_flight"
     | "wake_sent"
     | "heartbeat_disabled"
@@ -3559,7 +3919,15 @@ export type HeartbeatWakeDecisionPayload = {
     | "session_prompt_active_race"
     | "synthetic_prompt_failed"
     | "wake_coalesced";
-  result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+  result:
+    | "quiet"
+    | "cancelled"
+    | "reported"
+    | "sent"
+    | "skipped"
+    | "coalesced"
+    | "rate_limited"
+    | "failed";
   synthetic_prompt_id?: string;
   wake_event_id?: string;
 };
@@ -3572,6 +3940,23 @@ export type HeartbeatWakeEventPayload = {
   id: string;
   policy_snapshot_id?: string;
   reason:
+    | "quiet"
+    | "reported"
+    | "cancelled"
+    | "digest_empty"
+    | "digest_unchanged"
+    | "policy_disabled"
+    | "definition_not_always_on"
+    | "definition_missing"
+    | "no_slot"
+    | "hook_cancelled"
+    | "duplicate_suppressed"
+    | "triage_unsupported"
+    | "triage_output_invalid"
+    | "triage_timeout"
+    | "triage_interrupted"
+    | "triage_config_unavailable"
+    | "triage_failed"
     | "source_poll_in_flight"
     | "wake_sent"
     | "heartbeat_disabled"
@@ -3588,9 +3973,17 @@ export type HeartbeatWakeEventPayload = {
     | "session_prompt_active_race"
     | "synthetic_prompt_failed"
     | "wake_coalesced";
-  result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+  result:
+    | "quiet"
+    | "cancelled"
+    | "reported"
+    | "sent"
+    | "skipped"
+    | "coalesced"
+    | "rate_limited"
+    | "failed";
   session_id?: string;
-  source: "scheduler" | "manual" | "harness_reentry";
+  source: "timer" | "instance_check" | "scheduler" | "manual" | "harness_reentry";
   synthetic_prompt_id?: string;
   workspace_id?: string;
 };
@@ -3603,6 +3996,23 @@ export type HeartbeatWakeStatePayload = {
   agent_name?: string;
   coalesced_count: number;
   last_reason?:
+    | "quiet"
+    | "reported"
+    | "cancelled"
+    | "digest_empty"
+    | "digest_unchanged"
+    | "policy_disabled"
+    | "definition_not_always_on"
+    | "definition_missing"
+    | "no_slot"
+    | "hook_cancelled"
+    | "duplicate_suppressed"
+    | "triage_unsupported"
+    | "triage_output_invalid"
+    | "triage_timeout"
+    | "triage_interrupted"
+    | "triage_config_unavailable"
+    | "triage_failed"
     | "source_poll_in_flight"
     | "wake_sent"
     | "heartbeat_disabled"
@@ -3619,7 +4029,15 @@ export type HeartbeatWakeStatePayload = {
     | "session_prompt_active_race"
     | "synthetic_prompt_failed"
     | "wake_coalesced";
-  last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+  last_result:
+    | "quiet"
+    | "cancelled"
+    | "reported"
+    | "sent"
+    | "skipped"
+    | "coalesced"
+    | "rate_limited"
+    | "failed";
   last_wake_at?: string | null;
   next_allowed_at?: string | null;
   policy_snapshot_id?: string;
@@ -3722,6 +4140,10 @@ export type InstallExtensionRequest = {
   allow_unverified?: boolean;
   asset?: string;
   confirm_gateway_digest?: string;
+  /**
+   * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
+   */
+  enable?: boolean;
   expected_digest?: string;
   inputs?: {
     [key: string]: Value;
@@ -3731,6 +4153,10 @@ export type InstallExtensionRequest = {
    */
   profile?: string;
   ref: string;
+  /**
+   * Replace the installed extension of the same name. Applies to local_path installs only, since published sources replace implicitly. The previous version stays installed only when the replacement fails before the reinstall transaction completes; a failure after it returns, such as enable failing, does not restore it. A marketplace-owned name is refused with extension_name_conflict. Replacing a package attached outside the caller's workspace requires operator authority.
+   */
+  replace?: boolean;
   /**
    * Overrides manifest server defaults. Mixed defaults require an explicit scope. A workspace default requires a workspace-bound caller or workspace_id.
    */
@@ -3744,6 +4170,16 @@ export type InstallExtensionRequest = {
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
+};
+
+export type InstallExtensionResponse = {
+  enable_error?: ExtensionEnableError | null;
+  extension: ExtensionPayload;
+};
+
+export type Inventory = {
+  generated_at: string;
+  runtimes: Array<Snapshot>;
 };
 
 export type JobPayload = {
@@ -4768,6 +5204,40 @@ export type MCPAuthSummary = {
   scopes?: Array<string>;
 };
 
+export type MCPReloadRecord = {
+  at: string;
+  outcome: string;
+  reason: string;
+};
+
+export type MCPServerApproval = {
+  definition_digest: string;
+  reason?: string;
+};
+
+export type MCPServerRow = {
+  approval?: MCPServerApproval | null;
+  args?: Array<string>;
+  callable_count: number;
+  command?: string;
+  name: string;
+  owner: string;
+  profile?: string;
+  reason: string;
+  scope?: string;
+  source: MCPServerSource;
+  state: string;
+  tool_count: number;
+  transport?: string;
+  url?: string;
+  workspace_id?: string;
+};
+
+export type MCPServerSource = {
+  kind: string;
+  path?: string;
+};
+
 export type MCPServerStatusPayload = {
   auth_status?: string;
   configured: boolean;
@@ -4782,6 +5252,12 @@ export type MCPServerStatusPayload = {
   tool_count?: number;
   transport?: string;
   workspace_id?: string;
+};
+
+export type MCPSummary = {
+  attention: number;
+  pending_reload: boolean;
+  usable: number;
 };
 
 export type ManagedExtensionRemovePayload = {
@@ -4803,6 +5279,12 @@ export type ManagedExtensionUpdatePayload = {
   slug: string;
   status: string;
   warnings?: Array<DiagnosticItem>;
+};
+
+export type MarketplaceCategoryCount = {
+  count: number;
+  id: string;
+  label: string;
 };
 
 export type MarketplaceCursorStalePayload = {
@@ -4844,6 +5326,7 @@ export type MarketplaceInputPayload = {
 };
 
 export type MarketplaceListResponse = {
+  categories: Array<MarketplaceCategoryCount>;
   error?: string;
   error_class?: string;
   items: Array<MarketplaceListingPayload>;
@@ -4857,9 +5340,12 @@ export type MarketplaceListResponse = {
 
 export type MarketplaceListingPayload = {
   author?: string;
+  category: string;
+  category_label: string;
   description: string;
   digest_sha256: string;
   entry_id: string;
+  featured: boolean;
   format?: string;
   icon?: string;
   install_blocker?: string;
@@ -4897,6 +5383,23 @@ export type MarketplaceRefreshSourcePayload = {
   error_class?: string;
   outcome: string;
   source: string;
+  stale: boolean;
+};
+
+export type MarketplaceSection = {
+  id: string;
+  items: Array<MarketplaceListingPayload>;
+  label: string;
+  total: number;
+};
+
+export type MarketplaceSectionsResponse = {
+  error?: string;
+  error_class?: string;
+  refreshing?: boolean;
+  revision: string;
+  sections: Array<MarketplaceSection>;
+  sources: Array<MarketplaceSourceSummary>;
   stale: boolean;
 };
 
@@ -4984,6 +5487,37 @@ export type MetricSpec = {
   min_delta?: number | null;
 };
 
+/**
+ * Layout migration status. A conversion diagnostic is present in error only when state is failed; a successful retry clears error.
+ */
+export type MigrationStatus = {
+  acknowledged: boolean;
+  at?: string;
+  error?: Diagnostic | null;
+  /**
+   * Topology revision installed on conversion failure; cleared after a successful retry.
+   */
+  failure_revision?: number;
+  from_version?: number;
+  state: "none" | "migrated" | "failed";
+  summary?: MigrationSummary | null;
+  /**
+   * Number of set-aside layout backups currently retained for this profile; omitted when zero.
+   */
+  superseded_backups?: number;
+};
+
+export type MigrationSummary = {
+  desktops: number;
+  floating_to_tabs: number;
+  islands_merged: number;
+  minimized_to_tabs: number;
+  pins_dropped: number;
+  tabs: number;
+  windows: number;
+  zoom_desktops_merged: number;
+};
+
 export type ModelCatalogCostPayload = {
   cache_read_per_million?: number | null;
   cache_write_per_million?: number | null;
@@ -5069,11 +5603,22 @@ export type NodeUsage = {
   tokens: number;
 };
 
-export type NormalizedRect = {
-  height: number;
-  width: number;
-  x: number;
-  y: number;
+export type OTelSignalStatusPayload = {
+  enabled: boolean;
+  failed_exports: number;
+  last_error_class?: string;
+  last_export_at?: string;
+};
+
+export type OTelStatusPayload = {
+  dropped_spans: number;
+  endpoint_host?: string;
+  forward_to_providers: boolean;
+  metrics: OTelSignalStatusPayload;
+  protocol?: string;
+  sample_ratio: number;
+  state: string;
+  traces: OTelSignalStatusPayload;
 };
 
 export type ObserveFailureHealthPayload = {
@@ -5400,6 +5945,17 @@ export type PermissionRollupResponse = {
   until: string;
 };
 
+export type Pick = {
+  action_id?: string;
+  actor: string;
+  picked_at: string;
+  proposal_index: number;
+  queue_entry_id: string;
+  report_id: string;
+  state: string;
+  target_session_id: string;
+};
+
 export type PickFilesEffect = {
   directories?: boolean;
 };
@@ -5692,6 +6248,7 @@ export type ProviderSummaryPayload = {
   auth_status: ProviderAuthStatusPayload;
   default: boolean;
   display_name?: string;
+  enabled: boolean;
   name: string;
   reviewer_mode: string;
   runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
@@ -5759,6 +6316,7 @@ export type ProviderUsageTarget = {
   account: ProviderUsageAccount | null;
   balances: Array<ProviderUsageBalance>;
   checked_at: string | null;
+  collector_id?: string;
   confidence: string;
   error: ProviderUsageError | null;
   measured_at: string | null;
@@ -5826,6 +6384,7 @@ export type PutSettingsHookRequest = {
 
 export type PutSettingsMCPServerRequest = {
   preserve_env?: Array<string>;
+  preserve_headers?: boolean;
   preserve_secrets?: SettingsMCPSecretPreservationPayload | null;
   secret_values?: SettingsMCPSecretValuesPayload | null;
   server: SettingsMCPServerPayload;
@@ -6014,6 +6573,18 @@ export type RemoveDiscoveredWorktreeRequest = {
   path: string;
 };
 
+export type RemoveWorktreesRequest = {
+  delete_branch?: boolean;
+  dry_run?: boolean;
+  force?: boolean;
+  targets: Array<WorktreeRemovalTarget>;
+};
+
+export type RemoveWorktreesResponse = {
+  dry_run: boolean;
+  results: Array<WorktreeRemovalResult>;
+};
+
 export type RenameProfilePlan = {
   dormant_placements: Array<ProfilePlacement>;
   machine_folders: Array<string>;
@@ -6193,6 +6764,16 @@ export type RestartProgress = {
   stage: string;
   total: number;
   updated_at: string;
+};
+
+export type ResultViewContract = {
+  digest?: string;
+  schema: unknown;
+};
+
+export type ResultViews = {
+  compact: ResultViewContract;
+  full: ResultViewContract;
 };
 
 export type ResumeSessionFromLaterRequest = {
@@ -6383,6 +6964,9 @@ export type RunOutcome = {
   actor_ref?: string;
   at: string;
   cause: string;
+  message?: string;
+  node_id?: string;
+  reason_code?: string;
   status: string;
 };
 
@@ -6547,10 +7131,37 @@ export type RuntimeLimits = {
   summary_max_bytes: number;
 };
 
+export type RuntimeMCPImportRequest = {
+  name?: string;
+  profile?: string;
+  scope?: "user" | "profile" | "workspace" | "agent";
+  workspace_id?: string;
+};
+
+export type RuntimeMCPImportResponse = {
+  mcp_server: SettingsMCPServerItemPayload;
+  notes: Array<string>;
+  partial: boolean;
+  source: Server;
+  warnings?: Array<string>;
+};
+
+export type RuntimeMCPRow = {
+  name: string;
+  scope: string;
+  state: string;
+  transport: string;
+};
+
 export type RuntimeMatch = {
   complexity?: string;
   id?: string;
   type?: string;
+};
+
+export type RuntimeMode = {
+  can_disable: boolean;
+  mode: string;
 };
 
 export type RuntimePolicy = {
@@ -6693,6 +7304,8 @@ export type SendPromptResultPayload = {
   entry_id?: string;
   estimated_send_at?: string | null;
   goal?: GoalCommandResult | null;
+  held_instance_id?: string;
+  held_reason?: string;
   idempotency_key: string;
   message_id: string;
   mode?: string;
@@ -6704,7 +7317,12 @@ export type SendPromptResultPayload = {
   replayed: boolean;
   reply_watch?: ReplyWatchRefPayload | null;
   status: string;
-  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+  steer_delivery?:
+    | "injected"
+    | "pending_injection"
+    | "pending_boundary"
+    | "after_turn"
+    | "interrupt_fallback";
   target_session_id?: string;
   target_workspace_id?: string;
   turn_id?: string;
@@ -6712,6 +7330,25 @@ export type SendPromptResultPayload = {
 
 export type SendPromptResultResponse = {
   prompt: SendPromptResultPayload;
+};
+
+export type Server = {
+  also_in_compozy: boolean;
+  approval: string;
+  auth: string;
+  copy_blocked_reason: string;
+  copyable: boolean;
+  definition_digest: string;
+  enabled_in_runtime: boolean;
+  env_keys: Array<string>;
+  header_keys: Array<string>;
+  name: string;
+  runtime: string;
+  scope: string;
+  source_label: string;
+  source_path: string;
+  target: string;
+  transport: string;
 };
 
 export type SessionActivityHealthPayload = {
@@ -6826,6 +7463,39 @@ export type SessionCatalogPagePayload = {
 export type SessionCatalogResponse = {
   page: SessionCatalogPagePayload;
   sessions: Array<SessionPayload>;
+};
+
+export type SessionChangeBasesResponse = {
+  default: ChangeBaseRefPayload | null;
+  refs: Array<ChangeBaseRefPayload>;
+  resolvable: boolean;
+  truncated: boolean;
+};
+
+export type SessionChangeContentsResponse = {
+  fingerprint: string;
+  new?: ChangeSidePayload | null;
+  old?: ChangeSidePayload | null;
+  old_path?: string;
+  path: string;
+  revision: string;
+};
+
+export type SessionChangePatchesResponse = {
+  patches: Array<ChangePatchPayload>;
+  revision: string;
+};
+
+export type SessionChangesResponse = {
+  base: ChangeBasePayload;
+  files: Array<FileChangePayload>;
+  head: ChangeHeadPayload;
+  pull_request?: SessionPullRequestPayload | null;
+  revision: string;
+  root: FileRootPayload;
+  scope: string;
+  totals: ChangeTotalsPayload;
+  truncated: boolean;
 };
 
 export type SessionChildrenPayload = {
@@ -7014,6 +7684,7 @@ export type SessionDeriveCutPayload = {
 export type SessionDeriveErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
   child_session_id?: string;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -7022,6 +7693,8 @@ export type SessionDeriveErrorPayload = {
   };
   diagnostic?: DiagnosticItem | null;
   error: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -7210,6 +7883,91 @@ export type SessionHealthResponse = {
   health: SessionHealthPayload;
 };
 
+export type SessionHistoryCleanupChoices = {
+  children: number;
+  everything: number;
+  subagents: number;
+};
+
+export type SessionHistoryCleanupCounts = {
+  children: number;
+  sessions: number;
+  subagents: number;
+  total: number;
+};
+
+export type SessionHistoryCleanupFailure = {
+  code: string;
+  message: string;
+  session_id: string;
+  title: string;
+  workspace_id: string;
+};
+
+export type SessionHistoryCleanupPlan = {
+  archived_before?: string | null;
+  choices: SessionHistoryCleanupChoices;
+  counted_at: string;
+  counts: SessionHistoryCleanupCounts;
+  kept_live: number;
+  threads: number;
+  workspaces: Array<SessionHistoryCleanupWorkspace>;
+};
+
+export type SessionHistoryCleanupPreviewResponse = {
+  plan: SessionHistoryCleanupPlan;
+};
+
+export type SessionHistoryCleanupRequest = {
+  all_workspaces?: boolean;
+  archived_before?: string | null;
+  counted_at?: string | null;
+  delete: SessionHistoryCleanupSelection;
+  dry_run?: boolean;
+  older_than_days?: number | null;
+  session_ids?: Array<string>;
+  workspace_id?: string;
+};
+
+export type SessionHistoryCleanupRun = {
+  all_workspaces?: boolean;
+  archived_before?: string | null;
+  counted_at: string;
+  delete: SessionHistoryCleanupSelection;
+  deleted: number;
+  done: number;
+  failed_threads: number;
+  failures: Array<SessionHistoryCleanupFailure>;
+  finished_at?: string | null;
+  id: string;
+  profile_id: string;
+  skipped: number;
+  started_at: string;
+  state: string;
+  total: number;
+  workspace_id?: string;
+};
+
+export type SessionHistoryCleanupRunResponse = {
+  run: SessionHistoryCleanupRun | null;
+};
+
+export type SessionHistoryCleanupSelection = {
+  children: boolean;
+  everything: boolean;
+  subagents: boolean;
+};
+
+export type SessionHistoryCleanupStartResponse = {
+  plan: SessionHistoryCleanupPlan;
+  run: SessionHistoryCleanupRun;
+};
+
+export type SessionHistoryCleanupWorkspace = {
+  total: number;
+  workspace_id: string;
+};
+
 export type SessionHistoryResponse = {
   history: Array<TurnHistoryPayload>;
 };
@@ -7240,6 +7998,8 @@ export type SessionInputPayload = {
   delivery: string;
   enqueued_at: string;
   held: boolean;
+  held_instance_id?: string;
+  held_reason?: string;
   id: string;
   idempotency_key?: string;
   mentions?: Array<SessionInputMentionPayload>;
@@ -7253,7 +8013,12 @@ export type SessionInputPayload = {
   session_id: string;
   skill_invocations?: Array<SessionSkillInvocationPayload>;
   status: "queued" | "dispatching" | "sent" | "failed" | "canceled";
-  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+  steer_delivery?:
+    | "injected"
+    | "pending_injection"
+    | "pending_boundary"
+    | "after_turn"
+    | "interrupt_fallback";
   target_turn_id?: string;
   text: string;
 };
@@ -7322,6 +8087,18 @@ export type SessionLinkedWorkSummary = {
   needs_you: number;
   pull_requests: number;
   total: number;
+};
+
+export type SessionMCP = {
+  attention: number;
+  compozy_servers: Array<MCPServerRow>;
+  last_reload?: MCPReloadRecord | null;
+  pending_reload: boolean;
+  runtime: string;
+  runtime_display_name: string;
+  runtime_servers: SessionRuntimeMCP;
+  session_id: string;
+  usable: number;
 };
 
 export type SessionMonitorPayload = {
@@ -7413,6 +8190,7 @@ export type SessionPayload = {
   later?: SessionLaterPayload | null;
   lineage?: SessionLineagePayload | null;
   linked_work?: SessionLinkedWorkSummary | null;
+  mcp_summary?: MCPSummary | null;
   monitor_summary?: SessionMonitorSummaryPayload | null;
   name?: string;
   parent_title?: string;
@@ -7450,6 +8228,7 @@ export type SessionPayload = {
   subagent_summary?: SubagentSummaryPayload | null;
   supervision: SupervisionState | null;
   transcript_epoch?: number;
+  tree_parent_session_id?: string;
   type?: "user" | "system" | "coordinator" | "spawned";
   updated_at: string;
   verified?: boolean | null;
@@ -7570,6 +8349,7 @@ export type SessionPullRequestChecksPayload = {
 export type SessionPullRequestErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
   cause?: string;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -7579,6 +8359,8 @@ export type SessionPullRequestErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   message: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -7650,6 +8432,11 @@ export type SessionRepairResponse = {
 
 export type SessionResponse = {
   session: SessionPayload;
+};
+
+export type SessionRuntimeMCP = {
+  runtime_mcp: string;
+  servers: Array<RuntimeMCPRow>;
 };
 
 export type SessionRuntimePayload = {
@@ -7857,6 +8644,10 @@ export type SetSessionParentRequest = {
 export type SetSessionRuntimeRequest = {
   expected_revision: number | null;
   runtime: PromptRuntimeSelectionPayload;
+};
+
+export type SetSettingsProviderEnabledRequest = {
+  enabled: boolean;
 };
 
 export type SettingsActionMetadataPayload = {
@@ -8268,6 +9059,9 @@ export type SettingsHookDeclarationPayload = {
     | "spawn.ttl_expired"
     | "spawn.reaped"
     | "session.attention.changed"
+    | "window_manager.tab.split"
+    | "window_manager.tab.unsplit"
+    | "window_manager.tab.activated"
     | "window_manager.layout.applied"
     | "window_manager.desktop.created"
     | "window_manager.desktop.deleted"
@@ -8291,7 +9085,8 @@ export type SettingsHookDeclarationPayload = {
     | "terminal.recording_started"
     | "terminal.recording_stopped"
     | "terminal.subscriber_evicted"
-    | "terminal.limit_rejected";
+    | "terminal.limit_rejected"
+    | "agent.instance.proposal.picked";
   executor_kind?: "native" | "subprocess" | "wasm";
   matcher: HookMatcher;
   metadata?: {
@@ -8391,9 +9186,35 @@ export type SettingsLogTailCapabilityPayload = {
   transport?: "sse";
 };
 
+export type SettingsMCPApprovalPayload = {
+  approved_at?: string;
+  profile: string;
+  server_name: string;
+  state: string;
+  workspace_id: string;
+};
+
+export type SettingsMCPApprovalRequest = {
+  definition_digest: string;
+  profile?: string;
+  workspace_id: string;
+};
+
+export type SettingsMCPApprovalResponse = {
+  approval: SettingsMCPApprovalPayload;
+};
+
+export type SettingsMCPApprovalStatePayload = {
+  definition_digest: string;
+  reason?: string;
+  required: boolean;
+  state: string;
+};
+
 export type SettingsMCPAuthBeginRequest = {
   approve_scope_escalation?: boolean;
   approved_scopes?: Array<string>;
+  definition_digest?: string;
   mode: "automatic" | "manual";
 };
 
@@ -8468,17 +9289,22 @@ export type SettingsMCPSecretValuesPayload = {
 };
 
 export type SettingsMCPServerItemPayload = {
+  approval: SettingsMCPApprovalStatePayload;
   args?: Array<string>;
   auth?: SettingsMCPAuthConfigViewPayload | null;
   auth_status?: SettingsMCPAuthStatusPayload | null;
+  callable_in_sessions: boolean;
   catalog_entry?: string;
   catalog_version?: string;
   command?: string;
+  definition_source?: string;
   env_keys?: Array<string>;
+  headers_configured?: boolean;
   name: string;
   override?: SettingsMCPExtensionOverridePayload | null;
   owner?: string;
   profile?: string;
+  read_only_tools?: Array<string>;
   runtime_name?: string;
   runtime_status?: SettingsMCPServerRuntimeStatusPayload | null;
   scope: "user" | "profile" | "workspace" | "agent";
@@ -8500,6 +9326,7 @@ export type SettingsMCPServerPayload = {
     [key: string]: string;
   };
   name: string;
+  read_only_tools?: Array<string>;
   secret_env?: {
     [key: string]: string;
   };
@@ -8663,6 +9490,11 @@ export type SettingsProviderCredentialStatusPayload = {
   target_env: string;
 };
 
+export type SettingsProviderEnabledResponse = {
+  apply: SettingsApplyResponse;
+  provider: SettingsProviderItemPayload;
+};
+
 export type SettingsProviderFallbackPayload = {
   settings: SettingsProviderSettingsPayload;
   source: SettingsSourceRefPayload;
@@ -8736,15 +9568,18 @@ export type SettingsProviderSettingsPayload = {
   auth_acp_method?: string;
   auth_mode?: string;
   auth_status_command?: string;
+  auto_compact_window?: number | null;
   base_url?: string;
   command?: string;
   command_inherited?: boolean;
   credential_slots?: Array<SettingsProviderCredentialSlotPayload>;
   display_name?: string;
+  enabled: boolean;
   env_policy?: string;
   harness?: string;
   home_policy?: string;
   models?: SettingsProviderModelsPayload | null;
+  runtime_mcp?: string;
   runtime_provider?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
@@ -8796,6 +9631,7 @@ export type SettingsProviderWritePayload = {
   auth_login_command?: string | null;
   auth_mode?: string;
   auth_status_command?: string;
+  auto_compact_window?: number | null;
   base_url?: string;
   command?: string;
   credential_slots?: Array<SettingsProviderCredentialSlotPayload>;
@@ -8804,6 +9640,7 @@ export type SettingsProviderWritePayload = {
   harness?: string;
   home_policy?: string;
   models?: SettingsProviderModelsPayload | null;
+  runtime_mcp?: string;
   runtime_provider?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
@@ -8873,7 +9710,9 @@ export type SettingsRolesResponse = {
 };
 
 export type SettingsShellAppearancePayload = {
+  letter_spacing?: "tight" | "default" | "relaxed" | "wide";
   mono_font?: string | null;
+  text_size?: "small" | "default" | "large" | "larger";
   ui_font?: string | null;
 };
 
@@ -9299,6 +10138,11 @@ export type SettingsUpdateRuntimePayload = {
     | "canceled";
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type SettingsWindowManagerBindingPayload = {
   bottom_center: "none" | "reserved" | "zoom";
   top_center: "none" | "reserved" | "zoom";
@@ -9312,9 +10156,19 @@ export type SettingsWindowManagerCommandPayload = {
 };
 
 export type SettingsWindowManagerConfigPayload = {
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   bindings: SettingsWindowManagerBindingPayload;
   closed_entry_limit: number;
   desktop_transition: "slide" | "crossfade" | "instant";
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   drag_away_policy: "window" | "group";
   focus_follows_pointer: boolean;
   focus_policy: "click_directional" | "directional";
@@ -9323,15 +10177,33 @@ export type SettingsWindowManagerConfigPayload = {
   global_shortcuts: {
     [key: string]: string;
   };
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
   history_limit: number;
   nav_stack_limit: number;
+  /**
+   * Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+   */
   new_window_policy: "floating" | "beside_focus" | "tab";
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   raise_on_focus: boolean;
   shortcuts: {
     [key: string]: string | Array<string>;
   };
   small_viewport_policy: "stack" | "reject";
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   snap: SettingsWindowManagerSnapPayload;
   swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
 };
@@ -9433,6 +10305,11 @@ export type SettingsWindowManagerResponse = {
   workspace_id?: string;
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type SettingsWindowManagerSnapPayload = {
   corner_reach: number;
   edge_band: number;
@@ -9451,7 +10328,8 @@ export type SignalSourceState = {
     | "scheduled_wait"
     | "awaiting_reply"
     | "active_monitor"
-    | "held_permission";
+    | "held_permission"
+    | "held_input";
   ref?: string;
   state: string;
 };
@@ -9622,11 +10500,28 @@ export type SkillsResponse = {
   skills: Array<SkillPayload>;
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type SnapConfig = {
   corner_reach: number;
   edge_band: number;
   exit_slack: number;
   repeat_ratios: Array<number>;
+};
+
+export type Snapshot = {
+  config_files: Array<string>;
+  display_name: string;
+  installed: boolean;
+  notes?: Array<string>;
+  read_error?: string;
+  read_state: string;
+  runtime: string;
+  runtime_mcp: RuntimeMode;
+  servers: Array<Server>;
 };
 
 export type SourceOutcome = {
@@ -9710,6 +10605,7 @@ export type StatusPayload = {
   health: ObserveHealthPayload;
   log_tail: LogTailStatusPayload;
   mcp_servers?: Array<MCPServerStatusPayload>;
+  otel?: OTelStatusPayload | null;
   providers?: Array<ProviderStatusPayload>;
   schema_version: string;
   sessions: SessionAggregatePayload;
@@ -10504,6 +11400,7 @@ export type TaskPayload = {
 
 export type TaskQueryErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -10513,6 +11410,8 @@ export type TaskQueryErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   field: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -10979,6 +11878,7 @@ export type TerminalExecRequest = {
   };
   output?: TerminalOutputShape;
   visible?: boolean;
+  worktree?: string;
   yield_ms?: number;
 };
 
@@ -11448,6 +12348,7 @@ export type ToolCallEventPayload = {
     | "approval_rejected"
     | "attention_requires_action"
     | "compaction_unsupported"
+    | "daemon_starting"
     | "generation_fenced"
     | "input_request_already_answered"
     | "input_request_limit_reached"
@@ -11463,6 +12364,7 @@ export type ToolCallEventPayload = {
     | "profile_selection_conflict"
     | "profile_session_conflict"
     | "profile_unavailable"
+    | "provider_disabled"
     | "reasoning_effort_unsupported"
     | "recording_already_started"
     | "recording_not_active"
@@ -11623,7 +12525,9 @@ export type ToolContent = {
 };
 
 export type ToolDescriptorPayload = {
+  access: string;
   backend: ToolBackendRefPayload;
+  check_in_writable: boolean;
   concurrency_safe: boolean;
   description: string;
   destructive: boolean;
@@ -11635,6 +12539,7 @@ export type ToolDescriptorPayload = {
   open_world: boolean;
   output_schema?: unknown;
   output_schema_digest?: string;
+  output_views?: ResultViews | null;
   preview?: string;
   read_only: boolean;
   requires_interaction: boolean;
@@ -11648,12 +12553,14 @@ export type ToolDescriptorPayload = {
 };
 
 export type ToolErrorPayload = {
+  client_message_id?: string;
   code:
     | "agent_instance_not_found"
     | "agent_instance_starting"
     | "approval_rejected"
     | "attention_requires_action"
     | "compaction_unsupported"
+    | "daemon_starting"
     | "generation_fenced"
     | "input_request_already_answered"
     | "input_request_limit_reached"
@@ -11669,6 +12576,7 @@ export type ToolErrorPayload = {
     | "profile_selection_conflict"
     | "profile_session_conflict"
     | "profile_unavailable"
+    | "provider_disabled"
     | "reasoning_effort_unsupported"
     | "recording_already_started"
     | "recording_not_active"
@@ -11716,6 +12624,7 @@ export type ToolErrorPayload = {
   layer?: string;
   message: string;
   partial_result?: ToolResult | null;
+  provider_error?: string;
   reason_codes?: Array<
     | "approval_canceled"
     | "approval_rejected"
@@ -11802,6 +12711,7 @@ export type ToolErrorPayload = {
     | "worktree_not_found"
     | "worktree_not_ready"
   >;
+  retryable?: boolean;
   tool_id?: string;
 };
 
@@ -11958,6 +12868,7 @@ export type ToolResult = {
 export type ToolSearchRequest = {
   agent_name?: string;
   limit?: number;
+  offset?: number;
   query: string;
   session_id?: string;
   workspace_id?: string;
@@ -11975,7 +12886,12 @@ export type ToolSourceRefPayload = {
 };
 
 export type ToolsResponse = {
+  count: number;
+  has_more: boolean;
+  next_offset?: number;
+  offset?: number;
   tools: Array<ToolPayload>;
+  total: number;
 };
 
 export type ToolsetPayload = {
@@ -12356,13 +13272,14 @@ export type ValidateLoopRequest = {
 };
 
 export type ValidationIssue = {
+  code?: string;
   column?: number;
   field?: string;
   line?: number;
   message: string;
   path: string;
   scope?: string;
-  severity: "error" | "warning" | "warn";
+  severity: "error" | "warning" | "warn" | "info";
 };
 
 export type Value =
@@ -12499,23 +13416,21 @@ export type WindowManagerClientContextInput = {
   workspace_trusted: boolean;
 };
 
-export type WindowManagerFloatingStack = {
-  active_id?: string | null;
-  id: string;
-  minimized: boolean;
-  rect: NormalizedRect;
-  window_ids: Array<string>;
-};
-
 export type WindowManagerLayoutNode = {
-  active_id?: string | null;
   axis?: "horizontal" | "vertical";
   children?: Array<WindowManagerLayoutNode>;
   id: string;
-  kind: "leaf" | "split" | "stack";
+  kind: "leaf" | "split";
   weights?: Array<number>;
   window_id?: string | null;
-  window_ids?: Array<string>;
+};
+
+export type WindowManagerMigrationRequest = {
+  action: "ack" | "retry";
+  /**
+   * Replace the layout on retry when it changed after failure.
+   */
+  replace?: boolean;
 };
 
 export type WindowManagerPaletteContext = {
@@ -12524,8 +13439,19 @@ export type WindowManagerPaletteContext = {
   focused_session_state?: string;
   scope_global: boolean;
   shell_desktop: boolean;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   window_floating: boolean;
   window_focused: boolean;
+  window_in_split: boolean;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   window_stacked: boolean;
   workspace_trusted: boolean;
 };
@@ -12534,35 +13460,19 @@ export type WindowManagerRebaseGuard = {
   boundary_index?: number | null;
   source_node_id?: string | null;
   split_id?: string | null;
+  tab_id?: string | null;
   target_node_id?: string | null;
   window_id?: string | null;
-};
-
-export type WindowManagerReturnAnchor = {
-  child_index?: number | null;
-  desktop_id: string;
-  group_id?: string | null;
-  neighbor_ids?: Array<string>;
-  parent_split_id?: string | null;
-  source_group?: ContractWindowManagerLayoutGroup | null;
-  source_revision: number;
-  weight?: number | null;
-  zoomed?: boolean;
 };
 
 export type WindowManagerWindow = {
   app: string;
   desktop_id: string;
-  floating_rect: NormalizedRect;
   id: string;
   instance_key?: string | null;
-  minimized: boolean;
   nav_stack: Array<RouteIntent>;
-  pinned: boolean;
-  placement: "tiled" | "stacked" | "floating";
-  return_anchor?: WindowManagerReturnAnchor | null;
   route: RouteIntent;
-  zoomed: boolean;
+  tab_id: string;
 };
 
 export type WorkCandidate = {
@@ -12583,6 +13493,8 @@ export type WorkCandidates = {
 };
 
 export type WorkSignal = {
+  held_instance_id?: string;
+  held_reason?: string;
   kind:
     | "agent_progress"
     | "tool_running"
@@ -12592,7 +13504,8 @@ export type WorkSignal = {
     | "scheduled_wait"
     | "awaiting_reply"
     | "active_monitor"
-    | "held_permission";
+    | "held_permission"
+    | "held_input";
   ref?: string;
   since: string;
 };
@@ -12624,23 +13537,51 @@ export type WorkspaceAttentionSummaryPayload = {
 };
 
 export type WorkspaceConfig = {
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   bindings?: BindingsConfig | null;
   closed_entry_limit?: number | null;
   desktop_transition?: string | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   drag_away_policy?: string | null;
   focus_follows_pointer?: boolean | null;
   focus_policy?: string | null;
   focus_wrap?: boolean | null;
   gaps?: GapsConfig | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   group_move_modifier?: string | null;
   history_limit?: number | null;
   nav_stack_limit?: number | null;
+  /**
+   * Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+   */
   new_window_policy?: string | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   raise_on_focus?: boolean | null;
   shortcuts?: {
     [key: string]: string | Array<string>;
   };
   small_viewport_policy?: string | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   snap?: SnapConfig | null;
   swap_modifier?: string | null;
 };
@@ -12859,6 +13800,16 @@ export type WorktreeRemovalRefusalPayload = {
   risk: WorktreeRemovalRiskPayload;
 };
 
+export type WorktreeRemovalResult = {
+  branch?: WorktreeBranchOutcomePayload | null;
+  code?: string;
+  error?: string;
+  risk?: WorktreeRemovalRiskPayload | null;
+  state: string;
+  target: WorktreeRemovalTarget;
+  worktree_id?: string;
+};
+
 export type WorktreeRemovalRiskPayload = {
   changed_files: number;
   deletions: number;
@@ -12866,6 +13817,12 @@ export type WorktreeRemovalRiskPayload = {
   insertions: number;
   leftover_files: number;
   unpushed_commits: number;
+};
+
+export type WorktreeRemovalTarget = {
+  expect_stale?: boolean;
+  path?: string;
+  ref?: string;
 };
 
 export type WorktreeRepoPayload = {
@@ -12905,10 +13862,86 @@ export type WorktreesResponse = {
   worktrees: Array<WorktreePayload>;
 };
 
+export type AgentMCPServerInputWritable = {
+  args?: Array<string>;
+  auth?: SettingsMCPAuthConfigPayload | null;
+  command?: string;
+  env?: {
+    [key: string]: string;
+  };
+  name: string;
+  read_only_tools?: Array<string>;
+  reference?: boolean;
+  secret_env?: {
+    [key: string]: string;
+  };
+  secret_env_values?: {
+    [key: string]: string;
+  };
+  secret_header_values?: {
+    [key: string]: string;
+  };
+  secret_headers?: {
+    [key: string]: string;
+  };
+  transport?: string;
+  url?: string;
+};
+
+export type CreateAgentPayloadWritable = {
+  acp_options?: Array<AgentACPOptionSelection>;
+  appearance?: {
+    [key: string]: unknown;
+  };
+  auto_compact_window?: number | null;
+  category_path?: Array<string>;
+  command?: string;
+  deny_tools?: Array<string>;
+  description?: string | null;
+  display_name?: string | null;
+  fallback_chain?: Array<AgentFallbackRoutePayload>;
+  /**
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
+   */
+  kind?: "on_demand" | "always_on";
+  label?: string;
+  lean_environment?: boolean | null;
+  mcp_servers?: Array<AgentMCPServerInputWritable>;
+  model?: string;
+  name: string;
+  permission_rules?: Array<AgentPermissionRulePayload>;
+  permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
+  prompt: string;
+  provider?: string;
+  reasoning_effort?: string;
+  resolved_appearance?: {
+    [key: string]: unknown;
+  };
+  session_approval?: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
+  skills?: CreateAgentSkillsConfig | null;
+  speed?: "normal" | "fast";
+  tools?: Array<string>;
+  toolsets?: Array<string>;
+  workspace_access?: string;
+};
+
+export type CreateAgentRequestWritable = {
+  agent: CreateAgentPayloadWritable;
+  scope: "workspace" | "global";
+  workspace?: string;
+};
+
 export type InstallExtensionRequestWritable = {
   allow_unverified?: boolean;
   asset?: string;
   confirm_gateway_digest?: string;
+  /**
+   * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
+   */
+  enable?: boolean;
   expected_digest?: string;
   inputs?: {
     [key: string]: ValueWritable;
@@ -12918,6 +13951,10 @@ export type InstallExtensionRequestWritable = {
    */
   profile?: string;
   ref: string;
+  /**
+   * Replace the installed extension of the same name. Applies to local_path installs only, since published sources replace implicitly. The previous version stays installed only when the replacement fails before the reinstall transaction completes; a failure after it returns, such as enable failing, does not restore it. A marketplace-owned name is refused with extension_name_conflict. Replacing a package attached outside the caller's workspace requires operator authority.
+   */
+  replace?: boolean;
   /**
    * Overrides manifest server defaults. Mixed defaults require an explicit scope. A workspace default requires a workspace-bound caller or workspace_id.
    */
@@ -12931,6 +13968,12 @@ export type InstallExtensionRequestWritable = {
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
+};
+
+export type UpdateAgentRequestWritable = {
+  agent: CreateAgentPayloadWritable;
+  expected_digest: string;
+  workspace?: string;
 };
 
 export type UpdateExtensionRequestWritable = {
@@ -13965,6 +15008,78 @@ export type ListAgentInstanceReportsResponses = {
 
 export type ListAgentInstanceReportsResponse =
   ListAgentInstanceReportsResponses[keyof ListAgentInstanceReportsResponses];
+
+export type PickAgentInstanceProposalData = {
+  /**
+   * JSON request body
+   */
+  body: AgentInstancePickRequest;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+    /**
+     * Report ID
+     */
+    report_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/reports/{report_id}/pick";
+};
+
+export type PickAgentInstanceProposalErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type PickAgentInstanceProposalError =
+  PickAgentInstanceProposalErrors[keyof PickAgentInstanceProposalErrors];
+
+export type PickAgentInstanceProposalResponses = {
+  /**
+   * Picked
+   */
+  200: AgentInstancePickResponse;
+};
+
+export type PickAgentInstanceProposalResponse =
+  PickAgentInstanceProposalResponses[keyof PickAgentInstanceProposalResponses];
 
 export type ResumeAgentInstanceData = {
   body?: never;
@@ -15131,7 +16246,7 @@ export type CreateAgentData = {
   /**
    * JSON request body
    */
-  body: CreateAgentRequest;
+  body: CreateAgentRequestWritable;
   path?: never;
   query?: {
     /**
@@ -15556,7 +16671,7 @@ export type UpdateAgentData = {
   /**
    * JSON request body
    */
-  body: UpdateAgentRequest;
+  body: UpdateAgentRequestWritable;
   path: {
     /**
      * Agent name
@@ -15917,6 +17032,180 @@ export type PutAgentHeartbeatResponses = {
 
 export type PutAgentHeartbeatResponse =
   PutAgentHeartbeatResponses[keyof PutAgentHeartbeatResponses];
+
+export type GetAgentHeartbeatAuthorityData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace id
+     */
+    workspace_id?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/heartbeat/authority";
+};
+
+export type GetAgentHeartbeatAuthorityErrors = {
+  /**
+   * Operator required
+   */
+  403: ErrorPayload;
+  /**
+   * Agent not found
+   */
+  404: ErrorPayload;
+  /**
+   * Authority changed
+   */
+  409: ErrorPayload;
+  /**
+   * Invalid authority
+   */
+  422: ErrorPayload;
+  /**
+   * Authority storage unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentHeartbeatAuthorityError =
+  GetAgentHeartbeatAuthorityErrors[keyof GetAgentHeartbeatAuthorityErrors];
+
+export type GetAgentHeartbeatAuthorityResponses = {
+  /**
+   * Check-in authority
+   */
+  200: HeartbeatAuthorityPayload;
+};
+
+export type GetAgentHeartbeatAuthorityResponse =
+  GetAgentHeartbeatAuthorityResponses[keyof GetAgentHeartbeatAuthorityResponses];
+
+export type RevokeAgentHeartbeatAuthorityData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace id
+     */
+    workspace_id?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/heartbeat/authority/approve";
+};
+
+export type RevokeAgentHeartbeatAuthorityErrors = {
+  /**
+   * Operator required
+   */
+  403: ErrorPayload;
+  /**
+   * Agent not found
+   */
+  404: ErrorPayload;
+  /**
+   * Authority changed
+   */
+  409: ErrorPayload;
+  /**
+   * Invalid authority
+   */
+  422: ErrorPayload;
+  /**
+   * Authority storage unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RevokeAgentHeartbeatAuthorityError =
+  RevokeAgentHeartbeatAuthorityErrors[keyof RevokeAgentHeartbeatAuthorityErrors];
+
+export type RevokeAgentHeartbeatAuthorityResponses = {
+  /**
+   * Authority revoked
+   */
+  204: void;
+};
+
+export type RevokeAgentHeartbeatAuthorityResponse =
+  RevokeAgentHeartbeatAuthorityResponses[keyof RevokeAgentHeartbeatAuthorityResponses];
+
+export type ApproveAgentHeartbeatAuthorityData = {
+  /**
+   * JSON request body
+   */
+  body: HeartbeatScriptApprovalRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace id
+     */
+    workspace_id?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/heartbeat/authority/approve";
+};
+
+export type ApproveAgentHeartbeatAuthorityErrors = {
+  /**
+   * Operator required
+   */
+  403: ErrorPayload;
+  /**
+   * Agent not found
+   */
+  404: ErrorPayload;
+  /**
+   * Authority changed
+   */
+  409: ErrorPayload;
+  /**
+   * Invalid authority
+   */
+  422: ErrorPayload;
+  /**
+   * Authority storage unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ApproveAgentHeartbeatAuthorityError =
+  ApproveAgentHeartbeatAuthorityErrors[keyof ApproveAgentHeartbeatAuthorityErrors];
+
+export type ApproveAgentHeartbeatAuthorityResponses = {
+  /**
+   * Authority approved
+   */
+  204: void;
+};
+
+export type ApproveAgentHeartbeatAuthorityResponse =
+  ApproveAgentHeartbeatAuthorityResponses[keyof ApproveAgentHeartbeatAuthorityResponses];
 
 export type ListAgentHeartbeatHistoryData = {
   body?: never;
@@ -17867,7 +19156,11 @@ export type ListAutomationJobRunsData = {
      */
     until?: string;
     /**
-     * Maximum number of records to return
+     * Continue after page.next_cursor with unchanged filters
+     */
+    cursor?: string;
+    /**
+     * Page size (default 50, maximum 200; zero uses default)
      */
     limit?: number;
     /**
@@ -17924,6 +19217,14 @@ export type TriggerAutomationJobData = {
   };
   query?: {
     /**
+     * Wait for completion (default false); execution continues after the wait ends
+     */
+    wait?: boolean;
+    /**
+     * Completion wait budget when wait=true (default 1m; positive duration up to 24h). On expiry returns the running admission receipt
+     */
+    timeout?: string;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -17932,6 +19233,10 @@ export type TriggerAutomationJobData = {
 };
 
 export type TriggerAutomationJobErrors = {
+  /**
+   * Invalid wait or completion budget
+   */
+  400: ErrorPayload;
   /**
    * Automation job not found
    */
@@ -17955,7 +19260,7 @@ export type TriggerAutomationJobError =
 
 export type TriggerAutomationJobResponses = {
   /**
-   * OK
+   * Admitted run with id and running status, or final result when wait=true; task and Loop targets retain delegated status
    */
   200: RunResponse;
 };
@@ -18004,7 +19309,7 @@ export type ListAutomationRunsData = {
      */
     until?: string;
     /**
-     * Maximum number of records to return
+     * Page size (default 50, maximum 200; zero uses default)
      */
     limit?: number;
     /**
@@ -18092,6 +19397,54 @@ export type GetAutomationRunResponses = {
 };
 
 export type GetAutomationRunResponse = GetAutomationRunResponses[keyof GetAutomationRunResponses];
+
+export type CancelAutomationRunData = {
+  body?: never;
+  path: {
+    /**
+     * Automation run id
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/automation/runs/{id}/cancel";
+};
+
+export type CancelAutomationRunErrors = {
+  /**
+   * Automation run not found
+   */
+  404: ErrorPayload;
+  /**
+   * Run may still be executing or changed concurrently
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Automation manager is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type CancelAutomationRunError = CancelAutomationRunErrors[keyof CancelAutomationRunErrors];
+
+export type CancelAutomationRunResponses = {
+  /**
+   * Canceled run or unchanged terminal run
+   */
+  200: RunResponse;
+};
+
+export type CancelAutomationRunResponse =
+  CancelAutomationRunResponses[keyof CancelAutomationRunResponses];
 
 export type ListAutomationSuggestionsAggregateData = {
   body?: never;
@@ -18468,7 +19821,11 @@ export type ListAutomationTriggerRunsData = {
      */
     until?: string;
     /**
-     * Maximum number of records to return
+     * Continue after page.next_cursor with unchanged filters
+     */
+    cursor?: string;
+    /**
+     * Page size (default 50, maximum 200; zero uses default)
      */
     limit?: number;
     /**
@@ -19358,10 +20715,10 @@ export type InstallExtensionResponses = {
   /**
    * Created
    */
-  201: ExtensionResponse;
+  201: InstallExtensionResponse;
 };
 
-export type InstallExtensionResponse = InstallExtensionResponses[keyof InstallExtensionResponses];
+export type InstallExtensionResponse2 = InstallExtensionResponses[keyof InstallExtensionResponses];
 
 export type ListExtensionCommandsData = {
   body?: never;
@@ -20896,6 +22253,9 @@ export type GetHookCatalogData = {
       | "spawn.ttl_expired"
       | "spawn.reaped"
       | "session.attention.changed"
+      | "window_manager.tab.split"
+      | "window_manager.tab.unsplit"
+      | "window_manager.tab.activated"
       | "window_manager.layout.applied"
       | "window_manager.desktop.created"
       | "window_manager.desktop.deleted"
@@ -20919,7 +22279,8 @@ export type GetHookCatalogData = {
       | "terminal.recording_started"
       | "terminal.recording_stopped"
       | "terminal.subscriber_evicted"
-      | "terminal.limit_rejected";
+      | "terminal.limit_rejected"
+      | "agent.instance.proposal.picked";
     /**
      * Hook source
      */
@@ -21361,6 +22722,10 @@ export type ListMarketplaceData = {
      */
     q?: string;
     /**
+     * Optional CompozyOS category id
+     */
+    category?: string;
+    /**
      * Maximum results from 1 to 100
      */
     limit?: number;
@@ -21521,6 +22886,62 @@ export type RefreshMarketplaceCatalogResponses = {
 
 export type RefreshMarketplaceCatalogResponse =
   RefreshMarketplaceCatalogResponses[keyof RefreshMarketplaceCatalogResponses];
+
+export type GetMarketplaceSectionsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Optional catalog search query
+     */
+    q?: string;
+    /**
+     * Entries per section from 1 to 12; default 6
+     */
+    per_section?: number;
+    /**
+     * Installed-state projection scope
+     */
+    scope?: "global" | "profile" | "workspace";
+    /**
+     * Required for profile scope
+     */
+    profile?: string;
+    /**
+     * Required for workspace scope
+     */
+    workspace_id?: string;
+  };
+  url: "/api/marketplace/sections";
+};
+
+export type GetMarketplaceSectionsErrors = {
+  /**
+   * Invalid request
+   */
+  400: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Catalog dependency is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type GetMarketplaceSectionsError =
+  GetMarketplaceSectionsErrors[keyof GetMarketplaceSectionsErrors];
+
+export type GetMarketplaceSectionsResponses = {
+  /**
+   * OK
+   */
+  200: MarketplaceSectionsResponse;
+};
+
+export type GetMarketplaceSectionsResponse =
+  GetMarketplaceSectionsResponses[keyof GetMarketplaceSectionsResponses];
 
 export type ListMarketplaceSourcesData = {
   body?: never;
@@ -21836,6 +23257,10 @@ export type CompleteMCPAuthCallbackErrors = {
    * Forbidden
    */
   403: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
   /**
    * MCP OAuth callback runtime is unavailable
    */
@@ -22316,7 +23741,7 @@ export type AcknowledgeAttentionNotificationsError =
 
 export type AcknowledgeAttentionNotificationsResponses = {
   /**
-   * Receipts committed atomically; source state unchanged
+   * Receipts committed atomically; bell layout-upgrade notices also acknowledged durably
    */
   204: void;
 };
@@ -24974,6 +26399,10 @@ export type ListSessionsData = {
      */
     exclude_finished_automation?: boolean;
     /**
+     * Exclude every automation job or trigger run session the operator has not prompted, whatever its state; search, type, parent, root, archive=only and later=only reads ignore it
+     */
+    exclude_automation?: boolean;
+    /**
      * Filter by exact session state
      */
     state?: "starting" | "active" | "stopping" | "stopped";
@@ -25001,6 +26430,10 @@ export type ListSessionsData = {
      * Filter by exact root session id (includes the root itself)
      */
     root?: string;
+    /**
+     * Leave out this session and every session rooted at it (for example, a session's own tree)
+     */
+    exclude_root?: string;
     /**
      * Filter by exact bound worktree id
      */
@@ -25192,6 +26625,10 @@ export type ListSessionFacetsData = {
      */
     exclude_finished_automation?: boolean;
     /**
+     * Exclude every automation job or trigger run session the operator has not prompted from the counts, whatever its state; facets ignore the text query, so the counts keep excluding runs a search can list. type, parent, root, archive=only and later=only reads ignore it
+     */
+    exclude_automation?: boolean;
+    /**
      * Workspace id or path
      */
     workspace_id?: string;
@@ -25227,6 +26664,10 @@ export type ListSessionFacetsData = {
      * Filter by exact root session id (includes the root itself)
      */
     root?: string;
+    /**
+     * Leave out this session and every session rooted at it (for example, a session's own tree)
+     */
+    exclude_root?: string;
     /**
      * Only count sessions eligible for explicit attach
      */
@@ -25293,6 +26734,145 @@ export type ListSessionFacetsResponses = {
 
 export type ListSessionFacetsResponse =
   ListSessionFacetsResponses[keyof ListSessionFacetsResponses];
+
+export type GetSessionHistoryCleanupData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/sessions/history-cleanup";
+};
+
+export type GetSessionHistoryCleanupErrors = {
+  /**
+   * Agent identity is denied
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type GetSessionHistoryCleanupError =
+  GetSessionHistoryCleanupErrors[keyof GetSessionHistoryCleanupErrors];
+
+export type GetSessionHistoryCleanupResponses = {
+  /**
+   * OK
+   */
+  200: SessionHistoryCleanupRunResponse;
+};
+
+export type GetSessionHistoryCleanupResponse =
+  GetSessionHistoryCleanupResponses[keyof GetSessionHistoryCleanupResponses];
+
+export type PlanSessionHistoryCleanupData = {
+  /**
+   * JSON request body
+   */
+  body: SessionHistoryCleanupRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/sessions/history-cleanup";
+};
+
+export type PlanSessionHistoryCleanupErrors = {
+  /**
+   * Invalid cleanup request
+   */
+  400: ErrorPayload;
+  /**
+   * Agent identity is denied
+   */
+  403: ErrorPayload;
+  /**
+   * A cleanup is already running for this profile
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type PlanSessionHistoryCleanupError =
+  PlanSessionHistoryCleanupErrors[keyof PlanSessionHistoryCleanupErrors];
+
+export type PlanSessionHistoryCleanupResponses = {
+  /**
+   * Dry run: the sessions the cleanup would delete
+   */
+  200: SessionHistoryCleanupPreviewResponse;
+  /**
+   * Accepted: the cleanup runs in the background; follow it with getSessionHistoryCleanup
+   */
+  202: SessionHistoryCleanupStartResponse;
+};
+
+export type PlanSessionHistoryCleanupResponse =
+  PlanSessionHistoryCleanupResponses[keyof PlanSessionHistoryCleanupResponses];
+
+export type StopSessionHistoryCleanupData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/sessions/history-cleanup/stop";
+};
+
+export type StopSessionHistoryCleanupErrors = {
+  /**
+   * Agent identity is denied
+   */
+  403: ErrorPayload;
+  /**
+   * No cleanup is running for this profile
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type StopSessionHistoryCleanupError =
+  StopSessionHistoryCleanupErrors[keyof StopSessionHistoryCleanupErrors];
+
+export type StopSessionHistoryCleanupResponses = {
+  /**
+   * OK
+   */
+  200: SessionHistoryCleanupRunResponse;
+};
+
+export type StopSessionHistoryCleanupResponse =
+  StopSessionHistoryCleanupResponses[keyof StopSessionHistoryCleanupResponses];
 
 export type GetSessionByIDData = {
   body?: never;
@@ -25819,6 +27399,10 @@ export type TriggerSettingsRestartErrors = {
    * Forbidden
    */
   403: ErrorPayload;
+  /**
+   * Replacement runtime failed its restart pre-flight; the running daemon was kept
+   */
+  409: ErrorPayload;
   /**
    * Internal server error
    */
@@ -26802,6 +28386,106 @@ export type PutSettingsMCPServerResponses = {
 export type PutSettingsMCPServerResponse =
   PutSettingsMCPServerResponses[keyof PutSettingsMCPServerResponses];
 
+export type DeleteSettingsMCPApprovalData = {
+  body?: never;
+  path: {
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query: {
+    /**
+     * Workspace ID
+     */
+    workspace_id: string;
+    /**
+     * Profile name
+     */
+    profile?: string;
+  };
+  url: "/api/settings/mcp-servers/{name}/approval";
+};
+
+export type DeleteSettingsMCPApprovalErrors = {
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Approval not required
+   */
+  409: ErrorPayload;
+};
+
+export type DeleteSettingsMCPApprovalError =
+  DeleteSettingsMCPApprovalErrors[keyof DeleteSettingsMCPApprovalErrors];
+
+export type DeleteSettingsMCPApprovalResponses = {
+  /**
+   * Revoked
+   */
+  204: void;
+};
+
+export type DeleteSettingsMCPApprovalResponse =
+  DeleteSettingsMCPApprovalResponses[keyof DeleteSettingsMCPApprovalResponses];
+
+export type PutSettingsMCPApprovalData = {
+  /**
+   * JSON request body
+   */
+  body: SettingsMCPApprovalRequest;
+  path: {
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query?: never;
+  url: "/api/settings/mcp-servers/{name}/approval";
+};
+
+export type PutSettingsMCPApprovalErrors = {
+  /**
+   * Invalid MCP OAuth request or session
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * MCP OAuth runtime is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PutSettingsMCPApprovalError =
+  PutSettingsMCPApprovalErrors[keyof PutSettingsMCPApprovalErrors];
+
+export type PutSettingsMCPApprovalResponses = {
+  /**
+   * OK
+   */
+  200: SettingsMCPApprovalResponse;
+};
+
+export type PutSettingsMCPApprovalResponse =
+  PutSettingsMCPApprovalResponses[keyof PutSettingsMCPApprovalResponses];
+
 export type BeginSettingsMCPAuthData = {
   /**
    * JSON request body
@@ -26847,6 +28531,10 @@ export type BeginSettingsMCPAuthErrors = {
    * MCP server or workspace not found
    */
   404: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
   /**
    * Internal server error
    */
@@ -26916,6 +28604,10 @@ export type ExchangeSettingsMCPAuthErrors = {
    */
   404: ErrorPayload;
   /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
@@ -26980,6 +28672,10 @@ export type LogoutSettingsMCPAuthErrors = {
    * MCP server or workspace not found
    */
   404: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
   /**
    * Internal server error
    */
@@ -27046,6 +28742,10 @@ export type GetSettingsMCPAuthStatusErrors = {
    */
   404: ErrorPayload;
   /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
@@ -27067,6 +28767,75 @@ export type GetSettingsMCPAuthStatusResponses = {
 
 export type GetSettingsMCPAuthStatusResponse =
   GetSettingsMCPAuthStatusResponses[keyof GetSettingsMCPAuthStatusResponses];
+
+export type CheckSettingsMCPServerData = {
+  body?: never;
+  path: {
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query: {
+    /**
+     * Exact MCP settings scope
+     */
+    scope: "user" | "profile" | "workspace";
+    /**
+     * Required when scope is workspace
+     */
+    workspace_id?: string;
+    /**
+     * Required when scope is profile
+     */
+    profile?: string;
+    /**
+     * Definition owner: manual or extension:<name>; omitted owner selects manual
+     */
+    owner?: string;
+  };
+  url: "/api/settings/mcp-servers/{name}/check";
+};
+
+export type CheckSettingsMCPServerErrors = {
+  /**
+   * Invalid MCP check request or disabled source
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * MCP check canceled by client
+   */
+  499: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * MCP check runtime unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CheckSettingsMCPServerError =
+  CheckSettingsMCPServerErrors[keyof CheckSettingsMCPServerErrors];
+
+export type CheckSettingsMCPServerResponses = {
+  /**
+   * MCP check result
+   */
+  200: SettingsMCPServerItemPayload;
+};
+
+export type CheckSettingsMCPServerResponse =
+  CheckSettingsMCPServerResponses[keyof CheckSettingsMCPServerResponses];
 
 export type GetSettingsObservabilityData = {
   body?: never;
@@ -27469,6 +29238,57 @@ export type PutSettingsProviderResponses = {
 export type PutSettingsProviderResponse =
   PutSettingsProviderResponses[keyof PutSettingsProviderResponses];
 
+export type SetSettingsProviderEnabledData = {
+  /**
+   * JSON request body
+   */
+  body: SetSettingsProviderEnabledRequest;
+  path: {
+    /**
+     * Provider name
+     */
+    name: string;
+  };
+  query?: never;
+  url: "/api/settings/providers/{name}/enabled";
+};
+
+export type SetSettingsProviderEnabledErrors = {
+  /**
+   * Invalid enabled payload
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Provider not found
+   */
+  404: ErrorPayload;
+  /**
+   * Disabling the default provider is rejected
+   */
+  422: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type SetSettingsProviderEnabledError =
+  SetSettingsProviderEnabledErrors[keyof SetSettingsProviderEnabledErrors];
+
+export type SetSettingsProviderEnabledResponses = {
+  /**
+   * OK
+   */
+  200: SettingsProviderEnabledResponse;
+};
+
+export type SetSettingsProviderEnabledResponse =
+  SetSettingsProviderEnabledResponses[keyof SetSettingsProviderEnabledResponses];
+
 export type ReloadSettingsData = {
   body?: never;
   path?: never;
@@ -27567,6 +29387,110 @@ export type UpdateSettingsRolesResponses = {
 
 export type UpdateSettingsRolesResponse =
   UpdateSettingsRolesResponses[keyof UpdateSettingsRolesResponses];
+
+export type ListRuntimeMCPServersData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Select the settings scope
+     */
+    scope?: "user" | "profile" | "workspace";
+    /**
+     * Select the workspace context
+     */
+    workspace_id?: string;
+    /**
+     * Select the profile layer
+     */
+    profile?: string;
+    runtime?: string;
+  };
+  url: "/api/settings/runtime-mcp-servers";
+};
+
+export type ListRuntimeMCPServersErrors = {
+  /**
+   * Invalid runtime or settings scope
+   */
+  400: ErrorPayload;
+  /**
+   * Workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type ListRuntimeMCPServersError =
+  ListRuntimeMCPServersErrors[keyof ListRuntimeMCPServersErrors];
+
+export type ListRuntimeMCPServersResponses = {
+  /**
+   * OK
+   */
+  200: Inventory;
+};
+
+export type ListRuntimeMCPServersResponse =
+  ListRuntimeMCPServersResponses[keyof ListRuntimeMCPServersResponses];
+
+export type ImportRuntimeMCPServerData = {
+  /**
+   * JSON request body
+   */
+  body: RuntimeMCPImportRequest;
+  path: {
+    /**
+     * Source runtime
+     */
+    runtime: string;
+    /**
+     * URL-escaped runtime server name
+     */
+    name: string;
+  };
+  query?: never;
+  url: "/api/settings/runtime-mcp-servers/{runtime}/{name}/import";
+};
+
+export type ImportRuntimeMCPServerErrors = {
+  /**
+   * Invalid import request
+   */
+  400: ErrorPayload;
+  /**
+   * Runtime server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Target name already exists
+   */
+  409: ErrorPayload;
+  /**
+   * Runtime source, transport or definition cannot be copied
+   */
+  422: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type ImportRuntimeMCPServerError =
+  ImportRuntimeMCPServerErrors[keyof ImportRuntimeMCPServerErrors];
+
+export type ImportRuntimeMCPServerResponses = {
+  /**
+   * Copied, possibly with partial cleanup warnings
+   */
+  201: RuntimeMCPImportResponse;
+};
+
+export type ImportRuntimeMCPServerResponse =
+  ImportRuntimeMCPServerResponses[keyof ImportRuntimeMCPServerResponses];
 
 export type GetSettingsShellData = {
   body?: never;
@@ -32787,6 +34711,10 @@ export type DeleteWorkspaceErrors = {
    * Internal server error
    */
   500: ErrorPayload;
+  /**
+   * Removal held by a desktop layout that could not be read; retry finishes it
+   */
+  503: ErrorPayload;
 };
 
 export type DeleteWorkspaceError = DeleteWorkspaceErrors[keyof DeleteWorkspaceErrors];
@@ -32808,15 +34736,32 @@ export type GetWorkspaceData = {
      */
     id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{id}";
 };
 
 export type GetWorkspaceErrors = {
   /**
-   * Workspace not found
+   * Invalid profile selection
    */
-  404: ErrorPayload;
+  400: ProfileErrorPayload;
+  /**
+   * Workspace or requested profile not found
+   */
+  404: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Profile archived or unavailable
+   */
+  409: ProfileErrorPayload;
   /**
    * Unknown workspace config keys (workspace_config_invalid)
    */
@@ -33105,6 +35050,370 @@ export type DismissAutomationSuggestionResponses = {
 export type DismissAutomationSuggestionResponse =
   DismissAutomationSuggestionResponses[keyof DismissAutomationSuggestionResponses];
 
+export type ReadFileContentData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Root-relative path
+     */
+    path: string;
+    /**
+     * Reveal sensitive content; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/content";
+};
+
+export type ReadFileContentErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadFileContentError = ReadFileContentErrors[keyof ReadFileContentErrors];
+
+export type ReadFileContentResponses = {
+  /**
+   * OK
+   */
+  200: FileContentResponse;
+};
+
+export type ReadFileContentResponse = ReadFileContentResponses[keyof ReadFileContentResponses];
+
+export type ListFileEntriesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Root-relative path
+     */
+    path?: string;
+    /**
+     * Include ignored entries
+     */
+    show_ignored?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/entries";
+};
+
+export type ListFileEntriesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ListFileEntriesError = ListFileEntriesErrors[keyof ListFileEntriesErrors];
+
+export type ListFileEntriesResponses = {
+  /**
+   * OK
+   */
+  200: FileEntriesResponse;
+};
+
+export type ListFileEntriesResponse = ListFileEntriesResponses[keyof ListFileEntriesResponses];
+
+export type FindFilesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Result limit; defaults and clamps to 50
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/find";
+};
+
+export type FindFilesErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type FindFilesError = FindFilesErrors[keyof FindFilesErrors];
+
+export type FindFilesResponses = {
+  /**
+   * OK
+   */
+  200: FileFindResponse;
+};
+
+export type FindFilesResponse = FindFilesResponses[keyof FindFilesResponses];
+
+export type ReadFileBytesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Root-relative file path; its slashes are path segments
+     */
+    path: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/raw/{path}";
+};
+
+export type ReadFileBytesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Requested range not satisfiable
+   */
+  416: unknown;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadFileBytesError = ReadFileBytesErrors[keyof ReadFileBytesErrors];
+
+export type ReadFileBytesResponses = {
+  /**
+   * File bytes
+   */
+  200: Blob | File;
+  /**
+   * Requested byte range
+   */
+  206: Blob | File;
+};
+
+export type ReadFileBytesResponse = ReadFileBytesResponses[keyof ReadFileBytesResponses];
+
+export type SearchFileContentsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Use POSIX ERE
+     */
+    regex?: boolean;
+    /**
+     * Match case
+     */
+    case_sensitive?: boolean;
+    /**
+     * Match whole words
+     */
+    whole_word?: boolean;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    include?: Array<string>;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    exclude?: Array<string>;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/search";
+};
+
+export type SearchFileContentsErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type SearchFileContentsError = SearchFileContentsErrors[keyof SearchFileContentsErrors];
+
+export type SearchFileContentsResponses = {
+  /**
+   * OK
+   */
+  200: FileSearchResponse;
+};
+
+export type SearchFileContentsResponse =
+  SearchFileContentsResponses[keyof SearchFileContentsResponses];
+
 export type GetHookRunsData = {
   body?: never;
   path: {
@@ -33203,6 +35512,9 @@ export type GetHookRunsData = {
       | "spawn.ttl_expired"
       | "spawn.reaped"
       | "session.attention.changed"
+      | "window_manager.tab.split"
+      | "window_manager.tab.unsplit"
+      | "window_manager.tab.activated"
       | "window_manager.layout.applied"
       | "window_manager.desktop.created"
       | "window_manager.desktop.deleted"
@@ -33226,7 +35538,8 @@ export type GetHookRunsData = {
       | "terminal.recording_started"
       | "terminal.recording_stopped"
       | "terminal.subscriber_evicted"
-      | "terminal.limit_rejected";
+      | "terminal.limit_rejected"
+      | "agent.instance.proposal.picked";
     /**
      * Hook execution outcome
      */
@@ -36079,6 +38392,10 @@ export type ListWorkspaceSessionsData = {
      */
     exclude_finished_automation?: boolean;
     /**
+     * Exclude every automation job or trigger run session the operator has not prompted, whatever its state; search, type, parent, root, archive=only and later=only reads ignore it
+     */
+    exclude_automation?: boolean;
+    /**
      * Filter by exact session state
      */
     state?: "starting" | "active" | "stopping" | "stopped";
@@ -36106,6 +38423,10 @@ export type ListWorkspaceSessionsData = {
      * Filter by exact root session id (includes the root itself)
      */
     root?: string;
+    /**
+     * Leave out this session and every session rooted at it (for example, a session's own tree)
+     */
+    exclude_root?: string;
     /**
      * Filter by exact bound worktree id
      */
@@ -36729,6 +39050,345 @@ export type ReadSessionAttachmentBytesResponses = {
 export type ReadSessionAttachmentBytesResponse =
   ReadSessionAttachmentBytesResponses[keyof ReadSessionAttachmentBytesResponses];
 
+export type GetSessionChangesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Changes scope
+     */
+    scope?: "branch" | "uncommitted";
+    /**
+     * Optional base ref
+     */
+    base?: string;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes";
+};
+
+export type GetSessionChangesErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type GetSessionChangesError = GetSessionChangesErrors[keyof GetSessionChangesErrors];
+
+export type GetSessionChangesResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangesResponse;
+};
+
+export type GetSessionChangesResponse =
+  GetSessionChangesResponses[keyof GetSessionChangesResponses];
+
+export type ListSessionChangeBasesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Substring ref filter
+     */
+    q?: string;
+    /**
+     * Default 200, maximum 500
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/bases";
+};
+
+export type ListSessionChangeBasesErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ListSessionChangeBasesError =
+  ListSessionChangeBasesErrors[keyof ListSessionChangeBasesErrors];
+
+export type ListSessionChangeBasesResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangeBasesResponse;
+};
+
+export type ListSessionChangeBasesResponse =
+  ListSessionChangeBasesResponses[keyof ListSessionChangeBasesResponses];
+
+export type GetSessionChangeContentsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Changes scope
+     */
+    scope?: "branch" | "uncommitted";
+    /**
+     * Optional base ref
+     */
+    base?: string;
+    /**
+     * Summary revision fence
+     */
+    revision: string;
+    /**
+     * Root-relative path
+     */
+    path: string;
+    /**
+     * Aligned old path for renames
+     */
+    old_path?: string;
+    /**
+     * Reveal sensitive contents; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents";
+};
+
+export type GetSessionChangeContentsErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type GetSessionChangeContentsError =
+  GetSessionChangeContentsErrors[keyof GetSessionChangeContentsErrors];
+
+export type GetSessionChangeContentsResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangeContentsResponse;
+};
+
+export type GetSessionChangeContentsResponse =
+  GetSessionChangeContentsResponses[keyof GetSessionChangeContentsResponses];
+
+export type GetSessionChangePatchesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Changes scope
+     */
+    scope?: "branch" | "uncommitted";
+    /**
+     * Optional base ref
+     */
+    base?: string;
+    /**
+     * Summary revision fence
+     */
+    revision: string;
+    /**
+     * Root-relative path
+     */
+    path: Array<string>;
+    /**
+     * Aligned old path for renames
+     */
+    old_path?: Array<string>;
+    /**
+     * Reveal sensitive contents; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches";
+};
+
+export type GetSessionChangePatchesErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type GetSessionChangePatchesError =
+  GetSessionChangePatchesErrors[keyof GetSessionChangePatchesErrors];
+
+export type GetSessionChangePatchesResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangePatchesResponse;
+};
+
+export type GetSessionChangePatchesResponse =
+  GetSessionChangePatchesResponses[keyof GetSessionChangePatchesResponses];
+
 export type ListSessionClarificationsData = {
   body?: never;
   path: {
@@ -37320,6 +39980,381 @@ export type SearchSessionFilesResponses = {
 
 export type SearchSessionFilesResponse =
   SearchSessionFilesResponses[keyof SearchSessionFilesResponses];
+
+export type ReadSessionFileContentData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Root-relative path
+     */
+    path: string;
+    /**
+     * Reveal sensitive content; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content";
+};
+
+export type ReadSessionFileContentErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadSessionFileContentError =
+  ReadSessionFileContentErrors[keyof ReadSessionFileContentErrors];
+
+export type ReadSessionFileContentResponses = {
+  /**
+   * OK
+   */
+  200: FileContentResponse;
+};
+
+export type ReadSessionFileContentResponse =
+  ReadSessionFileContentResponses[keyof ReadSessionFileContentResponses];
+
+export type ListSessionFileEntriesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Root-relative path
+     */
+    path?: string;
+    /**
+     * Include ignored entries
+     */
+    show_ignored?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries";
+};
+
+export type ListSessionFileEntriesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ListSessionFileEntriesError =
+  ListSessionFileEntriesErrors[keyof ListSessionFileEntriesErrors];
+
+export type ListSessionFileEntriesResponses = {
+  /**
+   * OK
+   */
+  200: FileEntriesResponse;
+};
+
+export type ListSessionFileEntriesResponse =
+  ListSessionFileEntriesResponses[keyof ListSessionFileEntriesResponses];
+
+export type FindSessionFilesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Result limit; defaults and clamps to 50
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find";
+};
+
+export type FindSessionFilesErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type FindSessionFilesError = FindSessionFilesErrors[keyof FindSessionFilesErrors];
+
+export type FindSessionFilesResponses = {
+  /**
+   * OK
+   */
+  200: FileFindResponse;
+};
+
+export type FindSessionFilesResponse = FindSessionFilesResponses[keyof FindSessionFilesResponses];
+
+export type ReadSessionFileBytesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+    /**
+     * Root-relative file path; its slashes are path segments
+     */
+    path: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/raw/{path}";
+};
+
+export type ReadSessionFileBytesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Requested range not satisfiable
+   */
+  416: unknown;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadSessionFileBytesError =
+  ReadSessionFileBytesErrors[keyof ReadSessionFileBytesErrors];
+
+export type ReadSessionFileBytesResponses = {
+  /**
+   * File bytes
+   */
+  200: Blob | File;
+  /**
+   * Requested byte range
+   */
+  206: Blob | File;
+};
+
+export type ReadSessionFileBytesResponse =
+  ReadSessionFileBytesResponses[keyof ReadSessionFileBytesResponses];
+
+export type SearchSessionFileContentsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Use POSIX ERE
+     */
+    regex?: boolean;
+    /**
+     * Match case
+     */
+    case_sensitive?: boolean;
+    /**
+     * Match whole words
+     */
+    whole_word?: boolean;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    include?: Array<string>;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    exclude?: Array<string>;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search";
+};
+
+export type SearchSessionFileContentsErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type SearchSessionFileContentsError =
+  SearchSessionFileContentsErrors[keyof SearchSessionFileContentsErrors];
+
+export type SearchSessionFileContentsResponses = {
+  /**
+   * OK
+   */
+  200: FileSearchResponse;
+};
+
+export type SearchSessionFileContentsResponse =
+  SearchSessionFileContentsResponses[keyof SearchSessionFileContentsResponses];
 
 export type ForkSessionData = {
   /**
@@ -38182,6 +41217,124 @@ export type MarkSessionSeenResponses = {
 };
 
 export type MarkSessionSeenResponse = MarkSessionSeenResponses[keyof MarkSessionSeenResponses];
+
+export type GetSessionMCPData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp";
+};
+
+export type GetSessionMCPErrors = {
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session MCP read model unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetSessionMCPError = GetSessionMCPErrors[keyof GetSessionMCPErrors];
+
+export type GetSessionMCPResponses = {
+  /**
+   * OK
+   */
+  200: SessionMCP;
+};
+
+export type GetSessionMCPResponse = GetSessionMCPResponses[keyof GetSessionMCPResponses];
+
+export type CheckSessionMCPData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Definition owner; omitted owner selects manual
+     */
+    owner?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check";
+};
+
+export type CheckSessionMCPErrors = {
+  /**
+   * Invalid MCP check request or disabled source
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * MCP check canceled by client
+   */
+  499: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * MCP check runtime unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CheckSessionMCPError = CheckSessionMCPErrors[keyof CheckSessionMCPErrors];
+
+export type CheckSessionMCPResponses = {
+  /**
+   * MCP check result
+   */
+  200: SessionMCP;
+};
+
+export type CheckSessionMCPResponse = CheckSessionMCPResponses[keyof CheckSessionMCPResponses];
 
 export type ListSessionMonitorsData = {
   body?: never;
@@ -39695,7 +42848,7 @@ export type ListSessionSubagentsData = {
      */
     cursor?: string;
     /**
-     * Row order: newest first (default), or most urgent first (waiting, failed, working, queued, settled) then newest
+     * Row order: newest first (default), or most urgent first (waiting, working, failed, queued, settled) then newest
      */
     order?: "newest" | "urgency";
     /**
@@ -40423,6 +43576,65 @@ export type ForkSessionToWorktreeResponses = {
 
 export type ForkSessionToWorktreeResponse =
   ForkSessionToWorktreeResponses[keyof ForkSessionToWorktreeResponses];
+
+export type DeleteSubagentData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Subagent id
+     */
+    subagent_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/subagents/{subagent_id}";
+};
+
+export type DeleteSubagentErrors = {
+  /**
+   * Invalid request
+   */
+  400: ErrorPayload;
+  /**
+   * Capability denied
+   */
+  403: ErrorPayload;
+  /**
+   * Session or subagent not found
+   */
+  404: ErrorPayload;
+  /**
+   * Subagent is provider-native and follows its parent turn
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Subagents unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type DeleteSubagentError = DeleteSubagentErrors[keyof DeleteSubagentErrors];
+
+export type DeleteSubagentResponses = {
+  /**
+   * No Content
+   */
+  204: void;
+};
+
+export type DeleteSubagentResponse = DeleteSubagentResponses[keyof DeleteSubagentResponses];
 
 export type GetSubagentData = {
   body?: never;
@@ -41719,7 +44931,7 @@ export type ReadToolArtifactData = {
   body?: never;
   path: {
     /**
-     * Durable workspace id
+     * Durable workspace id or @user
      */
     workspace_id: string;
     /**
@@ -41733,9 +44945,13 @@ export type ReadToolArtifactData = {
      */
     offset?: number;
     /**
-     * Page size in bytes; defaults to and is capped at 65536
+     * Page size in bytes; defaults to 32768 and is capped at 65536
      */
     limit?: number;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
   };
   url: "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}";
 };
@@ -41746,7 +44962,7 @@ export type ReadToolArtifactErrors = {
    */
   400: ToolErrorResponse;
   /**
-   * Artifact not found in the resolved workspace
+   * Artifact not found in the resolved workspace or User scope and profile
    */
   404: ToolErrorResponse;
   /**
@@ -42363,13 +45579,122 @@ export type ValidateWindowManagerLayoutError =
 
 export type ValidateWindowManagerLayoutResponses = {
   /**
-   * Validation result
+   * Validation diagnostics and the canonical v6 document when valid
    */
   200: ContractWindowManagerLayoutValidationResponse;
 };
 
 export type ValidateWindowManagerLayoutResponse =
   ValidateWindowManagerLayoutResponses[keyof ValidateWindowManagerLayoutResponses];
+
+export type GetWindowManagerMigrationData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/window-manager/migration";
+};
+
+export type GetWindowManagerMigrationErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
+   * Workspace or referenced entity not found
+   */
+  404: ContractWindowManagerErrorPayload;
+  /**
+   * Revision or state conflict
+   */
+  409: ContractWindowManagerErrorPayload;
+  /**
+   * Invalid window-manager request
+   */
+  422: ContractWindowManagerErrorPayload;
+  /**
+   * Window manager unavailable
+   */
+  503: ContractWindowManagerErrorPayload;
+};
+
+export type GetWindowManagerMigrationError =
+  GetWindowManagerMigrationErrors[keyof GetWindowManagerMigrationErrors];
+
+export type GetWindowManagerMigrationResponses = {
+  /**
+   * OK
+   */
+  200: MigrationStatus;
+};
+
+export type GetWindowManagerMigrationResponse =
+  GetWindowManagerMigrationResponses[keyof GetWindowManagerMigrationResponses];
+
+export type UpdateWindowManagerMigrationData = {
+  /**
+   * JSON request body
+   */
+  body: WindowManagerMigrationRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/window-manager/migration";
+};
+
+export type UpdateWindowManagerMigrationErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
+   * Workspace or referenced entity not found
+   */
+  404: ContractWindowManagerErrorPayload;
+  /**
+   * Revision or state conflict
+   */
+  409: ContractWindowManagerErrorPayload;
+  /**
+   * Invalid window-manager request
+   */
+  422: ContractWindowManagerErrorPayload;
+  /**
+   * Window manager unavailable
+   */
+  503: ContractWindowManagerErrorPayload;
+};
+
+export type UpdateWindowManagerMigrationError =
+  UpdateWindowManagerMigrationErrors[keyof UpdateWindowManagerMigrationErrors];
+
+export type UpdateWindowManagerMigrationResponses = {
+  /**
+   * OK
+   */
+  200: MigrationStatus;
+};
+
+export type UpdateWindowManagerMigrationResponse =
+  UpdateWindowManagerMigrationResponses[keyof UpdateWindowManagerMigrationResponses];
 
 export type PreviewWindowManagerCommandData = {
   /**
@@ -42440,6 +45765,10 @@ export type ListWorktreesData = {
      * Refresh Git discovery and status
      */
     refresh?: boolean;
+    /**
+     * Include removed records (excluded by default)
+     */
+    include_removed?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/worktrees";
 };
@@ -42657,6 +45986,68 @@ export type RemoveDiscoveredWorktreeResponses = {
 
 export type RemoveDiscoveredWorktreeResponse =
   RemoveDiscoveredWorktreeResponses[keyof RemoveDiscoveredWorktreeResponses];
+
+export type RemoveWorktreesData = {
+  /**
+   * JSON request body
+   */
+  body: RemoveWorktreesRequest;
+  path: {
+    /**
+     * Workspace id or path
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile.
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/worktrees/remove";
+};
+
+export type RemoveWorktreesErrors = {
+  /**
+   * Invalid worktree request
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Worktree or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Worktree operation conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Invalid worktree configuration
+   */
+  422: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Worktree service is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RemoveWorktreesError = RemoveWorktreesErrors[keyof RemoveWorktreesErrors];
+
+export type RemoveWorktreesResponses = {
+  /**
+   * Per-target removal results or dry-run risk; inspect every result
+   */
+  200: RemoveWorktreesResponse;
+};
+
+export type RemoveWorktreesResponse2 = RemoveWorktreesResponses[keyof RemoveWorktreesResponses];
 
 export type RemoveWorktreeData = {
   body?: never;
@@ -43124,6 +46515,83 @@ export type PrepareWorktreeExitPlanResponses = {
 export type PrepareWorktreeExitPlanResponse =
   PrepareWorktreeExitPlanResponses[keyof PrepareWorktreeExitPlanResponses];
 
+export type ReadWorktreeFileBytesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Worktree id
+     */
+    worktree_id: string;
+    /**
+     * Root-relative file path; its slashes are path segments
+     */
+    path: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/files/raw/{path}";
+};
+
+export type ReadWorktreeFileBytesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Requested range not satisfiable
+   */
+  416: unknown;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadWorktreeFileBytesError =
+  ReadWorktreeFileBytesErrors[keyof ReadWorktreeFileBytesErrors];
+
+export type ReadWorktreeFileBytesResponses = {
+  /**
+   * File bytes
+   */
+  200: Blob | File;
+  /**
+   * Requested byte range
+   */
+  206: Blob | File;
+};
+
+export type ReadWorktreeFileBytesResponse =
+  ReadWorktreeFileBytesResponses[keyof ReadWorktreeFileBytesResponses];
+
 export type GetWorktreeStatusData = {
   body?: never;
   path: {
@@ -43200,6 +46668,10 @@ export type ListWorktreesAggregateData = {
      * Repeatable project IDs or @user; requires all_workspaces=true
      */
     workspace_ids?: Array<string>;
+    /**
+     * Include removed records (excluded by default)
+     */
+    include_removed?: boolean;
   };
   url: "/api/worktrees";
 };

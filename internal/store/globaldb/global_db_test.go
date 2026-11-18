@@ -33,6 +33,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
 	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -135,6 +136,103 @@ func reportTestMainError(format string, args ...any) {
 
 func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: upgrading repairs only stale deleted-child activity and preserves delegated history on reopen.
+	t.Run("Should repair deleted subagent activity across upgrade and reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path,
+			globalMigrationPrefixBefore(t, "00200_deleted_subagent_child_activity.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		now := store.FormatTimestamp(time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC))
+		if _, err := prior.ExecContext(ctx, `INSERT INTO workspaces
+			(id,root_dir,add_dirs,name,created_at,updated_at) VALUES ('ws-child-migration',?,'[]','child migration',?,?)`,
+			t.TempDir(), now, now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := prior.ExecContext(ctx, `INSERT INTO sessions
+			(id,profile_id,agent_name,workspace_id,session_type,state,created_at,updated_at)
+			VALUES ('parent',?,'coder','ws-child-migration','user','active',?,?)`,
+			store.DefaultProfileID, now, now); err != nil {
+			t.Fatal(err)
+		}
+		cases := []struct {
+			id, origin, status, activity, want string
+			child                              any
+		}{
+			{"completed", "delegated", "completed", "working", "stopped", nil},
+			{"failed", "delegated", "failed", "working", "stopped", nil},
+			{"canceled", "delegated", "canceled", "idle", "stopped", nil},
+			{"interrupted", "delegated", "interrupted", "idle", "stopped", nil},
+			{"live", "delegated", "running", "working", "working", nil},
+			{"native", "provider_native", "completed", "working", "working", nil},
+			{"linked", "delegated", "completed", "working", "working", "parent"},
+			{"unknown", "delegated", "failed", "", "", nil},
+		}
+		for _, tc := range cases {
+			if _, err := prior.ExecContext(ctx, `INSERT INTO session_subagents
+				(id,workspace_id,parent_session_id,parent_turn_id,child_session_id,origin,idempotency_key,
+				request_fingerprint,title,task_chars,depth,status,work_state,result,settled_at,wake_policy,child_activity,created_at,updated_at)
+				VALUES (?,'ws-child-migration','parent','turn',?,?,?,'fingerprint','Task',0,1,?,'result_available','saved result',?,
+				'settled_only',?,?,?)`, tc.id, tc.child, tc.origin, tc.id, tc.status, now, tc.activity, now, now); err != nil {
+				t.Fatal(err)
+			}
+		}
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := target.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := bindTelemetryDestination(ctx, prior, target.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := target.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := upgraded.Close(context.WithoutCancel(ctx)); err != nil {
+					t.Error(err)
+				}
+			})
+			for _, tc := range cases {
+				row, err := upgraded.GetSubagent(ctx, "ws-child-migration", tc.id)
+				if err != nil || row.ChildActivity.String() != tc.want || row.Status != tc.status ||
+					row.Result == nil || *row.Result != "saved result" || row.SettledAt == nil ||
+					store.FormatTimestamp(*row.SettledAt) != now || store.FormatTimestamp(row.UpdatedAt) != now {
+					t.Fatal(row, err)
+				}
+			}
+			status, err := store.Status(ctx, upgraded.DB(), MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			assertGlobalMigrationIntegrity(ctx, t, upgraded.DB())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	t.Run("Should keep request reads independent of an exhausted writer pool", func(t *testing.T) {
 		t.Parallel()
 		g := openTestGlobalDB(t)
@@ -517,6 +615,83 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	t.Run("Should preserve queued guidance through the boundary delivery migration", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00196_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('boundary-ws','/boundary-ws','Boundary','2026-11-04','2026-11-04')`,
+			`INSERT INTO sessions(id,profile_id,agent_name,workspace_id,state,created_at,updated_at) VALUES ('boundary-session','00000000000000000000000000','coder','boundary-ws','active','2026-11-04','2026-11-04')`,
+			`INSERT INTO session_input_queue(id,session_id,status,mode,text,enqueued_at,updated_at) VALUES ('deleted-input','boundary-session','queued','queue','Deleted','2026-11-04','2026-11-04')`,
+			`INSERT INTO session_input_queue(id,session_id,status,mode,delivery,steer_delivery,text,enqueued_at,updated_at) VALUES ('boundary-input','boundary-session','queued','steer','interrupt_then_prompt','interrupt_fallback','Retain this guidance','2026-11-04','2026-11-04')`,
+			`INSERT INTO session_input_queue(id,session_id,status,mode,text,owner_kind,dispatchable,goal_input_batch_max_rowid,enqueued_at,updated_at)
+			 VALUES ('prepared-goal','boundary-session','queued','queue','Goal','goal',0,2,'2026-11-04','2026-11-04')`,
+			`INSERT INTO session_input_queue(id,session_id,status,mode,text,enqueued_at,updated_at) VALUES ('after-goal','boundary-session','queued','queue','Later input','2026-11-04','2026-11-04')`,
+			`DELETE FROM session_input_queue WHERE id='deleted-input'`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const retainedRows = `SELECT json_group_array(json_array(rowid,id,goal_input_batch_max_rowid))
+		 FROM (SELECT rowid,* FROM session_input_queue ORDER BY id)`
+		var beforeRows string
+		if err := prior.QueryRowContext(ctx, retainedRows).Scan(&beforeRows); err != nil {
+			t.Fatal(err)
+		}
+
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := target.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := bindTelemetryDestination(ctx, prior, target.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := target.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			db := openGlobalDBForTest(t, path)
+			var afterRows string
+			if err := db.DB().QueryRowContext(ctx, retainedRows).Scan(&afterRows); err != nil {
+				t.Fatal(err)
+			}
+			if afterRows != beforeRows {
+				t.Fatalf("queue rowids or Goal cutoffs changed: %s -> %s", beforeRows, afterRows)
+			}
+			var text, delivery string
+			if err := db.DB().
+				QueryRowContext(ctx, `SELECT text,steer_delivery FROM session_input_queue WHERE id='boundary-input'`).
+				Scan(&text, &delivery); err != nil {
+				t.Fatal(err)
+			}
+			if text != "Retain this guidance" || delivery != "interrupt_fallback" {
+				t.Fatalf("retained input=%q/%q", text, delivery)
+			}
+			assertGlobalMigrationIntegrity(ctx, t, db.DB())
+			if err := db.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
 	// IT-024: v0.4.8 ends at migration 163. Preserve its heartbeat wake state,
 	// permission history and automation trigger through the real upgrade and reopen.
 	t.Run("Should preserve script approvals through cascade migration and reopen", func(t *testing.T) {
@@ -1861,6 +2036,9 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		// Fresh migration replay has its own open/migration suite. This case
+		// owns row/status preservation on reopen and starts from the template.
+		copyCurrentSchemaGlobalDBSeed(t, path)
 		first, err := OpenGlobalDB(ctx, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(first) error = %v", err)
@@ -1928,7 +2106,9 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 	})
 
 	t.Run("Should apply destructive cuts once and remove pre-lineage loop history", func(t *testing.T) {
-		t.Parallel()
+		// This case owns the full historical replay, not just reopen behavior.
+		// Run it before the parallel migration subtests: competing full upgrades
+		// can exhaust its five-minute operation budget under race instrumentation.
 
 		ctx := globalMigrationTestContext(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
@@ -6259,6 +6439,68 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 	}
 }
 
+func TestGlobalDBReconcileSessionsWithArchivedMissingFolder(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		changes bool
+	}{
+		{name: "Should preserve missing archived sessions during full reconciliation"},
+		{name: "Should preserve missing archived sessions during incremental reconciliation", changes: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspaceID := registerSessionForGlobalTests(t, db, "sess-archived-missing")
+			registerSessionForGlobalTests(t, db, "sess-unarchived-missing")
+			if err := db.UpdateSessionState(ctx, SessionStateUpdate{
+				ID: "sess-archived-missing", State: "stopped",
+			}); err != nil {
+				t.Fatalf("UpdateSessionState() error = %v", err)
+			}
+			archived, err := db.SetSessionArchived(ctx, workspaceID, "sess-archived-missing", true)
+			if err != nil {
+				t.Fatalf("SetSessionArchived() error = %v", err)
+			}
+
+			for range 2 {
+				var result store.ReconcileResult
+				if tc.changes {
+					var changes store.SessionChangeReconcileResult
+					changes, err = db.ReconcileSessionChanges(ctx, nil, nil)
+					result = changes.ReconcileResult
+				} else {
+					result, err = db.ReconcileSessions(ctx, nil)
+				}
+				if err != nil {
+					t.Fatalf("reconcile with missing archived folder: %v", err)
+				}
+				if len(result.Indexed) != 0 || !slices.Equal(result.Orphaned, []string{"sess-unarchived-missing"}) {
+					t.Fatalf("reconcile result = %#v, want only unarchived session orphaned", result)
+				}
+				rows, err := db.ListSessions(ctx, SessionListQuery{
+					ID: archived.ID, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+					Archive: store.SessionArchiveInclude,
+				})
+				if err != nil || len(rows) != 1 || !reflect.DeepEqual(rows[0], archived) {
+					t.Fatalf("archived session = %#v, %v; want unchanged %#v", rows, err, archived)
+				}
+			}
+
+			if err := db.DeleteSession(ctx, archived.ID); err != nil {
+				t.Fatalf("DeleteSession(archived missing folder) error = %v", err)
+			}
+			_, err = db.SessionArchivedAt(ctx, workspaceID, archived.ID)
+			if !errors.Is(err, store.ErrSessionNotFound) {
+				t.Fatalf("SessionArchivedAt(deleted) error = %v, want ErrSessionNotFound", err)
+			}
+		})
+	}
+}
+
 func TestGlobalDBReconcileSessionsSkipsDuplicateIDsAndDefaultsTimestamps(t *testing.T) {
 	t.Parallel()
 
@@ -7627,8 +7869,6 @@ func TestGlobalAutomationRunProfileMigrationTail(t *testing.T) {
 	t.Parallel()
 	t.Run("Should preserve proven ownership and orphan history", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
-		defer cancel()
 		db, err := openGlobalMigrationPrefixDatabase(t, filepath.Join(t.TempDir(), GlobalDatabaseName),
 			globalMigrationPrefixBefore(t, "00108_schema.sql"))
 		if err != nil {
@@ -7639,6 +7879,9 @@ func TestGlobalAutomationRunProfileMigrationTail(t *testing.T) {
 				t.Error(err)
 			}
 		})
+		// Fixture admission and copying do not consume the migration operation budget.
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+		defer cancel()
 		stream := MigrationStream()
 		const secondary = "01K00000000000000000000091"
 		if _, err := db.ExecContext(ctx, `INSERT INTO profiles (id, name, color, icon, state, created_at)
@@ -7870,4 +8113,64 @@ func TestGlobalDBGoalWaitMigration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCheckInMigrationPreservesReports(t *testing.T) {
+	t.Run("Should preserve report delivery state across the reports rebuild [IT-001]", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00198_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO agent_instances(id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at) VALUES('migration-instance','00000000000000000000000000','coder','active','human','operator','2026-11-07','2026-11-07')`,
+			`INSERT INTO agent_instance_reports(id,instance_id,source_key,kind,payload,state,prompt_admission_id,recovery_noted,created_at) VALUES('migration-report','migration-instance','migration-source','failure','{"reason":"test","detail":"preserve"}','indeterminate','admission-1',1,'2026-11-07')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const query = `SELECT json_array(id,instance_id,source_key,kind,payload,state,prompt_admission_id,recovery_noted,created_at) FROM agent_instance_reports WHERE id='migration-report'`
+		var before string
+		if err := prior.QueryRowContext(ctx, query).Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := bindTelemetryDestination(ctx, prior, target.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := target.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded := openGlobalDBForTest(t, path)
+		var after string
+		if err := upgraded.DB().QueryRowContext(ctx, query).Scan(&after); err != nil {
+			t.Fatal(err)
+		}
+		if before != after {
+			t.Fatalf("report changed: %s -> %s", before, after)
+		}
+		if _, err := upgraded.DB().
+			ExecContext(ctx, `INSERT INTO agent_instance_reports(id,instance_id,source_key,kind,payload,created_at) VALUES('activity-report','migration-instance','activity-source','activity','{"reason":"activity","detail":"changed"}','2026-11-07')`); err != nil {
+			t.Fatal(err)
+		}
+		status, err := store.Status(ctx, upgraded.db, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
 }

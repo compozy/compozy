@@ -276,9 +276,24 @@ function FocusUpdateIndicatorSetup() {
   return null;
 }
 
+/** The host's reduced-motion toggle, published the way the desktop shell does. */
+function ReducedMotionSetup() {
+  useEffect(() => {
+    const root = document.documentElement;
+    const previous = root.getAttribute("data-reduce-motion");
+    root.setAttribute("data-reduce-motion", "true");
+    return () => {
+      if (previous === null) root.removeAttribute("data-reduce-motion");
+      else root.setAttribute("data-reduce-motion", previous);
+    };
+  }, []);
+  return null;
+}
+
 /**
- * An update is offered: an accent "Update" pill joins the trailing cluster before
- * the approvals bell. One click updates CompozyOS and restarts it in place.
+ * An update is offered: an accent "Update" pill rimmed by the animated brand
+ * border joins the trailing cluster before the approvals bell. One click updates
+ * CompozyOS and restarts it in place.
  */
 export const UpdateIndicatorAvailable: Story = updateIndicatorStory(
   settingsUpdateBothAvailableFixture
@@ -295,10 +310,24 @@ export const UpdateIndicatorFocused: Story = {
   ),
 };
 
+/** Reduced motion: the offer keeps the static brand-gradient rim, with no travelling glow. */
+export const UpdateIndicatorReducedMotion: Story = {
+  ...updateIndicatorStory(settingsUpdateBothAvailableFixture),
+  render: () => (
+    <>
+      <ReducedMotionSetup />
+      <MenubarFixture update={{ state: "available", onUpdate: fn() }} />
+    </>
+  ),
+};
+
 /** The calm default: nothing is offered, so the indicator is absent from the DOM. */
 export const UpdateIndicatorHidden: Story = updateIndicatorStory(settingsUpdateStatusFixture);
 
-/** An operation is live: the pill holds a spinner until the app restarts updated. */
+/**
+ * An operation is live: the pill holds a spinner and the still brand rim until the
+ * app restarts updated.
+ */
 export const UpdateIndicatorUpdating: Story = updateIndicatorStory(settingsUpdateApplyingFixture);
 
 /** The last update failed: the pill turns danger and opens Settings for the detail. */

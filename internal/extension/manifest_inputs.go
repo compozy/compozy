@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	manifestInputTypeSecret  = "secret"
-	manifestInputTypeBoolean = "boolean"
+	manifestInputBindingTemplate = "template"
+	manifestInputTypeSecret      = "secret"
+	manifestInputTypeBoolean     = "boolean"
 )
 
 // ManifestInput uses the same grammar as its published catalog entry.
@@ -120,6 +121,9 @@ func ValidateManifestInputs(manifest *Manifest) error {
 
 func manifestInputMatchesServer(input ManifestInput, server MCPServerConfig) (bool, error) {
 	name := strings.TrimSpace(input.Binding.Name)
+	if input.Binding.Type == manifestInputBindingTemplate {
+		return manifestServerReferencesInput(server, name), nil
+	}
 	if input.Binding.Type == "url_query" {
 		parsed, err := url.Parse(server.URL)
 		if err != nil {

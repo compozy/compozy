@@ -1,14 +1,19 @@
 package tools
 
 import (
+	"cmp"
 	"context"
+	"encoding/base32"
 	"fmt"
-	"slices"
 	"strings"
+	"sync"
+	"time"
+	"unicode/utf8"
 )
 
 const (
 	mcpNamespace                   = "mcp"
+	mcpRawToolSegment              = "raw"
 	mcpProviderOwner               = "mcp"
 	mcpAuthStatusUnconfigured      = "unconfigured"
 	mcpAuthStatusNeedsLogin        = "needs_login"
@@ -40,11 +45,18 @@ func (f MCPSourceListerFunc) ListMCPSources(ctx context.Context) ([]SourceRef, e
 
 // MCPProvider adapts daemon-owned MCP discovery and calls into registry descriptors.
 type MCPProvider struct {
-	source      SourceRef
-	sources     MCPSourceLister
-	exec        MCPCallExecutor
-	auth        MCPAuthStatusProvider
-	reliability *mcpReliability
+	discoveryMu          sync.Mutex
+	discoveryGenerations map[SourceRef]mcpDiscoveryGeneration
+	discovered           sync.Map // source identity -> last discovered descriptors
+	discoveryFailures    sync.Map // source identity -> failed latest discovery
+
+	consent         func(context.Context, SourceRef, string) (bool, error)
+	discoveryBudget time.Duration
+	source          SourceRef
+	sources         MCPSourceLister
+	exec            MCPCallExecutor
+	auth            MCPAuthStatusProvider
+	reliability     *mcpReliability
 }
 
 var _ Provider = (*MCPProvider)(nil)
@@ -101,36 +113,8 @@ func (p *MCPProvider) ID() SourceRef {
 
 // List discovers configured MCP tools and normalizes them into registry descriptors.
 func (p *MCPProvider) List(ctx context.Context, scope Scope) ([]Descriptor, error) {
-	if p == nil || isNilInterface(p.exec) || isNilInterface(p.sources) {
-		return nil, NewValidationError(
-			"provider",
-			ReasonDependencyMissing,
-			"mcp provider is required",
-		)
-	}
-	if err := contextErr(ctx, ""); err != nil {
-		return nil, err
-	}
-	sources, err := p.sources.ListMCPSources(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("tools: list mcp sources: %w", err)
-	}
-	sources = MCPSourcesForScope(sources, scope)
-	if p.reliability != nil {
-		p.reliability.retainActiveSources(scope, sources)
-	}
-	descriptors := make([]Descriptor, 0)
-	for _, source := range sources {
-		sourceDescriptors, err := p.listSourceDescriptors(ctx, source, scope.ProfileID)
-		if err != nil {
-			return nil, err
-		}
-		descriptors = append(descriptors, sourceDescriptors...)
-	}
-	slices.SortFunc(descriptors, func(left, right Descriptor) int {
-		return strings.Compare(left.ID.String(), right.ID.String())
-	})
-	return descriptors, nil
+	descriptors, _, err := p.listProjection(ctx, scope)
+	return descriptors, err
 }
 
 // MCPSourcesForScope selects the sources one scope projects, keeping the most specific definition per server.
@@ -202,12 +186,14 @@ func (p *MCPProvider) Resolve(ctx context.Context, scope Scope, id ToolID) (Hand
 			auth:        p.auth,
 			scope:       scope,
 			reliability: p.reliability,
+			provider:    p,
 		}, true, nil
 	}
 	return nil, false, nil
 }
 
 type mcpHandle struct {
+	provider    *MCPProvider
 	descriptor  Descriptor
 	exec        MCPCallExecutor
 	auth        MCPAuthStatusProvider
@@ -228,27 +214,29 @@ func (h *mcpHandle) Availability(ctx context.Context, scope Scope) Availability 
 	if h == nil || isNilInterface(h.exec) {
 		return Unavailable(ReasonBackendNotExecutable)
 	}
+	if !isNilInterface(h.auth) {
+		status, err := h.auth.Status(ctx, h.descriptor.Source, "")
+		if err != nil {
+			return Unavailable(ReasonBackendUnhealthy)
+		}
+		if reason, known := MCPAuthStatusReason(status); known && reason != ReasonMCPAuthUnconfigured {
+			return Availability{
+				Enabled: true, Available: true, Authorized: false, Executable: false,
+				ReasonCodes: []ReasonCode{reason},
+			}
+		}
+	}
 	if h.reliability != nil && h.reliability.dead(ctx, h.descriptor.Source, scope.ProfileID) {
 		return Unavailable(ReasonBackendDead)
 	}
-	if isNilInterface(h.auth) {
-		return Available()
+	if h.provider != nil {
+		source := h.descriptor.Source
+		source.RawToolName = ""
+		if _, failed := h.provider.discoveryFailures.Load(source); failed {
+			return Unavailable(ReasonBackendUnhealthy)
+		}
 	}
-	status, err := h.auth.Status(ctx, h.descriptor.Source, "")
-	if err != nil {
-		return Unavailable(ReasonBackendUnhealthy)
-	}
-	reason, ok := MCPAuthStatusReason(status)
-	if !ok || reason == ReasonMCPAuthUnconfigured {
-		return Available()
-	}
-	return Availability{
-		Enabled:     true,
-		Available:   true,
-		Authorized:  false,
-		Executable:  false,
-		ReasonCodes: []ReasonCode{reason},
-	}
+	return Available()
 }
 
 func (h *mcpHandle) Call(ctx context.Context, req CallRequest) (ToolResult, error) {
@@ -284,17 +272,31 @@ func Canonicalize(rawServer, rawTool string) (ToolID, error) {
 	if err != nil {
 		return "", err
 	}
-	tool, err := canonicalMCPSegment("mcp.tool", rawTool)
-	if err != nil {
-		return "", err
+	legacyTool, legacyErr := canonicalMCPSegment("mcp.tool", rawTool)
+	if legacyErr == nil {
+		return validateMCPToolID(mcpNamespace + "__" + server + "__" + legacyTool)
 	}
-	id := ToolID(mcpNamespace + "__" + server + "__" + tool)
-	if len(id) > maxSegmentedIDLength {
-		return "", NewValidationError(
-			"tool_id",
-			ReasonIDTooLong,
-			"mcp tool id exceeds 64 characters",
-		)
+	if strings.TrimSpace(rawTool) == "" || !utf8.ValidString(rawTool) || strings.ContainsRune(rawTool, 0) {
+		return "", legacyErr
+	}
+	// A fourth segment keeps encoded names disjoint from every previously assigned tool ID.
+	prefix := mcpNamespace + "__" + server + "__" + mcpRawToolSegment + "__x"
+	if len(prefix)+mcpRawToolEncoding.EncodedLen(len(rawTool)) > maxSegmentedIDLength {
+		return "", mcpToolIDTooLong()
+	}
+	return validateMCPToolID(prefix + mcpRawToolEncoding.EncodeToString([]byte(rawTool)))
+}
+
+var mcpRawToolEncoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567").WithPadding(base32.NoPadding)
+
+func mcpToolIDTooLong() error {
+	return NewValidationError("tool_id", ReasonIDTooLong, "mcp tool id exceeds 64 characters")
+}
+
+func validateMCPToolID(value string) (ToolID, error) {
+	id := ToolID(value)
+	if len(value) > maxSegmentedIDLength {
+		return "", mcpToolIDTooLong()
 	}
 	if err := id.Validate(); err != nil {
 		return "", err
@@ -310,6 +312,9 @@ func MCPAuthStatusReason(status MCPAuthStatus) (ReasonCode, bool) {
 	case mcpAuthStatusNeedsLogin:
 		return ReasonMCPAuthRequired, true
 	case mcpAuthStatusExpired:
+		if status.TokenPresent && status.Refreshable {
+			return "", false
+		}
 		return ReasonMCPAuthExpired, true
 	case mcpAuthStatusInvalid:
 		return ReasonMCPAuthInvalid, true
@@ -324,7 +329,7 @@ func MCPAuthStatusReason(status MCPAuthStatus) (ReasonCode, bool) {
 
 func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor, error) {
 	rawServer := firstNonEmpty(desc.Source.RawServerName, source.RawServerName, source.Owner)
-	rawTool := firstNonEmpty(desc.Source.RawToolName, desc.RawName)
+	rawTool := cmp.Or(desc.Source.RawToolName, desc.RawName)
 	id, err := Canonicalize(rawServer, rawTool)
 	if err != nil {
 		return Descriptor{}, err
@@ -336,7 +341,7 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 			"mcp descriptor id does not match canonical raw server/tool names",
 		)
 	}
-	owner, err := mcpOwnerFromID(id)
+	owner, err := MCPToolOwner(id)
 	if err != nil {
 		return Descriptor{}, err
 	}
@@ -354,11 +359,15 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 	if mcpSource.WorkspaceID == "" {
 		mcpSource.WorkspaceID = source.WorkspaceID
 	}
+	if mcpSource.ProfileID == "" {
+		mcpSource.ProfileID = source.ProfileID
+	}
 	if mcpSource.Scope == "" {
 		mcpSource.Scope = source.Scope
 	}
 
-	readOnly := desc.ReadOnly
+	// destructiveHint wins over readOnlyHint: the tool is a write and must index as one.
+	readOnly := desc.ReadOnly && !desc.Destructive
 	risk := RiskOpenWorld
 	openWorld := true
 	if readOnly {
@@ -377,16 +386,18 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 			strings.TrimSpace(desc.FriendlyVerb),
 			strings.TrimSpace(desc.Preview),
 		),
-		Description:     strings.TrimSpace(desc.Description),
-		InputSchema:     cloneRawMessage(desc.InputSchema),
-		OutputSchema:    cloneRawMessage(desc.OutputSchema),
-		Source:          mcpSource,
-		Visibility:      VisibilityModel,
-		Risk:            risk,
-		ReadOnly:        readOnly,
-		Destructive:     false,
-		OpenWorld:       openWorld,
-		ConcurrencySafe: readOnly,
+		Description:                 strings.TrimSpace(desc.Description),
+		InputSchema:                 cloneRawMessage(desc.InputSchema),
+		OutputSchema:                cloneRawMessage(desc.OutputSchema),
+		Source:                      mcpSource,
+		Visibility:                  VisibilityModel,
+		Risk:                        risk,
+		ReadOnly:                    readOnly,
+		Destructive:                 desc.Destructive,
+		OpenWorld:                   openWorld,
+		ConcurrencySafe:             readOnly,
+		mcpReadOnlyOverride:         desc.ReadOnlyOverride,
+		mcpReadOnlyOperatorOverride: desc.ReadOnlyOverrideOrigin == MCPReadOnlyOverrideOperatorConfig,
 	}
 	return DescriptorWithSchemaDigests(descriptor)
 }
@@ -444,12 +455,16 @@ func canonicalMCPSegment(field string, raw string) (string, error) {
 	}
 }
 
-func mcpOwnerFromID(id ToolID) (string, error) {
+// MCPToolOwner returns the canonical server segment of an MCP tool ID.
+func MCPToolOwner(id ToolID) (string, error) {
 	segments, err := id.Segments()
 	if err != nil {
 		return "", err
 	}
-	if len(segments) != 3 || segments[0] != mcpNamespace {
+	legacy := len(segments) == 3
+	encoded := len(segments) == 4 && segments[2] == mcpRawToolSegment &&
+		len(segments[3]) > 1 && strings.HasPrefix(segments[3], "x")
+	if segments[0] != mcpNamespace || (!legacy && !encoded) {
 		return "", NewValidationError(
 			"tool_id",
 			ReasonIDInvalidFormat,
@@ -466,4 +481,14 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func applyMCPReadAuthority(d *Descriptor, overrides map[string]bool) {
+	approved := overrides[string(d.ID)]
+	if !d.mcpReadOnlyOverride || (!d.mcpReadOnlyOperatorOverride && !approved) ||
+		d.Backend.Kind != BackendMCP ||
+		d.Destructive {
+		return
+	}
+	d.ReadOnly, d.ConcurrencySafe, d.OpenWorld, d.Risk = true, true, false, RiskRead
 }

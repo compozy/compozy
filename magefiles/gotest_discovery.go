@@ -19,6 +19,7 @@ import (
 )
 
 type goTestPackageFiles struct {
+	ImportPath   string
 	Dir          string
 	TestGoFiles  []string
 	XTestGoFiles []string

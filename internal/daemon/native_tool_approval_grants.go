@@ -94,10 +94,11 @@ func (n *daemonNativeTools) toolApprovalsSet(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeToolApprovalGrantError(req.ToolID, err)
 	}
-	return structuredResult(
-		nativeToolApprovalSetResponse{Grant: stored},
-		fmt.Sprintf("Remembered %s-wide tool approval set", input.Scope),
-	)
+	views := approvalSetViews
+	views.Preview = func(nativeToolApprovalSetResponse) string {
+		return fmt.Sprintf("Remembered %s-wide tool approval set", input.Scope)
+	}
+	return views.result(req.View, nativeToolApprovalSetResponse{Grant: stored})
 }
 
 func (n *daemonNativeTools) toolApprovalsList(
@@ -123,10 +124,7 @@ func (n *daemonNativeTools) toolApprovalsList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeToolApprovalGrantError(req.ToolID, err)
 	}
-	return structuredResult(
-		nativeToolApprovalListResponse{Grants: grants, Total: len(grants)},
-		fmt.Sprintf("%d remembered tool approvals", len(grants)),
-	)
+	return approvalListViews.result(req.View, nativeToolApprovalListResponse{Grants: grants, Total: len(grants)})
 }
 
 func (n *daemonNativeTools) toolApprovalsRevoke(

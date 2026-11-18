@@ -290,6 +290,38 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			wantError: true,
 		},
 		{
+			name: "event summary requires a workspace outside the User scope",
+			validate: func() error {
+				return (EventSummary{
+					ProfileID: DefaultProfileID,
+					SessionID: "sess-1",
+					Type:      "tool_call",
+					AgentName: "coder",
+				}).Validate()
+			},
+			wantError:         true,
+			wantErrorContains: "event summary workspace_id is required",
+		},
+		{
+			name: "event summary accepts a User-scope session without a workspace",
+			validate: func() error {
+				return (EventSummary{
+					ProfileID: DefaultProfileID,
+					SessionID: "sess-1",
+					Type:      "tool_call",
+					AgentName: "coder",
+				}).ValidateUserSession()
+			},
+		},
+		{
+			name: "event summary User-scope session still requires its session",
+			validate: func() error {
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "tool_call", AgentName: "coder"}).ValidateUserSession()
+			},
+			wantError:         true,
+			wantErrorContains: "event summary session id is required",
+		},
+		{
 			name: "event summary missing type",
 			validate: func() error {
 				return (EventSummary{SessionID: "sess-1", WorkspaceID: "ws-store-helpers"}).Validate()

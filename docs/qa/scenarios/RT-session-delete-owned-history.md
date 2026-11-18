@@ -102,3 +102,41 @@ Plain delete of a parent keeps its children reachable as top-level rows. `compoz
 sessions; continued and forked sessions remain. A failed member stops the walk: the sessions it did
 not reach remain, and the error names the child. The web dialog shows "Also delete {N} child
 session(s)" unchecked, and omits it for a session with no children.
+
+## Stored reader does not return its lease
+
+In an isolated fixture, hold a read-only history lease on a stopped session, then delete it with
+no caller deadline. The stored-reader wait must fail after its five-second default budget
+(overridable through the Manager's `WithQueryQuiesceTimeout` option), report the affected session,
+and preserve its catalog row, database and attachments without a deletion tombstone. New readers
+must still open after that failure. Release the held lease and retry: deletion must succeed.
+An earlier caller deadline still applies. A catalog failure after successful quiescence must
+restore the staged history even after the reader-wait budget has elapsed.
+
+`TestManagerDelete` owns these regressions over the real read-only pool and SQLite. Verification
+for this change is CI-only; local tests and daemon labs are prohibited by the dispatch. This
+addition does not promote the historical manual scenario verdict.
+
+Release main-health diagnostic check: navigating away from or deleting a session cancels its
+outstanding reads. These expected cancellations must not produce MCP authority failure warnings;
+genuine resolver failures still warn and expose no additional server authority. The existing
+session-hardening browser suite keeps its sensitive-data checks on console, network and daemon logs.
+Validation for this repair is pending in main CI; no local lab was run.
+
+Follow-up regression walk (#1741): hold a workspace-removal preparation open while another stopped
+session is deleted. Its caller deadline must end lifecycle-lock admission without staging a directory
+or losing history; release the preparation and retry successfully. Recover missing-metadata tombstones
+on Windows with a mutation-capable directory handle. Recovery binds the database using the receipt's
+immutable owner even when its reconciliation workspace differs. The existing `TestManagerDelete`
+suite owns these cases; final-head CI verification is pending, and no local lab was run.
+
+Child-delegation follow-up 2026-11-15: after deleting a delegated child session, retain its parent's
+delegation result and deliver one completion wake for asynchronous delegation. A synchronous
+`wait` acknowledges its interruption directly without a second wake; recovery delivers the pending
+interruption if that acknowledgement did not commit; deleting an already completed
+wait-mode child preserves its delivery state. The store terminalizes any unobserved live row
+in the deletion transaction, including archived-only deletion, and the manager reconciles delivery
+after releasing its lifecycle, conversation and profile-move locks. Exercise running, stopped and missing-history children, plus
+recovery after a store-only delete; the parent must stop waiting after delivery. Coverage belongs to
+`TestSubagentDaemonIntegration` and `TestGlobalDBSubagentStateUpdates`. CI-only execution is required
+for this batch; no local daemon or manual QA walk was run.

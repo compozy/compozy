@@ -75,9 +75,14 @@ func (n *daemonNativeTools) taskFanOutRuns(
 	}); err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	return structuredResult(
-		map[string]any{"designation_group_id": groupID, nativeToolsRunsKey: runs},
-		fmt.Sprintf("%d runs", len(runs)),
+	return (resultViews[taskFanoutResult]{
+		Compact: viewTaskFanout,
+		Preview: func(taskFanoutResult) string {
+			return fmt.Sprintf("%d runs", len(runs))
+		},
+	}).result(
+		req.View,
+		taskFanoutResult{DesignationGroupID: groupID, Runs: runs},
 	)
 }
 

@@ -1,0 +1,49 @@
+---
+title: "compozy window reorder"
+description: "Reorder the window's tab"
+---
+
+## compozy window reorder
+
+Reorder the window's tab
+
+```
+compozy window reorder <window-id> [flags]
+```
+
+### Options
+
+```
+      --actor-id string    Optional actor identifier
+      --client string      Connected presentation client ID
+  -h, --help               help for reorder
+      --index int          Zero-based tab index, clamped to the tab's pinned or unpinned range
+      --origin string      Command origin label (default "cli")
+      --revision uint      Expected workspace revision
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy window reorder <window-id> -o json
+```

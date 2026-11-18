@@ -7,25 +7,54 @@ import (
 	"strings"
 )
 
-// SessionPermissionPolicy captures concrete permission atoms available to a session.
+// PermissionIntent distinguishes live scope inheritance from an authored list.
+type PermissionIntent string
+
+const (
+	PermissionInherit PermissionIntent = "inherit"
+	PermissionList    PermissionIntent = "list"
+)
+
+// SessionPermissionPolicy captures stored permission intent and concrete atoms.
 type SessionPermissionPolicy struct {
-	Tools          []string `json:"tools"`
-	Skills         []string `json:"skills"`
-	MCPServers     []string `json:"mcp_servers"`
-	WorkspacePaths []string `json:"workspace_paths"`
+	MCPServersMode     PermissionIntent `json:"mcp_servers_mode,omitempty"`
+	ToolsMode          PermissionIntent `json:"tools_mode,omitempty"`
+	AncestorMCPCeiling *[]string        `json:"ancestor_mcp_ceiling,omitzero"`
+	Tools              []string         `json:"tools"`
+	Skills             []string         `json:"skills"`
+	MCPServers         []string         `json:"mcp_servers"`
+	WorkspacePaths     []string         `json:"workspace_paths"`
+	// Materialized fields distinguish generated delegation budgets from authored ceilings.
+	// They are internal persistence metadata and are omitted by public contract mappers.
+	MaterializedTools      bool `json:"materialized_tools,omitempty"`
+	MaterializedMCPServers bool `json:"materialized_mcp_servers,omitempty"`
 }
 
 // NormalizeSessionPermissionPolicy returns a policy with stable, trimmed atom lists.
 func NormalizeSessionPermissionPolicy(policy SessionPermissionPolicy) SessionPermissionPolicy {
+	var ceiling *[]string
+	if policy.AncestorMCPCeiling != nil {
+		ceiling = new(normalizePolicyAtoms(*policy.AncestorMCPCeiling))
+	}
 	return SessionPermissionPolicy{
-		Tools:          normalizePolicyAtoms(policy.Tools),
-		Skills:         normalizePolicyAtoms(policy.Skills),
-		MCPServers:     normalizePolicyAtoms(policy.MCPServers),
-		WorkspacePaths: normalizePolicyAtoms(policy.WorkspacePaths),
+		MCPServersMode:         policy.MCPServersMode,
+		ToolsMode:              policy.ToolsMode,
+		AncestorMCPCeiling:     ceiling,
+		Tools:                  normalizePolicyAtoms(policy.Tools),
+		Skills:                 normalizePolicyAtoms(policy.Skills),
+		MCPServers:             normalizePolicyAtoms(policy.MCPServers),
+		WorkspacePaths:         normalizePolicyAtoms(policy.WorkspacePaths),
+		MaterializedTools:      policy.MaterializedTools,
+		MaterializedMCPServers: policy.MaterializedMCPServers,
 	}
 }
 
 func validateSessionPermissionPolicy(policy SessionPermissionPolicy) error {
+	for _, mode := range []PermissionIntent{policy.MCPServersMode, policy.ToolsMode} {
+		if mode != "" && mode != PermissionInherit && mode != PermissionList {
+			return fmt.Errorf("store: invalid permission intent %q", mode)
+		}
+	}
 	checks := []struct {
 		name   string
 		values []string

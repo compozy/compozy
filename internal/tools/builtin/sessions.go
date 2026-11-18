@@ -27,8 +27,10 @@ const (
 var sessionTools = []toolspkg.Descriptor{
 	sessionListDescriptor(),
 	commandListDescriptor(),
+	sessionChangesDescriptor(),
 	sessionArchiveDescriptor(true),
 	sessionArchiveDescriptor(false),
+	sessionCleanupDescriptor(),
 	sessionLaterDescriptor(),
 	sessionResumeLaterDescriptor(),
 	sessionMarkSeenDescriptor(),
@@ -80,7 +82,7 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionEventsDescriptor(),
 	sessionSearchDescriptor(),
 	sessionOutlineDescriptor(),
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDSessionDescribe,
 		"session_describe",
 		"Session Describe",
@@ -94,7 +96,7 @@ var sessionTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
 		[]string{sessionsSessionsKey, "describe"},
 		[]string{"session describe", "session detail"},
-	),
+	), sessionDescribeCompactOutputSchema, `{"type":"object"}`),
 }
 
 func sessionListDescriptor() toolspkg.Descriptor {
@@ -112,8 +114,7 @@ func sessionListDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, sessionsListKey},
 		[]string{"session list", "runtime sessions"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionListOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionListCompactOutputSchema(), sessionListOutputSchema)
 }
 
 func sessionDescriptors() []toolspkg.Descriptor {
@@ -139,8 +140,7 @@ func sessionCreateDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, descriptorKeywordCreate},
 		[]string{"create session", "new session"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionCreateOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionCreateOutputSchema)
 }
 
 func sessionPromptDescriptor() toolspkg.Descriptor {
@@ -163,6 +163,11 @@ func sessionPromptDescriptor() toolspkg.Descriptor {
 			"is woken when the receiver finishes; set it to get the receiver's final answer back as a reply "+
 			"wake. To answer a message you received, pass its message id as in_reply_to. notify_on_complete "+
 			"and in_reply_to require an agent session; operator-scoped calls are refused with invalid_request. "+
+			"Outside an instance lineage, a stopped session restarts only when mode is omitted; "+
+			"explicit queue, steer, or interrupt returns session_not_promptable. "+
+			"Check its stop reason before deliberately restarting it. "+
+			"Instance messages may instead be queued or held; that disposition alone does not mean the runtime restarted. "+
+			"During daemon boot, daemon_starting with retryable=true means retry after readiness. "+
 			"A message to a session parked in Later is queued with disposition later and does not resume it.",
 		sessionPromptInputSchema,
 		toolspkg.RiskMutating,
@@ -351,6 +356,7 @@ const sessionListOutputSchema = `{
  "pull_request_lookup":{"type":["object","null"]},
  "board_column":{"type":"string","enum":["needs_you","working","waiting","in_review","done"]},
  "parent_title":{"type":"string"},
+ "tree_parent_session_id":{"type":"string"},
  "waiting_on":{"type":"string","enum":["sessions","monitor"]},
  "children":{"type":"object"}}}},
 		"page":{
@@ -378,11 +384,15 @@ const sessionPromptOutputSchema = `{
 			"properties":{
 				"status":{"type":"string"},
 				"disposition":{"type":"string","enum":["direct","steering","queued","interrupting","later"]},
-				"steer_delivery":{"type":"string","enum":["injected","pending_injection","interrupt_fallback"]},
+				"steer_delivery":{"type":"string","enum":[
+ "injected","pending_injection","pending_boundary","after_turn","interrupt_fallback"
+ ]},
 				"turn_id":{"type":"string"},
 				"entry_id":{"type":"string"},
 				"mode":{"type":"string","enum":["queue","interrupt","steer"]},
 				"delivery":{"type":"string","enum":["held","queued","none","direct","after_turn","interrupt_then_prompt"]},
+"held_reason":{"type":"string"},
+"held_instance_id":{"type":"string"},
 				"message_id":{"type":"string"},
 				"idempotency_key":{"type":"string"},
 				"replayed":{"type":"boolean"},

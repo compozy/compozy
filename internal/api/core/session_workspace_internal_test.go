@@ -135,6 +135,13 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 }
 
 func TestSessionWorkspaceStatusMappings(t *testing.T) {
+	// Invariant: client cancellation wins over a wrapped reload failure; owner: session HTTP error mapping.
+	if got := statusForSessionError(
+		&session.MCPReloadError{Provider: "claude", Cause: context.Canceled},
+	); got != statusClientClosedRequest {
+		t.Fatalf("canceled reload status=%d", got)
+	}
+
 	t.Parallel()
 
 	if got := statusForWorkspaceError(workspacepkg.ErrWorkspaceNotFound); got != http.StatusNotFound {
@@ -312,6 +319,30 @@ func TestSessionProviderOptionPayloads(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSessionProviderOptionPayloadsOmitDisabledProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should omit providers the operator disabled", func(t *testing.T) {
+		t.Parallel()
+		cfg := &compozyconfig.Config{
+			Defaults:  compozyconfig.DefaultsConfig{Provider: "codex"},
+			Providers: map[string]compozyconfig.ProviderConfig{"gemini": {Enabled: new(false)}},
+		}
+		listed := make(map[string]bool)
+		for _, payload := range SessionProviderOptionPayloadsFromConfig(cfg) {
+			listed[payload.Name] = true
+		}
+		if listed["gemini"] {
+			t.Fatal("SessionProviderOptionPayloadsFromConfig() listed disabled gemini")
+		}
+		for _, name := range []string{"codex", "claude"} {
+			if !listed[name] {
+				t.Fatalf("SessionProviderOptionPayloadsFromConfig() = %v, want enabled %s kept", listed, name)
+			}
+		}
+	})
 }
 
 func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {

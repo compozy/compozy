@@ -120,14 +120,15 @@ func extractSnapshot(ctx context.Context, path string, download *registry.Downlo
 		return err
 	}
 	defer func() { err = errors.Join(err, root.Close()) }()
+	links := make(map[string]string)
 	if err := registry.ExtractArchive(
 		ctx,
 		download.Reader,
 		root,
-		registry.ExtractionLimits{},
+		registry.ExtractionLimits{Symlinks: links},
 		download.ContentType,
 	); err != nil {
 		return fmt.Errorf("pluginsource: extract repository snapshot: %w", err)
 	}
-	return nil
+	return restoreSnapshotLinks(path, links)
 }

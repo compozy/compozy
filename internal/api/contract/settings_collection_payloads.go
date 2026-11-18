@@ -9,30 +9,14 @@ import (
 )
 
 type SettingsProviderSettingsPayload struct {
-	SessionEnv       map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
-	SteerCapability  config.SteerCapability                  `json:"steer_capability,omitempty"`
-	Command          string                                  `json:"command,omitempty"`
-	CommandInherited bool                                    `json:"command_inherited,omitempty"`
-	DisplayName      string                                  `json:"display_name,omitempty"`
-	Models           *SettingsProviderModelsPayload          `json:"models,omitzero"`
-	Harness          string                                  `json:"harness,omitempty"`
-	RuntimeProvider  string                                  `json:"runtime_provider,omitempty"`
-	Transport        string                                  `json:"transport,omitempty"`
-	BaseURL          string                                  `json:"base_url,omitempty"`
-	AuthMode         string                                  `json:"auth_mode,omitempty"`
-	EnvPolicy        string                                  `json:"env_policy,omitempty"`
-	HomePolicy       string                                  `json:"home_policy,omitempty"`
-	AuthStatusCmd    string                                  `json:"auth_status_command,omitempty"`
-	AuthACPMethod    string                                  `json:"auth_acp_method,omitempty"`
-	CredentialSlots  []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
-}
-
-// SettingsProviderWritePayload accepts auth_login_command without exposing it on reads.
-type SettingsProviderWritePayload struct {
-	SessionEnv      map[string]SessionEnvBindingPayload     `json:"session_env,omitzero"`
-	SteerCapability config.SteerCapability                  `json:"steer_capability,omitempty"`
-	Command         string                                  `json:"command,omitempty"`
-	DisplayName     string                                  `json:"display_name,omitempty"`
+	SessionEnv        map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	AutoCompactWindow *int                                `json:"auto_compact_window,omitempty"`
+	SteerCapability   config.SteerCapability              `json:"steer_capability,omitempty"`
+	Command           string                              `json:"command,omitempty"`
+	CommandInherited  bool                                `json:"command_inherited,omitempty"`
+	DisplayName       string                              `json:"display_name,omitempty"`
+	// Enabled is the effective providers.<name>.enabled value; read only (PATCH .../enabled toggles it).
+	Enabled         bool                                    `json:"enabled"`
 	Models          *SettingsProviderModelsPayload          `json:"models,omitzero"`
 	Harness         string                                  `json:"harness,omitempty"`
 	RuntimeProvider string                                  `json:"runtime_provider,omitempty"`
@@ -40,11 +24,33 @@ type SettingsProviderWritePayload struct {
 	BaseURL         string                                  `json:"base_url,omitempty"`
 	AuthMode        string                                  `json:"auth_mode,omitempty"`
 	EnvPolicy       string                                  `json:"env_policy,omitempty"`
+	RuntimeMCP      string                                  `json:"runtime_mcp,omitempty"`
 	HomePolicy      string                                  `json:"home_policy,omitempty"`
 	AuthStatusCmd   string                                  `json:"auth_status_command,omitempty"`
-	AuthLoginCmd    *string                                 `json:"auth_login_command,omitzero"`
-	AuthACPMethod   *string                                 `json:"auth_acp_method,omitzero"`
+	AuthACPMethod   string                                  `json:"auth_acp_method,omitempty"`
 	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
+}
+
+// SettingsProviderWritePayload accepts auth_login_command without exposing it on reads.
+type SettingsProviderWritePayload struct {
+	SessionEnv        map[string]SessionEnvBindingPayload     `json:"session_env,omitzero"`
+	AutoCompactWindow *int                                    `json:"auto_compact_window,omitempty"`
+	SteerCapability   config.SteerCapability                  `json:"steer_capability,omitempty"`
+	Command           string                                  `json:"command,omitempty"`
+	DisplayName       string                                  `json:"display_name,omitempty"`
+	Models            *SettingsProviderModelsPayload          `json:"models,omitzero"`
+	Harness           string                                  `json:"harness,omitempty"`
+	RuntimeProvider   string                                  `json:"runtime_provider,omitempty"`
+	Transport         string                                  `json:"transport,omitempty"`
+	BaseURL           string                                  `json:"base_url,omitempty"`
+	AuthMode          string                                  `json:"auth_mode,omitempty"`
+	EnvPolicy         string                                  `json:"env_policy,omitempty"`
+	RuntimeMCP        string                                  `json:"runtime_mcp,omitempty"`
+	HomePolicy        string                                  `json:"home_policy,omitempty"`
+	AuthStatusCmd     string                                  `json:"auth_status_command,omitempty"`
+	AuthLoginCmd      *string                                 `json:"auth_login_command,omitzero"`
+	AuthACPMethod     *string                                 `json:"auth_acp_method,omitzero"`
+	CredentialSlots   []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
 }
 
 type SettingsProviderCredentialSlotPayload struct {
@@ -104,15 +110,16 @@ type SettingsProviderItemPayload struct {
 }
 
 type SettingsMCPServerPayload struct {
-	Headers   map[string]string             `json:"headers,omitempty"`
-	Name      string                        `json:"name"`
-	Transport string                        `json:"transport,omitempty"`
-	Command   string                        `json:"command,omitempty"`
-	Args      []string                      `json:"args,omitempty"`
-	Env       map[string]string             `json:"env,omitempty"`
-	SecretEnv map[string]string             `json:"secret_env,omitempty"`
-	URL       string                        `json:"url,omitempty"`
-	Auth      *SettingsMCPAuthConfigPayload `json:"auth,omitzero"`
+	ReadOnlyTools []string                      `json:"read_only_tools,omitempty"`
+	Headers       map[string]string             `json:"headers,omitempty"`
+	Name          string                        `json:"name"`
+	Transport     string                        `json:"transport,omitempty"`
+	Command       string                        `json:"command,omitempty"`
+	Args          []string                      `json:"args,omitempty"`
+	Env           map[string]string             `json:"env,omitempty"`
+	SecretEnv     map[string]string             `json:"secret_env,omitempty"`
+	URL           string                        `json:"url,omitempty"`
+	Auth          *SettingsMCPAuthConfigPayload `json:"auth,omitzero"`
 }
 
 type SettingsMCPAuthConfigPayload struct {
@@ -183,26 +190,38 @@ type SettingsMCPExtensionOverridePayload struct {
 	URL     string            `json:"url,omitempty"`
 }
 
+type SettingsMCPApprovalStatePayload struct {
+	Reason           string `json:"reason,omitempty"`
+	Required         bool   `json:"required"`
+	State            string `json:"state"`
+	DefinitionDigest string `json:"definition_digest"`
+}
+
 type SettingsMCPServerItemPayload struct {
-	Owner          string                                 `json:"owner,omitempty"`
-	RuntimeName    string                                 `json:"runtime_name,omitempty"`
-	Override       *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
-	Name           string                                 `json:"name"`
-	Transport      string                                 `json:"transport"`
-	Command        string                                 `json:"command,omitempty"`
-	Args           []string                               `json:"args,omitempty"`
-	EnvKeys        []string                               `json:"env_keys,omitempty"`
-	SecretEnvKeys  []string                               `json:"secret_env_keys,omitempty"`
-	URL            string                                 `json:"url,omitempty"`
-	Auth           *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
-	AuthStatus     *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
-	RuntimeStatus  *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
-	Scope          SettingsScopeKind                      `json:"scope"`
-	WorkspaceID    string                                 `json:"workspace_id,omitempty"`
-	Profile        string                                 `json:"profile,omitempty"`
-	CatalogEntry   string                                 `json:"catalog_entry,omitempty"`
-	CatalogVersion string                                 `json:"catalog_version,omitempty"`
-	SourceMetadata SettingsSourceMetadataPayload          `json:"source_metadata"`
+	DefinitionSource   string                                 `json:"definition_source,omitempty"`
+	Approval           SettingsMCPApprovalStatePayload        `json:"approval"`
+	CallableInSessions bool                                   `json:"callable_in_sessions"`
+	ReadOnlyTools      []string                               `json:"read_only_tools,omitempty"`
+	HeadersConfigured  bool                                   `json:"headers_configured,omitzero"`
+	Owner              string                                 `json:"owner,omitempty"`
+	RuntimeName        string                                 `json:"runtime_name,omitempty"`
+	Override           *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
+	Name               string                                 `json:"name"`
+	Transport          string                                 `json:"transport"`
+	Command            string                                 `json:"command,omitempty"`
+	Args               []string                               `json:"args,omitempty"`
+	EnvKeys            []string                               `json:"env_keys,omitempty"`
+	SecretEnvKeys      []string                               `json:"secret_env_keys,omitempty"`
+	URL                string                                 `json:"url,omitempty"`
+	Auth               *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
+	AuthStatus         *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
+	RuntimeStatus      *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
+	Scope              SettingsScopeKind                      `json:"scope"`
+	WorkspaceID        string                                 `json:"workspace_id,omitempty"`
+	Profile            string                                 `json:"profile,omitempty"`
+	CatalogEntry       string                                 `json:"catalog_entry,omitempty"`
+	CatalogVersion     string                                 `json:"catalog_version,omitempty"`
+	SourceMetadata     SettingsSourceMetadataPayload          `json:"source_metadata"`
 }
 
 type SettingsHookDeclarationPayload struct {

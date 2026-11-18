@@ -15,6 +15,7 @@ type StubObserver struct {
 	QueryPermissionDailyRollupsFn func(context.Context, store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error)
 	QueryPermissionEntriesFn      func(context.Context, store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error)
 	QueryEventsFn                 func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
+	EventSequenceHeadFn           func(context.Context) (int64, error)
 	OnAgentEventFn                func(context.Context, string, acp.AgentEvent)
 	QueryHookCatalogFn            func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
 	QueryHookRunsFn               func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
@@ -36,6 +37,13 @@ func (s StubObserver) QueryEvents(ctx context.Context, query store.EventSummaryQ
 		return s.QueryEventsFn(ctx, query)
 	}
 	return nil, nil
+}
+
+func (s StubObserver) EventSequenceHead(ctx context.Context) (int64, error) {
+	if s.EventSequenceHeadFn != nil {
+		return s.EventSequenceHeadFn(ctx)
+	}
+	return 0, nil
 }
 
 func (s StubObserver) OnAgentEvent(ctx context.Context, sessionID string, event any) {

@@ -59,6 +59,35 @@ function appendHeartbeatSources(
   }
 }
 
+type HeartbeatFrontmatter = AgentHeartbeatPayload["frontmatter"];
+
+/** `check_ins`: write tools check-ins may call, and the caps only the raw file sets. */
+function appendCheckIns(lines: string[], checkIns: HeartbeatFrontmatter["check_ins"] | undefined) {
+  const allowWrites = checkIns?.allow_writes ?? [];
+  const caps = (["max_tool_calls", "max_write_calls"] as const).filter(
+    key => typeof checkIns?.[key] === "number"
+  );
+  if (allowWrites.length === 0 && caps.length === 0) return;
+  lines.push("check_ins:");
+  if (allowWrites.length > 0) {
+    lines.push("  allow_writes:");
+    for (const selector of allowWrites) lines.push(`    - ${quoteYaml(selector)}`);
+  }
+  for (const key of caps) lines.push(`  ${key}: ${checkIns?.[key]}`);
+}
+
+/** `actions`: what a proposal can run as, and whether it runs without a pick. */
+function appendActions(lines: string[], actions: HeartbeatFrontmatter["actions"] | undefined) {
+  if (!actions?.length) return;
+  lines.push("actions:");
+  for (const action of actions) {
+    lines.push(`  - id: ${quoteYaml(action.id)}`);
+    lines.push(`    title: ${quoteYaml(action.title)}`);
+    lines.push(`    instructions: ${quoteYaml(action.instructions)}`);
+    lines.push(`    auto_accept: ${action.auto_accept === true}`);
+  }
+}
+
 function finishSource(lines: string[], body: string): string {
   const head = `${lines.join("\n")}\n---\n`;
   const normalizedBody = body.endsWith("\n") ? body : `${body}\n`;
@@ -112,6 +141,8 @@ export function serializeAgentHeartbeatSource(
   }
   appendHeartbeatSources(contextLines, context.sources ?? []);
   if (contextLines.length > 0) lines.push("context:", ...contextLines);
+  appendCheckIns(lines, frontmatter.check_ins);
+  appendActions(lines, frontmatter.actions);
 
   return finishSource(lines, payload.guidance_markdown ?? "");
 }

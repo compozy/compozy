@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/compozy/compozy/sdk/go/contracts"
 )
 
@@ -139,6 +140,31 @@ func TestGenerateClient(t *testing.T) {
 		if !bytes.Equal(first.Files["operations_001_gen.go"], golden) {
 			t.Fatalf("client operation contract changed:\n%s", first.Files["operations_001_gen.go"])
 		}
+	})
+
+	t.Run("Should preserve source-compatible typed workspace config fields", func(t *testing.T) {
+		t.Parallel()
+		result, err := GenerateClient([]ClientOperation{{
+			ID: "putWorkspaceConfig", Kind: ClientOperationJSON, Method: "POST", Path: "/config",
+			RequestBody: windowmanager.WorkspaceConfig{}, Response: windowmanager.WorkspaceConfig{},
+		}}, ClientOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		result.Files["workspace_config_consumer.go"] = []byte(`package client
+var _ = WorkspaceConfig{
+ NewWindowPolicy: new(NewWindowPolicy("tab")),
+ SmallViewportPolicy: new(SmallViewportPolicy("stack")),
+ FocusPolicy: new(FocusPolicy("directional")),
+ FocusWrap: new(true), FocusFollowsPointer: new(false),
+ SwapModifier: new("shift"), HistoryLimit: new(50), NavStackLimit: new(50), ClosedEntryLimit: new(20),
+ DesktopTransition: new(DesktopTransition("slide")), Gaps: &GapsConfig{Inner: 4},
+ Shortcuts: map[string][]string{"layout.balance": {"alt+KeyB"}},
+ RaiseOnFocus: new(false), DragAwayPolicy: new(DragAwayPolicy("window")), GroupMoveModifier: new("meta"),
+ Snap: &SnapConfig{RepeatRatios: []float64{0.5}}, Bindings: &BindingsConfig{TopCenter: "none"},
+}
+`)
+		assertClientCompiles(t, result)
 	})
 
 	t.Run("Should reject invalid operations with actionable diagnostics", func(t *testing.T) {

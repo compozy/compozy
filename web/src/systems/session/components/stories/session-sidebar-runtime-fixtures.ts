@@ -6,6 +6,7 @@ import type { ProviderSummary } from "@/systems/providers";
 
 function catalogProvider(name: string, displayName: string): ProviderSummary {
   return {
+    enabled: true,
     name,
     display_name: displayName,
     default: false,

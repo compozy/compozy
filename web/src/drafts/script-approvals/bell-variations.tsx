@@ -34,7 +34,7 @@ function Mark({ icon }: { icon: LucideIcon }) {
   return (
     <span
       aria-hidden="true"
-      className="grid size-4.5 shrink-0 place-items-center rounded-full bg-brand-tint text-brand"
+      className="grid size-4.5 shrink-0 place-items-center rounded-full bg-attn-tint text-attn"
     >
       <Icon as={icon} size="xs" />
     </span>
@@ -267,7 +267,7 @@ export function ScriptApprovalBell({ variant }: { variant: BellVariant }) {
           <Button aria-label="Notifications" size="icon-sm" type="button" variant="quiet">
             <Bell aria-hidden="true" />
           </Button>
-          <span className="absolute -top-0.5 -right-0.5 grid min-w-3.5 place-items-center rounded-full bg-brand px-1 font-mono text-micro text-brand-foreground">
+          <span className="absolute -top-0.5 -right-0.5 grid min-w-3.5 place-items-center rounded-full bg-attn px-1 font-mono text-micro text-canvas">
             {SCRIPT_BELL_TOTAL}
           </span>
         </span>

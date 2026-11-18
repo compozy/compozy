@@ -21,6 +21,11 @@ func (h *BaseHandlers) ListWorktrees(c *gin.Context) {
 	if !ok {
 		return
 	}
+	includeRemoved, ok := h.worktreeBoolQuery(c, "include_removed")
+	if !ok {
+		return
+	}
+
 	listing, err := h.Worktrees.ListDetails(c.Request.Context(), scope.RegistryID, refresh)
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
@@ -30,7 +35,7 @@ func (h *BaseHandlers) ListWorktrees(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	c.JSON(http.StatusOK, WorktreesPayloadFromListing(listing))
+	c.JSON(http.StatusOK, WorktreesPayloadFromListing(listing, includeRemoved))
 }
 
 func (h *BaseHandlers) CreateWorktree(c *gin.Context) {

@@ -265,3 +265,19 @@ func (h *RuntimeHarness) reseedRuntimeSocketPath(t testing.TB) error {
 	h.UDSClient = newUDSClient(nextSocket)
 	return writeSeedConfigFile(h.HomePaths, &h.Config)
 }
+
+// Restart stops the daemon and starts it again on the same home, so restart-required settings written through the
+// CLI take effect.
+func (h *RuntimeHarness) Restart(t testing.TB) {
+	t.Helper()
+	stopCtx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	if err := h.Stop(stopCtx); err != nil {
+		t.Fatalf("stop runtime harness before restart error = %v", err)
+	}
+	h.stopMu.Lock()
+	h.stopDone, h.stopErr = false, nil
+	h.stopMu.Unlock()
+	h.resetProcessState()
+	startRuntimeProcess(t, h, h.CLI.env, &RuntimeHarnessOptions{})
+}

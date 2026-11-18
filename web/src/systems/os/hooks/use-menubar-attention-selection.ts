@@ -81,6 +81,10 @@ export function useMenubarAttentionSelection(
           },
           "Couldn't open this notification. Try again."
         );
+        return;
+      // Nothing to open: the bell marks it read where it is activated.
+      case "layout-upgrade":
+        return;
     }
   };
 }

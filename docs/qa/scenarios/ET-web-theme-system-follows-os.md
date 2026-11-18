@@ -30,3 +30,12 @@ Development evidence (not a QA run): on the shell-rail lab, toasts (`data-sonner
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+## 2026-11-08 brand identity v1.2 slice
+
+Spec `.compozy/tasks/brand-site/` (E2E-003). Extra step: on each OS flip, the needs-you amber follows
+the theme (`--color-attn` `#f5b14c` dark, `#9a5b00` light) and never falls back to the brand volt.
+
+Slice validation: passed for the brand delta. Choosing System in Settings > Appearance stored
+`system`, and emulated OS flips repainted light → dark → light with the matching attn values.
+Toasts, the loop editor and a live terminal were not re-walked in this slice. Evidence: `/tmp/brand-s8-shots/` (lab `compozy-brand-s8-theme-20261108-222905-377921`, teardown clean).

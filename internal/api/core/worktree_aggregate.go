@@ -32,6 +32,11 @@ func (h *BaseHandlers) ListWorktreeAggregate(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
+	includeRemoved, ok := h.worktreeBoolQuery(c, "include_removed")
+	if !ok {
+		return
+	}
+
 	listing, err := reader.ListAggregate(c.Request.Context(), scope, allowed)
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
@@ -41,5 +46,5 @@ func (h *BaseHandlers) ListWorktreeAggregate(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	c.JSON(http.StatusOK, WorktreesPayloadFromListing(listing))
+	c.JSON(http.StatusOK, WorktreesPayloadFromListing(listing, includeRemoved))
 }

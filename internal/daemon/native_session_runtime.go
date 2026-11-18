@@ -47,7 +47,7 @@ func (n *daemonNativeTools) sessionRuntimeSet(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.SessionPayloadFromInfo(updated)
-	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+	return sessionRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) sessionRuntimeClear(
@@ -72,7 +72,7 @@ func (n *daemonNativeTools) sessionRuntimeClear(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.SessionPayloadFromInfo(updated)
-	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+	return sessionRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) sessionRuntimeSelectionTarget(

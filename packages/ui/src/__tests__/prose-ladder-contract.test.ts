@@ -37,7 +37,10 @@ function readRem(variantUtility: string): number {
   // Variant prefixes such as `group-data-[compact=true]/md:` do not change the token a utility reads.
   const utility = variantUtility.slice(variantUtility.lastIndexOf(":") + 1);
   const value = readToken(`text-${utilityToken(utility, "text")}`);
-  const match = value.match(/^(\d+(?:\.\d+)?)rem$/);
+  // Every rem step multiplies by the same Appearance text scale, which keeps the ladder's order.
+  const match = value.match(
+    /^(?:calc\(\s*)?(\d+(?:\.\d+)?)rem(?:\s*\*\s*var\(--user-text-scale\)\s*\))?$/
+  );
   if (!match) throw new Error(`expected a rem size for ${utility}, got "${value}"`);
   return Number(match[1]);
 }

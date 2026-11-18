@@ -189,7 +189,7 @@ func (s *SessionDB) prepareTranscriptEntries(
 		if identity.MessageID != "" {
 			reserved[identity.MessageID] = struct{}{}
 		}
-		params, err := prepareProjectionEntry(identity, entry)
+		params, err := prepareProjectionEntry(&s.projectionEncoder, identity, entry)
 		if err != nil {
 			return nil, err
 		}

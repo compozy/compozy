@@ -30,6 +30,7 @@ import (
 	observepkg "github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -2694,6 +2695,22 @@ func TestDescribeExtensionProjectsHealthAndState(t *testing.T) {
 		t.Fatalf("DescribeExtension(disabled) health = %q, want %q", got, want)
 	}
 
+	disabledLive := DescribeExtension(&Extension{
+		Info: ExtensionInfo{
+			Name:    "ext-disabled-live",
+			Version: "1.0.0",
+			Enabled: false,
+			Source:  SourceUser,
+		},
+		Status: ExtensionStatus{Registered: true},
+	}, true, now)
+	if got, want := disabledLive.State, "disabled"; got != want {
+		t.Fatalf("DescribeExtension(disabled, daemon running) state = %q, want %q", got, want)
+	}
+	if got, want := disabledLive.Health, "unknown"; got != want {
+		t.Fatalf("DescribeExtension(disabled, daemon running) health = %q, want %q", got, want)
+	}
+
 	registered := DescribeExtension(&Extension{
 		Info: ExtensionInfo{
 			Name:    "ext-registered",
@@ -5111,6 +5128,7 @@ Review the workspace changes carefully.
 
 	sessionOptions := []session.Option{
 		session.WithHomePaths(homePaths),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithDriver(driver),
 		session.WithNotifier(observer),
 		session.WithWorkspaceResolver(workspaces),
@@ -5126,6 +5144,7 @@ Review the workspace changes carefully.
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
+	sessions.SetMCPAuthorityResolver(hostAPITestMCPAuthority{sessions: sessions})
 	source.manager = sessions
 
 	skillsRegistry := skillspkg.NewRegistry(
@@ -5571,6 +5590,7 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 
 	sessions, err := session.NewManager(
 		session.WithHomePaths(e.homePaths),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithDriver(e.driver),
 		session.WithWorkspaceResolver(e.workspaces),
 		session.WithStore(storeSessionDB),
@@ -5584,6 +5604,8 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session.NewManager(without observer) error = %v", err)
 	}
+
+	sessions.SetMCPAuthorityResolver(hostAPITestMCPAuthority{sessions: sessions})
 
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(e.registry),
@@ -6214,4 +6236,27 @@ func TestHostAPIHiddenTriage(t *testing.T) {
 			assertRPCErrorCode(t, err, HostAPINotFoundCode)
 		}
 	})
+}
+
+// The host API fixture declares no external MCP sources.
+type hostAPITestMCPAuthority struct{ sessions *session.Manager }
+
+var _ session.MCPAuthorityResolver = hostAPITestMCPAuthority{}
+
+func (r hostAPITestMCPAuthority) EffectiveMCPAuthority(
+	ctx context.Context,
+	id string,
+) (store.SessionPermissionPolicy, error) {
+	info := session.MCPAuthoritySession(ctx, id)
+	if info == nil {
+		var err error
+		info, err = r.sessions.StoredStatus(ctx, id)
+		if err != nil {
+			return store.SessionPermissionPolicy{}, err
+		}
+	}
+	lineage := store.NormalizeSessionLineage(id, info.Lineage)
+	policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
+	policy.MCPServers = store.BoundMCPServers(policy, nil)
+	return policy, nil
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"path/filepath"
 	"slices"
@@ -645,6 +646,147 @@ func TestResolveManifestMCPServerInputs(t *testing.T) {
 			if bytes.Contains(encoded, []byte("private-secret-value")) {
 				t.Fatal("publication contains secret plaintext")
 			}
+		}
+	})
+}
+
+func TestClientInputRuntimeBinding(t *testing.T) {
+	t.Parallel()
+	t.Run("Should render text once and retain secret refs until daemon launch", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeFile(
+			t,
+			filepath.Join(root, "mcp.json"),
+			`{"mcpServers":{"remote":{"url":"https://${HOST}/mcp","headers":{"Authorization":"Bearer ${LINEAR_API_KEY}"}},"local":{"command":"node","env":{"TOKEN":"${LINEAR_API_KEY}","R":"${REGION:-us-east-1}","R2":"${REGION:-eu-west-1}","OPTIONAL_TOKEN":"${OPTIONAL_TOKEN:-package-default}"},"args":["${HOST}"]}}}`,
+		)
+		manifest, err := loadManifest(root, "", "client")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ResolveManifestMCPServerResources(
+			root,
+			manifest,
+			InputState{},
+			nil,
+		); !errors.Is(
+			err,
+			ErrExtensionInputsRequired,
+		) {
+			t.Fatalf("missing input = %v", err)
+		}
+		state := InputState{Values: map[string]InputValueRecord{
+			"HOST": {Type: "string", Value: json.RawMessage(`"api.example.com"`), Active: true},
+			"LINEAR_API_KEY": {
+				Type:      "secret",
+				SecretRef: "vault:extensions/global/client/env/LINEAR_API_KEY",
+				Active:    true,
+			},
+		}}
+		servers, err := ResolveManifestMCPServerResources(root, manifest, state, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(servers) != 2 || servers[1].URL != "https://${HOST}/mcp" ||
+			servers[1].Headers["Authorization"] != "Bearer ${LINEAR_API_KEY}" {
+			t.Fatalf("published = %+v", servers)
+		}
+		for _, server := range servers {
+			rendered, secrets, err := server.RenderInputs(func(ref string) (string, error) {
+				if ref != state.Values["LINEAR_API_KEY"].SecretRef {
+					t.Fatalf("ref = %q", ref)
+				}
+				return "private-token", nil
+			})
+			wantSecrets := 1
+			if server.Name == "local" {
+				wantSecrets = 2
+			}
+			if err != nil || len(secrets) != wantSecrets {
+				t.Fatalf("render error = %v, secrets count %d", err, len(secrets))
+			}
+			if server.Name == "remote" &&
+				(rendered.URL != "https://api.example.com/mcp" || rendered.Headers["Authorization"] != "Bearer private-token") {
+				t.Fatalf("incorrect remote rendering")
+			}
+			if server.Name == "local" &&
+				(server.SecretEnv["TOKEN"] != state.Values["LINEAR_API_KEY"].SecretRef || rendered.Env["TOKEN"] != "" || rendered.Env["R"] != "us-east-1" || rendered.Env["R2"] != "eu-west-1" || rendered.Env["OPTIONAL_TOKEN"] != "package-default" || rendered.Args[0] != "api.example.com") {
+				t.Fatalf("incorrect stdio rendering")
+			}
+		}
+	})
+}
+
+func TestClientOAuthRuntimeBinding(t *testing.T) {
+	t.Parallel()
+	t.Run("Should map fixed OAuth metadata and owned client secret reference", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeFile(
+			t,
+			filepath.Join(root, "mcp.json"),
+			`{"mcpServers":{"remote":{"url":"https://${HOST}/mcp","auth":{"CLIENT_ID":"${CLIENT_ID}","CLIENT_SECRET":"${CLIENT_SECRET}","scopes":["s"]}}}}`,
+		)
+		manifest, err := loadManifest(root, "", "client")
+		if err != nil {
+			t.Fatal(err)
+		}
+		const ref = "vault:extensions/global/client/env/CLIENT_SECRET"
+		servers, err := ResolveManifestMCPServerResources(
+			root,
+			manifest,
+			InputState{Values: map[string]InputValueRecord{
+				"CLIENT_ID":     {Type: "string", Value: json.RawMessage(`"abc"`), Active: true},
+				"HOST":          {Type: "string", Value: json.RawMessage(`"api.example.com"`), Active: true},
+				"CLIENT_SECRET": {Type: "secret", SecretRef: ref, Active: true},
+			}},
+			nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(servers) != 1 || servers[0].Auth.ClientID != "abc" || servers[0].Auth.ClientSecretRef != ref ||
+			!slices.Equal(servers[0].Auth.Scopes, []string{"s"}) {
+			t.Fatalf("OAuth binding = %+v", servers)
+		}
+		if err := servers[0].Auth.Validate("auth"); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestTemplateBindingName(t *testing.T) {
+	t.Parallel()
+	t.Run("Should use the binding name independently of input identity", func(t *testing.T) {
+		t.Parallel()
+		manifest := &Manifest{
+			Name:    "bound",
+			Version: "1.0.0",
+			Inputs: []ManifestInput{
+				{
+					ID:       "host",
+					Prompt:   "Host",
+					Type:     "string",
+					Required: true,
+					Binding:  marketplace.InputBinding{Type: "template", Name: "HOST"},
+				},
+			},
+			Resources: ResourcesConfig{
+				MCPServers: map[string]MCPServerConfig{"remote": {Transport: "http", URL: "https://${HOST}/mcp"}},
+			},
+		}
+		state := InputState{
+			Values: map[string]InputValueRecord{
+				"host": {Type: "string", Value: json.RawMessage(`"example.com"`), Active: true},
+			},
+		}
+		servers, err := ResolveManifestMCPServerResources(t.TempDir(), manifest, state, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rendered, _, err := servers[0].RenderInputs(nil)
+		if err != nil || rendered.URL != "https://example.com/mcp" {
+			t.Fatalf("bound URL=%q %v", rendered.URL, err)
 		}
 	})
 }

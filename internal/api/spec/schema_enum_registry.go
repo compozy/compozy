@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	specFailedKey  = "failed"
 	specStoppedKey = "stopped"
 	specNoneKey    = "none"
 	specPendingKey = "pending"
@@ -30,11 +31,20 @@ const (
 
 var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 	withGoalSchemaEnumValues(map[reflect.Type][]string{
+		reflect.TypeFor[contract.AutoAcceptStatus](): {
+			"picked",
+			"limit",
+			"queue_full",
+			"unapproved",
+			"no_main",
+			"inactive",
+			"none",
+		},
 		reflect.TypeFor[contract.SessionProcessAttribution](): {"env", "lineage"},
 		reflect.TypeFor[contract.SessionProcessPolicy]():      {"keep", "terminate"},
 		reflect.TypeFor[contract.SessionProcessKind]():        {"background", "tool", "terminal"},
 		reflect.TypeFor[contract.SessionProcessOutcome](): {
-			"terminated", "already_exited", "identity_mismatch", "failed", "unproven",
+			"terminated", "already_exited", "identity_mismatch", specFailedKey, "unproven",
 		},
 		reflect.TypeFor[session.Badge](): {
 			"running",
@@ -45,7 +55,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			"waiting-for-input",
 			"done",
 			specStoppedKey,
-			"failed",
+			specFailedKey,
 			specUnknownKey,
 			"needs-attention",
 			"waiting",
@@ -93,6 +103,8 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.SettingsShellSessionSort]():       settingsShellSessionSortValues(),
 		reflect.TypeFor[contract.SettingsShellSessionGroupBy]():    {specNoneKey, "project", "profile"},
 		reflect.TypeFor[contract.SettingsShellSessionScope]():      settingsShellSessionScopeValues(),
+		reflect.TypeFor[contract.SettingsShellTextSize]():          settingsShellTextSizeValues(),
+		reflect.TypeFor[contract.SettingsShellLetterSpacing]():     settingsShellLetterSpacingValues(),
 		reflect.TypeFor[automationpkg.Scope]():                     automationScopeValues(),
 		reflect.TypeFor[automationpkg.JobSource]():                 automationSourceValues(),
 		reflect.TypeFor[automationpkg.ScheduleMode]():              automationScheduleModeValues(),
@@ -165,16 +177,10 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[windowmanager.NodeKind](): {
 			string(windowmanager.NodeKindLeaf),
 			string(windowmanager.NodeKindSplit),
-			string(windowmanager.NodeKindStack),
 		},
 		reflect.TypeFor[windowmanager.Axis](): {
 			string(windowmanager.AxisHorizontal),
 			string(windowmanager.AxisVertical),
-		},
-		reflect.TypeFor[windowmanager.WindowPlacement](): {
-			string(windowmanager.WindowPlacementTiled),
-			string(windowmanager.WindowPlacementStacked),
-			string(windowmanager.WindowPlacementFloating),
 		},
 		reflect.TypeFor[windowmanager.NavigateMode](): {
 			"replace",
@@ -186,6 +192,8 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(windowmanager.CloseScopeGroup),
 			string(windowmanager.CloseScopeOthers),
 			string(windowmanager.CloseScopeRight),
+			string(windowmanager.CloseScopeLeft),
+			string(windowmanager.CloseScopeAll),
 		},
 		reflect.TypeFor[windowmanager.FocusDirection](): {
 			string(windowmanager.FocusLeft),
@@ -194,6 +202,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(windowmanager.FocusDown),
 		},
 		reflect.TypeFor[windowmanager.DropPlacement](): {
+			string(windowmanager.DropTab),
 			string(windowmanager.DropFloating),
 			string(windowmanager.DropBefore),
 			string(windowmanager.DropAfter),

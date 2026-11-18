@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,8 +13,11 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -1174,4 +1178,520 @@ type failingDecideStore struct {
 
 func (s failingDecideStore) DecideReview(context.Context, string, string, string, string) error {
 	return s.err
+}
+
+func TestCheckInActivityReports(t *testing.T) {
+	for _, mode := range []string{"quiet", "canceled", "deduped", "done", "read"} {
+		canceled := mode == "canceled"
+		t.Run(
+			fmt.Sprintf("Should retain audited activity after %s [IT-003]", mode),
+			func(t *testing.T) {
+				t.Parallel()
+				db := openTestGlobalDB(t)
+				workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "activity", "sess-activity")
+				repo := db.Instances()
+				instance, err := repo.Adopt(
+					t.Context(),
+					agentinstance.Instance{
+						ProfileID:         store.DefaultProfileID,
+						AgentName:         "coder",
+						WorkspaceID:       workspace,
+						PermissionCeiling: "{}",
+						CreatedByKind:     "human",
+					},
+					main,
+					10,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+				refs := []source.Ref{{ID: "activity-source", Script: "poll"}}
+				states, err := repo.SourceStates(t.Context(), instance.ID, refs, false, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				batch := source.Result{
+					Items: []source.Item{{Key: "one", Title: "First"}, {Key: "two", Title: "Second"}},
+					State: []byte(`{"cursor":2}`),
+				}
+				polled := []heartbeat.PolledSource{
+					{Ref: refs[0], RefDigest: states[0].RefDigest, Generation: states[0].Generation, Result: batch},
+				}
+				admitted, err := repo.Admit(
+					t.Context(),
+					heartbeat.AdmitRequest{
+						Sources:       polled,
+						InstanceID:    instance.ID,
+						OccurrenceID:  "activity-occ",
+						Now:           now,
+						NextWakeAt:    now.Add(time.Hour),
+						MaxConcurrent: 2,
+					},
+				)
+				if err != nil || !admitted {
+					t.Fatalf("admit=%v err=%v", admitted, err)
+				}
+				policy := toolspkg.CheckInPolicy{
+					InstanceID:    instance.ID,
+					OccurrenceID:  "activity-occ",
+					MaxToolCalls:  5,
+					MaxWriteCalls: 5,
+				}
+				access := toolspkg.AccessWrite
+				if mode == "read" {
+					access = toolspkg.AccessRead
+				}
+				decision, err := repo.Begin(
+					t.Context(),
+					toolspkg.CheckInAttempt{
+						ToolID:  "mcp__fixture__write",
+						Backend: toolspkg.BackendMCP,
+						Access:  access,
+					},
+					policy,
+				)
+				if err != nil || !decision.Allowed {
+					t.Fatalf("begin=%+v err=%v", decision, err)
+				}
+				reportInput := (*agentinstance.ReportInput)(nil)
+				finishResult := "quiet"
+				if mode == "done" || mode == "deduped" {
+					if err := repo.FinishToolCall(
+						t.Context(),
+						"activity-occ",
+						decision.Seq,
+						"ok",
+						"",
+						time.Millisecond,
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if mode == "deduped" {
+					reportInput = &agentinstance.ReportInput{
+						SourceKey: "occ:previous",
+						Kind:      "proposal",
+						Payload: []byte(
+							`{"proposals":[{"title":"Repeat","body":"Repeat this work","item_keys":["one"]}]}`,
+						),
+					}
+					if _, err := db.InstanceReports().AppendReport(t.Context(), instance.ID, *reportInput); err != nil {
+						t.Fatal(err)
+					}
+					finishResult = "reported"
+				}
+				if canceled {
+					if _, err := db.DB().
+						ExecContext(t.Context(), "UPDATE agent_instance_wake_state SET occurrence_cancelled=1 WHERE instance_id=?", instance.ID); err != nil { //nolint:misspell // Persisted SQL column.
+						t.Fatal(err)
+					}
+				}
+				result, err := repo.Finish(
+					t.Context(),
+					heartbeat.FinishRequest{
+						InstanceID:   instance.ID,
+						OccurrenceID: "activity-occ",
+						Source:       "instance_check",
+						Digest:       "completed-digest",
+						Result:       finishResult,
+						Report:       reportInput,
+						Reason:       "quiet",
+						Now:          now,
+						ExpiresAt:    now.Add(time.Hour),
+					},
+				)
+				if err != nil || !result.Changed {
+					t.Fatalf("finish=%+v err=%v", result, err)
+				}
+				calls, err := repo.CheckInToolCalls(t.Context(), instance.ID, "activity-occ")
+				wantCall, wantEffect := "unknown", "maybe"
+				if mode == "done" || mode == "deduped" {
+					wantCall, wantEffect = "ok", "done"
+				}
+				if mode == "read" {
+					wantEffect = "none"
+				}
+				if err != nil || len(calls) != 1 || calls[0].Outcome != wantCall || calls[0].Effect != wantEffect {
+					t.Fatalf("calls=%+v err=%v", calls, err)
+				}
+				reports, err := db.InstanceReports().
+					ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
+				activities := 0
+				for _, report := range reports {
+					if report.SourceKey == "occ:activity-occ" && report.Kind == "activity" {
+						activities++
+					}
+				}
+				wantActivities := 1
+				if mode == "read" {
+					wantActivities = 0
+				}
+				if err != nil || activities != wantActivities {
+					t.Fatalf("reports=%+v err=%v", reports, err)
+				}
+				var outcome string
+				if err := db.DB().
+					QueryRowContext(t.Context(), "SELECT result FROM agent_heartbeat_wake_events WHERE occurrence_id='activity-occ'").
+					Scan(&outcome); err != nil {
+					t.Fatal(err)
+				}
+				want := "quiet"
+				if canceled {
+					want = string(heartbeat.WakeResultCancelled)
+				}
+				states, err = repo.SourceStates(t.Context(), instance.ID, refs, false, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wake, err := repo.WakeState(t.Context(), instance.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if canceled && (len(states[0].State) != 0 || wake.LastDigest != "") {
+					t.Fatalf("canceled source committed: %+v %+v", states, wake)
+				}
+				if !canceled &&
+					(!bytes.Equal(states[0].State, batch.State) || wake.LastDigest != "completed-digest" || wake.QuietStreak != int64(1-wantActivities)) {
+					t.Fatalf("completed state=%+v wake=%+v", states, wake)
+				}
+				repeat, err := repo.Finish(
+					t.Context(),
+					heartbeat.FinishRequest{
+						InstanceID:   instance.ID,
+						OccurrenceID: "activity-occ",
+						Source:       "instance_check",
+						Result:       "quiet",
+						Now:          now,
+						ExpiresAt:    now.Add(time.Hour),
+					},
+				)
+				if err != nil || repeat.Changed {
+					t.Fatalf("repeat=%+v err=%v", repeat, err)
+				}
+				if _, err := repo.CheckInOccurrence(
+					t.Context(),
+					instance.ID,
+					"missing",
+				); !errors.Is(
+					err,
+					agentinstance.ErrNotFound,
+				) {
+					t.Fatalf("missing occurrence: %v", err)
+				}
+				if outcome != want {
+					t.Fatalf("outcome=%s want=%s", outcome, want)
+				}
+			},
+		)
+	}
+}
+
+func TestInstanceProposalPicks(t *testing.T) {
+	for _, mode := range []string{"auto", "operator", "unapproved", "limit", "queue_full", "no_main", "unattended", "canceled"} {
+		t.Run("Should enforce pick transaction and lifecycle for "+mode+" [IT-003 IT-004]", func(t *testing.T) {
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "picks", "sess-picks")
+			repo := db.Instances()
+			instance, err := repo.Adopt(
+				t.Context(),
+				agentinstance.Instance{
+					ProfileID:         store.DefaultProfileID,
+					AgentName:         "coder",
+					WorkspaceID:       workspace,
+					PermissionCeiling: "{}",
+					CreatedByKind:     "human",
+				},
+				main,
+				10,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Now().UTC()
+			dir, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			actions := []heartbeat.ActionDecl{
+				{ID: "report", Title: "Report", Instructions: "Write a report.", AutoAccept: true},
+			}
+			if mode == "operator" {
+				actions[0].AutoAccept = false
+			}
+			digest, err := heartbeat.AuthorityDigest(heartbeat.CheckInsPolicy{}, heartbeat.AuthorityActions(actions))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode != "unapproved" {
+				if err := repo.ApproveAuthority(t.Context(), instance.ProfileID, dir, digest, "cli", now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			admitted, err := repo.Admit(
+				t.Context(),
+				heartbeat.AdmitRequest{
+					InstanceID:    instance.ID,
+					OccurrenceID:  "pick-occ",
+					Now:           now,
+					NextWakeAt:    now.Add(time.Hour),
+					MaxConcurrent: 2,
+				},
+			)
+			if err != nil || !admitted {
+				t.Fatalf("admit=%v err=%v", admitted, err)
+			}
+			limit, queueCap, unattended := 20, 10, int64(300)
+			if mode == "operator" {
+				limit = 0
+			}
+			if mode == "limit" {
+				for i := range 20 {
+					report, err := db.InstanceReports().
+						AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{SourceKey: fmt.Sprintf("occ:seed-%d", i), Kind: "failure", Payload: []byte(`{"reason":"seed","detail":"Historical pick"}`)})
+					if err != nil {
+						t.Fatal(err)
+					}
+					_, err = db.DB().
+						ExecContext(t.Context(), `INSERT INTO agent_instance_proposal_picks(report_id,proposal_index,instance_id,actor,target_session_id,picked_at) VALUES(?,0,?,'auto_accept',?,?)`, report.ID, instance.ID, main, store.FormatTimestamp(now.Add(-time.Hour)))
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if mode == "queue_full" {
+				queueCap = 1
+				_, _, err := db.EnqueueSessionInput(
+					t.Context(),
+					store.SessionInputQueueInsert{
+						ID:        "full",
+						SessionID: main,
+						Text:      "Existing",
+						Mode:      "queue",
+						Delivery:  "after_turn",
+						QueueCap:  1,
+						Now:       now,
+						OwnerKind: "synthetic",
+						TurnID:    "full-turn",
+						SyntheticPrompt: &store.SessionInputSyntheticPrompt{
+							RunID:    "full-run",
+							Metadata: []byte(`{"kind":"fixture"}`),
+						},
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode == "unattended" {
+				unattended = 1
+			}
+			if mode == "canceled" {
+				if _, err := repo.Pause(t.Context(), instance.ID, "manual"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode == "no_main" {
+				if _, err := db.DB().
+					ExecContext(t.Context(), "UPDATE agent_instances SET main_session_id=NULL WHERE id=?", instance.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			outcome := heartbeat.TriageReplyOutcome(
+				`{"proposals":[{"title":"Report this","body":"Evidence","item_keys":[],"action":"report"}]}`,
+				heartbeat.CheckDigest{},
+				2,
+				actions...)
+			req := heartbeat.FinishRequest{
+				InstanceID:          instance.ID,
+				OccurrenceID:        "pick-occ",
+				Source:              "timer",
+				Result:              outcome.Result,
+				Reason:              outcome.Reason,
+				Report:              outcome.Report,
+				Now:                 now,
+				ExpiresAt:           now.Add(time.Hour),
+				Actions:             actions,
+				AuthorityDigest:     digest,
+				DefinitionDir:       dir,
+				AutoAcceptPerDay:    limit,
+				QueueCap:            queueCap,
+				UnattendedTurnLimit: unattended,
+			}
+			result, err := repo.Finish(t.Context(), req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if mode == "auto" {
+				want = 1
+			}
+			if len(result.Picks) != want {
+				t.Fatalf("picks=%+v", result.Picks)
+			}
+			retry, err := repo.Finish(t.Context(), req)
+			if err != nil || len(retry.Picks) != 0 {
+				t.Fatalf("retry=%+v err=%v", retry, err)
+			}
+			if mode == "auto" {
+				admitted, err := repo.Admit(
+					t.Context(),
+					heartbeat.AdmitRequest{
+						InstanceID:    instance.ID,
+						OccurrenceID:  "pick-next",
+						Now:           now.Add(time.Minute),
+						NextWakeAt:    now.Add(time.Hour),
+						MaxConcurrent: 2,
+						ManualCheck:   true,
+					},
+				)
+				if err != nil || !admitted {
+					t.Fatalf("next admit=%v err=%v", admitted, err)
+				}
+				next := req
+				next.OccurrenceID = "pick-next"
+				next.Now = now.Add(time.Minute)
+				second, err := repo.Finish(t.Context(), next)
+				if err != nil || len(second.Picks) != 0 {
+					t.Fatalf("deduped finish=%+v err=%v", second, err)
+				}
+			}
+			if mode == "canceled" {
+				return
+			}
+			reports, err := db.InstanceReports().
+				ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100})
+			wantReports := 1
+			if mode == "limit" {
+				wantReports = 21
+			}
+			if mode == "unattended" {
+				wantReports = 2
+			}
+			if err != nil || len(reports) != wantReports {
+				t.Fatalf("reports=%+v err=%v", reports, err)
+			}
+			var proposalReport agentinstance.Report
+			for _, report := range reports {
+				if report.Kind == "proposal" {
+					proposalReport = report
+					break
+				}
+			}
+			if err := db.InstanceReports().
+				ProjectPicks(t.Context(), &proposalReport, actionSnapshots(actions)...); err != nil {
+				t.Fatal(err)
+			}
+			var projection struct {
+				Proposals []agentinstance.ProposalPayload `json:"proposals"`
+			}
+			if err := json.Unmarshal(proposalReport.Payload, &projection); err != nil {
+				t.Fatal(err)
+			}
+			expectedStatus := map[string]string{"auto": "picked", "limit": "limit", "queue_full": "queue_full", "unapproved": "unapproved", "no_main": "no_main", "unattended": "inactive", "operator": "none"}[mode]
+			if expectedStatus != "" && projection.Proposals[0].AutoAcceptStatus != expectedStatus {
+				t.Fatalf("projection=%+v", projection)
+			}
+			if mode == "queue_full" || mode == "limit" {
+				if _, err := db.DB().
+					ExecContext(t.Context(), "UPDATE session_input_queue SET status='canceled' WHERE session_id=?", main); err != nil {
+					t.Fatal(err)
+				}
+				reader := db.InstanceReports()
+				reader.now = func() time.Time { return now.Add(25 * time.Hour) }
+				reread, err := reader.ListReports(
+					t.Context(),
+					agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, report := range reread {
+					if report.ID == proposalReport.ID {
+						var again struct {
+							Proposals []agentinstance.ProposalPayload `json:"proposals"`
+						}
+						if err := json.Unmarshal(report.Payload, &again); err != nil {
+							t.Fatal(err)
+						}
+						if again.Proposals[0].AutoAcceptStatus != expectedStatus {
+							t.Fatalf("skip lost: %+v", again)
+						}
+					}
+				}
+			}
+			if mode == "operator" {
+				pickReq := agentinstance.PickRequest{
+					InstanceID:    instance.ID,
+					ReportID:      reports[0].ID,
+					Actor:         "operator",
+					ProposalIndex: 0,
+					QueueCap:      10,
+				}
+				pick, err := repo.PickProposal(t.Context(), pickReq)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := repo.PickProposal(t.Context(), pickReq); !errors.Is(err, agentinstance.ErrAlreadyPicked) {
+					t.Fatalf("repeat=%v", err)
+				}
+				if err := db.InstanceReports().ProjectPicks(t.Context(), &proposalReport); err != nil {
+					t.Fatal(err)
+				}
+				if bytes.Contains(proposalReport.Payload, []byte(`"auto_accept_status":"picked"`)) {
+					t.Fatal("operator pick mislabeled auto")
+				}
+				entry, err := db.GetSessionInputQueueEntry(t.Context(), main, pick.QueueEntryID)
+				if err != nil || entry.OriginClass != "human" {
+					t.Fatalf("entry=%+v err=%v", entry, err)
+				}
+			}
+			if mode == "auto" {
+				metrics, err := repo.Metrics(t.Context(), instance.ProfileID, instance.WorkspaceID)
+				if err != nil || metrics.Picks["auto_accept"] != 1 {
+					t.Fatalf("pick metrics=%+v %v", metrics, err)
+				}
+				checks, err := repo.ListCheckIns(t.Context(), instance.ID, "", 100)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var autoCount int64
+				for _, check := range checks {
+					autoCount += check.Proposals.AutoAccepted
+					if check.OccurrenceID == "" {
+						continue
+					}
+					one, err := repo.CheckInOccurrence(t.Context(), instance.ID, check.OccurrenceID)
+					if err != nil || one.Proposals != check.Proposals {
+						t.Fatalf("occurrence read=%+v list=%+v err=%v", one.Proposals, check.Proposals, err)
+					}
+				}
+				if autoCount != 1 {
+					t.Fatalf("check-in proposals=%+v", checks)
+				}
+				pick := result.Picks[0]
+				entry, err := db.GetSessionInputQueueEntry(t.Context(), main, pick.QueueEntryID)
+				if err != nil || entry.OwnerKind != "synthetic" || entry.OriginClass != "synthetic" ||
+					entry.MessageID != "pick:"+reports[0].ID+":0" {
+					t.Fatalf("entry=%+v err=%v", entry, err)
+				}
+				if _, err := repo.Pause(t.Context(), instance.ID, "manual"); err != nil {
+					t.Fatal(err)
+				}
+				entry, err = db.GetSessionInputQueueEntry(t.Context(), main, pick.QueueEntryID)
+				if err != nil || entry.Status != "canceled" {
+					t.Fatalf("entry=%+v err=%v", entry, err)
+				}
+				if err := db.InstanceReports().ProjectPicks(t.Context(), &proposalReport); err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Contains(
+					proposalReport.Payload,
+					[]byte(`"state":"cancelled"`), //nolint:misspell // projected wire enum
+				) {
+					t.Fatalf("paused pick=%s", proposalReport.Payload)
+				}
+			}
+		})
+	}
 }

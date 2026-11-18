@@ -14,8 +14,11 @@ export interface SettingsRuntimeCatalog {
   refreshing: boolean;
 }
 
+// The catalog omits disabled providers, so asking for theirs would only read as missing.
 function toCatalogProviders(providers: RuntimeProviderOption[]): RuntimeCatalogProvider[] {
-  return providers.map(provider => ({ id: provider.id, needsAuth: provider.needs_auth }));
+  return providers.flatMap(provider =>
+    provider.disabled ? [] : [{ id: provider.id, needsAuth: provider.needs_auth }]
+  );
 }
 
 /**

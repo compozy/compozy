@@ -67,7 +67,7 @@ export const composerToolbarArgs = {
   contextControl: (
     <SessionContextControl
       context={deriveSessionContext(sessionContextFixture)}
-      onOpen={() => undefined}
+      onToggle={() => undefined}
     />
   ),
   subagentControl: (

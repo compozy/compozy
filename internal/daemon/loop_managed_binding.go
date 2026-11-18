@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
@@ -23,6 +24,7 @@ type loopActionSessionBinder struct {
 	creationStore    store.SessionCreationStore
 	managedInputs    loopManagedInputSessionManager
 	usageReporters   managedGoalUsageReporters
+	traces           *looppkg.RunTraces
 
 	policyGate *loopSessionPolicyGate
 	worktrees  loopActionWorktrees
@@ -118,6 +120,11 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 	info := created.Info()
 	appliedRuntime := appliedRuntimeFromCreateOptions(&(opts))
 	requestedRuntime := appliedRuntime
+	if info.ACPCapsKnown {
+		appliedRuntime.ACPOptions = loopACPOptionsFromSession(acp.ConfirmedSessionConfigOptionSelections(
+			loopACPOptionsForSession(appliedRuntime.ACPOptions), info.ACPCaps.ConfigOptions,
+		))
+	}
 	if info.Speed != "" || info.SpeedResolution != nil {
 		appliedRuntime.Speed = info.EffectiveRuntime().Speed
 	}

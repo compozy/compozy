@@ -17,11 +17,12 @@ func (v *snapshotValidator) validateHistoryEntries(stack string, entries []Histo
 
 func (v *snapshotValidator) validateHistoryState(path string, state State) {
 	stateValidator := newSnapshotValidator(Snapshot{
-		Version:     SnapshotVersion,
-		WorkspaceID: v.snapshot.WorkspaceID,
-		Desktops:    state.Desktops,
-		Windows:     state.Windows,
-		Overrides:   state.Overrides,
+		Version:       SnapshotVersion,
+		WorkspaceID:   v.snapshot.WorkspaceID,
+		Desktops:      state.Desktops,
+		Windows:       state.Windows,
+		Overrides:     state.Overrides,
+		ClosedEntries: state.ClosedEntries,
 	})
 	stateValidator.validate()
 	for _, diagnostic := range stateValidator.diagnostics {

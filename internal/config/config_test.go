@@ -2740,6 +2740,7 @@ func TestProfileConfigOverlayRejectsMachineOnlyKeys(t *testing.T) {
 			"[observability]\nenabled = false\n",
 			"[window_manager.global_shortcuts]\nsummon = \"meta+KeyK\"\n",
 			"[tools.clarify]\ntimeout = \"5m\"\n",
+			"[client]\nrequest_timeout = \"2m\"\n",
 		}
 		for _, input := range inputs {
 			_, err := loadProfileConfigOverlayBytes([]byte(input), "profile.toml")
@@ -3090,6 +3091,23 @@ func TestSessionAuthRecoveryConfig(t *testing.T) {
 
 func TestSessionBusyInputConfigDefaultsAndValidation(t *testing.T) {
 	t.Parallel()
+	t.Run("Should default boundary waits and preserve an explicit zero overlay", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultSessionBusyInputConfig()
+		if cfg.SteerBoundaryTimeout != 45*time.Second {
+			t.Fatalf("default boundary timeout=%s", cfg.SteerBoundaryTimeout)
+		}
+		zero := time.Duration(0)
+		sessionBusyInputOverlay{SteerBoundaryTimeout: &zero}.Apply(&cfg)
+		if cfg.Normalize().SteerBoundaryTimeout != 0 {
+			t.Fatal("zero timeout was defaulted")
+		}
+		cfg.SteerBoundaryTimeout = -time.Second
+		if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "steer_boundary_timeout") {
+			t.Fatalf("Validate()=%v", err)
+		}
+	})
+
 	for _, tc := range []struct {
 		name    string
 		value   string
@@ -3520,4 +3538,141 @@ func TestHeartbeatSourceConfig(t *testing.T) {
 			t.Fatal("accepted invalid zero limits")
 		}
 	})
+}
+
+func TestCheckInToolConfiguration(t *testing.T) {
+	t.Run("Should validate the check-in tool bounds [UT-031]", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWithHome(HomePaths{})
+		if cfg.Agents.AlwaysOn.AutoAcceptPerDay != 20 || cfg.Agents.AlwaysOn.CheckInTools != "enabled" ||
+			cfg.Agents.AlwaysOn.CheckInMaxToolCalls != 25 ||
+			cfg.Agents.AlwaysOn.CheckInMaxWriteCalls != 5 ||
+			cfg.Agents.AlwaysOn.CheckInAuditRetention != 720*time.Hour {
+			t.Fatalf("defaults=%+v", cfg.Agents.AlwaysOn)
+		}
+		for _, mutate := range []func(*AlwaysOnConfig){func(c *AlwaysOnConfig) { c.AutoAcceptPerDay = -1 }, func(c *AlwaysOnConfig) { c.AutoAcceptPerDay = 201 }, func(c *AlwaysOnConfig) { c.CheckInTools = "other" }, func(c *AlwaysOnConfig) { c.CheckInMaxToolCalls = 0 }, func(c *AlwaysOnConfig) { c.CheckInMaxToolCalls = 101 }, func(c *AlwaysOnConfig) { c.CheckInMaxWriteCalls = 51 }, func(c *AlwaysOnConfig) { c.CheckInAuditRetention = time.Hour }} {
+			candidate := cfg
+			mutate(&candidate.Agents.AlwaysOn)
+			if err := candidate.Agents.Validate(); err == nil {
+				t.Fatalf("invalid configuration accepted: %+v", candidate.Agents.AlwaysOn)
+			}
+		}
+	})
+}
+
+func TestAutoCompactWindow(t *testing.T) {
+	t.Parallel()
+	t.Run("Should overlay the provider window without losing it to unrelated edits", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace := t.TempDir()
+		writeFile(t, home.ConfigFile, "[providers.claude]\nauto_compact_window = 400000\n")
+		path := filepath.Join(workspace, DirName, ConfigName)
+		for _, step := range []struct {
+			contents string
+			want     int
+		}{
+			{"[providers.claude]\ndisplay_name = \"Claude\"\n", 400000},
+			{"[providers.claude]\nauto_compact_window = 200000\n", 200000},
+		} {
+			writeFile(t, path, step.contents)
+			cfg, err := LoadForHome(home, WithWorkspaceRoot(workspace), withoutDotEnv())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := cfg.Providers["claude"].AutoCompactWindow; got == nil || *got != step.want {
+				t.Fatalf("window = %v, want %d", got, step.want)
+			}
+		}
+	})
+	for _, tc := range []struct {
+		name, value, wantErr string
+	}{
+		{"Should accept the minimum", "100000", ""},
+		{"Should accept the maximum", "1000000", ""},
+		{"Should reject zero", "0", "auto_compact_window"},
+		{"Should reject a negative window", "-1", "auto_compact_window"},
+		{"Should reject below minimum", "99999", "auto_compact_window"},
+		{"Should reject above maximum", "1000001", "auto_compact_window"},
+		{"Should reject malformed input", "\"200k\"", "toml:"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			home, err := ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(
+				home.ConfigFile,
+				[]byte("[providers.claude]\nauto_compact_window = "+tc.value+"\n"),
+				0600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := LoadForHome(home, withoutDotEnv())
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("window error = %v, want %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			agent, err := ParseAgentDef(
+				[]byte("---\nname: compact-worker\nprovider: claude\nauto_compact_window: 200000\n---\nWork.\n"),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved, err := cfg.ResolveAgent(agent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resolved.AutoCompactWindow == nil || *resolved.AutoCompactWindow != 200000 {
+				t.Fatalf("agent window = %v", resolved.AutoCompactWindow)
+			}
+			agent.AutoCompactWindow = nil
+			resolved, err = cfg.ResolveAgent(agent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resolved.AutoCompactWindow == nil ||
+				*resolved.AutoCompactWindow != *cfg.Providers["claude"].AutoCompactWindow {
+				t.Fatal("provider window was not inherited")
+			}
+		})
+	}
+}
+
+func TestAgentLeanEnvironment(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"true", "false"} {
+		t.Run("Should preserve authored lean environment "+value, func(t *testing.T) {
+			t.Parallel()
+			agent, err := ParseAgentDef(
+				[]byte("---\nname: lean-worker\nprovider: claude\nlean_environment: " + value + "\n---\nWork.\n"),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cloned := CloneAgentDef(agent)
+			cfg := DefaultWithHome(HomePaths{})
+			resolved, err := cfg.ResolveAgent(cloned)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := resolved.LeanEnvironmentValue()
+			if got == nil || *got != (value == "true") {
+				t.Fatalf("lean environment=%v", got)
+			}
+			*agent.LeanEnvironment = !*agent.LeanEnvironment
+			if *cloned.LeanEnvironment != *got {
+				t.Fatal("clone aliases authored setting")
+			}
+		})
+	}
 }

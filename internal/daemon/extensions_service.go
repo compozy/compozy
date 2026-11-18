@@ -11,6 +11,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
+	"github.com/compozy/compozy/internal/githubauth"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
@@ -20,6 +21,9 @@ import (
 )
 
 type daemonExtensionService struct {
+	githubOnce          sync.Once
+	githubCredentials   *githubauth.Resolver
+	githubRateLimits    *githubauth.RateLimitGate
 	marketplaceMu       sync.RWMutex
 	searchMu            sync.Mutex
 	consumerSyncOnce    sync.Once

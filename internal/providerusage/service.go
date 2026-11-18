@@ -21,6 +21,7 @@ type Manager struct {
 	mu        sync.Mutex
 	options   Options
 	profiles  map[string]*profileState
+	accounts  map[accountKey]*accountState
 	root      context.Context
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
@@ -52,13 +53,11 @@ type targetState struct {
 	hasIdentity   bool
 	lastSuccess   time.Time
 	flight        *flight
-	cooldown      *cooldown
-}
-
-type cooldown struct {
-	identity CredentialIdentity
-	until    time.Time
-	bypassed bool
+	// cooldownUntil is the identity cooldown end this target last published.
+	cooldownUntil time.Time
+	// accountKey is the identity this target last read, set before collecting so a clear can reach
+	// an in-flight first collection.
+	accountKey accountKey
 }
 type flight struct {
 	cancel   context.CancelFunc
@@ -87,6 +86,7 @@ func NewService(options Options) *Manager {
 	return &Manager{
 		options:  options,
 		profiles: make(map[string]*profileState),
+		accounts: make(map[accountKey]*accountState),
 		root:     root,
 		cancel:   cancel,
 		bootID:   "b_" + hex.EncodeToString(id[:]),
@@ -161,7 +161,8 @@ func (s *Manager) applyTargetsLocked(p *profileState, profile string, targets []
 			state.hasIdentity = false
 			state.readFence = nil
 			state.lastSuccess = time.Time{}
-			state.cooldown = nil
+			state.cooldownUntil = time.Time{}
+			state.accountKey = ""
 			changed = true
 		}
 		if target.Status != "" && state.flight != nil {
@@ -203,8 +204,17 @@ func (s *Manager) shouldCollectTargetLocked(previous Target) bool {
 func targetChanged(previous, current Target) bool {
 	return previous.ProviderID == "" || previous.Collector() != current.Collector() ||
 		previous.RouteFingerprint != current.RouteFingerprint ||
-		previous.Status != current.Status ||
+		previous.Status != current.Status || usageErrorKey(previous.Error) != usageErrorKey(current.Error) ||
 		!maps.Equal(previous.Route.BoundSecrets, current.Route.BoundSecrets)
+}
+
+// usageErrorKey lets a resolver error whose message changes, such as a new selector key, replace the
+// published snapshot even when the status stays the same.
+func usageErrorKey(err *UsageError) string {
+	if err == nil {
+		return ""
+	}
+	return string(err.Code) + "\x00" + err.Message
 }
 
 func initialSnapshot(t Target, collector Collector) Snapshot {
@@ -263,6 +273,9 @@ func (s *Manager) envelopeLocked(profile string) Envelope {
 		}
 		snapshot := cloneSnapshot(row.snapshot)
 		snapshot.Refreshing = row.flight != nil && row.target.Status == ""
+		if collector := row.target.Collector(); collector != snapshot.ProviderID {
+			snapshot.CollectorID = collector
+		}
 		result.Targets = append(result.Targets, snapshot)
 	}
 	result.Revision = p.revision

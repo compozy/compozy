@@ -25,24 +25,24 @@ func (e *CallExecutor) ListTools(
 	ctx context.Context,
 	source toolspkg.SourceRef,
 ) ([]toolspkg.MCPToolDescriptor, error) {
-	descriptors, _, err := e.ListToolsWithProtocol(ctx, source)
-	return descriptors, err
+	discovery, err := e.DiscoverTools(ctx, source)
+	return discovery.Descriptors, err
 }
 
-// ListToolsWithProtocol discovers tools and returns the protocol version negotiated with the server.
-func (e *CallExecutor) ListToolsWithProtocol(
+// DiscoverTools lists tools with the negotiated protocol and any nonfatal diagnostics.
+func (e *CallExecutor) DiscoverTools(
 	ctx context.Context,
 	source toolspkg.SourceRef,
-) (descriptors []toolspkg.MCPToolDescriptor, protocolVersion string, err error) {
+) (discovery ToolDiscovery, err error) {
 	if e == nil {
-		return nil, "", toolspkg.NewValidationError(
+		return ToolDiscovery{}, toolspkg.NewValidationError(
 			"executor",
 			toolspkg.ReasonDependencyMissing,
 			"mcp executor is required",
 		)
 	}
 	if ctx == nil {
-		return nil, "", toolspkg.NewToolError(
+		return ToolDiscovery{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeCanceled,
 			"",
 			"mcp call context is required",
@@ -57,82 +57,7 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	defer func() {
 		err = redactMCPError(err)
 	}()
-	resolved, err := e.resolveServer(ctx, source, "")
-	if err != nil {
-		return nil, "", err
-	}
-	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
-	var runtimeHealthErr error
-	servedFromCache := false
-	defer func() {
-		if servedFromCache {
-			// A cached answer never touched the server, so it proves nothing about its health.
-			return
-		}
-		if runtimeHealthErr != nil {
-			e.runtimeHealth.RecordFailure(healthObservation, runtimeHealthErr)
-			return
-		}
-		e.runtimeHealth.RecordSuccess(healthObservation)
-	}()
-	if err := e.ensureAuthorized(ctx, resolved); err != nil {
-		runtimeHealthErr = err
-		return nil, "", err
-	}
-	authorizationHeader := e.authorizationHeader(ctx, resolved)
-	if cached, cachedProtocol, ok := e.cachedPooledStdioTools(ctx, resolved, authorizationHeader); ok {
-		servedFromCache = true
-		return cached, cachedProtocol, nil
-	}
-	client, err := e.openClient(ctx, resolved, authorizationHeader)
-	if err != nil {
-		runtimeHealthErr = err
-		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
-	}
-	defer func() {
-		err = joinMCPClientCleanup(err, client)
-	}()
-	protocolVersion = negotiatedProtocolVersion(client.session)
-	descriptors, runtimeHealthErr, err = e.listToolsFromClient(
-		ctx, client, source, resolved, protocolVersion, authorizationHeader,
-	)
-	if err != nil {
-		return nil, "", err
-	}
-	return descriptors, protocolVersion, nil
-}
-
-// listToolsFromClient answers discovery over an open client, preferring a cached projection. The
-// returned health error is the failure, if any, that the server itself caused.
-func (e *CallExecutor) listToolsFromClient(
-	ctx context.Context,
-	client *managedMCPClient,
-	source toolspkg.SourceRef,
-	resolved ResolvedServer,
-	protocolVersion string,
-	authorizationHeader string,
-) (descriptors []toolspkg.MCPToolDescriptor, healthErr error, err error) {
-	cacheKey, err := e.toolCacheKey(ctx, resolved, protocolVersion, authorizationHeader)
-	if err != nil {
-		return nil, nil, err
-	}
-	if descriptors, ok := e.cachedTools(cacheKey, time.Now()); ok {
-		return descriptors, nil, nil
-	}
-	tools, ttlMs, err := listMCPTools(ctx, client.session)
-	if err != nil {
-		return nil, err, normalizeMCPErrorWithContext(ctx, "", err, true)
-	}
-	descriptors, err = e.descriptorsFromTools(source, resolved.Server, tools)
-	if err != nil {
-		return nil, err, err
-	}
-	now := time.Now()
-	e.cacheTools(cacheKey, descriptors, ttlMs, now)
-	if err := e.recordToolProjection(source, authorizationHeader, descriptors, ttlMs, now); err != nil {
-		return nil, nil, err
-	}
-	return descriptors, nil, nil
+	return e.listResolvedTools(ctx, source)
 }
 
 // CallTool invokes one configured MCP tool.
@@ -168,6 +93,11 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if e.consent != nil {
+		if err := e.consent(ctx, source, resolved); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
 	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
 	var runtimeHealthErr error
 	defer func() {
@@ -177,12 +107,12 @@ func (e *CallExecutor) CallTool(
 		}
 		e.runtimeHealth.RecordSuccess(healthObservation)
 	}()
-	if err := e.ensureAuthorized(ctx, resolved); err != nil {
+	if err := e.ensureAuthorized(ctx, &resolved); err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, err
 	}
-	authorizationHeader := e.authorizationHeader(ctx, resolved)
-	client, err := e.openClient(ctx, resolved, authorizationHeader)
+	authorizationHeader := e.authorizationHeader(ctx, &resolved)
+	client, err := e.openClient(ctx, &resolved, authorizationHeader)
 	if err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
@@ -190,14 +120,11 @@ func (e *CallExecutor) CallTool(
 	defer func() {
 		err = joinMCPClientCleanup(err, client)
 	}()
-	arguments, err := decodeArguments(req.Input)
+	params, err := mcpCallParams(resolved.Server, negotiatedProtocolVersion(client.session), req)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	mcpResult, err := client.session.CallTool(ctx, &mcpsdk.CallToolParams{
-		Name:      strings.TrimSpace(req.RawToolName),
-		Arguments: arguments,
-	})
+	mcpResult, err := client.session.CallTool(ctx, params)
 	if err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
@@ -231,6 +158,12 @@ func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err e
 			ErrAuthorizationRequired.Error(),
 			ErrAuthorizationRequired,
 			toolspkg.ReasonMCPAuthRequired,
+		)
+	}
+	if errors.Is(err, errRemoteAuthenticationRejected) {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable, id, errRemoteAuthenticationRejected.Error(),
+			errRemoteAuthenticationRejected, toolspkg.ReasonMCPAuthUnconfigured,
 		)
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
@@ -278,7 +211,7 @@ func (e *CallExecutor) Status(
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, err
 	}
-	return e.authStatus(ctx, resolved)
+	return e.authStatus(ctx, &resolved)
 }
 
 func (e *CallExecutor) callContext(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -321,6 +254,21 @@ func (e *CallExecutor) resolveServer(
 		return ResolvedServer{}, errors.New("mcp: resolved auth target does not match server config")
 	}
 	return resolved, nil
+}
+
+func mcpCallParams(
+	server compozyconfig.MCPServer,
+	protocolVersion string,
+	req toolspkg.MCPToolCallRequest,
+) (*mcpsdk.CallToolParams, error) {
+	if err := validateMCPTransportToolName(server, protocolVersion, req.RawToolName); err != nil {
+		return nil, err
+	}
+	arguments, err := decodeArguments(req.Input)
+	if err != nil {
+		return nil, err
+	}
+	return &mcpsdk.CallToolParams{Name: req.RawToolName, Arguments: arguments}, nil
 }
 
 func decodeArguments(raw json.RawMessage) (any, error) {
@@ -395,28 +343,14 @@ func mcpServerMatches(server compozyconfig.MCPServer, target string) bool {
 	if err != nil {
 		return false
 	}
-	owner, err := mcpOwner(id)
+	owner, err := toolspkg.MCPToolOwner(id)
 	return err == nil && owner == target
-}
-
-func mcpOwner(id toolspkg.ToolID) (string, error) {
-	segments, err := id.Segments()
-	if err != nil {
-		return "", err
-	}
-	if len(segments) != 3 {
-		return "", toolspkg.NewValidationError(
-			"tool_id",
-			toolspkg.ReasonIDInvalidFormat,
-			"mcp tool id must contain namespace server and tool segments",
-		)
-	}
-	return segments[1], nil
 }
 
 func cloneMCPServer(server compozyconfig.MCPServer) compozyconfig.MCPServer {
 	server.Args = append([]string(nil), server.Args...)
 	server.Env = cloneStringMap(server.Env)
+	server.InputValues = maps.Clone(server.InputValues)
 	server.SecretEnv = cloneStringMap(server.SecretEnv)
 	server.Headers = cloneStringMap(server.Headers)
 	server.SecretHeaders = cloneStringMap(server.SecretHeaders)

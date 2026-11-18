@@ -2,10 +2,14 @@ import { useState } from "react";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import { useProviderUsage } from "@/systems/provider-usage";
+import { isProviderEnabled } from "@/systems/providers";
 
+import { providerLogoKey } from "../lib/provider-logo-key";
 import {
   PROVIDER_USAGE_COLLECTOR_IDS,
+  providerUsageCollectorFamily,
   sameProviderUsageConfig,
+  type ProviderUsageFamilySettings,
   type ProviderUsageSettingsConfig,
 } from "../lib/provider-usage-settings";
 import { useSettingsProviders } from "./use-settings-collections";
@@ -18,27 +22,46 @@ import {
 export interface ProviderUsageSettingsProvider {
   id: string;
   name: string;
+  /** Logo key: the provider's own brand, else its runtime family. */
+  logo: string;
+  /** Turned off in Settings → Providers: the row shows that instead of its switch. */
+  disabled: boolean;
 }
 
+type ConfiguredProvider = {
+  name: string;
+  settings?: ProviderUsageFamilySettings & { display_name?: string; enabled?: boolean };
+};
+
 /**
- * Configured providers with a usage collector, in collector order, plus any
- * the config already names (a provider turned off stays listed so it can be
- * turned back on). Names follow the usage rows — the daemon's catalog display
- * name — then the provider's own display name, then its ID.
+ * Configured providers with a usage collector — built-ins in collector order,
+ * then aliases eligible by config, by name — plus any the config already
+ * names (a provider turned off stays listed so it can be turned back on).
+ * Names follow the usage rows — the daemon's catalog display name — then the
+ * provider's own display name, then its ID.
  */
 function usageProviders(
-  configured: ReadonlyArray<{ name: string; settings?: { display_name?: string } }>,
+  configured: ReadonlyArray<ConfiguredProvider>,
   config: ProviderUsageSettingsConfig | null,
   catalogNames: ReadonlyMap<string, string>
 ): ProviderUsageSettingsProvider[] {
-  const names = new Map(configured.map(entry => [entry.name, entry.settings?.display_name]));
+  const settings = new Map(configured.map(entry => [entry.name, entry.settings]));
   const named = new Set(Object.keys(config?.providers ?? {}));
-  const providers: ProviderUsageSettingsProvider[] = [];
-  for (const id of PROVIDER_USAGE_COLLECTOR_IDS) {
-    if (!names.has(id) && !named.has(id)) continue;
-    providers.push({ id, name: catalogNames.get(id) || names.get(id)?.trim() || id });
+  const entry = (id: string): ProviderUsageSettingsProvider => ({
+    id,
+    name: catalogNames.get(id) || settings.get(id)?.display_name?.trim() || id,
+    logo: providerLogoKey({ name: id, settings: settings.get(id) }),
+    disabled: !isProviderEnabled(settings.get(id)),
+  });
+  const builtins = PROVIDER_USAGE_COLLECTOR_IDS.filter(id => settings.has(id) || named.has(id));
+  const aliases: ProviderUsageSettingsProvider[] = [];
+  for (const id of new Set([...settings.keys(), ...named])) {
+    if (PROVIDER_USAGE_COLLECTOR_IDS.includes(id)) continue;
+    if (!named.has(id) && providerUsageCollectorFamily(id, settings.get(id)) === null) continue;
+    aliases.push(entry(id));
   }
-  return providers;
+  aliases.sort((left, right) => left.name.localeCompare(right.name));
+  return [...builtins.map(entry), ...aliases];
 }
 
 /** Display names the usage rows show, by provider ID. */
@@ -76,6 +99,9 @@ export function useSettingsProviderUsagePage() {
     // the Providers group is never inserted into a page that has already rendered.
     isLoading: query.isPending || providersQuery.isPending,
     error: query.error,
+    // Reported in the Providers section only: the collection and privacy controls stay usable, and
+    // eligible aliases the config does not name would otherwise drop out silently.
+    providersError: providersQuery.error,
     envelope,
     draft,
     providers: usageProviders(providersQuery.data?.providers ?? [], draft, catalogNames),
@@ -88,6 +114,7 @@ export function useSettingsProviderUsagePage() {
     restart: page.restart,
     handleReset: () => setDraftOverride(null),
     handleRetry: () => void query.refetch(),
+    handleRetryProviders: () => void providersQuery.refetch(),
     handleSave: () => {
       if (draft === null || !isDirty) return;
       mutation.mutate(

@@ -9,7 +9,14 @@ RETURNING id;
 
 -- name: GetNextDispatchableSessionInput :one
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = sqlc.arg(session_id) AND target.instance_id IS NULL
+      AND instance.state = 'paused' AND instance.archived_at IS NULL
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
     AND status = sqlc.arg(queued_status) AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL
@@ -23,6 +30,8 @@ WHERE queued.session_id = sqlc.arg(session_id)
     JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances AS instance ON instance.id = root.instance_id
     WHERE target.id = queued.session_id AND instance.state = 'paused'
+      AND (target.instance_id = instance.id
+        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   ))
   AND queued.status = sqlc.arg(queued_status)
   AND queued.dispatchable = 1
@@ -74,7 +83,14 @@ WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id)
 
 -- name: PeekNextSessionInput :one
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = sqlc.arg(session_id) AND target.instance_id IS NULL
+      AND instance.state = 'paused' AND instance.archived_at IS NULL
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
     AND status = sqlc.arg(queued_status) AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL
@@ -88,6 +104,8 @@ WHERE queued.session_id = sqlc.arg(session_id)
     JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances AS instance ON instance.id = root.instance_id
     WHERE target.id = queued.session_id AND instance.state = 'paused'
+      AND (target.instance_id = instance.id OR queued.owner_kind = 'goal'
+        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   ))
   AND queued.status = sqlc.arg(queued_status)
   AND queued.terminal_at IS NULL
@@ -107,7 +125,14 @@ LIMIT 1;
 
 -- name: ListPendingSessionInputs :many
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = sqlc.arg(session_id) AND target.instance_id IS NULL
+      AND instance.state = 'paused' AND instance.archived_at IS NULL
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
     AND status = sqlc.arg(queued_status) AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL
@@ -147,6 +172,8 @@ WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_qu
     JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances AS instance ON instance.id = root.instance_id
     WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
+      AND (target.instance_id = instance.id
+        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   ))
   AND mode = 'steer' AND status = 'queued' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
@@ -155,11 +182,12 @@ WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_qu
 UPDATE session_input_queue
 SET status = sqlc.arg(status), steer_delivery = sqlc.arg(steer_delivery),
     dispatchable = CASE WHEN sqlc.arg(status) = 'queued' THEN 1 ELSE 0 END,
-    delivery = CASE WHEN sqlc.arg(status) = 'queued' AND origin_class <> 'human' THEN 'after_turn' ELSE delivery END,
+    delivery = CASE WHEN sqlc.arg(status) = 'queued' AND (origin_class <> 'human' OR sqlc.arg(steer_delivery) = 'after_turn') THEN 'after_turn' ELSE delivery END,
     turn_id = CASE WHEN sqlc.arg(status) = 'sent' THEN target_turn_id ELSE turn_id END,
     sent_at = sqlc.narg(sent_at), dispatch_started_at = NULL, updated_at = sqlc.arg(now)
-WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
-  AND mode = 'steer' AND status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic');
+WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
+  AND mode = 'steer' AND status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
 
 -- name: CancelPendingSessionSteer :execrows
 UPDATE session_input_queue
@@ -171,14 +199,15 @@ WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
 -- name: SettlePendingSessionSteer :execrows
 UPDATE session_input_queue
 SET steer_delivery = sqlc.arg(steer_delivery), updated_at = sqlc.arg(now),
-    status = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN 'queued' ELSE 'sent' END,
-    dispatchable = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN 1 ELSE 0 END,
-    delivery = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' AND origin_class <> 'human'
+    status = CASE WHEN sqlc.arg(steer_delivery) <> 'injected' THEN 'queued' ELSE 'sent' END,
+    dispatchable = CASE WHEN sqlc.arg(steer_delivery) <> 'injected' THEN 1 ELSE 0 END,
+    delivery = CASE WHEN sqlc.arg(steer_delivery) = 'after_turn' OR (sqlc.arg(steer_delivery) = 'interrupt_fallback' AND origin_class <> 'human')
                     THEN 'after_turn' ELSE delivery END,
-    sent_at = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN NULL ELSE sent_at END,
-    turn_id = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN sqlc.arg(fallback_turn_id) ELSE turn_id END
+    sent_at = CASE WHEN sqlc.arg(steer_delivery) <> 'injected' THEN NULL ELSE sent_at END,
+    turn_id = CASE WHEN sqlc.arg(steer_delivery) <> 'injected' THEN sqlc.arg(fallback_turn_id) ELSE turn_id END
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
-  AND mode = 'steer' AND status = 'sent' AND steer_delivery = 'pending_injection'
+  AND mode = 'steer' AND ((status = 'sent' AND steer_delivery = 'pending_injection')
+    OR (status = 'queued' AND steer_delivery = 'pending_boundary' AND sqlc.arg(steer_delivery) = 'interrupt_fallback'))
   AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
 
@@ -341,7 +370,14 @@ RETURNING id;
 -- Dispatch-ordered candidates for batching behind an already claimed head; same filter as
 -- GetNextDispatchableSessionInput, so the Goal cutoff still bounds the batch.
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = sqlc.arg(session_id) AND target.instance_id IS NULL
+      AND instance.state = 'paused' AND instance.archived_at IS NULL
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
     AND status = 'queued' AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL
@@ -355,6 +391,8 @@ WHERE queued.session_id = sqlc.arg(session_id)
     JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances AS instance ON instance.id = root.instance_id
     WHERE target.id = queued.session_id AND instance.state = 'paused'
+      AND (target.instance_id = instance.id
+        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   ))
   AND queued.status = 'queued'
   AND queued.dispatchable = 1
@@ -396,11 +434,18 @@ WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_qu
     JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances AS instance ON instance.id = root.instance_id
     WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
+      AND (target.instance_id = instance.id
+        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   ))
   AND session_input_queue.status = 'queued' AND session_input_queue.mode = 'queue'
   AND ((session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL)
     OR (session_input_queue.owner_kind = 'synthetic'
-      AND json_extract(session_input_queue.synthetic_prompt_json, '$.coalesce_key') IS NOT NULL))
+      AND (json_extract(session_input_queue.synthetic_prompt_json, '$.coalesce_key') IS NOT NULL
+        OR json_extract(session_input_queue.synthetic_prompt_json, '$.metadata.kind') = 'session_reply'
+        OR (COALESCE(json_extract(session_input_queue.synthetic_prompt_json, '$.metadata.kind'), '') IN ('', 'session_ended_early')
+          AND COALESCE(json_extract(session_input_queue.synthetic_prompt_json, '$.metadata.child_session_id'), '') != ''
+          AND COALESCE(json_extract(session_input_queue.synthetic_prompt_json, '$.metadata.wake_event_id'), '') != ''
+          AND json_extract(session_input_queue.synthetic_prompt_json, '$.metadata.reason') IN ('completed', 'stopped', 'failed', 'needs_attention')))))
   AND session_input_queue.dispatchable = 1
   AND session_input_queue.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
   AND NOT EXISTS (
@@ -432,3 +477,20 @@ SELECT EXISTS (SELECT 1 FROM session_input_queue AS queued WHERE queued.session_
  AND queued.turn_id = sqlc.arg(turn_id) AND queued.origin_class = 'human' AND queued.status IN ('dispatching','sent')
  UNION ALL SELECT 1 FROM session_prompt_admissions AS admitted WHERE admitted.session_id = sqlc.arg(session_id)
  AND admitted.turn_id = sqlc.arg(turn_id) AND admitted.human_ingress = 1 AND admitted.dispatch_committed_at IS NOT NULL);
+
+-- name: SupersedeBoundarySteersForInterrupt :many
+UPDATE session_input_queue
+SET superseded_by = sqlc.arg(replacement_id), status = 'canceled', dispatchable = 0, canceled_at = sqlc.arg(now), updated_at = sqlc.arg(now)
+WHERE session_id = sqlc.arg(session_id) AND target_turn_id = sqlc.arg(target_turn_id)
+  AND session_generation = sqlc.arg(session_generation)
+  AND mode = 'steer' AND origin_class = 'human'
+  AND ((status = 'queued' AND (steer_delivery IS NULL OR steer_delivery IN ('pending_boundary', 'interrupt_fallback')))
+    OR status = 'dispatching'
+    OR (status = 'sent' AND steer_delivery = 'pending_injection'))
+RETURNING id;
+
+-- name: ListSupersededSessionSteers :many
+SELECT * FROM session_input_queue
+WHERE session_id = sqlc.arg(session_id) AND mode = 'steer' AND status = 'canceled'
+  AND superseded_by IS NOT NULL AND id > sqlc.arg(after_id)
+ORDER BY id LIMIT 100;

@@ -39,7 +39,7 @@ func (e *bootstrapExecution) replaceOutdatedDesktopRuntime(status DaemonStatus) 
 	if err := provisionBootstrapRuntime(e.cmd, &bootstrapProvisionRequest{
 		resolution: bootstrapResolutionProvision,
 		homePaths:  e.homePaths, bundlePath: e.bundlePath, installedPath: e.installedPath,
-		provenance: provenance,
+		provenance: provenance, fromVersion: status.Version,
 		restart: func() error {
 			runtime := newCLIUpdateRuntime(e.deps, e.homePaths)
 			runtime.restartProgress = func(progress contract.RestartProgress) {

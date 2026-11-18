@@ -14,6 +14,35 @@ import (
 
 func TestWriteTarDirectory(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reject a different root identity before writing any archive bytes", func(t *testing.T) {
+		t.Parallel()
+		root := writeTarGzipFixture(t)
+		directory, err := OpenDirectory(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := directory.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := os.Rename(root, root+"-held"); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.RemoveAll(root + "-held"); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := os.Mkdir(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		var archive bytes.Buffer
+		stats, err := directory.WriteMaterializedTar(t.Context(), &archive, root, nil, TarLimits{})
+		if !errors.Is(err, ErrSymlink) || archive.Len() != 0 || stats != (TarStats{}) {
+			t.Fatalf("replaced root = %+v, %v, bytes=%d", stats, err, archive.Len())
+		}
+	})
 	t.Run("Should share canonical package bytes with gzip archives across timestamp changes", func(t *testing.T) {
 		t.Parallel()
 		root := writeTarGzipFixture(t)
@@ -46,6 +75,12 @@ func TestWriteTarDirectory(t *testing.T) {
 		if err != nil || !bytes.Equal(archive.Bytes(), want) || stats.Bytes != compressedStats.UncompressedSize ||
 			stats.FileCount != compressedStats.FileCount {
 			t.Fatalf("canonical tar changed: stats %+v, gzip stats %+v, error %v", stats, compressedStats, err)
+		}
+
+		var materialized bytes.Buffer
+		copied, err := WriteTarDirectory(t.Context(), &materialized, root, nil, TarLimits{MaterializeSymlinks: true})
+		if err != nil || !bytes.Equal(materialized.Bytes(), want) || copied != stats {
+			t.Fatalf("materialized canonical tar changed: stats %+v, want %+v, error %v", copied, stats, err)
 		}
 	})
 	t.Run("Should refuse a file swapped for an external symlink before its bytes are read", func(t *testing.T) {
@@ -188,4 +223,38 @@ func writeTarGzipFixture(t *testing.T) string {
 		t.Fatalf("os.WriteFile(b.txt) error = %v", err)
 	}
 	return root
+}
+
+func TestMaterializedTarLimits(t *testing.T) {
+	t.Parallel()
+	for _, fixture := range []struct {
+		name   string
+		limits TarLimits
+		want   error
+	}{
+		{name: "Should count copied directory nodes", limits: TarLimits{MaxFileCount: 3, MaterializeSymlinks: true}, want: ErrTarFileCountLimit},
+		{name: "Should count copied file bytes", limits: TarLimits{MaxBytes: 7000, MaterializeSymlinks: true}, want: ErrTarSizeLimit},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.Mkdir(filepath.Join(root, "data"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(root, "data", "file"),
+				bytes.Repeat([]byte("x"), 4096),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("data", filepath.Join(root, "alias")); err != nil {
+				t.Fatal(err)
+			}
+			_, err := WriteTarDirectory(t.Context(), io.Discard, root, nil, fixture.limits)
+			if !errors.Is(err, fixture.want) {
+				t.Fatalf("materialized quota = %v, want %v", err, fixture.want)
+			}
+		})
+	}
 }

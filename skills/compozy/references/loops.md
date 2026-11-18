@@ -13,6 +13,25 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 - Reference grammar, metric criteria, and runtime selection
 - Hooks, SSE, watch sources, and watch events
 - Agent-authored review and repair
+- Long-running command gates
+
+## Long-running command gates
+
+Coordinator claims renew while inline gates execute; `last_progress_at` advances without redispatching
+the active attempt. Completed gate attempts and machine verdicts are committed after evaluation.
+A successful gate attempt means the evaluation completed; consult its verdict for approval or rejection.
+Every command must keep its work in the foreground: the entire local process group is cleaned up
+after command completion, including after a successful exit. Helpers that remain in the gate process group are included in cleanup.
+`loop cancel` sends SIGTERM to the gate process group, allows a five-second cleanup grace, then
+sends SIGKILL to finish the supervisor and remaining members. Registered
+gate groups whose leader identity still validates are reaped during daemon restart reconciliation before replacement work starts.
+Cleanup failures stay pending only if the supervisor cannot be joined and its leader identity still
+validates. Once the leader is reaped, the error remains terminal; an unproven group is never signaled again.
+Run containers in the foreground (no `-d`). Authors own cleanup of resources held by a container
+daemon or remote host: use `docker run --rm` and a cleanup `trap`, plus recovery cleanup for crashes
+or SIGKILL, which cannot execute traps. The daemon does not infer external resource identities.
+In-process cancellation allows five seconds after SIGTERM before SIGKILL; cleanup traps are best
+effort within that grace. Slow remote cleanup still requires author-owned recovery.
 
 ## The Tool Set And CLI Verbs
 
@@ -182,7 +201,7 @@ Pass `request_id` for replay-safe transport retries. The same key with different
 Follow **inspect → validate → dry-run → publish (with `expected_version`) → run**. Every step before
 `run` is structured and spends no tokens.
 
-1. **inspect** — `compozy__loop_inspect` returns the definition and its current `version`. Read the
+1. **inspect** — `compozy__loop_inspect` returns the input contract and its current `version`. Read the
    version before you change anything.
 2. **validate** — `compozy__loop_validate` lints and compiles a candidate without saving; it returns
    per-node codes (`unknown_reference`, `node_id_invalid`, `verdict_policy_requires_judge`,
@@ -390,6 +409,11 @@ exhausted budget up to success.
 - `stalled` — no progress: the no-progress window elapsed, the failure circuit breaker tripped, the
   blocker-ID signature repeated, or a watched source went silent.
 
+When the coordinator decides a terminal, `loop why -o json` reports `outcome.reason_code`,
+`outcome.node_id`, and `outcome.message` (also on the terminal `status_changed` event); for example
+`no_ready_nodes` names the node that can never run and its unsettled dependencies. Quote them
+instead of guessing. `completion_state` reports collect coverage only, never success.
+
 Failure streaks are evaluated per node across generations, so a healthy sibling cannot reset a
 failing node's breaker. An unbounded watch run also stalls after consecutive failed generations;
 healthy waiting ticks remain `watching`.
@@ -526,7 +550,8 @@ declared `inputs` references and materialize once before Goal work. Goal params 
 materialize recursively at their execution boundary; direct references retain JSON types and raw
 `output_schema` values are never rendered. Literal `{{ ... }}` inside an input value stays literal —
 agents and judges do not run a second template pass. Run detail exposes raw `executed_definition`
-beside the input-resolved `materialized_contract`.
+beside the input-resolved `materialized_contract` (request `result_view: "full"` on
+`compozy__loop_status` for these fields).
 
 `command` criteria keep the exact shell program written by the Loop author. Every runtime template
 value emitted inside `check` must end with `| shellQuote` and remain outside authored quotes or
@@ -775,7 +800,7 @@ boundary reports a model rejection when it cannot bind that ID.
 
 Successful generation outputs expose the binder-applied `resolved_runtime` fields, per-field
 provenance, and the speed outcome (`applied`, `unsupported`, or `rejected`) through `compozy loop
-status`, HTTP/UDS run detail, `compozy__loop_status`, and `runtime_applied` SSE frames. The web run
+status`, HTTP/UDS run detail, `compozy__loop_status` with `result_view: "full"`, and `runtime_applied` SSE frames. The web run
 inspector displays the same durable values read-only.
 Successful persisted `loop run` responses also expose `web_url`; human output prints it as the final
 line. Dry-run has no run ID and never emits a URL.
@@ -938,3 +963,50 @@ attention with `goal_wait_timeout`; unavailable wait inspection pauses with `goa
 Inspect the monitor or child before explicitly resuming the Goal. A deliberate daemon stop pauses
 the Goal and stops its session: resume the session first, then the Goal. Completion and evidenced
 blocked reports keep their existing judge/control handling, including while another wait is live.
+
+## Loops
+
+A tool action node selects its view in `params`. The value must be the literal `compact` or `full`.
+
+```yaml
+graph:
+  nodes:
+    - id: inspect
+      class: action
+      kind: compozy__session_status
+      params:
+        session_id: "{{ .inputs.session_id }}"
+        result_view: full
+    - id: report
+      class: action
+      kind: run-agent
+      params:
+        agent: general
+        prompt: "Tools allowed: {{ .nodes.inspect.output.session.lineage.permission_policy.tools }}"
+  edges:
+    - from: inspect
+      to: report
+```
+
+Without `result_view: full` on `inspect`, Loop validation (`compozy__loop_validate`,
+`compozy loop create`, `compozy loop run`) stops the Loop before Start:
+
+```text
+error: result_view_field_requires_full
+  node "report" reads nodes.inspect.output.session.lineage.permission_policy.tools, which the compact result of compozy__session_status does not include; fix: add `result_view: full` to the params of node "inspect"
+```
+
+With `result_view: full`, a reference may read any field the full record carries, including fields
+the tool's full schema does not list, as long as that part of the schema is open. Validation then
+warns that the path cannot be proven. A field that is missing at run time resolves to an empty value,
+so check the name against a real result.
+
+The same rules apply to a tool node's own `produces`: declaring a field that only the full view has
+fails with `result_view_field_requires_full`; declaring a field neither view has fails with
+`unresolvable_path`.
+
+A run pins the contract of the view each node selected. Review edits cannot change the view after
+validation. Starting with v0.6.1, runs started before v0.6.0 (which introduced result views) fail
+with `ActionContractStale` (`action_contract_stale`) when their next tool action encounters a stale
+pin. Start a new run from the definition with `compozy loop run --name <name>`; resuming the old run does
+not refresh its pins. Definitions and completed runs are unchanged.

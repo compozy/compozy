@@ -8,6 +8,7 @@ import {
   AutomationCatalogShell,
   AutomationDeleteAction,
   AutomationEditorDialog,
+  AutomationInspectSheet,
   AutomationRow,
   automationDetailSearchFrom,
   type AutomationItemControls,
@@ -54,8 +55,8 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
     onToggleEnabled: page.toggleEnabled,
     onRunNow: page.runNow,
     onEdit: page.edit,
+    onInspect: page.inspect,
     onDelete: page.setDeleteTarget,
-    onCopyLink: page.copyLink,
   };
 
   return (
@@ -112,6 +113,14 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
         }}
         open={page.deleteTarget !== null}
       />
+      {page.inspectEntity ? (
+        <AutomationInspectSheet
+          entity={page.inspectEntity}
+          key={`inspect:${page.inspectEntity.id}`}
+          onOpenChange={page.setInspectOpen}
+          open={page.inspectOpen}
+        />
+      ) : null}
       <AutomationEditorDialog {...page.editorDialogProps} />
     </>
   );

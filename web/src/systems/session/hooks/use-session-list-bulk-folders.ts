@@ -9,23 +9,11 @@ import {
   sessionFolderId,
 } from "../lib/session-folders";
 import type { SessionListPair } from "../lib/session-list-groups";
+import type { SessionBulkFolderMenu } from "../lib/session-selection-verbs";
 import { sessionListPairKey } from "../lib/session-list-group-rows";
-import type { SessionFolderPayload, SessionPayload } from "../types";
+import type { SessionPayload } from "../types";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import type { SessionSelectionDrag } from "./use-session-list-dnd";
-
-/** The selection bar's Move to folder submenu. */
-export interface SessionBulkFolderMenu {
-  folders: readonly SessionFolderPayload[];
-  /** Why the selection cannot move, shown inside the submenu instead of targets. */
-  blockedReason: string | null;
-  /** The folder every movable session already sits in; moving there changes nothing. */
-  sharedFolderId: string | null | undefined;
-  /** At least one movable session sits in a folder, so No folder applies. */
-  canUnfile: boolean;
-  onMove: (folderId: string | null) => void;
-  onNewFolder: () => void;
-}
 
 /** The New folder dialog opened from the selection: it creates the folder, then moves into it. */
 export interface SessionBulkFolderDialog {

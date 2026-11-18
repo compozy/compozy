@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	ErrUnavailable                   = errors.New("window manager unavailable")
 	ErrWindowBindingInvalid          = errors.New("window_binding_invalid")
 	ErrWorkspaceNotFound             = errors.New("window manager workspace not found")
 	ErrSnapshotNotFound              = errors.New("window manager snapshot not found")
@@ -27,7 +28,6 @@ var (
 	ErrContextRevisionExhausted      = errors.New("window manager context revision exhausted")
 	ErrTopologyRevisionExhausted     = errors.New("window manager topology revision exhausted")
 	ErrClosed                        = errors.New("window manager closed")
-	ErrNotStacked                    = errors.New("window manager window not stacked")
 	ErrWindowPinned                  = errors.New("window manager window pinned")
 )
 
@@ -49,6 +49,36 @@ func (e *TopologyError) Error() string {
 
 func (e *TopologyError) Unwrap() error {
 	return ErrInvalidTopology
+}
+
+// SnapshotVersionError refuses newer user state without changing its bytes.
+type SnapshotVersionError struct {
+	Version uint32
+}
+
+func (e *SnapshotVersionError) Error() string {
+	return fmt.Sprintf("snapshot version %d exceeds supported version %d", e.Version, SnapshotVersion)
+}
+
+func (e *SnapshotVersionError) Unwrap() error { return ErrUnavailable }
+
+func (e *SnapshotVersionError) Diagnostic() Diagnostic {
+	return Diagnostic{Code: topologyUnsupportedVersionCode, Path: "version", Message: e.Error()}
+}
+
+// SnapshotQuotaError leaves the stored layout and backups intact when preservation cannot fit.
+type SnapshotQuotaError struct{ Cause error }
+
+var _ error = (*SnapshotQuotaError)(nil)
+
+func (e *SnapshotQuotaError) Error() string {
+	return fmt.Sprintf("layout storage is unavailable: %v", e.Cause)
+}
+
+func (e *SnapshotQuotaError) Unwrap() []error { return []error{ErrUnavailable, e.Cause} }
+
+func (e *SnapshotQuotaError) Diagnostic() Diagnostic {
+	return Diagnostic{Code: "snapshot_key_quota", Message: e.Error()}
 }
 
 // Conflict identifies one stale reference that prevented a safe rebase.

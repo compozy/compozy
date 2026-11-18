@@ -48,6 +48,18 @@ linters:
           deny:
             - pkg: github.com/google/uuid
               desc: Use stdlib uuid.NewV4().String() (stdlib_uuid, Go 1.27).
+        # Every exported span and metric must pass the sanitizing exporters, so only internal/telemetry
+        # builds OpenTelemetry providers and exporters; other packages use the API packages.
+        otel-sdk-telemetry-only:
+          files:
+            - "${config-path}/**/*.go"
+            - "!${config-path}/internal/telemetry/*.go"
+            - "!$test"
+          deny:
+            - pkg: go.opentelemetry.io/otel/sdk
+              desc: Only internal/telemetry may build OpenTelemetry providers (sanitizing exporter boundary).
+            - pkg: go.opentelemetry.io/otel/exporters
+              desc: Only internal/telemetry may build OpenTelemetry exporters (sanitizing exporter boundary).
     forbidigo:
       analyze-types: true
       exclude-godoc-examples: false

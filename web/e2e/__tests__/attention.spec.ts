@@ -349,8 +349,8 @@ test.describe("E2E-013 Settings → Attention", () => {
 });
 
 test.describe("E2E-014 All workspaces breadth", () => {
-  // All projects is the menubar globe (AP); the list is flat by default and Group by
-  // project gives each project its own independently loaded group.
+  // All projects is the menubar globe (AP); the list groups by project by default (#1486),
+  // giving each project its own independently loaded group.
   test("Should widen to every workspace, grouped and labelled, and persist breadth across reload", async ({
     appPage: page,
     runtime,

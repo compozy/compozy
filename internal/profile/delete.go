@@ -58,6 +58,7 @@ func (m *Manager) Delete(
 				{Seq: 1, Action: stepRemoveDesktopPartitions},
 				{Seq: 2, Action: stepRemoveUserJournal},
 				{Seq: 3, Action: stepRemoveAgentMemory},
+				{Seq: 4, Action: stepRemoveUserToolArtifacts},
 			},
 		); err != nil {
 			return err

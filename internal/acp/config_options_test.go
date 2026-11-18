@@ -115,6 +115,28 @@ func TestSessionConfigOptionsFromSDK(t *testing.T) {
 
 func TestConfigOptionMatching(t *testing.T) {
 	t.Parallel()
+	t.Run("Should project only uniquely confirmed selections without changing intent", func(t *testing.T) {
+		t.Parallel()
+		selections := []SessionConfigOptionSelection{
+			{ID: "mode", ValueID: "bypassPermissions"},
+			{ID: "context", ValueID: "large"},
+			{ID: "duplicate", ValueID: "on"},
+			{ID: "thinking", BoolValue: new(true)},
+		}
+		confirmed := ConfirmedSessionConfigOptionSelections(selections, []SessionConfigOption{
+			{ID: "context", Kind: SessionConfigOptionKindSelect, CurrentValueID: "standard"},
+			{ID: "duplicate", Kind: SessionConfigOptionKindSelect, CurrentValueID: "on"},
+			{ID: "duplicate", Kind: SessionConfigOptionKindSelect, CurrentValueID: "on"},
+			{ID: "thinking", Kind: SessionConfigOptionKindBoolean, CurrentBool: new(true)},
+		})
+		if len(confirmed) != 1 || confirmed[0].ID != "thinking" {
+			t.Fatalf("confirmed selections = %#v, want only thinking", confirmed)
+		}
+		*confirmed[0].BoolValue = false
+		if len(selections) != 4 || !*selections[3].BoolValue {
+			t.Fatalf("requested selections changed: %#v", selections)
+		}
+	})
 
 	options := []SessionConfigOption{
 		{ID: "verbose", Kind: SessionConfigOptionKindBoolean, CurrentBool: new(true)},

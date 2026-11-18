@@ -33,13 +33,16 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		emitPromptBuildError(proc, req, err)
 		return
 	}
+	rpcCtx, span := startRPCSpan(ctx, proc.providerName, acpsdk.AgentMethodSessionPrompt)
+	promptRequest.Meta = withTraceParent(rpcCtx, promptRequest.Meta)
 	// The SDK turns context cancellation into request-scoped $/cancel_request.
 	response, err := acpsdk.SendRequest[wirePromptResponse](
 		proc.conn,
-		ctx,
+		rpcCtx,
 		acpsdk.AgentMethodSessionPrompt,
 		promptRequest,
 	)
+	endPromptRPCSpan(ctx, span, active, req.Model, response.StopReason, err)
 	// Drain admitted steering before closing its owning turn's event stream.
 	active.steerMu.Lock()
 	active.finishing = true
@@ -53,10 +56,10 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		proc.emitPromptEvent(proc.promptErrorEvent(req, err, timeNowUTC()))
 		return
 	}
-	if _, included := promptRequest.Meta["system"]; included && !req.BypassesContext() {
-		proc.markSystemPromptSent()
-	}
 	if !req.BypassesContext() && ctx.Err() == nil && response.StopReason != acpsdk.StopReasonCancelled {
+		if _, included := promptRequest.Meta["system"]; included {
+			proc.markSystemPromptSent()
+		}
 		proc.markPromptSectionsDelivered(req)
 		sectionsDelivered = true
 	}
@@ -64,7 +67,6 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	// Late notifications can still carry a terminal compaction that invalidates the
 	// accumulated occupancy, so the final usage snapshot is taken only after they drain.
 	d.waitForPromptQuiescence(active)
-	proc.warnUsageAlias(response.Usage)
 	usage := proc.mergePromptUsage(proc.validatedUsage(tokenUsageFromPromptResponse(req.TurnID, response.Usage)))
 	doneEvent := AgentEvent{
 		Type:       EventTypeDone,
@@ -92,7 +94,7 @@ func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.Promp
 	if !req.BypassesContext() {
 		message, spans = proc.compactPromptSections(message, req.Sections)
 	}
-	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(message, req.BypassesContext())
+	promptText, includedSystemPrompt, promptDelivery, startup := proc.nextPromptText(message, req)
 	mentionBlocks := mentionContentBlocks(req)
 	prompt := make([]acpsdk.ContentBlock, 0, 1+len(mentionBlocks)+len(attachmentBlocks))
 	if promptText != "" {
@@ -124,7 +126,7 @@ func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.Promp
 		}
 		promptRequest.Meta = metaMap
 	}
-	manifest := proc.promptDeliveryManifest(req, spans, attachmentBlocks, includedSystemPrompt, promptDelivery)
+	manifest := promptDeliveryManifest(req, spans, attachmentBlocks, startup, promptDelivery)
 	return promptRequest, manifest, nil
 }
 

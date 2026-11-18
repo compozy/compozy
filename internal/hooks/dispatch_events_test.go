@@ -729,7 +729,7 @@ func assertSessionContext(t *testing.T, got SessionContext, want SessionContext)
 }
 
 func TestInstanceHookDispatch(t *testing.T) {
-	for _, event := range []HookEvent{HookAgentInstanceCreated, HookAgentInstancePaused, HookAgentInstanceResumed, HookAgentInstanceArchived, HookAgentInstanceAdopted} {
+	for _, event := range []HookEvent{HookAgentInstanceCreated, HookAgentInstancePaused, HookAgentInstanceResumed, HookAgentInstanceArchived, HookAgentInstanceAdopted, HookAgentInstanceProposalPicked} {
 		t.Run("Should deliver an immutable payload for "+string(event), func(t *testing.T) {
 			t.Parallel()
 			// Invariant: instance lifecycle hooks retain their session in fallback telemetry.
@@ -776,6 +776,12 @@ func TestInstanceHookDispatch(t *testing.T) {
 				InstanceID:    "instance",
 				MainSessionID: "main",
 				Reason:        "manual",
+			}
+			if event == HookAgentInstanceProposalPicked {
+				payload.Actor = "auto_accept"
+				payload.ActionID = "report"
+				payload.ReportID = "report-id"
+				payload.ProposalIndex = new(0)
 			}
 			got, err := runtime.DispatchAgentInstance(t.Context(), payload)
 			if err != nil {

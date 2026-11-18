@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -120,6 +121,9 @@ func (m *Manager) settleProfileMove(ctx context.Context, move store.SessionProfi
 		return false, fmt.Errorf("read the copy's derive receipt: %w", err)
 	}
 	if found && receipt.ChildDeletedAt == nil {
+		if err := m.recordCompletedProfileMove(ctx, &move); err != nil {
+			return false, err
+		}
 		closed, err := journal.CloseCompletedSessionProfileMove(ctx, move.SessionID)
 		if err != nil {
 			return false, fmt.Errorf("close the move journal: %w", err)
@@ -169,33 +173,70 @@ func (m *Manager) rollbackProfileMoveState(
 			errs = append(errs, err)
 		}
 	}
-	if err := m.restoreProfileMoveSource(ctx, &meta, restoredID); err != nil {
+	if err := m.restoreProfileMoveSource(ctx, &meta, move.SourceWorktreeID, restoredID, restoredID != ""); err != nil {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }
 
-// restoreProfileMoveSource unarchives the original and rebinds it to restoredID under
-// the session's conversation lock, so a resume cannot start it on a removed checkout
-// in between. The caller holds the profile-move lock the public Unarchive takes.
-func (m *Manager) restoreProfileMoveSource(ctx context.Context, meta *store.SessionMeta, restoredID string) error {
-	operationCtx, unlock, err := m.lockConversationOperation(ctx, meta.ID)
+// restoreProfileMoveSource restores the family before releasing its conversation locks.
+func (m *Manager) restoreProfileMoveSource(
+	ctx context.Context, meta *store.SessionMeta, previousID, restoredID string, rebind bool,
+) error {
+	operationCtx, unlockFamily, children, err := m.lockProfileMoveArchiveFamily(ctx, meta)
 	if err != nil {
-		return fmt.Errorf("lock session %s: %w", meta.ID, err)
+		return err
 	}
-	info, previous, changed, err := m.unarchiveAndRebindLocked(operationCtx, meta, restoredID)
-	unlock()
-	if changed {
-		// Published after the session's reservations release, as ChangeWorktreeBinding does.
-		m.notifyWorktreeBindingChanged(ctx, info, previous)
+	var info *Info
+	var previous string
+	var changed bool
+	var rebound []*Info
+	defer func() {
+		unlockFamily()
+		if changed {
+			m.notifyWorktreeBindingChanged(ctx, info, previous)
+		}
+		for _, child := range rebound {
+			m.notifyWorktreeBindingChanged(ctx, child, previousID)
+		}
+	}()
+	current, err := m.readMetaWithContext(operationCtx, meta.ID)
+	if err != nil {
+		return err
+	}
+	if current.WorktreeTransition != nil && current.WorktreeTransition.Pending {
+		if err := m.persistSessionCatalogFromMeta(operationCtx, &current); err != nil {
+			return err
+		}
+	}
+	if current.WorktreeIDValue() != meta.WorktreeIDValue() {
+		return store.ErrSessionWorktreeConflict
+	}
+	meta = &current
+	info, previous, changed, err = m.unarchiveAndRebindLocked(operationCtx, meta, "", false)
+	if err != nil {
+		return err
+	}
+	if !rebind {
+		restoredID = meta.WorktreeIDValue()
+	}
+	// Restore children first so an interrupted unarchive retains the original binding for retry.
+	rebound, err = m.rebindProfileMoveSubagents(operationCtx, children, previousID, restoredID)
+	if err != nil {
+		return err
+	}
+	if rebind {
+		info, previous, changed, err = m.unarchiveAndRebindLocked(operationCtx, meta, restoredID, true)
 	}
 	return err
 }
 
+// unarchiveAndRebindLocked restores catalog visibility before the binding store permits an update.
 func (m *Manager) unarchiveAndRebindLocked(
 	ctx context.Context,
 	meta *store.SessionMeta,
 	restoredID string,
+	rebind bool,
 ) (*Info, string, bool, error) {
 	err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, meta.ID)
 	switch {
@@ -206,7 +247,7 @@ func (m *Manager) unarchiveAndRebindLocked(
 	case err != nil:
 		return nil, "", false, fmt.Errorf("read the archive state of %s: %w", meta.ID, err)
 	}
-	if restoredID == "" {
+	if !rebind {
 		return nil, "", false, nil
 	}
 	expected := meta.WorktreeIDValue()
@@ -342,4 +383,27 @@ func (m *Manager) profileMoveJournal() (store.SessionProfileMoveStore, error) {
 		return nil, errors.New("session: profile move journal is unavailable")
 	}
 	return journal, nil
+}
+
+// recordCompletedProfileMove retains checkout provenance before the open journal is removed.
+func (m *Manager) recordCompletedProfileMove(ctx context.Context, move *store.SessionProfileMove) error {
+	if move.SourceWorktreeID == "" {
+		return nil
+	}
+	lockedCtx, unlock, err := m.lockConversationOperation(ctx, move.SessionID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
+	meta, err := m.readSessionMetaReadOnly(lockedCtx, move.SessionID)
+	if errors.Is(err, ErrSessionNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	meta.CompletedProfileMove = new(*move)
+	return store.WriteSessionMeta(store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, meta.ID)), &meta)
 }

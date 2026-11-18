@@ -41,7 +41,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		"Restore an archived project to the active catalog with its data and workspace ID unchanged.",
 		"unarchive project",
 	),
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDAgentList,
 		"agent_list",
 		"Agent List",
@@ -54,7 +54,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog, toolspkg.ToolsetIDWorkspace},
 		[]string{workspaceWorkspaceKey, descriptorKeywordAgent, descriptorKeywordCatalog},
 		[]string{"available agents", "agent catalog", "list agents"},
-	),
+	), agentListCompactOutputSchema, `{"type":"object"}`),
 	nativeDescriptor(
 		toolspkg.ToolIDWorkspaceList,
 		"workspace_list",
@@ -85,7 +85,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		[]string{workspaceWorkspaceKey, "info"},
 		[]string{"workspace info", "workspace record"},
 	),
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDWorkspaceDescribe,
 		"workspace_describe",
 		"Workspace Describe",
@@ -98,8 +98,8 @@ var workspaceTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace},
 		[]string{workspaceWorkspaceKey, "describe"},
 		[]string{"workspace describe", "workspace detail"},
-	),
-	nativeDescriptor(
+	), workspaceDescribeCompactOutputSchema, `{"type":"object"}`),
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDAgentCreate,
 		"agent_create",
 		"Agent Create",
@@ -112,7 +112,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace},
 		[]string{workspaceWorkspaceKey, descriptorKeywordAgent, descriptorKeywordCreate},
 		[]string{"create agent", "author agent definition"},
-	),
+	), agentRecordCompactOutputSchema, `{"type":"object"}`),
 }
 
 func workspaceDescriptors() []toolspkg.Descriptor {
@@ -153,9 +153,7 @@ const sessionEnvInputSchema = `{
 	}
 }`
 
-// agentKindInputDescription marks stays_on as the deprecated v0.5.0 input alias. Removal: v0.5.2.
-const agentKindInputDescription = `"Agent kind: on_demand (default) or always_on; fixed at creation. ` +
-	`stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2."`
+const agentKindInputDescription = `"Agent kind: on_demand (default) or always_on; fixed at creation."`
 
 var agentCreateInputSchema = `{
 	"type":"object",
@@ -187,10 +185,22 @@ var agentCreateInputSchema = `{
 		"deny_tools":{"type":"array","items":{"type":"string"}},
 		"display_name":{"type":"string"},
  "description":{"type":"string"},
- "kind":{"type":"string","enum":["on_demand","always_on","stays_on"],"description":` + agentKindInputDescription + `},
+ "kind":{"type":"string","enum":["on_demand","always_on"],"description":` + agentKindInputDescription + `},
  "appearance":{"type":"object","additionalProperties":true},
 		"category_path":{"type":"array","items":{"type":"string"}},
-		"disabled_skills":{"type":"array","items":{"type":"string"}},
+		"mcp_servers":{"type":"array","items":{"type":"object","required":["name"],"additionalProperties":false,"properties":{
+ "name":{"type":"string"},"reference":{"type":"boolean"},"transport":{"type":"string","enum":["stdio","http"]},
+ "command":{"type":"string"},"args":{"type":"array","items":{"type":"string"}},"url":{"type":"string"},
+ "env":{"type":"object","additionalProperties":{"type":"string"}},
+ "secret_env":{"type":"object","additionalProperties":{"type":"string"}},
+ "secret_header_values":{"type":"object","writeOnly":true,"additionalProperties":{"type":"string"}},
+ "secret_env_values":{"type":"object","writeOnly":true,"additionalProperties":{"type":"string"}},
+ "secret_headers":{"type":"object","additionalProperties":{"type":"string","pattern":"^vault:mcp/"}},
+ "auth":{"type":"object","additionalProperties":false,"properties":{
+ "registration":{"type":"string"},"issuer_url":{"type":"string"},"client_id":{"type":"string"},
+ "client_secret_ref":{"type":"string"},"scopes":{"type":"array","items":{"type":"string"}}}}
+ }}},
+ "disabled_skills":{"type":"array","items":{"type":"string"}},
 		"fallback_chain":{"type":"array","items":` + agentFallbackRouteInputSchema + `}
 	},
 	"additionalProperties":false

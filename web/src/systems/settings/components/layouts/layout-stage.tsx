@@ -2,42 +2,35 @@ import { useState } from "react";
 
 import { useLayoutCanvasSelection } from "../../hooks/use-layout-canvas-selection";
 import type { WindowManagerLayoutEditorModel } from "../../hooks/use-window-manager-layout-editor";
-import { layoutCanvasProjection } from "../../lib/window-manager-layout-canvas";
+import {
+  renameLayoutDesktop,
+  replaceLayoutTabRoot,
+} from "../../lib/window-manager-layout-mutations";
 import { LayoutCanvas } from "./layout-canvas";
-import { LayoutCanvasBoardBar } from "./layout-canvas-board-bar";
 import { LayoutDesktopTabs } from "./layout-desktop-tabs";
 import { LayoutInspector } from "./layout-inspector";
 import { LayoutReviewBar } from "./layout-review-bar";
-import type { WindowManagerConfig } from "@/systems/os";
+import { LayoutTabStrip } from "./layout-tab-strip";
 
 interface LayoutStageProps {
   editor: WindowManagerLayoutEditorModel;
-  config: WindowManagerConfig;
 }
 
 /**
- * The workspace layout as one object: the desktop you can grab, what the
- * selection is, and the daemon's check — all inside a single card, so the review
- * gate belongs visibly to the thing being reviewed.
+ * The workspace layout as one object: desktops, the picked desktop's tabs, the
+ * picked tab's splits, what the selection can do, and the daemon's check — all
+ * inside a single card, so the review gate belongs visibly to the thing being
+ * reviewed.
  */
-export function LayoutStage({ editor, config }: LayoutStageProps) {
+export function LayoutStage({ editor }: LayoutStageProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const document = editor.draft;
   const index = Math.min(activeIndex, Math.max(0, document.desktops.length - 1));
   const desktop = document.desktops[index];
-  const selection = useLayoutCanvasSelection(
-    desktop ?? {
-      id: "",
-      name: "",
-      order: 0,
-      purpose: "standard",
-      focusOwner: null,
-      groups: [],
-      floating: [],
-    }
-  );
+  const selection = useLayoutCanvasSelection(desktop);
+  const tab = selection.tab;
 
-  if (!desktop) {
+  if (!desktop || tab === null) {
     return (
       <div
         className="rounded-lg bg-card shadow-card px-4 py-5 text-form-label text-subtle"
@@ -48,8 +41,6 @@ export function LayoutStage({ editor, config }: LayoutStageProps) {
     );
   }
 
-  const projection = layoutCanvasProjection(document, desktop, config, editor.revision);
-
   return (
     <div
       className="@container/stage overflow-hidden rounded-lg bg-card shadow-card"
@@ -58,33 +49,39 @@ export function LayoutStage({ editor, config }: LayoutStageProps) {
       <LayoutDesktopTabs
         activeIndex={index}
         desktops={document.desktops}
-        onRename={editor.setDesktopName}
-        onSelect={position => {
-          setActiveIndex(position);
-          selection.clear();
+        onRename={(position, name) => {
+          const target = document.desktops[position];
+          if (target) editor.edit(renameLayoutDesktop(document, target.id, name));
         }}
+        onSelect={setActiveIndex}
+      />
+      <LayoutTabStrip
+        desktop={desktop}
+        document={document}
+        selectedTabId={tab.id}
+        onSelect={selection.selectTab}
       />
 
       <div className="grid @min-layout-stage-split/stage:grid-cols-[minmax(0,1fr)_var(--width-layout-inspector)]">
         <div className="flex min-w-0 flex-col gap-2 p-4">
           <LayoutCanvas
-            config={config}
-            desktop={desktop}
             document={document}
-            projection={projection}
-            selection={selection.selection}
-            onDesktopChange={next => editor.setDesktop(index, next)}
-            onFloatingRectChange={editor.setFloatingRect}
-            onSelect={selection.select}
+            selectedWindowId={selection.windowId}
+            tab={tab}
+            onRootChange={root =>
+              editor.edit(replaceLayoutTabRoot(document, desktop.id, tab.id, root))
+            }
+            onSelect={selection.selectWindow}
           />
-          <LayoutCanvasBoardBar desktop={desktop} document={document} projection={projection} />
         </div>
         <div className="border-t border-line-soft @min-layout-stage-split/stage:border-t-0 @min-layout-stage-split/stage:border-l">
           <LayoutInspector
             desktop={desktop}
             document={document}
-            selection={selection.selection}
-            onDesktopChange={next => editor.setDesktop(index, next)}
+            tab={tab}
+            windowId={selection.windowId}
+            onChange={editor.edit}
+            onReveal={selection.reveal}
           />
         </div>
       </div>

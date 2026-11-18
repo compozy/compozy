@@ -1,21 +1,27 @@
 import {
-  AutonomyKernelSection,
-  BentoSection,
+  AlwaysOn,
+  Automations,
+  BuiltIn,
+  Community,
   Comparison,
-  ExtensibilitySection,
-  FeaturesSection,
+  Extensibility,
   FinalCta,
   Hero,
-  InstallSection,
-  SupportedAgents,
+  Install,
+  Loops,
+  Orchestrate,
+  Problem,
+  Providers,
+  Supervise,
+  UseCases,
 } from "@/components/landing";
 import { WebSiteJsonLd } from "@/components/seo/structured-data";
 import { getCurrentRelease } from "@/lib/release/current-release";
-import { goInstallCommand } from "@/lib/release/install-commands";
+import { countPublishedReleases } from "@/lib/release/release-count";
 import { createPageMetadata, siteConfig } from "@/lib/site-config";
 import type { Metadata } from "next";
 
-const homeTitle = "CompozyOS — The system around the agent, already built";
+const homeTitle = "CompozyOS — The autonomous control plane for your agents";
 
 export const metadata: Metadata = {
   ...createPageMetadata({
@@ -29,19 +35,27 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const release = await getCurrentRelease();
+  const [release, published] = await Promise.all([getCurrentRelease(), countPublishedReleases()]);
+  const releaseCount = published === 0 ? null : published;
   return (
-    <>
+    // The draft inherits the app's 13.5px/1.5 body; the marketing shell's base is larger.
+    <div className="text-[13.5px] leading-normal tracking-[-0.01em]">
       <WebSiteJsonLd />
       <Hero />
-      <BentoSection />
-      <AutonomyKernelSection />
-      <FeaturesSection />
-      <ExtensibilitySection />
-      <SupportedAgents />
-      <InstallSection goInstallCommand={goInstallCommand(release.tag)} />
+      <Providers />
+      <Problem />
+      <AlwaysOn />
+      <UseCases />
+      <Community releases={releaseCount} />
+      <Supervise />
+      <Orchestrate />
+      <BuiltIn />
+      <Loops />
+      <Automations />
+      <Extensibility />
       <Comparison />
+      <Install releaseTag={release.tag} />
       <FinalCta />
-    </>
+    </div>
   );
 }

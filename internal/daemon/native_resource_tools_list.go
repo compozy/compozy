@@ -16,8 +16,8 @@ func (n *daemonNativeTools) resourcesList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(
-		map[string]any{"records": records},
-		fmt.Sprintf("%d resources", len(records)),
-	)
+	return (resultViews[resourceListResult]{
+		Compact: compactResources,
+		Preview: func(resourceListResult) string { return fmt.Sprintf("%d resources", len(records)) },
+	}).result(req.View, resourceListResult{Records: records})
 }

@@ -39,7 +39,7 @@ func reinstallExtensionInfo(
 	installDir string,
 	opts ...InstallOption,
 ) error {
-	manifest, err := LoadManifest(installDir)
+	manifest, err := loadManifest(installDir, "", info.Name)
 	if err != nil {
 		return fmt.Errorf("extension: reload manifest from %q after rollback: %w", installDir, err)
 	}

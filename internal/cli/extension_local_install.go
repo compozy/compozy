@@ -55,6 +55,7 @@ func installPreparedExtension(
 	prepared preparedExtensionInstall,
 	installedAt time.Time,
 	allowUnverified bool,
+	replace bool,
 ) error {
 	if registry == nil {
 		return errors.New("extension: registry is required")
@@ -65,12 +66,7 @@ func installPreparedExtension(
 	if !allowUnverified {
 		return extensionpkg.NewExtensionChecksumUnverifiedError(prepared.Manifest.Name, prepared.Path)
 	}
-	return extensionpkg.InstallLocalManaged(
-		homePaths,
-		registry,
-		prepared.Manifest,
-		prepared.Path,
-		prepared.Checksum,
+	opts := []extensionpkg.InstallOption{
 		extensionpkg.WithInstallProvenance(extensionpkg.LocalPathProvenance(
 			prepared.Manifest,
 			prepared.Path,
@@ -78,6 +74,17 @@ func installPreparedExtension(
 			installedAt,
 			allowUnverified,
 		)),
+	}
+	if replace {
+		opts = append(opts, extensionpkg.WithInstallReplaceExisting())
+	}
+	return extensionpkg.InstallLocalManaged(
+		homePaths,
+		registry,
+		prepared.Manifest,
+		prepared.Path,
+		prepared.Checksum,
+		opts...,
 	)
 }
 

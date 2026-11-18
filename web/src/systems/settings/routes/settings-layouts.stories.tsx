@@ -19,7 +19,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "The workspace layout as a desktop you manipulate directly, the layouts saved from it, and the global window-manager defaults — behind the daemon's validate-then-apply gate.",
+          "The workspace layout as desktops, tabs and splits you edit directly, the layouts saved from it, and the global window-manager defaults — behind the daemon's validate-then-apply gate.",
       },
     },
   },
@@ -43,9 +43,12 @@ const denseSnapshot = compozyApiMock.get(
     })
 );
 
-const SEAM_TESTID = "layout-canvas-seam-split-main:0";
+const SEAM_TESTID = "layout-canvas-seam-split-main-0";
 
-/** Three desktops, a nested split, a stack, a floating window and a minimized one. */
+/**
+ * Three desktops, a pinned tab, a nested split and single-window tabs; the saved
+ * layouts include one stored before tabs and splits.
+ */
 export const Default: Story = {
   args: {},
   parameters: {
@@ -90,9 +93,9 @@ export const ValidationFailed: Story = {
               valid: false,
               diagnostics: [
                 {
-                  code: "topology.group_overlap",
-                  path: "desktops.desktop-build.groups.group-main",
-                  message: "group frames must not overlap inside a desktop",
+                  code: "topology.split_weight_sum",
+                  path: "desktops.desktop-build.tabs.tab-main.root",
+                  message: "split weights must sum to 1",
                 },
               ],
             })
@@ -108,7 +111,7 @@ export const ValidationFailed: Story = {
     seam.focus();
     await userEvent.keyboard("{ArrowDown}");
     await userEvent.click(canvas.getByTestId("layout-review-check"));
-    await expect(await canvas.findByText("topology.group_overlap")).toBeInTheDocument();
+    await expect(await canvas.findByText("topology.split_weight_sum")).toBeInTheDocument();
     await expect(canvas.getByTestId("layout-review-apply")).toBeDisabled();
   },
 };

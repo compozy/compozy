@@ -83,6 +83,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 	}
 	payload.Derivation = sessionDerivationPayload(info.Derivation)
 	payload.ParentTitle = info.ParentTitle
+	payload.TreeParentSessionID = info.TreeParentSessionID
 	if info.Children != nil {
 		counts := info.Children
 		payload.Children = &contract.SessionChildrenPayload{

@@ -68,6 +68,8 @@ type Server struct {
 	toolArtifacts         toolspkg.ToolArtifactStore
 	sessionAttachments    core.SessionAttachmentStore
 	sessionFiles          core.SessionFileSearcher
+	fileTree              core.FileTreeReader
+	sessionChanges        core.SessionChangesReader
 	toolsets              core.ToolsetRegistry
 	toolApprovals         core.ToolApprovalIssuer
 	approvalGrants        core.ToolApprovalGrantService
@@ -106,17 +108,19 @@ type Server struct {
 	skillResources        core.SkillResourceSyncer
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
 	hostLoad              doctor.HostLoadSnapshotSource
+	telemetryStatus       core.TelemetryStatusSource
 	deadEntities          doctor.DeadEntitySource
 	agentLoader           core.AgentLoader
 	resourceAuth          []gin.HandlerFunc
 	httpExtendedServices
 
-	engine       *gin.Engine
-	handlers     *Handlers
-	staticSource string
-	generation   *serverGeneration
-	state        serverState
-	actualPort   int
+	engine         *gin.Engine
+	routeTemplates []string
+	handlers       *Handlers
+	staticSource   string
+	generation     *serverGeneration
+	state          serverState
+	actualPort     int
 
 	onProviderAuthSuccess func()
 	providerAuthVerdicts  *authproviders.AuthVerdicts
@@ -305,6 +309,7 @@ func New(opts ...Option) (*Server, error) {
 		)
 		RegisterSurfaceRoutes(server.engine, server.handlers, server.surfaceSet)
 	})
+	server.routeTemplates = ginutil.RouteTemplates(server.engine)
 
 	return server, nil
 }

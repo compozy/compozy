@@ -4,6 +4,7 @@ import { useProfiles } from "@/systems/profiles";
 
 import { SessionDeriveContext } from "../contexts/session-derive-context-value";
 import { SessionForkContext } from "../contexts/session-fork-context-value";
+import { SessionMenuSourceContext } from "../contexts/session-menu-source-context-value";
 import {
   SessionProfileMoveContext,
   type SessionProfileMoveHandle,
@@ -13,6 +14,7 @@ import type { SessionDeriveHostState } from "../hooks/use-session-derive-host";
 import type { SessionDerivePlacementHandlers } from "../hooks/use-session-derive";
 import { SessionContinueDialog } from "./session-continue-dialog";
 import { SessionForkDialog } from "./session-fork-dialog";
+import { SessionMenuSource } from "./session-menu-source";
 import { SessionProfileMoveDialog } from "./session-profile-move-dialog";
 
 export interface SessionDeriveHostProps extends SessionDerivePlacementHandlers {
@@ -24,7 +26,8 @@ export interface SessionDeriveHostProps extends SessionDerivePlacementHandlers {
  * Mounts the Continue, Fork, and Move to profile dialogs once for a surface and
  * hands their entry points (row menus, the provider-error marker, "Fork from
  * here") the request functions through context. Placement stays with the host:
- * only it knows which window "this" one is.
+ * only it knows which window "this" one is. Session menus under it read their
+ * linked work and folder layout through `SessionMenuSource`.
  */
 export function SessionDeriveHost({
   host,
@@ -45,7 +48,7 @@ export function SessionDeriveHost({
     <SessionDeriveContext value={host.request}>
       <SessionForkContext value={host.requestFork}>
         <SessionProfileMoveContext value={profileMove}>
-          {children}
+          <SessionMenuSourceContext value={SessionMenuSource}>{children}</SessionMenuSourceContext>
           {target?.kind === "continue" ? (
             <SessionContinueDialog
               key={target.nonce}

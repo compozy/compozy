@@ -32,6 +32,7 @@ func (s Scope) Validate() error {
 // Store persists exact occurrence receipts without changing source state.
 type Store interface {
 	CaptureAttentionSnapshot(context.Context, Scope, []string) (string, []string, error)
+	AttentionSnapshotOccurrences(context.Context, Scope, string, string) ([]string, error)
 	AcknowledgeAttentionSnapshot(context.Context, Scope, string, string) error
 }
 

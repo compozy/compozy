@@ -80,6 +80,7 @@ func decodeSoulRevisionDiagnostics(raw json.RawMessage) ([]AuthoredContextDiagno
 
 func heartbeatFrontmatterPayload(front heartbeatpkg.Frontmatter) HeartbeatFrontmatterPayload {
 	return HeartbeatFrontmatterPayload{
+		CheckIns: front.CheckIns, Actions: front.Actions,
 		Version: front.Version,
 		Enabled: front.Enabled,
 		Summary: strings.TrimSpace(front.Summary),
@@ -234,18 +235,22 @@ func validSessionHealthIneligibilityReason(reason SessionHealthIneligibilityReas
 	}
 }
 
+// validHeartbeatWakeSource accepts both legacy wakes and proactive check origins.
 func validHeartbeatWakeSource(source HeartbeatWakeSource) bool {
 	switch source {
-	case HeartbeatWakeSourceScheduler, HeartbeatWakeSourceManual, HeartbeatWakeSourceHarnessReentry:
+	case HeartbeatWakeSourceTimer, HeartbeatWakeSourceInstanceCheck,
+		HeartbeatWakeSourceScheduler, HeartbeatWakeSourceManual, HeartbeatWakeSourceHarnessReentry:
 		return true
 	default:
 		return false
 	}
 }
 
+// validHeartbeatWakeResult accepts both legacy wakes and proactive check outcomes.
 func validHeartbeatWakeResult(result HeartbeatWakeResult) bool {
 	switch result {
-	case HeartbeatWakeResultSent,
+	case HeartbeatWakeResultQuiet, HeartbeatWakeResultCancelled, HeartbeatWakeResultReported,
+		HeartbeatWakeResultSent,
 		HeartbeatWakeResultSkipped,
 		HeartbeatWakeResultCoalesced,
 		HeartbeatWakeResultRateLimited,

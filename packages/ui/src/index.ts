@@ -11,3 +11,4 @@ export * from "./exports/editors";
 export * from "./exports/conversation";
 export * from "./exports/foundation";
 export * from "./exports/terminal";
+export * from "./exports/files";

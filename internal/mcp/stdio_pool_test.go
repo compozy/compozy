@@ -102,6 +102,7 @@ func TestStdioSessionPool(t *testing.T) {
 					Server: fixture.server, Target: fixture.target(), HealthKey: healthKey,
 				}, nil
 			}),
+			WithDefinitionDigestKey([]byte("test installation key")),
 			WithStdioSessionPool(fixture.pool),
 			WithRuntimeHealthRegistry(registry),
 			WithSecretLookup(stdioPoolSecretLookup),

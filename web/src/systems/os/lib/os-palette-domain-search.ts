@@ -9,6 +9,7 @@ import {
   type AutomationTrigger,
   type AutomationView,
 } from "@/systems/automation";
+import type { ExtensionEntry } from "@/systems/extensions";
 import type { VaultSecret } from "@/systems/vault";
 import { ownerFromRow, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
 import {
@@ -162,6 +163,16 @@ export function vaultRoute(ref: string): OsWindowRoute {
   return { pathname: "/vault", search: { ref: ref.trim() } };
 }
 
+/**
+ * An extension row's detail. A disabled extension runs nothing, so it reads as its state
+ * ("disabled") rather than a health word nobody observed.
+ */
+export function extensionRowDetail(
+  extension: Pick<ExtensionEntry, "enabled" | "health" | "state">
+): string | undefined {
+  return extension.enabled ? extension.health : extension.state;
+}
+
 export function rowSeed(
   title: string,
   row: OsPaletteDomainRow,
@@ -179,7 +190,19 @@ export function rowSeed(
   };
 }
 
-export function worktreeRowSeed(worktree: PaletteWorktreeRow, workspaceName?: string): DomainSeed {
+export function projectWorktreeRows(
+  worktrees: readonly PaletteWorktreeRow[],
+  label: (workspaceId: string) => string | undefined
+): DomainSeed[] {
+  const rows: DomainSeed[] = [];
+  for (const worktree of worktrees) {
+    if (worktree.state === "removed") continue;
+    rows.push(worktreeRowSeed(worktree, label(worktree.workspace_id)));
+  }
+  return rows;
+}
+
+function worktreeRowSeed(worktree: PaletteWorktreeRow, workspaceName?: string): DomainSeed {
   return rowSeed(
     "Worktrees",
     {

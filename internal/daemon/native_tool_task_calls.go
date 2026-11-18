@@ -31,7 +31,15 @@ func (n *daemonNativeTools) taskRead(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.TaskDetailPayloadFromView(view)
-	return structuredResult(map[string]any{nativeToolsTaskKey: payload}, payload.Summary.Title)
+	return (resultViews[*taskReadResult]{
+		Compact: viewTaskRead,
+		Preview: func(*taskReadResult) string {
+			return payload.Summary.Title
+		},
+	}).result(
+		req.View,
+		&taskReadResult{Task: payload},
+	)
 }
 
 func (n *daemonNativeTools) taskCreate(
@@ -51,7 +59,15 @@ func (n *daemonNativeTools) taskCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{nativeToolsTaskKey: created}, created.Title)
+	return (resultViews[taskRecordResult]{
+		Compact: viewTaskRecordResult,
+		Preview: func(taskRecordResult) string {
+			return created.Title
+		},
+	}).result(
+		req.View,
+		taskRecordResult{Task: created},
+	)
 }
 
 func (n *daemonNativeTools) taskChildCreate(
@@ -71,7 +87,15 @@ func (n *daemonNativeTools) taskChildCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{nativeToolsTaskKey: created}, created.Title)
+	return (resultViews[taskRecordResult]{
+		Compact: viewTaskRecordResult,
+		Preview: func(taskRecordResult) string {
+			return created.Title
+		},
+	}).result(
+		req.View,
+		taskRecordResult{Task: created},
+	)
 }
 
 func (n *daemonNativeTools) taskUpdate(
@@ -91,7 +115,15 @@ func (n *daemonNativeTools) taskUpdate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{nativeToolsTaskKey: updated}, updated.Title)
+	return (resultViews[taskRecordResult]{
+		Compact: viewTaskRecordResult,
+		Preview: func(taskRecordResult) string {
+			return updated.Title
+		},
+	}).result(
+		req.View,
+		taskRecordResult{Task: updated},
+	)
 }
 
 func (n *daemonNativeTools) taskCancel(
@@ -111,7 +143,15 @@ func (n *daemonNativeTools) taskCancel(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{nativeToolsTaskKey: canceled}, canceled.Title)
+	return (resultViews[taskRecordResult]{
+		Compact: viewTaskRecordResult,
+		Preview: func(taskRecordResult) string {
+			return canceled.Title
+		},
+	}).result(
+		req.View,
+		taskRecordResult{Task: canceled},
+	)
 }
 
 func (n *daemonNativeTools) taskBlock(
@@ -227,9 +267,14 @@ func (n *daemonNativeTools) taskRecover(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeTaskToolError(req.ToolID, err)
 	}
-	return structuredResult(
-		map[string]any{nativeToolsTaskKey: core.TaskPayloadFromTask(recovered)},
-		fmt.Sprintf("recovered %s", recovered.ID),
+	return (resultViews[*taskRecoverResult]{
+		Compact: viewTaskRecover,
+		Preview: func(*taskRecoverResult) string {
+			return fmt.Sprintf("recovered %s", recovered.ID)
+		},
+	}).result(
+		req.View,
+		&taskRecoverResult{Task: core.TaskPayloadFromTask(recovered)},
 	)
 }
 
@@ -250,7 +295,15 @@ func (n *daemonNativeTools) taskRunList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{nativeToolsRunsKey: runs}, fmt.Sprintf("%d runs", len(runs)))
+	return (resultViews[taskRunsResult]{
+		Compact: viewTaskRuns,
+		Preview: func(taskRunsResult) string {
+			return fmt.Sprintf("%d runs", len(runs))
+		},
+	}).result(
+		req.View,
+		taskRunsResult{Runs: runs},
+	)
 }
 
 func (n *daemonNativeTools) taskRunResult(

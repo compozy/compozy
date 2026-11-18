@@ -135,18 +135,39 @@ func TestClientCheckout(t *testing.T) {
 						append([]string{"-c", "protocol.file.allow=always"}, args...)...)
 				}),
 			)
-			checkout, err := client.Checkout(t.Context(), repository, commit)
-			if err != nil {
+			runFixture("-C", source, "branch", "deadbee")
+			runFixture("-C", source, "tag", "cafe123")
+			if err := os.WriteFile(filepath.Join(source, "fixture.txt"), []byte("new contents"), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			t.Cleanup(func() {
-				if err := checkout.Close(); err != nil {
-					t.Error(err)
+			runFixture("-C", source, "add", "fixture.txt")
+			runFixture(
+				"-C",
+				source,
+				"-c",
+				"user.name=Fixture",
+				"-c",
+				"user.email=fixture@example.invalid",
+				"-c",
+				"commit.gpgsign=false",
+				"commit",
+				"-m",
+				"advance",
+			)
+			for _, ref := range []string{commit, commit[:8], "deadbee", "cafe123"} {
+				checkout, err := client.Checkout(t.Context(), repository, ref)
+				if err != nil {
+					t.Fatal(err)
 				}
-			})
-			content, err := os.ReadFile(filepath.Join(checkout.Path, "fixture.txt"))
-			if err != nil || string(content) != "pinned contents" || checkout.Commit != commit {
-				t.Fatalf("pinned checkout: commit=%s content=%q error=%v", checkout.Commit, content, err)
+				t.Cleanup(func() {
+					if err := checkout.Close(); err != nil {
+						t.Error(err)
+					}
+				})
+				content, err := os.ReadFile(filepath.Join(checkout.Path, "fixture.txt"))
+				if err != nil || string(content) != "pinned contents" || checkout.Commit != commit {
+					t.Fatalf("pinned checkout: commit=%s content=%q error=%v", checkout.Commit, content, err)
+				}
 			}
 		})
 	}
@@ -531,4 +552,34 @@ func TestClientSearch(t *testing.T) {
 			t.Fatalf("Search() error = %v, want ErrNotSupported", err)
 		}
 	})
+}
+
+func TestHexadecimalNamedRefs(t *testing.T) {
+	t.Parallel()
+
+	for _, namespace := range []string{"heads", "tags"} {
+		t.Run("Should preserve hexadecimal "+namespace+" refs", func(t *testing.T) {
+			t.Parallel()
+			client := newFixtureGitClient(t, t.TempDir(), 1)
+			WithCheckoutTempDir(t.TempDir())(client)
+			client.run = func(context.Context, string, ...string) error { return nil }
+			commit := strings.Repeat("b", 40)
+			client.output = func(_ context.Context, _ string, args ...string) (string, error) {
+				if slices.Contains(args, "for-each-ref") {
+					return "refs/" + namespace + "/deadbee\n", nil
+				}
+				return commit, nil
+			}
+			checkout, err := client.Checkout(t.Context(), "https://example.com/acme/repo", "deadbee")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := checkout.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if checkout.Commit != commit {
+				t.Fatal("named ref changed commit")
+			}
+		})
+	}
 }

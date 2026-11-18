@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence: .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-04;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-11-05-usage-backoff-signin-boot.md
 overlaps: MS-provider-detail-modal; MS-web-settings-providers-redesign; MS-web-entity-modal-shell
 ---
 
@@ -79,3 +79,65 @@ rejects explicit incompatible methods on both custom and built-in providers.
 that an explicit empty method is present in the persisted overlay.
 `CGO_ENABLED=1 go test -race -cover ./internal/config ./internal/settings` passes.
 This does not claim a browser re-walk or change the existing scenario verdict.
+
+## Sign-in is re-verified after a restart, and the CLI agrees with Settings (#1302)
+
+Isolated lab only: two or more synthetic `native_cli` providers whose `auth_status_command` is a
+fake script (one reports `Logged in`, one reports `not logged in`), plus an alias whose
+`runtime_provider` is `claude`.
+
+1. Restart the lab daemon and wait for `provider_auth.startup_probe_done` in the daemon log. Without
+   any manual probe, `compozy provider list -o json` reports `authenticated` with `last_probe_at` for
+   the signed-in provider and `needs_login` for the other. Providers without an installed CLI and
+   ACP-only providers are not probed.
+2. Settings → Providers shows `Ready` with a success-tone dot and a muted label on the signed-in card,
+   and the warning dot on the signed-out card. The alias card shows the Claude logo.
+3. With the daemon running, `compozy provider auth status <provider> -o json` reports
+   `probe_source: daemon`, and Settings shows the same verdict afterwards. With `--local`, it reports
+   `probe_source: local`. With the daemon stopped, the default also reports `probe_source: local`.
+   `--local --remote` is rejected, and `--remote` output keeps its daemon probe payload.
+
+Automated evidence: `internal/daemon` `TestProviderAuthStartup`, `internal/providers`
+`TestRunAuthStatusProbe`, `internal/cli` `TestProviderAuthStatusProbeSource`, the existing probe
+route tests in `internal/api/core`, and the web `provider-detail-dialog` and `provider-logo-key` tests.
+
+Verification 2026-11-05: isolated lab walk PASS (startup probe after two restarts, `probe_source` daemon/local/stopped, flag conflict, Ready success dot, alias logo). See `../reports/2026-11-05-usage-backoff-signin-boot.md`.
+The scenario-level `qa_status` stays `blocked-verify`: the real-provider reauthentication branch above
+is still unwalked.
+
+## Signed out at daemon start, signed in afterwards (#1695)
+
+Isolated lab only: a synthetic `native_cli` provider with a usage collector family (for example a
+Claude alias with its own `CLAUDE_CONFIG_DIR`) and an `auth_status_command` whose result the lab controls.
+
+1. Sign the provider out and restart the lab daemon. After `provider_auth.startup_probe_done`,
+   `compozy provider list` reports `needs_login` and Settings → Providers shows `Needs sign-in`.
+2. Sign the provider in outside CompozyOS. Do not run a manual probe or restart the daemon.
+3. After the next successful usage collection (`provider_usage.collect ... status=ok`), the daemon log
+   shows one `provider_auth.startup_probe` for that provider with `state=authenticated`.
+   `compozy provider list` reports `authenticated` and Settings shows `Ready`, matching the Provider usage
+   popover. Until that re-check finishes, the provider reads `Sign-in unverified`, never `needs_login`.
+4. Further successful collections run no more status commands while the provider stays signed in.
+
+Automated owners: `internal/providers` `TestAuthVerdicts` (a newer verified sign-in drops only an older
+`needs_login`) and `internal/daemon` `TestProviderAuthStartup` (a dropped verdict is re-checked once and
+converges to `authenticated`). Real-lab walk pending.
+
+## A stored verdict never hides a current failure (#1267)
+
+1. With a `native_cli` provider whose status command succeeds, run **Check sign-in** (or
+   `POST /api/providers/:provider_id/auth/probe`). Settings shows `Ready · Checked …`;
+   `compozy provider list` and `GET /api/providers` report `authenticated` with `last_probe_at`.
+2. Make CLI resolution fail with a non-not-found error (remove execute permission from the
+   resolved executable). Settings, `compozy provider list`, and `GET /api/providers` show the
+   declared resolver error (`unknown`, message names the failure) and no `last_probe_at`.
+3. Restore the permission. The row returns to `Ready` with the earlier check time (the verdict is
+   still valid for the same config and auth home).
+
+A plain missing binary yields `missing_cli` and does not exercise this branch. Automated owners:
+`TestAuthVerdicts`, `TestPreStarter` (session auth home), `TestProviderAuthHandlers` (IT-001),
+`TestProviderAGYACPProbe` (IT-002: ACP deadline/cancel never records).
+
+QA 2026-11-04 (#1267, build df98dd0b6): PASS in an isolated lab with a synthetic native CLI —
+steps 1–3 verified on `compozy provider list --json`, `GET /api/providers`, and
+`GET /api/settings/providers`. Report: `docs/qa/reports/2026-11-04-provider-auth-verdict-cache.md`.

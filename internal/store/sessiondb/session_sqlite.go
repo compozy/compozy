@@ -67,7 +67,7 @@ func buildSessionSQLiteCandidate(
 		migrationStreamForOwner(owner),
 		owner.SessionID,
 		vacuumFn,
-		"in-memory candidate",
+		inMemorySessionCandidatePath,
 	); err != nil {
 		return nil, fmt.Errorf("store: initialize in-memory session sqlite candidate: %w", err)
 	}
@@ -113,7 +113,7 @@ func initializeSessionSQLite(
 	vacuumFn sessionVacuumFunc,
 	path string,
 ) error {
-	if err := store.Apply(ctx, db, stream); err != nil {
+	if err := applySessionMigrations(ctx, db, stream, path); err != nil {
 		return err
 	}
 	if err := initializeTranscriptProjectionState(ctx, db); err != nil {

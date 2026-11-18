@@ -37,6 +37,7 @@ func cmdPaletteDescriptors() []toolspkg.Descriptor {
 		[]string{"run command palette command", "invoke command"},
 	)
 	invoke.OutputSchema = json.RawMessage(cmdPaletteInvokeOutputSchema)
+	list = withResultViews(list, paletteListCompactSchema, string(list.OutputSchema))
 	return []toolspkg.Descriptor{list, invoke}
 }
 
@@ -78,7 +79,12 @@ const cmdPaletteInvokeOutputSchema = `{
 		"status":{"type":"string"},
 		"result":{"type":"object","additionalProperties":true},
 		"approval_id":{"type":"string"},
-		"invocation_id":{"type":"string"}
+		"invocation_id":{"type":"string"},
+		"profile_lens":{
+            "type":"object",
+            "properties":{"profile_lens_id":{"type":"string"},"profile_name":{"type":"string"}},
+            "additionalProperties":false
+        }
 	},
 	"additionalProperties":false
 }`

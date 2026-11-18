@@ -8,26 +8,32 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/santhosh-tekuri/jsonschema/v6"
-
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/httpapi"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/api/udsapi"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
@@ -42,8 +48,11 @@ import (
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/projectfiles"
+	"github.com/compozy/compozy/internal/projectfiles/changes"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/sessioncleanup"
 	"github.com/compozy/compozy/internal/sessionprocess"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
@@ -61,6 +70,8 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 	skillbundled "github.com/compozy/compozy/skills"
+	"github.com/gin-gonic/gin"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func TestNativeTerminalProviderShouldUseBootStateDependency(t *testing.T) {
@@ -164,6 +175,27 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 		WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: "session-a", AgentName: "agent-a",
 		RunID: "run-a", Generation: 4,
 	}
+	for _, operation := range []struct {
+		name string
+		call func(context.Context, toolspkg.Scope, toolspkg.CallRequest) (toolspkg.ToolResult, error)
+		id   toolspkg.ToolID
+	}{
+		{"Should reject a blank exec worktree before approval", adapter.terminalExec, toolspkg.ToolIDTerminalExec},
+		{"Should reject a blank open worktree before root resolution", adapter.terminalOpen, toolspkg.ToolIDTerminalOpen},
+	} {
+		t.Run(operation.name, func(t *testing.T) {
+			_, err := operation.call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: operation.id, SessionID: scope.SessionID, RunID: scope.RunID,
+				Generation: scope.Generation, AgentName: scope.AgentName,
+				Input: json.RawMessage(`{"worktree":"  "}`),
+			})
+			requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+			if !strings.Contains(err.Error(), "worktree") {
+				t.Fatalf("blank selector error = %v", err)
+			}
+		})
+	}
+
 	t.Run("Should keep non-domain native identity failures generic", func(t *testing.T) {
 		t.Parallel()
 
@@ -384,9 +416,10 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 	}
 	_, err = adapter.terminalExec(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalExec, TurnID: "turn-exec", ApprovalToken: "approval-token",
-		Input: json.RawMessage(`{"command":"bun","args":["test"]}`),
+		Input: json.RawMessage(`{"command":"bun","args":["test"],"worktree":"wt-ready"}`),
 	}))
 	if err != nil || manager.execCalls != 1 || manager.execRequest.Approval != "approved_once" ||
+		manager.execRequest.Worktree != "wt-ready" ||
 		manager.execRequest.Actor.RunID != "run-a" || manager.execRequest.Actor.Generation != 4 {
 		t.Fatalf("terminalExec(approved) error/calls/request = %v/%d/%#v", err, manager.execCalls, manager.execRequest)
 	}
@@ -742,7 +775,7 @@ type nativeOrchestrationSessionManager struct {
 	requestStopFn  func(context.Context, string, session.StopCause, string) error
 	awaitStoppedFn func(context.Context, string) (session.StopOutcome, error)
 	waitFn         func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
-	spawnFn        func(context.Context, session.SpawnOpts) (*session.Session, error)
+	spawnFn        func(context.Context, *session.SpawnOpts) (*session.Session, error)
 	spawnPromptFn  func(context.Context, session.SpawnPromptRequest) (session.SendPromptResult, error)
 	spawnWsFn      func(context.Context, string, string) (string, error)
 }
@@ -1097,7 +1130,7 @@ func (m *nativeOrchestrationSessionManager) WaitForBadge(
 
 func (m *nativeOrchestrationSessionManager) Spawn(
 	ctx context.Context,
-	opts session.SpawnOpts,
+	opts *session.SpawnOpts,
 ) (*session.Session, error) {
 	return m.spawnFn(ctx, opts)
 }
@@ -1299,6 +1332,89 @@ func nativeTestSessionManager(workspaceID string, profileIDs ...string) *apitest
 // TestDaemonNativeTools exercises native tool dispatch, authorization, and resource ownership through the daemon registry.
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve retryable boot rejection for session prompts", func(t *testing.T) {
+		t.Parallel()
+		err := nativeSessionOrchestrationError(toolspkg.ToolIDSessionPrompt, admission.ErrStarting)
+		refusal, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || string(refusal.Code) != admission.StartingCode || !refusal.Retryable ||
+			refusal.HTTPStatus != http.StatusServiceUnavailable || refusal.Message != admission.ErrStarting.Error() {
+			t.Fatalf("native prompt error = %+v", err)
+		}
+	})
+
+	t.Run("Should bound default tool search results with continuation metadata", func(t *testing.T) {
+		t.Parallel()
+		deps := &daemonNativeToolsDeps{}
+		newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		result, err := (&daemonNativeTools{deps: deps}).toolSearch(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolSearch, Input: json.RawMessage(`{"query":""}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var page struct {
+			Tools      []json.RawMessage `json:"tools"`
+			HasMore    bool              `json:"has_more"`
+			NextOffset int               `json:"next_offset"`
+			Total      int               `json:"total"`
+		}
+		if err := json.Unmarshal(result.Structured, &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Tools) != 20 || !page.HasMore || page.NextOffset != len(page.Tools) {
+			t.Fatalf(
+				"default search returned %d tools, has_more=%v, next_offset=%d",
+				len(page.Tools),
+				page.HasMore,
+				page.NextOffset,
+			)
+		}
+		seen := map[toolspkg.ToolID]bool{}
+		offset := 0
+		for {
+			input, err := json.Marshal(toolSearchInput{Query: "", Offset: offset, Limit: 37})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := (&daemonNativeTools{deps: deps}).toolSearch(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDToolSearch, Input: input},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var next struct {
+				Tools      []toolspkg.ToolView `json:"tools"`
+				Total      int                 `json:"total"`
+				HasMore    bool                `json:"has_more"`
+				NextOffset int                 `json:"next_offset"`
+			}
+			if err := json.Unmarshal(result.Structured, &next); err != nil {
+				t.Fatal(err)
+			}
+			for _, view := range next.Tools {
+				if seen[view.Descriptor.ID] {
+					t.Fatalf("duplicate tool %s", view.Descriptor.ID)
+				}
+				seen[view.Descriptor.ID] = true
+			}
+			if !next.HasMore {
+				if len(seen) != next.Total {
+					t.Fatalf("found %d of %d", len(seen), next.Total)
+				}
+				break
+			}
+			if next.NextOffset <= offset {
+				t.Fatal("offset did not advance")
+			}
+			offset = next.NextOffset
+		}
+	})
 	t.Run("Should explain invalid monitor fields without creating a monitor or exposing input", func(t *testing.T) {
 		t.Parallel()
 		service, err := monitorpkg.NewService(t.Context(), nil, &monitorSessionWaker{})
@@ -1366,7 +1482,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
-	t.Run("Should watch same-workspace sessions and refuse any other target", func(t *testing.T) {
+	t.Run("Should keep monitor targets local when the workspace access policy is missing", func(t *testing.T) {
 		t.Parallel()
 		sessions := nativeTestSessionManager("ws-1")
 		targets := monitorSessionTargets{sessions: func() any { return sessions }}
@@ -1389,7 +1505,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			if err == nil && id == "sess-foreign" {
 				info.ProfileID = "profile-other"
 			}
-			if err == nil {
+			if err == nil && id != "sess-1" {
 				info.State = session.StateStarting
 			}
 			return info, err
@@ -1684,8 +1800,8 @@ func TestDaemonNativeTools(t *testing.T) {
 					Waited: 25 * time.Millisecond, Revision: 7,
 				}, nil
 			},
-			spawnFn: func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) {
-				spawnOpts = opts
+			spawnFn: func(_ context.Context, opts *session.SpawnOpts) (*session.Session, error) {
+				spawnOpts = *opts
 				return &session.Session{
 					ID: "sess-child", AgentName: opts.AgentName, WorkspaceID: workspaceID,
 					State: session.StateActive, Type: session.SessionTypeSpawned,
@@ -2085,7 +2201,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run")
 			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+			spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 				return nil, errors.New("Spawn() must not run")
 			},
 		}
@@ -2146,7 +2262,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run across workspaces")
 			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+			spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 				return nil, errors.New("Spawn() is not part of targeted cross-workspace calls")
 			},
 		}
@@ -2205,7 +2321,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run without workspace resolution")
 			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+			spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 				return nil, errors.New("Spawn() must not run without workspace resolution")
 			},
 		}
@@ -2499,6 +2615,209 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	// IT-010: the real native gateway preserves deprecated tools with structured guidance.
+	t.Run("Should accept every retired window tool with actionable deprecations [IT-010]", func(t *testing.T) {
+		t.Parallel()
+		manager, err := windowmanager.NewService(
+			windowmanager.NewMemoryRepository(),
+			windowmanager.NewMemoryWorkspaceResolver("workspace-a"),
+			nil,
+			windowmanager.DefaultConfig(),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:       nativeTestSessionManager("workspace-a"),
+				WindowManagers: staticWindowManagers{manager: manager},
+				Workspaces:     nativeTestWorkspaceService(t),
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		scope := toolspkg.Scope{WorkspaceID: "workspace-a", SessionID: "session-a", AgentName: "agent-a"}
+		call := func(id toolspkg.ToolID, input string) windowManagerCommandResult {
+			t.Helper()
+			result, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)},
+			)
+			if err != nil {
+				t.Fatalf("%s: %v", id, err)
+			}
+			var payload windowManagerCommandResult
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			return payload
+		}
+		for _, id := range []string{"window-a", "window-b"} {
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			call(
+				toolspkg.ToolIDWindowOpen,
+				fmt.Sprintf(
+					`{"expected_revision":%d,"window_id":%q,"app":"terminal","route":{"pathname":"/terminal/test","search":{}}}`,
+					snapshot.Revision,
+					id,
+				),
+			)
+		}
+		for _, item := range []struct {
+			id         toolspkg.ToolID
+			fields     string
+			translated bool
+		}{
+			{toolspkg.ToolIDWindowFloat, `"window_id":"window-a"`, false},
+			{toolspkg.ToolIDWindowZoom, `"window_id":"window-a"`, false},
+			{toolspkg.ToolIDWindowResize, `"window_id":"window-a","frame":{"x":0,"y":0,"width":1,"height":1}`, false},
+			{toolspkg.ToolIDLayoutFrameResize, `"desktop_id":"desktop-default","edits":[{"group_id":"unused","frame":{"x":0,"y":0,"width":1,"height":1}}]`, false},
+			{toolspkg.ToolIDWindowGroup, `"target_window_id":"window-a","window_ids":["window-b"]`, true},
+		} {
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result := call(item.id, fmt.Sprintf(`{"expected_revision":%d,%s}`, snapshot.Revision, item.fields))
+			if result.Applied != item.translated || len(result.Deprecations) != 1 {
+				t.Fatalf("%s result=%+v", item.id, result)
+			}
+			warning := result.Deprecations[0]
+			if warning.Surface != item.id.String() || warning.Replacement == "" || warning.Message == "" ||
+				warning.RemovalRelease != "v0.8.0" {
+				t.Fatalf("%s deprecation=%+v", item.id, warning)
+			}
+			if !item.translated && result.Revision != snapshot.Revision {
+				t.Fatalf("retired %s changed revision", item.id)
+			}
+		}
+		for _, placement := range []string{"", `,"placement":""`} {
+			before, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			split := call(toolspkg.ToolIDWindowMove, fmt.Sprintf(
+				`{"expected_revision":%d,"window_id":"window-a","destination_desktop_id":"desktop-default",`+
+					`"target_window_id":"window-b","placement":"right"}`, before.Revision,
+			))
+			if !split.Applied || split.Revision != before.Revision+1 {
+				t.Fatalf("split before empty placement %q result = %+v", placement, split)
+			}
+			result := call(toolspkg.ToolIDWindowMove, fmt.Sprintf(
+				`{"expected_revision":%d,"window_id":"window-a","destination_desktop_id":"desktop-default"%s}`,
+				split.Revision, placement,
+			))
+			after, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !result.Applied || result.Revision != split.Revision+1 || len(result.Deprecations) != 1 ||
+				after.Windows["window-a"].TabID == after.Windows["window-b"].TabID {
+				t.Fatalf("empty placement %q result = %+v", placement, result)
+			}
+			entry := result.Deprecations[0]
+			if entry.Code != "window_manager_surface_deprecated" ||
+				entry.Surface != "compozy__window_move.placement=empty" || entry.Replacement == "" ||
+				entry.RemovalRelease != "v0.8.0" || entry.Message == "" {
+				t.Fatalf("empty placement %q deprecation = %+v", placement, entry)
+			}
+		}
+		snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantWindowIDs := make([]windowmanager.WindowID, 0, len(snapshot.Windows))
+		for id := range snapshot.Windows {
+			wantWindowIDs = append(wantWindowIDs, id)
+		}
+		slices.Sort(wantWindowIDs)
+		for _, include := range []bool{false, true} {
+			listed, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDWindowList,
+					Input:  json.RawMessage(fmt.Sprintf(`{"include_minimized":%v}`, include)),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload windowManagerWindowsResult
+			if err := json.Unmarshal(listed.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if include {
+				want = 1
+			}
+			if len(payload.Windows) != len(snapshot.Windows) || len(payload.Deprecations) != want {
+				t.Fatalf("listed=%+v", payload)
+			}
+			windowIDs := make([]windowmanager.WindowID, 0, len(payload.Windows))
+			for _, window := range payload.Windows {
+				windowIDs = append(windowIDs, window.ID)
+			}
+			slices.Sort(windowIDs)
+			if !slices.Equal(windowIDs, wantWindowIDs) {
+				t.Fatalf("listed windows = %v, want every open window %v", windowIDs, wantWindowIDs)
+			}
+			if include &&
+				(payload.Deprecations[0].Surface != "compozy__window_list.include_minimized" || payload.Deprecations[0].Replacement == "") {
+				t.Fatalf("deprecation=%+v", payload.Deprecations)
+			}
+		}
+		for _, id := range []string{"window.stack.reorder", "window.stack.set_active"} {
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			fields := `"window_id":"window-a"`
+			if id == "window.stack.reorder" {
+				fields += `,"index":0`
+			}
+			preview, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDLayoutPreview,
+					Input: json.RawMessage(
+						fmt.Sprintf(
+							`{"expected_revision":%d,"command_id":%q,"payload":{%s}}`,
+							snapshot.Revision,
+							id,
+							fields,
+						),
+					),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload compactPreviewResult
+			if err := json.Unmarshal(preview.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.Deprecations) != 1 || payload.Deprecations[0].Surface != id ||
+				payload.Deprecations[0].Replacement == "" {
+				t.Fatalf("preview=%+v", payload)
+			}
+			after, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil || after.Revision != snapshot.Revision {
+				t.Fatalf("preview mutated revision: %+v err=%v", after, err)
+			}
+		}
+	})
+
 	t.Run("Should execute window manager tools through scoped revisioned state", func(t *testing.T) {
 		t.Parallel()
 
@@ -2599,6 +2918,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("persisted snapshot = %#v, want unmodified revision 1", persisted)
 		}
 
+		_, unknownErr := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWindowOpen,
+				Input: json.RawMessage(
+					`{"expected_revision":1,"app":"not-a-registered-app","desktop_id":"desktop-build","route":{"pathname":"/unknown","search":{}}}`,
+				),
+			},
+		)
+		if unknownErr == nil || !strings.Contains(unknownErr.Error(), "unregistered window app") {
+			t.Fatalf("native unknown app rejection=%v", unknownErr)
+		}
+		afterRejectedOpen, err := manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil || !reflect.DeepEqual(afterRejectedOpen, persisted) {
+			t.Fatalf("rejected native open changed snapshot: %+v error=%v", afterRejectedOpen, err)
+		}
+
 		openResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDWindowOpen,
 			Input: json.RawMessage(
@@ -2677,7 +3014,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := json.Unmarshal(groupedResult.Structured, &grouped); err != nil {
 			t.Fatalf("json.Unmarshal(window_group) error = %v", err)
 		}
-		if !grouped.Applied || grouped.Revision != 5 || len(grouped.Changes.StackGrouped) != 1 {
+		if !grouped.Applied || grouped.Revision != 5 || len(grouped.Changes.TabIDs) != 2 ||
+			len(grouped.Changes.StackGrouped) != 0 {
 			t.Fatalf("window_group result = %#v", grouped)
 		}
 
@@ -2687,11 +3025,11 @@ func TestDaemonNativeTools(t *testing.T) {
 			command windowmanager.CommandID
 		}{
 			{
-				id: toolspkg.ToolIDWindowActivate, command: windowmanager.CommandWindowStackSetActive,
+				id: toolspkg.ToolIDWindowActivate, command: windowmanager.CommandWindowTabActivate,
 				input: `{"expected_revision":5,"window_id":"window-tasks"}`,
 			},
 			{
-				id: toolspkg.ToolIDWindowReorder, command: windowmanager.CommandWindowStackReorder,
+				id: toolspkg.ToolIDWindowReorder, command: windowmanager.CommandWindowTabReorder,
 				input: `{"expected_revision":6,"window_id":"window-second","index":0}`,
 			},
 			{
@@ -2730,7 +3068,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Manager.Snapshot() after tab tools error = %v", err)
 		}
-		if persisted.Revision != 10 || len(persisted.Windows) != 2 || !persisted.Windows["window-tasks"].Pinned {
+		// Only the two task windows: no desktop is ever given a New Tab of its own (#1799).
+		if persisted.Revision != 10 || len(persisted.Windows) != 2 || !persisted.Desktops[1].Tabs[0].Pinned {
 			t.Fatalf("snapshot after tab tools = %#v", persisted)
 		}
 
@@ -2871,45 +3210,43 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 
-	t.Run("Should reject conflicting native window group move fields", func(t *testing.T) {
+	t.Run("Should decode compatible native moves and reject conflicting targets", func(t *testing.T) {
 		t.Parallel()
-		native := &daemonNativeTools{}
 		cases := []struct {
-			name    string
-			input   string
-			message string
+			name, raw string
+			invalid   bool
 		}{
 			{
-				name: "Should require placement outside group mode",
-				input: `{"expected_revision":0,"window_id":"window-a",` +
-					`"destination_desktop_id":"desktop-b"}`,
-				message: "placement is required unless move_group is true",
+				name: "Should accept omitted placement",
+				raw:  `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b"}`,
 			},
 			{
-				name: "Should reject structural group placement without a target",
-				input: `{"expected_revision":0,"window_id":"window-a",` +
-					`"destination_desktop_id":"desktop-b","move_group":true,"placement":"right"}`,
-				message: "move_group without target_window_id supports only floating placement",
+				name: "Should decode structural moves for reducer target validation",
+				raw:  `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b","move_group":true,"placement":"right"}`,
 			},
 			{
-				name: "Should reject a floating rectangle on a structural group move",
-				input: `{"expected_revision":0,"window_id":"window-a",` +
-					`"destination_desktop_id":"desktop-b","move_group":true,` +
-					`"target_window_id":"window-b",` +
-					`"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
-				message: "structural move_group cannot be combined with floating_rect",
+				name: "Should accept retired rectangles",
+				raw:  `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b","move_group":true,"target_window_id":"window-b","floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
+			},
+			{
+				name:    "Should reject two target selectors",
+				raw:     `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b","target_window_id":"window-b","target_tab_id":"tab-b"}`,
+				invalid: true,
 			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				_, err := native.windowMove(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
-					ToolID: toolspkg.ToolIDWindowMove,
-					Input:  json.RawMessage(tc.input),
-				})
-				requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
-				if !strings.Contains(err.Error(), tc.message) {
-					t.Fatalf("windowMove() error = %v, want message containing %q", err, tc.message)
+				var input windowManagerWindowMoveInput
+				if err := decodeWindowManagerJSON(
+					toolspkg.ToolIDWindowMove,
+					json.RawMessage(tc.raw),
+					&input,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if err := input.validate(); (err != nil) != tc.invalid {
+					t.Fatalf("validate() = %v, invalid=%t", err, tc.invalid)
 				}
 			})
 		}
@@ -2966,7 +3303,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		store := openDaemonTestToolArtifactStore(t)
-		ref, err := store.Put(t.Context(), "workspace-a", []byte("abcdefgh"))
+		ref, err := store.Put(t.Context(), workspaceaccess.ScopeTarget("workspace-a", ""), []byte("abcdefgh"))
 		if err != nil {
 			t.Fatalf("Put() error = %v", err)
 		}
@@ -3004,6 +3341,16 @@ func TestDaemonNativeTools(t *testing.T) {
 		})
 		if !errors.Is(err, toolspkg.ErrToolNotFound) {
 			t.Fatalf("Call(foreign workspace) error = %v, want indistinguishable not found", err)
+		}
+
+		for _, foreign := range []toolspkg.Scope{{}} {
+			_, err := registry.Call(t.Context(), foreign, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolArtifactRead,
+				Input:  json.RawMessage(fmt.Sprintf(`{"artifact_uri":%q}`, ref.URI)),
+			})
+			if !errors.Is(err, toolspkg.ErrToolNotFound) {
+				t.Fatalf("foreign scope read = %v, want not found", err)
+			}
 		}
 
 		_, err = registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "workspace-a"}, toolspkg.CallRequest{
@@ -3095,6 +3442,28 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, searchResult, []byte(`"compozy"`))
 		requireNativeStructuredContains(t, searchResult, []byte(`"origin":""`))
 
+		for _, catalog := range []struct {
+			id      toolspkg.ToolID
+			compact toolspkg.ToolResult
+			input   string
+		}{
+			{toolspkg.ToolIDSkillList, listResult, `{"result_view":"full"}`},
+			{toolspkg.ToolIDSkillSearch, searchResult, `{"query":"sessions","result_view":"full"}`},
+		} {
+			if bytes.Contains(catalog.compact.Structured, []byte(`"diagnostics"`)) {
+				t.Fatalf("%s compact includes healthy diagnostic internals: %s", catalog.id, catalog.compact.Structured)
+			}
+			full, callErr := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: catalog.id,
+				Input:  json.RawMessage(catalog.input),
+			})
+			if callErr != nil {
+				t.Fatal(callErr)
+			}
+			requireNativeStructuredContains(t, full, []byte(`"diagnostics"`))
+			requireNativeStructuredContains(t, full, []byte(`"verification_status":"passed"`))
+		}
+
 		artifactStore := openDaemonTestToolArtifactStore(t)
 		workspaceResolver := nativeTestWorkspaceService(t)
 		const reducedBudget = 32 << 10
@@ -3127,11 +3496,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					{path: "references/loops.md", wantOffload: true},
 					{path: "references/tools-and-skills.md", wantOffload: true},
 					{path: "references/native-tools.md", wantOffload: true},
-				}
-				if target.wantOffload {
-					references = append(references, resourceExpectation{
-						path: "references/runtime-operations.md", wantOffload: true,
-					})
+					{path: "references/runtime-operations.md", wantOffload: true},
 				}
 				for _, reference := range references {
 					t.Run("Should read the complete "+reference.path+" resource", func(t *testing.T) {
@@ -3178,7 +3543,7 @@ func TestDaemonNativeTools(t *testing.T) {
 							t.Fatalf("json.Unmarshal(skill_view) error = %v", err)
 						}
 						if viewPayload.Content != expectedContent || len(viewResult.Content) != 1 ||
-							viewResult.Content[0].Text != diagnostics.Redact(expectedContent) {
+							viewResult.Content[0].Text != "Skill content" {
 							t.Fatalf(
 								"skill_view(%s) resource mismatch: expected=%d structured=%d text_blocks=%d truncated=%t artifacts=%d redactions=%v",
 								resource,
@@ -3190,8 +3555,20 @@ func TestDaemonNativeTools(t *testing.T) {
 								viewResult.Redactions,
 							)
 						}
-						if diagnostics.Redact(expectedContent) != expectedContent && len(viewResult.Redactions) == 0 {
-							t.Fatalf("skill_view(%s) omitted display redaction metadata", resource)
+						if len(viewResult.Redactions) != 0 {
+							t.Fatalf("skill_view(%s) altered verified content: %v", resource, viewResult.Redactions)
+						}
+						encodedContent, err := json.Marshal(expectedContent)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if viewResult.Bytes > int64(len(encodedContent)+(16<<10)) {
+							t.Fatalf(
+								"skill_view(%s) envelope = %d bytes for %d encoded document bytes",
+								resource,
+								viewResult.Bytes,
+								len(encodedContent),
+							)
 						}
 						t.Logf(
 							"%s: full structured bytes=%d, display redactions=%d",
@@ -3204,6 +3581,255 @@ func TestDaemonNativeTools(t *testing.T) {
 					})
 				}
 			})
+		}
+	})
+
+	t.Run("Should read a bundled skill resource in a User session without a workspace lookup", func(t *testing.T) {
+		t.Parallel()
+		skillRegistry := newLoadedNativeSkillRegistry(t)
+		skill, ok := skillRegistry.Get("compozy")
+		if !ok {
+			t.Fatal("bundled compozy skill is missing")
+		}
+		if err := skillRegistry.ApplyResourceRecords(t.Context(), 1, []resources.Record[skills.SkillResourceSpec]{{
+			Kind: skills.SkillResourceKind, ID: "bundled:compozy",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			Spec:  skills.SkillToResourceSpec(skill),
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		home := testHomePaths(t)
+		sessions := &nativeSessionAgentManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, ProfileID: store.DefaultProfileID, AgentName: "coder",
+					State: session.StateActive, EffectivePermissions: string(workspaceaccess.ModeApproveReads),
+				}, nil
+			},
+			agent: testPromptAgent("Read the bundled skill resource."),
+		}
+		facts, err := newWorkspaceAccessModeSource(sessions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy, err := workspaceaccess.New(workspaceaccess.Deps{
+			Facts: facts, Consent: newWorkspaceAccessConsentCache(),
+			Audit: nativeSessionTargetAuditStub{}, Log: slog.New(slog.DiscardHandler),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		artifactStore := openDaemonTestToolArtifactStore(t)
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
+			t,
+			&daemonNativeToolsDeps{
+				Skills: skillRegistry, HomePaths: home, Sessions: sessions,
+				SkillExposures: openDaemonTestGlobalDB(t), ToolArtifacts: artifactStore,
+			},
+			toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()),
+			policy,
+			toolspkg.WithResultProcessor(
+				toolspkg.NewResultProcessor(32<<10, artifactStore),
+			),
+		)
+		for _, tc := range []struct{ name, input, resource string }{
+			{"Should infer User scope from the session", `{"name":"compozy","file":"references/tools-and-skills.md"}`, "references/tools-and-skills.md"},
+			{"Should accept the explicit User selector", `{"name":"compozy","file":"references/tools-and-skills.md","workspace":"@user"}`, "references/tools-and-skills.md"},
+			{"Should recover an oversized User resource through artifact pages", `{"name":"compozy","file":"references/runtime-operations.md"}`, "references/runtime-operations.md"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				input := json.RawMessage(tc.input)
+				result, err := registry.Call(t.Context(), toolspkg.Scope{
+					SessionID: "sess-user", AgentName: "coder", ProfileID: store.DefaultProfileID,
+				}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSkillView,
+					Input:  input,
+				})
+				if err != nil {
+					t.Fatalf("Registry.Call(skill_view) error = %v", err)
+				}
+				if tc.resource == "references/runtime-operations.md" && !result.Truncated {
+					t.Fatal("large User resource was not offloaded")
+				}
+				if result.Truncated {
+					if len(result.Artifacts) != 1 {
+						t.Fatal("large User resource was not offloaded with one artifact")
+					}
+					artifactURI := result.Artifacts[0].URI
+					result = readNativeRetainedResult(
+						t,
+						registry,
+						toolspkg.Scope{SessionID: "sess-user", AgentName: "coder", ProfileID: store.DefaultProfileID},
+						result,
+					)
+					for _, foreign := range []toolspkg.Scope{{WorkspaceID: "workspace-a", ProfileID: store.DefaultProfileID}, {ProfileID: "profile-other"}} {
+						_, err := registry.Call(
+							t.Context(),
+							foreign,
+							toolspkg.CallRequest{
+								ToolID: toolspkg.ToolIDToolArtifactRead,
+								Input:  json.RawMessage(fmt.Sprintf(`{"artifact_uri":%q}`, artifactURI)),
+							},
+						)
+						if !errors.Is(err, toolspkg.ErrToolNotFound) {
+							t.Fatalf("foreign artifact read error = %v, want not found", err)
+						}
+					}
+				}
+				content, err := skillRegistry.LoadResource(t.Context(), skill, tc.resource)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var payload struct {
+					Content string `json:"content"`
+				}
+				if err := json.Unmarshal(result.Structured, &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload.Content != content {
+					t.Fatal("skill_view did not return the complete bundled resource")
+				}
+				requireNativeStructuredContains(t, result, []byte(`"owner_scope":"user"`))
+				requireNativeStructuredContains(t, result, []byte(`"exposures":[]`))
+			})
+		}
+	})
+
+	t.Run("Should classify unavailable agent skill catalogs without backend failures", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name       string
+			definition string
+			wantCode   toolspkg.ErrorCode
+			wantCause  error
+			wantReason toolspkg.ReasonCode
+		}{
+			{name: "Should report a missing authored agent as unavailable", wantCode: toolspkg.ErrorCodeUnavailable, wantCause: skills.ErrAgentNotFound, wantReason: toolspkg.ReasonDependencyMissing},
+			{name: "Should report an invalid authored agent as invalid input", definition: "---\nname: [invalid\n---\n", wantCode: toolspkg.ErrorCodeInvalidInput, wantCause: skills.ErrAgentLocalInvalid, wantReason: toolspkg.ReasonSchemaInvalid},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				agentsDir := t.TempDir()
+				agentPath := filepath.Join(agentsDir, "fixture-agent", "AGENT.md")
+				if tc.definition != "" {
+					if err := os.MkdirAll(filepath.Dir(agentPath), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(agentPath, []byte(tc.definition), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				skillRegistry := skills.NewRegistry(
+					skills.RegistryConfig{BundledFS: skillbundled.FS(), GlobalAgentsDir: agentsDir},
+				)
+				if err := skillRegistry.LoadAll(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				manager := &nativeSessionAgentManager{
+					StubSessionManager: *nativeTestSessionManager("ws-fixture"),
+					agent:              compozyconfig.AgentDef{Name: "fixture-agent", SourcePath: agentPath},
+				}
+				workspaceResolver := nativeTestWorkspaceService(t)
+				workspaceResolver.ResolveForProfileFn = func(context.Context, string, string) (workspacepkg.ResolvedWorkspace, error) {
+					resolved := workspacepkg.ResolvedWorkspace{
+						ID: "ws-fixture", RootDir: agentsDir,
+					}
+					if tc.definition != "" {
+						if _, err := compozyconfig.LoadAgentDefFile(agentPath); err != nil {
+							resolved.AgentDiagnostics = []workspacepkg.AgentDiagnostic{
+								{Name: "fixture-agent", Path: agentPath, Message: err.Error()},
+							}
+						}
+					}
+					return resolved, nil
+				}
+				registry := newDaemonNativeRegistry(
+					t,
+					&daemonNativeToolsDeps{
+						Skills:            skillRegistry,
+						Sessions:          manager,
+						WorkspaceResolver: workspaceResolver,
+						Workspaces:        workspaceResolver,
+					},
+					nativeApproveAllPolicyInputs(),
+				)
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{
+						Operator:    true,
+						WorkspaceID: "ws-fixture",
+						SessionID:   "sess-fixture",
+						AgentName:   "fixture-agent",
+					},
+					toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDSkillView, Input: json.RawMessage(`{"name":"compozy"}`),
+					},
+				)
+				toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || toolErr.Code != tc.wantCode || !errors.Is(err, tc.wantCause) {
+					t.Fatalf("skill_view error = %#v, want %s wrapping %v", err, tc.wantCode, tc.wantCause)
+				}
+				if !slices.Contains(toolErr.ReasonCodes, tc.wantReason) {
+					t.Fatalf("skill_view reasons = %v, want %q", toolErr.ReasonCodes, tc.wantReason)
+				}
+				if toolErr.Operator == nil || toolErr.Operator.Recovery == "" ||
+					slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonBackendUnhealthy) {
+					t.Fatalf("skill_view diagnostics = %#v, want actionable non-backend failure", toolErr)
+				}
+				public, err := json.Marshal(toolErr)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if bytes.Contains(public, []byte(agentsDir)) {
+					t.Fatalf("skill_view leaked private path: %s", public)
+				}
+			})
+		}
+	})
+
+	t.Run("Should keep missing skills distinct from catalog backend failures", func(t *testing.T) {
+		t.Parallel()
+		sessions := &nativeSessionAgentManager{
+			StubSessionManager: *nativeTestSessionManager("ws-fixture"),
+			agent:              testPromptAgent("Read fixture skills."),
+		}
+		workspace := nativeTestWorkspaceService(t)
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Skills: newLoadedNativeSkillRegistry(
+				t,
+			),
+			Sessions:          sessions,
+			WorkspaceResolver: workspace,
+			Workspaces:        workspace,
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{
+				Operator:    true,
+				WorkspaceID: "ws-fixture",
+				SessionID:   "sess-fixture",
+				AgentName:   sessions.agent.Name,
+			},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView, Input: json.RawMessage(`{"name":"missing-fixture"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+		privateCause := errors.New("private backend path and credential")
+		backendErr := skillViewCatalogError(t.Context(), toolspkg.ToolIDSkillView, privateCause)
+		requireToolReason(t, backendErr, toolspkg.ErrToolBackendFailed, toolspkg.ReasonBackendUnhealthy)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](backendErr)
+		if !ok || toolErr.Operator == nil || !strings.Contains(toolErr.Operator.Cause, "skill_catalog_resolve") ||
+			!errors.Is(backendErr, privateCause) {
+			t.Fatalf("catalog backend error = %#v", backendErr)
+		}
+		public, err := json.Marshal(toolErr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(public, []byte("private")) {
+			t.Fatalf("catalog backend leaked private cause: %s", public)
 		}
 	})
 
@@ -3594,8 +4220,14 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(extension skill_view) error = %v", err)
 		}
-		if len(viewResult.Content) != 1 || viewResult.Content[0].Text != skillContent {
-			t.Fatalf("extension skill_view content = %#v, want %q", viewResult.Content, skillContent)
+		var viewPayload struct {
+			Content string `json:"content"`
+		}
+		if err := json.Unmarshal(viewResult.Structured, &viewPayload); err != nil {
+			t.Fatal(err)
+		}
+		if viewPayload.Content != skillContent {
+			t.Fatalf("extension skill_view content = %q, want %q", viewPayload.Content, skillContent)
 		}
 	})
 
@@ -3902,12 +4534,15 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(skill_view command_id) error = %v", err)
 		}
 		if !strings.Contains(string(result.Structured), commandID) || len(result.Content) != 1 ||
-			result.Content[0].Text != skillContent || strings.Contains(string(result.Structured), reviewSkill.FilePath) {
+			result.Content[0].Text != "Skill content" || strings.Contains(string(result.Structured), reviewSkill.FilePath) {
 			t.Fatalf("skill_view command_id result = %#v", result)
 		}
 		var payload map[string]any
 		if err := json.Unmarshal(result.Structured, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(skill_view command_id) error = %v", err)
+		}
+		if payload["content"] != skillContent {
+			t.Fatalf("skill_view command_id content = %q, want %q", payload["content"], skillContent)
 		}
 		viewedSkill, ok := payload["skill"].(map[string]any)
 		if !ok {
@@ -3964,6 +4599,127 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		)
 		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+	})
+
+	t.Run("Should discover result view contracts through native catalog tools", func(t *testing.T) {
+		t.Parallel()
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeTestSessionManager(""), Skills: bundledSkills,
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{Operator: true}
+		view, err := registry.Get(t.Context(), scope, toolspkg.ToolIDSessionStatus)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDToolInfo, `{"tool_id":"compozy__session_status"}`},
+			{toolspkg.ToolIDToolSearch, `{"query":"compozy__session_status","limit":1,"result_view":"full"}`},
+		} {
+			result, callErr := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: tc.id, Input: json.RawMessage(tc.input),
+			})
+			if callErr != nil {
+				t.Fatal(callErr)
+			}
+			if result.Truncated {
+				t.Fatalf("%s result was truncated", tc.id)
+			}
+			var payload struct {
+				Tool  toolspkg.ToolView   `json:"tool"`
+				Tools []toolspkg.ToolView `json:"tools"`
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			got := payload.Tool
+			if tc.id == toolspkg.ToolIDToolSearch {
+				if len(payload.Tools) != 1 {
+					t.Fatalf("search returned %d rows, want 1", len(payload.Tools))
+				}
+				got = payload.Tools[0]
+			}
+			if got.Descriptor.ID != view.Descriptor.ID || got.Descriptor.ResultViews() == nil {
+				t.Fatalf("%s omitted the requested descriptor or views", tc.id)
+			}
+			contracts := got.Descriptor.ResultViews()
+			wantJSON, err := json.Marshal(view.Descriptor.ResultViews())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var want toolspkg.ResultViews
+			if err := json.Unmarshal(wantJSON, &want); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(contracts.Compact, want.Compact) || !reflect.DeepEqual(contracts.Full, want.Full) {
+				t.Fatalf("%s changed result contracts", tc.id)
+			}
+			if !bytes.Equal(got.Descriptor.OutputSchema, contracts.Compact.Schema) ||
+				got.Descriptor.OutputSchemaDigest != contracts.Compact.Digest {
+				t.Fatal("default output contract differs from compact")
+			}
+			t.Logf(
+				"%s input=%s structured_bytes=%d result_bytes=%d",
+				tc.id,
+				tc.input,
+				len(result.Structured),
+				result.Bytes,
+			)
+		}
+		foundViews, foundSingle := false, false
+		totalBytes := 0
+		for offset := 0; ; {
+			result, callErr := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolList,
+				Input:  json.RawMessage(fmt.Sprintf(`{"offset":%d,"limit":100}`, offset)),
+			})
+			if callErr != nil {
+				t.Fatal(callErr)
+			}
+			if result.Truncated {
+				t.Fatal("tool_list page was truncated")
+			}
+			var page struct {
+				Tools []struct {
+					Descriptor map[string]json.RawMessage `json:"descriptor"`
+				} `json:"tools"`
+				NextOffset int  `json:"next_offset"`
+				HasMore    bool `json:"has_more"`
+			}
+			if err := json.Unmarshal(result.Structured, &page); err != nil {
+				t.Fatal(err)
+			}
+			for _, row := range page.Tools {
+				switch string(row.Descriptor["id"]) {
+				case `"compozy__session_status"`:
+					foundViews = true
+					if string(row.Descriptor["has_result_views"]) != "true" {
+						t.Fatal("tool_list omitted has_result_views for session_status")
+					}
+				case `"compozy__skill_view"`:
+					foundSingle = true
+					if _, exists := row.Descriptor["has_result_views"]; exists {
+						t.Fatal("tool_list marked a single result tool")
+					}
+				}
+			}
+			totalBytes += len(result.Structured)
+			t.Logf("compozy__tool_list offset=%d limit=100 rows=%d structured_bytes=%d result_bytes=%d",
+				offset, len(page.Tools), len(result.Structured), result.Bytes)
+			if !page.HasMore {
+				break
+			}
+			if page.NextOffset <= offset {
+				t.Fatal("tool_list did not advance")
+			}
+			offset = page.NextOffset
+		}
+		if !foundViews || !foundSingle {
+			t.Fatal("tool_list omitted requested catalog rows")
+		}
+		t.Logf("compozy__tool_list all_pages_structured_bytes=%d", totalBytes)
 	})
 
 	t.Run("Should expose bootstrap diagnostics and exclude non-MVP lifecycle tools", func(t *testing.T) {
@@ -4872,6 +5628,12 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ModelCatalog: catalog,
+			// Production wires the profile store; an unresolvable scope profile is a tool error.
+			Profiles: selectionProfileNames{"profile-marketing": "marketing"},
+			// Workspace-scoped calls filter with the workspace's effective config.
+			WorkspaceResolver: &selectionConfigResolver{
+				workspace: compozyconfig.DefaultWithHome(compozyconfig.HomePaths{}),
+			},
 			Settings: func() core.SettingsService {
 				return settingsService
 			},
@@ -5298,6 +6060,26 @@ func TestDaemonNativeTools(t *testing.T) {
 				return loopDefaultsService
 			},
 		}, nativeApproveAllPolicyInputs())
+
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDConfigGet, toolspkg.ToolIDConfigSet, toolspkg.ToolIDConfigUnset} {
+			t.Run("Should reject removed config path for "+string(id), func(t *testing.T) {
+				input := json.RawMessage(`{"path":"agents.stays_on.max_proposals"}`)
+				if id == toolspkg.ToolIDConfigSet {
+					input = json.RawMessage(`{"path":"agents.stays_on.max_proposals","scope":"user","value":3}`)
+				}
+				if id == toolspkg.ToolIDConfigUnset {
+					input = json.RawMessage(`{"path":"agents.stays_on.max_proposals","scope":"user"}`)
+				}
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					toolspkg.CallRequest{ToolID: id, Input: input},
+				)
+				if err == nil || !strings.Contains(err.Error(), "agents.always_on.max_proposals") {
+					t.Fatalf("%s removed path error = %v", id, err)
+				}
+			})
+		}
 
 		for _, toolID := range []toolspkg.ToolID{
 			toolspkg.ToolIDConfigShow,
@@ -5738,6 +6520,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		}{
 			{path: "daemon.socket", reason: toolspkg.ReasonConfigTrustRootForbidden},
 			{path: "http.port", reason: toolspkg.ReasonConfigTrustRootForbidden},
+			{path: "observability.otel.enabled", reason: toolspkg.ReasonConfigTrustRootForbidden},
+			{path: "observability.otel.endpoint", reason: toolspkg.ReasonConfigTrustRootForbidden},
 			{path: "providers.claude.credential_slots[0].secret_ref", reason: toolspkg.ReasonConfigSecretPathForbidden},
 			{path: "mcp_servers[0].env.TOKEN", reason: toolspkg.ReasonConfigSecretPathForbidden},
 
@@ -8811,7 +9595,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			want  []byte
 		}{
 			{toolspkg.ToolIDSessionList, nil, []byte(`"sess-1"`)},
-			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`), []byte(`"max_attempts":3`)},
+			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","result_view":"full"}`), []byte(`"max_attempts":3`)},
 			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"runtime_recovery_started"`)},
 			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"page":{"limit":1,"has_more":false}`)},
 			{toolspkg.ToolIDSessionHistory, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"turn-1"`)},
@@ -9186,6 +9970,11 @@ func TestDaemonNativeTools(t *testing.T) {
 		)
 		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
 		requireNativeDerivePartial(t, err, `"code":"session_not_found"`)
+		bootErr := nativeDeriveToolError(toolspkg.ToolIDSessionContinue,
+			core.DeriveFailure(admission.ErrStarting, session.DeriveResult{}))
+		requireNativeDerivePartial(t, bootErr, `"code":"new_work_admission_unavailable"`)
+		requireNativeDerivePartial(t, bootErr, `"retryable":true`)
+		requireNativeDeriveMessage(t, bootErr, admission.ErrStarting.Error())
 		if continueSubmitCalls != 1 {
 			t.Fatalf("ContinueSession calls = %d, want 1 after a foreign-workspace source", continueSubmitCalls)
 		}
@@ -9805,6 +10594,23 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, statusResult, []byte(`"snapshot_id":"hbs-1"`))
 		requireNativeStructuredContains(t, statusResult, []byte(`"wake_events"`))
 
+		for _, test := range []struct{ name, input string }{
+			{"Should reject missing health session",
+				`{"workspace":"ws-1","agent_name":"coder","include_session_health":true}`},
+			{"Should reject blank health session",
+				`{"workspace":"ws-1","agent_name":"coder","session_id":"  ","include_session_health":true}`},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAgentHeartbeatStatus, Input: json.RawMessage(test.input),
+				})
+				requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+				if !strings.Contains(err.Error(), "session_id") || status.calls != 1 {
+					t.Fatalf("missing session reached backend: error=%v calls=%d", err, status.calls)
+				}
+			})
+		}
+
 		wakeResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{Operator: true},
@@ -9822,6 +10628,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		if status.last.Target.AgentPath != "/workspace/compozy/.compozy/agents/coder/AGENT.md" {
 			t.Fatalf("heartbeat status target path = %q, want managed agent path", status.last.Target.AgentPath)
 		}
+		if wake.last.PolicyTarget == nil || wake.last.PolicyTarget.AgentPath != status.last.Target.AgentPath {
+			t.Fatalf("wake policy target = %+v, want status target", wake.last.PolicyTarget)
+		}
 		if wake.last.SessionID != "sess-heartbeat" ||
 			wake.last.WorkspaceID != "ws-1" ||
 			wake.last.AgentName != "coder" ||
@@ -9833,6 +10642,41 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if wake.calls != 1 {
 			t.Fatalf("heartbeat wake calls = %d, want 1 after owned session wake", wake.calls)
+		}
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentHeartbeatWake,
+			Input: json.RawMessage(
+				`{"workspace":"ws-1","agent_name":"coder","session_id":"sess-heartbeat","source":"unknown"}`,
+			),
+		})
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("invalid source = %v, want input validation error", err)
+		}
+		sourceErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || sourceErr.Operator == nil {
+			t.Fatalf("invalid source = %v, want structured operator cause", err)
+		}
+		for _, source := range []string{"timer", "instance_check", "scheduler", "manual", "harness_reentry"} {
+			if !strings.Contains(sourceErr.Operator.Cause, source) {
+				t.Fatalf("invalid source = %v, missing %s", err, source)
+			}
+		}
+		if wake.calls != 1 {
+			t.Fatal("invalid source reached wake backend")
+		}
+
+		// The native JSON schema intentionally accepts canonical enum values only.
+		for _, source := range []string{"", " manual "} {
+			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentHeartbeatWake,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"workspace":"ws-1","agent_name":"coder","session_id":"sess-heartbeat","source":%q}`, source,
+				)),
+			})
+			requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+			if wake.calls != 1 {
+				t.Fatal("noncanonical source reached wake backend")
+			}
 		}
 
 		_, err = registry.Call(
@@ -10385,6 +11229,85 @@ func openDaemonTestToolArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtif
 func TestDaemonBootToolRegistry(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should retain the early artifact store through boot and both transport handlers", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		d := newTestDaemon(t, home, &cfg)
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) { return &fakeSessionManager{}, nil }
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		engines := make(map[string]*gin.Engine)
+		var artifactStore toolspkg.ToolArtifactStore
+		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			artifactStore = deps.ToolArtifacts
+			engine := gin.New()
+			if _, err := httpapi.New(append(httpServerOptions(&deps), httpapi.WithEngine(engine))...); err != nil {
+				return nil, err
+			}
+			engines["HTTP"] = engine
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			engine := gin.New()
+			options := append(
+				udsServerOptions(&deps),
+				udsapi.WithEngine(engine),
+				udsapi.WithSocketPath(shortSocketPath(t)),
+			)
+			if _, err := udsapi.New(options...); err != nil {
+				return nil, err
+			}
+			engines["UDS"] = engine
+			return &fakeServer{name: "uds"}, nil
+		}
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if artifactStore == nil {
+			t.Fatal("boot omitted tool artifact store from transport dependencies")
+		}
+		ref, err := artifactStore.Put(
+			t.Context(),
+			workspaceaccess.ScopeTarget("", store.DefaultProfileID),
+			[]byte("retained result"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, err := toolspkg.ParseToolArtifactURI(ref.URI)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for transport, engine := range engines {
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodGet,
+					"/api/workspaces/@user/tool-artifacts/"+id,
+					nil,
+				),
+			)
+			var page toolspkg.ToolArtifactPage
+			if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+				t.Fatal(err)
+			}
+			decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusOK || string(decoded) != "retained result" || !page.EOF {
+				t.Fatalf("%s artifact read = %d/%s", transport, response.Code, response.Body)
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name        string
 		patch       hookspkg.ToolCallPatch
@@ -10545,6 +11468,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 			}
 			calls := 0
 			state := &bootState{
+				mcpDigestKeys:     vault.NewMCPDigestKeyProvider(t.TempDir()),
 				cfg:               cfg,
 				registry:          registry,
 				workspaceResolver: resolver,
@@ -10626,7 +11550,13 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		state := &bootState{cfg: cfg, registry: registry, workspaceResolver: resolver, profiles: profiles}
+		state := &bootState{
+			mcpDigestKeys:     vault.NewMCPDigestKeyProvider(t.TempDir()),
+			cfg:               cfg,
+			registry:          registry,
+			workspaceResolver: resolver,
+			profiles:          profiles,
+		}
 		if err := registry.RegisterSession(t.Context(), new(store.SessionInfo{
 			ID: "sess-approval", AgentName: "general", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
 			State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
@@ -10636,6 +11566,9 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		state.sessions = &fakeSessionManager{infos: []*session.Info{{
 			ID: "sess-approval", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
 			State: session.StateActive,
+			Lineage: &store.SessionLineage{PermissionPolicy: store.SessionPermissionPolicy{
+				ToolsMode: store.PermissionList, Tools: []string{toolspkg.ToolIDWorkspaceInfo.String()},
+			}},
 		}}}
 		daemon := &Daemon{homePaths: homePaths}
 		cleanup := &bootCleanup{}
@@ -10741,6 +11674,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		cfg := testConfig(t, homePaths)
 		skillsRegistry := newLoadedNativeSkillRegistry(t)
 		state := &bootState{
+			mcpDigestKeys:  vault.NewMCPDigestKeyProvider(t.TempDir()),
 			cfg:            cfg,
 			registry:       &recordingRegistry{},
 			skillsRegistry: skillsRegistry,
@@ -10786,6 +11720,745 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: pending rows with the same ID retain their own authority in one read.
+	// Owner: daemon authority; canonical suite: native runtime policy resolver.
+	t.Run("Should isolate successive candidate ceilings for the same session ID", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.MCPServers = []compozyconfig.MCPServer{{Name: "alpha", Command: "test"}, {Name: "beta", Command: "test"}}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := resolver.PolicyReadContext(t.Context(), false)
+		info := &session.Info{ID: "pending", Type: session.SessionTypeSpawned,
+			Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn,
+				PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionList}}}
+		ctx = session.WithMCPAuthoritySession(ctx, info)
+		for _, name := range []string{"alpha", "beta", "alpha"} {
+			info.Lineage.PermissionPolicy.MCPServers = []string{name}
+			policy, err := resolver.EffectiveMCPAuthority(ctx, info.ID)
+			if err != nil || !slices.Equal(policy.MCPServers, []string{name}) {
+				t.Fatalf("candidate %s authority = %+v, %v", name, policy, err)
+			}
+		}
+	})
+
+	// Invariant: the production authority resolver reuses shared descriptor listings, never policy answers.
+	// Owner: daemon registry composition; canonical suite: native runtime policy resolver.
+	t.Run("Should share listings through real dynamic authority resolution", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		info := &session.Info{
+			ID:        "root",
+			Type:      session.SessionTypeUser,
+			ProfileID: store.DefaultProfileID,
+			Lineage: &store.SessionLineage{
+				Kind: store.LineageKindRoot,
+				PermissionPolicy: store.SessionPermissionPolicy{
+					ToolsMode:      store.PermissionInherit,
+					MCPServersMode: store.PermissionInherit,
+				},
+			},
+		}
+		resolver, err := newNativeToolPolicyResolver(
+			nativeToolPolicyResolverDeps{Config: &cfg, Sessions: &nativeToolPolicySessionStub{info: info}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		native, err := newDaemonNativeProvider(&daemonNativeToolsDeps{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := &nativePolicyCountingProvider{Provider: native}
+		registry, err := toolspkg.NewRegistry(
+			toolspkg.WithProviders(provider),
+			toolspkg.WithPolicyInputResolver(resolver, toolspkg.ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.scopeTools = registry.PolicyProjection
+		scope := toolspkg.Scope{SessionID: info.ID, ProfileID: info.ProfileID}
+		ctx := toolspkg.WithProjectionListings(t.Context(), toolspkg.NewProjectionListings())
+		for range 16 {
+			if _, ok := registry.ProjectionVisibility(ctx, scope); !ok {
+				t.Fatal("visibility is not shareable")
+			}
+			if _, err := registry.SessionProjection(ctx, scope); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := provider.calls.Load(); got != 1 {
+			t.Fatalf("listings=%d, want one through dynamic authority", got)
+		}
+		info.Lineage.PermissionPolicy.ToolsMode = store.PermissionList
+		info.Lineage.PermissionPolicy.Tools = nil
+		inputs, err := resolver.Resolve(ctx, scope)
+		if err != nil || len(inputs.Session.Tools) != 0 || !inputs.Session.Enforced {
+			t.Fatalf("live restricted policy=%+v, %v", inputs.Session, err)
+		}
+		fresh := toolspkg.WithProjectionListings(t.Context(), toolspkg.NewProjectionListings())
+		if _, ok := registry.ProjectionVisibility(fresh, scope); !ok {
+			t.Fatal("fresh visibility is not shareable")
+		}
+		if got := provider.calls.Load(); got != 2 {
+			t.Fatalf("fresh listings=%d, want two", got)
+		}
+	})
+	// Invariant: v0.7.0 non-delegated sessions keep current tools; governed/authored lists stay closed.
+	// Owner: daemon authority and effective policy; canonical suite: native runtime policy resolver.
+	for _, tc := range []struct {
+		name    string
+		kind    store.LineageKind
+		typ     session.Type
+		policy  store.SessionPermissionPolicy
+		inherit bool
+	}{
+		{
+			"Should refresh an unflagged legacy root budget",
+			store.LineageKindRoot,
+			session.SessionTypeUser,
+			store.SessionPermissionPolicy{
+				Tools: []string{"compozy__session_list"}, MCPServers: []string{"linear"},
+			},
+			true,
+		},
+		{
+			"Should retain tools for empty user provenance",
+			store.LineageKindProvenance,
+			session.SessionTypeUser,
+			store.SessionPermissionPolicy{},
+			true,
+		},
+		{
+			"Should retain tools for empty system provenance",
+			store.LineageKindProvenance,
+			session.SessionTypeSystem,
+			store.SessionPermissionPolicy{},
+			true,
+		},
+		{
+			"Should refresh native tools for a legacy fork",
+			store.LineageKindFork,
+			session.SessionTypeUser,
+			store.SessionPermissionPolicy{MaterializedTools: true},
+			true,
+		},
+		{
+			"Should refresh native tools for a legacy continue",
+			store.LineageKindContinue,
+			session.SessionTypeUser,
+			store.SessionPermissionPolicy{MaterializedTools: true},
+			true,
+		},
+		{
+			"Should refresh native tools for a legacy recovery",
+			store.LineageKindRecovery,
+			session.SessionTypeSystem,
+			store.SessionPermissionPolicy{MaterializedTools: true},
+			true,
+		},
+		{
+			"Should retain an empty legacy spawn ceiling",
+			store.LineageKindSpawn,
+			session.SessionTypeSpawned,
+			store.SessionPermissionPolicy{},
+			false,
+		},
+		{
+			"Should retain a legacy coordinator ceiling",
+			store.LineageKindRoot,
+			session.SessionTypeCoordinator,
+			store.SessionPermissionPolicy{
+				Tools: []string{"compozy__session_list"}, MCPServers: []string{"linear"},
+			},
+			false,
+		},
+		{
+			"Should retain explicit lists authored at HEAD",
+			store.LineageKindRoot,
+			session.SessionTypeUser,
+			store.SessionPermissionPolicy{
+				ToolsMode: store.PermissionList, MCPServersMode: store.PermissionList,
+				Tools: []string{"compozy__session_list"}, MCPServers: []string{"linear"},
+			},
+			false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := testConfig(t, testHomePaths(t))
+			cfg.Tools.Policy.ExternalDefault = "enabled"
+			cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+			cfg.MCPServers = []compozyconfig.MCPServer{
+				{Name: "linear", Command: "test"},
+				{Name: "sentry", Command: "test"},
+			}
+			info := &session.Info{
+				ID: "upgraded", Type: tc.typ,
+				Lineage: &store.SessionLineage{Kind: tc.kind, PermissionPolicy: tc.policy},
+			}
+			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+				Config: &cfg, Sessions: &nativeToolPolicySessionStub{info: info},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			views := []toolspkg.ToolView{}
+			for _, descriptor := range []toolspkg.Descriptor{
+				{
+					ID:     "compozy__session_list",
+					Source: toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "daemon"},
+				},
+				{
+					ID:     "compozy__mcp_list",
+					Source: toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "daemon"},
+				},
+				{
+					ID:     "extension__demo__read",
+					Source: toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "demo"},
+				},
+				{
+					ID: "mcp__linear__read",
+					Source: toolspkg.SourceRef{
+						Kind: toolspkg.SourceMCP, RawServerName: "linear", RawToolName: "read", Owner: "linear",
+					},
+				},
+				{
+					ID: "mcp__sentry__read",
+					Source: toolspkg.SourceRef{
+						Kind: toolspkg.SourceMCP, RawServerName: "sentry", RawToolName: "read", Owner: "sentry",
+					},
+				},
+			} {
+				descriptor.InputSchema = json.RawMessage(`{"type":"object"}`)
+				descriptor.Backend = toolspkg.BackendRef{
+					Kind: toolspkg.BackendNativeGo, NativeName: descriptor.ID.String(),
+				}
+				switch descriptor.Source.Kind {
+				case toolspkg.SourceExtension:
+					descriptor.Backend = toolspkg.BackendRef{
+						Kind: toolspkg.BackendExtensionHost, ExtensionID: "demo", Handler: "read",
+					}
+				case toolspkg.SourceMCP:
+					descriptor.Backend = toolspkg.BackendRef{
+						Kind: toolspkg.BackendMCP, MCPServer: descriptor.Source.RawServerName, MCPTool: "read",
+					}
+				}
+				descriptor.Visibility = toolspkg.VisibilityModel
+				descriptor.Risk = toolspkg.RiskRead
+				descriptor.ReadOnly = true
+				views = append(views, toolspkg.ToolView{
+					Descriptor: descriptor, Decision: toolspkg.EffectiveToolDecision{SourcePolicyResult: "allowed"},
+				})
+			}
+			resolver.scopeTools = func(
+				context.Context, toolspkg.Scope, toolspkg.PolicyInputs,
+			) ([]toolspkg.ToolView, error) {
+				return views, nil
+			}
+			inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: info.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			evaluator, err := toolspkg.NewEffectivePolicyEvaluator(inputs, toolspkg.ToolsetCatalog{}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, view := range views {
+				id := view.Descriptor.ID.String()
+				want := tc.inherit || slices.Contains(tc.policy.Tools, id) ||
+					view.Descriptor.Source.Kind == toolspkg.SourceMCP &&
+						slices.Contains(tc.policy.MCPServers, view.Descriptor.Source.RawServerName)
+				decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, view.Descriptor)
+				if err != nil || decision.Callable != want {
+					t.Fatalf("tool %s: decision=%+v want callable=%t err=%v", id, decision, want, err)
+				}
+			}
+		})
+	}
+	// Invariant: effective inherited authority applies agent restrictions before delegation; owner: daemon policy projection.
+	t.Run("Should exclude agent denied tools and refresh native root tools", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		agent := &nativeToolPolicyAgentResolverStub{
+			agent: compozyconfig.AgentDef{
+				Name:      "restricted",
+				Provider:  "opencode",
+				Prompt:    "Restricted test agent",
+				DenyTools: []string{"compozy__session_stop", "ext__demo__blocked"},
+			},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg, AgentResolver: agent})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.scopeTools = func(ctx context.Context, _ toolspkg.Scope, inputs toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+			ids := []toolspkg.ToolID{
+				"compozy__session_list",
+				"compozy__session_stop",
+				"compozy__mcp_list",
+				"ext__demo__blocked",
+				"ext__demo__allowed",
+			}
+			evaluator, err := toolspkg.NewEffectivePolicyEvaluator(inputs, toolspkg.ToolsetCatalog{}, ids)
+			if err != nil {
+				return nil, err
+			}
+			views := make([]toolspkg.ToolView, 0, len(ids))
+			for _, id := range ids {
+				source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "daemon"}
+				backend := toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: id.String()}
+				if strings.HasPrefix(id.String(), "ext__") {
+					source = toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "demo"}
+				}
+				d := toolspkg.Descriptor{
+					ID:          id,
+					Source:      source,
+					Backend:     backend,
+					Description: "Read",
+					InputSchema: json.RawMessage(`{"type":"object"}`),
+					Visibility:  toolspkg.VisibilityModel,
+					Risk:        toolspkg.RiskRead,
+					ReadOnly:    true,
+				}
+				decision, err := evaluator.Evaluate(ctx, toolspkg.Scope{}, d)
+				if err != nil {
+					return nil, err
+				}
+				views = append(views, toolspkg.ToolView{Descriptor: d, Decision: decision})
+			}
+			return views, nil
+		}
+		for _, mode := range []store.PermissionIntent{store.PermissionInherit, store.PermissionList} {
+			info := &session.Info{
+				ID:        "root",
+				Type:      session.SessionTypeUser,
+				AgentName: "restricted",
+				Lineage: &store.SessionLineage{
+					Kind: store.LineageKindRoot,
+					PermissionPolicy: store.SessionPermissionPolicy{
+						ToolsMode:      mode,
+						MCPServersMode: store.PermissionInherit,
+						Tools:          []string{"compozy__session_list", "compozy__session_stop", "compozy__removed"},
+					},
+				},
+			}
+			got, err := resolver.EffectiveMCPAuthority(session.WithMCPAuthoritySession(t.Context(), info), info.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if slices.Contains(got.Tools, "compozy__session_stop") || slices.Contains(got.Tools, "ext__demo__blocked") {
+				t.Fatalf("agent deny leaked: %+v", got)
+			}
+			if slices.Contains(got.Tools, "compozy__mcp_list") != (mode == store.PermissionInherit) {
+				t.Fatalf("native root tools=%+v", got)
+			}
+			if mode == store.PermissionInherit && slices.Contains(got.Tools, "compozy__removed") {
+				t.Fatal("removed native tool retained")
+			}
+			if !slices.Contains(got.Tools, "compozy__session_list") {
+				t.Fatal("allowed native tool removed")
+			}
+			if mode == store.PermissionInherit {
+				// A different child agent cannot turn inheritance into a parent-policy bypass.
+				agent.agent.DenyTools = nil
+				child := &session.Info{
+					ID:        "child",
+					Type:      session.SessionTypeSpawned,
+					AgentName: "restricted",
+					Lineage: &store.SessionLineage{
+						Kind:            store.LineageKindSpawn,
+						ParentSessionID: "root",
+						PermissionPolicy: store.SessionPermissionPolicy{
+							ToolsMode:      store.PermissionInherit,
+							MCPServersMode: store.PermissionInherit,
+							Tools:          got.Tools,
+						},
+					},
+				}
+				childAuthority, err := resolver.EffectiveMCPAuthority(
+					session.WithMCPAuthoritySession(t.Context(), child),
+					child.ID,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if failure, ok := errors.AsType[*session.SpawnPermissionError](
+					session.ValidatePermissionSubset(got, childAuthority),
+				); !ok ||
+					failure.Value != "ext__demo__blocked" {
+					t.Fatalf("an unrestricted child escaped its parent's extension ceiling: %v", failure)
+				}
+				agent.agent.DenyTools = []string{"compozy__session_stop", "ext__demo__blocked"}
+			}
+		}
+	})
+	// Invariant: list decoration resolves admitted names once per scope without rebuilding catalogs; owner: daemon read model.
+	t.Run("Should reuse one read scope and isolate authority failures", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.MCPServers = []compozyconfig.MCPServer{{Name: "live", Command: "echo"}}
+		calls := map[string]int{}
+		resolver, err := newNativeToolPolicyResolver(
+			nativeToolPolicyResolverDeps{
+				Config: &cfg,
+				WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(
+					func(_ context.Context, workspace, _ string) (workspacepkg.ResolvedAgentConfig, error) {
+						calls[workspace]++
+						if workspace == "broken" {
+							return workspacepkg.ResolvedAgentConfig{}, errors.New("invalid config")
+						}
+						return workspacepkg.ResolvedAgentConfig{Config: cfg}, nil
+					},
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.scopeTools = func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+			t.Fatal("session read rebuilt tool projection")
+			return nil, nil
+		}
+		ctx := resolver.MCPAuthorityReadContext(t.Context())
+		for _, workspace := range []string{"good", "broken", "good", "broken"} {
+			info := &session.Info{
+				ID:          "read",
+				Type:        session.SessionTypeUser,
+				WorkspaceID: workspace,
+				Lineage: &store.SessionLineage{
+					PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionInherit},
+				},
+			}
+			got, err := resolver.EffectiveMCPAuthority(session.WithMCPAuthoritySession(ctx, info), info.ID)
+			if (err != nil) != (workspace == "broken") {
+				t.Fatalf("scope=%s err=%v", workspace, err)
+			}
+			if workspace == "good" && !slices.Equal(got.MCPServers, []string{"live"}) {
+				t.Fatalf("authority=%+v", got)
+			}
+		}
+		if calls["good"] != 1 || calls["broken"] != 1 {
+			t.Fatalf("scope resolutions=%v", calls)
+		}
+	})
+
+	// Invariant: live MCP authority uses only the current child row and its own admitted scope.
+	// Owner: daemon composition; canonical suite: native runtime policy resolver.
+	for _, tc := range []struct {
+		name     string
+		kind     store.LineageKind
+		mode     store.PermissionIntent
+		stored   []string
+		ancestor *[]string
+		want     []string
+	}{
+		{name: "Should let a fork inherit new scope servers without writes [UT-012]", kind: store.LineageKindFork, mode: store.PermissionInherit, want: []string{"linear", "sentry"}},
+		{name: "Should let continue inherit new scope servers without writes [UT-012]", kind: store.LineageKindContinue, mode: store.PermissionInherit, want: []string{"linear", "sentry"}},
+		{name: "Should restore a removed named server without widening [UT-015]", kind: store.LineageKindSpawn, mode: store.PermissionList, stored: []string{"linear"}, want: []string{"linear"}},
+		{name: "Should resolve a child with an archived parent from its own scope [UT-017]", kind: store.LineageKindSpawn, mode: store.PermissionList, stored: []string{"linear", "other"}, ancestor: new([]string{"linear"}), want: []string{"linear"}},
+		{name: "Should retain a list ancestor ceiling after parent deletion [UT-103]", kind: store.LineageKindSpawn, mode: store.PermissionInherit, ancestor: new([]string{"linear"}), want: []string{"linear"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := testConfig(t, testHomePaths(t))
+			cfg.Tools.Policy.ExternalDefault = "enabled"
+			info := &session.Info{
+				ID:          "child",
+				Type:        session.SessionTypeUser,
+				WorkspaceID: "child-scope",
+				ProfileID:   store.DefaultProfileID,
+				Lineage: &store.SessionLineage{
+					Kind:            tc.kind,
+					ParentSessionID: "unreadable-parent",
+					RootSessionID:   "deleted-root",
+					PermissionPolicy: store.SessionPermissionPolicy{
+						MCPServersMode:     tc.mode,
+						ToolsMode:          store.PermissionList,
+						MCPServers:         tc.stored,
+						AncestorMCPCeiling: tc.ancestor,
+					},
+				},
+			}
+			before, err := json.Marshal(info.Lineage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+				Config:       &cfg,
+				ProfileNames: promptSkillsProfileNameResolver{store.DefaultProfileID: "default"},
+				Sessions: mcpAuthoritySessionReaderFunc(func(_ context.Context, id string) (*session.Info, error) {
+					if id != info.ID {
+						t.Fatalf("ancestor read: %s", id)
+					}
+					return info, nil
+				}),
+				WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(
+					func(_ context.Context, workspace, profile string) (workspacepkg.ResolvedAgentConfig, error) {
+						if workspace != "child-scope" || profile != "default" {
+							t.Fatalf("foreign scope: %s/%s", profile, workspace)
+						}
+						return workspacepkg.ResolvedAgentConfig{Config: cfg}, nil
+					},
+				),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// The named server is absent until re-added to this scope.
+			initial, err := resolver.EffectiveMCPAuthority(t.Context(), info.ID)
+			if err != nil || len(initial.MCPServers) != 0 {
+				t.Fatalf("absent server authority=%+v err=%v", initial, err)
+			}
+			cfg.MCPServers = []compozyconfig.MCPServer{
+				{Name: "linear", Command: "test"},
+				{Name: "sentry", Command: "test"},
+			}
+			policy, err := resolver.EffectiveMCPAuthority(t.Context(), info.ID)
+			if err != nil || !slices.Equal(policy.MCPServers, tc.want) {
+				t.Fatalf("authority=%+v err=%v", policy, err)
+			}
+			after, err := json.Marshal(info.Lineage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(after, before) {
+				t.Fatal("authority evaluation rewrote lineage")
+			}
+			inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: info.ID})
+			if err != nil || !inputs.Session.MCPByServer || !slices.Equal(inputs.Session.MCPServers, tc.want) {
+				t.Fatalf("tool gate bypassed authority: %+v, %v", inputs.Session, err)
+			}
+		})
+	}
+
+	// Invariant: listed MCP tool names cannot exceed the session's effective server set.
+	// Owner: daemon authority resolution; canonical suite: native runtime policy resolver.
+	t.Run("Should bound named MCP tools without rewriting stored intent", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.MCPServers = []compozyconfig.MCPServer{{Name: "linear", Command: "test"}}
+		stored := store.SessionPermissionPolicy{
+			MCPServersMode: store.PermissionList, MCPServers: []string{"linear"}, ToolsMode: store.PermissionList,
+			Tools: []string{"compozy__session_list", "mcp__linear__read", "mcp__sentry__read"},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.scopeTools = func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+			views := []toolspkg.ToolView{}
+			for _, name := range []string{"linear", "sentry"} {
+				views = append(views, toolspkg.ToolView{Descriptor: toolspkg.Descriptor{
+					ID:     toolspkg.ToolID("mcp__" + name + "__read"),
+					Source: toolspkg.SourceRef{Kind: toolspkg.SourceMCP, RawServerName: name},
+				}})
+			}
+			return views, nil
+		}
+		ctx := session.WithMCPAuthoritySession(t.Context(), &session.Info{
+			ID: "child", Type: session.SessionTypeSpawned,
+			Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn, PermissionPolicy: stored},
+		})
+		got, err := resolver.EffectiveMCPAuthority(ctx, "child")
+		if err != nil || !slices.Equal(got.Tools, []string{"compozy__session_list", "mcp__linear__read"}) {
+			t.Fatalf("effective tools=%v err=%v", got.Tools, err)
+		}
+		if len(stored.Tools) != 3 {
+			t.Fatal("stored tool intent mutated")
+		}
+	})
+
+	// Invariant: User scope also reloads its own current profile configuration.
+	// Owner: daemon scope resolution; canonical suite: native runtime policy resolver.
+	t.Run("Should resolve live User scope rather than a boot snapshot", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		live := cfg
+		live.MCPServers = []compozyconfig.MCPServer{{Name: "new-server", Command: "test"}}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config:       &cfg,
+			ProfileNames: promptSkillsProfileNameResolver{store.DefaultProfileID: "default"},
+			WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(
+				func(_ context.Context, workspace, profile string) (workspacepkg.ResolvedAgentConfig, error) {
+					if workspace != workspaceaccess.UserSelector || profile != "default" {
+						t.Fatalf("foreign scope %s/%s", profile, workspace)
+					}
+					return workspacepkg.ResolvedAgentConfig{Config: live}, nil
+				},
+			),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := session.WithMCPAuthoritySession(t.Context(), &session.Info{
+			ID:        "user",
+			ProfileID: store.DefaultProfileID,
+			Type:      session.SessionTypeUser,
+			Lineage: &store.SessionLineage{
+				PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionInherit},
+			},
+		})
+		got, err := resolver.EffectiveMCPAuthority(ctx, "user")
+		if err != nil || !slices.Equal(got.MCPServers, []string{"new-server"}) {
+			t.Fatalf("User authority=%+v err=%v", got, err)
+		}
+	})
+
+	// Invariant: only inherited tools gain newly admitted extension tools, independent of ancestors.
+	// Owner: effective tool authority; canonical suite: native runtime policy resolver (UT-106/108).
+	t.Run("Should propagate extension intent to children and legacy instances [UT-106]", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		id := toolspkg.ToolID("extension__demo__new_tool")
+		descriptor := toolspkg.Descriptor{
+			ID: id,
+			Backend: toolspkg.BackendRef{
+				Kind:        toolspkg.BackendExtensionHost,
+				ExtensionID: "demo",
+				Handler:     "new_tool",
+			},
+			InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+			Source:      toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "demo"},
+			Visibility:  toolspkg.VisibilityModel,
+			ReadOnly:    true,
+			Risk:        toolspkg.RiskRead,
+		}
+		for _, tc := range []struct {
+			name    string
+			policy  store.SessionPermissionPolicy
+			allowed bool
+		}{
+			{"child", store.SessionPermissionPolicy{ToolsMode: store.PermissionInherit, MCPServersMode: store.PermissionInherit}, true},
+			{"legacy depth zero instance", store.DecodeInstanceCeilingIntent(store.SessionPermissionPolicy{}, 0), true},
+			{"narrowed grandchild with deleted parent [UT-108]", store.SessionPermissionPolicy{ToolsMode: store.PermissionList, MCPServersMode: store.PermissionInherit, Tools: []string{"compozy__session_list", "compozy__session_spawn"}}, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				info := &session.Info{
+					ID:   "child",
+					Type: session.SessionTypeSpawned,
+					Lineage: &store.SessionLineage{
+						Kind:             store.LineageKindSpawn,
+						ParentSessionID:  "deleted",
+						PermissionPolicy: tc.policy,
+					},
+				}
+				resolver, err := newNativeToolPolicyResolver(
+					nativeToolPolicyResolverDeps{Config: &cfg, Sessions: &nativeToolPolicySessionStub{info: info}},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				enabled := false
+				resolver.scopeTools = func(_ context.Context, scope toolspkg.Scope, _ toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+					if scope.SessionID != "" {
+						t.Fatal("scope tool enumeration included child restriction")
+					}
+					if !enabled {
+						return nil, nil
+					}
+					return []toolspkg.ToolView{
+						{
+							Descriptor: descriptor,
+							Decision:   toolspkg.EffectiveToolDecision{SourcePolicyResult: "allowed"},
+						},
+					}, nil
+				}
+				before, err := resolver.EffectiveMCPAuthority(t.Context(), "child")
+				if err != nil || slices.Contains(before.Tools, id.String()) {
+					t.Fatalf("unpublished tool: %+v, %v", before, err)
+				}
+				enabled = true
+				policy, err := resolver.EffectiveMCPAuthority(t.Context(), "child")
+				if err != nil || slices.Contains(policy.Tools, id.String()) != tc.allowed {
+					t.Fatalf("inherited tools=%+v, %v", policy, err)
+				}
+				inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: "child"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				evaluator, err := toolspkg.NewEffectivePolicyEvaluator(
+					inputs,
+					toolspkg.ToolsetCatalog{},
+					[]toolspkg.ToolID{id},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+				if err != nil || decision.Callable != tc.allowed {
+					t.Fatalf("extension decision=%+v, %v", decision, err)
+				}
+			})
+		}
+	})
+
+	// Invariant: resource-backed grant names refresh independently of allocated runtime tool names.
+	// Owner: daemon policy inputs; canonical suite: native runtime policy resolver.
+	t.Run("Should refresh logical MCP grant names from the current catalog", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		catalog := newResourceCatalog(cloneDaemonMCPServer)
+		state := &bootState{
+			mcpDigestKeys:    vault.NewMCPDigestKeyProvider(t.TempDir()),
+			cfg:              cfg,
+			mcpServerCatalog: catalog,
+		}
+		resolver, err := newNativeToolPolicyResolverForBoot(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id := toolspkg.ToolID("mcp__github_github__search")
+		descriptor := toolspkg.Descriptor{
+			ID: id, Description: "Search",
+			Backend: toolspkg.BackendRef{Kind: toolspkg.BackendMCP, MCPServer: "github.github", MCPTool: "search"},
+			Source: toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "github_github", ResourceID: "extension",
+				RawServerName: "github.github", RawToolName: "search"},
+			InputSchema: json.RawMessage(`{"type":"object"}`), Visibility: toolspkg.VisibilityModel,
+			Risk: toolspkg.RiskRead, ReadOnly: true,
+		}
+		for index, name := range []string{"github", "renamed"} {
+			catalog.Replace(int64(index+1), []resources.Record[compozyconfig.MCPServer]{{
+				ID: "extension", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+				Spec: compozyconfig.MCPServer{Name: name, RuntimeName: "github.github", Command: "test-mcp"},
+			}})
+			inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{Operator: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputs.Session = toolspkg.SessionToolPolicy{
+				Enforced:   true,
+				Tools:      []toolspkg.ToolID{id},
+				MCPServers: []string{"github"},
+			}
+			evaluator, err := toolspkg.NewEffectivePolicyEvaluator(
+				inputs,
+				toolspkg.ToolsetCatalog{},
+				[]toolspkg.ToolID{id},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+			if err != nil || decision.Callable != (name == "github") {
+				t.Fatalf("logical name %s: %+v, %v", name, decision, err)
+			}
+		}
+	})
 
 	for _, tc := range []struct {
 		name        string
@@ -10880,6 +12553,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				ProfileID: store.DefaultProfileID,
 				AgentName: "coder",
 				State:     session.StateActive,
+				Lineage:   nativeRootToolLineage(),
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
@@ -11208,6 +12882,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				ProfileID: store.DefaultProfileID,
 				AgentName: "catalog-only",
 				State:     session.StateActive,
+				Lineage:   nativeRootToolLineage(),
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
@@ -11437,7 +13112,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		},
 	)
 
-	t.Run("Should retain session grants while ignoring retired agent and lineage references", func(t *testing.T) {
+	t.Run("Should reject retired toolsets and retain exact agent and lineage restrictions", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -11448,6 +13123,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				ID:        "sess-root",
 				AgentName: "coder",
 				State:     session.StateActive,
+				Lineage:   nativeRootToolLineage(),
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
@@ -11474,9 +13150,20 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		}, resolver)
 		rootScope := toolspkg.Scope{SessionID: "sess-root"}
 
+		if _, err := registry.SessionProjection(ctx, rootScope); err == nil ||
+			!strings.Contains(err.Error(), `unknown toolset "compozy__memory"`) {
+			t.Fatalf("retired toolset projection error = %v", err)
+		}
+		agents.agent.Toolsets = []string{toolspkg.ToolsetIDSessions.String()}
 		rootViews, err := registry.SessionProjection(ctx, rootScope)
 		if err != nil {
 			t.Fatalf("SessionProjection(root session) error = %v", err)
+		}
+		resolvedRoot, err := resolver.Resolve(ctx, rootScope)
+		if err != nil || !slices.ContainsFunc(resolvedRoot.Agent.Tools, func(pattern toolspkg.ToolPattern) bool {
+			return pattern.String() == "compozy__memory_note"
+		}) {
+			t.Fatalf("resolved agent policy = %#v, %v; want exact retired atom retained", resolvedRoot.Agent, err)
 		}
 		requireNativeViewContains(t, rootViews, toolspkg.ToolIDSessionStatus)
 		requireNativeViewContains(t, rootViews, toolspkg.ToolIDSessionArchive)
@@ -11499,6 +13186,10 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		childViews, err := registry.SessionProjection(ctx, childScope)
 		if err != nil {
 			t.Fatalf("SessionProjection(child session) error = %v", err)
+		}
+		resolvedChild, err := resolver.Resolve(ctx, childScope)
+		if err != nil || !slices.Contains(resolvedChild.Session.Tools, toolspkg.ToolID("compozy__memory_show")) {
+			t.Fatalf("resolved lineage policy = %#v, %v; want exact retired atom retained", resolvedChild.Session, err)
 		}
 		requireNativeViewContains(t, childViews, toolspkg.ToolIDSessionStatus)
 		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDSessionArchive)
@@ -11683,6 +13374,7 @@ type nativeToolPolicyAgentResolverStub struct {
 }
 
 func (r *nativeToolPolicyAgentResolverStub) ResolvePolicyAgent(
+	_ context.Context,
 	name string,
 	_ *workspacepkg.ResolvedAgentConfig,
 ) (compozyconfig.AgentDef, error) {
@@ -11998,7 +13690,7 @@ func collectNativeToolListPages(
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolList,
 			Input: json.RawMessage(fmt.Sprintf(
-				`{"offset":%d,"limit":%d}`,
+				`{"offset":%d,"limit":%d,"result_view":"full"}`,
 				offset,
 				maxNativeToolListLimit,
 			)),
@@ -12209,6 +13901,10 @@ type nativeObserverStub struct {
 	health                observe.Health
 	eventQueryCalls       int
 	lastEventQuery        store.EventSummaryQuery
+}
+
+func (o *nativeObserverStub) EventSequenceHead(context.Context) (int64, error) {
+	return 0, nil
 }
 
 func (o *nativeObserverStub) QueryEvents(
@@ -13661,7 +15357,7 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 			toolspkg.Scope{Operator: true, ProfileID: "profile-marketing"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
-				Input:  json.RawMessage(`{"workspace":"ws-1","agent_name":"coder"}`),
+				Input:  json.RawMessage(`{"workspace":"ws-1","agent_name":"coder","include_recent_wake_events":true}`),
 			},
 		)
 		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
@@ -13680,6 +15376,46 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 			root := t.TempDir()
 			home := apitest.NewTestHomePaths(t)
 			cfg := compozyconfig.DefaultWithHome(home)
+			db := openDaemonTestGlobalDB(t)
+			profiles, err := profilepkg.NewManager(profilepkg.WithStore(db), profilepkg.WithHomePaths(home))
+			if err != nil {
+				t.Fatal(err)
+			}
+			marketing, err := profiles.Create(
+				t.Context(),
+				profilepkg.CreateInput{Name: "marketing", Color: "#E8572A", Icon: "megaphone"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			profileIDs := map[string]string{"default": store.DefaultProfileID, "marketing": marketing.ID}
+			if err := db.InsertWorkspace(
+				t.Context(),
+				workspacepkg.Workspace{ID: "ws-1", Name: "native-audit", RootDir: root},
+			); err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 11, 6, 23, 0, 0, 0, time.UTC)
+			for name, id := range profileIDs {
+				instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+					ProfileID:         id,
+					WorkspaceID:       "ws-1",
+					AgentName:         "coder",
+					PermissionCeiling: "{}",
+					CreatedByKind:     "human",
+				}, 10)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events
+                    (id,workspace_id,agent_name,source,result,reason,detail,instance_id,created_at,expires_at)
+                    VALUES (?, 'ws-1', 'coder', 'instance_check', 'quiet', 'quiet', ?, ?, ?, ?)`,
+					name+"-audit", name+"-only", instance.ID, store.FormatTimestamp(now), store.FormatTimestamp(now.Add(time.Hour)))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
 			digests := map[string]string{}
 			for _, name := range []string{"default", "marketing"} {
 				dir := filepath.Join(root, ".compozy", "profiles", name, "agents", "coder")
@@ -13717,6 +15453,7 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 				return workspacepkg.ResolvedWorkspace{
 					ID: ref, RootDir: root,
 					WorkspaceID: ref,
+					ProfileID:   profileIDs[name],
 					ProfileName: name,
 					Config:      cfg,
 					Agents:      agents,
@@ -13728,7 +15465,7 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 				},
 				ResolveForProfileFn: resolve,
 			}
-			status, err := heartbeat.NewManagedHeartbeatStatusService(nativeEmptyHeartbeatStore{})
+			status, err := heartbeat.NewManagedHeartbeatStatusService(db)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -13736,25 +15473,35 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 				HomePaths:         home,
 				Workspaces:        nativeTestWorkspaceServiceWithRoot(t, root),
 				WorkspaceResolver: workspace,
-				Profiles: nativeProfileReaderStub{
-					profiles: []profilepkg.WithCounts{
-						{ID: "profile-" + profileName, Name: profileName},
-					},
-				},
-				HeartbeatStatus: status,
+				Profiles:          profiles,
+				HeartbeatStatus:   status,
+				WakeEvents:        db,
 			}, nativeApproveAllPolicyInputs())
 			result, err := registry.Call(
 				t.Context(),
-				toolspkg.Scope{Operator: true, ProfileID: "profile-" + profileName},
+				toolspkg.Scope{Operator: true, ProfileID: profileIDs[profileName]},
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
-					Input:  json.RawMessage(`{"workspace":"ws-1","agent_name":"coder"}`),
+					Input: json.RawMessage(
+						`{"workspace":"ws-1","agent_name":"coder","include_recent_wake_events":true,"result_view":"full"}`,
+					),
 				},
 			)
 			if err != nil {
 				t.Fatalf("heartbeat status failed: %v", err)
 			}
 			requireNativeStructuredContains(t, result, []byte(`"digest":"`+digests[profileName]+`"`))
+			var response struct {
+				Heartbeat contract.HeartbeatStatusResponse `json:"heartbeat"`
+			}
+			if err := json.Unmarshal(result.Structured, &response); err != nil {
+				t.Fatal(err)
+			}
+			if len(response.Heartbeat.WakeEvents) != 1 ||
+				response.Heartbeat.WakeEvents[0].Detail != profileName+"-only" ||
+				response.Heartbeat.WakeEvents[0].Source != contract.HeartbeatWakeSourceInstanceCheck {
+				t.Fatalf("profile audit = %+v", response.Heartbeat.WakeEvents)
+			}
 		})
 	}
 }
@@ -14094,7 +15841,9 @@ func TestNativeSubagentBindings(t *testing.T) {
 			result, err := n.subagentToolBindings()[tc.id].call(
 				t.Context(),
 				toolspkg.Scope{SessionID: "parent", WorkspaceID: "ws"},
-				toolspkg.CallRequest{ToolID: tc.id, TurnID: "turn", Input: json.RawMessage(tc.input)},
+				toolspkg.CallRequest{
+					ToolID: tc.id, TurnID: "turn", Input: json.RawMessage(tc.input), View: toolspkg.ResultViewFull,
+				},
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -14988,13 +16737,217 @@ func TestNativeWorkspaceLayoutTools(t *testing.T) {
 	})
 }
 
+// nativeCleanupSessions records the history-cleanup requests the native tool
+// hands the session manager.
+type nativeCleanupSessions struct {
+	apitest.StubSessionManager
+	previews []sessioncleanup.Request
+	starts   []sessioncleanup.Request
+	// run is the profile's current run; stops counts StopHistoryCleanup calls.
+	run   *sessioncleanup.Run
+	stops int
+}
+
+var _ core.SessionHistoryCleanupManager = (*nativeCleanupSessions)(nil)
+
+func (s *nativeCleanupSessions) PreviewHistoryCleanup(
+	_ context.Context,
+	request sessioncleanup.Request,
+) (sessioncleanup.Plan, error) {
+	s.previews = append(s.previews, request)
+	return sessioncleanup.Plan{}, nil
+}
+
+func (s *nativeCleanupSessions) StartHistoryCleanup(
+	_ context.Context,
+	request sessioncleanup.Request,
+) (sessioncleanup.Run, sessioncleanup.Plan, error) {
+	s.starts = append(s.starts, request)
+	return sessioncleanup.Run{ID: "run-1", State: sessioncleanup.RunRunning}, sessioncleanup.Plan{}, nil
+}
+
+func (s *nativeCleanupSessions) HistoryCleanupRun(string) (sessioncleanup.Run, bool, error) {
+	if s.run == nil {
+		return sessioncleanup.Run{}, false, nil
+	}
+	return *s.run, true, nil
+}
+
+func (s *nativeCleanupSessions) StopHistoryCleanup(
+	_ context.Context,
+	_ string,
+	runID string,
+) (sessioncleanup.Run, error) {
+	if s.run == nil || s.run.State != sessioncleanup.RunRunning || s.run.ID != runID {
+		return sessioncleanup.Run{}, sessioncleanup.ErrNoActiveRun
+	}
+	s.stops++
+	s.run.State = sessioncleanup.RunStopped
+	return *s.run, nil
+}
+
+// Invariant (#1717): compozy__session_cleanup reaches every workspace only for
+// the operator or a session with unrestricted workspace access, and an empty
+// request previews Everything archived 7+ days ago in the caller's workspace
+// without starting a run. Status and stop reach the profile's run only for a
+// caller that could have started it, so a workspace-bound agent never reads or
+// stops another project's cleanup. Owner: the daemon native tool's request resolution.
+func TestNativeSessionCleanupTool(t *testing.T) {
+	t.Parallel()
+
+	agent := toolspkg.Scope{WorkspaceID: "ws-1", SessionID: "sess-agent", AgentName: "coder"}
+	newRegistry := func(t *testing.T, access string) (*nativeCleanupSessions, *toolspkg.RuntimeRegistry) {
+		t.Helper()
+		sessions := &nativeCleanupSessions{}
+		sessions.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID: id, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", State: session.StateActive,
+				EffectiveWorkspaceAccess: access,
+			}, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   sessions,
+			Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		return sessions, registry
+	}
+	call := func(
+		t *testing.T,
+		registry *toolspkg.RuntimeRegistry,
+		scope toolspkg.Scope,
+		input string,
+	) (toolspkg.ToolResult, error) {
+		t.Helper()
+		return registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionCleanup, Input: json.RawMessage(input),
+		})
+	}
+
+	t.Run("Should deny all workspaces to an agent session without unrestricted access", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		_, err := call(t, registry, agent, `{"all_workspaces":true}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if len(sessions.previews) != 0 || len(sessions.starts) != 0 {
+			t.Fatalf(
+				"cleanup calls after denial = previews %#v starts %#v, want none",
+				sessions.previews,
+				sessions.starts,
+			)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		access string
+		scope  toolspkg.Scope
+	}{
+		{name: "an unrestricted agent session", access: workspaceaccess.Unrestricted, scope: agent},
+		{name: "the operator", scope: toolspkg.Scope{Operator: true}},
+	} {
+		t.Run("Should reach all workspaces for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			sessions, registry := newRegistry(t, tc.access)
+			if _, err := call(t, registry, tc.scope, `{"all_workspaces":true}`); err != nil {
+				t.Fatalf("session_cleanup all_workspaces error = %v", err)
+			}
+			if len(sessions.previews) != 1 || !sessions.previews[0].Scope.AllWorkspaces ||
+				sessions.previews[0].Scope.WorkspaceID != "" {
+				t.Fatalf("previews = %#v, want one across all workspaces", sessions.previews)
+			}
+			if len(sessions.starts) != 0 {
+				t.Fatalf("starts = %#v, want none for a dry run", sessions.starts)
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name     string
+		runScope sessioncleanup.Scope
+	}{
+		{
+			name:     "another workspace",
+			runScope: sessioncleanup.Scope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-2"},
+		},
+		{
+			name:     "every workspace",
+			runScope: sessioncleanup.Scope{ProfileID: store.DefaultProfileID, AllWorkspaces: true},
+		},
+	} {
+		name := "Should hide and keep running a cleanup across " + tc.name + " from a workspace-bound agent"
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			sessions, registry := newRegistry(t, "")
+			sessions.run = &sessioncleanup.Run{ID: "run-1", Scope: tc.runScope, State: sessioncleanup.RunRunning}
+			for _, action := range []string{toolspkg.SessionCleanupActionStatus, toolspkg.SessionCleanupActionStop} {
+				_, err := call(t, registry, agent, `{"action":"`+action+`"}`)
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+			}
+			if sessions.stops != 0 || sessions.run.State != sessioncleanup.RunRunning {
+				t.Fatalf("stops = %d, run state = %q, want the run left running", sessions.stops, sessions.run.State)
+			}
+		})
+	}
+
+	t.Run("Should read and stop a cleanup in the caller's own workspace", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		sessions.run = &sessioncleanup.Run{
+			ID:    "run-1",
+			Scope: sessioncleanup.Scope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1"},
+			State: sessioncleanup.RunRunning,
+		}
+		result, err := call(t, registry, agent, `{"action":"status"}`)
+		if err != nil {
+			t.Fatalf("session_cleanup status error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"id":"run-1"`))
+		if _, err := call(t, registry, agent, `{"action":"stop"}`); err != nil {
+			t.Fatalf("session_cleanup stop error = %v", err)
+		}
+		if sessions.stops != 1 {
+			t.Fatalf("stops = %d, want 1", sessions.stops)
+		}
+	})
+
+	t.Run("Should preview Everything archived 7+ days ago in the caller's workspace by default", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		before := time.Now().UTC()
+		result, err := call(t, registry, agent, `{}`)
+		after := time.Now().UTC()
+		if err != nil {
+			t.Fatalf("session_cleanup default error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"dry_run":true`))
+		if len(sessions.starts) != 0 {
+			t.Fatalf("starts = %#v, want none for the default dry run", sessions.starts)
+		}
+		if len(sessions.previews) != 1 {
+			t.Fatalf("previews = %#v, want one", sessions.previews)
+		}
+		request := sessions.previews[0]
+		wantScope := sessioncleanup.Scope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1"}
+		wantSelection := sessioncleanup.Selection{Everything: true, Children: true, Subagents: true}
+		if request.Scope != wantScope || request.Selection != wantSelection {
+			t.Fatalf("request scope/selection = %+v / %+v, want %+v / %+v",
+				request.Scope, request.Selection, wantScope, wantSelection)
+		}
+		week := 7 * 24 * time.Hour
+		if request.ArchivedBefore == nil ||
+			request.ArchivedBefore.Before(before.Add(-week)) || request.ArchivedBefore.After(after.Add(-week)) {
+			t.Fatalf("ArchivedBefore = %v, want 7 days before the call", request.ArchivedBefore)
+		}
+	})
+}
+
 func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Parallel()
 
 	const workspaceID = "ws-orchestration"
 	const callerID = "sess-caller"
 	ttl := time.Date(2026, 8, 16, 18, 0, 0, 0, time.UTC)
-	newManager := func(spawn func(session.SpawnOpts) (*session.Session, error)) *nativeOrchestrationSessionManager {
+	newManager := func(spawn func(*session.SpawnOpts) (*session.Session, error)) *nativeOrchestrationSessionManager {
 		base := nativeTestSessionManager(workspaceID)
 		base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
 			if strings.TrimSpace(id) != callerID {
@@ -15007,10 +16960,12 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		}
 		return &nativeOrchestrationSessionManager{
 			StubSessionManager: *base,
-			spawnFn:            func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) { return spawn(opts) },
+			spawnFn: func(_ context.Context, opts *session.SpawnOpts) (*session.Session, error) {
+				return spawn(opts)
+			},
 		}
 	}
-	child := func(opts session.SpawnOpts) *session.Session {
+	child := func(opts *session.SpawnOpts) *session.Session {
 		return &session.Session{
 			ID: "sess-child", AgentName: opts.AgentName, WorkspaceID: workspaceID, WorktreeID: opts.IsolatedWorktreeID,
 			State: session.StateActive, Type: session.SessionTypeSpawned,
@@ -15022,14 +16977,37 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	}
 	scope := toolspkg.Scope{WorkspaceID: workspaceID, SessionID: callerID, AgentName: "creator"}
 
+	// Invariant: a selected profile never changes or invalidates the authenticated spawn parent.
+	// Owner: native spawn boundary; canonical suite: TestDaemonNativeSessionSpawnOrchestration.
+	t.Run("Should resolve the caller parent after a permitted profile selection", func(t *testing.T) {
+		t.Parallel()
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
+			if opts.ParentSessionID != callerID {
+				t.Fatalf("parent = %q", opts.ParentSessionID)
+			}
+			return child(opts), nil
+		})
+		manager.spawnWsFn = func(context.Context, string, string) (string, error) { return workspaceID, nil }
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{Sessions: manager, Workspaces: nativeTestWorkspaceService(t)},
+		}
+		selected := scope
+		selected.ProfileID = "selected-profile"
+		if _, err := n.sessionSpawn(t.Context(), selected, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionSpawn,
+			Input: json.RawMessage(`{"agent_name":"worker"}`),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("Should bind a new worktree, inherit permissions, and send the first prompt", func(t *testing.T) {
 		t.Parallel()
 
 		var spawnOpts session.SpawnOpts
 		var createOpts worktree.CreateOptions
 		var promptReq session.SpawnPromptRequest
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
-			spawnOpts = opts
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
+			spawnOpts = *opts
 			return child(opts), nil
 		})
 		manager.spawnWsFn = func(_ context.Context, parent string, ref string) (string, error) {
@@ -15066,10 +17044,12 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDSessionSpawn,
-			Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600,"inherit_permissions":true,` +
-				`"skills":[],"toolsets":["compozy__sessions"],` +
-				`"new_worktree":{"name":"feature-auth","base_ref":"main","branch":"feat/auth"},` +
-				`"prompt":"Implement auth and commit."}`),
+			Input: json.RawMessage(
+				`{"agent_name":"general","ttl_seconds":600,"inherit_permissions":true,"result_view":"full",` +
+					`"skills":[],"toolsets":["compozy__sessions"],` +
+					`"new_worktree":{"name":"feature-auth","base_ref":"main","branch":"feat/auth"},` +
+					`"prompt":"Implement auth and commit."}`,
+			),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(session_spawn) error = %v", err)
@@ -15102,7 +17082,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		t.Parallel()
 
 		removed := ""
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, &session.SpawnPermissionError{
 				Field: "workspace_paths", Value: "/elsewhere", Rule: session.SpawnPermissionRuleSubset,
 			}
@@ -15153,8 +17133,8 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		const foreignID = "ws-compozy"
 		var spawnOpts session.SpawnOpts
 		deny := true
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
-			spawnOpts = opts
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
+			spawnOpts = *opts
 			return child(opts), nil
 		})
 		manager.spawnWsFn = func(_ context.Context, parent string, ref string) (string, error) {
@@ -15212,7 +17192,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should report an exhausted spawn budget with its cap and live count", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, &session.SpawnLimitError{
 				Limit: session.SpawnLimitMaxChildren, Max: 5, Live: 5, Scope: callerID,
 			}
@@ -15237,7 +17217,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should keep the runtime override rule when a spawn passes model without provider", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, fmt.Errorf("%w when model is set", session.ErrRuntimeOverrideProviderRequired)
 		})
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -15258,7 +17238,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should name the rejected runtime field instead of asking for a provider", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, fmt.Errorf("%w: model \"gpt-test\" is not offered by claude", session.ErrInvalidRuntimeOverride)
 		})
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -15280,7 +17260,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should report a depth refusal with the subagent recovery instead of the child cap", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, &session.SpawnDepthError{Parent: callerID, ChildDepth: 2, Max: 1}
 		})
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -15306,7 +17286,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 
 		removed := ""
 		hookFailure := true
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
 			if hookFailure {
 				return child(opts), errors.New("spawn.created hook failed")
 			}
@@ -15356,7 +17336,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should refuse worktree and new_worktree together before spawning", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			t.Fatal("Spawn() called for conflicting worktree selectors")
 			return nil, nil
 		})
@@ -15452,7 +17432,11 @@ func TestDaemonNativeSessionResultsMatchOutputSchemas(t *testing.T) {
 				t.Fatalf("envelope %s, want last_known runtime", envelope)
 			}
 			for _, toolID := range toolIDs {
-				requireNativeOutputSchemaAccepts(t, descriptors[toolID], envelope)
+				descriptor := descriptors[toolID]
+				if views := descriptor.ResultViews(); views != nil {
+					descriptor.OutputSchema = views.Full.Schema
+				}
+				requireNativeOutputSchemaAccepts(t, descriptor, envelope)
 			}
 		})
 	}
@@ -15806,7 +17790,8 @@ func TestNativeSessionMissingWorkspace(t *testing.T) {
 				Workspaces: workspaces, Sessions: manager,
 			}, nativeApproveAllPolicyInputs())
 			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
-				ToolID: toolID, Input: json.RawMessage(`{"workspace":"ws-1","session_id":"sess-1"}`),
+				ToolID: toolID,
+				Input:  json.RawMessage(`{"workspace":"ws-1","session_id":"sess-1","result_view":"full"}`),
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -15825,6 +17810,7 @@ func TestNativeSessionMissingWorkspace(t *testing.T) {
 			}
 			for _, descriptor := range builtintools.NativeDescriptors() {
 				if descriptor.ID == toolID {
+					descriptor.OutputSchema = descriptor.ResultViews().Full.Schema
 					requireNativeOutputSchemaAccepts(t, descriptor, encoded)
 				}
 			}
@@ -16288,16 +18274,58 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 		if doc.Content != "" {
 			t.Fatalf("remove left notes: %s", doc.Content)
 		}
+		memoryKey := agentmemory.Key{ProfileID: store.DefaultProfileID, Origin: "user", Agent: "coder"}
+		if _, err := memory.AddRule(memoryKey, "File issues through report-writer"); err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDAgentMemoryReplace, `{"match":"report-writer","text":"anyone"}`},
+			{toolspkg.ToolIDAgentMemoryRemove, `{"match":"File issues"}`},
+		} {
+			_, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)},
+			)
+			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+			if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); !ok ||
+				!strings.HasPrefix(toolErr.PublicMessage, "agent_memory_rule_protected: operator rules") {
+				t.Fatalf("%s rule refusal hides its reason: %v", item.id, err)
+			}
+		}
+		if rules, err := memory.Rules(memoryKey); err != nil || len(rules) != 1 {
+			t.Fatalf("operator rule after agent writes = %v, %v", rules, err)
+		}
+		if _, _, err := memory.Remove(memoryKey, "File issues"); err != nil {
+			t.Fatal(err)
+		}
 		caller.caller.InstanceID = ""
-		_, err = registry.Call(
-			t.Context(),
-			scope,
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDAgentMemoryAdd,
-				Input:  json.RawMessage(`{"text":"unauthorized"}`),
-			},
-		)
-		requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+		for _, item := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDAgentMemoryAdd, `{"text":"unauthorized"}`},
+			{toolspkg.ToolIDAgentMemoryReplace, `{"match":"note","text":"unauthorized"}`},
+			{toolspkg.ToolIDAgentMemoryRemove, `{"match":"note"}`},
+			{toolspkg.ToolIDAgentMemorySearch, `{"query":"note"}`},
+		} {
+			t.Run("Should deny "+string(item.id)+" outside the owning main session", func(t *testing.T) {
+				_, err := registry.Call(
+					t.Context(),
+					scope,
+					toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)},
+				)
+				requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+				detail, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || !strings.Contains(detail.PublicMessage, "owning always-on-agent main session") ||
+					strings.Contains(detail.PublicMessage, "approve-all") {
+					t.Fatalf("memory refusal = %v", err)
+				}
+			})
+		}
 		caller.caller.InstanceID = "instance-memory"
 		if _, err := registry.Call(
 			t.Context(),
@@ -16626,4 +18654,1024 @@ func TestNativeSessionMoveToProfile(t *testing.T) {
 			t.Fatalf("refused move error = %v, want session_move_to_profile_worktree_dirty", err)
 		}
 	})
+}
+
+func TestNativeSessionChanges(t *testing.T) {
+	t.Run("Should log sanitized failures and keep public errors fixed", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		root := "/private/project"
+		external := "/outside/private-orderfile"
+		cause := fmt.Errorf(
+			"%w: git diff at %s orderfile '%s': %w",
+			changes.ErrUnavailable,
+			root,
+			external,
+			context.DeadlineExceeded,
+		)
+		result, err := nativeChangesError(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), root, cause)
+		if err != nil || !bytes.Contains(result.Structured, []byte("changes_unavailable")) ||
+			bytes.Contains(result.Structured, []byte("deadline")) {
+			t.Fatalf("result=%s err=%v", result.Structured, err)
+		}
+		if strings.Contains(logs.String(), external) || strings.Contains(logs.String(), root) ||
+			!strings.Contains(logs.String(), "deadline exceeded") {
+			t.Fatalf("logs=%s", &logs)
+		}
+	})
+
+	for _, mode := range []string{"once", "continuous", "capped"} {
+		continuous := mode == "continuous"
+		t.Run(fmt.Sprintf("Should fence changing summary fingerprints mode=%s", mode), func(t *testing.T) {
+			t.Parallel()
+			root, rootErr := projectfiles.CanonicalRoot(projectfiles.Root{AbsPath: t.TempDir()})
+			if rootErr != nil {
+				t.Fatal(rootErr)
+			}
+			for _, args := range [][]string{{"init"}, {"-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial"}} {
+				cmd := exec.CommandContext(t.Context(), "git", args...)
+				cmd.Dir = root.AbsPath
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("%s %v", out, err)
+				}
+			}
+			path := filepath.Join(root.AbsPath, "a.go")
+			if err := os.WriteFile(path, []byte("first\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			engine := &editingChangesEngine{
+				Engine:     changes.NewEngine(),
+				t:          t,
+				path:       path,
+				continuous: continuous,
+				capped:     mode == "capped",
+			}
+			summary, patches, err := readSessionChanges(
+				t.Context(),
+				engine,
+				root,
+				changes.Request{Scope: changes.Uncommitted},
+				[]string{"a.go"},
+			)
+			if engine.capped {
+				if err != nil || len(patches) != 1 || engine.calls != 1 {
+					t.Fatalf("capped patches=%+v calls=%d err=%v", patches, engine.calls, err)
+				}
+				return
+			}
+			if engine.calls != 2 {
+				t.Fatalf("summary calls=%d err=%v", engine.calls, err)
+			}
+			if continuous {
+				if !errors.Is(err, changes.ErrStale) {
+					t.Fatalf("error=%v", err)
+				}
+			} else if err != nil || len(patches) != 1 || patches[0].Fingerprint != summary.Files[0].Fingerprint {
+				t.Fatalf("mixed response: %+v %+v %v", summary, patches, err)
+			}
+		})
+	}
+
+	t.Parallel()
+	t.Run("Should return real changes and gate sensitive patches", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for _, args := range [][]string{{"init"}, {"-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial"}} {
+			cmd := exec.CommandContext(t.Context(), "git", args...)
+			cmd.Dir = root
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("git: %v %s", err, out)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(root, "c.go"), []byte("package changed\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, ".env"), []byte("SECRET=private\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:   nativeTestSessionManager("ws-1"),
+				Workspaces: nativeTestWorkspaceServiceWithRootAndIdentity(t, root, "stable-ws-1"),
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input: json.RawMessage(
+					`{"workspace":"ws-1","session_id":"sess-1","scope":"uncommitted","patch_paths":["c.go",".env"]}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var response struct {
+			contract.SessionChangesResponse
+			Patches []contract.ChangePatchPayload `json:"patches"`
+		}
+		if err := json.Unmarshal(result.Structured, &response); err != nil {
+			t.Fatal(err)
+		}
+		if response.Revision == "" || len(response.Patches) != 2 ||
+			!strings.Contains(response.Patches[0].Patch, "package changed") ||
+			!response.Patches[1].Sensitive ||
+			bytes.Contains(result.Structured, []byte("SECRET")) ||
+			bytes.Contains(result.Structured, []byte(root)) {
+			t.Fatalf("response: %s", result.Structured)
+		}
+		if response.Root.WorkspaceID != "ws-1" {
+			t.Fatalf("root workspace_id=%q want the public registry ID", response.Root.WorkspaceID)
+		}
+		if err := os.Symlink(filepath.Join(root, ".git", "config"), filepath.Join(root, "protected.txt")); err != nil {
+			t.Fatal(err)
+		}
+		protected, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input: json.RawMessage(
+					`{"workspace":"ws-1","session_id":"sess-1","scope":"uncommitted","patch_paths":["protected.txt"]}`,
+				),
+			},
+		)
+		if err != nil || !bytes.Contains(protected.Structured, []byte("path_denied")) ||
+			bytes.Contains(protected.Structured, []byte(root)) {
+			t.Fatalf("protected result %s error %v", protected.Structured, err)
+		}
+	})
+	t.Run("Should classify unknown and user scope sessions", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{
+				Sessions: &apitest.StubSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						if id == "missing" {
+							return nil, session.ErrSessionNotFound
+						}
+						return &session.Info{ID: id, WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID}, nil
+					},
+				},
+				Workspaces: nativeTestWorkspaceService(t),
+			},
+		}
+		result, err := n.sessionChanges(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input:  json.RawMessage(`{"session_id":"missing"}`),
+			},
+		)
+		if err != nil || !bytes.Contains(result.Structured, []byte("session_not_found")) {
+			t.Fatalf("result %s err %v", result.Structured, err)
+		}
+	})
+	t.Run("Should return root unavailable for user scope sessions", func(t *testing.T) {
+		t.Parallel()
+		service := nativeTestWorkspaceService(t)
+		service.ResolveUserFn = func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+			return workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser}, nil
+		}
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{Sessions: nativeTestSessionManager(""), Workspaces: service},
+		}
+		result, err := n.sessionChanges(
+			t.Context(),
+			toolspkg.Scope{ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input:  json.RawMessage(`{"workspace":"@user","session_id":"sess-user"}`),
+			},
+		)
+		if err != nil || !bytes.Contains(result.Structured, []byte("root_unavailable")) {
+			t.Fatalf("result %s err %v", result.Structured, err)
+		}
+	})
+}
+
+type editingChangesEngine struct {
+	changes.Engine
+	t          *testing.T
+	path       string
+	calls      int
+	continuous bool
+	capped     bool
+}
+
+func (e *editingChangesEngine) Summary(
+	ctx context.Context,
+	root projectfiles.Root,
+	req changes.Request,
+) (changes.Summary, error) {
+	e.t.Helper()
+	s, err := e.Engine.Summary(ctx, root, req)
+	e.calls++
+	if e.capped {
+		s.Files = nil
+		s.Truncated = true
+		return s, err
+	}
+	if e.continuous || e.calls == 1 {
+		if err := os.WriteFile(e.path, []byte(fmt.Sprintf("edit %d\n", e.calls)), 0600); err != nil {
+			e.t.Fatal(err)
+		}
+	}
+	return s, err
+}
+
+func TestNativeResultViewHelper(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		view toolspkg.ResultView
+		full func(map[string]any) any
+		want string
+	}{
+		{"Should default an empty view to compact", "", nil, `{"id":"x"}`},
+		{"Should project compact", toolspkg.ResultViewCompact, nil, `{"id":"x"}`},
+		{"Should return the original full value", toolspkg.ResultViewFull, nil, `{"extra":"detail","id":"x"}`},
+		{"Should apply a full wrapper", toolspkg.ResultViewFull, func(p map[string]any) any { return map[string]any{"record": p} }, `{"record":{"extra":"detail","id":"x"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			views := resultViews[map[string]any]{
+				Compact: func(p map[string]any) any { return map[string]any{"id": p["id"]} },
+				Full:    tc.full,
+				Preview: func(map[string]any) string { return "x" },
+			}
+			got, err := views.result(tc.view, map[string]any{"id": "x", "extra": "detail"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got.Structured) != tc.want || got.Preview != "x" {
+				t.Fatalf("result=%#v", got)
+			}
+		})
+	}
+}
+
+type nativeResultViewFixture struct {
+	ToolID   toolspkg.ToolID
+	Name     string
+	Result   func(toolspkg.ResultView) (toolspkg.ToolResult, error)
+	MustKeep []string
+}
+
+func TestNativeResultViewContracts(t *testing.T) {
+	t.Parallel()
+	fixtures := map[toolspkg.ToolID][]nativeResultViewFixture{}
+	for _, family := range nativeResultViewFixtureFamilies {
+		for _, row := range family(t) {
+			fixtures[row.ToolID] = append(fixtures[row.ToolID], row)
+		}
+	}
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		if descriptor.ResultViews() == nil {
+			continue
+		}
+		t.Run("Should preserve both result contracts for "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			if err := descriptor.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			rows := fixtures[descriptor.ID]
+			if len(rows) == 0 {
+				t.Fatalf("missing view fixture for %s", descriptor.ID)
+			}
+			var compactSchema, fullSchema map[string]any
+			if err := json.Unmarshal(descriptor.ResultViews().Compact.Schema, &compactSchema); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(descriptor.ResultViews().Full.Schema, &fullSchema); err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range nativeResultSchemaPaths(compactSchema, nil) {
+				if !nativeResultSchemaAcceptsPath(fullSchema, path) {
+					t.Fatalf(
+						"%s compact schema path %s is not accepted by full",
+						descriptor.ID,
+						strings.Join(path, "."),
+					)
+				}
+			}
+			for _, row := range rows {
+				compact, err := row.Result(toolspkg.ResultViewCompact)
+				if err != nil {
+					t.Fatal(err)
+				}
+				full, err := row.Result(toolspkg.ResultViewFull)
+				if err != nil {
+					t.Fatal(err)
+				}
+				requireNativeOutputSchemaAccepts(t, descriptor, compact.Structured)
+				fullDescriptor := descriptor
+				fullDescriptor.OutputSchema = descriptor.ResultViews().Full.Schema
+				requireNativeOutputSchemaAccepts(t, fullDescriptor, full.Structured)
+				var c, f any
+				if err := json.Unmarshal(compact.Structured, &c); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal(full.Structured, &f); err != nil {
+					t.Fatal(err)
+				}
+				requireNativeResultProjection(t, "$", c, f)
+				for _, path := range row.MustKeep {
+					if _, ok := nativeResultAtPath(c, strings.Split(path, ".")); !ok {
+						t.Fatalf("%s %s missing must-keep path %s", row.ToolID, row.Name, path)
+					}
+				}
+				if compact.Preview != full.Preview {
+					t.Fatal("preview differs by view")
+				}
+				t.Logf(
+					"%s/%s full=%d compact=%d reduction=%.2f%%",
+					row.ToolID,
+					row.Name,
+					len(full.Structured),
+					len(compact.Structured),
+					100*(1-float64(len(compact.Structured))/float64(len(full.Structured))),
+				)
+			}
+		})
+	}
+}
+
+func requireNativeResultProjection(t *testing.T, path string, compact, full any) {
+	t.Helper()
+	switch value := compact.(type) {
+	case map[string]any:
+		source, ok := full.(map[string]any)
+		if !ok {
+			t.Fatalf("%s full is not an object", path)
+		}
+		for key, item := range value {
+			original, exists := source[key]
+			if !exists {
+				t.Fatalf("%s.%s absent from full", path, key)
+			}
+			requireNativeResultProjection(t, path+"."+key, item, original)
+		}
+	case []any:
+		source, ok := full.([]any)
+		if !ok || len(source) != len(value) {
+			t.Fatalf("%s array shape changed", path)
+		}
+		for i, item := range value {
+			requireNativeResultProjection(t, fmt.Sprintf("%s.%d", path, i), item, source[i])
+		}
+	default:
+		if !reflect.DeepEqual(compact, full) {
+			t.Fatalf("%s compact=%v full=%v", path, compact, full)
+		}
+	}
+}
+
+func nativeResultAtPath(value any, path []string) (any, bool) {
+	if len(path) == 0 {
+		return value, true
+	}
+	switch node := value.(type) {
+	case map[string]any:
+		child, ok := node[path[0]]
+		if !ok {
+			return nil, false
+		}
+		return nativeResultAtPath(child, path[1:])
+	case []any:
+		index, err := strconv.Atoi(path[0])
+		if err != nil || index < 0 || index >= len(node) {
+			return nil, false
+		}
+		return nativeResultAtPath(node[index], path[1:])
+	default:
+		return nil, false
+	}
+}
+
+func nativeResultSchemaPaths(schema map[string]any, prefix []string) [][]string {
+	var paths [][]string
+	properties, _ := schema["properties"].(map[string]any)
+	for key, value := range properties {
+		path := append(slices.Clone(prefix), key)
+		paths = append(paths, path)
+		child, _ := value.(map[string]any)
+		paths = append(paths, nativeResultSchemaPaths(child, path)...)
+	}
+	if items, ok := schema["items"].(map[string]any); ok {
+		paths = append(paths, nativeResultSchemaPaths(items, append(slices.Clone(prefix), "[]"))...)
+	}
+	for _, key := range []string{"oneOf", "anyOf", "allOf"} {
+		if branches, ok := schema[key].([]any); ok {
+			for _, branch := range branches {
+				node, _ := branch.(map[string]any)
+				paths = append(paths, nativeResultSchemaPaths(node, prefix)...)
+			}
+		}
+	}
+	return paths
+}
+
+func nativeResultSchemaAcceptsPath(schema map[string]any, path []string) bool {
+	if len(path) == 0 {
+		return true
+	}
+	for _, key := range []string{"oneOf", "anyOf", "allOf"} {
+		if branches, ok := schema[key].([]any); ok {
+			for _, branch := range branches {
+				node, _ := branch.(map[string]any)
+				if nativeResultSchemaAcceptsPath(node, path) {
+					return true
+				}
+			}
+		}
+	}
+	if path[0] == "[]" {
+		items, ok := schema["items"].(map[string]any)
+		return !ok || nativeResultSchemaAcceptsPath(items, path[1:])
+	}
+	properties, _ := schema["properties"].(map[string]any)
+	if child, ok := properties[path[0]].(map[string]any); ok {
+		return nativeResultSchemaAcceptsPath(child, path[1:])
+	}
+	object := schema["type"] == nil || schema["type"] == "object"
+	if types, ok := schema["type"].([]any); ok {
+		object = slices.Contains(types, any("object"))
+	}
+	return object && schema["additionalProperties"] != false
+}
+
+var nativeResultViewFixtureFamilies = []func(*testing.T) []nativeResultViewFixture{
+	nativeResultViewFixturesSession,
+	nativeResultViewFixturesSubagent,
+	nativeResultViewFixturesAgent,
+	nativeResultViewFixturesAutomation,
+	nativeResultViewFixturesLoop,
+	nativeResultViewFixturesGoal,
+	nativeResultViewFixturesTask,
+	nativeResultViewFixturesWorkspace,
+	nativeResultViewFixturesWorktree,
+	nativeResultViewFixturesExtensions,
+	nativeResultViewFixturesMarketplace,
+	nativeResultViewFixturesProvider,
+	nativeResultViewFixturesResources,
+	nativeResultViewFixturesObserve,
+	nativeResultViewFixturesDesktop,
+	nativeResultViewFixturesLayout,
+	nativeResultViewFixturesTool,
+	nativeResultViewFixturesSkill,
+	nativeResultViewFixturesCmd,
+	nativeResultViewFixturesCommand,
+}
+
+func TestNativeSessionResultViews(t *testing.T) {
+	t.Parallel()
+	for _, bound := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should preserve session facts and measure both views when bound is %t", bound),
+			func(t *testing.T) {
+				t.Parallel()
+				now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+				policy := nativeResultViewPermissions()
+				info := &session.Info{
+					ID:            "sess-view",
+					ProfileID:     store.DefaultProfileID,
+					AgentName:     "general",
+					WorkspaceID:   "ws-view",
+					RuntimeStatus: session.RuntimeStatusFailed,
+					State:         session.StateStopped,
+					CreatedAt:     now,
+					UpdatedAt:     now,
+					Lineage: &store.SessionLineage{
+						ParentSessionID: "sess-parent",
+						RootSessionID:   "sess-parent",
+						TTLExpiresAt:    &now,
+						PermissionPolicy: store.SessionPermissionPolicy{
+							Tools:          policy.Tools,
+							Skills:         policy.Skills,
+							MCPServers:     policy.MCPServers,
+							WorkspacePaths: policy.WorkspacePaths,
+						},
+					},
+					StopReason: "failed",
+					StopDetail: "provider failed",
+					Failure:    &store.SessionFailure{Kind: "runtime", Summary: "provider failed"},
+					PendingInteractions: []store.PendingInteraction{
+						{
+							SessionID:         "sess-view",
+							InteractionID:     "int-view",
+							Kind:              "permission",
+							ProviderRequestID: "req-view",
+							Status:            "pending",
+							CreatedAt:         now,
+						},
+					},
+				}
+				if bound {
+					info.RuntimeGeneration = 2
+					info.TranscriptEpoch = 1
+				}
+				created := &session.Info{
+					ID:            "sess-created",
+					ProfileID:     store.DefaultProfileID,
+					AgentName:     "general",
+					WorkspaceID:   "ws-view",
+					RuntimeStatus: session.RuntimeStatusUnbound,
+					State:         session.StateActive,
+					CreatedAt:     now,
+					UpdatedAt:     now,
+				}
+				manager := &nativeOrchestrationSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						if id == "sess-parent" {
+							return &session.Info{
+								ID:          id,
+								ProfileID:   store.DefaultProfileID,
+								AgentName:   "general",
+								WorkspaceID: "ws-view",
+								State:       session.StateActive,
+							}, nil
+						}
+						if id == "sess-created" {
+							return created, nil
+						}
+						return info, nil
+					},
+					CreateAcceptedFn: func(context.Context, *session.CreateAcceptedOpts) (*session.Info, error) { return created, nil },
+					ArchiveFn: func(context.Context, string, string) (*session.Info, error) {
+						archived := *info
+						archived.ArchivedAt = &now
+						return &archived, nil
+					},
+					spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
+						return &session.Session{
+							ID:            "sess-child",
+							AgentName:     "general",
+							WorkspaceID:   "ws-view",
+							RuntimeStatus: session.RuntimeStatusUnbound,
+							State:         session.StateActive,
+							Lineage: &store.SessionLineage{
+								SpawnDepth:       1,
+								SpawnRole:        "worker",
+								TTLExpiresAt:     &now,
+								PermissionPolicy: info.Lineage.PermissionPolicy,
+							},
+						}, nil
+					},
+				}
+				registry := newDaemonNativeRegistry(
+					t,
+					&daemonNativeToolsDeps{
+						Sessions:   manager,
+						Workspaces: nativeTestWorkspaceServiceWithRootAndIdentity(t, t.TempDir(), "ws-view"),
+					},
+					nativeApproveAllPolicyInputs(),
+				)
+				scope := toolspkg.Scope{
+					ProfileID:   store.DefaultProfileID,
+					SessionID:   "sess-parent",
+					WorkspaceID: "ws-view",
+					AgentName:   "general",
+				}
+				for _, tc := range []struct {
+					id    toolspkg.ToolID
+					input string
+				}{
+					{toolspkg.ToolIDSessionStatus, `{"session_id":"sess-view"}`},
+					{toolspkg.ToolIDSessionArchive, `{"session_id":"sess-view"}`},
+					{toolspkg.ToolIDSessionSpawn, `{"agent_name":"general","ttl_seconds":600}`},
+					{toolspkg.ToolIDSessionCreate, `{"agent":"general"}`},
+				} {
+					compact, err := registry.Call(
+						t.Context(),
+						scope,
+						toolspkg.CallRequest{ToolID: tc.id, Input: json.RawMessage(tc.input)},
+					)
+					if err != nil {
+						t.Fatalf("%s compact: %v", tc.id, err)
+					}
+					fullInput := strings.TrimSuffix(tc.input, "}") + `,"result_view":"full"}`
+					full, err := registry.Call(
+						t.Context(),
+						scope,
+						toolspkg.CallRequest{ToolID: tc.id, Input: json.RawMessage(fullInput)},
+					)
+					if err != nil {
+						t.Fatalf("%s full: %v", tc.id, err)
+					}
+					descriptor, err := registry.Get(t.Context(), scope, tc.id)
+					if err != nil {
+						t.Fatal(err)
+					}
+					requireNativeOutputSchemaAccepts(t, descriptor.Descriptor, compact.Structured)
+					var c, f any
+					if err := json.Unmarshal(compact.Structured, &c); err != nil {
+						t.Fatal(err)
+					}
+					if err := json.Unmarshal(full.Structured, &f); err != nil {
+						t.Fatal(err)
+					}
+					requireNativeResultProjection(t, "$", c, f)
+					reduction := 100 * (1 - float64(len(compact.Structured))/float64(len(full.Structured)))
+					t.Logf(
+						"IT-003 %s full=%d compact=%d reduction=%.2f%%",
+						tc.id,
+						len(full.Structured),
+						len(compact.Structured),
+						reduction,
+					)
+					if tc.id != toolspkg.ToolIDSessionCreate && reduction < 80 {
+						t.Fatalf("%s reduction %.2f%% < 80%%", tc.id, reduction)
+					}
+					if tc.id == toolspkg.ToolIDSessionStatus {
+						previous, err := core.SessionPayloadWithQueue(t.Context(), manager, info)
+						if err != nil {
+							t.Fatal(err)
+						}
+						owned, err := core.SessionPayloadsWithProfileOwners(
+							t.Context(),
+							[]contract.SessionPayload{previous},
+							nil,
+						)
+						if err != nil {
+							t.Fatal(err)
+						}
+						expected, err := structuredResult(map[string]any{"session": owned[0]}, previous.ID)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if !bytes.Equal(full.Structured, expected.Structured) {
+							t.Fatalf(
+								"full view changed previous payload: got %s want %s",
+								full.Structured,
+								expected.Structured,
+							)
+						}
+						for _, path := range []string{"session.lineage.permission_policy", "session.stop_reason", "session.stop_detail", "session.failure", "session.pending_interactions.0.interaction_id", "session.pending_interactions.0.kind"} {
+							value := c
+							if strings.Contains(path, "permission_policy") {
+								value = f
+							}
+							if _, ok := nativeResultAtPath(value, strings.Split(path, ".")); !ok {
+								t.Fatalf("missing %s", path)
+							}
+						}
+						for _, path := range []string{"session.runtime.generation", "session.transcript_epoch"} {
+							for _, value := range []any{c, f} {
+								if _, ok := nativeResultAtPath(value, strings.Split(path, ".")); ok != bound {
+									t.Fatalf("%s presence=%v bound=%v", path, ok, bound)
+								}
+							}
+						}
+					}
+					if tc.id == toolspkg.ToolIDSessionCreate {
+						for _, path := range []string{"session.runtime.generation", "session.transcript_epoch"} {
+							for _, value := range []any{c, f} {
+								if _, ok := nativeResultAtPath(value, strings.Split(path, ".")); ok {
+									t.Fatalf("new session contains %s", path)
+								}
+							}
+						}
+					}
+				}
+			},
+		)
+	}
+}
+
+func TestNativeToolHookResultViews(t *testing.T) {
+	t.Parallel()
+	for _, view := range []toolspkg.ResultView{"", toolspkg.ResultViewCompact, toolspkg.ResultViewFull} {
+		t.Run("Should report the resolved request view "+string(view), func(t *testing.T) {
+			t.Parallel()
+			descriptor := toolspkg.Descriptor{
+				ID: "compozy__hook_views", Backend: toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo}, ReadOnly: true,
+			}
+			if view != "" {
+				descriptor.SetResultViews(&toolspkg.ResultViews{})
+			}
+			call := toolspkg.CallRequest{
+				ToolID:     descriptor.ID,
+				ToolCallID: "call-views",
+				Input:      json.RawMessage(`{}`),
+				View:       view,
+				PinnedView: view,
+			}
+			wantRef := hookspkg.ToolCallRef{
+				ToolID: descriptor.ID.String(), ToolCallID: call.ToolCallID, ReadOnly: true,
+				HasResultViews: view != "", PinnedResultView: string(view),
+			}
+			var events []string
+			hooks := &fakeHookRuntime{
+				onToolPreCall: func(_ context.Context, payload hookspkg.ToolPreCallPayload) error {
+					events = append(events, "pre")
+					if payload.ToolCallRef != wantRef {
+						t.Errorf("pre-call ref=%#v, want %#v", payload.ToolCallRef, wantRef)
+					}
+					return nil
+				},
+				onToolPostCall: func(_ context.Context, payload hookspkg.ToolPostCallPayload) error {
+					events = append(events, "post")
+					if payload.ToolCallRef != wantRef || payload.ResultView != string(view) {
+						t.Errorf(
+							"post-call ref/view=%#v/%s, want %#v/%s",
+							payload.ToolCallRef,
+							payload.ResultView,
+							wantRef,
+							view,
+						)
+					}
+					return nil
+				},
+				onToolPostError: func(_ context.Context, payload hookspkg.ToolPostErrorPayload) error {
+					events = append(events, "error")
+					if payload.ToolCallRef != wantRef {
+						t.Errorf("post-error ref=%#v, want %#v", payload.ToolCallRef, wantRef)
+					}
+					return nil
+				},
+			}
+			runner := &nativeToolHookRunner{hooks: hooks, binder: &nativeWorkspaceInputBinder{}}
+			if _, _, err := runner.PreCall(t.Context(), toolspkg.Scope{}, descriptor, call); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := runner.PostCall(
+				t.Context(),
+				toolspkg.Scope{},
+				descriptor,
+				call,
+				toolspkg.ToolResult{},
+			); err != nil {
+				t.Fatal(err)
+			}
+			failure := errors.New("handler failed")
+			if got, err := runner.PostError(
+				t.Context(),
+				toolspkg.Scope{},
+				descriptor,
+				call,
+				failure,
+			); err != nil ||
+				!errors.Is(got, failure) {
+				t.Fatalf("PostError=%v, %v", got, err)
+			}
+			if !slices.Equal(events, []string{"pre", "post", "error"}) {
+				t.Fatalf("hook events=%v", events)
+			}
+		})
+	}
+}
+
+// UT-032: handler payloads carrying corrected fields satisfy the declared output contract.
+func TestNativeCorrectedOutputSchemas(t *testing.T) {
+	t.Parallel()
+	opened := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	request := contract.LoopRequestPayload{
+		WorkspaceID: "ws-a",
+		ProfileID:   "profile-a",
+		LoopRunID:   "run-a",
+		Generation:  1,
+		NodeID:      "ask",
+		Kind:        "ask",
+		State:       "pending",
+		Context:     json.RawMessage(`{}`),
+		Decisions:   []string{"respond"},
+		Agents:      "allow",
+		OpenedAt:    opened,
+	}
+	grant := materializedApprovalGrant(
+		"grant-a",
+		toolspkg.ApprovalGrantKey{
+			ProfileID:   "profile-a",
+			WorkspaceID: "ws-a",
+			ToolID:      toolspkg.ToolIDLoopRuns,
+			AccessScope: "workspace:ws-b",
+		},
+		toolspkg.ApprovalGrantAllow,
+	)
+	loopRuns := contract.LoopRunsResponse{
+		Runs:       []contract.LoopRunPayload{},
+		Aggregates: contract.LoopRunsAggregatePayload{Historical: 1},
+	}
+	loopStatus := contract.LoopRunResponse{
+		Run: contract.LoopRunPayload{ID: "run-a", CompletionState: "complete"},
+		Generations: []contract.LoopGenerationPayload{
+			{
+				Generation:  1,
+				Origin:      "initial",
+				RouteCauses: []contract.LoopRouteCausePayload{},
+				Verdicts: []contract.LoopGateVerdictPayload{
+					{
+						GateID:         "gate",
+						ItemIndex:      2,
+						Outcome:        "approved",
+						BlockingIssues: []contract.LoopGateBlockingIssuePayload{},
+						Criteria:       []contract.LoopGateCriterionDetailPayload{},
+					},
+				},
+				Outputs: []contract.LoopGenerationOutput{
+					{NodeID: "agent", Status: "succeeded", SessionID: "sess-a"},
+				},
+			},
+		},
+		NodeControls: []contract.LoopNodeControlPayload{},
+		Waits:        []contract.LoopNodeWaitPayload{},
+		Requests:     []contract.LoopRequestPayload{request},
+		Amendments:   []contract.LoopNodeAmendmentPayload{},
+	}
+	loopNodes := contract.LoopNodeInventoryResponse{Items: []contract.LoopNodeInventoryItem{{
+		WorkspaceID: "ws-a", State: contract.LoopNodeInventoryRetrying,
+		LoopRunID: "run-a", LoopName: "repair", Generation: 1, NodeID: "agent", StateAt: opened,
+		Output: &contract.LoopGenerationOutput{NodeID: "agent", Status: "failed", SessionID: "sess-a"},
+	}}}
+	loopRequests := contract.LoopRequestsResponse{Items: []contract.LoopRequestPayload{request}}
+	inputs := map[toolspkg.ToolID]string{
+		toolspkg.ToolIDLoopNodes:         `{"state":"retrying"}`,
+		toolspkg.ToolIDLoopRuns:          `{}`,
+		toolspkg.ToolIDLoopStatus:        `{"run_id":"run-a"}`,
+		toolspkg.ToolIDLoopRequests:      `{}`,
+		toolspkg.ToolIDLoopRequest:       `{"run_id":"run-a","generation":1,"node_id":"ask"}`,
+		toolspkg.ToolIDCmdPaletteInvoke:  `{"id":"core.test"}`,
+		toolspkg.ToolIDToolApprovalsSet:  `{"tool_id":"compozy__loop_runs","decision":"allow","scope":"tool"}`,
+		toolspkg.ToolIDToolApprovalsList: `{}`,
+	}
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		rawInput, ok := inputs[descriptor.ID]
+		if !ok {
+			continue
+		}
+		t.Run("Should accept returned fields for "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			service := &nativeLoopServiceStub{
+				listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
+					return loopNodes, nil
+				},
+				listLoopRunsFn: func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error) {
+					return loopRuns, nil
+				},
+				getLoopRunFn: func(context.Context, string, string) (contract.LoopRunResponse, error) {
+					return loopStatus, nil
+				},
+				listLoopRequestsFn: func(context.Context, string, core.LoopRequestListQuery) (contract.LoopRequestsResponse, error) {
+					return loopRequests, nil
+				},
+				getLoopRequestFn: func(context.Context, string, string, int, string, int) (contract.LoopRequestPayload, error) {
+					return request, nil
+				},
+			}
+			palette := &nativeCmdPaletteRegistryStub{invokeResult: cmdpalette.InvokeResult{Status: "completed"}}
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{
+					Sessions:   nativeTestSessionManager("ws-a"),
+					Workspaces: &nativeCmdPaletteWorkspaceStub{resolved: map[string]string{"ws-a": "ws-a"}},
+					Loops:      func() core.LoopService { return service },
+					CmdPalette: func() cmdpalette.Registry { return palette },
+					ApprovalGrants: &correctedOutputGrantStore{
+						recordingApprovalGrantStore: &recordingApprovalGrantStore{
+							grants: []toolspkg.ApprovalGrant{grant},
+						},
+					},
+				},
+				nativeApproveAllPolicyInputs(),
+			)
+			input := json.RawMessage(rawInput)
+			if descriptor.ResultViews() != nil {
+				var fields map[string]any
+				if err := json.Unmarshal(input, &fields); err != nil {
+					t.Fatal(err)
+				}
+				fields[toolspkg.ResultViewInputKey] = "full"
+				var err error
+				input, err = json.Marshal(fields)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{
+					ProfileID:   store.DefaultProfileID,
+					WorkspaceID: "ws-a",
+					SessionID:   "sess-a",
+					AgentName:   "codex",
+				},
+				toolspkg.CallRequest{ToolID: descriptor.ID, Input: input},
+			)
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			if views := descriptor.ResultViews(); views != nil {
+				descriptor.OutputSchema = views.Full.Schema
+			}
+			requireNativeOutputSchemaAccepts(t, descriptor, result.Structured)
+		})
+	}
+	mutation := contract.LoopMutationResponse{
+		OK: true, RunID: "run-a", NodeID: "agent", ItemIndex: new(1), Status: "paused",
+		Provenance: &contract.LoopControlProvenancePayload{
+			ActorKind: "human", ActorID: "user-a", Reason: "repair", RuleID: "rule-a", RequestedAt: opened,
+		},
+		Control: &contract.LoopNodeControlPayload{
+			LoopRunID: "run-a", NodeID: "agent", Paused: true, Quarantined: true,
+			QuarantineEntry: json.RawMessage(`{"failure":"provider unavailable"}`),
+			AttentionFlag:   "blocked", AttentionReason: "repair", AttentionProducerNodeID: "producer",
+			CancelState: "requested", DeathResumeStreak: 2, Revision: 3, UpdatedAt: opened,
+		},
+	}
+	singleResults := map[toolspkg.ToolID]any{
+		toolspkg.ToolIDLoopCancel:      mutation,
+		toolspkg.ToolIDLoopNodeCancel:  mutation,
+		toolspkg.ToolIDLoopNodePause:   mutation,
+		toolspkg.ToolIDLoopNodeRequeue: mutation,
+		toolspkg.ToolIDLoopNodeResume:  mutation,
+		toolspkg.ToolIDLoopRequest:     request,
+		toolspkg.ToolIDLoopRespond: contract.RespondLoopRequestResponse{
+			OK: true, RunID: "run-a", NodeID: "ask", Decision: "respond", State: "answered",
+			Provenance: contract.LoopRequestProvenance{ActorKind: "human", ActorID: "user-a", AnsweredAt: opened},
+		},
+		toolspkg.ToolIDLoopRerun: contract.RerunLoopResponse{
+			RunID:            "run-a",
+			Generation:       2,
+			ParentGeneration: 1,
+			RerunNodes:       []string{"agent"},
+			Carried:          1,
+			Replayed:         true,
+		},
+		toolspkg.ToolIDLoopDiff: contract.LoopDiffResponse{
+			Kind: "generation", DefinitionDivergence: true,
+			Base:    contract.LoopDiffEndpoint{RunID: "run-a", Generation: 1, Status: "failed", AsOf: true},
+			Against: contract.LoopDiffEndpoint{RunID: "run-a", Generation: 2, Status: "done", AsOf: true},
+			Inputs: []contract.LoopDiffInputRow{{
+				Key: "brief", Base: contract.LoopDiffValue{Inline: json.RawMessage(`"original"`)},
+				Against: contract.LoopDiffValue{Size: 20000, Hash: "sha256:changed"},
+			}},
+			Nodes: []contract.LoopDiffNodeRow{{
+				NodeID: "agent", ItemIndex: 1, Change: "changed", Cause: "repair",
+				Base:    contract.LoopDiffValue{Inline: json.RawMessage(`{"error":"provider unavailable"}`)},
+				Against: contract.LoopDiffValue{Size: 20000, Hash: "sha256:changed"},
+			}},
+			Terminal: &contract.LoopDiffTerminalRow{Base: "failed", Against: "done"},
+		},
+	}
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		payload, ok := singleResults[descriptor.ID]
+		if !ok {
+			continue
+		}
+		t.Run("Should retain populated single-result fields for "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			data, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireNativeOutputSchemaAccepts(t, descriptor, data)
+		})
+	}
+}
+
+type correctedOutputGrantStore struct{ *recordingApprovalGrantStore }
+
+func (s *correctedOutputGrantStore) PutApprovalGrant(
+	context.Context,
+	toolspkg.ApprovalGrant,
+) (toolspkg.ApprovalGrant, error) {
+	return s.grants[0], nil
+}
+
+type mcpAuthoritySessionReaderFunc func(context.Context, string) (*session.Info, error)
+
+func (f mcpAuthoritySessionReaderFunc) Status(ctx context.Context, id string) (*session.Info, error) {
+	return f(ctx, id)
+}
+
+func nativeRootToolLineage() *store.SessionLineage {
+	var ids []string
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		ids = append(ids, descriptor.ID.String())
+	}
+	return &store.SessionLineage{PermissionPolicy: store.SessionPermissionPolicy{
+		MCPServersMode: store.PermissionInherit, ToolsMode: store.PermissionInherit,
+		Tools: ids, MaterializedTools: true,
+	}}
+}
+
+// nativePolicyCountingProvider models a dynamic listing behind the real authority resolver.
+type nativePolicyCountingProvider struct {
+	toolspkg.Provider
+	calls atomic.Int64
+}
+
+func (p *nativePolicyCountingProvider) List(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.Descriptor, error) {
+	p.calls.Add(1)
+	return p.Provider.List(ctx, scope)
+}
+func (p *nativePolicyCountingProvider) ProjectionScope(toolspkg.Scope) toolspkg.Scope {
+	return toolspkg.Scope{}
 }

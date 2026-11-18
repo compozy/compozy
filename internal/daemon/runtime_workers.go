@@ -24,14 +24,23 @@ type daemonRuntimeWorkers struct {
 	authoredHeartbeatWake *apiHeartbeatWakePrompter
 	loopReconciler        *loopReconcilerRuntime
 	managedDeliveries     *ownedWorkerGroup
+	providerAuthStartup   *ownedWorkerGroup
+	mcpDeclarations       *ownedWorkerGroup
+	terminalWindows       *ownedWorkerGroup
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
+	appendWrappedError(errs, "daemon: stop terminal window retirement",
+		stopOwnedWorker(ctx, "terminal window retirement", w.terminalWindows))
+	appendWrappedError(errs, "daemon: stop MCP declarations watcher",
+		stopOwnedWorker(ctx, mcpDeclarationWatcherLabel, w.mcpDeclarations))
 	if w.proactiveChecks != nil {
 		appendWrappedError(errs, "daemon: shutdown proactive checks", w.proactiveChecks.Shutdown(ctx))
 	}
 	appendWrappedError(errs, "daemon: stop managed delivery recovery",
-		stopManagedDeliveryRecovery(ctx, w.managedDeliveries))
+		stopOwnedWorker(ctx, managedDeliveryRecoveryLabel, w.managedDeliveries))
+	appendWrappedError(errs, "daemon: stop provider sign-in check",
+		stopOwnedWorker(ctx, providerAuthStartupLabel, w.providerAuthStartup))
 	if w.instanceMaintenance != nil {
 		appendWrappedError(errs, "daemon: shutdown instance maintenance", w.instanceMaintenance.Shutdown(ctx))
 	}

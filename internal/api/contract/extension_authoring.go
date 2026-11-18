@@ -8,17 +8,25 @@ const (
 	IssueSeverityError IssueSeverity = "error"
 	// IssueSeverityWarning reports non-blocking authoring guidance.
 	IssueSeverityWarning IssueSeverity = "warning"
+	// IssueSeverityInfo reports discovery notices.
+	IssueSeverityInfo IssueSeverity = "info"
 	// IssueSeverityWarn reports one non-blocking portable-package skip.
 	IssueSeverityWarn IssueSeverity = "warn"
 )
 
 // IssueSeverityValues returns the closed validation-severity set.
 func IssueSeverityValues() []string {
-	return []string{string(IssueSeverityError), string(IssueSeverityWarning), string(IssueSeverityWarn)}
+	return []string{
+		string(IssueSeverityError),
+		string(IssueSeverityWarning),
+		string(IssueSeverityWarn),
+		string(IssueSeverityInfo),
+	}
 }
 
 // ValidationIssue is one positioned extension-package validation diagnostic.
 type ValidationIssue struct {
+	Code     string        `json:"code,omitempty"`
 	Path     string        `json:"path"`
 	Scope    string        `json:"scope,omitempty"`
 	Line     int           `json:"line,omitempty"`
@@ -54,6 +62,7 @@ type ExtensionManifestSummary struct {
 
 // ExtensionValidatePayload is the shared result for extension-package validation surfaces.
 type ExtensionValidatePayload struct {
+	Inputs       []MarketplaceInputPayload      `json:"inputs,omitempty"`
 	Status       string                         `json:"status"`
 	Format       string                         `json:"format"`
 	Name         string                         `json:"name,omitempty"`

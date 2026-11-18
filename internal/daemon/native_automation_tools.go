@@ -42,7 +42,7 @@ func (n *daemonNativeTools) automationJobsGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
+	return jobRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationJobsCreate(
@@ -68,7 +68,7 @@ func (n *daemonNativeTools) automationJobsCreate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := n.automationJobPayloadBestEffort(ctx, created)
-	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
+	return jobRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationJobsUpdate(
@@ -117,7 +117,7 @@ func (n *daemonNativeTools) automationJobsUpdate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := n.automationJobPayloadBestEffort(ctx, updated)
-	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
+	return jobRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationJobsDelete(
@@ -179,7 +179,7 @@ func (n *daemonNativeTools) automationJobsTrigger(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	var input automationJobIDInput
+	var input automationJobTriggerInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -195,7 +195,11 @@ func (n *daemonNativeTools) automationJobsTrigger(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
-	run, err := n.automationManager().TriggerJob(ctx, job.ID)
+	waitTimeout, err := automationpkg.ParseJobWaitTimeout(input.Wait, input.Timeout)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
+	}
+	run, err := n.automationManager().StartJob(ctx, job.ID, waitTimeout)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}

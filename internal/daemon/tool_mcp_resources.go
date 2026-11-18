@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	"errors"
 
@@ -63,17 +65,19 @@ type toolMCPDeclarationProvider func(context.Context) (toolMCPDesiredResources, 
 type toolMCPConfigDeclarationProvider func(context.Context, *compozyconfig.Config) (toolMCPDesiredResources, error)
 
 type toolMCPSourceSyncer struct {
-	raw        resources.RawStore
-	toolStore  resources.Store[toolspkg.Tool]
-	toolCodec  resources.KindCodec[toolspkg.Tool]
-	mcpStore   resources.Store[compozyconfig.MCPServer]
-	mcpCodec   resources.KindCodec[compozyconfig.MCPServer]
-	actor      resources.MutationActor
-	logger     *slog.Logger
-	trigger    func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
-	config     toolMCPConfigDeclarationProvider
-	providers  []toolMCPDeclarationProvider
-	prepareMCP func(context.Context, []toolMCPDesiredResources) error
+	declarationWatch *mcpDeclarationWatcher
+	syncMu           sync.Mutex
+	raw              resources.RawStore
+	toolStore        resources.Store[toolspkg.Tool]
+	toolCodec        resources.KindCodec[toolspkg.Tool]
+	mcpStore         resources.Store[compozyconfig.MCPServer]
+	mcpCodec         resources.KindCodec[compozyconfig.MCPServer]
+	actor            resources.MutationActor
+	logger           *slog.Logger
+	trigger          func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	config           toolMCPConfigDeclarationProvider
+	providers        []toolMCPDeclarationProvider
+	prepareMCP       func(context.Context, []toolMCPDesiredResources) error
 }
 
 func newToolMCPSourceSyncer(
@@ -154,7 +158,22 @@ func (s *toolMCPSourceSyncer) Sync(ctx context.Context) error {
 }
 
 func (s *toolMCPSourceSyncer) SyncConfig(ctx context.Context, cfg *compozyconfig.Config) error {
-	return s.syncConfig(ctx, cfg)
+	if s == nil || s.declarationWatch == nil || ctx == nil {
+		return s.syncConfig(ctx, cfg)
+	}
+	watcher := s.declarationWatch
+	watcher.mu.Lock()
+	defer watcher.mu.Unlock()
+	err := s.syncConfig(ctx, cfg)
+	// Settings already wrote desired files. Observe both apply and rollback so the
+	// file watcher does not silently reapply a rejected desired configuration.
+	observeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	snapshot, observeErr := watcher.capture(observeCtx)
+	if observeErr == nil {
+		watcher.snapshots = snapshot
+	}
+	return errors.Join(err, observeErr)
 }
 
 func (s *toolMCPSourceSyncer) syncConfig(ctx context.Context, cfg *compozyconfig.Config) error {
@@ -163,6 +182,11 @@ func (s *toolMCPSourceSyncer) syncConfig(ctx context.Context, cfg *compozyconfig
 	}
 	if ctx == nil {
 		return errors.New("daemon: tool/mcp sync context is required")
+	}
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	desired, err := s.desiredResources(ctx, cfg)

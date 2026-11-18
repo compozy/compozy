@@ -11,7 +11,7 @@ func sessionProcessDescriptors() []toolspkg.Descriptor {
 		toolspkg.ToolIDSessionProcessesList,
 		"session_processes_list",
 		"Session Processes List",
-		"List processes attributed to a same-workspace session. Defaults to the caller. "+
+		"List processes attributed to a session in the caller workspace and profile. Defaults to the caller. "+
 			"Includes background processes, active tools and native terminals; supported=false on unsupported hosts. "+
 			"trees groups the items into logical process trees (a browser and its helpers, a dev server behind "+
 			"`bun run`): each tree's lead names it and items carry tree_id.",

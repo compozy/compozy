@@ -2,6 +2,8 @@ import * as matchers from "@testing-library/jest-dom/matchers";
 import type { TestingLibraryMatchers } from "@testing-library/jest-dom/matchers";
 import { beforeEach, expect } from "vitest";
 
+import { clearRetainedEditorDrafts } from "@/systems/agent/lib/retained-editor-drafts";
+
 // jest-dom 7 declares the pre-Vitest-5 assertion interface.
 declare module "vitest" {
   interface Matchers<
@@ -72,6 +74,8 @@ if (typeof window !== "undefined") {
   beforeEach(() => {
     window.localStorage.clear();
     window.sessionStorage.clear();
+    // Agent editors keep unsaved drafts for the page's life (#1653); each case is a new page.
+    clearRetainedEditorDrafts();
   });
 
   Object.defineProperty(window, "matchMedia", {

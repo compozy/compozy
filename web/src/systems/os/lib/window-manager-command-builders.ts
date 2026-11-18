@@ -1,51 +1,219 @@
-import type { MoveWindowInput, OsArrangePreset, OsWindow, OsWindowRoute } from "./os-types";
+import type { DropEdge } from "./drop-edge";
 import type {
-  PixelRect,
+  MoveWindowInput,
+  OsArrangePreset,
+  OsCloseScope,
+  OsNavigateMode,
+  OsOpenTarget,
+  OsWindowRoute,
+} from "./os-types";
+import type {
+  DesktopId,
+  LayoutTab,
+  TabId,
+  WindowId,
+  FocusWindowOptions,
   WindowManagerCommandInput,
-  WindowManagerWindow,
 } from "./window-manager-types";
-import { normalizedRectToWire, pixelRectToNormalized } from "./window-manager-view";
+import { defaultOsWindowRoute } from "./window-manager-view";
 
-export function restoreWindowCommand(
-  window: WindowManagerWindow,
-  route: OsWindowRoute = window.route
+/**
+ * A new window opens as a tab after the active tab (the daemon's default policy), as a tab right
+ * after `afterWindowId`'s tab, or with `placement: "split"` beside the focused window.
+ */
+export function openWindowCommand(
+  target: OsOpenTarget,
+  id: string,
+  desktopId: string
 ): WindowManagerCommandInput {
   return {
     commandId: "window.open",
     payload: {
       window: {
-        id: window.id,
-        app: window.app,
-        ...(window.instanceKey ? { instance_key: window.instanceKey } : {}),
-        route,
-        desktop_id: window.desktopId,
-        floating_rect: normalizedRectToWire(window.floatingRect),
-        insert_tiled: false,
+        id,
+        app: target.app,
+        ...(target.instanceKey ? { instance_key: target.instanceKey } : {}),
+        route: target.route ?? defaultOsWindowRoute(target.app),
+        desktop_id: desktopId,
+        ...(target.placement === "split" ? { insert_tiled: true } : {}),
+        ...(target.afterWindowId ? { stack_target_window_id: target.afterWindowId } : {}),
       },
-      restore_window_id: window.id,
     },
   };
 }
 
-export function moveWindowCommand(
-  id: string,
-  input: MoveWindowInput,
-  workArea: PixelRect
+export function focusWindowCommand(
+  windowId: string,
+  options: FocusWindowOptions = {}
 ): WindowManagerCommandInput {
-  const normalized = input.floatingRect
-    ? pixelRectToNormalized(input.floatingRect, workArea)
-    : undefined;
+  return {
+    commandId: "window.focus",
+    payload: { window_id: windowId, direction: "" },
+    rebase: { windowId },
+    ...(options.replaceable === true ? { replaceable: true } : {}),
+  };
+}
+
+/** Moves the window's tab to `index`; the daemon keeps it inside its pinned or unpinned range. */
+export function reorderTabCommand(windowId: string, index: number): WindowManagerCommandInput {
+  return {
+    commandId: "window.tab.reorder",
+    payload: { window_id: windowId, index },
+    rebase: { windowId },
+  };
+}
+
+/** Makes the window's tab the active tab for this client and the desktop default. */
+export function activateTabCommand(windowId: string): WindowManagerCommandInput {
+  return {
+    commandId: "window.tab.activate",
+    payload: { window_id: windowId },
+    rebase: { windowId },
+  };
+}
+
+export function pinWindowCommand(windowId: string, pinned: boolean): WindowManagerCommandInput {
+  return { commandId: "window.pin", payload: { window_id: windowId, pinned } };
+}
+
+export function reopenWindowCommand(): WindowManagerCommandInput {
+  return { commandId: "window.reopen", payload: {} };
+}
+
+/**
+ * `tab` is the wire default and travels as an absent scope; every other scope is one command,
+ * one revision, one closed entry.
+ */
+export function closeWindowCommand(
+  windowId: string,
+  scope: OsCloseScope = "tab"
+): WindowManagerCommandInput {
+  return {
+    commandId: "window.close",
+    payload: { window_id: windowId, ...(scope === "tab" ? {} : { scope }) },
+  };
+}
+
+/**
+ * `pop` discards the payload route by contract — strict decode rejects a non-empty route
+ * alongside it — so the builder never emits one.
+ */
+export function navigateWindowCommand(
+  windowId: string,
+  route: OsWindowRoute | null,
+  mode: OsNavigateMode = "replace"
+): WindowManagerCommandInput {
+  if (mode === "pop") {
+    return { commandId: "window.navigate", payload: { window_id: windowId, mode: "pop" } };
+  }
+  return {
+    commandId: "window.navigate",
+    payload: {
+      window_id: windowId,
+      route: route ?? { pathname: "/", search: {} },
+      ...(mode === "push" ? { mode: "push" } : {}),
+    },
+  };
+}
+
+/** Replace navigation that also re-keys the window's app instance. */
+export function retargetWindowCommand(
+  windowId: string,
+  instanceKey: string,
+  route: OsWindowRoute
+): WindowManagerCommandInput {
+  return {
+    commandId: "window.navigate",
+    payload: { window_id: windowId, route, instance_key: instanceKey },
+  };
+}
+
+/**
+ * `tab` places the window (or its whole tab with `moveGroup`) as a tab after the target's tab, or
+ * at the end of the destination bar; an edge placement splits beside the target window, or at the
+ * root edge of `targetTabId`.
+ */
+export function moveWindowCommand(id: string, input: MoveWindowInput): WindowManagerCommandInput {
   return {
     commandId: "window.move",
     payload: {
       window_id: id,
       destination_desktop_id: input.destinationDesktopId,
       ...(input.targetWindowId ? { target_window_id: input.targetWindowId } : {}),
+      ...(input.targetTabId ? { target_tab_id: input.targetTabId } : {}),
       placement: input.placement,
-      ...(normalized ? { floating_rect: normalizedRectToWire(normalized) } : {}),
       move_group: input.moveGroup ?? false,
     },
   };
+}
+
+/** The window facts a split command needs: a single-window tab has nothing to unsplit or tile. */
+type SplitMember = Readonly<{ id: WindowId; desktopId: DesktopId; tabId: TabId; inSplit: boolean }>;
+
+/** "Move to new tab": a split member becomes its own tab right after its source tab (US-010). */
+export function unsplitWindowCommand(window: SplitMember): WindowManagerCommandInput | null {
+  if (!window.inSplit) return null;
+  return {
+    ...moveWindowCommand(window.id, { destinationDesktopId: window.desktopId, placement: "tab" }),
+    rebase: { windowId: window.id, tabId: window.tabId },
+  };
+}
+
+/**
+ * `window.tile.left|right|top|bottom`: the window moves to that root edge of its own tab
+ * (US-012.AC-2). A single-window tab has no edge to move to.
+ */
+export function tileWindowCommand(
+  window: SplitMember,
+  edge: DropEdge
+): WindowManagerCommandInput | null {
+  if (!window.inSplit) return null;
+  return {
+    ...moveWindowCommand(window.id, {
+      destinationDesktopId: window.desktopId,
+      targetTabId: window.tabId,
+      placement: edge,
+    }),
+    rebase: { windowId: window.id, tabId: window.tabId },
+  };
+}
+
+/**
+ * "Split with ▸": the chosen tab joins `hostTabId` as a split, on the right (US-012.AC-3). The
+ * chosen tab moves whole, so a split tab brings its members.
+ */
+export function splitWithCommand(
+  desktopId: DesktopId,
+  hostTabId: TabId,
+  chosenLeadId: WindowId
+): WindowManagerCommandInput {
+  return {
+    ...moveWindowCommand(chosenLeadId, {
+      destinationDesktopId: desktopId,
+      targetTabId: hostTabId,
+      placement: "right",
+      moveGroup: true,
+    }),
+    rebase: { windowId: chosenLeadId, tabId: hostTabId },
+  };
+}
+
+/**
+ * The bar index "Move left" / "Move right" reaches: one step within the tab's pinned or unpinned
+ * range, or null at the range's edge, where the item is absent.
+ */
+export function adjacentTabIndex(
+  tabs: readonly LayoutTab[],
+  tabId: TabId,
+  direction: "left" | "right"
+): number | null {
+  const index = tabs.findIndex(tab => tab.id === tabId);
+  const tab = tabs[index];
+  if (tab === undefined) return null;
+  const pins = tabs.filter(candidate => candidate.pinned).length;
+  const [first, last] = tab.pinned ? [0, pins - 1] : [pins, tabs.length - 1];
+  const next = direction === "left" ? index - 1 : index + 1;
+  return next < first || next > last ? null : next;
 }
 
 export function swapWindowsCommand(
@@ -54,10 +222,7 @@ export function swapWindowsCommand(
 ): WindowManagerCommandInput {
   return {
     commandId: "window.swap",
-    payload: {
-      first_window_id: firstWindowId,
-      second_window_id: secondWindowId,
-    },
+    payload: { first_window_id: firstWindowId, second_window_id: secondWindowId },
   };
 }
 
@@ -68,69 +233,57 @@ const ARRANGEMENT_BY_PRESET = {
   columns: "horizontal",
 } as const satisfies Record<OsArrangePreset, string>;
 
-/**
- * One participant per frame, in peer order: a lone window, or a deck named by
- * its active tab. The daemon arranges each named window's whole tab frame, so
- * a hidden tab stays in its deck and the anchor's own deck is never named twice.
- */
-function framePeers(anchor: OsWindow, peers: readonly OsWindow[]): OsWindow[] {
-  const claimedStacks = new Set<string>(anchor.stackId === null ? [] : [anchor.stackId]);
-  const participants: OsWindow[] = [];
-  for (const window of peers) {
-    const stackId = window.stackId;
-    if (stackId === null) {
-      participants.push(window);
-      continue;
-    }
-    if (claimedStacks.has(stackId)) continue;
-    claimedStacks.add(stackId);
-    participants.push(
-      peers.find(member => member.stackId === stackId && member.stackActive) ?? window
-    );
-  }
-  return participants;
-}
-
-/**
- * Participants per preset, anchor first: two-up pairs the anchor with one peer
- * frame and grid caps at four frames; main-stack and columns take every frame.
- */
-function arrangeParticipants(
-  anchor: OsWindow,
-  peers: readonly OsWindow[],
-  preset: OsArrangePreset
-): string[] {
-  const frames = framePeers(anchor, peers).map(window => window.id);
-  switch (preset) {
-    case "two-up":
-      return [anchor.id, ...frames.slice(0, 1)];
-    case "grid":
-      return [anchor.id, ...frames.slice(0, 3)];
-    case "main-stack":
-    case "columns":
-      return [anchor.id, ...frames];
-  }
-}
-
+/** One `layout.arrange` gathers the participants, in order, into one split tab. */
 export function arrangeLayoutCommand(
-  anchor: OsWindow,
-  peers: readonly OsWindow[],
-  preset: OsArrangePreset,
-  groupId: string
+  desktopId: string,
+  participants: readonly string[],
+  preset: OsArrangePreset
 ): WindowManagerCommandInput | null {
-  const participants = arrangeParticipants(anchor, peers, preset);
   if (participants.length < 2) return null;
   return {
     commandId: "layout.arrange",
     payload: {
-      desktop_id: anchor.desktopId,
-      window_ids: participants,
+      desktop_id: desktopId,
+      window_ids: [...participants],
       arrangement: ARRANGEMENT_BY_PRESET[preset],
-      frame: normalizedRectToWire({ x: 0, y: 0, w: 1, h: 1 }),
-      group_id: groupId,
-      // Participants are frames, one name per deck: the daemon keeps each
-      // named deck whole instead of pulling the named tab out of it.
-      keep_frames: true,
     },
   };
+}
+
+export function resizeLayoutCommand(
+  splitId: string,
+  boundaryIndex: number,
+  delta: number
+): WindowManagerCommandInput {
+  return {
+    commandId: "layout.resize",
+    payload: { split_id: splitId, boundary_index: boundaryIndex, delta },
+    rebase: { splitId, boundaryIndex },
+  };
+}
+
+/**
+ * Evens one split, or every split of a tab. The split guard names boundary 0, which every split
+ * has: the daemon rejects a split guard without a valid boundary, so this one matches exactly
+ * while the split still exists.
+ */
+export function balanceLayoutCommand(target: {
+  tabId?: string;
+  splitId?: string;
+}): WindowManagerCommandInput | null {
+  if (target.splitId) {
+    return {
+      commandId: "layout.balance",
+      payload: { split_id: target.splitId },
+      rebase: { splitId: target.splitId, boundaryIndex: 0 },
+    };
+  }
+  if (target.tabId) {
+    return {
+      commandId: "layout.balance",
+      payload: { tab_id: target.tabId },
+      rebase: { tabId: target.tabId },
+    };
+  }
+  return null;
 }

@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -13,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -22,6 +25,68 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
+
+func TestToolDescriptorResultViews(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		views bool
+	}{
+		{name: "Should preserve both result contracts in descriptor payloads", views: true},
+		{name: "Should omit result views for single result descriptors"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			descriptor := testToolDescriptor(toolspkg.ToolIDSessionStatus,
+				toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "compozy"}, toolspkg.VisibilityModel)
+			descriptor.OutputSchema = json.RawMessage(`{"type":"object","additionalProperties":false}`)
+			if tc.views {
+				descriptor.InputSchema = json.RawMessage(
+					`{"type":"object","properties":{"result_view":{"type":"string","enum":["compact","full"]}}}`,
+				)
+				descriptor.SetResultViews(&toolspkg.ResultViews{
+					Compact: toolspkg.ResultViewContract{Schema: descriptor.OutputSchema},
+					Full:    toolspkg.ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)},
+				})
+			}
+			descriptor, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			payload := core.ToolPayloadFromView(&toolspkg.ToolView{Descriptor: descriptor}).Descriptor
+			raw, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var fields map[string]json.RawMessage
+			decodeToolJSON(t, raw, &fields)
+			if !tc.views {
+				if _, exists := fields["output_views"]; exists || payload.OutputViews != nil {
+					t.Fatalf("single result descriptor exposes output_views: %s", raw)
+				}
+				return
+			}
+			var views toolspkg.ResultViews
+			decodeToolJSON(t, fields["output_views"], &views)
+			want := descriptor.ResultViews()
+			if !bytes.Equal(views.Compact.Schema, want.Compact.Schema) ||
+				!bytes.Equal(views.Full.Schema, want.Full.Schema) ||
+				views.Compact.Digest != want.Compact.Digest || views.Full.Digest != want.Full.Digest {
+				t.Fatalf("result contracts = %#v, want %#v", views, want)
+			}
+			if !bytes.Equal(payload.OutputSchema, views.Compact.Schema) ||
+				payload.OutputSchemaDigest != views.Compact.Digest {
+				t.Fatal("default output contract differs from compact")
+			}
+			payload.OutputViews.Compact.Schema[0] = 'x'
+			payload.OutputViews.Full.Schema[0] = 'x'
+			if !bytes.Equal(descriptor.ResultViews().Compact.Schema, want.Compact.Schema) ||
+				!bytes.Equal(descriptor.ResultViews().Full.Schema, want.Full.Schema) {
+				t.Fatal("payload mutation changed registry-owned contracts")
+			}
+		})
+	}
+}
 
 func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 	t.Parallel()
@@ -85,7 +150,8 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 		}
 		var search contract.ToolsResponse
 		decodeToolJSON(t, searchResp.Body.Bytes(), &search)
-		if got, want := len(search.Tools), 1; got != want {
+		if got, want := len(search.Tools), 1; got != want || search.Count != 1 || search.Total != 2 ||
+			!search.HasMore || search.NextOffset != 1 {
 			t.Fatalf("search tool count = %d, want %d", got, want)
 		}
 
@@ -108,8 +174,41 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 		if searchScope.SessionID != "sess-1" || searchScope.WorkspaceID != "ws-workspace" || searchScope.Operator {
 			t.Fatalf("session search scope = %#v, want session workspace scope", searchScope)
 		}
-		if searchQuery.Query != "skill" || searchQuery.Limit != 1 {
+		if searchQuery.Query != "skill" || sessionSearch.Count != 1 || sessionSearch.Total != 1 ||
+			sessionSearch.HasMore || sessionSearch.NextOffset != 0 {
 			t.Fatalf("session search query = %#v, want skill limit", searchQuery)
+		}
+
+		t.Run("Should page operator search before returning diagnostic matches", func(t *testing.T) {
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/tools/search",
+				[]byte(`{"query":"skill","limit":1,"offset":1}`),
+			)
+			var page contract.ToolsResponse
+			decodeToolJSON(t, response.Body.Bytes(), &page)
+			if response.Code != http.StatusOK || page.Count != 1 || page.Total != 2 || page.HasMore ||
+				page.NextOffset != 0 ||
+				page.Offset != 1 ||
+				len(page.Tools) != 1 ||
+				page.Tools[0].Descriptor.ToolID == search.Tools[0].Descriptor.ToolID {
+				t.Fatalf("search continuation = %d %#v", response.Code, page)
+			}
+		})
+		for _, route := range []string{"/tools/search", "/workspaces/ws-workspace/sessions/sess-1/tools/search"} {
+			t.Run("Should reject an invalid search limit at "+route, func(t *testing.T) {
+				response := performRequest(t, engine, http.MethodPost, route, []byte(`{"query":"skill","limit":101}`))
+				if response.Code != http.StatusBadRequest {
+					t.Fatalf("invalid search limit = %d %s", response.Code, response.Body)
+				}
+				var payload contract.ToolErrorResponse
+				decodeToolJSON(t, response.Body.Bytes(), &payload)
+				if payload.Error.Code != toolspkg.ErrorCodeInvalidInput {
+					t.Fatalf("invalid search error = %#v", payload)
+				}
+			})
 		}
 
 		getResp := performRequest(t, engine, http.MethodGet, "/tools/compozy__skill_view", nil)
@@ -127,7 +226,9 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/tools/compozy__skill_view/invoke",
-			[]byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"message":"hello"}}`),
+			[]byte(
+				`{"session_id":"sess-1","workspace_id":"ws-1","view":"full","pinned_view":"full","View":"full","PinnedView":"full","input":{"message":"hello"}}`,
+			),
 		)
 		if invokeResp.Code != http.StatusOK {
 			t.Fatalf("invoke status = %d, want %d; body=%s", invokeResp.Code, http.StatusOK, invokeResp.Body.String())
@@ -139,6 +240,11 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 		}
 		if registry.callCount(toolspkg.ToolIDSkillView) != 1 {
 			t.Fatalf("registry call count = %d, want 1", registry.callCount(toolspkg.ToolIDSkillView))
+		}
+
+		_, call := registry.lastCall()
+		if call.View != "" || call.PinnedView != "" || string(call.Input) != `{"message":"hello"}` {
+			t.Fatalf("transport request = %#v, want no wire view metadata", call)
 		}
 
 		toolsetsResp := performRequest(t, engine, http.MethodGet, "/toolsets", nil)
@@ -379,129 +485,155 @@ func newProfileScopedToolCoreEngine(t *testing.T) (*apiTestToolRegistry, *gin.En
 func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should page exact bytes through the durable workspace identity", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct{ name, workspaceID, selector, profileID, query string }{
+		{"Should page exact bytes through the durable workspace identity", "workspace-durable", "workspace-alias", "", ""},
+		{"Should page User artifacts in the selected profile", "", "@user", "profile-marketing", "&profile=marketing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		store, err := toolspkg.OpenFilesystemToolArtifactStore(
-			t.Context(),
-			t.TempDir(),
-			toolspkg.ToolArtifactRetention{MaxCount: 10, MaxBytes: 1 << 20, MaxAge: time.Hour},
-		)
-		if err != nil {
-			t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
-		}
-		content := []byte(`{"version":"compozy.tool-result/v1","tail":"D6-TAIL"}`)
-		ref, err := store.Put(t.Context(), "workspace-durable", content)
-		if err != nil {
-			t.Fatalf("Put() error = %v", err)
-		}
-		artifactID, err := toolspkg.ParseToolArtifactURI(ref.URI)
-		if err != nil {
-			t.Fatalf("ParseToolArtifactURI() error = %v", err)
-		}
+			store, err := toolspkg.OpenFilesystemToolArtifactStore(
+				t.Context(),
+				t.TempDir(),
+				toolspkg.ToolArtifactRetention{MaxCount: 10, MaxBytes: 1 << 20, MaxAge: time.Hour},
+			)
+			if err != nil {
+				t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
+			}
+			content := []byte(`{"version":"compozy.tool-result/v1","tail":"D6-TAIL"}`)
+			ref, err := store.Put(t.Context(), workspaceaccess.ScopeTarget(tc.workspaceID, tc.profileID), content)
+			if err != nil {
+				t.Fatalf("Put() error = %v", err)
+			}
+			artifactID, err := toolspkg.ParseToolArtifactURI(ref.URI)
+			if err != nil {
+				t.Fatalf("ParseToolArtifactURI() error = %v", err)
+			}
 
-		workspaces := defaultCoreWorkspaceService(testutil.StubWorkspaceService{
-			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-				if ref == "workspace-alias" {
+			workspaces := defaultCoreWorkspaceService(testutil.StubWorkspaceService{
+				ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					if ref == "workspace-alias" {
+						return workspacepkg.ResolvedWorkspace{
+							ID:          "registry-workspace",
+							WorkspaceID: "workspace-durable",
+						}, nil
+					}
 					return workspacepkg.ResolvedWorkspace{
-						ID:          "registry-workspace",
-						WorkspaceID: "workspace-durable",
+						ID:          "registry-other",
+						WorkspaceID: "workspace-other",
 					}, nil
+				},
+			})
+			homePaths, cfg := testutil.NewHomeConfig(t)
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				TransportName:      "api-core-test",
+				Profiles:           sessionProfileServiceStub{},
+				Workspaces:         workspaces,
+				ToolArtifacts:      store,
+				HomePaths:          homePaths,
+				Config:             cfg,
+				Logger:             testutil.DiscardLogger(),
+				MaskInternalErrors: false,
+			})
+			engine := newToolCoreEngine(t, handlers)
+
+			response := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/workspaces/"+tc.selector+"/tool-artifacts/"+artifactID+"?offset=2&limit=7"+tc.query,
+				nil,
+			)
+			if response.Code != http.StatusOK {
+				t.Fatalf("artifact read status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body)
+			}
+			var page contract.ToolArtifactPageResponse
+			decodeToolJSON(t, response.Body.Bytes(), &page)
+			decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+			if err != nil {
+				t.Fatalf("DecodeString() error = %v", err)
+			}
+			if got, want := string(decoded), string(content[2:9]); got != want {
+				t.Fatalf("artifact page = %q, want %q", got, want)
+			}
+			if page.Artifact != ref || page.Offset != 2 || page.Bytes != 7 || page.NextOffset != 9 || page.EOF {
+				t.Fatalf("artifact page metadata = %#v, want exact non-terminal page", page)
+			}
+
+			foreign := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/workspaces/workspace-other/tool-artifacts/"+artifactID,
+				nil,
+			)
+			if foreign.Code != http.StatusNotFound {
+				t.Fatalf(
+					"foreign artifact status = %d, want %d; body=%s",
+					foreign.Code,
+					http.StatusNotFound,
+					foreign.Body,
+				)
+			}
+
+			if tc.profileID != "" {
+				response := performRequest(
+					t,
+					engine,
+					http.MethodGet,
+					"/workspaces/@user/tool-artifacts/"+artifactID,
+					nil,
+				)
+				var payload contract.ToolErrorResponse
+				decodeToolJSON(t, response.Body.Bytes(), &payload)
+				if response.Code != http.StatusNotFound || payload.Error.Code != toolspkg.ErrorCodeNotFound {
+					t.Fatalf("foreign profile = %d/%s, want not found", response.Code, response.Body)
 				}
-				return workspacepkg.ResolvedWorkspace{
-					ID:          "registry-other",
-					WorkspaceID: "workspace-other",
-				}, nil
-			},
-		})
-		homePaths, cfg := testutil.NewHomeConfig(t)
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			TransportName:      "api-core-test",
-			Workspaces:         workspaces,
-			ToolArtifacts:      store,
-			HomePaths:          homePaths,
-			Config:             cfg,
-			Logger:             testutil.DiscardLogger(),
-			MaskInternalErrors: false,
-		})
-		engine := newToolCoreEngine(t, handlers)
+			}
 
-		response := performRequest(
-			t,
-			engine,
-			http.MethodGet,
-			"/workspaces/workspace-alias/tool-artifacts/"+artifactID+"?offset=2&limit=7",
-			nil,
-		)
-		if response.Code != http.StatusOK {
-			t.Fatalf("artifact read status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body)
-		}
-		var page contract.ToolArtifactPageResponse
-		decodeToolJSON(t, response.Body.Bytes(), &page)
-		decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
-		if err != nil {
-			t.Fatalf("DecodeString() error = %v", err)
-		}
-		if got, want := string(decoded), string(content[2:9]); got != want {
-			t.Fatalf("artifact page = %q, want %q", got, want)
-		}
-		if page.Artifact != ref || page.Offset != 2 || page.Bytes != 7 || page.NextOffset != 9 || page.EOF {
-			t.Fatalf("artifact page metadata = %#v, want exact non-terminal page", page)
-		}
-
-		foreign := performRequest(
-			t,
-			engine,
-			http.MethodGet,
-			"/workspaces/workspace-other/tool-artifacts/"+artifactID,
-			nil,
-		)
-		if foreign.Code != http.StatusNotFound {
-			t.Fatalf("foreign artifact status = %d, want %d; body=%s", foreign.Code, http.StatusNotFound, foreign.Body)
-		}
-
-		invalid := performRequest(
-			t,
-			engine,
-			http.MethodGet,
-			"/workspaces/workspace-alias/tool-artifacts/"+artifactID+"?limit=65537",
-			nil,
-		)
-		if invalid.Code != http.StatusBadRequest {
-			t.Fatalf(
-				"invalid artifact status = %d, want %d; body=%s",
-				invalid.Code,
-				http.StatusBadRequest,
-				invalid.Body,
+			invalid := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/workspaces/"+tc.selector+"/tool-artifacts/"+artifactID+"?limit=65537"+tc.query,
+				nil,
 			)
-		}
-		var invalidPayload contract.ToolErrorResponse
-		decodeToolJSON(t, invalid.Body.Bytes(), &invalidPayload)
-		if invalidPayload.Error.Code != toolspkg.ErrorCodeInvalidInput {
-			t.Fatalf("invalid artifact error = %#v, want invalid_input", invalidPayload.Error)
-		}
+			if invalid.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"invalid artifact status = %d, want %d; body=%s",
+					invalid.Code,
+					http.StatusBadRequest,
+					invalid.Body,
+				)
+			}
+			var invalidPayload contract.ToolErrorResponse
+			decodeToolJSON(t, invalid.Body.Bytes(), &invalidPayload)
+			if invalidPayload.Error.Code != toolspkg.ErrorCodeInvalidInput {
+				t.Fatalf("invalid artifact error = %#v, want invalid_input", invalidPayload.Error)
+			}
 
-		beyondEnd := performRequest(
-			t,
-			engine,
-			http.MethodGet,
-			"/workspaces/workspace-alias/tool-artifacts/"+artifactID+"?offset=999",
-			nil,
-		)
-		if beyondEnd.Code != http.StatusBadRequest {
-			t.Fatalf(
-				"beyond-end artifact status = %d, want %d; body=%s",
-				beyondEnd.Code,
-				http.StatusBadRequest,
-				beyondEnd.Body,
+			beyondEnd := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/workspaces/"+tc.selector+"/tool-artifacts/"+artifactID+"?offset=999"+tc.query,
+				nil,
 			)
-		}
-		var beyondEndPayload contract.ToolErrorResponse
-		decodeToolJSON(t, beyondEnd.Body.Bytes(), &beyondEndPayload)
-		if beyondEndPayload.Error.Code != toolspkg.ErrorCodeInvalidInput {
-			t.Fatalf("beyond-end artifact error = %#v, want invalid_input", beyondEndPayload.Error)
-		}
-	})
+			if beyondEnd.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"beyond-end artifact status = %d, want %d; body=%s",
+					beyondEnd.Code,
+					http.StatusBadRequest,
+					beyondEnd.Body,
+				)
+			}
+			var beyondEndPayload contract.ToolErrorResponse
+			decodeToolJSON(t, beyondEnd.Body.Bytes(), &beyondEndPayload)
+			if beyondEndPayload.Error.Code != toolspkg.ErrorCodeInvalidInput {
+				t.Fatalf("beyond-end artifact error = %#v, want invalid_input", beyondEndPayload.Error)
+			}
+		})
+	}
 }
 
 func TestToolErrorResponses(t *testing.T) {

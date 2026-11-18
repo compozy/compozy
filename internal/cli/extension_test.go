@@ -226,6 +226,53 @@ func TestExtensionInitHelpListsEveryScaffoldTemplate(t *testing.T) {
 func TestExtensionValidatePortableExitContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should show derived inputs and informational diagnostic codes", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(root, ".cursor-plugin", "plugin.json"),
+			[]byte(
+				`{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"client","version":"1.0.0"}`,
+			),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(root, "mcp.json"),
+			[]byte(
+				`{"mcpServers":{"remote":{"url":"https://${HOST}/mcp","headers":{"Authorization":"Bearer ${API_KEY}"}}}}`,
+			),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		stdout, _, err := executeRootCommand(t, commandDeps{}, "extension", "validate", root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"Inputs", "API_KEY", "secret", "HOST", "INFO", "client_mcp_discovered"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("missing %q in %s", want, stdout)
+			}
+		}
+		stdout, _, err = executeRootCommand(t, commandDeps{}, "extension", "validate", root, "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var report contract.ExtensionValidatePayload
+		if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+			t.Fatal(err)
+		}
+		if len(report.Inputs) != 2 || len(report.Issues) != 1 || report.Issues[0].Code != "client_mcp_discovered" ||
+			report.Issues[0].Severity != contract.IssueSeverityInfo {
+			t.Fatalf("report = %+v", report)
+		}
+	})
+
 	t.Run("Should keep warn-only portable validation successful and daemonless", func(t *testing.T) {
 		t.Parallel()
 
@@ -644,6 +691,7 @@ func TestInstallPreparedExtensionDetectsChecksumMismatch(t *testing.T) {
 		prepared,
 		fixedTestNow,
 		true,
+		false,
 	); err == nil ||
 		!errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch) {
 		t.Fatalf("installPreparedExtension(checksum mismatch) error = %v, want ErrExtensionChecksumMismatch", err)
@@ -1205,8 +1253,14 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 		wantScope     string
 		wantWorkspace string
 		wantProfile   string
+		wantEnable    bool
+		failEnable    bool
+		jsonOutput    bool
 	}{
 		{name: "Should preserve omitted selectors"},
+		{name: "Should return activation failure in command JSON", flags: []string{"--enable", "-o", "json"}, wantEnable: true, failEnable: true, jsonOutput: true},
+		{name: "Should forward enable for install and preview", flags: []string{"--enable", "-o", "json"}, wantEnable: true, jsonOutput: true},
+		{name: "Should keep successful exit and show retry when enable fails", flags: []string{"--enable"}, wantEnable: true, failEnable: true},
 		{name: "Should forward an explicit global profile", flags: []string{"--scope", "global", "--profile", "marketing"}, wantScope: "global", wantProfile: "marketing"},
 		{name: "Should resolve workspace and profile for both requests", flags: []string{"--workspace", "alpha", "--profile", "marketing"}, wantScope: "workspace", wantWorkspace: "ws-alpha", wantProfile: "marketing"},
 		{name: "Should honor explicit environment profile", envProfile: "marketing", wantProfile: "marketing"},
@@ -1234,7 +1288,14 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 				},
 				installExtensionFn: func(_ context.Context, request InstallExtensionRequest) (ExtensionRecord, error) {
 					installed = &request
-					return ExtensionRecord{Name: "scope-install-ext"}, nil
+					item := ExtensionRecord{Name: "scope-install-ext", Enabled: request.Enable && !scenario.failEnable}
+					if scenario.failEnable {
+						item.InstallEnableError = &contract.ExtensionEnableError{
+							Error: "couldn't turn on scope-install-ext",
+							Code:  "manifest_permission_denied",
+						}
+					}
+					return item, nil
 				},
 			})
 			deps.getenv = func(key string) string {
@@ -1248,13 +1309,32 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 			}
 			deps.processAlive = func(int) bool { return true }
 			args := append([]string{"extension", "install", dir, "--allow-unverified", "--yes"}, scenario.flags...)
-			if _, _, err := executeRootCommand(t, deps, args...); err != nil {
+			stdout, _, err := executeRootCommand(t, deps, args...)
+			if err != nil {
 				t.Fatal(err)
 			}
-			for _, request := range []*InstallExtensionRequest{previewed, installed} {
+			if scenario.failEnable && !scenario.jsonOutput &&
+				!strings.Contains(stdout, "Retry: compozy extension enable scope-install-ext") {
+				t.Fatalf("failure output = %s", stdout)
+			}
+			if scenario.jsonOutput {
+				var response contract.InstallExtensionResponse
+				if err := json.Unmarshal([]byte(stdout), &response); err != nil {
+					t.Fatal(err)
+				}
+				if response.Extension.Enabled != (scenario.wantEnable && !scenario.failEnable) ||
+					(response.EnableError != nil) != scenario.failEnable {
+					t.Fatalf("install output = %s", stdout)
+				}
+			}
+			requests := []*InstallExtensionRequest{installed}
+			if !scenario.jsonOutput {
+				requests = append(requests, previewed)
+			}
+			for _, request := range requests {
 				if request == nil || request.Scope != scenario.wantScope ||
 					request.WorkspaceID != scenario.wantWorkspace ||
-					request.Profile != scenario.wantProfile {
+					request.Profile != scenario.wantProfile || request.Enable != scenario.wantEnable {
 					t.Fatalf("forwarded request = %#v", request)
 				}
 			}
@@ -1674,6 +1754,90 @@ func newExtensionLocalDeps(t *testing.T, client DaemonClient) (commandDeps, comp
 		return cfg, nil
 	}
 	return deps, homePaths
+}
+
+func TestExtensionInstallReplaceReplacesInstalledVersion(t *testing.T) {
+	t.Parallel()
+
+	deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
+	dir := writeExtensionFixture(t, "cli-replace-ext", extensionFixtureOptions{})
+	if _, _, err := executeRootCommand(
+		t, deps, "extension", "install", dir, "--allow-unverified", "--yes", "-o", "json",
+	); err != nil {
+		t.Fatalf("extension install error = %v", err)
+	}
+	first := getInstalledExtension(t, homePaths, "cli-replace-ext")
+
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("fixture v2"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(README.md) error = %v", err)
+	}
+	_, _, err := executeRootCommand(
+		t, deps, "extension", "install", dir, "--allow-unverified", "--yes", "-o", "json",
+	)
+	if !errors.Is(err, extensionpkg.ErrExtensionExists) {
+		t.Fatalf("extension install duplicate error = %v, want ErrExtensionExists", err)
+	}
+
+	if _, _, err := executeRootCommand(
+		t, deps, "extension", "install", dir, "--replace", "--allow-unverified", "--yes", "-o", "json",
+	); err != nil {
+		t.Fatalf("extension install --replace error = %v", err)
+	}
+	second := getInstalledExtension(t, homePaths, "cli-replace-ext")
+	if second.Checksum == first.Checksum {
+		t.Fatalf("replaced checksum = %q, want a new checksum", second.Checksum)
+	}
+	wantChecksum, err := extensionpkg.ComputeDirectoryChecksum(dir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+	}
+	if second.Checksum != wantChecksum {
+		t.Fatalf("recorded checksum = %q, want %q", second.Checksum, wantChecksum)
+	}
+	if _, err := extensionpkg.LoadManifest(extensionpkg.ManagedInstallPath(homePaths, "cli-replace-ext")); err != nil {
+		t.Fatalf("LoadManifest(replaced) error = %v", err)
+	}
+	entries, err := os.ReadDir(extensionpkg.ManagedInstallRoot(homePaths))
+	if err != nil {
+		t.Fatalf("os.ReadDir(managed root) error = %v", err)
+	}
+	for _, entry := range entries {
+		if strings.Contains(entry.Name(), ".compozy-backup-") {
+			t.Fatalf("leftover managed install backup %q", entry.Name())
+		}
+	}
+}
+
+func TestExtensionInstallReplaceFlagReachesDaemon(t *testing.T) {
+	t.Parallel()
+
+	var captured InstallExtensionRequest
+	deps, _ := newExtensionLocalDeps(t, &stubClient{
+		installExtensionFn: func(_ context.Context, request InstallExtensionRequest) (ExtensionRecord, error) {
+			captured = request
+			return ExtensionRecord{
+				Name:          "replace-flag-ext",
+				Version:       "0.1.0",
+				Source:        string(contract.InstallExtensionSourceLocalPath),
+				State:         "active",
+				DaemonRunning: true,
+			}, nil
+		},
+	})
+	markExtensionDaemonRunning(&deps)
+	dir := writeExtensionFixture(t, "replace-flag-ext", extensionFixtureOptions{})
+
+	if _, _, err := executeRootCommand(
+		t, deps, "extension", "install", dir, "--replace", "--allow-unverified", "--yes", "-o", "json",
+	); err != nil {
+		t.Fatalf("extension install --replace error = %v", err)
+	}
+	if !captured.Replace {
+		t.Fatal("InstallExtension request replace = false, want true")
+	}
+	if captured.Source != contract.InstallExtensionSourceLocalPath || captured.Ref != dir {
+		t.Fatalf("InstallExtension request = %#v, want local path %q", captured, dir)
+	}
 }
 
 func writeExtensionFixture(t *testing.T, name string, opts extensionFixtureOptions) string {

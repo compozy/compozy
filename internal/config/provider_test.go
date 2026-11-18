@@ -47,12 +47,13 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 		required        bool
 	}{
 		{
-			name:         "claude",
-			command:      "npx -y @agentclientprotocol/claude-agent-acp@latest",
-			harness:      ProviderHarnessACP,
-			authMode:     ProviderAuthModeNativeCLI,
-			defaultModel: modelClaudeSonnet5ID,
-			loginCommand: "claude auth login",
+			name:          "claude",
+			command:       "npx -y @agentclientprotocol/claude-agent-acp@latest",
+			harness:       ProviderHarnessACP,
+			authMode:      ProviderAuthModeNativeCLI,
+			defaultModel:  modelClaudeSonnet5ID,
+			loginCommand:  "claude auth login",
+			statusCommand: "claude auth status",
 		},
 		{
 			name:         "codex",
@@ -968,7 +969,7 @@ func TestResolveAgentModelOverridesProviderDefault(t *testing.T) {
 	}
 }
 
-func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
+func TestResolveAgentAppliesApproveAllProviderMode(t *testing.T) {
 	t.Parallel()
 
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -976,7 +977,9 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 	cfg := DefaultWithHome(homePaths)
-	cfg.Permissions.ProviderFullAccess = true
+	if cfg.Permissions.Mode != PermissionModeApproveAll {
+		t.Fatalf("default permissions = %q, want approve-all", cfg.Permissions.Mode)
+	}
 
 	for _, tc := range []struct {
 		name        string
@@ -991,11 +994,19 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 		{name: "Should select Claude bypass permissions", provider: "claude", wantMode: "bypassPermissions"},
 		{name: "Should select Copilot allow-all", provider: "copilot", wantOption: "allow_all", wantMode: "on"},
 		{
+			name: "Should select Codex full access for an agent authored at approve-all", provider: "codex",
+			permissions: "approve-all", wantMode: "agent-full-access",
+		},
+		{
 			name: "Should let an agent narrow Copilot allow-all", provider: "copilot",
 			agentOption: "allow_all", agentMode: "off", wantOption: "allow_all", wantMode: "off",
 		},
 		{name: "Should let an agent narrow the provider mode", provider: "codex", agentMode: "read-only", wantMode: "read-only"},
 		{name: "Should preserve stricter Compozy permissions", provider: "claude", permissions: "approve-reads"},
+		{name: "Should leave Codex auto to the provider reviewer", provider: "codex", permissions: "auto"},
+		{name: "Should leave Claude auto to the provider reviewer", provider: "claude", permissions: "auto"},
+		{name: "Should keep Copilot approvals under auto", provider: "copilot", permissions: "auto"},
+		{name: "Should leave an unmapped provider to its own negotiation", provider: "gemini"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1008,7 +1019,10 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 				t.Fatalf("ResolveAgent() error = %v", err)
 			}
 			options := resolved.ACPOptionsValue()
-			if tc.wantMode == "" && len(options) == 0 {
+			if tc.wantMode == "" {
+				if len(options) != 0 {
+					t.Fatalf("ResolveAgent() ACPOptions = %#v, want none", options)
+				}
 				return
 			}
 			wantOption := cmp.Or(tc.wantOption, "mode")
@@ -1037,6 +1051,32 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 			t.Fatalf("ResolveAgent() ACPOptions = %#v, want the explicit mode plus allow_all=on", got)
 		}
 	})
+	for _, tc := range []struct {
+		name     string
+		provider string
+		want     string
+	}{
+		{name: "Should omit unrestricted mode for Claude routed to Gemini", provider: "claude"},
+		{name: "Should select full access for a custom provider routed to Codex", provider: "codex-work", want: "agent-full-access"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			routed := DefaultWithHome(homePaths)
+			routed.Providers = map[string]ProviderConfig{
+				"claude":     {Command: "gemini --acp", RuntimeProvider: "gemini"},
+				"codex-work": {Command: "codex-acp", RuntimeProvider: "codex", Harness: ProviderHarnessACP},
+			}
+			resolved, err := routed.ResolveAgent(AgentDef{Name: "qa", Provider: tc.provider, Prompt: "prompt"})
+			if err != nil {
+				t.Fatalf("ResolveAgent(%s) error = %v", tc.provider, err)
+			}
+			options := resolved.ACPOptionsValue()
+			if tc.want == "" && len(options) != 0 ||
+				tc.want != "" && (len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != tc.want) {
+				t.Fatalf("ResolveAgent(%s) ACPOptions = %#v, want mode %q", tc.provider, options, tc.want)
+			}
+		})
+	}
 	t.Run("Should keep an explicit mode for a provider without a full-access mapping", func(t *testing.T) {
 		t.Parallel()
 		agent := AgentDef{Name: "qa", Provider: "gemini", Prompt: "prompt"}
@@ -1049,68 +1089,125 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 			t.Fatalf("ResolveAgent() ACPOptions = %#v, want the explicit mode", options)
 		}
 	})
-	t.Run("Should fail clearly for an unsupported provider", func(t *testing.T) {
-		t.Parallel()
-		_, err := cfg.ResolveAgent(AgentDef{Name: "qa", Provider: "gemini", Prompt: "prompt"})
-		if err == nil || !strings.Contains(err.Error(), "provider_full_access is unsupported") {
-			t.Fatalf("ResolveAgent() error = %v, want unsupported provider", err)
-		}
-	})
 }
 
-func TestLoadProviderFullAccessPreference(t *testing.T) {
-	t.Run("Should apply a provider mode to a resolved agent", func(t *testing.T) {
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		if err := EnsureHomeLayout(homePaths); err != nil {
-			t.Fatalf("EnsureHomeLayout() error = %v", err)
-		}
-		writeFile(t, homePaths.ConfigFile, `[permissions]
-provider_full_access = true
-
-[defaults]
-provider = "codex"
-`)
-
-		cfg, err := LoadForHome(homePaths, withoutDotEnv())
-		if err != nil {
-			t.Fatalf("LoadForHome() error = %v", err)
-		}
-		resolved, err := cfg.ResolveAgent(AgentDef{Name: "qa", Prompt: "prompt"})
-		if err != nil {
-			t.Fatalf("ResolveAgent() error = %v", err)
-		}
-		options := resolved.ACPOptionsValue()
-		if len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != "agent-full-access" {
-			t.Fatalf("ResolveAgent() ACPOptions = %#v, want agent-full-access mode", options)
-		}
-	})
-}
-
-func TestWorkspaceCannotEnableProviderFullAccess(t *testing.T) {
+// Invariant: a v0.6.0 config that still carries the retired, no-op provider_full_access key loads
+// from every layer (#1618). Writable files lose only that key after a backup of the original;
+// files that cannot be rewritten still load unchanged. Owner: persisted config boundary migration.
+func TestLoadUpgradesRetiredProviderFullAccessKey(t *testing.T) {
 	t.Parallel()
-	t.Run("Should reject enabling provider full access from workspace config", func(t *testing.T) {
-		t.Parallel()
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := EnsureHomeLayout(homePaths); err != nil {
-			t.Fatal(err)
-		}
-		workspaceRoot := t.TempDir()
-		workspaceConfig := filepath.Join(workspaceRoot, ".compozy", "config.toml")
-		if err := os.MkdirAll(filepath.Dir(workspaceConfig), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		writeFile(t, workspaceConfig, "[permissions]\nprovider_full_access = true\n")
-		_, err = LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot), withoutDotEnv())
-		if err == nil || !strings.Contains(err.Error(), "only be enabled in the global config") {
-			t.Fatalf("LoadForHome() error = %v, want workspace privilege refusal", err)
-		}
-	})
+	const header = "# operator notes stay\n[permissions]\nmode = \"approve-all\" # keep\n"
+	const footer = "\n[defaults]\nprovider = \"codex\" # trailing comment\n"
+	for _, tc := range []struct {
+		name      string
+		global    string
+		workspace string
+		want      string
+		readOnly  bool
+	}{
+		{
+			name:   "Should remove a disabled global key and keep everything else",
+			global: header + "provider_full_access = false\n" + footer,
+			want:   header + footer,
+		},
+		{
+			name:   "Should remove an enabled global key and keep everything else",
+			global: header + "  provider_full_access = true\n" + footer,
+			want:   header + footer,
+		},
+		{
+			name:   "Should keep a comment that trails the removed key",
+			global: header + "provider_full_access = true # from the Full access era\n" + footer,
+			want:   header + " # from the Full access era\n" + footer,
+		},
+		{
+			name:   "Should load an inline table it cannot rewrite",
+			global: "permissions = { mode = \"approve-all\", provider_full_access = true }\n" + footer,
+			want:   "permissions = { mode = \"approve-all\", provider_full_access = true }\n" + footer,
+		},
+		{
+			name:     "Should load a global file it cannot rewrite",
+			global:   header + "provider_full_access = true\n" + footer,
+			want:     header + "provider_full_access = true\n" + footer,
+			readOnly: true,
+		},
+		{
+			name:      "Should remove the key from workspace config",
+			global:    header + footer,
+			workspace: "[permissions]\nprovider_full_access = true\n",
+			want:      "[permissions]\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if tc.readOnly && (runtime.GOOS == "windows" || os.Geteuid() == 0) {
+				t.Skip("directory write permissions are not enforced for this user")
+			}
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := EnsureHomeLayout(homePaths); err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, homePaths.ConfigFile, tc.global)
+			migratedPath, original := homePaths.ConfigFile, tc.global
+			opts := []LoadOption{withoutDotEnv()}
+			if tc.workspace != "" {
+				workspaceRoot := t.TempDir()
+				migratedPath = filepath.Join(workspaceRoot, ".compozy", "config.toml")
+				original = tc.workspace
+				if err := os.MkdirAll(filepath.Dir(migratedPath), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, migratedPath, tc.workspace)
+				opts = append(opts, WithWorkspaceRoot(workspaceRoot))
+			}
+			if tc.readOnly {
+				directory := filepath.Dir(migratedPath)
+				if err := os.Chmod(directory, 0o500); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := os.Chmod(directory, 0o700); err != nil {
+						t.Error(err)
+					}
+				})
+			}
+			// The second load proves the migration is idempotent.
+			for range 2 {
+				cfg, err := LoadForHome(homePaths, opts...)
+				if err != nil {
+					t.Fatalf("LoadForHome() error = %v", err)
+				}
+				resolved, err := cfg.ResolveAgent(AgentDef{Name: "qa", Prompt: "prompt"})
+				if err != nil {
+					t.Fatalf("ResolveAgent() error = %v", err)
+				}
+				options := resolved.ACPOptionsValue()
+				if len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != "agent-full-access" {
+					t.Fatalf("ResolveAgent() ACPOptions = %#v, want agent-full-access mode", options)
+				}
+			}
+			after, err := os.ReadFile(migratedPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(after) != tc.want {
+				t.Fatalf("config after load = %q, want %q", after, tc.want)
+			}
+			backup, err := os.ReadFile(migratedPath + RetiredConfigKeysBackupSuffix)
+			if tc.want == original {
+				if !os.IsNotExist(err) {
+					t.Fatalf("unchanged config left a backup: %q, %v", backup, err)
+				}
+				return
+			}
+			if err != nil || string(backup) != original {
+				t.Fatalf("backup = %q, %v; want the original config", backup, err)
+			}
+		})
+	}
 }
 
 func TestResolveAgentPreservesRuntimeDefaults(t *testing.T) {
@@ -1125,10 +1222,12 @@ func TestResolveAgentPreservesRuntimeDefaults(t *testing.T) {
 		}
 
 		cfg := DefaultWithHome(homePaths)
+		// approve-edits keeps the approve-all provider mode out of the authored option set.
 		agent := AgentDef{
-			Name:     "coder",
-			Provider: "claude",
-			Prompt:   "prompt",
+			Name:        "coder",
+			Provider:    "claude",
+			Permissions: string(PermissionModeApproveEdits),
+			Prompt:      "prompt",
 		}
 		agent.SetSpeed(speedpkg.SpeedFast)
 		agent.SetACPOptions([]ACPOptionSelection{
@@ -4187,6 +4286,48 @@ func TestResolveAgentAppliesOperatorOverride(t *testing.T) {
 		_, err = LoadForHome(homePaths, withoutDotEnv())
 		if err == nil || !strings.Contains(err.Error(), "agents.overrides.orchestrator.permissions") {
 			t.Fatalf("LoadForHome() error = %v, want override permissions validation", err)
+		}
+	})
+}
+
+func TestProviderRuntimeMCP(t *testing.T) {
+	t.Parallel()
+	// Invariant: only verified runtime switches may be disabled, independently of machine policy. Owner: config; UT-072.
+	t.Run("Should reject unsupported Codex runtime isolation", func(t *testing.T) {
+		t.Parallel()
+		provider := BuiltinProviders()["codex"]
+		provider.RuntimeMCP = "off"
+		err := validateRuntimeMCP("codex", provider)
+		if err == nil ||
+			err.Error() != `runtime_mcp_unsupported: Codex always loads its own MCP servers; runtime_mcp can only be "load"` {
+			t.Fatalf("error=%v", err)
+		}
+	})
+	t.Run("Should default load and permit only the static supported set", func(t *testing.T) {
+		t.Parallel()
+		if (ProviderConfig{}).EffectiveRuntimeMCP() != "load" {
+			t.Fatal("wrong default")
+		}
+		for _, name := range []string{"claude", "copilot", "qwen", "qwen-code"} {
+			if err := validateRuntimeMCP(name, ProviderConfig{RuntimeMCP: "off"}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := validateRuntimeMCP("claude", ProviderConfig{RuntimeMCP: "invalid"}); err == nil {
+			t.Fatal("accepted invalid mode")
+		}
+	})
+	t.Run("Should preserve the runtime switch through merges and clones", func(t *testing.T) {
+		t.Parallel()
+		original := ProviderConfig{RuntimeMCP: "off"}
+		merged := mergeProvider(original, ProviderConfig{})
+		if merged.EffectiveRuntimeMCP() != "off" || cloneProvider(original).EffectiveRuntimeMCP() != "off" {
+			t.Fatal("merge or clone lost runtime mode")
+		}
+		mode := "load"
+		(providerOverlay{RuntimeMCP: &mode}).Apply(&merged)
+		if merged.EffectiveRuntimeMCP() != "load" {
+			t.Fatal("explicit overlay failed to replace runtime mode")
 		}
 	})
 }

@@ -67,7 +67,6 @@ const runtime = await createBrowserRuntime({
     COMPOZY_TEST_DAEMON_BIN: path.resolve(binaryInput),
   },
   modelsDevEnabled: false,
-  newWindowPolicy: "floating",
   seed: {
     marketplaceCatalog: { extensions: [] },
     mockAgents: [

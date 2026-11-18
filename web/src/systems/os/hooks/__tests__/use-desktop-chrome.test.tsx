@@ -6,14 +6,16 @@
 // since mount, never the cached window list a returning destination starts from;
 // an explicit switch into one profile closes, once each of its desks is live, exactly the
 // session, terminal, pinned agent and automation windows another profile owns, finishing a
-// desk's interrupted or partly unread sweep and stopping on a rolled-back switch (#1184, #1194).
+// desk's interrupted or partly unread sweep and stopping on a rolled-back switch (#1184, #1194);
+// a re-registration refocuses the window this page had focused until that applies, the window is
+// gone or focus moved elsewhere meanwhile, retrying a refused focus on the next revision (#1655).
 // Boundary IN: chrome hook projection reads and provider ownership.
 // Boundary OUT: window-manager stream, client registration, and rendered DesktopShell.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createAtom } from "@xstate/store";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryOptionsSeen = vi.hoisted(() => [] as Array<{ queryKey: unknown; enabled?: unknown }>);
 const registration = vi.hoisted(() => ({ status: "idle" as string }));
@@ -37,7 +39,8 @@ const unreadableSessions = vi.hoisted(() => new Set<string>());
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({
     options: { stringifySearch: () => "" },
-    history: { replace: vi.fn(), push: vi.fn() },
+    history: { replace: vi.fn(), push: vi.fn(), subscribe: () => () => undefined },
+    subscribe: () => () => undefined,
   }),
 }));
 
@@ -180,7 +183,12 @@ import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import type { WindowManagerSnapshot } from "../../lib/window-manager-types";
 import { useDesktopChrome } from "../use-desktop-chrome";
 import { useProfileSwitchWindowSweep } from "../use-profile-switch-window-sweep";
+import {
+  useRestoredClientFocus,
+  type RestoredClientFocusInput,
+} from "../use-restored-client-focus";
 import { useWindowScopePruning } from "../use-window-scope-pruning";
+import { createDeferred } from "@/test/event-recorder";
 
 function wrapper() {
   const queryClient = new QueryClient({
@@ -230,6 +238,18 @@ describe("useDesktopChrome", () => {
     expect(useProfileSwitchWindowSweep).toHaveBeenLastCalledWith(result.current.shell, "ws_a");
   });
 
+  it("Should hand the All projects partition to the terminal close guard", async () => {
+    // #1712: the desktop controller names no terminal workspace under All projects;
+    // the guard must still know it is the aggregate, or unbound windows are trapped.
+    // Imported here so the module graph loads in the order the mocks above expect.
+    const { TerminalWindowClose } = await import("../../lib/terminal-window-close");
+    const guard = vi.spyOn(TerminalWindowClose.prototype, "guard");
+    renderHook(() => useDesktopChrome("global", null), { wrapper: wrapper() });
+
+    expect(guard).toHaveBeenLastCalledWith("global", expect.anything());
+    guard.mockRestore();
+  });
+
   it("Should read no workspace overlay on the User partition", () => {
     renderHook(() => useDesktopChrome("user"), { wrapper: wrapper() });
 
@@ -272,6 +292,7 @@ describe("useWindowScopePruning", () => {
 });
 
 describe("useProfileSwitchWindowSweep", () => {
+  afterEach(() => vi.useRealTimers());
   beforeEach(() => {
     profileScope.aggregate = false;
     profileScope.ownerId = "p_yankee";
@@ -473,7 +494,7 @@ describe("useProfileSwitchWindowSweep", () => {
     // Coming back to a desk already swept for this switch does not sweep it again.
     act(() => fake.present(deskA));
     rerender({ partition: "ws_a" });
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => {});
     expect(fake.userClose).toHaveBeenCalledTimes(3);
   });
 
@@ -511,14 +532,20 @@ describe("useProfileSwitchWindowSweep", () => {
   it("Should back off a close that keeps failing instead of hammering the daemon", async () => {
     sessionOwners.set("s_xray", "p_xray");
     const { shell, userClose } = fakeShell(true);
-    userClose.mockImplementation(async () => false);
+    vi.useFakeTimers();
+    const closeAttempted = createDeferred<void>();
+    userClose.mockImplementation(async () => {
+      closeAttempted.resolve();
+      return false;
+    });
     const { unmount } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
       wrapper: wrapper(),
     });
 
     switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(userClose).toHaveBeenCalled());
-    await new Promise(resolve => setTimeout(resolve, 1300));
+    await act(async () => closeAttempted.promise);
+    expect(userClose).toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(1300));
     // Attempts at about 0, 250 and 750 ms; a fixed 250 ms retry would have made six.
     expect(userClose.mock.calls.length).toBeLessThanOrEqual(3);
     unmount();
@@ -527,16 +554,22 @@ describe("useProfileSwitchWindowSweep", () => {
   it("Should stop retrying a refused close once the shell unmounts", async () => {
     sessionOwners.set("s_xray", "p_xray");
     const { shell, userClose } = fakeShell(true);
-    userClose.mockImplementation(async () => false);
+    vi.useFakeTimers();
+    const closeAttempted = createDeferred<void>();
+    userClose.mockImplementation(async () => {
+      closeAttempted.resolve();
+      return false;
+    });
     const { unmount } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
       wrapper: wrapper(),
     });
 
     switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(userClose).toHaveBeenCalled());
+    await act(async () => closeAttempted.promise);
+    expect(userClose).toHaveBeenCalled();
     unmount();
     const attempts = userClose.mock.calls.length;
-    await new Promise(resolve => setTimeout(resolve, 600));
+    await act(async () => vi.advanceTimersByTimeAsync(600));
     expect(userClose).toHaveBeenCalledTimes(attempts);
   });
 
@@ -551,7 +584,7 @@ describe("useProfileSwitchWindowSweep", () => {
 
     switchTo({ kind: "profile", profile: "yankee" });
     await waitFor(() => expect(fake.closed).toEqual(["w_xray"]));
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => {});
     expect(fake.userClose.mock.calls.map(([id]) => id)).not.toContain("w_zulu");
   });
 
@@ -566,7 +599,7 @@ describe("useProfileSwitchWindowSweep", () => {
     profileScope.aggregate = true;
     switchTo({ kind: "aggregate" });
     // Let any owner read the hook might have started settle before asserting nothing closed.
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => {});
     expect(userClose).not.toHaveBeenCalled();
   });
 
@@ -581,8 +614,7 @@ describe("useProfileSwitchWindowSweep", () => {
     // Back to All profiles on the same desk: the windows belong on screen again.
     profileScope.aggregate = true;
     switchTo({ kind: "aggregate" });
-    held.release();
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => held.release());
     expect(userClose).not.toHaveBeenCalled();
   });
 
@@ -599,12 +631,11 @@ describe("useProfileSwitchWindowSweep", () => {
     const yankee = switchTo({ kind: "profile", profile: "yankee" });
     await waitFor(() => expect(held.queryClient.fetchQuery).toHaveBeenCalled());
     act(() => failProfileSwitch(yankee));
-    held.release();
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => held.release());
     expect(userClose).not.toHaveBeenCalled();
     // The same epoch cannot authorize a sweep of another desk after rollback either.
     rerender({ partition: "ws_b" });
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => {});
     expect(userClose).not.toHaveBeenCalled();
   });
 
@@ -613,17 +644,23 @@ describe("useProfileSwitchWindowSweep", () => {
     sessionOwners.set("s_zulu", "p_zulu");
     startOn("xray");
     const { shell, userClose } = fakeShell(true);
-    userClose.mockImplementation(async () => false);
+    vi.useFakeTimers();
+    const closeAttempted = createDeferred<void>();
+    userClose.mockImplementation(async () => {
+      closeAttempted.resolve();
+      return false;
+    });
     const { unmount } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
       wrapper: wrapper(),
     });
 
     const yankee = switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(userClose).toHaveBeenCalledWith("w_xray", true));
+    await act(async () => closeAttempted.promise);
+    expect(userClose).toHaveBeenCalledWith("w_xray", true);
     // The persist failed: the previous answer comes back under the same switch epoch.
     act(() => failProfileSwitch(yankee));
     const attempts = userClose.mock.calls.length;
-    await new Promise(resolve => setTimeout(resolve, 600));
+    await act(async () => vi.advanceTimersByTimeAsync(600));
     expect(userClose).toHaveBeenCalledTimes(attempts);
     expect(userClose.mock.calls.map(([id]) => id)).not.toContain("w_zulu");
     unmount();
@@ -643,12 +680,76 @@ describe("useProfileSwitchWindowSweep", () => {
     // Another project is presented before the owners are read: its desk is still binding.
     act(() => leave());
     rerender({ partition: "ws_b" });
-    held.release();
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => held.release());
     expect(closed).toEqual([]);
 
     rerender({ partition: "ws_a" });
     act(() => goLive());
     await waitFor(() => expect(closed).toEqual(["w_xray"]));
+  });
+});
+
+describe("useRestoredClientFocus", () => {
+  function restoreHarness(focusedId: string | null, windows: string[]) {
+    const state = {
+      client: {},
+      focusedId,
+      windows: Object.fromEntries(windows.map(id => [id, { id }])),
+    };
+    const answers: Array<(applied: boolean) => void> = [];
+    const focusWindow = vi.fn(() => ({
+      completion: new Promise<boolean>(resolve => answers.push(resolve)),
+    }));
+    const manager = {
+      getState: () => state,
+      focusWindow,
+    } as unknown as RestoredClientFocusInput["manager"];
+    const settle = vi.fn();
+    const { rerender } = renderHook(
+      ({ revision }) =>
+        useRestoredClientFocus({
+          manager,
+          restoredFocus: "win-w",
+          settle,
+          snapshotRevision: revision,
+          client: state.client,
+        }),
+      { initialProps: { revision: 1 } }
+    );
+    return { state, focusWindow, answers, settle, rerender };
+  }
+
+  it("Should retry a refused focus on the next snapshot revision until it applies", async () => {
+    const harness = restoreHarness("win-default", ["win-default", "win-w"]);
+    expect(harness.focusWindow).toHaveBeenCalledWith("win-w", { replaceable: true });
+
+    // One in flight at a time: a revision that lands meanwhile sends nothing.
+    harness.rerender({ revision: 2 });
+    expect(harness.focusWindow).toHaveBeenCalledOnce();
+    await act(async () => harness.answers[0]?.(false));
+    expect(harness.settle).not.toHaveBeenCalled();
+
+    harness.rerender({ revision: 3 });
+    expect(harness.focusWindow).toHaveBeenCalledTimes(2);
+    await act(async () => harness.answers[1]?.(true));
+    expect(harness.settle).toHaveBeenCalledWith("win-w");
+  });
+
+  it("Should settle without a focus when the window is gone or already focused", () => {
+    expect(restoreHarness("win-default", ["win-default"]).settle).toHaveBeenCalledWith("win-w");
+    const focused = restoreHarness("win-w", ["win-w"]);
+    expect(focused.focusWindow).not.toHaveBeenCalled();
+    expect(focused.settle).toHaveBeenCalledWith("win-w");
+  });
+
+  it("Should give up once focus moves to another window before the restore applies", async () => {
+    const harness = restoreHarness("win-default", ["win-default", "win-w", "win-x"]);
+    await act(async () => harness.answers[0]?.(false));
+
+    // The operator focused a window meanwhile: a late restore must not take it back.
+    harness.state.focusedId = "win-x";
+    harness.rerender({ revision: 2 });
+    expect(harness.focusWindow).toHaveBeenCalledOnce();
+    expect(harness.settle).toHaveBeenCalledWith("win-w");
   });
 });

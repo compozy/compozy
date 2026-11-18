@@ -63,10 +63,16 @@ api_identifiers='(?x:
   | \bOperationStrategy\.single\(\{\s*root:[\t ]*"Compozy"
   | \bCompozy[\t ]+\w+[\t ]+\x60json:"compozy"\x60
 )'
-pattern="${api_identifiers}(*SKIP)(*F)|(?<!X-)\bCompozy\b(?! Network)"
+# Words other people wrote stay as written: one beta-program quote shown on the landing.
+verbatim_quotes='(?x: \bemployee\x20of\x20the\x20week\x20is\x20going\x20to\x20be\x20Compozy\b )'
+# Published GitHub release notes are immutable history. The changelog prototype carries a snapshot of
+# them; the site itself reads them from GitHub at build time.
+# Prototype review records keep reviewer comments word for word, like the agent-kind rule allows.
+history_snapshots=(--glob '!web/src/drafts/changelog/releases.json' --glob '!web/proto/review/**')
+pattern="${api_identifiers}(*SKIP)(*F)|${verbatim_quotes}(*SKIP)(*F)|(?<!X-)\bCompozy\b(?! Network)"
 
 set +e
-matches="$(rg --multiline --with-filename --line-number --no-heading --pcre2 "$pattern" -- "${paths[@]}" 2>&1)"
+matches="$(rg --multiline --with-filename --line-number --no-heading --pcre2 "${history_snapshots[@]}" "$pattern" -- "${paths[@]}" 2>&1)"
 status=$?
 set -e
 
@@ -84,9 +90,7 @@ else
 fi
 
 # Retired agent-kind vocabulary (#1199). The space form "stays on" is ordinary English and is not
-# matched. Rule A keeps the v0.5.1 stays_on aliases at their listed boundaries (Safety Invariant 1);
-# Rule B keeps the retired word off public surfaces. In v0.5.2 the alias files leave rule_a_allowed;
-# the rules stay.
+# matched. Rule A permits only removed-input diagnostics; Rule B keeps retired product copy off public surfaces.
 retired_kind='(?i)stays[-_]?on'
 # Rule B skips immutable history identifiers only: the shipped stays-on-hardening spec, its branch,
 # reports and artifacts, dated reports, and content-addressed QA scenario, charter and bug IDs.
@@ -98,32 +102,11 @@ history_refs='(?x:
 )'
 rule_b_pattern="${history_refs}(*SKIP)(*F)|${retired_kind}"
 
-# Production Go files that may name stays_on or call CanonicalAgentKind.
-rule_a_allowed=(
-  internal/config/agent_identity.go
-  internal/config/agent_frontmatter_decode.go
-  internal/config/agent_kind_rewrite.go
-  internal/config/agent_create.go
-  internal/config/agent_resource.go
-  internal/config/merge.go
-  internal/config/tool_surface.go
-  internal/api/core/agent_create.go
-  internal/api/spec/agent_name_schema.go
-  internal/cli/agent_identity_flags.go
-  internal/cli/agent_mutate_requests.go
-  internal/tools/builtin/workspace.go
-  internal/daemon/boot_agent_kind_rewrite.go
-)
-
 rule_a_in_scope() {
   local rel="$1"
   [[ "$rel" == *.go && "$rel" != *_test.go && "$rel" != */testdata/* && "$rel" != testdata/* ]] || return 1
   [[ "$rel" == internal/* || "$rel" == cmd/* || "$rel" == sdk/go/* ]] || return 1
   [[ "$rel" == sdk/go/client/* ]] && return 1
-  local allowed
-  for allowed in "${rule_a_allowed[@]}"; do
-    [[ "$rel" == "$allowed" ]] && return 1
-  done
   return 0
 }
 
@@ -138,7 +121,8 @@ rule_b_in_scope() {
 rule_b_allowed() {
   local rel="$1"
   case "$rel" in
-    RELEASE_NOTES.md | RELEASE_BODY.md | CHANGELOG.md | .release-notes/archive/* | .release-notes/always-on-vocabulary-v0.5.1.md) return 0 ;;
+    web/src/drafts/changelog/releases.json) return 0 ;;
+    RELEASE_NOTES.md | RELEASE_BODY.md | CHANGELOG.md | .release-notes/archive/* | .release-notes/always-on-vocabulary-v0.5.1.md | .release-notes/remove-agent-kind-aliases.md) return 0 ;;
     sdk/client/* | sdk/go/client/* | openapi/compozy.json | internal/tools/builtin/testdata/native-tool-catalog.json) return 0 ;;
     docs/_memory/glossary.md | COPY.md | MIGRATION_GUIDE.md | packages/site/content/docs/migration/index.mdx) return 0 ;;
     skills/compozy/references/agent-definitions.md | packages/site/content/docs/agents/definitions.mdx) return 0 ;;
@@ -147,10 +131,6 @@ rule_b_allowed() {
     web/proto/review/*) return 0 ;;
     scripts/check-product-language.sh | scripts/product_language_integration_test.go) return 0 ;;
   esac
-  local allowed
-  for allowed in "${rule_a_allowed[@]}"; do
-    [[ "$rel" == "$allowed" ]] && return 0
-  done
   return 1
 }
 
@@ -189,11 +169,36 @@ kind_scan() {
   return 0
 }
 
-rule_a_files="$(kind_scan "Rule A" --glob '*.go' "${retired_kind}|\bCanonicalAgentKind\b" -- "${rule_a_paths[@]}")"
+# Only actionable removal diagnostics may retain the retired token.
+removed_diagnostics='"agent kind must be on_demand or always_on \(stays_on was renamed to always_on in v0\.5\.1\)"'
+rule_a_pattern="(?:${removed_diagnostics})(*SKIP)(*F)|${retired_kind}|\\bCanonicalAgentKind\\b"
+rule_a_files="$(kind_scan "Rule A" --glob '*.go' "$rule_a_pattern" -- "${rule_a_paths[@]}")"
 while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   rel="$(relative_path "$file")"
   rule_a_in_scope "$rel" || continue
+  if [[ "$rel" == internal/config/removed_agent_config.go ]]; then
+    remaining="$(kind_scan "Rule A" "(?:path\[1\] == \"stays_on\")(*SKIP)(*F)|${rule_a_pattern}" -- "$file")"
+    [[ -n "$remaining" ]] || continue
+  fi
+  # One shim generation restored by #1618; remove with the persisted-kind migration files in v0.7.0.
+  migration_tokens=""
+  case "$rel" in
+    internal/config/agent_persisted_kind.go)
+      migration_tokens="$(cat <<'TOKENS'
+\Qconst retiredAgentKind = "stays_on"\E|\QagentKindYAMLLine     = regexp.MustCompile(`^kind:[ \t]+("stays_on"|'stays_on'|stays_on)([ \t]+#.*)?[ \t]*$`)\E|\QagentKindTOMLLine     = regexp.MustCompile(`^kind[ \t]*=[ \t]*("stays_on"|'stays_on')([ \t]+#.*)?[ \t]*$`)\E|\Q// It returns (nil, true) when the file needs no rewrite and (nil, false) for a stays_on file it\E|\Q// kind line reads stays_on but the frontmatter fails strict decode.\E|\Q// agentKindValueSpan locates the stays_on bytes of the single top-level kind line inside the\E
+TOKENS
+)" ;;
+    internal/config/agent_persisted_config.go)
+      migration_tokens="$(cat <<'TOKENS'
+\Qconst retiredAlwaysOnArchiveHeader = "\n# Archived [agents.stays_on]; values moved to [agents.always_on] " +\E|\Q// migrateRetiredAlwaysOnTable is the user-state migration for the v0.5.0 [agents.stays_on] table\E
+TOKENS
+)" ;;
+  esac
+  if [[ -n "$migration_tokens" ]]; then
+    remaining="$(kind_scan "Rule A" "(?:${migration_tokens})(*SKIP)(*F)|${rule_a_pattern}" -- "$file")"
+    [[ -n "$remaining" ]] || continue
+  fi
   kind_findings+=("Rule A: $file ($rel) names stays_on or calls CanonicalAgentKind outside the alias boundary")
 done <<<"$rule_a_files"
 
@@ -208,7 +213,63 @@ done <<<"$rule_b_files"
 
 if ((${#kind_findings[@]} > 0)); then
   printf '%s\n' "${kind_findings[@]}" >&2
-  echo "Retired agent-kind vocabulary found. Use always_on / Always-on; stays_on stays only at the v0.5.1 alias boundaries." >&2
+  echo "Retired agent-kind vocabulary found. Use always_on / Always-on; stays_on stays only in removed-input diagnostics." >&2
+  failed=1
+fi
+
+# Retired built-in identity (brand identity v1.2, business rule 8, UT-012): the orange accent and the
+# Inter/Playfair/JetBrains Mono default stacks. Explicit user-chosen fonts stay legal: the Appearance
+# catalog and its loaders (in font-appearance.ts, which also owns the DEFAULT_FONT_* defaults, so only
+# its catalog/loader stacks are exempt) and their tests are allowlisted, as are the identity palette
+# and the tests that assert the retired values are gone.
+identity_roots=(packages/ui packages/site packages/launch-video packages/brand web/src desktop/src README.md)
+retired_color='(?i:e8572a|rgba\(\s*232\s*,\s*87\s*,\s*42\b)'
+retired_font='(?:Inter[\t ]+Variable|Playfair|JetBrains[\t ]+Mono)'
+retired_default="\\bDEFAULT_FONT_\\w*[^=\\n]*=\\s*\\{[^}]*?${retired_font}"
+retired_stack="(?:--font-[\\w-]+\\s*:|font-family\\s*:|fontFamily\\s*[:=])[^;{}\\[\\]]*?${retired_font}|${retired_default}"
+
+rule_c_in_scope() {
+  local rel="$1" root
+  for root in "${identity_roots[@]}"; do
+    [[ "$rel" == "$root" || "$rel" == "$root"/* ]] && return 0
+  done
+  return 1
+}
+
+rule_c_allowed() {
+  case "$1" in
+    web/src/systems/theme/__tests__/theme-runtime.test.ts) return 0 ;;
+    web/src/systems/os/apps/settings/__tests__/appearance-settings-pane.test.tsx) return 0 ;;
+    packages/ui/src/lib/identity-palette.ts | packages/ui/src/lib/__tests__/identity-palette.test.ts) return 0 ;;
+    packages/site/lib/__tests__/opengraph-image.test.tsx | packages/ui/src/components/custom/__tests__/logo.test.tsx) return 0 ;;
+  esac
+  return 1
+}
+
+if ((explicit)); then
+  rule_c_paths=("${paths[@]}")
+else
+  rule_c_paths=("${identity_roots[@]}")
+fi
+identity_findings=()
+rule_c_files="$(kind_scan "Rule C" --multiline "${retired_color}|${retired_stack}" -- "${rule_c_paths[@]}")"
+while IFS= read -r file; do
+  [[ -n "$file" ]] || continue
+  rel="$(relative_path "$file")"
+  rule_c_in_scope "$rel" || continue
+  rule_c_allowed "$rel" && continue
+  if [[ "$rel" == web/src/systems/theme/lib/font-appearance.ts ]]; then
+    # The catalog owner: its catalog entries and loaders name user-chosen fonts; only the orange
+    # accent and the DEFAULT_FONT_* built-in defaults are enforced there.
+    remaining="$(kind_scan "Rule C" --multiline "${retired_color}|${retired_default}" -- "$file")"
+    [[ -n "$remaining" ]] || continue
+  fi
+  identity_findings+=("Rule C: $file ($rel) keeps the retired orange accent or a retired default font stack")
+done <<<"$rule_c_files"
+
+if ((${#identity_findings[@]} > 0)); then
+  printf '%s\n' "${identity_findings[@]}" >&2
+  echo "Retired brand identity found. Use the volt brand tokens and the Figtree / Instrument Sans / Geist Mono defaults." >&2
   failed=1
 fi
 

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -69,7 +68,6 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 		if err := a.state.windowManagers.UpdateDefaults(windowManagerDefaults(previous.WindowManager)); err != nil {
 			failures = append(failures, configApplyFailure(
 				"window_manager_rollback",
-				diagnosticcontract.CategoryConfig,
 				"Window manager rollback failed",
 				err,
 			))
@@ -82,7 +80,6 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 				failures,
 				configApplyFailure(
 					"provider_usage",
-					diagnosticcontract.CategoryConfig,
 					"Provider usage reconciliation failed",
 					err,
 				),
@@ -94,7 +91,6 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 		if err := a.state.modelCatalog.ReconcileConfig(ctx, previous); err != nil {
 			failures = append(failures, configApplyFailure(
 				"model_catalog_rollback",
-				diagnosticcontract.CategoryConfig,
 				"Model catalog rollback failed",
 				err,
 			))
@@ -104,7 +100,6 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 		if err := a.state.marketplace.ReconcileConfig(ctx, previous); err != nil {
 			failures = append(failures, configApplyFailure(
 				"marketplace_rollback",
-				diagnosticcontract.CategoryConfig,
 				"Marketplace rollback failed",
 				err,
 			))
@@ -114,7 +109,6 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 		if err := a.state.toolMCPResources.SyncConfig(ctx, previous); err != nil {
 			failures = append(failures, configApplyFailure(
 				"mcp_rollback",
-				diagnosticcontract.CategoryMCP,
 				"MCP runtime rollback failed",
 				err,
 			))
@@ -136,7 +130,6 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 		if err := a.state.windowManagers.UpdateDefaults(windowManagerDefaults(next.WindowManager)); err != nil {
 			failures = append(failures, configApplyFailure(
 				"window_manager",
-				diagnosticcontract.CategoryConfig,
 				"Window manager sync failed",
 				err,
 			))
@@ -149,7 +142,6 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 				failures,
 				configApplyFailure(
 					"provider_usage",
-					diagnosticcontract.CategoryConfig,
 					"Provider usage reconciliation failed",
 					err,
 				),
@@ -161,7 +153,6 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 		if err := a.state.modelCatalog.ReconcileConfig(ctx, next); err != nil {
 			failures = append(failures, configApplyFailure(
 				"model_catalog",
-				diagnosticcontract.CategoryConfig,
 				"Model catalog sync failed",
 				err,
 			))
@@ -171,7 +162,6 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 		if err := a.state.marketplace.ReconcileConfig(ctx, next); err != nil {
 			failures = append(failures, configApplyFailure(
 				"marketplace",
-				diagnosticcontract.CategoryConfig,
 				"Marketplace sync failed",
 				err,
 			))
@@ -181,7 +171,6 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 		if err := a.state.toolMCPResources.SyncConfig(ctx, next); err != nil {
 			failures = append(failures, configApplyFailure(
 				"mcp",
-				diagnosticcontract.CategoryMCP,
 				"MCP runtime sync failed",
 				err,
 			))

@@ -11,6 +11,13 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+// committedSessionProjectionError preserves a projection read failure after the
+// authoritative metadata and catalog write have already committed.
+type committedSessionProjectionError struct{ cause error }
+
+func (e *committedSessionProjectionError) Error() string { return e.cause.Error() }
+func (e *committedSessionProjectionError) Unwrap() error { return e.cause }
+
 // persistSessionLifecycleState is the lifecycle transition choke point. Callers
 // mutate the in-memory Session first, then this function durably writes
 // meta.json before projecting the same snapshot into the global catalog. If the
@@ -68,7 +75,7 @@ func (m *Manager) persistSessionLifecycleStateLocked(ctx context.Context, sessio
 
 func (m *Manager) finishSessionCatalogPersistence(ctx context.Context, session *Session) error {
 	if err := m.hydrateSessionAttention(ctx, session); err != nil {
-		return err
+		return &committedSessionProjectionError{cause: err}
 	}
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, session.Info()))
 	return nil

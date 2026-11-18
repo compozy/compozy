@@ -43,6 +43,10 @@ Use `compozy drain -o json` (or `POST /api/drain` over HTTP/UDS) to close daemon
 
 Confirm drain through `.daemon.status == "draining"` in `compozy status -o json` or the informational `daemon_draining` item in `compozy doctor -o json`. Use `compozy undrain -o json` or `POST /api/undrain` to restore `{"state":"active"}`. Drain is in-memory, applies across every workspace, and clears on daemon restart.
 
+While the daemon is starting, new prompts return `503` with code `daemon_starting`,
+`retryable: true`, and `daemon starting, retry when ready`. Wait for readiness before retrying
+the same message identity. This is distinct from an operator drain, whose existing refusal stays unchanged.
+
 ## Session Lifecycle
 
 CompozyOS sessions are daemon-owned runtimes. Common states:
@@ -64,6 +68,7 @@ not prove a live binding and is absent when no runtime identity has been recorde
 Authenticated `/agent/context.self.model` and the fresh situation supplied with each prompt use
 the session's effective model when present, ahead of the configured agent default. A pending
 next-prompt selection does not replace that identity before it is applied.
+For native session reads, pass `result_view: "full"` to inspect runtime catalogs and capabilities.
 `runtime.acp_caps` (absent while unbound) includes `supports_load_session`, `supports_fork_session`,
 and `supports_resume_session`; each is `true` only when the bound agent advertised it.
 
@@ -89,6 +94,29 @@ history, and submits the new prompt against the same session ID. Concurrent prom
 restart. Attach, queue management, steer, interrupt, and other control operations never trigger this
 restart.
 
+Outside an instance lineage, `compozy__session_prompt` with an omitted `mode` deliberately reopens
+an eligible stopped session. Explicit `queue`, `steer`, or `interrupt` returns `session_not_promptable`.
+Instance messages can instead be queued or held; that disposition alone does not confirm runtime recovery.
+Inspect `stop_reason` first; a daemon interruption and an explicit user stop are different decisions.
+
+After a restart, eligible `session_spawn` workers with interrupted turns continue automatically,
+after their parents. Expired, archived, explicitly stopped workers, exhausted spawn budgets, and
+workers whose `auto_stop_on_parent` parent is no longer live stay stopped. Delegated subagents keep
+their own recovery owner. Worker monitors follow the same restart eligibility rules as user-session
+monitors. With `notify_creator`, a child stop recorded during shutdown is recovered from its durable
+stop receipt and admitted once to an eligible parent; the notice describes the shutdown edge, so
+read current child status before intervening. Already admitted notices never reopen an idle parent.
+An unreadable child receipt is logged with its cause without blocking other sessions' recovery.
+
+An idle always-on instance main also reopens its saved binding after restart without repeating
+its completed turn or requiring queued input. Recovery refusals include their cause in the daemon
+log and, when a saved binding exists, a `session.restart_skipped` event. An ordinary idle session
+with no interrupted turn logs `no_pending_interruption`. Worker recovery reopens its saved binding
+only for an interrupted auto-stop worker, a recovered worker monitor or an undelivered child
+shutdown notice; an idle worker alone does not reopen its parent. Monitor recovery checks both
+saved bindings and restart eligibility before reopening a shutdown-stopped parent. Reply watches
+retain their own wake rules.
+
 If ACP disconnects during a prompt, CompozyOS keeps every persisted event and automatically tries to
 replace the runtime three times with 1, 2, and 4 second delays. Session status reports
 `runtime.status="recovering"`, `runtime.transition="automatic_recovery"`, the runtime `generation`,
@@ -104,8 +132,13 @@ minute for `session.auth_recovery.window` (10m), restarting the provider and rel
 time. A turn with no provider output yet is resent; a turn that already produced output or tool calls
 receives a continuation that asks the agent to verify state before repeating actions. Do not prompt,
 stop, or continue a session while it reports `provider_auth` recovery; wait or cancel the prompt. When the
-window ends, the turn fails with today's `provider_error` guidance, and later turns fail without waiting
-until one completes.
+window ends, the turn ends with `provider_error` login guidance and the session reads `waiting-for-auth`.
+After signing in, send another prompt to replace the stale provider process and reload the same conversation.
+A successful auth probe or Usage collection also reloads matching auth-failed sessions in that profile;
+while a turn is still recovering, that proof wakes its next retry. Other providers, account routes, and
+healthy sessions are left alone. A probe without a profile selector uses the default profile
+(or its calling managed session profile); Usage carries its selected profile. The exhausted automatic
+wait remains spent until a turn completes or the provider changes.
 
 Automatic replay can repeat an external side effect whose completion was not persisted before the
 disconnect. Inspect the retained tool results and external system before manually repeating the work.
@@ -116,7 +149,10 @@ After prompt admission, the daemon owns the turn lifetime. Closing a browser tab
 
 If an accepted prompt stream closes before a terminal result, its error frame carries
 `failure.reason_code=prompt_stream_incomplete`. Branch on that code, then inspect session status and
-events before deciding whether to submit another prompt.
+events before deciding whether to submit another prompt. If durable history remains unreadable after
+bounded delivery retries, the frame carries `failure.reason_code=prompt_delivery_read_failed` instead.
+Inspect session status and retry reading its events; do not assume the accepted turn failed or resend
+its input solely because that viewer could not read the transcript.
 
 Use `interrupt` with replacement text to cancel the expected active turn and submit that replacement
 as the next generation-fenced input. Use `steer` for the same fenced replacement semantics when the
@@ -344,7 +380,7 @@ in-flight request fails with `session_busy`, and an agent advertising neither co
 structurally: its tool error has `code` `session_busy` or `compaction_unsupported`, the tool ID, and the
 daemon message (not a generic `tool_conflict`); over `POST /api/tools/{id}/invoke` both are `409` responses
 carrying those codes. The tool is `mutating` risk, targets one idle session in the
-caller's workspace by `session_id`, and returns the accepted receipt only; read the outcome through the
+target's workspace and profile under workspace access policy by `session_id`, and returns the accepted receipt only; read the outcome through the
 transcript item and events above. A Goal's context-compaction turn uses the same advertised command and
 reads the compaction's current terminal status the same way; an agent advertising neither goes straight to
 the Goal reseed path.
@@ -374,7 +410,7 @@ may include archived projects for historical aggregate reads.
 
 ## Session CLI
 
-Reasoning levels are model-specific. Inspect the live catalog instead of assuming levels from a model name: Codex uses native `model/list` metadata (including `ultra` only when advertised), and Cursor uses exact CLI model variants for effort, thinking, and Fast. Provider-default reasoning remains distinct from explicitly disabling reasoning.
+Reasoning levels are model-specific. Inspect the live catalog instead of assuming levels from a model name: Codex uses native `model/list` metadata (including `ultra` only when advertised), and Cursor uses exact CLI model variants for effort, thinking, and Fast. Provider-default reasoning remains distinct from explicitly disabling reasoning. For Cursor models without a declared default, a bare transport in any mode keeps unspecified effort. When every transport requires an effort, discovery prefers normal, non-Thinking bindings, then non-Thinking Fast, normal Thinking, and Fast Thinking bindings, and publishes the lowest supported effort from the first available mode in canonical order (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`). Web and runtime share that catalog default. Fast and Thinking are never enabled automatically; explicit unsupported efforts and unavailable combinations remain errors.
 
 The model payload's `reasoning_known` distinguishes confirmed options from support-only enrichment.
 `reasoning_apply=none` prevents live effort negotiation; `acp_option` permits model-specific ACP
@@ -586,9 +622,16 @@ numbers first with `GET /api/workspaces/<ws>/sessions/<id>/derive/preview` (`mes
 `replay_bytes`, `native_fork_possible`, and `cut.turn_id` when `message_id` is given); it never writes.
 The new session reads `lineage.kind = "continue"` plus `lineage.origin_agent_name` and a `derivation`
 object, and is a new top-level session: `lineage.parent_session_id` names the source as provenance, not
-as a parent, so it is listed as its own row and is not the source's child. An explicit runtime or route
+as a parent, so it is not the source's child and keeps top-level governance. Session lists still show
+a continuation where its predecessor sits: catalog rows and details carry `tree_parent_session_id`
+when the continue chain began from a child, and the Web list nests the continuation under that
+parent; continuations of top-level sessions and forks stay their own rows. An explicit runtime or route
 is also its `runtime.selected` (revision 1), which a prompt without its own runtime binds; `session status` prints `Origin` and `Derivation` lines, and the daemon log records
-`session.derived` for it. Retries are deterministic: the same `idempotency_key` with the same request
+`session.derived` for it. A continuation with an explicit provider selection never walks the agent's
+fallback chain: a launch refusal remains visible in `runtime.failure` on the unbound child and no
+prompt runs on another provider. The Web Continue dialog submits the full displayed runtime,
+including unchanged defaults; omitted `acp_options` entries inherit from the agent, so its Provider
+default control submits the advertised default value. Retries are deterministic: the same `idempotency_key` with the same request
 returns the recorded outcome with `replayed: true` (and `child_deleted: true` if the new session was
 deleted since); a different request under the same key is `idempotency_conflict`. Fences are optional
 and must be sent all three or none (`session_fence_conflict` on mismatch). A chosen route is applied at
@@ -705,7 +748,9 @@ children across every page; `parent_title` can name an archived readable parent.
 HTTP/UDS use repeatable `board_column` and `children=exclude`; the latter excludes every child
 (lineage kinds `provenance`, `spawn` and `recovery`), whereas `subagents=exclude` excludes only the
 subagent role. Forked and continued sessions are top-level: `children=exclude` keeps them, they never
-count in their source's `children`, and their `parent_title` names the source as provenance. Facets expose `board` counts for the
+count in their source's `children`, and their `parent_title` names the source as provenance. A
+continuation whose chain began from a child carries `tree_parent_session_id`, the parent it nests under
+in session lists. Facets expose `board` counts for the
 same scope and child visibility, independent of search, badge and selected board column. Changing
 columns or child visibility invalidates an existing cursor. Read paths use cached PR facts and
 never wait on forge calls.
@@ -716,6 +761,12 @@ directly, that run did not fail, and every hierarchy member is plainly `stopped`
 prompt. Loop and Task sessions are never hidden. The rows are not archived. `q`, `type`, `parent`,
 `root`, `archive=only` and `later=only` reads ignore the flag, and facets keep the flag under search.
 `compozy session list` and `compozy__session_list` do not send it, so agents still see every run.
+
+`exclude_automation=true` on the same two routes hides every automation job or trigger run family in
+any state, starting, running, waiting, failed or finished, unless the operator prompted one of its
+members. The root is recognized from the moment it exists, before its run records the session link.
+The Web list, board and dock launcher send it unless the window turns on **Show automation runs**.
+The same reads ignore it, and Loop and Task sessions are never hidden.
 
 ### Waiting for session state
 
@@ -744,7 +795,13 @@ generation instead of assuming a busy input ran immediately.
 Busy sends resolve `session.busy_input.default_mode` (default `steer`), unless an explicit
 `mode=queue`, `mode=interrupt`, or `mode=steer` overrides it. Read `disposition` and `steer_delivery`
 as the authoritative acceptance: `injected` preserves the turn, `pending_injection` waits inside
-the agent, and `interrupt_fallback` records a replacement before cancellation. Legacy `delivery`
+the agent, `pending_boundary` waits for all active tools before fallback cancellation, and
+`after_turn` queues guidance when tool events are unavailable. `interrupt_fallback` records a
+replacement before cancellation. `[session.busy_input] steer_boundary_timeout` defaults to `45s`;
+on expiry it cancels even with tools open, and `"0s"` restores immediate cancellation.
+An explicit operator interrupt supersedes older pending-boundary guidance; ordinary queued input
+remains parked. `after_turn` follows ordinary queue ordering, and newer steering may supersede
+undelivered guidance. Explicit interrupt remains immediate. Legacy `delivery`
 remains a scheduling field. Keep `message_id` and `idempotency_key` for exact retries.
 An omitted prompt fence resolves the live turn at admission; an explicit `expected_turn_id`
 rejects a stale target with `active_turn_mismatch` and `current_turn_id`. Native
@@ -922,9 +979,9 @@ as `cache_read_tokens` and `cache_write_tokens` on usage payloads and accumulate
 statistics. An absent count remains unreported; an explicit zero remains zero. Historical statistics
 upgrade with unknown cache counts until an adapter reports them.
 
-The decoder still accepts `cacheReadTokens` and `cacheWriteTokens` in v0.4.0 and v0.5.0, with a
-once-per-session deprecation warning. Send the canonical names; the aliases are removed in v0.6.0.
-Canonical names take precedence when both are present. Negative counters, negative context usage,
+Starting in v0.6.1, the decoder ignores the removed `cacheReadTokens` and `cacheWriteTokens`
+aliases. Send `cachedReadTokens` and `cachedWriteTokens`; missing canonical values remain unreported.
+Negative counters, negative context usage,
 and a context size of zero or less are discarded with one warning per session.
 
 Object metadata from `usage_update._meta` is available as optional `usage.meta` in live and transcript
@@ -962,6 +1019,15 @@ The session usage endpoint
 owns subscription billing; `unknown` has no amount because rates or aggregate provenance are
 incompatible. Never treat `included` as a confirmed account balance or add `actual` and `estimated`.
 Sources are `agent_reported`, `catalog_config`, `models_dev`, `builtin`, or `none`.
+ACP monetary reports are session counters. Per-turn `cost_amount` is the increment since the last
+recorded report. A lower report contributes zero; its raw value is retained as the next turn's baseline.
+The baseline survives runtime release and daemon restart. Adapter-declared per-turn amounts are
+exempt from subtraction. A drop omits that one turn's cost (at most one turn per drop). A counter
+restart whose first report equals or exceeds the previous total is indistinguishable from continuation
+and can also undercount. This is an accounting correction, not a billing invoice.
+The upgrade repairs historical session and daily costs from complete per-session ledgers. Missing,
+partial or ambiguous evidence becomes `unknown/none`; token counts and turn counts stay unchanged.
+
 Configured model input, output, cache-read, cache-write, and reasoning rates affect subsequent
 estimates only; CompozyOS does not reprice stored token statistics after a catalog or config change. Every
 nonzero bucket requires its own finite, non-negative rate. Never infer a cache rate from input or a
@@ -1120,7 +1186,7 @@ Resume session catalog/log streams with the exact prior event id in `last_event_
 `Last-Event-ID` header takes precedence. Preserve the original scope and filters, and mint a fresh
 stream ticket on every remote gateway reconnect. Worktree catalog wakes require refetch on reconnect.
 
-Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`. Every session read carries `lineage.kind`: `""` (root), `provenance` (created with a parent, the default), `recovery` (`session new --parent <id> --lineage-kind recovery` or `"lineage_kind": "recovery"` on create; only `provenance`/`recovery` are accepted there, and only with a parent), `spawn` (governed spawned or spawn-role sessions), `continue`, or `fork` (these two also carry `origin_agent_name`; forks carry `origin_message_id`). Sessions created before kinds existed read `spawn`/`provenance`/`""` automatically. `continue`/`fork` sessions are top-level, not children: lists show them as their own rows and they never count as the source's active child, but `parent=`/`root=` still match their stored fields, so filter on `lineage.kind` to separate them.
+Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`. Every session read carries `lineage.kind`: `""` (root), `provenance` (created with a parent, the default), `recovery` (`session new --parent <id> --lineage-kind recovery` or `"lineage_kind": "recovery"` on create; only `provenance`/`recovery` are accepted there, and only with a parent), `spawn` (governed spawned or spawn-role sessions), `continue`, or `fork` (these two also carry `origin_agent_name`; forks carry `origin_message_id`; request `result_view: "full"` on native session reads for those origin fields). Sessions created before kinds existed read `spawn`/`provenance`/`""` automatically. `continue`/`fork` sessions are top-level, not children: lists show them as their own rows and they never count as the source's active child, but `parent=`/`root=` still match their stored fields, so filter on `lineage.kind` to separate them.
 
 Governed children without an explicit agent command inherit the creator's resolved command only
 for the same native CLI provider, operator-home policy, compatible environment/runtime policies,
@@ -1162,24 +1228,28 @@ plain `session_spawn` children keep the creator wake above. Claude's own Agent/T
 recorded too, as `origin: "provider_native"` rows with no child session; they never wake the parent and
 cannot be canceled.
 
-Operators and agents outside a turn read and cancel subagents through the CLI and the matching HTTP/UDS
-routes:
+Operators and agents outside a turn read, cancel and delete subagents through the CLI and the
+matching HTTP/UDS routes:
 
 ```bash
 compozy session subagents <session-id> [--origin delegated|provider_native] [--status running,completed] [--limit 50] [--cursor <c>] [--json]
 compozy session subagents show <subagent-id> [--json]
 compozy session subagents cancel <subagent-id> [--reason <text>] [--json]
+compozy session subagents delete <subagent-id> [--json]
 compozy session list --subagents include|exclude|only
 ```
 
 HTTP/UDS: `GET /api/workspaces/{workspace_id}/sessions/{session_id}/subagents`,
-`GET /api/workspaces/{workspace_id}/subagents/{subagent_id}`, and
+`GET /api/workspaces/{workspace_id}/subagents/{subagent_id}`,
 `POST /api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel` (202 `cancel_requested`; 409
-`subagent_not_cancelable` for provider-native rows). An unknown or inaccessible session returns
-`session_not_found`; an unknown subagent returns `subagent_not_found`. The session list's `subagents`
-filter defaults to `include`; each parent row carries `subagent_summary` (`live`, `total`, `failed`,
-`attention`, `most_urgent`). The parent's session stream adds `subagents_snapshot` and
-`subagent_updated` events.
+`subagent_not_cancelable` for provider-native rows), and `DELETE
+/api/workspaces/{workspace_id}/subagents/{subagent_id}` (204; 409 `subagent_not_deletable` for
+provider-native rows). A delete removes the child session's transcript and history first and then the
+roster row, so a failed session delete leaves the row visible and retryable. An unknown or inaccessible
+session returns `session_not_found`; an unknown subagent returns `subagent_not_found`. The session
+list's `subagents` filter defaults to `include`; each parent row carries `subagent_summary` (`live`,
+`total`, `failed`, `attention`, `most_urgent`). The parent's session stream adds `subagents_snapshot`,
+`subagent_updated` and `subagent_removed` (`{session_id, subagent_id}`) events.
 
 Lifecycle rules that matter for operations:
 
@@ -1218,13 +1288,25 @@ when the daemon runs on macOS; a provider-filtered read or `refresh <provider>` 
 with `tray: null`. The unfiltered CLI table has one row per known provider; both verbs
 exit `0` even when rows fail and `1` for request errors (`invalid_request`, `provider_not_found`,
 `provider_usage_disabled`, profile errors). A successful collection in the last 30 seconds is never
-repeated; `--max-age` only raises that floor.
+repeated; `--max-age` only raises that floor. Profiles that resolve the same account share one
+collection: concurrent refreshes join one request and every profile publishes its result. A
+provider `429` cools that account down for at least 5 minutes, even with `Retry-After: 0`;
+consecutive `429`s back off 5, 10, 20, 40, then 60 minutes (a longer `Retry-After` wins, capped at
+one hour), and a success resets the streak. `next_refresh_at` and `error.retry_after` carry the
+effective cooldown end. During a cooldown, background refreshes send no request; one explicit
+refresh per account may retry until the next success.
 
 Collectors exist for `codex`, `claude`, `openrouter`, `vercel-ai-gateway`, `zai`, `moonshot`,
 `kimi-cli`, `cursor`, and `gemini`. A custom provider whose own ID has no collector collects through
 its `runtime_provider`'s collector with its own launch environment (for example its own
-`CLAUDE_CONFIG_DIR`) and bound secrets; every other provider reports `unsupported` (`no_collector`). They
-use only the credentials the profile's route resolves and never write credential files (the Codex CLI
+`CLAUDE_CONFIG_DIR`) and bound secrets; every other provider reports `unsupported` (`no_collector`).
+A native-CLI alias must set its account variable to a non-empty value in its own `command` (a leading
+`NAME=value` or inside an `env` prefix): `CLAUDE_CONFIG_DIR` (or `CLAUDE_SECURESTORAGE_CONFIG_DIR`
+when present), `CODEX_HOME`, `KIMI_CODE_HOME`, `HOME` for Gemini, and for Cursor `XDG_CONFIG_HOME`
+whenever its effective value is non-empty (including an inherited one), otherwise `HOME`. Otherwise
+its row is `signed_out` (`auth_missing`, "Set `<KEY>` in this provider's command so CompozyOS reads
+its own sign-in") and no credential is read; inherited daemon values never count. Alias rows carry
+`collector_id` (the collector family) when it differs from `provider_id`. Collectors use only the credentials the profile's route resolves and never write credential files (the Codex CLI
 may renew its own login). Codex runs only with its file credential store; `keyring`/`auto` report
 `unsupported` (`auth_store_unsupported`) and CompozyOS never changes that setting.
 
@@ -1300,7 +1382,8 @@ The web first-run wizard blocks the dashboard until this flag is set. Resetting 
 Native session tools include scoped wait, governed spawn, stop, approval, clarification answer, and
 prompt cancel. Recap, repair, inspect, and Soul refresh remain CLI/HTTP/UDS management surfaces unless
 the live registry exposes a matching tool. `compozy__clarify` asks from inside the active session;
-`compozy__session_clarify_answer` answers a pending question on another same-workspace session.
+`compozy__session_clarify_answer` answers a pending question on another session authorized by
+workspace access policy; its approval authority and self-target restrictions still apply.
 
 ## Gateway Exposure and Device Authentication
 
@@ -1456,7 +1539,8 @@ startup failure; failed or canceled probes change nothing. Agy models come only 
 concluding a new model is absent, and treat a missing-login diagnostic as a prompt to run the explicit operator sign-in, not a
 secret-binding or shell workaround. In Settings the provider shows `Sign-in unverified` until a
 live probe succeeds (the daemon keeps each native_cli provider's last live verdict from explicit
-probes and session pre-start checks, invalidated by a provider config change or daemon restart, and
+probes, session pre-start checks and the startup check, invalidated by a provider config change or daemon restart; a successful Usage
+collection drops a stale `needs_login` and re-checks once, and
 Settings, `provider list`, and `auth_status.last_probe_at` report it), and the runtime picker plus session attribution carry the exact selected
 model ID (on the verified 1.4.0 server the bare `gemini-4-argon` / `gemini-3.8-flash` IDs; effort is the first-class `thinking_level` option, not an ID suffix).
 
@@ -1496,6 +1580,12 @@ the existing session events surfaces. Interrupted metadata uses `stop_reason: "s
 an invented `process_exit` failure. Confirmed agent failures remain failures. The Web timeline shows
 the interruption and resumption; CLI, HTTP/UDS and native reads share the same persisted state.
 
+A session that was idle when the restart began has no interrupted turn. Unless it is an instance
+main or needed for an interrupted worker, an eligible wake, or an undelivered child shutdown notice,
+boot leaves it `stopped` with `stop_reason: "shutdown"`. Prompt it with `compozy__session_prompt` (or
+`compozy session prompt`) to resume the same session in place with its history and parent; reach for
+`session continue` only to change agent or runtime, since it creates a new session.
+
 Automatic continuation is skipped for explicit stops, pending approval or clarification, maintenance
 commands, completed turns, archived sessions, changed provider binding/runtime selection/permission
 policy/worktree, or a reached restart attempt limit. Pending interactions require review; boot does
@@ -1506,7 +1596,11 @@ their sessions.
 `session.restart.auto_continue` defaults to `true`; set it to `false` to opt out. The durable breaker
 defaults to `session.restart.max_attempts = 3` within `session.restart.window = "5m"` (ranges 1–10 and
 1s–1h). `daemon.shutdown_grace = "30s"` (0s–5m) allows admitted turns to finish before concurrent
-termination. The total shutdown/relaunch budgets also cover termination and cleanup. These additive
+termination; a restart waits at most the smaller of that value and 5 seconds, returns as soon as no
+turn is running, and never waits on a turn blocked on an approval or a question, because interrupted
+turns are checkpointed and resumed by the next boot. From the moment shutdown begins the daemon starts
+no provider process and no automatic recovery. The total shutdown/relaunch budgets also cover
+termination and cleanup. These additive
 keys retain explicit zero/false values, do not rewrite old user config, and require a daemon restart
 through the existing settings apply lifecycle. Inspect a skipped session before issuing a fresh
 operator prompt; an automatic pause never authorizes replaying an external effect.
@@ -1537,8 +1631,16 @@ payload backs the web home dashboard.
 `compozy status -o json` is the consolidated daemon-wide status surface for daemon health, providers, MCP servers, config apply status, schema migration streams, and log tail summary. To resolve skill diagnostics for one workspace, call `GET /api/status?workspace_id=<id>` or `GET /api/status?workspace=<id|name|path>`; bare `compozy status` does not select a workspace. Inspect `schema_streams` after startup to confirm that the global and telemetry streams report their expected versions, applied migration counts, and digests. An incompatible daemon-global `compozy.db` is refused during boot, before readiness. By contrast, an incompatible per-session `events.db` can be discovered after the daemon is ready when a reader such as `compozy session history <id> -o json` or `GET /api/workspaces/{workspace_id}/sessions/{session_id}/history` opens that session; that operation fails without making the healthy daemon-global store unavailable.
 
 `GET /api/status/identity` is the bounded HTTP/UDS process and listener identity used by the native
-desktop shell for frequent liveness checks. It intentionally omits runtime diagnostics; use
-`compozy status -o json`, `GET /api/status`, or `compozy doctor -o json` for inspection.
+desktop shell and Web connectivity/recovery checks. Its optional `daemon.readiness` preserves
+startup and recovery phases without collecting runtime diagnostics. Use `compozy status -o json`,
+`GET /api/status`, or `compozy doctor -o json` for inspection.
+
+Status reads never actively probe MCP servers. They reuse diagnostic observations for up to
+30 seconds while checking current consent, authentication and runtime identity. Without a fresh
+observation, MCP health is `unknown` with `probe: skipped` and reason `not_observed` or `stale`;
+this does not prove the server is unavailable. Settings MCP diagnostics and Doctor probe and refresh
+this observation. Explicit native MCP diagnostics still probe independently. Authorization changes
+and known runtime failures take precedence over a previous successful probe.
 
 Inspect `.subprocess_health` in `compozy status -o json` and run
 `compozy doctor --only runtime.subprocess_health -o json` for active ACP subprocess verdicts. With the
@@ -1606,7 +1708,7 @@ process, and old events can omit this additive object. No retry-after seconds ar
 ## Silence supervision and scheduling pressure
 
 Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning` on the
-session resource/status or `compozy__session_describe`. Fresh agent progress, verified tools,
+session resource/status or `compozy__session_describe` with `result_view: "full"`. Fresh agent progress, verified tools,
 active children, reconciled Loop runs, future task leases, future scheduled waits, active/delivering
 monitors until their deadline, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
@@ -1789,7 +1891,23 @@ facts and schedule eligible stale observations in the background. A root session
 captured when its turn settled. A bound session uses its live pending/ready worktree branch; removed
 or unavailable worktrees never fall back to the root branch. Default branches and detached HEADs have
 no link. Provider failures retain cached facts and expose a sanitized lookup cause. Read
-`pull_request_lookup.stale` and `state` before treating `ready_to_merge` as current.
+`pull_request_lookup.stale` and `state` (request `result_view: "full"` on native session tools) before treating `ready_to_merge` as current.
+
+### Session changes
+
+Use `compozy session changes <session-id> [-o json]` to read what a session changed in its bound
+worktree, else its project root. `--scope branch` (default) compares the working tree, untracked files included,
+with its merge base against `--base <ref>` (omitted: the worktree's base ref, then `origin/HEAD`, then `main`/`master`);
+`--scope uncommitted` compares it with HEAD. Repeat
+`--patch <root-relative-path>` (at most 20) to add bounded patches; sensitive files print
+`(sensitive)` unless `--reveal` is set. Human output is a status/`+`/`−`/path table with totals;
+`-o json` returns the summary (`revision`, `totals`, `files`, `truncated`, optional `pull_request`)
+plus `patches`. Domain failures exit 1 and name their code, such as `root_unavailable` for User-scope
+sessions, `base_not_found`, `not_a_git_repository`, or `too_many_paths`. Agents inside a session use
+`compozy__session_changes` (`references/native-tools.md#session-changes`). The HTTP/UDS routes are
+`GET /api/workspaces/{ws}/sessions/{id}/changes`, `/changes/patches`, `/changes/contents`, and
+`/changes/bases`; detail reads require the summary `revision` and return `409 changes_stale` once HEAD
+or the base moves.
 
 ### Existing-session execution environment
 
@@ -1812,6 +1930,7 @@ Raw environments are never exposed. `trees` groups the rows into logical process
 `id`, `kind`, `root`, `lead` (the process that names it, the leaf of a `sh -c`/`bun run`/`npm run`
 wrapper chain), `wrappers`, `members`, and the union of `ports`; every row carries its `tree_id`. A
 browser and its helpers, including detached crash handlers of the same app bundle, are one tree.
+Read `compozy__session_status` with `result_view: "full"` for this summary.
 The session's `process_summary.trees` counts Background and Terminal trees; `background` and
 `terminals` still count processes, with ports from that same population; foreground tools remain in
 the detailed list. Catalog changes invalidate it.
@@ -1935,6 +2054,21 @@ dry-run checks (`dry_run: true`) do not require an approval handoff. These calls
 enforce instance ownership, grants and workspace reach. Real checks, create and archive
 retain approval requirements; `deny-all` still requires approval for every call.
 
+A main session whose provider thread belongs to another provider account or backend
+(Codex after `model_provider` changes: `session/load` answers "This chat uses <a>, but
+your current provider is <b>") recovers on its next wake: CompozyOS starts a fresh
+provider thread under the same session ID and replays the stored transcript. The
+transcript keeps one load failure and one notice naming the backend change; queued
+inputs, agent memory and the instance are untouched, and the queue drains on the new
+thread. Other `session/load` failures keep the provider thread and retry. When a main
+cannot resume for another reason, the operator can run
+`compozy agent instance clear-main <agent-or-instance-id>` (native
+`compozy__agent_instance_clear_main`, operator only). It keeps the instance, the session
+ID, queued inputs and agent memory, but discards the main's conversation and starts a
+fresh one; it is refused while the main is running a turn and has no dry run.
+`session archive` still refuses an instance main, `ensure-main` returns the existing
+main, and `adopt` refuses an agent that already has an instance.
+
 A repeated timer request in the same session with the same description and a
 deadline within one second reuses the active monitor. A successfully admitted
 monitor wake does not trigger an additional always-on check; `monitors_fired`
@@ -1995,9 +2129,33 @@ without resuming the instance. A peer message never grants operator approval.
 
 Read reachable peers with `compozy agent instance list --peers` or
 `compozy__agent_instance_list` with `peers:true`. HTTP/UDS use `GET /api/agent-instances?peers=true`.
-The `peers` array carries only the addressable `name`, `description`, `scope` and `state`.
-Workspace access filters rows before pagination. Omit workspace to inspect reachable scopes in the
-current profile, and retain filters with each `next_cursor`. No roster is injected into prompts.
+The `peers` array carries only the addressable `name`, `description`, `scope`, `state` and the
+`accepts` input forms the peer's definition declares. Workspace access filters rows before
+pagination. Omit workspace to inspect reachable scopes in the current profile, and retain filters
+with each `next_cursor`.
+
+### Standing context of always-on agents
+
+Every turn of an always-on agent session, whatever its origin (operator, peer message, wake or
+check-in pick), carries a `<compozy-standing-context>` block with two parts: the operator rules
+from agent memory (`references/agent-memory.md`) and a peer roster. The roster is the same
+authorization-filtered read as `peers: true`, limited to 12 peers of the session's profile: name,
+scope, a non-active state, the description cut to 160 characters and the accepted input forms. It
+tells the agent to hand work that matches a peer's role to that peer through
+`compozy__session_prompt` with `agent`. When more peers exist the block says so; list them with
+`peers: true`. A session that does not belong to an instance gets rules but no roster. The roster is cached per
+session and re-read when the agent definition catalog changes or after 30 seconds.
+
+The block is bounded to 12,000 characters and sent in full only when needed: on the first turn of a
+provider session, when the rules or roster change, and after a completed provider compaction (its
+opening tag then carries `compaction="<n>"`) until a turn delivers it. Other turns carry a one-line
+marker stating that the earlier block is still current, so the standing rules never depend on a
+compaction summary. An agent with no rules and no peers receives a block saying none are in force,
+which also withdraws rules removed mid-session. A failed roster read keeps the last roster, or says
+the roster could not be read when there is none; rules that cannot be read are reported in the block
+instead of dropping it. On a turn sent by another agent the block stays above the sender's
+attribution header, and the same tag inside the sender's text is neutralized. Rotation starts a new provider session and
+therefore delivers the full block again.
 
 ## Daemon profiles (experimental)
 
@@ -2027,3 +2185,7 @@ dispatch, hosted-MCP projection and HTTP/UDS handlers. Keys include `session_id`
 file contents, tool arguments, query strings or message text. Profiles contain runtime stack,
 allocation and binary metadata, so review them before sharing. `--file` writes a mode-0600
 artifact atomically; `-o json` reports its kind and path, not the binary payload.
+
+Child attention wakes reuse their durable event identity as the input message ID. Replaying an
+already admitted revision after restart does not start another turn; a new attention revision
+remains a new wake. Admission-read failures are reported instead of silently suppressing a wake.

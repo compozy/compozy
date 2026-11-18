@@ -1,4 +1,7 @@
-import { Outlet, useLocation } from "@tanstack/react-router";
+import { Outlet } from "@tanstack/react-router";
+import { useRef, type ReactNode } from "react";
+
+import { WindowNavigationGuardContext } from "@/hooks/use-window-navigation-guard";
 
 import { cn } from "@compozy/ui";
 
@@ -12,9 +15,14 @@ import { useDesktop } from "../hooks/use-desktop";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
 import { useProfileLifecycleHostActions } from "../hooks/use-profile-lifecycle-host-actions";
-import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
+import {
+  useDesktopWorktreeScope,
+  useFocusedWorktreeScopeId,
+  WindowScopeContext,
+} from "../hooks/use-worktree-scope";
 import type { WorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
+import { createWindowNavigationGuard } from "../lib/window-navigation-guard";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
@@ -22,9 +30,13 @@ import { DesktopMenubar } from "./desktop-menubar";
 import type { MenubarUpdateModel } from "./menubar/menubar-update-indicator";
 import { ShellDesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
-import { DesktopPagerSurface } from "./desktop-pager-surface";
-import { DesktopSessionDialogs, WorkspaceSetupDialogBoundary } from "./desktop-shell-dialogs";
-import { ProcessesLeftRunningHost } from "@/systems/session";
+import { DesktopIndicatorsSurface } from "./desktop-indicators-surface";
+import { WorkspaceSetupDialogBoundary } from "./desktop-shell-dialogs";
+import {
+  FocusedSessionControlsHost,
+  type FocusedSessionControls,
+} from "./focused-session-controls";
+import { ProcessesLeftRunningHost, SessionParentPickerHost } from "@/systems/session";
 
 import { OsAboutDialog } from "./os-about-dialog";
 import { OsAppPreloader } from "./os-app-preloader";
@@ -33,7 +45,9 @@ import { OsShortcutsDialog } from "./os-shortcuts-dialog";
 import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { TerminalCloseDialog } from "./terminal-close-dialog";
-import { LiveOsWinLayer } from "./os-win-layer";
+import { LiveOsDeskLayer } from "./os-desk-layer";
+import { OsTabBar } from "./os-tab-bar";
+import { OsUpgradeNotice } from "./os-upgrade-notice";
 import { AgentCreateHostProvider, AgentCreateScreen } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
 import {
@@ -42,12 +56,13 @@ import {
   WorkspaceProfilesHint,
 } from "@/systems/profiles";
 import {
+  ProjectMenuHostProvider,
   SessionCreateDialogHost,
   SessionCreateProvider,
   useSessionCreateActions,
-  useSessionListView,
 } from "@/systems/session";
 import { useProductUpdate, useReloadOnProductVersionChange } from "@/systems/settings";
+import { DaemonRecoveryNoticeHost, useRuntimeReconnectRefresh } from "@/systems/status";
 import { selectWorktreeForScope, type WorkspaceSetupDefaultsModel } from "@/systems/workspace";
 
 /**
@@ -62,6 +77,8 @@ export function DesktopShell() {
   // Same cached read and apply key the Updates section uses — one truth.
   const update = useProductUpdate();
   useReloadOnProductVersionChange(update.query.data);
+  // A restarted runtime on the same version refreshes this page's data instead of reloading it.
+  useRuntimeReconnectRefresh();
   const firstRun = onboarding.data?.completed === false;
 
   return (
@@ -80,6 +97,8 @@ export function DesktopShell() {
 /** Mounts the shell context and its lifecycle confirmation before rendering desktop content. */
 function DesktopChrome({ firstRun, update }: { firstRun: boolean; update: MenubarUpdateModel }) {
   const controller = useDesktopChromeController();
+  const { shell, unsavedClose } = controller.chrome;
+  const navigationGuard = createWindowNavigationGuard(shell.manager, unsavedClose);
 
   // Zero project workspaces boots into All projects with User focused; the
   // shell never waits for a project before rendering.
@@ -87,18 +106,20 @@ function DesktopChrome({ firstRun, update }: { firstRun: boolean; update: Menuba
   return (
     <WorktreeDialogActionsContext.Provider value={controller.worktreeDialogs}>
       <OsShellContext.Provider value={controller.chrome.shell}>
-        <DeskProfileContext value={controller.chrome.profileId}>
-          <TerminalCloseDialog controller={controller.chrome.terminalClose} />
-          <DesktopChromeContent
-            client={controller.chrome.client}
-            firstRun={firstRun}
-            model={controller.model}
-            clientCommandChannel={controller.chrome.clientCommandChannel}
-            update={update}
-            worktreeDialogs={controller.worktreeDialogs}
-            workspaceSetupDefaults={controller.workspaceSetupDefaults}
-          />
-        </DeskProfileContext>
+        <WindowNavigationGuardContext value={navigationGuard}>
+          <DeskProfileContext value={controller.chrome.profileId}>
+            <TerminalCloseDialog controller={controller.chrome.terminalClose} />
+            <DesktopChromeContent
+              client={controller.chrome.client}
+              firstRun={firstRun}
+              model={controller.model}
+              clientCommandChannel={controller.chrome.clientCommandChannel}
+              update={update}
+              worktreeDialogs={controller.worktreeDialogs}
+              workspaceSetupDefaults={controller.workspaceSetupDefaults}
+            />
+          </DeskProfileContext>
+        </WindowNavigationGuardContext>
       </OsShellContext.Provider>
     </WorktreeDialogActionsContext.Provider>
   );
@@ -155,14 +176,31 @@ function DesktopChromeContent(props: DesktopShellBodyProps) {
 
 type DesktopWorktreeScope = ReturnType<typeof useDesktopWorktreeScope>;
 
+/**
+ * The body never follows focus itself: a tab switch would re-render the whole shell. Its own hooks
+ * use the scope only to resolve the focused window's worktree selection (New session, attention),
+ * so they get the entry that selection comes from (`readScopeId`), the same while focus moves
+ * between windows that never chose a worktree. (Attention also reads the modal's order there, for
+ * the modal query it never runs.) Everything kept per window acts on the focused window itself:
+ * the sessions list and rail in `FocusedSessionControlsHost`, worktree-dialog writes under
+ * `FocusedWindowScope`, and gestures reading the focused scope when they run.
+ */
 function DesktopShellBody(props: DesktopShellBodyProps) {
   const worktreeScope = useDesktopWorktreeScope(props.model.worktreeListing);
 
   return (
-    <WindowScopeContext value={worktreeScope.worktreeScopeId}>
-      <DesktopShellScopedBody {...props} {...worktreeScope} />
+    <WindowScopeContext value={worktreeScope.readScopeId}>
+      {/* Below the scope, so New session from any project menu takes the focused window's worktree. */}
+      <ProjectMenuHostProvider>
+        <DesktopShellScopedBody {...props} {...worktreeScope} />
+      </ProjectMenuHostProvider>
     </WindowScopeContext>
   );
+}
+
+/** Exact window identity for per-window controls and writes, outside the shared chrome. */
+function FocusedWindowScope({ children }: { children: ReactNode }) {
+  return <WindowScopeContext value={useFocusedWorktreeScopeId()}>{children}</WindowScopeContext>;
 }
 
 /** Wires both workspace lists to the same profile authority and lifecycle dialog targets. */
@@ -173,23 +211,13 @@ function DesktopShellScopedBody({
   update,
   workspaceSetupDefaults,
   worktreeDialogs,
-  worktreeScopeId,
+  worktreeScopeOf,
   worktreeSelection,
   clientCommandChannel,
 }: DesktopShellBodyProps & DesktopWorktreeScope) {
-  // A deep link can arrive before its window-open receipt. Keep that transient
-  // empty projection from loading a composer the destination does not use.
-  const showEmptyDesktop = useLocation({ select: location => location.pathname === "/" });
   const sessionCreate = useSessionCreateActions();
   const profileLifecycleActions = useProfileLifecycleHostActions();
-  // Scope and order are the operator's, persisted by the daemon; the modal
-  // renders them rather than fetching its own.
-  const sessionListView = useSessionListView({
-    scope: model.dataScope,
-    worktreeId: worktreeSelection.activeWorktree?.id,
-    enabled: worktreeSelection.resolved,
-    pending: !worktreeSelection.resolved,
-  });
+  const sessionControls = useRef<FocusedSessionControls | null>(null);
   const openNewSession = () => {
     sessionCreate.openForAgent("");
   };
@@ -198,15 +226,9 @@ function DesktopShellScopedBody({
     desktop,
     desktopRef,
     manager,
-    managerSurfaces,
-    onResize,
-    onFrameResize,
     onDesktopManagerOpenChange,
     desktopSwitchShortcuts,
     onOpenDesktopOverview,
-    onSeamPreview,
-    onFrameSeamPreview,
-    onSeamPreviewEnd,
     onTransitionComplete,
     overlays,
     pager,
@@ -219,7 +241,7 @@ function DesktopShellScopedBody({
   } = useDesktopShellBody(model, {
     firstRun,
     onNewSession: openNewSession,
-    sessionListView,
+    sessionControls,
     clientCommandChannel,
     client,
   });
@@ -231,11 +253,11 @@ function DesktopShellScopedBody({
       data-first-run={firstRun ? "true" : undefined}
       inert={firstRun}
       tabIndex={-1}
-      // Topbar across the full width; rail + desk below it; the compact tab bar
-      // takes the last row. Each dock presentation claims its own track. The
-      // grid paints the chrome, so topbar + rail read as one L-shaped surface
-      // around the inset desk panel.
-      className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-rail focus-visible:shadow-focus-inset focus-visible:outline-none"
+      // Topbar across the full width; the rail beside the desktop's tab bar and
+      // the desk below it; the compact dock tab bar takes the last row. Each
+      // dock presentation claims its own track. The grid paints the chrome, so
+      // topbar, rail and tab bar read as one surface around the inset desk panel.
+      className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden bg-rail focus-visible:shadow-focus-inset focus-visible:outline-none"
     >
       <DesktopMenubar
         // Dimmed while setup blocks: readable enough to see what you unlock,
@@ -256,7 +278,7 @@ function DesktopShellScopedBody({
         focusWorkspaceName={model.rememberedWorkspace?.name ?? null}
         onToggleAllProjects={model.toggleAllProjects}
         onSelectWorkspace={workspaceId =>
-          model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })
+          model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeOf() })
         }
         onFocusUser={() => model.focusDestination({ kind: "user" })}
         onEnableAllProjects={model.enableAllProjects}
@@ -274,7 +296,7 @@ function DesktopShellScopedBody({
           // A discovered row is the adoption gesture; anything else scopes.
           if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
           if (entry.worktree) {
-            selectWorktreeForScope(worktreeScopeId, workspaceId, entry.worktree.id);
+            selectWorktreeForScope(worktreeScopeOf(), workspaceId, entry.worktree.id);
           }
         }}
         onCreateWorktree={model.openWorktreeCreate}
@@ -283,7 +305,7 @@ function DesktopShellScopedBody({
         onRemoveWorktree={worktreeDialogs.requestRemove}
         onRemoveWorktrees={worktreeDialogs.requestRemoveBatch}
         pager={
-          <DesktopPagerSurface
+          <DesktopIndicatorsSurface
             activeDesktopId={pager.activeDesktopId}
             desktops={pager.desktops}
             needsYouDesktopIds={pager.needsYouDesktopIds}
@@ -305,62 +327,71 @@ function DesktopShellScopedBody({
         }
         onOpenSettings={() => void paletteDispatch.runById("settings.general")}
       />
+      <OsTabBar
+        className={cn(
+          "row-start-2 min-w-0",
+          desktop.presentation === "compact" ? "col-span-full" : "col-start-2"
+        )}
+      />
       <div
         data-slot="os-desk"
         className={cn(
           // The desk is a panel inset into the chrome: a hairline where it meets
-          // the topbar and rail, flush with the window's right and bottom edges.
-          // It clips its children so tiled panes follow the rounded corner; the
-          // win-layer sits inside the border, so snap geometry never sees it.
-          "relative col-start-2 row-start-2 min-h-0 overflow-hidden border-t border-line",
-          desktop.presentation !== "compact" && "rounded-tl-lg border-l"
+          // the tab bar and rail, flush with the window's right and bottom edges.
+          // It clips its children so split panes follow the rounded corner; the
+          // desk layer sits inside the border, so projection never sees it. The
+          // upgrade notice takes its height above the content area.
+          "relative row-start-3 flex min-h-0 flex-col overflow-hidden border-t border-line",
+          desktop.presentation !== "compact"
+            ? "col-start-2 rounded-tl-lg border-l"
+            : "col-span-full"
         )}
       >
-        <OsWallpaper wallpaper={desktop.wallpaper} />
-        {model.activeWorkspaceId !== null ? (
-          <WorkspaceProfilesHint
-            hints={model.workspaceProfileHints}
-            workspaceId={model.activeWorkspaceId}
+        <OsUpgradeNotice />
+        <div data-slot="os-desk-content" className="relative min-h-0 flex-1">
+          <OsWallpaper wallpaper={desktop.wallpaper} />
+          <DaemonRecoveryNoticeHost className="absolute top-3 left-1/2 z-30 w-[min(42rem,calc(100%-1.5rem))] -translate-x-1/2 shadow-pop" />
+          {model.activeWorkspaceId !== null ? (
+            <WorkspaceProfilesHint
+              hints={model.workspaceProfileHints}
+              workspaceId={model.activeWorkspaceId}
+            />
+          ) : null}
+          {desktop.windowIds.map(windowId => (
+            <OsAppPreloader key={windowId} windowId={windowId} />
+          ))}
+          <LiveOsDeskLayer
+            reducedMotion={reducedMotion}
+            transition={transition}
+            onTransitionComplete={onTransitionComplete}
           />
-        ) : null}
-        {desktop.windowIds.map(windowId => (
-          <OsAppPreloader key={windowId} windowId={windowId} />
-        ))}
-        <LiveOsWinLayer
-          showEmptyDesktop={showEmptyDesktop}
-          paletteShortcutLabel={shortcutLabels.palette}
-          canStart={model.dataScope !== null}
-          reducedMotion={reducedMotion}
-          transition={transition}
-          onTransitionComplete={onTransitionComplete}
-          onResize={onResize}
-          onFrameResize={onFrameResize}
-          onSeamPreview={onSeamPreview}
-          onFrameSeamPreview={onFrameSeamPreview}
-          onSeamPreviewEnd={onSeamPreviewEnd}
-        />
-        <DesktopManagerSurfaces
-          model={managerSurfaces}
-          needsYouDesktopIds={pager.needsYouDesktopIds}
-          switchShortcuts={desktopSwitchShortcuts}
-          onCreateDesktop={() => manager.createDesktop()}
-          onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
-          onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}
-          onReorderDesktop={(desktopId, order) => manager.reorderDesktop(desktopId, order)}
-          onDeleteDesktop={(desktopId, destinationId) =>
-            manager.deleteDesktop(desktopId, destinationId)
-          }
-          onMoveWindow={(windowId, destinationDesktopId) =>
-            manager.moveWindowToDesktop(windowId, destinationDesktopId)
-          }
-          onOpenChange={onDesktopManagerOpenChange}
-          onRetry={() => manager.refreshSnapshot()}
-          onResolveConflict={() => {
-            manager.clearConflict();
-            manager.refreshSnapshot();
-          }}
-        />
+        </div>
       </div>
+      <DesktopManagerSurfaces
+        // The overview covers the tab bar and the desk, as the window-desktops prototype does.
+        className={cn(
+          "row-span-2 row-start-2",
+          desktop.presentation !== "compact" ? "col-start-2 rounded-tl-lg" : "col-span-full"
+        )}
+        needsYouDesktopIds={pager.needsYouDesktopIds}
+        switchShortcuts={desktopSwitchShortcuts}
+        onCreateDesktop={() => manager.createDesktop()}
+        onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
+        onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}
+        onReorderDesktop={(desktopId, order) => manager.reorderDesktop(desktopId, order)}
+        onDeleteDesktop={(desktopId, destinationId) =>
+          manager.deleteDesktop(desktopId, destinationId)
+        }
+        onMoveTab={(windowId, destinationDesktopId) =>
+          manager.moveWindowToDesktop(windowId, destinationDesktopId)
+        }
+        onOpenChange={onDesktopManagerOpenChange}
+        onRetry={() => manager.refreshSnapshot()}
+        onResolveConflict={() => {
+          manager.clearConflict();
+          manager.refreshSnapshot();
+        }}
+      />
       {/* Route matches mount here as sync-controllers; they render null. */}
       <Outlet />
       <OsCommandPalette
@@ -369,14 +400,19 @@ function DesktopShellScopedBody({
         onOpenChange={open => overlays.setOverlayOpen("palette", open)}
         dispatch={paletteDispatch}
       />
-      <DesktopSessionDialogs
-        workspaceId={model.runtimeWorkspaceId}
-        open={overlays.activeOverlay === "sessions"}
-        onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
-        disconnected={attention.sessionsDisconnected || Boolean(sessionListView.catalog?.failed)}
-        view={sessionListView}
-        onNewSession={options => sessionCreate.openForAgent("", options)}
-      />
+      <FocusedWindowScope>
+        <FocusedSessionControlsHost
+          controlsRef={sessionControls}
+          dataScope={model.dataScope}
+          worktreeId={worktreeSelection.activeWorktree?.id}
+          worktreeResolved={worktreeSelection.resolved}
+          workspaceId={model.runtimeWorkspaceId}
+          open={overlays.activeOverlay === "sessions"}
+          onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
+          attentionDisconnected={attention.sessionsDisconnected}
+          onNewSession={options => sessionCreate.openForAgent("", options)}
+        />
+      </FocusedWindowScope>
       <OsShortcutsDialog
         open={overlays.activeOverlay === "shortcuts"}
         onOpenChange={open => overlays.setOverlayOpen("shortcuts", open)}
@@ -385,6 +421,7 @@ function DesktopShellScopedBody({
         open={overlays.activeOverlay === "left-running"}
         onOpenChange={open => overlays.setOverlayOpen("left-running", open)}
       />
+      <SessionParentPickerHost />
       <OsAboutDialog
         open={overlays.activeOverlay === "about"}
         onOpenChange={open => overlays.setOverlayOpen("about", open)}
@@ -399,7 +436,7 @@ function DesktopShellScopedBody({
         workspaces={model.workspaces}
         activeWorkspaceId={model.activeWorkspaceId}
         onSelectWorkspace={workspaceId =>
-          model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })
+          model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeOf() })
         }
         onNewWorkspace={model.openWorkspaceSetup}
         reducedMotion={reducedMotion}
@@ -410,7 +447,7 @@ function DesktopShellScopedBody({
         onSelectWorktree={(workspaceId, entry) => {
           if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
           if (entry.worktree) {
-            selectWorktreeForScope(worktreeScopeId, workspaceId, entry.worktree.id);
+            selectWorktreeForScope(worktreeScopeOf(), workspaceId, entry.worktree.id);
           }
         }}
         onCreateWorktree={model.openWorktreeCreate}
@@ -424,11 +461,9 @@ function DesktopShellScopedBody({
         onWorkspaceResolved={model.setActiveWorkspaceId}
         open={model.isWorkspaceSetupOpen}
       />
-      <DesktopWorktreeDialogs
-        model={model}
-        scopeId={worktreeScopeId}
-        worktreeDialogs={worktreeDialogs}
-      />
+      <FocusedWindowScope>
+        <DesktopWorktreeDialogs model={model} worktreeDialogs={worktreeDialogs} />
+      </FocusedWindowScope>
       <AgentCreateScreen
         instanceCapacity={model.agentCreate.instanceCapacity}
         draft={model.agentCreate.draft}
@@ -456,8 +491,7 @@ function DesktopShellScopedBody({
         workspaceName={model.agentCreate.workspaceName}
         workspaces={model.agentCreate.workspaces}
       />
-      {/* Profile lifecycle dialogs live at the shell so a flow started from the
-          command palette does not depend on Settings being open. */}
+      {/* Shell-level profile dialogs let command-palette flows work with Settings closed. */}
       <ProfileLifecycleHost {...profileLifecycleActions} />
     </div>
   );

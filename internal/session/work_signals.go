@@ -17,15 +17,18 @@ const (
 	WorkSignalTaskLease      WorkSignalKind = "task_lease"
 	WorkSignalScheduledWait  WorkSignalKind = "scheduled_wait"
 	WorkSignalActiveMonitor  WorkSignalKind = "active_monitor"
+	WorkSignalHeldInput      WorkSignalKind = "held_input"
 	// WorkSignalAwaitingReply keeps a sender alive while a session it asked is still working on the answer.
 	WorkSignalAwaitingReply WorkSignalKind = "awaiting_reply"
 )
 
 // WorkSignal is ephemeral evidence of work; it never enters session persistence.
 type WorkSignal struct {
-	Kind  WorkSignalKind `json:"kind"`
-	Since time.Time      `json:"since"`
-	Ref   string         `json:"ref,omitempty"`
+	HeldReason     string         `json:"held_reason,omitempty"`
+	HeldInstanceID string         `json:"held_instance_id,omitempty"`
+	Kind           WorkSignalKind `json:"kind"`
+	Since          time.Time      `json:"since"`
+	Ref            string         `json:"ref,omitempty"`
 
 	ValidUntil      time.Time `json:"-"`
 	StaleAttention  bool      `json:"-"`
@@ -81,5 +84,6 @@ func WorkSignalKindValues() []string {
 		string(WorkSignalAgentProgress), string(WorkSignalToolRunning), string(WorkSignalActiveChild),
 		string(WorkSignalLoopRun), string(WorkSignalTaskLease), string(WorkSignalScheduledWait),
 		string(WorkSignalAwaitingReply), string(WorkSignalActiveMonitor), string(WorkSignalHeldPermission),
+		string(WorkSignalHeldInput),
 	}
 }

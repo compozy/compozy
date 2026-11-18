@@ -28,6 +28,7 @@ import {
   settingsRestartStatusFixture,
   settingsSkillsSectionFixture,
 } from "./fixtures";
+import { runtimeMCPInventoryFixture } from "./runtime-mcp-fixtures";
 import {
   settingsHooksCollectionFixtureFor,
   settingsPersonaSectionFixtureFor,
@@ -35,6 +36,7 @@ import {
 import {
   settingsWindowManagerDesktopIds,
   settingsWindowManagerSnapshotFixture,
+  windowManagerEarlierLayoutResourceFixture,
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
 } from "./window-manager-fixtures";
@@ -248,6 +250,7 @@ export const handlers: HttpHandler[] = [
       applied: true,
       changes: {},
       diagnostics: [],
+      deprecations: [],
     })
   ),
   compozyApiMock.post(
@@ -257,6 +260,11 @@ export const handlers: HttpHandler[] = [
         workspace_id: String(params.workspace_id),
         valid: true,
         diagnostics: [],
+        // The canonical version 6 form of the input; the mock answers with the exported layout.
+        document: {
+          ...windowManagerLayoutDocumentFixture,
+          workspace_id: String(params.workspace_id),
+        },
       })
   ),
   compozyApiMock.post("/api/workspaces/{workspace_id}/window-manager/preview", ({ params }) =>
@@ -268,11 +276,12 @@ export const handlers: HttpHandler[] = [
       changed: true,
       changes: {
         desktop_ids: [settingsWindowManagerDesktopIds.build],
-        group_ids: ["group-main"],
+        tab_ids: ["tab-main"],
         node_ids: ["split-main"],
         window_ids: [],
       },
       diagnostics: [],
+      deprecations: [],
     })
   ),
   compozyApiMock.get(
@@ -280,7 +289,10 @@ export const handlers: HttpHandler[] = [
     ({ params }) => {
       const workspaceId = String(params.workspace_id);
       return HttpResponse.json({
-        records: [layoutResourceFor(workspaceId, windowManagerLayoutResourceFixture.id)],
+        records: [
+          windowManagerEarlierLayoutResourceFixture,
+          layoutResourceFor(workspaceId, windowManagerLayoutResourceFixture.id),
+        ],
       });
     }
   ),
@@ -379,6 +391,21 @@ export const handlers: HttpHandler[] = [
   ),
   compozyApiMock.delete("/api/settings/mcp-servers/{name}", () =>
     HttpResponse.json(mutationResult("mcp-servers", true))
+  ),
+  // Runtime inventory: no coding-agent servers by default, so a story or test opts into groups.
+  compozyApiMock.get("/api/settings/runtime-mcp-servers", () =>
+    HttpResponse.json(runtimeMCPInventoryFixture([]))
+  ),
+  compozyApiMock.put("/api/settings/mcp-servers/{name}/approval", ({ params }) =>
+    HttpResponse.json({
+      approval: {
+        server_name: String(params.name),
+        workspace_id: "ws-platform",
+        profile: "default",
+        state: "allowed",
+        approved_at: "2026-11-14T16:31:00Z",
+      },
+    })
   ),
   compozyApiMock.post("/api/settings/mcp-servers/{name}/auth/begin", () =>
     HttpResponse.json(mcpAuthBeginFixture)

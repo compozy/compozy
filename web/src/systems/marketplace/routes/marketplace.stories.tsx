@@ -6,18 +6,12 @@ import {
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
   appRouteParameters,
+  holdWindowOpen,
 } from "@/storybook/route-story-meta";
 
-import {
-  installedExtension,
-  installedListing,
-  marketplaceStoryHandlers,
-  storyCatalog,
-  storyGithubServer,
-  storyMarketplacePlugins,
-  storyPostgresInputs,
-  storySources,
-} from "./marketplace-story-data";
+import { marketplaceStoryHandlers, storyCatalog, storySources } from "./marketplace-story-data";
+import { installedExtension, installedListing } from "../mocks/installed";
+import { storyGithubServer, storyPostgresInputs } from "./marketplace-story-servers";
 
 import {
   conflictingCatalog,
@@ -34,9 +28,10 @@ import {
   installedUpdateExtensions,
   logoLadderCatalog,
   trailStatesCatalog,
+  actionStatesCatalog,
+  actionStatesExtensions,
   multiSourceCatalog,
   multiSourceSources,
-  zeroPluginSources,
 } from "./marketplace-route-story-fixtures";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
@@ -56,7 +51,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Default landing: one source → flat grid; installed rows read Installed in place. */
+/** Default landing: installed shelf → Featured → one section per non-empty category. */
 export const Default: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
@@ -65,10 +60,10 @@ export const Default: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** `?q=` narrows the list; the shelf stays because it is not part of the results. */
+/** `?q=` replaces the sections with flat results, each naming its category; the shelf stays. */
 export const Search: Story = {
   parameters: {
-    ...appRouteParameters("/marketplace?q=herdr"),
+    ...appRouteParameters("/marketplace?q=re"),
     ...marketplaceStoryHandlers({ catalog: defaultCatalog, extensions: defaultExtensions }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -140,7 +135,7 @@ export const CatalogEmpty: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** Add ▾ holds the two install doors and, after a rule, the plugin-marketplace door. */
+/** Add ▾ holds the two install doors and, after a rule, the plugin-marketplace and MCP server doors. */
 export const AddMenuOpen: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
@@ -155,10 +150,11 @@ export const AddMenuOpen: Story = {
     await expect(menu.findByTestId("marketplace-add-github")).resolves.toBeDefined();
     await expect(menu.findByTestId("marketplace-add-local")).resolves.toBeDefined();
     await expect(menu.findByTestId("marketplace-add-marketplace")).resolves.toBeDefined();
+    await expect(menu.findByTestId("marketplace-add-mcp-server")).resolves.toBeDefined();
   },
 };
 
-/** Three sources listing something → three collapsible sections with authoritative counts. */
+/** Three sources still read as categories: Browse never names a source as a heading. */
 export const MultiSource: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
@@ -171,10 +167,27 @@ export const MultiSource: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** A query narrows every section; sections with no match disappear, the gist counts matches. */
-export const MultiSourceSearch: Story = {
+/**
+ * `team-plugins` failed its last refresh: the stale line names it, and the plugins it last read
+ * stay in their categories. The blocked package stays visibly blocked.
+ */
+export const DegradedSource: Story = {
   parameters: {
-    ...appRouteParameters("/marketplace?q=review"),
+    ...appRouteParameters("/marketplace"),
+    ...marketplaceStoryHandlers({
+      catalog: multiSourceCatalog,
+      catalogOverrides: { stale: true },
+      extensions: defaultExtensions,
+      sources: Object.values(storySources),
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** View all on a category: every entry, daemon-paged, with a search scoped to it. */
+export const CategoryPage: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace/categories/development"),
     ...marketplaceStoryHandlers({
       catalog: multiSourceCatalog,
       extensions: defaultExtensions,
@@ -184,50 +197,61 @@ export const MultiSourceSearch: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** Client-layout and blocked packages stay visible together in their owning source. */
-export const MultiSourcePackages: Story = {
-  ...MultiSource,
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const grid = await within(canvasElement).findByTestId("marketplace-grid-team-plugins");
-    grid.scrollIntoView({ block: "center" });
+/** A search inside a category that matches nothing names the category. */
+export const CategorySearchEmpty: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace/categories/development?q=tailscale"),
+    ...marketplaceStoryHandlers({ catalog: multiSourceCatalog, extensions: defaultExtensions }),
   },
+  render: () => <StorybookWorkspaceSetup />,
 };
 
-/**
- * `team-plugins` failed its last refresh: its section keeps the plugins it last read and the gist
- * names the last read and that it could not refresh. The blocked package stays visibly blocked.
- */
-export const DegradedSource: Story = {
+/** An id the daemon does not know: not-found with the way back to Marketplace. */
+export const CategoryNotFound: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace/categories/apps"),
+    ...marketplaceStoryHandlers({ catalog: multiSourceCatalog, extensions: defaultExtensions }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** One action per row, read from the installed inventory: Add · Set up · Ready · Turn on. */
+export const ActionStates: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
     ...marketplaceStoryHandlers({
-      catalog: multiSourceCatalog,
-      extensions: defaultExtensions,
-      sources: Object.values(storySources),
+      catalog: actionStatesCatalog,
+      extensions: actionStatesExtensions,
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const gist = await within(canvasElement).findByTestId(
-      "marketplace-section-team-plugins-degraded"
-    );
-    gist.scrollIntoView({ block: "center" });
-  },
 };
 
-/** A registered marketplace whose document lists zero plugins earns no section. */
-export const ZeroPluginSource: Story = {
+/** Add installed the plugin but could not turn it on: the cause stays on the row with Retry. */
+export const EnableFailed: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
     ...marketplaceStoryHandlers({
-      catalog: [...defaultCatalog, storyMarketplacePlugins.featureDev],
-      extensions: defaultExtensions,
-      sources: zeroPluginSources,
+      catalog: [storyCatalog.grafana],
+      extensions: [],
+      installEnableError: { code: "extension_start_failed", error: "grafana-mcp exited (code 1)" },
+      installResult: installedExtension(installedListing(storyCatalog.grafana), { enabled: false }),
     }),
   },
-  render: () => <StorybookWorkspaceSetup />,
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <Toaster />
+    </>
+  ),
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("button", { name: "Add Grafana" }));
+    await expect(
+      canvas.findByRole("button", { name: "Retry turning on Grafana" }, { timeout: 5_000 })
+    ).resolves.toBeDefined();
+  },
 };
 
 /** Under 960px of window width the grid is one column and the description may wrap. */
@@ -252,7 +276,7 @@ export const LogoLadder: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** Every catalog trail state on one screen: Install · Update · Installed · unverified · Blocked. */
+/** Every catalog trail state on one screen: Add · Update · Ready · unverified · Blocked. */
 export const TrailStates: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
@@ -276,7 +300,7 @@ export const NameInUse: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** Install in flight: the row dims and the trail reads Installing… until the daemon answers. */
+/** Add in flight: the row dims and the trail reads Adding… until the daemon answers. */
 export const Installing: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
@@ -290,10 +314,8 @@ export const Installing: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByRole("button", { name: "Install Grafana" }));
-    await expect(
-      canvas.findByRole("button", { name: "Installing Grafana" })
-    ).resolves.toBeDefined();
+    await userEvent.click(await canvas.findByRole("button", { name: "Add Grafana" }));
+    await expect(canvas.findByRole("button", { name: "Adding Grafana" })).resolves.toBeDefined();
   },
 };
 
@@ -326,9 +348,10 @@ export const InstalledServerStatus: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** Authorize on the Installed row starts the owner-qualified login for the extension's own server. */
+/** Authorize on the Installed row opens the owner-qualified sign-in beside it. */
 export const InstalledAuthorize: Story = {
   tags: ["play-fn"],
+  beforeEach: holdWindowOpen,
   parameters: {
     ...appRouteParameters("/marketplace/installed"),
     ...marketplaceStoryHandlers({
@@ -343,7 +366,7 @@ export const InstalledAuthorize: Story = {
     const authorize = await canvas.findByTestId("marketplace-installed-authorize-github");
     await expect(authorize).toBeEnabled();
     await userEvent.click(authorize);
-    await page.findByTestId("settings-page-mcp-authorize-url");
+    await page.findByTestId("mcp-sign-in-copy-link");
   },
 };
 

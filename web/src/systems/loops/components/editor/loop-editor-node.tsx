@@ -283,7 +283,7 @@ function LoopEditorNodeRoutes({
 function LoopEditorNodeErrorBadge() {
   return (
     <span
-      className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border-2 border-canvas bg-destructive text-brand-ink"
+      className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border-2 border-canvas bg-destructive text-destructive-ink"
       data-testid="loop-editor-node-badge"
       aria-label="This step has a problem"
       role="img"

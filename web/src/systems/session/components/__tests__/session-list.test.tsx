@@ -37,6 +37,7 @@ import { agentsListOptions } from "@/systems/agent";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
+import type { SessionLifecycleAction } from "../../hooks/session-lifecycle-types";
 import {
   profileSessionGroups,
   projectSessionGroup,
@@ -57,10 +58,13 @@ import type { SessionPayload, WorkspacePlacementPayload } from "../../types";
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { useSubagentRoster } from "../../hooks/use-subagent-roster";
 import { sessionKeys } from "../../lib/query-keys";
+import { SubagentDrawerContext, subagentDrawerLogic } from "../../contexts/subagent-drawer-context";
+import { sessionParentPickerStore } from "../../hooks/use-session-parent-picker";
 import { sessionScopedDetailOptions, sessionTranscriptOptions } from "../../lib/query-options";
 import { preloadSessionEntry } from "../../lib/session-entry-preload";
 import { subagentViewFromPayload } from "../../lib/subagent-payload";
 import { formatLaterReturn } from "../../lib/session-later";
+import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import { SessionSidebar } from "../session-sidebar";
 import { SessionViewOptionsMenu } from "../session-view-options-menu";
 import { agentKeys } from "@/systems/agent";
@@ -103,6 +107,29 @@ const sessions = [
     state: "stopped" as const,
   },
 ];
+type MenuUser = ReturnType<typeof userEvent.setup>;
+
+/**
+ * Opens a submenu from the keyboard and resolves once focus sits inside it. jsdom has no geometry
+ * for a submenu's hover guard, so a pointer crossing from its trigger may close it on the way.
+ */
+async function openSubmenu(user: MenuUser, trigger: HTMLElement) {
+  await waitFor(() => expect(trigger.closest('[role="menu"]')).toBeInTheDocument());
+  trigger.focus();
+  await user.keyboard("{ArrowRight}");
+  await waitFor(() => {
+    const submenu = document.activeElement?.closest('[role="menu"]');
+    expect(submenu).toBeTruthy();
+    expect(submenu).not.toContainElement(trigger);
+  });
+}
+
+/** Activates a menu item from the keyboard. */
+async function chooseItem(user: MenuUser, item: HTMLElement) {
+  item.focus();
+  await user.keyboard("{Enter}");
+}
+
 const view: SessionListViewModel = sessionListViewFixture({
   sort: "last_activity",
   setSort: vi.fn(),
@@ -111,6 +138,7 @@ const view: SessionListViewModel = sessionListViewFixture({
 });
 function catalogProvider(name: string, displayName: string): ProviderSummary {
   return {
+    enabled: true,
     name,
     display_name: displayName,
     default: false,
@@ -160,15 +188,23 @@ function renderList(
     collapsedThreadIds?: string[];
     subagentThreadIds?: string[];
     view?: SessionListViewModel;
-    actions?: { onAdopt?: () => void; onMakeTopLevel?: () => void };
+    actions?: {
+      onAdopt?: () => void;
+      onMakeTopLevel?: () => void;
+      pendingAction?: SessionLifecycleAction | null;
+      pendingSessionIds?: readonly string[];
+    };
     /** The session window's clear request for the session it has open. */
     clear?: SessionClearRequest;
+    /** The desktop shell the rail opens windows through; absent outside the shell. */
+    shell?: OsShellHandle;
+    drawer?: React.ContextType<typeof SubagentDrawerContext>;
   } = {}
 ) {
   const onSelect = vi.fn();
   const actions = {
     pendingAction: null,
-    pendingSessionId: null,
+    pendingSessionIds: [],
     onStop: vi.fn(),
     onRename: vi.fn(),
     onArchive: vi.fn(),
@@ -182,6 +218,9 @@ function renderList(
     onBackFromLater: vi.fn(),
     onBackFromLaterMany: vi.fn(),
     onMarkSeen: vi.fn(),
+    onMarkSeenMany: vi.fn(),
+    onMakeTopLevelMany: vi.fn(),
+    onMoveUnderMany: vi.fn(),
     onDeleteMany: vi.fn(),
     ...overrides.actions,
   };
@@ -232,7 +271,11 @@ function renderList(
   const tree = (node: React.ReactNode) => (
     <QueryClientProvider client={queryClient}>
       <AgentIdentityProvider>
-        <SessionClearContext value={overrides.clear ?? null}>{node}</SessionClearContext>
+        <OsShellContext value={overrides.shell ?? null}>
+          <SubagentDrawerContext value={overrides.drawer ?? null}>
+            <SessionClearContext value={overrides.clear ?? null}>{node}</SessionClearContext>
+          </SubagentDrawerContext>
+        </OsShellContext>
       </AgentIdentityProvider>
     </QueryClientProvider>
   );
@@ -298,6 +341,35 @@ describe("SessionList agent identity", () => {
 
     expect(screen.getByRole("button", { name: /Code Implementer/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /code_implementer/ })).not.toBeInTheDocument();
+  });
+});
+
+// Invariant: an operator's untitled session reads "New session", while a session an automation, an
+// always-on agent or another agent started names its origin even when that name is its agent's
+// (#1388).
+// Owner: SessionList row title; canonical suite: this file.
+describe("SessionList row title", () => {
+  const base = { ...sessions[0]!, agent_name: "issue-triage", instance_id: undefined };
+
+  it("Should name automation and always-on rows by origin and keep operator rows untitled", () => {
+    renderList({
+      sessions: [
+        { ...base, id: "automation-row", type: "system", name: "issue-triage" },
+        { ...base, id: "job-row", type: "system", name: "nightly-checkout" },
+        { ...base, id: "always-on-row", type: "user", instance_id: "ainst-1", name: undefined },
+        { ...base, id: "spawned-row", type: "spawned", name: undefined },
+        { ...base, id: "operator-row", type: "user", name: "issue-triage" },
+      ],
+    });
+
+    // getByText matches a whole element's text, so a prefixed or combined title fails.
+    const row = (id: string) => within(screen.getByTestId(`session-sidebar-session-${id}`));
+    expect(row("automation-row").getByText("issue-triage")).toBeInTheDocument();
+    expect(row("job-row").getByText("nightly-checkout")).toBeInTheDocument();
+    expect(row("always-on-row").getByText("issue-triage")).toBeInTheDocument();
+    expect(row("spawned-row").getByText("issue-triage")).toBeInTheDocument();
+    expect(row("operator-row").getByText("New session")).toBeInTheDocument();
+    expect(row("operator-row").queryByText("issue-triage")).not.toBeInTheDocument();
   });
 });
 
@@ -593,10 +665,8 @@ describe("SessionList selection", () => {
     expect(screen.getByTestId("session-sidebar-selection-archive")).toHaveTextContent(
       "Stop and archive2 sessions"
     );
-    expect(screen.getByTestId("session-sidebar-selection-unarchive")).toHaveAttribute(
-      "aria-disabled",
-      "true"
-    );
+    // A verb no selected session can take is absent, not a disabled "0 sessions" row.
+    expect(screen.queryByTestId("session-sidebar-selection-unarchive")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("session-sidebar-selection-stop"));
     expect(actions.onStopMany).toHaveBeenCalledWith([sessions[0], sessions[1]]);
   });
@@ -627,6 +697,20 @@ describe("SessionList selection", () => {
     await user.click(first);
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(sessions[0]);
   });
+
+  // Invariant: after the selection clears mid-batch, every target the batch is running shows
+  // progress, a queued or settled target does not, and every row's controls stay locked.
+  it("Should show progress on each running batch target and lock every row", () => {
+    renderList({ actions: { pendingAction: "stop", pendingSessionIds: ["running", "other"] } });
+    for (const id of ["running", "stopped", "other"]) {
+      expect(screen.getByTestId(`session-row-actions-${id}`)).toBeDisabled();
+    }
+    const progress = (id: string) =>
+      within(screen.getByTestId(`session-row-actions-${id}`)).queryByRole("status");
+    expect(progress("running")).toBeInTheDocument();
+    expect(progress("other")).toBeInTheDocument();
+    expect(progress("stopped")).not.toBeInTheDocument();
+  });
   it.each([{ ctrlKey: true }, { metaKey: true }])(
     "keeps editable filter shortcuts separate from bulk actions (%o)",
     modifier => {
@@ -653,11 +737,10 @@ describe("SessionList selection", () => {
     const stopped = { ...sessions[0]!, state: "stopped" as const };
     update([stopped, sessions[1]!, sessions[2]!]);
     await user.click(screen.getByTestId("session-sidebar-selection-more"));
-    expect(await screen.findByTestId("session-sidebar-selection-stop")).toHaveAttribute(
-      "aria-disabled",
-      "true"
+    expect(await screen.findByTestId("session-sidebar-selection-archive")).toHaveTextContent(
+      "2 stopped"
     );
-    expect(screen.getByTestId("session-sidebar-selection-archive")).toHaveTextContent("2 stopped");
+    expect(screen.queryByTestId("session-sidebar-selection-stop")).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
     update([sessions[1]!, sessions[2]!]);
     expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("1 selected");
@@ -689,7 +772,7 @@ describe("SessionList selection", () => {
     const running = screen.getByTestId("session-sidebar-session-running");
     fireEvent.click(running, { metaKey: true });
     fireEvent.contextMenu(running);
-    expect(await screen.findByTestId("session-row-menu-copy-id-running")).toBeVisible();
+    expect(await screen.findByTestId("session-row-menu-copy-running")).toBeVisible();
     await user.keyboard("{Escape}");
     fireEvent.click(screen.getByTestId("session-sidebar-session-stopped"));
     expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("2 selected");
@@ -697,7 +780,7 @@ describe("SessionList selection", () => {
     expect(await screen.findByTestId("session-sidebar-selection-menu-count")).toHaveTextContent(
       "2 sessions"
     );
-    expect(screen.queryByTestId("session-row-menu-copy-id-running")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-menu-copy-running")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-sidebar-selection-menu-stop")).toHaveTextContent("1 active");
     expect(screen.getByTestId("session-sidebar-selection-menu-archive")).toHaveTextContent(
       "Stop and archive2 sessions"
@@ -723,7 +806,7 @@ describe("SessionList selection", () => {
     );
 
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-other"));
-    expect(await screen.findByTestId("session-row-menu-copy-id-other")).toBeVisible();
+    expect(await screen.findByTestId("session-row-menu-copy-other")).toBeVisible();
     expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("1 selected");
     expect(screen.getByTestId("session-sidebar-session-other")).toHaveAttribute(
       "aria-pressed",
@@ -801,11 +884,12 @@ describe("SessionList subagents", () => {
   });
   const wireSubagent = (index: number, status: string) => ({
     subagent_id: `sub-${index}`,
-    workspace_id: primarySessionFixture.workspace_id,
+    workspace_id: primarySessionFixture.workspace_id ?? "",
     parent_session_id: "parent",
     parent_turn_id: "turn-1",
     child_session_id: `child-${index}`,
     origin: "delegated",
+    isolation: "shared",
     provider_tool_call_id: null,
     title: `Subagent ${index}`,
     role: "",
@@ -914,6 +998,195 @@ describe("SessionList subagents", () => {
     });
 
     expect(screen.getByTestId("session-sidebar-session-one-child")).toBeVisible();
+  });
+
+  // Invariant (#1644): a continued child renders in its original parent's thread beside the
+  // stopped session it continues; continuing a top-level session keeps the new row top-level.
+  it("Should render a continued child inside its original parent's thread", () => {
+    const continued = (id: string, source: string, treeParent?: string) =>
+      row(id, {
+        lineage: { ...lineage(source), kind: "continue", auto_stop_on_parent: false },
+        ...(treeParent ? { tree_parent_session_id: treeParent } : {}),
+      });
+    renderList({
+      sessions: [
+        row("parent"),
+        row("worker", { state: "stopped", lineage: lineage("parent") }),
+        continued("worker-next", "worker", "parent"),
+        row("solo"),
+        continued("solo-next", "solo"),
+      ],
+    });
+
+    const thread = screen.getByTestId("session-sidebar-thread-parent");
+    expect(within(thread).getByTestId("session-sidebar-session-worker")).toBeVisible();
+    expect(within(thread).getByTestId("session-sidebar-session-worker-next")).toBeVisible();
+    expect(within(thread).queryByTestId("session-sidebar-session-solo-next")).toBeNull();
+    expect(screen.getByTestId("session-sidebar-session-solo-next")).toBeVisible();
+  });
+
+  // Invariant (#1474): an open child list shows six children in list order, then "Show N more"
+  // reveals the rest and "Show less" folds back; the same control ends the subagent list.
+  describe("child session cap", () => {
+    const parentWithChildren = (
+      count: number,
+      patch: Record<number, Partial<SessionPayload>> = {}
+    ) => [
+      row("parent"),
+      ...Array.from({ length: count }, (_, index) =>
+        row(`child-${index + 1}`, { lineage: lineage("parent"), ...patch[index + 1] })
+      ),
+    ];
+    const childRowIds = () =>
+      within(screen.getByTestId("session-sidebar-thread-parent"))
+        .getAllByTestId(/^session-sidebar-session-child-/)
+        .map(element => element.dataset.testid?.replace("session-sidebar-session-", ""));
+
+    it("Should cap the children at six and expand and collapse with Show more and Show less", async () => {
+      const user = userEvent.setup();
+      renderList({ sessions: [...parentWithChildren(9), row("after")] });
+
+      expect(childRowIds()).toEqual([
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-5",
+        "child-6",
+      ]);
+      expect(screen.getByTestId("session-sidebar-session-after")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Show 3 more" }));
+      expect(childRowIds()).toHaveLength(9);
+      await user.click(screen.getByRole("button", { name: "Show less" }));
+      expect(childRowIds()).toHaveLength(6);
+      expect(screen.getByRole("button", { name: "Show 3 more" })).toBeInTheDocument();
+    });
+
+    it("Should show no control while every child fits under the cap", () => {
+      renderList({ sessions: parentWithChildren(6) });
+
+      expect(childRowIds()).toHaveLength(6);
+      expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
+    });
+
+    // Invariant (#1732): children that need you or are running lead the open list in their list
+    // order; the open child past the cap still stays in its place.
+    it("Should lead with active children and keep the open child past the cap", () => {
+      renderList({
+        sessions: parentWithChildren(10, {
+          8: { badge: "waiting-for-input" },
+          9: { badge: "running" },
+        }),
+        currentSessionId: "child-10",
+      });
+
+      expect(childRowIds()).toEqual([
+        "child-8",
+        "child-9",
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-10",
+      ]);
+      expect(screen.getByRole("button", { name: "Show 3 more" })).toBeInTheDocument();
+    });
+
+    // Invariant (#1732): active children never hide behind "Show more", even past the cap.
+    it("Should show every active child when they outnumber the cap", () => {
+      const running = { badge: "running" } as const;
+      renderList({
+        sessions: parentWithChildren(10, {
+          2: running,
+          3: running,
+          5: running,
+          6: { badge: "failed" },
+          8: running,
+          9: running,
+          10: running,
+        }),
+      });
+
+      expect(childRowIds()).toEqual([
+        "child-2",
+        "child-3",
+        "child-5",
+        "child-6",
+        "child-8",
+        "child-9",
+        "child-10",
+      ]);
+      expect(screen.getByRole("button", { name: "Show 3 more" })).toBeInTheDocument();
+    });
+
+    // Invariant (#1732): a child that starts running past the cap moves to the front, and returns
+    // to its place in the list once it settles.
+    it("Should move a child to the front while it runs and back once it settles", () => {
+      const children = parentWithChildren(9);
+      const { update } = renderList({ sessions: children });
+      const firstSix = ["child-1", "child-2", "child-3", "child-4", "child-5", "child-6"];
+      expect(childRowIds()).toEqual(firstSix);
+
+      update(
+        children.map(child => (child.id === "child-8" ? { ...child, badge: "running" } : child))
+      );
+      expect(childRowIds()).toEqual([
+        "child-8",
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-5",
+      ]);
+
+      update(children);
+      expect(childRowIds()).toEqual(firstSix);
+      expect(screen.getByRole("button", { name: "Show 3 more" })).toBeInTheDocument();
+    });
+
+    it("Should select hidden children in a range and show them", () => {
+      renderList({ sessions: [...parentWithChildren(8), row("after")] });
+
+      fireEvent.click(screen.getByTestId("session-sidebar-session-child-5"), { metaKey: true });
+      fireEvent.click(screen.getByTestId("session-sidebar-session-after"), { shiftKey: true });
+      expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("5 selected");
+      expect(childRowIds()).toHaveLength(8);
+      expect(screen.getByTestId("session-sidebar-session-child-8")).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
+      expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
+
+      // Deselecting a revealed child keeps it in place until Show less folds the list back.
+      fireEvent.click(screen.getByTestId("session-sidebar-session-child-8"));
+      expect(screen.getByTestId("session-sidebar-session-child-8")).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
+      expect(childRowIds()).toHaveLength(8);
+      fireEvent.click(screen.getByRole("button", { name: "Show less" }));
+      expect(childRowIds()).toEqual([
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-5",
+        "child-6",
+        "child-7",
+      ]);
+      expect(screen.getByRole("button", { name: "Show 1 more" })).toBeInTheDocument();
+    });
+
+    it("Should select every child with select all and show them", () => {
+      renderList({ sessions: parentWithChildren(8) });
+
+      const first = screen.getByTestId("session-sidebar-session-child-1");
+      fireEvent.click(first, { metaKey: true });
+      fireEvent.keyDown(first, { key: "a", metaKey: true });
+      expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("9 selected");
+      expect(childRowIds()).toHaveLength(8);
+      expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
+    });
   });
 
   it("UT-W18: keeps the viewed subagent visible when its parent's plain children are folded", () => {
@@ -1081,7 +1354,8 @@ describe("SessionList subagents", () => {
   });
 
   // Invariant: branch rows carry the session StateGlyph and word — running and completed never
-  // read alike — and the loaded rows order by urgency. Owner: the rail's subagent branch.
+  // read alike — and the loaded rows order active work first (#1732). Owner: the rail's subagent
+  // branch.
   it("Should mark branch rows with distinct glyphs and words, most urgent first", async () => {
     const settledAt = "2026-10-08T12:30:00Z";
     vi.mocked(globalThis.fetch).mockResolvedValue(
@@ -1106,13 +1380,13 @@ describe("SessionList subagents", () => {
     const rows = [...branch.querySelectorAll('[data-slot="session-subagent-row"]')];
     expect(rows.map(node => node.getAttribute("data-state"))).toEqual([
       "attention",
-      "failed",
       "running",
+      "failed",
       "done",
     ]);
     expect(
       rows.map(node => node.querySelector('[data-slot="state-glyph"]')?.getAttribute("data-state"))
-    ).toEqual(["attention", "failed", "running", "done"]);
+    ).toEqual(["attention", "running", "failed", "done"]);
     const open = (title: string) =>
       within(branch).getByRole("button", { name: `Open ${title} · claude · Coder` });
     expect(open("Subagent 3")).toHaveAttribute("aria-description", "Working");
@@ -1230,6 +1504,143 @@ describe("SessionList subagents", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("session-sidebar-subagents-parent")).not.toBeInTheDocument()
     );
+  });
+
+  // Invariant: rank changes across pages never duplicate a subagent or inflate the shown count.
+  // Owner: subagent branch view model; canonical suite: session-list UT-W17.
+  it("Should deduplicate subagents repeated across urgency pages", async () => {
+    const user = userEvent.setup();
+    vi.mocked(globalThis.fetch).mockImplementation(async input =>
+      new URL((input as Request).url).searchParams.get("cursor") === "page-2"
+        ? subagentPage(7, 15)
+        : subagentPage(0, 8, "page-2")
+    );
+    renderList({
+      sessions: [row("parent", { badge: "running", ...summary(3, 15) })],
+      subagentThreadIds: ["parent"],
+    });
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    await user.click(await within(branch).findByRole("button", { name: "Show 7 more" }));
+    await waitFor(() =>
+      expect(within(branch).getAllByRole("button", { name: /^Open Subagent/ })).toHaveLength(15)
+    );
+    expect(within(branch).queryByRole("button", { name: /^Show .* more/ })).not.toBeInTheDocument();
+  });
+
+  // Invariant (#1732): the daemon pages active work first, so while every loaded row is active the
+  // branch reads the next page, and it shows every active row past its page size.
+  it("Should read on while a page holds only active subagents and show every active row", async () => {
+    const page = (rows: Array<[number, string]>, nextCursor?: string) =>
+      new Response(
+        JSON.stringify({
+          subagents: rows.map(([index, status]) => wireSubagent(index, status)),
+          ...(nextCursor ? { next_cursor: nextCursor } : {}),
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      );
+    const range = (from: number, to: number, status: string): Array<[number, string]> =>
+      Array.from({ length: to - from }, (_, offset) => [from + offset, status]);
+    vi.mocked(globalThis.fetch).mockImplementation(async input =>
+      new URL((input as Request).url).searchParams.get("cursor") === "page-2"
+        ? page([...range(8, 11, "running"), ...range(11, 16, "completed")], "page-3")
+        : page(range(0, 8, "running"), "page-2")
+    );
+    renderList({
+      sessions: [row("parent", { badge: "running", ...summary(11, 30) })],
+      subagentThreadIds: ["parent"],
+    });
+
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    await waitFor(() =>
+      expect(branch.querySelectorAll('[data-slot="session-subagent-row"]')).toHaveLength(11)
+    );
+    const states = [...branch.querySelectorAll('[data-slot="session-subagent-row"]')].map(node =>
+      node.getAttribute("data-state")
+    );
+    expect(new Set(states)).toEqual(new Set(["running"]));
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(within(branch).getByRole("button", { name: "Show 8 more" })).toBeInTheDocument();
+  });
+
+  // Invariant (#1732 review): the branch reads on only once a first-page refetch has landed, so
+  // fetchNextPage never cancels that refetch and leaves a stale first page.
+  it("Should not read the next page while a stale first page refetches", async () => {
+    const user = userEvent.setup();
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+    const firstPage = () => ({
+      subagents: Array.from({ length: 8 }, (_, index) => wireSubagent(index, "running")),
+      next_cursor: "page-2",
+    });
+    let answer: (page: Response) => void = () => undefined;
+    const cursors: Array<string | null> = [];
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      const cursor = new URL((input as Request).url).searchParams.get("cursor");
+      cursors.push(cursor);
+      if (cursor === "page-2") return json({ subagents: [wireSubagent(8, "completed")] });
+      return new Promise<Response>(resolve => {
+        answer = resolve;
+      });
+    });
+    const { queryClient } = renderList({
+      sessions: [row("parent", { badge: "running", ...summary(8, 9) })],
+    });
+    queryClient.setQueryData(
+      sessionKeys.subagentBranch(primarySessionFixture.workspace_id ?? "", "parent"),
+      { pages: [firstPage()], pageParams: [""] },
+      { updatedAt: 0 }
+    );
+
+    await user.click(screen.getByRole("button", { name: "8 of 9 subagents running" }));
+    await waitFor(() => expect(cursors).toEqual([null]));
+    // The loaded page is all active, but the refetch is still in flight: nothing reads on yet.
+    await act(() => new Promise(resolve => setTimeout(resolve, 50)));
+    expect(cursors).toEqual([null]);
+    answer(json(firstPage()));
+    await waitFor(() => expect(cursors).toEqual([null, "page-2"]));
+    const branch = screen.getByTestId("session-sidebar-subagents-parent");
+    await waitFor(() =>
+      expect(branch.querySelectorAll('[data-slot="session-subagent-row"]')).toHaveLength(8)
+    );
+  });
+
+  // Invariant (#1732): a live roster orders like the paged route before the branch cuts its rows,
+  // so a running subagent past the newest page shows, and a status change reorders the rows.
+  it("Should show a live roster's running subagent past the page and follow its transitions", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", { badge: "running", ...summary(1, 12) });
+    const { queryClient } = renderList({ sessions: [parent] });
+    const workspaceId = primarySessionFixture.workspace_id ?? "";
+    // Newest first, the oldest subagent the only one working.
+    const roster = (running: number) => ({
+      rows: Array.from({ length: 12 }, (_, offset) => 11 - offset).map(index =>
+        subagentViewFromPayload({
+          ...wireSubagent(index, index === running ? "running" : "completed"),
+        } as never)
+      ),
+      staleIds: new Set<string>(),
+    });
+    queryClient.setQueryData(sessionKeys.subagentRoster(workspaceId, "parent"), roster(0));
+    renderHook(() => useSubagentRoster(workspaceId, "parent"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    await user.click(screen.getByRole("button", { name: "1 of 12 subagents running" }));
+
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    const rows = () => [...branch.querySelectorAll('[data-slot="session-subagent-row"]')];
+    await waitFor(() => expect(rows()).toHaveLength(8));
+    expect(rows()[0]).toHaveTextContent("Subagent 0");
+    expect(rows()[0]).toHaveAttribute("data-state", "running");
+
+    act(() => {
+      queryClient.setQueryData(sessionKeys.subagentRoster(workspaceId, "parent"), roster(1));
+    });
+    await waitFor(() => expect(rows()[0]).toHaveTextContent(/Subagent 1(?!\d)/));
+    expect(rows()[0]).toHaveAttribute("data-state", "running");
+    expect(within(branch).queryByText("Subagent 0")).not.toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   // M9: an open parent's stream-fed roster feeds the branch; the list route stays cold.
@@ -1418,6 +1829,244 @@ describe("SessionList subagents", () => {
     expect(await screen.findByTestId("session-row-archive-parent")).toBeInTheDocument();
     expect(screen.getByTestId("session-row-later-parent")).toBeInTheDocument();
   });
+
+  // Invariant: a subagent row is a row, not a link: right-click and Shift+F10 open its own
+  // verbs, while left click still opens the child session. Owner: rail's subagent branch.
+  it("Should open a subagent row's menu from a right-click and from Shift+F10", async () => {
+    const user = userEvent.setup();
+    vi.mocked(globalThis.fetch).mockResolvedValue(subagentPage(1, 2));
+    const { onSelect } = renderList({
+      sessions: [row("parent", summary(1, 1))],
+      subagentThreadIds: ["parent"],
+    });
+
+    const open = await screen.findByRole("button", {
+      name: "Open Subagent 1 · claude · Coder",
+    });
+    fireEvent.contextMenu(open);
+    expect(await screen.findByRole("menuitem", { name: "Copy" })).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-subagent-menu-sub-1-stop")).toBeVisible();
+    expect(onSelect).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+
+    open.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(await screen.findByTestId("session-sidebar-subagent-menu-sub-1-copy")).toBeVisible();
+    expect(onSelect).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+
+    fireEvent.click(open);
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "child-1", agent_name: "coder" })
+    );
+  });
+
+  // Invariant: provider-native rows follow the parent turn and a settled row cannot stop, so
+  // neither gets Stop; only a delegated row offers Delete. Owner: rail's subagent row menu.
+  it("Should offer Stop and Delete only on the rows that can take them", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          subagents: [
+            wireSubagent(1, "running"),
+            { ...wireSubagent(2, "completed"), settled_at: "2026-10-08T12:30:00Z" },
+            { ...wireSubagent(3, "running"), origin: "provider_native" },
+          ],
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      )
+    );
+    renderList({ sessions: [row("parent", summary(1, 3))], subagentThreadIds: ["parent"] });
+
+    const user = userEvent.setup();
+    const close = async () => {
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    };
+    const openMenu = async (testId: string) => {
+      fireEvent.contextMenu(await screen.findByTestId(testId));
+      expect(await screen.findByRole("menuitem", { name: "Copy" })).toBeVisible();
+    };
+
+    await openMenu("session-sidebar-subagent-menu-sub-1");
+    expect(screen.getByRole("menuitem", { name: "Stop subagent" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Delete subagent" })).toBeVisible();
+    await close();
+
+    await openMenu("session-sidebar-subagent-menu-sub-2");
+    expect(screen.queryByRole("menuitem", { name: "Stop subagent" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Delete subagent" })).toBeVisible();
+    await close();
+
+    await openMenu("session-sidebar-subagent-menu-sub-3");
+    expect(screen.queryByRole("menuitem", { name: "Stop subagent" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Delete subagent" })).not.toBeInTheDocument();
+    await close();
+  });
+
+  // Invariant: Delete confirms, then permanently removes the delegated row and its child
+  // session in the parent's profile; the rail drops the row and closes only its matching drawer.
+  // Owner: rail's subagent actions + branch; canonical suite: this sidebar suite.
+  it.each([
+    {
+      name: "matching drawer",
+      id: "sub-1",
+      workspaceId: primarySessionFixture.workspace_id ?? "",
+      closes: true,
+    },
+    {
+      name: "another subagent",
+      id: "sub-2",
+      workspaceId: primarySessionFixture.workspace_id ?? "",
+      closes: false,
+    },
+    {
+      name: "another workspace",
+      id: "sub-1",
+      workspaceId: "other-workspace",
+      closes: false,
+    },
+  ])(
+    "Should close only the matching drawer after confirmed deletion: $name",
+    async ({ id, workspaceId, closes }) => {
+      const user = userEvent.setup();
+      let rows = [wireSubagent(1, "running")];
+      const drawerStore = subagentDrawerLogic.createStore();
+      const selectedSubagent = { ...subagentViewFromPayload(rows[0]!), id };
+      drawerStore.trigger.opened({ subagent: selectedSubagent, workspaceId, trigger: null });
+      const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+        const request = input as Request;
+        if (request.method === "DELETE") {
+          const subagentId = new URL(request.url).pathname.split("/").at(-1);
+          rows = rows.filter(item => item.subagent_id !== subagentId);
+          return new Response(null, { status: 204 });
+        }
+        return new Response(JSON.stringify({ subagents: rows }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      });
+      vi.mocked(globalThis.fetch).mockImplementation(fetcher);
+      renderList({
+        sessions: [row("parent", summary(1, 1))],
+        subagentThreadIds: ["parent"],
+        drawer: { store: drawerStore, open: vi.fn(), content: () => null },
+      });
+
+      const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+      const open = await within(branch).findByRole("button", {
+        name: "Open Subagent 1 · claude · Coder",
+      });
+      fireEvent.contextMenu(open);
+      await user.click(await screen.findByTestId("session-sidebar-subagent-menu-sub-1-delete"));
+
+      expect(await screen.findByRole("dialog", { name: "Delete subagent" })).toBeVisible();
+      await user.click(screen.getByTestId("subagent-delete-dialog-confirm"));
+
+      await waitFor(() => {
+        const request = fetcher.mock.calls
+          .map(([input]) => input as Request)
+          .find(item => item.method === "DELETE");
+        expect(request).toBeDefined();
+        const url = new URL(request!.url);
+        expect(url.pathname).toBe(
+          `/api/workspaces/${primarySessionFixture.workspace_id}/subagents/sub-1`
+        );
+        expect(url.searchParams.get("profile")).toBe("default");
+      });
+      await waitFor(() => expect(within(branch).queryByText("Subagent 1")).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "Delete subagent" })).not.toBeInTheDocument()
+      );
+      expect(drawerStore.getSnapshot().context.selected).toEqual(
+        closes ? null : { subagent: selectedSubagent, workspaceId }
+      );
+    }
+  );
+
+  // Invariant: the confirmation owns its host's lifetime, not the branch's. The catalog stream
+  // reports the deletion (the parent's summary falls to zero, so the rail unmounts the branch)
+  // before the DELETE answers; the pending dialog must survive, then close on its answer while
+  // the row stays gone. Owner: SessionList's subagent-actions host above the threads.
+  it("Should keep the delete confirmation mounted while the parent's branch disappears", async () => {
+    const user = userEvent.setup();
+    let releaseDelete: (response: Response) => void = () => undefined;
+    const deleteAnswer = new Promise<Response>(resolve => {
+      releaseDelete = resolve;
+    });
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      if ((input as Request).method === "DELETE") return deleteAnswer;
+      return subagentPage(1, 2);
+    });
+    vi.mocked(globalThis.fetch).mockImplementation(fetcher);
+    const { update } = renderList({
+      sessions: [row("parent", summary(1, 1))],
+      subagentThreadIds: ["parent"],
+    });
+
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    fireEvent.contextMenu(await within(branch).findByTestId("session-sidebar-subagent-menu-sub-1"));
+    await user.click(await screen.findByTestId("session-sidebar-subagent-menu-sub-1-delete"));
+    await user.click(await screen.findByTestId("subagent-delete-dialog-confirm"));
+    await waitFor(() =>
+      expect(fetcher.mock.calls.some(([input]) => (input as Request).method === "DELETE")).toBe(
+        true
+      )
+    );
+
+    update([row("parent", summary(0, 0))]);
+
+    expect(screen.queryByTestId("session-sidebar-subagents-parent")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Delete subagent" })).toBeVisible();
+    const confirm = screen.getByTestId("subagent-delete-dialog-confirm");
+    expect(confirm).toHaveTextContent("Deleting");
+    expect(confirm).toBeDisabled();
+
+    await act(async () => {
+      releaseDelete(new Response(null, { status: 204 }));
+      await deleteAnswer;
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Delete subagent" })).not.toBeInTheDocument()
+    );
+    expect(screen.queryByTestId("session-sidebar-subagents-parent")).not.toBeInTheDocument();
+    expect(screen.queryByText("Subagent 1")).not.toBeInTheDocument();
+  });
+
+  it("Should stop a live delegated subagent from its row menu", async () => {
+    const user = userEvent.setup();
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (request.method === "POST") {
+        return new Response(JSON.stringify({ subagent_id: "sub-1", status: "cancel_requested" }), {
+          status: 202,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return subagentPage(1, 2);
+    });
+    vi.mocked(globalThis.fetch).mockImplementation(fetcher);
+    renderList({ sessions: [row("parent", summary(1, 1))], subagentThreadIds: ["parent"] });
+
+    const open = await screen.findByRole("button", {
+      name: "Open Subagent 1 · claude · Coder",
+    });
+    fireEvent.contextMenu(open);
+    await user.click(await screen.findByTestId("session-sidebar-subagent-menu-sub-1-stop"));
+
+    await waitFor(() => {
+      const request = fetcher.mock.calls
+        .map(([input]) => input as Request)
+        .find(item => item.method === "POST");
+      expect(request).toBeDefined();
+      const url = new URL(request!.url);
+      expect(url.pathname).toBe(
+        `/api/workspaces/${primarySessionFixture.workspace_id}/subagents/sub-1/cancel`
+      );
+      expect(url.searchParams.get("profile")).toBe("default");
+    });
+  });
 });
 
 // Invariant (#1076): Later mirrors the archive — one toolbar toggle beside Archive, mutually
@@ -1602,8 +2251,8 @@ describe("SessionList Mark as seen", () => {
   });
 });
 
-// Invariant: both row menus copy the session's CompozyOS ID and its shown title, and the
-// selection menu copies every selected ID, and say so.
+// Invariant: both row menus copy the session's CompozyOS ID and its shown title from Copy ▸, and
+// the selection menu copies every selected ID, and say so.
 describe("SessionList row copy actions", () => {
   it("Should copy the session ID from the … menu and the title from the context menu", async () => {
     const user = userEvent.setup();
@@ -1612,17 +2261,75 @@ describe("SessionList row copy actions", () => {
     renderList();
 
     await user.click(screen.getByTestId("session-row-actions-running"));
-    await user.click(await screen.findByTestId("session-row-copy-id-running"));
+    await openSubmenu(user, await screen.findByTestId("session-row-copy-running"));
+    await chooseItem(user, await screen.findByTestId("session-row-copy-id-running"));
     expect(writeText).toHaveBeenLastCalledWith("running");
     await waitFor(() => expect(success).toHaveBeenLastCalledWith("Session ID copied"));
 
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-stopped"));
     const menu = await screen.findByRole("menu");
-    expect(within(menu).getByRole("menuitem", { name: "Copy session ID" })).toBeInTheDocument();
-    await user.click(within(menu).getByRole("menuitem", { name: "Copy title" }));
+    await openSubmenu(user, within(menu).getByRole("menuitem", { name: "Copy" }));
+    expect(await screen.findByRole("menuitem", { name: "Copy session ID" })).toBeInTheDocument();
+    await chooseItem(user, screen.getByRole("menuitem", { name: "Copy title" }));
     expect(writeText).toHaveBeenLastCalledWith("Stopped work");
     await waitFor(() => expect(success).toHaveBeenLastCalledWith("Title copied"));
   });
+
+  it("Should copy the session's branch name from Copy ▸", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    const success = vi.spyOn(toast, "success");
+    renderList({ sessions: [{ ...sessions[0]!, branch: "feat/session-menus" }] });
+
+    await user.click(screen.getByTestId("session-row-actions-running"));
+    await openSubmenu(user, await screen.findByRole("menuitem", { name: "Copy" }));
+    await chooseItem(user, await screen.findByRole("menuitem", { name: "Copy branch name" }));
+    expect(writeText).toHaveBeenLastCalledWith("feat/session-menus");
+    await waitFor(() => expect(success).toHaveBeenLastCalledWith("Branch name copied"));
+  });
+
+  // Invariant: row, toolbar and context menus share meaningful batch verbs; single-only
+  // actions never leak into the selection. Owner/canonical suite: SessionList menu interaction.
+  it.each(["toolbar", "context"])(
+    "Should expose row action parity in the %s selection menu",
+    async kind => {
+      const user = userEvent.setup();
+      const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+      const first = { ...sessions[0]!, attention_dismissible: true };
+      const child = {
+        ...sessions[1]!,
+        lineage: {
+          ...primarySessionFixture.lineage,
+          kind: "provenance",
+          parent_session_id: first.id,
+          root_session_id: first.id,
+        },
+      } as SessionPayload;
+      const { actions } = renderList({ sessions: [first, child] });
+      fireEvent.click(screen.getByTestId(`session-sidebar-session-${first.id}`), { metaKey: true });
+      fireEvent.click(screen.getByTestId(`session-sidebar-session-${child.id}`));
+      const open = async () => {
+        if (kind === "toolbar")
+          await user.click(screen.getByTestId("session-sidebar-selection-more"));
+        else fireEvent.contextMenu(screen.getByTestId(`session-sidebar-session-${first.id}`));
+        return screen.findByRole("menu");
+      };
+      let menu = await open();
+      expect(within(menu).queryByText("Rename session")).not.toBeInTheDocument();
+      expect(within(menu).queryByText("Fork session…")).not.toBeInTheDocument();
+      expect(within(menu).queryByText("Continue with another agent…")).not.toBeInTheDocument();
+      await user.click(within(menu).getByRole("menuitem", { name: /^Mark as seen/ }));
+      expect(actions.onMarkSeenMany).toHaveBeenCalledWith([first, child]);
+      menu = await open();
+      await openSubmenu(user, within(menu).getByRole("menuitem", { name: "Move" }));
+      await chooseItem(user, await screen.findByRole("menuitem", { name: /^Make top-level/ }));
+      expect(actions.onMakeTopLevelMany).toHaveBeenCalledWith([first, child]);
+      menu = await open();
+      await openSubmenu(user, within(menu).getByRole("menuitem", { name: "Copy" }));
+      await chooseItem(user, await screen.findByRole("menuitem", { name: "Copy titles" }));
+      expect(writeText).toHaveBeenLastCalledWith("Running work\nStopped work");
+    }
+  );
 
   it("Should copy every selected session ID, one per line, from the selection menu", async () => {
     const user = userEvent.setup();
@@ -1632,7 +2339,8 @@ describe("SessionList row copy actions", () => {
     fireEvent.click(screen.getByTestId("session-sidebar-session-running"), { metaKey: true });
     fireEvent.click(screen.getByTestId("session-sidebar-session-other"));
     await user.click(screen.getByTestId("session-sidebar-selection-more"));
-    await user.click(await screen.findByTestId("session-sidebar-selection-copy-ids"));
+    await openSubmenu(user, await screen.findByTestId("session-sidebar-selection-copy"));
+    await chooseItem(user, await screen.findByTestId("session-sidebar-selection-copy-ids"));
     expect(writeText).toHaveBeenLastCalledWith("running\nother");
     await waitFor(() => expect(success).toHaveBeenLastCalledWith("Session IDs copied"));
   });
@@ -1645,7 +2353,8 @@ describe("SessionList row copy actions", () => {
     fireEvent.click(screen.getByTestId("session-sidebar-session-other"));
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-running"));
     const menu = await screen.findByRole("menu");
-    await user.click(within(menu).getByRole("menuitem", { name: "Copy session IDs" }));
+    await openSubmenu(user, within(menu).getByRole("menuitem", { name: "Copy" }));
+    await chooseItem(user, await screen.findByRole("menuitem", { name: "Copy session IDs" }));
     expect(writeText).toHaveBeenLastCalledWith("running\nother");
   });
 });
@@ -2097,7 +2806,7 @@ describe("SessionList folders and manual order", () => {
 
   // BR-11: folders and manual order live in one (workspace, profile) pair; a list
   // spanning pairs has no layout, so filed sessions render as plain rows.
-  it("Should render filed sessions as plain rows where no single pair owns the list", () => {
+  it("Should render filed sessions as plain rows where no single pair owns the list", async () => {
     const rows = [
       { ...layoutRows[0]!, profile_id: "default" },
       { ...layoutRows[1]!, profile_id: "other", profile_name: "other" },
@@ -2107,7 +2816,9 @@ describe("SessionList folders and manual order", () => {
     expect(screen.queryByTestId("session-sidebar-root")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-sidebar-session-f1")).toBeVisible();
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-f1"));
-    expect(screen.queryByRole("menuitem", { name: "Move to folder" })).not.toBeInTheDocument();
+    // No folder layout and nothing else to move: the menu has no Move ▸ at all.
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByRole("menuitem", { name: "Move" })).not.toBeInTheDocument();
   });
 
   // Invariant: stale aggregate rows cannot navigate while a page change is in flight.
@@ -2212,26 +2923,38 @@ describe("SessionList folders and manual order", () => {
     expect(screen.getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
   });
 
-  it("Should offer the row actions plus folder moves and Move up/down on right-click", async () => {
-    const user = userEvent.setup();
-    const { layout } = renderLayout();
-    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-f1"));
-    const menu = await screen.findByRole("menu");
-    expect(within(menu).getByRole("menuitem", { name: "Rename session" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitem", { name: "Delete session" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitem", { name: "Move to folder" })).toBeInTheDocument();
-    await user.click(within(menu).getByRole("menuitem", { name: "Remove from folder" }));
-    expect(layout.moveSession).toHaveBeenCalledWith("f1", null);
+  // Invariant: right-click and `…` carry the row's verbs plus folder moves and Move up/down
+  // under Move ▸, one tree on both entry points.
+  it.each(["context", "dropdown"])(
+    "Should offer the row actions plus folder moves and Move up/down from the %s menu",
+    async host => {
+      const user = userEvent.setup();
+      const { layout } = renderLayout();
+      const prefix = host === "context" ? "session-row-menu" : "session-row";
+      const open = async (id: string) => {
+        if (host === "context")
+          fireEvent.contextMenu(screen.getByTestId(`session-sidebar-session-${id}`));
+        else await user.click(screen.getByTestId(`session-row-actions-${id}`));
+        return screen.findByRole("menu");
+      };
+      const menu = await open("f1");
+      expect(within(menu).getByRole("menuitem", { name: "Rename session" })).toBeInTheDocument();
+      expect(within(menu).getByRole("menuitem", { name: "Delete session" })).toBeInTheDocument();
+      await openSubmenu(user, within(menu).getByTestId(`${prefix}-move-f1`));
+      expect(await screen.findByTestId(`${prefix}-move-f1-fa`)).toHaveAttribute(
+        "aria-disabled",
+        "true"
+      );
+      await chooseItem(user, screen.getByRole("menuitem", { name: "Remove from folder" }));
+      expect(layout.moveSession).toHaveBeenCalledWith("f1", null);
 
-    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-r1"));
-    const rootMenu = await screen.findByRole("menu");
-    expect(within(rootMenu).getByRole("menuitem", { name: "Move up" })).toHaveAttribute(
-      "aria-disabled",
-      "true"
-    );
-    await user.click(within(rootMenu).getByRole("menuitem", { name: "Move down" }));
-    expect(layout.reorderSessions).toHaveBeenCalledWith(null, ["r2", "r1"]);
-  });
+      const rootMenu = await open("r1");
+      await openSubmenu(user, within(rootMenu).getByTestId(`${prefix}-move-r1`));
+      expect(await screen.findByTestId(`${prefix}-up-r1`)).toHaveAttribute("aria-disabled", "true");
+      await chooseItem(user, screen.getByTestId(`${prefix}-down-r1`));
+      expect(layout.reorderSessions).toHaveBeenCalledWith(null, ["r2", "r1"]);
+    }
+  );
 
   it("Should say the folders failed to load and retry from the list", async () => {
     const user = userEvent.setup();
@@ -2272,17 +2995,42 @@ describe("SessionList folders and manual order", () => {
       sessions: layoutRows,
       view: { ...view, sort: "manual", layout, catalog, ...narrowed },
     });
+    const user = userEvent.setup();
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-r1"));
     const menu = await screen.findByRole("menu");
-    expect(within(menu).getByRole("menuitem", { name: "Move to folder" })).toBeInTheDocument();
-    expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
-    expect(within(menu).queryByRole("menuitem", { name: "Move down" })).not.toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: "Move" }));
+    expect(await screen.findByRole("menuitemradio", { name: "Beta" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Move down" })).not.toBeInTheDocument();
 
     const row = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`).parentElement!;
     fireEvent.dragStart(row("r1"));
     fireEvent.dragOver(row("r2"));
     fireEvent.drop(row("r2"));
     expect(layout.reorderSessions).not.toHaveBeenCalled();
+  });
+
+  // Invariant (#1724): the root zone holding a folder list's rows never shrinks in its scroll
+  // column. Its `min-h-6` (an empty root stays droppable) replaces the flex item's content
+  // minimum, so without `shrink-0` a long page squeezed the zone and its rows spilled under the
+  // paging row that follows it. jsdom has no layout, so the class is the guard; the
+  // ArchivedPaged contract story shows the rendered geometry.
+  it("Should keep the folder list's root zone from shrinking above the paging row", () => {
+    renderList({
+      sessions: layoutRows,
+      view: {
+        ...view,
+        shelf: "archive",
+        layout: fakeLayout(),
+        catalog: sessionListCatalogFixture({ sessions: layoutRows, next: true }),
+      },
+    });
+    const root = screen.getByTestId("session-sidebar-root");
+    // Structure only: the pager is the root zone's next sibling in the scroll column.
+    expect(root.nextElementSibling).toContainElement(
+      screen.getByRole("button", { name: "Next sessions" })
+    );
+    expect(root).toHaveClass("shrink-0");
   });
 
   it("Should open the row menu from the keyboard and move a session into a folder", async () => {
@@ -2293,9 +3041,10 @@ describe("SessionList folders and manual order", () => {
     await user.keyboard("{Shift>}{F10}{/Shift}");
     const menu = await screen.findByRole("menu");
     expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
-    within(menu).getByRole("menuitem", { name: "Move to folder" }).focus();
+    within(menu).getByRole("menuitem", { name: "Move" }).focus();
     await user.keyboard("{ArrowRight}");
-    const beta = await screen.findByRole("menuitem", { name: "Beta" });
+    // Folders are a set of choices: each is announced as a radio item.
+    const beta = await screen.findByRole("menuitemradio", { name: "Beta" });
     await waitFor(() =>
       expect(beta.closest('[role="menu"]')).toContainElement(document.activeElement as HTMLElement)
     );
@@ -2441,23 +3190,41 @@ describe("SessionList folders and manual order", () => {
     expect(rowContainer(child.id)).not.toHaveAttribute("data-drop");
   });
 
-  it("Should nest through the keyboard menu using only eligible parent choices", async () => {
+  // Invariant: Move under… opens the shell's parent picker for the row's session; it is
+  // offered on unarchived user sessions of hosts that can move lineage, and the picker
+  // explains a continued or forked session's refusal instead of the menu hiding it.
+  it("Should open the parent picker from the keyboard row menu", async () => {
     const user = userEvent.setup();
-    const onAdopt = vi.fn();
     const source = { ...layoutRows[0]!, lineage: undefined };
-    const target = { ...layoutRows[1]!, name: "Destination", lineage: undefined };
-    const foreign = { ...target, id: "foreign", name: "Foreign", profile_id: "another-profile" };
-    renderList({ sessions: [source, target, foreign], actions: { onAdopt } });
+    const continued = {
+      ...layoutRows[1]!,
+      id: "continued",
+      name: "Continued",
+      lineage: { ...layoutRows[0]!.lineage!, parent_session_id: source.id, kind: "continue" },
+    } as SessionPayload;
+    renderList({ sessions: [source, continued], actions: { onAdopt: vi.fn() } });
     screen.getByTestId(`session-row-actions-${source.id}`).focus();
     await user.keyboard("{Enter}");
-    await user.keyboard("Nest{ArrowRight}");
-    const destination = await screen.findByRole("menuitem", { name: "Destination" });
-    expect(destination).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Foreign" })).not.toBeInTheDocument();
-    // Mounting precedes the submenu's scheduled keyboard focus handoff.
-    await waitFor(() => expect(destination).toHaveFocus());
-    await user.keyboard("{Enter}");
-    expect(onAdopt).toHaveBeenCalledWith(source, target);
+    // Move under… sits in Move ▸: open it from the keyboard.
+    await openSubmenu(user, await screen.findByTestId(`session-row-move-${source.id}`));
+    await chooseItem(user, await screen.findByTestId(`session-row-move-under-${source.id}`));
+    expect(sessionParentPickerStore.getSnapshot().context.sessionId).toBe(source.id);
+    sessionParentPickerStore.trigger.closed();
+
+    await user.click(screen.getByTestId(`session-row-actions-${continued.id}`));
+    await openSubmenu(user, await screen.findByTestId(`session-row-move-${continued.id}`));
+    await chooseItem(user, await screen.findByTestId(`session-row-move-under-${continued.id}`));
+    expect(sessionParentPickerStore.getSnapshot().context.sessionId).toBe(continued.id);
+    sessionParentPickerStore.trigger.closed();
+  });
+
+  it("Should leave Move under out where the host cannot move lineage", async () => {
+    const user = userEvent.setup();
+    const source = { ...layoutRows[0]!, lineage: undefined };
+    renderList({ sessions: [source] });
+    await user.click(screen.getByTestId(`session-row-actions-${source.id}`));
+    await screen.findByRole("menu");
+    expect(screen.queryByTestId(`session-row-move-under-${source.id}`)).not.toBeInTheDocument();
   });
 
   it("Should offer Make top-level only on a nested provenance child", async () => {
@@ -2479,10 +3246,13 @@ describe("SessionList folders and manual order", () => {
     renderList({ sessions: [parent, child], actions: { onMakeTopLevel } });
 
     await user.click(screen.getByTestId("session-row-actions-r1"));
-    expect(screen.queryByTestId("session-row-make-top-level-r1")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("session-row-delete-r1")).toBeInTheDocument();
+    // A top-level row has nothing to move here: no Move ▸, so no Make top-level.
+    expect(screen.queryByTestId("session-row-move-r1")).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
     await user.click(screen.getByTestId("session-row-actions-c-prov"));
-    await user.click(await screen.findByTestId("session-row-make-top-level-c-prov"));
+    await openSubmenu(user, await screen.findByTestId("session-row-move-c-prov"));
+    await chooseItem(user, await screen.findByTestId("session-row-make-top-level-c-prov"));
     expect(onMakeTopLevel).toHaveBeenCalledWith(expect.objectContaining({ id: "c-prov" }));
   });
 
@@ -2519,17 +3289,20 @@ describe("SessionList folders and manual order", () => {
 
     for (const id of ["w-running", "w-subagent"]) {
       await user.click(screen.getByTestId(`session-row-actions-${id}`));
-      expect(screen.queryByTestId(`session-row-take-over-${id}`)).not.toBeInTheDocument();
+      expect(await screen.findByTestId(`session-row-delete-${id}`)).toBeInTheDocument();
+      // Take over is the only Move ▸ verb these rows could have: none, so no Move ▸.
+      expect(screen.queryByTestId(`session-row-move-${id}`)).not.toBeInTheDocument();
       await user.keyboard("{Escape}");
     }
     await user.click(screen.getByTestId("session-row-actions-w-stopped"));
     expect(screen.queryByTestId("session-row-rename-w-stopped")).not.toBeInTheDocument();
-    await user.click(await screen.findByTestId("session-row-take-over-w-stopped"));
+    await openSubmenu(user, await screen.findByTestId("session-row-move-w-stopped"));
+    await chooseItem(user, await screen.findByTestId("session-row-take-over-w-stopped"));
     expect(onMakeTopLevel).toHaveBeenCalledWith(expect.objectContaining({ id: "w-stopped" }));
   });
 
   // Invariant: a selection moves into a folder or the root through the bar's
-  // Move to folder menu or by dragging a selected row, as one layout write of
+  // Move ▸ Folder group or by dragging a selected row, as one layout write of
   // its thread roots in on-screen order; success ends the selection, a refusal
   // keeps it, and a selection that cannot move says why.
   const rowNames: Record<string, string> = {
@@ -2548,26 +3321,20 @@ describe("SessionList folders and manual order", () => {
     return user;
   }
   /**
-   * Opens the selection bar's More menu and, from the keyboard, its Move to
-   * folder submenu; resolves once focus sits inside the submenu.
+   * Opens the selection bar's More menu and, from the keyboard, its Move
+   * submenu; resolves once focus sits inside the submenu.
    */
-  async function openMoveMenu(user: ReturnType<typeof userEvent.setup>) {
+  async function openMoveMenu(user: MenuUser) {
     await user.click(screen.getByTestId("session-sidebar-selection-more"));
-    const trigger = await screen.findByTestId("session-sidebar-selection-move");
-    await waitFor(() => expect(trigger.closest('[role="menu"]')).toBeInTheDocument());
-    trigger.focus();
-    await user.keyboard("{ArrowRight}");
-    await waitFor(() => {
-      const submenu = document.activeElement?.closest('[role="menu"]');
-      expect(submenu).toBeTruthy();
-      expect(submenu).not.toContainElement(trigger);
-    });
+    await openSubmenu(user, await screen.findByTestId("session-sidebar-selection-move"));
   }
   /** Activates one submenu target from the keyboard, as the row menu suite does. */
-  async function chooseMoveTarget(user: ReturnType<typeof userEvent.setup>, name: string) {
-    const item = await screen.findByRole("menuitem", { name });
-    item.focus();
-    await user.keyboard("{Enter}");
+  async function chooseMoveTarget(
+    user: MenuUser,
+    name: string,
+    role: "menuitem" | "menuitemradio" = "menuitemradio"
+  ) {
+    await chooseItem(user, await screen.findByRole(role, { name }));
   }
 
   it("Should move the selection to a folder from the selection menu and end the selection", async () => {
@@ -2578,7 +3345,7 @@ describe("SessionList folders and manual order", () => {
     expect(items.map(item => item.textContent)).toEqual([
       "Alpha",
       "Beta",
-      "No folder",
+      "Remove from folder",
       "New folder…",
     ]);
     await chooseMoveTarget(user, "Beta");
@@ -2602,11 +3369,11 @@ describe("SessionList folders and manual order", () => {
     renderList({ sessions: layoutRows, view: { ...view, layout } });
     const user = await selectRows("f1");
     await openMoveMenu(user);
-    expect(await screen.findByRole("menuitem", { name: "Alpha" })).toHaveAttribute(
-      "aria-disabled",
-      "true"
-    );
-    await chooseMoveTarget(user, "No folder");
+    // The selection's shared folder is the current choice, so moving there is disabled.
+    const alpha = await screen.findByRole("menuitemradio", { name: "Alpha" });
+    expect(alpha).toHaveAttribute("aria-disabled", "true");
+    expect(alpha).toBeChecked();
+    await chooseMoveTarget(user, "Remove from folder", "menuitem");
 
     expect(layout.moveSessions).toHaveBeenCalledWith(["f1"], null);
     await waitFor(() =>
@@ -2621,7 +3388,7 @@ describe("SessionList folders and manual order", () => {
     const { layout } = renderLayout("created");
     const user = await selectRows("r1", "r2");
     await openMoveMenu(user);
-    await chooseMoveTarget(user, "New folder…");
+    await chooseMoveTarget(user, "New folder…", "menuitem");
     expect(await screen.findByText("The 2 sessions you selected move into it.")).toBeVisible();
     await user.type(screen.getByTestId("session-folder-name"), "Launch");
     await user.click(screen.getByRole("button", { name: "Create and move" }));
@@ -2632,6 +3399,27 @@ describe("SessionList folders and manual order", () => {
       expect(screen.queryByTestId("session-folder-name-dialog")).not.toBeInTheDocument()
     );
     expect(screen.queryByTestId("session-sidebar-selection-bar")).not.toBeInTheDocument();
+  });
+
+  // Invariant: the selection's Move under offers the unselected sessions a selected one can move
+  // under, counts the selected sessions that can, and moves the selection under the chosen one.
+  it("Should move the selection under a listed session from Move ▸ Move under", async () => {
+    // Only a top-level session moves under another: these rows carry no parent lineage.
+    const { actions } = renderList({
+      sessions: layoutRows.map(row => ({ ...row, lineage: undefined })),
+      view: { ...view, layout: fakeLayout() },
+    });
+    const user = await selectRows("r1", "f1");
+    await openMoveMenu(user);
+    const moveUnder = await screen.findByTestId("session-sidebar-selection-move-under");
+    expect(moveUnder).toHaveTextContent("2 sessions");
+    await openSubmenu(user, moveUnder);
+    expect(screen.queryByTestId("session-sidebar-selection-move-under-r1")).not.toBeInTheDocument();
+    await chooseItem(user, await screen.findByTestId("session-sidebar-selection-move-under-r2"));
+    expect(actions.onMoveUnderMany).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: "r1" }), expect.objectContaining({ id: "f1" })],
+      expect.objectContaining({ id: "r2" })
+    );
   });
 
   it("Should say a selection of child rows moves with its parent", async () => {
@@ -2658,7 +3446,7 @@ describe("SessionList folders and manual order", () => {
     expect(
       await screen.findByRole("menuitem", { name: "Child sessions move with their parent." })
     ).toHaveFocus();
-    expect(screen.queryByRole("menuitem", { name: "Beta" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitemradio", { name: "Beta" })).not.toBeInTheDocument();
   });
 
   it("Should drag the selection onto a folder, and drag an unselected row alone", async () => {
@@ -2943,7 +3731,7 @@ describe("SessionList breadth and Group by", () => {
     expect(setGroupBy).toHaveBeenCalledWith("project");
   });
 
-  // #1132: the label names what the action will do, and the action reports the opposite state.
+  // #1132: the toolbar button's name says what a click will do, and it reports the opposite state.
   it.each([
     { foldAll: null, label: "Collapse all", next: "collapsed" },
     { foldAll: "expanded", label: "Collapse all", next: "collapsed" },
@@ -2952,8 +3740,7 @@ describe("SessionList breadth and Group by", () => {
     const user = userEvent.setup();
     const setFoldAll = vi.fn();
     renderList({ view: { ...view, foldAll, setFoldAll } });
-    await user.click(screen.getByRole("button", { name: "View options" }));
-    await user.click(await screen.findByRole("menuitem", { name: label }));
+    await user.click(screen.getByRole("button", { name: label }));
     expect(setFoldAll).toHaveBeenCalledWith(next);
   });
 
@@ -2969,7 +3756,6 @@ describe("SessionList breadth and Group by", () => {
       const onHideChildrenChange = vi.fn();
       render(
         <SessionViewOptionsMenu
-          allCollapsed={false}
           groupBy="none"
           groupByOptions={["none"]}
           hideChildren={hideChildren}
@@ -2983,12 +3769,39 @@ describe("SessionList breadth and Group by", () => {
         />
       );
       const trigger = screen.getByRole("button", { name: "View options" });
-      expect(trigger.classList.contains("bg-surface-2")).toBe(marked);
+      expect(trigger.classList.contains("text-brand-strong")).toBe(marked);
       await user.click(trigger);
       const filter = await screen.findByRole("menuitemcheckbox", { name: "Hide child sessions" });
       expect(filter).toHaveAttribute("aria-checked", String(hideChildren));
       await user.click(filter);
       expect(onHideChildrenChange).toHaveBeenCalledWith(next);
+    }
+  );
+
+  // #1486: project grouping is the default where the breadth offers it, so only a grouping that
+  // differs from the default for the current options marks the trigger.
+  it.each([
+    { groupByOptions: ["none", "project"], groupBy: "project", marked: false },
+    { groupByOptions: ["none", "project"], groupBy: "none", marked: true },
+    { groupByOptions: ["none", "profile"], groupBy: "profile", marked: true },
+    { groupByOptions: ["none"], groupBy: "none", marked: false },
+  ] as const)(
+    "Should mark the trigger for $groupBy grouping only when it differs from the default ($groupByOptions)",
+    ({ groupByOptions, groupBy, marked }) => {
+      render(
+        <SessionViewOptionsMenu
+          groupBy={groupBy}
+          groupByOptions={groupByOptions}
+          onGroupByChange={vi.fn()}
+          onShowEmptyProjectsChange={vi.fn()}
+          onSortChange={vi.fn()}
+          showEmptyProjects={false}
+          sort="created"
+          testId="session-sidebar"
+        />
+      );
+      const trigger = screen.getByRole("button", { name: "View options" });
+      expect(trigger.classList.contains("text-brand-strong")).toBe(marked);
     }
   );
 
@@ -2999,6 +3812,27 @@ describe("SessionList breadth and Group by", () => {
     expect(await screen.findByRole("menuitemradio", { name: "Created" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitemcheckbox", { name: "Hide child sessions" })).toBeNull();
   });
+
+  // #1355: automation runs stay out of the list until the window shows them; showing them marks
+  // the trigger because hiding them is the default.
+  it.each([
+    { showAutomation: false, marked: false, next: true },
+    { showAutomation: true, marked: true, next: false },
+  ])(
+    "Should offer Show automation runs in the List's View options (checked: $showAutomation)",
+    async ({ showAutomation, marked, next }) => {
+      const user = userEvent.setup();
+      const setShowAutomation = vi.fn();
+      renderList({ view: { ...view, showAutomation, setShowAutomation } });
+      const trigger = screen.getByRole("button", { name: "View options" });
+      expect(trigger.classList.contains("text-brand-strong")).toBe(marked);
+      await user.click(trigger);
+      const toggle = await screen.findByRole("menuitemcheckbox", { name: "Show automation runs" });
+      expect(toggle).toHaveAttribute("aria-checked", String(showAutomation));
+      await user.click(toggle);
+      expect(setShowAutomation).toHaveBeenCalledWith(next);
+    }
+  );
 
   // #1085: "Show empty projects" belongs to project grouping and reports the operator's choice.
   it.each([
@@ -3233,6 +4067,26 @@ describe("SessionList breadth and Group by", () => {
     expect(toggleGroup).not.toHaveBeenCalled();
   });
 
+  // Invariant: a project header's right-click carries its + verbs under New ▸, and New session
+  // starts in the same project and profile as the + (one project menu on every surface).
+  it("Should start a session from a group header's New submenu like its +", async () => {
+    const user = userEvent.setup();
+    const onNewSession = vi.fn();
+    renderList({ sessions: [], onNewSession, view: grouped() });
+
+    const toggle = await screen.findByTestId("session-sidebar-group-project:ws-alpha");
+    await waitFor(() => {
+      fireEvent.contextMenu(toggle);
+      expect(screen.getByRole("menuitem", { name: "New" })).toBeVisible();
+    });
+    await user.hover(screen.getByTestId("session-sidebar-group-project:ws-alpha-menu-new"));
+    // The submenu opens on hover; its item is pressed directly once it mounts.
+    fireEvent.click(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-menu-new-session")
+    );
+    expect(onNewSession).toHaveBeenCalledWith({ workspaceId: "ws-alpha", profile: "default" });
+  });
+
   // Invariant: the toolbar + offers Add always-on agent in any grouping, and a list spanning
   // several projects asks where the agent lives first (#1181).
   it("Should offer Add always-on agent from the toolbar + of a grouped All projects list", async () => {
@@ -3303,6 +4157,29 @@ describe("SessionList breadth and Group by", () => {
     // No project behind the User group: the click falls through and no project menu opens.
     expect(fireEvent.contextMenu(screen.getByTestId("session-sidebar-group-user"))).toBe(true);
     expect(screen.queryByRole("menuitem", { name: "Archive project" })).not.toBeInTheDocument();
+  });
+
+  // US-002.AC-4: the project context menu opens that project's Files window.
+  it("Should open the project's Files window from its group header", async () => {
+    const user = userEvent.setup();
+    const userOpen = vi.fn(async () => "w-files");
+    const shell = {
+      manager: { getState: () => ({ windows: {}, focusedId: null }) },
+      coordinator: { userOpen },
+    } as unknown as OsShellHandle;
+    renderList({ sessions: [], view: grouped(), shell });
+
+    const toggle = await screen.findByTestId("session-sidebar-group-project:ws-alpha");
+    await waitFor(() => {
+      fireEvent.contextMenu(toggle);
+      expect(screen.getByRole("menuitem", { name: "Open files" })).toBeVisible();
+    });
+    await user.click(screen.getByRole("menuitem", { name: "Open files" }));
+    expect(userOpen).toHaveBeenCalledWith({
+      app: "files",
+      instanceKey: "ws-alpha",
+      route: { pathname: "/files/ws-alpha", search: {} },
+    });
   });
 
   // A profile group inside a project stands for a profile, not the project: no project menu.
@@ -3486,7 +4363,11 @@ describe("SessionList breadth and Group by", () => {
     expect(layout.moveWorkspace).toHaveBeenCalledWith("ws-alpha", "wf-1");
 
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-group-project:ws-beta-header"));
-    await user.click(
+    // Move out of folder sits with the folder choices under Move ▸.
+    await user.hover(
+      await screen.findByTestId("session-sidebar-group-project:ws-beta-arrange-move-to")
+    );
+    fireEvent.click(
       await screen.findByTestId("session-sidebar-group-project:ws-beta-arrange-move-out")
     );
     expect(layout.moveWorkspace).toHaveBeenCalledWith("ws-beta", null);

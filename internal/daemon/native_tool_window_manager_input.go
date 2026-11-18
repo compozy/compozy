@@ -25,6 +25,7 @@ type windowManagerMutationInput struct {
 }
 
 type windowManagerRebaseInput struct {
+	TabID         string `json:"tab_id,omitempty"`
 	WindowID      string `json:"window_id,omitempty"`
 	SourceNodeID  string `json:"source_node_id,omitempty"`
 	TargetNodeID  string `json:"target_node_id,omitempty"`
@@ -186,6 +187,7 @@ type windowManagerWindowFocusInput struct {
 }
 
 type windowManagerWindowMovePayload struct {
+	TargetTabID          string                        `json:"target_tab_id,omitempty"`
 	WindowID             string                        `json:"window_id"`
 	DestinationDesktopID string                        `json:"destination_desktop_id"`
 	TargetWindowID       string                        `json:"target_window_id,omitempty"`
@@ -195,21 +197,8 @@ type windowManagerWindowMovePayload struct {
 }
 
 func (payload windowManagerWindowMovePayload) validate() error {
-	if !payload.MoveGroup {
-		if strings.TrimSpace(payload.Placement) == "" {
-			return errors.New("placement is required unless move_group is true")
-		}
-		return nil
-	}
-	if strings.TrimSpace(payload.TargetWindowID) != "" {
-		if payload.FloatingRect != nil {
-			return errors.New("structural move_group cannot be combined with floating_rect")
-		}
-		return nil
-	}
-	placement := strings.TrimSpace(payload.Placement)
-	if placement != "" && placement != "floating" {
-		return errors.New("move_group without target_window_id supports only floating placement")
+	if strings.TrimSpace(payload.TargetWindowID) != "" && strings.TrimSpace(payload.TargetTabID) != "" {
+		return errors.New("target_window_id and target_tab_id are mutually exclusive")
 	}
 	return nil
 }
@@ -306,6 +295,7 @@ type windowManagerLayoutFrameResizeInput struct {
 }
 
 type windowManagerLayoutBalancePayload struct {
+	TabID   string `json:"tab_id,omitempty"`
 	GroupID string `json:"group_id,omitempty"`
 	SplitID string `json:"split_id,omitempty"`
 }
@@ -379,6 +369,7 @@ func (input windowManagerMutationInput) rebaseGuard() *windowmanager.RebaseGuard
 	}
 	return &windowmanager.RebaseGuard{
 		WindowID:      windowManagerOptionalString[windowmanager.WindowID](input.Rebase.WindowID),
+		TabID:         windowManagerOptionalString[windowmanager.TabID](input.Rebase.TabID),
 		SourceNodeID:  windowManagerOptionalString[windowmanager.NodeID](input.Rebase.SourceNodeID),
 		TargetNodeID:  windowManagerOptionalString[windowmanager.NodeID](input.Rebase.TargetNodeID),
 		SplitID:       windowManagerOptionalString[windowmanager.NodeID](input.Rebase.SplitID),

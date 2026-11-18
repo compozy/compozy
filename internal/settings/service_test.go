@@ -230,9 +230,6 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if got, want := envelope.WindowManager.Config.HistoryLimit, 50; got != want {
 					t.Fatalf("WindowManager history limit = %d, want %d", got, want)
 				}
-				if got, want := envelope.WindowManager.Config.Bindings.TopCenter, "zoom"; got != want {
-					t.Fatalf("WindowManager top-center binding = %q, want %q", got, want)
-				}
 			},
 		},
 		{
@@ -901,6 +898,77 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 func TestUpdateSectionWindowManager(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: settings persistence changes only kept options and preserves authored legacy state.
+	for _, tc := range []struct {
+		name   string
+		legacy string
+	}{
+		{name: "Should save a kept option without adding retired keys"},
+		{name: "Should preserve authored retired keys during a kept option save", legacy: `
+[window_manager]
+raise_on_focus = "authored" # preserved
+drag_away_policy = 0
+group_move_modifier = false
+[window_manager.snap]
+edge_band = 0
+corner_reach = "ignored"
+exit_slack = false
+repeat_ratios = ["authored"]
+[window_manager.bindings]
+top_center = "stack"
+bottom_center = 42
+`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			homePaths := testHomePaths(t)
+			writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+tc.legacy)
+			service := testService(t, homePaths, Dependencies{})
+			current, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := cloneWindowManagerConfig(current.WindowManager)
+			want.HistoryLimit++
+			desired := cloneWindowManagerConfig(want)
+			changed := diffWindowManagerSettings(
+				current.WindowManager,
+				current.CmdPalette.Aliases,
+				desired,
+				current.CmdPalette.Aliases,
+			)
+			if !slices.Equal(changed, []string{"window_manager.history_limit"}) {
+				t.Fatalf("changed fields = %v, want only the kept option", changed)
+			}
+			if _, err := service.UpdateSection(t.Context(), SectionUpdateRequest{
+				Section: SectionWindowManager, WindowManager: &desired,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(loaded.WindowManager, want) {
+				t.Fatalf("stored config = %#v, want %#v", loaded.WindowManager, want)
+			}
+			contents := readFile(t, homePaths.ConfigFile)
+			if tc.legacy == "" {
+				for _, key := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "[window_manager.snap]", "[window_manager.bindings]"} {
+					if strings.Contains(contents, key) {
+						t.Fatalf("save added retired %s:\n%s", key, contents)
+					}
+				}
+			} else {
+				for line := range strings.SplitSeq(strings.TrimSpace(tc.legacy), "\n") {
+					if !strings.Contains(contents, line) {
+						t.Fatalf("save changed authored line %q:\n%s", line, contents)
+					}
+				}
+			}
+		})
+	}
+
 	t.Run("Should preserve current shortcuts when saving stale behavior with zero gaps", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -1341,6 +1409,77 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		}
 	})
 
+	t.Run("Should store only the project delta and keep inherited keys flowing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		userConfig := func(focusPolicy string) string {
+			return baseSettingsConfig() + "\n[window_manager]\nfocus_policy = \"" + focusPolicy + "\"\n"
+		}
+		writeFile(t, homePaths.ConfigFile, userConfig("directional"))
+		workspaceRoot := t.TempDir()
+		service := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-1": {ID: "ws-1", RootDir: workspaceRoot},
+			}},
+			CmdPalette: &recordingCmdPaletteCatalog{catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{
+				{ID: "session.new", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore}},
+			}}},
+		})
+		save := func(binding string) {
+			t.Helper()
+			shortcuts := map[string]windowmanager.ShortcutBinding{"session.new": {binding}}
+			if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
+				Section: SectionWindowManager, Scope: ScopeWorkspace, WorkspaceID: "ws-1",
+				WindowManagerShortcuts: &shortcuts,
+			}); err != nil {
+				t.Fatalf("UpdateSection(project shortcut) error = %v", err)
+			}
+		}
+		load := func() compozyconfig.Config {
+			t.Helper()
+			loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
+			if err != nil {
+				t.Fatalf("LoadForHome(project) error = %v", err)
+			}
+			return loaded
+		}
+		projectFile := workspaceConfigPath(workspaceRoot)
+
+		save("alt+KeyN")
+		written := readFile(t, projectFile)
+		if !strings.Contains(written, "[window_manager.shortcuts]") {
+			t.Fatalf("project file = %q, want the keymap table", written)
+		}
+		for _, key := range []string{
+			"focus_policy", "history_limit", "new_window_policy", "gaps", "global_shortcuts", "aliases",
+		} {
+			if strings.Contains(written, key) {
+				t.Fatalf("project file = %q, want no %s copied from inherited config", written, key)
+			}
+		}
+		writeFile(t, homePaths.ConfigFile, userConfig("click_directional"))
+		if got := load().WindowManager.FocusPolicy; got != "click_directional" {
+			t.Fatalf("project focus_policy = %q, want the later user value", got)
+		}
+
+		writeFile(t, projectFile, "[window_manager]\nfocus_policy = \"click_directional\"\nhistory_limit = 80\n\n"+
+			"[window_manager.shortcuts]\n\"session.new\" = [\"alt+KeyN\"]\n")
+		if got := load().WindowManager; got.FocusPolicy != "click_directional" || got.HistoryLimit != 80 {
+			t.Fatalf("copied project scalars loaded as %+v", got)
+		}
+		save("alt+KeyM")
+		rewritten := readFile(t, projectFile)
+		if strings.Contains(rewritten, "focus_policy") || !strings.Contains(rewritten, "history_limit = 80") {
+			t.Fatalf("project file = %q, want inherited copy removed and differing value kept", rewritten)
+		}
+		if got := load().WindowManager; got.FocusPolicy != "click_directional" || got.HistoryLimit != 80 ||
+			!slices.Equal(got.Shortcuts["session.new"], windowmanager.ShortcutBinding{"alt+KeyM"}) {
+			t.Fatalf("project config after save = %+v", got)
+		}
+	})
+
 	t.Run("Should emit global binding changes once per registered workspace [IT-033]", func(t *testing.T) {
 		t.Parallel()
 
@@ -1689,6 +1828,28 @@ func TestUpdateSectionShell(t *testing.T) {
 		contents := readFile(t, homePaths.ConfigFile)
 		if strings.Contains(contents, "ui_font") || !strings.Contains(contents, `mono_font = "Fira Code"`) {
 			t.Fatalf("config after ui_font reset should delete only ui_font:\n%s", contents)
+		}
+
+		update("", compozyconfig.ShellAppearanceConfig{
+			TextSize: compozyconfig.ShellTextSizeLarge, TextSizeExplicit: true,
+			LetterSpacing: compozyconfig.ShellLetterSpacingRelaxed, LetterSpacingExplicit: true,
+		})
+		update("", compozyconfig.ShellAppearanceConfig{TextSizeExplicit: true})
+		shell = loadAppearance()
+		if shell.Appearance.TextSize != "" ||
+			shell.Appearance.LetterSpacing != compozyconfig.ShellLetterSpacingRelaxed ||
+			shell.Appearance.MonoFont != "Fira Code" {
+			t.Fatalf("Shell after text_size reset = %#v, want default size, relaxed spacing and Fira Code",
+				shell.Appearance)
+		}
+		contents = readFile(t, homePaths.ConfigFile)
+		if strings.Contains(contents, "text_size") || !strings.Contains(contents, `letter_spacing = "relaxed"`) {
+			t.Fatalf("config after text_size reset should delete only text_size:\n%s", contents)
+		}
+		update("", compozyconfig.ShellAppearanceConfig{LetterSpacingExplicit: true})
+		if contents := readFile(t, homePaths.ConfigFile); strings.Contains(contents, "letter_spacing") ||
+			!strings.Contains(contents, `mono_font = "Fira Code"`) {
+			t.Fatalf("config after letter_spacing reset should delete only letter_spacing:\n%s", contents)
 		}
 
 		// A hand-written empty key is still a stored key: resetting it deletes it.
@@ -2111,7 +2272,7 @@ func TestClassifyMutationSupportsCollectionFields(t *testing.T) {
 				Section:       SectionName(CollectionMCPServers),
 				ChangedFields: []string{"mcp-servers.alpha.command"},
 			},
-			want: MutationBehaviorRestartRequired,
+			want: MutationBehaviorAppliedNow,
 		},
 		{
 			descriptor: MutationDescriptor{
@@ -2139,6 +2300,57 @@ func TestClassifyMutationSupportsCollectionFields(t *testing.T) {
 
 func TestProviderSettingsUsesMergedCatalogProjection(t *testing.T) {
 	t.Parallel()
+	// Owner: settings persistence. A window-only edit must preserve the authored
+	// provider overlay, including launch policy and raw model curation.
+	for _, providerName := range []string{"claude", "custom"} {
+		t.Run(
+			"Should preserve the "+providerName+" overlay when only the compaction window changes",
+			func(t *testing.T) {
+				t.Parallel()
+				home := testHomePaths(t)
+				writeFile(t, home.ConfigFile, baseSettingsConfig()+strings.ReplaceAll(`
+
+[providers.claude]
+command = "custom-wrapper"
+base_url = "https://provider.example/v1"
+home_policy = "isolated"
+display_name = "Custom Claude"
+auth_login_command = "custom-login"
+
+[providers.claude.models]
+default = "custom-model"
+
+[[providers.claude.models.curated]]
+id = "custom-model"
+display_name = "Authored model"
+`, "providers.claude", "providers."+providerName))
+				before, err := compozyconfig.LoadForHome(home)
+				if err != nil {
+					t.Fatal(err)
+				}
+				service := testService(t, home, Dependencies{})
+				for _, window := range []int{200000, 400000, 400000} {
+					_, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+						Collection: CollectionProviders,
+						Name:       providerName,
+						Provider:   &ProviderSettings{AutoCompactWindow: new(window)},
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+					after, err := compozyconfig.LoadForHome(home)
+					if err != nil {
+						t.Fatal(err)
+					}
+					want := before.Providers[providerName]
+					want.AutoCompactWindow = new(window)
+					if got := after.Providers[providerName]; !reflect.DeepEqual(got, want) {
+						t.Fatalf("window edit changed provider fields: got=%+v want=%+v", got, want)
+					}
+				}
+			},
+		)
+	}
 
 	t.Run("Should read the persisted catalog without starting an implicit refresh", func(t *testing.T) {
 		t.Parallel()
@@ -3156,7 +3368,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			t.Fatalf("ListCollection(MCP refs) error = %v", err)
 		}
 		item := findMCPItem(t, envelope.MCPServers, "github")
-		assertMCPSecretKeys(t, item, "GITHUB_TOKEN")
+		assertMCPSecretKeys(t, &item, "GITHUB_TOKEN")
 		if item.Auth.ClientSecretRef != "" {
 			t.Fatalf("settings read exposed OAuth client secret ref %q", item.Auth.ClientSecretRef)
 		}
@@ -3181,7 +3393,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		if got, want := item.Command, "npx-updated"; got != want {
 			t.Fatalf("preserved MCP command = %q, want %q", got, want)
 		}
-		assertMCPSecretKeys(t, item, "GITHUB_TOKEN")
+		assertMCPSecretKeys(t, &item, "GITHUB_TOKEN")
 		if got, want := secretStore.plaintext["vault:mcp/user/github/env/GITHUB_TOKEN"], "ghp-secret"; got != want {
 			t.Fatalf("preserved MCP secret plaintext = %q, want %q", got, want)
 		}
@@ -3373,6 +3585,78 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		}
 		if got := findMCPItem(t, envelope.MCPServers, "shared").Command; got != "config-command" {
 			t.Fatalf("surviving source command = %q, want config-command", got)
+		}
+	})
+
+	t.Run("Should preserve header credentials only for the exact remote and target", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		initial := compozyconfig.MCPServer{
+			Name:          "header-remote",
+			Transport:     "http",
+			URL:           "https://example.test/mcp",
+			Headers:       map[string]string{"X-Key": "private-value"},
+			SecretHeaders: map[string]string{"X-Secret": "env:MCP_SECRET"},
+		}
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+			Collection: CollectionMCPServers, Name: initial.Name, Target: TargetConfig, MCPServer: &initial,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		replacement := compozyconfig.MCPServer{Name: initial.Name, Transport: "http", URL: initial.URL}
+		req := CollectionItemPutRequest{
+			Collection:            CollectionMCPServers,
+			Name:                  initial.Name,
+			Target:                TargetConfig,
+			MCPServer:             &replacement,
+			MCPSecretPreservation: MCPSecretPreservation{Headers: true},
+		}
+		result, err := service.PutCollectionItem(t.Context(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.MCPServer == nil || !result.MCPServer.HeadersConfigured {
+			t.Fatal("missing redacted header presence")
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(loaded.MCPServers) != 1 || loaded.MCPServers[0].Headers["X-Key"] != "private-value" ||
+			loaded.MCPServers[0].SecretHeaders["X-Secret"] != "env:MCP_SECRET" {
+			t.Fatal("headers were lost")
+		}
+		replacement.URL = "https://other.test/mcp"
+		if _, err := service.PutCollectionItem(t.Context(), req); !errors.Is(err, ErrValidation) {
+			t.Fatalf("changed endpoint accepted: %v", err)
+		}
+		replacement.URL = initial.URL
+		req.Target = TargetSidecar
+		if _, err := service.PutCollectionItem(t.Context(), req); !errors.Is(err, ErrValidation) ||
+			!strings.Contains(err.Error(), "has no existing bindings") {
+			t.Fatalf("sidecar target did not require its own bindings: %v", err)
+		}
+	})
+
+	t.Run("Should reject direct header writes to a sidecar without dropping them", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(t, home.ConfigFile, baseSettingsConfig())
+		service := testService(t, home, Dependencies{})
+		_, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+			Collection: CollectionMCPServers,
+			Name:       "header",
+			Target:     TargetSidecar,
+			MCPServer: &compozyconfig.MCPServer{
+				Transport: "http",
+				URL:       "https://example.test/mcp",
+				Headers:   map[string]string{"X-Key": "value"},
+			},
+		})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "headers require a config target") {
+			t.Fatalf("sidecar headers = %v, want explicit validation failure", err)
 		}
 	})
 
@@ -4033,6 +4317,70 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateSectionObservabilityPreservesOTelExportBlock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep the operator's OTel export block when the Observability form is saved", func(t *testing.T) {
+		t.Parallel()
+
+		// The form owns event retention and transcripts and submits no OTel block, so saving it must
+		// leave export settings, header refs, and their comments exactly as the operator wrote them.
+		const otelBlock = `
+# telemetry export
+[observability.otel]
+enabled = true
+protocol = "grpc"
+endpoint = "http://collector.local:4317"
+sample_ratio = 0.25
+
+[observability.otel.headers]
+# New Relic license
+"api-key" = "vault:observability/newrelic-license"
+`
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+otelBlock)
+		service := testService(t, homePaths, Dependencies{})
+
+		if _, err := service.UpdateSection(t.Context(), SectionUpdateRequest{
+			Section: SectionObservability,
+			Observability: &compozyconfig.ObservabilityConfig{
+				Enabled:        true,
+				RetentionDays:  21,
+				MaxGlobalBytes: 4096,
+				Transcripts: compozyconfig.ObservabilityTranscriptConfig{
+					Enabled:            true,
+					SegmentBytes:       1024,
+					MaxBytesPerSession: 2048,
+				},
+			},
+		}); err != nil {
+			t.Fatalf("UpdateSection(observability) error = %v", err)
+		}
+
+		payload := readFile(t, homePaths.ConfigFile)
+		for _, want := range []string{
+			"retention_days = 21",
+			"# telemetry export",
+			"# New Relic license",
+			`"api-key" = "vault:observability/newrelic-license"`,
+		} {
+			if !strings.Contains(payload, want) {
+				t.Fatalf("config payload missing %q:\n%s", want, payload)
+			}
+		}
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() after the settings save error = %v, want nil", err)
+		}
+		otel := cfg.Observability.OTel
+		if !otel.Enabled || otel.Protocol != "grpc" || otel.Endpoint != "http://collector.local:4317" ||
+			otel.SampleRatio != 0.25 || len(otel.Headers) != 1 ||
+			otel.Headers["api-key"] != "vault:observability/newrelic-license" {
+			t.Fatalf("Observability.OTel after the settings save = %#v, want the operator's export settings", otel)
+		}
+	})
 }
 
 func TestCollectionHelperMapsIncludeNestedFields(t *testing.T) {
@@ -4833,14 +5181,11 @@ func readFile(t *testing.T, path string) string {
 
 func testWindowManagerConfig() compozyconfig.WindowManagerConfig {
 	return compozyconfig.WindowManagerConfig{
-		NewWindowPolicy:     compozyconfig.WindowNewPolicyFloating,
+		NewWindowPolicy:     compozyconfig.WindowNewPolicyTab,
 		SmallViewportPolicy: compozyconfig.WindowSmallViewportReject,
 		FocusPolicy:         compozyconfig.WindowFocusDirectional,
 		FocusWrap:           true,
 		FocusFollowsPointer: true,
-		RaiseOnFocus:        false,
-		DragAwayPolicy:      compozyconfig.WindowDragAwayGroup,
-		GroupMoveModifier:   "control",
 		SwapModifier:        "meta",
 		HistoryLimit:        77,
 		NavStackLimit:       66,
@@ -4852,16 +5197,6 @@ func testWindowManagerConfig() compozyconfig.WindowManagerConfig {
 			Right:  14,
 			Bottom: 16,
 			Left:   20,
-		},
-		Snap: compozyconfig.WindowManagerSnapConfig{
-			EdgeBand:     40,
-			CornerReach:  180,
-			ExitSlack:    20,
-			RepeatRatios: []float64{0.4, 0.7, 0.3},
-		},
-		Bindings: compozyconfig.WindowManagerBindingConfig{
-			TopCenter:    "none",
-			BottomCenter: "zoom",
 		},
 		Shortcuts: map[string]windowmanager.ShortcutBinding{
 			"desktop.switch.next": {"Meta+ArrowRight"},
@@ -4980,16 +5315,16 @@ func findHookItem(t *testing.T, items []HookItem, name string) HookItem {
 
 func findMCPItem(t *testing.T, items []MCPServerItem, name string) MCPServerItem {
 	t.Helper()
-	for _, item := range items {
-		if item.Name == name {
-			return item
+	for i := range items {
+		if items[i].Name == name {
+			return items[i]
 		}
 	}
 	t.Fatalf("MCP item %q not found in %#v", name, items)
 	return MCPServerItem{}
 }
 
-func assertMCPSecretKeys(t *testing.T, item MCPServerItem, expected ...string) {
+func assertMCPSecretKeys(t *testing.T, item *MCPServerItem, expected ...string) {
 	t.Helper()
 	if !reflect.DeepEqual(item.SecretEnvKeys, expected) {
 		t.Fatalf("MCP secret env keys = %#v, want %#v", item.SecretEnvKeys, expected)

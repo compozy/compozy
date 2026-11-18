@@ -24,6 +24,11 @@ const (
 
 	// MigrationStageTelemetryRelocation names the #1241 telemetry relocation progress stage.
 	MigrationStageTelemetryRelocation = "telemetry_relocation"
+	// MigrationStageUsageCostRepair names migration 199's per-session usage cost repair stage.
+	MigrationStageUsageCostRepair = "usage_cost_repair"
+	// MigrationStageSessionHistoryUpgrade names the boot pass that brings every retained session
+	// database to the current schema and transcript projection before the daemon serves requests.
+	MigrationStageSessionHistoryUpgrade = "session_history_upgrade"
 )
 
 // MigrationProgress reports rows completed by one data-volume-dependent migration stage.
@@ -39,6 +44,13 @@ type MigrationProgress struct {
 // MigrationProgressFunc observes migration progress. It runs synchronously on the
 // migration goroutine between batches, so implementations must return promptly.
 type MigrationProgressFunc func(MigrationProgress)
+
+// Report delivers one progress observation; a nil func observes nothing.
+func (f MigrationProgressFunc) Report(progress MigrationProgress) {
+	if f != nil {
+		f(progress)
+	}
+}
 
 // applyTelemetryRelocation is the migration owner for the two SQLite files.
 // Source rows are removed only after a FULL-synchronous target commit and exact

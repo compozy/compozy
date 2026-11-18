@@ -31,6 +31,23 @@ describe("Disclosure", () => {
     expect(screen.getByLabelText("Limit", { selector: "input" })).toBeInTheDocument();
   });
 
+  it("Should keep a closed panel findable when asked, without a keepMounted warning", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const user = userEvent.setup();
+    render(
+      <Disclosure label="Response schema" hiddenUntilFound>
+        <p id="schema-field">session_id</p>
+      </Disclosure>
+    );
+    const panel = screen.getByText("session_id").closest("[data-slot='disclosure-content']");
+    expect(panel).toHaveAttribute("hidden", "until-found");
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+
+    await user.click(screen.getByRole("button", { name: "Response schema" }));
+    expect(panel).not.toHaveAttribute("hidden");
+  });
+
   it("Should forward test ids and honor controlled state", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();

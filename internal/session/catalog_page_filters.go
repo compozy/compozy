@@ -69,7 +69,7 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, err
 	}
 	query.Later = later
-	query.ExcludeFinishedAutomation = query.ExcludeFinishedAutomation && !explicitSessionLookup(query)
+	scopeAutomationExclusions(&query)
 	if query.Limit == 0 {
 		query.Limit = DefaultListLimit
 	}
@@ -95,6 +95,7 @@ func trimListQueryText(query *ListQuery) {
 	query.AgentName = strings.TrimSpace(query.AgentName)
 	query.ParentSessionID = strings.TrimSpace(query.ParentSessionID)
 	query.RootSessionID = strings.TrimSpace(query.RootSessionID)
+	query.ExcludeRootSessionID = strings.TrimSpace(query.ExcludeRootSessionID)
 	query.Archive = store.SessionArchiveFilter(strings.TrimSpace(string(query.Archive)))
 	query.Sort = strings.TrimSpace(query.Sort)
 	query.Cursor = strings.TrimSpace(query.Cursor)
@@ -112,6 +113,13 @@ func validateListQueryEnums(query *ListQuery) error {
 		return fmt.Errorf("%w: unsupported type %q", ErrListQueryInvalid, query.SessionType)
 	}
 	return nil
+}
+
+// scopeAutomationExclusions keeps automation runs reachable from a read that names what it wants.
+func scopeAutomationExclusions(query *ListQuery) {
+	explicit := explicitSessionLookup(*query)
+	query.ExcludeFinishedAutomation = query.ExcludeFinishedAutomation && !explicit
+	query.ExcludeAutomation = query.ExcludeAutomation && !explicit
 }
 
 // explicitSessionLookup reports a read that names what it wants, so it reaches
@@ -233,10 +241,14 @@ func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {
 	if (query.Subagents == childrenExclude && isSubagent) || (query.Subagents == "only" && !isSubagent) {
 		return false
 	}
-	if query.ParentSessionID == "" && query.RootSessionID == "" {
+	if query.ParentSessionID == "" && query.RootSessionID == "" && query.ExcludeRootSessionID == "" {
 		return true
 	}
 	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
+	if query.ExcludeRootSessionID != "" &&
+		(info.ID == query.ExcludeRootSessionID || lineage.RootSessionID == query.ExcludeRootSessionID) {
+		return false
+	}
 	if query.ParentSessionID != "" && lineage.ParentSessionID != query.ParentSessionID {
 		return false
 	}

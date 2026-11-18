@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -15,6 +16,16 @@ type WorkspaceID string
 
 // RunID is the durable loop_runs primary key.
 type RunID string
+
+const runIDPrefix = "looprun"
+
+// runIDPattern matches the run ids NewService issues: runIDPrefix, a hyphen, and 16 hex digits.
+var runIDPattern = regexp.MustCompile(`^` + runIDPrefix + `-[0-9a-f]{16}$`)
+
+// IsLoopID reports whether value is a Loop identity: a generated run id or an authored definition name.
+func IsLoopID(value string) bool {
+	return runIDPattern.MatchString(value) || loopNamePattern.MatchString(value)
+}
 
 // NodeID aliases the DSL graph node identity.
 type NodeID = dsl.NodeID
@@ -131,7 +142,9 @@ const (
 	ReattemptHalt ReattemptStrategy = "halt"
 )
 
-// CompletionState records whether a terminal run satisfied full or partial coverage.
+// CompletionState records whether the settled collect outputs had full or partial coverage.
+// It is independent of Status: a failed run with no partial collect reports complete, and
+// the reason for the failure lives in the briefing outcome (reason_code, node_id, message).
 type CompletionState string
 
 const (

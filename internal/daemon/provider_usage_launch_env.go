@@ -17,56 +17,72 @@ const envUtility = "env"
 // process sees it: leading NAME=value assignments, then an `env` utility prefix
 // (`env [-i] [-u NAME] [-C DIR] [-S STRING] NAME=value... command`) such as the one a second Claude account uses
 // to point at its own CLAUDE_CONFIG_DIR. Usage collection must read that account's files.
-func applyLaunchEnvironment(env []string, parsed config.LaunchCommand) ([]string, error) {
+// It also reports the keys the command itself assigned a non-empty value that no later `-u`/`-i`
+// removed; inherited daemon values are never owned.
+func applyLaunchEnvironment(env []string, parsed config.LaunchCommand) ([]string, map[string]bool, error) {
+	owned := map[string]bool{}
+	assign := func(key, value string) {
+		env = providerenv.SetEnvValue(env, key, value)
+		if value == "" {
+			delete(owned, key)
+		} else {
+			owned[key] = true
+		}
+	}
 	for _, entry := range parsed.Environment {
 		key, value, _ := strings.Cut(entry, "=")
-		env = providerenv.SetEnvValue(env, key, value)
+		assign(key, value)
 	}
 	if filepath.Base(parsed.Executable) != envUtility {
-		return env, nil
+		return env, owned, nil
 	}
 	args := parsed.Args
 	for i := 0; i < len(args); i++ {
 		if split, ok, rest := envSplitString(args, i); ok {
 			// GNU env escape semantics differ from shell quoting; ambiguous routes must not collect.
 			if strings.ContainsAny(split, `\$`) {
-				return nil, errors.New("usage collection does not support escapes or expansion in env split strings")
+				return nil, nil, errors.New(
+					"usage collection does not support escapes or expansion in env split strings",
+				)
 			}
 			words, err := shellquote.Split(split)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			args = append(words, args[rest:]...)
 			i = -1
 			continue
 		}
 		if strings.HasPrefix(args[i], "-") {
-			env, i = applyEnvOption(env, args, i)
+			env, i = applyEnvOption(env, owned, args, i)
 			continue
 		}
 		key, value, ok := strings.Cut(args[i], "=")
 		if !ok || key == "" {
-			return env, nil // the command starts here
+			return env, owned, nil // the command starts here
 		}
-		env = providerenv.SetEnvValue(env, key, value)
+		assign(key, value)
 	}
-	return env, nil
+	return env, owned, nil
 }
 
-// applyEnvOption applies one `env` option at index i and returns the index of its last argument.
-func applyEnvOption(env []string, args []string, i int) ([]string, int) {
+// applyEnvOption applies one `env` option at index i, dropping removed keys from owned, and
+// returns the index of its last argument.
+func applyEnvOption(env []string, owned map[string]bool, args []string, i int) ([]string, int) {
 	arg := args[i]
+	unset := func(key string) []string { delete(owned, key); return unsetEnvValue(env, key) }
 	switch {
 	case arg == "-i" || arg == "-" || arg == "--ignore-environment":
+		clear(owned)
 		return nil, i
 	case arg == "-u" || arg == "--unset":
 		if i+1 < len(args) {
-			return unsetEnvValue(env, args[i+1]), i + 1
+			return unset(args[i+1]), i + 1
 		}
 	case strings.HasPrefix(arg, "--unset="):
-		return unsetEnvValue(env, strings.TrimPrefix(arg, "--unset=")), i
+		return unset(strings.TrimPrefix(arg, "--unset=")), i
 	case strings.HasPrefix(arg, "-u") && len(arg) > 2:
-		return unsetEnvValue(env, arg[2:]), i
+		return unset(arg[2:]), i
 	case arg == "-C" || arg == "--chdir":
 		return env, i + 1 // the working directory operand is not an assignment
 	}

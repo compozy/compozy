@@ -28,15 +28,11 @@ import { EditorHead } from "./editor-head";
 import { PermissionRulesSection } from "./permission-rules-section";
 import { UnsavedDock } from "./unsaved-dock";
 
-/** Codex keeps its own Auto review under `approve-all` unless full access is opted in. */
-const PROVIDER_KEEPS_REVIEWER_ON_APPROVE_ALL = new Set(["codex"]);
-
 const EDITS_FILES = new Set<AgentPermissionLevel>(["approve-edits", "auto", "approve-all"]);
 
 export interface AgentPermissionsViewProps {
   agent: AgentPayload;
-  /** The provider the agent resolves to: its own, else the inherited runtime provider. */
-  providerId: string;
+  /** The display name of the provider the agent resolves to. */
   providerName: string;
   /** `""` is nothing set; `null` is a stored value this version doesn't know. */
   level: AgentPermissionLevel | "" | null;
@@ -62,12 +58,11 @@ export interface AgentPermissionsViewProps {
 }
 
 function LevelNote({
-  providerId,
   providerName,
   level,
   reviewer,
   degraded,
-}: Pick<AgentPermissionsViewProps, "providerId" | "providerName" | "reviewer" | "degraded"> & {
+}: Pick<AgentPermissionsViewProps, "providerName" | "reviewer" | "degraded"> & {
   level: AgentPermissionLevel;
 }) {
   if (level === "auto" && reviewer === "unavailable") {
@@ -88,17 +83,6 @@ function LevelNote({
         <AlertDescription>
           The current session is running as {permissionLabel("approve-edits")}. It keeps your choice
           for new sessions.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-  if (level === "approve-all" && PROVIDER_KEEPS_REVIEWER_ON_APPROVE_ALL.has(providerId)) {
-    return (
-      <Alert data-testid="agent-permissions-keeps-reviewer">
-        <AlertTitle>{providerName} keeps its own reviewer here</AlertTitle>
-        <AlertDescription>
-          CompozyOS won't ask you, but {providerName} still reviews risky actions, inside the
-          project and with no network. Turning that off is a separate setting.
         </AlertDescription>
       </Alert>
     );
@@ -204,7 +188,6 @@ export function AgentPermissionsView(props: AgentPermissionsViewProps) {
         <LevelGroup {...props} alwaysOn={alwaysOn} />
         {effective ? (
           <LevelNote
-            providerId={props.providerId}
             degraded={props.degraded}
             level={effective}
             providerName={props.providerName}

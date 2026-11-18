@@ -87,6 +87,8 @@ func newAgentMemoryOperation(deps commandDeps, operation string) *cobra.Command 
 	switch operation {
 	case agentMemoryAddOperation:
 		cmd.Flags().StringVar(&options.until, "until", "", "Optional expiry date (YYYY-MM-DD)")
+		cmd.Flags().StringVar(&options.kind, "kind", "",
+			"Entry kind: note (default) or rule. A rule is an operator instruction that binds the agent every turn")
 	case agentMemorySearchOperation:
 		cmd.Flags().
 			BoolVar(&options.includeSessions, "include-sessions", false, "Include accessible session transcripts")
@@ -152,6 +154,7 @@ func agentMemoryBundle(operation string, raw json.RawMessage) outputBundle {
 type agentMemoryOptions struct {
 	input           authoredBodyInput
 	until           string
+	kind            string
 	expectedDigest  string
 	includeSessions bool
 }
@@ -166,7 +169,7 @@ func (options agentMemoryOptions) requestBody(
 	var body any
 	switch operation {
 	case agentMemoryAddOperation:
-		body = contract.AgentMemoryAddRequest{Text: args[1], Until: options.until}
+		body = contract.AgentMemoryAddRequest{Text: args[1], Until: options.until, Kind: options.kind}
 	case agentMemoryReplaceOperation:
 		body = contract.AgentMemoryReplaceRequest{Match: args[1], Text: args[2]}
 	case string(gatewayProfileTransactionRemove):

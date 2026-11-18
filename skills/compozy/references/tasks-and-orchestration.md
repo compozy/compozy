@@ -16,6 +16,10 @@ The daemon owns task state. Treat task.Service, persisted task/run records, sess
 
 Do not infer task ownership from a message. Do not mutate task state outside CompozyOS task tools or the equivalent CLI/API surface.
 
+Task-level `compozy__task_recover` is operator-only. A bound session cannot recover an escalated
+task after approval; ask the operator to run `compozy task recover <task-id> --note <note>`.
+This is separate from task-run lease recovery and forced-run operations.
+
 Task inspect, pause/resume, and forced run release/fail/retry plus scheduler pause/resume/drain and
 backlog are CLI or HTTP/UDS management surfaces. Native tools do expose task block/list/unblock and
 task-level `needs_attention` recovery; use those only for their narrower daemon-owned contracts.
@@ -45,7 +49,7 @@ When a worker should rely on its provider shell, say so in `prompt_overlay` or t
 Use `compozy__session_prompt` with `notify_on_complete: true` when you need an answer from an
 existing session. Save `reply_watch.id`, finish the steps that do not need the answer, then end your
 turn and let the reply wake resume your work. The watch follows the message through queued or steered delivery, not an unrelated turn.
-Inspect `compozy__session_status.reply_watches` when diagnosing outstanding requests. While the target
+Call `compozy__session_status` with `result_view: "full"` and inspect `reply_watches` when diagnosing outstanding requests. While the target
 is live, your open watch is an `awaiting_reply` work signal, so you are not stopped for inactivity while
 you wait. An unanswered watch expires after `session.messaging.reply_watch_ttl` (24h by default) with
 the `expired` outcome. Once you end your turn you are idle, and an idle session is never stopped for
@@ -55,12 +59,16 @@ stop of a hung turn), the reply resumes you; an operator stop waits for the oper
 Ask with `notify_on_complete` whenever you need the answer: without it nothing wakes you when the
 other session finishes.
 
-A child session (any session with a parent) that ends a turn on its own with no linked pull request,
+A child session (any session with a parent) that ends a turn without answering its creator, with no linked pull request,
 no open work signal (monitor, subagent, reply watch, task lease, Loop run, scheduled wait), no pending
 interaction, and no reply watch from you on that turn is marked `needs-attention` with
-`attention: "ended_early"` instead of `done`. The parent receives one wake with the child's final
-answer even when the child was created with `notify_creator: false`. Prompt the child to continue,
-or stop it; its next prompt clears the mark. Subagents report through `compozy__subagent_status`
+`attention: "ended_early"` instead of `done`. An answer after the latest creator message consumed by that turn counts as delivery, even for a follow-up without `notify_on_complete`; an earlier turn's answer does not cover it. The parent receives one wake with the child's final
+answer even when the child was created with `notify_creator: false`, unless the parent has a
+session monitor covering that child and the needs-attention state. In that case the monitor is the
+only wake path. The alarm asks the parent to review the answer without assuming code or PR delivery.
+A queued alarm is discarded if the child starts another turn or its early-stop occurrence is
+cleared or replaced. Viewing the child alone does not cancel the parent's alarm.
+Prompt the child again or stop it; its next prompt clears the mark. Subagents report through `compozy__subagent_status`
 instead and are never marked.
 Read `references/native-tools.md` for reply outcomes and truncation. A reply is communication and does
 not confer a task claim, permission, or approval.
@@ -108,8 +116,15 @@ Other filters cover scope/workspace, canonical status, priority, draft inclusion
 
 A bound session inherits its own workspace when the native task catalog target is omitted.
 An explicit foreign workspace must pass the shared workspace-access policy and then selects that
-workspace's records; it never falls back to the caller's inventory. The acting profile still owns
-the read scope. Native `global` and `all` scope remain operator-only for bound sessions.
+workspace's records; it never falls back to the caller's inventory. The selected profile lens owns
+the read scope. Native `global` and `all` reads follow workspace access policy. `all_profiles` task
+rows are authorized as reads; global and cross-profile writes retain their grant requirements.
+
+Readable tasks retain their canonical status even when a run or dependency is hidden by access
+policy. Catalogs omit denied execution details and current-run IDs while preserving task order,
+totals, facets and cursors. Catalog child/dependency counts are task-owned aggregates; expanded
+task views count only readable relations. Task/run inspection applies the same execution-workspace
+checks and hides denied run diagnostics, bound sessions, events and dependency references.
 
 CLI `task publish`, `task start`, `task approve`, `task reject`, pause/resume/cancel, block/unblock,
 block listing and task recovery use the selected profile. The same selection applies to task

@@ -2099,6 +2099,66 @@ func TestUnixSocketClientToolMethodsReturnStructuredErrors(t *testing.T) {
 func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should fetch a complete large catalog after a projection notification", func(t *testing.T) {
+		t.Parallel()
+		projection := mcppkg.HostedProjectionResponse{
+			Digest: "current",
+			Tools: []toolspkg.ToolView{{Descriptor: toolspkg.Descriptor{
+				ID: "mcp__large__echo", Description: strings.Repeat("x", 2*1024*1024),
+			}}},
+		}
+		payload, err := json.Marshal(projection)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				switch req.URL.Path {
+				case "/api/internal/hosted-mcp/projection/stream":
+					if req.URL.Query().Get("notifications_only") != "true" ||
+						req.URL.Query().Get("bind_id") != "bind-large" {
+						t.Fatalf("stream query = %s", req.URL.RawQuery)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						"event: projection_changed\ndata: {\"digest\":\"older\"}\n\n",
+					), nil
+				case "/api/internal/hosted-mcp/projection":
+					if req.URL.Query().Get("bind_id") != "bind-large" ||
+						req.URL.Query().Get("stream_snapshot") != "true" {
+						t.Fatalf("projection query = %s", req.URL.RawQuery)
+					}
+					return newHTTPResponse(http.StatusOK, string(payload)), nil
+				default:
+					t.Fatalf("unexpected path: %s", req.URL.Path)
+					return nil, nil
+				}
+			}),
+		}}
+		var received []mcppkg.HostedProjectionResponse
+		if err := client.StreamHostedMCPProjection(
+			t.Context(),
+			"bind-large",
+			"before",
+			func(snapshot mcppkg.HostedProjectionResponse) error {
+				received = append(received, snapshot)
+				return nil
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if len(received) != 1 {
+			t.Fatal("projection notification did not deliver the complete current catalog")
+		}
+		encoded, err := json.Marshal(received[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(encoded, payload) {
+			t.Fatalf("catalog changed in transit: received %d bytes, want %d", len(encoded), len(payload))
+		}
+	})
+
 	t.Run("Should exercise hosted MCP client methods", func(t *testing.T) {
 		t.Parallel()
 
@@ -2253,6 +2313,26 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 			t.Fatalf("CallHostedMCP() structured = %s, want ok", call.Result.Structured)
 		}
 	})
+
+	for _, testCase := range []struct {
+		code string
+		want error
+	}{
+		{"hosted_mcp_bind_not_found", mcppkg.ErrHostedBindNotFound},
+		{"hosted_mcp_bind_required", mcppkg.ErrHostedBindRequired},
+	} {
+		t.Run("Should preserve retired bind identity for "+testCase.code, func(t *testing.T) {
+			t.Parallel()
+			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{
+				Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+					return newHTTPResponse(http.StatusNotFound, `{"error":"`+testCase.code+`: bind is gone"}`), nil
+				}),
+			}}
+			if err := client.StreamHostedMCPProjection(t.Context(), "bind-1", "", nil); !errors.Is(err, testCase.want) {
+				t.Fatalf("stream error = %v, want %v", err, testCase.want)
+			}
+		})
+	}
 
 	t.Run("Should redact hosted MCP stream errors", func(t *testing.T) {
 		t.Parallel()
@@ -3520,6 +3600,104 @@ func TestUnixSocketClientWorktreeCleanup(t *testing.T) {
 		}
 	}
 
+	// Invariant: the batch gets one configured timeout per target without changing
+	// the shared client. Owner: CLI HTTP client; canonical suite: worktree cleanup.
+	t.Run("Should allow batch removal to outlive the shared client timeout", func(t *testing.T) {
+		t.Parallel()
+		const timeout = time.Second
+		arrived := make(chan struct{}, 1)
+		release := make(chan struct{}, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost || r.URL.Path != "/api/workspaces/ws-1/worktrees/remove" {
+				t.Errorf("batch request = %s %s", r.Method, r.URL.Path)
+			}
+			var request contract.RemoveWorktreesRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Error(err)
+				return
+			}
+			if len(request.Targets) != 2 || request.Targets[0].Ref != "one" || request.Targets[1].Ref != "two" {
+				t.Errorf("targets = %#v", request.Targets)
+			}
+			arrived <- struct{}{}
+			select {
+			case <-release:
+				if _, err := io.WriteString(
+					w,
+					`{"dry_run":false,"results":[{"target":{"ref":"one"},"state":"removed"},{"target":{"ref":"two"},"state":"removed"}]}`,
+				); err != nil {
+					t.Error(err)
+				}
+			case <-r.Context().Done():
+				t.Error("batch canceled before its handler was released")
+			}
+		}))
+		defer server.Close()
+		defer close(release)
+		transport := server.Client()
+		base := transport.Transport
+		transport.Transport = roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			deadline, ok := r.Context().Deadline()
+			remaining := time.Until(deadline)
+			if !ok || remaining <= timeout || remaining > 2*timeout {
+				t.Errorf("batch deadline budget = %s, want (%s, %s]", remaining, timeout, 2*timeout)
+			}
+			return base.RoundTrip(r)
+		})
+		transport.Timeout = timeout
+		client := &daemonClient{
+			httpClient: transport, target: ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL},
+		}
+		type outcome struct {
+			response contract.RemoveWorktreesResponse
+			err      error
+		}
+		completed := make(chan outcome, 1)
+		go func() {
+			response, err := client.RemoveWorktrees(t.Context(), "ws-1", contract.RemoveWorktreesRequest{
+				Targets: []contract.WorktreeRemovalTarget{{Ref: "one"}, {Ref: "two"}},
+			})
+			completed <- outcome{response, err}
+		}()
+		select {
+		case <-arrived:
+		case result := <-completed:
+			t.Fatalf("batch ended before handler arrival: %v", result.err)
+		case <-t.Context().Done():
+			t.Fatal(t.Context().Err())
+		}
+		release <- struct{}{}
+		result := <-completed
+		if result.err != nil || len(result.response.Results) != 2 || result.response.Results[1].State != "removed" {
+			t.Fatalf("batch response = %#v, %v", result.response, result.err)
+		}
+		if transport.Timeout != timeout {
+			t.Fatal("shared client timeout changed")
+		}
+	})
+
+	t.Run("Should cancel a stalled batch at its multiplied deadline", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			if _, err := io.Copy(io.Discard, r.Body); err != nil {
+				return
+			}
+			<-r.Context().Done()
+		}))
+		defer server.Close()
+		transport := server.Client()
+		transport.Timeout = time.Millisecond
+		client := &daemonClient{
+			httpClient: transport, target: ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL},
+		}
+		_, err := client.RemoveWorktrees(t.Context(), "ws-1", contract.RemoveWorktreesRequest{
+			Targets: []contract.WorktreeRemovalTarget{{Ref: "one"}, {Ref: "two"}},
+		})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("batch error = %v, want deadline exceeded", err)
+		}
+	})
+
 	t.Run("Should keep plain removal on the no-content contract", func(t *testing.T) {
 		t.Parallel()
 		client := newClient(t, "/api/workspaces/ws-1/worktrees/wt-1", url.Values{}, http.StatusNoContent, "")
@@ -4153,7 +4331,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Until:  startedAt.Add(time.Hour),
 			Limit:  2,
 		})
-		if err != nil || len(jobRuns) != 1 || jobRuns[0].JobID != "job-created" {
+		if err != nil || len(jobRuns.Runs) != 1 || jobRuns.Runs[0].JobID != "job-created" {
 			t.Fatalf("AutomationJobRuns() = %#v, %v", jobRuns, err)
 		}
 	})
@@ -4221,7 +4399,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Status: automationpkg.RunCompleted,
 			Limit:  1,
 		})
-		if err != nil || len(triggerRuns) != 1 || triggerRuns[0].TriggerID != "trg-created" {
+		if err != nil || len(triggerRuns.Runs) != 1 || triggerRuns.Runs[0].TriggerID != "trg-created" {
 			t.Fatalf("AutomationTriggerRuns() = %#v, %v", triggerRuns, err)
 		}
 	})
@@ -4241,7 +4419,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Until:     startedAt.Add(time.Hour),
 			Limit:     5,
 		})
-		if err != nil || len(runs) != 1 || runs[0].ID != "run-shared" {
+		if err != nil || len(runs.Runs) != 1 || runs.Runs[0].ID != "run-shared" {
 			t.Fatalf("ListAutomationRuns() = %#v, %v", runs, err)
 		}
 	})
@@ -5425,6 +5603,51 @@ func TestSubagentClientRequests(t *testing.T) {
 			t.Fatalf("row=%#v error=%v", row, err)
 		}
 	})
+	// Invariant: list/show/cancel API errors preserve the released exit code and a single message.
+	// Owner: CLI client error translation; canonical suite: TestSubagentClientRequests.
+	for _, operation := range []string{"list", "show", "cancel"} {
+		for _, status := range []int{http.StatusBadRequest, http.StatusNotFound, http.StatusConflict} {
+			t.Run(fmt.Sprintf("Should preserve exit one for %s status %d", operation, status), func(t *testing.T) {
+				t.Parallel()
+				client := &daemonClient{
+					target: LocalClientTarget("/tmp/compozy.sock"),
+					httpClient: &http.Client{
+						Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+							if request.URL.Path == "/api/sessions/parent" {
+								return newHTTPResponse(
+									200,
+									`{"session":{"id":"parent","workspace_id":"ws"}}`,
+								), nil
+							}
+							return newHTTPResponse(
+								status,
+								`{"code":"subagent_error","error":"request refused"}`,
+							), nil
+						}),
+					},
+				}
+				var err error
+				switch operation {
+				case "list":
+					_, err = client.ListSessionSubagents(t.Context(), "parent", SubagentListQuery{})
+				case "show":
+					_, err = client.GetSubagent(t.Context(), "ws", "missing")
+				case "cancel":
+					_, err = client.CancelSubagent(t.Context(), "ws", "missing", "")
+				}
+				want := "subagent_error: request refused"
+				if status == http.StatusNotFound {
+					want = "subagent_not_found: subagent missing not found"
+					if operation == "list" {
+						want = "session_not_found: Session parent not found."
+					}
+				}
+				if err == nil || err.Error() != want || cliExitCodeForError(err) != 1 {
+					t.Fatalf("error = %v, exit = %d; want %q, exit 1", err, cliExitCodeForError(err), want)
+				}
+			})
+		}
+	}
 	t.Run("Should encode list filters and preserve the page envelope", func(t *testing.T) {
 		t.Parallel()
 		client := &daemonClient{
@@ -5473,6 +5696,35 @@ func TestSubagentClientRequests(t *testing.T) {
 		result, err := client.CancelSubagent(t.Context(), "ws", "sub-1", "Direction abandoned.")
 		if err != nil || result.Status != "cancel_requested" {
 			t.Fatalf("result=%+v error=%v", result, err)
+		}
+	})
+	t.Run("Should delete without a response body", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				if request.Method != "DELETE" || request.URL.Path != "/api/workspaces/ws/subagents/sub-1" {
+					t.Fatalf("request=%s %s", request.Method, request.URL)
+				}
+				return newHTTPResponse(204, ""), nil
+			})},
+		}
+		if err := client.DeleteSubagent(t.Context(), "ws", "sub-1"); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should map a deleted-row refusal to its documented code", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return newHTTPResponse(409, `{"code":"subagent_not_deletable","error":"native"}`), nil
+			})},
+		}
+		err := client.DeleteSubagent(t.Context(), "ws", "native")
+		apiErr, ok := errors.AsType[*daemonAPIError](err)
+		if !ok || apiErr.statusCode != 409 || apiErr.payload.Code != "subagent_not_deletable" {
+			t.Fatalf("error=%v", err)
 		}
 	})
 	for _, kind := range []string{"session", "subagent"} {
@@ -5655,6 +5907,86 @@ func TestDaemonProfileClient(t *testing.T) {
 		); err == nil ||
 			!strings.Contains(err.Error(), "local Unix socket") {
 			t.Fatalf("error=%v", err)
+		}
+	})
+}
+
+func TestTriggerAutomationJobWaitBudget(t *testing.T) {
+	t.Parallel()
+	// Invariant: explicit waits retain configured transport overhead and batch removals budget each target.
+	// Owner: CLI HTTP client; canonical suite: wait-budget tests in client_test.go.
+	t.Run("Should honor configured overhead without mutating the shared client", func(t *testing.T) {
+		t.Parallel()
+		const overhead = 2 * time.Minute
+		want := overhead + time.Second
+		transport := &http.Client{
+			Timeout: overhead,
+			Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				deadline, ok := r.Context().Deadline()
+				if !ok || time.Until(deadline) > want || time.Until(deadline) < want-time.Second {
+					t.Errorf("request budget=%s want=%s", time.Until(deadline), want)
+				}
+				body := `{"run":{"id":"run","status":"completed"}}`
+				if strings.HasSuffix(r.URL.Path, "/remove") {
+					body = `{"results":[]}`
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(body)),
+				}, nil
+			}),
+		}
+		client := &daemonClient{
+			httpClient: transport,
+			target:     ClientTarget{kind: clientTargetSSHForward, baseURL: "http://daemon"},
+		}
+		if _, err := client.TriggerAutomationJob(t.Context(), "job", time.Second); err != nil {
+			t.Fatal(err)
+		}
+		want = overhead * 2
+		if _, err := client.RemoveWorktrees(
+			t.Context(),
+			"workspace",
+			contract.RemoveWorktreesRequest{Targets: []contract.WorktreeRemovalTarget{{Ref: "a"}, {Ref: "b"}}},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if transport.Timeout != overhead {
+			t.Fatal("shared client timeout changed")
+		}
+	})
+
+	t.Run("Should let an explicit wait outlive the ordinary client timeout", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("wait") != "true" || r.URL.Query().Get("timeout") != "1s" {
+				t.Errorf("trigger query = %s", r.URL.RawQuery)
+			}
+			timer := time.NewTimer(50 * time.Millisecond)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+				if _, err := io.WriteString(w, `{"run":{"id":"run-long","status":"completed"}}`); err != nil {
+					t.Error(err)
+				}
+			case <-r.Context().Done():
+				t.Error("client canceled the explicit wait at its ordinary timeout")
+			}
+		}))
+		defer server.Close()
+		transport := server.Client()
+		transport.Timeout = time.Millisecond
+		client := &daemonClient{
+			httpClient: transport,
+			target:     ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL},
+		}
+		run, err := client.TriggerAutomationJob(t.Context(), "job-1", time.Second)
+		if err != nil || run.ID != "run-long" || run.Status != automationpkg.RunCompleted {
+			t.Fatalf("trigger = %#v, %v", run, err)
+		}
+		if transport.Timeout != time.Millisecond {
+			t.Fatal("shared client timeout changed")
 		}
 	})
 }

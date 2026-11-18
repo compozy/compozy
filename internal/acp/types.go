@@ -80,46 +80,60 @@ const (
 
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
-	PermissionPolicy     *StartPermissionPolicy
-	AgentName            string
-	CompozySessionID     string
-	WorkspaceID          string
-	ProfileID            string
-	RuntimeGeneration    int64
-	Command              string
-	Cwd                  string
-	AdditionalDirs       []string
-	Env                  []string
-	MCPServers           []compozyconfig.MCPServer
-	Permissions          compozyconfig.PermissionMode
-	SystemPrompt         string
-	StartupManifest      StartupManifest
-	SystemPromptDelivery SystemPromptDeliveryMode
-	PreferredModel       string
-	ReasoningEffort      string
-	Speed                speedpkg.Speed
-	ACPOptions           []SessionConfigOptionSelection
-	RuntimeStrategy      RuntimeApplicationStrategy
-	LaunchModelID        string
-	ResumeSessionID      string
-	Launcher             Launcher
-	ToolHost             ToolHost
-	ToolGateway          ToolExecutionGateway
-	ProviderName         string
-	ProviderConfig       *compozyconfig.ProviderConfig
-	ProviderAuthEnv      *authproviders.ProbeEnv
-	ActivateMCPServers   func(context.Context) error
-	FinalizeStartup      func(context.Context) (string, StartupManifest, error)
-	Inspection           bool
+	PermissionPolicy  *StartPermissionPolicy
+	AgentName         string
+	CompozySessionID  string
+	WorkspaceID       string
+	ProfileID         string
+	RuntimeGeneration int64
+	Command           string
+	Cwd               string
+	AdditionalDirs    []string
+	// Env inherits when nil; explicit empty excludes parent entries except OS-required variables.
+	Env                    []string
+	MCPServers             []compozyconfig.MCPServer
+	Permissions            compozyconfig.PermissionMode
+	SystemPrompt           string
+	StartupManifest        StartupManifest
+	SystemPromptDelivery   SystemPromptDeliveryMode
+	PreferredModel         string
+	ReasoningEffort        string
+	Speed                  speedpkg.Speed
+	ACPOptions             []SessionConfigOptionSelection
+	RuntimeStrategy        RuntimeApplicationStrategy
+	LaunchModelID          string
+	ResumeSessionID        string
+	Launcher               Launcher
+	ToolHost               ToolHost
+	ToolGateway            ToolExecutionGateway
+	ProviderName           string
+	ProviderConfig         *compozyconfig.ProviderConfig
+	ProviderAuthEnv        *authproviders.ProbeEnv
+	PermissionEventHandler func(AgentEvent, bool)
+	ActivateMCPServers     func(context.Context) error
+	FinalizeStartup        func(context.Context) (string, StartupManifest, error)
+	CheckInTools           bool
+	Inspection             bool
 	// InputOnly marks a daemon-owned child that only transforms its prompt. The
 	// Claude Agent Bridge then skips built-in tools, user MCP servers, plugins,
 	// skills, hooks, and instruction files; other providers ignore it. Tool and
 	// hosted-MCP denial come from the verdict-only runtime mode, not this flag.
 	InputOnly bool
+	// LeanEnvironment excludes unrelated Claude MCP servers, connectors and auto-memory.
+	LeanEnvironment bool
+	// IsolateProviderMCP excludes the operator's own Claude MCP servers and claude.ai
+	// connectors, so the session sees only the servers CompozyOS passes and governs.
+	// It keeps auto-memory, which LeanEnvironment also turns off.
+	IsolateProviderMCP bool
+	// ManagedProviderMCP suppresses strict MCP configuration when machine policy owns the servers.
+	ManagedProviderMCP bool
 	// ShellWaitGuard marks a session that can call compozy__terminal_exec and
 	// compozy__monitor_create, so a provider hook may refuse a foreground shell
 	// wait and redirect it. It stays false when policy withholds either tool.
 	ShellWaitGuard bool
+	// ForwardTraceParent hands the provider the acp.process.spawn span's TRACEPARENT; the caller sets it when
+	// observability.otel.forward_to_providers forwards OTLP export variables to this provider.
+	ForwardTraceParent bool
 
 	launchIdentity *preparedLaunchIdentity
 }
@@ -228,6 +242,7 @@ type PromptRequest struct {
 	TurnID                    string
 	RunID                     string
 	Generation                int64
+	Model                     string // session model; labels compozy.session.ttft only
 	Message                   string
 	Maintenance               bool
 	AgentCommand              bool
@@ -346,8 +361,10 @@ type TokenUsage struct {
 	ContextUsed      *int64
 	ContextSize      *int64
 	CostAmount       *float64
-	CostCurrency     *string
-	Timestamp        time.Time
+	// ReportedCostAmount retains the adapter counter after CostAmount is normalized per turn.
+	ReportedCostAmount *float64 `json:",omitzero"`
+	CostCurrency       *string
+	Timestamp          time.Time
 }
 
 // RuntimeActivity is the structured activity payload attached to Compozy runtime
@@ -391,6 +408,7 @@ func (u TokenUsage) Merge(other TokenUsage) TokenUsage {
 	merged.ContextUsed = chooseInt64(other.ContextUsed, merged.ContextUsed)
 	merged.ContextSize = chooseInt64(other.ContextSize, merged.ContextSize)
 	merged.CostAmount = chooseFloat64(other.CostAmount, merged.CostAmount)
+	merged.ReportedCostAmount = chooseFloat64(other.ReportedCostAmount, merged.ReportedCostAmount)
 	merged.CostCurrency = chooseString(other.CostCurrency, merged.CostCurrency)
 	if !other.Timestamp.IsZero() {
 		merged.Timestamp = other.Timestamp
@@ -409,6 +427,7 @@ func (u TokenUsage) IsZero() bool {
 		u.ContextUsed == nil &&
 		u.ContextSize == nil &&
 		u.CostAmount == nil &&
+		u.ReportedCostAmount == nil &&
 		u.CostCurrency == nil
 }
 

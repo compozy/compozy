@@ -16,15 +16,16 @@ import {
   setActiveWorkspaceId,
   toggleAllProjects,
 } from "../stores/active-workspace-store";
-import { useUserHomeDir } from "./use-user-home-dir";
 
+/**
+ * The active destination resolved against the workspace catalog, plus the
+ * catalog's load state and the actions that move the destination.
+ */
 export function useActiveWorkspace(options: { enabled?: boolean } = {}) {
   const selectedWorkspaceId = useSelectedWorkspaceId();
   const requestedBreadthMode = useBreadthMode();
   const requestedFocus = useFocus();
   const query = useWorkspaces(options);
-  // Display only (path contraction, session roots); resolution never reads it.
-  const userHomeDir = useUserHomeDir(options);
   const resolution = resolveActiveWorkspace({
     workspaces: query.data ?? [],
     breadthMode: requestedBreadthMode,
@@ -34,14 +35,18 @@ export function useActiveWorkspace(options: { enabled?: boolean } = {}) {
   });
 
   return {
-    ...query,
+    // Named reads only: spreading the query would read every field, so each
+    // unchanged catalog poll would re-render every caller across the shell.
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
     ...resolution,
     workspaces: resolution.projectWorkspaces,
     hasWorkspaces: resolution.projectWorkspaces.length > 0,
     hasHydrated: isActiveWorkspaceStoreHydrated(),
     selectedWorkspaceId,
     requestedBreadthMode,
-    userHomeDir,
     setActiveWorkspaceId,
     focusUser,
     focusDestination,

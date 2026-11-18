@@ -25,6 +25,7 @@ type automationRunQueryInput struct {
 	Status      string `json:"status,omitempty"`
 	Since       string `json:"since,omitempty"`
 	Until       string `json:"until,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
 	Limit       int    `json:"limit,omitzero"`
 }
 
@@ -43,11 +44,12 @@ func (i automationRunQueryInput) query(id toolspkg.ToolID) (automationpkg.RunQue
 		Since:     since,
 		Until:     until,
 		Limit:     i.Limit,
+		Cursor:    strings.TrimSpace(i.Cursor),
 	}
-	if query.Limit < 0 {
+	if query.Limit < 0 || query.Limit > automationpkg.MaxListLimit {
 		return automationpkg.RunQuery{}, nativeAutomationValidationError(
 			id,
-			fmt.Errorf("run limit must be zero or positive: %d", query.Limit),
+			fmt.Errorf("run limit must be between 0 and 200: %d", query.Limit),
 		)
 	}
 	if !query.Until.IsZero() && !query.Since.IsZero() && query.Until.Before(query.Since) {

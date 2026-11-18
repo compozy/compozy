@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -42,7 +43,7 @@ func (s sessionWorkSources) tools(ctx context.Context, id string) ([]session.Wor
 }
 
 func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.WorkSignal, error) {
-	parent, err := s.manager.Status(ctx, id)
+	parent, err := storedSessionStatus(ctx, s.manager, id)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +66,7 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		if session.IsInternalSpawnRole(row.Lineage.SpawnRole) {
 			continue
 		}
-		info, err := s.manager.Status(ctx, row.ID)
+		info, err := storedSessionStatus(ctx, s.manager, row.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +122,7 @@ func (s sessionWorkSources) leases(ctx context.Context, id string) ([]session.Wo
 	if s.state.tasks == nil {
 		return nil, errors.New("task store is unavailable")
 	}
-	info, err := s.manager.Status(ctx, id)
+	info, err := storedSessionStatus(ctx, s.manager, id)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +153,7 @@ func (s sessionWorkSources) loopWork(ctx context.Context, id string) ([]looppkg.
 	if !ok {
 		return nil, errors.New("loop work store is unavailable")
 	}
-	info, err := s.manager.Status(ctx, id)
+	info, err := storedSessionStatus(ctx, s.manager, id)
 	if err != nil {
 		return nil, err
 	}
@@ -273,4 +274,46 @@ func (s sessionWorkSources) monitors(ctx context.Context, id string) ([]session.
 		})
 	}
 	return result, nil
+}
+
+func (s sessionWorkSources) creatorMonitorCovers(creatorID string, child *session.Info, badge session.Badge) bool {
+	if s.state.sessionMonitors == nil {
+		return false
+	}
+	for _, item := range s.state.sessionMonitors.List(creatorID) {
+		state := settledMonitorState(string(badge))
+		terminal := badge == session.BadgeStopped || badge == session.BadgeFailed
+		if item.Kind != monitor.KindSession || !slices.Contains(item.TargetSessionIDs, child.ID) ||
+			(!terminal && !slices.Contains(item.States, state)) {
+			continue
+		}
+		switch item.Status {
+		case monitor.StatusActive:
+			return true
+		case monitor.StatusDelivering, monitor.StatusFired:
+			if item.Reason != monitor.ReasonConditionMet {
+				continue
+			}
+			if slices.ContainsFunc(item.Targets, func(target monitor.TargetStatus) bool {
+				if target.SessionID != child.ID || !target.Matched || (settledMonitorState(target.State) != state) {
+					return false
+				}
+				if target.OccurrenceID != "" {
+					return target.OccurrenceID == monitorAttentionOccurrence(child, badge)
+				}
+				return child.AttentionChangedAt != nil && !item.FiredAt.Before(*child.AttentionChangedAt)
+			}) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Session watches select idle for both idle and unseen completed targets.
+func settledMonitorState(state string) string {
+	if state == string(session.BadgeDone) {
+		return string(session.BadgeIdle)
+	}
+	return state
 }

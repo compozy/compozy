@@ -24,6 +24,14 @@ export {
   type FontRole,
 } from "./lib/font-appearance";
 export {
+  DEFAULT_TYPE_APPEARANCE,
+  LETTER_SPACING_STEPS,
+  TEXT_SIZE_STEPS,
+  type LetterSpacing,
+  type TextSize,
+  type TypeAppearance,
+} from "./lib/type-appearance";
+export {
   queryInstalledFonts,
   supportsInstalledFonts,
   type InstalledFonts,
@@ -32,7 +40,9 @@ export {
 // Components
 export { FontAppearanceSync } from "./components/font-appearance-sync";
 export { ThemeToaster } from "./components/theme-toaster";
+export { TypeAppearanceSync } from "./components/type-appearance-sync";
 
 // Hooks
 export { useFontAppearance, type FontAppearanceHandle } from "./hooks/use-font-appearance";
 export { useThemePreference, type ThemePreferenceHandle } from "./hooks/use-theme-preference";
+export { useTypeAppearance, type TypeAppearanceHandle } from "./hooks/use-type-appearance";

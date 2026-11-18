@@ -64,6 +64,8 @@ const (
 	loopRunEventPayloadKeyFailure       = "failure"
 	loopRunEventPayloadKeyTo            = "to"
 	loopRunEventPayloadKeyCause         = "cause"
+	loopRunEventPayloadKeyReasonCode    = "reason_code"
+	loopRunEventPayloadKeyMessage       = "message"
 	loopRunEventPayloadKeyActorKind     = "actor_kind"
 	loopRunEventPayloadKeyActorID       = "actor_id"
 	loopRunEventPayloadKeyItemIndex     = "item_index"
@@ -129,7 +131,7 @@ func appendLoopRunStatusEventWithFailure(
 	at time.Time,
 ) error {
 	return appendLoopRunStatusEventWithFailureAndEffects(
-		ctx, exec, runID, ws, from, to, cause, failure, nil, at,
+		ctx, exec, runID, ws, from, to, cause, failure, nil, nil, at,
 	)
 }
 
@@ -142,6 +144,7 @@ func appendLoopRunStatusEventWithFailureAndEffects(
 	to looppkg.Status,
 	cause looppkg.TransitionCause,
 	failure *taskpkg.CoordinatorFailure,
+	terminal *taskpkg.CoordinatorTerminal,
 	effects []looppkg.RenderedEffectIntent,
 	at time.Time,
 ) error {
@@ -165,6 +168,7 @@ func appendLoopRunStatusEventWithFailureAndEffects(
 	if failure != nil {
 		payload[loopRunEventPayloadKeyFailure] = failure
 	}
+	addLoopTerminalDiagnosticPayload(payload, terminal)
 	eventID, _, err := appendLoopRunEventWithIdentity(
 		ctx, exec, runID, ws, loopRunEventStatusChanged, payload, at,
 	)
@@ -176,6 +180,23 @@ func appendLoopRunStatusEventWithFailureAndEffects(
 	}
 	run := looppkg.Run{ID: runID, WorkspaceID: ws}
 	return insertLoopEffectIntentsWithExecutor(ctx, exec, run, eventID, effects, at)
+}
+
+// addLoopTerminalDiagnosticPayload records why the coordinator chose a terminal status.
+func addLoopTerminalDiagnosticPayload(payload map[string]any, terminal *taskpkg.CoordinatorTerminal) {
+	if terminal == nil {
+		return
+	}
+	for key, value := range map[string]string{
+		loopRunEventPayloadKeyReasonCode: terminal.ReasonCode,
+		loopRunEventPayloadKeyNodeID:     terminal.NodeID,
+		loopRunEventPayloadKeyGateID:     terminal.GateID,
+		loopRunEventPayloadKeyMessage:    terminal.Message,
+	} {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			payload[key] = trimmed
+		}
+	}
 }
 
 func appendLoopRunEventWithExecutor(

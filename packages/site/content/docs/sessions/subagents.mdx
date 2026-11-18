@@ -365,6 +365,19 @@ An agent can address `compozy__session_prompt` by `agent` and `workspace`, inste
 CompozyOS resolves the current main when it admits the message, so rotation does not leave an old
 address behind. Use `agent instance list --peers` to discover reachable names and scopes.
 
+Instance list `active_count` measures occupied capacity across every workspace in the selected
+profiles, independently of row filters and pagination. `max_active_instances` is the per-profile
+cap. An empty filtered page can therefore have a positive count. Native instance lists default to
+the caller's agent and workspace and return only authorized instances; CLI lists filter agent names
+only with `--agent`. These capacity semantics apply only to ordinary lists. Peer lists
+(`peers: true`, CLI `--peers`) leave both capacity fields at zero to mean unavailable,
+not unused capacity.
+
+Ensure-main requires an existing instance. Missing native targets return
+`agent_instance_not_found`. Ensure-main does not support dry runs: the native tool rejects
+`dry_run: true` before starting a main, and the CLI has no `--dry-run` flag for it.
+Use `agent instance show` (native `compozy__agent_instance_get`) to inspect an instance.
+
 Messages sent to a paused instance return `delivery: held`; its input queue shows the same held
 status. They run after the operator resumes it and retain their identity across daemon restart.
 A child requested during a human turn may run while the instance is paused. A child requested by

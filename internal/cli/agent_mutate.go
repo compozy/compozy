@@ -48,6 +48,8 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().String(workspaceSkillSource, "", "Override workspace binding (ID, name, or path)")
 	addAgentDefinitionFlags(cmd, &flags)
+	cmd.Flags().
+		StringArrayVar(&flags.mcpServers, "mcp-server", nil, "Attach a configured MCP server by name (repeatable)")
 	addAgentFallbackChainFlags(cmd, &flags)
 	return cmd
 }
@@ -92,6 +94,8 @@ func newAgentUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().String(workspaceSkillSource, "", "Override workspace context (ID, name, or path)")
 	cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Definition digest from the last read")
 	addAgentDefinitionFlags(cmd, &flags)
+	cmd.Flags().
+		StringArrayVar(&flags.mcpServers, "mcp-server", nil, "Attach a configured MCP server by name (repeatable)")
 	addAgentFallbackChainFlags(cmd, &flags)
 	return cmd
 }

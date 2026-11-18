@@ -30,6 +30,13 @@ import {
 import { runCommand, startCommand, type RunningCommand } from "../process";
 import { completeOnboarding } from "../helpers";
 import { executableSha256File } from "../../../src/bootstrap/executable-digest";
+import {
+  appWindow,
+  sessionWindow,
+  windowPane,
+  windowID,
+} from "../../../../web/e2e/fixtures/os-navigation";
+import { osShellSelectors } from "../../../../web/e2e/fixtures/selectors";
 import { TERMINAL_SUBPROTOCOL } from "../../../../web/src/generated/terminal-wire";
 
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
@@ -536,9 +543,14 @@ test("E2E-001 E2E-002: first run provisions offline and exposes every boot phase
     .map(event => event.phase)
     .filter((phase, index, phases) => phases.indexOf(phase) === index);
   expect(firstSeenPhases).toEqual(["resolve", "provision", "start", "ready"]);
-  const status = await jsonCommand(desktop, ["app", "status", "-o", "json"]);
-  expect(status).toMatchObject({ installed: true, running: true, state: "product" });
-  expect(status.runtime).toMatchObject({ attached: true, owned: true });
+  await expect
+    .poll(async () => await jsonCommand(desktop, ["app", "status", "-o", "json"]))
+    .toMatchObject({
+      installed: true,
+      running: true,
+      state: "product",
+      runtime: { attached: true, owned: true },
+    });
   expect(
     (
       await stat(
@@ -556,7 +568,7 @@ test("E2E-002: corrupt bundled runtime fails before provisioning and remains ret
     desktop.boot.getByRole("heading", { name: "CompozyOS could not start" })
   ).toBeVisible();
   await expect(desktop.boot.getByText(/integrity check|Reinstall the app/u)).toBeVisible();
-  await expect(desktop.boot.getByRole("button", { name: "Retry operation" })).toBeVisible();
+  await expect(desktop.boot.getByRole("button", { name: "Try again" })).toBeVisible();
   await expect(
     stat(join(desktop.home, "bin", process.platform === "win32" ? "compozy.exe" : "compozy"))
   ).rejects.toThrow();
@@ -576,7 +588,7 @@ test("E2E-003: runtime below the minimum stays on version-skew guidance", async 
     desktop.boot.getByRole("heading", { name: "CompozyOS needs an update" })
   ).toBeVisible();
   await expect(desktop.boot.getByText(/Runtime 0\.3\.0-beta\.1.*Repair or update/u)).toBeVisible();
-  await expect(desktop.boot.getByRole("button", { name: "Retry operation" })).toHaveCount(0);
+  await expect(desktop.boot.getByRole("button", { name: "Try again" })).toHaveCount(0);
 });
 
 test("E2E-007: quitting during bootstrap completes cleanup and preserves the daemon", async ({
@@ -784,7 +796,7 @@ test("E2E-006: bounded startup failure exposes retry, logs, quit, and recovers a
   await expect(
     desktop.boot.getByRole("heading", { name: "CompozyOS could not start" })
   ).toBeVisible();
-  for (const name of ["Retry operation", "Open logs", "Quit", "Load diagnostics"]) {
+  for (const name of ["Try again", "Open logs", "Quit", "Load diagnostics"]) {
     await expect(desktop.boot.getByRole("button", { name })).toBeVisible();
   }
   const events = await bootstrapEvents(desktop.home);
@@ -793,7 +805,7 @@ test("E2E-006: bounded startup failure exposes retry, logs, quit, and recovers a
   ).toHaveLength(5);
   await cp(desktop.bundleRuntimePath, join(desktop.home, "bin", runtimeName));
   if (process.platform !== "win32") await chmod(join(desktop.home, "bin", runtimeName), 0o700);
-  await desktop.boot.getByRole("button", { name: "Retry operation" }).click();
+  await desktop.boot.getByRole("button", { name: "Try again" }).click();
   await expect(await desktop.product()).toHaveTitle(/CompozyOS/u);
 });
 
@@ -1043,7 +1055,9 @@ test("E2E-001 (#1167): Cmd/Ctrl+click on a transcript path opens it in the confi
   });
   const path = product.locator("code", { hasText: "fixture.txt:7" }).first();
   await expect(path).toBeVisible({ timeout: 30_000 });
-  await expect(product.getByRole("button", { name: "Open fixture.txt in editor" })).toHaveCount(1);
+  // The path itself is the link (file-explorer US-005): a plain click opens Files, the
+  // modifier click the editor.
+  await expect(product.getByRole("button", { name: "Open fixture.txt in Files" })).toHaveCount(1);
   await path.click({ modifiers: [process.platform === "darwin" ? "Meta" : "Control"] });
 
   const recorded = join(desktop.home, "fixtures", "editor-argv.json");
@@ -1061,6 +1075,94 @@ test("E2E-001 (#1167): Cmd/Ctrl+click on a transcript path opens it in the confi
     )
     .toEqual([join(project, "fixture.txt"), "7"]);
   expect(await desktop.app.evaluate(() => Reflect.get(globalThis, "__openPathDialogs"))).toBe(0);
+});
+
+test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async ({
+  launchDesktop,
+}) => {
+  test.skip(process.platform === "win32", "The recording fixture uses a POSIX executable");
+  const desktop = await launchDesktop({
+    prepare: async context => {
+      await prepareOpenPathsDesktop(context);
+      const cursor = join(context.environment.COMPOZY_DESKTOP_TEST_LOGIN_BIN!, "cursor");
+      await writeFile(
+        cursor,
+        '#!/bin/sh\nprintf "%s\\n" "$@" > "$COMPOZY_HOME/fixtures/cursor-argv.txt"\n',
+        { mode: 0o700 }
+      );
+    },
+  });
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  const project = await realpath(join(desktop.home, "project"));
+  const id = await product.evaluate(
+    async ({ project, agent, prompt }) => {
+      const created = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ workspace_path: project, agent_name: agent }),
+      });
+      if (!created.ok) throw new Error(await created.text());
+      const body = (await created.json()) as { session: { id: string; workspace_id: string } };
+      const session = body.session;
+      const response = await fetch(
+        `/api/workspaces/${session.workspace_id}/sessions/${session.id}/prompt`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            message: prompt,
+            message_id: "e2e-open-target",
+            idempotency_key: "e2e-open-target",
+          }),
+        }
+      );
+      if (!response.ok) throw new Error(await response.text());
+      await response.text();
+      return session.id;
+    },
+    { project, agent: loginPathAgent, prompt: openPathsPrompt }
+  );
+  await product.goto(new URL(`/session/${id}`, product.url()).toString(), {
+    waitUntil: "domcontentloaded",
+  });
+  const link = sessionWindow(product, id)
+    .getByRole("button", { name: "Open fixture.txt in Files" })
+    .first();
+  const sessionWindowID = await windowID(sessionWindow(product, id));
+  await link.click();
+  const files = appWindow(product, "files");
+  await expect(files).toBeVisible();
+  const filesWindowID = await windowID(files);
+  await files.getByRole("button", { name: "Choose application" }).click();
+  await expect(
+    product.getByRole("menuitem", {
+      name: process.platform === "darwin" ? "Reveal in Finder" : "Show in folder",
+      exact: true,
+    })
+  ).toBeVisible();
+  // The configured editor leads the menu; the other detected editors sit behind Open in.
+  await product.getByRole("menuitem", { name: "Open in", exact: true }).click();
+  await product.getByRole("menuitem", { name: "Cursor", exact: true }).click();
+  const recorded = join(desktop.home, "fixtures", "cursor-argv.txt");
+  await expect
+    .poll(async () => readFile(recorded, "utf8").catch(() => ""))
+    .toBe(`-g\n${join(project, "fixture.txt")}:7:1\n`);
+  await expect(files.getByRole("button", { name: "Open in Cursor", exact: true })).toBeVisible();
+  await writeFile(recorded, "");
+  // Each window is its own tab in the desktop's tab bar; choosing the tab shows the window.
+  const shell = osShellSelectors(product);
+  await shell.tabOfWindow(sessionWindowID).click();
+  await expect(shell.tabOfWindow(sessionWindowID)).toHaveAttribute("aria-selected", "true");
+  await expect(link).toBeVisible();
+  await link.click({ modifiers: [process.platform === "darwin" ? "Meta" : "Control"] });
+  await expect
+    .poll(async () => readFile(recorded, "utf8").catch(() => ""))
+    .toBe(`-g\n${join(project, "fixture.txt")}:7:1\n`);
+  await expect(files).not.toBeVisible();
+  await shell.tabOfWindow(filesWindowID).click();
+  await expect(shell.tabOfWindow(filesWindowID)).toHaveAttribute("aria-selected", "true");
+  await expect(files.getByRole("button", { name: "Open in Cursor", exact: true })).toBeVisible();
 });
 
 test("E2E-010: external navigation opens only safe web URLs and never leaves the product", async ({
@@ -1364,11 +1466,11 @@ test("native context menu copies text and preserves spelling preferences after r
   await reopenedProduct.getByTestId("os-dock-app-menu-tasks-tab").click();
   await tasksDockItem.click({ button: "right" });
   await reopenedProduct.getByTestId("os-dock-app-menu-tasks-tab").click();
-  await reopenedProduct
-    .locator('[data-testid^="os-window-tab-menu-"]')
+  await osShellSelectors(reopenedProduct)
+    .tabBar.locator('[data-testid^="os-tab-menu-"]')
     .first()
     .click({ button: "right" });
-  await expect(reopenedProduct.getByRole("menuitem", { name: "Close other tabs" })).toBeVisible();
+  await expect(reopenedProduct.getByRole("menuitem", { name: "Close", exact: true })).toBeVisible();
   await reopenedProduct.keyboard.press("Escape");
 
   const definitionPath = join(reopened.home, "context-menu-loop.json");
@@ -1495,6 +1597,11 @@ test("E2E-012: renderer crashes reload within budget and surface the crash-loop 
 }) => {
   const desktop = await launchDesktop();
   let product = await desktop.product();
+  // A fresh desktop has no tabs (#1799): once hydration completes it shows the empty desk and the
+  // shell keeps the launch URL at the root. Recovery reloads the crash-time URL, so the baseline is
+  // the settled one.
+  await expect(product.getByTestId("os-desk-empty").filter({ visible: true })).toBeVisible();
+  await expect(product).toHaveURL(/\/$/u);
   const originalURL = product.url();
   await desktop.app.evaluate(() => {
     Reflect.set(globalThis, "__compozyCrashDialogs", 0);
@@ -1535,7 +1642,7 @@ test("E2E-012: renderer crashes reload within budget and surface the crash-loop 
             .catch(() => false);
         })
         .toBe(true);
-      expect(product.url()).toBe(originalURL);
+      await expect(product).toHaveURL(originalURL);
     }
   }
   expect(
@@ -1567,8 +1674,17 @@ test("E2E-004 E2E-013 E2E-014: running deep links reject hostile paths and launc
       "compozyos://open/../../etc",
       "compozyos://open//host",
     ]) {
+      const defaultNavigation = product.waitForEvent("framenavigated", {
+        predicate: frame => frame === product.mainFrame() && new URL(frame.url()).pathname === "/",
+      });
       await desktop.spawnSecondary([hostile]);
+      await defaultNavigation;
+      // The explicit default intent focuses Home after hydration. Wait for
+      // both its normalized URL and committed focus before the next link.
       await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
+      const home = appWindow(product, "dashboard");
+      await expect(home).toBeVisible();
+      await expect(windowPane(home)).toHaveAttribute("data-focused", "");
     }
   });
 
@@ -1605,7 +1721,11 @@ test("E2E-015 E2E-025: cold-start deep links and CLI paths preserve the validati
   await cold.closeShell();
   const hostile = await launchDesktop({ home: cold.home, argv: ["compozyos://open/../../etc"] });
   const product = await hostile.product();
+  // The explicit default intent wins over saved Settings focus after hydration.
   await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
+  const home = appWindow(product, "dashboard");
+  await expect(home).toBeVisible();
+  await expect(windowPane(home)).toHaveAttribute("data-focused", "");
   await hostile.cli(["app", "open", "/tasks"]);
   await expect(product).toHaveURL(/\/tasks(?:\?|$)/u);
   for (const invalid of ["../etc", "/../etc", "//host", "/http://evil.com", "/bad\\path"]) {
@@ -2057,7 +2177,7 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
     .locator('meta[http-equiv="Content-Security-Policy"]')
     .getAttribute("content");
   expect(bootCSP).toBe(
-    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'"
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'"
   );
   expect(
     await failed.boot.evaluate(async () => {

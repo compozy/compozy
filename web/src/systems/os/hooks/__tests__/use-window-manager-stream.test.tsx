@@ -1,7 +1,8 @@
 // Suite: window-manager stream hook
 // Invariant: one client-bound socket survives topology advances, reconnects with the latest fence,
-// serializes burst refreshes to the highest announced revision, and accepts only newer bound-client
-// presentation frames.
+// serializes burst refreshes to the highest announced revision, accepts only newer bound-client
+// presentation frames, reconnects for a fresh fence after a client-side frame failure (#1543), and
+// applies a same-revision snapshot frame that only changes the migration status (US-017).
 // Owning layer: the WebSocket → TanStack Query/client-presentation bridge.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -18,10 +19,14 @@ import {
 import type { WorkspacePayload } from "@/systems/workspace/types";
 
 import { fetchWindowManagerSnapshot } from "../../adapters/window-manager-api";
+import { windowManagerCommandsAvailable } from "../../lib/window-manager-command-availability";
 import { windowManagerKeys } from "../../lib/window-manager-query";
+import type { WindowManagerSettingsSection } from "../../lib/window-manager-settings-section";
+import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import type { WindowManagerClientCommandExecutor } from "../../lib/window-manager-client-command-frames";
 import type {
   WindowManagerClientView,
+  WindowManagerConfig,
   WindowManagerSnapshot,
 } from "../../lib/window-manager-types";
 import {
@@ -29,8 +34,8 @@ import {
   WINDOW_MANAGER_HEARTBEAT_INTERVAL_MS,
   WINDOW_MANAGER_STREAM_STALL_MS,
   windowManagerReconnectDelay,
-  type WindowManagerClientContextInput,
 } from "../use-window-manager-stream";
+import type { WindowManagerClientContextInput } from "../../lib/desktop-chrome-client-context";
 import type {
   WindowManagerSocket,
   WindowManagerSocketFactory,
@@ -75,22 +80,14 @@ class FakeSocket implements WindowManagerSocket {
 
 function snapshot(revision: number): WindowManagerSnapshot {
   return {
-    version: 5,
+    version: 6,
     workspaceId: "workspace:test",
     revision,
-    desktops: [
-      {
-        id: "desktop:main",
-        name: "Main",
-        order: 0,
-        groups: [],
-        floating: [],
-        floatingStacks: [],
-      },
-    ],
+    desktops: [{ id: "desktop:main", name: "Main", order: 0, tabs: [], activeTabId: "" }],
     windows: {},
     closedEntryCount: 0,
     overrides: {},
+    migration: null,
     updatedAt: "2026-07-22T00:00:00Z",
   };
 }
@@ -103,10 +100,40 @@ function client(presentationRevision: number, clientId = "client:web"): WindowMa
     activeDesktopId: "desktop:main",
     focusedWindowId: null,
     focusOrder: [],
-    stackActive: {},
+    activeTab: {},
     connectedAt: "2026-07-22T00:00:00Z",
   };
 }
+
+const CONFIG: WindowManagerConfig = {
+  newWindowPolicy: "tab",
+  smallViewportPolicy: "stack",
+  focusPolicy: "click_directional",
+  focusWrap: true,
+  focusFollowsPointer: false,
+  swapModifier: "shift",
+  historyLimit: 50,
+  navStackLimit: 50,
+  closedEntryLimit: 20,
+  desktopTransition: "slide",
+  gaps: { inner: 8, top: 0, right: 0, bottom: 0, left: 0 },
+  shortcuts: {},
+  globalShortcuts: {},
+  shortcutDefaults: {},
+  effectiveShortcuts: {},
+};
+
+const SETTINGS_SECTION: WindowManagerSettingsSection = {
+  scope: "workspace",
+  availableScopes: ["user", "workspace"],
+  workspaceId: "workspace:test",
+  config: CONFIG,
+  commands: [],
+  aliases: {},
+  extensionDefaults: [],
+  diagnostics: [],
+  globalShortcuts: [],
+};
 
 function workspace(id: string): WorkspacePayload {
   return {
@@ -132,11 +159,10 @@ function rawClientFrame(presentationRevision: number, clientId = "client:web") {
       context_revision: 1,
       active_desktop_id: "desktop:main",
       focus_order: [],
-      stack_active: {},
+      active_tab: {},
       palette_context: {
         window_focused: false,
-        window_floating: false,
-        window_stacked: false,
+        window_in_split: false,
         desktop_window_count: 0,
         scope_global: false,
         shell_desktop: false,
@@ -165,13 +191,13 @@ function rawEventFrame(revision: number) {
   };
 }
 
-function rawSnapshotFrame(revision: number) {
+function rawSnapshotFrame(revision: number, migration?: Record<string, unknown>) {
   return {
     type: "snapshot",
     workspace_id: "workspace:test",
     revision,
     snapshot: {
-      version: 5,
+      version: 6,
       workspace_id: "workspace:test",
       revision,
       desktops: [
@@ -179,14 +205,29 @@ function rawSnapshotFrame(revision: number) {
           id: "desktop:main",
           name: "Main",
           order: 0,
-          groups: [],
-          floating: [],
-          floating_stacks: [],
+          active_tab_id: "tab:main",
+          tabs: [
+            {
+              id: "tab:main",
+              pinned: false,
+              root: { id: "leaf:main", kind: "leaf", window_id: "window:main" },
+            },
+          ],
         },
       ],
-      windows: {},
+      windows: {
+        "window:main": {
+          id: "window:main",
+          app: "tasks",
+          route: { pathname: "/tasks", search: {} },
+          nav_stack: [],
+          desktop_id: "desktop:main",
+          tab_id: "tab:main",
+        },
+      },
       closed_entry_count: 0,
       overrides: {},
+      ...(migration ? { migration } : {}),
       updated_at: "2026-07-22T00:00:00Z",
     },
   };
@@ -936,9 +977,8 @@ describe("useWindowManagerStream", () => {
           id: "desktop:stale",
           name: "Stale",
           order: 1,
-          groups: [],
-          floating: [],
-          floatingStacks: [],
+          tabs: [],
+          activeTabId: "",
         },
       ],
     });
@@ -972,6 +1012,63 @@ describe("useWindowManagerStream", () => {
     expect(cached?.revision).toBe(7);
     expect(cached?.desktops.map(desktop => desktop.id)).toEqual(["desktop:main"]);
     expect(onSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 7 }));
+  });
+
+  it("Should apply same-revision snapshot frames that only change the migration status [US-017]", () => {
+    // Acknowledging or a failed retry republishes the snapshot without advancing the revision.
+    const queryClient = new QueryClient();
+    const key = windowManagerKeys.snapshot("workspace:test", "marketing");
+    queryClient.setQueryData(key, {
+      ...snapshot(7),
+      migration: {
+        state: "migrated",
+        fromVersion: 5,
+        at: null,
+        acknowledged: false,
+        summary: null,
+        error: null,
+        failureRevision: null,
+      },
+    });
+    const { factory, sockets } = createSocketFactory();
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 7,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => sockets[0]?.open());
+
+    act(() => sockets[0]?.message(rawSnapshotFrame(7)));
+    expect(queryClient.getQueryData<WindowManagerSnapshot>(key)?.migration).toBeNull();
+
+    act(() =>
+      sockets[0]?.message(
+        rawSnapshotFrame(7, {
+          state: "failed",
+          acknowledged: false,
+          error: { code: "window_manager_invalid_snapshot", message: "bad tree" },
+          failure_revision: 4,
+        })
+      )
+    );
+    expect(queryClient.getQueryData<WindowManagerSnapshot>(key)).toMatchObject({
+      revision: 7,
+      migration: { state: "failed", acknowledged: false, failureRevision: 4 },
+    });
   });
 
   it("Should re-read and accept the daemon's truth when a heartbeat falls behind the cache", async () => {
@@ -1012,6 +1109,129 @@ describe("useWindowManagerStream", () => {
         windowManagerKeys.snapshot("workspace:test", "marketing")
       )?.revision
     ).toBe(2);
+  });
+
+  it("Should reconnect after a frame handler throws while heartbeats repeat the cached revision [#1543]", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      windowManagerKeys.config("workspace:test", "client:web", "marketing"),
+      SETTINGS_SECTION
+    );
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.start();
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient(client(1));
+    const { factory, sockets } = createSocketFactory();
+    const subscriberFailure = new Error("Subscriber failed to apply the frame.");
+    // The same wiring useDesktopChrome gives the stream: errors degrade, snapshots clear.
+    const onClient = vi.fn().mockImplementationOnce(() => {
+      throw subscriberFailure;
+    });
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 0,
+          socketFactory: factory,
+          onStatusChange: status => runtime.setConnectionStatus(status),
+          onSnapshot: () => runtime.setLoadError(null),
+          onClient,
+          onClientInvalidated: vi.fn(),
+          onError: error =>
+            runtime.setLoadError(error instanceof Error ? error : new Error(error.error)),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => sockets[0]?.open());
+    act(() => sockets[0]?.message(rawSnapshotFrame(5)));
+    expect(runtime.getState().hydration).toBe("live");
+    expect(windowManagerCommandsAvailable(runtime.getState())).toBe(true);
+
+    act(() => sockets[0]?.message(rawClientFrame(2)));
+
+    expect(onClient).toHaveBeenCalledOnce();
+    expect(runtime.getState().hydration).toBe("degraded");
+    expect(runtime.getState().loadError).toBe(subscriberFailure);
+    expect(sockets[0]?.close).toHaveBeenCalledOnce();
+
+    // Heartbeats at the cached revision keep arriving and announce nothing to refetch.
+    act(() =>
+      sockets[0]?.message({ type: "heartbeat", workspace_id: "workspace:test", revision: 5 })
+    );
+    expect(fetchWindowManagerSnapshot).not.toHaveBeenCalled();
+    expect(runtime.getState().hydration).toBe("degraded");
+
+    await act(() => vi.advanceTimersByTimeAsync(windowManagerReconnectDelay(0)));
+    expect(factory).toHaveBeenCalledTimes(2);
+    expect(factory).toHaveBeenLastCalledWith(
+      "/api/workspaces/workspace%3Atest/window-manager/stream?after_revision=5&client_id=client%3Aweb&profile=marketing"
+    );
+    act(() => sockets[1]?.open());
+    // The fence replays the client view whose subscriber failed; it is delivered again.
+    act(() => sockets[1]?.message({ ...rawSnapshotFrame(5), client: rawClientFrame(2).client }));
+
+    expect(onClient).toHaveBeenCalledTimes(2);
+    expect(onClient).toHaveBeenLastCalledWith(
+      expect.objectContaining({ clientId: "client:web", presentationRevision: 2 })
+    );
+    expect(runtime.getState().loadError).toBeNull();
+    expect(runtime.getState().hydration).toBe("live");
+    expect(runtime.getState().connectionStatus).toBe("connected");
+    expect(windowManagerCommandsAvailable(runtime.getState())).toBe(true);
+    runtime.stop();
+  });
+
+  it("Should reconnect when applying a refreshed snapshot fails after the cache advanced [#1543]", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(snapshot(6));
+    const subscriberFailure = new Error("Subscriber failed to apply the snapshot.");
+    const onError = vi.fn();
+    // The stream fence applies cleanly; the refreshed snapshot's subscriber throws.
+    let snapshots = 0;
+    const onSnapshot = vi.fn(() => {
+      snapshots += 1;
+      if (snapshots === 2) throw subscriberFailure;
+    });
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 0,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot,
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError,
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => sockets[0]?.open());
+    act(() => sockets[0]?.message(rawSnapshotFrame(5)));
+
+    act(() =>
+      sockets[0]?.message({ type: "heartbeat", workspace_id: "workspace:test", revision: 6 })
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    expect(onError).toHaveBeenCalledExactlyOnceWith(subscriberFailure);
+    expect(sockets[0]?.close).toHaveBeenCalledOnce();
+    await act(() => vi.advanceTimersByTimeAsync(windowManagerReconnectDelay(0)));
+    expect(factory).toHaveBeenCalledTimes(2);
+    expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
   });
 
   it("Should stay idle before the first stream attempt and report a later stop as disconnected", () => {

@@ -23,6 +23,7 @@ func registrySettingsFeatureOperations() []OperationSpec {
 		getSettingsProviderOperationSpec(),
 		putSettingsProviderOperationSpec(),
 		deleteSettingsProviderOperationSpec(),
+		setSettingsProviderEnabledOperationSpec(),
 		getSettingsSkillsOperationSpec(),
 		updateSettingsSkillsOperationSpec(),
 	}

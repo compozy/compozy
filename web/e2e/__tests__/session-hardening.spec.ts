@@ -8,6 +8,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import { maskHashedAssetNames } from "../fixtures/artifacts";
 import { appWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import {
   sessionLifecycleSelectors,
@@ -530,8 +531,11 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
     );
   }
   expect(deleteResponse.status()).toBe(204);
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/sessions");
-  await expect(appPage.getByTestId("session-window-empty")).toBeVisible();
+  // The daemon removes a deleted session's windows; its window was the only one in the only
+  // tab, so the desktop is left empty, with no tab of its own (#1799).
+  await expect(deletableWin).toHaveCount(0);
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/");
+  await expect(appPage.getByTestId("os-desk-empty")).toBeVisible();
 
   await expect(
     runtime.requestJSON<SessionEnvelope>(sessionAPIPath(workspace.id, deletableSession.id))
@@ -825,7 +829,7 @@ async function openUsageCostForProvider(
     .toBe(opts.status);
 
   await expect(sessionWin).toBeVisible();
-  await sessionWin.getByTestId("session-inspector-toggle").click();
+  await sessionWin.getByTestId("composer-context-button").click();
   return sessionWin.getByTestId("session-inspector-usage-cost");
 }
 
@@ -1023,9 +1027,12 @@ test("E2E-012 / E2E-025: composer honors default steering, explicit queue action
     expect(steerRequestBody.mode).toBe("steer");
     const steered = (await (await steerResponse).json()) as PromptEnvelope;
     expect(steered.prompt.disposition).toBe("steering");
-    expect(["injected", "pending_injection", "interrupt_fallback"]).toContain(
-      steered.prompt.steer_delivery
+    // This runtime has emitted no tool events, so steering preserves its active turn.
+    expect(steered.prompt.steer_delivery).toBe("after_turn");
+    await expect(ui.composerFeedbackNote).toContainText(
+      "Queued — the agent sees it after the current turn"
     );
+    await expect(ui.composerStopButton).toBeVisible();
     await expect(ui.composerFeedbackNote).toHaveAttribute("data-kind", "disposition");
     await expect(ui.composerFeedbackNote).toHaveAttribute("data-code", "steering");
     await expect(ui.composerFeedbackNote).toHaveAttribute(
@@ -1371,10 +1378,12 @@ async function assertNoSensitiveLeak(
     await readFile(runtime.artifactCollector.artifactPath("browser_api_snapshots"), "utf8"),
   ];
   for (const payload of artifactPayloads) {
-    expect(payload).not.toMatch(sensitivePattern);
+    expect(maskHashedAssetNames(payload)).not.toMatch(sensitivePattern);
   }
   if (runtime.paths?.daemonLog) {
-    expect(await readFile(runtime.paths.daemonLog, "utf8")).not.toMatch(sensitivePattern);
+    expect(maskHashedAssetNames(await readFile(runtime.paths.daemonLog, "utf8"))).not.toMatch(
+      sensitivePattern
+    );
   }
 }
 
@@ -1422,15 +1431,17 @@ test.describe("session context E2E-001", () => {
     await contextButton.click();
     const sidebar = appPage.getByRole("complementary", { name: "Context" });
     await expect(sidebar).toBeVisible();
-    await expect(sessionWin.getByTestId("session-inspector-toggle")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    await expect(contextButton).toHaveAttribute("aria-pressed", "true");
     await expect(sidebar.locator('[data-testid^="session-inspector-tab-"]')).toHaveCount(0);
     await expect(sidebar.getByTestId("session-inspector").locator(":scope > section")).toHaveCount(
       5
     );
-    await sessionWin.getByTestId("session-inspector-toggle").click();
+    // The same control closes the rail (#1487).
+    await contextButton.click();
+    await expect(sidebar).toHaveCount(0);
+    await expect(contextButton).toHaveAttribute("aria-pressed", "false");
+    // A click-dismissed tooltip needs a pointer leave before it can reopen.
+    await ui.composerTextarea.hover();
     await ui.composerTextarea.fill("warning");
     await ui.composerTextarea.press("Enter");
     await expect(contextButton).toHaveAccessibleName("Context 88% used");
@@ -1583,7 +1594,7 @@ test.describe("native compaction E2E-005 / E2E-006", () => {
     await expect(ui.chatView).toContainText("Native compaction observed.");
 
     // A compaction started through Compact now is a requested one; the rail's Turns fold lists it.
-    const inspectorToggle = sessionWin.getByTestId("session-inspector-toggle");
+    const inspectorToggle = sessionWin.getByTestId("composer-context-button");
     if ((await inspectorToggle.getAttribute("aria-pressed")) !== "true") {
       await inspectorToggle.click();
     }
@@ -1641,7 +1652,9 @@ test.describe("native compaction E2E-005 / E2E-006", () => {
       await expect(compactNow).toBeEnabled();
 
       await startBlockingTurn(ui, runtime, workspace.id, session.id, compactionHoldPrompt);
-      await contextButton.click();
+      // The control toggles the rail: reopen it only if the turn left it closed.
+      if ((await contextButton.getAttribute("aria-pressed")) !== "true")
+        await contextButton.click();
       await expect(compactNow).toBeVisible();
       await expect(compactNow).toBeDisabled();
 

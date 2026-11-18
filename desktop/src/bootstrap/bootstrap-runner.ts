@@ -84,6 +84,9 @@ export class BootstrapRunner {
         this.#appVersion,
         "--channel",
         this.#channel,
+        // The shell opens once the runtime serves reads; sessions keep resuming behind the product.
+        "--ready-phase",
+        "serving",
         "-o",
         "jsonl",
       ],

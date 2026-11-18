@@ -14,8 +14,10 @@ type RegistryOption func(*RuntimeRegistry)
 
 // RuntimeRegistry indexes providers and produces scoped projections.
 type RuntimeRegistry struct {
+	checkInRecorder       CheckInRecorder
 	providers             []Provider
 	descriptorMetadata    descriptorMetadataIndex
+	validatedListings     validatedProviderListings
 	evaluator             PolicyEvaluator
 	policyInputs          PolicyInputs
 	policyResolver        PolicyInputResolver
@@ -29,6 +31,7 @@ type RuntimeRegistry struct {
 	processor             ResultProcessor
 	events                ToolEventSink
 	projectionInvalidator func()
+	callTracer            CallTracer
 	projectionGeneration  ProjectionGenerationResolver
 	defaultMaxResultBytes int64
 	sensitiveFields       []string
@@ -40,7 +43,8 @@ var _ Registry = (*RuntimeRegistry)(nil)
 // NewRegistry validates providers and returns a deterministic registry.
 func NewRegistry(opts ...RegistryOption) (*RuntimeRegistry, error) {
 	registry := &RuntimeRegistry{
-		policyInputs: DefaultPolicyInputs(),
+		policyInputs:      DefaultPolicyInputs(),
+		validatedListings: validatedProviderListings{capacity: defaultProjectionValidationCacheCapacity},
 	}
 	for _, opt := range opts {
 		opt(registry)
@@ -231,6 +235,7 @@ func (r *RuntimeRegistry) DiagnosticGet(ctx context.Context, scope Scope, id Too
 	if err := id.Validate(); err != nil {
 		return ToolView{}, err
 	}
+	ctx = r.ReadContext(ctx)
 	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return ToolView{}, err
@@ -253,9 +258,13 @@ func (r *RuntimeRegistry) DiagnosticGet(ctx context.Context, scope Scope, id Too
 }
 
 // Call runs the central provider-agnostic registry dispatch pipeline.
-func (r *RuntimeRegistry) Call(ctx context.Context, scope Scope, req CallRequest) (ToolResult, error) {
-	if r != nil && r.projectionInvalidator != nil {
-		defer r.projectionInvalidator()
+func (r *RuntimeRegistry) Call(ctx context.Context, scope Scope, req CallRequest) (result ToolResult, err error) {
+	if req.ToolID == ToolIDSessionMCPList {
+		ctx = WithCachedMCPProjection(ctx)
+	}
+	ctx, span := r.startCallSpan(ctx, req.ToolID)
+	if span != nil {
+		defer func() { span.End(err) }()
 	}
 	return r.dispatch(ctx, scope, req)
 }
@@ -267,6 +276,7 @@ func (r *RuntimeRegistry) ListToolsets(ctx context.Context, scope Scope) ([]Tool
 	if len(toolsets) == 0 {
 		return views, nil
 	}
+	ctx = r.ReadContext(ctx)
 	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return nil, err
@@ -293,6 +303,7 @@ func (r *RuntimeRegistry) GetToolset(ctx context.Context, scope Scope, id Toolse
 			ReasonToolsetUnknown,
 		)
 	}
+	ctx = r.ReadContext(ctx)
 	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return ToolsetView{}, err
@@ -315,35 +326,6 @@ func (r *RuntimeRegistry) OperatorProjection(ctx context.Context, scope Scope) (
 // SessionProjection returns only callable tools for the effective session.
 func (r *RuntimeRegistry) SessionProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
 	return r.sessionProjection(ctx, scope, nil, nil)
-}
-
-func (r *RuntimeRegistry) availabilityFor(ctx context.Context, scope Scope, entry *registryEntry) Availability {
-	if len(entry.conflicts) > 0 {
-		return Availability{
-			Registered:  true,
-			Enabled:     true,
-			Conflicted:  true,
-			ReasonCodes: append([]ReasonCode(nil), entry.conflicts...),
-		}
-	}
-	handle, ok, err := entry.provider.Resolve(ctx, scope, entry.descriptor.ID)
-	if err != nil {
-		LogBackendFailure(ctx, entry.descriptor.ID, "tool_registry_resolve", err)
-		return Availability{
-			Registered:  true,
-			Enabled:     true,
-			ReasonCodes: []ReasonCode{ReasonBackendUnhealthy},
-		}
-	}
-	if !ok || isNilInterface(handle) {
-		return Availability{
-			Registered:  true,
-			Enabled:     true,
-			ReasonCodes: []ReasonCode{ReasonBackendNotExecutable},
-		}
-	}
-	availability := handle.Availability(ctx, scope)
-	return validateProjectionAvailability(availability)
 }
 
 func validateProjectionAvailability(availability Availability) Availability {
@@ -383,6 +365,13 @@ func denialErrorForView(view *ToolView) error {
 			fmt.Sprintf("tool %q is conflicted", id),
 			ErrToolConflict,
 			reasons...)
+	}
+	if view.Descriptor.Source.Kind == SourceMCP && slices.Contains(reasons, ReasonMCPAuthRequired) &&
+		!slices.Contains(reasons, ReasonSessionDenied) {
+		return MCPAuthRequiredError(
+			id,
+			firstNonEmpty(view.Descriptor.Source.RawServerName, view.Descriptor.Source.Owner),
+		)
 	}
 	if !view.Availability.Executable {
 		return NewToolError(

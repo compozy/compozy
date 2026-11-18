@@ -67,7 +67,10 @@ function DropdownMenuLabel({
     <MenuPrimitive.GroupLabel
       data-slot="dropdown-menu-label"
       data-inset={inset}
-      className={cn("eyebrow-caps px-2.5 pt-1.5 pb-1 text-subtle data-inset:pl-8.5", className)}
+      className={cn(
+        "eyebrow-caps px-2.5 pt-1.5 pb-1 text-subtle data-inset:pl-8.5 [:not([role=separator])+[role=group]>&:first-child]:mt-2.25",
+        className
+      )}
       {...props}
     />
   );
@@ -88,7 +91,7 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/dropdown-menu-item relative flex cursor-default items-center min-h-8 gap-2 rounded-md px-2.5 py-1.5 text-small-body text-fg outline-hidden select-none focus:bg-surface-2 focus:text-fg data-inset:pl-8.5 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive-tint data-[variant=destructive]:focus:text-destructive data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive",
+        "group/dropdown-menu-item relative flex cursor-default items-center min-h-8 gap-2 rounded-md px-2.5 py-1.5 text-small-body text-fg outline-hidden select-none focus:bg-surface-2 focus:text-fg data-inset:pl-8.5 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive-tint data-[variant=destructive]:focus:text-destructive data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 not-data-[variant=destructive]:[&_svg:not([class*='text-'])]:text-subtle data-[variant=destructive]:*:[svg]:text-destructive",
         className
       )}
       {...props}
@@ -113,7 +116,7 @@ function DropdownMenuSubTrigger({
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
       className={cn(
-        "flex cursor-default items-center min-h-8 gap-2 rounded-md px-2.5 py-1.5 text-small-body text-fg outline-hidden select-none focus:bg-surface-2 focus:text-fg data-inset:pl-8.5 data-popup-open:bg-surface-2 data-popup-open:text-fg data-open:bg-surface-2 data-open:text-fg data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "flex cursor-default items-center min-h-8 gap-2 rounded-md px-2.5 py-1.5 text-small-body text-fg outline-hidden select-none focus:bg-surface-2 focus:text-fg data-inset:pl-8.5 data-popup-open:bg-surface-2 data-popup-open:text-fg data-open:bg-surface-2 data-open:text-fg data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-subtle",
         className
       )}
       {...props}

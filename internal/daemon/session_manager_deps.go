@@ -29,6 +29,7 @@ type SessionManagerDeps struct {
 	AgentResolver           session.AgentResolver
 	SkillRegistry           session.SkillRegistry
 	MCPResolver             session.MCPResolver
+	MCPConsentFilter        session.MCPConsentFilter
 	WorkspaceResolver       session.WorkspaceResolver
 	WorktreeResolver        session.WorktreeResolver
 	WindowReconciler        session.WindowReconciler
@@ -42,6 +43,7 @@ type SessionManagerDeps struct {
 	SessionPromptAdmission  store.SessionPromptAdmissionStore
 	SessionAttachments      session.AttachmentOpener
 	SessionHealthConfig     compozyconfig.HeartbeatConfig
+	CheckInTools            bool
 	AttentionConfig         compozyconfig.AttentionConfig
 	AttentionWorkspaceMutes session.AttentionWorkspaceMuteReader
 	SessionCatalog          store.SessionCatalog
@@ -49,6 +51,7 @@ type SessionManagerDeps struct {
 	ProcessRegistry         *toolruntime.Registry
 	Terminals               acp.TerminalHost
 	HostedMCP               session.HostedMCPLauncher
+	RuntimeMCPInventory     session.RuntimeMCPInventory
 	ProviderSecrets         session.ProviderSecretResolver
 	ProfileNames            session.ProfileNameResolver
 	ModelCatalog            modelcatalog.Service
@@ -57,6 +60,7 @@ type SessionManagerDeps struct {
 	SessionHealthStore      session.HealthStore
 	MentionReferences       session.MentionReferenceRenderer
 	AgentNiceness           int
+	ProviderTelemetryEnv    func() []string
 }
 
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
@@ -92,6 +96,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		}),
 		SkillRegistry:           skillRegistryDependency(state.skillsRegistry),
 		MCPResolver:             mcpResolverDependency(state.mcpResolver),
+		MCPConsentFilter:        sessionMCPConsentFilter(state),
 		WorkspaceResolver:       state.workspaceResolver,
 		WorktreeResolver:        daemonSessionWorktreeResolver{state: state},
 		WindowReconciler:        reconciler,
@@ -105,6 +110,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionPromptAdmission:  sessionPromptAdmissionStoreDependency(state.registry),
 		SessionAttachments:      state.sessionAttachments,
 		SessionHealthConfig:     state.cfg.Agents.Heartbeat,
+		CheckInTools:            state.cfg.Agents.AlwaysOn.CheckInTools != hookActionDisabled,
 		AttentionConfig:         state.cfg.Attention,
 		AttentionWorkspaceMutes: state.registry,
 		SessionCatalog:          state.registry,
@@ -112,6 +118,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		ProcessRegistry:         state.processRegistry,
 		Terminals:               state.terminals,
 		HostedMCP:               hostedMCPLauncher(state.hostedMCP),
+		RuntimeMCPInventory:     state.runtimeMCPInventory,
 		ProviderSecrets:         sessionProviderVaultDependency(state.providerVault),
 		ProfileNames:            state.profiles,
 		ModelCatalog:            state.modelCatalog,
@@ -120,6 +127,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionHealthStore:      sessionHealthStoreDependency(state.registry),
 		MentionReferences:       newMentionReferenceRendererForBoot(state),
 		AgentNiceness:           state.cfg.Daemon.Load.AgentNiceness,
+		ProviderTelemetryEnv:    state.ensureTelemetry().ProviderEnv,
 	}
 }
 

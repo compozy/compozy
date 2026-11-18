@@ -30,6 +30,8 @@ export type AgentInstanceNextWake = {
 export type AgentInstancePayload = {
   activity: string;
   agent_name: string;
+  attention_dismissible: boolean;
+  authority_status: string;
   checks_enabled: boolean;
   created: boolean;
   created_at: string;
@@ -156,6 +158,7 @@ export type Error = {
 
 export type ErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -164,6 +167,8 @@ export type ErrorPayload = {
   };
   diagnostic?: DiagnosticItem | null;
   error: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -699,6 +704,11 @@ export type SubagentPullRequestPayload = {
   number: number;
   state: string;
   url: string;
+};
+
+export type SubagentRemovedEvent = {
+  session_id: string;
+  subagent_id: string;
 };
 
 export type SubagentRuntimePayload = {
@@ -1443,6 +1453,7 @@ export type StreamGlobalSessionResponses = {
   200:
     | SubagentsSnapshotEvent
     | SubagentUpdatedEvent
+    | SubagentRemovedEvent
     | SessionUsageChangedPayload
     | SessionConsumerDegradedPayload
     | SessionEventPayload
@@ -1761,6 +1772,7 @@ export type StreamSessionResponses = {
   200:
     | SubagentsSnapshotEvent
     | SubagentUpdatedEvent
+    | SubagentRemovedEvent
     | SessionUsageChangedPayload
     | SessionConsumerDegradedPayload
     | SessionEventPayload

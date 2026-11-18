@@ -6,7 +6,10 @@
 // terminal-recording-state / use-terminal-recordings.
 // Close invariant: only confirmed running targets terminate; cancellation,
 // stale scope, or failed termination keeps the managed window retryable.
-// All projects invariant: an unbound window lists the aggregate and opens in place, bound.
+// All projects invariant: an unbound window lists the aggregate and opens in place, bound, and
+// an unbound window whose terminal never resolved always closes view-only.
+// Resolution invariant: a window on the id-less route reads the catalog after it mounts, even
+// when another window's read is still fresh; a window that names its terminal forces no read.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
@@ -22,8 +25,16 @@ import {
   TerminalApiError,
 } from "@/systems/terminal";
 import { DEV_SERVER_TERMINAL } from "@/systems/terminal/mocks/terminal-fixtures";
-import { TerminalWindowClose, terminalWindowCreateKey } from "../../../lib/terminal-window-close";
-import type { OsWindow } from "../../../lib/os-types";
+import {
+  TerminalWindowClose,
+  terminalAggregateCreateKey,
+  terminalWindowCreateKey,
+} from "../../../lib/terminal-window-close";
+import type { OsDesktopRuntimeStore, OsWindow } from "../../../lib/os-types";
+import { OsShellContext, type OsShellHandle } from "../../../contexts/os-shell-context";
+import { createWindowManagerProjectionAtom } from "../../../lib/window-manager-projection";
+import { GLOBAL_DESKTOP_WORKSPACE_ID, WindowDataBindingContext } from "@/systems/workspace";
+import { useTerminalWindowControllerState } from "../hooks/use-terminal-window-controller-state";
 import { executeWindowManagerCommand } from "../../../adapters/window-manager-api";
 import { RoutingCoordinator } from "../../../lib/routing-coordinator";
 import { windowManagerKeys } from "../../../lib/window-manager-query";
@@ -54,18 +65,13 @@ const terminalWindow: OsWindow = {
   instanceKey: DEV_SERVER_TERMINAL.id,
   route: { pathname: `/terminal/${DEV_SERVER_TERMINAL.id}`, search: {} },
   navStack: [],
-  pinned: false,
   desktopId: "desktop:one",
-  placement: "floating",
-  rect: { x: 0, y: 0, w: 600, h: 400 },
-  layer: 1,
-  minimized: false,
-  zoomed: false,
-  groupId: null,
+  tabId: "tab:terminal",
   nodeId: null,
-  stackId: null,
-  stackActive: true,
-  parentAxis: null,
+  pinned: false,
+  inSplit: false,
+  tabActive: true,
+  shown: true,
 };
 const terminalExit = {
   at: "2026-09-10T17:00:00Z",
@@ -135,15 +141,16 @@ describe("terminal creation scope", () => {
         applied: true,
         client: null,
         diagnostics: [],
+        deprecations: [],
         rebasedFrom: null,
         changes: {
           desktopIds: [],
           windowIds: [],
-          groupIds: [],
+          tabIds: [],
           nodeIds: [],
           clientIds: [],
-          stackGrouped: [],
-          stackUngrouped: [],
+          tabSplit: [],
+          tabUnsplit: [],
         },
       });
       let resolve!: (terminal: typeof DEV_SERVER_TERMINAL) => void;
@@ -353,6 +360,63 @@ describe("terminal window close lifecycle", () => {
     expect(controller.confirmation.get()).toBeNull();
     expect(closeTerminal).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("Should close an unbound terminal window under All projects unless it is creating one", async () => {
+    // Invariant: a window opened by id without its project, whose terminal the
+    // aggregate never resolved, closes view-only — never trapped — but holds while
+    // its launcher is creating a terminal for it (#1712).
+    const client = new QueryClient();
+    const controller = new TerminalWindowClose();
+    const guard = controller.guard(GLOBAL_DESKTOP_WORKSPACE_ID, client);
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(true);
+    expect(controller.confirmation.get()).toBeNull();
+    expect(fetchTerminals).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+
+    let fail!: (error: Error) => void;
+    const creation = client
+      .getMutationCache()
+      .build(client, {
+        mutationKey: terminalAggregateCreateKey(terminalWindow.id),
+        mutationFn: () =>
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+      })
+      .execute(undefined)
+      .catch(() => undefined);
+    await waitFor(() => expect(fail).toBeDefined());
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(false);
+    fail(new Error("create unavailable"));
+    await creation;
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(true);
+    expect(closeTerminal).not.toHaveBeenCalled();
+  });
+
+  it("Should keep a terminal-showing window closable while it opens another", async () => {
+    vi.mocked(fetchTerminals).mockResolvedValue([]);
+    const client = new QueryClient();
+    const creation = client
+      .getMutationCache()
+      .build(client, {
+        mutationKey: terminalWindowCreateKey(terminalWindow.id),
+        mutationFn: () => new Promise(() => {}),
+      })
+      .execute(undefined)
+      .catch(() => undefined);
+    const guard = new TerminalWindowClose().guard("ws-close", client);
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(true);
+    void creation;
+  });
+
+  it("Should hold an unbound terminal window until the partition is known", async () => {
+    // The view-only close is for the All projects aggregate only; an unknown
+    // partition may hide a running terminal that deserves its confirmation.
+    const guard = new TerminalWindowClose().guard(null, new QueryClient());
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(false);
+    expect(toast.error).toHaveBeenCalled();
+    expect(closeTerminal).not.toHaveBeenCalled();
   });
 
   it("Should leave process and window intact when confirmation is canceled", async () => {
@@ -585,21 +649,25 @@ describe("terminal window under All projects", () => {
   ) {
     const coordinator = { userRetarget: vi.fn().mockResolvedValue(undefined) };
     render(
-      createElement(TerminalAggregateLocation, {
-        windowId: "w-terminal",
-        catalog: {
-          data: overrides.terminals ?? [DEV_SERVER_TERMINAL, userTerminal, exitedTerminal],
-          error: null,
-          isPending: false,
-          refetch: vi.fn(),
-        },
-        coordinator,
-        requestedId: overrides.requestedId ?? null,
-        workspaces,
-        profile: "work",
-        readOnly: false,
-        viewer: { id: "client:web", attachmentToken: "token" },
-      })
+      createElement(
+        QueryClientProvider,
+        { client: new QueryClient() },
+        createElement(TerminalAggregateLocation, {
+          windowId: "w-terminal",
+          catalog: {
+            data: overrides.terminals ?? [DEV_SERVER_TERMINAL, userTerminal, exitedTerminal],
+            error: null,
+            isPending: false,
+            refetch: vi.fn(),
+          },
+          coordinator,
+          requestedId: overrides.requestedId ?? null,
+          workspaces,
+          profile: "work",
+          readOnly: false,
+          viewer: { id: "client:web", attachmentToken: "token" },
+        })
+      )
     );
     return coordinator;
   }
@@ -654,5 +722,79 @@ describe("terminal window under All projects", () => {
         })
       )
     );
+  });
+});
+
+describe("terminal window resolution read", () => {
+  const terminalPath = `/terminal/${DEV_SERVER_TERMINAL.id}`;
+
+  function windowsHost() {
+    // Production's stale time: a catalog another window just read is still fresh.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 30_000 }, mutations: { retry: false } },
+    });
+    const windows: Record<string, { app: string; instanceKey: string | null; route: unknown }> = {};
+    const projection = createWindowManagerProjectionAtom({
+      windows,
+      client: null,
+      clientAttachmentToken: null,
+    } as unknown as OsDesktopRuntimeStore);
+    const shell = { projection, manager: {}, coordinator: {} } as unknown as OsShellHandle;
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(
+          OsShellContext.Provider,
+          { value: shell },
+          createElement(
+            WindowDataBindingContext.Provider,
+            { value: { partition: "ws-atlas", binding: null } },
+            children
+          )
+        )
+      );
+    const mount = (windowId: string, pathname: string, search: Record<string, unknown> = {}) => {
+      const instanceKey = pathname === "/terminal" ? null : DEV_SERVER_TERMINAL.id;
+      act(() => {
+        projection.set({
+          ...projection.get(),
+          windows: {
+            ...projection.get().windows,
+            [windowId]: { app: "terminal", instanceKey, route: { pathname, search } },
+          },
+        } as OsDesktopRuntimeStore);
+      });
+      return renderHook(() => useTerminalWindowControllerState(windowId), { wrapper });
+    };
+    return { mount };
+  }
+
+  it("Should read the catalog for an id-less window mounted while another window's read is fresh", async () => {
+    const { mount } = windowsHost();
+    const named = mount("w-named", terminalPath);
+    await waitFor(() => expect(named.result.current.catalog.isSuccess).toBe(true));
+    expect(fetchTerminals).toHaveBeenCalledTimes(1);
+
+    // The head's New terminal: a fresh window on the id-less route.
+    const fresh = mount("w-new", "/terminal", { new: "1" });
+    await waitFor(() => expect(fresh.result.current.catalog.isFetchedAfterMount).toBe(true));
+    expect(fetchTerminals).toHaveBeenCalledTimes(2);
+    expect(fresh.result.current.createRequested).toBe(true);
+  });
+
+  it("Should not force a catalog read for a window whose route names its terminal", async () => {
+    const { mount } = windowsHost();
+    const first = mount("w-first", terminalPath);
+    await waitFor(() => expect(first.result.current.catalog.isSuccess).toBe(true));
+    expect(fetchTerminals).toHaveBeenCalledTimes(1);
+
+    const second = mount("w-second", terminalPath);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(second.result.current.catalog.data).toEqual([DEV_SERVER_TERMINAL]);
+    expect(second.result.current.catalog.isFetchedAfterMount).toBe(false);
+    expect(fetchTerminals).toHaveBeenCalledTimes(1);
   });
 });

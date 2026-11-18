@@ -122,6 +122,30 @@ func TestCoordinatorEffectsShouldAttachNodeAndTerminalTriggers(t *testing.T) {
 	failureClass := FailureTransport
 	nextAttemptAt := time.Date(2026, 8, 2, 12, 1, 0, 0, time.UTC)
 
+	t.Run("Should retain gate evaluations without firing action lifecycle effects", func(t *testing.T) {
+		t.Parallel()
+		node := testRouteGateNode("quality")
+		node.NodeLifecycleState = &dsl.NodeLifecycleState{
+			OnSuccess: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "gate_success"}}},
+			OnError:   &dsl.ErrorPolicy{Effects: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "gate_error"}}}},
+		}
+		plan := task.CoordinatorCompletionPlan{Snapshot: task.GenerationSnapshot{
+			LoopRunID: "run-effect", Generation: 1,
+			Payload: GenerationSnapshotPayload{Attempts: []NodeAttempt{{
+				LoopRunID: "run-effect", Generation: 1, NodeID: "quality", Attempt: 1, Disposition: AttemptSucceeded,
+			}}},
+		}}
+		if err := attachCoordinatorEffectIntents(effectTestRun(), &ResolvedDefinition{
+			Definition: dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{node}}},
+		}, &plan); err != nil {
+			t.Fatal(err)
+		}
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+		if len(payload.Attempts) != 1 || len(payload.Events) != 0 {
+			t.Fatalf("gate attempt effects = %#v", payload)
+		}
+	})
+
 	t.Run("Should attach node and terminal effects", func(t *testing.T) {
 		t.Parallel()
 
