@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -26,7 +27,10 @@ func (s *daemonExtensionService) InspectCatalogExtension(
 	if s.marketplaceCache != nil && details.SourceRef != marketplacepkg.CompozyCatalogRef {
 		release, err := s.marketplaceCache.Hold(ctx)
 		if err != nil {
-			return contract.MarketplaceExtensionDetailPayload{}, err
+			return contract.MarketplaceExtensionDetailPayload{}, fmt.Errorf(
+				"daemon: catalog inspection cache hold: %w",
+				err,
+			)
 		}
 		defer release()
 	}

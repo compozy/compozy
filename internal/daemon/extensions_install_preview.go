@@ -24,7 +24,7 @@ func (s *daemonExtensionService) PreviewInstall(
 	if s.marketplaceCache != nil && normalizedInstallSource(req.Source) == contract.InstallExtensionSourceMarketplace {
 		release, err := s.marketplaceCache.Hold(ctx)
 		if err != nil {
-			return contract.ExtensionInstallPreviewPayload{}, err
+			return contract.ExtensionInstallPreviewPayload{}, fmt.Errorf("daemon: install preview cache hold: %w", err)
 		}
 		defer release()
 	}

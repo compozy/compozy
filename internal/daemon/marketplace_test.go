@@ -720,12 +720,19 @@ func testMarketplaceInstallDuringRefresh(t *testing.T) {
 	sweepDone := make(chan error, 1)
 	go func() {
 		_, err := runtime.resolver.Cache.SweepCurrent(sweepCtx, func(ctx context.Context) (map[string]struct{}, error) {
-			return catalog.PackageDigests(ctx, []string{"team"})
+			select {
+			case <-finish:
+				return catalog.PackageDigests(ctx, []string{"team"})
+			default:
+				return nil, errors.New("sweep read pins while the source was still fetching")
+			}
 		})
 		sweepDone <- err
 	}()
 	select {
 	case <-waiting:
+	case err := <-sweepDone:
+		t.Fatalf("sweep returned before the slow refresh finished: %v", err)
 	case <-ctx.Done():
 		t.Fatal("sweep did not queue while the refresh held the cache")
 	}
