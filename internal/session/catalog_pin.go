@@ -121,18 +121,25 @@ func (m *Manager) setPinned(ctx context.Context, workspaceID string, sessionID s
 		return nil, err
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
+	var stored store.SessionInfo
 	if pinned {
-		if _, err := pinStore.PinSession(ctx, workspaceID, sessionID); err != nil {
-			return nil, err
-		}
-	} else if _, _, err := pinStore.UnpinSession(ctx, workspaceID, sessionID); err != nil {
-		return nil, err
+		stored, err = pinStore.PinSession(ctx, workspaceID, sessionID)
+	} else {
+		stored, _, err = pinStore.UnpinSession(ctx, workspaceID, sessionID)
 	}
-	// Status reads the pin from the store, so a later change wins over this one's result.
-	info, err := m.Status(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
-	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
+	// Status reads the pin from the store, so a later change wins over this one's result.
+	info, statusErr := m.Status(ctx, sessionID)
+	// The change is committed: other windows hear of it even when this response's read fails.
+	published := info
+	if statusErr != nil {
+		published = sessionInfoFromCatalog(&stored)
+	}
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, published))
+	if statusErr != nil {
+		return nil, statusErr
+	}
 	return info, nil
 }
