@@ -548,7 +548,8 @@ root `--profile` selection outside a session. CLI:
 `compozy --profile <profile> tool approvals set|list|revoke --workspace <workspace>`.
 
 Clarification: `compozy__clarify` asks one active-session question with at most four choices and returns
-zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session clarify pending|answer`
+zero-based `{choice,text,fallback}`. It is not approval. A provider select question without a custom-text field (ACP
+`elicitation/create`) accepts only a choice; a text answer to it is refused as invalid. CLI: `compozy session clarify pending|answer`
 (choice presentation is one-based).
 
 `compozy__session_list` accepts `board_column: ["needs_you", "working", "waiting", "in_review", "done"]`

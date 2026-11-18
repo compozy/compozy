@@ -177,9 +177,11 @@ export function SessionThread({
     : undefined;
   // A pending question blocks the turn: a steer or queue send answers it instead (#1821).
   const clarificationAnswer = useClarificationComposerAnswer({
+    allowBusyInput,
     enabled: liveDataEnabled,
     readOnly,
     sessionId,
+    stopPhase,
     workspaceId,
   });
   const content = (

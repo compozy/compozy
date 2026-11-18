@@ -111,13 +111,19 @@ than four choices, or URL mode is declined. Automated evidence: `internal/acp/el
 Outstanding walk: answer a real opencode `question` from the dock, and confirm a system session
 declines without a pending interaction.
 
-QA impact 2026-11-18 (#1821, web only): while a clarification is pending, a steer or queue send
-from the main session composer answers that question as free text through the existing answer
-endpoint, so the turn resumes at once instead of waiting for the timeout. The composer placeholder
-and a quiet dock line under bounded choices say so. A send that races a settled question (answered
-elsewhere, timed out, canceled) goes out as the original steer or queue. A send with files is
-refused with its draft kept, and an answer failure keeps the draft with a stated reason. Interrupt
-keeps its meaning: it cancels the turn and with it the question. Automated evidence:
-`web/src/systems/session/hooks/__tests__/use-session-clarifications.test.tsx`. Outstanding walk:
-with a bounded and a free-text question pending, type a reply in the main composer in steer and in
-queue mode; confirm the dock clears, the receipt records the typed answer and the turn continues.
+QA impact 2026-11-18 (#1821): while a clarification is pending, a steer or queue send from the
+main session composer answers that question as free text through the existing answer endpoint, so
+the turn resumes at once instead of waiting for the timeout. The composer placeholder says so. A
+send that races a settled question answers the next pending one, or goes out as the original steer
+or queue when none waits. A send with files is refused with its draft kept. A provider select
+question without a custom-text field refuses text (HTTP 400) and stays answerable by choice, and
+the composer keeps the draft with that reason. A lost acknowledgment is checked against the live
+pending list and is never re-sent as a prompt. A stopping session and interrupt keep their
+behavior. Automated evidence:
+`web/src/systems/session/hooks/__tests__/use-session-clarifications.test.tsx`,
+`internal/daemon/clarify_bridge_test.go` (choices-only refusal) and
+`internal/acp/elicitation_test.go` (choices-only flag). Outstanding walk (deferred by operator
+directive while the host is overloaded): with a bounded `compozy__clarify` question, a free-text
+question and an ACP select elicitation without a custom field pending, type a reply in the main
+composer in steer and in queue mode; confirm the dock clears and the turn continues for the first
+two, and the draft stays with the choice-only reason for the third.
