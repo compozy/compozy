@@ -230,12 +230,8 @@ export function useSessionListView(
     pinned: groupFilters.pinned,
     enabled,
   });
-  const pinned = useSessionListPinnedRead(
-    scope,
-    groupFilters,
-    enabled && shelf === "active",
-    options.pending === true
-  );
+  const pending = options.pending === true;
+  const pinned = useSessionListPinnedRead({ scope, groupFilters, enabled, shelf, pending });
   const arranged = useProjectFolderGroups({
     groups: grouping.groups,
     groupBy,
@@ -275,7 +271,7 @@ export function useSessionListView(
   const awaiting = awaitingReads(
     flat ? settledSearchCatalog(catalog, searchSettled) : undefined,
     grouping.loading,
-    options.pending === true
+    pending
   );
   const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
   const groupFolds = useSessionGroupFolds(scope, groupBy);
@@ -346,12 +342,21 @@ export function useSessionListView(
  * The Pinned section's read: the list's own filters over pinned sessions, oldest pin first.
  * Absent where the list has no Pinned section (the archive and Later shelves).
  */
-function useSessionListPinnedRead(
-  scope: DataScope | null,
-  groupFilters: SessionListFilters,
-  shown: boolean,
-  pending: boolean
-): SessionListPinnedRead | undefined {
+function useSessionListPinnedRead({
+  scope,
+  groupFilters,
+  enabled,
+  shelf,
+  pending,
+}: {
+  scope: DataScope | null;
+  groupFilters: SessionListFilters;
+  enabled: boolean;
+  shelf: SessionListShelf;
+  pending: boolean;
+}): SessionListPinnedRead | undefined {
+  // Only the active shelf has a Pinned section.
+  const shown = enabled && shelf === "active";
   const read = useSessionCatalog(scope, sessionListPinnedFilters(groupFilters), shown);
   if (!shown) return undefined;
   // While what the list reads under is unresolved, its pins read as loading, never as rows.

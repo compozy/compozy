@@ -75,7 +75,7 @@ export function useSessionPinActions(
  * move searches, and the polite announcement to render: after a pin change settles, focus lands
  * on the session's row (`<testIdPrefix>-session-<id>`) in its new place. A row its new place does
  * not show (a folded Pinned section or group) hands focus to the Pinned header after a pin, else
- * to the list itself, never to the page. While a change is in flight its row's verbs wait.
+ * to the list's filter field, never to the page. While a change is in flight its row's verbs wait.
  */
 export function useSessionListPin(
   hostActions: SessionLifecycleActionHandlers,
@@ -92,7 +92,8 @@ export function useSessionListPin(
       const header = pinned
         ? list.querySelector<HTMLElement>(`[data-testid="${testIdPrefix}-pinned-toggle"]`)
         : null;
-      (row ?? header ?? list).focus();
+      const filter = list.querySelector<HTMLElement>('input[aria-label="Filter sessions"]');
+      (row ?? header ?? filter)?.focus();
     });
   });
   const pending = pin.pending;
