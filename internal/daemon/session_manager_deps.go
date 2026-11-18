@@ -67,7 +67,6 @@ type SessionManagerDeps struct {
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 	reconciler := windowManagerSessionReconcilerDependency(state.windowManagers)
 	state.sessionWindowReconciler = reconciler
-	operatorNoticeOutbox, _ := any(state.registry).(session.OperatorNoticeOutbox)
 	return SessionManagerDeps{
 		HomePaths:              d.homePaths,
 		PermissionWaitResolver: instancePermissionWaitResolver(state),
@@ -115,7 +114,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		CheckInTools:            state.cfg.Agents.AlwaysOn.CheckInTools != hookActionDisabled,
 		AttentionConfig:         state.cfg.Attention,
 		AttentionWorkspaceMutes: state.registry,
-		OperatorNoticeOutbox:    operatorNoticeOutbox,
+		OperatorNoticeOutbox:    sessionOperatorNoticeOutboxDependency(state.registry),
 		SessionCatalog:          state.registry,
 		EventLedger:             sessionEventLedgerDependency(state.registry),
 		ProcessRegistry:         state.processRegistry,
@@ -132,6 +131,14 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		AgentNiceness:           state.cfg.Daemon.Load.AgentNiceness,
 		ProviderTelemetryEnv:    state.ensureTelemetry().ProviderEnv,
 	}
+}
+
+func sessionOperatorNoticeOutboxDependency(value any) session.OperatorNoticeOutbox {
+	outbox, ok := value.(session.OperatorNoticeOutbox)
+	if !ok {
+		return nil
+	}
+	return outbox
 }
 
 // sessionEventLedgerDependency exposes the daemon ledger that records

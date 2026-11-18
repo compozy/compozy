@@ -8,12 +8,9 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	automationpkg "github.com/compozy/compozy/internal/automation"
-	modelpkg "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/observe/attention"
 	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
@@ -22,67 +19,28 @@ const (
 )
 
 func (h *BaseHandlers) automationFailureNotificationItems(
-	ctx context.Context, labels map[string]string, profileID string,
+	ctx context.Context, reader attention.AutomationFailureReader, scope attention.Scope,
+	readScope store.ReadScope, labels map[string]string,
 ) ([]contract.AttentionNotificationPayload, error) {
 	if h.Automation == nil {
 		return nil, nil
 	}
-	query := automationpkg.RunQuery{
-		AllWorkspaces: true,
-		WorkspaceIDs:  append(slices.Sorted(maps.Keys(labels)), workspaceaccess.UserSelector),
-		ReadScope:     store.ReadScope{ProfileID: profileID},
-		Status:        automationpkg.RunFailed,
-		Limit:         automationpkg.MaxListLimit,
+	failures, err := reader.ListUnreadAutomationFailures(ctx, scope, readScope, slices.Sorted(maps.Keys(labels)))
+	if err != nil {
+		return nil, fmt.Errorf("api: list automation failures for notifications: %w", err)
 	}
-	var items []contract.AttentionNotificationPayload
-	for {
-		runs, err := h.Automation.ListRuns(ctx, query)
-		if err != nil {
-			return nil, fmt.Errorf("api: list automation failures for notifications: %w", err)
+	items := make([]contract.AttentionNotificationPayload, 0, len(failures))
+	for _, run := range failures {
+		kind, owner := automationJobFailureNotification, run.JobID
+		if run.TriggerID != "" {
+			kind, owner = automationTriggerFailureNotification, run.TriggerID
 		}
-		for _, run := range runs {
-			item, ok := automationFailureNotificationItem(run)
-			if ok {
-				items = append(items, item)
-			}
-		}
-		if len(runs) < query.Limit {
-			return items, nil
-		}
-		cursor, err := modelpkg.EncodeRunCursor(query, runs[len(runs)-1])
-		if err != nil {
-			return nil, fmt.Errorf("api: encode automation failure cursor: %w", err)
-		}
-		query.Cursor = cursor
+		items = append(items, contract.AttentionNotificationPayload{
+			ID: run.OccurrenceID, Kind: kind, SourceID: owner, RunID: run.RunID,
+			WorkspaceID: run.WorkspaceID, Title: owner, Detail: "Run failed", OccurredAt: run.OccurredAt,
+		})
 	}
-}
-
-func automationFailureNotificationItem(run automationpkg.Run) (contract.AttentionNotificationPayload, bool) {
-	at := run.EndedAt
-	if at == nil {
-		at = run.StartedAt
-	}
-	if at == nil {
-		return contract.AttentionNotificationPayload{}, false
-	}
-	kind, owner := automationJobFailureNotification, run.JobID
-	if run.TriggerID != "" {
-		kind, owner = automationTriggerFailureNotification, run.TriggerID
-	}
-	workspaceID := ""
-	if run.WorkspaceID != nil {
-		workspaceID = *run.WorkspaceID
-	}
-	return contract.AttentionNotificationPayload{
-		ID:          attention.Identity(kind, workspaceID, run.ProfileID, run.ID),
-		Kind:        kind,
-		SourceID:    owner,
-		RunID:       run.ID,
-		WorkspaceID: workspaceID,
-		Title:       owner,
-		Detail:      "Run failed",
-		OccurredAt:  *at,
-	}, true
+	return items, nil
 }
 
 func (h *BaseHandlers) applyAutomationFailureTitles(

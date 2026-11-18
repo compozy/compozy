@@ -17,6 +17,7 @@ import (
 
 type attentionNotificationObserver interface {
 	attention.Store
+	attention.AutomationFailureReader
 	TaskAttentionItems(context.Context, observe.OverviewQuery) ([]observe.OverviewAttentionItem, error)
 }
 
@@ -28,11 +29,11 @@ func (h *BaseHandlers) AttentionNotifications(c *gin.Context) {
 	if !h.requireOperatorSurface(c, "notification inbox") {
 		return
 	}
-	observer, scope, ok := h.attentionNotificationScope(c, attentionBellPopulation)
+	observer, scope, readScope, ok := h.attentionNotificationScope(c, attentionBellPopulation)
 	if !ok {
 		return
 	}
-	items, err := h.bellNotificationItems(c, observer, scope)
+	items, err := h.bellNotificationItems(c, observer, scope, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusServiceUnavailable, err)
 		return
@@ -90,7 +91,7 @@ func (h *BaseHandlers) AcknowledgeAttentionNotifications(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, errors.New("api: notification surface must be bell or home"))
 		return
 	}
-	observer, scope, ok := h.attentionNotificationScope(c, population)
+	observer, scope, _, ok := h.attentionNotificationScope(c, population)
 	if !ok {
 		return
 	}
@@ -129,21 +130,21 @@ func (h *BaseHandlers) AcknowledgeAttentionNotifications(c *gin.Context) {
 
 func (h *BaseHandlers) attentionNotificationScope(
 	c *gin.Context, population string,
-) (attentionNotificationObserver, attention.Scope, bool) {
+) (attentionNotificationObserver, attention.Scope, store.ReadScope, bool) {
 	observer, ok := h.Observer.(attentionNotificationObserver)
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: notification inbox is unavailable"))
-		return nil, attention.Scope{}, false
+		return nil, attention.Scope{}, store.ReadScope{}, false
 	}
 	query, ok := h.attentionOverviewQuery(c)
 	if !ok {
-		return nil, attention.Scope{}, false
+		return nil, attention.Scope{}, store.ReadScope{}, false
 	}
 	scope := observe.OverviewAttentionScope(query)
 	if population == attentionBellPopulation {
 		scope.Population = attentionBellPopulation
 	}
-	return observer, scope, true
+	return observer, scope, query.ReadScope, true
 }
 
 func (h *BaseHandlers) attentionOverviewQuery(c *gin.Context) (observe.OverviewQuery, bool) {

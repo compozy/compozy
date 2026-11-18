@@ -657,6 +657,7 @@ func attentionRouteSessionManager() *testutil.StubSessionManager {
 type notificationRouteObserver struct {
 	testutil.StubObserver
 	attention.Store
+	attention.AutomationFailureReader
 }
 
 func (notificationRouteObserver) TaskAttentionItems(
@@ -743,7 +744,7 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 				return page, nil
 			}
 			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
-			fixture.Handlers.Observer = notificationRouteObserver{Store: db}
+			fixture.Handlers.Observer = notificationRouteObserver{Store: db, AutomationFailureReader: db}
 			fixture.Handlers.Loops = &stubLoopService{
 				listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
 					return contract.LoopNodeInventoryResponse{}, nil
@@ -869,8 +870,8 @@ func TestAttentionNotificationTaskPopulation(t *testing.T) {
 		at := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
 		var queries []observe.OverviewQuery
 		fixture.Handlers.Observer = bellTaskObserver{
-			Store:   db,
-			queries: &queries,
+			notificationRouteObserver: notificationRouteObserver{Store: db, AutomationFailureReader: db},
+			queries:                   &queries,
 			items: []observe.OverviewAttentionItem{
 				{NotificationID: "n-global", TaskID: "task-global", Kind: "approval", Title: "G", OccurredAt: at},
 				{
@@ -1079,6 +1080,12 @@ var _ core.WindowManagerMigrationNotifications = (*bellMigrationSource)(nil)
 
 func newBellMigrationFixture(t *testing.T, source *bellMigrationSource) handlerFixture {
 	t.Helper()
+	f, _ := newBellNotificationFixture(t, source)
+	return f
+}
+
+func newBellNotificationFixture(t *testing.T, source *bellMigrationSource) (handlerFixture, *globaldb.GlobalDB) {
+	t.Helper()
 	db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "global.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -1105,7 +1112,7 @@ func newBellMigrationFixture(t *testing.T, source *bellMigrationSource) handlerF
 			return []workspacepkg.Workspace{{ID: "ws-1", Name: "Alpha"}}, nil
 		},
 	})
-	f.Handlers.Observer = notificationRouteObserver{Store: db}
+	f.Handlers.Observer = notificationRouteObserver{Store: db, AutomationFailureReader: db}
 	f.Handlers.Profiles = bellReceiptProfiles{}
 	f.Handlers.WindowManager = source
 	f.Handlers.Loops = &stubLoopService{
@@ -1119,7 +1126,7 @@ func newBellMigrationFixture(t *testing.T, source *bellMigrationSource) handlerF
 	f.Handlers.Terminal = notificationRouteTerminal{}
 	f.Engine.GET("/notifications/attention", f.Handlers.AttentionNotifications)
 	f.Engine.POST("/notifications/attention/acknowledge", f.Handlers.AcknowledgeAttentionNotifications)
-	return f
+	return f, db
 }
 
 func readBellMigrationNotifications(
@@ -1140,42 +1147,13 @@ func readBellMigrationNotifications(
 func TestAttentionNotificationAutomationFailures(t *testing.T) {
 	t.Parallel()
 	t.Run(
-		"Should count persisted failures past the display cap and acknowledge the whole snapshot",
+		"Should keep the whole unread population while filtering failed runs by source and receipts",
 		func(t *testing.T) {
 			t.Parallel()
-			f := newBellMigrationFixture(t, &bellMigrationSource{})
+			f, db := newBellNotificationFixture(t, &bellMigrationSource{})
 			at := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
-			runs := make([]automationpkg.Run, automationpkg.MaxListLimit)
-			for i := range runs {
-				ended := at.Add(-time.Duration(i) * time.Minute)
-				runs[i] = automationpkg.Run{
-					ID: fmt.Sprintf("run-%03d", i), JobID: "briefing", WorkspaceID: new("ws-1"),
-					ProfileID: store.DefaultProfileID, Status: automationpkg.RunFailed, EndedAt: &ended,
-				}
-			}
-			var pageReads int
+			seedBellAutomationFailures(t, db, at)
 			f.Handlers.Automation = testutil.StubAutomationManager{
-				ListRunsFn: func(_ context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error) {
-					if query.Status != automationpkg.RunFailed || query.ReadScope.ProfileID != store.DefaultProfileID ||
-						query.ReadScope.AllProfiles || !query.AllWorkspaces ||
-						!reflect.DeepEqual(query.WorkspaceIDs, []string{"ws-1", workspaceaccess.UserSelector}) {
-						t.Fatalf("automation failure query = %+v", query)
-					}
-					pageReads++
-					if query.Cursor == "" {
-						return runs, nil
-					}
-					return []automationpkg.Run{
-						{
-							ID:          "run-trigger",
-							TriggerID:   "event-briefing",
-							WorkspaceID: new(""),
-							ProfileID:   store.DefaultProfileID,
-							Status:      automationpkg.RunFailed,
-							EndedAt:     new(at.Add(time.Minute)),
-						},
-					}, nil
-				},
 				GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
 					return automationpkg.Job{Name: "Morning briefing"}, nil
 				},
@@ -1185,9 +1163,10 @@ func TestAttentionNotificationAutomationFailures(t *testing.T) {
 			}
 
 			before := readBellMigrationNotifications(t, f, "profile=default")
-			if before.Total != len(runs)+1 || before.NeedsYou != before.Total || before.Finished != 0 ||
-				len(before.Items) != min(100, before.Total) || pageReads != 2 {
-				t.Fatalf("bell population = %+v, page reads = %d", before, pageReads)
+			if before.Total != 205 || before.NeedsYou != before.Total || before.Finished != 0 ||
+				len(before.Items) != 100 {
+				t.Fatalf("bell population: total=%d needs_you=%d finished=%d rows=%d",
+					before.Total, before.NeedsYou, before.Finished, len(before.Items))
 			}
 			trigger, job := before.Items[0], before.Items[1]
 			if trigger.Kind != "automation-trigger-failure" || trigger.Title != "Event briefing" ||
@@ -1200,6 +1179,15 @@ func TestAttentionNotificationAutomationFailures(t *testing.T) {
 				t.Fatalf("job notice = %+v", job)
 			}
 
+			marketing := readBellMigrationNotifications(t, f, "profile=marketing&receipt_profile=default")
+			if marketing.Total != 1 || len(marketing.Items) != 1 || marketing.Items[0].RunID != "run-marketing" {
+				t.Fatalf("selected source profile: total=%d items=%v", marketing.Total, marketing.Items)
+			}
+			all := readBellMigrationNotifications(t, f, "all_profiles=true&receipt_profile=default")
+			if all.Total != before.Total+1 {
+				t.Fatalf("aggregate total = %d, want %d", all.Total, before.Total+1)
+			}
+
 			body, err := json.Marshal(contract.AcknowledgeAttentionRequest{Snapshot: before.Snapshot})
 			if err != nil {
 				t.Fatal(err)
@@ -1210,11 +1198,49 @@ func TestAttentionNotificationAutomationFailures(t *testing.T) {
 				t.Fatalf("ack status=%d body=%s", response.Code, response.Body.String())
 			}
 			after := readBellMigrationNotifications(t, f, "profile=default")
-			if after.Total != 0 || after.NeedsYou != 0 || pageReads != 4 {
-				t.Fatalf("after acknowledgements = %+v, page reads = %d", after, pageReads)
+			if after.Total != 0 || after.NeedsYou != 0 {
+				t.Fatalf("after acknowledgements: total=%d needs_you=%d", after.Total, after.NeedsYou)
+			}
+			all = readBellMigrationNotifications(t, f, "all_profiles=true&receipt_profile=default")
+			if all.Total != 1 || len(all.Items) != 1 || all.Items[0].RunID != "run-marketing" {
+				t.Fatalf("default receipts in aggregate: total=%d rows=%d", all.Total, len(all.Items))
+			}
+			otherReceipts := readBellMigrationNotifications(t, f, "all_profiles=true&receipt_profile=marketing")
+			if otherReceipts.Total != before.Total+1 {
+				t.Fatalf("marketing receipts in aggregate: total=%d, want %d", otherReceipts.Total, before.Total+1)
 			}
 		},
 	)
+}
+
+func seedBellAutomationFailures(t *testing.T, db *globaldb.GlobalDB, at time.Time) {
+	t.Helper()
+	stamp := store.FormatTimestamp(at)
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO automation_triggers
+		(id, profile_id, scope, name, agent_name, prompt, event, retry, fire_limit, created_at, updated_at)
+		VALUES ('event-briefing', ?, 'global', 'Event briefing', 'briefing', '', 'session.done', '{}', '{}', ?, ?)`,
+		store.DefaultProfileID, stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB().ExecContext(t.Context(), `
+		WITH RECURSIVE seq(n) AS (VALUES(0) UNION ALL SELECT n+1 FROM seq WHERE n < 203)
+		INSERT INTO automation_runs (id, profile_id, job_id, status, workspace_id, ended_at)
+		SELECT printf('run-%03d', n), ?, 'briefing', 'failed', 'ws-1', ? FROM seq`,
+		store.DefaultProfileID, stamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO automation_runs
+		(id, profile_id, job_id, trigger_id, status, workspace_id, ended_at) VALUES
+		('run-trigger', ?, NULL, 'event-briefing', 'failed', NULL, ?),
+		('run-marketing', ?, 'briefing', NULL, 'failed', '', ?),
+		('run-excluded-project', ?, 'briefing', NULL, 'failed', 'unregistered', ?),
+		('run-owner-unknown', ?, 'owner-missing', NULL, 'failed', NULL, ?),
+		('run-completed', ?, 'briefing', NULL, 'completed', 'ws-1', ?)`,
+		store.DefaultProfileID, store.FormatTimestamp(at.Add(time.Minute)),
+		bellMarketingProfileID, stamp, store.DefaultProfileID, stamp, store.DefaultProfileID, stamp,
+		store.DefaultProfileID, stamp); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // Invariant: all-profile conversion occurrences obey the bell's scope, frozen membership and copy contract.

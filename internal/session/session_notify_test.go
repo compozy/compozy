@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/observe/attention"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -115,6 +116,24 @@ func TestPublishOperatorNotification(t *testing.T) {
 		notices, err = receiver.ListUnreadOperatorNotices(ctx, scope)
 		if err != nil || len(notices) != 0 {
 			t.Fatalf("acknowledged notices = %#v, %v; want none", notices, err)
+		}
+	})
+
+	t.Run("Should allow an immediate retry after the outbox rejects a notice", func(t *testing.T) {
+		t.Parallel()
+		manager, _ := newNotifyTestManager()
+		writeErr := errors.New("outbox unavailable")
+		outbox := &notifyWriteStub{err: writeErr}
+		WithOperatorNoticeOutbox(outbox)(manager)
+		req := NotifyRequest{SessionID: "sess-retry", ProfileID: store.DefaultProfileID, Title: "Needs help"}
+		if _, err := manager.PublishOperatorNotification(t.Context(), req); !errors.Is(err, writeErr) {
+			t.Fatalf("first publish error = %v, want %v", err, writeErr)
+		}
+
+		outbox.err = nil
+		result, err := manager.PublishOperatorNotification(t.Context(), req)
+		if err != nil || result.Outcome != NotifyOutcomeNoClient || len(outbox.notices) != 1 {
+			t.Fatalf("retried publish = %#v, %v; retained notices = %#v", result, err, outbox.notices)
 		}
 	})
 
@@ -270,6 +289,20 @@ func newNotifyTestManager() (*Manager, func(time.Duration)) {
 		now:                     func() time.Time { return now },
 	}
 	return manager, func(delta time.Duration) { now = now.Add(delta) }
+}
+
+type notifyWriteStub struct {
+	OperatorNoticeOutbox
+	err     error
+	notices []notifications.OperatorNotice
+}
+
+func (s *notifyWriteStub) EnqueueOperatorNotice(_ context.Context, notice notifications.OperatorNotice) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.notices = append(s.notices, notice)
+	return nil
 }
 
 type notifyMuteReader struct {

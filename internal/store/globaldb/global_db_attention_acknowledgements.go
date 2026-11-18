@@ -18,6 +18,52 @@ var _ attention.Store = (*NotificationRepo)(nil)
 
 const attentionSnapshotLifetime = 24 * time.Hour
 
+// ListUnreadAutomationFailures uses the receipt index before building a bell snapshot.
+func (r *NotificationRepo) ListUnreadAutomationFailures(
+	ctx context.Context, scope attention.Scope, readScope store.ReadScope, workspaceIDs []string,
+) ([]attention.AutomationFailure, error) {
+	if err := r.checkReady(ctx, "list unread automation failures"); err != nil {
+		return nil, err
+	}
+	if err := scope.Validate(); err != nil {
+		return nil, err
+	}
+	if err := readScope.Validate(); err != nil {
+		return nil, err
+	}
+	workspaceJSON, err := json.Marshal(workspaceIDs)
+	if err != nil {
+		return nil, fmt.Errorf("store: encode automation failure workspaces: %w", err)
+	}
+	rows, err := r.readQueries.ListUnreadAutomationFailures(ctx, sqlcgen.ListUnreadAutomationFailuresParams{
+		AllProfiles:      readScope.AllProfiles,
+		SourceProfileID:  sql.NullString{String: readScope.ProfileID, Valid: !readScope.AllProfiles},
+		WorkspaceIds:     string(workspaceJSON),
+		ReceiptProfileID: scope.ProfileID,
+		ActorKind:        scope.ActorKind,
+		ActorID:          scope.ActorID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("store: list unread automation failures: %w", err)
+	}
+	failures := make([]attention.AutomationFailure, 0, len(rows))
+	for _, row := range rows {
+		at, err := store.ParseTimestamp(row.OccurredAt)
+		if err != nil {
+			return nil, fmt.Errorf("store: decode automation failure timestamp: %w", err)
+		}
+		failures = append(failures, attention.AutomationFailure{
+			OccurrenceID: row.OccurrenceID,
+			RunID:        row.RunID,
+			JobID:        row.JobID.String,
+			TriggerID:    row.TriggerID.String,
+			WorkspaceID:  row.WorkspaceID.String,
+			OccurredAt:   at,
+		})
+	}
+	return failures, nil
+}
+
 // CaptureAttentionSnapshot freezes the complete unread population before any display limit.
 func (r *NotificationRepo) CaptureAttentionSnapshot(
 	ctx context.Context, scope attention.Scope, occurrences []string,

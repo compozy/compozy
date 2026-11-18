@@ -7,6 +7,7 @@ package sqlcgen
 
 import (
 	"context"
+	"database/sql"
 )
 
 const acknowledgeAttentionOccurrences = `-- name: AcknowledgeAttentionOccurrences :exec
@@ -110,6 +111,89 @@ func (q *Queries) ListAcknowledgedAttention(ctx context.Context, arg ListAcknowl
 			return nil, err
 		}
 		items = append(items, occurrence_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnreadAutomationFailures = `-- name: ListUnreadAutomationFailures :many
+SELECT CAST('automation-failure:' || run.id AS TEXT) AS occurrence_id,
+       run.id AS run_id, run.job_id, run.trigger_id, run.workspace_id,
+       CAST(COALESCE(run.ended_at, run.started_at) AS TEXT) AS occurred_at
+FROM automation_runs AS run
+WHERE run.status = 'failed'
+  AND run.id IS NOT NULL
+  AND (run.job_id IS NOT NULL OR run.trigger_id IS NOT NULL)
+  AND (run.ended_at IS NOT NULL OR run.started_at IS NOT NULL)
+  AND (CAST(?1 AS BOOLEAN) OR run.profile_id = ?2)
+  AND (
+    run.workspace_id = ''
+    OR run.workspace_id IN (SELECT CAST(value AS TEXT) FROM json_each(?3))
+    OR (run.workspace_id IS NULL AND (
+      EXISTS (SELECT 1 FROM automation_jobs AS job WHERE job.id = run.job_id AND job.scope = 'global')
+      OR EXISTS (SELECT 1 FROM automation_triggers AS trigger
+                 WHERE trigger.id = run.trigger_id AND trigger.scope = 'global')
+    ))
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM attention_acknowledgements AS receipt
+    WHERE receipt.profile_id = ?4
+      AND receipt.actor_kind = ?5
+      AND receipt.actor_id = ?6
+      AND receipt.occurrence_id = 'automation-failure:' || run.id
+  )
+`
+
+type ListUnreadAutomationFailuresParams struct {
+	AllProfiles      bool           `json:"all_profiles"`
+	SourceProfileID  sql.NullString `json:"source_profile_id"`
+	WorkspaceIds     any            `json:"workspace_ids"`
+	ReceiptProfileID string         `json:"receipt_profile_id"`
+	ActorKind        string         `json:"actor_kind"`
+	ActorID          string         `json:"actor_id"`
+}
+
+type ListUnreadAutomationFailuresRow struct {
+	OccurrenceID string         `json:"occurrence_id"`
+	RunID        string         `json:"run_id"`
+	JobID        sql.NullString `json:"job_id"`
+	TriggerID    sql.NullString `json:"trigger_id"`
+	WorkspaceID  sql.NullString `json:"workspace_id"`
+	OccurredAt   string         `json:"occurred_at"`
+}
+
+func (q *Queries) ListUnreadAutomationFailures(ctx context.Context, arg ListUnreadAutomationFailuresParams) ([]ListUnreadAutomationFailuresRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUnreadAutomationFailures,
+		arg.AllProfiles,
+		arg.SourceProfileID,
+		arg.WorkspaceIds,
+		arg.ReceiptProfileID,
+		arg.ActorKind,
+		arg.ActorID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnreadAutomationFailuresRow{}
+	for rows.Next() {
+		var i ListUnreadAutomationFailuresRow
+		if err := rows.Scan(
+			&i.OccurrenceID,
+			&i.RunID,
+			&i.JobID,
+			&i.TriggerID,
+			&i.WorkspaceID,
+			&i.OccurredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

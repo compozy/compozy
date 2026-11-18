@@ -135,6 +135,9 @@ func (m *Manager) publishOperatorNotification(
 	if delivered == 0 {
 		if m.operatorNoticeOutbox != nil {
 			if err := m.operatorNoticeOutbox.EnqueueOperatorNotice(ctx, notification); err != nil {
+				if rateLimit {
+					m.releaseNotificationRateSlot(notification.SessionID, notification.At)
+				}
 				return NotifyResult{}, fmt.Errorf("session: queue operator notification: %w", err)
 			}
 		}
@@ -145,6 +148,15 @@ func (m *Manager) publishOperatorNotification(
 	result := NotifyResult{Outcome: NotifyOutcomeDelivered}
 	m.logNotificationOutcome(ctx, notification, result, delivered)
 	return result, nil
+}
+
+func (m *Manager) releaseNotificationRateSlot(sessionID string, at time.Time) {
+	m.notifyMu.Lock()
+	defer m.notifyMu.Unlock()
+	// A later send may have acquired the slot while the write was pending.
+	if m.notifyLastBySession[sessionID] == at {
+		delete(m.notifyLastBySession, sessionID)
+	}
 }
 
 // attentionWorkspaceMuted reports whether the profile muted the owning workspace.
