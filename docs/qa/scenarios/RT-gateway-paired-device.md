@@ -40,3 +40,13 @@ unknown ids, and an aborted removal when the event append fails are covered by
 `TestDeviceServiceLifecycle` and `TestGatewayDeviceAuditSink`. Those receipts are not a product walk:
 mint, redeem, and removal still need to be exercised through the web UI and a live remote tier before
 this scenario leaves `blocked-verify`.
+
+Web status 2026-11-18: the pairing dialog leads with the grouped six-digit manual code, copies exactly
+those digits, and keeps the QR, link, and long code as secondary paths. The redeem gate accepts the
+typed code (with spaces or dashes) or a pasted artifact and sends exactly one credential; daemon
+refusals map to plain copy. The device list offers Remove for active and revoked devices behind a
+confirmation whose copy differs by state, and a 404 refreshes the inventory without an error. These
+receipts are component, hook, and adapter tests in `gateway-pairing-dialog.test.tsx`,
+`gateway-pairing-gate.test.tsx`, `gateway-device-list.test.tsx`, `use-gateway-mutations.test.tsx`,
+and `gateway-api.test.ts`. They are not a product walk, and they do not verify the 320px and 390px
+layout; a live walk at those widths still gates this scenario leaving `blocked-verify`.
