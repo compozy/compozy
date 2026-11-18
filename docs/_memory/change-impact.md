@@ -5,8 +5,8 @@
 - **Native tools and CLI/HTTP/UDS.** Routes, DTOs and tool schemas keep their shapes. One answer
   rule tightens: a provider select question (ACP `elicitation/create` `oneOf` field) without a
   `<key>_custom` text companion now refuses a text answer with `ErrClarifyInvalid` (HTTP 400; the
-  native answer tool's existing invalid-answer error), leaving the question answerable. Before, the text was accepted,
-  then declined to the provider and lost. `compozy__clarify` questions still accept text.
+  native answer tool's existing invalid-answer error), leaving the question answerable. Before,
+  the text was accepted, then declined to the provider and lost. `compozy__clarify` questions still accept text.
 - **Extensibility, hooks and config.** No hook, SDK, extension or config key changes;
   `tools.clarify.timeout` keeps its meaning for unanswered questions.
 - **Workspace and profile isolation.** The composer answer uses the dock's answer endpoint and
@@ -18,6 +18,21 @@
   the live pending list and never re-sent as a prompt. Stopping sessions and interrupt keep their
   behavior. The composer placeholder states the routing. The official skill's clarification note
   documents the choice-only rule. `RT-session-clarification-roundtrip` records the walk.
+
+## MCP OAuth root protected-resource discovery
+
+Owner: [#1823](https://github.com/compozy/compozy/issues/1823).
+
+- **CLI, HTTP, UDS and Web.** Sign-in and hosted refresh accept either root resource spelling
+  during well-known metadata fallback. The authorization and token requests still use the
+  configured MCP resource. Commands, routes, and response shapes are unchanged.
+- **Native tools and official skill.** MCP status and authentication status retain their tool IDs,
+  schemas, and repair instructions.
+- **Extensibility, hooks and config.** Discovery uses the existing authorized HTTP client.
+  Extension contracts, hook behavior, and config keys are unchanged.
+- **State and isolation.** Scope selection, registration and token storage are unchanged.
+- **Docs and QA.** ET-047 covers the path-specific 404, root fallback, scoped sign-in, and
+  rejection of mismatched resources. The auth adapter suite exercises a local HTTP OAuth server.
 
 ## Pull request monitor check rounds
 
