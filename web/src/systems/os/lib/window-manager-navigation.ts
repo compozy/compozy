@@ -32,7 +32,7 @@ interface DirectionalFit {
   /** Shares part of the source's span on the other axis, rather than sitting diagonal to it. */
   overlaps: boolean;
   gap: number;
-  centreDistance: number;
+  centerDistance: number;
 }
 
 function spanOverlap(start: number, length: number, otherStart: number, otherLength: number) {
@@ -41,7 +41,7 @@ function spanOverlap(start: number, length: number, otherStart: number, otherLen
 
 /**
  * Measures `candidate` from `source` the way a tiling window manager moves focus: only a window past
- * the source's edge counts. Centres alone let a full-height window beside a stacked pair count as
+ * the source's edge counts. Centers alone let a full-height window beside a stacked pair count as
  * "below" the top pane and steal focus from the pane under it.
  */
 function directionalFit(
@@ -67,14 +67,14 @@ function directionalFit(
   return {
     overlaps: overlap > EDGE_TOLERANCE,
     gap: Math.max(gap, 0),
-    centreDistance: horizontal ? Math.abs(to.y - from.y) : Math.abs(to.x - from.x),
+    centerDistance: horizontal ? Math.abs(to.y - from.y) : Math.abs(to.x - from.x),
   };
 }
 
-/** Overlapping neighbours first, then the nearest edge, then the closest centre. */
+/** Overlapping neighbors first, then the nearest edge, then the closest center. */
 function compareFit(left: DirectionalFit, right: DirectionalFit): number {
   if (left.overlaps !== right.overlaps) return left.overlaps ? -1 : 1;
-  return left.gap - right.gap || left.centreDistance - right.centreDistance;
+  return left.gap - right.gap || left.centerDistance - right.centerDistance;
 }
 
 function wrappedDistance(candidate: Point, direction: FocusDirection): number {

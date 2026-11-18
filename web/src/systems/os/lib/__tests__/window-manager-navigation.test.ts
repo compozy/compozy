@@ -90,7 +90,7 @@ describe("directionalFocusTarget", () => {
     ).toBe("left");
   });
 
-  it("Should move within a stacked column instead of jumping to a full-height neighbour", () => {
+  it("Should move within a stacked column instead of jumping to a full-height neighbor", () => {
     // A full-height window beside a stacked pair: Split right, then Split down on the right.
     const stacked = [
       { id: "tall", rect: { x: 0, y: 0, w: 100, h: 200 } },

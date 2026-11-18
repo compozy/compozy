@@ -46,10 +46,10 @@ func projectNode(node LayoutNode, frame NormalizedRect, output map[WindowID]Norm
 	}
 }
 
-// directionalWindow picks the neighbour of current in direction, the way a tiling window
+// directionalWindow picks the neighbor of current in direction, the way a tiling window
 // manager moves focus: only windows past current's edge qualify, a window sharing
 // current's span on the other axis beats one diagonal to it, then the nearest edge wins,
-// then the closest centre. Comparing centres alone let a full-height window beside a
+// then the closest center. Comparing centers alone let a full-height window beside a
 // stacked pair count as "below" the top pane and steal focus from the pane under it.
 func directionalWindow(
 	snapshot Snapshot,
@@ -90,8 +90,8 @@ func directionalWindow(
 		if math.Abs(a.gap-b.gap) > weightTolerance {
 			return cmp.Compare(a.gap, b.gap)
 		}
-		if math.Abs(a.centreDistance-b.centreDistance) > weightTolerance {
-			return cmp.Compare(a.centreDistance, b.centreDistance)
+		if math.Abs(a.centerDistance-b.centerDistance) > weightTolerance {
+			return cmp.Compare(a.centerDistance, b.centerDistance)
 		}
 		return cmp.Compare(a.id, b.id)
 	})
@@ -100,7 +100,7 @@ func directionalWindow(
 
 type directionalFit struct {
 	overlaps            bool
-	gap, centreDistance float64
+	gap, centerDistance float64
 }
 
 // directionalCandidate measures rect from current along direction; ok is false when rect
@@ -108,31 +108,35 @@ type directionalFit struct {
 func directionalCandidate(current, rect NormalizedRect, direction FocusDirection) (directionalFit, bool) {
 	cx, cy := center(current)
 	x, y := center(rect)
-	var gap, overlap, centreDistance float64
+	var gap, overlap, centerDistance float64
 	switch direction {
 	case FocusLeft:
 		gap = current.X - (rect.X + rect.Width)
 		overlap = spanOverlap(current.Y, current.Height, rect.Y, rect.Height)
-		centreDistance = math.Abs(cy - y)
+		centerDistance = math.Abs(cy - y)
 	case FocusRight:
 		gap = rect.X - (current.X + current.Width)
 		overlap = spanOverlap(current.Y, current.Height, rect.Y, rect.Height)
-		centreDistance = math.Abs(cy - y)
+		centerDistance = math.Abs(cy - y)
 	case FocusUp:
 		gap = current.Y - (rect.Y + rect.Height)
 		overlap = spanOverlap(current.X, current.Width, rect.X, rect.Width)
-		centreDistance = math.Abs(cx - x)
+		centerDistance = math.Abs(cx - x)
 	case FocusDown:
 		gap = rect.Y - (current.Y + current.Height)
 		overlap = spanOverlap(current.X, current.Width, rect.X, rect.Width)
-		centreDistance = math.Abs(cx - x)
+		centerDistance = math.Abs(cx - x)
 	default:
 		return directionalFit{}, false
 	}
 	if gap < -weightTolerance {
 		return directionalFit{}, false
 	}
-	return directionalFit{overlaps: overlap > weightTolerance, gap: math.Max(gap, 0), centreDistance: centreDistance}, true
+	return directionalFit{
+		overlaps:       overlap > weightTolerance,
+		gap:            math.Max(gap, 0),
+		centerDistance: centerDistance,
+	}, true
 }
 
 func spanOverlap(start, length, otherStart, otherLength float64) float64 {

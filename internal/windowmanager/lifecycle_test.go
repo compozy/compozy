@@ -644,7 +644,7 @@ func TestTabsAndSplits(t *testing.T) {
 			}
 		})
 	}
-	t.Run("Should move focus within a stacked column instead of to a full-height neighbour", func(t *testing.T) {
+	t.Run("Should move focus within a stacked column instead of to a full-height neighbor", func(t *testing.T) {
 		t.Parallel()
 		// Split right, then split down on the right: "first" spans the height beside "top" over "bottom".
 		e := newTestEnvironment(t, DefaultConfig(), "workspace-a")
