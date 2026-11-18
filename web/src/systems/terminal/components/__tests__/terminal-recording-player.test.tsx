@@ -1,3 +1,4 @@
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
@@ -315,7 +316,7 @@ describe("TerminalRecordingPlayer", () => {
       // otherwise leave its rejection with nobody to catch it.
       clock.advanceTo(0);
       unmount();
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await nextTurn();
 
       expect(rejections).toEqual([]);
     } finally {

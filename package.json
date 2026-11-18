@@ -44,6 +44,7 @@
         "@commitlint/cli": "21.2.4",
         "@commitlint/config-conventional": "21.2.4",
         "@hey-api/openapi-ts": "0.99.0",
+        "@interfere/landmines": "0.0.0",
         "@octokit/rest": "22.0.1",
         "@types/node": "26.6.5",
         "@typescript/native": "npm:typescript@7.0.2",
@@ -84,6 +85,7 @@
     "patchedDependencies": {
         "@assistant-ui/core@0.3.31": "patches/@assistant-ui%2Fcore@0.3.31.patch",
         "@hey-api/openapi-ts@0.99.0": "patches/@hey-api%2Fopenapi-ts@0.99.0.patch",
-        "swr@2.5.1": "patches/swr@2.5.1.patch"
+        "swr@2.5.1": "patches/swr@2.5.1.patch",
+        "@interfere/landmines@0.0.0": "patches/@interfere%2Flandmines@0.0.0.patch"
     }
 }

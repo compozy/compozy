@@ -70,7 +70,22 @@ export const modelCatalogAllModelsFixture: ProviderModelPayload[] = [
   }),
 ];
 
+const builtinSourceStatuses = ["claude", "codex"].map(providerId => ({
+  provider_id: providerId,
+  source_id: "builtin",
+  source_kind: "builtin",
+  priority: 1,
+  refresh_state: "ready",
+  row_count: modelCatalogAllModelsFixture.filter(row => row.provider_id === providerId).length,
+  stale: false,
+  last_refresh: "2026-04-17T18:00:00Z",
+  last_success: "2026-04-17T18:00:00Z",
+}));
+
 export const handlers: HttpHandler[] = [
+  compozyApiMock.get("/api/model-catalog/sources/status", () =>
+    HttpResponse.json({ sources: builtinSourceStatuses })
+  ),
   compozyApiMock.get("/api/model-catalog/models", () =>
     HttpResponse.json({ models: modelCatalogAllModelsFixture })
   ),

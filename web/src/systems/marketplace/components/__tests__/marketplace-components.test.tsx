@@ -544,17 +544,27 @@ describe("Marketplace page and cards", () => {
   it("Should carry a pending search draft into the selected kind instead of reverting it", async () => {
     const { router } = setup();
     await screen.findByTestId("marketplace-page");
-    fireEvent.change(screen.getByRole("searchbox", { name: "Search extensions" }), {
-      target: { value: "sentry" },
-    });
-    await userEvent.click(screen.getByTestId("marketplace-kind-mcps"));
-    await waitFor(() =>
-      expect(router.state.location.search).toEqual({ kind: "mcps", q: "sentry" })
-    );
-    await new Promise(resolve => setTimeout(resolve, 300));
-    expect(router.state.location.search).toEqual({ kind: "mcps", q: "sentry" });
-    expect(screen.getByRole("searchbox", { name: "Search MCP servers" })).toHaveValue("sentry");
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(screen.getByRole("searchbox", { name: "Search extensions" }), {
+        target: { value: "sentry" },
+      });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const clicked = user.click(screen.getByTestId("marketplace-kind-mcps"));
+      // Flush Testing Library's post-event zero-delay task under Vitest's clock.
+      await vi.advanceTimersByTimeAsync(1);
+      await clicked;
+      await vi.waitFor(() =>
+        expect(router.state.location.search).toEqual({ kind: "mcps", q: "sentry" })
+      );
+      await act(async () => vi.advanceTimersByTimeAsync(300));
+      expect(router.state.location.search).toEqual({ kind: "mcps", q: "sentry" });
+      expect(screen.getByRole("searchbox", { name: "Search MCP servers" })).toHaveValue("sentry");
+    } finally {
+      vi.useRealTimers();
+    }
   });
+
   it("Should offer the daemon restart in the MCPs view when a saved change needs one", async () => {
     server.use(
       http.get("*/api/status", () =>

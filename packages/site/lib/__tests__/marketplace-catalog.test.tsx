@@ -467,7 +467,6 @@ describe("marketplace rendering boundary", () => {
 
   // Invariant: catalog search filters current entries and recovers from an empty result.
   // Owner: public catalog browser. Canonical suite: marketplace-catalog.test.tsx.
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- Full-catalog accessible-name queries are slow in jsdom under CI contention.
   it("Should filter the current catalog and restore browsing when search is cleared", () => {
     const { onCategory } = renderBrowser();
     const search = screen.getByRole("searchbox", { name: "Search the catalog" });
@@ -489,7 +488,7 @@ describe("marketplace rendering boundary", () => {
     );
     fireEvent.click(within(nav).getByRole("button", { name: /Data & Analytics/ }));
     expect(onCategory).toHaveBeenCalledWith("data");
-  }, 15_000);
+  });
 
   // Invariant: the rail count of a category equals the entries its view lists once fully loaded.
   it("Should list every entry of a category with the count the rail shows", () => {

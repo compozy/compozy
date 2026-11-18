@@ -37,14 +37,13 @@ function SheetExample({
 }
 
 describe("Sheet", () => {
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- The real Base UI portal mounts and settles before waitFor observes content; retain its existing lifecycle deadline.
   it("Should open and render the configured side attribute", async () => {
     render(<SheetExample side="left" />);
     fireEvent.click(screen.getByRole("button", { name: "Open sheet" }));
     await waitFor(() => expect(screen.getByText("Configure agent")).toBeInTheDocument());
     const popup = screen.getByRole("dialog");
     expect(popup).toHaveAttribute("data-side", "left");
-  }, 15_000);
+  });
 
   it("Should close on Escape", async () => {
     const user = userEvent.setup();

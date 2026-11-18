@@ -19,6 +19,7 @@ import { sessionKeys } from "../../lib/query-keys";
 import type { SessionCatalogPageResponse, SessionPayload } from "../../types";
 import { useSessionFolders } from "../use-session-folders";
 import { useWorkspaceLayout } from "../use-workspace-layout";
+import { createDeferred } from "@/test/event-recorder";
 
 const folder = {
   id: "sfold-a",
@@ -227,30 +228,37 @@ describe("useSessionFolders", () => {
   it("Should send rapid layout writes one at a time in action order", async () => {
     const { result, writes } = setup(200);
     await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
-    let releaseFirst: (response: Response) => void = () => undefined;
+    const firstResponse = createDeferred<Response>();
+    const firstStarted = createDeferred<void>();
+    const secondStarted = createDeferred<void>();
     const fetchMock = vi.mocked(globalThis.fetch);
     const settled = fetchMock.getMockImplementation()!;
     fetchMock.mockImplementation(async input => {
       const request = input as Request;
       if (request.method !== "GET" && writes.length === 0) {
         writes.push(request);
-        return new Promise<Response>(resolve => {
-          releaseFirst = resolve;
-        });
+        firstStarted.resolve();
+        return firstResponse.promise;
       }
-      return settled(input);
+      const response = settled(input);
+      if (request.method !== "GET") secondStarted.resolve();
+      return response;
     });
 
     act(() => {
       result.current.layout?.reorderFolders(["sfold-a"]);
       result.current.layout?.reorderSessions(null, ["b", "a"]);
     });
-    await waitFor(() => expect(writes).toHaveLength(1));
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await firstStarted.promise;
+    expect(writes).toHaveLength(1);
+    await act(async () => {});
     expect(writes).toHaveLength(1);
 
-    releaseFirst(json({ folders: [folder] }));
-    await waitFor(() => expect(writes).toHaveLength(2));
+    await act(async () => {
+      firstResponse.resolve(json({ folders: [folder] }));
+      await secondStarted.promise;
+    });
+    expect(writes).toHaveLength(2);
     expect(new URL(writes[0]!.url).pathname).toBe("/api/workspaces/ws/session-order/folders");
     expect(new URL(writes[1]!.url).pathname).toBe("/api/workspaces/ws/session-order/sessions");
   });

@@ -1,21 +1,21 @@
-import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { tmpdir } from "node:os";
-import readline from "node:readline";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { publicProvideFixtures, validateProvideConformance } from "../testing/conformance.js";
 
-let tempDirs: string[] = [];
+import { withExtensionProcess, type RpcMessage } from "./stdio-integration-harness.js";
+
 const sourceDir = resolve(__dirname, "..");
 const packageDir = resolve(sourceDir, "..");
 const workspaceRoot = resolve(packageDir, "../..");
 const tscBin = join(workspaceRoot, "node_modules/.bin/tsc");
 const buildTimeoutMs = 120_000;
-const integrationTimeoutMs = 180_000;
-const messageTimeoutMs = 5_000;
+// Leave room for all per-message deadlines and subprocess teardown.
+const exchangeTimeoutMs = 35_000;
+const sdkEntry = resolve(packageDir, "dist/esm/index.js");
 
 async function newestMtimeMs(path: string): Promise<number> {
   const entry = await stat(path);
@@ -94,194 +94,10 @@ async function ensureBuiltSDK(): Promise<void> {
   await buildSDK();
 }
 
-interface ProcessDiagnostics {
-  child: ChildProcessWithoutNullStreams;
-  label: string;
-  stderrLines?: string[];
-  timeoutMs?: number;
-}
-
-function formatDiagnostics({ child, label, stderrLines = [] }: ProcessDiagnostics): string {
-  const exitDetail =
-    child.exitCode === null && child.signalCode === null
-      ? "still running"
-      : `exit=${child.exitCode ?? "null"} signal=${child.signalCode ?? "null"}`;
-  const stderrTail = stderrLines.slice(-20).join("\n");
-  return [
-    `while waiting for ${label}`,
-    `child ${exitDetail}`,
-    stderrTail ? `stderr:\n${stderrTail}` : "stderr: <empty>",
-  ].join("; ");
-}
-
-interface LineWaiter {
-  accept: (line: string) => void;
-}
-
-class BufferedMessageReader {
-  private readonly queuedLines: string[] = [];
-  private readonly waiters: LineWaiter[] = [];
-  private closed = false;
-
-  public constructor(private readonly rl: readline.Interface) {
-    this.rl.on("line", line => {
-      const waiter = this.waiters.shift();
-      if (waiter) {
-        waiter.accept(line);
-        return;
-      }
-      this.queuedLines.push(line);
-    });
-    this.rl.on("close", () => {
-      this.closed = true;
-    });
-  }
-
-  public async next(diagnostics: ProcessDiagnostics): Promise<Record<string, unknown>> {
-    const line = await this.nextLine(diagnostics);
-    try {
-      return JSON.parse(line) as Record<string, unknown>;
-    } catch (error) {
-      throw error instanceof Error
-        ? new Error(`invalid JSON ${formatDiagnostics(diagnostics)}: ${error.message}`)
-        : new Error(`invalid JSON ${formatDiagnostics(diagnostics)}: ${String(error)}`);
-    }
-  }
-
-  private async nextLine(diagnostics: ProcessDiagnostics): Promise<string> {
-    const queued = this.queuedLines.shift();
-    if (queued !== undefined) {
-      return queued;
-    }
-    if (this.closed) {
-      throw new Error(`stdout closed ${formatDiagnostics(diagnostics)}`);
-    }
-
-    return await new Promise((resolve, reject) => {
-      const waiter: LineWaiter = {
-        accept: line => {
-          cleanup();
-          resolve(line);
-        },
-      };
-      const timeout = setTimeout(() => {
-        cleanup();
-        reject(new Error(`timed out ${formatDiagnostics(diagnostics)}`));
-      }, diagnostics.timeoutMs ?? messageTimeoutMs);
-
-      const cleanup = (): void => {
-        clearTimeout(timeout);
-        const waiterIndex = this.waiters.indexOf(waiter);
-        if (waiterIndex !== -1) {
-          this.waiters.splice(waiterIndex, 1);
-        }
-        this.rl.off("close", onClose);
-        diagnostics.child.off("exit", onExit);
-        diagnostics.child.off("error", onError);
-      };
-      const onClose = (): void => {
-        cleanup();
-        reject(new Error(`stdout closed ${formatDiagnostics(diagnostics)}`));
-      };
-      const onExit = (): void => {
-        cleanup();
-        reject(new Error(`child exited ${formatDiagnostics(diagnostics)}`));
-      };
-      const onError = (error: Error): void => {
-        cleanup();
-        reject(
-          new Error(`child process error ${formatDiagnostics(diagnostics)}: ${error.message}`)
-        );
-      };
-
-      this.waiters.push(waiter);
-      this.rl.once("close", onClose);
-      diagnostics.child.once("exit", onExit);
-      diagnostics.child.once("error", onError);
-    });
-  }
-}
-
-async function waitForStderrLine(
-  rl: readline.Interface,
-  diagnostics: ProcessDiagnostics,
-  pattern: RegExp
-): Promise<void> {
-  if ((diagnostics.stderrLines ?? []).some(line => pattern.test(line))) {
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error(`timed out ${formatDiagnostics(diagnostics)}`));
-    }, diagnostics.timeoutMs ?? messageTimeoutMs);
-
-    const cleanup = (): void => {
-      clearTimeout(timeout);
-      rl.off("line", onLine);
-      rl.off("close", onClose);
-      diagnostics.child.off("exit", onExit);
-      diagnostics.child.off("error", onError);
-    };
-    const onLine = (line: string): void => {
-      if (!pattern.test(line)) {
-        return;
-      }
-      cleanup();
-      resolve();
-    };
-    const onClose = (): void => {
-      cleanup();
-      reject(new Error(`stderr closed ${formatDiagnostics(diagnostics)}`));
-    };
-    const onExit = (): void => {
-      cleanup();
-      reject(new Error(`child exited ${formatDiagnostics(diagnostics)}`));
-    };
-    const onError = (error: Error): void => {
-      cleanup();
-      reject(new Error(`child process error ${formatDiagnostics(diagnostics)}: ${error.message}`));
-    };
-
-    rl.on("line", onLine);
-    rl.once("close", onClose);
-    diagnostics.child.once("exit", onExit);
-    diagnostics.child.once("error", onError);
-  });
-}
-
-async function terminateChild(
-  child: ChildProcessWithoutNullStreams,
-  interfaces: readline.Interface[]
-): Promise<void> {
-  for (const rl of interfaces) {
-    rl.close();
-  }
-  if (child.exitCode !== null || child.signalCode !== null) {
-    return;
-  }
-
-  const exited = new Promise<void>(resolve => {
-    child.once("exit", () => resolve());
-  });
-  child.kill();
-  await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 1_000))]);
-  if (child.exitCode !== null || child.signalCode !== null) {
-    return;
-  }
-  child.kill("SIGKILL");
-  await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 1_000))]);
-}
-
 describe("SDK integration", () => {
   beforeAll(async () => {
     await ensureBuiltSDK();
   }, buildTimeoutMs);
-
-  afterAll(async () => {
-    await Promise.all(tempDirs.map(async dir => await rm(dir, { force: true, recursive: true })));
-  });
 
   it("runs generated conformance fixtures for every public provide", () => {
     const fixtures = publicProvideFixtures();
@@ -310,15 +126,16 @@ describe("SDK integration", () => {
     );
   });
 
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real subprocess startup, JSON-RPC exchanges and shutdown retain the bounded 180s integration deadline; responses synchronize through stdio events.
-  it(
-    "builds an SDK-based extension and serves real JSON-RPC over stdio",
-    async () => {
-      const sdkEntry = resolve(packageDir, "dist/esm/index.js");
-      const tempDir = await mkdtemp(join(tmpdir(), "compozy-sdk-integration-"));
-      tempDirs.push(tempDir);
-      await writeFile(
-        join(tempDir, "index.mjs"),
+  describe("model source extension", () => {
+    let exchange: {
+      initializeResponse: RpcMessage;
+      sessionsListRequest: RpcMessage;
+      modelsResponse: RpcMessage;
+      healthResponse: RpcMessage;
+    };
+
+    beforeAll(async () => {
+      exchange = await withExtensionProcess(
         `import { Extension } from ${JSON.stringify(sdkEntry)};
        const extension = new Extension(
          {
@@ -334,24 +151,9 @@ describe("SDK integration", () => {
          const sessions = await host.sessions.list();
          console.error("ready sessions", sessions.length);
        });
-       void extension.start();`
-      );
-
-      const child = spawn(process.execPath, [join(tempDir, "index.mjs")], {
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-      const stdoutInterface = readline.createInterface({ input: child.stdout });
-      const stdout = new BufferedMessageReader(stdoutInterface);
-      const stderr = readline.createInterface({ input: child.stderr });
-      const stderrLines: string[] = [];
-      stderr.on("line", line => {
-        stderrLines.push(line);
-      });
-
-      try {
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
+       void extension.start();`,
+        async ({ send, read, waitForStderr }) => {
+          send({
             id: 1,
             method: "initialize",
             params: {
@@ -377,28 +179,12 @@ describe("SDK integration", () => {
                 default_hook_timeout_ms: 5000,
               },
             },
-          })}\n`
-        );
+          });
 
-        const diagnostics = { child, label: "initialize response", stderrLines };
-        const initializeResponse = await stdout.next(diagnostics);
-        expect(initializeResponse).toMatchObject({
-          id: 1,
-          result: expect.objectContaining({
-            protocol_version: "1",
-          }),
-        });
+          const initializeResponse = await read("initialize response");
 
-        const sessionsListRequest = await stdout.next({
-          ...diagnostics,
-          label: "sessions/list request",
-        });
-        expect(sessionsListRequest).toMatchObject({
-          method: "sessions/list",
-        });
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
+          const sessionsListRequest = await read("sessions/list request");
+          send({
             id: sessionsListRequest.id,
             result: [
               {
@@ -408,66 +194,61 @@ describe("SDK integration", () => {
                 created_at: "2026-04-10T12:00:00.000Z",
               },
             ],
-          })}\n`
-        );
+          });
 
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
+          send({
             id: 2,
             method: "models/list",
             params: {
               source: "alpha",
             },
-          })}\n`
-        );
-        const modelsResponse = await stdout.next({
-          ...diagnostics,
-          label: "models/list response",
-        });
-        expect(modelsResponse).toMatchObject({
-          id: 2,
-          result: { models: ["alpha"] },
-        });
+          });
+          const modelsResponse = await read("models/list response");
 
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
+          send({
             id: 3,
             method: "health_check",
             params: {},
-          })}\n`
-        );
-        const healthResponse = await stdout.next({
-          ...diagnostics,
-          label: "health_check response",
-        });
-        expect(healthResponse).toMatchObject({
-          id: 3,
-          result: { healthy: true },
-        });
+          });
+          const healthResponse = await read("health_check response");
 
-        await waitForStderrLine(
-          stderr,
-          { ...diagnostics, label: "ready callback stderr" },
-          /ready sessions.*1/
-        );
-      } finally {
-        await terminateChild(child, [stdoutInterface, stderr]);
-      }
-    },
-    integrationTimeoutMs
-  );
+          await waitForStderr("ready callback stderr", /ready sessions.*1/);
+          return { initializeResponse, sessionsListRequest, modelsResponse, healthResponse };
+        }
+      );
+    }, exchangeTimeoutMs);
 
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real extension subprocess discovery, tool calls and shutdown retain the bounded 180s integration deadline; responses synchronize through stdio events.
-  it(
-    "serves extension.tool descriptors and calls over real stdio",
-    async () => {
-      const sdkEntry = resolve(packageDir, "dist/esm/index.js");
-      const tempDir = await mkdtemp(join(tmpdir(), "compozy-sdk-tool-integration-"));
-      tempDirs.push(tempDir);
-      await writeFile(
-        join(tempDir, "index.mjs"),
+    it("builds an SDK-based extension and serves real JSON-RPC over stdio", () => {
+      const { initializeResponse, sessionsListRequest, modelsResponse, healthResponse } = exchange;
+      expect(initializeResponse).toMatchObject({
+        id: 1,
+        result: expect.objectContaining({
+          protocol_version: "1",
+        }),
+      });
+      expect(sessionsListRequest).toMatchObject({
+        method: "sessions/list",
+      });
+      expect(modelsResponse).toMatchObject({
+        id: 2,
+        result: { models: ["alpha"] },
+      });
+      expect(healthResponse).toMatchObject({
+        id: 3,
+        result: { healthy: true },
+      });
+    });
+  });
+
+  describe("tool provider extension", () => {
+    let exchange: {
+      initializeResponse: RpcMessage;
+      provideToolsResponse: RpcMessage;
+      toolCallResponse: RpcMessage;
+    };
+
+    beforeAll(async () => {
+      exchange = await withExtensionProcess(
         `import { Extension } from ${JSON.stringify(sdkEntry)};
        const extension = new Extension({ name: "tool-ext", version: "0.1.0" });
        extension.tool("search", {
@@ -483,25 +264,9 @@ describe("SDK integration", () => {
          bytes: 0,
          duration_ms: 0
        }));
-       void extension.start();`
-      );
-
-      const child = spawn(process.execPath, [join(tempDir, "index.mjs")], {
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-      const stdoutInterface = readline.createInterface({ input: child.stdout });
-      const stdout = new BufferedMessageReader(stdoutInterface);
-      const stderr = readline.createInterface({ input: child.stderr });
-      const stderrLines: string[] = [];
-      stderr.on("line", line => {
-        stderrLines.push(line);
-      });
-
-      try {
-        const diagnostics = { child, label: "tool initialize response", stderrLines };
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
+       void extension.start();`,
+        async ({ send, read }) => {
+          send({
             id: 1,
             method: "initialize",
             params: {
@@ -527,44 +292,18 @@ describe("SDK integration", () => {
                 default_hook_timeout_ms: 5000,
               },
             },
-          })}\n`
-        );
+          });
 
-        await expect(stdout.next(diagnostics)).resolves.toMatchObject({
-          id: 1,
-          result: {
-            accepted_capabilities: { provides: ["tool.provider"] },
-            implemented_methods: expect.arrayContaining(["provide_tools", "tools/call"]),
-          },
-        });
+          const initializeResponse = await read("tool initialize response");
 
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
+          send({
             id: 2,
             method: "provide_tools",
             params: {},
-          })}\n`
-        );
-        await expect(
-          stdout.next({ ...diagnostics, label: "provide_tools response" })
-        ).resolves.toMatchObject({
-          id: 2,
-          result: {
-            tools: [
-              {
-                id: "ext__tool_ext__search",
-                handler: "search",
-                read_only: true,
-                risk: "read",
-              },
-            ],
-          },
-        });
+          });
+          const provideToolsResponse = await read("provide_tools response");
 
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
+          send({
             id: 3,
             method: "tools/call",
             params: {
@@ -573,25 +312,46 @@ describe("SDK integration", () => {
               session_id: "session-1",
               input: { query: "alpha" },
             },
-          })}\n`
-        );
-        await expect(
-          stdout.next({ ...diagnostics, label: "tools/call response" })
-        ).resolves.toMatchObject({
-          id: 3,
-          result: {
-            result: {
-              content: [{ type: "text", text: "result alpha" }],
-              truncated: false,
-              bytes: 0,
-              duration_ms: 0,
+          });
+          const toolCallResponse = await read("tools/call response");
+          return { initializeResponse, provideToolsResponse, toolCallResponse };
+        }
+      );
+    }, exchangeTimeoutMs);
+
+    it("serves extension.tool descriptors and calls over real stdio", () => {
+      const { initializeResponse, provideToolsResponse, toolCallResponse } = exchange;
+      expect(initializeResponse).toMatchObject({
+        id: 1,
+        result: {
+          accepted_capabilities: { provides: ["tool.provider"] },
+          implemented_methods: expect.arrayContaining(["provide_tools", "tools/call"]),
+        },
+      });
+      expect(provideToolsResponse).toMatchObject({
+        id: 2,
+        result: {
+          tools: [
+            {
+              id: "ext__tool_ext__search",
+              handler: "search",
+              read_only: true,
+              risk: "read",
             },
+          ],
+        },
+      });
+      expect(toolCallResponse).toMatchObject({
+        id: 3,
+        result: {
+          result: {
+            content: [{ type: "text", text: "result alpha" }],
+            truncated: false,
+            bytes: 0,
+            duration_ms: 0,
           },
-        });
-      } finally {
-        await terminateChild(child, [stdoutInterface, stderr]);
-      }
-    },
-    integrationTimeoutMs
-  );
+        },
+      });
+    });
+  });
 });

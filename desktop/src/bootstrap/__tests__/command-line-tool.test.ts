@@ -231,11 +231,14 @@ describe("desktop command installation", () => {
   it("Should acknowledge a menu request during the automatic check", async () => {
     const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
     const pending = Promise.withResolvers<commandLineTool.CommandLineToolState>();
-    const ensure = vi
-      .spyOn(commandLineTool, "ensureCommandLineTool")
-      .mockReturnValue(pending.promise);
+    const started = Promise.withResolvers<void>();
+    const ensured = Promise.withResolvers<void>();
+    const ensure = vi.spyOn(commandLineTool, "ensureCommandLineTool").mockImplementation(() => {
+      started.resolve();
+      return pending.promise;
+    });
     const home = await mkdtemp(join(tmpdir(), "compozy-desktop-pending-"));
-    const logger = { info: vi.fn(), error: vi.fn() };
+    const logger = { info: vi.fn(() => ensured.resolve()), error: vi.fn() };
     try {
       Object.defineProperty(process, "platform", { value: "darwin" });
       vi.stubEnv("COMPOZY_HOME", "");
@@ -246,14 +249,16 @@ describe("desktop command installation", () => {
         false
       )!;
       controller.firstRun();
-      await vi.waitFor(() => expect(ensure).toHaveBeenCalledOnce());
+      await started.promise;
+      expect(ensure).toHaveBeenCalledOnce();
       controller.install();
       expect(dialog.showMessageBox).toHaveBeenCalledWith(
         expect.objectContaining({ message: "Command installation is already running" })
       );
       expect(ensure).toHaveBeenCalledOnce();
       pending.resolve({ status: "no_runtime" });
-      await vi.waitFor(() => expect(logger.info).toHaveBeenCalled());
+      await ensured.promise;
+      expect(logger.info).toHaveBeenCalled();
     } finally {
       pending.resolve({ status: "no_runtime" });
       Object.defineProperty(process, "platform", platform);
