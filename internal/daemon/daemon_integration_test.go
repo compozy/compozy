@@ -22,6 +22,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
+	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	shellquote "github.com/kballard/go-shellquote"
 
@@ -1881,6 +1882,265 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 				t.Fatalf("log output = %q, want skipped package resources entry with %q", logBuffer.String(), want)
 			}
 		}
+	})
+}
+
+// builtinTombstoneOperator derives the operator actor that permanent removal and removal require.
+func builtinTombstoneOperator(t *testing.T) taskpkg.ActorContext {
+	t.Helper()
+	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "extension remove")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	return actor
+}
+
+// bootBuiltinTombstoneDaemon boots one daemon generation on homePaths. A restart is a fresh New+boot
+// on the same home, the same way the restart cases above do it.
+func bootBuiltinTombstoneDaemon(
+	t *testing.T, homePaths compozyconfig.HomePaths, cfg *compozyconfig.Config,
+) *Daemon {
+	t.Helper()
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	return d
+}
+
+// builtinTombstoneRegistry opens a registry view over the extension database of a live daemon.
+func builtinTombstoneRegistry(t *testing.T, d *Daemon) *extensionpkg.Registry {
+	t.Helper()
+	dbSource, ok := d.registry.(extensionDBSource)
+	if !ok || dbSource.DB() == nil {
+		t.Fatal("daemon registry does not expose the extension database")
+	}
+	return extensionpkg.NewRegistry(dbSource.DB(), extensionpkg.WithRegistryReadDB(dbSource.ReadDB()))
+}
+
+// builtinTombstoneService builds the extension service over a live daemon's registry and home.
+func builtinTombstoneService(t *testing.T, d *Daemon, cfg *compozyconfig.Config) *daemonExtensionService {
+	t.Helper()
+	return newDaemonExtensionService(&daemonExtensionServiceDeps{
+		Registry:  builtinTombstoneRegistry(t, d),
+		Profiles:  d.profiles,
+		HomePaths: d.homePaths,
+		Logger:    discardLogger(),
+	}, withDaemonExtensionMarketplace(cfg.Extensions, nil)).(*daemonExtensionService)
+}
+
+// requireBuiltinTombstone asserts the durable tombstone state for name.
+func requireBuiltinTombstone(t *testing.T, registry *extensionpkg.Registry, name string, want bool) {
+	t.Helper()
+	got, err := registry.Tombstoned(testutil.Context(t), name)
+	if err != nil || got != want {
+		t.Fatalf("Tombstoned(%q) = %v, %v; want %v, nil", name, got, err, want)
+	}
+}
+
+// requireBuiltinEnrolled asserts a bundled row, its managed directory, and default-profile enablement.
+func requireBuiltinEnrolled(
+	t *testing.T, homePaths compozyconfig.HomePaths, registry *extensionpkg.Registry, name string,
+) {
+	t.Helper()
+	info, err := registry.Get(name)
+	if err != nil || info.Source != extensionpkg.SourceBundled {
+		t.Fatalf("Get(%q) = %#v, %v; want a bundled row", name, info, err)
+	}
+	if _, err := os.Stat(extensionpkg.ManagedInstallPath(homePaths, name)); err != nil {
+		t.Fatalf("os.Stat(managed install of %q) error = %v; want the enrolled directory", name, err)
+	}
+	enabled, err := registry.IsEnabledForProfile(name, store.DefaultProfileID)
+	if err != nil || !enabled {
+		t.Fatalf("IsEnabledForProfile(%q) = %v, %v; want enabled", name, enabled, err)
+	}
+}
+
+// requireBuiltinAbsentAtBoot asserts no row, no managed directory, and no tool trust for name.
+func requireBuiltinAbsentAtBoot(
+	t *testing.T, homePaths compozyconfig.HomePaths, registry *extensionpkg.Registry, name string,
+) {
+	t.Helper()
+	if _, err := registry.Get(name); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		t.Fatalf("Get(%q) error = %v, want ErrExtensionNotFound", name, err)
+	}
+	if _, err := os.Stat(extensionpkg.ManagedInstallPath(homePaths, name)); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("os.Stat(managed install of %q) error = %v, want not exist", name, err)
+	}
+	trusted, err := registry.EnabledBundledNames()
+	if err != nil || slices.Contains(trusted, name) {
+		t.Fatalf("EnabledBundledNames() = %v, %v; want %q without tool trust", trusted, err, name)
+	}
+}
+
+// requireOperatorCopy asserts the row under name is the operator's non-bundled install at version.
+func requireOperatorCopy(t *testing.T, registry *extensionpkg.Registry, name string, version string) {
+	t.Helper()
+	info, err := registry.Get(name)
+	if err != nil || info.Source == extensionpkg.SourceBundled || info.Version != version {
+		t.Fatalf("Get(%q) = %#v, %v; want the operator copy at version %s", name, info, err, version)
+	}
+}
+
+// Invariant (IT-001, IT-003, IT-004, IT-006): permanent removal survives restart and gates only its own
+// name, non-permanent removal returns at boot, and an operator install under a tombstoned name is kept
+// (Q2 a). Each case owns a COMPOZY_HOME through integrationHomePaths. IT-006 lives here, not in
+// extensions_test.go, because its restart steps need a real boot.
+func TestBootBuiltinTombstoneIntegration(t *testing.T) {
+	// not parallel: integrationHomePaths isolates process environment with t.Setenv.
+	t.Run("Should keep a permanently removed built-in absent across restart [IT-001]", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		first := bootBuiltinTombstoneDaemon(t, homePaths, &cfg)
+		requireBuiltinEnrolled(t, homePaths, builtinTombstoneRegistry(t, first), "spec-cycle")
+		if _, err := builtinTombstoneService(t, first, &cfg).RemovePermanently(
+			testutil.Context(t), "spec-cycle", builtinTombstoneOperator(t),
+		); err != nil {
+			t.Fatalf("RemovePermanently(spec-cycle) error = %v", err)
+		}
+		if err := first.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("first Shutdown() error = %v", err)
+		}
+
+		second := bootBuiltinTombstoneDaemon(t, homePaths, &cfg)
+		t.Cleanup(func() {
+			if err := second.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("second Shutdown() error = %v", err)
+			}
+		})
+		registry := builtinTombstoneRegistry(t, second)
+		requireBuiltinAbsentAtBoot(t, homePaths, registry, "spec-cycle")
+		requireBuiltinTombstone(t, registry, "spec-cycle", true)
+	})
+
+	t.Run("Should re-enroll a non-permanently removed built-in at restart [IT-003]", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		first := bootBuiltinTombstoneDaemon(t, homePaths, &cfg)
+		requireBuiltinEnrolled(t, homePaths, builtinTombstoneRegistry(t, first), "spec-cycle")
+		if _, err := builtinTombstoneService(t, first, &cfg).Remove(
+			testutil.Context(t), "spec-cycle", builtinTombstoneOperator(t),
+		); err != nil {
+			t.Fatalf("Remove(spec-cycle) error = %v", err)
+		}
+		if _, err := builtinTombstoneRegistry(t, first).Get("spec-cycle"); !errors.Is(
+			err, extensionpkg.ErrExtensionNotFound,
+		) {
+			t.Fatalf("Get(spec-cycle) after Remove error = %v, want ErrExtensionNotFound", err)
+		}
+		if err := first.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("first Shutdown() error = %v", err)
+		}
+
+		second := bootBuiltinTombstoneDaemon(t, homePaths, &cfg)
+		t.Cleanup(func() {
+			if err := second.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("second Shutdown() error = %v", err)
+			}
+		})
+		registry := builtinTombstoneRegistry(t, second)
+		requireBuiltinEnrolled(t, homePaths, registry, "spec-cycle")
+		requireBuiltinTombstone(t, registry, "spec-cycle", false)
+	})
+
+	t.Run("Should keep the other built-ins enrolled while spec-cycle is tombstoned [IT-004]", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		first := bootBuiltinTombstoneDaemon(t, homePaths, &cfg)
+		if _, err := builtinTombstoneService(t, first, &cfg).RemovePermanently(
+			testutil.Context(t), "spec-cycle", builtinTombstoneOperator(t),
+		); err != nil {
+			t.Fatalf("RemovePermanently(spec-cycle) error = %v", err)
+		}
+		if err := first.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("first Shutdown() error = %v", err)
+		}
+
+		second := bootBuiltinTombstoneDaemon(t, homePaths, &cfg)
+		t.Cleanup(func() {
+			if err := second.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("second Shutdown() error = %v", err)
+			}
+		})
+		registry := builtinTombstoneRegistry(t, second)
+		requireBuiltinTombstone(t, registry, "spec-cycle", true)
+		for _, name := range []string{"open-design", "tailscale", "forge-github"} {
+			requireBuiltinEnrolled(t, homePaths, registry, name)
+		}
+	})
+
+	t.Run("Should keep an operator install under a tombstoned name across restart [IT-006]", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		operator := builtinTombstoneOperator(t)
+		first := bootBuiltinTombstoneDaemon(t, homePaths, &cfg)
+		if _, err := builtinTombstoneService(t, first, &cfg).RemovePermanently(
+			testutil.Context(t), "spec-cycle", operator,
+		); err != nil {
+			t.Fatalf("RemovePermanently(spec-cycle) error = %v", err)
+		}
+
+		// Step 1 (Q2 a): the explicit local install succeeds and the tombstone stays.
+		fixtureDir := writeNativeLocalExtensionFixture(t, "spec-cycle", "9.9.9")
+		if _, err := builtinTombstoneService(t, first, &cfg).Install(
+			testutil.Context(t),
+			contract.InstallExtensionRequest{
+				Source: contract.InstallExtensionSourceLocalPath, Ref: fixtureDir, AllowUnverified: true,
+			},
+			operator,
+		); err != nil {
+			t.Fatalf("Install(local spec-cycle) error = %v", err)
+		}
+		requireOperatorCopy(t, builtinTombstoneRegistry(t, first), "spec-cycle", "9.9.9")
+		requireBuiltinTombstone(t, builtinTombstoneRegistry(t, first), "spec-cycle", true)
+		if err := first.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("first Shutdown() error = %v", err)
+		}
+
+		// Step 2: restart keeps the installed row, and boot does not replace it with the bundled copy.
+		second := bootBuiltinTombstoneDaemon(t, homePaths, &cfg)
+		registry := builtinTombstoneRegistry(t, second)
+		requireOperatorCopy(t, registry, "spec-cycle", "9.9.9")
+		requireBuiltinTombstone(t, registry, "spec-cycle", true)
+		// Step 3: a non-permanent remove of the copy, then restart, leaves spec-cycle absent at boot.
+		if _, err := builtinTombstoneService(t, second, &cfg).Remove(
+			testutil.Context(t), "spec-cycle", operator,
+		); err != nil {
+			t.Fatalf("Remove(operator copy) error = %v", err)
+		}
+		if err := second.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("second Shutdown() error = %v", err)
+		}
+
+		third := bootBuiltinTombstoneDaemon(t, homePaths, &cfg)
+		t.Cleanup(func() {
+			if err := third.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("third Shutdown() error = %v", err)
+			}
+		})
+		registry = builtinTombstoneRegistry(t, third)
+		requireBuiltinAbsentAtBoot(t, homePaths, registry, "spec-cycle")
+		requireBuiltinTombstone(t, registry, "spec-cycle", true)
 	})
 }
 

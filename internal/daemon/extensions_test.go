@@ -2901,6 +2901,19 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// Q4 a (IT-005): a tombstone on the successor gates only bundled enrollment, so the
+			// predecessor diagnostics must match the pre-tombstone output exactly.
+			if _, err := registry.Tombstone(t.Context(), "spec-cycle", "operator"); err != nil {
+				t.Fatal(err)
+			}
+			afterTombstone, err := service.SupersededBundledDiagnostics(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(items, afterTombstone) {
+				t.Fatalf("superseded diagnostics changed after tombstoning spec-cycle: before %v, after %v",
+					items, afterTombstone)
+			}
 			if test.want == "" {
 				if len(items) != 0 {
 					t.Fatalf("user-owned package diagnostics: %v", items)
