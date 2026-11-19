@@ -227,9 +227,11 @@ invalidates pending completion, and a stored token is never sent when the transp
 OAuth settings no longer match. A mismatched or pre-fingerprint token remains stored until explicit
 logout but status reports that login is required; begin a new authorization for the current definition.
 
-For refresh-capable clients, sign-in requests `offline_access` when the issuer advertises it.
-The issuer controls consent and whether it issues a refresh token. Tool discovery and execution
-try renewal in the final 10% of an access token's lifetime, up to 30 seconds before expiry,
+Sign-in adds `offline_access` alongside configured or resource-advertised scopes if the issuer
+advertises it and the selected client metadata or registration allows it. When neither side
+specifies resource scopes, the issuer's defaults apply. The issuer controls consent and whether
+it issues a refresh token. Tool discovery and execution try renewal in the final 10% of an
+access token's lifetime, up to 30 seconds before expiry,
 using the client bound to that target. Refresh needs no new login callback or replacement
 registration.
 For a client ID metadata document (CIMD), renewal uses the persisted document URL as the public
@@ -237,7 +239,8 @@ client ID and sends no client secret. CIMD registrations from earlier releases r
 way when their bindings still match and a refresh token is present.
 If the stored registration cannot renew, including an expired or unavailable client secret,
 status shows that the target needs reauthorization. Discovery makes no refresh request until the
-local credentials support renewal again. A bound access token remains usable until its expiry.
+local credentials support renewal again. A discovered replacement issuer receives no stored
+credential. The old refresh grant is removed and the bound access token remains usable until expiry.
 Refreshing or logging out an extension-owned MCP leaves manual MCP credentials unchanged.
 
 HTTP/UDS auth routes include `GET /api/settings/mcp-servers/{name}/auth/status`; it reads only the

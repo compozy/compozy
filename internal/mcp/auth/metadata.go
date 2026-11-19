@@ -3,11 +3,37 @@ package auth
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	sdkauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
+
+func (m Metadata) supportsOfflineAccess() bool {
+	return slices.Contains(m.ScopesSupported, offlineAccessScope) &&
+		(len(m.grantTypesSupported) == 0 || slices.Contains(m.grantTypesSupported, serviceRefreshTokenKey))
+}
+
+type discoveredProtectedResource struct {
+	*oauthex.ProtectedResourceMetadata
+	challengeScopes []string
+}
+
+func (r discoveredProtectedResource) loginScopes(configured []string, metadata Metadata) []string {
+	scopes := trimStrings(configured)
+	if len(scopes) != 0 || !metadata.supportsOfflineAccess() {
+		return scopes
+	}
+	if len(r.challengeScopes) != 0 {
+		return r.challengeScopes
+	}
+	return resourceOAuthScopes(r.ScopesSupported)
+}
+
+func resourceOAuthScopes(scopes []string) []string {
+	return slices.DeleteFunc(trimStrings(scopes), func(scope string) bool { return scope == offlineAccessScope })
+}
 
 func (s *Service) authServerMetadata(
 	ctx context.Context,

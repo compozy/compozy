@@ -26,13 +26,14 @@ func (s *Service) beginPreRegisteredOAuth(
 	if err != nil {
 		return LoginState{}, err
 	}
+	// A pre-registered client's grant permissions are known only to its issuer.
 	authorizationURL, scopes, err := authorizationURL(
 		metadata,
 		cfg,
 		redirectURL,
 		state,
 		pkce,
-		true,
+		false,
 	)
 	if err != nil {
 		return LoginState{}, err

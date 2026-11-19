@@ -159,11 +159,7 @@ func authorizationURL(
 	if len(scopes) == 0 {
 		scopes = strings.Fields(values.Get("scope"))
 	}
-	if refreshCapable && slices.Contains(metadata.ScopesSupported, offlineAccessScope) &&
-		(len(metadata.grantTypesSupported) == 0 || slices.Contains(metadata.grantTypesSupported, serviceRefreshTokenKey)) &&
-		!slices.Contains(scopes, offlineAccessScope) {
-		scopes = append(scopes, offlineAccessScope)
-	}
+	scopes = withOfflineAccess(scopes, metadata, refreshCapable)
 	if len(scopes) > 0 {
 		values.Set("scope", strings.Join(scopes, " "))
 	}
@@ -172,6 +168,14 @@ func authorizationURL(
 	}
 	parsed.RawQuery = values.Encode()
 	return parsed.String(), scopes, nil
+}
+
+func withOfflineAccess(scopes []string, metadata Metadata, refreshCapable bool) []string {
+	if len(scopes) > 0 && refreshCapable && metadata.supportsOfflineAccess() &&
+		!slices.Contains(scopes, offlineAccessScope) {
+		return append(scopes, offlineAccessScope)
+	}
+	return scopes
 }
 
 func authorizationCodeFromCallbackMetadata(callbackURL string, wantState string, metadata Metadata) (string, error) {

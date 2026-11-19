@@ -40,17 +40,19 @@ func (s *Service) beginHostedOAuth(
 	if err != nil {
 		return LoginState{}, err
 	}
+	metadata := metadataFromAuthServer(asm)
+	loginScopes := prm.loginScopes(cfg.Scopes, metadata)
 	client, err := s.resolveHostedRegistration(
 		ctx,
 		cfg,
 		resourceURL,
 		redirectURL,
 		asm,
+		loginScopes,
 	)
 	if err != nil {
 		return LoginState{}, err
 	}
-	metadata := metadataFromAuthServer(asm)
 	if !supportsS256(metadata.CodeChallengeMethodsSupported) {
 		return LoginState{}, errors.New("mcp auth: OAuth server must support S256 PKCE")
 	}
@@ -66,13 +68,17 @@ func (s *Service) beginHostedOAuth(
 	effectiveCfg.ClientID = client.id
 	effectiveCfg.ClientSecret = client.secret
 	effectiveCfg.TokenEndpointAuthMethod = client.authMethod
+	authorizationCfg := effectiveCfg
+	if client.allowOfflineAccess {
+		authorizationCfg.Scopes = loginScopes
+	}
 	authorizationURL, scopes, err := authorizationURL(
 		metadata,
-		effectiveCfg,
+		authorizationCfg,
 		redirectURL,
 		state,
 		pkce,
-		client.refreshCapable,
+		client.allowOfflineAccess,
 	)
 	if err != nil {
 		return LoginState{}, err
@@ -126,7 +132,7 @@ func (s *Service) hostedRefreshConfig(
 		return ServerConfig{}, Metadata{}, errRefreshRegistrationInvalid
 	}
 	if !issuersEqual(registration.Issuer, asm.Issuer) {
-		return ServerConfig{}, Metadata{}, fmt.Errorf(
+		return ServerConfig{}, metadataFromAuthServer(asm), fmt.Errorf(
 			"mcp auth: stored registration is no longer valid for the discovered issuer: %w",
 			ErrTokenBindingInvalid,
 		)
@@ -166,15 +172,19 @@ func (s *Service) protectedResourceMetadata(
 	ctx context.Context,
 	cfg ServerConfig,
 	resourceURL string,
-) (*oauthex.ProtectedResourceMetadata, error) {
+) (discoveredProtectedResource, error) {
 	candidates := protectedResourceMetadataURLs(cfg.PRMURL, resourceURL)
 	probeURL := resourceURL
 	if cfg.pluginHeaderOAuth {
 		probeURL = cfg.RemoteURL
 	}
-	advertisedURL := s.protectedResourceMetadataURLFromProbe(ctx, cfg, probeURL, http.MethodGet)
+	advertisedURL, challengeScopes := s.probeProtectedResource(ctx, cfg, probeURL, http.MethodGet)
 	if advertisedURL == "" && cfg.pluginHeaderOAuth {
-		advertisedURL = s.protectedResourceMetadataURLFromProbe(ctx, cfg, probeURL, http.MethodPost)
+		var postScopes []string
+		advertisedURL, postScopes = s.probeProtectedResource(ctx, cfg, probeURL, http.MethodPost)
+		if len(challengeScopes) == 0 {
+			challengeScopes = postScopes
+		}
 	}
 	if advertisedURL != "" {
 		candidates = append([]protectedResourceMetadataCandidate{{
@@ -189,18 +199,18 @@ func (s *Service) protectedResourceMetadata(
 			s.sdkHTTPClientFor(cfg),
 		)
 		if err == nil && prm != nil {
-			return prm, nil
+			return discoveredProtectedResource{ProtectedResourceMetadata: prm, challengeScopes: challengeScopes}, nil
 		}
 	}
-	return nil, errors.New("mcp auth: protected resource metadata discovery failed")
+	return discoveredProtectedResource{}, errors.New("mcp auth: protected resource metadata discovery failed")
 }
 
-func (s *Service) protectedResourceMetadataURLFromProbe(
+func (s *Service) probeProtectedResource(
 	ctx context.Context,
 	cfg ServerConfig,
 	resourceURL string,
 	method string,
-) string {
+) (string, []string) {
 	var body io.Reader = http.NoBody
 	if method == http.MethodPost {
 		body = strings.NewReader(
@@ -210,7 +220,7 @@ func (s *Service) protectedResourceMetadataURLFromProbe(
 	}
 	req, err := http.NewRequestWithContext(ctx, method, resourceURL, body)
 	if err != nil {
-		return ""
+		return "", nil
 	}
 	if method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/json")
@@ -218,7 +228,7 @@ func (s *Service) protectedResourceMetadataURLFromProbe(
 	}
 	resp, err := s.clientFor(cfg).Do(req)
 	if err != nil {
-		return ""
+		return "", nil
 	}
 	defer func() {
 		if drainErr := drainAndCloseResponseBody(resp.Body); drainErr != nil {
@@ -230,7 +240,23 @@ func (s *Service) protectedResourceMetadataURLFromProbe(
 			)
 		}
 	}()
-	return advertisedProtectedResourceMetadataURL(resp.Header, resourceURL, cfg.pluginHeaderOAuth)
+	advertisedURL := advertisedProtectedResourceMetadataURL(resp.Header, resourceURL, cfg.pluginHeaderOAuth)
+	if resp.StatusCode != http.StatusUnauthorized || resp.Request == nil ||
+		validateAdvertisedMetadataURL(resp.Request.URL.String(), resourceURL, true) != nil {
+		return advertisedURL, nil
+	}
+	challenges, err := oauthex.ParseWWWAuthenticate(resp.Header.Values("WWW-Authenticate"))
+	if err != nil {
+		return advertisedURL, nil
+	}
+	for _, challenge := range challenges {
+		if challenge.Scheme == "bearer" {
+			if scopes := resourceOAuthScopes(strings.Fields(challenge.Params["scope"])); len(scopes) > 0 {
+				return advertisedURL, scopes
+			}
+		}
+	}
+	return advertisedURL, nil
 }
 
 // AdvertisedProtectedResourceMetadataURL reads an origin-bound RFC 9728 Bearer challenge.
@@ -336,7 +362,7 @@ func metadataFromAuthServer(asm *oauthex.AuthServerMeta) Metadata {
 
 type hostedOAuthClient struct {
 	id, secret, authMethod string
-	refreshCapable         bool
+	allowOfflineAccess     bool
 }
 
 func (s *Service) resolveHostedRegistration(
@@ -345,22 +371,8 @@ func (s *Service) resolveHostedRegistration(
 	resourceURL string,
 	redirectURL string,
 	asm *oauthex.AuthServerMeta,
+	loginScopes []string,
 ) (hostedOAuthClient, error) {
-	if cfg.registrationStrategy() == RegistrationPreRegistered {
-		if !issuersEqual(cfg.IssuerURL, asm.Issuer) {
-			return hostedOAuthClient{}, errors.New(
-				"mcp auth: pre-registered issuer does not match authorization server",
-			)
-		}
-		method, err := effectiveTokenEndpointAuthMethod(cfg)
-		if err != nil {
-			return hostedOAuthClient{}, err
-		}
-		return hostedOAuthClient{
-			id: strings.TrimSpace(cfg.ClientID), secret: strings.TrimSpace(cfg.ClientSecret),
-			authMethod: method, refreshCapable: true,
-		}, nil
-	}
 	if asm.ClientIDMetadataDocumentSupported {
 		clientMetadataURL := strings.TrimSpace(s.clientMetadataURL)
 		if clientMetadataURL == "" {
@@ -384,13 +396,12 @@ func (s *Service) resolveHostedRegistration(
 					return hostedOAuthClient{}, persistErr
 				}
 				return hostedOAuthClient{
-					id: clientMetadataURL, authMethod: tokenEndpointAuthMethodNone, refreshCapable: refreshCapable,
+					id: clientMetadataURL, authMethod: tokenEndpointAuthMethodNone, allowOfflineAccess: refreshCapable,
 				}, nil
 			}
 		}
 	}
-	id, secret, method, err := s.dynamicClientRegistration(ctx, cfg, resourceURL, redirectURL, asm)
-	return hostedOAuthClient{id: id, secret: secret, authMethod: method, refreshCapable: true}, err
+	return s.dynamicClientRegistration(ctx, cfg, resourceURL, redirectURL, asm, loginScopes)
 }
 
 func (s *Service) validateCIMD(

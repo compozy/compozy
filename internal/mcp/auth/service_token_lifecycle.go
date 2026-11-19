@@ -132,7 +132,8 @@ func (s *Service) renewToken(
 	if errors.Is(err, errRefreshRegistrationInvalid) {
 		return localRefreshRepairStatus(statusFromToken(cfg, &current, s.now())), nil
 	}
-	if err != nil {
+	// Hosted discovery can return a validated replacement issuer with a binding error.
+	if err != nil && metadata.Issuer == "" {
 		return Status{}, err
 	}
 	if !issuersEqual(current.Issuer, metadata.Issuer) {
@@ -141,7 +142,11 @@ func (s *Service) renewToken(
 		if _, err := s.persistTokenAtGeneration(ctx, cfg, current, generation); err != nil {
 			return Status{}, err
 		}
-		return Status{}, ErrTokenBindingInvalid
+		return statusFromTokenWithDiagnostic(cfg, &current, s.now(), "OAuth issuer changed; run login again"),
+			ErrTokenBindingInvalid
+	}
+	if err != nil {
+		return Status{}, err
 	}
 	if strings.TrimSpace(refreshConfig.ClientID) != strings.TrimSpace(current.ClientID) {
 		return Status{}, ErrTokenBindingInvalid

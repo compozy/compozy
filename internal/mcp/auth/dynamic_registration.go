@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/mcp/securehttp"
@@ -22,15 +23,16 @@ func (s *Service) dynamicClientRegistration(
 	resourceURL string,
 	redirectURL string,
 	asm *oauthex.AuthServerMeta,
-) (string, string, string, error) {
+	loginScopes []string,
+) (hostedOAuthClient, error) {
 	if s.registrations == nil {
-		return "", "", "", errors.New(
+		return hostedOAuthClient{}, errors.New(
 			"mcp auth: registration store is required for dynamic registration",
 		)
 	}
 	fingerprint, err := ServerDefinitionFingerprint(cfg)
 	if err != nil {
-		return "", "", "", err
+		return hostedOAuthClient{}, err
 	}
 	existing, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
 	if err == nil && s.dynamicRegistrationReusable(
@@ -43,18 +45,19 @@ func (s *Service) dynamicClientRegistration(
 	) {
 		secret, resolveErr := s.resolveRegistrationSecret(ctx, existing.ClientSecretRef)
 		if resolveErr != nil {
-			return "", "", "", resolveErr
+			return hostedOAuthClient{}, resolveErr
 		}
-		return existing.ClientID, secret, existing.TokenEndpointAuthMethod, nil
+		return registeredOAuthClient(existing, secret), nil
 	}
 	if err != nil && !errors.Is(err, ErrRegistrationNotFound) {
-		return "", "", "", fmt.Errorf("mcp auth: load client registration: %w", err)
+		return hostedOAuthClient{}, fmt.Errorf("mcp auth: load client registration: %w", err)
 	}
 	if strings.TrimSpace(asm.RegistrationEndpoint) == "" {
-		return "", "", "", errors.New(
+		return hostedOAuthClient{}, errors.New(
 			"mcp auth: authorization server does not support CIMD or dynamic registration",
 		)
 	}
+	requestedScopes := withOfflineAccess(loginScopes, metadataFromAuthServer(asm), true)
 	response, err := s.registerClient(
 		ctx,
 		cfg,
@@ -64,11 +67,19 @@ func (s *Service) dynamicClientRegistration(
 			GrantTypes:    []string{"authorization_code", "refresh_token"},
 			ResponseTypes: []string{"code"},
 			ClientName:    "Compozy",
-			Scope:         strings.Join(trimStrings(cfg.Scopes), " "),
+			Scope:         strings.Join(requestedScopes, " "),
 		},
 	)
 	if err != nil {
-		return "", "", "", fmt.Errorf("mcp auth: dynamic client registration: %w", err)
+		return hostedOAuthClient{}, fmt.Errorf("mcp auth: dynamic client registration: %w", err)
+	}
+	if grants := response.Registration.GrantTypes; len(grants) == 0 || slices.Contains(grants, serviceRefreshTokenKey) {
+		if granted := strings.Fields(
+			response.Registration.Scope,
+		); len(granted) == 0 ||
+			slices.Contains(granted, offlineAccessScope) {
+			cfg.Scopes = requestedScopes
+		}
 	}
 	registration, secret, err := s.persistDynamicRegistration(
 		ctx,
@@ -80,9 +91,16 @@ func (s *Service) dynamicClientRegistration(
 		response,
 	)
 	if err != nil {
-		return "", "", "", err
+		return hostedOAuthClient{}, err
 	}
-	return registration.ClientID, secret, registration.TokenEndpointAuthMethod, nil
+	return registeredOAuthClient(registration, secret), nil
+}
+
+func registeredOAuthClient(registration ClientRegistration, secret string) hostedOAuthClient {
+	return hostedOAuthClient{
+		id: registration.ClientID, secret: secret, authMethod: registration.TokenEndpointAuthMethod,
+		allowOfflineAccess: slices.Contains(registration.Scopes, offlineAccessScope),
+	}
 }
 
 func (s *Service) loadTokenRegistration(ctx context.Context, target Target) (ClientRegistration, error) {

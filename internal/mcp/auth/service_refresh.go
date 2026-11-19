@@ -177,6 +177,12 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 	case <-ctx.Done():
 		return Status{}, ctx.Err()
 	}
+	return s.refreshWithBackoff(ctx, cfg, observed, target)
+}
+
+func (s *Service) refreshWithBackoff(
+	ctx context.Context, cfg ServerConfig, observed TokenRecord, target *targetMutationGeneration,
+) (Status, error) {
 	// Once renewal starts, persist a rotated refresh token even if the requesting discovery times out.
 	refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.refreshTimeout)
 	defer cancel()
@@ -196,9 +202,9 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 	}
 	target.refreshAttempts++
 	status, err := s.refresh(refreshCtx, cfg, observed, generation)
-	if err == nil {
+	if err == nil || (status.TokenPresent && errors.Is(err, ErrTokenBindingInvalid)) {
 		target.refreshAttempts, target.refreshRetryAt = 0, time.Time{}
-		return status, nil
+		return status, err
 	}
 	s.logger.WarnContext(ctx, "mcp.auth.refresh_failed",
 		"server", cfg.Target.ServerName, "owner", cfg.Target.Normalize().Owner,

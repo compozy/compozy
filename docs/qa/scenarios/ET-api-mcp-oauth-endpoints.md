@@ -105,7 +105,11 @@ QA impact 2026-11-18 (#1829, #1830, #1831), using only local OAuth and MCP fixtu
 - Advertise `offline_access` at the issuer and authorize a refresh-capable client with a resource
   scope. Verify both scopes and the issuer's existing consent parameters in the authorization
   request. Repeat without issuer support and with a response that grants access without a refresh
-  token. Auth status shows the result through the existing redacted fields.
+  token. On a bare remote, verify the Bearer challenge's scopes take precedence over protected
+  resource metadata. With neither source available, verify the request leaves the issuer's
+  defaults in effect.
+  Reuse a registration that did not register offline access and confirm it keeps its original
+  scopes. Auth status shows the result through the existing redacted fields.
 - Expire the persisted registration's client secret. Observe `refreshable=false`, an instruction to
   sign in again, and a retained token. Repeat discovery across the retry interval and confirm
   there is no OAuth traffic. Repair the registration and confirm discovery renews with the same
@@ -115,5 +119,9 @@ QA impact 2026-11-18 (#1829, #1830, #1831), using only local OAuth and MCP fixtu
   starts one renewal. On a transient failure, discovery still uses the existing bearer until
   expiry and respects backoff. For an access-only response, discovery works through the same
   window without attempting renewal.
+- Before expiry, have an automatic registration discover a replacement issuer. Expect the valid
+  bearer to remain bound to the original resource and the refresh grant to be withdrawn.
+  The new issuer must receive no token request. After expiry, further status or discovery checks
+  cannot use the old bearer and send no more renewal traffic.
 
 The OAuth adapter and executor suites cover these fixture walks.

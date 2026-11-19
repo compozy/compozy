@@ -39,29 +39,7 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved *ResolvedS
 		if !status.Refreshable {
 			return unavailableAuthError(toolspkg.ReasonMCPAuthExpired)
 		}
-		refreshed, refreshErr := e.refreshAuth(ctx, resolved)
-		if refreshErr != nil {
-			return toolspkg.NewToolError(
-				toolspkg.ErrorCodeUnavailable,
-				"",
-				"mcp auth refresh failed",
-				toolspkg.ErrToolUnavailable,
-				toolspkg.ReasonMCPAuthRefreshFailed,
-			)
-		}
-		if refreshed.Status == mcpauth.StatusAuthenticated {
-			if e.authRecovery != nil && !refreshed.RenewalDue() && refreshed.Diagnostic == "" {
-				if err := e.authRecovery(ctx, resolved); err != nil {
-					slog.WarnContext(ctx, "mcp.auth.recovery_failed", "server", server.Name)
-				}
-			}
-			return nil
-		}
-		reason, ok := toolspkg.MCPAuthStatusReason(redactedAuthStatus(refreshed))
-		if !ok {
-			reason = toolspkg.ReasonMCPAuthRefreshFailed
-		}
-		return unavailableAuthError(reason)
+		return e.ensureRenewedAuthorization(ctx, resolved)
 	default:
 		reason, ok := toolspkg.MCPAuthStatusReason(redactedAuthStatus(status))
 		if !ok {
@@ -76,6 +54,32 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved *ResolvedS
 		}
 		return unavailableAuthError(reason)
 	}
+}
+
+func (e *CallExecutor) ensureRenewedAuthorization(ctx context.Context, resolved *ResolvedServer) error {
+	refreshed, err := e.refreshAuth(ctx, resolved)
+	if err != nil && (!refreshed.TokenPresent || !errors.Is(err, mcpauth.ErrTokenBindingInvalid)) {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			"",
+			"mcp auth refresh failed",
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonMCPAuthRefreshFailed,
+		)
+	}
+	if refreshed.Status == mcpauth.StatusAuthenticated {
+		if e.authRecovery != nil && !refreshed.RenewalDue() && refreshed.Diagnostic == "" {
+			if err := e.authRecovery(ctx, resolved); err != nil {
+				slog.WarnContext(ctx, "mcp.auth.recovery_failed", "server", resolved.Server.Name)
+			}
+		}
+		return nil
+	}
+	reason, ok := toolspkg.MCPAuthStatusReason(redactedAuthStatus(refreshed))
+	if !ok {
+		reason = toolspkg.ReasonMCPAuthRefreshFailed
+	}
+	return unavailableAuthError(reason)
 }
 
 func (e *CallExecutor) authorizationFailureReason(
