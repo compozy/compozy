@@ -140,7 +140,10 @@ func parseSettingsScope(rawScope string, rawWorkspaceID string) (settingspkg.Sco
 	return scope, strings.TrimSpace(rawWorkspaceID), nil
 }
 
-func parseSettingsOwner(c *gin.Context) (settingspkg.ScopeKind, string, string, error) {
+func parseSettingsOwner(
+	c *gin.Context,
+	allowDefaultWorkspaceProfile bool,
+) (settingspkg.ScopeKind, string, string, error) {
 	rawScope := strings.TrimSpace(c.Query("scope"))
 	profileName := strings.TrimSpace(c.Query("profile"))
 	if rawScope == "" && profileName != "" && profileName != profileDefaultName {
@@ -151,7 +154,8 @@ func parseSettingsOwner(c *gin.Context) (settingspkg.ScopeKind, string, string, 
 		return "", "", "", err
 	}
 	if scope == settingspkg.ScopeProfile {
-		if profileName == "" || profileName == profileDefaultName {
+		if profileName == "" ||
+			(profileName == profileDefaultName && (!allowDefaultWorkspaceProfile || workspaceID == "")) {
 			return "", "", "", NewSettingsValidationError(
 				errors.New("settings.profile is required for profile scope"),
 			)

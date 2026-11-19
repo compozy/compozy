@@ -289,6 +289,7 @@ func TestClientPluginManagedInstall(t *testing.T) {
 	}
 }
 
+// Manifestless catalog entries expose the same derived inputs after refresh and archive inspection.
 func TestDerivedInputCatalogIntegration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should refresh derived inputs into durable entry detail", func(t *testing.T) {
@@ -363,9 +364,24 @@ func TestDerivedInputCatalogIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		detail, err := marketplace.ProjectEntry(*entry)
-		if err != nil || len(detail.Extension.Inputs) != 1 || detail.Extension.Inputs[0].ID != "HOST" ||
+		if err != nil || !entry.Installable || detail.Extension == nil || detail.Extension.Acquisition == nil ||
+			len(detail.Extension.Inputs) != 1 || detail.Extension.Inputs[0].ID != "HOST" ||
 			!detail.Extension.Inputs[0].Required {
 			t.Fatalf("entry detail = %+v, %v", detail, err)
+		}
+		home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		preview, err := InspectMarketplacePackage(t.Context(), home, MarketplaceInstallRequest{
+			Slug:           entry.InstallSlug,
+			ExpectedDigest: entry.DigestSHA256,
+			Plugin: &MarketplacePluginAcquisition{
+				SourceName: "team", Record: *detail.Extension.Acquisition, Acquirer: resolver,
+			},
+		}, "default")
+		if err != nil || len(preview.Inputs) != 1 || preview.Inputs[0].ID != "HOST" || !preview.Inputs[0].Required {
+			t.Fatalf("approved-byte preview inputs = %+v, %v", preview.Inputs, err)
 		}
 	})
 }

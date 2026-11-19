@@ -108,6 +108,7 @@ type InstallerOption func(*Installer)
 // final atomic move into place.
 type Installer struct {
 	downloader               Downloader
+	manifestlessPluginName   string
 	maxArchiveSize           int64
 	maxDecompressedSize      int64
 	maxFileCount             int
@@ -191,6 +192,11 @@ func NewInstaller(dl Downloader, opts ...InstallerOption) *Installer {
 	}
 
 	return installer
+}
+
+// WithInstallerManifestlessPlugin permits a catalog-named plugin with default components and no manifest.
+func WithInstallerManifestlessPlugin(name string) InstallerOption {
+	return func(installer *Installer) { installer.manifestlessPluginName = name }
 }
 
 // WithInstallerMaxArchiveSize overrides the compressed archive limit.

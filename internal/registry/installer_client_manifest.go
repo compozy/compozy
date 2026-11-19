@@ -32,6 +32,9 @@ func ValidateInstallPackageRoot(ctx context.Context, path string) (err error) {
 		return err
 	}
 	if name == "" {
+		if present, err := hasManifestlessPluginComponents(ctx, root); present || err != nil {
+			return err
+		}
 		return errInstallMissingManifest
 	}
 	metadata, err := readInstalledPackageMetadata(ctx, root, name)
@@ -39,6 +42,28 @@ func ValidateInstallPackageRoot(ctx context.Context, path string) (err error) {
 		return err
 	}
 	return verifyInstallerContent(metadata.verifyContent)
+}
+
+func hasManifestlessPluginComponents(ctx context.Context, root *fileutil.Directory) (bool, error) {
+	for _, name := range []string{"mcp.json", ".mcp.json"} {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		if present, err := manifestFileExists(root, name); present || err != nil {
+			return present, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	skills, err := root.OpenDirectory("skills")
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, mapExtractionAccessError(err)
+	}
+	return true, skills.Close()
 }
 
 func clientManifestNameAtRoot(root *fileutil.Directory) (string, error) {

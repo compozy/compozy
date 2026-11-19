@@ -23,6 +23,9 @@ provider, session id, skill-activation observable, stdio environment/data-write 
 server observable, redaction scan, and evidence paths. Retry-only success must disclose the first
 attempt; provider-specific package loading does not satisfy this scenario.
 
+For a fresh hosted session, wait for background discovery to publish the portable stdio tool.
+Then invoke it through the hosted MCP proxy and check the complete environment and data-write result.
+
 QA 2026-08-16: Claude Code and Hermes each loaded the shared skill and invoked the canonical stdio and
 remote tools on the first final-code attempt. OpenClaw failed before launch because its current ACP
 bridge rejects per-session MCP servers; CompozyOS's `session_mcp=false` capability is truthful. The user

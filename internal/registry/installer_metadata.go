@@ -54,13 +54,26 @@ func loadInstalledPackageMetadata(
 	rootParent *fileutil.Directory,
 	rootName string,
 	root *fileutil.Directory,
+	manifestlessPluginName string,
 ) (*installedPackage, installedPackageMetadata, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, installedPackageMetadata{}, err
 	}
-	_, manifestName, installed, err := locateInstallManifestRoot(rootParent, rootName, root)
+	_, manifestName, installed, err := locateInstallManifestRoot(
+		ctx,
+		rootParent,
+		rootName,
+		root,
+		manifestlessPluginName != "",
+	)
 	if err != nil {
 		return nil, installedPackageMetadata{}, err
+	}
+	if manifestName == "" {
+		if err := agentplugin.ValidateName(manifestlessPluginName); err != nil {
+			return nil, installedPackageMetadata{}, errors.Join(err, installed.CloseAll())
+		}
+		return installed, installedPackageMetadata{name: manifestlessPluginName}, nil
 	}
 	metadata, err := readInstalledPackageMetadata(ctx, installed.directory, manifestName)
 	if err != nil {
@@ -93,9 +106,11 @@ func readInstalledPackageMetadata(
 }
 
 func locateInstallManifestRoot(
+	ctx context.Context,
 	rootParent *fileutil.Directory,
 	rootName string,
 	root *fileutil.Directory,
+	allowManifestlessPlugin bool,
 ) (_ *fileutil.Directory, _ string, packageRoot *installedPackage, err error) {
 	if rootParent == nil || root == nil {
 		return nil, "", nil, ErrArchiveRootRequired
@@ -110,11 +125,21 @@ func locateInstallManifestRoot(
 	}()
 
 	for {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, "", nil, ctxErr
+		}
 		manifestName, findErr := manifestNameAtRoot(current)
 		if findErr != nil {
 			return nil, "", nil, findErr
 		}
-		if manifestName != "" {
+		found := manifestName != ""
+		if !found && allowManifestlessPlugin {
+			found, findErr = hasManifestlessPluginComponents(ctx, current)
+			if findErr != nil {
+				return nil, "", nil, findErr
+			}
+		}
+		if found {
 			return currentParent, manifestName, &installedPackage{
 				parent:      currentParent,
 				name:        currentName,

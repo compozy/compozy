@@ -43,6 +43,10 @@ export const sessionKeys = {
   historyCleanupPreview: (profile: string, request: unknown) =>
     [...sessionKeys.historyCleanup(), "preview", profile.trim(), request] as const,
   workspaceLists: (workspace: string) => [...sessionKeys.lists(), workspace.trim()] as const,
+  catalogPage: (filters: SessionListFilters) =>
+    [...sessionKeys.workspaceLists(filters.workspace_id ?? ""), "page", filters] as const,
+  launchPreview: (filters: SessionListFilters) =>
+    [...sessionKeys.all, "launch-preview", filters] as const,
   /** One profile's session folders in a workspace; under the list family so catalog wakes reread it. */
   folders: (workspace: string, profile: string) =>
     [...sessionKeys.workspaceLists(workspace), "folders", profile.trim()] as const,

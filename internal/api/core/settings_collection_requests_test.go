@@ -22,7 +22,7 @@ func TestParseSettingsOwner(t *testing.T) {
 			http.NoBody,
 		)
 
-		scope, workspaceID, profileName, err := parseSettingsOwner(context)
+		scope, workspaceID, profileName, err := parseSettingsOwner(context, false)
 		if err != nil {
 			t.Fatalf("parseSettingsOwner() error = %v", err)
 		}
@@ -57,7 +57,7 @@ func TestParseSettingsOwner(t *testing.T) {
 					http.NoBody,
 				)
 
-				_, _, _, err := parseSettingsOwner(context)
+				_, _, _, err := parseSettingsOwner(context, false)
 				if err == nil {
 					t.Fatalf("parseSettingsOwner(%q) error = nil, want validation error", test.query)
 				}

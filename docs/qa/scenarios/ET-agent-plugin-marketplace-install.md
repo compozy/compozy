@@ -84,7 +84,9 @@ Install from Marketplace is now one-step **Add** = install + enable (US-005–US
    dialog; its primary button reads **Add** and confirming installs and enables.
 3. **Set up:** an entry with a server waiting for sign-in or a missing input reads **Set up**;
    activating it starts the sign-in or opens detail with `?setup=1` focused on the first missing
-   input. `compozy__mcp_auth_status` agrees.
+   input. For a single MCP server installed into a workspace on the default profile, confirm that
+   Set up opens the browser and the panel, then wait for the panel to confirm and the row to show
+   Ready. `compozy__mcp_auth_status` agrees.
 4. **Turn on:** disable the extension from Installed; the row reads **Turn on** and turning it on
    restores Ready/Set up.
 5. **Enable failure:** when enabling fails after install (for example a package whose enable is
@@ -95,6 +97,8 @@ Install from Marketplace is now one-step **Add** = install + enable (US-005–US
 6. Detail shows the "From {source}" attribution line.
 
 Capture an Add that ends Ready, a Set up state, Turn on, and the Retry state when reproducible.
+For a folder source containing only a root MCP file with a required placeholder, compare the
+required input in the refreshed catalog entry and the preview of the approved archive.
 
 ### Walk result 2026-11-07 (S8 integrated lab, `feat/mpc-s8` with S1–S7 + S9)
 

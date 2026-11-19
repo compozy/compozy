@@ -4143,56 +4143,77 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 		})
 	})
 
-	// Invariant: extension detail requires owner plus logical name, prefers the local definition, inherits its parent, and excludes siblings.
+	// Invariant: owner-qualified MCP detail resolves the default profile's workspace alias and excludes siblings.
 	// Owner: Settings HTTP/UDS detail boundary; canonical suite: settings_test.go.
 	t.Run(
 		"Should resolve MCP detail by owner and logical name without crossing scope",
 		func(t *testing.T) {
 			t.Parallel()
-			t.Run("Should decode the shared request", func(t *testing.T) {
-				t.Parallel()
-				service := &stubSettingsService{
-					ListCollectionFn: func(_ context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
-						if !req.SkipRuntimeStatus {
-							t.Fatal("definition GET requested a runtime probe")
-						}
-						return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{
-							{
-								Name:        "github",
-								Owner:       "extension:github",
-								RuntimeName: "github.github",
-								Scope:       settingspkg.ScopeUser,
-							},
-							{Name: "github", Owner: "manual", Scope: settingspkg.ScopeUser},
-							{
-								Name:        "github",
-								Owner:       "extension:github",
-								RuntimeName: "github.github.2",
-								Scope:       settingspkg.ScopeWorkspace,
-								WorkspaceID: "workspace-a",
-							},
-						}}, nil
-					},
-				}
-				fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
-				for _, tc := range []struct {
-					path, owner, runtimeName string
-					status                   int
-				}{
-					{"github", "manual", "github", http.StatusOK},
-					{"github?owner=manual", "manual", "github", http.StatusOK},
-					{"github?owner=extension:github", "extension:github", "github.github", http.StatusOK},
-					{"github.github", "", "", http.StatusNotFound},
-					{"github.github?owner=extension:github", "", "", http.StatusNotFound},
-					{"github?owner=extension:other", "", "", http.StatusNotFound},
-					{"github.github?owner=manual", "", "", http.StatusNotFound},
-					{"github?owner=bad", "", "", http.StatusBadRequest},
-					{"github?owner=extension:github&scope=workspace&workspace_id=workspace-a", "extension:github", "github.github.2", http.StatusOK},
-					{"github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "extension:github", "github.github", http.StatusOK},
-					{"github.github.2?scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
-					{"github.github.2?owner=extension:github&scope=workspace&workspace_id=workspace-a", "", "", http.StatusNotFound},
-					{"github.github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
-				} {
+			servers := []settingspkg.MCPServerItem{
+				{
+					Name:        "github",
+					Owner:       "extension:github",
+					RuntimeName: "github.github",
+					Scope:       settingspkg.ScopeUser,
+				},
+				{Name: "github", Owner: "manual", Scope: settingspkg.ScopeUser},
+				{
+					Name:        "github",
+					Owner:       "extension:github",
+					RuntimeName: "github.github.2",
+					Scope:       settingspkg.ScopeWorkspace,
+					WorkspaceID: "workspace-a",
+				},
+				{
+					Name:        "github",
+					Owner:       "extension:github",
+					RuntimeName: "github.github.3",
+					Scope:       settingspkg.ScopeProfile,
+					WorkspaceID: "workspace-c",
+					ProfileName: "default",
+				},
+				{
+					Name:        "github",
+					Owner:       "extension:github",
+					RuntimeName: "github.github.4",
+					Scope:       settingspkg.ScopeProfile,
+					WorkspaceID: "workspace-b",
+					ProfileName: "work",
+				},
+			}
+			for _, tc := range []struct {
+				name, path, owner, runtimeName, errorFragment string
+				status                                        int
+			}{
+				{"Should resolve a manual definition without an owner", "github", "manual", "github", "", http.StatusOK},
+				{"Should resolve a manual definition with an explicit owner", "github?owner=manual", "manual", "github", "", http.StatusOK},
+				{"Should resolve the user extension by logical name", "github?owner=extension:github", "extension:github", "github.github", "", http.StatusOK},
+				{"Should reject a runtime name without an owner", "github.github", "", "", "not found", http.StatusNotFound},
+				{"Should reject a runtime name with the extension owner", "github.github?owner=extension:github", "", "", "not found", http.StatusNotFound},
+				{"Should reject a different extension owner", "github?owner=extension:other", "", "", "not found", http.StatusNotFound},
+				{"Should reject a runtime name with the manual owner", "github.github?owner=manual", "", "", "not found", http.StatusNotFound},
+				{"Should reject a malformed owner", "github?owner=bad", "", "", "MCP owner must be manual", http.StatusBadRequest},
+				{"Should prefer the workspace definition over the user definition", "github?owner=extension:github&scope=workspace&workspace_id=workspace-a", "extension:github", "github.github.2", "", http.StatusOK},
+				{"Should inherit the user definition without crossing into another profile", "github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "extension:github", "github.github", "", http.StatusOK},
+				{"Should resolve the default profile publication by workspace alias", "github?owner=extension:github&scope=workspace&workspace_id=workspace-c", "extension:github", "github.github.3", "", http.StatusOK},
+				{"Should resolve the default profile publication by exact scope", "github?owner=extension:github&scope=profile&profile=default&workspace_id=workspace-c", "extension:github", "github.github.3", "", http.StatusOK},
+				{"Should reject the default profile without a workspace", "github?owner=extension:github&scope=profile&profile=default", "", "", "settings.profile is required", http.StatusBadRequest},
+				{"Should resolve the requested non-default workspace profile", "github?owner=extension:github&scope=profile&profile=work&workspace_id=workspace-b", "extension:github", "github.github.4", "", http.StatusOK},
+				{"Should reject a foreign runtime name without an owner", "github.github.2?scope=workspace&workspace_id=workspace-b", "", "", "not found", http.StatusNotFound},
+				{"Should reject the local extension runtime name", "github.github.2?owner=extension:github&scope=workspace&workspace_id=workspace-a", "", "", "not found", http.StatusNotFound},
+				{"Should reject the inherited extension runtime name", "github.github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "", "", "not found", http.StatusNotFound},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					service := &stubSettingsService{
+						ListCollectionFn: func(_ context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+							if !req.SkipRuntimeStatus {
+								t.Fatal("definition GET requested a runtime probe")
+							}
+							return settingspkg.CollectionEnvelope{MCPServers: servers}, nil
+						},
+					}
+					fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
 					result := performRequest(
 						t,
 						fixture.Engine,
@@ -4204,7 +4225,14 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 						t.Fatalf("detail %s status %d: %s", tc.path, result.Code, result.Body.String())
 					}
 					if tc.status != http.StatusOK {
-						continue
+						var payload contract.ErrorPayload
+						if err := json.Unmarshal(result.Body.Bytes(), &payload); err != nil {
+							t.Fatal(err)
+						}
+						if !strings.Contains(payload.Error, tc.errorFragment) {
+							t.Fatalf("detail %s error = %q, want %q", tc.path, payload.Error, tc.errorFragment)
+						}
+						return
 					}
 					var payload contract.SettingsMCPServerResponse
 					if err := json.Unmarshal(result.Body.Bytes(), &payload); err != nil {
@@ -4214,8 +4242,8 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 						payload.Server.RuntimeName != tc.runtimeName {
 						t.Fatalf("wrong detail for %s: %#v", tc.path, payload)
 					}
-				}
-			})
+				})
+			}
 		},
 	)
 	// Invariant: the shared MCP decoder exposes actionable collision codes and extension identity without secret bindings.

@@ -25,6 +25,7 @@ import (
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -321,10 +322,20 @@ func testDaemonE2EAgentPluginRuntimeDistribution(t *testing.T) {
 		t.Fatalf("ReadDiagnostics(portable-e2e) error = %v", err)
 	}
 	sessionRecords := acpmock.DiagnosticsForCompozySession(records, active.ID)
+	catalogChanged := make(chan struct{}, 1)
 	client := startHostedMCPClient(
 		t,
 		ctx,
 		requireHostedMCPStdioServer(t, sessionRecords, hostedMCPServerEarliest),
+		&sdkmcp.ClientOptions{
+			Capabilities: &sdkmcp.ClientCapabilities{},
+			ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) {
+				select {
+				case catalogChanged <- struct{}{}:
+				default:
+				}
+			},
+		},
 	)
 	defer func() {
 		if closeErr := client.Close(); closeErr != nil {
@@ -333,18 +344,43 @@ func testDaemonE2EAgentPluginRuntimeDistribution(t *testing.T) {
 	}()
 
 	const toolID = "mcp__local__echo_environment"
-	listed, err := client.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools(portable hosted MCP) error = %v", err)
-	}
-	if !sdkToolListContains(listed.Tools, toolID) {
-		t.Fatalf("portable hosted MCP tools = %#v, want %q", sdkToolNames(listed.Tools), toolID)
-	}
+	requireDiscoveredPortableTool(t, ctx, client, catalogChanged, toolID)
 	result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: toolID, Arguments: map[string]any{}})
 	if err != nil {
 		t.Fatalf("CallTool(%s) error = %v", toolID, err)
 	}
 	assertPortableRuntimeEnvironment(t, result, harness, installed.Name, dataPath)
+}
+
+func requireDiscoveredPortableTool(
+	t *testing.T,
+	ctx context.Context,
+	client *sdkmcp.ClientSession,
+	catalogChanged <-chan struct{},
+	toolID string,
+) {
+	t.Helper()
+	discoveryCtx, cancel := context.WithTimeout(ctx, testutil.Scaled(t, 15*time.Second))
+	defer cancel()
+	for {
+		listed, err := client.ListTools(discoveryCtx, nil)
+		if err != nil {
+			t.Fatalf("ListTools(portable hosted MCP) error = %v", err)
+		}
+		if sdkToolListContains(listed.Tools, toolID) {
+			return
+		}
+		select {
+		case <-catalogChanged:
+		case <-discoveryCtx.Done():
+			t.Fatalf(
+				"portable hosted MCP tools = %#v, want %q: %v",
+				sdkToolNames(listed.Tools),
+				toolID,
+				discoveryCtx.Err(),
+			)
+		}
+	}
 }
 
 func preparePortableAgentPluginGitSource(t *testing.T, ctx context.Context) string {
