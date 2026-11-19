@@ -98,6 +98,10 @@ compozy mcp auth login linear
 The command waits until the sign-in completes. On your next message the agent can call Linear's
 tools. Signing in again after a token expires works the same way.
 
+For a pre-registered OAuth client, put each requested scope in its own `auth.scopes` entry. Run
+`compozy mcp check <name> -o json` to see whether the remote is ready and read its redacted diagnostic
+if the check fails. If the remote rejects the stored token, sign in again.
+
 An Agent Plugin can declare headers and still offer OAuth. When the remote responds with a Bearer
 challenge that points to same-origin OAuth protected-resource metadata, select **Sign in** in
 Settings or use the owner-qualified CLI command:

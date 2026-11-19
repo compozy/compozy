@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -133,7 +134,8 @@ func connectMCPClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.
 	if err != nil {
 		return nil, normalizeMCPError("", err)
 	}
-	if result := session.InitializeResult(); result == nil || !supportedProtocolVersion(result.ProtocolVersion) {
+	if result := session.InitializeResult(); result == nil ||
+		!supportsNegotiatedProtocol(transport, result.ProtocolVersion) {
 		version := ""
 		if result != nil {
 			version = result.ProtocolVersion
@@ -144,6 +146,13 @@ func connectMCPClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.
 		)
 	}
 	return session, nil
+}
+
+func supportsNegotiatedProtocol(transport mcpsdk.Transport, version string) bool {
+	if _, remote := transport.(*mcpsdk.StreamableClientTransport); remote && version == protocolVersionJune2025 {
+		return true
+	}
+	return supportedProtocolVersion(version)
 }
 
 func (e *CallExecutor) openPooledStdioClient(ctx context.Context, resolved *ResolvedServer) (*managedMCPClient, error) {
@@ -224,6 +233,7 @@ func (e *CallExecutor) httpClientWithAuthorization(
 	client.Transport = authorizationRoundTripper{
 		next: transport, header: authorizationHeader, headers: headers,
 		requireMetadata: resolved.requireResourceMetadata,
+		discoveryStatus: mcpDiscoveryHTTPStatus(ctx),
 	}
 	return client, nil
 }
@@ -290,6 +300,16 @@ type authorizationRoundTripper struct {
 	header          string
 	headers         http.Header
 	requireMetadata bool
+	discoveryStatus *atomic.Int32
+}
+
+type mcpDiscoveryHTTPStatusKey struct{}
+
+func mcpDiscoveryHTTPStatus(ctx context.Context) *atomic.Int32 {
+	if status, ok := ctx.Value(mcpDiscoveryHTTPStatusKey{}).(*atomic.Int32); ok {
+		return status
+	}
+	return nil
 }
 
 func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -304,13 +324,25 @@ func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Respo
 		cloned.Header.Set("Authorization", t.header)
 	}
 	response, err := t.next.RoundTrip(cloned)
+	if t.discoveryStatus != nil && request.Method == http.MethodPost {
+		var status int32
+		if err == nil && response != nil && response.StatusCode >= 300 && response.StatusCode <= 999 {
+			status = int32(response.StatusCode)
+		}
+		t.discoveryStatus.Store(status)
+	}
 	if err != nil {
 		return nil, err
 	}
 	if authErr := authorizationChallengeError(response); authErr != nil {
-		if errors.Is(authErr, ErrAuthorizationRequired) && t.requireMetadata && t.header == "" &&
-			mcpauth.AdvertisedProtectedResourceMetadataURL(response.Header, request.URL.String()) == "" {
-			authErr = errRemoteAuthenticationRejected
+		if errors.Is(authErr, ErrAuthorizationRequired) {
+			switch {
+			case t.header != "" && request.Method == http.MethodPost:
+				authErr = errors.Join(ErrAuthorizationRequired, mcpauth.ErrTokenRejected)
+			case t.requireMetadata && t.header == "" &&
+				mcpauth.AdvertisedProtectedResourceMetadataURL(response.Header, request.URL.String()) == "":
+				authErr = errRemoteAuthenticationRejected
+			}
 		}
 		return nil, errors.Join(authErr, drainAndCloseAuthorizationChallenge(response.Body))
 	}
