@@ -6208,6 +6208,13 @@ func TestHostAPIHiddenTriage(t *testing.T) {
 				Type:        session.SessionTypeTriage,
 				State:       session.StateActive,
 			},
+			// Invariant: extension list populations hide a side and its descendants, with a matching visible control.
+			{ID: "side", WorkspaceID: env.workspaceID, ProfileID: store.DefaultProfileID,
+				Type: session.SessionTypeUser, State: session.StateActive,
+				Lineage: &store.SessionLineage{Kind: store.LineageKindSide, ParentSessionID: "visible"}},
+			{ID: "side-child", WorkspaceID: env.workspaceID, ProfileID: store.DefaultProfileID,
+				Type: session.SessionTypeSpawned, State: session.StateActive,
+				Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn, ParentSessionID: "side"}},
 			{
 				ID:          "visible",
 				WorkspaceID: env.workspaceID,

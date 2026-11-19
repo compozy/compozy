@@ -437,7 +437,7 @@ func TestDaemonE2ESessionSide(t *testing.T) {
 			t.Fatalf("reconciled sides=%+v %v", list, err)
 		}
 		var derived map[string]any
-		if err := h.HTTPJSON(ctx, http.MethodGet, "/api/events?session_id="+stagedID+"&type=session.derived", nil, &derived); err != nil {
+		if err := h.HTTPJSON(ctx, http.MethodGet, "/api/logs?session_id="+stagedID+"&type=session.derived", nil, &derived); err != nil {
 			t.Fatal(err)
 		}
 		encoded, _ := json.Marshal(derived)
@@ -508,7 +508,7 @@ func seedStagedSideDaemonFixture(t *testing.T, ctx context.Context, h *e2etest.R
 	meta := mustReadSessionMeta(t, h, templateID)
 	meta.ID = "sess-side-staged-recovery"
 	meta.State = "stopped"
-	meta.ACPSessionID = ""
+	meta.ACPSessionID = nil
 	meta.Liveness = nil
 	meta.RuntimeStatus = store.SessionRuntimeUnbound
 	meta.ImportedContext.Consumed = nil

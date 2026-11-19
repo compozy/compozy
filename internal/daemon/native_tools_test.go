@@ -4313,10 +4313,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := json.Unmarshal(result.Structured, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(command_list) error = %v", err)
 		}
-		if payload.Revision != catalog.Revision || len(payload.Commands) != 3 ||
-			payload.Commands[1].CanonicalToken != "/worktree" || payload.Commands[1].Available ||
-			payload.Commands[1].UnavailableReason != "Wait for the current turn to finish." ||
-			payload.Commands[2].CanonicalToken != "/review" {
+		if payload.Revision != catalog.Revision || len(payload.Commands) != 4 ||
+			payload.Commands[2].CanonicalToken != "/worktree" || payload.Commands[2].Available ||
+			payload.Commands[2].UnavailableReason != "Wait for the current turn to finish." ||
+			payload.Commands[3].CanonicalToken != "/review" {
 			t.Fatalf("command_list payload = %#v", payload)
 		}
 	})
@@ -17840,6 +17840,39 @@ func TestNativeSessionMissingWorkspace(t *testing.T) {
 
 func TestNativeArchiveRefusals(t *testing.T) {
 	t.Parallel()
+	// B-005: implicit archive stops cannot reach the side executing the native call.
+	t.Run("Should refuse source archive before implicitly stopping its caller side", func(t *testing.T) {
+		t.Parallel()
+		for _, stop := range []bool{false, true} {
+			mutated := false
+			manager := &apitest.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					info := &session.Info{ID: id, WorkspaceID: "registry-a", ProfileID: store.DefaultProfileID, State: session.StateStopped, Type: session.SessionTypeUser}
+					if id == "caller-side" {
+						info.State = session.StateActive
+						info.Lineage = &store.SessionLineage{ParentSessionID: "source", Kind: store.LineageKindSide}
+					}
+					return info, nil
+				},
+				ArchiveFn: func(context.Context, string, string) (*session.Info, error) {
+					mutated = true
+					return nil, errors.New("unexpected archive")
+				},
+				ArchiveWithStopFn: func(context.Context, string, string) (*session.Info, error) {
+					mutated = true
+					return nil, errors.New("unexpected stop")
+				},
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: manager, Workspaces: nativeWorktreeWorkspaceService()}, nativeApproveAllPolicyInputs())
+			input, _ := json.Marshal(map[string]any{"workspace": "ws-a", "session_id": "source", "stop": stop})
+			_, err := registry.Call(t.Context(), toolspkg.Scope{SessionID: "caller-side", WorkspaceID: "registry-a", ProfileID: store.DefaultProfileID}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionArchive, Input: input})
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+			if mutated {
+				t.Fatal("archive mutated before refusing its caller")
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name    string
 		cause   error
@@ -19794,5 +19827,16 @@ func TestNativeSessionSideTools(t *testing.T) {
 		if !errors.Is(err, session.ErrSideGoalUnsupported) {
 			t.Fatalf("side Goal control=%v", err)
 		}
+		payload, marshalErr := json.Marshal(core.ToolErrorResponseForError(err, core.StatusForToolError(err), false))
+		if marshalErr != nil || !bytes.Contains(payload, []byte("session_side_goal_unsupported")) {
+			t.Fatalf("serialized Goal refusal=%s %v", payload, marshalErr)
+		}
+		native.deps.Workspaces = nativeTestWorkspaceServiceWithRoot(t, t.TempDir())
+		_, err = native.sessionSpawn(t.Context(), toolspkg.Scope{SessionID: "side", WorkspaceID: "ws-side", ProfileID: store.DefaultProfileID}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionSpawn, Input: json.RawMessage(`{"agent_name":"coder","ttl_seconds":60}`)})
+		payload, marshalErr = json.Marshal(core.ToolErrorResponseForError(err, core.StatusForToolError(err), false))
+		if !errors.Is(err, session.ErrSideSpawnUnsupported) || marshalErr != nil || !bytes.Contains(payload, []byte("session_side_spawn_unsupported")) {
+			t.Fatalf("serialized spawn refusal=%s %v / %v", payload, marshalErr, err)
+		}
+
 	})
 }

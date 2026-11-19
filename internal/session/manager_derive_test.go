@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,6 +23,7 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
@@ -3006,6 +3008,45 @@ func TestOpenSideContext(t *testing.T) {
 			}
 		})
 	}
+	// Invariant N-009: a stopped source retains its partial transcript without claiming ongoing work.
+	t.Run("Should replay an unended turn from a stopped source without an in-progress note", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		recorder, err := sessiondb.OpenSessionDB(t.Context(), testSessionDBOwner(source.ID, source.WorkspaceID), source.DBPath())
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeErr := func() error {
+			for index, event := range []acp.AgentEvent{
+				{Type: acp.EventTypeUserMessage, Text: "unfinished source request"},
+				{Type: acp.EventTypeAgentMessage, Text: "partial source result before crash"},
+			} {
+				content, err := transcript.MarshalAgentEvent(event)
+				if err != nil {
+					return err
+				}
+				if err := recorder.Record(t.Context(), store.SessionEvent{ID: fmt.Sprintf("open-after-stop-%d", index), SessionID: source.ID, AgentName: "coder", TurnID: "never-settled", Type: event.Type, Content: content, Timestamp: time.Now().UTC()}); err != nil {
+					return err
+				}
+			}
+			return nil
+		}()
+		if err := errors.Join(writeErr, recorder.Close(t.Context())); err != nil {
+			t.Fatal(err)
+		}
+		opened, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "stopped-partial"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		context := h.childMeta(t, opened.ChildSessionID).ImportedContext
+		if opened.SourceTurnInProgress || context == nil || !strings.Contains(context.MessagesJSON, "partial source result before crash") || strings.Contains(context.MessagesJSON, "compozy_turn_in_progress") {
+			t.Fatalf("stopped snapshot = %+v context=%+v", opened, context)
+		}
+	})
 	for _, native := range []bool{false, true} {
 		t.Run(fmt.Sprintf("Should inherit the idle seed with native support %t", native), func(t *testing.T) {
 			t.Parallel()
@@ -3072,17 +3113,47 @@ func TestOpenSideIdentityAndGuards(t *testing.T) {
 	t.Run("Should preserve runtime permissions and immutable side lineage", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)
-		source := h.newDeriveSource(t)
+		worktrees := newFakeProfileMoveWorktrees(t, h.db, h.workspaceID)
+		WithWorktreeResolver(worktrees)(h.manager)
+		checkout := worktrees.add(t, store.DefaultProfileID)
+		source, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: checkout})
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.promptSource(t, source.ID, "Source's own work")
+		caps := source.process.CapsSnapshot()
+		caps.ConfigOptions = []acp.SessionConfigOption{
+			{ID: "model", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "side-source-model", Values: []acp.SessionConfigOptionValue{{Value: "side-source-model"}}},
+			{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high", Values: []acp.SessionConfigOptionValue{{Value: "high"}}},
+			{ID: "speed", Category: "model_config", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "fast", Values: []acp.SessionConfigOptionValue{{Value: "fast"}}},
+			{ID: "budget", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "expanded", Values: []acp.SessionConfigOptionValue{{Value: "expanded"}}},
+		}
+		source.process.setCaps(caps)
 		source.mu.Lock()
+		source.Model = "side-source-model"
+		source.ReasoningEffort = "high"
+		source.Speed = "fast"
+		source.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "budget", ValueID: "expanded"}}
 		source.EffectivePermissions = "approve-reads"
-		source.Lineage.PermissionPolicy.WorkspacePaths = []string{h.workspace}
+		source.Lineage.PermissionPolicy.WorkspacePaths = []string{filepath.Join(source.CWD, "allowed")}
 		source.mu.Unlock()
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("side-inheritance-%d", sequence))
+			proc.handle.setCaps(caps)
+			return proc, nil
+		}
 		side := h.openSide(t, source, "copy-permissions")
 		// UT-012
 		info, original := side.Info(), source.Info()
-		if info.AgentName != original.AgentName || info.Provider != original.Provider || info.Model != original.Model || info.WorktreeID != original.WorktreeID || info.EffectivePermissions != original.EffectivePermissions ||
-			info.Lineage.Kind != store.LineageKindSide || info.Lineage.ParentSessionID != source.ID || info.Lineage.RootSessionID != original.Lineage.RootSessionID || info.Lineage.SpawnDepth != original.Lineage.SpawnDepth+1 || info.Lineage.AutoStopOnParent || info.Lineage.NotifyCreator || len(info.Lineage.PermissionPolicy.WorkspacePaths) != 1 {
+		if info.Type != SessionTypeUser || info.AgentName != original.AgentName || info.Provider != original.Provider || info.Model != original.Model || info.WorktreeID != original.WorktreeID || info.EffectivePermissions != original.EffectivePermissions ||
+			info.Lineage.Kind != store.LineageKindSide || info.Lineage.ParentSessionID != source.ID || info.Lineage.RootSessionID != original.Lineage.RootSessionID || info.Lineage.SpawnDepth != original.Lineage.SpawnDepth+1 || info.Lineage.AutoStopOnParent || info.Lineage.NotifyCreator || !reflect.DeepEqual(info.Lineage.PermissionPolicy, original.Lineage.PermissionPolicy) {
 			t.Fatalf("side=%+v lineage=%+v source=%+v", info, info.Lineage, original)
+		}
+		sideMeta, sourceMeta := side.Meta(), source.Meta()
+		if !reflect.DeepEqual(info.RequestedRuntime(), original.EffectiveRuntime()) ||
+			info.ReasoningEffort != "high" || info.Speed != "fast" || info.WorktreeID != checkout ||
+			sideMeta.CWDValue() != sourceMeta.CWDValue() || sideMeta.CWDValue() == h.workspace {
+			t.Fatalf("inherited runtime/cwd=%+v / %s, source=%+v / %s", info.RequestedRuntime(), sideMeta.CWDValue(), original.EffectiveRuntime(), sourceMeta.CWDValue())
 		}
 		// UT-065
 		if _, err := h.manager.normalizeCreateLineage(t.Context(), "side-policy", SessionTypeUser, h.workspaceID, info.Lineage, ""); err != nil {
@@ -3107,6 +3178,17 @@ func TestOpenSideIdentityAndGuards(t *testing.T) {
 		if !errors.Is(err, ErrSideSourceEmpty) {
 			t.Fatalf("empty source = %v", err)
 		}
+		// B-012: imported context is reference, not a source-owned message.
+		source := h.newDeriveSource(t)
+		continued, err := h.manager.ContinueSession(t.Context(), h.continueOpts(source, "empty-imported-source"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = h.manager.OpenSide(t.Context(), OpenSideOpts{SourceSessionID: continued.ChildSessionID, WorkspaceID: h.workspaceID, Message: "why?", IdempotencyKey: "empty-imported-side"})
+		if !errors.Is(err, ErrSideSourceEmpty) {
+			t.Fatalf("empty imported source=%v", err)
+		}
+
 	})
 	t.Run("Should refuse an archived source", func(t *testing.T) {
 		t.Parallel()
@@ -3251,6 +3333,18 @@ func TestSideCommitRecoveryAndRaces(t *testing.T) {
 		<-entered
 		deleted := make(chan error, 1)
 		go func() { deleted <- h.manager.Delete(t.Context(), source.ID) }()
+		// Wait for delete to contend on the held snapshot lock before allowing the commit.
+		waitForCondition(t, "delete waiting for source snapshot", func() bool {
+			h.manager.conversationOperationMu.Lock()
+			defer h.manager.conversationOperationMu.Unlock()
+			lock := h.manager.conversationOperationLocks[source.ID]
+			return lock != nil && lock.refs >= 2
+		})
+		select {
+		case err := <-deleted:
+			t.Fatalf("delete escaped snapshot lock: %v", err)
+		default:
+		}
 		close(release)
 		result, openErr := <-opened, <-openErrors
 		// UT-093

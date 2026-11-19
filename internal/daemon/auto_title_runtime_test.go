@@ -752,41 +752,44 @@ func (r *autoTitleEventRecorder) next(t *testing.T) store.EventSummary {
 
 func TestSideAutomaticTitle(t *testing.T) {
 	t.Parallel()
-	t.Run("Should title a side from its own first question", func(t *testing.T) {
+	t.Run("Should title two sides from their distinct first questions", func(t *testing.T) {
 		t.Parallel()
-		// UT-090
+		// UT-090: daemon title association, including the two-side outcome from UT-082.
+		questions := map[string]string{"side-safe": "Why is this safe?", "side-slow": "Why does this take time?"}
+		titles := map[string]string{"Why is this safe?": "Why this is safe", "Why does this take time?": "Why it takes time"}
 		generator := &autoTitleGeneratorStub{generate: func(_ context.Context, req autoTitleRequest) (string, error) {
-			if req.UserMessage != "Why is this safe?" {
+			title, ok := titles[req.UserMessage]
+			if !ok {
 				return "", errors.New("title inherited the main question")
 			}
-			return "Why this is safe", nil
+			return title, nil
 		}}
-		sessions := &autoTitleSessionsStub{events: map[string][]store.SessionEvent{"side-title": {autoTitleUserEvent(t, "side-title", "side-turn", "Why is this safe?")}}}
+		sessions := &autoTitleSessionsStub{events: map[string][]store.SessionEvent{}}
+		for id, question := range questions {
+			sessions.events[id] = []store.SessionEvent{autoTitleUserEvent(t, id, id+"-turn", question)}
+		}
 		runtime := newAutoTitleRuntime(sessions, generator, time.Second, slog.Default())
 		if err := runtime.Start(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		payload := autoTitleHookPayload("side-title", "side-turn", "It preserves the permission boundary.")
-		payload.LineageKind = "side"
-		payload.ParentSessionID = "source"
-		if err := runtime.HandleSessionMessagePersisted(t.Context(), payload); err != nil {
-			t.Fatal(err)
-		}
-		deadline := time.NewTimer(time.Second)
-		defer deadline.Stop()
-		for len(sessions.appliedSnapshot()) == 0 {
-			select {
-			case <-deadline.C:
-				t.Fatal("side title was not applied")
-			default:
-				time.Sleep(time.Millisecond)
+		t.Cleanup(func() {
+			if err := runtime.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		for id := range questions {
+			payload := autoTitleHookPayload(id, id+"-turn", "Side answer")
+			payload.LineageKind = "side"
+			payload.ParentSessionID = "source"
+			if err := runtime.HandleSessionMessagePersisted(t.Context(), payload); err != nil {
+				t.Fatal(err)
 			}
 		}
-		if err := runtime.Shutdown(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if got := sessions.appliedSnapshot(); len(got) != 1 || got[0].title != "Why this is safe" {
-			t.Fatalf("side title=%+v", got)
+		testutil.Eventually(t, "both side titles applied", time.Second, func() bool { return len(sessions.appliedSnapshot()) == 2 })
+		for _, applied := range sessions.appliedSnapshot() {
+			if applied.title != titles[questions[applied.sessionID]] {
+				t.Fatalf("title associated with wrong side: %+v", applied)
+			}
 		}
 	})
 }

@@ -428,6 +428,7 @@ CREATE INDEX idx_sessions_profile_catalog_archive_recent
 			);
 
 CREATE INDEX idx_sessions_parent ON sessions(parent_session_id);
+CREATE INDEX idx_sessions_side ON sessions(lineage_kind) WHERE lineage_kind = 'side';
 
 CREATE INDEX idx_sessions_resumable
 			ON sessions(state, failure_kind, last_update_at, updated_at);

@@ -28,6 +28,7 @@ type deriveSnapshot struct {
 	cut                  DeriveCut
 	sourceTurnInProgress bool
 	sourceActive         bool
+	sourcePrompting      bool
 	// cutErr is ErrDeriveTurnInProgress for an unsettled anchor turn: a preview reports
 	// the unsettled cut, a derive refuses it.
 	cutErr error
@@ -100,6 +101,7 @@ func (m *Manager) readDeriveSnapshot(
 	}
 	if live, ok := m.Get(meta.ID); ok {
 		snapshot.sourceActive = true
+		snapshot.sourcePrompting = live.IsPrompting()
 		snapshot.epoch = live.Info().TranscriptEpoch
 	} else if m.transcriptEpochStore != nil {
 		if snapshot.epoch, err = m.transcriptEpochStore.SessionTranscriptEpoch(ctx, meta.ID); err != nil {
@@ -143,7 +145,8 @@ func (m *Manager) readDeriveSnapshotEvents(
 	if messageID == "" {
 		turnID, through, laterOpen := lastSettledTurn(events)
 		snapshot.cut = DeriveCut{TurnID: turnID, ThroughSequence: through, TurnSettled: true}
-		snapshot.sourceTurnInProgress = laterOpen
+		snapshot.sourceTurnInProgress = laterOpen && (!snapshot.includeOpen ||
+			snapshot.sourceActive && snapshot.sourcePrompting)
 	} else {
 		cut, cutErr := deriveAnchorCut(ctx, recorder, snapshot.meta.ID, messageID, events)
 		if cutErr != nil && !errors.Is(cutErr, ErrDeriveTurnInProgress) {

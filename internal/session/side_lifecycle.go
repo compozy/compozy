@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (m *Manager) stopSideSessions(ctx context.Context, sourceID string) error {
+func (m *Manager) stopSideSessions(ctx context.Context, sourceID string, wait bool) error {
 	sides, ok := m.sessionCatalog.(store.SessionSideStore)
 	if !ok {
 		return nil
@@ -24,32 +25,32 @@ func (m *Manager) stopSideSessions(ctx context.Context, sourceID string) error {
 	if err != nil {
 		return err
 	}
+	var failures error
 	for _, row := range rows {
 		if _, live := m.Get(row.ID); !live && !m.isPending(row.ID) {
 			continue
 		}
-		if err := m.Stop(ctx, row.ID); err != nil && !errors.Is(err, ErrSessionNotFound) {
-			return fmt.Errorf("stop side chat %s of %s: %w", row.ID, sourceID, err)
+		var err error
+		if wait {
+			err = m.Stop(ctx, row.ID)
+		} else {
+			err = m.RequestStopWithCause(ctx, row.ID, CauseUserRequested, "")
+		}
+		if err != nil && !errors.Is(err, ErrSessionNotFound) {
+			failures = errors.Join(failures, fmt.Errorf("stop side chat %s of %s: %w", row.ID, sourceID, err))
 		}
 	}
-	return nil
+	return failures
 }
 
-func (m *Manager) archiveStoppingSideMembers(ctx context.Context, archive func() error) error {
-	for {
-		err := archive()
-		refusal, ok := errors.AsType[*archiveRequiresStoppedError](err)
-		if !ok {
-			return err
+func (m *Manager) archiveStoppingSideMembers(ctx context.Context, rootID string, archive func() error) error {
+	return m.archiveStoppingLiveMembers(ctx, rootID, archive, func(member string) bool {
+		if member == strings.TrimSpace(rootID) {
+			return false
 		}
-		meta, readErr := m.readSessionMetaReadOnly(ctx, refusal.member)
-		if readErr != nil || !isSideLineage(meta.Lineage) {
-			return err
-		}
-		if stopErr := m.Stop(ctx, refusal.member); stopErr != nil && !errors.Is(stopErr, ErrSessionNotFound) {
-			return errors.Join(err, stopErr)
-		}
-	}
+		meta, err := m.readSessionMetaReadOnly(ctx, member)
+		return err == nil && m.sideFamilyMember(ctx, meta.Lineage)
+	})
 }
 
 func (m *Manager) deleteSideSessions(ctx context.Context, sourceID string) error {

@@ -59883,6 +59883,15 @@ export interface operations {
           "text/event-stream": components["schemas"]["PromptStreamChunk"];
         };
       };
+      /** @description Side chat opened */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SendPromptResultResponse"];
+        };
+      };
       /** @description Prompt queued, steering accepted, or Goal command started */
       202: {
         headers: {
@@ -59898,7 +59907,9 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
       /** @description Session or attachment not found */
@@ -59909,6 +59920,7 @@ export interface operations {
         content: {
           "application/json":
             | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["SessionDeriveErrorPayload"]
             | components["schemas"]["SendPromptResultResponse"];
         };
       };
@@ -59920,6 +59932,7 @@ export interface operations {
         content: {
           "application/json":
             | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["SessionDeriveErrorPayload"]
             | components["schemas"]["SendPromptResultResponse"];
         };
       };
@@ -59940,6 +59953,7 @@ export interface operations {
         content: {
           "application/json":
             | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["SessionDeriveErrorPayload"]
             | components["schemas"]["SendPromptResultResponse"];
         };
       };
@@ -59949,7 +59963,9 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
       /** @description New-work admission is unavailable while the daemon is draining */
@@ -59958,7 +59974,9 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
     };

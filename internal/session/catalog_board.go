@@ -135,13 +135,20 @@ func automationRunCandidate(info *store.SessionInfo) (store.SessionAutomationRun
 }
 
 func (m *Manager) activeCatalogSnapshots(query ListQuery) ([]*Info, []string) {
+	return m.activeCatalogSnapshotsWithSides(query, false)
+}
+
+// Usage includes side chats while sharing the catalog's scope and live projection.
+func (m *Manager) activeCatalogSnapshotsWithSides(query ListQuery, includeSides bool) ([]*Info, []string) {
 	sessions := m.activeSessions()
 	infos := make([]*Info, 0, len(sessions))
 	excludedIDs := make([]string, 0)
 	for _, target := range sessions {
 		target.mu.RLock()
 		identity := Info{ProfileID: target.ProfileID, WorkspaceID: target.WorkspaceID, Lineage: target.Lineage}
-		if !catalogRelationVisible(&identity, query) {
+		if !catalogRelationScopeMatches(&identity, query) || target.Type == SessionTypeTriage ||
+			(identity.Lineage != nil && IsInternalSpawnRole(identity.Lineage.SpawnRole)) ||
+			(!includeSides && isSideLineage(identity.Lineage)) {
 			excludedIDs = append(excludedIDs, target.ID)
 			target.mu.RUnlock()
 			continue
@@ -149,7 +156,7 @@ func (m *Manager) activeCatalogSnapshots(query ListQuery) ([]*Info, []string) {
 		info := target.infoLocked()
 		target.mu.RUnlock()
 		ctx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
-		hidden := m.sideFamilyMember(ctx, info.Lineage)
+		hidden := !includeSides && m.sideFamilyMember(ctx, info.Lineage)
 		cancel()
 		if hidden {
 			excludedIDs = append(excludedIDs, info.ID)

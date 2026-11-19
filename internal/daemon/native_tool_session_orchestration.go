@@ -243,6 +243,9 @@ func nativeApprovalSelfError(id toolspkg.ToolID, err error) error {
 }
 
 func nativeSessionOrchestrationError(id toolspkg.ToolID, err error) error {
+	if errors.Is(err, session.ErrSideSpawnUnsupported) {
+		return nativeDeriveToolError(id, err)
+	}
 	if err == nil {
 		return nil
 	}

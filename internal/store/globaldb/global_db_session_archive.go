@@ -111,7 +111,7 @@ func (g *SessionRepo) SetSessionArchived(
 				if e != nil {
 					return e
 				}
-				if child.Lineage != nil && child.Lineage.Kind == store.LineageKindSide &&
+				if child.Lineage != nil && (child.Lineage.Kind == store.LineageKindSide || child.Lineage.SpawnRole == "auto-title") &&
 					(child.ArchivedAt == nil || current.ArchivedAt == nil || !child.ArchivedAt.Equal(*current.ArchivedAt)) {
 					continue
 				}

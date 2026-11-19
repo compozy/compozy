@@ -63,7 +63,7 @@ func (n *daemonNativeTools) goalControl(
 		return toolspkg.ToolResult{}, err
 	}
 	if err := n.requireNativeGoalSupported(ctx, targetSessionID); err != nil {
-		return toolspkg.ToolResult{}, nativeHTTPStatusToolError(req.ToolID, err, core.StatusForSessionError(err))
+		return toolspkg.ToolResult{}, nativeDeriveToolError(req.ToolID, err)
 	}
 
 	service := n.loopService()

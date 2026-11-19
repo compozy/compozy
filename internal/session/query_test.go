@@ -6117,6 +6117,40 @@ func TestManagerStatusSummary(t *testing.T) {
 
 func TestSideVisibilityAndNotifications(t *testing.T) {
 	t.Parallel()
+	t.Run("Should count live User sessions and sides in agent metrics while keeping catalog totals public", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved.ID, resolved.WorkspaceID, resolved.Scope = "", "", workspacepkg.ScopeUser
+		resolver := &userLifecycleResolver{WorkspaceResolver: h.resolver, resolved: resolved}
+		if err := h.manager.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		h.restartManager(t, func(*globaldb.GlobalDB) Option { return WithWorkspaceResolver(resolver) })
+		main, err := h.manager.Create(t.Context(), &CreateOpts{Scope: workspacepkg.ScopeUser, AgentName: "coder"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.promptSource(t, main.ID, "User source work")
+		side, err := h.manager.OpenSide(t.Context(), OpenSideOpts{SourceSessionID: main.ID, ProfileID: store.DefaultProfileID, Message: "User side question", IdempotencyKey: "user-side"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForDeriveConsumption(t, h, side.ChildSessionID)
+		scope := store.ReadScope{ProfileID: store.DefaultProfileID}
+		metrics, err := h.manager.AggregateSessionsByAgent(t.Context(), scope, "@user")
+		if err != nil || metrics["coder"].Total != 2 || metrics["coder"].Active != 2 {
+			t.Fatalf("User metrics=%+v %v", metrics, err)
+		}
+		facets, err := h.manager.CatalogFacets(t.Context(), ListQuery{ReadScope: scope, WorkspaceID: "@user"})
+		if err != nil || facets.Facets.All != 1 {
+			t.Fatalf("User visible total=%+v %v", facets, err)
+		}
+	})
+
 	t.Run("Should hide sides from every catalog population while counting their agent usage", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)
@@ -6147,17 +6181,33 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 		if err := h.db.RegisterSession(t.Context(), &row); err != nil {
 			t.Fatal(err)
 		}
-		_ = ordinary
-		_ = subagent
+		for _, id := range []string{source.ID, one.ID, two.ID, ordinary.ID, subagent.ID, legacy.ID} {
+			target, _ := h.manager.Get(id)
+			target.mu.Lock()
+			target.Name = "VisibilityProbe"
+			target.PendingPermissionCount = 1
+			target.mu.Unlock()
+			current := sessionCatalogInfoFromRuntime(target.Info())
+			if err := h.db.RegisterSession(t.Context(), &current); err != nil {
+				t.Fatal(err)
+			}
+		}
 		query := ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID}
 		// UT-023
 		for _, read := range []struct {
 			name  string
 			query ListQuery
-		}{{"catalog", query}, {"search", func() ListQuery { q := query; q.Search = "Migration"; return q }()}, {"palette", func() ListQuery { q := query; q.Sort = ListSortRecent; return q }()}, {"attention", func() ListQuery { q := query; q.AttentionOnly = true; return q }()}, {"board", func() ListQuery { q := query; q.Columns = []string{"done"}; return q }()}} {
+		}{{"catalog", query}, {"search", func() ListQuery { q := query; q.Search = "VisibilityProbe"; return q }()}, {"palette", func() ListQuery { q := query; q.Sort = ListSortRecent; return q }()}, {"attention", func() ListQuery { q := query; q.AttentionOnly = true; return q }()}, {"board", func() ListQuery { q := query; q.Columns = []string{string(BoardNeedsYou)}; return q }()}} {
 			page, err := h.manager.ListPage(t.Context(), read.query)
 			if err != nil {
 				t.Fatalf("%s: %v", read.name, err)
+			}
+			control := false
+			for _, item := range page.Sessions {
+				control = control || item.ID == source.ID
+			}
+			if !control {
+				t.Fatalf("%s missed its matching visible control: %+v", read.name, page)
 			}
 			for _, info := range page.Sessions {
 				if info.ID == one.ID || info.ID == two.ID || info.ID == legacy.ID {
@@ -6178,14 +6228,43 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 			t.Fatalf("workspace population=%+v %v", workspace, err)
 		}
 		facets, err := h.manager.CatalogFacets(t.Context(), query)
-		if err != nil || facets.Facets.All != 3 {
+		if err != nil || facets.Facets.All != 3 || facets.Facets.NeedsYou != 3 || facets.Facets.Board.NeedsYou != 3 {
 			t.Fatalf("facets=%+v %v", facets, err)
+		}
+		board, err := h.db.PageSessions(t.Context(), store.SessionCatalogPageQuery{
+			ReadScope: query.ReadScope, WorkspaceID: h.workspaceID, Columns: []string{string(BoardNeedsYou)}, Sort: ListSortRecent, Archive: store.SessionArchiveExclude, Limit: 100,
+		})
+		if err != nil || len(board.Sessions) != 3 {
+			t.Fatalf("durable board population=%+v %v", board, err)
 		}
 		// UT-024
 		metrics, err := h.manager.AggregateSessionsByAgent(t.Context(), query.ReadScope, h.workspaceID)
 		if err != nil || metrics["coder"].Total != 6 {
 			t.Fatalf("agent usage omitted side: %+v %v", metrics, err)
 		}
+		now := time.Now().UTC()
+		for index, id := range []string{source.ID, one.ID, two.ID} {
+			tokens, cost := int64((index+1)*10), float64(index+1)
+			if err := h.db.RecordTokenUsage(t.Context(), store.TokenStatsUpdate{SessionID: id, AgentName: "coder", TotalTokens: &tokens, CostAmount: &cost, CostCurrency: new("USD"), CostStatus: store.TokenCostStatusActual, CostSource: store.TokenCostSourceAgentReported, Turns: 1, UpdatedAt: now}, store.TokenUsageDailyUpdate{Day: store.LocalDay(now), ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: "coder", TotalTokens: &tokens, CostAmount: &cost, CostCurrency: new("USD"), CostStatus: store.TokenCostStatusActual, CostSource: store.TokenCostSourceAgentReported, Turns: 1, UpdatedAt: now}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		usage, err := h.db.ListTokenStats(t.Context(), store.TokenStatsQuery{AgentName: "coder", Limit: 100})
+		if err != nil || len(usage) != 3 {
+			t.Fatalf("provider token rows omitted sides: %+v %v", usage, err)
+		}
+		var tokens int64
+		for _, row := range usage {
+			if row.TotalTokens == nil {
+				t.Fatal("missing recorded usage")
+			}
+			tokens += *row.TotalTokens
+		}
+		costs, err := h.db.SumTokenUsageCost(t.Context(), store.OverviewDayQuery{ReadScope: query.ReadScope, WorkspaceID: h.workspaceID, SinceDay: store.LocalDay(now)})
+		if err != nil || tokens != 60 || len(costs) != 1 || costs[0].TotalCost != 6 {
+			t.Fatalf("provider usage/cost=%d %+v %v", tokens, costs, err)
+		}
+
 	})
 	t.Run("Should list the complete parent-owned side population in update order", func(t *testing.T) {
 		t.Parallel()
@@ -6251,13 +6330,24 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 		after.AttentionRevision++
 		h.manager.publishAttentionEdge(t.Context(), before, after)
 		// UT-080
-		select {
-		case event := <-first:
-			if event.Name != CatalogEventNameSide || event.SideSessionID != side.ID {
-				t.Fatalf("permission event=%+v", event)
+		for _, subscriber := range []<-chan CatalogEvent{first, second} {
+			count := 0
+			for {
+				select {
+				case event := <-subscriber:
+					if event.Name != CatalogEventNameSide || event.SideSessionID != side.ID || event.SessionID != source.ID {
+						t.Fatalf("permission leaked event=%+v", event)
+					}
+					count++
+				default:
+					if count == 0 {
+						t.Fatal("permission change missed side event")
+					}
+					goto drained
+				}
 			}
-		default:
-			t.Fatal("permission change missed side event")
+		drained:
 		}
+
 	})
 }

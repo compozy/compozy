@@ -106094,6 +106094,16 @@
               }
             }
           },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendPromptResultResponse"
+                }
+              }
+            },
+            "description": "Side chat opened"
+          },
           "202": {
             "content": {
               "application/json": {
@@ -106108,7 +106118,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
+                    }
+                  ]
                 }
               }
             },
@@ -106121,6 +106138,9 @@
                   "oneOf": [
                     {
                       "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                     },
                     {
                       "$ref": "#/components/schemas/SendPromptResultResponse"
@@ -106138,6 +106158,9 @@
                   "oneOf": [
                     {
                       "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                     },
                     {
                       "$ref": "#/components/schemas/SendPromptResultResponse"
@@ -106167,6 +106190,9 @@
                       "$ref": "#/components/schemas/ErrorPayload"
                     },
                     {
+                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
+                    },
+                    {
                       "$ref": "#/components/schemas/SendPromptResultResponse"
                     }
                   ]
@@ -106179,7 +106205,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
+                    }
+                  ]
                 }
               }
             },
@@ -106189,7 +106222,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
+                    }
+                  ]
                 }
               }
             },

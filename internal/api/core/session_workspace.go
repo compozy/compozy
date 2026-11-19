@@ -301,7 +301,7 @@ func statusForSessionAvailabilityError(err error) (int, bool) {
 		return http.StatusServiceUnavailable, true
 	case errors.Is(err, transcript.ErrProjectionCorrupt):
 		return http.StatusInternalServerError, true
-	case errors.Is(err, session.ErrSessionArchiveUnavailable),
+	case errors.Is(err, session.ErrSideUnavailable), errors.Is(err, session.ErrSessionArchiveUnavailable),
 		errors.Is(err, session.ErrSessionReparentUnavailable):
 		return http.StatusServiceUnavailable, true
 	default:

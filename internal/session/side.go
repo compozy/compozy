@@ -13,6 +13,7 @@ import (
 )
 
 var (
+	ErrSideUnavailable            = errors.New("session: side chat store is unavailable")
 	ErrSideMessageRequired        = errors.New("Write a question for the side chat.")
 	ErrSideAttachmentsUnsupported = errors.New("Side chat questions can't include files yet. Send the question alone.")
 	ErrSideSourceEmpty            = errors.New("Send a message first, then open a side chat.")
@@ -136,7 +137,7 @@ func (m *Manager) ListSides(ctx context.Context, workspaceID, sourceID string, i
 	}
 	sides, ok := m.sessionCatalog.(store.SessionSideStore)
 	if !ok {
-		return nil, ErrSessionArchiveUnavailable
+		return nil, ErrSideUnavailable
 	}
 	rows, err := sides.ListSessionSides(ctx, workspaceID, source.ID, includeArchived)
 	if err != nil {

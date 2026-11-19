@@ -977,12 +977,13 @@ func (q *Queries) ListPendingSubagentsByParent(ctx context.Context, parentID str
 }
 
 const listSessionTreeDescendantIDs = `-- name: ListSessionTreeDescendantIDs :many
-WITH RECURSIVE tree(id,profile_id) AS (
- SELECT sessions.id,sessions.profile_id FROM sessions WHERE sessions.workspace_id = ?2 AND sessions.id = ?1
+WITH RECURSIVE tree(id,profile_id,in_side) AS (
+ SELECT sessions.id,sessions.profile_id,sessions.lineage_kind = 'side' FROM sessions WHERE sessions.workspace_id = ?2 AND sessions.id = ?1
  UNION
- SELECT child.id,child.profile_id FROM sessions child JOIN tree parent ON child.parent_session_id = parent.id
+ SELECT child.id,child.profile_id,parent.in_side OR child.lineage_kind = 'side' FROM sessions child JOIN tree parent ON child.parent_session_id = parent.id
  WHERE child.workspace_id = ?2 AND child.profile_id = parent.profile_id
-  AND child.lineage_kind NOT IN ('continue','fork') AND LOWER(TRIM(COALESCE(child.spawn_role,''))) <> 'auto-title'
+  AND child.lineage_kind NOT IN ('continue','fork')
+  AND (parent.in_side OR LOWER(TRIM(COALESCE(child.spawn_role,''))) <> 'auto-title')
 )
 SELECT member.id FROM sessions member JOIN tree ON tree.id = member.id
 WHERE member.id <> ?1
@@ -1098,11 +1099,12 @@ func (q *Queries) ListStaleReservedSubagents(ctx context.Context, createdAt stri
 }
 
 const listSubagentArchiveFamily = `-- name: ListSubagentArchiveFamily :many
-WITH RECURSIVE family(id,state) AS (
- SELECT sessions.id,sessions.state FROM sessions WHERE sessions.workspace_id = ?1 AND sessions.id = ?2
+WITH RECURSIVE family(id,state,in_side) AS (
+ SELECT sessions.id,sessions.state,sessions.lineage_kind = 'side' FROM sessions WHERE sessions.workspace_id = ?1 AND sessions.id = ?2
  UNION
- SELECT child.id,child.state FROM sessions child JOIN family parent ON child.parent_session_id = parent.id
- WHERE child.workspace_id = ?1 AND (child.spawn_role = 'subagent' OR child.lineage_kind = 'side')
+ SELECT child.id,child.state,parent.in_side OR child.lineage_kind = 'side' FROM sessions child JOIN family parent ON child.parent_session_id = parent.id
+ WHERE child.workspace_id = ?1 AND (child.spawn_role = 'subagent' OR child.lineage_kind = 'side'
+  OR (parent.in_side AND LOWER(TRIM(COALESCE(child.spawn_role,''))) = 'auto-title'))
 )
 SELECT id,state FROM family ORDER BY id
 `

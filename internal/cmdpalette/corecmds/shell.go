@@ -108,6 +108,7 @@ var fixedShellCommands = []shellCommandDefinition{
 	{id: "window.tab.reopen", title: "Reopen closed tab", section: coreSectionTabs, icon: "rotate-ccw"},
 	{id: "session.cycle.previous", title: "Previous session", section: coreSectionSessions, icon: coreIconChevronLeft},
 	{id: "session.cycle.next", title: "Next session", section: coreSectionSessions, icon: coreIconChevronRight},
+	{id: "session.side.toggle", title: "Toggle side chats", section: coreSectionSessions, icon: "messages-square"},
 	{id: "session.focus.attention", title: "Jump to attention", section: coreSectionSessions, icon: "bell"},
 	{id: "desktop.switch.previous", title: "Previous desktop", section: coreSectionDesktops, icon: coreIconChevronLeft},
 	{id: "desktop.switch.next", title: "Next desktop", section: coreSectionDesktops, icon: coreIconChevronRight},

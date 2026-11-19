@@ -25,7 +25,7 @@ func (e *SidePromptError) Unwrap() error { return e.Cause }
 
 func ParseSideCommand(message string) (string, bool, error) {
 	message = strings.TrimSpace(message)
-	token, rest, _ := strings.Cut(message, " ")
+	token, rest := message, ""
 	if index := strings.IndexFunc(message, unicode.IsSpace); index >= 0 {
 		token, rest = message[:index], message[index:]
 	}

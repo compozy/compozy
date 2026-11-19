@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -1375,6 +1376,158 @@ func TestInstanceMainPromptResume(t *testing.T) {
 
 func TestSideLifecycle(t *testing.T) {
 	t.Parallel()
+	// Invariant B-002: lifecycle deletion includes real internal side descendants; public lists still omit them.
+	t.Run("Should delete a stopped side title helper before its side and source", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "delete-title-helper")
+		helper := spawnSideTitleHelper(t, h.harness, side.ID)
+		children, err := h.manager.Descendants(t.Context(), h.workspaceID, source.ID)
+		if err != nil || len(children) != 0 {
+			t.Fatalf("public children=%+v %v", children, err)
+		}
+		if err := h.manager.Delete(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{helper.ID, side.ID, source.ID} {
+			if _, err := h.manager.Status(t.Context(), id); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("delete left %s: %v", id, err)
+			}
+		}
+	})
+	// Invariant B-004: only descendants receive implicit stop; a named live root requires stop consent.
+	t.Run("Should refuse a live side archive unless stop is explicit", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		h.driver.promptHook = func(proc *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent)
+			go func() { <-proc.done; close(events) }()
+			return events, nil
+		}
+		opened, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "archive-live-root"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		side, _ := h.manager.Get(opened.ChildSessionID)
+		waitForCondition(t, "side turn running", side.IsPrompting)
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, side.ID); !errors.Is(err, ErrSessionArchiveRequiresStopped) {
+			t.Fatalf("plain side archive=%v", err)
+		}
+		if _, err := h.manager.ArchiveWithChildren(t.Context(), h.workspaceID, side.ID, ArchiveTreeOptions{}); !errors.Is(err, ErrSessionArchiveRequiresStopped) {
+			t.Fatalf("tree side archive=%v", err)
+		}
+		if !side.IsPrompting() {
+			t.Fatal("a refused side archive canceled its turn")
+		}
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, source.ID); err != nil {
+			t.Fatal(err)
+		}
+		current, err := h.manager.Status(t.Context(), side.ID)
+		if err != nil || current.State != StateStopped || current.ArchivedAt == nil {
+			t.Fatalf("source cascade did not stop/archive side: %+v %v", current, err)
+		}
+	})
+
+	// Invariant B-003: a stale live-member refusal is bounded even after a successful stop.
+	t.Run("Should fail after retrying the same refused side once", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "bounded-archive")
+		attempts := 0
+		err := h.manager.archiveStoppingSideMembers(t.Context(), source.ID, func() error {
+			attempts++
+			return &archiveRequiresStoppedError{sessionID: source.ID, member: side.ID}
+		})
+		if !errors.Is(err, ErrSessionArchiveStopFailed) || attempts != 2 {
+			t.Fatalf("archive retries=%d error=%v", attempts, err)
+		}
+	})
+
+	// Invariant B-002: source stop admission precedes side cascades and side failures do not skip siblings.
+	t.Run("Should accept the source stop before attempting every failing side", func(t *testing.T) {
+		t.Parallel()
+		var mu sync.Mutex
+		var visited []string
+		sideFailure := errors.New("side pre-stop refused")
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		one := h.openSide(t, source, "stop-failure-one")
+		two := h.openSide(t, source, "stop-failure-two")
+		dispatcher := &spyHookDispatcher{dispatchSessionPreStopFn: func(ctx context.Context, payload hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error) {
+			if payload.SessionID == one.ID || payload.SessionID == two.ID {
+				info, err := h.manager.Status(ctx, source.ID)
+				if err != nil || (info.State != StateStopping && info.State != StateStopped) {
+					t.Errorf("side stop ran before source admission: %+v %v", info, err)
+				}
+				mu.Lock()
+				visited = append(visited, payload.SessionID)
+				mu.Unlock()
+				return payload, sideFailure
+			}
+			return payload, nil
+		}}
+		h.manager.hooks = fullHookSet(dispatcher)
+		err := h.manager.RequestStopWithCause(t.Context(), source.ID, CauseUserRequested, "")
+		if !errors.Is(err, sideFailure) {
+			t.Fatalf("cascade error=%v", err)
+		}
+		mu.Lock()
+		count := len(visited)
+		mu.Unlock()
+		if count != 2 {
+			t.Fatalf("attempted %d side stops, want 2", count)
+		}
+		if _, err := h.manager.AwaitStopped(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		h.manager.hooks = HookSet{}
+	})
+
+	// Invariant B-002: async stop returns while a side's process stop remains in flight.
+	t.Run("Should not wait for a side process during async source stop", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "slow-async-stop")
+		entered, release := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		defer unblock()
+		h.driver.stopWithContextHook = func(ctx context.Context, proc *fakeProcess) error {
+			if proc.handle == side.processHandle() {
+				close(entered)
+				select {
+				case <-release:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			proc.exit()
+			return nil
+		}
+		returned := make(chan error, 1)
+		go func() { returned <- h.manager.RequestStopWithCause(t.Context(), source.ID, CauseUserRequested, "") }()
+		select {
+		case err := <-returned:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("async source stop waited for side termination")
+		}
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			t.Fatal("side stop was not requested")
+		}
+		unblock()
+	})
+
 	// Invariant: side lifecycle follows source transitions, while independently closed sides remain closed.
 	t.Run("Should stop live sides with a user-requested source stop", func(t *testing.T) {
 		t.Parallel()
@@ -1542,6 +1695,12 @@ func TestSideLifecycle(t *testing.T) {
 		if _, err := h.manager.Archive(t.Context(), h.workspaceID, source.ID); err != nil {
 			t.Fatal(err)
 		}
+		other := h.newDeriveSource(t)
+		closed := h.openSide(t, other, "closed-retained")
+		if _, err := h.manager.ArchiveWithStop(t.Context(), h.workspaceID, closed.ID); err != nil {
+			t.Fatal(err)
+		}
+
 		// UT-092
 		rows, err := h.db.ListSessionHistoryCleanupRows(t.Context(), store.SessionHistoryCleanupQuery{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID})
 		if err != nil {
@@ -1560,6 +1719,11 @@ func TestSideLifecycle(t *testing.T) {
 				t.Fatalf("cleanup left %s: %v", id, err)
 			}
 		}
+		retained, err := h.manager.Status(t.Context(), closed.ID)
+		if err != nil || retained.ArchivedAt == nil {
+			t.Fatalf("unselected closed side lost=%+v %v", retained, err)
+		}
+
 	})
 }
 
@@ -1588,6 +1752,9 @@ func TestSideDeleteRetry(t *testing.T) {
 		source := h.newDeriveSource(t)
 		first := h.openSide(t, source, "delete-first")
 		second := h.openSide(t, source, "delete-second")
+		if _, err := h.manager.ArchiveWithStop(t.Context(), h.workspaceID, second.ID); err != nil {
+			t.Fatal(err)
+		}
 		rows, listErr := h.db.ListSessionSides(t.Context(), h.workspaceID, source.ID, true)
 		if listErr != nil || len(rows) != 2 {
 			t.Fatalf("delete fixture=%+v %v", rows, listErr)

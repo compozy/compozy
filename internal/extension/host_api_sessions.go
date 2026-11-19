@@ -42,9 +42,15 @@ func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMes
 		return nil, err
 	}
 
+	byID := make(map[string]*session.Info, len(infos))
+	for _, info := range infos {
+		if info != nil {
+			byID[info.ID] = info
+		}
+	}
 	result := make([]hostAPISessionSummary, 0, len(infos))
 	for _, info := range infos {
-		if info == nil || info.Type == session.SessionTypeTriage {
+		if info == nil || info.Type == session.SessionTypeTriage || hostAPISideFamily(info, byID) {
 			continue
 		}
 		info, err = h.hostAPISessionWithArchiveMetadata(ctx, info)
@@ -474,4 +480,16 @@ func (h *HostAPIHandler) handleSessionsEvents(ctx context.Context, raw json.RawM
 		})
 	}
 	return result, nil
+}
+
+func hostAPISideFamily(info *session.Info, byID map[string]*session.Info) bool {
+	visited := map[string]bool{}
+	for info != nil && info.Lineage != nil && !visited[info.ID] {
+		if info.Lineage.Kind == store.LineageKindSide {
+			return true
+		}
+		visited[info.ID] = true
+		info = byID[info.Lineage.ParentSessionID]
+	}
+	return false
 }

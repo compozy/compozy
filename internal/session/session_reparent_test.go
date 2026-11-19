@@ -1202,5 +1202,17 @@ func TestSideOperationRefusals(t *testing.T) {
 		if other.Info().Lineage.ParentSessionID != "" {
 			t.Fatal("failed adoption changed source lineage")
 		}
+		page, err := h.manager.ListPage(t.Context(), ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed := false
+		for _, info := range page.Sessions {
+			listed = listed || info.ID == other.ID
+		}
+		if !listed {
+			t.Fatal("failed adoption removed the ordinary session from the list")
+		}
+
 	})
 }

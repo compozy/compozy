@@ -70,7 +70,7 @@ func TestBuildCatalog(t *testing.T) {
 		for _, descriptor := range catalog.Commands {
 			got = append(got, descriptor.CanonicalToken)
 		}
-		want := []string{"/goal", "/worktree", "/review", "/deploy", "/ops:inspect"}
+		want := []string{"/side", "/goal", "/worktree", "/review", "/deploy", "/ops:inspect"}
 		if strings.Join(got, ",") != strings.Join(want, ",") {
 			t.Fatalf("BuildCatalog() tokens = %#v, want %#v", got, want)
 		}
