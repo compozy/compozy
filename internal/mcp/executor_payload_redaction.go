@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/toolmeta"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -62,59 +61,6 @@ func redactMCPToolResult(result toolspkg.ToolResult) (toolspkg.ToolResult, error
 	}
 	redacted.Redactions = safeRedactions
 	return redacted, nil
-}
-
-func redactMCPToolDescriptor(
-	descriptor toolspkg.MCPToolDescriptor,
-) (toolspkg.MCPToolDescriptor, error) {
-	if mcpDescriptorIdentityContainsSecret(descriptor) {
-		return toolspkg.MCPToolDescriptor{}, toolspkg.NewValidationError(
-			"identity",
-			toolspkg.ReasonSecretMetadata,
-			"mcp tool identity contains credential material",
-		)
-	}
-
-	redacted := descriptor
-	redacted.Title = diagnostics.RedactExactBinary(descriptor.Title)
-	redacted.FriendlyVerb = diagnostics.RedactExactBinary(descriptor.FriendlyVerb)
-	redacted.Preview = diagnostics.RedactExactBinary(descriptor.Preview)
-	redacted.Description = diagnostics.RedactExactBinary(descriptor.Description)
-	var err error
-	redacted.InputSchema, err = diagnostics.RedactExactBinaryJSON(descriptor.InputSchema)
-	if err != nil {
-		return toolspkg.MCPToolDescriptor{}, fmt.Errorf("mcp: redact input schema: %w", err)
-	}
-	redacted.OutputSchema, err = diagnostics.RedactExactBinaryJSON(descriptor.OutputSchema)
-	if err != nil {
-		return toolspkg.MCPToolDescriptor{}, fmt.Errorf("mcp: redact output schema: %w", err)
-	}
-	if err := toolmeta.ValidateDescriptorMetadata(redacted.FriendlyVerb, redacted.Preview); err != nil {
-		return toolspkg.MCPToolDescriptor{}, fmt.Errorf("mcp: invalid redacted tool presentation metadata: %w", err)
-	}
-	redacted.Source.RawToolName = redacted.RawName
-	return redacted, nil
-}
-
-func mcpDescriptorIdentityContainsSecret(descriptor toolspkg.MCPToolDescriptor) bool {
-	identityFields := []string{
-		string(descriptor.ID),
-		descriptor.RawName,
-		descriptor.Source.Kind.String(),
-		descriptor.Source.Owner,
-		descriptor.Source.RawServerName,
-		descriptor.Source.RawToolName,
-		descriptor.Source.ResourceID,
-		descriptor.Source.ResourceVersion,
-		descriptor.Source.WorkspaceID,
-		descriptor.Source.Scope,
-	}
-	for _, value := range identityFields {
-		if diagnostics.RedactExactBinary(value) != value {
-			return true
-		}
-	}
-	return false
 }
 
 type mcpPayloadRedactor struct {

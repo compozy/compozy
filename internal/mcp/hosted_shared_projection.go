@@ -9,6 +9,11 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
+const (
+	hostedSharedProjectionRetention = time.Minute
+	hostedSharedProjectionCapacity  = 128
+)
+
 type hostedVisibilityKey struct {
 	registry *tools.RuntimeRegistry
 	class    string
@@ -45,11 +50,13 @@ func (s *HostedService) sharedStreamProjection(
 		}
 		key := hostedSharedFlightKey{hostedVisibilityKey{registry, class}, fence, builtAt}
 		matchCtx := ctx
+		var epochBacked bool
 		if s.projectionEpoch != nil {
 			// Class and build share one availability snapshot; the epoch fences all versioned inputs.
 			matchCtx = listingCtx
+			epochBacked = hostedCatalogHasEpoch(ctx, registry)
 		}
-		cached, flight, leader := s.sharedProjections.begin(key, s.now(), s.StreamRefreshInterval())
+		cached, flight, leader := s.sharedProjections.begin(key, s.now(), s.StreamRefreshInterval(), epochBacked)
 		if cached != nil {
 			if !s.sharedProjectionMatches(matchCtx, record, key) {
 				continue
@@ -69,7 +76,11 @@ func (s *HostedService) sharedStreamProjection(
 			}
 			return s.checkedSharedProjection(ctx, record, response, fence, key.builtAt)
 		}
-		response, err := buildHostedProjection(listingCtx, registry, record)
+		buildRecord := record.clone()
+		buildRecord.digestMemo = &hostedProjectionDigestMemo{
+			views: flight.previous.Tools, digest: flight.previous.Digest,
+		}
+		response, err := buildHostedProjection(listingCtx, registry, buildRecord)
 		if err == nil {
 			err = ctx.Err()
 		}
@@ -131,6 +142,7 @@ func (c *hostedSharedProjectionCache) begin(
 	key hostedSharedFlightKey,
 	now time.Time,
 	refresh time.Duration,
+	epochBacked bool,
 ) (*hostedUnversionedProjection, *hostedProjectionFlight, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -139,17 +151,19 @@ func (c *hostedSharedProjectionCache) begin(
 		c.flights = make(map[hostedSharedFlightKey]*hostedProjectionFlight)
 	}
 	for class, entry := range c.entries {
-		if entry.fence != key.fence || now.Before(entry.builtAt) || now.Sub(entry.builtAt) >= refresh {
+		if entry.fence != key.fence || now.Before(entry.builtAt) ||
+			(!epochBacked && now.Sub(entry.builtAt) >= max(refresh, hostedSharedProjectionRetention)) {
 			delete(c.entries, class)
 		}
 	}
-	if entry, ok := c.entries[key.hostedVisibilityKey]; ok {
+	entry, found := c.entries[key.hostedVisibilityKey]
+	if found && (epochBacked || now.Sub(entry.builtAt) < refresh) {
 		return &entry, nil, false
 	}
 	if flight := c.flights[key]; flight != nil {
 		return nil, flight, false
 	}
-	flight := &hostedProjectionFlight{done: make(chan struct{})}
+	flight := &hostedProjectionFlight{done: make(chan struct{}), previous: entry.response}
 	c.flights[key] = flight
 	return nil, flight, true
 }
@@ -164,6 +178,16 @@ func (c *hostedSharedProjectionCache) finish(
 	defer c.mu.Unlock()
 	previous := c.entries[key.hostedVisibilityKey]
 	if stable && owned && !previous.builtAt.After(key.builtAt) {
+		if previous.builtAt.IsZero() && len(c.entries) >= hostedSharedProjectionCapacity {
+			var oldest hostedVisibilityKey
+			var builtAt time.Time
+			for class, entry := range c.entries {
+				if builtAt.IsZero() || entry.builtAt.Before(builtAt) {
+					oldest, builtAt = class, entry.builtAt
+				}
+			}
+			delete(c.entries, oldest)
+		}
 		c.entries[key.hostedVisibilityKey] = hostedUnversionedProjection{
 			fence: key.fence, builtAt: key.builtAt, response: response,
 		}
@@ -217,4 +241,8 @@ func (l *hostedProjectionListings) clear() {
 	l.mu.Lock()
 	l.listings = nil
 	l.mu.Unlock()
+}
+
+func hostedCatalogHasEpoch(ctx context.Context, registry *tools.RuntimeRegistry) bool {
+	return tools.IsHostedCatalogRead(ctx) && registry.HostedCatalogEpochCoversProviders()
 }

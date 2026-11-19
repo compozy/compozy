@@ -46,6 +46,7 @@ type CallExecutor struct {
 	toolListFloor  time.Duration
 	toolCache      mcpToolListCache
 	stdioPool      *StdioSessionPool
+	catalogHTTP    *mcpCatalogHTTP
 }
 
 var _ toolspkg.MCPCallExecutor = (*CallExecutor)(nil)
@@ -53,6 +54,16 @@ var _ toolspkg.MCPAuthStatusProvider = (*CallExecutor)(nil)
 
 // CallExecutorOption configures the daemon-owned MCP executor.
 type CallExecutorOption func(*CallExecutor)
+
+// WithToolCatalogNotifications enables lifecycle-owned HTTP discovery subscriptions.
+func WithToolCatalogNotifications() CallExecutorOption {
+	return func(e *CallExecutor) {
+		e.catalogHTTP = &mcpCatalogHTTP{
+			sessions: make(map[string]mcpCatalogHTTPEntry), changes: make(chan struct{}, 1),
+			invalidate: e.invalidateToolListing, expire: e.expireSubscribedToolListing,
+		}
+	}
+}
 
 func WithDefinitionDigestKey(key []byte) CallExecutorOption {
 	return func(e *CallExecutor) { e.digestKey = bytes.Clone(key) }

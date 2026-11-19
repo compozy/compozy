@@ -68,7 +68,7 @@ func (e *CallExecutor) DiscoverTools(
 				"reason", reason, "diagnostic", err.Error())
 		}
 	}()
-	return e.listResolvedTools(ctx, source)
+	return e.listResolvedTools(ctx, source, toolspkg.BackgroundMCPDiscovery(ctx) && !toolspkg.FreshMCPDiscovery(ctx))
 }
 
 // CallTool invokes one configured MCP tool.
@@ -134,7 +134,9 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	startedAt := time.Now()
 	mcpResult, err := client.session.CallTool(ctx, params)
+	e.observeToolExchange(ctx, client, startedAt, err)
 	if err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
@@ -143,8 +145,7 @@ func (e *CallExecutor) CallTool(
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, runtimeHealthErr
 	}
-	result, err = toolResultFromMCP(mcpResult)
-	if err != nil {
+	if result, err = toolResultFromMCP(mcpResult); err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, runtimeHealthErr
 	}
@@ -250,8 +251,10 @@ func mcpServerDisabledError(name string) error {
 	)
 }
 
+var errMCPExecutorDeadline = errors.New("mcp: executor deadline exceeded")
+
 func (e *CallExecutor) callContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, e.timeout)
+	return context.WithTimeoutCause(ctx, e.timeout, errMCPExecutorDeadline)
 }
 
 func (e *CallExecutor) resolveServer(

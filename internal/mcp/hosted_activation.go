@@ -59,7 +59,20 @@ func (s *HostedService) ActivationCatalog(
 	if registry == nil {
 		return tools.AdvertisedCatalog{}, "", ErrHostedRegistryRequired
 	}
-	response, err := buildHostedProjection(ctx, registry, record)
+	var response HostedProjectionResponse
+	var err error
+	if runtime, ok := registry.(*tools.RuntimeRegistry); ok {
+		if hostedCtx, cached := runtime.HostedProjectionContext(ctx); cached {
+			// A launch that never bound has no cache ownership to fence.
+			if record.bindID == "" {
+				response, err = catalogProjectionWithRedactionCheck(hostedCtx, registry, record, buildHostedProjection)
+			} else {
+				response, err = s.projectionForGeneration(hostedCtx, record, registry, buildHostedProjection)
+			}
+			return response.Catalog, served, err
+		}
+	}
+	response, err = buildHostedProjection(ctx, registry, record)
 	return response.Catalog, served, err
 }
 

@@ -29,6 +29,7 @@ const (
 // mcpStdioSpec is the resolved, launch-ready identity of one stdio MCP server for one target.
 type mcpStdioSpec struct {
 	slot    string
+	target  mcpauth.Target
 	digest  string
 	command string
 	args    []string
@@ -96,6 +97,7 @@ func (e *CallExecutor) resolveMCPStdioSpec(
 	}
 	spec := mcpStdioSpec{
 		slot:    slot,
+		target:  target.Normalize(),
 		command: strings.TrimSpace(server.Command),
 		args:    slices.Clone(server.Args),
 		env:     env,

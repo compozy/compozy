@@ -55,16 +55,31 @@ func (r *nativeToolPolicyResolver) EffectiveMCPAuthority(
 func (r *nativeToolPolicyResolver) resolveEffectiveMCPAuthority(
 	ctx context.Context, id string,
 ) (store.SessionPermissionPolicy, error) {
+	plan, err := r.planMCPAuthority(ctx, id)
+	if err != nil {
+		return store.SessionPermissionPolicy{}, err
+	}
+	return r.materializeMCPAuthority(ctx, &plan)
+}
+
+type mcpAuthorityPlan struct {
+	scope  toolspkg.Scope
+	inputs toolspkg.PolicyInputs
+	policy store.SessionPermissionPolicy
+	root   bool
+}
+
+func (r *nativeToolPolicyResolver) planMCPAuthority(ctx context.Context, id string) (mcpAuthorityPlan, error) {
 	info := session.MCPAuthoritySession(ctx, id)
 	if info == nil {
 		var err error
 		info, err = r.sessionInfo(ctx, id)
 		if err != nil {
-			return store.SessionPermissionPolicy{}, err
+			return mcpAuthorityPlan{}, err
 		}
 	}
 	if info == nil {
-		return store.SessionPermissionPolicy{}, fmt.Errorf("%w: %s", session.ErrSessionNotFound, id)
+		return mcpAuthorityPlan{}, fmt.Errorf("%w: %s", session.ErrSessionNotFound, id)
 	}
 	scope := toolspkg.Scope{
 		SessionID:   id,
@@ -74,30 +89,32 @@ func (r *nativeToolPolicyResolver) resolveEffectiveMCPAuthority(
 	}
 	base, err := r.resolveMCPAuthorityScope(ctx, scope)
 	if err != nil {
-		return store.SessionPermissionPolicy{}, err
+		return mcpAuthorityPlan{}, err
 	}
 	inputs := base.inputs
 	if scope.AgentName != "" && !mcpAuthorityRead(ctx) {
 		if err := r.applyAgentToolPolicy(ctx, &inputs, scope.AgentName, base.workspace, base.cfg); err != nil {
 			// Existing delegated sessions retain their stored ceiling if the agent was removed.
 			if info.Lineage == nil || !errors.Is(err, workspace.ErrAgentNotAvailable) {
-				return store.SessionPermissionPolicy{}, err
+				return mcpAuthorityPlan{}, err
 			}
 		}
 	}
 	lineage := store.NormalizeSessionLineage(id, info.Lineage)
 	policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
 	policy.MCPServers = store.BoundMCPServers(policy, base.names)
+	root := lineage.Kind != store.LineageKindSpawn &&
+		info.Type != session.SessionTypeSpawned && info.Type != session.SessionTypeCoordinator
+	return mcpAuthorityPlan{scope: scope, inputs: inputs, policy: policy, root: root}, nil
+}
+
+func (r *nativeToolPolicyResolver) materializeMCPAuthority(
+	ctx context.Context, plan *mcpAuthorityPlan,
+) (store.SessionPermissionPolicy, error) {
+	policy := plan.policy
 	if r.scopeTools != nil && !mcpAuthorityRead(ctx) {
-		policy.Tools, err = r.effectiveScopeTools(
-			ctx,
-			scope,
-			inputs,
-			policy,
-			// Only governed sessions retain a recorded native-tool ceiling.
-			lineage.Kind != store.LineageKindSpawn &&
-				info.Type != session.SessionTypeSpawned && info.Type != session.SessionTypeCoordinator,
-		)
+		var err error
+		policy.Tools, err = r.effectiveScopeTools(ctx, plan.scope, plan.inputs, policy, plan.root)
 		if err != nil {
 			return store.SessionPermissionPolicy{}, err
 		}
@@ -105,7 +122,7 @@ func (r *nativeToolPolicyResolver) resolveEffectiveMCPAuthority(
 	return store.NormalizeSessionPermissionPolicy(policy), nil
 }
 
-func (r *nativeToolPolicyResolver) admittedMCPNames(
+func admittedMCPNames(
 	inputs toolspkg.PolicyInputs,
 	servers []compozyconfig.MCPServer,
 ) []string {
@@ -115,15 +132,11 @@ func (r *nativeToolPolicyResolver) admittedMCPNames(
 			names = append(names, server.Name)
 		}
 	}
-	resources := map[string]string{}
-	if r.mcpResourceNames != nil {
-		resources = r.mcpResourceNames()
-	}
 	for _, grant := range inputs.AllowSources {
 		if grant.Kind != toolspkg.SourceMCP {
 			continue
 		}
-		name := resources[grant.ResourceID]
+		name := inputs.MCPResourceNames[grant.ResourceID]
 		if grant.ResourceID == "" {
 			name = grant.Owner
 		}
@@ -147,10 +160,7 @@ func (r *nativeToolPolicyResolver) effectiveScopeTools(
 	if err != nil {
 		return nil, err
 	}
-	names := map[string]string{}
-	if r.mcpResourceNames != nil {
-		names = r.mcpResourceNames()
-	}
+	names := inputs.MCPResourceNames
 	denied := make(map[string]bool)
 	for i := range views {
 		view := &views[i]
@@ -206,12 +216,27 @@ func sourcePolicyAdmitted(result string) bool {
 
 func bindSessionMCPAuthority(state *bootState, resolver *nativeToolPolicyResolver, registry *toolspkg.RuntimeRegistry) {
 	resolver.scopeTools = registry.PolicyProjection
+	if provider, ok := state.mcpToolProvider.(*toolspkg.MCPProvider); ok {
+		provider.SetHostedCatalogAuthority(resolver.hostedCatalogSources)
+	}
 	bindSessionMCPReader(state, resolver, registry)
 	if manager, ok := state.sessions.(interface {
 		SetMCPAuthorityResolver(session.MCPAuthorityResolver)
 	}); ok {
 		manager.SetMCPAuthorityResolver(resolver)
 	}
+}
+
+func (r *nativeToolPolicyResolver) hostedCatalogSources(
+	ctx context.Context, scope toolspkg.Scope, sources []toolspkg.SourceRef,
+) ([]toolspkg.SourceRef, error) {
+	plan, err := r.planMCPAuthority(r.MCPAuthorityReadContext(ctx), scope.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(sources, func(source toolspkg.SourceRef) bool {
+		return !slices.Contains(plan.policy.MCPServers, mcpAuthoritySourceName(source, plan.inputs.MCPResourceNames))
+	}), nil
 }
 
 func listedMCPAuthorityTools(
