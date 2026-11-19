@@ -47,10 +47,10 @@ compozy session side list sess_1234 --archived --json
 
 HTTP and UDS share these routes:
 
-| Method | Route | Result |
-| --- | --- | --- |
-| POST | `/api/workspaces/{workspace_id}/sessions/{session_id}/sides` | `SessionDeriveResponse`; 201 on creation, 200 on replay |
-| GET | `/api/workspaces/{workspace_id}/sessions/{session_id}/sides?archived=true` | `{ "sides": [...] }` |
+| Method | Route                                                                      | Result                                                  |
+| ------ | -------------------------------------------------------------------------- | ------------------------------------------------------- |
+| POST   | `/api/workspaces/{workspace_id}/sessions/{session_id}/sides`               | `SessionDeriveResponse`; 201 on creation, 200 on replay |
+| GET    | `/api/workspaces/{workspace_id}/sessions/{session_id}/sides?archived=true` | `{ "sides": [...] }`                                    |
 
 POST requires `message` and `idempotency_key`; `name` is optional. Retry the same request with the same
 key to receive the same child. A different question with that key returns `idempotency_conflict`.
