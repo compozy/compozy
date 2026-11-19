@@ -170,8 +170,8 @@ func (s *service) mcpApprovalDefinitions(ctx context.Context, req MCPAuthTargetR
 	}
 	if err == nil {
 		found := false
-		for _, definition := range definitions {
-			if definition.server.DefinitionSource == resolved.server.DefinitionSource {
+		for i := range definitions {
+			if definitions[i].server.DefinitionSource == resolved.server.DefinitionSource {
 				found = true
 				break
 			}
@@ -196,7 +196,8 @@ func (s *service) selectMCPApprovalDefinition(
 	}
 	var selected mcpAuthDefinition
 	matches := 0
-	for _, definition := range definitions {
+	for i := range definitions {
+		definition := &definitions[i]
 		req := consentRequestForTarget(definition.target, definition.server)
 		req.ProfileName = profile
 		decision, err := s.mcpConsent.MCPConsent(ctx, req)
@@ -204,7 +205,7 @@ func (s *service) selectMCPApprovalDefinition(
 			return selected, err
 		}
 		if decision.DefinitionDigest == digest {
-			selected = definition
+			selected = *definition
 			matches++
 		}
 	}

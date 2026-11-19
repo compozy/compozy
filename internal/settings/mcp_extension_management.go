@@ -30,15 +30,16 @@ type MCPExtensionManagement interface {
 	) (MCPExtensionDefinition, error)
 }
 
-func extensionMCPCollectionItem(definition MCPExtensionDefinition) mcpCollectionItem {
+func extensionMCPCollectionItem(definition *MCPExtensionDefinition) mcpCollectionItem {
 	target := definition.ManagementTarget
 	if target.Scope == "" {
 		target = definition.Target
 	}
 	req := mcpAuthTargetRequest(target)
+	authTarget, override := definition.Target, definition.Override
 	entry := mcpSourceEntry{
 		Server:     definition.Server,
-		AuthTarget: &definition.Target,
+		AuthTarget: &authTarget,
 		Source: SourceRef{
 			Kind:        SourceKindExtension,
 			Scope:       req.Scope,
@@ -48,7 +49,7 @@ func extensionMCPCollectionItem(definition MCPExtensionDefinition) mcpCollection
 	}
 	item := baseMCPServerItem(entry, []mcpSourceEntry{entry}, req.Scope, req.WorkspaceID, req.ProfileName)
 	item.SourceMetadata.AvailableTargets = []WriteTargetKind{}
-	item.Override = &definition.Override
+	item.Override = &override
 	return mcpCollectionItem{item: item, entry: entry}
 }
 
@@ -62,8 +63,8 @@ func (s *service) appendExtensionMCPItems(
 	if err != nil {
 		return nil, err
 	}
-	for _, definition := range definitions {
-		items = append(items, extensionMCPCollectionItem(definition))
+	for i := range definitions {
+		items = append(items, extensionMCPCollectionItem(&definitions[i]))
 	}
 	return items, nil
 }

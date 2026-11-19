@@ -102,15 +102,28 @@ func (s *service) setManualMCPServerEnabled(
 		)
 	}
 	s.mcpProbeGeneration++
+	if err := s.applyManualMCPEnablement(ctx, req, kind, target.Path()); err != nil {
+		return MCPServerItem{}, err
+	}
+	entries := sources[req.Name]
+	index := slices.IndexFunc(entries, func(source mcpSourceEntry) bool { return source.Target == kind })
+	item := baseMCPServerItem(entry, entries[:index+1], req.Scope, req.WorkspaceID, req.ProfileName)
+	s.enrichMCPEnablementResult(ctx, &item, entry)
+	return item, nil
+}
+
+func (s *service) applyManualMCPEnablement(
+	ctx context.Context, req MCPAuthTargetRequest, kind WriteTargetKind, path string,
+) error {
 	result := mutationResultAtPath(
 		mutationResultForCollection(CollectionMCPServers, req.Scope, req.WorkspaceID, kind),
-		target.Path(),
+		path,
 	)
 	result.ProfileName = req.ProfileName
 	result = applyCollectionLifecycle(result, CollectionMCPServers, collectionMutationPut, true)
 	applied, err := s.recordMutationApply(ctx, result)
 	if err != nil {
-		return MCPServerItem{}, fmt.Errorf(
+		return fmt.Errorf(
 			"settings: apply persisted MCP server %q enablement at %s scope: %w",
 			req.Name,
 			req.Scope,
@@ -118,24 +131,21 @@ func (s *service) setManualMCPServerEnabled(
 		)
 	}
 	if !applied.Applied {
-		return MCPServerItem{}, unavailableError(fmt.Errorf(
+		return unavailableError(fmt.Errorf(
 			"settings: enablement for MCP server %q at %s scope was saved and could not be applied",
 			req.Name,
 			req.Scope,
 		))
 	}
 	if _, err := s.finalizeCommittedCollectionMutation(ctx, result, nil, "replace", false); err != nil {
-		return MCPServerItem{}, fmt.Errorf(
+		return fmt.Errorf(
 			"settings: finalize persisted MCP server %q enablement at %s scope: %w",
 			req.Name,
 			req.Scope,
 			err,
 		)
 	}
-	entries := sources[req.Name]
-	index := slices.IndexFunc(entries, func(source mcpSourceEntry) bool { return source.Target == kind })
-	item := baseMCPServerItem(entry, entries[:index+1], req.Scope, req.WorkspaceID, req.ProfileName)
-	return s.enrichMCPEnablementResult(ctx, item, entry), nil
+	return nil
 }
 
 func mcpEnablementConfigSource(
@@ -173,11 +183,12 @@ func (s *service) setPublishedMCPServerEnabled(
 	if req.Owner == "" || req.Owner == mcpManualOwner {
 		item = publishedMCPCollectionItem(definition, req)
 	} else {
-		item = extensionMCPCollectionItem(MCPExtensionDefinition{
+		item = extensionMCPCollectionItem(&MCPExtensionDefinition{
 			Target: definition.Target, ManagementTarget: definition.ManagementTarget, Server: definition.Server,
 		})
 	}
-	return s.enrichMCPEnablementResult(ctx, item.item, item.entry), true, nil
+	s.enrichMCPEnablementResult(ctx, &item.item, item.entry)
+	return item.item, true, nil
 }
 
 func (s *service) setExtensionMCPServerEnabled(
@@ -195,14 +206,15 @@ func (s *service) setExtensionMCPServerEnabled(
 		return MCPServerItem{}, err
 	}
 	s.mcpProbeGeneration++
-	item := extensionMCPCollectionItem(definition)
-	return s.enrichMCPEnablementResult(ctx, item.item, item.entry), nil
+	item := extensionMCPCollectionItem(&definition)
+	s.enrichMCPEnablementResult(ctx, &item.item, item.entry)
+	return item.item, nil
 }
 
 func (s *service) enrichMCPEnablementResult(
-	ctx context.Context, item MCPServerItem, entry mcpSourceEntry,
-) MCPServerItem {
-	if err := s.populateMCPServerStatuses(ctx, &item, entry, true, false); err != nil {
+	ctx context.Context, item *MCPServerItem, entry mcpSourceEntry,
+) {
+	if err := s.populateMCPServerStatuses(ctx, item, entry, true, false); err != nil {
 		status := MCPServerRuntimeStatus{
 			Configured: true, State: MCPServerRuntimeStateUnknown,
 			Probe: MCPServerProbeSkipped, Reason: "not_observed",
@@ -210,7 +222,6 @@ func (s *service) enrichMCPEnablementResult(
 		if item.Disabled {
 			status = OffMCPServerRuntimeStatus()
 		}
-		setMCPRuntimeObservation(&item, entry.Server, status)
+		setMCPRuntimeObservation(item, entry.Server, status)
 	}
-	return item
 }

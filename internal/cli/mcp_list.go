@@ -173,7 +173,7 @@ func mcpListBundle(result contract.MCPListResponse) outputBundle {
 					"transport",
 					"approval",
 					cmdPaletteSourceFlag,
-					"disabled",
+					daemonDisabledKey,
 				},
 				rows,
 			), nil

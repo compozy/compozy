@@ -26,12 +26,12 @@ type authorizedTransport struct {
 }
 
 func (t authorizedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	off, _ := req.Context().Value(renewalOffKey{}).(*atomic.Bool)
-	if off != nil && off.Load() {
+	off, tracksRenewal := req.Context().Value(renewalOffKey{}).(*atomic.Bool)
+	if tracksRenewal && off.Load() {
 		return nil, ErrServerDisabled
 	}
 	if err := t.check(req.Context(), t.config); err != nil {
-		if off != nil && errors.Is(err, ErrServerDisabled) {
+		if tracksRenewal && errors.Is(err, ErrServerDisabled) {
 			off.Store(true)
 		}
 		return nil, err

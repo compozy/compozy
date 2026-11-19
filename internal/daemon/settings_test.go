@@ -2741,7 +2741,6 @@ func TestSettingsMCPDisabled(t *testing.T) {
 			t.Fatalf("disable the selected static extension definition: found=%t, err=%v", found, err)
 		}
 	})
-
 }
 
 // Invariant (UT-110/037): no OAuth/probe network call precedes digest-bound consent;

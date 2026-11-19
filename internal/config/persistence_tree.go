@@ -8,17 +8,6 @@ import (
 	tomltree "github.com/pelletier/go-toml"
 )
 
-func validateEffectiveConfigWrite(
-	homePaths HomePaths,
-	workspaceRoot string,
-	target WriteTarget,
-	rendered []byte,
-) (Config, error) {
-	configOverlayWriteMu.Lock()
-	defer configOverlayWriteMu.Unlock()
-	return validateEffectiveConfigWriteLocked(homePaths, workspaceRoot, target, rendered)
-}
-
 // validateEffectiveConfigWriteLocked avoids re-entering publication locks while validating other layers.
 func validateEffectiveConfigWriteLocked(
 	homePaths HomePaths,

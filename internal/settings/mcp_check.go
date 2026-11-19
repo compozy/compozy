@@ -25,7 +25,7 @@ func (s *service) CheckMCPServer(ctx context.Context, req MCPAuthTargetRequest) 
 	if err != nil {
 		return MCPServerItem{}, err
 	}
-	item, err := s.mcpCheckItem(ctx, req, resolved)
+	item, err := s.mcpCheckItem(ctx, req, &resolved)
 	if err != nil || item.Disabled {
 		return item, err
 	}
@@ -42,7 +42,7 @@ func (s *service) CheckMCPServer(ctx context.Context, req MCPAuthTargetRequest) 
 }
 
 func (s *service) mcpCheckItem(
-	ctx context.Context, req MCPAuthTargetRequest, resolved mcpAuthDefinition,
+	ctx context.Context, req MCPAuthTargetRequest, resolved *mcpAuthDefinition,
 ) (MCPServerItem, error) {
 	collection, err := s.ListCollection(ctx, CollectionRequest{
 		Collection: CollectionMCPServers, Scope: req.Scope, WorkspaceID: req.WorkspaceID,
