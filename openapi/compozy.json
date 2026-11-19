@@ -29579,6 +29579,11 @@
           "permission_mode_degraded": {
             "type": "boolean"
           },
+          "pinned_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "process_summary": {
             "oneOf": [
               {
@@ -68378,6 +68383,23 @@
             },
             "description": "Package bytes differ from the listed digest"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ExtensionValidationErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Invalid plugin manifest"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -75504,7 +75526,20 @@
             }
           },
           {
-            "description": "Stable session ordering",
+            "description": "Visibility of pinned sessions; included by default",
+            "in": "query",
+            "name": "pinned",
+            "schema": {
+              "enum": [
+                "exclude",
+                "only",
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Stable session ordering; pinned (pin order, oldest first) requires pinned=only",
             "in": "query",
             "name": "sort",
             "schema": {
@@ -75515,7 +75550,8 @@
                 "last_activity",
                 "attention",
                 "navigator",
-                "manual"
+                "manual",
+                "pinned"
               ],
               "type": "string"
             }
@@ -76065,6 +76101,19 @@
             "description": "Visibility of sessions parked in Later; excluded by default",
             "in": "query",
             "name": "later",
+            "schema": {
+              "enum": [
+                "exclude",
+                "only",
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Visibility of pinned sessions; included by default",
+            "in": "query",
+            "name": "pinned",
             "schema": {
               "enum": [
                 "exclude",
@@ -98988,7 +99037,20 @@
             }
           },
           {
-            "description": "Stable session ordering",
+            "description": "Visibility of pinned sessions; included by default",
+            "in": "query",
+            "name": "pinned",
+            "schema": {
+              "enum": [
+                "exclude",
+                "only",
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Stable session ordering; pinned (pin order, oldest first) requires pinned=only",
             "in": "query",
             "name": "sort",
             "schema": {
@@ -98999,7 +99061,8 @@
                 "last_activity",
                 "attention",
                 "navigator",
-                "manual"
+                "manual",
+                "pinned"
               ],
               "type": "string"
             }
@@ -105269,6 +105332,212 @@
           }
         },
         "summary": "List pending session interactions",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/pin": {
+      "delete": {
+        "operationId": "unpinSession",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflicting profile selectors (profile_selection_conflict)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Subagent sessions follow their parent and an always-on agent's main session lives in its avatar, so neither can be pinned"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Unpin a session so it returns to its place in the list; an unpinned session is unchanged",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "post": {
+        "operationId": "pinSession",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflicting profile selectors (profile_selection_conflict)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Subagent sessions follow their parent and an always-on agent's main session lives in its avatar, so neither can be pinned"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Pin a session above the session list; pinning a pinned session changes nothing",
         "tags": [
           "sessions"
         ],

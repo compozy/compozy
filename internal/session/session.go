@@ -127,6 +127,8 @@ type Info struct {
 	EndedEarlyTurnID    string
 	PendingInteractions []store.PendingInteraction
 	ArchivedAt          *time.Time
+	// PinnedAt is when the operator pinned the session above the session list; nil when unpinned.
+	PinnedAt *time.Time
 	// Later is the parked state of a stopped session; nil when it is not parked.
 	Later *store.SessionLater
 	// LaterReturnedAt marks a session brought back from Later until the operator sees or resumes it.

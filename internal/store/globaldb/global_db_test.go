@@ -5638,6 +5638,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"initiator_kind",
 				"initiator_id",
 				"failure_seen_at",
+				"pinned_at",
 			},
 		)
 	})

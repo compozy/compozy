@@ -180,6 +180,9 @@ func statusForSessionError(err error) int {
 	if status, ok := statusForSessionLaterError(err); ok {
 		return status
 	}
+	if status, ok := statusForSessionPinError(err); ok {
+		return status
+	}
 	if status, ok := statusForAttentionSeenError(err); ok {
 		return status
 	}

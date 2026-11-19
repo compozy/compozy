@@ -89,6 +89,14 @@ func marketplaceCatalogEntryOperation() OperationSpec {
 				Body:        contract.ExtensionOperationErrorPayload{},
 			},
 			{
+				Status:      422,
+				Description: "Invalid plugin manifest",
+				Bodies: overlappingResponseBodiesOf(
+					responseBodyOf[contract.ExtensionValidationErrorPayload](),
+					responseBodyOf[contract.ExtensionOperationErrorPayload](),
+				),
+			},
+			{
 				Status: 503, Description: "Marketplace detail dependency is not configured",
 				Body: contract.ErrorPayload{},
 			},

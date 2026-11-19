@@ -31,8 +31,8 @@ export interface SessionListThreadListProps {
   selection?: SessionRowSelection;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
-  /** Shown in place of the threads when none survive the filter. */
-  emptyMessage: string;
+  /** Shown in place of the threads when none survive the filter; `null` shows nothing. */
+  emptyMessage: string | null;
 }
 
 /** The single-workspace breadth: provenance threads in served order, or the empty state. */
@@ -82,7 +82,7 @@ export function SessionListThreadList({
           testIdPrefix={testIdPrefix}
         />
       ))}
-      {threads.length === 0 ? (
+      {threads.length === 0 && emptyMessage !== null ? (
         <Empty
           className="px-3 py-8"
           fill={false}

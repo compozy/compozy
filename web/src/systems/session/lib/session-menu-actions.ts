@@ -10,6 +10,8 @@ import {
   GitFork,
   Hash,
   Pencil,
+  Pin,
+  PinOff,
   RotateCcw,
   Square,
   Trash2,
@@ -37,6 +39,8 @@ export const SESSION_MENU_ACTIONS = {
   },
   continue: { label: "Continue with another agent…", icon: ArrowRightLeft },
   fork: { label: "Fork session…", icon: GitFork },
+  pin: { label: "Pin to top", icon: Pin },
+  unpin: { label: "Unpin", icon: PinOff },
   "move-to-profile": { label: "Move to profile", icon: UserRound },
   "move-under": { label: "Move under…", icon: CornerDownRight },
   "make-top-level": {

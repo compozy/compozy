@@ -19,7 +19,7 @@ import { formatAbsoluteTime, toast } from "@compozy/ui";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { expectFetchRequest } from "@/test/fetch-test-utils";
+import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 import { allModelsListOptions, type ProviderModelPayload } from "@/systems/model-catalog";
 import {
   clearActiveWorkspaceSelection,
@@ -2213,6 +2213,162 @@ describe("SessionList Later", () => {
     expect(screen.queryByTestId("session-row-later-parked")).not.toBeInTheDocument();
     await user.click(await screen.findByTestId("session-row-back-from-later-parked"));
     expect(actions.onBackFromLater).toHaveBeenCalledExactlyOnceWith(parked);
+  });
+});
+
+// Invariant (#1827): the active list shows pinned sessions on their own in a Pinned section above
+// every group and row (oldest pin first, foldable, counted unless searching); a pinned list is
+// never "empty"; a row pins from its own button and unpins from its menu through the session's pin
+// route; a subagent row offers neither. Owner: SessionList through its sidebar host.
+describe("SessionList Pinned", () => {
+  const pinned: SessionPayload = {
+    ...primarySessionFixture,
+    id: "pinned",
+    name: "Launch plan",
+    archived_at: null,
+    state: "stopped",
+    pinned_at: "2026-11-18T09:00:00Z",
+  };
+  const pinnedRead = (rows: SessionPayload[], more = false) => ({
+    sessions: rows,
+    loading: false,
+    failed: false,
+    more,
+    retry: vi.fn(),
+  });
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("Should list pinned sessions above the list and show no empty state below them", async () => {
+    const user = userEvent.setup();
+    const toggleGroup = vi.fn();
+    const { update } = renderList({
+      sessions: [],
+      view: { ...view, pinned: pinnedRead([pinned]), toggleGroup },
+    });
+
+    const section = screen.getByTestId("session-sidebar-pinned");
+    expect(section).toHaveAccessibleName("Pinned");
+    expect(within(section).getByTestId("session-sidebar-session-pinned")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned1");
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
+    // A pinned row is out of its folder and order for now: Move ▸ offers neither.
+    await user.click(screen.getByTestId("session-row-actions-pinned"));
+    expect(screen.queryByTestId("session-row-up-pinned")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByTestId("session-sidebar-pinned-toggle"));
+    expect(toggleGroup).toHaveBeenCalledExactlyOnceWith("pinned");
+    update([], {
+      ...view,
+      pinned: pinnedRead([pinned], true),
+      collapsedGroupKeys: new Set(["pinned"]),
+    });
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned100+");
+    expect(screen.queryByTestId("session-sidebar-session-pinned")).not.toBeInTheDocument();
+
+    // A search narrows the rows, so the header names no count; no pins means no section.
+    update([], { ...view, search: "launch", setSearch: vi.fn(), pinned: pinnedRead([pinned]) });
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent(/^Pinned$/);
+    update([], { ...view, pinned: pinnedRead([]) });
+    expect(screen.queryByTestId("session-sidebar-pinned")).not.toBeInTheDocument();
+    // A later page an unpin emptied keeps the section and its Previous; the list is not empty.
+    update([], {
+      ...view,
+      catalog: sessionListCatalogFixture(),
+      pinned: { ...pinnedRead([], true), catalog: sessionListCatalogFixture({ previous: true }) },
+    });
+    expect(
+      within(screen.getByTestId("session-sidebar-pinned")).getByRole("button", {
+        name: "Previous sessions",
+      })
+    ).toBeVisible();
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
+
+    // The count names pins, not threads: a pinned child nests under its pinned parent.
+    const pinnedChild: SessionPayload = {
+      ...pinned,
+      id: "pinned-child",
+      name: "Launch copy",
+      lineage: {
+        spawn_role: "worker",
+        parent_session_id: pinned.id,
+        root_session_id: pinned.id,
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      },
+    };
+    update([], { ...view, pinned: pinnedRead([pinned, pinnedChild]) });
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned2");
+
+    // While the pins are still being read, the list below is not declared empty yet.
+    const settled = { ...view, catalog: sessionListCatalogFixture() };
+    update([], { ...settled, pinned: pinnedRead([]) });
+    expect(screen.getByText(/^No sessions/)).toBeVisible();
+    update([], { ...settled, pinned: { ...pinnedRead([]), loading: true } });
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
+  });
+
+  it("Should pin a row from its button and unpin a pinned row from its menu", async () => {
+    const user = userEvent.setup();
+    const listed = { ...sessions[1]! };
+    mockJsonResponse({ session: { ...listed, pinned_at: "2026-11-18T10:00:00Z" } });
+    renderList({ sessions: [listed], view: { ...view, pinned: pinnedRead([pinned]) } });
+
+    const pin = screen.getByTestId(`session-row-pin-${listed.id}`);
+    expect(pin).toHaveAccessibleName(`Pin to top: ${listed.name}`);
+    await user.click(pin);
+    await expectFetchRequest({
+      method: "POST",
+      path: `/api/workspaces/${listed.workspace_id}/sessions/${listed.id}/pin?profile=${listed.profile_name}`,
+    });
+    await waitFor(() => expect(screen.getByText(`Pinned ${listed.name}.`)).toBeInTheDocument());
+
+    vi.mocked(globalThis.fetch).mockClear();
+    mockJsonResponse({ session: { ...pinned, pinned_at: null } });
+    await user.click(screen.getByTestId("session-row-actions-pinned"));
+    await user.click(await screen.findByTestId("session-row-unpin-pinned"));
+    await expectFetchRequest({
+      method: "DELETE",
+      path: `/api/workspaces/${pinned.workspace_id}/sessions/pinned/pin?profile=${pinned.profile_name}`,
+    });
+    await waitFor(() => expect(screen.getByText("Unpinned Launch plan.")).toBeInTheDocument());
+  });
+
+  it("Should offer no pin verb on a subagent row", async () => {
+    const user = userEvent.setup();
+    const subagent: SessionPayload = {
+      ...sessions[1]!,
+      id: "sub",
+      lineage: {
+        spawn_role: "subagent",
+        parent_session_id: "gone",
+        root_session_id: "gone",
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      },
+    };
+    renderList({ sessions: [subagent], view: { ...view, pinned: pinnedRead([]) } });
+
+    expect(screen.queryByTestId("session-row-pin-sub")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("session-row-actions-sub"));
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-pin-sub")).not.toBeInTheDocument();
   });
 });
 

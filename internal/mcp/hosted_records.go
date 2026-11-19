@@ -39,7 +39,9 @@ func (s *HostedService) bindLaunch(
 		return nil, ErrHostedNonceInvalid
 	}
 	if !launch.expiresAt.After(now) {
-		delete(s.launches, sessionID)
+		// Consume the nonce but retain the deadline until the launch owner observes it.
+		launch.nonceHash = ""
+		launch.readiness.notify(nil)
 		return nil, ErrHostedNonceExpired
 	}
 	launch.established = true

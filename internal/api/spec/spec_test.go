@@ -3998,6 +3998,11 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addSessionCatalogFacetsLater(baseline) == 0 {
 		t.Fatal("approved facets Later total: no historical session catalog facets schemas found")
 	}
+	// #1827: optional pinned_at on session payloads, the pinned catalog filter and the pinned sort.
+	if addSessionPinSchemas(baseline) == 0 {
+		t.Fatal("approved pin addition: no historical session schemas found")
+	}
+	addSessionCatalogPinnedParameter(t, baseline)
 	for _, code := range []tools.ErrorCode{
 		tools.ErrorCodeSessionInLater,
 		tools.ErrorCodeSubagentLaterFollowsParent,
@@ -5713,6 +5718,60 @@ func addSessionCatalogLaterParameter(t *testing.T, baseline map[string]any) {
 			t.Fatalf("approved Later filter: %s has no archive parameter", path)
 		}
 		operation["parameters"] = slices.Concat(parameters[:at+1], []any{later}, parameters[at+1:])
+	}
+}
+
+func addSessionPinSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionPinSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionPinSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["badge"] == nil || properties["attachable"] == nil || properties["workspace_id"] == nil ||
+			properties["id"] == nil {
+			return count
+		}
+		properties["pinned_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+		count++
+	}
+	return count
+}
+
+// addSessionCatalogPinnedParameter inserts the pinned filter after the Later
+// filter of each session catalog read and the pinned value into its sort.
+func addSessionCatalogPinnedParameter(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	pinned := map[string]any{
+		"description": "Visibility of pinned sessions; included by default",
+		"in":          "query", "name": "pinned",
+		"schema": map[string]any{"enum": []any{"exclude", "only", "include"}, "type": "string"},
+	}
+	for _, path := range []string{"/api/sessions", "/api/sessions/facets", "/api/workspaces/{workspace_id}/sessions"} {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		at := slices.IndexFunc(parameters, func(parameter any) bool {
+			return parameter.(map[string]any)["name"] == "later"
+		})
+		if at < 0 {
+			t.Fatalf("approved pinned filter: %s has no later parameter", path)
+		}
+		operation["parameters"] = slices.Concat(parameters[:at+1], []any{pinned}, parameters[at+1:])
+		for _, parameter := range operation["parameters"].([]any) {
+			parameter := parameter.(map[string]any)
+			if parameter["name"] != "sort" {
+				continue
+			}
+			parameter["description"] = "Stable session ordering; pinned (pin order, oldest first) requires pinned=only"
+			schema := parameter["schema"].(map[string]any)
+			schema["enum"] = append(schema["enum"].([]any), "pinned")
+		}
 	}
 }
 

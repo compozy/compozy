@@ -1182,6 +1182,9 @@ import type {
   PinCmdPaletteCommandData,
   PinCmdPaletteCommandErrors,
   PinCmdPaletteCommandResponses,
+  PinSessionData,
+  PinSessionErrors,
+  PinSessionResponses,
   PlanSessionHistoryCleanupData,
   PlanSessionHistoryCleanupErrors,
   PlanSessionHistoryCleanupResponses,
@@ -1617,6 +1620,9 @@ import type {
   UnpinCmdPaletteCommandData,
   UnpinCmdPaletteCommandErrors,
   UnpinCmdPaletteCommandResponses,
+  UnpinSessionData,
+  UnpinSessionErrors,
+  UnpinSessionResponses,
   UnregisterWindowManagerClientData,
   UnregisterWindowManagerClientErrors,
   UnregisterWindowManagerClientResponses,
@@ -9609,6 +9615,42 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions",
+      ...options,
+    });
+  }
+
+  /**
+   * Unpin a session so it returns to its place in the list; an unpinned session is unchanged
+   */
+  public unpinSession<ThrowOnError extends boolean = true>(
+    options: Options<UnpinSessionData, ThrowOnError>
+  ): RequestResult<UnpinSessionResponses, UnpinSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      UnpinSessionResponses,
+      UnpinSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pin",
+      ...options,
+    });
+  }
+
+  /**
+   * Pin a session above the session list; pinning a pinned session changes nothing
+   */
+  public pinSession<ThrowOnError extends boolean = true>(
+    options: Options<PinSessionData, ThrowOnError>
+  ): RequestResult<PinSessionResponses, PinSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      PinSessionResponses,
+      PinSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pin",
       ...options,
     });
   }

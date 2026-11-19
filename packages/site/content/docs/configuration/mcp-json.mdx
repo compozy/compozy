@@ -210,6 +210,11 @@ by protected-resource metadata. The discovered authorization-server metadata mus
 issuer; a mismatch fails before registration or token use. A pre-registered entry must provide both
 `issuer_url` and `client_id`. Automatic registration does not accept a configured client ID or secret.
 
+Automatic registration can request `offline_access` when the issuer advertises it and the client
+allows it. CompozyOS adds it alongside the configured scopes or scopes advertised by the resource.
+If the request omits scopes, the issuer applies its defaults. The issuer controls consent and
+whether to issue a refresh token.
+
 ## Client metadata identity
 
 By default, CompozyOS identifies itself to compatible authorization servers with the public client
@@ -351,9 +356,10 @@ profile and workspace determine the effective registry. Returned auth diagnostic
 include the owning scope and owner, and CLI repair commands preserve those
 selectors. They do not return OAuth codes, tokens, PKCE verifiers, or secret values.
 
-The web repair action appears only for OAuth-capable HTTP servers that need their first login,
-have expired or invalid auth, or report `auth_refresh_failed`. Authorization success still requires
-both `authenticated` and `token_present=true`; runtime and probe state remain independent.
+The web repair action is available for OAuth-capable HTTP servers that need sign-in or report an
+invalid token or a refresh failure. An expired token with `refreshable=true` can renew during
+discovery or a tool call. Authorization success requires `authenticated` and `token_present=true`.
+Runtime and probe status also report whether CompozyOS can reach the server and discover its tools.
 
 ## Edit A Configured Server
 
@@ -377,8 +383,11 @@ for the same reason.
 
 ## Repair Authorization
 
-Use Authorize for `needs_login` and Reauthorize for expired, invalid, or refresh-failed OAuth state.
-The daemon preserves an existing token when begin, exchange, refresh, or operator completion fails.
+Use **Authorize** for `needs_login`. Use **Reauthorize** if local credentials prevent renewal,
+the token is invalid, or the runtime reports `auth_refresh_failed`. Discovery and tool calls can
+renew a token in the final 10% of its lifetime, up to 30 seconds before expiry. A transient refresh
+failure leaves a still-valid token usable until expiry. A definitive rejection from the issuer
+clears the token and requires sign-in.
 
 ```bash
 # Automatic loopback completion.
