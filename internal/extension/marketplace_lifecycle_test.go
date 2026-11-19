@@ -2866,11 +2866,17 @@ func TestRemoveBuiltinPermanentlyCompensation(t *testing.T) {
 			env := newRegistryTestEnv(t)
 			homePaths := seedBundledRegistryRow(t, env)
 			reloadErr := errors.New("reload failed")
+			reloads := 0
 
 			_, err := RemoveBuiltinPermanently(
 				t.Context(), homePaths, env.registry, builtinPermanentTestName, "operator",
 				func(context.Context) error {
-					corruptStagedRemovalBackup(t, ManagedInstallPath(homePaths, builtinPermanentTestName))
+					// Only the forward reload corrupts the backup. The rollback restores the backup before the
+					// reconciliation reload, so a second corruption would find no staged backup to break.
+					reloads++
+					if reloads == 1 {
+						corruptStagedRemovalBackup(t, ManagedInstallPath(homePaths, builtinPermanentTestName))
+					}
 					return reloadErr
 				}, nil,
 			)
@@ -2904,6 +2910,7 @@ func TestRemoveBuiltinPermanentlyCompensation(t *testing.T) {
 					err,
 				)
 			}
+			requireBuiltinDirAbsent(t, homePaths)
 		},
 	)
 
@@ -2957,6 +2964,100 @@ func TestRemoveBuiltinPermanentlyCompensation(t *testing.T) {
 		},
 	)
 
+	t.Run(
+		"Should reconcile the runtime after a failed compensation has removed the row and directory",
+		func(t *testing.T) {
+			env := newRegistryTestEnv(t)
+			homePaths := seedBundledRegistryRow(t, env)
+			reloadErr := errors.New("reload failed")
+			reloads := 0
+			reconciledRowGone := false
+			reconciledDirGone := false
+
+			_, err := RemoveBuiltinPermanently(
+				t.Context(), homePaths, env.registry, builtinPermanentTestName, "operator",
+				func(context.Context) error {
+					reloads++
+					if reloads == 1 {
+						corruptStagedRemovalBackup(t, ManagedInstallPath(homePaths, builtinPermanentTestName))
+						return reloadErr
+					}
+					// The second reload reconciles the runtime, so it must observe the cleaned removed state.
+					_, getErr := env.registry.Get(builtinPermanentTestName)
+					reconciledRowGone = errors.Is(getErr, ErrExtensionNotFound)
+					_, statErr := os.Stat(ManagedInstallPath(homePaths, builtinPermanentTestName))
+					reconciledDirGone = errors.Is(statErr, os.ErrNotExist)
+					return nil
+				}, nil,
+			)
+			if !errors.Is(err, ErrExtensionBuiltinRemovalCompensationFailed) ||
+				!errors.Is(err, ErrExtensionRemovalCompensationFailed) {
+				t.Fatalf(
+					"RemoveBuiltinPermanently(compensation failure) error = %v, want both compensation sentinels",
+					err,
+				)
+			}
+			if reloads != 2 {
+				t.Fatalf("reload calls = %d, want 2: the forward reload and the reconciliation reload", reloads)
+			}
+			if !reconciledRowGone || !reconciledDirGone {
+				t.Fatalf(
+					"reconciliation reload saw row gone = %v, directory gone = %v; want both before it runs",
+					reconciledRowGone,
+					reconciledDirGone,
+				)
+			}
+			tombstoned, err := env.registry.Tombstoned(t.Context(), builtinPermanentTestName)
+			if err != nil || !tombstoned {
+				t.Fatalf("Tombstoned() = %v, %v; want true, nil after reconciliation", tombstoned, err)
+			}
+		},
+	)
+
+	t.Run(
+		"Should join a failed reconciliation reload with the compensation error and keep both sentinels",
+		func(t *testing.T) {
+			env := newRegistryTestEnv(t)
+			homePaths := seedBundledRegistryRow(t, env)
+			forwardErr := errors.New("forward reload failed")
+			reconcileErr := errors.New("reconciliation reload failed")
+			reloads := 0
+
+			_, err := RemoveBuiltinPermanently(
+				t.Context(), homePaths, env.registry, builtinPermanentTestName, "operator",
+				func(context.Context) error {
+					reloads++
+					if reloads == 1 {
+						corruptStagedRemovalBackup(t, ManagedInstallPath(homePaths, builtinPermanentTestName))
+						return forwardErr
+					}
+					return reconcileErr
+				}, nil,
+			)
+			if !errors.Is(err, ErrExtensionBuiltinRemovalCompensationFailed) ||
+				!errors.Is(err, ErrExtensionRemovalCompensationFailed) {
+				t.Fatalf(
+					"RemoveBuiltinPermanently(reconcile failure) error = %v, want both compensation sentinels",
+					err,
+				)
+			}
+			if !errors.Is(err, forwardErr) || !errors.Is(err, reconcileErr) {
+				t.Fatalf(
+					"RemoveBuiltinPermanently(reconcile failure) error = %v, want the forward and reconcile causes",
+					err,
+				)
+			}
+			if _, err := env.registry.Get(builtinPermanentTestName); !errors.Is(err, ErrExtensionNotFound) {
+				t.Fatalf("Get(after reconcile failure) error = %v, want ErrExtensionNotFound", err)
+			}
+			requireBuiltinDirAbsent(t, homePaths)
+			tombstoned, err := env.registry.Tombstoned(t.Context(), builtinPermanentTestName)
+			if err != nil || !tombstoned {
+				t.Fatalf("Tombstoned() = %v, %v; want true, nil: the removal keeps its tombstone", tombstoned, err)
+			}
+		},
+	)
+
 	t.Run("Should wrap a non-permanent compensation failure with the generic sentinel only", func(t *testing.T) {
 		env := newRegistryTestEnv(t)
 		homePaths := seedBundledRegistryRow(t, env)
@@ -2984,6 +3085,13 @@ func requireBuiltinDirExists(t *testing.T, homePaths compozyconfig.HomePaths) {
 	t.Helper()
 	if _, err := os.Stat(ManagedInstallPath(homePaths, builtinPermanentTestName)); err != nil {
 		t.Fatalf("os.Stat(built-in install dir) error = %v, want the directory present", err)
+	}
+}
+
+func requireBuiltinDirAbsent(t *testing.T, homePaths compozyconfig.HomePaths) {
+	t.Helper()
+	if _, err := os.Stat(ManagedInstallPath(homePaths, builtinPermanentTestName)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("os.Stat(built-in install dir) error = %v, want the directory absent", err)
 	}
 }
 

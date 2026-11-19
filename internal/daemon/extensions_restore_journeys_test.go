@@ -11,8 +11,9 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-// Invariant: a restored built-in is usable without a restart (IT-002) and keeps the enablement the operator
-// chose before removal (IT-007). Both run on the real registry and the embedded bundled package.
+// Invariant: a restored built-in is usable without a restart (IT-002) and comes back enabled for the default
+// profile (IT-007): removal deletes the row's enablement exceptions, and restore enables the row it enrolls.
+// Both run on the real registry and the embedded bundled package.
 
 // TestBundledEnrollmentTableOrder guards boot order: boot and restore both read this table, so its
 // contents and order must match what boot enrolled before the table existed.

@@ -6,14 +6,17 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // Invariant: restore clears a built-in's tombstone and enrolls it at its bundled version under the package
-// lock, refuses conflicts without touching the tombstone, and writes the tombstone back when enrollment fails.
+// lock, enables it for the default profile, refuses conflicts without touching the tombstone, and writes the
+// tombstone back when enrollment, enablement, or the rollback's reload fails.
 // Owner: daemon extension suite (UT-002, UT-006, UT-007, UT-008, UT-017, IT-008, and the not-found case).
 
 func restoreTestService(t *testing.T) (*daemonExtensionService, *extensionpkg.Registry) {
@@ -76,6 +79,40 @@ func restoreTestRequireTombstone(t *testing.T, registry *extensionpkg.Registry, 
 	if err != nil || got != want {
 		t.Fatalf("Tombstoned(%q) = %v, %v; want %v, nil", name, got, err, want)
 	}
+}
+
+// restoreTestRuntime is the extension runtime restore needs once it enables a row: enabling inspects the package
+// resources, and the reload is routed through reload so a test can control how long it takes.
+type restoreTestRuntime struct {
+	registry *extensionpkg.Registry
+	reload   func(context.Context) error
+}
+
+func (r restoreTestRuntime) Start(context.Context) error { return nil }
+
+func (r restoreTestRuntime) Stop(context.Context) error { return nil }
+
+func (r restoreTestRuntime) Reload(ctx context.Context) error {
+	if r.reload != nil {
+		return r.reload(ctx)
+	}
+	return nil
+}
+
+func (r restoreTestRuntime) Get(string) (*extensionpkg.Extension, error) {
+	return nil, extensionpkg.ErrExtensionNotFound
+}
+
+func (r restoreTestRuntime) InspectPackageResources(_ context.Context, name string) (*extensionpkg.Extension, error) {
+	info, err := r.registry.Get(name)
+	if err != nil {
+		return nil, err
+	}
+	manifest, err := extensionpkg.LoadInstalledManifest(info)
+	if err != nil {
+		return nil, err
+	}
+	return &extensionpkg.Extension{Info: *info, Manifest: manifest}, nil
 }
 
 func TestDaemonExtensionBuiltinRestore(t *testing.T) {
@@ -332,4 +369,69 @@ func TestDaemonExtensionBuiltinRestore(t *testing.T) {
 			restoreTestRequireTombstone(t, registry, "spec-cycle", false)
 		},
 	)
+
+	t.Run(
+		"Should enable a restored built-in that enrolled with a disabled default-profile exception",
+		func(t *testing.T) {
+			t.Parallel()
+			service, registry := restoreTestService(t)
+			restoreTestRemovePermanently(t, service, registry, "spec-cycle")
+			service.runtime = restoreTestRuntime{registry: registry}
+			service.builtinEnrollments = []bundledEnrollment{{
+				Name: "spec-cycle",
+				Enroll: func(_ compozyconfig.HomePaths, reg *extensionpkg.Registry) error {
+					// A dev-linked name keeps its disabled exception when its row is deleted, so enrollment can find one.
+					restoreTestSeedRow(t, reg, "spec-cycle", extensionpkg.SourceBundled)
+					return reg.Disable("spec-cycle")
+				},
+			}}
+
+			item, err := service.RestoreBuiltin(t.Context(), "spec-cycle", restoreTestOperator(t))
+			if err != nil {
+				t.Fatalf("RestoreBuiltin(disabled enrollment) error = %v", err)
+			}
+			if !item.Enabled {
+				t.Fatalf("RestoreBuiltin payload = %#v, want enabled", item)
+			}
+			enabled, err := registry.IsEnabledForProfile("spec-cycle", store.DefaultProfileID)
+			if err != nil || !enabled {
+				t.Fatalf("IsEnabledForProfile(restored, default) = %v, %v; want enabled, nil", enabled, err)
+			}
+			installed, err := registry.Get("spec-cycle")
+			if err != nil || !installed.Enabled {
+				t.Fatalf("Get(restored) = %#v, %v; want an enabled row", installed, err)
+			}
+		},
+	)
+
+	t.Run("Should write the tombstone back when a reload spends the rollback budget", func(t *testing.T) {
+		t.Parallel()
+		service, registry := restoreTestService(t)
+		restoreTestRemovePermanently(t, service, registry, "spec-cycle")
+		service.restoreRollbackTimeout = 500 * time.Millisecond
+		// The reload holds until the rollback budget expires, so only a tombstone write with its own budget survives.
+		service.runtime = restoreTestRuntime{registry: registry, reload: func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		}}
+		service.builtinEnrollments = []bundledEnrollment{{
+			Name: "spec-cycle",
+			Enroll: func(_ compozyconfig.HomePaths, reg *extensionpkg.Registry) error {
+				restoreTestSeedRow(t, reg, "spec-cycle", extensionpkg.SourceBundled)
+				return errors.New("injected enrollment failure")
+			},
+		}}
+
+		_, err := service.RestoreBuiltin(t.Context(), "spec-cycle", restoreTestOperator(t))
+		if !errors.Is(err, extensionpkg.ErrExtensionRestoreFailed) {
+			t.Fatalf("RestoreBuiltin(spent rollback budget) error = %v, want ErrExtensionRestoreFailed", err)
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("RestoreBuiltin(spent rollback budget) error = %v, want the reload's deadline in the chain", err)
+		}
+		restoreTestRequireTombstone(t, registry, "spec-cycle", true)
+		if _, err := registry.Get("spec-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("Get(after rollback) error = %v, want ErrExtensionNotFound", err)
+		}
+	})
 }

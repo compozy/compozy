@@ -63,6 +63,8 @@ type daemonExtensionService struct {
 	profiles            *profilepkg.Manager
 	// builtinEnrollments overrides the shared bundledEnrollments table for restore; nil uses the table.
 	builtinEnrollments []bundledEnrollment
+	// restoreRollbackTimeout overrides the restore rollback budget for tests; zero uses builtinRestoreRollbackTimeout.
+	restoreRollbackTimeout time.Duration
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)

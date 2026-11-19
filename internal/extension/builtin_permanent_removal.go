@@ -112,7 +112,7 @@ func RemoveBuiltinPermanently(
 		if !errors.Is(err, ErrExtensionRemovalCompensationFailed) {
 			return ManagedRemoveResult{}, err
 		}
-		keepErr := routed.keepRemovedAfterFailedCompensation(ctx, installDir)
+		keepErr := routed.keepRemovedAfterFailedCompensation(ctx, installDir, reload)
 		return ManagedRemoveResult{}, fmt.Errorf(
 			"%w: %q keeps its tombstone; run `compozy extension restore %s` to bring it back: %w",
 			ErrExtensionBuiltinRemovalCompensationFailed, trimmedName, trimmedName, errors.Join(err, keepErr),
@@ -172,24 +172,44 @@ func (p *builtinPermanentRegistry) Install(
 }
 
 // keepRemovedAfterFailedCompensation returns a failed compensation to the removed state: no row, no install
-// directory, and the tombstone recorded. A compensation that fails after its reinstall has already put the row back
-// and cleared the tombstone, so the row delete and directory removal run again and the tombstone returns from the
-// record the removal committed. It runs detached from the caller's cancellation, like the other rollbacks.
-func (p *builtinPermanentRegistry) keepRemovedAfterFailedCompensation(ctx context.Context, installDir string) error {
+// directory, and the tombstone recorded. It then reloads the runtime so it serves the removed state the registry
+// records, not the restored row. It runs detached from the caller's cancellation, like the other rollbacks, and it
+// reloads even when the cleanup failed, because the runtime must follow whatever state the registry now holds.
+func (p *builtinPermanentRegistry) keepRemovedAfterFailedCompensation(
+	ctx context.Context,
+	installDir string,
+	reload MutationReload,
+) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), builtinCompensationTimeout)
 	defer cancel()
+	cleanupErr := p.cleanRemovedRecord(cleanupCtx, installDir)
+	return errors.Join(cleanupErr, reconcileRuntime(cleanupCtx, reload))
+}
+
+// cleanRemovedRecord deletes a row that the compensation reinstalled, then records the tombstone and removes the
+// install directory. A compensation can leave the directory behind even when no row was reinstalled: the directory
+// rollback runs before the reinstall, so a reinstall that fails leaves the restored directory on disk.
+func (p *builtinPermanentRegistry) cleanRemovedRecord(ctx context.Context, installDir string) error {
 	_, getErr := p.registry.Get(p.name)
 	if getErr != nil && !errors.Is(getErr, ErrExtensionNotFound) {
 		return getErr
 	}
-	if getErr != nil {
-		// No row was reinstalled, so the tombstone was never cleared and only needs to be confirmed.
-		return p.ensureTombstone(cleanupCtx)
+	if getErr == nil {
+		// The row must be gone before the tombstone returns: a failed uninstall stops here, so a row never sits beside it.
+		if err := p.RemovalRegistry.Uninstall(p.name); err != nil {
+			return err
+		}
 	}
-	if err := p.RemovalRegistry.Uninstall(p.name); err != nil {
-		return err
+	return errors.Join(p.ensureTombstone(ctx), removeRestoredInstallDir(installDir))
+}
+
+// reconcileRuntime reloads the name so the runtime matches the registry after the cleanup. A nil reload skips the
+// step, as it does for RemoveManagedExtension.
+func reconcileRuntime(ctx context.Context, reload MutationReload) error {
+	if reload == nil {
+		return nil
 	}
-	return errors.Join(p.ensureTombstone(cleanupCtx), removeRestoredInstallDir(installDir))
+	return reload(ctx)
 }
 
 // ensureTombstone writes the removal's tombstone back when it is not recorded, from the record the removal committed.

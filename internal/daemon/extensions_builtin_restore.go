@@ -36,7 +36,7 @@ func (s *daemonExtensionService) RestoreBuiltin(
 	var item contract.ExtensionRestorePayload
 	err := s.lifecycle.withPackageMutation(ctx, []string{trimmedName}, func() error {
 		var restoreErr error
-		item, restoreErr = s.restoreBuiltinLocked(ctx, trimmedName)
+		item, restoreErr = s.restoreBuiltinLocked(ctx, trimmedName, actor)
 		return restoreErr
 	})
 	return item, err
@@ -66,11 +66,12 @@ func (s *daemonExtensionService) ListRemovedBuiltins(
 }
 
 // restoreBuiltinLocked runs the restore order: tombstone check, operator-row check, tombstone clear,
-// shared enrollment, reload. A failure after the clear rolls back to the removed state, unless a partially
-// enrolled row cannot be removed; see rollbackBuiltinRestore.
+// shared enrollment, default-profile enablement, reload. A failure after the clear rolls back to the removed
+// state, unless a partially enrolled row cannot be removed; see rollbackBuiltinRestore.
 func (s *daemonExtensionService) restoreBuiltinLocked(
 	ctx context.Context,
 	name string,
+	actor taskpkg.ActorContext,
 ) (contract.ExtensionRestorePayload, error) {
 	builtin, known := s.builtinEnrollmentFor(name)
 	tombstone, tombstoned, err := s.registry.BuiltinTombstoneFor(ctx, name)
@@ -103,6 +104,13 @@ func (s *daemonExtensionService) restoreBuiltinLocked(
 		return contract.ExtensionRestorePayload{}, fmt.Errorf("daemon: restore %q: clear tombstone: %w", name, err)
 	}
 	if err := builtin.Enroll(s.homePaths, s.registry); err != nil {
+		return contract.ExtensionRestorePayload{}, s.rollbackBuiltinRestore(ctx, name, tombstone, err)
+	}
+	// Enrollment keeps a disabled default-profile exception that the row already holds: a dev-linked name keeps its
+	// exceptions when its row is deleted. Restore enables the built-in through the enablement step SetEnablement uses.
+	// SetEnablement itself takes the name lock restore already holds, so restore calls the unlocked step.
+	profile := extensionDefaultProfileLens()
+	if err := s.applyProfileEnablement(ctx, name, profile.ID, profile.Name, true, actor); err != nil {
 		return contract.ExtensionRestorePayload{}, s.rollbackBuiltinRestore(ctx, name, tombstone, err)
 	}
 	if err := s.reloadExtensions(ctx, name); err != nil {
@@ -147,9 +155,9 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 	tombstone extensionpkg.BuiltinTombstone,
 	cause error,
 ) error {
-	// The caller may already be canceled. A canceled context would fail the tombstone write and leave the built-in
-	// with neither a row nor a tombstone, so the rollback runs detached with its own budget.
-	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), builtinRestoreRollbackTimeout)
+	// The caller may already be canceled, so the rollback runs detached with its own budget. The tombstone write
+	// gets a budget of its own: a slow removal or reload must not leave the built-in with neither a row nor a tombstone.
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.restoreRollbackBudget())
 	defer cancel()
 	var rollbackErr error
 	partialRowGone := false
@@ -171,7 +179,7 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 		rollbackErr = errors.Join(rollbackErr, getErr)
 	}
 	if partialRowGone {
-		if err := s.registry.RestoreBuiltinTombstone(rollbackCtx, tombstone); err != nil {
+		if err := s.writeTombstoneBack(ctx, tombstone); err != nil {
 			rollbackErr = errors.Join(rollbackErr, err)
 		}
 	}
@@ -181,6 +189,26 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 		"rolled_back", partialRowGone && rollbackErr == nil,
 	)
 	return errors.Join(extensionpkg.ErrExtensionRestoreFailed, cause, rollbackErr)
+}
+
+// writeTombstoneBack records the tombstone a failed restore cleared, on a detached budget of its own. The rollback
+// budget covers the removal and reload that precede it; a reload that spends it must not expire this write.
+func (s *daemonExtensionService) writeTombstoneBack(
+	ctx context.Context,
+	tombstone extensionpkg.BuiltinTombstone,
+) error {
+	tombstoneCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), builtinRestoreRollbackTimeout)
+	defer cancel()
+	return s.registry.RestoreBuiltinTombstone(tombstoneCtx, tombstone)
+}
+
+// restoreRollbackBudget returns the budget of the rollback's removal and reload. Tests shorten it through
+// restoreRollbackTimeout; production always uses builtinRestoreRollbackTimeout.
+func (s *daemonExtensionService) restoreRollbackBudget() time.Duration {
+	if s.restoreRollbackTimeout > 0 {
+		return s.restoreRollbackTimeout
+	}
+	return builtinRestoreRollbackTimeout
 }
 
 // builtinEnrollmentFor returns the shared enrollment for a known built-in name.

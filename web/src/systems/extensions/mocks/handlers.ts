@@ -69,6 +69,23 @@ function extensionByName(name: string) {
   return extensionsState.find(extension => extension.name === name);
 }
 
+/**
+ * Mirrors the extensions_profile_enablement_delete trigger: deleting an extension row deletes its enablement
+ * exceptions in every profile. The daemon skips that cleanup for a dev-linked name; the mock models no dev links.
+ */
+function dropProfileEnablement(name: string): void {
+  const next: Record<string, Record<string, boolean>> = {};
+  for (const [profile, byName] of Object.entries(profileEnablementState)) {
+    next[profile] = Object.fromEntries(Object.entries(byName).filter(([item]) => item !== name));
+  }
+  profileEnablementState = next;
+}
+
+/** Test seam: installs a bundled built-in row, the only source permanent removal accepts. */
+export function seedBundledExtensionMockState(entry: ExtensionEntry): void {
+  extensionsState = [...extensionsState.filter(item => item.name !== entry.name), entry];
+}
+
 /** Mirrors the daemon: `?workspace=` resolves that workspace's instances, absent the global rows. */
 function extensionsForWorkspace(workspace: string): ExtensionEntry[] {
   if (workspace === "") return extensionsState;
@@ -306,6 +323,7 @@ export const handlers: HttpHandler[] = [
       ];
     }
     extensionsState = extensionsState.filter(extension => extension.name !== name);
+    dropProfileEnablement(name);
     return HttpResponse.json({
       extension: {
         name,
@@ -319,6 +337,11 @@ export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/extensions/removed-builtins", () =>
     HttpResponse.json({ removed: removedBuiltinsState })
   ),
+  /**
+   * Contract: restore always leaves the built-in enabled. The daemon enrolls a fresh row, enables it for the default
+   * profile, and reloads; the removal before it deleted every enablement exception, so no profile keeps a disabled
+   * state. The mock clears the name's exceptions and answers enabled, so the response and the next list agree.
+   */
   compozyApiMock.post("/api/extensions/{name}/restore", ({ params }) => {
     const name = String(params.name);
     if (!removedBuiltinsState.some(item => item.name === name)) {
@@ -338,6 +361,7 @@ export const handlers: HttpHandler[] = [
       );
     }
     removedBuiltinsState = removedBuiltinsState.filter(item => item.name !== name);
+    dropProfileEnablement(name);
     const restored: ExtensionEntry = {
       ...structuredClone(extensionFixtures[0]!),
       name,
