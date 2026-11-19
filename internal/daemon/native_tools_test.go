@@ -3820,7 +3820,9 @@ func TestDaemonNativeTools(t *testing.T) {
 				ToolID: toolspkg.ToolIDSkillView, Input: json.RawMessage(`{"name":"missing-fixture"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+		if !errors.Is(err, core.ErrSkillNotFound) || !errors.Is(err, toolspkg.ErrToolNotFound) {
+			t.Fatalf("skill_view error = %v, want a missing skill with the existing not-found classification", err)
+		}
 		privateCause := errors.New("private backend path and credential")
 		backendErr := skillViewCatalogError(t.Context(), toolspkg.ToolIDSkillView, privateCause)
 		requireToolReason(t, backendErr, toolspkg.ErrToolBackendFailed, toolspkg.ReasonBackendUnhealthy)
@@ -4603,7 +4605,12 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"command_id":"skill:workspace:missing:sha256:abc"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeNotFound || !errors.Is(err, core.ErrSkillNotFound) ||
+			!strings.Contains(toolErr.PublicMessage, "skill:workspace:missing:sha256:abc") ||
+			slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonToolUnknown) {
+			t.Fatalf("skill_view error = %+v, want a missing skill identified by command id", err)
+		}
 	})
 
 	t.Run("Should discover result view contracts through native catalog tools", func(t *testing.T) {
