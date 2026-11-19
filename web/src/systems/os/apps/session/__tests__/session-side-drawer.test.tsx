@@ -70,9 +70,11 @@ function MainPane({ value, permission }: { value: SessionWindowSideChat; permiss
   return (
     <div>
       {value.control}
-      <div data-focus-target="session-composer">
-        <textarea aria-label="Session prompt" data-testid="composer-input" />
-      </div>
+      <textarea
+        aria-label="Session prompt"
+        data-focus-target="session-composer"
+        data-testid="composer-input"
+      />
       {permission ? (
         <button
           data-focus-target="permission-allow-once"
