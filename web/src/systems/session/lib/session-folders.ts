@@ -190,13 +190,26 @@ export function applySessionOrder(
   folderId: string | null,
   orderedIds: readonly string[]
 ): SessionPayload[] {
+  return applySessionSlotOrder(sessions, orderedIds, session => withFolder(session, folderId));
+}
+
+/**
+ * The listed sessions trade the slots they hold in the page, in the listed order; every other row
+ * keeps its slot. A Pinned reorder uses it as is: the daemon trades the pins' Pinned positions the
+ * same way, and the rows a pin carries nest under it wherever they sit.
+ */
+export function applySessionSlotOrder(
+  sessions: readonly SessionPayload[],
+  orderedIds: readonly string[],
+  place: (session: SessionPayload) => SessionPayload = session => session
+): SessionPayload[] {
   const rank = new Map(orderedIds.map((id, index) => [id, index]));
   const slots: number[] = [];
   const moved: SessionPayload[] = [];
   sessions.forEach((session, index) => {
     if (!rank.has(session.id)) return;
     slots.push(index);
-    moved.push(withFolder(session, folderId));
+    moved.push(place(session));
   });
   moved.sort((left, right) => (rank.get(left.id) ?? 0) - (rank.get(right.id) ?? 0));
   const next = [...sessions];

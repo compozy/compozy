@@ -101,6 +101,7 @@ type ReorderSessionFoldersRequest struct {
 // ReorderSessionsRequest is a daemon API value.
 type ReorderSessionsRequest struct {
 	FolderID   string   `json:"folder_id,omitempty"`
+	Pinned     bool     `json:"pinned,omitempty"`
 	SessionIDs []string `json:"session_ids"`
 }
 

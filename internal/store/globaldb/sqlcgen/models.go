@@ -1679,6 +1679,7 @@ type Session struct {
 	InitiatorID              string         `json:"initiator_id"`
 	FailureSeenAt            sql.NullString `json:"failure_seen_at"`
 	PinnedAt                 sql.NullString `json:"pinned_at"`
+	PinPosition              sql.NullInt64  `json:"pin_position"`
 }
 
 type SessionCreationProfile struct {

@@ -6271,7 +6271,7 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** Set the manual session order in a folder or the workspace root */
+    /** Set the manual session order in a folder, the workspace root, or Pinned */
     put: operations["reorderSessions"];
     post?: never;
     delete?: never;
@@ -15079,6 +15079,7 @@ export interface components {
     };
     ReorderSessionsRequest: {
       folder_id?: string;
+      pinned?: boolean;
       session_ids: string[];
     };
     ReorderWorkspaceFoldersRequest: {
@@ -39924,9 +39925,9 @@ export interface operations {
         archive?: "exclude" | "only" | "include";
         /** @description Visibility of sessions parked in Later; excluded by default */
         later?: "exclude" | "only" | "include";
-        /** @description Visibility of pinned sessions; included by default */
+        /** @description Visibility of pinned sessions and the subtrees their pins carry; included by default */
         pinned?: "exclude" | "only" | "include";
-        /** @description Stable session ordering; pinned (pin order, oldest first) requires pinned=only */
+        /** @description Stable session ordering; pinned (the operator's Pinned order, pages by pin with each pin's subtree) requires pinned=only */
         sort?:
           | "recent"
           | "created"
@@ -40229,7 +40230,7 @@ export interface operations {
         archive?: "exclude" | "only" | "include";
         /** @description Visibility of sessions parked in Later; excluded by default */
         later?: "exclude" | "only" | "include";
-        /** @description Visibility of pinned sessions; included by default */
+        /** @description Visibility of pinned sessions and the subtrees their pins carry; included by default */
         pinned?: "exclude" | "only" | "include";
         /** @description Read one profile's rows by name */
         profile?: string;
@@ -55657,9 +55658,9 @@ export interface operations {
         archive?: "exclude" | "only" | "include";
         /** @description Visibility of sessions parked in Later; excluded by default */
         later?: "exclude" | "only" | "include";
-        /** @description Visibility of pinned sessions; included by default */
+        /** @description Visibility of pinned sessions and the subtrees their pins carry; included by default */
         pinned?: "exclude" | "only" | "include";
-        /** @description Stable session ordering; pinned (pin order, oldest first) requires pinned=only */
+        /** @description Stable session ordering; pinned (the operator's Pinned order, pages by pin with each pin's subtree) requires pinned=only */
         sort?:
           | "recent"
           | "created"

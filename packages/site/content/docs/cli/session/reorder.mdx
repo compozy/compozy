@@ -9,7 +9,7 @@ Pin a manual session order in a folder or the workspace root
 
 ### Synopsis
 
-Pin the listed sessions, in order, at the top of one folder (or the workspace root). Sessions already there but not listed keep their order after them. List sessions with --sort manual to see this order.
+Pin the listed sessions, in order, at the top of one folder (or the workspace root). Sessions already there but not listed keep their order after them. List sessions with --sort manual to see this order. With --pinned, order the Pinned section instead: the listed pinned sessions take the Pinned slots they hold now, in order, and other pins keep theirs.
 
 ```
 compozy session reorder <id>... [flags]
@@ -23,6 +23,9 @@ compozy session reorder <id>... [flags]
 
   # Order sessions inside a folder
   compozy session reorder sess_c sess_a --folder sfold-1234
+
+  # Put one pinned session above another in Pinned
+  compozy session reorder sess_b sess_a --pinned
 ```
 
 ### Options
@@ -30,6 +33,7 @@ compozy session reorder <id>... [flags]
 ```
       --folder string      Folder ID (omit for the workspace root)
   -h, --help               help for reorder
+      --pinned             Order the Pinned section instead of a folder or the root
       --workspace string   Workspace ID, name, or path (defaults to the current directory)
 ```
 

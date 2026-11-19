@@ -4004,6 +4004,8 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		t.Fatal("approved pin addition: no historical session schemas found")
 	}
 	addSessionCatalogPinnedParameter(t, baseline)
+	// #1859: the session reorder request gains the optional pinned flag that orders Pinned.
+	addSessionReorderPinnedProperty(t, baseline)
 	for _, code := range []tools.ErrorCode{
 		tools.ErrorCodeSessionInLater,
 		tools.ErrorCodeSubagentLaterFollowsParent,
@@ -5742,6 +5744,27 @@ func addSessionPinSchemas(value any) int {
 		count++
 	}
 	return count
+}
+
+// addSessionReorderPinnedProperty adds the optional pinned flag to the session reorder request.
+func addSessionReorderPinnedProperty(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	schema := baseline
+	for _, key := range []string{
+		"paths", "/api/workspaces/{workspace_id}/session-order/sessions", "put", "requestBody", "content",
+		"application/json", "schema",
+	} {
+		next, ok := schema[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved reorder pinned flag: baseline has no %s", key)
+		}
+		schema = next
+	}
+	if ref, ok := schema["$ref"].(string); ok {
+		name := strings.TrimPrefix(ref, "#/components/schemas/")
+		schema = baseline["components"].(map[string]any)["schemas"].(map[string]any)[name].(map[string]any)
+	}
+	schema["properties"].(map[string]any)["pinned"] = map[string]any{"type": "boolean"}
 }
 
 // addSessionCatalogPinnedParameter inserts the pinned filter after the Later

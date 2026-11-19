@@ -564,10 +564,16 @@ filters participate in the cursor fingerprint. PR facts are display-cache reads,
 `compozy__session_list` returns one counted catalog page and accepts workspace, exact state, exact
 session `type`, exact agent, exact `parent` (direct children) or `root` (whole tree, root included),
 search, resumability, health, archive visibility, sort, cursor, and limit inputs. Archive visibility defaults to `exclude`; use `only` or `include` when the workflow needs
-archived rows. Pin visibility (`pinned`) defaults to `include`; `exclude` drops sessions pinned
-above the session list, `only` returns just them, and `sort: "pinned"` (oldest pin first) requires
-`only`. Rows report `pinned_at`. Pinning has no native tool: use `compozy session pin <id>` and
-`compozy session unpin <id>`; subagent sessions and always-on mains are refused.
+archived rows. Pin visibility (`pinned`) defaults to `include`. A pin carries its session's subtree
+(children, their continuations and subagents, not forks): `exclude` drops pinned sessions and every
+session they carry, `only` returns just those, and `sort: "pinned"` requires `only`, follows the
+operator's Pinned order (a new pin on top) and pages by pin, each page holding whole subtrees, so a
+pin with a large subtree returns all of it on its page. Only an active pin carries, and only within
+its own workspace and profile; an archived or parked pin still lists itself as pinned.
+Rows report `pinned_at` only for the pinned session itself. Pinning has no native tool: use
+`compozy session pin <id>` and `compozy session unpin <id>`; subagent sessions and always-on mains
+are refused. `compozy__session_reorder` with `pinned: true` orders the Pinned section: the listed
+pins trade the Pinned slots they hold, and other pins keep theirs.
 Use `type: "user"` when a workflow needs operator-created sessions without
 daemon-managed system, coordinator, or spawned sessions. `compozy__session_archive` archives a
 stopped session; a live session is refused unless the input sets `stop: true`, which stops it

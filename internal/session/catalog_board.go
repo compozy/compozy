@@ -30,6 +30,11 @@ func (m *Manager) activeBoardSessionCatalogRows(
 	if err := m.overlayPinnedAt(ctx, infos); err != nil {
 		return nil, nil, nil, err
 	}
+	if query.Pinned == PinnedExclude || query.Pinned == PinnedOnly {
+		if err := m.overlayPinScopes(ctx, infos); err != nil {
+			return nil, nil, nil, err
+		}
+	}
 	visible := make([]*Info, 0, len(infos))
 	for _, info := range infos {
 		if catalogRelationVisible(info, query) {

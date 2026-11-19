@@ -49,7 +49,11 @@ type MoveSessionRequest struct {
 // ReorderSessionsRequest pins a manual order inside one container: a folder,
 // or the workspace root when FolderID is empty. Listed sessions move into the
 // container; existing members that are not listed keep their order after them.
+// Pinned orders the Pinned section instead: the listed pinned sessions take the
+// Pinned slots they hold now in the listed order, and other pins keep theirs.
+// Pinned excludes FolderID.
 type ReorderSessionsRequest struct {
 	FolderID   string   `json:"folder_id,omitempty"`
+	Pinned     bool     `json:"pinned,omitempty"`
 	SessionIDs []string `json:"session_ids"`
 }

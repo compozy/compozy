@@ -31,6 +31,7 @@ type SessionLayoutManager interface {
 	) ([]store.SessionFolder, error)
 	MoveSession(ctx context.Context, scope store.SessionLayoutScope, sessionID string, folderID string) error
 	ReorderSessions(ctx context.Context, scope store.SessionLayoutScope, folderID string, sessionIDs []string) error
+	ReorderPinnedSessions(ctx context.Context, scope store.SessionLayoutScope, sessionIDs []string) error
 }
 
 // ListSessionFolders returns the caller profile's folders in one workspace.
@@ -136,11 +137,28 @@ func (h *BaseHandlers) ReorderSessions(c *gin.Context) {
 	if !h.decodeSessionLayoutBody(c, "session order", &req) {
 		return
 	}
-	if err := manager.ReorderSessions(c.Request.Context(), scope, req.FolderID, req.SessionIDs); err != nil {
+	if err := ReorderSessionLayout(c.Request.Context(), manager, scope, req); err != nil {
 		h.respondError(c, StatusForSessionLayoutError(err), err)
 		return
 	}
 	h.respondSessionFolders(c, manager, scope)
+}
+
+// ReorderSessionLayout applies one reorder request: a container's manual order, or the Pinned
+// order when the request names Pinned.
+func ReorderSessionLayout(
+	ctx context.Context,
+	manager SessionLayoutManager,
+	scope store.SessionLayoutScope,
+	req contract.ReorderSessionsRequest,
+) error {
+	if !req.Pinned {
+		return manager.ReorderSessions(ctx, scope, req.FolderID, req.SessionIDs)
+	}
+	if strings.TrimSpace(req.FolderID) != "" {
+		return fmt.Errorf("%w: a pinned order names no folder", store.ErrSessionLayoutInvalid)
+	}
+	return manager.ReorderPinnedSessions(ctx, scope, req.SessionIDs)
 }
 
 // SessionFolderPayload maps one store folder to its wire shape.
@@ -186,7 +204,7 @@ func StatusForSessionLayoutError(err error) int {
 		errors.Is(err, store.ErrSessionFolderLimit),
 		errors.Is(err, store.ErrSessionLayoutSubagent):
 		return http.StatusConflict
-	case errors.Is(err, session.ErrSessionLayoutUnavailable):
+	case errors.Is(err, session.ErrSessionLayoutUnavailable), errors.Is(err, session.ErrSessionPinUnavailable):
 		return http.StatusServiceUnavailable
 	default:
 		return StatusForSessionError(err)

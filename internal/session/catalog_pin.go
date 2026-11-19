@@ -19,7 +19,7 @@ var (
 )
 
 // normalizePinnedFilter validates the pinned population and the pinned sort,
-// which orders by pin time and so reads pinned sessions only.
+// which orders by the Pinned order and so reads what pins carry only.
 func normalizePinnedFilter(query *ListQuery) error {
 	query.Pinned = store.SessionPinnedFilter(strings.TrimSpace(string(query.Pinned)))
 	if query.Pinned == PinnedInclude {
@@ -34,8 +34,10 @@ func normalizePinnedFilter(query *ListQuery) error {
 	return nil
 }
 
+// sessionMatchesPinnedFilter applies the pinned population to a live row: a pin carries its
+// subtree, so a row belongs to Pinned when any pin carries it (overlayPinScopes resolves that).
 func sessionMatchesPinnedFilter(info *Info, filter store.SessionPinnedFilter) bool {
-	pinned := info != nil && info.PinnedAt != nil
+	pinned := info != nil && info.PinScope != nil
 	switch filter {
 	case PinnedExclude:
 		return !pinned
@@ -46,16 +48,88 @@ func sessionMatchesPinnedFilter(info *Info, filter store.SessionPinnedFilter) bo
 	}
 }
 
-// compareSessionCatalogPinnedPosition orders the oldest pin first, so a new pin
-// lands last and rows already pinned never shift.
-func compareSessionCatalogPinnedPosition(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
-	if !left.PinnedAt.Equal(*right.PinnedAt) {
-		if left.PinnedAt.Before(*right.PinnedAt) {
+// compareSessionCatalogPinRoot orders pins by the operator's Pinned order: the smallest position
+// leads, ties by root id. Rows a pin carries share its key.
+func compareSessionCatalogPinRoot(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
+	if *left.PinPosition != *right.PinPosition {
+		if *left.PinPosition < *right.PinPosition {
 			return -1
 		}
 		return 1
 	}
-	return strings.Compare(strings.TrimSpace(left.ID), strings.TrimSpace(right.ID))
+	return strings.Compare(left.PinRootID, right.PinRootID)
+}
+
+// compareSessionCatalogPinnedPosition orders a pinned page: pins in Pinned order, each followed
+// by what it carries by last activity, as the durable read orders them.
+func compareSessionCatalogPinnedPosition(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
+	if order := compareSessionCatalogPinRoot(left, right); order != 0 {
+		return order
+	}
+	leftRoot, rightRoot := left.ID == left.PinRootID, right.ID == right.PinRootID
+	if leftRoot != rightRoot {
+		if leftRoot {
+			return -1
+		}
+		return 1
+	}
+	left.PinPosition, right.PinPosition = nil, nil
+	return compareSessionCatalogPosition(left, right)
+}
+
+// sessionCatalogAfter reports whether a row sorts after the cursor. A pinned cursor anchors a pin,
+// so a row follows it only when its own pin does: a subtree never splits across pages.
+func sessionCatalogAfter(position store.SessionCatalogPosition, after store.SessionCatalogPosition) bool {
+	if position.PinPosition != nil && after.PinPosition != nil {
+		return compareSessionCatalogPinRoot(position, after) > 0
+	}
+	return compareSessionCatalogPosition(position, after) > 0
+}
+
+// cutSessionCatalogPinnedPage keeps the first limit pins of a merged pinned page with every row
+// they carry, and reports whether another pin follows.
+func cutSessionCatalogPinnedPage(
+	candidates []store.SessionInfo,
+	limit int,
+	position func(*store.SessionInfo) store.SessionCatalogPosition,
+) ([]store.SessionInfo, bool) {
+	roots := 0
+	lastRoot := ""
+	for index := range candidates {
+		root := position(&candidates[index]).PinRootID
+		if root == lastRoot {
+			continue
+		}
+		if roots == limit {
+			return candidates[:index], true
+		}
+		roots++
+		lastRoot = root
+	}
+	return candidates, false
+}
+
+// sessionCatalogPinnedTotal counts the pins of a pinned read across durable and live rows: a pin
+// whose subtree has a live match and a durable match counts once.
+func sessionCatalogPinnedTotal(durableRoots []string, active []store.SessionInfo) int {
+	roots := make(map[string]struct{}, len(durableRoots)+len(active))
+	for _, root := range durableRoots {
+		roots[root] = struct{}{}
+	}
+	for index := range active {
+		if scope := active[index].PinScope; scope != nil {
+			roots[scope.RootID] = struct{}{}
+		}
+	}
+	return len(roots)
+}
+
+func clonePinScope(scope *store.SessionPinScope) *store.SessionPinScope {
+	if scope == nil {
+		return nil
+	}
+	cloned := *scope
+	return &cloned
 }
 
 func (m *Manager) pinStore() (store.SessionPinStore, error) {
@@ -96,8 +170,38 @@ func (m *Manager) overlayPinnedAt(ctx context.Context, infos []*Info) error {
 	return nil
 }
 
-// Pin pins one session above the session list. The pin is organization only:
-// the session keeps its state, folder, manual position and activity order.
+// overlayPinScopes resolves which live rows a pin carries, so live and durable rows of one read
+// apply the same lineage-aware pinned population.
+func (m *Manager) overlayPinScopes(ctx context.Context, infos []*Info) error {
+	pinStore, err := m.pinStore()
+	if err != nil || len(infos) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(infos))
+	for _, info := range infos {
+		if info != nil && strings.TrimSpace(info.ID) != "" {
+			ids = append(ids, info.ID)
+		}
+	}
+	scopes, err := pinStore.SessionPinScopes(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("session: read live session pin scopes: %w", err)
+	}
+	for _, info := range infos {
+		if info == nil {
+			continue
+		}
+		info.PinScope = nil
+		if scope, ok := scopes[info.ID]; ok {
+			info.PinScope = &scope
+		}
+	}
+	return nil
+}
+
+// Pin pins one session at the top of Pinned, carrying its subtree there. The pin is organization
+// only: the session and its descendants keep their state, parent, folder, manual position and
+// activity order, so an unpin returns them to their places.
 func (m *Manager) Pin(ctx context.Context, workspaceID string, sessionID string) (*Info, error) {
 	return m.setPinned(ctx, workspaceID, sessionID, true)
 }

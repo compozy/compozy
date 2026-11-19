@@ -156,12 +156,13 @@ func sessionCatalogListParameters() []ParameterSpec {
 		),
 		enumQueryParam(
 			"pinned",
-			"Visibility of pinned sessions; included by default",
+			"Visibility of pinned sessions and the subtrees their pins carry; included by default",
 			[]string{specExcludeKey, specOnlyKey, specIncludeKey},
 		),
 		enumQueryParam(
 			"sort",
-			"Stable session ordering; pinned (pin order, oldest first) requires pinned=only",
+			"Stable session ordering; pinned (the operator's Pinned order, pages by pin with each pin's "+
+				"subtree) requires pinned=only",
 			[]string{"recent", "created", "name", "last_activity", "attention", "navigator", "manual", "pinned"},
 		),
 		queryParam("cursor", "Opaque next_cursor from the previous page", false),
@@ -344,7 +345,7 @@ func sessionCatalogFacetsOperation() OperationSpec {
 			),
 			enumQueryParam(
 				"pinned",
-				"Visibility of pinned sessions; included by default",
+				"Visibility of pinned sessions and the subtrees their pins carry; included by default",
 				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
 			),
 		),
