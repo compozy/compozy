@@ -16,7 +16,8 @@ import (
 
 // Invariant: restore clears a built-in's tombstone and enrolls it at its bundled version under the package
 // lock, enables it for the default profile, refuses conflicts without touching the tombstone, and writes the
-// tombstone back when enrollment, enablement, or the rollback's reload fails.
+// tombstone back when enrollment, enablement, or the rollback's reload fails. The tombstone is written back only
+// once a read-back confirms no row remains, even when the partial row's removal reports a failure.
 // Owner: daemon extension suite (UT-002, UT-006, UT-007, UT-008, UT-017, IT-008, and the not-found case).
 
 func restoreTestService(t *testing.T) (*daemonExtensionService, *extensionpkg.Registry) {
@@ -434,4 +435,81 @@ func TestDaemonExtensionBuiltinRestore(t *testing.T) {
 			t.Fatalf("Get(after rollback) error = %v, want ErrExtensionNotFound", err)
 		}
 	})
+
+	t.Run(
+		"Should write the tombstone back when the partial row removal deletes the row and then fails to compensate",
+		func(t *testing.T) {
+			t.Parallel()
+			service, registry := restoreTestService(t)
+			restoreTestRemovePermanently(t, service, registry, "spec-cycle")
+			service.builtinEnrollments = []bundledEnrollment{{
+				Name: "spec-cycle",
+				Enroll: func(_ compozyconfig.HomePaths, reg *extensionpkg.Registry) error {
+					restoreTestSeedRow(t, reg, "spec-cycle", extensionpkg.SourceBundled)
+					return errors.New("injected enrollment failure")
+				},
+			}}
+			// The removal deletes the partial row and then reports a failed compensation, so its error is not proof
+			// that the row remains. Only the read-back shows that no row is left.
+			service.partialRowRemoval = func(_ context.Context, name string) error {
+				if err := registry.Uninstall(name); err != nil {
+					t.Fatalf("Uninstall(%q) error = %v", name, err)
+				}
+				return extensionpkg.ErrExtensionRemovalCompensationFailed
+			}
+
+			_, err := service.RestoreBuiltin(t.Context(), "spec-cycle", restoreTestOperator(t))
+			if !errors.Is(err, extensionpkg.ErrExtensionRestoreFailed) {
+				t.Fatalf("RestoreBuiltin(removal after delete) error = %v, want ErrExtensionRestoreFailed", err)
+			}
+			if !errors.Is(err, extensionpkg.ErrExtensionRemovalCompensationFailed) {
+				t.Fatalf("RestoreBuiltin(removal after delete) error = %v, want the removal failure in the chain", err)
+			}
+			restoreTestRequireTombstone(t, registry, "spec-cycle", true)
+			if _, err := registry.Get("spec-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+				t.Fatalf("Get(after rollback) error = %v, want ErrExtensionNotFound", err)
+			}
+		},
+	)
+
+	t.Run(
+		"Should keep the tombstone clear when the partial row cannot be read back after its removal",
+		func(t *testing.T) {
+			t.Parallel()
+			service, registry := restoreTestService(t)
+			restoreTestRemovePermanently(t, service, registry, "spec-cycle")
+			service.builtinEnrollments = []bundledEnrollment{{
+				Name: "spec-cycle",
+				Enroll: func(_ compozyconfig.HomePaths, reg *extensionpkg.Registry) error {
+					restoreTestSeedRow(t, reg, "spec-cycle", extensionpkg.SourceBundled)
+					return errors.New("injected enrollment failure")
+				},
+			}}
+			// The removal reports success and the row stays, while the read-back fails with a reason other than
+			// not-found. Absence is unconfirmed, so the rollback must not write the tombstone beside the row.
+			readErr := errors.New("injected read-back failure")
+			service.partialRowRemoval = func(context.Context, string) error { return nil }
+			service.partialRowLookup = func(string) error { return readErr }
+
+			_, err := service.RestoreBuiltin(t.Context(), "spec-cycle", restoreTestOperator(t))
+			if !errors.Is(err, extensionpkg.ErrExtensionRestoreFailed) {
+				t.Fatalf("RestoreBuiltin(unreadable partial row) error = %v, want ErrExtensionRestoreFailed", err)
+			}
+			if !errors.Is(err, readErr) {
+				t.Fatalf(
+					"RestoreBuiltin(unreadable partial row) error = %v, want the read-back failure in the chain",
+					err,
+				)
+			}
+			restoreTestRequireTombstone(t, registry, "spec-cycle", false)
+			installed, err := registry.Get("spec-cycle")
+			if err != nil || installed.Source != extensionpkg.SourceBundled {
+				t.Fatalf(
+					"Get(partial row) = %#v, %v; want the bundled row kept beside a clear tombstone",
+					installed,
+					err,
+				)
+			}
+		},
+	)
 }

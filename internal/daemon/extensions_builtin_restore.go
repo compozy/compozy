@@ -146,8 +146,9 @@ func (s *daemonExtensionService) restoredBuiltinPayload(name string) (contract.E
 
 // rollbackBuiltinRestore returns the registry to the removed state after a failed restore. It removes a
 // partially enrolled bundled row, reloads so the runtime matches the registry, and writes the tombstone back
-// exactly as it was read, but only once no row remains for the name. When the partial row cannot be removed,
-// the row stays and the tombstone stays clear, because a row and a tombstone must never coexist for one name.
+// exactly as it was read, but only once a read-back confirms no row remains for the name. A removal error does
+// not decide that, since a removal can delete the row and still fail while it compensates. When the row cannot be
+// confirmed gone, the tombstone stays clear, because a row and a tombstone must never coexist for one name.
 // The log carries the name only, because enrollment errors can contain paths.
 func (s *daemonExtensionService) rollbackBuiltinRestore(
 	ctx context.Context,
@@ -166,13 +167,12 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 	case errors.Is(getErr, extensionpkg.ErrExtensionNotFound):
 		partialRowGone = true
 	case getErr == nil:
-		noopReload := func(context.Context) error { return nil }
-		noopCommit := func(context.Context) error { return nil }
-		_, removeErr := extensionpkg.RemoveManagedExtension(
-			rollbackCtx, s.homePaths, s.registry, name, noopReload, noopCommit,
-		)
-		partialRowGone = removeErr == nil
-		rollbackErr = errors.Join(rollbackErr, removeErr)
+		removeErr := s.removePartialRow(rollbackCtx, name)
+		// A removal can delete the row and still fail while it compensates, so its error does not decide absence.
+		// The row is read back instead; only a confirmed not-found counts as gone.
+		gone, readErr := s.partialRowAbsent(name)
+		partialRowGone = gone
+		rollbackErr = errors.Join(rollbackErr, removeErr, readErr)
 		rollbackErr = errors.Join(rollbackErr, s.reloadExtensions(rollbackCtx, name))
 	default:
 		// The row state is unknown, so the tombstone stays clear rather than risk a row beside it.
@@ -209,6 +209,43 @@ func (s *daemonExtensionService) restoreRollbackBudget() time.Duration {
 		return s.restoreRollbackTimeout
 	}
 	return builtinRestoreRollbackTimeout
+}
+
+// removePartialRow removes a partially enrolled built-in row during restore rollback. The removal has no reload or
+// commit step of its own; rollbackBuiltinRestore reloads and reads the row back. Tests replace it through
+// partialRowRemoval.
+func (s *daemonExtensionService) removePartialRow(ctx context.Context, name string) error {
+	if s.partialRowRemoval != nil {
+		return s.partialRowRemoval(ctx, name)
+	}
+	noopReload := func(context.Context) error { return nil }
+	noopCommit := func(context.Context) error { return nil }
+	_, err := extensionpkg.RemoveManagedExtension(ctx, s.homePaths, s.registry, name, noopReload, noopCommit)
+	return err
+}
+
+// partialRowAbsent reads back a partial row after its removal. Absence is reported only for a confirmed not-found;
+// any other read failure leaves absence unconfirmed and is returned.
+func (s *daemonExtensionService) partialRowAbsent(name string) (bool, error) {
+	readErr := s.readPartialRow(name)
+	switch {
+	case errors.Is(readErr, extensionpkg.ErrExtensionNotFound):
+		return true, nil
+	case readErr == nil:
+		return false, nil
+	default:
+		return false, readErr
+	}
+}
+
+// readPartialRow reads the registry row of a partial built-in: nil while it exists, not-found once it is gone.
+// Tests replace it through partialRowLookup.
+func (s *daemonExtensionService) readPartialRow(name string) error {
+	if s.partialRowLookup != nil {
+		return s.partialRowLookup(name)
+	}
+	_, err := s.registry.Get(name)
+	return err
 }
 
 // builtinEnrollmentFor returns the shared enrollment for a known built-in name.
