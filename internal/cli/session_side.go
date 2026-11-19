@@ -127,7 +127,7 @@ func sessionSidesBundle(source string, response contract.SessionSidesResponse, n
 			for _, side := range response.Sides {
 				rows = append(rows, []string{side.ID, side.Name, side.State})
 			}
-			return renderToonArray("sides", []string{"id", automationNameKey, "state"}, rows), nil
+			return renderToonArray("sides", []string{"id", automationNameKey, cliOutputStateKey}, rows), nil
 		},
 	}
 }

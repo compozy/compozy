@@ -3371,7 +3371,10 @@ func TestOpenSideIdentityAndGuards(t *testing.T) {
 		side := h.openSide(t, source, "copy-permissions")
 		// UT-012
 		info, original := side.Info(), source.Info()
-		if info.Type != SessionTypeUser || info.AgentName != original.AgentName || info.Provider != original.Provider || info.Model != original.Model || info.WorktreeID != original.WorktreeID || info.EffectivePermissions != original.EffectivePermissions ||
+		if info.Type != SessionTypeUser || info.AgentName != original.AgentName || info.Provider != original.Provider ||
+			info.Model != original.Model ||
+			info.WorktreeID != original.WorktreeID ||
+			info.EffectivePermissions != original.EffectivePermissions ||
 			info.Lineage.Kind != store.LineageKindSide ||
 			info.Lineage.ParentSessionID != source.ID ||
 			info.Lineage.RootSessionID != original.Lineage.RootSessionID ||

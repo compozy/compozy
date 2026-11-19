@@ -106,10 +106,7 @@ func (g *SessionRepo) SetSessionArchived(
 			return e
 		}
 		now := store.FormatTimestamp(g.now())
-		at := sql.NullString{}
-		if archived {
-			at = sql.NullString{String: now, Valid: true}
-		}
+		at := sessionArchivedAt(archived, now)
 		if e = q.SetSubagentFamilyArchived(
 			ctx,
 			sqlcgen.SetSubagentFamilyArchivedParams{WorkspaceID: workspaceID, Ids: encoded, ArchivedAt: at, Now: now},
@@ -127,6 +124,14 @@ func (g *SessionRepo) SetSessionArchived(
 		return e
 	})
 	return result, err
+}
+
+// sessionArchivedAt is the archived_at value an archive (now) or restore (NULL) writes.
+func sessionArchivedAt(archived bool, now string) sql.NullString {
+	if !archived {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: now, Valid: true}
 }
 
 func mapSessionArchivedConstraint(sessionID string, err error) error {

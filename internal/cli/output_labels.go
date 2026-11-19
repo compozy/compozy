@@ -62,6 +62,7 @@ const (
 	cliOutputSetupWebhookPathKey      = "webhook_path"
 	cliOutputToolOperatorPreviewValue = "Preview"
 	cliOutputStateValue               = "State"
+	cliOutputStateKey                 = "state"
 	cliOutputDeliveredKey             = "delivered"
 	cliOutputKindKey                  = "kind"
 	cliOutputMessageIDKey             = "message_id"

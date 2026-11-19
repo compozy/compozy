@@ -119,7 +119,9 @@ func applySideCommandAvailability(catalog commandpkg.Catalog, info *Info) comman
 	}
 	if isSideLineage(info.Lineage) {
 		for _, item := range []struct{ name, reason string }{
-			{"side", SideErrorMessage(ErrSideNested)}, {managedInputOwnerGoal, SideErrorMessage(ErrSideGoalUnsupported)}, {"worktree", SideErrorMessage(ErrSideWorktreeFixed)},
+			{"side", SideErrorMessage(ErrSideNested)},
+			{managedInputOwnerGoal, SideErrorMessage(ErrSideGoalUnsupported)},
+			{"worktree", SideErrorMessage(ErrSideWorktreeFixed)},
 		} {
 			catalog = commandpkg.SetBuiltinAvailability(catalog, item.name, false, item.reason)
 		}

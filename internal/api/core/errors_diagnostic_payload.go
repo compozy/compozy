@@ -78,12 +78,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if errors.Is(err, session.ErrBoardFilterInvalid) {
 		payload.Code = "session_list_query_invalid"
 	}
-	if code := DeriveErrorCode(err); code != "" {
-		payload.Code = code
-		if message := session.SideErrorMessage(err); message != "" {
-			payload.Error = message
-		}
-	}
+	enrichDerivedError(&payload, err)
 	if code := SessionReparentErrorCode(err); code != "" {
 		payload.Code = code
 	}
@@ -108,6 +103,16 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	payload.Diagnostic = errorDiagnosticItem(message, err)
 	enrichSessionInputError(&payload, err)
 	return payload
+}
+
+// enrichDerivedError names derive refusals; side refusals also carry their fixed message.
+func enrichDerivedError(payload *contract.ErrorPayload, err error) {
+	if code := DeriveErrorCode(err); code != "" {
+		payload.Code = code
+		if message := session.SideErrorMessage(err); message != "" {
+			payload.Error = message
+		}
+	}
 }
 
 func enrichWorkspaceLifecycleError(payload *contract.ErrorPayload, err error) {
