@@ -21,7 +21,7 @@ WHERE instance_id = sqlc.arg(instance_id)
 ORDER BY day DESC;
 
 -- name: ListInstanceDailyBudgetReceiptPage :many
-SELECT session_id, turn_id, total_tokens, usd_amount
+SELECT session_id, turn_id, total_tokens, usd_amount, cost_status
 FROM token_usage_receipts
 WHERE profile_id = sqlc.arg(profile_id)
   AND instance_id = sqlc.arg(instance_id)

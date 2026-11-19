@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -76,7 +77,9 @@ func readDailyBudgetUsage(
 			}
 			usage.Tokens += row.TotalTokens
 			if !row.UsdAmount.Valid {
-				usage.HasUnpricedUsage = true
+				if row.CostStatus != string(modelcatalog.CostStatusIncluded) {
+					usage.HasUnpricedUsage = true
+				}
 				continue
 			}
 			if row.UsdAmount.String != "-0" && !isReceiptDecimalUSD(row.UsdAmount.String) {

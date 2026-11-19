@@ -108,6 +108,19 @@ func TestEvaluateDailyBudget(t *testing.T) {
 		}
 	})
 
+	t.Run("Should hold a USD budget when a completed turn has unknown cost", func(t *testing.T) {
+		t.Parallel()
+		usage := DailyBudgetUsage{Tokens: 50, USD: big.NewRat(1, 10), HasUnpricedUsage: true}
+		budget := mustEvaluateDailyBudget(t, DailyBudgetLimits{USD: new(2.0)}, usage, false)
+		if !budget.Exhausted || !budget.USDUnpriced || budget.USDExhausted || budget.Warn {
+			t.Fatalf("unpriced USD decision=%+v, want admission held without a measured threshold crossing", budget)
+		}
+		tokens := mustEvaluateDailyBudget(t, DailyBudgetLimits{Tokens: new(int64(100))}, usage, false)
+		if tokens.Exhausted || tokens.Warn {
+			t.Fatalf("token-only decision=%+v, want eligible at 50 of 100 tokens", tokens)
+		}
+	})
+
 	t.Run("Should block a zero USD cap even when the provider has no price", func(t *testing.T) {
 		t.Parallel()
 		usdCap := 0.0

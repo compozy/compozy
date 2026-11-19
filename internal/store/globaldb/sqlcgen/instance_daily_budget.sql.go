@@ -62,7 +62,7 @@ func (q *Queries) GetAgentInstanceDailyBudgetNotices(ctx context.Context, instan
 }
 
 const listInstanceDailyBudgetReceiptPage = `-- name: ListInstanceDailyBudgetReceiptPage :many
-SELECT session_id, turn_id, total_tokens, usd_amount
+SELECT session_id, turn_id, total_tokens, usd_amount, cost_status
 FROM token_usage_receipts
 WHERE profile_id = ?1
   AND instance_id = ?2
@@ -86,6 +86,7 @@ type ListInstanceDailyBudgetReceiptPageRow struct {
 	TurnID      string         `json:"turn_id"`
 	TotalTokens int64          `json:"total_tokens"`
 	UsdAmount   sql.NullString `json:"usd_amount"`
+	CostStatus  string         `json:"cost_status"`
 }
 
 func (q *Queries) ListInstanceDailyBudgetReceiptPage(ctx context.Context, arg ListInstanceDailyBudgetReceiptPageParams) ([]ListInstanceDailyBudgetReceiptPageRow, error) {
@@ -109,6 +110,7 @@ func (q *Queries) ListInstanceDailyBudgetReceiptPage(ctx context.Context, arg Li
 			&i.TurnID,
 			&i.TotalTokens,
 			&i.UsdAmount,
+			&i.CostStatus,
 		); err != nil {
 			return nil, err
 		}

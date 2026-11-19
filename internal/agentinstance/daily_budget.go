@@ -80,12 +80,13 @@ func decimalUSD(amount float64) *big.Rat {
 	return ratio
 }
 
-// DailyBudgetAssessment describes the admission decision and threshold crossing.
+// DailyBudgetAssessment describes whether the next turn is held and why.
 type DailyBudgetAssessment struct {
 	Warn            bool
 	Exhausted       bool
 	TokensExhausted bool
 	USDExhausted    bool
+	USDUnpriced     bool
 }
 
 // EvaluateDailyBudget calculates one budget decision without changing notice or
@@ -124,7 +125,8 @@ func EvaluateDailyBudget(
 			}
 		}
 	}
-	assessment.Exhausted = assessment.TokensExhausted || assessment.USDExhausted
+	assessment.USDUnpriced = limits.USD != nil && used.HasUnpricedUsage
+	assessment.Exhausted = assessment.TokensExhausted || assessment.USDExhausted || assessment.USDUnpriced
 	assessment.Warn = assessment.Warn && !previousWarning
 	return assessment, nil
 }

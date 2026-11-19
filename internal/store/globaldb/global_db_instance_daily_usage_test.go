@@ -80,6 +80,30 @@ func TestInstanceDailyBudgetUsageFromReceipts(t *testing.T) {
 		}
 	})
 
+	t.Run("Should distinguish included subscription usage from an unknown price", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		at := time.Date(2026, 11, 19, 12, 0, 0, 0, time.Local)
+		stamp := store.FormatTimestamp(at)
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO agent_instances (
+			id, profile_id, agent_name, workspace_id, state, created_by_kind, created_by_id, created_at, updated_at
+		) VALUES ('budget-included', ?, 'writer', '', 'active', 'human', 'operator', ?, ?)`,
+			store.DefaultProfileID, stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO token_usage_receipts (
+			profile_id, session_id, turn_id, instance_id, day, total_tokens, cost_status, created_at
+		) VALUES (?, 'included-session', 'included-turn', 'budget-included', ?, 25, 'included', ?)`,
+			store.DefaultProfileID, store.LocalDay(at), stamp); err != nil {
+			t.Fatal(err)
+		}
+		usage, err := db.Instances().ReadDailyBudgetUsage(ctx, "budget-included", at)
+		if err != nil || usage.Tokens != 25 || usage.HasUnpricedUsage {
+			t.Fatalf("subscription usage=%+v err=%v, want 25 tokens and a known included cost", usage, err)
+		}
+	})
+
 	t.Run("Should read every page without dropping or repeating a receipt", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
