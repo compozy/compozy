@@ -60,6 +60,7 @@ func loadInstalledPackageMetadata(
 		return nil, installedPackageMetadata{}, err
 	}
 	_, manifestName, installed, err := locateInstallManifestRoot(
+		ctx,
 		rootParent,
 		rootName,
 		root,
@@ -105,6 +106,7 @@ func readInstalledPackageMetadata(
 }
 
 func locateInstallManifestRoot(
+	ctx context.Context,
 	rootParent *fileutil.Directory,
 	rootName string,
 	root *fileutil.Directory,
@@ -123,13 +125,16 @@ func locateInstallManifestRoot(
 	}()
 
 	for {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, "", nil, ctxErr
+		}
 		manifestName, findErr := manifestNameAtRoot(current)
 		if findErr != nil {
 			return nil, "", nil, findErr
 		}
 		found := manifestName != ""
 		if !found && allowManifestlessPlugin {
-			found, findErr = hasManifestlessPluginComponents(current)
+			found, findErr = hasManifestlessPluginComponents(ctx, current)
 			if findErr != nil {
 				return nil, "", nil, findErr
 			}

@@ -57,6 +57,7 @@ const catalogInputs = vi.hoisted(() => ({
   catalog: {
     sessions: [] as SessionPayload[],
     filters: [] as SessionListFilters[],
+    read: vi.fn<() => Promise<SessionPayload[]>>(),
   },
 }));
 
@@ -69,15 +70,12 @@ vi.mock("@/systems/session", async importOriginal => {
   const session = await importOriginal<typeof import("@/systems/session")>();
   return {
     ...session,
-    sessionCatalogOptions: (
-      filters: SessionListFilters | undefined,
-      family?: Parameters<typeof session.sessionCatalogOptions>[1]
-    ) => {
-      if (filters) catalogInputs.catalog.filters.push(filters);
+    sessionLaunchPreviewOptions: (filters: SessionListFilters) => {
+      catalogInputs.catalog.filters.push(filters);
       return {
-        ...session.sessionCatalogOptions(filters, family),
+        ...session.sessionLaunchPreviewOptions(filters),
         queryFn: async () => ({
-          sessions: catalogInputs.catalog.sessions,
+          sessions: await catalogInputs.catalog.read(),
           page: { has_more: false },
         }),
       };
@@ -223,6 +221,9 @@ describe("OsDock", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    catalogInputs.catalog.read
+      .mockReset()
+      .mockImplementation(async () => catalogInputs.catalog.sessions);
     launchCatalog.ready = true;
     launchCatalog.sessions = [];
     launchCatalog.workspaceId = "workspace:test";
@@ -658,8 +659,22 @@ describe("OsDock", () => {
       await queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     });
     expect(result.current.sessions.map(session => session.id)).toEqual(["sess-global"]);
+
+    const staleSessions = result.current.sessions;
+    let completePreview!: () => void;
+    const stalePreview = new Promise<void>(resolve => {
+      completePreview = resolve;
+    });
+    catalogInputs.catalog.read.mockImplementationOnce(async () => {
+      await stalePreview;
+      return staleSessions;
+    });
     await act(async () => {
-      await expect(result.current.resolveLatest()).resolves.toMatchObject({ id: "sess-new" });
+      const background = queryClient.refetchQueries({ type: "active" });
+      const latest = result.current.resolveLatest();
+      completePreview();
+      await expect(latest).resolves.toMatchObject({ id: "sess-new" });
+      await background;
     });
 
     catalogInputs.workspace = { runtimeWorkspaceId: null, pending: true };
