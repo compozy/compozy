@@ -143,6 +143,14 @@ func (r *dynamicSecretRegistry) encodingsSnapshot() []string {
 // RegisteredSecretSnapshot captures one immutable set of registered secrets for redaction.
 func RegisteredSecretSnapshot() *SecretSnapshot { return dynamicSecrets.snapshot.Load() }
 
+// WithStableSecretSnapshot prevents registrations from changing during a bounded safety check.
+// The check must not register or release secrets.
+func WithStableSecretSnapshot(check func(*SecretSnapshot)) {
+	dynamicSecrets.mu.Lock()
+	defer dynamicSecrets.mu.Unlock()
+	check(RegisteredSecretSnapshot())
+}
+
 // SecretFingerprint identifies the current continuous registrations without exposing their values.
 func SecretFingerprint() [sha256.Size]byte { return RegisteredSecretSnapshot().fingerprint }
 

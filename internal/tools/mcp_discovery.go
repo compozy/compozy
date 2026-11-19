@@ -94,7 +94,10 @@ type mcpDiscoverySnapshot struct {
 func (s *mcpDiscoverySnapshot) currentDescriptors() []Descriptor {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	snapshot := redact.RegisteredSecretSnapshot()
+	return s.descriptorsAt(redact.RegisteredSecretSnapshot())
+}
+
+func (s *mcpDiscoverySnapshot) descriptorsAt(snapshot *redact.SecretSnapshot) []Descriptor {
 	revision := snapshot.MaterialFingerprint()
 	if s.hasSafeView && s.safeRevision == revision {
 		return s.safe
@@ -115,7 +118,13 @@ func (s *mcpDiscoverySnapshot) currentDescriptors() []Descriptor {
 		}
 	}
 	if revision != redact.RegisteredSecretSnapshot().MaterialFingerprint() {
-		return nil
+		// Preserve descriptors proven safe against the current material without caching this mixed view.
+		redact.WithStableSecretSnapshot(func(current *redact.SecretSnapshot) {
+			safe = slices.DeleteFunc(safe, func(descriptor Descriptor) bool {
+				return !safeMCPDescriptor(current, descriptor)
+			})
+		})
+		return safe
 	}
 	s.safeRevision, s.safe, s.hasSafeView = revision, safe, true
 	return safe

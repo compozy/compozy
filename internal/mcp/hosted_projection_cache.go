@@ -112,8 +112,7 @@ func (s *HostedService) projectionForGeneration(
 	return projectionWithRedactionCheck(ctx, registry, record, buildHostedProjection)
 }
 
-// Cached catalogs validate source descriptors once per secret revision. If registrations
-// keep changing across a read, withhold MCP views rather than scanning each session's catalog.
+// Cached catalogs normally validate once per secret revision; sustained churn checks the final views.
 func catalogProjectionWithRedactionCheck(
 	ctx context.Context, registry tools.Registry, record *hostedBindRecord, build hostedProjectionBuilder,
 ) (HostedProjectionResponse, error) {
@@ -126,13 +125,7 @@ func catalogProjectionWithRedactionCheck(
 		}
 		response = built
 	}
-	views := make([]tools.ToolView, 0, len(response.Tools))
-	for i := range response.Tools {
-		if response.Tools[i].Descriptor.Source.Kind != tools.SourceMCP {
-			views = append(views, response.Tools[i])
-		}
-	}
-	return hostedProjectionResponse(views, nil), nil
+	return filterUnsafeMCPMetadata(response, record), nil
 }
 
 func projectionWithRedactionCheck(
@@ -148,22 +141,23 @@ func projectionWithRedactionCheck(
 
 // A changing redaction registry can invalidate individual tools without blocking the whole bind.
 func filterUnsafeMCPMetadata(response HostedProjectionResponse, record *hostedBindRecord) HostedProjectionResponse {
-	snapshot := redact.RegisteredSecretSnapshot()
 	views := make([]tools.ToolView, 0, len(response.Tools))
-	for i := range response.Tools {
-		view := &response.Tools[i]
-		if view.Descriptor.Source.Kind == tools.SourceMCP {
-			raw, err := json.Marshal(view)
-			if err != nil {
-				continue
+	redact.WithStableSecretSnapshot(func(snapshot *redact.SecretSnapshot) {
+		for i := range response.Tools {
+			view := &response.Tools[i]
+			if view.Descriptor.Source.Kind == tools.SourceMCP {
+				raw, err := json.Marshal(view)
+				if err != nil {
+					continue
+				}
+				unsafe, err := snapshot.NeedsBinaryJSONRedaction(raw)
+				if err != nil || unsafe {
+					continue
+				}
 			}
-			unsafe, err := snapshot.NeedsBinaryJSONRedaction(raw)
-			if err != nil || unsafe {
-				continue
-			}
+			views = append(views, *view)
 		}
-		views = append(views, *view)
-	}
+	})
 	if len(views) == len(response.Tools) {
 		return response
 	}

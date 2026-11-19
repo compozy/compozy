@@ -1411,6 +1411,34 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		})
 	}
 
+	// Invariant: streamed catalog reads under redaction churn preserve safe tools.
+	// Owner: hosted projection publication; canonical suite: hosted projection generations.
+	t.Run("Should retain safe hosted tools when redaction keeps changing", func(t *testing.T) {
+		t.Parallel()
+		const secret = "hosted-catalog-churn-sensitive-1781"
+		safe := hostedToolView("mcp__echo__safe")
+		safe.Descriptor.Source = tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo"}
+		unsafe := hostedToolView("mcp__echo__unsafe")
+		unsafe.Descriptor.Source = safe.Descriptor.Source
+		unsafe.Descriptor.Description = secret
+		t.Cleanup(redact.RegisterRequiredSecret(secret))
+		registry := hostedRedactionRegistry{&hostedRegistryStub{}}
+		count := 0
+		response, err := catalogProjectionWithRedactionCheck(
+			t.Context(),
+			registry,
+			&hostedBindRecord{},
+			func(context.Context, tools.Registry, *hostedBindRecord) (HostedProjectionResponse, error) {
+				count++
+				t.Cleanup(redact.RegisterRequiredSecret(fmt.Sprintf("hosted-catalog-unrelated-1781-%d", count)))
+				return hostedProjectionResponse([]tools.ToolView{safe, unsafe}, nil), nil
+			},
+		)
+		if err != nil || !slices.Equal(hostedToolIDs(response.Tools), []string{"mcp__echo__safe"}) {
+			t.Fatalf("hosted tools after redaction churn = %v, error = %v", hostedToolIDs(response.Tools), err)
+		}
+	})
+
 	// Invariant: a redaction change renews hosted metadata without rediscovering an unchanged listing.
 	// Owner: hosted projection cache; canonical suite: hosted projection generations.
 	for _, tc := range []struct {
