@@ -130,6 +130,9 @@ See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).
 
 QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
 
+For providers that reload their tool list, send the next message after background discovery
+finds callable tools. Compare the HTTP, native tool and CLI lists after that activation.
+
 Start a session with four ready fixture servers and one server held during discovery. Confirm the
 prompt is accepted, the pending or failed row names the held server, and the ready tools remain
 available. Release it and confirm the catalog updates.

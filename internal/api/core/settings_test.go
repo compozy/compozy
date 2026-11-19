@@ -4182,26 +4182,26 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 				},
 			}
 			for _, tc := range []struct {
-				name, path, owner, runtimeName string
-				status                         int
+				name, path, owner, runtimeName, errorFragment string
+				status                                        int
 			}{
-				{"Should resolve a manual definition without an owner", "github", "manual", "github", http.StatusOK},
-				{"Should resolve a manual definition with an explicit owner", "github?owner=manual", "manual", "github", http.StatusOK},
-				{"Should resolve the user extension by logical name", "github?owner=extension:github", "extension:github", "github.github", http.StatusOK},
-				{"Should reject a runtime name without an owner", "github.github", "", "", http.StatusNotFound},
-				{"Should reject a runtime name with the extension owner", "github.github?owner=extension:github", "", "", http.StatusNotFound},
-				{"Should reject a different extension owner", "github?owner=extension:other", "", "", http.StatusNotFound},
-				{"Should reject a runtime name with the manual owner", "github.github?owner=manual", "", "", http.StatusNotFound},
-				{"Should reject a malformed owner", "github?owner=bad", "", "", http.StatusBadRequest},
-				{"Should prefer the workspace definition over the user definition", "github?owner=extension:github&scope=workspace&workspace_id=workspace-a", "extension:github", "github.github.2", http.StatusOK},
-				{"Should inherit the user definition without crossing into another profile", "github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "extension:github", "github.github", http.StatusOK},
-				{"Should resolve the default profile publication by workspace alias", "github?owner=extension:github&scope=workspace&workspace_id=workspace-c", "extension:github", "github.github.3", http.StatusOK},
-				{"Should resolve the default profile publication by exact scope", "github?owner=extension:github&scope=profile&profile=default&workspace_id=workspace-c", "extension:github", "github.github.3", http.StatusOK},
-				{"Should reject the default profile without a workspace", "github?owner=extension:github&scope=profile&profile=default", "", "", http.StatusBadRequest},
-				{"Should resolve the requested non-default workspace profile", "github?owner=extension:github&scope=profile&profile=work&workspace_id=workspace-b", "extension:github", "github.github.4", http.StatusOK},
-				{"Should reject a foreign runtime name without an owner", "github.github.2?scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
-				{"Should reject the local extension runtime name", "github.github.2?owner=extension:github&scope=workspace&workspace_id=workspace-a", "", "", http.StatusNotFound},
-				{"Should reject the inherited extension runtime name", "github.github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
+				{"Should resolve a manual definition without an owner", "github", "manual", "github", "", http.StatusOK},
+				{"Should resolve a manual definition with an explicit owner", "github?owner=manual", "manual", "github", "", http.StatusOK},
+				{"Should resolve the user extension by logical name", "github?owner=extension:github", "extension:github", "github.github", "", http.StatusOK},
+				{"Should reject a runtime name without an owner", "github.github", "", "", "not found", http.StatusNotFound},
+				{"Should reject a runtime name with the extension owner", "github.github?owner=extension:github", "", "", "not found", http.StatusNotFound},
+				{"Should reject a different extension owner", "github?owner=extension:other", "", "", "not found", http.StatusNotFound},
+				{"Should reject a runtime name with the manual owner", "github.github?owner=manual", "", "", "not found", http.StatusNotFound},
+				{"Should reject a malformed owner", "github?owner=bad", "", "", "MCP owner must be manual", http.StatusBadRequest},
+				{"Should prefer the workspace definition over the user definition", "github?owner=extension:github&scope=workspace&workspace_id=workspace-a", "extension:github", "github.github.2", "", http.StatusOK},
+				{"Should inherit the user definition without crossing into another profile", "github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "extension:github", "github.github", "", http.StatusOK},
+				{"Should resolve the default profile publication by workspace alias", "github?owner=extension:github&scope=workspace&workspace_id=workspace-c", "extension:github", "github.github.3", "", http.StatusOK},
+				{"Should resolve the default profile publication by exact scope", "github?owner=extension:github&scope=profile&profile=default&workspace_id=workspace-c", "extension:github", "github.github.3", "", http.StatusOK},
+				{"Should reject the default profile without a workspace", "github?owner=extension:github&scope=profile&profile=default", "", "", "settings.profile is required", http.StatusBadRequest},
+				{"Should resolve the requested non-default workspace profile", "github?owner=extension:github&scope=profile&profile=work&workspace_id=workspace-b", "extension:github", "github.github.4", "", http.StatusOK},
+				{"Should reject a foreign runtime name without an owner", "github.github.2?scope=workspace&workspace_id=workspace-b", "", "", "not found", http.StatusNotFound},
+				{"Should reject the local extension runtime name", "github.github.2?owner=extension:github&scope=workspace&workspace_id=workspace-a", "", "", "not found", http.StatusNotFound},
+				{"Should reject the inherited extension runtime name", "github.github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "", "", "not found", http.StatusNotFound},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
@@ -4225,6 +4225,13 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 						t.Fatalf("detail %s status %d: %s", tc.path, result.Code, result.Body.String())
 					}
 					if tc.status != http.StatusOK {
+						var payload contract.ErrorPayload
+						if err := json.Unmarshal(result.Body.Bytes(), &payload); err != nil {
+							t.Fatal(err)
+						}
+						if !strings.Contains(payload.Error, tc.errorFragment) {
+							t.Fatalf("detail %s error = %q, want %q", tc.path, payload.Error, tc.errorFragment)
+						}
 						return
 					}
 					var payload contract.SettingsMCPServerResponse
