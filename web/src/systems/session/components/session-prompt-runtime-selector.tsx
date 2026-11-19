@@ -1,4 +1,5 @@
 import { Button } from "@compozy/ui";
+import { useId } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -12,9 +13,12 @@ export interface SessionPromptRuntimeSelectorProps {
 
 /**
  * Runtime control in the session composer. A saved change reaches a live agent when
- * its provider accepts session config changes; the note says when it takes effect.
+ * its provider accepts session config changes; the note says when it takes effect. The main and
+ * side chat composers can share a window, so its ids are per instance.
  */
 export function SessionPromptRuntimeSelector({ canPrompt }: SessionPromptRuntimeSelectorProps) {
+  const triggerId = useId();
+  const labelId = `${triggerId}-label`;
   const runtimeStore = useSessionPromptRuntimeContext();
   const runtime = useSessionPromptRuntime(runtimeStore);
   const disabled = !canPrompt || !runtime.canSelectRuntime;
@@ -27,11 +31,11 @@ export function SessionPromptRuntimeSelector({ canPrompt }: SessionPromptRuntime
 
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <span id="session-prompt-runtime-label" className="sr-only">
+      <span id={labelId} className="sr-only">
         Agent and model for this session
       </span>
       <RuntimeSelector
-        ariaLabelledby="session-prompt-runtime-label"
+        ariaLabelledby={labelId}
         catalogStatus={catalogStatus}
         providerCatalogIssues={runtime.catalog.providerIssues}
         disabled={disabled}
@@ -43,7 +47,7 @@ export function SessionPromptRuntimeSelector({ canPrompt }: SessionPromptRuntime
         providers={runtime.catalog.providers}
         refreshing={runtime.catalog.refreshing}
         speed={runtime.speed}
-        triggerId="session-prompt-runtime"
+        triggerId={triggerId}
         triggerTestId="session-prompt-runtime-select"
         value={runtime.value}
         variant="composer"

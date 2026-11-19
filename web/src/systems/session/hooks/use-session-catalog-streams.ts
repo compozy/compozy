@@ -12,6 +12,7 @@ import {
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import { useProfileReadScope, useProfileReadScopeParams } from "@/systems/profiles";
+import { USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 import { sessionKeys } from "../lib/query-keys";
 import {
@@ -308,17 +309,18 @@ function openSessionCatalogStream(
   const handleSideChange: EventListener = event => {
     const payload = parseNamedEvent<SessionSideChangedPayload>(event, [
       "session_id",
-      "workspace_id",
       "side_session_id",
     ]);
-    if (!payload) return;
+    // A User-scope side carries an empty workspace id: its reads use the User selector.
+    if (!payload || typeof payload.workspace_id !== "string") return;
     markLive();
+    const sideWorkspaceId = payload.workspace_id.trim() || USER_SCOPE_SELECTOR;
     // Every window showing the parent rereads the same list (US-006); the side's own read follows.
     void queryClient.invalidateQueries({
       predicate: query => isSessionSidesQuery(query.queryKey, payload.session_id),
     });
     void queryClient.invalidateQueries({
-      queryKey: sessionKeys.detail(payload.workspace_id, payload.side_session_id),
+      queryKey: sessionKeys.detail(sideWorkspaceId, payload.side_session_id),
       exact: true,
     });
   };

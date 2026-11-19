@@ -6,6 +6,7 @@ import {
   getSessionPromptRuntimeSnapshot,
   SessionChatRuntimeProvider,
   SessionPromptRuntimeProvider,
+  SessionPromptRuntimeSelector,
   SessionSideThreadBoundary,
   type SessionPayload,
   useSessionCommands,
@@ -64,6 +65,8 @@ function SessionSideThreadContent({
       onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
       onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
       messageTrail={false}
+      // The side chat's own runtime: a change applies to this side chat only (B-011).
+      runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
       commandCatalog={commands.catalog}
       commandCatalogStatus={commands.isPending ? "loading" : "ready"}
       onCommandCatalogOpen={() => {

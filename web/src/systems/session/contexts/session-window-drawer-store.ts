@@ -5,12 +5,21 @@ import type { SubagentView } from "../components/subagents/types";
 /**
  * What the side chat panel shows. `new` is an empty side chat that exists only once its first
  * question is sent; `opening` is that question on its way, with the composer submission id as
- * the idempotency key so Retry reaches the same side chat (US-001.EC-5).
+ * the idempotency key so Retry reaches the same side chat (US-001.EC-5). `pending` is the default
+ * side chat the toggle asked for before the first list arrived: the list decides it.
  */
 export type SessionSideView =
+  | { kind: "pending" }
   | { kind: "new"; draft: string }
   | { kind: "side"; id: string }
-  | { kind: "opening"; message: string; key: string; error: string | null };
+  | {
+      kind: "opening";
+      message: string;
+      key: string;
+      error: string | null;
+      /** Set when the question was typed in the panel: a refusal puts it back there. */
+      panelDraft?: string;
+    };
 
 export interface SessionSidePanelState {
   open: boolean;
@@ -79,13 +88,19 @@ export const sessionWindowDrawerLogic = createStoreLogic({
       context.side.view?.kind === "new"
         ? { ...context, side: { ...context.side, view: { kind: "new", draft: event.draft } } }
         : context,
-    sideRequested: (context, event: { message: string; key: string }) => ({
+    sideRequested: (context, event: { message: string; key: string; panelDraft?: string }) => ({
       ...context,
       selected: null,
       side: {
         ...context.side,
         open: true,
-        view: { kind: "opening", message: event.message, key: event.key, error: null },
+        view: {
+          kind: "opening",
+          message: event.message,
+          key: event.key,
+          error: null,
+          panelDraft: event.panelDraft,
+        },
       },
     }),
     sideSettled: (context, event: { key: string; id: string }) =>
@@ -100,11 +115,48 @@ export const sessionWindowDrawerLogic = createStoreLogic({
       if (!openingView(view, event.key)) return context;
       return { ...context, side: { ...context.side, view: { ...view, error: event.error } } };
     },
-    /** A refusal created nothing: the panel lets go of the question it was opening. */
-    sideRefused: (context, event: { key: string }) =>
-      openingView(context.side.view, event.key)
-        ? { ...context, side: { open: false, view: null, lastViewedId: context.side.lastViewedId } }
-        : context,
+    /**
+     * A refusal created nothing. A question typed in the panel goes back to its draft there; one
+     * typed in the main composer stays in that composer, so the panel lets go of it.
+     */
+    sideRefused: (context, event: { key: string }) => {
+      const view = context.side.view;
+      if (!openingView(view, event.key)) return context;
+      const { lastViewedId } = context.side;
+      return {
+        ...context,
+        side:
+          view.panelDraft === undefined
+            ? { open: false, view: null, lastViewedId }
+            : { open: true, view: { kind: "new", draft: view.panelDraft }, lastViewedId },
+      };
+    },
+    /**
+     * A successful side list (open side chats, newest first) settles the view: a pending default
+     * picks the last viewed or newest one, else a new side chat; a side chat closed or deleted
+     * elsewhere moves to the newest remaining one, or hides the panel when none is left
+     * (US-008.EC-1). An explicit new draft and a question on its way are left alone.
+     */
+    sidesListed: (context, event: { ids: readonly string[] }) => {
+      const { view, lastViewedId } = context.side;
+      if (view?.kind === "pending") {
+        const id = lastViewedId && event.ids.includes(lastViewedId) ? lastViewedId : event.ids[0];
+        const next: SessionSideView = id ? { kind: "side", id } : { kind: "new", draft: "" };
+        return {
+          ...context,
+          side: { ...context.side, view: next, lastViewedId: id ?? lastViewedId },
+        };
+      }
+      if (view?.kind !== "side" || event.ids.includes(view.id)) return context;
+      const nextId = event.ids[0] ?? null;
+      return {
+        ...context,
+        side:
+          nextId === null
+            ? { open: false, view: null, lastViewedId: null }
+            : { open: context.side.open, view: { kind: "side", id: nextId }, lastViewedId: nextId },
+      };
+    },
   },
 });
 

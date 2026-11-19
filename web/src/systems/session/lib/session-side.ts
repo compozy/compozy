@@ -31,6 +31,8 @@ export const SIDE_CHAT_COPY = {
   stoppedNote: "This side chat stopped. Sending a message resumes it.",
   deleteLine: "Also deletes its side chats.",
   listFailed: "Couldn't load side chats.",
+  nested: "Side chats can't open side chats.",
+  unsupported: "Side chats are available on your own sessions.",
 } as const;
 
 /** A side chat is a session whose lineage kind is `side`. */
@@ -38,9 +40,23 @@ export function isSideChatSession(session: Pick<SessionPayload, "lineage">): boo
   return session.lineage?.kind === "side";
 }
 
-/** Only a user session that is not itself a side chat can hold side chats (Business Rule 2). */
+/**
+ * Why a session can't hold side chats, or null when it can (Business Rule 2). Mirrors the daemon's
+ * `/side` availability (`internal/session/side_ingress.go`): a side chat can't nest one, and only
+ * a user session that no agent spawned can hold them.
+ */
+export function sideChatHostRefusal(
+  session: Pick<SessionPayload, "lineage" | "type">
+): string | null {
+  if (isSideChatSession(session)) return SIDE_CHAT_COPY.nested;
+  if ((session.type ?? "user") !== "user" || session.lineage?.kind === "spawn") {
+    return SIDE_CHAT_COPY.unsupported;
+  }
+  return null;
+}
+
 export function canHostSideChats(session: Pick<SessionPayload, "lineage" | "type">): boolean {
-  return (session.type ?? "user") === "user" && !isSideChatSession(session);
+  return sideChatHostRefusal(session) === null;
 }
 
 /**

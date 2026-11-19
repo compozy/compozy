@@ -9,6 +9,7 @@ import {
   isSessionTransportDisconnected,
   parseSideCommand,
   type SessionPayload,
+  sideChatHostRefusal,
   type SessionSideView,
   SessionSideToggle,
   SIDE_CHAT_COPY,
@@ -51,9 +52,14 @@ export function useSessionWindowSideChat({
     transport.phase !== "failed" && !isSessionTransportDisconnected(transport)
   );
 
-  /** The kept view while its side chat is still open, else the last viewed or newest one. */
+  /**
+   * The kept view while its side chat is still open, else the last viewed or newest one. Before
+   * the first list arrives that choice is `pending`: an empty placeholder list must not pick a new
+   * side chat over existing ones (B-009).
+   */
   const restoredView = (): SessionSideView => {
     const { view, lastViewedId } = store.getSnapshot().context.side;
+    if (!list.loaded) return view && view.kind !== "side" ? view : { kind: "pending" };
     if (view && (view.kind !== "side" || list.sides.some(side => side.id === view.id))) return view;
     const id = defaultSideChatId(list.sides, lastViewedId);
     return id ? { kind: "side", id } : { kind: "new", draft: "" };
@@ -70,11 +76,27 @@ export function useSessionWindowSideChat({
   const onShortcut = useEffectEvent(toggle);
   useEffect(() => subscribeSessionSideToggle(windowId, () => onShortcut()), [windowId]);
 
+  // Each successful list read is the server's word on which side chats are open: it settles a
+  // pending default and moves off a side chat closed or deleted in another window (US-008.EC-1).
+  const onListed = useEffectEvent(() => {
+    store.trigger.sidesListed({ ids: list.sides.map(side => side.id) });
+  });
+  const listedAt = list.listedAt;
+  useEffect(() => {
+    if (listedAt > 0) onListed();
+  }, [listedAt]);
+
   const submitInterceptor: SessionComposerSubmitInterceptor = {
     claims: text => parseSideCommand(text) !== null,
     submit: async ({ text, attachmentCount }) => {
       const command = parseSideCommand(text);
       if (!command) return false;
+      // The same eligibility as the toggle and the command menu; the text stays in the composer.
+      const refusal = sideChatHostRefusal(session);
+      if (refusal) {
+        toast.error(refusal);
+        return false;
+      }
       if (attachmentCount > 0) {
         toast.error(SIDE_CHAT_COPY.attachmentsRefused);
         return false;

@@ -42,6 +42,7 @@ export {
   openSideChats,
   parseSideCommand,
   SIDE_CHAT_COPY,
+  sideChatHostRefusal,
   type SideMainStatus,
   type SideMainStatusKind,
   sideChatNeedsYou,

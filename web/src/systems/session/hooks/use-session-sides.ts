@@ -13,6 +13,10 @@ export interface SessionSidesModel {
   attention: boolean;
   isLoading: boolean;
   isError: boolean;
+  /** A list has been read at least once: `sides` is authoritative, not a placeholder. */
+  loaded: boolean;
+  /** When the last successful read landed (0 before any): each one settles the panel's view. */
+  listedAt: number;
   refetch: () => void;
 }
 
@@ -32,6 +36,8 @@ export function useSessionSides(
     attention: sides.some(sideChatNeedsYou),
     isLoading: query.isPending && query.fetchStatus !== "idle",
     isError: query.isError,
+    loaded: query.data !== undefined,
+    listedAt: query.isSuccess ? query.dataUpdatedAt : 0,
     refetch: () => {
       void query.refetch();
     },

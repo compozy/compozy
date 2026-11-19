@@ -93,6 +93,12 @@ export function SessionSideDrawer({
   };
 
   const body = ((): SessionSidePanelBodyState => {
+    // The toggle's default waits for the first list: loading, or Retry when it can't be read.
+    if (view?.kind === "pending") {
+      return list.isError
+        ? { kind: "unavailable", onRetry: list.refetch }
+        : { kind: "thread", thread: <SessionThreadSkeleton /> };
+    }
     if (view === null || view.kind === "new") {
       const draft = view?.draft ?? "";
       return {
@@ -101,7 +107,7 @@ export function SessionSideDrawer({
         onDraftChange: next => store.trigger.sideDraftChanged({ draft: next }),
         onSend: () => {
           const message = draft.trim();
-          if (message) void opener.open(message);
+          if (message) void opener.open(message, { panelDraft: draft });
         },
       };
     }
