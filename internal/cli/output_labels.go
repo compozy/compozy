@@ -19,6 +19,7 @@ const (
 	cliSourceKey      = "source"
 	cliSourcesKey     = "sources"
 	cliNameHeader     = "NAME"
+	cliTitleHeader    = "TITLE"
 	cliKindHeader     = "KIND"
 	cliOriginHeader   = "ORIGIN"
 	cliSourceHeader   = "SOURCE"

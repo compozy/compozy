@@ -44,12 +44,16 @@ func TestProviderAbsorption(t *testing.T) {
 	t.Run("Should catalog the side chat toggle with its default shortcuts", func(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)
-		index := slices.IndexFunc(commands, func(command cmdpalette.Descriptor) bool { return command.ID == "session.side.toggle" })
+		index := slices.IndexFunc(
+			commands,
+			func(command cmdpalette.Descriptor) bool { return command.ID == "session.side.toggle" },
+		)
 		if index < 0 {
 			t.Fatal("side toggle is missing from the command catalog")
 		}
 		command := commands[index]
-		if command.Title != "Toggle side chats" || command.Action.Kind != cmdpalette.ActionKindClientOp || command.Action.Op != "session.side.toggle" {
+		if command.Title != "Toggle side chats" || command.Action.Kind != cmdpalette.ActionKindClientOp ||
+			command.Action.Op != "session.side.toggle" {
 			t.Fatalf("side toggle = %+v", command)
 		}
 		want := windowmanager.ShortcutBinding{"meta+alt+KeyS", "control+alt+KeyS"}

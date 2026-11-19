@@ -26,7 +26,7 @@ func (m *Manager) activeBoardSessionCatalogRows(
 	ctx context.Context,
 	query ListQuery,
 ) (map[string]*Info, []string, []store.SessionInfo, error) {
-	infos, excludedIDs := m.activeCatalogSnapshots(query)
+	infos, excludedIDs := m.activeCatalogSnapshots(ctx, query)
 	if err := m.overlayPinnedAt(ctx, infos); err != nil {
 		return nil, nil, nil, err
 	}
@@ -134,12 +134,16 @@ func automationRunCandidate(info *store.SessionInfo) (store.SessionAutomationRun
 	return candidate, true
 }
 
-func (m *Manager) activeCatalogSnapshots(query ListQuery) ([]*Info, []string) {
-	return m.activeCatalogSnapshotsWithSides(query, false)
+func (m *Manager) activeCatalogSnapshots(ctx context.Context, query ListQuery) ([]*Info, []string) {
+	return m.activeCatalogSnapshotsWithSides(ctx, query, false)
 }
 
 // Usage includes side chats while sharing the catalog's scope and live projection.
-func (m *Manager) activeCatalogSnapshotsWithSides(query ListQuery, includeSides bool) ([]*Info, []string) {
+func (m *Manager) activeCatalogSnapshotsWithSides(
+	ctx context.Context,
+	query ListQuery,
+	includeSides bool,
+) ([]*Info, []string) {
 	sessions := m.activeSessions()
 	infos := make([]*Info, 0, len(sessions))
 	excludedIDs := make([]string, 0)
@@ -155,10 +159,14 @@ func (m *Manager) activeCatalogSnapshotsWithSides(query ListQuery, includeSides 
 		}
 		info := target.infoLocked()
 		target.mu.RUnlock()
-		ctx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
-		hidden := !includeSides && m.sideFamilyMember(ctx, info.Lineage)
+		readCtx, cancel := context.WithTimeout(ctx, defaultLifecycleTimeout)
+		var hidden bool
+		var ancestryErr error
+		if !includeSides {
+			hidden, ancestryErr = m.sideFamilyMembership(readCtx, info.Lineage)
+		}
 		cancel()
-		if hidden {
+		if hidden || ancestryErr != nil {
 			excludedIDs = append(excludedIDs, info.ID)
 			continue
 		}

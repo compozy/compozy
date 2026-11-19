@@ -316,8 +316,9 @@ func profileMoveArchiveFamily(rootID string, children []store.SessionInfo) map[s
 	parents := make(map[string]string, len(children))
 	for i := range children {
 		child := &children[i]
-		if child.Lineage != nil && (child.Lineage.SpawnRole == store.SubagentSpawnRole || isSideLineage(child.Lineage) ||
-			IsInternalSpawnRole(child.Lineage.SpawnRole)) {
+		if child.Lineage != nil &&
+			(child.Lineage.SpawnRole == store.SubagentSpawnRole || isSideLineage(child.Lineage) ||
+				IsInternalSpawnRole(child.Lineage.SpawnRole)) {
 			parents[child.ID] = child.Lineage.ParentSessionID
 		}
 	}

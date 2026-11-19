@@ -80,6 +80,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	}
 	if code := DeriveErrorCode(err); code != "" {
 		payload.Code = code
+		if message := session.SideErrorMessage(err); message != "" {
+			payload.Error = message
+		}
 	}
 	if code := SessionReparentErrorCode(err); code != "" {
 		payload.Code = code

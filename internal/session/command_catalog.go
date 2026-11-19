@@ -27,13 +27,19 @@ func (m *Manager) CommandCatalog(ctx context.Context, id string) (commandpkg.Cat
 		if err != nil {
 			return commandpkg.Catalog{}, fmt.Errorf("session: build command catalog for %q: %w", info.ID, err)
 		}
-		return applySideCommandAvailability(applyWorktreeCommandAvailability(catalog, info, m.IsPrompting(info.ID)), info), nil
+		return applySideCommandAvailability(
+			applyWorktreeCommandAvailability(catalog, info, m.IsPrompting(info.ID)),
+			info,
+		), nil
 	}
 	catalog, err := commandCatalogWithoutSkills(info)
 	if err != nil {
 		return commandpkg.Catalog{}, err
 	}
-	return applySideCommandAvailability(applyWorktreeCommandAvailability(catalog, info, m.IsPrompting(info.ID)), info), nil
+	return applySideCommandAvailability(
+		applyWorktreeCommandAvailability(catalog, info, m.IsPrompting(info.ID)),
+		info,
+	), nil
 }
 
 func applyWorktreeCommandAvailability(

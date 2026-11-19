@@ -33,16 +33,23 @@ func (g *SessionRepo) ListSessionSides(
 	if err != nil {
 		return nil, fmt.Errorf("store: list side chats: %w", err)
 	}
-	defer func() { err = errors.Join(err, rows.Close()) }()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close side chat list: %w", closeErr))
+		}
+	}()
 	result = []store.SessionInfo{}
 	for rows.Next() {
 		info, scanErr := scanSessionInfo(rows)
 		if scanErr != nil {
-			return nil, scanErr
+			return nil, fmt.Errorf("store: scan side chat list: %w", scanErr)
 		}
 		result = append(result, info)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate side chat list: %w", err)
+	}
+	return result, nil
 }
 
 func guardSideSource(ctx context.Context, exec globalSQLExecutor, receipt store.SessionDerivationReceipt) error {

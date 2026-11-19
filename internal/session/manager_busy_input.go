@@ -31,18 +31,12 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 			m.refreshReplyWatchResult(ctx, &result)
 		}
 	}()
-	if result, err := m.sidePromptIngress(ctx, id, opts); result != nil || err != nil {
-		if result != nil {
-			return *result, err
-		}
-		return SendPromptResult{}, err
-	}
-	preparation, goalResult, err := m.prepareSendPrompt(ctx, id, opts)
+	preparation, commandResult, err := m.preparePromptIngress(ctx, id, opts)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if goalResult != nil {
-		return *goalResult, nil
+	if commandResult != nil {
+		return *commandResult, nil
 	}
 	if opts.InstanceTarget != nil {
 		return m.enqueueNamedInstancePrompt(ctx, preparation, *opts.InstanceTarget)

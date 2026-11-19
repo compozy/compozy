@@ -2894,7 +2894,12 @@ func TestForkAccountInheritance(t *testing.T) {
 }
 
 func (h *deriveHarness) sideOpts(source *Session, key string) OpenSideOpts {
-	return OpenSideOpts{SourceSessionID: source.ID, WorkspaceID: h.workspaceID, Message: "Why is this approach safe?", IdempotencyKey: key}
+	return OpenSideOpts{
+		SourceSessionID: source.ID,
+		WorkspaceID:     h.workspaceID,
+		Message:         "Why is this approach safe?",
+		IdempotencyKey:  key,
+	}
 }
 
 func (h *deriveHarness) openSide(t *testing.T, source *Session, key string) *Session {
@@ -2931,102 +2936,158 @@ func (r *deriveSnapshotQueryBarrier) Query(ctx context.Context, query store.Even
 	return r.SessionDB.Query(ctx, query)
 }
 
+func awaitSideTestSignal(t *testing.T, label string, done <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatalf("timeout waiting for %s", label)
+	}
+}
+
 func TestOpenSideContext(t *testing.T) {
 	t.Parallel()
 	// Invariant: a side carries a frozen open-turn snapshot without changing the source; owner: derive.
 	for _, settled := range []bool{false, true} {
-		t.Run(fmt.Sprintf("Should snapshot the open turn with settled history %t without acquiring its prompt slot", settled), func(t *testing.T) {
-			t.Parallel()
-			h := newDeriveHarness(t)
-			created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID}}))
-			if err != nil {
-				t.Fatal(err)
-			}
-			source, _ := h.manager.Get(created.ID)
-			extraPrompts := 0
-			if settled {
-				h.promptSource(t, source.ID, "settled source history")
-				extraPrompts = 1
-			}
-			entered, release := make(chan struct{}), make(chan struct{})
-			h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-				events := make(chan acp.AgentEvent)
-				go func() {
-					defer close(events)
-					if req.Message == "open source turn" {
-						events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: req.TurnID, Text: "Inspecting the permissions", Timestamp: time.Now().UTC()}
-						events <- (acp.AgentEvent{Type: acp.EventTypeToolCall, TurnID: req.TurnID, ToolCallID: "side-cut-read", Timestamp: time.Now().UTC()}).WithTool("Read", json.RawMessage(`{"path":"README.md"}`), false)
-						events <- (acp.AgentEvent{Type: acp.EventTypeToolResult, TurnID: req.TurnID, ToolCallID: "side-cut-read", Text: "Repository is compozy", Timestamp: time.Now().UTC()}).WithTool("Read", nil, false)
-						close(entered)
-						<-release
-					}
-					emitDonePromptEvents(events, proc.handle.SessionID, req.TurnID)
-				}()
-				return events, nil
-			}
-			events, err := h.manager.Prompt(t.Context(), source.ID, "open source turn")
-			if err != nil {
-				t.Fatal(err)
-			}
-			<-entered
-			waitForCondition(t, "source partial text persisted", func() bool {
-				for _, event := range readStoredEvents(t, source) {
-					if strings.Contains(event.Content, "Repository is compozy") {
-						return true
-					}
+		t.Run(
+			fmt.Sprintf(
+				"Should snapshot the open turn with settled history %t without acquiring its prompt slot",
+				settled,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newDeriveHarness(t)
+				created, err := h.manager.CreateAccepted(
+					t.Context(),
+					new(CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID}}),
+				)
+				if err != nil {
+					t.Fatal(err)
 				}
-				return false
-			})
-			before := len(readStoredEvents(t, source))
-			beforeRevision := source.Info().AttentionRevision
-			queueBefore, err := h.manager.InputQueueSummary(t.Context(), source.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			result, openErr := h.manager.OpenSide(t.Context(), h.sideOpts(source, "first-open"))
-			stillPrompting := source.IsPrompting()
-			sourceEvents := readStoredEvents(t, source)
-			duringRevision := source.Info().AttentionRevision
-			queueDuring, queueErr := h.manager.InputQueueSummary(t.Context(), source.ID)
-			close(release)
-			collectEvents(t, events)
-			if openErr != nil {
-				t.Fatal(openErr)
-			}
-			// UT-001
-			if (result.ThroughTurnID != "") != settled || !result.SourceTurnInProgress {
-				t.Fatalf("first-turn snapshot = %+v", result)
-			}
-			// UT-010
-			if !stillPrompting || result.Seed != DeriveSeedReplay || h.driver.forkCallCount() != 0 {
-				t.Fatalf("busy side = %+v, prompting=%t", result, stillPrompting)
-			}
-			// UT-020
-			if queueErr != nil || len(sourceEvents) != before || queueBefore != queueDuring || beforeRevision != duringRevision {
-				t.Fatalf("source changed during open: events=%d/%d queues=%+v/%+v revisions=%d/%d err=%v", len(sourceEvents), before, queueBefore, queueDuring, beforeRevision, duringRevision, queueErr)
-			}
-			imported := h.childMeta(t, result.ChildSessionID).ImportedContext
-			// UT-002
-			if imported == nil || !strings.Contains(imported.MessagesJSON, "Inspecting the permissions") || !strings.Contains(imported.MessagesJSON, "README.md") || !strings.Contains(imported.MessagesJSON, "Repository is compozy") || !strings.Contains(imported.MessagesJSON, "compozy_turn_in_progress") || strings.Contains(imported.MessagesJSON, "compozy_turn_aborted") {
-				t.Fatalf("side context = %+v", imported)
-			}
-			// UT-003
-			frozen := imported.MessagesJSON
-			h.promptSource(t, source.ID, "later source progress")
-			if h.childMeta(t, result.ChildSessionID).ImportedContext.MessagesJSON != frozen {
-				t.Fatal("side context changed with its source")
-			}
-			// UT-004
-			prompts := h.waitForPromptCount(t, 3+extraPrompts)
-			found := false
-			for _, prompt := range prompts {
-				replay, boundary, question := strings.Index(prompt, "This side chat was opened on"), strings.Index(prompt, "<compozy_side_chat>"), strings.Index(prompt, "Why is this approach safe?")
-				found = found || (replay >= 0 && boundary > replay && question > boundary)
-			}
-			if !found {
-				t.Fatalf("no replay-boundary-question prompt in %q", prompts)
-			}
-		})
+				source, _ := h.manager.Get(created.ID)
+				extraPrompts := 0
+				if settled {
+					h.promptSource(t, source.ID, "settled source history")
+					extraPrompts = 1
+				}
+				entered, release := make(chan struct{}), make(chan struct{})
+				unblock := sync.OnceFunc(func() { close(release) })
+				producerDone := make(chan struct{})
+				defer func() { unblock(); awaitSideTestSignal(t, "open source producer stopped", producerDone) }()
+				h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					events := make(chan acp.AgentEvent, 5)
+					if req.Message != "open source turn" {
+						emitDonePromptEvents(events, proc.handle.SessionID, req.TurnID)
+						close(events)
+						return events, nil
+					}
+					go func() {
+						defer close(producerDone)
+						defer close(events)
+						if req.Message == "open source turn" {
+							events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: req.TurnID, Text: "Inspecting the permissions", Timestamp: time.Now().UTC()}
+							events <- (acp.AgentEvent{Type: acp.EventTypeToolCall, TurnID: req.TurnID, ToolCallID: "side-cut-read", Timestamp: time.Now().UTC()}).WithTool("Read", json.RawMessage(`{"path":"README.md"}`), false)
+							events <- (acp.AgentEvent{Type: acp.EventTypeToolResult, TurnID: req.TurnID, ToolCallID: "side-cut-read", Text: "Repository is compozy", Timestamp: time.Now().UTC()}).WithTool("Read", nil, false)
+							close(entered)
+							<-release
+						}
+						emitDonePromptEvents(events, proc.handle.SessionID, req.TurnID)
+					}()
+					return events, nil
+				}
+				events, err := h.manager.Prompt(t.Context(), source.ID, "open source turn")
+				if err != nil {
+					t.Fatal(err)
+				}
+				select {
+				case <-entered:
+				case <-producerDone:
+					t.Fatal("open source prompt producer ended before startup")
+				case <-time.After(10 * time.Second):
+					t.Fatal("open source prompt producer did not start")
+				}
+				waitForCondition(t, "source partial text persisted", func() bool {
+					for _, event := range readStoredEvents(t, source) {
+						if strings.Contains(event.Content, "Repository is compozy") {
+							return true
+						}
+					}
+					return false
+				})
+				before := len(readStoredEvents(t, source))
+				beforeRevision := source.Info().AttentionRevision
+				queueBefore, err := h.manager.InputQueueSummary(t.Context(), source.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				result, openErr := h.manager.OpenSide(t.Context(), h.sideOpts(source, "first-open"))
+				stillPrompting := source.IsPrompting()
+				sourceEvents := readStoredEvents(t, source)
+				duringRevision := source.Info().AttentionRevision
+				queueDuring, queueErr := h.manager.InputQueueSummary(t.Context(), source.ID)
+				unblock()
+				collectEvents(t, events)
+				if openErr != nil {
+					t.Fatal(openErr)
+				}
+				// UT-001
+				if (result.ThroughTurnID != "") != settled || !result.SourceTurnInProgress {
+					t.Fatalf("first-turn snapshot = %+v", result)
+				}
+				// UT-010
+				if !stillPrompting || result.Seed != DeriveSeedReplay || h.driver.forkCallCount() != 0 {
+					t.Fatalf("busy side = %+v, prompting=%t", result, stillPrompting)
+				}
+				// UT-020
+				if queueErr != nil || len(sourceEvents) != before || queueBefore != queueDuring ||
+					beforeRevision != duringRevision {
+					t.Fatalf(
+						"source changed during open: events=%d/%d queues=%+v/%+v revisions=%d/%d err=%v",
+						len(sourceEvents),
+						before,
+						queueBefore,
+						queueDuring,
+						beforeRevision,
+						duringRevision,
+						queueErr,
+					)
+				}
+				imported := h.childMeta(t, result.ChildSessionID).ImportedContext
+				// UT-002
+				if imported == nil || !strings.Contains(imported.MessagesJSON, "Inspecting the permissions") ||
+					!strings.Contains(imported.MessagesJSON, "README.md") ||
+					!strings.Contains(imported.MessagesJSON, "Repository is compozy") ||
+					!strings.Contains(imported.MessagesJSON, "compozy_turn_in_progress") ||
+					strings.Contains(imported.MessagesJSON, "compozy_turn_aborted") {
+					t.Fatalf("side context = %+v", imported)
+				}
+				// UT-003
+				frozen := imported.MessagesJSON
+				h.promptSource(t, source.ID, "later source progress")
+				if h.childMeta(t, result.ChildSessionID).ImportedContext.MessagesJSON != frozen {
+					t.Fatal("side context changed with its source")
+				}
+				// UT-004
+				prompts := h.waitForPromptCount(t, 3+extraPrompts)
+				found := false
+				for _, prompt := range prompts {
+					replay, boundary, question := strings.Index(
+						prompt,
+						"This side chat was opened on",
+					), strings.Index(
+						prompt,
+						"<compozy_side_chat>",
+					), strings.Index(
+						prompt,
+						"Why is this approach safe?",
+					)
+					found = found || (replay >= 0 && boundary > replay && question > boundary)
+				}
+				if !found {
+					t.Fatalf("no replay-boundary-question prompt in %q", prompts)
+				}
+			},
+		)
 	}
 	// Invariant B-018: events from a prompt admitted during the snapshot carry the live-turn marker.
 	// Owner: derive snapshots; canonical suite: TestOpenSideContext.
@@ -3049,10 +3110,17 @@ func TestOpenSideContext(t *testing.T) {
 		source.setRecorder(barrier)
 		entered, releasePrompt := make(chan struct{}), make(chan struct{})
 		unblockPrompt := sync.OnceFunc(func() { close(releasePrompt) })
-		defer unblockPrompt()
+		producerDone := make(chan struct{})
+		defer func() { unblockPrompt(); awaitSideTestSignal(t, "mid-snapshot producer stopped", producerDone) }()
 		h.driver.promptHook = func(proc *fakeProcess, request acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-			events := make(chan acp.AgentEvent)
+			events := make(chan acp.AgentEvent, 3)
+			if request.Message != "start during snapshot" {
+				emitDonePromptEvents(events, proc.handle.SessionID, request.TurnID)
+				close(events)
+				return events, nil
+			}
 			go func() {
+				defer close(producerDone)
 				defer close(events)
 				if request.Message == "start during snapshot" {
 					events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: request.TurnID, Text: "mid-snapshot answer", Timestamp: time.Now().UTC()}
@@ -3064,21 +3132,38 @@ func TestOpenSideContext(t *testing.T) {
 			return events, nil
 		}
 		opened, openErrors := make(chan DeriveResult, 1), make(chan error, 1)
+		openCtx, cancelOpen := context.WithCancel(t.Context())
+		openDone := make(chan struct{})
+		defer func() {
+			unblockQuery()
+			unblockPrompt()
+			cancelOpen()
+			awaitSideTestSignal(t, "mid-snapshot open stopped", openDone)
+		}()
 		go func() {
-			result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "mid-snapshot-turn"))
+			defer close(openDone)
+			result, err := h.manager.OpenSide(openCtx, h.sideOpts(source, "mid-snapshot-turn"))
 			opened <- result
 			openErrors <- err
 		}()
 		select {
 		case <-barrier.entered:
-		case <-t.Context().Done():
-			t.Fatal(t.Context().Err())
+		case err := <-openErrors:
+			t.Fatalf("side open ended before query barrier: %v", err)
+		case <-time.After(10 * time.Second):
+			t.Fatal("side open did not reach query barrier")
 		}
 		working, err := h.manager.Prompt(t.Context(), source.ID, "start during snapshot")
 		if err != nil {
 			t.Fatal(err)
 		}
-		<-entered
+		select {
+		case <-entered:
+		case <-producerDone:
+			t.Fatal("mid-snapshot source prompt producer ended before startup")
+		case <-time.After(10 * time.Second):
+			t.Fatal("mid-snapshot source prompt producer did not start")
+		}
 		waitForCondition(t, "mid-snapshot answer persisted", func() bool {
 			rows, err := base.Query(t.Context(), store.EventQuery{})
 			if err != nil {
@@ -3092,6 +3177,7 @@ func TestOpenSideContext(t *testing.T) {
 			return false
 		})
 		unblockQuery()
+		awaitSideTestSignal(t, "mid-snapshot open completed", openDone)
 		result, openErr := <-opened, <-openErrors
 		if openErr != nil {
 			t.Fatal(openErr)
@@ -3114,7 +3200,11 @@ func TestOpenSideContext(t *testing.T) {
 		if err := h.manager.Stop(t.Context(), source.ID); err != nil {
 			t.Fatal(err)
 		}
-		recorder, err := sessiondb.OpenSessionDB(t.Context(), testSessionDBOwner(source.ID, source.WorkspaceID), source.DBPath())
+		recorder, err := sessiondb.OpenSessionDB(
+			t.Context(),
+			testSessionDBOwner(source.ID, source.WorkspaceID),
+			source.DBPath(),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3127,7 +3217,18 @@ func TestOpenSideContext(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if err := recorder.Record(t.Context(), store.SessionEvent{ID: fmt.Sprintf("open-after-stop-%d", index), SessionID: source.ID, AgentName: "coder", TurnID: "never-settled", Type: event.Type, Content: content, Timestamp: time.Now().UTC()}); err != nil {
+				if err := recorder.Record(
+					t.Context(),
+					store.SessionEvent{
+						ID:        fmt.Sprintf("open-after-stop-%d", index),
+						SessionID: source.ID,
+						AgentName: "coder",
+						TurnID:    "never-settled",
+						Type:      event.Type,
+						Content:   content,
+						Timestamp: time.Now().UTC(),
+					},
+				); err != nil {
 					return err
 				}
 			}
@@ -3141,7 +3242,9 @@ func TestOpenSideContext(t *testing.T) {
 			t.Fatal(err)
 		}
 		context := h.childMeta(t, opened.ChildSessionID).ImportedContext
-		if opened.SourceTurnInProgress || context == nil || !strings.Contains(context.MessagesJSON, "partial source result before crash") || strings.Contains(context.MessagesJSON, "compozy_turn_in_progress") {
+		if opened.SourceTurnInProgress || context == nil ||
+			!strings.Contains(context.MessagesJSON, "partial source result before crash") ||
+			strings.Contains(context.MessagesJSON, "compozy_turn_in_progress") {
 			t.Fatalf("stopped snapshot = %+v context=%+v", opened, context)
 		}
 	})
@@ -3176,7 +3279,8 @@ func TestOpenSideContext(t *testing.T) {
 		}
 		prompt := h.waitForPromptCount(t, before+1)[before]
 		// UT-005
-		if strings.Contains(prompt, resumeReplayOpenTag) || !strings.HasPrefix(prompt, "<compozy_side_chat>") || !strings.HasSuffix(prompt, "Why is this approach safe?") {
+		if strings.Contains(prompt, resumeReplayOpenTag) || !strings.HasPrefix(prompt, "<compozy_side_chat>") ||
+			!strings.HasSuffix(prompt, "Why is this approach safe?") {
 			t.Fatalf("native first prompt = %q", prompt)
 		}
 		meta := h.childMeta(t, result.ChildSessionID)
@@ -3214,17 +3318,41 @@ func TestOpenSideIdentityAndGuards(t *testing.T) {
 		worktrees := newFakeProfileMoveWorktrees(t, h.db, h.workspaceID)
 		WithWorktreeResolver(worktrees)(h.manager)
 		checkout := worktrees.add(t, store.DefaultProfileID)
-		source, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: checkout})
+		source, err := h.manager.Create(
+			t.Context(),
+			&CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: checkout},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		h.promptSource(t, source.ID, "Source's own work")
 		caps := source.process.CapsSnapshot()
 		caps.ConfigOptions = []acp.SessionConfigOption{
-			{ID: "model", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "side-source-model", Values: []acp.SessionConfigOptionValue{{Value: "side-source-model"}}},
-			{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high", Values: []acp.SessionConfigOptionValue{{Value: "high"}}},
-			{ID: "speed", Category: "model_config", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "fast", Values: []acp.SessionConfigOptionValue{{Value: "fast"}}},
-			{ID: "budget", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "expanded", Values: []acp.SessionConfigOptionValue{{Value: "expanded"}}},
+			{
+				ID:             "model",
+				Kind:           acp.SessionConfigOptionKindSelect,
+				CurrentValueID: "side-source-model",
+				Values:         []acp.SessionConfigOptionValue{{Value: "side-source-model"}},
+			},
+			{
+				ID:             "effort",
+				Kind:           acp.SessionConfigOptionKindSelect,
+				CurrentValueID: "high",
+				Values:         []acp.SessionConfigOptionValue{{Value: "high"}},
+			},
+			{
+				ID:             "speed",
+				Category:       "model_config",
+				Kind:           acp.SessionConfigOptionKindSelect,
+				CurrentValueID: "fast",
+				Values:         []acp.SessionConfigOptionValue{{Value: "fast"}},
+			},
+			{
+				ID:             "budget",
+				Kind:           acp.SessionConfigOptionKindSelect,
+				CurrentValueID: "expanded",
+				Values:         []acp.SessionConfigOptionValue{{Value: "expanded"}},
+			},
 		}
 		source.process.setCaps(caps)
 		source.mu.Lock()
@@ -3244,35 +3372,75 @@ func TestOpenSideIdentityAndGuards(t *testing.T) {
 		// UT-012
 		info, original := side.Info(), source.Info()
 		if info.Type != SessionTypeUser || info.AgentName != original.AgentName || info.Provider != original.Provider || info.Model != original.Model || info.WorktreeID != original.WorktreeID || info.EffectivePermissions != original.EffectivePermissions ||
-			info.Lineage.Kind != store.LineageKindSide || info.Lineage.ParentSessionID != source.ID || info.Lineage.RootSessionID != original.Lineage.RootSessionID || info.Lineage.SpawnDepth != original.Lineage.SpawnDepth+1 || info.Lineage.AutoStopOnParent || info.Lineage.NotifyCreator || !reflect.DeepEqual(info.Lineage.PermissionPolicy, original.Lineage.PermissionPolicy) {
+			info.Lineage.Kind != store.LineageKindSide ||
+			info.Lineage.ParentSessionID != source.ID ||
+			info.Lineage.RootSessionID != original.Lineage.RootSessionID ||
+			info.Lineage.SpawnDepth != original.Lineage.SpawnDepth+1 ||
+			info.Lineage.AutoStopOnParent ||
+			info.Lineage.NotifyCreator ||
+			!reflect.DeepEqual(info.Lineage.PermissionPolicy, original.Lineage.PermissionPolicy) {
 			t.Fatalf("side=%+v lineage=%+v source=%+v", info, info.Lineage, original)
 		}
 		sideMeta, sourceMeta := side.Meta(), source.Meta()
 		if !reflect.DeepEqual(info.RequestedRuntime(), original.EffectiveRuntime()) ||
 			info.ReasoningEffort != "high" || info.Speed != "fast" || info.WorktreeID != checkout ||
 			sideMeta.CWDValue() != sourceMeta.CWDValue() || sideMeta.CWDValue() == h.workspace {
-			t.Fatalf("inherited runtime/cwd=%+v / %s, source=%+v / %s", info.RequestedRuntime(), sideMeta.CWDValue(), original.EffectiveRuntime(), sourceMeta.CWDValue())
+			t.Fatalf(
+				"inherited runtime/cwd=%+v / %s, source=%+v / %s",
+				info.RequestedRuntime(),
+				sideMeta.CWDValue(),
+				original.EffectiveRuntime(),
+				sourceMeta.CWDValue(),
+			)
 		}
 		// UT-065
-		if _, err := h.manager.normalizeCreateLineage(t.Context(), "side-policy", SessionTypeUser, h.workspaceID, info.Lineage, ""); err != nil {
+		if _, err := h.manager.normalizeCreateLineage(
+			t.Context(),
+			"side-policy",
+			SessionTypeUser,
+			h.workspaceID,
+			info.Lineage,
+			"",
+		); err != nil {
 			t.Fatal(err)
 		}
 		provenance := store.CloneSessionLineage(info.Lineage)
 		provenance.Kind = store.LineageKindProvenance
 		provenance.OriginAgentName = ""
-		if _, err := h.manager.normalizeCreateLineage(t.Context(), "provenance-policy", SessionTypeUser, h.workspaceID, provenance, ""); !errors.Is(err, ErrValidation) {
+		if _, err := h.manager.normalizeCreateLineage(
+			t.Context(),
+			"provenance-policy",
+			SessionTypeUser,
+			h.workspaceID,
+			provenance,
+			"",
+		); !errors.Is(
+			err,
+			ErrValidation,
+		) {
 			t.Fatalf("provenance accepted side permission shape: %v", err)
 		}
 	})
 	t.Run("Should refuse an empty source", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)
-		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID}}))
+		created, err := h.manager.CreateAccepted(
+			t.Context(),
+			new(CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID}}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		// UT-013
-		_, err = h.manager.OpenSide(t.Context(), OpenSideOpts{SourceSessionID: created.ID, WorkspaceID: h.workspaceID, Message: "why?", IdempotencyKey: "empty"})
+		_, err = h.manager.OpenSide(
+			t.Context(),
+			OpenSideOpts{
+				SourceSessionID: created.ID,
+				WorkspaceID:     h.workspaceID,
+				Message:         "why?",
+				IdempotencyKey:  "empty",
+			},
+		)
 		if !errors.Is(err, ErrSideSourceEmpty) {
 			t.Fatalf("empty source = %v", err)
 		}
@@ -3282,11 +3450,18 @@ func TestOpenSideIdentityAndGuards(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = h.manager.OpenSide(t.Context(), OpenSideOpts{SourceSessionID: continued.ChildSessionID, WorkspaceID: h.workspaceID, Message: "why?", IdempotencyKey: "empty-imported-side"})
+		_, err = h.manager.OpenSide(
+			t.Context(),
+			OpenSideOpts{
+				SourceSessionID: continued.ChildSessionID,
+				WorkspaceID:     h.workspaceID,
+				Message:         "why?",
+				IdempotencyKey:  "empty-imported-side",
+			},
+		)
 		if !errors.Is(err, ErrSideSourceEmpty) {
 			t.Fatalf("empty imported source=%v", err)
 		}
-
 	})
 	t.Run("Should refuse an archived source", func(t *testing.T) {
 		t.Parallel()
@@ -3299,7 +3474,13 @@ func TestOpenSideIdentityAndGuards(t *testing.T) {
 			t.Fatal(err)
 		}
 		// UT-014
-		if _, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "archived")); !errors.Is(err, ErrSessionArchived) {
+		if _, err := h.manager.OpenSide(
+			t.Context(),
+			h.sideOpts(source, "archived"),
+		); !errors.Is(
+			err,
+			ErrSessionArchived,
+		) {
 			t.Fatalf("archived source = %v", err)
 		}
 	})
@@ -3348,24 +3529,33 @@ func TestOpenSideIdentityAndGuards(t *testing.T) {
 		source.Lineage.Kind = store.LineageKindSpawn
 		source.mu.Unlock()
 		// UT-017
-		if _, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "spawned")); !errors.Is(err, ErrSideUnsupported) {
+		if _, err := h.manager.OpenSide(
+			t.Context(),
+			h.sideOpts(source, "spawned"),
+		); !errors.Is(
+			err,
+			ErrSideUnsupported,
+		) {
 			t.Fatalf("spawned source = %v", err)
 		}
 	})
-	t.Run("Should preserve an unnamed side and an explicit title independently of the source title", func(t *testing.T) {
-		t.Parallel()
-		h := newDeriveHarness(t)
-		source := h.newDeriveSource(t)
-		first := h.openSide(t, source, "unnamed-one")
-		second := h.openSide(t, source, "unnamed-two")
-		opts := h.sideOpts(source, "named")
-		opts.Name = "Permission question"
-		named, err := h.manager.OpenSide(t.Context(), opts)
-		// UT-082
-		if err != nil || first.Info().Name != "" || second.Info().Name != "" || named.Child.Name != opts.Name {
-			t.Fatalf("side names=%q/%q named=%+v err=%v", first.Info().Name, second.Info().Name, named, err)
-		}
-	})
+	t.Run(
+		"Should preserve an unnamed side and an explicit title independently of the source title",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			source := h.newDeriveSource(t)
+			first := h.openSide(t, source, "unnamed-one")
+			second := h.openSide(t, source, "unnamed-two")
+			opts := h.sideOpts(source, "named")
+			opts.Name = "Permission question"
+			named, err := h.manager.OpenSide(t.Context(), opts)
+			// UT-082
+			if err != nil || first.Info().Name != "" || second.Info().Name != "" || named.Child.Name != opts.Name {
+				t.Fatalf("side names=%q/%q named=%+v err=%v", first.Info().Name, second.Info().Name, named, err)
+			}
+		},
+	)
 }
 
 func TestSideCommitRecoveryAndRaces(t *testing.T) {
@@ -3373,7 +3563,10 @@ func TestSideCommitRecoveryAndRaces(t *testing.T) {
 	t.Run("Should reconcile a side receipt after its derive event was lost", func(t *testing.T) {
 		t.Parallel()
 		ledger := &deriveLedgerFault{}
-		h := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option { ledger.GlobalDB = db; return WithEventLedger(ledger) })
+		h := newDeriveHarness(
+			t,
+			func(db *globaldb.GlobalDB) Option { ledger.GlobalDB = db; return WithEventLedger(ledger) },
+		)
 		source := h.newDeriveSource(t)
 		ledger.dropDerived.Store(true)
 		result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "reconcile-side"))
@@ -3382,8 +3575,14 @@ func TestSideCommitRecoveryAndRaces(t *testing.T) {
 		}
 		ledger.dropDerived.Store(false)
 		// UT-064
-		receipt, found, err := h.db.SessionDerivationReceipt(t.Context(), h.workspaceID, "reconcile-side", store.DefaultProfileID)
-		if err != nil || !found || receipt.Validate() != nil || receipt.Kind != store.LineageKindSide || result.Child.Derivation.Kind != store.LineageKindSide {
+		receipt, found, err := h.db.SessionDerivationReceipt(
+			t.Context(),
+			h.workspaceID,
+			"reconcile-side",
+			store.DefaultProfileID,
+		)
+		if err != nil || !found || receipt.Validate() != nil || receipt.Kind != store.LineageKindSide ||
+			result.Child.Derivation.Kind != store.LineageKindSide {
 			t.Fatalf("side receipt=%+v %v", receipt, err)
 		}
 		emitted, err := h.manager.ReconcileDerivedSessionEvents(t.Context(), []*Info{result.Child})
@@ -3397,7 +3596,12 @@ func TestSideCommitRecoveryAndRaces(t *testing.T) {
 		h := newDeriveHarness(t, fault.option)
 		source := h.newDeriveSource(t)
 		fault.before = func(_ *store.SessionInfo, _ store.SessionCreationIdentity, _ store.SessionDerivationReceipt) error {
-			_, err := h.manager.ArchiveWithChildren(t.Context(), h.workspaceID, source.ID, ArchiveTreeOptions{Stop: true})
+			_, err := h.manager.ArchiveWithChildren(
+				t.Context(),
+				h.workspaceID,
+				source.ID,
+				ArchiveTreeOptions{Stop: true},
+			)
 			return err
 		}
 		// UT-086
@@ -3416,21 +3620,36 @@ func TestSideCommitRecoveryAndRaces(t *testing.T) {
 		h := newDeriveHarness(t, fault.option)
 		source := h.newDeriveSource(t)
 		entered, release := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		defer unblock()
 		fault.before = func(_ *store.SessionInfo, _ store.SessionCreationIdentity, _ store.SessionDerivationReceipt) error {
 			close(entered)
 			<-release
 			return nil
 		}
+		workerCtx, cancelWorkers := context.WithCancel(t.Context())
+		defer cancelWorkers()
 		opened := make(chan DeriveResult, 1)
+		openDone := make(chan struct{})
+		defer func() { unblock(); cancelWorkers(); awaitSideTestSignal(t, "delete-race open stopped", openDone) }()
 		openErrors := make(chan error, 1)
 		go func() {
-			result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "delete-race"))
+			defer close(openDone)
+			result, err := h.manager.OpenSide(workerCtx, h.sideOpts(source, "delete-race"))
 			opened <- result
 			openErrors <- err
 		}()
-		<-entered
+		select {
+		case <-entered:
+		case err := <-openErrors:
+			t.Fatalf("open ended before registration barrier: %v", err)
+		case <-time.After(10 * time.Second):
+			t.Fatal("open did not reach registration barrier")
+		}
 		deleted := make(chan error, 1)
-		go func() { deleted <- h.manager.Delete(t.Context(), source.ID) }()
+		deleteDone := make(chan struct{})
+		defer func() { unblock(); cancelWorkers(); awaitSideTestSignal(t, "source delete stopped", deleteDone) }()
+		go func() { defer close(deleteDone); deleted <- h.manager.Delete(workerCtx, source.ID) }()
 		// Wait for delete to contend on the held snapshot lock before allowing the commit.
 		waitForCondition(t, "delete waiting for source snapshot", func() bool {
 			h.manager.conversationOperationMu.Lock()
@@ -3443,11 +3662,30 @@ func TestSideCommitRecoveryAndRaces(t *testing.T) {
 			t.Fatalf("delete escaped snapshot lock: %v", err)
 		default:
 		}
-		close(release)
+		unblock()
+		awaitSideTestSignal(t, "delete-race open completed", openDone)
 		result, openErr := <-opened, <-openErrors
+		awaitSideTestSignal(t, "source delete completed", deleteDone)
 		// UT-093
 		if err := <-deleted; err != nil {
 			t.Fatal(err)
+		}
+		receipt, found, err := h.db.SessionDerivationReceipt(
+			t.Context(),
+			h.workspaceID,
+			"delete-race",
+			store.DefaultProfileID,
+		)
+		if err != nil || !found || receipt.Validate() != nil || result.ChildSessionID == "" ||
+			receipt.ChildSessionID != result.ChildSessionID || receipt.ChildDeletedAt == nil {
+			t.Fatalf(
+				"side did not commit before deletion: receipt=%+v found=%t err=%v open=%+v/%v",
+				receipt,
+				found,
+				err,
+				result,
+				openErr,
+			)
 		}
 		rows, err := h.db.ListSessionSides(t.Context(), h.workspaceID, source.ID, true)
 		if err != nil || len(rows) != 0 {

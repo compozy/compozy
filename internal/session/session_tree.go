@@ -52,11 +52,12 @@ func (m *Manager) Descendants(ctx context.Context, workspaceID string, sessionID
 	if meta, err := m.readSessionMetaReadOnly(ctx, sessionID); err == nil {
 		hidden[sessionID] = m.sideFamilyMember(ctx, meta.Lineage)
 	}
-	for _, row := range rows {
+	for i := range rows {
+		row := &rows[i]
 		parent := store.HierarchyParentSessionID(row.Lineage)
 		hidden[row.ID] = isSideLineage(row.Lineage) || hidden[parent]
 		if !hidden[row.ID] && (row.Lineage == nil || !IsInternalSpawnRole(row.Lineage.SpawnRole)) {
-			visible = append(visible, row)
+			visible = append(visible, *row)
 		}
 	}
 	infos := sessionInfosFromCatalog(visible)
@@ -81,8 +82,7 @@ func (m *Manager) ArchiveWithChildren(
 	}
 	var archived store.SessionTreeArchive
 	attempt := func() error {
-		var archiveErr error
-		archiveErr = m.archiveStoppingSideMembers(ctx, sessionID, func() error {
+		archiveErr := m.archiveStoppingSideMembers(ctx, sessionID, func() error {
 			var err error
 			archived, err = m.archiveTreeWithResumeGuard(ctx, treeStore, workspaceID, sessionID, opts.RefuseMember)
 			return err

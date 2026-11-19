@@ -21,7 +21,12 @@ func sessionPromptBundle(record SessionPromptRecord) outputBundle {
 	if record.Prompt.Side != nil {
 		side := record.Prompt.Side
 		return outputBundle{jsonValue: record, human: func() (string, error) {
-			return sideOpenedText(side.SessionID, record.Prompt.TargetSessionID, side.Seed, side.SourceTurnInProgress), nil
+			return sideOpenedText(
+				side.SessionID,
+				record.Prompt.TargetSessionID,
+				side.Seed,
+				side.SourceTurnInProgress,
+			), nil
 		}, toon: func() (string, error) {
 			return renderToonObject("side", []string{"session_id", "seed"}, []string{side.SessionID, side.Seed}), nil
 		}}

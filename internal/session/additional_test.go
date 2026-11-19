@@ -1415,10 +1415,25 @@ func TestSideLifecycle(t *testing.T) {
 		}
 		side, _ := h.manager.Get(opened.ChildSessionID)
 		waitForCondition(t, "side turn running", side.IsPrompting)
-		if _, err := h.manager.Archive(t.Context(), h.workspaceID, side.ID); !errors.Is(err, ErrSessionArchiveRequiresStopped) {
+		if _, err := h.manager.Archive(
+			t.Context(),
+			h.workspaceID,
+			side.ID,
+		); !errors.Is(
+			err,
+			ErrSessionArchiveRequiresStopped,
+		) {
 			t.Fatalf("plain side archive=%v", err)
 		}
-		if _, err := h.manager.ArchiveWithChildren(t.Context(), h.workspaceID, side.ID, ArchiveTreeOptions{}); !errors.Is(err, ErrSessionArchiveRequiresStopped) {
+		if _, err := h.manager.ArchiveWithChildren(
+			t.Context(),
+			h.workspaceID,
+			side.ID,
+			ArchiveTreeOptions{},
+		); !errors.Is(
+			err,
+			ErrSessionArchiveRequiresStopped,
+		) {
 			t.Fatalf("tree side archive=%v", err)
 		}
 		if !side.IsPrompting() {
@@ -1459,19 +1474,21 @@ func TestSideLifecycle(t *testing.T) {
 		source := h.newDeriveSource(t)
 		one := h.openSide(t, source, "stop-failure-one")
 		two := h.openSide(t, source, "stop-failure-two")
-		dispatcher := &spyHookDispatcher{dispatchSessionPreStopFn: func(ctx context.Context, payload hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error) {
-			if payload.SessionID == one.ID || payload.SessionID == two.ID {
-				info, err := h.manager.Status(ctx, source.ID)
-				if err != nil || (info.State != StateStopping && info.State != StateStopped) {
-					t.Errorf("side stop ran before source admission: %+v %v", info, err)
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPreStopFn: func(ctx context.Context, payload hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error) {
+				if payload.SessionID == one.ID || payload.SessionID == two.ID {
+					info, err := h.manager.Status(ctx, source.ID)
+					if err != nil || (info.State != StateStopping && info.State != StateStopped) {
+						t.Errorf("side stop ran before source admission: %+v %v", info, err)
+					}
+					mu.Lock()
+					visited = append(visited, payload.SessionID)
+					mu.Unlock()
+					return payload, sideFailure
 				}
-				mu.Lock()
-				visited = append(visited, payload.SessionID)
-				mu.Unlock()
-				return payload, sideFailure
-			}
-			return payload, nil
-		}}
+				return payload, nil
+			},
+		}
 		h.manager.hooks = fullHookSet(dispatcher)
 		err := h.manager.RequestStopWithCause(t.Context(), source.ID, CauseUserRequested, "")
 		if !errors.Is(err, sideFailure) {
@@ -1528,6 +1545,39 @@ func TestSideLifecycle(t *testing.T) {
 		unblock()
 	})
 
+	// Invariant: the default stop cause has the same side cascade as an explicit user stop.
+	// Owner: lifecycle; canonical suite: TestSideLifecycle.
+	for _, async := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should cascade a default stop cause with asynchronous %t", async), func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			source := h.newDeriveSource(t)
+			side := h.openSide(t, source, "default-stop")
+			waitForDeriveConsumption(t, h, side.ID)
+			var err error
+			if async {
+				err = h.manager.RequestStopWithCause(t.Context(), source.ID, CauseNone, "")
+			} else {
+				err = h.manager.StopWithCause(t.Context(), source.ID, CauseNone, "")
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			if _, err := h.manager.AwaitStopped(ctx, source.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.manager.AwaitStopped(ctx, side.ID); err != nil {
+				t.Fatal(err)
+			}
+			info, err := h.manager.Status(ctx, side.ID)
+			if err != nil || info.State != StateStopped {
+				t.Fatalf("side after default stop = %+v, %v", info, err)
+			}
+		})
+	}
+
 	// Invariant: side lifecycle follows source transitions, while independently closed sides remain closed.
 	t.Run("Should stop live sides with a user-requested source stop", func(t *testing.T) {
 		t.Parallel()
@@ -1563,7 +1613,8 @@ func TestSideLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		closedAt := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-		if _, err := h.db.DB().ExecContext(t.Context(), "UPDATE sessions SET archived_at=? WHERE id=?", store.FormatTimestamp(closedAt), closed.ID); err != nil {
+		if _, err := h.db.DB().
+			ExecContext(t.Context(), "UPDATE sessions SET archived_at=? WHERE id=?", store.FormatTimestamp(closedAt), closed.ID); err != nil {
 			t.Fatal(err)
 		}
 		if err := h.manager.Stop(t.Context(), source.ID); err != nil {
@@ -1576,14 +1627,22 @@ func TestSideLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		current, err := h.manager.Status(t.Context(), open.ID)
-		if err != nil || current.State != StateStopped || current.ArchivedAt == nil || !current.ArchivedAt.Equal(*tree.Root.ArchivedAt) {
+		if err != nil || current.State != StateStopped || current.ArchivedAt == nil ||
+			!current.ArchivedAt.Equal(*tree.Root.ArchivedAt) {
 			t.Fatalf("cascade=%+v %v", current, err)
 		}
 		// UT-069
 		if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, open.ID); !errors.Is(err, ErrSideParentArchived) {
 			t.Fatalf("unarchive under archived source=%v", err)
 		}
-		if _, err := h.manager.SendPrompt(t.Context(), open.ID, SendPromptOpts{Message: "follow up"}); !errors.Is(err, ErrSideParentArchived) {
+		if _, err := h.manager.SendPrompt(
+			t.Context(),
+			open.ID,
+			SendPromptOpts{Message: "follow up"},
+		); !errors.Is(
+			err,
+			ErrSideParentArchived,
+		) {
 			t.Fatalf("prompt under archived source=%v", err)
 		}
 		if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err != nil {
@@ -1603,7 +1662,18 @@ func TestSideLifecycle(t *testing.T) {
 			t.Parallel()
 			h := newDeriveHarness(t)
 			source := h.newDeriveSource(t)
-			child, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Lineage: &store.SessionLineage{ParentSessionID: source.ID}}}))
+			child, err := h.manager.CreateAccepted(
+				t.Context(),
+				new(
+					CreateAcceptedOpts{
+						Session: CreateOpts{
+							AgentName: "coder",
+							Workspace: h.workspaceID,
+							Lineage:   &store.SessionLineage{ParentSessionID: source.ID},
+						},
+					},
+				),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1679,7 +1749,15 @@ func TestSideLifecycle(t *testing.T) {
 		if err != nil || len(family) != 1 || family[0].ID != source.ID {
 			t.Fatalf("Later family=%+v %v", family, err)
 		}
-		if _, err := h.manager.MoveToLater(t.Context(), h.workspaceID, side.ID, LaterRequest{}); !errors.Is(err, ErrSideLaterUnsupported) {
+		if _, err := h.manager.MoveToLater(
+			t.Context(),
+			h.workspaceID,
+			side.ID,
+			LaterRequest{},
+		); !errors.Is(
+			err,
+			ErrSideLaterUnsupported,
+		) {
 			t.Fatalf("side Later=%v", err)
 		}
 	})
@@ -1702,16 +1780,26 @@ func TestSideLifecycle(t *testing.T) {
 		}
 
 		// UT-092
-		rows, err := h.db.ListSessionHistoryCleanupRows(t.Context(), store.SessionHistoryCleanupQuery{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID})
+		rows, err := h.db.ListSessionHistoryCleanupRows(
+			t.Context(),
+			store.SessionHistoryCleanupQuery{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, row := range rows {
-			if row.ID == one.ID || row.ID == two.ID {
+			if row.ID == one.ID || row.ID == two.ID || row.ID == closed.ID {
 				t.Fatal("side is selectable by history cleanup")
 			}
 		}
-		if err := h.manager.DeleteArchived(t.Context(), store.ArchivedSessionDelete{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, SessionID: source.ID}); err != nil {
+		if err := h.manager.DeleteArchived(
+			t.Context(),
+			store.ArchivedSessionDelete{
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: h.workspaceID,
+				SessionID:   source.ID,
+			},
+		); err != nil {
 			t.Fatal(err)
 		}
 		for _, id := range []string{source.ID, one.ID, two.ID} {
@@ -1723,7 +1811,6 @@ func TestSideLifecycle(t *testing.T) {
 		if err != nil || retained.ArchivedAt == nil {
 			t.Fatalf("unselected closed side lost=%+v %v", retained, err)
 		}
-
 	})
 }
 
@@ -1763,8 +1850,12 @@ func TestSideDeleteRetry(t *testing.T) {
 		fault := &sideDeleteFaultCatalog{GlobalDB: h.db, failID: failID}
 		h.manager.sessionCatalog = fault
 		// UT-027
-		if err := h.manager.Delete(t.Context(), source.ID); err == nil {
-			t.Fatal("injected side deletion succeeded")
+		if err := h.manager.Delete(
+			t.Context(),
+			source.ID,
+		); err == nil ||
+			!strings.Contains(err.Error(), "injected side delete failure") {
+			t.Fatalf("injected side deletion error=%v", err)
 		}
 		if _, err := h.manager.Status(t.Context(), source.ID); err != nil {
 			t.Fatalf("source lost before child failure: %v", err)

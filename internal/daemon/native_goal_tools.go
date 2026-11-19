@@ -34,17 +34,11 @@ func (n *daemonNativeTools) goalControl(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	commandRequest := contract.SessionGoalCommandRequest{
-		Operation: contract.SessionGoalOperation(strings.TrimSpace(input.Operation)),
-		Objective: strings.TrimSpace(input.Objective), ExpectedRunID: strings.TrimSpace(input.ExpectedRunID),
-		Runtime: input.Runtime,
+	commandRequest, err := nativeGoalControlRequest(req.ToolID, input)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
 	}
-	if err := commandRequest.Validate(); err != nil {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput, req.ToolID, err.Error(),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err), toolspkg.ReasonSchemaInvalid,
-		)
-	}
+
 	workspaceID, err := n.nativeLoopWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -412,4 +406,21 @@ func (n *daemonNativeTools) requireNativeGoalSupported(ctx context.Context, id s
 		return session.ErrSideGoalUnsupported
 	}
 	return nil
+}
+
+func nativeGoalControlRequest(
+	toolID toolspkg.ToolID,
+	input nativeGoalControlInput,
+) (contract.SessionGoalCommandRequest, error) {
+	request := contract.SessionGoalCommandRequest{
+		Operation:     contract.SessionGoalOperation(strings.TrimSpace(input.Operation)),
+		Objective:     strings.TrimSpace(input.Objective),
+		ExpectedRunID: strings.TrimSpace(input.ExpectedRunID),
+		Runtime:       input.Runtime,
+	}
+	if err := request.Validate(); err != nil {
+		return request, toolspkg.NewToolError(toolspkg.ErrorCodeInvalidInput, toolID, err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err), toolspkg.ReasonSchemaInvalid)
+	}
+	return request, nil
 }

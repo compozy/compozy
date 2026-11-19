@@ -38,7 +38,7 @@ func (m *Manager) AggregateSessionsByAgent(
 	}
 
 	query := ListQuery{ReadScope: readScope, WorkspaceID: workspaceID}
-	infos, activeIDs := m.activeCatalogSnapshotsWithSides(query, true)
+	infos, activeIDs := m.activeCatalogSnapshotsWithSides(ctx, query, true)
 	activeMatches := make([]store.SessionInfo, 0, len(infos))
 	for _, info := range infos {
 		activeIDs = append(activeIDs, info.ID)

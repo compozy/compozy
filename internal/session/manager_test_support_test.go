@@ -1607,7 +1607,11 @@ func simulateDaemonRestart(manager *Manager) {
 func spawnSideTitleHelper(t *testing.T, h *harness, parentID string) *Session {
 	t.Helper()
 	helper, err := h.manager.Spawn(t.Context(), &SpawnOpts{
-		ParentSessionID: parentID, AgentName: "coder", SpawnRole: SpawnRoleAutoTitle, TTL: time.Minute, AutoStopOnParent: true,
+		ParentSessionID:  parentID,
+		AgentName:        "coder",
+		SpawnRole:        SpawnRoleAutoTitle,
+		TTL:              time.Minute,
+		AutoStopOnParent: true,
 	})
 	if err != nil {
 		t.Fatal(err)

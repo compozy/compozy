@@ -155,7 +155,8 @@ func TestSideCommandParser(t *testing.T) {
 		t.Run("Should parse "+tc.input, func(t *testing.T) {
 			t.Parallel()
 			question, matched, err := ParseSideCommand(tc.input)
-			if question != tc.question || matched != tc.matched || errors.Is(err, ErrSideMessageRequired) != tc.empty {
+			if question != tc.question || matched != tc.matched || errors.Is(err, ErrSideMessageRequired) != tc.empty ||
+				(!tc.empty && err != nil) {
 				t.Fatalf("parse=%q %t %v", question, matched, err)
 			}
 		})

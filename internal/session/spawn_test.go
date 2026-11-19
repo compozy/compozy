@@ -2222,11 +2222,34 @@ func TestSideSpawnRefusals(t *testing.T) {
 		source := h.newDeriveSource(t)
 		side := h.openSide(t, source, "spawn-parent")
 		// UT-085
-		if _, err := h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: side.ID, AgentName: "coder", TTL: time.Minute}); !errors.Is(err, ErrSideSpawnUnsupported) {
+		if _, err := h.manager.Spawn(
+			t.Context(),
+			&SpawnOpts{ParentSessionID: side.ID, AgentName: "coder", TTL: time.Minute},
+		); !errors.Is(
+			err,
+			ErrSideSpawnUnsupported,
+		) {
 			t.Fatalf("side spawn=%v", err)
 		}
 		service := &subagentService{runtime: managerSubagentRuntime{m: h.manager}}
-		_, err := service.Delegate(t.Context(), SubagentRequest{Caller: SubagentCaller{WorkspaceID: h.workspaceID, SessionID: side.ID, TurnID: "side-turn", ToolCallID: "delegate", AgentName: "coder"}, Task: "Inspect this code", Title: "Inspect code", Role: "review", Target: SubagentTarget{Agent: "coder"}, Mode: SubagentModeAsync, IdempotencyKey: "side-delegate"})
+		_, err := service.Delegate(
+			t.Context(),
+			SubagentRequest{
+				Caller: SubagentCaller{
+					WorkspaceID: h.workspaceID,
+					SessionID:   side.ID,
+					TurnID:      "side-turn",
+					ToolCallID:  "delegate",
+					AgentName:   "coder",
+				},
+				Task:           "Inspect this code",
+				Title:          "Inspect code",
+				Role:           "review",
+				Target:         SubagentTarget{Agent: "coder"},
+				Mode:           SubagentModeAsync,
+				IdempotencyKey: "side-delegate",
+			},
+		)
 		if !errors.Is(err, ErrSideSpawnUnsupported) {
 			t.Fatalf("side delegate=%v", err)
 		}

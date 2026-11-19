@@ -415,6 +415,9 @@ const sessionPromptOutputSchema = `{
  "reply_watch":{"type":"object","required":["id","state"],
  "properties":{"id":{"type":"string"},
  "state":{"type":"string","enum":["armed","fired","delivered","abandoned"]}},"additionalProperties":false},
+				"side":{"type":"object","required":["session_id","seed","source_turn_in_progress"],
+ "properties":{"session_id":{"type":"string"},"seed":{"type":"string","enum":["replay","native_fork"]},
+ "source_turn_in_progress":{"type":"boolean"}},"additionalProperties":false},
 				"goal":{"type":"object"}
 			},
 			"additionalProperties":false

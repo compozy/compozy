@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -22,24 +23,11 @@ func (g *SessionRepo) AggregateSessionsByAgent(
 	}
 	now := g.now()
 
-	where, args, err := sessionCatalogPageFilters(store.SessionCatalogPageQuery{
-		ReadScope:           query.ReadScope,
-		WorkspaceID:         strings.TrimSpace(query.WorkspaceID),
-		Archive:             store.SessionArchiveExclude,
-		ExcludeIDs:          query.ExcludeIDs,
-		ExcludeSessionTypes: query.ExcludeSessionTypes,
-		ExcludeSpawnRoles:   query.ExcludeSpawnRoles,
-	}, store.FormatTimestamp(now))
+	where, args, err := sessionAgentMetricsFilters(query, store.FormatTimestamp(now))
 	if err != nil {
 		return nil, err
 	}
-	visible := where[:0]
-	for _, clause := range where {
-		if clause != sessionSideVisible {
-			visible = append(visible, clause)
-		}
-	}
-	where = append(visible, "trim(agent_name) != ''")
+
 	runtimeEnd := "CASE WHEN state = 'active' THEN ? ELSE updated_at END"
 	runtimeSeconds := "MAX(0, CAST(strftime('%s', " + runtimeEnd + ") AS INTEGER) - " +
 		"CAST(strftime('%s', created_at) AS INTEGER))"
@@ -96,3 +84,21 @@ func (g *SessionRepo) AggregateSessionsByAgent(
 }
 
 var _ store.SessionAgentMetricsReader = (*SessionRepo)(nil)
+
+// Usage shares catalog scope filters but includes side sessions in the owning agent's totals.
+func sessionAgentMetricsFilters(query store.SessionAgentMetricsQuery, now string) ([]string, []any, error) {
+	where, args, err := sessionCatalogPageFilters(store.SessionCatalogPageQuery{
+		ReadScope:           query.ReadScope,
+		WorkspaceID:         strings.TrimSpace(query.WorkspaceID),
+		Archive:             store.SessionArchiveExclude,
+		ExcludeIDs:          query.ExcludeIDs,
+		ExcludeSessionTypes: query.ExcludeSessionTypes,
+		ExcludeSpawnRoles:   query.ExcludeSpawnRoles,
+	}, now)
+	if err != nil {
+		return nil, nil, err
+	}
+	where = slices.DeleteFunc(where, func(clause string) bool { return clause == sessionSideVisible })
+	where = append(where, "trim(agent_name) != ''")
+	return where, args, nil
+}

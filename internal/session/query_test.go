@@ -6117,39 +6117,104 @@ func TestManagerStatusSummary(t *testing.T) {
 
 func TestSideVisibilityAndNotifications(t *testing.T) {
 	t.Parallel()
-	t.Run("Should count live User sessions and sides in agent metrics while keeping catalog totals public", func(t *testing.T) {
+	// Invariant: unreadable side ancestry cannot expose a live legacy descendant.
+	// Owner: catalog read model; canonical suite: TestSideVisibilityAndNotifications.
+	t.Run("Should exclude unreadable live ancestry from catalog and fail workspace hydration", func(t *testing.T) {
 		t.Parallel()
-		h := newDeriveHarness(t)
-		resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		ancestryFailure := errors.New("side ancestry unavailable")
+		h := newDeriveHarness(t, func(*globaldb.GlobalDB) Option {
+			return func(m *Manager) {
+				m.readSessionMeta = func(path string) (store.SessionMeta, error) {
+					meta, err := store.ReadSessionMeta(path)
+					if err == nil && isSideLineage(meta.Lineage) {
+						return store.SessionMeta{}, ancestryFailure
+					}
+					return meta, err
+				}
+			}
+		})
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "unreadable-parent")
+		waitForDeriveConsumption(t, h, side.ID)
+		legacy, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
 		if err != nil {
 			t.Fatal(err)
 		}
-		resolved.ID, resolved.WorkspaceID, resolved.Scope = "", "", workspacepkg.ScopeUser
-		resolver := &userLifecycleResolver{WorkspaceResolver: h.resolver, resolved: resolved}
-		if err := h.manager.Shutdown(t.Context()); err != nil {
+		live, _ := h.manager.Get(legacy.ID)
+		live.mu.Lock()
+		live.Lineage = &store.SessionLineage{
+			ParentSessionID: side.ID, RootSessionID: source.ID, SpawnDepth: 2, Kind: store.LineageKindProvenance,
+		}
+		live.mu.Unlock()
+		if err := h.manager.persistSessionMetadataOnly(live); err != nil {
 			t.Fatal(err)
 		}
-		h.restartManager(t, func(*globaldb.GlobalDB) Option { return WithWorkspaceResolver(resolver) })
-		main, err := h.manager.Create(t.Context(), &CreateOpts{Scope: workspacepkg.ScopeUser, AgentName: "coder"})
+		row := sessionCatalogInfoFromRuntime(live.Info())
+		if err := h.db.RegisterSession(t.Context(), &row); err != nil {
+			t.Fatal(err)
+		}
+		// A stopped ancestor forces the live overlay to use the metadata I/O boundary.
+		if err := h.manager.Stop(t.Context(), side.ID); err != nil {
+			t.Fatal(err)
+		}
+		page, err := h.manager.ListPage(t.Context(), ListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		h.promptSource(t, main.ID, "User source work")
-		side, err := h.manager.OpenSide(t.Context(), OpenSideOpts{SourceSessionID: main.ID, ProfileID: store.DefaultProfileID, Message: "User side question", IdempotencyKey: "user-side"})
-		if err != nil {
-			t.Fatal(err)
+		if len(page.Sessions) != 1 || page.Sessions[0].ID != source.ID {
+			t.Fatalf("unreadable ancestry catalog = %+v", page.Sessions)
 		}
-		waitForDeriveConsumption(t, h, side.ChildSessionID)
-		scope := store.ReadScope{ProfileID: store.DefaultProfileID}
-		metrics, err := h.manager.AggregateSessionsByAgent(t.Context(), scope, "@user")
-		if err != nil || metrics["coder"].Total != 2 || metrics["coder"].Active != 2 {
-			t.Fatalf("User metrics=%+v %v", metrics, err)
-		}
-		facets, err := h.manager.CatalogFacets(t.Context(), ListQuery{ReadScope: scope, WorkspaceID: "@user"})
-		if err != nil || facets.Facets.All != 1 {
-			t.Fatalf("User visible total=%+v %v", facets, err)
+		if _, err := h.manager.ListForWorkspace(t.Context(), h.workspaceID); !errors.Is(err, ancestryFailure) {
+			t.Fatalf("workspace ancestry error = %v", err)
 		}
 	})
+
+	t.Run(
+		"Should count live User sessions and sides in agent metrics while keeping catalog totals public",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved.ID, resolved.WorkspaceID, resolved.Scope = "", "", workspacepkg.ScopeUser
+			resolver := &userLifecycleResolver{WorkspaceResolver: h.resolver, resolved: resolved}
+			if err := h.manager.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			h.restartManager(t, func(*globaldb.GlobalDB) Option { return WithWorkspaceResolver(resolver) })
+			main, err := h.manager.Create(t.Context(), &CreateOpts{Scope: workspacepkg.ScopeUser, AgentName: "coder"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.promptSource(t, main.ID, "User source work")
+			side, err := h.manager.OpenSide(
+				t.Context(),
+				OpenSideOpts{
+					SourceSessionID: main.ID,
+					ProfileID:       store.DefaultProfileID,
+					Message:         "User side question",
+					IdempotencyKey:  "user-side",
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			waitForDeriveConsumption(t, h, side.ChildSessionID)
+			scope := store.ReadScope{ProfileID: store.DefaultProfileID}
+			metrics, err := h.manager.AggregateSessionsByAgent(t.Context(), scope, "@user")
+			if err != nil || metrics["coder"].Total != 2 || metrics["coder"].Active != 2 {
+				t.Fatalf("User metrics=%+v %v", metrics, err)
+			}
+			facets, err := h.manager.CatalogFacets(t.Context(), ListQuery{ReadScope: scope, WorkspaceID: "@user"})
+			if err != nil || facets.Facets.All != 1 {
+				t.Fatalf("User visible total=%+v %v", facets, err)
+			}
+		},
+	)
 
 	t.Run("Should hide sides from every catalog population while counting their agent usage", func(t *testing.T) {
 		t.Parallel()
@@ -6157,11 +6222,32 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 		source := h.newDeriveSource(t)
 		one := h.openSide(t, source, "hidden-one")
 		two := h.openSide(t, source, "hidden-two")
-		ordinary, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Lineage: &store.SessionLineage{ParentSessionID: source.ID}})
+		ordinary, err := h.manager.Create(
+			t.Context(),
+			&CreateOpts{
+				AgentName: "coder",
+				Workspace: h.workspaceID,
+				Lineage:   &store.SessionLineage{ParentSessionID: source.ID},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		subagent, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSpawned, Lineage: &store.SessionLineage{ParentSessionID: source.ID, RootSessionID: source.ID, SpawnDepth: 1, Kind: store.LineageKindSpawn, SpawnRole: store.SubagentSpawnRole}})
+		subagent, err := h.manager.Create(
+			t.Context(),
+			&CreateOpts{
+				AgentName: "coder",
+				Workspace: h.workspaceID,
+				Type:      SessionTypeSpawned,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: source.ID,
+					RootSessionID:   source.ID,
+					SpawnDepth:      1,
+					Kind:            store.LineageKindSpawn,
+					SpawnRole:       store.SubagentSpawnRole,
+				},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -6172,7 +6258,12 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 		// Simulate a descendant retained by an older/internal writer; authored creation now refuses it.
 		live, _ := h.manager.Get(legacy.ID)
 		live.mu.Lock()
-		live.Lineage = &store.SessionLineage{ParentSessionID: one.ID, RootSessionID: source.ID, SpawnDepth: 2, Kind: store.LineageKindProvenance}
+		live.Lineage = &store.SessionLineage{
+			ParentSessionID: one.ID,
+			RootSessionID:   source.ID,
+			SpawnDepth:      2,
+			Kind:            store.LineageKindProvenance,
+		}
 		live.mu.Unlock()
 		if err := h.manager.persistSessionMetadataOnly(live); err != nil {
 			t.Fatal(err)
@@ -6198,24 +6289,33 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 			name  string
 			query ListQuery
 		}{{"catalog", query}, {"search", func() ListQuery { q := query; q.Search = "VisibilityProbe"; return q }()}, {"palette", func() ListQuery { q := query; q.Sort = ListSortRecent; return q }()}, {"attention", func() ListQuery { q := query; q.AttentionOnly = true; return q }()}, {"board", func() ListQuery { q := query; q.Columns = []string{string(BoardNeedsYou)}; return q }()}} {
-			page, err := h.manager.ListPage(t.Context(), read.query)
-			if err != nil {
-				t.Fatalf("%s: %v", read.name, err)
-			}
-			control := false
-			for _, item := range page.Sessions {
-				control = control || item.ID == source.ID
-			}
-			if !control {
-				t.Fatalf("%s missed its matching visible control: %+v", read.name, page)
-			}
-			for _, info := range page.Sessions {
-				if info.ID == one.ID || info.ID == two.ID || info.ID == legacy.ID {
-					t.Fatalf("%s leaked side %s", read.name, info.ID)
+			t.Run("Should hide side families in "+read.name, func(t *testing.T) {
+				page, err := h.manager.ListPage(t.Context(), read.query)
+				if err != nil {
+					t.Fatalf("%s: %v", read.name, err)
 				}
-			}
+				control := false
+				for _, item := range page.Sessions {
+					control = control || item.ID == source.ID
+				}
+				if !control {
+					t.Fatalf("%s missed its matching visible control: %+v", read.name, page)
+				}
+				for _, info := range page.Sessions {
+					if info.ID == one.ID || info.ID == two.ID || info.ID == legacy.ID {
+						t.Fatalf("%s leaked side %s", read.name, info.ID)
+					}
+				}
+			})
 		}
-		relations, err := h.db.SessionCatalogRelations(t.Context(), store.SessionCatalogRelationsQuery{ReadScope: query.ReadScope, WorkspaceID: h.workspaceID, SessionIDs: []string{source.ID}})
+		relations, err := h.db.SessionCatalogRelations(
+			t.Context(),
+			store.SessionCatalogRelationsQuery{
+				ReadScope:   query.ReadScope,
+				WorkspaceID: h.workspaceID,
+				SessionIDs:  []string{source.ID},
+			},
+		)
 		if err != nil || relations.Children[source.ID].Total() != 2 {
 			t.Fatalf("side child counts=%+v %v", relations, err)
 		}
@@ -6232,7 +6332,12 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 			t.Fatalf("facets=%+v %v", facets, err)
 		}
 		board, err := h.db.PageSessions(t.Context(), store.SessionCatalogPageQuery{
-			ReadScope: query.ReadScope, WorkspaceID: h.workspaceID, Columns: []string{string(BoardNeedsYou)}, Sort: ListSortRecent, Archive: store.SessionArchiveExclude, Limit: 100,
+			ReadScope:   query.ReadScope,
+			WorkspaceID: h.workspaceID,
+			Columns:     []string{string(BoardNeedsYou)},
+			Sort:        ListSortRecent,
+			Archive:     store.SessionArchiveExclude,
+			Limit:       100,
 		})
 		if err != nil || len(board.Sessions) != 3 {
 			t.Fatalf("durable board population=%+v %v", board, err)
@@ -6245,7 +6350,33 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 		now := time.Now().UTC()
 		for index, id := range []string{source.ID, one.ID, two.ID} {
 			tokens, cost := int64((index+1)*10), float64(index+1)
-			if err := h.db.RecordTokenUsage(t.Context(), store.TokenStatsUpdate{SessionID: id, AgentName: "coder", TotalTokens: &tokens, CostAmount: &cost, CostCurrency: new("USD"), CostStatus: store.TokenCostStatusActual, CostSource: store.TokenCostSourceAgentReported, Turns: 1, UpdatedAt: now}, store.TokenUsageDailyUpdate{Day: store.LocalDay(now), ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: "coder", TotalTokens: &tokens, CostAmount: &cost, CostCurrency: new("USD"), CostStatus: store.TokenCostStatusActual, CostSource: store.TokenCostSourceAgentReported, Turns: 1, UpdatedAt: now}); err != nil {
+			if err := h.db.RecordTokenUsage(
+				t.Context(),
+				store.TokenStatsUpdate{
+					SessionID:    id,
+					AgentName:    "coder",
+					TotalTokens:  &tokens,
+					CostAmount:   &cost,
+					CostCurrency: new("USD"),
+					CostStatus:   store.TokenCostStatusActual,
+					CostSource:   store.TokenCostSourceAgentReported,
+					Turns:        1,
+					UpdatedAt:    now,
+				},
+				store.TokenUsageDailyUpdate{
+					Day:          store.LocalDay(now),
+					ProfileID:    store.DefaultProfileID,
+					WorkspaceID:  h.workspaceID,
+					AgentName:    "coder",
+					TotalTokens:  &tokens,
+					CostAmount:   &cost,
+					CostCurrency: new("USD"),
+					CostStatus:   store.TokenCostStatusActual,
+					CostSource:   store.TokenCostSourceAgentReported,
+					Turns:        1,
+					UpdatedAt:    now,
+				},
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -6260,11 +6391,17 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 			}
 			tokens += *row.TotalTokens
 		}
-		costs, err := h.db.SumTokenUsageCost(t.Context(), store.OverviewDayQuery{ReadScope: query.ReadScope, WorkspaceID: h.workspaceID, SinceDay: store.LocalDay(now)})
+		costs, err := h.db.SumTokenUsageCost(
+			t.Context(),
+			store.OverviewDayQuery{
+				ReadScope:   query.ReadScope,
+				WorkspaceID: h.workspaceID,
+				SinceDay:    store.LocalDay(now),
+			},
+		)
 		if err != nil || tokens != 60 || len(costs) != 1 || costs[0].TotalCost != 6 {
 			t.Fatalf("provider usage/cost=%d %+v %v", tokens, costs, err)
 		}
-
 	})
 	t.Run("Should list the complete parent-owned side population in update order", func(t *testing.T) {
 		t.Parallel()
@@ -6273,7 +6410,8 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 		first := h.openSide(t, source, "order-first")
 		second := h.openSide(t, source, "order-second")
 		newer := time.Date(2030, 1, 1, 1, 0, 0, 0, time.UTC)
-		if _, err := h.db.DB().ExecContext(t.Context(), "UPDATE sessions SET updated_at=? WHERE id=?", store.FormatTimestamp(newer), first.ID); err != nil {
+		if _, err := h.db.DB().
+			ExecContext(t.Context(), "UPDATE sessions SET updated_at=? WHERE id=?", store.FormatTimestamp(newer), first.ID); err != nil {
 			t.Fatal(err)
 		}
 		// UT-058
@@ -6312,7 +6450,8 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 			for draining {
 				select {
 				case event := <-subscriber:
-					if event.Name != CatalogEventNameSide || event.SessionID != source.ID || event.SideSessionID != side.ID {
+					if event.Name != CatalogEventNameSide || event.SessionID != source.ID ||
+						event.SideSessionID != side.ID {
 						t.Fatalf("side leaked a catalog/attention event: %+v", event)
 					}
 					found = true
@@ -6335,7 +6474,8 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 			for {
 				select {
 				case event := <-subscriber:
-					if event.Name != CatalogEventNameSide || event.SideSessionID != side.ID || event.SessionID != source.ID {
+					if event.Name != CatalogEventNameSide || event.SideSessionID != side.ID ||
+						event.SessionID != source.ID {
 						t.Fatalf("permission leaked event=%+v", event)
 					}
 					count++
@@ -6348,6 +6488,5 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 			}
 		drained:
 		}
-
 	})
 }

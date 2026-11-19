@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-const subagentPlanNone = "none"
+const subagentPlanNone = string(ChecksNone)
 const subagentWakeKind = "subagent_wake"
 
 func planSubagentDelivery(row store.SessionSubagent, parent subagentSnapshot, dispatched bool) string {
@@ -151,7 +151,7 @@ func subagentWakeText(rows []store.SessionSubagent) string {
 			switch {
 			case row.WorktreeState().Facts.PRURL != "":
 				line += "; PR " + row.WorktreeState().Facts.PRURL + "."
-			case row.WorktreeState().Facts.PRStatus == "none":
+			case row.WorktreeState().Facts.PRStatus == string(ChecksNone):
 				line += "."
 			default:
 				line += "; PR status unknown."

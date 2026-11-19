@@ -22,11 +22,7 @@ func (s *Session) Info() *Info {
 // infoLocked returns a session snapshot; the caller must hold s.mu for reading or writing.
 func (s *Session) infoLocked() *Info {
 	acpCaps, acpCapsKnown := s.capabilitiesSnapshotLocked()
-	var leaderKernelToken string
-	if s.process != nil {
-		leaderKernelToken = s.process.KernelToken
-	}
-	pendingPermission := s.process != nil && s.process.HasPendingPermission()
+	leaderKernelToken, pendingPermission := s.runtimeSignalsLocked()
 	resolution := speedpkg.CloneResolution(s.SpeedResolution)
 	if acpCaps.SpeedResolution != nil {
 		resolution = s.speedResolutionForCapsLocked(acpCaps)
@@ -154,4 +150,12 @@ func (s *Session) runtimeStrategyLocked() acp.RuntimeApplicationStrategy {
 		provider = s.Provider
 	}
 	return RuntimeStrategyForProvider(provider)
+}
+
+// runtimeSignalsLocked reads process-owned UI signals while the session lock is held.
+func (s *Session) runtimeSignalsLocked() (string, bool) {
+	if s.process == nil {
+		return "", false
+	}
+	return s.process.KernelToken, s.process.HasPendingPermission()
 }

@@ -243,6 +243,32 @@ func (q *Queries) FenceWorktreeRemoval(ctx context.Context, arg FenceWorktreeRem
 	return result.RowsAffected()
 }
 
+const findSideSessionWorktreeBinding = `-- name: FindSideSessionWorktreeBinding :one
+SELECT id,parent_session_id FROM sessions
+WHERE workspace_id=?1 AND worktree_id=?2 AND lineage_kind='side'
+ AND ((?3 AND state IN ('starting','active','stopping'))
+  OR (NOT ?3 AND archived_at IS NULL))
+ORDER BY id LIMIT 1
+`
+
+type FindSideSessionWorktreeBindingParams struct {
+	WorkspaceID string         `json:"workspace_id"`
+	WorktreeID  sql.NullString `json:"worktree_id"`
+	ActiveOnly  any            `json:"active_only"`
+}
+
+type FindSideSessionWorktreeBindingRow struct {
+	ID              string         `json:"id"`
+	ParentSessionID sql.NullString `json:"parent_session_id"`
+}
+
+func (q *Queries) FindSideSessionWorktreeBinding(ctx context.Context, arg FindSideSessionWorktreeBindingParams) (FindSideSessionWorktreeBindingRow, error) {
+	row := q.db.QueryRowContext(ctx, findSideSessionWorktreeBinding, arg.WorkspaceID, arg.WorktreeID, arg.ActiveOnly)
+	var i FindSideSessionWorktreeBindingRow
+	err := row.Scan(&i.ID, &i.ParentSessionID)
+	return i, err
+}
+
 const finishWorktreeExitOperation = `-- name: FinishWorktreeExitOperation :execrows
 UPDATE worktree_exit_ops SET state = ?1, finished_at = ?2
 WHERE workspace_id = ?3

@@ -14,26 +14,29 @@ import (
 
 var (
 	ErrSideUnavailable            = errors.New("session: side chat store is unavailable")
-	ErrSideMessageRequired        = errors.New("Write a question for the side chat.")
-	ErrSideAttachmentsUnsupported = errors.New("Side chat questions can't include files yet. Send the question alone.")
-	ErrSideSourceEmpty            = errors.New("Send a message first, then open a side chat.")
-	ErrSideNested                 = errors.New("Side chats can't open side chats.")
-	ErrSideUnsupported            = errors.New("Side chats are available on your own sessions.")
+	ErrSideMessageRequired        = errors.New("write a question for the side chat")
+	ErrSideAttachmentsUnsupported = errors.New("side chat questions can't include files yet. Send the question alone")
+	ErrSideSourceEmpty            = errors.New("send a message first, then open a side chat")
+	ErrSideNested                 = errors.New("side chats can't open side chats")
+	ErrSideUnsupported            = errors.New("side chats are available on your own sessions")
 	ErrSideParentArchived         = store.ErrSessionSideParentArchived
-	ErrSideNotDerivable           = errors.New("Side chats can't be forked or continued. Use the main session.")
-	ErrSideFixedParent            = errors.New("Side chats stay with their session.")
-	ErrSideWorktreeFixed          = errors.New("Change worktrees in the main session.")
-	ErrSideLaterUnsupported       = errors.New("Side chats can't be parked. Park the main session instead.")
-	ErrSideGoalUnsupported        = errors.New("Set Goals in the main session.")
-	ErrSideSpawnUnsupported       = errors.New("Start that from the main session.")
+	ErrSideNotDerivable           = errors.New("side chats can't be forked or continued. Use the main session")
+	ErrSideFixedParent            = errors.New("side chats stay with their session")
+	ErrSideWorktreeFixed          = errors.New("change worktrees in the main session")
+	ErrSideLaterUnsupported       = errors.New("side chats can't be parked. Park the main session instead")
+	ErrSideGoalUnsupported        = errors.New("set Goals in the main session")
+	ErrSideSpawnUnsupported       = errors.New("start that from the main session")
 )
 
 const sideBoundary = `<compozy_side_chat>
-Everything before this boundary is history inherited from the main session. It is reference only, not your task. Only messages after this boundary are active.
+Everything before this boundary is history inherited from the main session. It is reference only, not your task.
+Only messages after this boundary are active.
 Do not continue, execute, or complete plans, tool calls, approvals, or edits from the inherited history.
 You are a side chat: answer questions and do read-only inspection without disrupting the main session.
-Do not modify files, git state, permissions, configuration, or workspace state unless the user explicitly asks in this side chat. Keep any requested change minimal.
-Do not start subagents, Loops, Goals, monitors, or scheduled work, and do not change worktrees. Point the user to the main session for those.
+Do not modify files, git state, permissions, configuration, or workspace state unless the user explicitly asks in this
+side chat. Keep any requested change minimal.
+Do not start subagents, Loops, Goals, monitors, or scheduled work, and do not change worktrees.
+Point the user to the main session for those.
 </compozy_side_chat>`
 
 type OpenSideOpts struct {
@@ -75,7 +78,7 @@ func (m *Manager) snapshotSideRuntime(snapshot *deriveSnapshot) {
 		meta.Provider, meta.Model, meta.ReasoningEffort = runtime.Provider, runtime.Model, runtime.ReasoningEffort
 		meta.Speed = runtime.Speed
 		meta.SetACPOptions(storeOptionSelectionsFromACP(runtime.ACPOptions))
-	} else if selected, _ := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection); selected != nil {
+	} else if selected, _ := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue()); selected != nil {
 		meta.Provider, meta.Model, meta.ReasoningEffort = selected.Provider, selected.Model, selected.ReasoningEffort
 		meta.Speed = selected.Speed
 		meta.SetACPOptions(selected.ACPOptions)
@@ -97,9 +100,9 @@ func validateUserParentLineageShape(lineage *store.SessionLineage) error {
 	if !isSideLineage(lineage) {
 		return validateProvenanceLineageShape(lineage)
 	}
-	copy := *lineage
-	copy.PermissionPolicy = store.SessionPermissionPolicy{}
-	return validateProvenanceLineageShape(&copy)
+	parentLineage := *lineage
+	parentLineage.PermissionPolicy = store.SessionPermissionPolicy{}
+	return validateProvenanceLineageShape(&parentLineage)
 }
 
 func sideInProgressNote(source string, at time.Time) transcript.Message {
@@ -164,7 +167,7 @@ func (m *Manager) refuseSideOperation(ctx context.Context, id string, refusal er
 	return nil
 }
 
-func (m *Manager) requireSideParentUnarchived(ctx context.Context, workspaceID, id string) error {
+func (m *Manager) requireSideParentUnarchived(ctx context.Context, id string) error {
 	meta, err := m.readSessionMetaReadOnly(ctx, id)
 	if err != nil {
 		return err
@@ -172,12 +175,37 @@ func (m *Manager) requireSideParentUnarchived(ctx context.Context, workspaceID, 
 	if !isSideLineage(meta.Lineage) {
 		return nil
 	}
-	workspaceID = meta.WorkspaceID
-	if err := m.requireSessionUnarchived(ctx, workspaceID, meta.Lineage.ParentSessionID); err != nil {
+	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, meta.Lineage.ParentSessionID); err != nil {
 		if errors.Is(err, ErrSessionArchived) {
 			return ErrSideParentArchived
 		}
 		return err
 	}
 	return nil
+}
+
+// SideErrorMessage presents the approved side-chat copy independently of internal error formatting.
+func SideErrorMessage(err error) string {
+	for _, refusal := range []struct {
+		err     error
+		message string
+	}{
+		{ErrSideMessageRequired, "Write a question for the side chat."},
+		{ErrSideAttachmentsUnsupported, "Side chat questions can't include files yet. Send the question alone."},
+		{ErrSideSourceEmpty, "Send a message first, then open a side chat."},
+		{ErrSideNested, "Side chats can't open side chats."},
+		{ErrSideUnsupported, "Side chats are available on your own sessions."},
+		{ErrSideNotDerivable, "Side chats can't be forked or continued. Use the main session."},
+		{ErrSideFixedParent, "Side chats stay with their session."},
+		{ErrSideWorktreeFixed, "Change worktrees in the main session."},
+		{ErrSideLaterUnsupported, "Side chats can't be parked. Park the main session instead."},
+		{ErrSideGoalUnsupported, "Set Goals in the main session."},
+		{ErrSideSpawnUnsupported, "Start that from the main session."},
+		{ErrSideParentArchived, "Unarchive its session first."},
+	} {
+		if errors.Is(err, refusal.err) {
+			return refusal.message
+		}
+	}
+	return ""
 }

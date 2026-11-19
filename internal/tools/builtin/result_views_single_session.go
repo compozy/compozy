@@ -31,6 +31,8 @@ var singleResultSession = map[toolspkg.ToolID]SingleResultReason{
 	toolspkg.ToolIDSessionPromptCancel:        SingleResultMinimal,
 	toolspkg.ToolIDSessionReorder:             SingleResultMinimal,
 	toolspkg.ToolIDSessionSearch:              SingleResultContent,
+	toolspkg.ToolIDSessionSideOpen:            SingleResultMinimal,
+	toolspkg.ToolIDSessionSideList:            SingleResultContent,
 	toolspkg.ToolIDSessionStop:                SingleResultMinimal,
 	toolspkg.ToolIDSessionUnlink:              SingleResultMinimal,
 	toolspkg.ToolIDSessionWait:                SingleResultMinimal,

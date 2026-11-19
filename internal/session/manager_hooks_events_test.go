@@ -603,21 +603,35 @@ func TestSideHookContextBuilder(t *testing.T) {
 	created := map[string]hookspkg.SessionContext{}
 	inputs := map[string]hookspkg.SessionContext{}
 	hooks := newNativeHookDispatcher(t, []hookspkg.HookDecl{
-		{Name: "side-create", Event: hookspkg.HookSessionPostCreate, Mode: hookspkg.HookModeSync, ExecutorKind: hookspkg.HookExecutorNative},
-		{Name: "side-input", Event: hookspkg.HookInputPreSubmit, Mode: hookspkg.HookModeSync, ExecutorKind: hookspkg.HookExecutorNative},
+		{
+			Name:         "side-create",
+			Event:        hookspkg.HookSessionPostCreate,
+			Mode:         hookspkg.HookModeSync,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		},
+		{
+			Name:         "side-input",
+			Event:        hookspkg.HookInputPreSubmit,
+			Mode:         hookspkg.HookModeSync,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		},
 	}, map[string]hookspkg.Executor{
-		"side-create": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePatch, error) {
-			mu.Lock()
-			defer mu.Unlock()
-			created[payload.SessionID] = payload.SessionContext
-			return hookspkg.SessionPostCreatePatch{}, nil
-		}),
-		"side-input": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPatch, error) {
-			mu.Lock()
-			defer mu.Unlock()
-			inputs[payload.SessionID] = payload.SessionContext
-			return hookspkg.InputPreSubmitPatch{}, nil
-		}),
+		"side-create": hookspkg.NewTypedNativeExecutor(
+			func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePatch, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				created[payload.SessionID] = payload.SessionContext
+				return hookspkg.SessionPostCreatePatch{}, nil
+			},
+		),
+		"side-input": hookspkg.NewTypedNativeExecutor(
+			func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPatch, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				inputs[payload.SessionID] = payload.SessionContext
+				return hookspkg.InputPreSubmitPatch{}, nil
+			},
+		),
 	})
 	h := newDeriveHarness(t, func(*globaldb.GlobalDB) Option { return WithHookSet(fullHookSet(hooks)) })
 	source := h.newDeriveSource(t)
@@ -625,13 +639,16 @@ func TestSideHookContextBuilder(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	for name, payloads := range map[string]map[string]hookspkg.SessionContext{"create": created, "input": inputs} {
-		payload, ok := payloads[side.ID]
-		if !ok || payload.LineageKind != "side" || payload.ParentSessionID != source.ID || payload.SessionID != side.ID {
-			t.Fatalf("%s side hook = %+v", name, payload)
-		}
-		root, ok := payloads[source.ID]
-		if !ok || root.LineageKind != "" || root.ParentSessionID != "" {
-			t.Fatalf("%s root hook = %+v", name, root)
-		}
+		t.Run("Should carry ancestry through "+name, func(t *testing.T) {
+			payload, ok := payloads[side.ID]
+			if !ok || payload.LineageKind != "side" || payload.ParentSessionID != source.ID ||
+				payload.SessionID != side.ID {
+				t.Fatalf("%s side hook = %+v", name, payload)
+			}
+			root, ok := payloads[source.ID]
+			if !ok || root.LineageKind != "" || root.ParentSessionID != "" {
+				t.Fatalf("%s root hook = %+v", name, root)
+			}
+		})
 	}
 }

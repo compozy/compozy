@@ -91,7 +91,12 @@ func BuildCatalog(builtins []BuiltinSpec, agents []AgentSpec, skills []SkillSpec
 // DefaultBuiltins returns the complete reserved daemon command set.
 func DefaultBuiltins() []BuiltinSpec {
 	return []BuiltinSpec{
-		{Name: "side", Description: "Ask a side question without interrupting this session.", InputHint: "question", Available: true},
+		{
+			Name:        "side",
+			Description: "Ask a side question without interrupting this session.",
+			InputHint:   "question",
+			Available:   true,
+		},
 		{
 			Name:        goalCommandName,
 			Description: "Set, inspect, pause, resume, replace, or clear the session Goal.",

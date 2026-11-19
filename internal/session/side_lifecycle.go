@@ -26,7 +26,8 @@ func (m *Manager) stopSideSessions(ctx context.Context, sourceID string, wait bo
 		return err
 	}
 	var failures error
-	for _, row := range rows {
+	for i := range rows {
+		row := &rows[i]
 		if _, live := m.Get(row.ID); !live && !m.isPending(row.ID) {
 			continue
 		}
@@ -69,8 +70,14 @@ func (m *Manager) deleteSideSessions(ctx context.Context, sourceID string) error
 	if err != nil {
 		return err
 	}
-	for _, row := range rows {
-		if _, err := m.DeleteWithChildren(ctx, info.WorkspaceID, row.ID); err != nil && !errors.Is(err, ErrSessionNotFound) {
+	for i := range rows {
+		row := &rows[i]
+		if _, err := m.DeleteWithChildren(
+			ctx,
+			info.WorkspaceID,
+			row.ID,
+		); err != nil &&
+			!errors.Is(err, ErrSessionNotFound) {
 			return err
 		}
 	}
@@ -88,7 +95,9 @@ func (m *Manager) publishSideFamily(ctx context.Context, workspaceID, sourceID s
 		return
 	}
 	for i := range rows {
-		m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, sessionInfoFromCatalog(&rows[i])))
+		m.publishSessionCatalogEvent(
+			sessionCatalogEventFromInfo(CatalogEventUpserted, sessionInfoFromCatalog(&rows[i])),
+		)
 	}
 }
 

@@ -222,7 +222,8 @@ func (m *Manager) prepareProvenanceLineage(
 		if parentLineage.Kind == store.LineageKindSide {
 			return nil, ErrSideNested
 		}
-		if normalizeSessionType(Type(parent.SessionType)) != SessionTypeUser || parentLineage.Kind == store.LineageKindSpawn {
+		if normalizeSessionType(Type(parent.SessionType)) != SessionTypeUser ||
+			parentLineage.Kind == store.LineageKindSpawn {
 			return nil, ErrSideUnsupported
 		}
 	}

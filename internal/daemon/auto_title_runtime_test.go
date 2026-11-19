@@ -756,7 +756,10 @@ func TestSideAutomaticTitle(t *testing.T) {
 		t.Parallel()
 		// UT-090: daemon title association, including the two-side outcome from UT-082.
 		questions := map[string]string{"side-safe": "Why is this safe?", "side-slow": "Why does this take time?"}
-		titles := map[string]string{"Why is this safe?": "Why this is safe", "Why does this take time?": "Why it takes time"}
+		titles := map[string]string{
+			"Why is this safe?":        "Why this is safe",
+			"Why does this take time?": "Why it takes time",
+		}
 		generator := &autoTitleGeneratorStub{generate: func(_ context.Context, req autoTitleRequest) (string, error) {
 			title, ok := titles[req.UserMessage]
 			if !ok {
@@ -785,7 +788,12 @@ func TestSideAutomaticTitle(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		testutil.Eventually(t, "both side titles applied", time.Second, func() bool { return len(sessions.appliedSnapshot()) == 2 })
+		testutil.Eventually(
+			t,
+			"both side titles applied",
+			time.Second,
+			func() bool { return len(sessions.appliedSnapshot()) == 2 },
+		)
 		for _, applied := range sessions.appliedSnapshot() {
 			if applied.title != titles[questions[applied.sessionID]] {
 				t.Fatalf("title associated with wrong side: %+v", applied)

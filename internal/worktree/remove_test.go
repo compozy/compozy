@@ -27,7 +27,7 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		t.Parallel()
 		for _, active := range []bool{false, true} {
 			f := newRemovalTestFixture(t)
-			f.service.sessions = sideRemovalGuard{fixedSessionGuard: fixedSessionGuard{active: active, bound: true}}
+			f.service.sessions = sideRemovalGuard{active: active, bound: true}
 			var err error
 			if active {
 				_, err = f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false)

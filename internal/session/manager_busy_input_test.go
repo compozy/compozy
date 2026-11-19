@@ -8024,13 +8024,87 @@ func (r *maxSequenceHookRecorder) MaxEventSequence(ctx context.Context) (int64, 
 
 func TestSideHumanPromptIngress(t *testing.T) {
 	t.Parallel()
+	// Invariant: invalid modes cannot create a child; replay never reports a closed child as opened.
+	// Owner: prompt admission; canonical suite: TestSideHumanPromptIngress.
+	t.Run("Should reject an invalid mode before opening a side", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		_, err := h.manager.SendPrompt(t.Context(), source.ID, SendPromptOpts{
+			Message: "/side invalid mode", MessageID: "invalid-mode-message", IdempotencyKey: "invalid-mode-key",
+			AllowCommands: true, Caller: PromptCaller{Kind: "human", ID: "operator", Source: "test"}, Mode: "bogus",
+		})
+		if err == nil || !strings.Contains(err.Error(), "invalid busy input mode") {
+			t.Fatalf("invalid mode = %v", err)
+		}
+		sides, err := h.manager.ListSides(t.Context(), h.workspaceID, source.ID, true)
+		if err != nil || len(sides) != 0 {
+			t.Fatalf("invalid mode created sides = %+v, %v", sides, err)
+		}
+	})
+	for _, deleted := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should refuse replay of a closed side with deleted %t", deleted), func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			source := h.newDeriveSource(t)
+			opts := SendPromptOpts{
+				Message:        "/side replay after close",
+				MessageID:      "closed-side-message",
+				IdempotencyKey: "closed-side-key",
+				AllowCommands:  true,
+				Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "test"},
+			}
+			first, err := h.manager.SendPrompt(t.Context(), source.ID, opts)
+			if err != nil || first.Side == nil {
+				t.Fatalf("open = %+v, %v", first, err)
+			}
+			childID := first.Side.SessionID
+			waitForDeriveConsumption(t, h, childID)
+			wantErr := ErrSessionArchived
+			if deleted {
+				wantErr = ErrSessionNotFound
+				if err := h.manager.Delete(t.Context(), childID); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := h.manager.Stop(t.Context(), childID); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := h.manager.Archive(t.Context(), h.workspaceID, childID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			replay, err := h.manager.SendPrompt(t.Context(), source.ID, opts)
+			committed, ok := errors.AsType[*SidePromptError](err)
+			if !errors.Is(err, wantErr) || !ok || committed.Result.ChildSessionID != childID || replay.Side != nil {
+				t.Fatalf("closed replay = %+v, %v", replay, err)
+			}
+			sides, err := h.manager.ListSides(t.Context(), h.workspaceID, source.ID, true)
+			wantCount := 1
+			if deleted {
+				wantCount = 0
+			}
+			if err != nil || len(sides) != wantCount {
+				t.Fatalf("replay replaced child: %+v, %v", sides, err)
+			}
+		})
+	}
 	// Companion to the committed-child transport envelope: retry the real source-scoped admission once.
 	t.Run("Should reuse one side and admit one question after a transient first-admission failure", func(t *testing.T) {
 		t.Parallel()
 		fault := &deriveAdmissionFault{}
-		h := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option { fault.GlobalDB = db; return WithSessionPromptAdmissionStore(fault) })
+		h := newDeriveHarness(
+			t,
+			func(db *globaldb.GlobalDB) Option { fault.GlobalDB = db; return WithSessionPromptAdmissionStore(fault) },
+		)
 		source := h.newDeriveSource(t)
-		opts := SendPromptOpts{Message: "/side why retry?", MessageID: "side-retry-message", IdempotencyKey: "side-retry-key", AllowCommands: true, Caller: PromptCaller{Kind: "human", ID: "operator", Source: "test"}}
+		opts := SendPromptOpts{
+			Message:        "/side why retry?",
+			MessageID:      "side-retry-message",
+			IdempotencyKey: "side-retry-key",
+			AllowCommands:  true,
+			Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "test"},
+		}
 		fault.failKey = "side:" + source.ID + ":" + opts.IdempotencyKey + ":first"
 		_, err := h.manager.SendPrompt(t.Context(), source.ID, opts)
 		committed, ok := errors.AsType[*SidePromptError](err)
@@ -8038,7 +8112,8 @@ func TestSideHumanPromptIngress(t *testing.T) {
 			t.Fatalf("first failure=%+v %v", committed, err)
 		}
 		retry, err := h.manager.SendPrompt(t.Context(), source.ID, opts)
-		if err != nil || retry.Side == nil || retry.Side.SessionID != committed.Result.ChildSessionID || !retry.Replayed {
+		if err != nil || retry.Side == nil || retry.Side.SessionID != committed.Result.ChildSessionID ||
+			!retry.Replayed {
 			t.Fatalf("retry=%+v %v", retry, err)
 		}
 		waitForDeriveConsumption(t, h, retry.Side.SessionID)
@@ -8062,10 +8137,17 @@ func TestSideHumanPromptIngress(t *testing.T) {
 		// Invariant: interrupt mode on /side leaves a genuinely busy source turn untouched.
 		entered, release := make(chan struct{}), make(chan struct{})
 		unblock := sync.OnceFunc(func() { close(release) })
-		defer unblock()
+		producerDone := make(chan struct{})
+		defer func() { unblock(); awaitSideTestSignal(t, "busy source producer stopped", producerDone) }()
 		h.driver.promptHook = func(proc *fakeProcess, request acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-			events := make(chan acp.AgentEvent)
+			events := make(chan acp.AgentEvent, 3)
+			if request.Message != "keep source busy" {
+				emitDonePromptEvents(events, proc.handle.SessionID, request.TurnID)
+				close(events)
+				return events, nil
+			}
 			go func() {
+				defer close(producerDone)
 				defer close(events)
 				if request.Message == "keep source busy" {
 					events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: request.TurnID, Text: "still working", Timestamp: time.Now().UTC()}
@@ -8080,7 +8162,13 @@ func TestSideHumanPromptIngress(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		<-entered
+		select {
+		case <-entered:
+		case <-producerDone:
+			t.Fatal("source prompt producer ended before startup")
+		case <-time.After(10 * time.Second):
+			t.Fatal("source prompt producer did not start")
+		}
 		waitForCondition(t, "source partial persisted", func() bool {
 			for _, event := range readStoredEvents(t, source) {
 				if strings.Contains(event.Content, "still working") {
@@ -8092,7 +8180,14 @@ func TestSideHumanPromptIngress(t *testing.T) {
 		h.driver.mu.Lock()
 		canceledBefore := h.driver.cancelCalls
 		h.driver.mu.Unlock()
-		opts := SendPromptOpts{Message: "/side why?", MessageID: "msg-side", IdempotencyKey: "k1", AllowCommands: true, Caller: PromptCaller{Kind: "human", ID: "operator", Source: "test"}, Mode: BusyInputModeInterrupt}
+		opts := SendPromptOpts{
+			Message:        "/side why?",
+			MessageID:      "msg-side",
+			IdempotencyKey: "k1",
+			AllowCommands:  true,
+			Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "test"},
+			Mode:           BusyInputModeInterrupt,
+		}
 		before := len(readStoredEvents(t, source))
 		first, err := h.manager.SendPrompt(t.Context(), source.ID, opts)
 		if err != nil {
@@ -8100,14 +8195,22 @@ func TestSideHumanPromptIngress(t *testing.T) {
 		}
 		// UT-021
 		replay, err := h.manager.SendPrompt(t.Context(), source.ID, opts)
-		if err != nil || first.Side == nil || replay.Side == nil || first.Side.SessionID != replay.Side.SessionID || !replay.Replayed || first.Status != "side_opened" || len(readStoredEvents(t, source)) != before {
+		if err != nil || first.Side == nil || replay.Side == nil || first.Side.SessionID != replay.Side.SessionID ||
+			!replay.Replayed ||
+			first.Status != "side_opened" ||
+			len(readStoredEvents(t, source)) != before {
 			t.Fatalf("first=%+v replay=%+v err=%v", first, replay, err)
 		}
 		h.driver.mu.Lock()
 		canceledAfter := h.driver.cancelCalls
 		h.driver.mu.Unlock()
 		if !source.IsPrompting() || canceledAfter != canceledBefore {
-			t.Fatalf("side interrupted source: prompting=%t cancels=%d/%d", source.IsPrompting(), canceledBefore, canceledAfter)
+			t.Fatalf(
+				"side interrupted source: prompting=%t cancels=%d/%d",
+				source.IsPrompting(),
+				canceledBefore,
+				canceledAfter,
+			)
 		}
 		unblock()
 		collectEvents(t, working)
@@ -8123,7 +8226,16 @@ func TestSideHumanPromptIngress(t *testing.T) {
 		h := newDeriveHarness(t)
 		source := h.newDeriveSource(t)
 		// UT-073
-		result, err := h.manager.SendPrompt(t.Context(), source.ID, SendPromptOpts{Message: "/side literal", MessageID: "agent-msg", IdempotencyKey: "agent-side", Caller: PromptCaller{Kind: LinkProvenanceAgent, ID: "caller"}})
+		result, err := h.manager.SendPrompt(
+			t.Context(),
+			source.ID,
+			SendPromptOpts{
+				Message:        "/side literal",
+				MessageID:      "agent-msg",
+				IdempotencyKey: "agent-side",
+				Caller:         PromptCaller{Kind: LinkProvenanceAgent, ID: "caller"},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -8145,14 +8257,35 @@ func TestSideHumanPromptIngress(t *testing.T) {
 		source := h.newDeriveSource(t)
 		before := len(readStoredEvents(t, source))
 		// UT-076
-		_, err := h.manager.SendPrompt(t.Context(), source.ID, SendPromptOpts{Message: "/side question", MessageID: "file-msg", IdempotencyKey: "file-key", AllowCommands: true, Caller: PromptCaller{Kind: "human", ID: "operator", Source: "test"}, Attachments: []AttachmentMeta{{ID: "attachment"}}})
+		_, err := h.manager.SendPrompt(
+			t.Context(),
+			source.ID,
+			SendPromptOpts{
+				Message:        "/side question",
+				MessageID:      "file-msg",
+				IdempotencyKey: "file-key",
+				AllowCommands:  true,
+				Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "test"},
+				Attachments:    []AttachmentMeta{{ID: "attachment"}},
+			},
+		)
 		if !errors.Is(err, ErrSideAttachmentsUnsupported) || len(readStoredEvents(t, source)) != before {
 			t.Fatalf("attachment refusal=%v", err)
 		}
 		side := h.openSide(t, source, "goal-target")
 		before = len(readStoredEvents(t, side))
 		// UT-070
-		_, err = h.manager.SendPrompt(t.Context(), side.ID, SendPromptOpts{Message: "/goal ship it", MessageID: "goal-msg", IdempotencyKey: "goal-key", AllowCommands: true, Caller: PromptCaller{Kind: "human", ID: "operator", Source: "test"}})
+		_, err = h.manager.SendPrompt(
+			t.Context(),
+			side.ID,
+			SendPromptOpts{
+				Message:        "/goal ship it",
+				MessageID:      "goal-msg",
+				IdempotencyKey: "goal-key",
+				AllowCommands:  true,
+				Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "test"},
+			},
+		)
 		if !errors.Is(err, ErrSideGoalUnsupported) || len(readStoredEvents(t, side)) != before {
 			t.Fatalf("Goal refusal=%v", err)
 		}

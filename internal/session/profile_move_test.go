@@ -1872,11 +1872,27 @@ func TestSideProfileMoveLifecycle(t *testing.T) {
 		t.Parallel()
 		h := newProfileMoveHarness(t)
 		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
-		open, err := h.manager.OpenSide(t.Context(), OpenSideOpts{SourceSessionID: source.ID, WorkspaceID: h.workspaceID, Message: "Why move profiles?", IdempotencyKey: "profile-side-open"})
+		open, err := h.manager.OpenSide(
+			t.Context(),
+			OpenSideOpts{
+				SourceSessionID: source.ID,
+				WorkspaceID:     h.workspaceID,
+				Message:         "Why move profiles?",
+				IdempotencyKey:  "profile-side-open",
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		closed, err := h.manager.OpenSide(t.Context(), OpenSideOpts{SourceSessionID: source.ID, WorkspaceID: h.workspaceID, Message: "Closed question", IdempotencyKey: "profile-side-closed"})
+		closed, err := h.manager.OpenSide(
+			t.Context(),
+			OpenSideOpts{
+				SourceSessionID: source.ID,
+				WorkspaceID:     h.workspaceID,
+				Message:         "Closed question",
+				IdempotencyKey:  "profile-side-closed",
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

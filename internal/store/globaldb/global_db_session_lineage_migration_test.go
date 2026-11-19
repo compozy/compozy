@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -169,21 +170,58 @@ func TestSideLineageMigration(t *testing.T) {
 		}
 		ctx := globalMigrationTestContext(t)
 		at := store.FormatTimestamp(time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC))
-		if _, err := db.ExecContext(ctx, "INSERT INTO workspaces(id,root_dir,add_dirs,name,created_at,updated_at) VALUES('ws-side-upgrade',?,'[]','Side upgrade',?,?)", t.TempDir(), at, at); err != nil {
+		if _, err := db.ExecContext(
+			ctx,
+			"INSERT INTO workspaces(id,root_dir,add_dirs,name,created_at,updated_at) VALUES('ws-side-upgrade',?,'[]','Side upgrade',?,?)",
+			t.TempDir(),
+			at,
+			at,
+		); err != nil {
 			t.Fatal(err)
 		}
 		for _, kind := range []string{"fork", "continue", "recovery"} {
-			if _, err := db.ExecContext(ctx, `INSERT INTO sessions(id,profile_id,agent_name,workspace_id,session_type,state,lineage_kind,parent_session_id,root_session_id,spawn_depth,origin_agent_name,name,created_at,updated_at) VALUES(?,?,'coder','ws-side-upgrade','user','stopped',?,'source','source',1,'coder',?, ?,?)`, kind, store.DefaultProfileID, kind, "Preserve "+kind, at, at); err != nil {
+			if _, err := db.ExecContext(
+				ctx,
+				`INSERT INTO sessions(id,profile_id,agent_name,workspace_id,session_type,state,lineage_kind,parent_session_id,root_session_id,spawn_depth,origin_agent_name,name,created_at,updated_at) VALUES(?,?,'coder','ws-side-upgrade','user','stopped',?,'source','source',1,'coder',?, ?,?)`,
+				kind,
+				store.DefaultProfileID,
+				kind,
+				"Preserve "+kind,
+				at,
+				at,
+			); err != nil {
 				t.Fatal(err)
 			}
 			if kind != "recovery" {
-				if _, err := db.ExecContext(ctx, `INSERT INTO session_derivations(workspace_id,idempotency_key,profile_id,request_fingerprint,source_session_id,child_session_id,kind,outcome_json,created_at) VALUES('ws-side-upgrade',?,?,?,'source',?,?,?,?)`, kind, store.DefaultProfileID, "fingerprint-"+kind, kind, kind, `{"seed":"replay","first_prompt":"staged","through_turn_id":"turn-1"}`, at); err != nil {
+				if _, err := db.ExecContext(
+					ctx,
+					`INSERT INTO session_derivations(workspace_id,idempotency_key,profile_id,request_fingerprint,source_session_id,child_session_id,kind,outcome_json,created_at) VALUES('ws-side-upgrade',?,?,?,'source',?,?,?,?)`,
+					kind,
+					store.DefaultProfileID,
+					"fingerprint-"+kind,
+					kind,
+					kind,
+					`{"seed":"replay","first_prompt":"staged","through_turn_id":"turn-1"}`,
+					at,
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
 		}
-		beforeSessions := sideMigrationRows(t, db, "sessions")
-		beforeReceipts := sideMigrationRows(t, db, "session_derivations")
+		// The prefix already records telemetry relocation; seed its required destination
+		// exactly as the other post-relocation migration fixtures do.
+		telemetry, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := bindTelemetryDestination(ctx, db, telemetry.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := telemetry.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		beforeSessions := sideMigrationRows(ctx, t, db, "sessions")
+		beforeReceipts := sideMigrationRows(ctx, t, db, "session_derivations")
 		if err := db.Close(); err != nil {
 			t.Fatal(err)
 		}
@@ -196,29 +234,60 @@ func TestSideLineageMigration(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		if !bytes.Equal(beforeSessions, sideMigrationRows(t, upgraded.db, "sessions")) || !bytes.Equal(beforeReceipts, sideMigrationRows(t, upgraded.db, "session_derivations")) {
+		if !bytes.Equal(beforeSessions, sideMigrationRows(ctx, t, upgraded.db, "sessions")) ||
+			!bytes.Equal(beforeReceipts, sideMigrationRows(ctx, t, upgraded.db, "session_derivations")) {
 			t.Fatal("migration changed persisted session or receipt bytes")
 		}
 		insertSession := `INSERT INTO sessions(id,profile_id,agent_name,workspace_id,session_type,state,lineage_kind,parent_session_id,root_session_id,spawn_depth,origin_agent_name,created_at,updated_at) VALUES(?,?,'coder','ws-side-upgrade','user','stopped',?,'source','source',1,'coder',?,?)`
-		if _, err := upgraded.db.ExecContext(ctx, insertSession, "side", store.DefaultProfileID, "side", at, at); err != nil {
+		if _, err := upgraded.db.ExecContext(
+			ctx,
+			insertSession,
+			"side",
+			store.DefaultProfileID,
+			"side",
+			at,
+			at,
+		); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := upgraded.db.ExecContext(ctx, insertSession, "unknown", store.DefaultProfileID, "unknown", at, at); err == nil {
+		if _, err := upgraded.db.ExecContext(
+			ctx,
+			insertSession,
+			"unknown",
+			store.DefaultProfileID,
+			"unknown",
+			at,
+			at,
+		); err == nil {
 			t.Fatal("unknown lineage kind accepted")
 		}
 		insertReceipt := `INSERT INTO session_derivations(workspace_id,idempotency_key,profile_id,request_fingerprint,source_session_id,child_session_id,kind,outcome_json,created_at) VALUES('ws-side-upgrade',?,?,'side-fingerprint','source','side',?,'{}',?)`
-		if _, err := upgraded.db.ExecContext(ctx, insertReceipt, "side", store.DefaultProfileID, "side", at); err != nil {
+		if _, err := upgraded.db.ExecContext(
+			ctx,
+			insertReceipt,
+			"side",
+			store.DefaultProfileID,
+			"side",
+			at,
+		); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := upgraded.db.ExecContext(ctx, insertReceipt, "unknown", store.DefaultProfileID, "unknown", at); err == nil {
+		if _, err := upgraded.db.ExecContext(
+			ctx,
+			insertReceipt,
+			"unknown",
+			store.DefaultProfileID,
+			"unknown",
+			at,
+		); err == nil {
 			t.Fatal("unknown receipt kind accepted")
 		}
 	})
 }
 
-func sideMigrationRows(t *testing.T, db *sql.DB, table string) []byte {
+func sideMigrationRows(ctx context.Context, t *testing.T, db *sql.DB, table string) []byte {
 	t.Helper()
-	rows, err := db.QueryContext(t.Context(), "SELECT * FROM "+table+" ORDER BY 1,2")
+	rows, err := db.QueryContext(ctx, "SELECT * FROM "+table+" ORDER BY 1,2")
 	if err != nil {
 		t.Fatal(err)
 	}

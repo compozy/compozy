@@ -807,11 +807,24 @@ func TestSessionSideHandlers(t *testing.T) {
 		manager := continueTestManager(t, "ws-workspace", nil)
 		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
 		// UT-032
-		response := performRequest(t, engine, http.MethodPost, "/api/workspaces/ws-workspace/sessions/sess-123/sides", []byte(`{"message":"  ","idempotency_key":"k"}`))
-		if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"code":"side_message_required"`) {
+		response := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/sides",
+			[]byte(`{"message":"  ","idempotency_key":"k"}`),
+		)
+		if response.Code != http.StatusBadRequest ||
+			!strings.Contains(response.Body.String(), `"code":"side_message_required"`) {
 			t.Fatalf("empty question=%d %s", response.Code, response.Body)
 		}
-		unknown := performRequest(t, engine, http.MethodPost, "/api/workspaces/ws-workspace/sessions/sess-123/sides", []byte(`{"message":"q","idempotency_key":"k","unknown":true}`))
+		unknown := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/sides",
+			[]byte(`{"message":"q","idempotency_key":"k","unknown":true}`),
+		)
 		if unknown.Code != http.StatusBadRequest || !strings.Contains(unknown.Body.String(), "invalid_request") {
 			t.Fatalf("strict request=%d %s", unknown.Code, unknown.Body)
 		}
@@ -821,7 +834,8 @@ func TestSessionSideHandlers(t *testing.T) {
 		calls := 0
 		manager := continueTestManager(t, "ws-workspace", nil)
 		manager.OpenSideFn = func(_ context.Context, opts session.OpenSideOpts) (session.DeriveResult, error) {
-			if opts.SourceSessionID != "sess-123" || opts.WorkspaceID != "ws-workspace" || opts.IdempotencyKey != "side-key" {
+			if opts.SourceSessionID != "sess-123" || opts.WorkspaceID != "ws-workspace" ||
+				opts.IdempotencyKey != "side-key" {
 				t.Fatalf("side opts=%+v", opts)
 			}
 			if opts.Message != "question" {
@@ -830,6 +844,9 @@ func TestSessionSideHandlers(t *testing.T) {
 			result := forkedResult()
 			result.Kind = store.LineageKindSide
 			result.ChildSessionID = "sess-side"
+			result.Child.ID = "sess-side"
+			result.Child.Lineage = &store.SessionLineage{Kind: store.LineageKindSide, ParentSessionID: "sess-123"}
+			result.Child.Derivation.Kind = store.LineageKindSide
 			result.Replayed = calls > 0
 			calls++
 			return result, nil
@@ -838,14 +855,27 @@ func TestSessionSideHandlers(t *testing.T) {
 		path := "/api/workspaces/ws-workspace/sessions/sess-123/sides"
 		// UT-033
 		for _, want := range []int{http.StatusCreated, http.StatusOK} {
-			response := performRequest(t, engine, http.MethodPost, path, []byte(`{"message":"question","idempotency_key":"side-key"}`))
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				path,
+				[]byte(`{"message":"question","idempotency_key":"side-key"}`),
+			)
 			var result contract.SessionDeriveResponse
 			decodeJSONResponse(t, response, &result)
-			if response.Code != want || result.Derived.ChildSessionID != "sess-side" || result.Derived.Kind != "side" || result.Derived.Replayed != (want == http.StatusOK) {
+			if response.Code != want || result.Derived.ChildSessionID != "sess-side" || result.Derived.Kind != "side" ||
+				result.Derived.Replayed != (want == http.StatusOK) || result.Session == nil || result.Session.ID != "sess-side" || result.Session.Lineage == nil || result.Session.Lineage.Kind != store.LineageKindSide || result.Session.Derivation == nil || result.Session.Derivation.Kind != store.LineageKindSide {
 				t.Fatalf("side outcome=%d %+v", response.Code, result)
 			}
 		}
-		response := performRequest(t, engine, http.MethodPost, path, []byte(`{"message":"changed","idempotency_key":"side-key"}`))
+		response := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			path,
+			[]byte(`{"message":"changed","idempotency_key":"side-key"}`),
+		)
 		if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "idempotency_conflict") {
 			t.Fatalf("side conflict=%d %s", response.Code, response.Body)
 		}
@@ -862,7 +892,13 @@ func TestSessionSideHandlers(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
 		// UT-034
 		for _, tc := range []struct{ suffix, body, code string }{{"sides", `{"message":"q","idempotency_key":"k"}`, "session_side_nested"}, {"fork", `{"idempotency_key":"k"}`, "session_side_not_derivable"}} {
-			response := performRequest(t, engine, http.MethodPost, "/api/workspaces/ws-workspace/sessions/sess-123/"+tc.suffix, []byte(tc.body))
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-123/"+tc.suffix,
+				[]byte(tc.body),
+			)
 			if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), tc.code) {
 				t.Fatalf("%s=%d %s", tc.suffix, response.Code, response.Body)
 			}
@@ -878,8 +914,15 @@ func TestSessionSideHandlers(t *testing.T) {
 		}}
 		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
 		// UT-071
-		response := performRequest(t, engine, http.MethodPost, "/api/workspaces/ws-workspace/sessions/sess-side/goal", []byte(`{"operation":"set","objective":"ship"}`))
-		if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "session_side_goal_unsupported") {
+		response := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-side/goal",
+			[]byte(`{"operation":"set","objective":"ship"}`),
+		)
+		if response.Code != http.StatusConflict ||
+			!strings.Contains(response.Body.String(), "session_side_goal_unsupported") {
 			t.Fatalf("side Goal=%d %s", response.Code, response.Body)
 		}
 	})
@@ -890,12 +933,22 @@ func TestSessionSideHandlers(t *testing.T) {
 			info.WorkspaceID = "ws-workspace"
 			return info, nil
 		}, SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
-			return session.SendPromptResult{}, &session.SidePromptError{Result: session.DeriveResult{ChildSessionID: "sess-committed"}, Cause: session.ErrPromptInProgress}
+			return session.SendPromptResult{}, &session.SidePromptError{
+				Result: session.DeriveResult{ChildSessionID: "sess-committed"},
+				Cause:  session.ErrPromptInProgress,
+			}
 		}}
 		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
 		// UT-088
-		response := performRequest(t, engine, http.MethodPost, "/api/workspaces/ws-workspace/sessions/sess-123/prompt", []byte(`{"message":"/side q","message_id":"msg-side","idempotency_key":"key-side"}`))
-		if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), `"child_session_id":"sess-committed"`) {
+		response := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+			[]byte(`{"message":"/side q","message_id":"msg-side","idempotency_key":"key-side"}`),
+		)
+		if response.Code != http.StatusConflict ||
+			!strings.Contains(response.Body.String(), `"child_session_id":"sess-committed"`) {
 			t.Fatalf("postcommit side prompt=%d %s", response.Code, response.Body)
 		}
 	})

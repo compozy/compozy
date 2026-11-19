@@ -75,7 +75,12 @@ func (m *Manager) ArchiveWithStop(ctx context.Context, workspaceID string, sessi
 
 // archiveStoppingLiveMembers repeats archive, stopping the live member each
 // refusal names, until it stops refusing.
-func (m *Manager) archiveStoppingLiveMembers(ctx context.Context, sessionID string, archive func() error, mayStop func(string) bool) error {
+func (m *Manager) archiveStoppingLiveMembers(
+	ctx context.Context,
+	sessionID string,
+	archive func() error,
+	mayStop func(string) bool,
+) error {
 	stopped := make(map[string]bool)
 	for {
 		err := archive()
@@ -140,7 +145,7 @@ func (m *Manager) setArchived(
 		return nil, errors.New("session: archive workspace and session ids are required")
 	}
 	if !archived {
-		if err := m.requireSideParentUnarchived(ctx, workspaceID, sessionID); err != nil {
+		if err := m.requireSideParentUnarchived(ctx, sessionID); err != nil {
 			return nil, err
 		}
 	}

@@ -79,6 +79,9 @@ func classifyUserRequestedStopReason(detail string) store.StopReason {
 
 // RequestStopWithCause persists stopping and starts the shared escalation operation.
 func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
+	if cause == CauseNone {
+		cause = CauseUserRequested
+	}
 	_, err := m.requestSessionStop(ctx, id, cause, detail)
 	if err != nil {
 		return err
@@ -110,6 +113,9 @@ func (m *Manager) stopWithCauseReceipt(ctx context.Context, id string, cause Sto
 func (m *Manager) guardedStopWithCauseReceipt(
 	ctx context.Context, id string, cause StopCause, detail string, guard stopGuard, onCommitted func(),
 ) (bool, error) {
+	if cause == CauseNone {
+		cause = CauseUserRequested
+	}
 	var coverageErr error
 	if cause == CauseClearConversation || cause == CauseConversationRewind {
 		notify := onCommitted

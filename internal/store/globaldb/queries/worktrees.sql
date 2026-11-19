@@ -232,3 +232,10 @@ SELECT CAST(EXISTS (
   WHERE sessions.workspace_id = sqlc.arg(workspace_id) AND sessions.worktree_id = sqlc.arg(worktree_id)
     AND sessions.archived_at IS NULL
 ) AS INTEGER) AS bound;
+
+-- name: FindSideSessionWorktreeBinding :one
+SELECT id,parent_session_id FROM sessions
+WHERE workspace_id=sqlc.arg(workspace_id) AND worktree_id=sqlc.arg(worktree_id) AND lineage_kind='side'
+ AND ((sqlc.arg(active_only) AND state IN ('starting','active','stopping'))
+  OR (NOT sqlc.arg(active_only) AND archived_at IS NULL))
+ORDER BY id LIMIT 1;

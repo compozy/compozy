@@ -276,13 +276,29 @@ func TestDaemonE2ESessionSide(t *testing.T) {
 		entered := make(chan struct{})
 		var once sync.Once
 		mainDone := make(chan error, 1)
+		promptCtx, cancelPrompt := context.WithCancel(ctx)
+		promptDone := make(chan struct{})
+		defer func() {
+			cancelPrompt()
+			select {
+			case <-promptDone:
+			case <-time.After(10 * time.Second):
+				t.Error("main prompt worker did not stop")
+			}
+		}()
 		go func() {
-			_, err := h.PromptSessionWithEvents(ctx, source.ID, "take a while", func(event e2etest.SSEEvent) error {
-				if bytes.Contains(event.Data, []byte("main started the work")) {
-					once.Do(func() { close(entered) })
-				}
-				return nil
-			})
+			defer close(promptDone)
+			_, err := h.PromptSessionWithEvents(
+				promptCtx,
+				source.ID,
+				"take a while",
+				func(event e2etest.SSEEvent) error {
+					if bytes.Contains(event.Data, []byte("main started the work")) {
+						once.Do(func() { close(entered) })
+					}
+					return nil
+				},
+			)
 			mainDone <- err
 		}()
 		select {
@@ -297,16 +313,28 @@ func TestDaemonE2ESessionSide(t *testing.T) {
 		}
 		path := sideDaemonPath(h, source.ID)
 		// IT-001
-		if err := h.HTTPJSON(ctx, http.MethodPost, strings.TrimSuffix(path, "/sides")+"/prompt", compozycontract.SendPromptRequest{
-			Message: "/side what now?", MessageID: "side-busy-message", IdempotencyKey: "side-busy-key",
-		}, &response); err != nil {
+		if err := h.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			strings.TrimSuffix(path, "/sides")+"/prompt",
+			compozycontract.SendPromptRequest{
+				Message: "/side what now?", MessageID: "side-busy-message", IdempotencyKey: "side-busy-key",
+			},
+			&response,
+		); err != nil {
 			t.Fatal(err)
 		}
-		if response.Prompt.Status != "side_opened" || response.Prompt.Delivery != "none" || response.Prompt.Side == nil || response.Prompt.Side.Seed != "replay" || !response.Prompt.Side.SourceTurnInProgress {
+		if response.Prompt.Status != "side_opened" || response.Prompt.Delivery != "none" ||
+			response.Prompt.Side == nil ||
+			response.Prompt.Side.Seed != "replay" ||
+			!response.Prompt.Side.SourceTurnInProgress {
 			t.Fatalf("prompt response=%+v", response)
 		}
 		prompt := waitSideDaemonPrompt(t, h, "side-web-agent", response.Prompt.Side.SessionID)
-		if !strings.Contains(prompt, "main started the work") || !strings.Contains(prompt, "compozy_turn_in_progress") || !strings.Contains(prompt, "<compozy_side_chat>") || !strings.Contains(prompt, "what now?") {
+		if !strings.Contains(prompt, "main started the work") ||
+			!strings.Contains(prompt, "compozy_turn_in_progress") ||
+			!strings.Contains(prompt, "<compozy_side_chat>") ||
+			!strings.Contains(prompt, "what now?") {
 			t.Fatalf("side provider prompt=%s", prompt)
 		}
 		select {
@@ -321,7 +349,10 @@ func TestDaemonE2ESessionSide(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		encoded, _ := json.Marshal(transcript)
+		encoded, err := json.Marshal(transcript)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if bytes.Contains(encoded, []byte("/side")) || !bytes.Contains(encoded, []byte("main finished the work")) {
 			t.Fatalf("source transcript=%s", encoded)
 		}
@@ -329,7 +360,10 @@ func TestDaemonE2ESessionSide(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		encoded, _ = json.Marshal(events)
+		encoded, err = json.Marshal(events)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if bytes.Contains(encoded, []byte("what now?")) || bytes.Contains(encoded, []byte("side-busy-message")) {
 			t.Fatalf("side input leaked to source: %s", encoded)
 		}
@@ -378,14 +412,23 @@ func TestDaemonE2ESessionSide(t *testing.T) {
 				t.Fatal(ctx.Err())
 			}
 			var list compozycontract.SessionSidesResponse
-			if err := h.HTTPJSON(ctx, http.MethodGet, sideDaemonPath(h, source.ID), nil, &list); err != nil || len(list.Sides) != 1 || list.Sides[0].ID != opened.Derived.ChildSessionID {
+			if err := h.HTTPJSON(
+				ctx,
+				http.MethodGet,
+				sideDaemonPath(h, source.ID),
+				nil,
+				&list,
+			); err != nil || len(list.Sides) != 1 ||
+				list.Sides[0].ID != opened.Derived.ChildSessionID {
 				t.Fatalf("subscriber reread=%+v %v", list, err)
 			}
 		}
 		// IT-004: compare both transports once the provider turn has settled, so state is identical.
 		testutil.Eventually(t, "side settled", 10*time.Second, func() bool {
 			var list compozycontract.SessionSidesResponse
-			return h.HTTPJSON(ctx, http.MethodGet, sideDaemonPath(h, source.ID), nil, &list) == nil && len(list.Sides) == 1 && !list.Sides[0].Prompting
+			return h.HTTPJSON(ctx, http.MethodGet, sideDaemonPath(h, source.ID), nil, &list) == nil &&
+				len(list.Sides) == 1 &&
+				!list.Sides[0].Prompting
 		})
 		var httpList, udsList compozycontract.SessionSidesResponse
 		if err := h.HTTPJSON(ctx, http.MethodGet, sideDaemonPath(h, source.ID), nil, &httpList); err != nil {
@@ -394,8 +437,14 @@ func TestDaemonE2ESessionSide(t *testing.T) {
 		if err := h.UDSJSON(ctx, http.MethodGet, sideDaemonPath(h, source.ID), nil, &udsList); err != nil {
 			t.Fatal(err)
 		}
-		left, _ := json.Marshal(httpList)
-		right, _ := json.Marshal(udsList)
+		left, err := json.Marshal(httpList)
+		if err != nil {
+			t.Fatal(err)
+		}
+		right, err := json.Marshal(udsList)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !bytes.Equal(left, right) {
 			t.Fatalf("transport list mismatch: %s / %s", left, right)
 		}
@@ -406,8 +455,14 @@ func TestDaemonE2ESessionSide(t *testing.T) {
 		if err := h.UDSJSON(ctx, http.MethodPost, sideDaemonPath(h, source.ID), req, &udsReplay); err != nil {
 			t.Fatal(err)
 		}
-		left, _ = json.Marshal(httpReplay)
-		right, _ = json.Marshal(udsReplay)
+		left, err = json.Marshal(httpReplay)
+		if err != nil {
+			t.Fatal(err)
+		}
+		right, err = json.Marshal(udsReplay)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !bytes.Equal(left, right) || !udsReplay.Derived.Replayed {
 			t.Fatalf("transport POST mismatch: %s / %s", left, right)
 		}
@@ -422,7 +477,13 @@ func TestDaemonE2ESessionSide(t *testing.T) {
 			t.Fatal(err)
 		}
 		var side compozycontract.SessionDeriveResponse
-		if err := h.HTTPJSON(ctx, http.MethodPost, sideDaemonPath(h, source.ID), compozycontract.OpenSessionSideRequest{Message: "quick side question", IdempotencyKey: "recovery-template"}, &side); err != nil {
+		if err := h.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			sideDaemonPath(h, source.ID),
+			compozycontract.OpenSessionSideRequest{Message: "quick side question", IdempotencyKey: "recovery-template"},
+			&side,
+		); err != nil {
 			t.Fatal(err)
 		}
 		_ = waitSideDaemonPrompt(t, h, "side-web-agent", side.Derived.ChildSessionID)
@@ -433,14 +494,30 @@ func TestDaemonE2ESessionSide(t *testing.T) {
 		stagedID := seedStagedSideDaemonFixture(t, ctx, h, side.Derived.ChildSessionID)
 		h.Restart(t)
 		var list compozycontract.SessionSidesResponse
-		if err := h.HTTPJSON(ctx, http.MethodGet, sideDaemonPath(h, source.ID), nil, &list); err != nil || len(list.Sides) != 2 {
+		if err := h.HTTPJSON(
+			ctx,
+			http.MethodGet,
+			sideDaemonPath(h, source.ID),
+			nil,
+			&list,
+		); err != nil ||
+			len(list.Sides) != 2 {
 			t.Fatalf("reconciled sides=%+v %v", list, err)
 		}
 		var derived map[string]any
-		if err := h.HTTPJSON(ctx, http.MethodGet, "/api/logs?session_id="+stagedID+"&type=session.derived", nil, &derived); err != nil {
+		if err := h.HTTPJSON(
+			ctx,
+			http.MethodGet,
+			"/api/logs?session_id="+stagedID+"&type=session.derived",
+			nil,
+			&derived,
+		); err != nil {
 			t.Fatal(err)
 		}
-		encoded, _ := json.Marshal(derived)
+		encoded, err := json.Marshal(derived)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !bytes.Contains(encoded, []byte(stagedID)) {
 			t.Fatalf("missing reconciled derivation: %s", encoded)
 		}
@@ -448,11 +525,52 @@ func TestDaemonE2ESessionSide(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, suffix := range []string{"/archive?stop=true", "/unarchive"} {
-			if err := h.HTTPJSON(ctx, http.MethodPost, strings.TrimSuffix(sideDaemonPath(h, source.ID), "/sides")+suffix, nil, nil); err != nil {
+			if err := h.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				strings.TrimSuffix(sideDaemonPath(h, source.ID), "/sides")+suffix,
+				nil,
+				nil,
+			); err != nil {
 				t.Fatal(err)
 			}
+			archived := strings.HasPrefix(suffix, "/archive")
+			for _, id := range []string{source.ID, side.Derived.ChildSessionID, stagedID} {
+				var current compozycontract.SessionResponse
+				detail := strings.TrimSuffix(sideDaemonPath(h, id), "/sides")
+				if err := h.HTTPJSON(ctx, http.MethodGet, detail, nil, &current); err != nil {
+					t.Fatal(err)
+				}
+				if current.Session.ID != id || (current.Session.ArchivedAt != nil) != archived {
+					t.Fatalf("family after %s: session=%+v", suffix, current.Session)
+				}
+			}
+			var family compozycontract.SessionSidesResponse
+			if err := h.HTTPJSON(
+				ctx,
+				http.MethodGet,
+				sideDaemonPath(h, source.ID)+"?archived=true",
+				nil,
+				&family,
+			); err != nil ||
+				len(family.Sides) != 2 {
+				t.Fatalf("family list after %s: %+v, %v", suffix, family, err)
+			}
+			for _, member := range family.Sides {
+				if (member.ID != side.Derived.ChildSessionID && member.ID != stagedID) ||
+					(member.ArchivedAt != nil) != archived {
+					t.Fatalf("side family after %s: %+v", suffix, family.Sides)
+				}
+			}
 		}
-		if err := h.HTTPJSON(ctx, http.MethodGet, sideDaemonPath(h, source.ID), nil, &list); err != nil || len(list.Sides) != 2 {
+		if err := h.HTTPJSON(
+			ctx,
+			http.MethodGet,
+			sideDaemonPath(h, source.ID),
+			nil,
+			&list,
+		); err != nil ||
+			len(list.Sides) != 2 {
 			t.Fatalf("restored sides=%+v %v", list, err)
 		}
 	})
@@ -462,8 +580,13 @@ func startSideDaemonHarness(t *testing.T) *e2etest.RuntimeHarness {
 	t.Helper()
 	fixture := mockFixturePath(t, "browser_side_chat_fixture.json")
 	return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) { cfg.Roles.AutoTitle.Enabled = false }},
-		MockAgents: []e2etest.MockAgentSpec{{FixturePath: fixture, FixtureAgent: "side-web-agent", AgentName: "side-web-agent"}, {FixturePath: fixture, FixtureAgent: "side-native-agent", AgentName: "side-native-agent"}},
+		ConfigSeed: e2etest.ConfigSeedOptions{
+			Mutate: func(cfg *compozyconfig.Config) { cfg.Roles.AutoTitle.Enabled = false },
+		},
+		MockAgents: []e2etest.MockAgentSpec{
+			{FixturePath: fixture, FixtureAgent: "side-web-agent", AgentName: "side-web-agent"},
+			{FixturePath: fixture, FixtureAgent: "side-native-agent", AgentName: "side-native-agent"},
+		},
 	})
 }
 func sideDaemonPath(h *e2etest.RuntimeHarness, id string) string {
@@ -486,7 +609,12 @@ func waitSideDaemonPrompt(t *testing.T, h *e2etest.RuntimeHarness, agent, id str
 	return prompt
 }
 
-func seedStagedSideDaemonFixture(t *testing.T, ctx context.Context, h *e2etest.RuntimeHarness, templateID string) string {
+func seedStagedSideDaemonFixture(
+	t *testing.T,
+	ctx context.Context,
+	h *e2etest.RuntimeHarness,
+	templateID string,
+) string {
 	t.Helper()
 	db, err := globaldb.OpenGlobalDB(ctx, h.HomePaths.DatabaseFile)
 	if err != nil {
@@ -497,7 +625,15 @@ func seedStagedSideDaemonFixture(t *testing.T, ctx context.Context, h *e2etest.R
 			t.Error(err)
 		}
 	}()
-	rows, err := db.ListSessions(ctx, store.SessionListQuery{ReadScope: store.ReadScope{AllProfiles: true}, ID: templateID, Archive: store.SessionArchiveInclude, Limit: 1})
+	rows, err := db.ListSessions(
+		ctx,
+		store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+			ID:        templateID,
+			Archive:   store.SessionArchiveInclude,
+			Limit:     1,
+		},
+	)
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("template=%+v %v", rows, err)
 	}
@@ -518,7 +654,11 @@ func seedStagedSideDaemonFixture(t *testing.T, ctx context.Context, h *e2etest.R
 	if err := store.WriteSessionMeta(store.SessionMetaFile(dir), &meta); err != nil {
 		t.Fatal(err)
 	}
-	recorder, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{SessionID: meta.ID, WorkspaceID: meta.WorkspaceID}, store.SessionDBFile(dir))
+	recorder, err := sessiondb.OpenSessionDB(
+		ctx,
+		store.SessionDBOwner{SessionID: meta.ID, WorkspaceID: meta.WorkspaceID},
+		store.SessionDBFile(dir),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,7 +670,17 @@ func seedStagedSideDaemonFixture(t *testing.T, ctx context.Context, h *e2etest.R
 	row.ACPSessionID = nil
 	row.State = "stopped"
 	row.RuntimeStatus = store.SessionRuntimeUnbound
-	receipt := store.SessionDerivationReceipt{WorkspaceID: row.WorkspaceID, ProfileID: row.ProfileID, SourceSessionID: meta.Lineage.ParentSessionID, ChildSessionID: meta.ID, Kind: store.LineageKindSide, IdempotencyKey: meta.Derivation.IdempotencyKey, RequestFingerprint: "staged-crash-fixture", CreatedAt: time.Now().UTC(), Outcome: store.SessionDerivationOutcome{Seed: "replay", FirstPrompt: "staged"}}
+	receipt := store.SessionDerivationReceipt{
+		WorkspaceID:        row.WorkspaceID,
+		ProfileID:          row.ProfileID,
+		SourceSessionID:    meta.Lineage.ParentSessionID,
+		ChildSessionID:     meta.ID,
+		Kind:               store.LineageKindSide,
+		IdempotencyKey:     meta.Derivation.IdempotencyKey,
+		RequestFingerprint: "staged-crash-fixture",
+		CreatedAt:          time.Now().UTC(),
+		Outcome:            store.SessionDerivationOutcome{Seed: "replay", FirstPrompt: "staged"},
+	}
 	if err := db.RegisterDerivedSession(ctx, &row, identity, receipt); err != nil {
 		t.Fatal(err)
 	}

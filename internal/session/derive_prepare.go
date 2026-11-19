@@ -55,9 +55,6 @@ func (m *Manager) prepareDerive(
 	if err != nil {
 		return preparedDerive{}, err
 	}
-	if spec.kind == store.LineageKindSide && len(snapshot.messages) == 0 {
-		return preparedDerive{}, ErrSideSourceEmpty
-	}
 	childID, err := m.createSessionID("")
 	if err != nil {
 		return preparedDerive{}, err

@@ -133,7 +133,7 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		for _, id := range []toolspkg.ToolID{
 			toolspkg.ToolIDSessionWait, toolspkg.ToolIDSessionStop, toolspkg.ToolIDSessionApprove,
 			toolspkg.ToolIDSessionClarifyAnswer, toolspkg.ToolIDSessionPromptCancel, toolspkg.ToolIDSessionCompact,
-			toolspkg.ToolIDMonitorCreate,
+			toolspkg.ToolIDMonitorCreate, toolspkg.ToolIDSessionSideOpen, toolspkg.ToolIDSessionSideList,
 		} {
 			t.Run("Should authorize "+string(id), func(t *testing.T) {
 				t.Parallel()
@@ -162,7 +162,8 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 							return info, err
 						}
 						descriptor := statusDescriptor
-						descriptor.ID, descriptor.ReadOnly = id, id == toolspkg.ToolIDSessionWait
+						descriptor.ID, descriptor.ReadOnly = id, id == toolspkg.ToolIDSessionWait ||
+							id == toolspkg.ToolIDSessionSideList
 						descriptor.InputSchema = json.RawMessage(
 							`{"type":"object","properties":{"session_id":{"type":"string"}}}`,
 						)

@@ -50,10 +50,14 @@ func newSessionSideOpenCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			response, err := sideClient.OpenSessionSide(cmd.Context(), target, contract.OpenSessionSideRequest{
-				Message: strings.TrimSpace(strings.Join(args[1:], " ")), Name: strings.TrimSpace(name), IdempotencyKey: identity,
+				Message: strings.TrimSpace(
+					strings.Join(args[1:], " "),
+				),
+				Name:           strings.TrimSpace(name),
+				IdempotencyKey: identity,
 			})
 			if err != nil {
-				return sessionSideFailure(err, identity)
+				return sessionSideFailure(err, identity, strings.TrimSpace(key) == "")
 			}
 			bundle := sessionDeriveBundle(&response)
 			bundle.human = func() (string, error) {
@@ -82,7 +86,7 @@ func newSessionSideListCommand(deps commandDeps) *cobra.Command {
 			}
 			response, err := sideClient.ListSessionSides(cmd.Context(), args[0], archived)
 			if err != nil {
-				return sessionSideFailure(err, "")
+				return sessionSideFailure(err, "", false)
 			}
 			return writeCommandOutput(cmd, sessionSidesBundle(args[0], response, deps.now))
 		},
@@ -116,22 +120,34 @@ func sessionSidesBundle(source string, response contract.SessionSidesResponse, n
 			for _, side := range response.Sides {
 				rows = append(rows, []string{side.ID, side.Name, side.State, formatAge(now, side.UpdatedAt)})
 			}
-			return renderHumanTable("Side chats", []string{"ID", "TITLE", "STATE", "UPDATED"}, rows), nil
+			return renderHumanTable("Side chats", []string{"ID", cliTitleHeader, "STATE", "UPDATED"}, rows), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("sides", []string{"count"}, []string{fmt.Sprint(len(response.Sides))}), nil
+			rows := make([][]string, 0, len(response.Sides))
+			for _, side := range response.Sides {
+				rows = append(rows, []string{side.ID, side.Name, side.State})
+			}
+			return renderToonArray("sides", []string{"id", automationNameKey, "state"}, rows), nil
 		},
 	}
 }
 
-func sessionSideFailure(err error, key string) error {
-	if _, ok := errors.AsType[*sessionDeriveAPIError](err); ok {
-		return sessionDeriveCommandFailure(err, key)
+func sessionSideFailure(err error, key string, generated bool) error {
+	failure := err
+	childID := ""
+	if derived, ok := errors.AsType[*sessionDeriveAPIError](err); ok {
+		childID = derived.payload.ChildSessionID
+		failure = sessionDeriveCommandFailure(err, key)
+	} else if api, ok := errors.AsType[*daemonAPIError](err); ok && api.payload.Code != "" {
+		failure = &sessionDeriveCommandError{message: api.payload.Error + " (" + api.payload.Code + ")", err: err}
 	}
-	if api, ok := errors.AsType[*daemonAPIError](err); ok && api.payload.Code != "" {
-		return &sessionDeriveCommandError{message: api.payload.Error + " (" + api.payload.Code + ")", err: err}
+	if generated && childID == "" {
+		return &sessionDeriveCommandError{
+			message: failure.Error() + "\nretry with --idempotency-key " + key + " to reuse the same side chat request",
+			err:     failure,
+		}
 	}
-	return err
+	return failure
 }
 
 func (c *daemonClient) OpenSessionSide(
@@ -139,10 +155,15 @@ func (c *daemonClient) OpenSessionSide(
 ) (SessionDeriveRecord, error) {
 	return c.deriveSession(ctx, target, "/sides", request)
 }
-func (c *daemonClient) ListSessionSides(ctx context.Context, id string, archived bool) (contract.SessionSidesResponse, error) {
+
+func (c *daemonClient) ListSessionSides(
+	ctx context.Context,
+	id string,
+	archived bool,
+) (contract.SessionSidesResponse, error) {
 	path, err := c.sessionScopedPath(ctx, id, "/sides")
 	if err != nil {
-		return contract.SessionSidesResponse{}, err
+		return contract.SessionSidesResponse{}, fmt.Errorf("cli: resolve side list scope: %w", err)
 	}
 	var response contract.SessionSidesResponse
 	query := url.Values{}
@@ -150,5 +171,8 @@ func (c *daemonClient) ListSessionSides(ctx context.Context, id string, archived
 		query.Set("archived", "true")
 	}
 	err = c.doJSON(ctx, http.MethodGet, path, query, nil, &response)
-	return response, err
+	if err != nil {
+		return contract.SessionSidesResponse{}, fmt.Errorf("cli: list side chats: %w", err)
+	}
+	return response, nil
 }

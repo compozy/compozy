@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -11,7 +12,12 @@ func (s *StubSessionManager) OpenSide(ctx context.Context, opts session.OpenSide
 	}
 	return session.DeriveResult{}, session.ErrSideUnsupported
 }
-func (s *StubSessionManager) ListSides(ctx context.Context, workspaceID, id string, archived bool) ([]*session.Info, error) {
+
+func (s *StubSessionManager) ListSides(
+	ctx context.Context,
+	workspaceID, id string,
+	archived bool,
+) ([]*session.Info, error) {
 	if s.ListSidesFn != nil {
 		return s.ListSidesFn(ctx, workspaceID, id, archived)
 	}

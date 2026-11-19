@@ -212,9 +212,6 @@ func (b *nativeWorkspaceInputBinder) authorizeNativeSessionTarget(
 		// a missing session is then reported by the handler.
 		return "", nil
 	}
-	if descriptor.ID == toolspkg.ToolIDSessionSideOpen {
-		descriptor.ReadOnly = true
-	}
 	allowed, err := b.authorizeAccessTarget(ctx, scope, descriptor, call, actor, nativeAccessTarget{
 		ref:   target.ref(),
 		label: target.promptLabel(),
@@ -282,6 +279,11 @@ func (b *nativeWorkspaceInputBinder) resolveNativeSessionTargetForTool(
 	if err != nil {
 		return target, err
 	}
-	target.info = &session.Info{ID: owner.SessionID, ProfileID: owner.ProfileID, WorkspaceID: owner.WorkspaceID, Type: session.SessionTypeUser}
+	target.info = &session.Info{
+		ID:          owner.SessionID,
+		ProfileID:   owner.ProfileID,
+		WorkspaceID: owner.WorkspaceID,
+		Type:        session.SessionTypeUser,
+	}
 	return target, nil
 }

@@ -6215,6 +6215,9 @@ func TestHostAPIHiddenTriage(t *testing.T) {
 			{ID: "side-child", WorkspaceID: env.workspaceID, ProfileID: store.DefaultProfileID,
 				Type: session.SessionTypeSpawned, State: session.StateActive,
 				Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn, ParentSessionID: "side"}},
+			{ID: "visible-child", WorkspaceID: env.workspaceID, ProfileID: store.DefaultProfileID,
+				Type: session.SessionTypeSpawned, State: session.StateActive,
+				Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn, ParentSessionID: "visible"}},
 			{
 				ID:          "visible",
 				WorkspaceID: env.workspaceID,
@@ -6229,7 +6232,9 @@ func TestHostAPIHiddenTriage(t *testing.T) {
 		}
 		var visible []hostAPISessionSummary
 		decodeResult(t, result, &visible)
-		if len(visible) != 1 || visible[0].ID != "visible" {
+		if len(visible) != 2 ||
+			!slices.ContainsFunc(visible, func(info hostAPISessionSummary) bool { return info.ID == "visible" }) ||
+			!slices.ContainsFunc(visible, func(info hostAPISessionSummary) bool { return info.ID == "visible-child" }) {
 			t.Fatalf("public list=%+v", visible)
 		}
 		for _, method := range []string{"sessions/status", "sessions/stop", "sessions/prompt"} {

@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -10,21 +11,33 @@ import (
 // sideFamilyMember mirrors the durable recursive visibility filter for live overlays.
 // Parent reads are non-repairing; legacy descendants remain hidden even while resumed.
 func (m *Manager) sideFamilyMember(ctx context.Context, lineage *store.SessionLineage) bool {
+	hidden, err := m.sideFamilyMembership(ctx, lineage)
+	if err != nil {
+		return false
+	}
+	return hidden
+}
+
+// sideFamilyMembership distinguishes unreadable ancestry from a proven public family.
+func (m *Manager) sideFamilyMembership(ctx context.Context, lineage *store.SessionLineage) (bool, error) {
 	seen := map[string]bool{}
 	for lineage != nil {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
 		if isSideLineage(lineage) {
-			return true
+			return true, nil
 		}
 		parent := strings.TrimSpace(lineage.ParentSessionID)
 		if parent == "" || seen[parent] {
-			return false
+			return false, nil
 		}
 		seen[parent] = true
 		meta, err := m.readSessionMetaReadOnly(ctx, parent)
 		if err != nil {
-			return false
+			return false, fmt.Errorf("session: read side ancestry %s: %w", parent, err)
 		}
 		lineage = meta.Lineage
 	}
-	return false
+	return false, nil
 }

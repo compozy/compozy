@@ -37,7 +37,8 @@ func (m *Manager) recordImportedContextConsumption(
 	req promptRequest,
 	replayBlock string,
 ) {
-	if !session.hasImportedContext() || (strings.TrimSpace(replayBlock) == "" && !isSideLineage(session.Info().Lineage)) {
+	if !session.hasImportedContext() ||
+		(strings.TrimSpace(replayBlock) == "" && !isSideLineage(session.Info().Lineage)) {
 		return
 	}
 	if !session.markImportedContextConsumed(

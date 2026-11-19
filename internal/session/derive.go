@@ -134,7 +134,12 @@ func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (DeriveRes
 	if result, found, err := m.replayDeriveReceipt(ctx, derivations, spec); err != nil || found {
 		return result, err
 	}
-	snapshot, release, err := m.readDeriveSnapshot(ctx, spec.sourceID, spec.messageID, spec.kind == store.LineageKindSide)
+	snapshot, release, err := m.readDeriveSnapshot(
+		ctx,
+		spec.sourceID,
+		spec.messageID,
+		spec.kind == store.LineageKindSide,
+	)
 	if err != nil {
 		return DeriveResult{}, err
 	}
@@ -325,6 +330,10 @@ func (m *Manager) validateDeriveSource(ctx context.Context, spec deriveSpec, sna
 			return deriveErr(ErrDeriveSourceArchived, "session %s is archived; unarchive it first", spec.sourceID)
 		}
 	}
+	if spec.kind == store.LineageKindSide && len(snapshot.messages) == 0 {
+		return ErrSideSourceEmpty
+	}
+
 	return nil
 }
 

@@ -57,31 +57,41 @@ func TestSideCommandAvailability(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Run("Should expose side questions while a user session is busy and hide them on spawned sessions", func(t *testing.T) {
-		t.Parallel()
-		// UT-030
-		catalog := applySideCommandAvailability(base, &Info{Type: SessionTypeUser, State: StateActive})
-		found := false
-		for _, d := range catalog.Commands {
-			if d.ID == "builtin:side" {
-				found = d.Available
+	t.Run(
+		"Should expose side questions while a user session is busy and hide them on spawned sessions",
+		func(t *testing.T) {
+			t.Parallel()
+			// UT-030
+			catalog := applySideCommandAvailability(base, &Info{Type: SessionTypeUser, State: StateActive})
+			found := false
+			for _, d := range catalog.Commands {
+				if d.ID == "builtin:side" {
+					found = d.Available
+				}
 			}
-		}
-		if !found {
-			t.Fatal("side unavailable on user session")
-		}
-		spawned := applySideCommandAvailability(base, &Info{Type: SessionTypeSpawned})
-		for _, d := range spawned.Commands {
-			if d.ID == "builtin:side" {
-				t.Fatal("side present on spawned session")
+			if !found {
+				t.Fatal("side unavailable on user session")
 			}
-		}
-	})
+			spawned := applySideCommandAvailability(base, &Info{Type: SessionTypeSpawned})
+			for _, d := range spawned.Commands {
+				if d.ID == "builtin:side" {
+					t.Fatal("side present on spawned session")
+				}
+			}
+		},
+	)
 	t.Run("Should explain side-only command refusals", func(t *testing.T) {
 		t.Parallel()
 		// UT-031
-		catalog := applySideCommandAvailability(base, &Info{Type: SessionTypeUser, Lineage: &store.SessionLineage{Kind: store.LineageKindSide}})
-		reasons := map[string]string{"builtin:side": ErrSideNested.Error(), "builtin:goal": ErrSideGoalUnsupported.Error(), "builtin:worktree": ErrSideWorktreeFixed.Error()}
+		catalog := applySideCommandAvailability(
+			base,
+			&Info{Type: SessionTypeUser, Lineage: &store.SessionLineage{Kind: store.LineageKindSide}},
+		)
+		reasons := map[string]string{
+			"builtin:side":     "Side chats can't open side chats.",
+			"builtin:goal":     "Set Goals in the main session.",
+			"builtin:worktree": "Change worktrees in the main session.",
+		}
 		for _, d := range catalog.Commands {
 			if reason, ok := reasons[d.ID]; ok {
 				if d.Available || d.UnavailableReason != reason {
