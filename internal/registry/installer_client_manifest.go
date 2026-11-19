@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,32 @@ import (
 )
 
 var installerClientPluginDirectories = []string{installerClaudePluginDirectory, ".codex-plugin", ".cursor-plugin"}
+
+const claudeCodePluginSchemaID = "https://json.schemastore.org/claude-code-plugin-manifest.json"
+
+// ValidateInstallPackageRoot applies the archive installer's checks to an extracted catalog root.
+func ValidateInstallPackageRoot(ctx context.Context, path string) (err error) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	root, err := fileutil.OpenDirectory(path)
+	if err != nil {
+		return mapExtractionAccessError(err)
+	}
+	defer func() { err = errors.Join(err, root.Close()) }()
+	name, err := manifestNameAtRoot(root)
+	if err != nil {
+		return err
+	}
+	if name == "" {
+		return errInstallMissingManifest
+	}
+	metadata, err := readInstalledPackageMetadata(ctx, root, name)
+	if err != nil {
+		return err
+	}
+	return verifyInstallerContent(metadata.verifyContent)
+}
 
 func clientManifestNameAtRoot(root *fileutil.Directory) (string, error) {
 	for _, layout := range installerClientPluginDirectories {
@@ -43,19 +70,33 @@ func clientManifestNameAtRoot(root *fileutil.Directory) (string, error) {
 func validateInstallerClientSchema(contents []byte, name string) error {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(contents, &fields); err != nil || fields == nil {
-		return fmt.Errorf("registry: manifest %q must be a JSON object", name)
+		manifestErr := invalidAgentPluginManifest(name, "$", "must be a JSON object")
+		manifestErr.Cause = err
+		return manifestErr
 	}
 	if _, declared := fields["$schema"]; !declared {
 		return nil
 	}
 	status, declared := agentplugin.ClassifyManifestContent(contents)
-	switch status {
-	case agentplugin.SchemaSupported:
+	switch {
+	case status == agentplugin.SchemaSupported,
+		filepath.Dir(name) == installerClaudePluginDirectory && declared == claudeCodePluginSchemaID:
 		return nil
-	case agentplugin.SchemaUnsupportedVersion:
+	case status == agentplugin.SchemaUnsupportedVersion:
 		return &agentplugin.SchemaUnsupportedError{Path: name, Declared: declared}
 	default:
-		return fmt.Errorf("%w: unrelated client manifest %q", errInstallMissingManifest, name)
+		err := invalidAgentPluginManifest(name, "$schema", "unrelated client manifest")
+		if name == installerAgentPluginManifestName {
+			return fmt.Errorf("%w: %w", errInstallMissingManifest, err)
+		}
+		return err
+	}
+}
+
+func invalidAgentPluginManifest(name, field, reason string) *agentplugin.ManifestError {
+	return &agentplugin.ManifestError{
+		ManifestPath: filepath.ToSlash(name),
+		Issues:       []agentplugin.Issue{{Path: field, Message: reason}},
 	}
 }
 

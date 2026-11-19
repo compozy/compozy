@@ -248,7 +248,9 @@ func (g *SessionRepo) MoveSession(
 // ReorderSessions pins the listed sessions, in order, at the head of one
 // container (a folder, or the workspace root when folderID is empty). Members
 // already in the container but absent from the list keep their relative order
-// after the listed sessions, so a partial page never drops placements.
+// after the listed sessions, so a partial page never drops placements. A pinned
+// member the list leaves out keeps its slot: the list never shows it there, and
+// unpinning returns it to the place it held.
 func (g *SessionRepo) ReorderSessions(
 	ctx context.Context,
 	scope store.SessionLayoutScope,
@@ -288,11 +290,9 @@ func (g *SessionRepo) ReorderSessions(
 		if e != nil {
 			return e
 		}
-		order := append([]string(nil), sessionIDs...)
-		for _, member := range members {
-			if _, ok := listed[member]; !ok {
-				order = append(order, member)
-			}
+		order, e := sessionReorderKeepingPinnedSlots(ctx, q, sessionIDs, listed, members)
+		if e != nil {
+			return e
 		}
 		now := store.FormatTimestamp(g.now())
 		for position, sessionID := range order {

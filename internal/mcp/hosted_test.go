@@ -192,6 +192,35 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		}
 	})
 
+	// Invariant: an expired nonce remains a bind timeout for the runtime awaiting readiness.
+	// Owner: hosted service bind lifecycle; canonical suite: TestHostedServiceBindNonceLifecycle.
+	t.Run("Should retain the timeout when the proxy attempts to bind after the deadline", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+		executable := hostedTestExecutable(t, "compozy")
+		service := newHostedTestService(t, executable, &hostedRegistryStub{}, func() time.Time { return now })
+		const id = "sess-late-bind"
+		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: id, EagerTools: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := service.ArmLaunch(t.Context(), id); err != nil {
+			t.Fatal(err)
+		}
+		now = now.Add(time.Hour)
+		request := HostedBindRequest{SessionID: id, Nonce: hostedLaunchNonce(t, launch.Args)}
+		peer := hostedTestPeer(executable)
+		if _, err := service.Bind(t.Context(), request, peer); !errors.Is(err, ErrHostedNonceExpired) {
+			t.Fatalf("late Bind() = %v, want expired nonce", err)
+		}
+		if _, err := service.Bind(t.Context(), request, peer); !errors.Is(err, ErrHostedNonceInvalid) {
+			t.Fatalf("replayed Bind() = %v, want consumed nonce", err)
+		}
+		if err := service.WaitForBind(t.Context(), id); !errors.Is(err, ErrHostedBindTimeout) {
+			t.Fatalf("WaitForBind() = %v, want bind timeout", err)
+		}
+	})
+
 	t.Run("Should fail readiness when the full projection fails", func(t *testing.T) {
 		t.Parallel()
 		executable := hostedTestExecutable(t, "compozy")

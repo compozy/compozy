@@ -37,6 +37,7 @@ type sessionListFlags struct {
 	includeArchived bool
 	later           bool
 	includeLater    bool
+	pinned          string
 	includeHealth   bool
 	limit           int
 	sortKey         string
@@ -87,11 +88,16 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&flags.includeArchived, "include-archived", false, "Include archived sessions")
 	cmd.Flags().BoolVar(&flags.later, "later", false, "Show only sessions parked in Later")
 	cmd.Flags().BoolVar(&flags.includeLater, "include-later", false, "Include sessions parked in Later")
+	cmd.Flags().StringVar(&flags.pinned, "pinned", "", "Pinned sessions: only, exclude, or include (default)")
 	cmd.Flags().
 		BoolVar(&flags.includeHealth, "include-health", false, "Include metadata-only health for returned sessions")
 	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Sessions per page (1-100)")
-	cmd.Flags().
-		StringVar(&flags.sortKey, "sort", "", "Sort by recent, created, name, last_activity, attention, navigator, or manual")
+	cmd.Flags().StringVar(
+		&flags.sortKey,
+		"sort",
+		"",
+		"Sort by recent, created, name, last_activity, attention, navigator, manual, or pinned (with --pinned only)",
+	)
 	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Continue from an opaque next_cursor")
 	cmd.Flags().
 		StringSliceVar(&flags.columns, "column", nil, "Filter board columns (needs_you|working|waiting|in_review|done)")
@@ -166,6 +172,7 @@ func buildSessionListQuery(flags sessionListFlags, badges []session.Badge, works
 		Badges:        badges,
 		Archive:       sessionListArchive(flags),
 		Later:         sessionListLater(flags),
+		Pinned:        strings.TrimSpace(flags.pinned),
 		IncludeHealth: flags.includeHealth,
 		Limit:         flags.limit,
 		Sort:          sessionListSort(flags, badges),
@@ -179,7 +186,9 @@ func sessionListState(flags sessionListFlags, badges []session.Badge) string {
 		len(flags.columns) == 0 &&
 		!flags.archived &&
 		!flags.includeArchived &&
-		!flags.later && !flags.includeLater {
+		!flags.later && !flags.includeLater &&
+		// Pins outlive stop, so --pinned only lists stopped pins too; exclude keeps the default.
+		strings.TrimSpace(flags.pinned) != string(session.PinnedOnly) {
 		return string(session.StateActive)
 	}
 	return state
@@ -235,6 +244,11 @@ func validateSessionListFlags(cmd *cobra.Command, flags sessionListFlags) ([]ses
 	}
 	if flags.later && flags.includeLater {
 		return nil, errors.New("cli: --later and --include-later are mutually exclusive")
+	}
+	switch strings.TrimSpace(flags.pinned) {
+	case "", string(session.PinnedOnly), string(session.PinnedExclude), string(session.PinnedInclude):
+	default:
+		return nil, errors.New("cli: --pinned must be only, exclude, or include")
 	}
 	if flags.allWorkspaces && cmd.Flags().Changed(workspaceSkillSource) {
 		return nil, errors.New("cli: --all-workspaces and --workspace are mutually exclusive")
@@ -445,5 +459,5 @@ func sessionPRReview(item *SessionRecord) string {
 func sessionListHasVisibilityFilters(flags sessionListFlags) bool {
 	return flags.subagents != "" && flags.subagents != sessionSubagentsInclude ||
 		len(flags.columns) > 0 || flags.hideChildren || flags.includeAll || flags.archived || flags.includeArchived ||
-		flags.later || flags.includeLater
+		flags.later || flags.includeLater || strings.TrimSpace(flags.pinned) != ""
 }

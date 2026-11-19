@@ -68,6 +68,7 @@ func (h *Handlers) hostedMCPProjection(c *gin.Context) {
 		response, err = h.HostedMCP.Projection(c.Request.Context(), c.Query("bind_id"), peer)
 	}
 	if err != nil {
+		h.logHostedMCPProjectionFailure(err)
 		respondHostedMCPError(c, err)
 		return
 	}
@@ -92,6 +93,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	changes := h.HostedMCP.ProjectionChanges()
 	response, err := h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer, lastDigest)
 	if err != nil {
+		h.logHostedMCPProjectionFailure(err)
 		respondHostedMCPError(c, err)
 		return
 	}
@@ -130,10 +132,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 		changes = h.HostedMCP.ProjectionChanges()
 		response, err = h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer, lastDigest)
 		if err != nil {
-			status := hostedMCPStatus(err)
-			if h.Logger != nil {
-				h.Logger.Warn("udsapi: hosted MCP projection failed", "status", status)
-			}
+			h.logHostedMCPProjectionFailure(err)
 			if writeErr := core.WriteSSE(writer, core.SSEMessage{
 				Name: "error",
 				Data: hostedMCPStreamErrorData(err),
@@ -142,6 +141,13 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 			}
 			return
 		}
+	}
+}
+
+func (h *Handlers) logHostedMCPProjectionFailure(err error) {
+	if h.Logger != nil {
+		h.Logger.Warn("udsapi: hosted MCP projection failed",
+			"status", hostedMCPStatus(err), "cause_class", mcppkg.HostedProjectionFailureClass(err))
 	}
 }
 

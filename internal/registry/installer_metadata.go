@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,28 +50,46 @@ func (p *installedPackage) CloseAll() error {
 }
 
 func loadInstalledPackageMetadata(
+	ctx context.Context,
 	rootParent *fileutil.Directory,
 	rootName string,
 	root *fileutil.Directory,
 ) (*installedPackage, installedPackageMetadata, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, installedPackageMetadata{}, err
+	}
 	_, manifestName, installed, err := locateInstallManifestRoot(rootParent, rootName, root)
 	if err != nil {
 		return nil, installedPackageMetadata{}, err
 	}
-	metadata, err := parseInstalledPackageMetadata(installed.directory, manifestName)
+	metadata, err := readInstalledPackageMetadata(ctx, installed.directory, manifestName)
 	if err != nil {
 		closeErr := installed.CloseAll()
 		return nil, installedPackageMetadata{}, errors.Join(err, closeErr)
 	}
 	metadata.manifestPath = manifestName
-	if strings.TrimSpace(metadata.name) == "" {
-		closeErr := installed.CloseAll()
-		return nil, installedPackageMetadata{}, errors.Join(
-			fmt.Errorf("registry: manifest %q is missing name", manifestName),
-			closeErr,
-		)
-	}
 	return installed, metadata, nil
+}
+
+func readInstalledPackageMetadata(
+	ctx context.Context,
+	root *fileutil.Directory,
+	name string,
+) (installedPackageMetadata, error) {
+	if err := ctx.Err(); err != nil {
+		return installedPackageMetadata{}, err
+	}
+	metadata, err := parseInstalledPackageMetadata(root, name)
+	if err != nil {
+		return installedPackageMetadata{}, err
+	}
+	if strings.TrimSpace(metadata.name) == "" {
+		if filepath.Base(name) == installerAgentPluginManifestName {
+			return installedPackageMetadata{}, invalidAgentPluginManifest(name, "name", "missing name")
+		}
+		return installedPackageMetadata{}, fmt.Errorf("registry: manifest %q is missing name", name)
+	}
+	return metadata, nil
 }
 
 func locateInstallManifestRoot(
@@ -284,11 +303,9 @@ func parseInstalledPackageMetadata(root *fileutil.Directory, manifestName string
 	case installerAgentPluginManifestName:
 		var meta agentPluginManifestHeader
 		if err := json.Unmarshal(content, &meta); err != nil {
-			return installedPackageMetadata{}, fmt.Errorf(
-				"registry: decode Agent Plugins manifest %q: %w",
-				manifestName,
-				err,
-			)
+			manifestErr := invalidAgentPluginManifest(manifestName, "$", err.Error())
+			manifestErr.Cause = err
+			return installedPackageMetadata{}, manifestErr
 		}
 		return installedPackageMetadata{
 			name: strings.TrimSpace(

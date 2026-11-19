@@ -322,6 +322,10 @@ interrupted. Health-only failures never trigger a reload. Each attempt emits
   `409 session_mcp_reload_failed` (`retryable: true`, `provider_error`, `client_message_id`). Send it
   again; the next message retries. There is no separate reload operation.
 
+The same refusal applies if hosted MCP misses its bind deadline or cannot project tools while
+starting a session's first or idle-released runtime. The message was never accepted, and sending it
+again retries the bind. A bind without a pending MCP change does not emit `session.mcp_reloaded`.
+
 `session.mcp_changed` carries the new `mcp_summary{usable,attention,pending_reload}` for open
 sessions; the single-session payload has the same `mcp_summary`.
 

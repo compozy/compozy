@@ -30,6 +30,8 @@ func registrySessionOperations() []OperationSpec {
 		unarchiveSessionOperationSpec(),
 		moveSessionToLaterOperationSpec(),
 		resumeSessionFromLaterOperationSpec(),
+		pinSessionOperationSpec(true),
+		pinSessionOperationSpec(false),
 		markSessionSeenOperationSpec(),
 		attachSessionOperationSpec(),
 		uploadSessionAttachmentOperationSpec(),

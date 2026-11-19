@@ -152,7 +152,7 @@ func (i *Installer) extractInstallPackage(
 	}, contentType); err != nil {
 		return nil, installedPackageMetadata{}, err
 	}
-	packageRoot, metadata, err = loadInstalledPackageMetadata(temporary, "extract", extractRoot)
+	packageRoot, metadata, err = loadInstalledPackageMetadata(ctx, temporary, "extract", extractRoot)
 	if err != nil {
 		return nil, installedPackageMetadata{}, err
 	}

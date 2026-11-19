@@ -8204,6 +8204,7 @@ export type SessionPayload = {
   parent_title?: string;
   pending_interactions: Array<PendingInteractionPayload>;
   permission_mode_degraded: boolean;
+  pinned_at?: string | null;
   process_summary?: SessionProcessSummaryPayload | null;
   profile_archived?: boolean;
   profile_color?: string;
@@ -22869,6 +22870,10 @@ export type GetMarketplaceCatalogEntryErrors = {
    */
   409: ExtensionOperationErrorPayload;
   /**
+   * Invalid plugin manifest
+   */
+  422: ExtensionValidationErrorPayload | ExtensionOperationErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
@@ -26514,9 +26519,21 @@ export type ListSessionsData = {
      */
     later?: "exclude" | "only" | "include";
     /**
-     * Stable session ordering
+     * Visibility of pinned sessions; included by default
      */
-    sort?: "recent" | "created" | "name" | "last_activity" | "attention" | "navigator" | "manual";
+    pinned?: "exclude" | "only" | "include";
+    /**
+     * Stable session ordering; pinned (pin order, oldest first) requires pinned=only
+     */
+    sort?:
+      | "recent"
+      | "created"
+      | "name"
+      | "last_activity"
+      | "attention"
+      | "navigator"
+      | "manual"
+      | "pinned";
     /**
      * Opaque next_cursor from the previous page
      */
@@ -26731,6 +26748,10 @@ export type ListSessionFacetsData = {
      * Visibility of sessions parked in Later; excluded by default
      */
     later?: "exclude" | "only" | "include";
+    /**
+     * Visibility of pinned sessions; included by default
+     */
+    pinned?: "exclude" | "only" | "include";
     /**
      * Read one profile's rows by name
      */
@@ -38507,9 +38528,21 @@ export type ListWorkspaceSessionsData = {
      */
     later?: "exclude" | "only" | "include";
     /**
-     * Stable session ordering
+     * Visibility of pinned sessions; included by default
      */
-    sort?: "recent" | "created" | "name" | "last_activity" | "attention" | "navigator" | "manual";
+    pinned?: "exclude" | "only" | "include";
+    /**
+     * Stable session ordering; pinned (pin order, oldest first) requires pinned=only
+     */
+    sort?:
+      | "recent"
+      | "created"
+      | "name"
+      | "last_activity"
+      | "attention"
+      | "navigator"
+      | "manual"
+      | "pinned";
     /**
      * Opaque next_cursor from the previous page
      */
@@ -41796,6 +41829,116 @@ export type ListSessionPendingInteractionsResponses = {
 
 export type ListSessionPendingInteractionsResponse =
   ListSessionPendingInteractionsResponses[keyof ListSessionPendingInteractionsResponses];
+
+export type UnpinSessionData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pin";
+};
+
+export type UnpinSessionErrors = {
+  /**
+   * Conflicting profile selectors (profile_selection_conflict)
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Subagent sessions follow their parent and an always-on agent's main session lives in its avatar, so neither can be pinned
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type UnpinSessionError = UnpinSessionErrors[keyof UnpinSessionErrors];
+
+export type UnpinSessionResponses = {
+  /**
+   * OK
+   */
+  200: SessionResponse;
+};
+
+export type UnpinSessionResponse = UnpinSessionResponses[keyof UnpinSessionResponses];
+
+export type PinSessionData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pin";
+};
+
+export type PinSessionErrors = {
+  /**
+   * Conflicting profile selectors (profile_selection_conflict)
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Subagent sessions follow their parent and an always-on agent's main session lives in its avatar, so neither can be pinned
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type PinSessionError = PinSessionErrors[keyof PinSessionErrors];
+
+export type PinSessionResponses = {
+  /**
+   * OK
+   */
+  200: SessionResponse;
+};
+
+export type PinSessionResponse = PinSessionResponses[keyof PinSessionResponses];
 
 export type UpdateSessionPresenceData = {
   /**

@@ -109,6 +109,7 @@ type ListSessionFacetsParams struct {
 	Type                      *string   `url:"type"`
 	Archive                   *string   `url:"archive"`
 	Later                     *string   `url:"later"`
+	Pinned                    *string   `url:"pinned"`
 	Profile                   *string   `url:"profile"`
 	AllProfiles               *bool     `url:"all_profiles"`
 }
@@ -172,6 +173,9 @@ func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacets
 	}
 	if params.Later != nil {
 		query.Set("later", *params.Later)
+	}
+	if params.Pinned != nil {
+		query.Set("pinned", *params.Pinned)
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
@@ -423,26 +427,4 @@ type ListSessionProcessesParams struct {
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListSessionProcesses List attributed session processes
-func (c *Client) ListSessionProcesses(ctx context.Context, params ListSessionProcessesParams) (*SessionProcessesResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/processes"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionProcessesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

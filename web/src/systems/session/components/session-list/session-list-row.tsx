@@ -2,6 +2,7 @@ import { useSessionEntryPreload } from "../../hooks/use-session-entry-preload";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu } from "../session-row-context-menu";
+import { SessionListPinButton } from "./session-list-pin-button";
 import { SessionListRowView, type SessionListRowProps } from "./session-list-row-view";
 import { SessionSelectionContextItems } from "./session-list-selection-menu";
 
@@ -24,12 +25,18 @@ export function SessionListRow(props: SessionListRowProps) {
       {...props}
       preloadHandlers={preloadHandlers}
       rowActions={
-        <SessionRowActions
-          actions={sessionActions}
-          layout={layoutMenu}
-          onOpen={onSelect}
-          session={session}
-        />
+        <span className="flex items-center">
+          {/* Out of the layout at rest, so the slot keeps the time's width and titles their room. */}
+          <span className="hidden group-focus-within/session-row:inline-flex group-hover/session-row:inline-flex group-has-data-popup-open/session-row:inline-flex">
+            <SessionListPinButton session={session} actions={sessionActions} />
+          </span>
+          <SessionRowActions
+            actions={sessionActions}
+            layout={layoutMenu}
+            onOpen={onSelect}
+            session={session}
+          />
+        </span>
       }
       runtime={runtime}
       wrapRow={row => (

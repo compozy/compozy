@@ -28,6 +28,7 @@ type sessionListInput struct {
 	Resumable     bool     `json:"resumable,omitzero"`
 	Archive       string   `json:"archive,omitempty"`
 	Later         string   `json:"later,omitempty"`
+	Pinned        string   `json:"pinned,omitempty"`
 	IncludeHealth bool     `json:"include_health,omitzero"`
 	Sort          string   `json:"sort,omitempty"`
 	Cursor        string   `json:"cursor,omitempty"`
@@ -86,6 +87,7 @@ func (n *daemonNativeTools) sessionList(
 		Resumable:       input.Resumable,
 		Archive:         store.SessionArchiveFilter(strings.TrimSpace(input.Archive)),
 		Later:           store.SessionLaterFilter(strings.TrimSpace(input.Later)),
+		Pinned:          store.SessionPinnedFilter(strings.TrimSpace(input.Pinned)),
 		Sort:            strings.TrimSpace(input.Sort),
 		Cursor:          strings.TrimSpace(input.Cursor),
 		Limit:           input.Limit,
