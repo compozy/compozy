@@ -11,7 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const gatewayRevokedState = "revoked"
+const (
+	gatewayRevokedState = "revoked"
+	gatewayRemovedState = "removed"
+)
 
 type gatewayProfileRecord struct {
 	Name             string `json:"name"`

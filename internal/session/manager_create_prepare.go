@@ -21,6 +21,10 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts *CreateOpts) (ses
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
+	return m.resolveCreateStartSpec(ctx, opts)
+}
+
+func (m *Manager) resolveCreateStartSpec(ctx context.Context, opts *CreateOpts) (sessionStartSpec, error) {
 	sessionType := normalizeSessionType(opts.Type)
 	if err := validateCoordinatorExecutionTarget(opts, sessionType); err != nil {
 		return sessionStartSpec{}, err

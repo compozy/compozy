@@ -1,4 +1,4 @@
 {
     "title": "Mcp",
-    "pages": ["index", "allow", "check", "import", "list", "serve", "auth"]
+    "pages": ["index", "allow", "check", "disable", "enable", "import", "list", "serve", "auth"]
 }

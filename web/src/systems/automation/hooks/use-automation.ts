@@ -19,10 +19,11 @@ import type {
   AutomationRunListFilter,
   AutomationTriggerStableFilter,
 } from "../types";
-import { useProfileReadScope } from "@/systems/profiles";
+import { type ProfileScopeParams, useProfileReadScope } from "@/systems/profiles";
 
 interface QueryHookOptions {
   enabled?: boolean;
+  profileScope?: ProfileScopeParams;
 }
 
 export function useAutomationJobs(
@@ -44,7 +45,9 @@ export function useAutomationJobs(
 
 export function useAutomationJob(id: string, options: QueryHookOptions = {}) {
   const { params } = useProfileReadScope();
-  return useQuery(automationJobDetailOptions(id, params, options.enabled ?? true));
+  return useQuery(
+    automationJobDetailOptions(id, options.profileScope ?? params, options.enabled ?? true)
+  );
 }
 
 export function useAutomationJobRuns(
@@ -53,7 +56,13 @@ export function useAutomationJobRuns(
   options: QueryHookOptions = {}
 ) {
   const { params } = useProfileReadScope();
-  return useQuery(automationJobRunsOptions(id, { ...filters, ...params }, options.enabled ?? true));
+  return useQuery(
+    automationJobRunsOptions(
+      id,
+      { ...filters, ...(options.profileScope ?? params) },
+      options.enabled ?? true
+    )
+  );
 }
 
 export function useAutomationTriggers(
@@ -74,7 +83,9 @@ export function useAutomationTriggers(
 
 export function useAutomationTrigger(id: string, options: QueryHookOptions = {}) {
   const { params } = useProfileReadScope();
-  return useQuery(automationTriggerDetailOptions(id, params, options.enabled ?? true));
+  return useQuery(
+    automationTriggerDetailOptions(id, options.profileScope ?? params, options.enabled ?? true)
+  );
 }
 
 export function useAutomationTriggerRuns(
@@ -84,7 +95,11 @@ export function useAutomationTriggerRuns(
 ) {
   const { params } = useProfileReadScope();
   return useQuery(
-    automationTriggerRunsOptions(id, { ...filters, ...params }, options.enabled ?? true)
+    automationTriggerRunsOptions(
+      id,
+      { ...filters, ...(options.profileScope ?? params) },
+      options.enabled ?? true
+    )
   );
 }
 

@@ -4,6 +4,17 @@ package client
 
 import "encoding/json"
 
+// SettingsProviderCredentialStatusPayload is a daemon API value.
+type SettingsProviderCredentialStatusPayload struct {
+	Name      string `json:"name"`
+	TargetEnv string `json:"target_env"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Required  bool   `json:"required"`
+	Present   bool   `json:"present"`
+	Source    string `json:"source,omitempty"`
+}
+
 // SettingsProviderEnabledResponse is a daemon API value.
 type SettingsProviderEnabledResponse struct {
 	Provider SettingsProviderItemPayload `json:"provider"`
@@ -431,17 +442,3 @@ type SettingsSourceRefPayload struct {
 
 // SettingsStreamTransport is a daemon API value.
 type SettingsStreamTransport string
-
-// SettingsTerminalPayload is a daemon API value.
-type SettingsTerminalPayload struct {
-	DefaultShell           string `json:"default_shell"`
-	ShellIntegration       bool   `json:"shell_integration"`
-	ScrollbackBytes        int    `json:"scrollback_bytes"`
-	DetachedTTL            string `json:"detached_ttl"`
-	ExitRetention          string `json:"exit_retention"`
-	Recording              bool   `json:"recording"`
-	RecordingRetentionDays int    `json:"recording_retention_days"`
-	MaxPerWorkspace        int    `json:"max_per_workspace"`
-	MaxPerDaemon           int    `json:"max_per_daemon"`
-	MaxSubscribers         int    `json:"max_subscribers"`
-}

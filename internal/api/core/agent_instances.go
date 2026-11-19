@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
@@ -337,6 +338,14 @@ func AgentInstancePayload(i agentinstance.Instance) contract.AgentInstancePayloa
 	}
 }
 func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, session.ErrSessionNotFound):
+		h.respondError(c, http.StatusNotFound, err)
+		return
+	case errors.Is(err, session.ErrSessionNotActive):
+		h.respondError(c, http.StatusConflict, err)
+		return
+	}
 	if errors.Is(err, errInvalidPeersQuery) {
 		h.respondError(c, http.StatusUnprocessableEntity, err)
 		return

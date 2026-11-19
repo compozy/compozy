@@ -539,6 +539,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/unarchive",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/later",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/resume-later",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/pin",
+		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/pin",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/mark-seen",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/move",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/move-to-profile",
@@ -618,6 +620,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/extensions/:name/secrets",
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
+		"PUT /api/settings/mcp-servers/:name/enabled",
 		"PUT /api/settings/providers/:name",
 		"PATCH /api/settings/providers/:name/enabled",
 		"PUT /api/tool-approval-grants",
@@ -1501,8 +1504,8 @@ func TestMCPAuthCallbackHonorsLoopbackBindAndReturnsStaticPages(t *testing.T) {
 				response.Body.String(),
 			)
 		}
-		if !strings.Contains(response.Body.String(), "Authorization complete") {
-			t.Fatalf("callback body = %q, want static completion page", response.Body.String())
+		if !strings.Contains(response.Body.String(), "The server is connected") {
+			t.Fatal("callback body missing the connected page")
 		}
 		if strings.Contains(response.Body.String(), "sensitive-code") ||
 			strings.Contains(response.Body.String(), "public-state") {

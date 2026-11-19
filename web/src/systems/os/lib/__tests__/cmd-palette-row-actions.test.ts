@@ -59,12 +59,12 @@ function registryFixture(commands: readonly ResolvedPaletteCommand[]): PaletteRe
   };
 }
 
-const SETTINGS_LAYOUTS = command({
-  id: "settings.layouts",
-  title: "Settings → Layouts",
+const SETTINGS_SHORTCUTS = command({
+  id: "settings.shortcuts",
+  title: "Settings → Shortcuts",
   section: "Settings",
-  icon: "panel-top",
-  action: { kind: "navigate", app: "settings", args: { pathname: "/settings/layouts" } },
+  icon: "keyboard",
+  action: { kind: "navigate", app: "settings", args: { pathname: "/settings/shortcuts" } },
 });
 
 const SESSION: OsPaletteSessionResult = {
@@ -112,7 +112,7 @@ describe("cmd-palette row actions — command rows (UT-125, UT-126)", () => {
     const target = command({ id: "session.new", title: "New session" });
     const model = paletteRowActions({
       subject: { kind: "command", command: target },
-      registry: registryFixture([target, SETTINGS_LAYOUTS]),
+      registry: registryFixture([target, SETTINGS_SHORTCUTS]),
       pins: [],
     });
     const titles = flattenRowActions(model.sections).map(action => action.title);
@@ -177,7 +177,7 @@ describe("cmd-palette row actions — unavailable command (UT-128)", () => {
     });
     const model = paletteRowActions({
       subject: { kind: "command", command: target },
-      registry: registryFixture([target, SETTINGS_LAYOUTS]),
+      registry: registryFixture([target, SETTINGS_SHORTCUTS]),
       pins: [],
     });
     expect(model.available).toBe(false);
@@ -191,7 +191,7 @@ describe("cmd-palette row actions — entity rows (UT-126)", () => {
   it("Should give a session row its landing action and no command meta-actions", () => {
     const model = paletteRowActions({
       subject: { kind: "session", session: SESSION },
-      registry: registryFixture([SETTINGS_LAYOUTS]),
+      registry: registryFixture([SETTINGS_SHORTCUTS]),
       pins: [],
     });
     expect(model.key).toBe("session:session:refactor");
@@ -203,7 +203,7 @@ describe("cmd-palette row actions — entity rows (UT-126)", () => {
     const entry = worktree();
     const model = paletteRowActions({
       subject: { kind: "worktree", entry },
-      registry: registryFixture([SETTINGS_LAYOUTS]),
+      registry: registryFixture([SETTINGS_SHORTCUTS]),
       pins: [],
     });
     const remove = flattenRowActions(model.sections).find(
@@ -256,7 +256,7 @@ describe("cmd-palette row action filtering (UT-125)", () => {
   const target = command({ id: "session.new", title: "New session" });
   const model = paletteRowActions({
     subject: { kind: "command", command: target },
-    registry: registryFixture([target, SETTINGS_LAYOUTS]),
+    registry: registryFixture([target, SETTINGS_SHORTCUTS]),
     pins: [],
   });
 

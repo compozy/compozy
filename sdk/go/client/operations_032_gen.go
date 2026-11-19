@@ -5,8 +5,118 @@ package client
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+// ReorderWorkspaceFolders Set the complete workspace folder order
+func (c *Client) ReorderWorkspaceFolders(ctx context.Context, params ReorderWorkspaceFoldersParams, body ReorderWorkspaceFoldersRequest) (*WorkspaceLayoutResponse, error) {
+	path := "/api/workspace-order/folders"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspaceLayoutResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReorderWorkspacesParams carries the path, query, and header parameters.
+type ReorderWorkspacesParams struct {
+	Profile *string `url:"profile"`
+}
+
+// ReorderWorkspaces Set the manual workspace order in a folder or the root
+func (c *Client) ReorderWorkspaces(ctx context.Context, params ReorderWorkspacesParams, body ReorderWorkspacesRequest) (*WorkspaceLayoutResponse, error) {
+	path := "/api/workspace-order/workspaces"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspaceLayoutResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RepairSessionParams carries the path, query, and header parameters.
+type RepairSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	DryRun      *bool   `url:"dry_run"`
+	Force       *bool   `url:"force"`
+	Profile     *string `url:"profile"`
+}
+
+// RepairSession Inspect and repair an interrupted session transcript
+func (c *Client) RepairSession(ctx context.Context, params RepairSessionParams) (*SessionRepairResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/repair"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.DryRun != nil {
+		query.Set("dry_run", strconv.FormatBool(*params.DryRun))
+	}
+	if params.Force != nil {
+		query.Set("force", strconv.FormatBool(*params.Force))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionRepairResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReplaceAgentMemoryParams carries the path, query, and header parameters.
+type ReplaceAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// ReplaceAgentMemory Replace matching memory text (experimental) Experimental: pin the exact SDK version.
+func (c *Client) ReplaceAgentMemory(ctx context.Context, params ReplaceAgentMemoryParams, body AgentMemoryReplaceRequest) (*AgentMemoryDocument, error) {
+	path := "/api/agents/{name}/memory/entries"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentMemoryDocument
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReplaceSessionInputParams carries the path, query, and header parameters.
+type ReplaceSessionInputParams struct {
+	WorkspaceID  string  `url:"workspace_id"`
+	SessionID    string  `url:"session_id"`
+	QueueEntryID string  `url:"queue_entry_id"`
+	Profile      *string `url:"profile"`
+}
 
 // ReplaceSessionInput Replace queued session input atomically
 func (c *Client) ReplaceSessionInput(ctx context.Context, params ReplaceSessionInputParams, body ReplaceSessionInputRequest) (*SessionInputResponse, error) {
@@ -335,111 +445,4 @@ type ResumeSessionFromLaterParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
-}
-
-// ResumeSessionFromLater Return a parked session, and optionally its parked children, to the normal flow
-func (c *Client) ResumeSessionFromLater(ctx context.Context, params ResumeSessionFromLaterParams, body ResumeSessionFromLaterRequest) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/resume-later"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResumeTaskParams carries the path, query, and header parameters.
-type ResumeTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ResumeTask Resume one paused task for future scheduler claims
-func (c *Client) ResumeTask(ctx context.Context, params ResumeTaskParams, body ResumeTaskRequest) (*TaskResponse, error) {
-	path := "/api/tasks/{id}/resume"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RetryProfileOperationParams carries the path, query, and header parameters.
-type RetryProfileOperationParams struct {
-	OpID string `url:"op_id"`
-}
-
-// RetryProfileOperation Retry a profile lifecycle operation
-func (c *Client) RetryProfileOperation(ctx context.Context, params RetryProfileOperationParams) (*ProfileOperation, error) {
-	path := "/api/profiles/ops/{op_id}/retry"
-	path = strings.ReplaceAll(path, "{op_id}", url.PathEscape(params.OpID))
-	var out ProfileOperation
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RetryTaskRunParams carries the path, query, and header parameters.
-type RetryTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// RetryTaskRun Retry one failed task run
-func (c *Client) RetryTaskRun(ctx context.Context, params RetryTaskRunParams, body RetryTaskRunRequest) (*RetryTaskRunResponse, error) {
-	path := "/api/runs/{id}/retry"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RetryTaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RevokeAgentHeartbeatAuthorityParams carries the path, query, and header parameters.
-type RevokeAgentHeartbeatAuthorityParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RevokeAgentHeartbeatAuthority revoke check-in authority
-func (c *Client) RevokeAgentHeartbeatAuthority(ctx context.Context, params RevokeAgentHeartbeatAuthorityParams) error {
-	path := "/api/agents/{name}/heartbeat/authority/approve"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }

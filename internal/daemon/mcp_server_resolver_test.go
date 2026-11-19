@@ -245,6 +245,7 @@ command = "profile-server"
 					authTarget,
 					before,
 					extensionmcp.Override{URL: "https://example.com/changed"},
+					true,
 				)
 				if (err == nil) != (phase == "success") {
 					t.Fatalf("wrong mutation outcome for %s: %v", phase, err)
@@ -960,14 +961,14 @@ func TestOperatorConsentedMCPSourceGrants(t *testing.T) {
 	// Owner: daemon MCP authority; canonical suite: operator-consented source grants.
 	t.Run("Should retain consented config names without catalog resource identities", func(t *testing.T) {
 		t.Parallel()
-		resolver := &nativeToolPolicyResolver{mcpResourceNames: func() map[string]string {
-			return map[string]string{"record": "catalog-name"}
-		}}
-		names := resolver.admittedMCPNames(toolspkg.PolicyInputs{AllowSources: []toolspkg.SourceGrant{
-			{Kind: toolspkg.SourceMCP, Owner: "config-name"},
-			{Kind: toolspkg.SourceMCP, Owner: "runtime-name", ResourceID: "record"},
-			{Kind: toolspkg.SourceMCP, Owner: "unknown-record", ResourceID: "unknown"},
-		}}, nil)
+		names := admittedMCPNames(toolspkg.PolicyInputs{
+			MCPResourceNames: map[string]string{"record": "catalog-name"},
+			AllowSources: []toolspkg.SourceGrant{
+				{Kind: toolspkg.SourceMCP, Owner: "config-name"},
+				{Kind: toolspkg.SourceMCP, Owner: "runtime-name", ResourceID: "record"},
+				{Kind: toolspkg.SourceMCP, Owner: "unknown-record", ResourceID: "unknown"},
+			},
+		}, nil)
 		if !slices.Equal(names, []string{"config-name", "catalog-name"}) {
 			t.Fatalf("admitted names = %v", names)
 		}

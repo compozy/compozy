@@ -4,11 +4,163 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// StreamSessionCatalogFrame preserves each response payload; select its variant using the event name or HTTP status.
+type StreamSessionCatalogFrame struct {
+	Raw json.RawMessage
+}
+
+var _ json.Unmarshaler = (*StreamSessionCatalogFrame)(nil)
+
+var _ json.Marshaler = StreamSessionCatalogFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *StreamSessionCatalogFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f StreamSessionCatalogFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+// AsSessionCatalogEventPayload decodes this payload as SessionCatalogEventPayload.
+func (f StreamSessionCatalogFrame) AsSessionCatalogEventPayload() (*SessionCatalogEventPayload, error) {
+	var out SessionCatalogEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionAttentionEventPayload decodes this payload as SessionAttentionEventPayload.
+func (f StreamSessionCatalogFrame) AsSessionAttentionEventPayload() (*SessionAttentionEventPayload, error) {
+	var out SessionAttentionEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsOperatorNotificationEventPayload decodes this payload as OperatorNotificationEventPayload.
+func (f StreamSessionCatalogFrame) AsOperatorNotificationEventPayload() (*OperatorNotificationEventPayload, error) {
+	var out OperatorNotificationEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsAgentInstancePayload decodes this payload as AgentInstancePayload.
+func (f StreamSessionCatalogFrame) AsAgentInstancePayload() (*AgentInstancePayload, error) {
+	var out AgentInstancePayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StreamSessionCatalog Stream session catalog changes across workspaces
+func (c *Client) StreamSessionCatalog(ctx context.Context, params StreamSessionCatalogParams) (*Stream[StreamSessionCatalogFrame], error) {
+	path := "/api/sessions/catalog-stream"
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[StreamSessionCatalogFrame](ctx, c, "GET", path, headers, nil, "streamSessionCatalog")
+}
+
+// StreamSettingsObservabilityLogTail Stream daemon log output for the observability settings screen
+func (c *Client) StreamSettingsObservabilityLogTail(ctx context.Context) (*Stream[SettingsLogTailEventPayload], error) {
+	path := "/api/settings/observability/log-tail"
+	return newStream[SettingsLogTailEventPayload](ctx, c, "GET", path, nil, nil, "streamSettingsObservabilityLogTail")
+}
+
+// StreamTaskParams carries the path, query, and header parameters.
+type StreamTaskParams struct {
+	ID            string  `url:"id"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
+// StreamTask Stream task-native live events for one task
+func (c *Client) StreamTask(ctx context.Context, params StreamTaskParams) (*Stream[TaskStreamEventPayload], error) {
+	path := "/api/tasks/{id}/stream"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[TaskStreamEventPayload](ctx, c, "GET", path, nil, nil, "streamTask")
+}
+
+// StreamTerminalCatalogParams carries the path, query, and header parameters.
+type StreamTerminalCatalogParams struct {
+	WorkspaceID      string  `url:"workspace_id"`
+	LastEventID      *string `url:"Last-Event-ID"`
+	LastEventIDQuery *string `url:"last_event_id"`
+	Profile          *string `url:"profile"`
+	AllProfiles      *bool   `url:"all_profiles"`
+}
+
+// StreamTerminalCatalog Stream the workspace terminal catalog
+func (c *Client) StreamTerminalCatalog(ctx context.Context, params StreamTerminalCatalogParams) (*Stream[TerminalCatalogSnapshot], error) {
+	path := "/api/workspaces/{workspace_id}/terminals/stream"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	query := url.Values{}
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[TerminalCatalogSnapshot](ctx, c, "GET", path, headers, nil, "streamTerminalCatalog")
+}
 
 // StreamTerminalsAggregateParams carries the path, query, and header parameters.
 type StreamTerminalsAggregateParams struct {
@@ -280,165 +432,4 @@ type UnbindSessionWorktreeParams struct {
 	SessionID          string  `url:"session_id"`
 	Profile            *string `url:"profile"`
 	ExpectedWorktreeID *string `url:"expected_worktree_id"`
-}
-
-// UnbindSessionWorktree Return an idle session to the workspace root in place
-func (c *Client) UnbindSessionWorktree(ctx context.Context, params UnbindSessionWorktreeParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ExpectedWorktreeID != nil {
-		query.Set("expected_worktree_id", *params.ExpectedWorktreeID)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UndrainDaemon Resume admission of new work
-func (c *Client) UndrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
-	path := "/api/undrain"
-	var out DrainStatusResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnexposeSkillParams carries the path, query, and header parameters.
-type UnexposeSkillParams struct {
-	Name     string  `url:"name"`
-	Profile  *string `url:"profile"`
-	ForAgent *string `url:"for_agent"`
-}
-
-// UnexposeSkill Remove owned provider-root links for one skill
-func (c *Client) UnexposeSkill(ctx context.Context, params UnexposeSkillParams, body SkillExposureRequest) (*SkillUnexposeResponse, error) {
-	path := "/api/skills/{name}/unexpose"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillUnexposeResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnpinCmdPaletteCommandParams carries the path, query, and header parameters.
-type UnpinCmdPaletteCommandParams struct {
-	ID        string  `url:"id"`
-	Workspace string  `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// UnpinCmdPaletteCommand Unpin one command palette command
-func (c *Client) UnpinCmdPaletteCommand(ctx context.Context, params UnpinCmdPaletteCommandParams) (*CmdPalettePinResponse, error) {
-	path := "/api/cmd-palette/pins/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPalettePinResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnregisterWindowManagerClientParams carries the path, query, and header parameters.
-type UnregisterWindowManagerClientParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ClientID    string  `url:"client_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UnregisterWindowManagerClient Unregister a window-manager client view
-func (c *Client) UnregisterWindowManagerClient(ctx context.Context, params UnregisterWindowManagerClientParams) error {
-	path := "/api/workspaces/{workspace_id}/window-manager/clients/{client_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{client_id}", url.PathEscape(params.ClientID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// UpdateAgentParams carries the path, query, and header parameters.
-type UpdateAgentParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateAgent Replace one effective AGENT.md definition with digest CAS
-func (c *Client) UpdateAgent(ctx context.Context, params UpdateAgentParams, body UpdateAgentRequest) (*AgentResponse, error) {
-	path := "/api/agents/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateAgentInstanceParams carries the path, query, and header parameters.
-type UpdateAgentInstanceParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateAgentInstance Update instance checks
-func (c *Client) UpdateAgentInstance(ctx context.Context, params UpdateAgentInstanceParams, body AgentInstanceUpdateRequest) (*AgentInstanceResponse, error) {
-	path := "/api/agent-instances/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateAppTokenParams carries the path, query, and header parameters.
-type UpdateAppTokenParams struct {
-	AppTokenID string `url:"app_token_id"`
 }

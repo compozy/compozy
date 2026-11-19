@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+// Snapshot is a daemon API value.
+type Snapshot struct {
+	Runtime     string                `json:"runtime"`
+	DisplayName string                `json:"display_name"`
+	Installed   bool                  `json:"installed"`
+	RuntimeMCP  RuntimemcpRuntimeMode `json:"runtime_mcp"`
+	ReadState   string                `json:"read_state"`
+	ReadError   string                `json:"read_error,omitempty"`
+	ConfigFiles []string              `json:"config_files"`
+	Notes       []string              `json:"notes,omitempty"`
+	Servers     []Server              `json:"servers"`
+}
+
+// SourceErrorCode is a daemon API value.
+type SourceErrorCode string
+
+// SourceHealth is a daemon API value.
+type SourceHealth string
+
+// SourceKind is a daemon API value.
+type SourceKind string
+
 // SourceOutcome is a daemon API value.
 type SourceOutcome struct {
 	ID         string `json:"id"`

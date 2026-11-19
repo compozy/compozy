@@ -5,14 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net"
+	"net/http"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -52,12 +58,17 @@ func (e *CallExecutor) DiscoverTools(
 	}
 	ctx, cancel := e.callContext(ctx)
 	defer cancel()
+	ctx = context.WithValue(ctx, mcpDiscoveryHTTPStatusKey{}, new(atomic.Int32))
 	ctx, releaseRedactions := withMCPRequestRedactions(ctx)
 	defer releaseRedactions()
 	defer func() {
 		err = redactMCPError(err)
+		if reason, ok := toolspkg.ReasonOf(err); ok && reason == toolspkg.ReasonMCPUnreachable {
+			slog.DebugContext(ctx, "mcp.discovery.failed", "server", redactMCPDiagnosticString(source.RawServerName),
+				"reason", reason, "diagnostic", err.Error())
+		}
 	}()
-	return e.listResolvedTools(ctx, source)
+	return e.listResolvedTools(ctx, source, toolspkg.BackgroundMCPDiscovery(ctx) && !toolspkg.FreshMCPDiscovery(ctx))
 }
 
 // CallTool invokes one configured MCP tool.
@@ -93,25 +104,24 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if e.consent != nil {
-		if err := e.consent(ctx, source, resolved); err != nil {
-			return toolspkg.ToolResult{}, err
-		}
+	if err := e.authorizeServer(ctx, source, &resolved); err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
 	var runtimeHealthErr error
 	defer func() {
+		e.recordBearerRejection(ctx, &resolved, runtimeHealthErr)
 		if runtimeHealthErr != nil {
 			e.runtimeHealth.RecordFailure(healthObservation, runtimeHealthErr)
 			return
 		}
 		e.runtimeHealth.RecordSuccess(healthObservation)
 	}()
-	if err := e.ensureAuthorized(ctx, &resolved); err != nil {
+	authorizationHeader, err := e.prepareAuthorization(ctx, &resolved)
+	if err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, err
 	}
-	authorizationHeader := e.authorizationHeader(ctx, &resolved)
 	client, err := e.openClient(ctx, &resolved, authorizationHeader)
 	if err != nil {
 		runtimeHealthErr = err
@@ -124,7 +134,9 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	startedAt := time.Now()
 	mcpResult, err := client.session.CallTool(ctx, params)
+	e.observeToolExchange(ctx, client, startedAt, err)
 	if err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
@@ -133,8 +145,7 @@ func (e *CallExecutor) CallTool(
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, runtimeHealthErr
 	}
-	result, err = toolResultFromMCP(mcpResult)
-	if err != nil {
+	if result, err = toolResultFromMCP(mcpResult); err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, runtimeHealthErr
 	}
@@ -142,6 +153,9 @@ func (e *CallExecutor) CallTool(
 }
 
 func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err error, discovery bool) error {
+	if errors.Is(err, mcpauth.ErrTokenRejected) {
+		return rejectedBearerError(id)
+	}
 	if scopeErr, ok := errors.AsType[*InsufficientScopeError](err); ok {
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeUnavailable,
@@ -176,7 +190,11 @@ func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err e
 		}
 	}
 	if discovery {
-		return normalizeMCPDiscoveryError(err)
+		status := 0
+		if observed := mcpDiscoveryHTTPStatus(ctx); observed != nil {
+			status = int(observed.Load())
+		}
+		return normalizeMCPDiscoveryError(err, status)
 	}
 	return normalizeMCPError(id, err)
 }
@@ -211,11 +229,32 @@ func (e *CallExecutor) Status(
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, err
 	}
-	return e.authStatus(ctx, &resolved)
+	status, err = e.authStatus(ctx, &resolved)
+	status.Disabled = resolved.Server.IsDisabled()
+	return status, err
 }
 
+func (e *CallExecutor) authorizeServer(ctx context.Context, source toolspkg.SourceRef, resolved *ResolvedServer) error {
+	if resolved.Server.IsDisabled() {
+		return mcpServerDisabledError(resolved.Server.Name)
+	}
+	if e.consent != nil {
+		return e.consent(ctx, source, *resolved)
+	}
+	return nil
+}
+
+func mcpServerDisabledError(name string) error {
+	return toolspkg.NewToolError(
+		"source_disabled", "", fmt.Sprintf("MCP server %q is off", name),
+		toolspkg.ErrToolUnavailable, toolspkg.ReasonSourceDisabled,
+	)
+}
+
+var errMCPExecutorDeadline = errors.New("mcp: executor deadline exceeded")
+
 func (e *CallExecutor) callContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, e.timeout)
+	return context.WithTimeoutCause(ctx, e.timeout, errMCPExecutorDeadline)
 }
 
 func (e *CallExecutor) resolveServer(
@@ -314,7 +353,7 @@ func normalizeMCPError(id toolspkg.ToolID, err error) error {
 	}
 }
 
-func normalizeMCPDiscoveryError(err error) error {
+func normalizeMCPDiscoveryError(err error, status int) error {
 	normalized := normalizeMCPError("", err)
 	if normalized == nil {
 		return nil
@@ -325,10 +364,27 @@ func normalizeMCPDiscoveryError(err error) error {
 	return toolspkg.NewToolError(
 		toolspkg.ErrorCodeUnavailable,
 		"",
-		"mcp server is unreachable",
+		diagnostics.RedactAndBound(redactMCPDiagnosticString(mcpDiscoveryDiagnostic(err, status)), 512),
 		fmt.Errorf("%w: %w", toolspkg.ErrToolUnavailable, normalized),
 		toolspkg.ReasonMCPUnreachable,
 	)
+}
+
+func mcpDiscoveryDiagnostic(err error, status int) string {
+	prefix := "mcp: upstream"
+	if status != 0 {
+		prefix = fmt.Sprintf("%s HTTP %d %s", prefix, status, http.StatusText(status))
+	}
+	if rpcErr, ok := errors.AsType[*jsonrpc.Error](err); ok {
+		return fmt.Sprintf("%s JSON-RPC error %d: %s", prefix, rpcErr.Code, rpcErr.Message)
+	}
+	if status != 0 {
+		return prefix
+	}
+	if _, ok := errors.AsType[net.Error](err); ok {
+		return "mcp: upstream network error: " + err.Error()
+	}
+	return "mcp: upstream discovery failed: " + err.Error()
 }
 
 func mcpServerMatches(server compozyconfig.MCPServer, target string) bool {

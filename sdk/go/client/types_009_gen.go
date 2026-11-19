@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// HarvestSpec is a daemon API value.
+type HarvestSpec struct {
+	Kind string `json:"kind,omitempty"`
+}
+
+// HeartbeatActorKind is a daemon API value.
+type HeartbeatActorKind string
+
 // HeartbeatActorPayload is a daemon API value.
 type HeartbeatActorPayload struct {
 	Kind HeartbeatActorKind `json:"kind"`

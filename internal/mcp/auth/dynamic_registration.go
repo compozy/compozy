@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/mcp/securehttp"
@@ -22,20 +23,27 @@ func (s *Service) dynamicClientRegistration(
 	resourceURL string,
 	redirectURL string,
 	asm *oauthex.AuthServerMeta,
-) (string, string, string, error) {
+	loginScopes hostedLoginScopes,
+) (hostedOAuthClient, error) {
 	if s.registrations == nil {
-		return "", "", "", errors.New(
+		return hostedOAuthClient{}, errors.New(
 			"mcp auth: registration store is required for dynamic registration",
 		)
 	}
 	fingerprint, err := ServerDefinitionFingerprint(cfg)
 	if err != nil {
-		return "", "", "", err
+		return hostedOAuthClient{}, err
 	}
 	existing, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
+	reuseCfg := cfg
+	reuseCfg.Scopes = loginScopes.values
+	if loginScopes.metadataOnly && len(existing.Scopes) == 0 {
+		// A scope-less DCR client uses the issuer's defaults until the resource demands specific scopes.
+		reuseCfg.Scopes = nil
+	}
 	if err == nil && s.dynamicRegistrationReusable(
 		existing,
-		cfg,
+		reuseCfg,
 		fingerprint,
 		resourceURL,
 		redirectURL,
@@ -43,18 +51,19 @@ func (s *Service) dynamicClientRegistration(
 	) {
 		secret, resolveErr := s.resolveRegistrationSecret(ctx, existing.ClientSecretRef)
 		if resolveErr != nil {
-			return "", "", "", resolveErr
+			return hostedOAuthClient{}, resolveErr
 		}
-		return existing.ClientID, secret, existing.TokenEndpointAuthMethod, nil
+		return registeredOAuthClient(existing, secret, reuseCfg.Scopes), nil
 	}
 	if err != nil && !errors.Is(err, ErrRegistrationNotFound) {
-		return "", "", "", fmt.Errorf("mcp auth: load client registration: %w", err)
+		return hostedOAuthClient{}, fmt.Errorf("mcp auth: load client registration: %w", err)
 	}
 	if strings.TrimSpace(asm.RegistrationEndpoint) == "" {
-		return "", "", "", errors.New(
+		return hostedOAuthClient{}, errors.New(
 			"mcp auth: authorization server does not support CIMD or dynamic registration",
 		)
 	}
+	requestedScopes := withOfflineAccess(loginScopes.values, metadataFromAuthServer(asm), true)
 	response, err := s.registerClient(
 		ctx,
 		cfg,
@@ -64,11 +73,15 @@ func (s *Service) dynamicClientRegistration(
 			GrantTypes:    []string{"authorization_code", "refresh_token"},
 			ResponseTypes: []string{"code"},
 			ClientName:    "Compozy",
-			Scope:         strings.Join(trimStrings(cfg.Scopes), " "),
+			Scope:         strings.Join(requestedScopes, " "),
 		},
 	)
 	if err != nil {
-		return "", "", "", fmt.Errorf("mcp auth: dynamic client registration: %w", err)
+		return hostedOAuthClient{}, fmt.Errorf("mcp auth: dynamic client registration: %w", err)
+	}
+	cfg.Scopes, err = response.grantedScopes(requestedScopes, loginScopes.values)
+	if err != nil {
+		return hostedOAuthClient{}, err
 	}
 	registration, secret, err := s.persistDynamicRegistration(
 		ctx,
@@ -80,9 +93,34 @@ func (s *Service) dynamicClientRegistration(
 		response,
 	)
 	if err != nil {
-		return "", "", "", err
+		return hostedOAuthClient{}, err
 	}
-	return registration.ClientID, secret, registration.TokenEndpointAuthMethod, nil
+	return registeredOAuthClient(registration, secret, loginScopes.values), nil
+}
+
+func registeredOAuthClient(registration ClientRegistration, secret string, scopes []string) hostedOAuthClient {
+	return hostedOAuthClient{
+		id: registration.ClientID, secret: secret, authMethod: registration.TokenEndpointAuthMethod,
+		scopes: scopes, allowOfflineAccess: slices.Contains(registration.Scopes, offlineAccessScope),
+	}
+}
+
+func (s *Service) loadTokenRegistration(ctx context.Context, target Target) (ClientRegistration, error) {
+	registration, err := s.registrations.GetMCPAuthRegistration(ctx, target)
+	// CIMD has no server-issued auth method, while DCR persists one even for public clients.
+	if err == nil && registration.TokenEndpointAuthMethod == "" && registration.hasCIMDIdentity() &&
+		(s.redirectURI == "" || s.redirectURI == strings.TrimSpace(registration.RedirectURL)) {
+		registration.TokenEndpointAuthMethod = tokenEndpointAuthMethodNone
+	}
+	return registration, err
+}
+
+func (r ClientRegistration) hasCIMDIdentity() bool {
+	if r.ClientSecretRef != "" || r.RegistrationAccessTokenRef != "" || r.RegistrationClientURI != "" ||
+		!r.ClientIDIssuedAt.IsZero() || !r.ClientSecretExpiresAt.IsZero() {
+		return false
+	}
+	return validateClientMetadataURL(r.ClientID) == nil
 }
 
 func (s *Service) dynamicRegistrationReusable(
@@ -171,6 +209,23 @@ type dynamicRegistrationResponse struct {
 	Registration            oauthex.ClientRegistrationResponse
 	RegistrationAccessToken string `json:"registration_access_token"`
 	RegistrationClientURI   string `json:"registration_client_uri"`
+	scopePresent            bool
+}
+
+func (r dynamicRegistrationResponse) grantedScopes(requested, required []string) ([]string, error) {
+	scopes := requested
+	if r.scopePresent {
+		scopes = strings.Fields(r.Registration.Scope)
+	}
+	if !scopesCover(scopes, required) {
+		return nil, errors.New(
+			"mcp auth: issuer registration omitted required resource scopes; check the issuer's client scope settings",
+		)
+	}
+	if grants := r.Registration.GrantTypes; len(grants) != 0 && !slices.Contains(grants, serviceRefreshTokenKey) {
+		scopes = resourceOAuthScopes(scopes)
+	}
+	return scopes, nil
 }
 
 func (s *Service) registerClient(
@@ -237,8 +292,9 @@ func decodeDynamicRegistrationResponse(body io.Reader, endpoint string) (dynamic
 		)
 	}
 	var extension struct {
-		RegistrationAccessToken string `json:"registration_access_token"`
-		RegistrationClientURI   string `json:"registration_client_uri"`
+		RegistrationAccessToken string  `json:"registration_access_token"`
+		RegistrationClientURI   string  `json:"registration_client_uri"`
+		Scope                   *string `json:"scope"`
 	}
 	if err := json.Unmarshal(payload, &extension); err != nil {
 		return dynamicRegistrationResponse{}, fmt.Errorf(
@@ -263,6 +319,7 @@ func decodeDynamicRegistrationResponse(body io.Reader, endpoint string) (dynamic
 		Registration:            registration,
 		RegistrationAccessToken: registrationAccessToken,
 		RegistrationClientURI:   registrationClientURI,
+		scopePresent:            extension.Scope != nil,
 	}, nil
 }
 

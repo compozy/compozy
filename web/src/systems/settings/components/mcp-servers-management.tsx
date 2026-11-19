@@ -65,6 +65,8 @@ function MCPServersManagementState({ management }: MCPServersManagementProps) {
           selectedServer: management.selectedKey,
           onAllow: runtime.openAllow,
           onCheck: management.serverCheck.open,
+          onSetEnabled: management.setEnabled,
+          changingEnablement: management.changingEnablement,
           allowingServer: runtime.allowingKey,
           approvalNotes: runtime.approvalNotes,
           highlightedServer: runtime.highlightedKey,

@@ -1,6 +1,6 @@
 ---
 title: Keyboard shortcuts
-description: Configure the live CompozyOS keymap, inspect effective bindings, and apply the Terminal preset.
+description: Configure the live CompozyOS keymap and inspect effective bindings.
 ---
 
 CompozyOS keeps shortcut defaults in the daemon. The web app, Settings, and the keyboard reference
@@ -36,7 +36,7 @@ the action. A chord uses modifier names followed by one browser `KeyboardEvent.c
 ```toml
 [window_manager.shortcuts]
 "window.focus.left" = ["control+ArrowLeft", "alt+KeyH"]
-"window.tile.bottom" = ""
+"window.split.right" = ""
 ```
 
 Indexed action families accept range bindings. Array members may also be ranges:
@@ -49,6 +49,10 @@ Indexed action families accept range bindings. Array members may also be ranges:
 
 The daemon expands ranges before validation. A duplicate anywhere in the complete effective map
 rejects the whole update; no partial binding is stored.
+
+A binding you stored keeps working when a later release ships a default on the same chord: your
+override wins, and the default loses that chord. Recording a new chord that another command already
+uses is still a conflict until you overwrite it.
 
 Use `config set` with a JSON array for alternates:
 
@@ -109,43 +113,49 @@ aliases in a workspace overlay:
 `meta` renders as Command on Apple platforms. A single-primary `meta` chord maps to Control on other
 platforms; an explicit `control` remains Control everywhere.
 
-| Action                                              | Default      |
-| --------------------------------------------------- | ------------ |
-| `palette.open`                                      | ⌘K, ⌘⇧P      |
-| `palette.view.sessions`                             | ⌘E           |
-| `session.new`                                       | ⌘N           |
-| `scope.global.toggle`                               | ⌘⇧G          |
-| `window.nav.back`                                   | ⌘[           |
-| `session.cycle.previous` / `session.cycle.next`     | ⌃⇧↑ / ⌃⇧↓    |
-| `session.focus.attention`                           | ⌃⌥A          |
-| `workspace.picker`                                  | ⌘⇧O          |
-| `workspace.cycle.previous` / `workspace.cycle.next` | ⌘⇧[ / ⌘⇧]    |
-| `desktop.switch.1` … `.9`                           | ⌃1 … ⌃9      |
-| `desktop.create`                                    | ⌘⇧N          |
-| `desktop.overview`                                  | ⌘⇧D          |
-| `desktop.switch.previous` / `.next`                 | ⌃⇧← / ⌃⇧→    |
-| `window.move_to_desktop.1` … `.9`                   | Unbound      |
-| `sidebar.toggle`                                    | ⌘B           |
-| `window.focus.last`                                 | ⌃⌥O          |
-| `window.close`                                      | ⌘W           |
-| `window.tile.left` / `.right`                       | ⌃⌥← / ⌃⌥→    |
-| `window.tile.top` / `.bottom`                       | ⌃⌥↑ / ⌃⌥↓    |
-| `window.unsplit`                                    | Unbound      |
-| `window.swap.left` / `.right` / `.up` / `.down`     | Unbound      |
-| `window.tab.move_left` / `.move_right`              | Unbound      |
-| `window.tab.new`                                    | ⌘T           |
-| `window.tab.next` / `.previous`                     | ⌃Tab / ⌃⇧Tab |
-| `window.tab.last`                                   | ⌘9           |
-| `window.tab.reopen`                                 | ⌘⇧T          |
-| `window.tab.jump.1` … `.8`                          | ⌘1 … ⌘8      |
-| `window.focus.left` / `.right`                      | ⌃← / ⌃→      |
-| `window.focus.up` / `.down`                         | ⌃↑ / ⌃↓      |
-| `layout.arrange.two-up` / `.grid` / `.main-stack`   | Unbound      |
-| `layout.arrange.columns`                            | Unbound      |
-| `layout.balance`                                    | ⌃⌥B          |
-| `layout.undo` / `.redo`                             | ⌘Z / ⌘⇧Z     |
-| `shortcuts.cheatsheet`                              | ?, ⌘/        |
+| Action                                              | Default                         |
+| --------------------------------------------------- | ------------------------------- |
+| `palette.open`                                      | ⌘K, ⌘⇧P                         |
+| `palette.view.sessions`                             | ⌘E                              |
+| `session.new`                                       | ⌘N                              |
+| `scope.global.toggle`                               | ⌘⇧G                             |
+| `window.nav.back`                                   | ⌘[                              |
+| `session.cycle.previous` / `session.cycle.next`     | ⌃⌥↑ / ⌃⌥↓, ⌃⌥K / ⌃⌥J, ⌃⇧↑ / ⌃⇧↓ |
+| `session.focus.attention`                           | ⌃⌥A                             |
+| `workspace.picker`                                  | ⌘⇧O                             |
+| `workspace.cycle.previous` / `workspace.cycle.next` | ⌘⇧[ / ⌘⇧]                       |
+| `desktop.switch.1` … `.9`                           | ⌃1 … ⌃9                         |
+| `desktop.create`                                    | ⌘⇧N                             |
+| `desktop.overview`                                  | ⌘⇧D                             |
+| `desktop.switch.previous` / `.next`                 | ⌃⇧← / ⌃⇧→                       |
+| `window.move_to_desktop.1` … `.9`                   | Unbound                         |
+| `sidebar.toggle`                                    | ⌘B                              |
+| `window.focus.last`                                 | ⌥O, ⌃⌥O                         |
+| `window.close`                                      | ⌘W, ⌥W                          |
+| `window.split.right` / `.down`                      | ⌥; / ⌥⇧;                        |
+| `window.tile.left` / `.right`                       | ⌃⌥← / ⌃⌥→                       |
+| `window.tile.top` / `.bottom`                       | Unbound                         |
+| `window.unsplit`                                    | Unbound                         |
+| `window.swap.left` / `.right` / `.up` / `.down`     | Unbound                         |
+| `window.tab.move_left` / `.move_right`              | Unbound                         |
+| `window.tab.new`                                    | ⌘T, ⌥T                          |
+| `window.tab.next` / `.previous`                     | ⌃Tab / ⌃⇧Tab, ⌃⌥L / ⌃⌥H         |
+| `window.tab.last`                                   | ⌘9                              |
+| `window.tab.reopen`                                 | ⌘⇧T                             |
+| `window.tab.jump.1` … `.8`                          | ⌘1 … ⌘8                         |
+| `window.focus.left` / `.right`                      | ⌥H / ⌥L, ⌃← / ⌃→                |
+| `window.focus.up` / `.down`                         | ⌥K / ⌥J, ⌃↑ / ⌃↓                |
+| `layout.arrange.two-up` / `.grid` / `.main-stack`   | Unbound                         |
+| `layout.arrange.columns`                            | Unbound                         |
+| `layout.balance`                                    | ⌃⌥B                             |
+| `layout.undo` / `.redo`                             | ⌘Z / ⌘⇧Z                        |
+| `shortcuts.cheatsheet`                              | ?, ⌘/                           |
 
+`window.split.right` and `.down` split the focused window and open a New tab pane beside or below
+it, ready for you to pick what it shows.
+`session.cycle.previous` and `.next` walk the open session list in the order you see it: project
+and folder headers as well as session rows. A header takes focus, and → / ← expand and collapse it;
+a session row opens that session.
 `window.tile.left`, `.right`, `.top`, and `.bottom` move the focused window to that edge of its tab.
 `window.unsplit` is **Move to new tab**: it takes the focused window out of its split into its own tab.
 `window.swap.left`, `.right`, `.up`, and `.down` swap the focused split window with the nearest window
@@ -154,46 +164,40 @@ shown on that side of its tab; with no window there they do nothing.
 Retired in v0.7.0: `window.minimize`, `window.zoom`, `window.toggle_floating`,
 `window.tile.top-left`, `.top-right`, `.bottom-left`, `.bottom-right`, `window.merge_all`, and
 `window.tab.detach`. A binding to one of them still loads until v0.8.0 and does nothing; Settings →
-Layouts → Shortcuts marks the row **retired**, and resetting it removes the binding.
+Shortcuts marks the row **retired**, and resetting it removes the binding.
 
 Press `?` outside an editable field, or press ⌘/ anywhere, to open the live keyboard reference.
 Escape remains a fixed close/focus-return key and is not part of the configurable map.
 
-## Terminal preset
+## Shortcuts while you type
 
-Settings → Layouts → Shortcuts can preview and apply this preset as one atomic change. Revert restores
-the values that those preset keys had immediately before apply. The same block can be pasted into
-`config.toml`:
+Shortcuts keep working while focus is in a text field, the composer, or a terminal:
 
-```toml
-[window_manager.shortcuts]
-"window.focus.left" = ["control+ArrowLeft", "alt+KeyH"]
-"window.focus.down" = ["control+ArrowDown", "alt+KeyJ"]
-"window.focus.up" = ["control+ArrowUp", "alt+KeyK"]
-"window.focus.right" = ["control+ArrowRight", "alt+KeyL"]
-"window.focus.last" = ["control+alt+KeyO", "alt+KeyO"]
-"window.close" = ["meta+KeyW", "alt+KeyW"]
-"window.tab.new" = ["meta+KeyT", "alt+KeyT"]
-"window.tab.next" = ["control+Tab", "control+alt+KeyL"]
-"window.tab.previous" = ["control+shift+Tab", "control+alt+KeyH"]
-"window.tab.jump" = "control+alt+Digit1..8"
-"window.tab.last" = "control+alt+Digit9"
-"session.cycle.next" = ["control+shift+ArrowDown", "control+alt+KeyJ"]
-"session.cycle.previous" = ["control+shift+ArrowUp", "control+alt+KeyK"]
-"session.focus.attention" = ["control+alt+KeyA", "alt+KeyI"]
-"workspace.picker" = ["meta+shift+KeyO", "meta+control+KeyP"]
-"workspace.cycle.next" = ["meta+shift+BracketRight", "meta+control+KeyJ"]
-"workspace.cycle.previous" = ["meta+shift+BracketLeft", "meta+control+KeyK"]
-"desktop.create" = ["meta+shift+KeyN", "meta+control+KeyN"]
-"desktop.switch" = ["control+Digit1..9", "meta+Digit1..9"]
-```
+- A chord with Command, Control, or Option runs its command from a text field. Plain keys and
+  Shift-only chords such as `?` stay typing.
+- A text field keeps its own editing chords: undo and redo (⌘Z, ⌘⇧Z), select all, copy, cut,
+  paste, bold, italic, underline, and moving the caret by word or line (⌥← and ⌘← on macOS,
+  Control with an arrow elsewhere).
+- In a terminal on macOS, every bound chord runs its command and every unbound chord reaches the
+  shell, including ⌃K, ⌃V, and ⌃0. On Linux and Windows, a chord whose only modifier is Control
+  stays with the shell (⌃W, ⌃E, ⌃1…), except the palette (⌃K), paste, copy with a selection, and zoom.
+- On macOS, an Option chord that your keyboard layout turns into a character, such as ⌥L for `@` on
+  a German layout, stays typing in a text field or a terminal. Bind that command to another chord if
+  you need it there. Letters outside ASCII, such as ⌥L for `ł` on a Polish layout, still run the bound
+  chord; rebind it in Settings › Shortcuts to type them.
+- On Linux and Windows, bound Alt chords leave the terminal, so readline or tmux bindings on Alt+H/J/K/L,
+  Alt+O, Alt+T or Alt+W no longer reach the shell. Rebind or clear those rows to give them back.
+- Holding a bound chord runs it once; the key repeat is swallowed instead of typed.
+- While the palette or the "Open in this tab…" picker is open, only the palette chord runs, so a
+  window chord cannot change the layout behind it.
 
-The preset moves tab jumps to the Control+Option digit layer. That frees Command digits for desktops
-and Control+Option J/K for session cycling.
+Edit any binding in Settings → Shortcuts. The old Terminal preset is gone: its window, tab, and
+session chords are now defaults. Its attention (⌥I), tab-jump (⌃⌥1–9), workspace, and desktop chords did not
+become defaults; bind them yourself if you want them.
 
 ## Platform notes
 
 - Control+digit may switch browser tabs outside the desktop app on non-Apple platforms.
-- Control+Option can alias AltGr on some keyboard layouts. Test the J/K layer before depending on it.
+- Control+Option can alias AltGr on some keyboard layouts. AltGr chords stay typing on Linux and Windows.
 - `?` depends on the current layout's Shift+Slash mapping. ⌘/ is the reliable alternative on non-US layouts.
 - A focused control keeps its own local shortcuts. The keyboard reference marks those rows read-only.

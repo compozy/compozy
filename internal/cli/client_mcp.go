@@ -15,11 +15,12 @@ import (
 
 // SettingsMCPAuthTarget selects one exact daemon-owned MCP credential set.
 type SettingsMCPAuthTarget struct {
-	Owner       string
-	Name        string
-	Scope       contract.SettingsLayeredScopeKind
-	WorkspaceID string
-	Profile     string
+	Owner            string
+	Name             string
+	Scope            contract.SettingsLayeredScopeKind
+	WorkspaceID      string
+	Profile          string
+	DefinitionSource string
 }
 
 // SettingsMCPAuthBeginRecord is the verifier-free daemon OAuth handoff.

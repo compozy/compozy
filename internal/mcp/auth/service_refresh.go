@@ -7,10 +7,47 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net"
+	"strings"
+	"sync/atomic"
 	"time"
+
+	"github.com/compozy/compozy/internal/vault"
 )
 
 var ErrRefreshBackoff = errors.New("mcp auth: refresh retry is backed off")
+
+var errRefreshRegistrationInvalid = errors.New("mcp auth: stored registration is no longer valid; run login again")
+
+const maxEarlyRenewalWindow = 30 * time.Second
+
+func (s *Service) tokenRenewalDue(token TokenRecord, now time.Time) bool {
+	if token.ExpiresAt.IsZero() {
+		return false
+	}
+	issuedAt := token.UpdatedAt
+	if issuedAt.IsZero() {
+		issuedAt = token.ObtainedAt
+	}
+	window := s.renewalWindow
+	if lifetime := token.ExpiresAt.Sub(issuedAt); !issuedAt.IsZero() && lifetime > 0 {
+		window = min(window, lifetime/10)
+	}
+	return !now.Before(token.ExpiresAt.Add(-window))
+}
+
+// WithEarlyRenewalWindow shortens the default cap on proactive renewal. Nonpositive values keep the default.
+func WithEarlyRenewalWindow(window time.Duration) ServiceOption {
+	return func(s *Service) {
+		if window > 0 {
+			s.renewalWindow = min(window, maxEarlyRenewalWindow)
+		}
+	}
+}
+
+func registrationSecretUnavailable(err error) bool {
+	return errors.Is(err, vault.ErrSecretNotFound) || errors.Is(err, vault.ErrMissingSecret) ||
+		errors.Is(err, vault.ErrUnsupportedSecretRef)
+}
 
 type tokenEndpointError struct {
 	status int
@@ -101,15 +138,33 @@ func WithLogger(logger *slog.Logger) ServiceOption {
 	}
 }
 
-func (s *Service) storedTokenStatus(cfg ServerConfig, token TokenRecord, registration *ClientRegistration) Status {
-	status := statusFromToken(cfg, &token, s.now())
-	if !status.Refreshable || cfg.registrationStrategy() != RegistrationAuto {
-		return status
+func (s *Service) storedTokenStatus(
+	ctx context.Context, cfg ServerConfig, token TokenRecord, registration *ClientRegistration,
+) Status {
+	now := s.now()
+	status := statusFromToken(cfg, &token, now)
+	if status.Refreshable && cfg.registrationStrategy() == RegistrationAuto {
+		if registration == nil || !s.hostedRegistrationRefreshable(cfg, *registration, token.DefinitionFingerprint) {
+			return localRefreshRepairStatus(status)
+		}
+		if s.tokenRenewalDue(token, now) && registration.TokenEndpointAuthMethod != tokenEndpointAuthMethodNone {
+			secret, err := s.resolveRegistrationSecret(ctx, registration.ClientSecretRef)
+			now = s.now()
+			status = statusFromToken(cfg, &token, now)
+			if registrationSecretUnavailable(err) || (err == nil && strings.TrimSpace(secret) == "") {
+				return localRefreshRepairStatus(status)
+			}
+			// A transient read leaves the grant eligible because renewal resolves the secret again.
+		}
 	}
-	status.Refreshable = registration != nil && s.dynamicRegistrationReusable(
-		*registration, cfg, token.DefinitionFingerprint,
-		firstNonEmpty(cfg.ResourceURL, cfg.RemoteURL), registration.RedirectURL, token.Issuer) &&
-		(registration.TokenEndpointAuthMethod == tokenEndpointAuthMethodNone || s.secretResolver != nil)
+	status.renewalDue = status.Status == StatusAuthenticated && status.Refreshable && s.tokenRenewalDue(token, now)
+	return status
+}
+
+func localRefreshRepairStatus(status Status) Status {
+	status.Refreshable = false
+	status.renewalDue = false
+	status.Diagnostic = "stored registration is no longer valid; run login again"
 	return status
 }
 
@@ -129,38 +184,62 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 	if err != nil {
 		return Status{}, err
 	}
+	status, canUseAccess, err := s.serializedRefresh(ctx, cfg, observed, target)
+	if canUseAccess {
+		status, err = s.keepValidAccessToken(ctx, cfg, err)
+	}
+	// Waiting for another renewal or using backoff can outlive a change to the switch.
+	if err == nil && status.Status == StatusAuthenticated && s.authorizeNetwork != nil {
+		if err := s.authorizeNetwork(ctx, cfg); err != nil {
+			return Status{}, err
+		}
+	}
+	return status, err
+}
+
+func (s *Service) serializedRefresh(
+	ctx context.Context, cfg ServerConfig, observed TokenRecord, target *targetMutationGeneration,
+) (Status, bool, error) {
 	select {
 	case target.refreshGate <- struct{}{}:
 		defer func() { <-target.refreshGate }()
 	case <-ctx.Done():
-		return Status{}, ctx.Err()
+		return Status{}, false, ctx.Err()
 	}
 	// Once renewal starts, persist a rotated refresh token even if the requesting discovery times out.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.refreshTimeout)
+	refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.refreshTimeout)
 	defer cancel()
 	generation, err := s.generation.Snapshot(cfg.Target)
 	if err != nil {
-		return Status{}, err
+		return Status{}, false, err
 	}
 	if target.refreshGeneration != generation {
 		target.refreshGeneration = generation
 		target.refreshAttempts, target.refreshRetryAt = 0, time.Time{}
 	}
 	if s.now().Before(target.refreshRetryAt) {
-		return Status{}, ErrRefreshBackoff
+		return Status{}, target.refreshCanUseAccessToken, ErrRefreshBackoff
 	}
 	target.refreshAttempts++
-	status, err := s.refresh(ctx, cfg, observed)
-	if err == nil {
+	off := new(atomic.Bool)
+	refreshCtx = context.WithValue(refreshCtx, renewalOffKey{}, off)
+	status, err := s.refresh(refreshCtx, cfg, observed, generation)
+	if off.Load() {
 		target.refreshAttempts, target.refreshRetryAt = 0, time.Time{}
-		return status, nil
+		return Status{}, false, ErrServerDisabled
 	}
-	s.logger.WarnContext(ctx, "mcp.auth.refresh_failed",
-		"server", cfg.Target.ServerName, "owner", cfg.Target.Normalize().Owner,
-		"scope", string(cfg.Target.Scope), "workspace_id", cfg.Target.WorkspaceID,
-		"cause_class", refreshFailureClass(err), "attempt", target.refreshAttempts)
+	if err != nil {
+		s.logger.WarnContext(ctx, "mcp.auth.refresh_failed",
+			"server", cfg.Target.ServerName, "owner", cfg.Target.Normalize().Owner,
+			"scope", string(cfg.Target.Scope), "workspace_id", cfg.Target.WorkspaceID,
+			"cause_class", refreshFailureClass(err), "attempt", target.refreshAttempts)
+	}
+	if err == nil || (status.TokenPresent && errors.Is(err, ErrTokenBindingInvalid)) {
+		target.refreshAttempts, target.refreshRetryAt = 0, time.Time{}
+		return status, false, err
+	}
 	if definitiveRefreshFailure(err) && status.Status == StatusNeedsLogin {
-		return status, nil
+		return status, false, nil
 	}
 	if !errors.Is(err, ErrTokenMutationStale) {
 		delay := s.refreshBackoff
@@ -172,5 +251,18 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 		delay = min(delay, s.refreshBackoffMax)
 		target.refreshRetryAt = s.now().Add(delay)
 	}
-	return Status{}, &refreshFailure{err: err}
+	target.refreshCanUseAccessToken = !definitiveRefreshFailure(err) && !errors.Is(err, ErrTokenBindingInvalid) &&
+		!errors.Is(err, ErrTokenMutationStale)
+	return Status{}, target.refreshCanUseAccessToken, &refreshFailure{err: err}
+}
+
+func (s *Service) keepValidAccessToken(ctx context.Context, cfg ServerConfig, refreshErr error) (Status, error) {
+	ctx, cancel := context.WithTimeout(ctx, s.refreshTimeout)
+	defer cancel()
+	status, err := s.Status(ctx, cfg)
+	if err == nil && status.Status == StatusAuthenticated && status.ExpiresAt != nil &&
+		status.ExpiresAt.After(s.now()) {
+		return status, nil
+	}
+	return Status{}, refreshErr
 }

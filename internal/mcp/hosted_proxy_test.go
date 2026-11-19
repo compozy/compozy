@@ -570,7 +570,7 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 			"id":      1,
 			"method":  "initialize",
 			"params": map[string]any{
-				"protocolVersion": protocolVersionProviderLegacy,
+				"protocolVersion": protocolVersionJune2025,
 				"capabilities": map[string]any{
 					"elicitation": map[string]any{
 						"form": map[string]any{},
@@ -603,7 +603,7 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 		if len(initialized.Error) > 0 && string(initialized.Error) != "null" {
 			t.Fatalf("initialize response error = %s", initialized.Error)
 		}
-		if got, want := initialized.Result.ProtocolVersion, protocolVersionProviderLegacy; got != want {
+		if got, want := initialized.Result.ProtocolVersion, protocolVersionJune2025; got != want {
 			t.Fatalf("initialize protocol version = %q, want %q", got, want)
 		}
 

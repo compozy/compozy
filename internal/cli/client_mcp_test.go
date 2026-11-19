@@ -239,6 +239,18 @@ const loggedOutClientMCPAuthStatusJSON = `{
 
 func TestMCPListCommand(t *testing.T) {
 	t.Parallel()
+	// Invariant: TOON inventory exposes the same persisted switch as JSON.
+	// Owner: CLI MCP output; canonical suite: MCP list.
+	t.Run("Should report a disabled server in TOON", func(t *testing.T) {
+		t.Parallel()
+		output, err := mcpListBundle(contract.MCPListResponse{
+			CompozyServers: []contract.SettingsMCPServerItemPayload{{Name: "fixture", Disabled: true}},
+		}).toon()
+		if err != nil || !strings.Contains(output, ",disabled}:") || !strings.HasSuffix(output, ",true") {
+			t.Fatalf("TOON off inventory = %q, err = %v", output, err)
+		}
+	})
+
 	// Invariant: explicit workspace inventory uses a matching workspace lens; owner: CLI HTTP boundary.
 	t.Run("Should send workspace scope with the inventory workspace", func(t *testing.T) {
 		t.Parallel()
@@ -630,4 +642,51 @@ func TestMCPCheckCommand(t *testing.T) {
 			t.Fatalf("result=%+v err=%v", result, err)
 		}
 	})
+}
+
+func TestMCPEnablementCommand(t *testing.T) {
+	for _, test := range []struct {
+		name, verb, state string
+		enabled           bool
+	}{
+		{name: "Should turn the selected extension server off", verb: "disable", state: "off"},
+		{name: "Should turn the selected extension server on", verb: "enable", state: "on", enabled: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					switch req.URL.Path {
+					case "/api/profiles":
+						return newHTTPResponse(http.StatusOK, `[{"name":"default","state":"active"}]`), nil
+					case "/api/profiles/selection":
+						return newHTTPResponse(http.StatusOK, `[]`), nil
+					case "/api/settings/mcp-servers/docs/enabled":
+						var body struct {
+							Enabled *bool `json:"enabled"`
+						}
+						if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+							t.Fatal(err)
+						}
+						if req.Method != http.MethodPut || req.URL.Query().Get("scope") != "user" ||
+							req.URL.Query().
+								Get("owner") !=
+								"extension:docs" || body.Enabled == nil || *body.Enabled != test.enabled {
+							t.Fatalf("unexpected request: %s %s", req.Method, req.URL)
+						}
+						return newHTTPResponse(http.StatusOK, `{"server":{"name":"docs"}}`), nil
+					default:
+						t.Fatalf("unexpected request %s", req.URL)
+						return nil, nil
+					}
+				})},
+			}
+			deps := newWorkspaceTestDeps(t, client)
+			stdout, _, err := executeRootCommand(t, deps, "mcp", test.verb, "docs", "--owner", "extension:docs")
+			if err != nil || stdout != "docs: "+test.state+"\n" {
+				t.Fatalf("output=%q err=%v", stdout, err)
+			}
+		})
+	}
 }

@@ -23,7 +23,12 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 	if err != nil {
 		return CollectionEnvelope{}, fmt.Errorf("settings: list collection %q: %w", req.Collection, err)
 	}
-	profileName, err := normalizeSettingsProfileName(scope, req.ProfileName)
+	var profileName string
+	if req.Collection == CollectionMCPServers {
+		profileName, err = normalizeMCPSettingsProfileName(scope, workspaceID, req.ProfileName)
+	} else {
+		profileName, err = normalizeSettingsProfileName(scope, req.ProfileName)
+	}
 	if err != nil {
 		return CollectionEnvelope{}, err
 	}

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>{{.Title}} · CompozyOS</title>
+    <style>{{.CSS}}</style>
+  </head>
+  <body>
+    <main class="cb" data-outcome="{{.Outcome}}" data-tone="{{.Tone}}">
+      {{- if not .Connected}}
+      <img class="cb__atmosphere" src="{{.Horizon}}" alt="" />
+      {{- end}}
+      <div class="cb__column">
+        <div class="cb__bridge" aria-hidden="true">
+          {{- if .Connected}}
+          <img class="cb__stream" src="{{.Converge}}" alt="" />
+          {{- end}}
+          <span class="cb__node cb__node--self"><img class="cb__symbol" src="{{.Symbol}}" alt="" /></span>
+          <span class="cb__span" data-side="self">
+            {{- range .SelfPoints}}<span class="cb__point"{{if .}} data-on="lit"{{end}}></span>{{end -}}
+          </span>
+          <span class="cb__mark">{{.Mark}}</span>
+          <span class="cb__span" data-side="server">
+            {{- range .ServerPoints}}<span class="cb__point"{{if .}} data-on="lit"{{end}}></span>{{end -}}
+          </span>
+          {{- if .Server}}
+          <span class="cb__node cb__node--server">{{.Monogram}}</span>
+          {{- else}}
+          <span class="cb__node cb__node--server" data-unknown="true">?</span>
+          {{- end}}
+        </div>
+        <p class="cb__eyebrow">{{.Eyebrow}}</p>
+        <h1 class="cb__title">{{.Title}}</h1>
+        <p class="cb__detail"{{if not .Connected}} role="alert"{{end}}>{{.Detail}}</p>
+        {{- if .Code}}
+        <p class="cb__code">{{.Code}}</p>
+        {{- end}}
+        {{- if .Connected}}
+        <dl class="cb__facts">
+          {{- with .Server}}
+          <div>
+            <dt>Server</dt>
+            <dd>
+              <span class="cb__fact-strong">{{.Name}}</span>
+              {{- if .Host}}
+              <span class="cb__fact-mono">{{.Host}}</span>
+              {{- end}}
+            </dd>
+          </div>
+          {{- end}}
+          {{- if .Availability}}
+          <div>
+            <dt>Available in</dt>
+            <dd>{{.Availability}}</dd>
+          </div>
+          {{- end}}
+          {{- if .Scopes}}
+          <div>
+            <dt>Access</dt>
+            <dd class="cb__scopes">
+              {{- range .Scopes}}<span class="cb__scope">{{.}}</span>{{end -}}
+            </dd>
+          </div>
+          {{- end}}
+          {{- if .Renewal}}
+          <div>
+            <dt>Sign-in</dt>
+            <dd>{{.Renewal}}</dd>
+          </div>
+          {{- end}}
+        </dl>
+        {{- end}}
+        {{- if .Diagnostic}}
+        <details class="cb__diagnostic">
+          <summary>Technical details</summary>
+          <pre data-diagnostic>{{.Diagnostic}}</pre>
+        </details>
+        {{- end}}
+        <div class="cb__actions">
+          <a class="cb__btn" data-variant="primary" href="{{.OpenURL}}">Open CompozyOS</a>
+          {{- if .Diagnostic}}
+          <button class="cb__btn" type="button" data-copy>Copy details</button>
+          {{- end}}
+        </div>
+      </div>
+      <p class="cb__status">
+        <span class="cb__status-mark" aria-hidden="true"></span>
+        <span class="cb__status-word" role="status">{{.StatusWord}}</span>
+        <span>{{.Time}}</span>
+        <span class="cb__status-hint">{{.StatusHint}}</span>
+      </p>
+    </main>
+    {{- if .Diagnostic}}
+    <script>{{.Script}}</script>
+    {{- end}}
+  </body>
+</html>

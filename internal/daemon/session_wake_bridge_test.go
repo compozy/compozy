@@ -829,8 +829,8 @@ func TestMonitorSessionTargets(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer stop()
-		if !stub.scope.AllWorkspaces || !stub.scope.ReadScope.AllProfiles {
-			t.Fatalf("scope = %+v, want target change signals across workspaces and profiles", stub.scope)
+		if !stub.scope.AllWorkspaces || !stub.scope.ReadScope.AllProfiles || !stub.scope.ExcludeOperatorNotifications {
+			t.Fatalf("scope = %+v, want internal target change signals across workspaces and profiles", stub.scope)
 		}
 		stub.events <- session.CatalogEvent{SessionID: "sess-other"}
 		stub.events <- session.CatalogEvent{SessionID: "sess-a"}

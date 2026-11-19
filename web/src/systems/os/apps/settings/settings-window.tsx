@@ -8,14 +8,13 @@ import {
 } from "react";
 
 import { VIEW_TRANSITION_CLASS } from "@compozy/ui";
-import { shallowEqual } from "@xstate/store";
 
 import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 import { OsWindowErrorBoundary } from "../../components/os-window-error-boundary";
-import { useDesktop } from "../../hooks/use-desktop";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { SettingsWindowNav } from "./settings-window-nav";
 import { useProfileFlowIntent } from "./use-profile-flow-intent";
+import { useSettingsWindowRoute } from "./use-settings-window-route";
 import {
   findSettingsSection,
   SettingsPageState,
@@ -50,6 +49,10 @@ const SECTION_LOADERS = {
   layouts: () =>
     import("@/routes/_app/settings/-layouts-settings-page").then(m => ({
       default: m.LayoutsSettingsPage,
+    })),
+  shortcuts: () =>
+    import("@/routes/_app/settings/-shortcuts-settings-page").then(m => ({
+      default: m.ShortcutsSettingsPage,
     })),
   providers: () =>
     import("@/routes/_app/settings/-providers-settings-page").then(m => ({
@@ -126,8 +129,6 @@ const SECTION_PAGES = Object.fromEntries(
   })
 ) as Record<MappedSectionSlug, LazyExoticComponent<SectionComponent>>;
 
-const DEFAULT_SETTINGS_ROUTE = { pathname: "/settings", search: {} } as const;
-
 function focusCommandFromSearch(search: Record<string, unknown>): string | undefined {
   const command = search.command;
   if (typeof command !== "string") return undefined;
@@ -155,7 +156,7 @@ function SettingsSectionOutlet({
 }) {
   const shownSlug = useDeferredValue(activeSlug);
   const SectionPage = SECTION_PAGES[shownSlug];
-  const focusCommandId = shownSlug === "layouts" ? focusCommandFromSearch(search) : undefined;
+  const focusCommandId = shownSlug === "shortcuts" ? focusCommandFromSearch(search) : undefined;
 
   return (
     <div
@@ -185,17 +186,7 @@ function SettingsSectionOutlet({
  * keeps showing its own section (ADR-002 rule 6).
  */
 export function SettingsWindow({ windowId }: { windowId: string }) {
-  const { route, searchEnabled } = useDesktop(state => {
-    const win = state.windows[windowId];
-    return {
-      route: win?.route ?? DEFAULT_SETTINGS_ROUTE,
-      searchEnabled:
-        !!win &&
-        state.focusedId === windowId &&
-        win.desktopId === state.activeDesktopId &&
-        win.shown,
-    };
-  }, shallowEqual);
+  const { route, searchEnabled } = useSettingsWindowRoute(windowId);
   // Neutral content clicks focus the desktop ancestor, outside this window's
   // bubbling path. Reuse the document shortcut while this window owns focus.
   const searchInputRef = useListingSearchShortcut(searchEnabled);

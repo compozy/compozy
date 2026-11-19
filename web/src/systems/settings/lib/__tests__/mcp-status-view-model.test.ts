@@ -203,6 +203,29 @@ describe("authorize gating", () => {
     expect(authorizeLabel(refreshFailed)).toBe("Reauthorize");
   });
 
+  it.each([
+    { state: "ready", repair: null },
+    { state: "auth_refresh_failed", repair: "Reauthorize" },
+  ])(
+    "uses the $state runtime outcome to offer repair for an expired renewable token",
+    ({ state, repair }) => {
+      const row = {
+        transport: "http",
+        auth: oauthConfig(),
+        runtimeStatus: { state },
+      };
+      const authStatus = { status: "expired", token_present: true };
+      const refreshable = makeEntry({
+        ...row,
+        authStatus: { ...authStatus, refreshable: true },
+      });
+
+      expect(authorizeLabel(refreshable)).toBe(repair);
+      expect(authorizeLabel(makeEntry({ ...row, authStatus }))).toBe("Reauthorize");
+      if (state === "ready") expect(summarizeMCPStatus(refreshable).label).toBe("Ready");
+    }
+  );
+
   it("does not offer authorize to a healthy authenticated remote", () => {
     const healthy = makeEntry({
       transport: "http",

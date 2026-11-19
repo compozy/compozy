@@ -18,6 +18,7 @@ describe("global shortcut policy", () => {
     ["meta+shift+Space", "CommandOrControl+Shift+Space"],
     ["alt+shift+KeyN", "Alt+Shift+N"],
     ["ctrl+Digit1", "Control+1"],
+    ["control+alt+KeyO", "Control+Alt+O"],
   ])("Should convert %s to %s", (chord, expected) => {
     expect(chordToAccelerator(chord)).toBe(expected);
   });

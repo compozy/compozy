@@ -62,6 +62,7 @@ type clarifyHandle struct {
 	ready        atomic.Bool
 	terminal     bool
 	profileID    string
+	choicesOnly  bool
 	timeout      time.Duration
 	// pingSeq counts keepalive attempts from 1 under completionMu.
 	pingSeq uint64
@@ -191,8 +192,9 @@ func (b *clarifyBridge) Ask(
 		deadline = now.Add(policy)
 	}
 	handle := &clarifyHandle{
-		profileID: strings.TrimSpace(normalizedScope.ProfileID),
-		timeout:   policy,
+		profileID:   strings.TrimSpace(normalizedScope.ProfileID),
+		choicesOnly: normalizedQuestion.ChoicesOnly,
+		timeout:     policy,
 		pending: toolspkg.ClarifyPending{
 			RequestID:   strings.TrimSpace(b.newID()),
 			WorkspaceID: normalizedScope.WorkspaceID,
@@ -392,8 +394,9 @@ func (b *clarifyBridge) Answer(
 		return b.resolveOrphaned(ctx, normalized, target, request)
 	}
 	question := toolspkg.ClarifyQuestion{
-		Question: handle.pending.Question,
-		Choices:  append([]string(nil), handle.pending.Choices...),
+		Question:    handle.pending.Question,
+		Choices:     append([]string(nil), handle.pending.Choices...),
+		ChoicesOnly: handle.choicesOnly,
 	}
 	handle.completionMu.Unlock()
 	answer, err := request.Normalize(question)

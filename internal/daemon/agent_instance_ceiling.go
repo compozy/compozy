@@ -49,6 +49,8 @@ func instanceCeilingReader(repo *globaldb.InstanceRepo) session.InstanceCeilingR
 			Policy: ceiling,
 			Grant:  grant,
 			Main:   starting || sessionID == instance.MainSessionID,
+			ActiveMain: sessionID == instance.MainSessionID && instance.State == nativeFilterActiveValue &&
+				instance.ArchivedAt == nil,
 		}, nil
 	}
 }

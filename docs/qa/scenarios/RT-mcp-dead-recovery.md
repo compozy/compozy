@@ -65,3 +65,9 @@ scenario retains its existing QA verdict until that walk is performed.
 QA impact 2026-11-17 (#1794, daemon CPU hot paths):
 Ordinary discovery shares unchanged listings for at least three seconds. Explicit checks and due dead-entity probes still force real discovery; failure retention and recovery must remain observable without restart. The existing daemon sidecar integration suite is the transport canary for this change.
 See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).
+
+QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
+
+Keep one fixture unreachable while establishing a new hosted bind. The prior successful catalog
+remains available to the runtime. Confirm the affected row reports discovery failure and recovers
+after an explicit check succeeds.

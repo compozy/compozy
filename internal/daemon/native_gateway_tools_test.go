@@ -138,6 +138,46 @@ func TestDaemonNativeGatewayTool(t *testing.T) {
 		}
 	})
 
+	// Invariant: device removal requires an explicit device id before touching the service.
+	// Owning layer: daemon native gateway mutation adapter.
+	// Canonical suite: TestDaemonNativeGatewayTool.
+	t.Run("Should validate the device removal input before mutating inventory", func(t *testing.T) {
+		t.Parallel()
+
+		service := &nativeGatewayService{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Gateway:  func() core.GatewayService { return service },
+			Sessions: nativeTestSessionManager(""),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDGateway,
+			Input:  json.RawMessage(`{"action":"device_remove"}`),
+		})
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(gateway device_remove) error = %v, want ErrToolInvalidInput", err)
+		}
+		if service.removeCalls != 0 {
+			t.Fatalf("RemoveDevice calls = %d, want 0", service.removeCalls)
+		}
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDGateway,
+			Input:  json.RawMessage(`{"action":"device_remove","device_id":"device-1"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(gateway device_remove) error = %v", err)
+		}
+		var payload nativeGatewayResult
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("Unmarshal(gateway device_remove) error = %v", err)
+		}
+		if service.removeCalls != 1 {
+			t.Fatalf("RemoveDevice calls = %d, want 1", service.removeCalls)
+		}
+		if payload.Remove == nil || payload.Remove.Device.ID != "device-1" {
+			t.Fatalf("gateway remove payload = %#v", payload.Remove)
+		}
+	})
+
 	// Invariant: native gateway calls resolve the service created after tool-registry boot.
 	// Owning layer: daemon composition root.
 	// Canonical suite: TestDaemonNativeGatewayTool.
@@ -173,6 +213,7 @@ type nativeGatewayService struct {
 	status          gateway.Status
 	audit           gateway.AuditReport
 	surfaceSetCalls int
+	removeCalls     int
 }
 
 func (s *nativeGatewayService) Status(context.Context) (gateway.Status, error) {
@@ -185,6 +226,11 @@ func (s *nativeGatewayService) Audit(context.Context) (gateway.AuditReport, erro
 
 func (s *nativeGatewayService) ListDevices(context.Context) ([]gateway.DeviceSession, error) {
 	return s.status.Devices, nil
+}
+
+func (s *nativeGatewayService) RemoveDevice(_ context.Context, id string) (gateway.RemoveResult, error) {
+	s.removeCalls++
+	return gateway.RemoveResult{Device: gateway.DeviceSession{ID: id}, Revoked: true}, nil
 }
 
 func (s *nativeGatewayService) SetSurfaceExposure(

@@ -21,11 +21,17 @@ type settingsMCPExtensionDefinitions struct {
 func (s settingsMCPExtensionDefinitions) ResolveMCPExtensionDefinition(
 	ctx context.Context, req settingspkg.MCPAuthTargetRequest,
 ) (mcpauth.Target, compozyconfig.MCPServer, bool, error) {
+	definition, found, err := s.resolveMCPExtensionDefinition(ctx, req)
+	return definition.Target, definition.Server, found, err
+}
+
+func (s settingsMCPExtensionDefinitions) resolveMCPExtensionDefinition(
+	ctx context.Context, req settingspkg.MCPAuthTargetRequest,
+) (settingspkg.MCPExtensionDefinition, bool, error) {
 	if s.state == nil || s.state.mcpServerCatalog == nil {
-		return mcpauth.Target{}, compozyconfig.MCPServer{}, false, nil
+		return settingspkg.MCPExtensionDefinition{}, false, nil
 	}
-	var foundTarget mcpauth.Target
-	var foundServer compozyconfig.MCPServer
+	var definition settingspkg.MCPExtensionDefinition
 	found, foundExact := false, false
 	for _, record := range s.state.mcpServerCatalog.Snapshot() {
 		owner := record.Owner.Normalize()
@@ -36,31 +42,34 @@ func (s settingsMCPExtensionDefinitions) ResolveMCPExtensionDefinition(
 			continue
 		}
 		name := strings.TrimSpace(req.Name)
-		if name != record.Spec.Name {
+		if name != record.Spec.Name ||
+			(req.DefinitionSource != "" && req.DefinitionSource != record.Spec.DefinitionSource) {
 			continue
 		}
 		target, err := mcpAuthTargetForResource(ctx, s.state, record.Scope, record.Spec.Name, owner)
 		if err != nil {
-			return mcpauth.Target{}, compozyconfig.MCPServer{}, false, err
+			return settingspkg.MCPExtensionDefinition{}, false, err
 		}
-		if !settingsMCPExtensionTargetVisible(req, target) {
+		management := publishedMCPManagementTarget(record.Scope, target)
+		if !settingsMCPExtensionTargetVisible(req, target) && !settingsMCPExtensionTargetVisible(req, management) {
 			continue
 		}
-		exact := settingsMCPExtensionTargetMatches(req, target)
+		exact := settingsMCPExtensionTargetMatches(req, target) || settingsMCPExtensionTargetMatches(req, management)
 		if found && foundExact && !exact {
 			continue
 		}
 		if found && foundExact == exact {
-			return mcpauth.Target{}, compozyconfig.MCPServer{}, false,
+			return settingspkg.MCPExtensionDefinition{}, false,
 				fmt.Errorf("daemon: multiple extension MCP definitions address %q", name)
 		}
 		server, err := projectExtensionSecretHeaders(ctx, s.state, record, "")
 		if err != nil {
-			return mcpauth.Target{}, compozyconfig.MCPServer{}, false, err
+			return settingspkg.MCPExtensionDefinition{}, false, err
 		}
-		foundTarget, foundServer, found, foundExact = target, server, true, exact
+		definition = settingspkg.MCPExtensionDefinition{Target: target, ManagementTarget: management, Server: server}
+		found, foundExact = true, exact
 	}
-	return foundTarget, foundServer, found, nil
+	return definition, found, nil
 }
 
 func settingsMCPExtensionTargetMatches(req settingspkg.MCPAuthTargetRequest, target mcpauth.Target) bool {

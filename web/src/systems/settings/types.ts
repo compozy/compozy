@@ -142,6 +142,9 @@ export type RuntimeMCPImportScope = NonNullable<RuntimeMCPImportRequest["scope"]
 
 // Daemon-mediated OAuth (ADR-016). The begin response returns the ONLY live PKCE
 // authorization URL; the exchange/logout responses return the fresh auth-status shape.
+export type SettingsMCPEnablementFilter = NonNullable<
+  OperationQuery<"setSettingsMCPServerEnabled">
+>;
 export type SettingsMCPAuthFilter = NonNullable<OperationQuery<"beginSettingsMCPAuth">>;
 export type SettingsMCPAuthBeginRequest = OperationRequestBody<"beginSettingsMCPAuth">;
 export type SettingsMCPAuthBeginMode = SettingsMCPAuthBeginRequest["mode"];
@@ -265,6 +268,7 @@ export type SettingsSectionSlug =
   | "terminal"
   | "appearance"
   | "layouts"
+  | "shortcuts"
   | "palette"
   | "profiles"
   | "providers"

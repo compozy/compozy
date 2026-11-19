@@ -165,8 +165,8 @@ func TestElicitationFormAnswersThroughOperator(t *testing.T) {
 				{Choice: new(1)},
 			},
 			wantAsked: []toolspkg.ClarifyQuestion{
-				{Question: "Questions", Choices: []string{"A", "B"}},
-				{Question: "Questions", Choices: []string{"C", "D"}},
+				{Question: "Questions", Choices: []string{"A", "B"}, ChoicesOnly: true},
+				{Question: "Questions", Choices: []string{"C", "D"}, ChoicesOnly: true},
 			},
 			want: map[string]any{"q0": "a", "q1": "d"},
 		},
@@ -190,8 +190,8 @@ func TestElicitationFormAnswersThroughOperator(t *testing.T) {
 				{Choice: new(0)},
 			},
 			wantAsked: []toolspkg.ClarifyQuestion{
-				{Question: "Database", Choices: []string{"Postgres", "SQLite"}},
-				{Question: "Region", Choices: []string{"Europe", "United States"}},
+				{Question: "Database", Choices: []string{"Postgres", "SQLite"}, ChoicesOnly: true},
+				{Question: "Region", Choices: []string{"Europe", "United States"}, ChoicesOnly: true},
 			},
 			want: map[string]any{"q0": "sqlite", "q1": "eu"},
 		},
@@ -202,8 +202,9 @@ func TestElicitationFormAnswersThroughOperator(t *testing.T) {
 				{Choice: new(0)},
 			},
 			wantAsked: []toolspkg.ClarifyQuestion{{
-				Question: "Which environment?",
-				Choices:  []string{"Production", "Staging"},
+				Question:    "Which environment?",
+				Choices:     []string{"Production", "Staging"},
+				ChoicesOnly: true,
 			}},
 			want: map[string]any{"q0": " prod "},
 		},
@@ -242,6 +243,10 @@ func TestElicitationFormAnswersThroughOperator(t *testing.T) {
 			for index, want := range tt.wantAsked {
 				if asked[index].Question != want.Question {
 					t.Fatalf("question[%d] = %q, want %q", index, asked[index].Question, want.Question)
+				}
+				if asked[index].ChoicesOnly != want.ChoicesOnly {
+					t.Fatalf("question[%d] choices only = %t, want %t",
+						index, asked[index].ChoicesOnly, want.ChoicesOnly)
 				}
 				if len(asked[index].Choices) != len(want.Choices) {
 					t.Fatalf("question[%d] choices = %#v, want %#v",

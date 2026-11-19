@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/spf13/cobra"
 )
 
@@ -136,9 +137,11 @@ func completeGatewayPairingRedemption(
 	defer func() {
 		returnErr = errors.Join(returnErr, prepared.Release())
 	}()
-	issued, err := client.RedeemGatewayPairing(cmd.Context(), contract.GatewayPairingRedeemRequest{
-		Artifact: artifact, Name: profile.Name, ActorKind: "cli_profile", Credential: credential,
-	})
+	issued, err := client.RedeemGatewayPairing(cmd.Context(), gatewayPairingRedeemRequest(
+		artifact,
+		profile.Name,
+		credential,
+	))
 	if err != nil {
 		if isDefinitiveGatewayPairingRejection(err) || gatewayPairingRequestNotSent(err) {
 			return prepared.Rollback(err)
@@ -160,6 +163,23 @@ func completeGatewayPairingRedemption(
 		Device:  &issued.Device, Status: "paired",
 	}
 	return writeCommandOutput(cmd, gatewayProfileOutput(record))
+}
+
+// gatewayPairingRedeemRequest sends the opaque artifact or the hand-typed code on its own field.
+func gatewayPairingRedeemRequest(
+	reference string,
+	name string,
+	credential string,
+) contract.GatewayPairingRedeemRequest {
+	request := contract.GatewayPairingRedeemRequest{
+		Name: name, ActorKind: "cli_profile", Credential: credential,
+	}
+	if gateway.IsPairingManualCode(reference) {
+		request.ManualCode = gateway.NormalizePairingManualCode(reference)
+		return request
+	}
+	request.Artifact = reference
+	return request
 }
 
 func gatewayPairingRequestNotSent(err error) bool {

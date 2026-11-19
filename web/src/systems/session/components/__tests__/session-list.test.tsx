@@ -19,7 +19,7 @@ import { formatAbsoluteTime, toast } from "@compozy/ui";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { expectFetchRequest } from "@/test/fetch-test-utils";
+import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 import { allModelsListOptions, type ProviderModelPayload } from "@/systems/model-catalog";
 import {
   clearActiveWorkspaceSelection,
@@ -988,6 +988,28 @@ describe("SessionList subagents", () => {
 
     expect(screen.queryByTestId("session-sidebar-session-one-child")).toBeNull();
     expect(screen.getByTestId("session-sidebar-session-two-child")).toBeVisible();
+  });
+
+  // Invariant (#1846): Expand groups folds child session lists like Collapse all, opens no
+  // subagent list, keeps a thread opened by hand open, and never hides a search result.
+  it("Should fold child sessions and leave subagents closed under Expand groups", () => {
+    vi.mocked(globalThis.fetch).mockImplementation(async () => subagentPage(0, 1));
+    const sessions = [
+      row("solo", summary(0, 1)),
+      row("one", {}),
+      row("one-child", { lineage: lineage("one") }),
+      row("two", {}),
+      row("two-child", { lineage: lineage("two") }),
+    ];
+    const grouped = { ...view, foldAll: "groups" as const, openThreadIds: ["two"] };
+    const list = renderList({ sessions, view: grouped });
+
+    expect(screen.queryByTestId("session-sidebar-session-one-child")).toBeNull();
+    expect(screen.getByTestId("session-sidebar-session-two-child")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-subagents-solo")).toBeNull();
+
+    list.update(sessions, { ...grouped, search: "one" });
+    expect(screen.getByTestId("session-sidebar-session-one-child")).toBeVisible();
   });
 
   // Invariant (#1132): Collapse all never hides a search result behind its parent's fold.
@@ -2216,6 +2238,162 @@ describe("SessionList Later", () => {
   });
 });
 
+// Invariant (#1827): the active list shows pinned sessions on their own in a Pinned section above
+// every group and row (oldest pin first, foldable, counted unless searching); a pinned list is
+// never "empty"; a row pins from its own button and unpins from its menu through the session's pin
+// route; a subagent row offers neither. Owner: SessionList through its sidebar host.
+describe("SessionList Pinned", () => {
+  const pinned: SessionPayload = {
+    ...primarySessionFixture,
+    id: "pinned",
+    name: "Launch plan",
+    archived_at: null,
+    state: "stopped",
+    pinned_at: "2026-11-18T09:00:00Z",
+  };
+  const pinnedRead = (rows: SessionPayload[], more = false) => ({
+    sessions: rows,
+    loading: false,
+    failed: false,
+    more,
+    retry: vi.fn(),
+  });
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("Should list pinned sessions above the list and show no empty state below them", async () => {
+    const user = userEvent.setup();
+    const toggleGroup = vi.fn();
+    const { update } = renderList({
+      sessions: [],
+      view: { ...view, pinned: pinnedRead([pinned]), toggleGroup },
+    });
+
+    const section = screen.getByTestId("session-sidebar-pinned");
+    expect(section).toHaveAccessibleName("Pinned");
+    expect(within(section).getByTestId("session-sidebar-session-pinned")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned1");
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
+    // A pinned row is out of its folder and order for now: Move ▸ offers neither.
+    await user.click(screen.getByTestId("session-row-actions-pinned"));
+    expect(screen.queryByTestId("session-row-up-pinned")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByTestId("session-sidebar-pinned-toggle"));
+    expect(toggleGroup).toHaveBeenCalledExactlyOnceWith("pinned");
+    update([], {
+      ...view,
+      pinned: pinnedRead([pinned], true),
+      collapsedGroupKeys: new Set(["pinned"]),
+    });
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned100+");
+    expect(screen.queryByTestId("session-sidebar-session-pinned")).not.toBeInTheDocument();
+
+    // A search narrows the rows, so the header names no count; no pins means no section.
+    update([], { ...view, search: "launch", setSearch: vi.fn(), pinned: pinnedRead([pinned]) });
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent(/^Pinned$/);
+    update([], { ...view, pinned: pinnedRead([]) });
+    expect(screen.queryByTestId("session-sidebar-pinned")).not.toBeInTheDocument();
+    // A later page an unpin emptied keeps the section and its Previous; the list is not empty.
+    update([], {
+      ...view,
+      catalog: sessionListCatalogFixture(),
+      pinned: { ...pinnedRead([], true), catalog: sessionListCatalogFixture({ previous: true }) },
+    });
+    expect(
+      within(screen.getByTestId("session-sidebar-pinned")).getByRole("button", {
+        name: "Previous sessions",
+      })
+    ).toBeVisible();
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
+
+    // The count names pins, not threads: a pinned child nests under its pinned parent.
+    const pinnedChild: SessionPayload = {
+      ...pinned,
+      id: "pinned-child",
+      name: "Launch copy",
+      lineage: {
+        spawn_role: "worker",
+        parent_session_id: pinned.id,
+        root_session_id: pinned.id,
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      },
+    };
+    update([], { ...view, pinned: pinnedRead([pinned, pinnedChild]) });
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned2");
+
+    // While the pins are still being read, the list below is not declared empty yet.
+    const settled = { ...view, catalog: sessionListCatalogFixture() };
+    update([], { ...settled, pinned: pinnedRead([]) });
+    expect(screen.getByText(/^No sessions/)).toBeVisible();
+    update([], { ...settled, pinned: { ...pinnedRead([]), loading: true } });
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
+  });
+
+  it("Should pin a row from its button and unpin a pinned row from its menu", async () => {
+    const user = userEvent.setup();
+    const listed = { ...sessions[1]! };
+    mockJsonResponse({ session: { ...listed, pinned_at: "2026-11-18T10:00:00Z" } });
+    renderList({ sessions: [listed], view: { ...view, pinned: pinnedRead([pinned]) } });
+
+    const pin = screen.getByTestId(`session-row-pin-${listed.id}`);
+    expect(pin).toHaveAccessibleName(`Pin to top: ${listed.name}`);
+    await user.click(pin);
+    await expectFetchRequest({
+      method: "POST",
+      path: `/api/workspaces/${listed.workspace_id}/sessions/${listed.id}/pin?profile=${listed.profile_name}`,
+    });
+    await waitFor(() => expect(screen.getByText(`Pinned ${listed.name}.`)).toBeInTheDocument());
+
+    vi.mocked(globalThis.fetch).mockClear();
+    mockJsonResponse({ session: { ...pinned, pinned_at: null } });
+    await user.click(screen.getByTestId("session-row-actions-pinned"));
+    await user.click(await screen.findByTestId("session-row-unpin-pinned"));
+    await expectFetchRequest({
+      method: "DELETE",
+      path: `/api/workspaces/${pinned.workspace_id}/sessions/pinned/pin?profile=${pinned.profile_name}`,
+    });
+    await waitFor(() => expect(screen.getByText("Unpinned Launch plan.")).toBeInTheDocument());
+  });
+
+  it("Should offer no pin verb on a subagent row", async () => {
+    const user = userEvent.setup();
+    const subagent: SessionPayload = {
+      ...sessions[1]!,
+      id: "sub",
+      lineage: {
+        spawn_role: "subagent",
+        parent_session_id: "gone",
+        root_session_id: "gone",
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      },
+    };
+    renderList({ sessions: [subagent], view: { ...view, pinned: pinnedRead([]) } });
+
+    expect(screen.queryByTestId("session-row-pin-sub")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("session-row-actions-sub"));
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-pin-sub")).not.toBeInTheDocument();
+  });
+});
+
 // Invariant (#1202): a row whose Needs you the daemon can clear offers Mark as seen; a row
 // that still waits on an answer keeps its badge and gets no such verb.
 // Owner: SessionList row menu (shared with the Kanban card and the context menu).
@@ -2921,6 +3099,30 @@ describe("SessionList folders and manual order", () => {
     );
     await user.click(screen.getByTestId("session-sidebar-folder-fa-toggle"));
     expect(screen.getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
+  });
+
+  // Invariant: a header toggle takes tree disclosure keys — ArrowLeft collapses,
+  // ArrowRight expands, each a no-op in its own state — and is a session-walk stop.
+  it("Should collapse and expand a folder from its header with the arrow keys", async () => {
+    const user = userEvent.setup();
+    renderLayout("created");
+    const toggle = screen.getByTestId("session-sidebar-folder-fa-toggle");
+    expect(toggle).toHaveAttribute("data-sidebar-stop", "folder");
+    toggle.focus();
+
+    await user.keyboard("{ArrowRight}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{ArrowLeft}");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("session-sidebar-session-f1")).not.toBeInTheDocument();
+    await user.keyboard("{ArrowLeft}");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.keyboard("{ArrowRight}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("session-sidebar-session-f1")).toHaveAttribute(
+      "data-sidebar-stop",
+      "session"
+    );
   });
 
   // Invariant: right-click and `…` carry the row's verbs plus folder moves and Move up/down
@@ -3731,17 +3933,60 @@ describe("SessionList breadth and Group by", () => {
     expect(setGroupBy).toHaveBeenCalledWith("project");
   });
 
-  // #1132: the toolbar button's name says what a click will do, and it reports the opposite state.
+  // #1846: the toolbar's fold control is a menu; its name and checked item say the current depth.
   it.each([
-    { foldAll: null, label: "Collapse all", next: "collapsed" },
-    { foldAll: "expanded", label: "Collapse all", next: "collapsed" },
-    { foldAll: "collapsed", label: "Expand all", next: "expanded" },
-  ] as const)("Should offer $label while foldAll is $foldAll", async ({ foldAll, label, next }) => {
+    { foldAll: null, name: "Expand or collapse", checked: "nothing", pick: "Expand groups" },
+    { foldAll: "groups", name: "Groups expanded", checked: "Expand groups", pick: "Expand all" },
+    { foldAll: "expanded", name: "All expanded", checked: "Expand all", pick: "Collapse all" },
+    { foldAll: "collapsed", name: "All collapsed", checked: "Collapse all", pick: "Expand groups" },
+  ] as const)(
+    "Should mark $checked and offer every depth while foldAll is $foldAll",
+    async ({ foldAll, name, checked, pick }) => {
+      const user = userEvent.setup();
+      const setFoldAll = vi.fn();
+      renderList({ view: { ...view, foldAll, setFoldAll } });
+      await user.click(screen.getByRole("button", { name }));
+      const items = await screen.findAllByRole("menuitemradio");
+      expect(items.map(item => item.textContent)).toEqual([
+        "Expand groups",
+        "Expand all",
+        "Collapse all",
+      ]);
+      expect(
+        items.filter(item => item.getAttribute("aria-checked") === "true").map(i => i.textContent)
+      ).toEqual(checked === "nothing" ? [] : [checked]);
+      await user.click(screen.getByRole("menuitemradio", { name: pick }));
+      expect(setFoldAll).toHaveBeenCalledWith(
+        { "Expand groups": "groups", "Expand all": "expanded", "Collapse all": "collapsed" }[pick]
+      );
+    }
+  );
+
+  // #1846: the fold menu works from the keyboard alone.
+  it("Should open the fold menu with Enter or Space, move with arrows, pick with Enter and close on Escape", async () => {
     const user = userEvent.setup();
     const setFoldAll = vi.fn();
-    renderList({ view: { ...view, foldAll, setFoldAll } });
-    await user.click(screen.getByRole("button", { name: label }));
-    expect(setFoldAll).toHaveBeenCalledWith(next);
+    renderList({ view: { ...view, foldAll: "collapsed", setFoldAll } });
+    const trigger = screen.getByRole("button", { name: "All collapsed" });
+    act(() => trigger.focus());
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(setFoldAll).not.toHaveBeenCalled();
+
+    await user.keyboard(" ");
+    await screen.findByRole("menu");
+    await waitFor(() =>
+      expect(screen.getByRole("menuitemradio", { name: "Expand groups" })).toHaveFocus()
+    );
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitemradio", { name: "Expand all" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(setFoldAll).toHaveBeenCalledWith("expanded");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   // The filter belongs to the board: the List has no such control, and showing children marks
@@ -3961,6 +4206,32 @@ describe("SessionList breadth and Group by", () => {
 
     await user.click(beta);
     expect(toggleGroup).toHaveBeenCalledWith("project:ws-beta");
+  });
+
+  // Invariant: group headers take the same disclosure keys as folder headers.
+  it("Should expand a collapsed group with ArrowRight and collapse an open one with ArrowLeft", async () => {
+    const user = userEvent.setup();
+    const toggleGroup = vi.fn();
+    renderList({
+      sessions: [],
+      view: grouped({ collapsedGroupKeys: new Set(["project:ws-beta"]), toggleGroup }),
+    });
+    const alpha = await screen.findByTestId("session-sidebar-group-project:ws-alpha");
+    const beta = screen.getByTestId("session-sidebar-group-project:ws-beta");
+    expect(beta).toHaveAttribute("data-sidebar-stop", "group");
+
+    beta.focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(toggleGroup).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowRight}");
+    expect(toggleGroup).toHaveBeenCalledExactlyOnceWith("project:ws-beta");
+
+    toggleGroup.mockClear();
+    alpha.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(toggleGroup).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowLeft}");
+    expect(toggleGroup).toHaveBeenCalledExactlyOnceWith("project:ws-alpha");
   });
 
   it("W-24: Should retry one failed group in place while the other groups render", async () => {

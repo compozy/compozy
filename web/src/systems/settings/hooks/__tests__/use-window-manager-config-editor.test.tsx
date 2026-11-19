@@ -23,12 +23,6 @@ vi.mock("../../adapters/window-manager-layouts-api", async importOriginal => {
 
 import { WindowManagerSettingsApplyError } from "../../adapters/window-manager-layouts-api";
 import { windowManagerSettingsConfigToWire } from "../../lib/window-manager-settings-wire";
-import {
-  applyTerminalShortcutPreset,
-  previewTerminalShortcutPreset,
-  revertTerminalShortcutPreset,
-  TERMINAL_SHORTCUT_PRESET,
-} from "../../lib/window-manager-shortcut-preset";
 
 import {
   useWindowManagerConfigEditor,
@@ -353,77 +347,5 @@ describe("useWindowManagerConfigEditor", () => {
       expect(queryClient.getQueryState(clientKey)?.isInvalidated).toBe(true);
       expect(queryClient.getQueryState(globalKey)?.isInvalidated).toBe(true);
     });
-  });
-});
-
-/**
- * The preset preview reports rows by label, so it needs the catalog the daemon
- * would project — every id the preset touches, plus the defaults it displaces.
- */
-const PRESET_ACTIONS = [
-  ...new Set([...Object.keys(TERMINAL_SHORTCUT_PRESET), ...Object.keys(SHORTCUT_DEFAULTS)]),
-].map(id => ({ id, label: id, section: "Window", source: "core", alias: null }));
-
-describe("Terminal shortcut preset", () => {
-  it("Should preview every changed key and flag layout hazards [UT-063]", () => {
-    const preview = previewTerminalShortcutPreset({}, SHORTCUT_DEFAULTS, PRESET_ACTIONS);
-
-    expect(preview.map(change => change.actionId)).toEqual(Object.keys(TERMINAL_SHORTCUT_PRESET));
-    expect(preview.some(change => change.hazards.includes("altgr"))).toBe(true);
-    expect(preview.find(change => change.actionId === "window.focus.down")?.hazards).toContain(
-      "displaced-default"
-    );
-    expect(preview.find(change => change.actionId === "window.tab.jump")?.before).toEqual([
-      "meta+Digit1..8",
-    ]);
-    expect(preview.find(change => change.actionId === "desktop.switch")?.after).toEqual([
-      "control+Digit1..9",
-      "meta+Digit1..9",
-    ]);
-    const conflicted = previewTerminalShortcutPreset(
-      { "layout.undo": ["control+ArrowLeft"] },
-      SHORTCUT_DEFAULTS,
-      PRESET_ACTIONS
-    );
-    expect(
-      conflicted
-        .find(change => change.actionId === "window.focus.left")
-        ?.conflicts.some(conflict => conflict.kind === "blocked")
-    ).toBe(true);
-  });
-
-  it("Should not let a stored binding to a retired action block a preset chord", () => {
-    // The daemon skips retired ids, so the chord a retired override still holds is free.
-    const preview = previewTerminalShortcutPreset(
-      { "window.zoom": ["control+ArrowLeft"] },
-      SHORTCUT_DEFAULTS,
-      PRESET_ACTIONS
-    );
-
-    expect(
-      preview
-        .find(change => change.actionId === "window.focus.left")
-        ?.conflicts.some(conflict => conflict.actionIds.includes("window.zoom"))
-    ).toBe(false);
-  });
-
-  it("Should apply atomically, re-apply idempotently, and restore only touched keys [UT-064]", () => {
-    const before = {
-      "window.close": ["meta+shift+KeyW"],
-      "layout.undo": ["alt+KeyU"],
-    };
-    const applied = applyTerminalShortcutPreset(before);
-    expect(applied.changed).toBe(true);
-    expect(applied.revert).not.toBeNull();
-    expect(applied.overrides["window.close"]).toEqual(TERMINAL_SHORTCUT_PRESET["window.close"]);
-
-    const reapplied = applyTerminalShortcutPreset(applied.overrides);
-    expect(reapplied.changed).toBe(false);
-    expect(reapplied.overrides).toBe(applied.overrides);
-
-    const manuallyEdited = { ...applied.overrides, "layout.undo": ["alt+KeyZ"] };
-    const restored = revertTerminalShortcutPreset(manuallyEdited, applied.revert!);
-    expect(restored["window.close"]).toEqual(["meta+shift+KeyW"]);
-    expect(restored["layout.undo"]).toEqual(["alt+KeyZ"]);
   });
 });

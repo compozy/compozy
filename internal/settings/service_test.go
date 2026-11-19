@@ -1125,6 +1125,88 @@ bottom_center = 42
 		}
 	})
 
+	t.Run("Should keep a stored chord a newer default collides with and still reject a new one", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		// Stored before alt+KeyH became the window.focus.left default (#1826).
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+[window_manager.shortcuts]
+"window.close" = ["meta+KeyW", "alt+KeyH"]
+`)
+		service := testService(t, homePaths, Dependencies{})
+		edited := map[string]windowmanager.ShortcutBinding{
+			"window.close":   {"meta+KeyW", "alt+KeyH"},
+			"layout.balance": {"control+alt+KeyU"},
+		}
+		if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			Section:                SectionWindowManager,
+			WindowManagerShortcuts: &edited,
+		}); err != nil {
+			t.Fatalf("UpdateSection(unrelated edit beside a legacy collision) error = %v", err)
+		}
+
+		recorded := map[string]windowmanager.ShortcutBinding{
+			"window.close":   {"meta+KeyW", "alt+KeyH"},
+			"layout.balance": {"alt+KeyJ"},
+		}
+		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			Section:                SectionWindowManager,
+			WindowManagerShortcuts: &recorded,
+		})
+		conflict, conflictOK := errors.AsType[*windowmanager.ShortcutConflictError](err)
+		if !conflictOK || conflict.Owner != "window.focus.down" || conflict.Chord != "alt+KeyJ" {
+			t.Fatalf("UpdateSection(new collision) error = %T %v, want window.focus.down owner of alt+KeyJ", err, err)
+		}
+	})
+
+	t.Run("Should move a chord that displaced a newer default to another command on overwrite", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		// Stored before alt+KeyH became the window.focus.left default (#1826).
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+[window_manager.shortcuts]
+"window.close" = ["meta+KeyW", "alt+KeyH"]
+`)
+		service := testService(t, homePaths, Dependencies{})
+		recorded := map[string]windowmanager.ShortcutBinding{
+			"window.close":   {"meta+KeyW", "alt+KeyH"},
+			"layout.balance": {"alt+KeyH"},
+		}
+		if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			Section:                SectionWindowManager,
+			WindowManagerShortcuts: &recorded,
+			Overwrite:              true,
+		}); err != nil {
+			t.Fatalf("UpdateSection(overwrite transfer) error = %v", err)
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(overwrite transfer) error = %v", err)
+		}
+		closeBinding := loaded.WindowManager.Shortcuts["window.close"]
+		if !slices.Equal(closeBinding, windowmanager.ShortcutBinding{"meta+KeyW"}) {
+			t.Fatalf("window.close shortcuts = %q, want [meta+KeyW]", closeBinding)
+		}
+		balanceBinding := loaded.WindowManager.Shortcuts["layout.balance"]
+		if !slices.Equal(balanceBinding, windowmanager.ShortcutBinding{"alt+KeyH"}) {
+			t.Fatalf("layout.balance shortcuts = %q, want [alt+KeyH]", balanceBinding)
+		}
+		effective, _, err := windowmanager.TolerantEffectiveKeymap(
+			loaded.WindowManager.Shortcuts, windowmanager.DefaultBindableIDs(),
+		)
+		if err != nil {
+			t.Fatalf("TolerantEffectiveKeymap() error = %v", err)
+		}
+		focusLeft := effective["window.focus.left"]
+		if !slices.Equal(focusLeft, windowmanager.ShortcutBinding{"control+ArrowLeft"}) {
+			t.Fatalf("window.focus.left = %q, want the default without the moved chord", focusLeft)
+		}
+	})
+
 	t.Run("Should transfer a desktop-global chord only through an atomic overwrite", func(t *testing.T) {
 		t.Parallel()
 
@@ -3501,6 +3583,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			runtime := &recordingMCPAuthRuntime{deleteStateErrs: map[int]error{1: invalidateErr}}
 			writeCalls := 0
 			writer := func(
+				ctx context.Context,
 				home compozyconfig.HomePaths,
 				root string,
 				name string,
@@ -3511,7 +3594,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 				if writeCalls == 2 {
 					return rollbackErr
 				}
-				return writeMCPDefinition(home, root, name, target, server)
+				return writeMCPDefinition(ctx, home, root, name, target, server)
 			}
 			service := testService(t, homePaths, Dependencies{
 				MCPAuth:             runtime,

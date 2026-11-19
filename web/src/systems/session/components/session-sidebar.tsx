@@ -45,6 +45,7 @@ export function SessionSidebar({
   return (
     <aside
       aria-label="Sessions"
+      data-session-rail
       data-state={open ? "open" : "closed"}
       data-testid="session-sidebar"
       inert={!open}

@@ -241,6 +241,7 @@ export {
   SessionTransportHistoryResetNotice,
 } from "./components/session-transport-notices";
 export { sessionKeys } from "./lib/query-keys";
+export { sessionLaunchPreviewOptions } from "./lib/session-catalog-options";
 export {
   cachedForeignSessionOwner,
   resolveForeignSessionOwner,
@@ -403,10 +404,7 @@ export {
   SessionRenameDialog,
   type SessionRenameDialogProps,
 } from "./components/session-rename-dialog";
-export {
-  SessionLaterDialog,
-  type SessionLaterDialogProps,
-} from "./components/session-later-dialog";
+export { SessionLaterDialog } from "./components/session-later-dialog";
 export { SessionRowActions, type SessionRowActionsProps } from "./components/session-row-actions";
 export { SessionList, type SessionListProps } from "./components/session-list/session-list";
 export { preloadSessionEntry } from "./lib/session-entry-preload";
@@ -414,6 +412,7 @@ export { SessionSidebarSkeleton } from "./components/session-list/session-list-s
 export { SessionSidebar, type SessionSidebarProps } from "./components/session-sidebar";
 export { SessionSidebarLayout } from "./components/session-sidebar-layout";
 export { sessionThreadFolds } from "./lib/session-sidebar-scope";
+export { walkSessionList } from "./lib/session-list-stops";
 export {
   buildSessionTree,
   childSessionSignalState,

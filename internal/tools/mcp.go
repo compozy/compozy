@@ -49,6 +49,7 @@ type MCPProvider struct {
 	discoveryGenerations map[SourceRef]mcpDiscoveryGeneration
 	discovered           sync.Map // source identity -> last discovered descriptors
 	discoveryFailures    sync.Map // source identity -> failed latest discovery
+	catalog              *mcpCatalogRefresh
 
 	consent         func(context.Context, SourceRef, string) (bool, error)
 	discoveryBudget time.Duration
@@ -232,6 +233,7 @@ func (h *mcpHandle) Availability(ctx context.Context, scope Scope) Availability 
 	if h.provider != nil {
 		source := h.descriptor.Source
 		source.RawToolName = ""
+		source.Owner = mcpSourceServerName(source)
 		if _, failed := h.provider.discoveryFailures.Load(source); failed {
 			return Unavailable(ReasonBackendUnhealthy)
 		}

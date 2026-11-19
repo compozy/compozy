@@ -83,6 +83,28 @@ function notificationRow(
     workspaceLabel: item.workspace_label,
   };
   switch (item.kind) {
+    case "operator-notice":
+      return {
+        ...common,
+        kind: "operator-notice",
+        id: item.id,
+        sessionId: item.source_id,
+        reason: item.detail,
+        occurredAt: item.occurred_at,
+        stale,
+      };
+    case "automation-job-failure":
+    case "automation-trigger-failure":
+      return {
+        ...common,
+        kind: "automation-failure",
+        id: item.run_id ?? item.source_id,
+        automationId: item.source_id,
+        automationKind: item.kind === "automation-job-failure" ? "job" : "trigger",
+        reason: item.detail,
+        occurredAt: item.occurred_at,
+        stale,
+      };
     case "session":
       return {
         ...common,

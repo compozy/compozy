@@ -3382,6 +3382,9 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
 		addMCPHotActivationSchemas(t, baseline, current)
+		// Gateway pairing exposes a hand-typed 6-digit alias beside the opaque artifact; the redeem
+		// request accepts either representation, so artifact becomes optional.
+		addGatewayManualPairingSchemas(t, baseline, current)
 		addMarketplacePluginCatalogSchemas(baseline)
 		oldComponents["ExtensionValidatePayload"].(map[string]any)["properties"].(map[string]any)["inputs"] = map[string]any{
 			"type": "array",
@@ -3996,6 +3999,11 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addSessionCatalogFacetsLater(baseline) == 0 {
 		t.Fatal("approved facets Later total: no historical session catalog facets schemas found")
 	}
+	// #1827: optional pinned_at on session payloads, the pinned catalog filter and the pinned sort.
+	if addSessionPinSchemas(baseline) == 0 {
+		t.Fatal("approved pin addition: no historical session schemas found")
+	}
+	addSessionCatalogPinnedParameter(t, baseline)
 	for _, code := range []tools.ErrorCode{
 		tools.ErrorCodeSessionInLater,
 		tools.ErrorCodeSubagentLaterFollowsParent,
@@ -4388,6 +4396,33 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		body["properties"].(map[string]any)["approve_authority_sha256"] = map[string]any{"type": "string"}
 	}
 	addAlwaysOnAdditiveSchemas(baseline)
+	// #1826: optional additive `insert_edge` on window.open; existing fields stay unchanged.
+	if addWindowOpenInsertEdge(baseline) == 0 {
+		t.Fatal("approved insert_edge addition: no historical window spec schemas found")
+	}
+}
+
+func addWindowOpenInsertEdge(value any) int {
+	added := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			added += addWindowOpenInsertEdge(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			added += addWindowOpenInsertEdge(child)
+		}
+		props, ok := node["properties"].(map[string]any)
+		if ok && props["insert_tiled"] != nil && props["stack_target_window_id"] != nil {
+			props["insert_edge"] = map[string]any{
+				"type": "string",
+				"enum": []any{"left", "right", "top", "bottom"},
+			}
+			added++
+		}
+	}
+	return added
 }
 
 // Match historical generic error fields, including payloads that embed them.
@@ -5684,6 +5719,60 @@ func addSessionCatalogLaterParameter(t *testing.T, baseline map[string]any) {
 			t.Fatalf("approved Later filter: %s has no archive parameter", path)
 		}
 		operation["parameters"] = slices.Concat(parameters[:at+1], []any{later}, parameters[at+1:])
+	}
+}
+
+func addSessionPinSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionPinSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionPinSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["badge"] == nil || properties["attachable"] == nil || properties["workspace_id"] == nil ||
+			properties["id"] == nil {
+			return count
+		}
+		properties["pinned_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+		count++
+	}
+	return count
+}
+
+// addSessionCatalogPinnedParameter inserts the pinned filter after the Later
+// filter of each session catalog read and the pinned value into its sort.
+func addSessionCatalogPinnedParameter(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	pinned := map[string]any{
+		"description": "Visibility of pinned sessions; included by default",
+		"in":          "query", "name": "pinned",
+		"schema": map[string]any{"enum": []any{"exclude", "only", "include"}, "type": "string"},
+	}
+	for _, path := range []string{"/api/sessions", "/api/sessions/facets", "/api/workspaces/{workspace_id}/sessions"} {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		at := slices.IndexFunc(parameters, func(parameter any) bool {
+			return parameter.(map[string]any)["name"] == "later"
+		})
+		if at < 0 {
+			t.Fatalf("approved pinned filter: %s has no later parameter", path)
+		}
+		operation["parameters"] = slices.Concat(parameters[:at+1], []any{pinned}, parameters[at+1:])
+		for _, parameter := range operation["parameters"].([]any) {
+			parameter := parameter.(map[string]any)
+			if parameter["name"] != "sort" {
+				continue
+			}
+			parameter["description"] = "Stable session ordering; pinned (pin order, oldest first) requires pinned=only"
+			schema := parameter["schema"].(map[string]any)
+			schema["enum"] = append(schema["enum"].([]any), "pinned")
+		}
 	}
 }
 
@@ -6984,6 +7073,47 @@ func addMCPReloadErrorFields(value any) int {
 }
 
 // These additions expose MCP status without changing any historical field.
+// addGatewayManualPairingSchemas approves the hand-typed 6-digit pairing alias.
+func addGatewayManualPairingSchemas(t *testing.T, baseline, current map[string]any) {
+	t.Helper()
+	newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
+	oldPaths := baseline["paths"].(map[string]any)
+	manualCodeProperty := map[string]any{"type": "string"}
+	pairingComponent := newComponents["GatewayPairingArtifactPayload"].(map[string]any)
+	if pairingComponent["properties"].(map[string]any)["manual_code"] == nil {
+		t.Fatal("missing approved gateway pairing field manual_code")
+	}
+	// The mint response gains the required alias beside the opaque artifact.
+	mint := gatewayBaselineSchema(t, oldPaths, "/api/gateway/pairings", "post", "responses", "201")
+	mint["properties"].(map[string]any)["manual_code"] = manualCodeProperty
+	mint["required"] = append(mint["required"].([]any), "manual_code")
+	// The redeem request accepts the artifact or the alias, so artifact is no longer required.
+	redeem := gatewayBaselineSchema(t, oldPaths, "/api/gateway/pairings/redeem", "post", "requestBody")
+	redeem["properties"].(map[string]any)["manual_code"] = manualCodeProperty
+	required := make([]any, 0, len(redeem["required"].([]any)))
+	for _, name := range redeem["required"].([]any) {
+		if name != "artifact" {
+			required = append(required, name)
+		}
+	}
+	redeem["required"] = required
+}
+
+func gatewayBaselineSchema(
+	t *testing.T,
+	paths map[string]any,
+	path string,
+	method string,
+	keys ...string,
+) map[string]any {
+	t.Helper()
+	node := paths[path].(map[string]any)[method]
+	for _, key := range keys {
+		node = node.(map[string]any)[key]
+	}
+	return node.(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+}
+
 func addMCPHotActivationSchemas(t *testing.T, baseline, current map[string]any) {
 	t.Helper()
 	components := current["components"].(map[string]any)["schemas"].(map[string]any)
@@ -7031,6 +7161,8 @@ func addMCPHotActivationSchemas(t *testing.T, baseline, current map[string]any) 
 					t.Fatal("missing approved MCP field definition_source")
 				}
 				properties["definition_source"] = serverProperties["definition_source"]
+				// #1852 adds one optional boolean without changing the existing MCP server fields.
+				properties["disabled"] = map[string]any{"type": "boolean"}
 			}
 		}
 	}

@@ -129,6 +129,13 @@ export const settingsRouteStories = [
   },
   {
     system: "settings",
+    routePath: "/settings/shortcuts",
+    storybookPath: "/settings/shortcuts",
+    title: "systems/settings/routes/SettingsShortcuts",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
     routePath: "/settings/profiles",
     storybookPath: "/settings/profiles",
     title: "systems/settings/routes/SettingsProfiles",

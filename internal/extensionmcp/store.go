@@ -24,9 +24,10 @@ type Target struct {
 
 // Override contains the editable fields applied over a published declaration.
 type Override struct {
-	Env     map[string]string
-	Headers map[string]string
-	URL     string
+	Disabled bool
+	Env      map[string]string
+	Headers  map[string]string
+	URL      string
 }
 
 // Record retains an allocation until the owning installed instance is removed.

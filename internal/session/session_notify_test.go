@@ -4,13 +4,17 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/observe/attention"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -50,6 +54,157 @@ func TestPublishOperatorNotification(t *testing.T) {
 		if event.OperatorNotification.Title != "Dependency audit done" ||
 			event.OperatorNotification.Body != "No blockers. token=[REDACTED]" {
 			t.Fatalf("notification = %#v, want sanitized text", event.OperatorNotification)
+		}
+	})
+
+	t.Run("Should keep offline notices across restart with an internal watcher", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), "global.db")
+		writer, err := globaldb.OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(context.Background()); err != nil {
+				t.Errorf("close writer database: %v", err)
+			}
+		})
+		sender, _ := newNotifyTestManager()
+		WithOperatorNoticeOutbox(writer)(sender)
+		watcher, cancel, err := sender.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, ExcludeOperatorNotifications: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		result, err := sender.PublishOperatorNotification(ctx, NotifyRequest{
+			SessionID: "sess-offline", ProfileID: store.DefaultProfileID,
+			Title: "  Needs help  ", Body: "token=ghp_abcdefghijklmnopqrstuv",
+		})
+		if err != nil || result.Outcome != NotifyOutcomeNoClient {
+			t.Fatalf("offline publish = %#v, %v; want no-client", result, err)
+		}
+		sender.publishSessionCatalogEvent(CatalogEvent{
+			Name: CatalogEventNameChanged, ProfileID: store.DefaultProfileID, SessionID: "sess-offline",
+		})
+		if event := <-watcher; event.Name != CatalogEventNameChanged {
+			t.Fatalf("internal watcher received %q, want catalog wake", event.Name)
+		}
+		if err := writer.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+
+		reader, err := globaldb.OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Close(context.Background()); err != nil {
+				t.Errorf("close reopened database: %v", err)
+			}
+		})
+		receiver, _ := newNotifyTestManager()
+		WithOperatorNoticeOutbox(reader)(receiver)
+		scope := attention.Scope{
+			ProfileID: store.DefaultProfileID, ActorKind: "operator", ActorID: "operator", Population: "bell",
+		}
+		notices, err := receiver.ListUnreadOperatorNotices(ctx, scope)
+		if err != nil || len(notices) != 1 {
+			t.Fatalf("reopened notices = %#v, %v; want one", notices, err)
+		}
+		notice := notices[0]
+		if notice.SessionID != "sess-offline" || notice.WorkspaceID != "" ||
+			notice.Title != "Needs help" || notice.Body != "token=[REDACTED]" {
+			t.Fatalf("queued notice = %#v", notice)
+		}
+		snapshot, _, err := reader.CaptureAttentionSnapshot(ctx, scope, []string{notice.NotificationID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := reader.AcknowledgeAttentionSnapshot(ctx, scope, snapshot, notice.NotificationID); err != nil {
+			t.Fatal(err)
+		}
+		notices, err = receiver.ListUnreadOperatorNotices(ctx, scope)
+		if err != nil || len(notices) != 0 {
+			t.Fatalf("acknowledged notices = %#v, %v; want none", notices, err)
+		}
+	})
+
+	t.Run("Should allow an immediate retry after the outbox rejects a notice", func(t *testing.T) {
+		t.Parallel()
+		manager, _ := newNotifyTestManager()
+		writeErr := errors.New("outbox unavailable")
+		outboxErr := writeErr
+		var notices []OperatorNotification
+		WithOperatorNoticeOutbox(notifyWriteStub{
+			enqueue: func(_ context.Context, notice OperatorNotification) error {
+				if outboxErr != nil {
+					return outboxErr
+				}
+				notices = append(notices, notice)
+				return nil
+			},
+		})(manager)
+		req := NotifyRequest{SessionID: "sess-retry", ProfileID: store.DefaultProfileID, Title: "Needs help"}
+		if _, err := manager.PublishOperatorNotification(t.Context(), req); !errors.Is(err, writeErr) {
+			t.Fatalf("first publish error = %v, want %v", err, writeErr)
+		}
+
+		outboxErr = nil
+		result, err := manager.PublishOperatorNotification(t.Context(), req)
+		if err != nil || result.Outcome != NotifyOutcomeNoClient || len(notices) != 1 {
+			t.Fatalf("retried publish = %#v, %v; retained notices = %#v", result, err, notices)
+		}
+	})
+
+	t.Run("Should preserve a newer rate slot when an older outbox write fails", func(t *testing.T) {
+		t.Parallel()
+		manager, advance := newNotifyTestManager()
+		writeErr := errors.New("delayed outbox failure")
+		firstWriteStarted := make(chan struct{})
+		firstWriteCanFinish := make(chan struct{})
+		releaseFirstWrite := sync.OnceFunc(func() { close(firstWriteCanFinish) })
+		defer releaseFirstWrite()
+		WithOperatorNoticeOutbox(notifyWriteStub{
+			enqueue: func(_ context.Context, notice OperatorNotification) error {
+				if notice.Title == "First" {
+					close(firstWriteStarted)
+					<-firstWriteCanFinish
+					return writeErr
+				}
+				return nil
+			},
+		})(manager)
+		first := NotifyRequest{SessionID: "sess-concurrent", ProfileID: store.DefaultProfileID, Title: "First"}
+		firstResult := make(chan error, 1)
+		go func() {
+			_, err := manager.PublishOperatorNotification(t.Context(), first)
+			firstResult <- err
+		}()
+		select {
+		case <-firstWriteStarted:
+		case err := <-firstResult:
+			t.Fatalf("first publish returned before reaching the outbox: %v", err)
+		}
+		advance(NotificationRateWindow)
+		second := first
+		second.Title = "Second"
+		result, err := manager.PublishOperatorNotification(t.Context(), second)
+		if err != nil || result.Outcome != NotifyOutcomeNoClient {
+			t.Fatalf("second publish = %#v, %v; want no-client", result, err)
+		}
+		releaseFirstWrite()
+		if err := <-firstResult; !errors.Is(err, writeErr) {
+			t.Fatalf("first publish error = %v, want %v", err, writeErr)
+		}
+
+		third := first
+		third.Title = "Third"
+		result, err = manager.PublishOperatorNotification(t.Context(), third)
+		if err != nil || result.Outcome != NotifyOutcomeRateLimited {
+			t.Fatalf("third publish = %#v, %v; want rate-limited", result, err)
 		}
 	})
 
@@ -205,6 +360,15 @@ func newNotifyTestManager() (*Manager, func(time.Duration)) {
 		now:                     func() time.Time { return now },
 	}
 	return manager, func(delta time.Duration) { now = now.Add(delta) }
+}
+
+type notifyWriteStub struct {
+	OperatorNoticeOutbox
+	enqueue func(context.Context, OperatorNotification) error
+}
+
+func (s notifyWriteStub) EnqueueOperatorNotice(ctx context.Context, notice OperatorNotification) error {
+	return s.enqueue(ctx, notice)
 }
 
 type notifyMuteReader struct {

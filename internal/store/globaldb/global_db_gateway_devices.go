@@ -238,6 +238,59 @@ func (g *GatewayRepo) RevokeDeviceForActor(
 	return device, false, nil
 }
 
+func (g *GatewayRepo) DeleteDevice(ctx context.Context, deviceID string) (gateway.DeviceSession, error) {
+	if err := g.checkReady(ctx, "delete gateway device"); err != nil {
+		return gateway.DeviceSession{}, err
+	}
+	row, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.DeleteGatewayDevice",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.GatewayDeviceSession, error) {
+			return queries.DeleteGatewayDevice(ctx, deviceID)
+		},
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return gateway.DeviceSession{}, gateway.ErrDeviceNotFound
+	}
+	if err != nil {
+		return gateway.DeviceSession{}, fmt.Errorf("store: delete gateway device: %w", err)
+	}
+	return gatewayDeviceSessionFromGenerated(row)
+}
+
+func (g *GatewayRepo) DeleteDeviceForActor(
+	ctx context.Context,
+	actorID string,
+	actorEpoch uint64,
+	deviceID string,
+) (gateway.DeviceSession, error) {
+	if err := g.checkReady(ctx, "delete gateway device with actor fence"); err != nil {
+		return gateway.DeviceSession{}, err
+	}
+	epoch, err := gatewayDeviceEpoch(actorEpoch)
+	if err != nil {
+		return gateway.DeviceSession{}, err
+	}
+	row, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.DeleteGatewayDeviceForActor",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.GatewayDeviceSession, error) {
+			return queries.DeleteGatewayDeviceForActor(ctx, sqlcgen.DeleteGatewayDeviceForActorParams{
+				TargetID: deviceID, ActorID: actorID, ActorEpoch: epoch,
+			})
+		},
+	)
+	if err == nil {
+		return gatewayDeviceSessionFromGenerated(row)
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return gateway.DeviceSession{}, fmt.Errorf("store: delete gateway device with actor fence: %w", err)
+	}
+	return gateway.DeviceSession{}, g.classifyDeviceMutationMiss(ctx, actorID, epoch, deviceID)
+}
+
 func (g *GatewayRepo) RevalidateDeviceEpoch(ctx context.Context, deviceID string, epoch uint64) error {
 	if err := g.checkReady(ctx, "revalidate gateway device epoch"); err != nil {
 		return err

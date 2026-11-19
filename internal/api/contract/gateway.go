@@ -120,10 +120,12 @@ type GatewayDevicePayload struct {
 	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
 }
 
-// GatewayPairingArtifactPayload carries one short-lived, single-use pairing artifact.
+// GatewayPairingArtifactPayload carries one short-lived, single-use pairing artifact and its
+// hand-typed 6-digit alias. Redeeming either representation spends the same pending entry.
 type GatewayPairingArtifactPayload struct {
-	Artifact  string    `json:"artifact"`
-	ExpiresAt time.Time `json:"expires_at"`
+	Artifact   string    `json:"artifact"`
+	ManualCode string    `json:"manual_code"`
+	ExpiresAt  time.Time `json:"expires_at"`
 }
 
 // GatewayIssuedCredentialPayload carries a paired device and its one-time credential.
@@ -136,6 +138,13 @@ type GatewayIssuedCredentialPayload struct {
 type GatewayRevokePayload struct {
 	Device   GatewayDevicePayload `json:"device"`
 	Changed  bool                 `json:"changed"`
+	Canceled int                  `json:"canceled"`
+}
+
+// GatewayRemovedDevicePayload reports the deleted device snapshot and the lifecycle work it required.
+type GatewayRemovedDevicePayload struct {
+	Device   GatewayDevicePayload `json:"device"`
+	Revoked  bool                 `json:"revoked"`
 	Canceled int                  `json:"canceled"`
 }
 
@@ -167,11 +176,13 @@ type GatewayProviderEnableRequest struct {
 	ExpectedGeneration uint64 `json:"expected_generation"`
 }
 
-// GatewayPairingRedeemRequest exchanges a pairing artifact for a device credential.
+// GatewayPairingRedeemRequest exchanges a pairing artifact or its 6-digit manual code for a device
+// credential.
 type GatewayPairingRedeemRequest struct {
-	Artifact   string `json:"artifact"             binding:"required"`
-	Name       string `json:"name"                 binding:"required"`
-	ActorKind  string `json:"actor_kind"           binding:"required"`
+	Artifact   string `json:"artifact,omitempty"`
+	ManualCode string `json:"manual_code,omitempty"`
+	Name       string `json:"name"                  binding:"required"`
+	ActorKind  string `json:"actor_kind"            binding:"required"`
 	Credential string `json:"credential,omitempty"`
 }
 

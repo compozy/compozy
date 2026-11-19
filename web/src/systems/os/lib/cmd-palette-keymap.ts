@@ -1,33 +1,11 @@
 import type { PaletteRegistry } from "./cmd-palette-types";
-import { parseShortcutChord, type ParsedShortcutChord } from "./window-manager-shortcuts";
-
-/**
- * Commands that keep firing while a text control has focus.
- *
- * This is an input policy of the client, not catalog metadata: the daemon has
- * no opinion about which chords a browser text field should swallow, and
- * WCAG 2.1.4 makes the guard the client's obligation. Every id here is one the
- * operator expects to work mid-typing — window and tab lifecycle, and starting
- * a session.
- */
-const ALLOWED_IN_EDITABLE: ReadonlySet<string> = new Set([
-  "palette.open",
-  "session.new",
-  "window.close",
-  "window.tab.new",
-  "window.tab.next",
-  "window.tab.previous",
-  "window.tab.last",
-  "window.tab.reopen",
-  "window.tab.jump.1",
-  "window.tab.jump.2",
-  "window.tab.jump.3",
-  "window.tab.jump.4",
-  "window.tab.jump.5",
-  "window.tab.jump.6",
-  "window.tab.jump.7",
-  "window.tab.jump.8",
-]);
+import { isShortcutEligible, shortcutSurface, type ShortcutSurface } from "./shortcut-eligibility";
+import {
+  parseShortcutChord,
+  shortcutMatches,
+  type ParsedShortcutChord,
+  type PrimaryShortcutModifier,
+} from "./window-manager-shortcuts";
 
 export interface PaletteKeyBinding {
   readonly commandId: string;
@@ -36,7 +14,6 @@ export interface PaletteKeyBinding {
   readonly chords: readonly ParsedShortcutChord[];
   /** Survives a daemon reconnect (e.g. the cheatsheet). */
   readonly availabilityExempt: boolean;
-  readonly allowInEditable: boolean;
   /** False disables the chord until the command's context comes back. */
   readonly available: boolean;
 }
@@ -62,9 +39,27 @@ export function paletteKeyBindings(registry: PaletteRegistry): readonly PaletteK
       section: command.section,
       chords,
       availabilityExempt: command.availability_exempt,
-      allowInEditable: ALLOWED_IN_EDITABLE.has(command.id),
       available: command.available,
     });
   }
   return bindings;
+}
+
+/**
+ * The binding a keystroke runs from the focused surface, or null.
+ *
+ * Matching and the eligibility policy live together so the document listener and
+ * the terminal ask the same question of the same effective keymap.
+ */
+export function eligiblePaletteKeyBinding(
+  event: KeyboardEvent,
+  bindings: readonly PaletteKeyBinding[],
+  primaryModifier: PrimaryShortcutModifier,
+  surface: ShortcutSurface = shortcutSurface(event.target)
+): PaletteKeyBinding | null {
+  const binding = bindings.find(candidate =>
+    candidate.chords.some(chord => shortcutMatches(event, chord, primaryModifier))
+  );
+  if (!binding) return null;
+  return isShortcutEligible(event, surface, primaryModifier === "meta") ? binding : null;
 }

@@ -57,6 +57,7 @@ import { Route as AppSettingsProfilesRouteImport } from './routes/_app/settings/
 import { Route as AppSettingsProviderUsageRouteImport } from './routes/_app/settings/provider-usage'
 import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
 import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/roles'
+import { Route as AppSettingsShortcutsRouteImport } from './routes/_app/settings/shortcuts'
 import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
 import { Route as AppSettingsTerminalRouteImport } from './routes/_app/settings/terminal'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
@@ -319,6 +320,11 @@ const AppSettingsRolesRoute = AppSettingsRolesRouteImport.update({
   path: '/roles',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsShortcutsRoute = AppSettingsShortcutsRouteImport.update({
+  id: '/shortcuts',
+  path: '/shortcuts',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsSkillsRoute = AppSettingsSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
@@ -466,6 +472,7 @@ export interface FileRoutesByFullPath {
   '/settings/provider-usage': typeof AppSettingsProviderUsageRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/roles': typeof AppSettingsRolesRoute
+  '/settings/shortcuts': typeof AppSettingsShortcutsRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
   '/settings/terminal': typeof AppSettingsTerminalRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
@@ -529,6 +536,7 @@ export interface FileRoutesByTo {
   '/settings/provider-usage': typeof AppSettingsProviderUsageRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/roles': typeof AppSettingsRolesRoute
+  '/settings/shortcuts': typeof AppSettingsShortcutsRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
   '/settings/terminal': typeof AppSettingsTerminalRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
@@ -600,6 +608,7 @@ export interface FileRoutesById {
   '/_app/settings/provider-usage': typeof AppSettingsProviderUsageRoute
   '/_app/settings/providers': typeof AppSettingsProvidersRoute
   '/_app/settings/roles': typeof AppSettingsRolesRoute
+  '/_app/settings/shortcuts': typeof AppSettingsShortcutsRoute
   '/_app/settings/skills': typeof AppSettingsSkillsRoute
   '/_app/settings/terminal': typeof AppSettingsTerminalRoute
   '/_app/tasks/$id': typeof AppTasksIdRouteWithChildren
@@ -671,6 +680,7 @@ export interface FileRouteTypes {
     | '/settings/provider-usage'
     | '/settings/providers'
     | '/settings/roles'
+    | '/settings/shortcuts'
     | '/settings/skills'
     | '/settings/terminal'
     | '/tasks/$id'
@@ -734,6 +744,7 @@ export interface FileRouteTypes {
     | '/settings/provider-usage'
     | '/settings/providers'
     | '/settings/roles'
+    | '/settings/shortcuts'
     | '/settings/skills'
     | '/settings/terminal'
     | '/tasks/$id'
@@ -804,6 +815,7 @@ export interface FileRouteTypes {
     | '/_app/settings/provider-usage'
     | '/_app/settings/providers'
     | '/_app/settings/roles'
+    | '/_app/settings/shortcuts'
     | '/_app/settings/skills'
     | '/_app/settings/terminal'
     | '/_app/tasks/$id'
@@ -1173,6 +1185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRolesRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/shortcuts': {
+      id: '/_app/settings/shortcuts'
+      path: '/shortcuts'
+      fullPath: '/settings/shortcuts'
+      preLoaderRoute: typeof AppSettingsShortcutsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/settings/skills': {
       id: '/_app/settings/skills'
       path: '/skills'
@@ -1474,6 +1493,7 @@ interface AppSettingsRouteChildren {
   AppSettingsProviderUsageRoute: typeof AppSettingsProviderUsageRoute
   AppSettingsProvidersRoute: typeof AppSettingsProvidersRoute
   AppSettingsRolesRoute: typeof AppSettingsRolesRoute
+  AppSettingsShortcutsRoute: typeof AppSettingsShortcutsRoute
   AppSettingsSkillsRoute: typeof AppSettingsSkillsRoute
   AppSettingsTerminalRoute: typeof AppSettingsTerminalRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
@@ -1497,6 +1517,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsProviderUsageRoute: AppSettingsProviderUsageRoute,
   AppSettingsProvidersRoute: AppSettingsProvidersRoute,
   AppSettingsRolesRoute: AppSettingsRolesRoute,
+  AppSettingsShortcutsRoute: AppSettingsShortcutsRoute,
   AppSettingsSkillsRoute: AppSettingsSkillsRoute,
   AppSettingsTerminalRoute: AppSettingsTerminalRoute,
   AppSettingsIndexRoute: AppSettingsIndexRoute,

@@ -108,9 +108,11 @@ stop receipt and admitted once to an eligible parent; the notice describes the s
 read current child status before intervening. Already admitted notices never reopen an idle parent.
 An unreadable child receipt is logged with its cause without blocking other sessions' recovery.
 
-An idle always-on instance main also reopens its saved binding after restart without repeating
-its completed turn or requiring queued input. Recovery refusals include their cause in the daemon
-log and, when a saved binding exists, a `session.restart_skipped` event. An ordinary idle session
+An active always-on instance's idle main reopens its saved binding after restart without repeating
+its completed turn or requiring queued input. If the main has never run a turn, automatic
+continuation reopens it as an unbound session so the first wake can bind the provider.
+Recovery refusals include their cause in the daemon log and a `session.restart_skipped` event.
+An active instance whose main remains stopped after shutdown shows attention. An ordinary idle session
 with no interrupted turn logs `no_pending_interruption`. Worker recovery reopens its saved binding
 only for an interrupted auto-stop worker, a recovered worker monitor or an undelivered child
 shutdown notice; an idle worker alone does not reopen its parent. Monitor recovery checks both
@@ -2066,8 +2068,10 @@ cannot resume for another reason, the operator can run
 `compozy__agent_instance_clear_main`, operator only). It keeps the instance, the session
 ID, queued inputs and agent memory, but discards the main's conversation and starts a
 fresh one; it is refused while the main is running a turn and has no dry run.
-`session archive` still refuses an instance main, `ensure-main` returns the existing
-main, and `adopt` refuses an agent that already has an instance.
+`session archive` refuses an instance main, and `adopt` refuses an agent that already has an
+instance. `ensure-main` reports a session conflict when an active instance's existing main remains
+stopped after shutdown. A paused instance retains its main. If the main is still stopped after
+resuming the instance, an explicitly submitted prompt can reopen it.
 
 A repeated timer request in the same session with the same description and a
 deadline within one second reuses the active monitor. A successfully admitted

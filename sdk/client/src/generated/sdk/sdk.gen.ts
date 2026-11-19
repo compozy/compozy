@@ -1185,6 +1185,9 @@ import type {
   PinCmdPaletteCommandData,
   PinCmdPaletteCommandErrors,
   PinCmdPaletteCommandResponses,
+  PinSessionData,
+  PinSessionErrors,
+  PinSessionResponses,
   PlanSessionHistoryCleanupData,
   PlanSessionHistoryCleanupErrors,
   PlanSessionHistoryCleanupResponses,
@@ -1362,6 +1365,9 @@ import type {
   RemoveExtensionData,
   RemoveExtensionErrors,
   RemoveExtensionResponses,
+  RemoveGatewayDeviceData,
+  RemoveGatewayDeviceErrors,
+  RemoveGatewayDeviceResponses,
   RemoveMarketplaceSourceData,
   RemoveMarketplaceSourceErrors,
   RemoveMarketplaceSourceResponses,
@@ -1542,6 +1548,9 @@ import type {
   SetSessionRuntimeData,
   SetSessionRuntimeErrors,
   SetSessionRuntimeResponses,
+  SetSettingsMCPServerEnabledData,
+  SetSettingsMCPServerEnabledErrors,
+  SetSettingsMCPServerEnabledResponses,
   SetSettingsProviderEnabledData,
   SetSettingsProviderEnabledErrors,
   SetSettingsProviderEnabledResponses,
@@ -1617,6 +1626,9 @@ import type {
   UnpinCmdPaletteCommandData,
   UnpinCmdPaletteCommandErrors,
   UnpinCmdPaletteCommandResponses,
+  UnpinSessionData,
+  UnpinSessionErrors,
+  UnpinSessionResponses,
   UnregisterWindowManagerClientData,
   UnregisterWindowManagerClientErrors,
   UnregisterWindowManagerClientResponses,
@@ -5005,6 +5017,24 @@ export class gateway extends HeyApiClient {
   }
 
   /**
+   * Remove one paired gateway device record
+   */
+  public removeGatewayDevice<ThrowOnError extends boolean = true>(
+    options: Options<RemoveGatewayDeviceData, ThrowOnError>
+  ): RequestResult<RemoveGatewayDeviceResponses, RemoveGatewayDeviceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RemoveGatewayDeviceResponses,
+      RemoveGatewayDeviceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/gateway/devices/{id}/record",
+      ...options,
+    });
+  }
+
+  /**
    * Confirm one subject against the verified public endpoint
    */
   public bindGatewayIngress<ThrowOnError extends boolean = true>(
@@ -7103,6 +7133,33 @@ export class settings extends HeyApiClient {
       responseStyle: "data",
       url: "/api/settings/mcp-servers/{name}/check",
       ...options,
+    });
+  }
+
+  /**
+   * Turn one scoped MCP server on or off
+   */
+  public setSettingsMCPServerEnabled<ThrowOnError extends boolean = true>(
+    options: Options<SetSettingsMCPServerEnabledData, ThrowOnError>
+  ): RequestResult<
+    SetSettingsMCPServerEnabledResponses,
+    SetSettingsMCPServerEnabledErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).put<
+      SetSettingsMCPServerEnabledResponses,
+      SetSettingsMCPServerEnabledErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/mcp-servers/{name}/enabled",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 
@@ -9605,6 +9662,42 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions",
+      ...options,
+    });
+  }
+
+  /**
+   * Unpin a session so it returns to its place in the list; an unpinned session is unchanged
+   */
+  public unpinSession<ThrowOnError extends boolean = true>(
+    options: Options<UnpinSessionData, ThrowOnError>
+  ): RequestResult<UnpinSessionResponses, UnpinSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      UnpinSessionResponses,
+      UnpinSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pin",
+      ...options,
+    });
+  }
+
+  /**
+   * Pin a session above the session list; pinning a pinned session changes nothing
+   */
+  public pinSession<ThrowOnError extends boolean = true>(
+    options: Options<PinSessionData, ThrowOnError>
+  ): RequestResult<PinSessionResponses, PinSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      PinSessionResponses,
+      PinSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pin",
       ...options,
     });
   }

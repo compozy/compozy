@@ -130,5 +130,7 @@ export { SettingsSaveBar } from "./settings-save-bar";
 export { SettingsSourceBadge } from "./settings-source-badge";
 export type { SettingsSource } from "./settings-source-badge";
 export { WindowManagerConfigEditor } from "./window-manager-config-editor";
+export { WindowManagerGlobalHotkeys } from "./layouts/window-manager-global-hotkeys";
+export { WindowManagerShortcutTable } from "./layouts/window-manager-shortcut-table";
 export { LayoutStage } from "./layouts/layout-stage";
 export { LayoutProfileGrid } from "./layouts/layout-profile-grid";

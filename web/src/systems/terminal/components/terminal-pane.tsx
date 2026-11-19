@@ -37,6 +37,8 @@ export interface TerminalPaneProps {
   exitRetentionMs?: number;
   /** Replaces the emulator. Tests and playback harnesses only. */
   engineLoader?: TerminalEngineLoader;
+  /** The host runs this keystroke from the terminal, so the grid releases it. */
+  isHostShortcut?: (event: KeyboardEvent) => boolean;
   /** The gesture a non-empty selection offers. Omit to render no actions. */
   selectionActions?: TerminalPaneSelectionActions;
   onSelectionChange?: (selection: TerminalSelectionRange | null) => void;
@@ -83,6 +85,7 @@ export function TerminalPane({
   handleRef,
   exitRetentionMs,
   engineLoader,
+  isHostShortcut,
   selectionActions,
   onSelectionChange,
   onReconnect,
@@ -115,6 +118,7 @@ export function TerminalPane({
           {...(engineLoader ? { engineLoader } : {})}
           handleRef={handleRef}
           instanceId={instanceId}
+          {...(isHostShortcut ? { isHostShortcut } : {})}
           onData={attachment.sendInput}
           onProposeDimensions={dimensions => {
             const cols = compact ? TERMINAL_MIN_COLS : dimensions.cols;

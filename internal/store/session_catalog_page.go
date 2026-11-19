@@ -32,13 +32,15 @@ type SessionCatalogPosition struct {
 	NavigatorBand *int    `json:"navigator_band,omitzero"`
 	// ManualFolderRank and ManualPosition anchor the manual sort; see
 	// SessionManualRootRank for sessions outside any folder.
-	ManualFolderRank *int                        `json:"manual_folder_rank,omitzero"`
-	ManualPosition   *int                        `json:"manual_position,omitzero"`
-	AttentionRank    SessionCatalogAttentionRank `json:"attention_rank"`
-	PrimaryAt        time.Time                   `json:"primary_at"`
-	SecondaryAt      time.Time                   `json:"secondary_at"`
-	CreatedAt        time.Time                   `json:"created_at"`
-	ID               string                      `json:"id"`
+	ManualFolderRank *int `json:"manual_folder_rank,omitzero"`
+	ManualPosition   *int `json:"manual_position,omitzero"`
+	// PinnedAt anchors the pinned sort, oldest pin first.
+	PinnedAt      *time.Time                  `json:"pinned_at,omitzero"`
+	AttentionRank SessionCatalogAttentionRank `json:"attention_rank"`
+	PrimaryAt     time.Time                   `json:"primary_at"`
+	SecondaryAt   time.Time                   `json:"secondary_at"`
+	CreatedAt     time.Time                   `json:"created_at"`
+	ID            string                      `json:"id"`
 }
 
 // Validate ensures the keyset anchor is complete.
@@ -71,27 +73,30 @@ type SessionCatalogPageQuery struct {
 	// ExcludeAutomation hides every automation job or trigger run family the
 	// operator has not prompted, whatever its state.
 	ExcludeAutomation bool
-	Subagents         string
 	SkipTotal         bool
-	ReadScope         ReadScope
-	WorkspaceIDs      []string
-	WorkspaceID       string
-	WorktreeID        string
-	State             string
-	SessionType       string
-	AgentName         string
-	ParentSessionID   string
-	RootSessionID     string
+	// AttentionOnly and Resumable sit with the other flags so the query packs
+	// below the by-value size budget.
+	AttentionOnly   bool
+	Resumable       bool
+	Subagents       string
+	ReadScope       ReadScope
+	WorkspaceIDs    []string
+	WorkspaceID     string
+	WorktreeID      string
+	State           string
+	SessionType     string
+	AgentName       string
+	ParentSessionID string
+	RootSessionID   string
 	// ExcludeRootSessionID leaves out that session and every session rooted at it.
 	ExcludeRootSessionID string
 	LineageKind          LineageKind
 	SearchFields         string
 	Search               string
-	AttentionOnly        bool
 	Badges               []string
-	Resumable            bool
 	Archive              SessionArchiveFilter
 	Later                SessionLaterFilter
+	Pinned               SessionPinnedFilter
 	Sort                 string
 	Limit                int
 	After                *SessionCatalogPosition
@@ -129,6 +134,12 @@ func (q SessionCatalogPageQuery) Validate() error {
 	if err := q.Later.Validate(); err != nil {
 		return err
 	}
+	if err := q.Pinned.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(q.Sort) == "pinned" && q.Pinned != SessionPinnedOnly {
+		return fmt.Errorf("store: session catalog pinned sort requires the pinned=only filter")
+	}
 	if !q.LineageKind.Valid() {
 		return fmt.Errorf("store: unsupported session lineage kind filter %q", q.LineageKind)
 	}
@@ -136,13 +147,18 @@ func (q SessionCatalogPageQuery) Validate() error {
 }
 
 func (q SessionCatalogPageQuery) validateCursor() error {
-	if q.After != nil && q.Sort == "name" && q.After.Name == nil {
+	// The cursor clause dispatches on the trimmed key, so the guards read the same key.
+	sort := strings.TrimSpace(q.Sort)
+	if q.After != nil && sort == "pinned" && q.After.PinnedAt == nil {
+		return fmt.Errorf("store: session catalog pinned cursor key is required")
+	}
+	if q.After != nil && sort == "name" && q.After.Name == nil {
 		return fmt.Errorf("store: name cursor key is required")
 	}
-	if q.After != nil && q.Sort == "navigator" && q.After.NavigatorBand == nil {
+	if q.After != nil && sort == "navigator" && q.After.NavigatorBand == nil {
 		return fmt.Errorf("store: navigator cursor band is required")
 	}
-	if q.After != nil && q.Sort == "manual" && (q.After.ManualFolderRank == nil || q.After.ManualPosition == nil) {
+	if q.After != nil && sort == "manual" && (q.After.ManualFolderRank == nil || q.After.ManualPosition == nil) {
 		return fmt.Errorf("store: manual cursor keys are required")
 	}
 	if q.After != nil {

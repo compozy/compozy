@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { openContextMenuFromKeyboard } from "@/systems/os/lib/context-menu-keyboard";
 
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
+import { onDisclosureArrowKey } from "../../lib/session-list-stops";
 
 export interface SessionListFolderProps {
   folder: { id: string; name: string };
@@ -89,7 +90,9 @@ export function SessionListFolder({
         type="button"
         aria-expanded={expanded}
         data-testid={`${testId}-toggle`}
+        data-sidebar-stop={holds === "projects" ? "project-folder" : "folder"}
         onClick={onToggle}
+        onKeyDown={event => onDisclosureArrowKey(event, expanded, onToggle)}
         className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left text-small-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
       >
         <Icon

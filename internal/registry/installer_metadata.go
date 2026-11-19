@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,34 +50,67 @@ func (p *installedPackage) CloseAll() error {
 }
 
 func loadInstalledPackageMetadata(
+	ctx context.Context,
 	rootParent *fileutil.Directory,
 	rootName string,
 	root *fileutil.Directory,
+	manifestlessPluginName string,
 ) (*installedPackage, installedPackageMetadata, error) {
-	_, manifestName, installed, err := locateInstallManifestRoot(rootParent, rootName, root)
+	if err := ctx.Err(); err != nil {
+		return nil, installedPackageMetadata{}, err
+	}
+	_, manifestName, installed, err := locateInstallManifestRoot(
+		ctx,
+		rootParent,
+		rootName,
+		root,
+		manifestlessPluginName != "",
+	)
 	if err != nil {
 		return nil, installedPackageMetadata{}, err
 	}
-	metadata, err := parseInstalledPackageMetadata(installed.directory, manifestName)
+	if manifestName == "" {
+		if err := agentplugin.ValidateName(manifestlessPluginName); err != nil {
+			return nil, installedPackageMetadata{}, errors.Join(err, installed.CloseAll())
+		}
+		return installed, installedPackageMetadata{name: manifestlessPluginName}, nil
+	}
+	metadata, err := readInstalledPackageMetadata(ctx, installed.directory, manifestName)
 	if err != nil {
 		closeErr := installed.CloseAll()
 		return nil, installedPackageMetadata{}, errors.Join(err, closeErr)
 	}
 	metadata.manifestPath = manifestName
-	if strings.TrimSpace(metadata.name) == "" {
-		closeErr := installed.CloseAll()
-		return nil, installedPackageMetadata{}, errors.Join(
-			fmt.Errorf("registry: manifest %q is missing name", manifestName),
-			closeErr,
-		)
-	}
 	return installed, metadata, nil
 }
 
+func readInstalledPackageMetadata(
+	ctx context.Context,
+	root *fileutil.Directory,
+	name string,
+) (installedPackageMetadata, error) {
+	if err := ctx.Err(); err != nil {
+		return installedPackageMetadata{}, err
+	}
+	metadata, err := parseInstalledPackageMetadata(root, name)
+	if err != nil {
+		return installedPackageMetadata{}, err
+	}
+	if strings.TrimSpace(metadata.name) == "" {
+		if filepath.Base(name) == installerAgentPluginManifestName {
+			return installedPackageMetadata{}, invalidAgentPluginManifest(name, "name", "missing name")
+		}
+		return installedPackageMetadata{}, fmt.Errorf("registry: manifest %q is missing name", name)
+	}
+	return metadata, nil
+}
+
 func locateInstallManifestRoot(
+	ctx context.Context,
 	rootParent *fileutil.Directory,
 	rootName string,
 	root *fileutil.Directory,
+	allowManifestlessPlugin bool,
 ) (_ *fileutil.Directory, _ string, packageRoot *installedPackage, err error) {
 	if rootParent == nil || root == nil {
 		return nil, "", nil, ErrArchiveRootRequired
@@ -91,11 +125,21 @@ func locateInstallManifestRoot(
 	}()
 
 	for {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, "", nil, ctxErr
+		}
 		manifestName, findErr := manifestNameAtRoot(current)
 		if findErr != nil {
 			return nil, "", nil, findErr
 		}
-		if manifestName != "" {
+		found := manifestName != ""
+		if !found && allowManifestlessPlugin {
+			found, findErr = hasManifestlessPluginComponents(ctx, current)
+			if findErr != nil {
+				return nil, "", nil, findErr
+			}
+		}
+		if found {
 			return currentParent, manifestName, &installedPackage{
 				parent:      currentParent,
 				name:        currentName,
@@ -284,11 +328,9 @@ func parseInstalledPackageMetadata(root *fileutil.Directory, manifestName string
 	case installerAgentPluginManifestName:
 		var meta agentPluginManifestHeader
 		if err := json.Unmarshal(content, &meta); err != nil {
-			return installedPackageMetadata{}, fmt.Errorf(
-				"registry: decode Agent Plugins manifest %q: %w",
-				manifestName,
-				err,
-			)
+			manifestErr := invalidAgentPluginManifest(manifestName, "$", err.Error())
+			manifestErr.Cause = err
+			return installedPackageMetadata{}, manifestErr
 		}
 		return installedPackageMetadata{
 			name: strings.TrimSpace(

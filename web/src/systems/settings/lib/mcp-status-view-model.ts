@@ -30,6 +30,7 @@ export const MCP_AUTH_STATUSES = [
 export type MCPAuthStatus = (typeof MCP_AUTH_STATUSES)[number];
 
 export const MCP_RUNTIME_STATES = [
+  "off",
   "ready",
   "config_error",
   "auth_required",
@@ -109,21 +110,23 @@ export function isOAuthCapable(server: SettingsMCPServerEntry): boolean {
   return !server.headers_configured && server.runtime_status?.state === "auth_required";
 }
 
-/**
- * Repair (Authorize/Reauthorize) is offered only to OAuth-capable remotes that
- * are not confirmed authenticated, plus the transitional `auth_refresh_failed`
- * runtime state where a prior token is retained but a refresh failed.
- */
+function canRenewExpiredOAuth(server: SettingsMCPServerEntry): boolean {
+  const auth = server.auth_status;
+  return auth?.status === "expired" && auth.token_present && auth.refreshable;
+}
+
 export function isOAuthRepairable(server: SettingsMCPServerEntry): boolean {
-  if (!isOAuthCapable(server)) return false;
-  const authenticated = server.auth_status?.status === "authenticated";
+  if (server.disabled || !isOAuthCapable(server)) return false;
   const state = server.runtime_status?.state;
-  return (
-    !authenticated ||
+  if (
     state === "auth_required" ||
     state === "auth_refresh_failed" ||
     mcpScopeEscalationScopes(server).length > 0
-  );
+  ) {
+    return true;
+  }
+  if (canRenewExpiredOAuth(server)) return false;
+  return server.auth_status?.status !== "authenticated";
 }
 
 export function authorizeLabel(server: SettingsMCPServerEntry): MCPAuthorizeLabel | null {
@@ -228,6 +231,7 @@ const SUMMARY_DANGER_LABEL: Record<string, string> = {
  * never turns green unless the daemon reports the runtime ready; unknown values stay neutral.
  */
 export function summarizeMCPStatus(server: SettingsMCPServerEntry): MCPStatusCell {
+  if (server.disabled) return { label: "Off", tone: "neutral" };
   const runtime = server.runtime_status;
   const auth = server.auth_status?.status;
   const dangerLabel = runtime ? SUMMARY_DANGER_LABEL[runtime.state] : undefined;
@@ -239,7 +243,7 @@ export function summarizeMCPStatus(server: SettingsMCPServerEntry): MCPStatusCel
       ? { label: "Needs sign-in", tone: "warning" }
       : { label: "Access denied", tone: "destructive" };
   }
-  if (runtime?.state === "auth_expired" || auth === "expired") {
+  if ((runtime?.state === "auth_expired" || auth === "expired") && !canRenewExpiredOAuth(server)) {
     return { label: "Sign-in expired", tone: "warning" };
   }
   if (!runtime) return { label: "Not checked yet", tone: "neutral" };

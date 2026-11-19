@@ -160,3 +160,28 @@ export const DEVICE_ACTOR_LABEL: Record<string, string> = {
 export function deviceActorLabel(actorKind: string): string {
   return DEVICE_ACTOR_LABEL[actorKind] ?? actorKind;
 }
+
+export interface DeviceRemovalCopy {
+  description: string;
+  note?: string;
+  cancelLabel: string;
+}
+
+/**
+ * Removal copy by device state. An active device is revoked before its record
+ * is deleted, so its confirmation names every consequence and carries a warning.
+ * A revoked device only loses its record, so its confirmation stays plain.
+ */
+export function deviceRemovalCopy(name: string, isRevoked: boolean): DeviceRemovalCopy {
+  if (isRevoked) {
+    return {
+      description: `${name} is already revoked. Removing it deletes its record from this list. This cannot be undone.`,
+      cancelLabel: "Keep this record",
+    };
+  }
+  return {
+    description: `${name} loses its session, its live streams close, and its record is deleted. This cannot be undone.`,
+    note: "Removing a device revokes it first. Pairing it again creates a new device.",
+    cancelLabel: "Keep this device",
+  };
+}

@@ -30,6 +30,7 @@ func newSettingsMCPAuthManagerWithAuthorization(
 	}
 	serviceOptions := []mcpauth.ServiceOption{
 		mcpauth.WithClientMetadataURL(oauthConfig.ClientMetadataURL),
+		mcpauth.WithRedirectURI(oauthConfig.RedirectURI),
 		mcpauth.WithNetworkAuthorization(authorize),
 		mcpauth.WithRegistrationStore(registrations),
 		mcpauth.WithSecretRefResolver(secretResolver),
@@ -63,7 +64,7 @@ func (s *settingsRuntimeSurface) MCPAuthStatus(
 	}
 	status, err := s.mcpAuthManager.Status(ctx, cfg)
 	if err != nil {
-		if cfg.Implicit {
+		if cfg.Implicit && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			return unavailableMCPAuthStatus(cfg), nil
 		}
 		return mcpauth.Status{}, fmt.Errorf("daemon: load MCP auth status: %w", err)

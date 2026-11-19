@@ -7,7 +7,8 @@ import { useAnswerSessionClarification } from "./use-session-clarifications";
 
 const CHOICE_KEY_LIMIT = 9;
 
-function isTerminalGone(error: unknown): boolean {
+/** The question already settled (answered elsewhere, timed out, canceled) or no longer exists. */
+export function isClarificationTerminalGone(error: unknown): boolean {
   if (error instanceof ClarificationNotAnswerableError) {
     return true;
   }
@@ -15,7 +16,7 @@ function isTerminalGone(error: unknown): boolean {
 }
 
 function retryableErrorMessage(error: unknown): string | null {
-  if (error == null || isTerminalGone(error)) {
+  if (error == null || isClarificationTerminalGone(error)) {
     return null;
   }
   // Neutral copy: retryable causes span 400 (invalid), 503 (broker down), and network, so the
@@ -61,7 +62,7 @@ export function useClarificationDock({
         onSuccess: () => onResolved(),
         onError: error => {
           setSubmittedChoice(null);
-          if (isTerminalGone(error)) {
+          if (isClarificationTerminalGone(error)) {
             onResolved();
           }
         },

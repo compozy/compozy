@@ -111,6 +111,43 @@ func TestClarifyBridgeLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse typed text for a choices-only question and keep it answerable", func(t *testing.T) {
+		t.Parallel()
+
+		publisher := newClarifyPublisherStub()
+		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		scope := testClarifyScope()
+		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{
+			Question:    "Which environment?",
+			Choices:     []string{"Production", "Staging"},
+			ChoicesOnly: true,
+		})
+		publisher.await(t)
+		pending := awaitPendingClarification(t, bridge, scope)
+		_, err := bridge.Answer(
+			testutil.Context(t),
+			scope,
+			pending[0].RequestID,
+			toolspkg.ClarifyAnswerRequest{Text: "the one with backups"},
+		)
+		if !errors.Is(err, toolspkg.ErrClarifyInvalid) {
+			t.Fatalf("Answer(text) error = %v, want %v", err, toolspkg.ErrClarifyInvalid)
+		}
+		choice := 0
+		if _, err := bridge.Answer(
+			testutil.Context(t),
+			scope,
+			pending[0].RequestID,
+			toolspkg.ClarifyAnswerRequest{ChoiceIndex: &choice},
+		); err != nil {
+			t.Fatalf("Answer(choice) after refused text error = %v", err)
+		}
+		if got := awaitClarifyResult(t, result); got.err != nil || got.answer.Choice == nil ||
+			*got.answer.Choice != choice {
+			t.Fatalf("Ask() = %#v, want choice %d", got, choice)
+		}
+	})
+
 	t.Run("Should reject a second unresolved question without replacing the first", func(t *testing.T) {
 		t.Parallel()
 

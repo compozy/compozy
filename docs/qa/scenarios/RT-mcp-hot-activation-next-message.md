@@ -53,3 +53,21 @@ token, missing credentials, revoked consent and session-budget exclusions must r
 QA impact 2026-11-17 (#1794, daemon CPU hot paths):
 Unchanged MCP listings share a three-second discovery floor; explicit checks bypass it. Project approval still invalidates hosted projections immediately and next-message activation remains required. The targeted real-transport walk covers pending-to-approved tool visibility without restart.
 See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).
+
+QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
+
+Bind 18 sessions to a five-server catalog of about 1,300 tools. Change one fixture and send
+tools/list_changed. Verify its catalog is listed once and delivered to the sessions, while the
+other upstream list counters remain unchanged.
+
+Repeat with a fixture that has no live subscription and advertises a short `ttlMs`. Keep the
+sessions idle and check that the fixture gets one shared refresh per interval of at least 60 seconds.
+Use a longer `ttlMs` and verify that the refresh waits at least that long. An unchanged listing
+keeps the existing tool projection. Release the last authorized bind and verify that periodic
+refresh stops. An explicit check still contacts the fixture immediately.
+
+For #1850, open one session with two ready fixtures and send a message. Turn one server off,
+keep that session open, and send the next message. The off fixture contributes zero tools and the
+other fixture remains usable. Turn the same server on and send another message in that session.
+Its tools return using the same definition and approval, with no delete or re-import.
+See the [off-switch walk](../reports/2026-11-18-mcp-server-off-switch.md).

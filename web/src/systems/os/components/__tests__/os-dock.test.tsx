@@ -24,7 +24,7 @@ import { OsDockTabBar } from "../os-dock-tab-bar";
 import { OsDockAppMenu } from "../os-dock-app-menu";
 import { useDesktopDock } from "../../hooks/use-desktop-dock";
 import { pickLastCreatedSession } from "../../lib/last-created-session";
-import type { SessionPayload } from "@/systems/session";
+import { sessionKeys, type SessionListFilters, type SessionPayload } from "@/systems/session";
 
 const dockShell = vi.hoisted(() => ({
   state: null as unknown,
@@ -56,7 +56,8 @@ const catalogInputs = vi.hoisted(() => ({
   workspace: { runtimeWorkspaceId: null as string | null, pending: false },
   catalog: {
     sessions: [] as SessionPayload[],
-    filters: [] as Array<Record<string, unknown>>,
+    filters: [] as SessionListFilters[],
+    read: vi.fn<() => Promise<SessionPayload[]>>(),
   },
 }));
 
@@ -65,21 +66,22 @@ vi.mock("@/systems/workspace", async importOriginal => ({
   useActiveWorkspace: () => catalogInputs.workspace,
 }));
 
-vi.mock("@/systems/session", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/session")>()),
-  sessionCatalogOptions: (filters: Record<string, unknown>) => {
-    catalogInputs.catalog.filters.push(filters);
-    return {
-      queryKey: ["launch-catalog", JSON.stringify(filters)],
-      queryFn: async () => ({
-        sessions: catalogInputs.catalog.sessions,
-        page: { has_more: false },
-      }),
-      initialPageParam: null,
-      getNextPageParam: () => undefined,
-    };
-  },
-}));
+vi.mock("@/systems/session", async importOriginal => {
+  const session = await importOriginal<typeof import("@/systems/session")>();
+  return {
+    ...session,
+    sessionLaunchPreviewOptions: (filters: SessionListFilters) => {
+      catalogInputs.catalog.filters.push(filters);
+      return {
+        ...session.sessionLaunchPreviewOptions(filters),
+        queryFn: async () => ({
+          sessions: await catalogInputs.catalog.read(),
+          page: { has_more: false },
+        }),
+      };
+    },
+  };
+});
 
 vi.mock("@/systems/profiles", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/profiles")>()),
@@ -219,6 +221,9 @@ describe("OsDock", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    catalogInputs.catalog.read
+      .mockReset()
+      .mockImplementation(async () => catalogInputs.catalog.sessions);
     launchCatalog.ready = true;
     launchCatalog.sessions = [];
     launchCatalog.workspaceId = "workspace:test";
@@ -616,7 +621,7 @@ describe("OsDock", () => {
     });
   });
 
-  it("Should resolve the Sessions launch catalog across every workspace in Global scope", async () => {
+  it("Should resolve the latest Sessions launch target in Global scope on demand", async () => {
     const { useSessionLaunchCatalog } = await vi.importActual<
       typeof import("../../hooks/use-session-launch-catalog")
     >("../../hooks/use-session-launch-catalog");
@@ -645,6 +650,32 @@ describe("OsDock", () => {
     await waitFor(() =>
       expect(result.current.sessions.map(session => session.id)).toEqual(["sess-global"])
     );
+
+    // Catalog wakes refresh the list without repeating the dock's preload read.
+    catalogInputs.catalog.sessions = [
+      catalogSession("sess-new", "2026-08-03T00:00:00Z", { workspace_id: "workspace:other" }),
+    ];
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+    });
+    expect(result.current.sessions.map(session => session.id)).toEqual(["sess-global"]);
+
+    const staleSessions = result.current.sessions;
+    let completePreview!: () => void;
+    const stalePreview = new Promise<void>(resolve => {
+      completePreview = resolve;
+    });
+    catalogInputs.catalog.read.mockImplementationOnce(async () => {
+      await stalePreview;
+      return staleSessions;
+    });
+    await act(async () => {
+      const background = queryClient.refetchQueries({ type: "active" });
+      const latest = result.current.resolveLatest();
+      completePreview();
+      await expect(latest).resolves.toMatchObject({ id: "sess-new" });
+      await background;
+    });
 
     catalogInputs.workspace = { runtimeWorkspaceId: null, pending: true };
     const pending = renderHook(() => useSessionLaunchCatalog(), { wrapper });

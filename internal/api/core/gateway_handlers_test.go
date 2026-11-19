@@ -21,6 +21,7 @@ import (
 
 type gatewayServiceStub struct {
 	revoke  func(context.Context, string) (gateway.RevokeResult, error)
+	remove  func(context.Context, string) (gateway.RemoveResult, error)
 	bind    func(context.Context, gateway.IngressBindRequest) (gateway.IngressBinding, error)
 	unbind  func(context.Context, gateway.IngressUnbindRequest) (gateway.UnbindResult, error)
 	project func(context.Context, gateway.IngressSubjectRef) (gateway.IngressProjection, error)
@@ -84,6 +85,13 @@ func (s gatewayServiceStub) RevokeDevice(ctx context.Context, id string) (gatewa
 	return s.revoke(ctx, id)
 }
 
+func (s gatewayServiceStub) RemoveDevice(ctx context.Context, id string) (gateway.RemoveResult, error) {
+	if s.remove == nil {
+		return gateway.RemoveResult{}, nil
+	}
+	return s.remove(ctx, id)
+}
+
 func (s gatewayServiceStub) RenameDevice(context.Context, string, string) (gateway.DeviceSession, error) {
 	if s.calls != nil {
 		s.calls.Add(1)
@@ -140,9 +148,10 @@ func TestGatewayPayloadMappings(t *testing.T) {
 
 		expiresAt := time.Date(2026, time.August, 6, 12, 1, 0, 0, time.UTC)
 		pairing := GatewayPairingArtifactPayload(gateway.PairingArtifact{
-			Artifact: "cmp_pair_artifact", ExpiresAt: expiresAt,
+			Artifact: "cmp_pair_artifact", ManualCode: "123456", ExpiresAt: expiresAt,
 		})
-		if pairing.Artifact != "cmp_pair_artifact" || pairing.ExpiresAt != expiresAt {
+		if pairing.Artifact != "cmp_pair_artifact" || pairing.ManualCode != "123456" ||
+			pairing.ExpiresAt != expiresAt {
 			t.Fatalf("GatewayPairingArtifactPayload() = %#v", pairing)
 		}
 
@@ -249,6 +258,70 @@ func TestGatewayPayloadMappings(t *testing.T) {
 		}
 		if payload.Device.ID != "device-1" || !payload.Changed || payload.Canceled != 4 {
 			t.Fatalf("revoke payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should surface the removed device snapshot and its lifecycle work", func(t *testing.T) {
+		t.Parallel()
+
+		gin.SetMode(gin.TestMode)
+		handlers := &BaseHandlers{Gateway: gatewayServiceStub{remove: func(
+			_ context.Context,
+			id string,
+		) (gateway.RemoveResult, error) {
+			return gateway.RemoveResult{
+				Device:   gateway.DeviceSession{ID: id, Name: "Laptop", RevokeEpoch: 3},
+				Revoked:  true,
+				Canceled: 2,
+			}, nil
+		}}}
+		router := gin.New()
+		router.DELETE("/devices/:id/record", handlers.RemoveGatewayDevice)
+		response := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodDelete, "/devices/device-1/record", http.NoBody,
+		)
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body = %s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.GatewayRemovedDevicePayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if payload.Device.ID != "device-1" || !payload.Revoked || payload.Canceled != 2 {
+			t.Fatalf("remove payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should map a missing removal target to the gateway not-found code", func(t *testing.T) {
+		t.Parallel()
+
+		gin.SetMode(gin.TestMode)
+		handlers := &BaseHandlers{Gateway: gatewayServiceStub{remove: func(
+			context.Context,
+			string,
+		) (gateway.RemoveResult, error) {
+			return gateway.RemoveResult{}, gateway.ErrDeviceNotFound
+		}}}
+		router := gin.New()
+		router.DELETE("/devices/:id/record", handlers.RemoveGatewayDevice)
+		response := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodDelete, "/devices/missing/record", http.NoBody,
+		)
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d", response.Code, http.StatusNotFound)
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if payload.Code != "gateway_device_not_found" {
+			t.Fatalf("error code = %q", payload.Code)
 		}
 	})
 

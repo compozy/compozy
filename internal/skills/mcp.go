@@ -134,6 +134,7 @@ func SkillMCPAllowed(skill *Skill) bool {
 
 func toConfigMCPServer(decl MCPServerDecl) compozyconfig.MCPServer {
 	return compozyconfig.MCPServer{
+		Disabled:  decl.Disabled,
 		Name:      decl.Name,
 		Command:   decl.Command,
 		Args:      append([]string(nil), decl.Args...),

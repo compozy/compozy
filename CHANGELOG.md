@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.6 - 2026-11-19
+
+### Bug Fixes
+
+- Wake pull request monitors for later check rounds (#1812)
+- Exclude bot-maintained tracking issues from issue intake
+- Restore unprompted always-on mains after restart (#1818)
+- Accept slash-terminated MCP OAuth root resources (#1825)
+- Renew MCP OAuth tokens for CIMD clients (#1833)
+- Answer a pending clarification from the session composer (#1835)
+- Return retryable refusals for hosted MCP binds (#1843)
+- Accept the Claude Code plugin schema in Marketplace (#1842)
+- Renew MCP OAuth grants before expiry (#1847)
+- Keep Marketplace installs responsive during refresh (#1841)
+- Support pre-registered OAuth MCP discovery (#1844)
+- Keep hosted MCP sessions responsive with large catalogs (#1854)
+- Restore release integration and E2E coverage (#1856)
+
+### Features
+
+- Add six-digit gateway pairing codes and device removal (#1819)
+- Surface offline notices and automation failures in the attention bell (#1820)
+- Add keyboard-first navigation to the desktop shell (#1832)
+- Pin sessions above the session list (#1834)
+- Choose session sidebar expansion depth (#1853)
+- Turn configured MCP servers off and on (#1852)
+
 ## 0.7.5 - 2026-11-18
 
 ### Bug Fixes
@@ -1724,6 +1751,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.7.6]: https://github.com/compozy/compozy/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/compozy/compozy/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/compozy/compozy/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/compozy/compozy/compare/v0.7.2...v0.7.3

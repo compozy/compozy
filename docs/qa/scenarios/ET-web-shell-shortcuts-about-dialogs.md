@@ -4,7 +4,7 @@ area: ET
 title: Read the keyboard reference and installation identity from the shell
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: Help → Keyboard shortcuts opens a shell-scoped dialog listing the live registry's sections in the curated order Shell (including Global scope ⇧⌘G), Window, Tiling, Tabs, Sessions, Desktops, Workspaces, Layout, then any other section the registry reports (today Apps) and each contributing extension under its own name — every action present, an unbound action shown with an em dash rather than omitted, live config overrides reflected — with a footer that opens Settings → Layouts; CompozyOS → About CompozyOS… opens a dialog showing only fields `/api/status` publishes (version, status, started, pid, HTTP host:port, socket, user home dir, config file) and degrades honestly while the status query is pending or failing; both dialogs are keyboard-reachable, scroll within a capped height, close on Esc, and return focus to the desktop.
+expected: Help → Keyboard shortcuts opens a shell-scoped dialog listing the live registry's sections in the curated order Shell (including Global scope ⇧⌘G), Window, Tiling, Tabs, Sessions, Desktops, Workspaces, Layout, then any other section the registry reports (today Apps) and each contributing extension under its own name — every action present, an unbound action shown with an em dash rather than omitted, live config overrides reflected — with an Edit shortcuts footer that opens Settings → Shortcuts; CompozyOS → About CompozyOS… opens a dialog showing only fields `/api/status` publishes (version, status, started, pid, HTTP host:port, socket, user home dir, config file) and degrades honestly while the status query is pending or failing; both dialogs are keyboard-reachable, scroll within a capped height, close on Esc, and return focus to the desktop.
 entry_points: web desktop menubar Help menu; web desktop menubar Compozy menu
 qa_status: pass
 bug_ids:
@@ -51,3 +51,7 @@ Open About and verify every diagnostic field, pending/error state and refreshed 
 and confirm its diagnostic polling stops while connection refresh continues. The existing About
 dialog and status-query suites own focused request-count/freshness coverage. Historical verdicts
 above remain historical; this change awaits the audit's integrated browser/runtime QA tail.
+
+qa-impact: 2026-11-18 keyboard-first navigation (#1826). The cheatsheet footer now reads "Edit
+shortcuts" and opens Settings › Shortcuts, the page that took the shortcut table from Settings ›
+Layouts. Earlier results above are history.

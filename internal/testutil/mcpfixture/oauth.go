@@ -35,10 +35,12 @@ type OAuthConfig struct {
 	ResourceURL                                string
 	MCPPath                                    string
 	Scopes                                     []string
+	TokenResponseScope                         string
 	StepUpScope                                string
 	CallbackIssuer                             string
 	AuthorizationResponseIssParameterSupported bool
 	ClientIDMetadataDocumentSupported          bool
+	OmitRefreshScope                           bool
 }
 
 // OAuthEndpoints identifies the local, dynamically generated OAuth endpoints.
@@ -261,13 +263,16 @@ func (s *OAuthHTTPServer) serveToken(writer http.ResponseWriter, request *http.R
 		http.Error(writer, "unsupported grant_type", http.StatusBadRequest)
 		return
 	}
-	s.writeJSON(writer, http.StatusOK, map[string]any{
+	response := map[string]any{
 		"access_token":    AccessToken,
 		refreshTokenGrant: RefreshToken,
 		"token_type":      "Bearer",
 		"expires_in":      3600,
-		"scope":           strings.Join(s.config.Scopes, " "),
-	})
+	}
+	if !s.config.OmitRefreshScope || values.Get("grant_type") != refreshTokenGrant {
+		response["scope"] = cmp.Or(s.config.TokenResponseScope, strings.Join(s.config.Scopes, " "))
+	}
+	s.writeJSON(writer, http.StatusOK, response)
 }
 
 func (s *OAuthHTTPServer) serveRegistration(

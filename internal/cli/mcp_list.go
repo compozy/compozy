@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -108,7 +109,11 @@ func mcpListBundle(result contract.MCPListResponse) outputBundle {
 				fmt.Fprintf(&out, "COMPOZYOS · %d servers\n", len(result.CompozyServers))
 				for i := range result.CompozyServers {
 					s := &result.CompozyServers[i]
-					fmt.Fprintf(&out, "  %-24s %-10s %-8s\n", s.Name, s.Scope, s.Transport)
+					state := ""
+					if s.Disabled {
+						state = "  Off"
+					}
+					fmt.Fprintf(&out, "  %-24s %-10s %-8s%s\n", s.Name, s.Scope, s.Transport, state)
 				}
 			}
 			for _, group := range result.Runtimes {
@@ -146,19 +151,30 @@ func mcpListBundle(result contract.MCPListResponse) outputBundle {
 			rows := [][]string{}
 			for i := range result.CompozyServers {
 				s := &result.CompozyServers[i]
-				rows = append(rows, []string{"compozy", s.Name, string(s.Scope), s.Transport, "", ""})
+				rows = append(
+					rows,
+					[]string{"compozy", s.Name, string(s.Scope), s.Transport, "", "", strconv.FormatBool(s.Disabled)},
+				)
 			}
 			for _, group := range result.Runtimes {
 				for _, s := range group.Servers {
 					rows = append(
 						rows,
-						[]string{group.Runtime, s.Name, s.Scope, s.Transport, s.Approval, s.SourceLabel},
+						[]string{group.Runtime, s.Name, s.Scope, s.Transport, s.Approval, s.SourceLabel, ""},
 					)
 				}
 			}
 			return renderToonArray(
 				"mcp_servers",
-				[]string{"runtime", automationNameKey, "scope", "transport", "approval", cmdPaletteSourceFlag},
+				[]string{
+					"runtime",
+					automationNameKey,
+					"scope",
+					"transport",
+					"approval",
+					cmdPaletteSourceFlag,
+					daemonDisabledKey,
+				},
 				rows,
 			), nil
 		},

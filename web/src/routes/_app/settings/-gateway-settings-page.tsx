@@ -85,6 +85,7 @@ export function GatewaySettingsPage() {
         error={view.devices.error}
         isBusy={view.devices.isBusy}
         {...(listenerTier === "public" ? {} : { onPair: view.pairing.start })}
+        onRemove={view.devices.remove}
         onRename={view.devices.rename}
         onRevoke={view.devices.revoke}
       />

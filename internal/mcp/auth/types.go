@@ -18,6 +18,18 @@ var ErrTokenNotFound = errors.New("mcp auth: token not found")
 // ErrTokenBindingInvalid reports token material that is not bound to the active server definition.
 var ErrTokenBindingInvalid = errors.New("mcp auth: token binding is invalid")
 
+// ErrTokenDefinitionChanged identifies an implicit remote without a credential for its current definition.
+var ErrTokenDefinitionChanged = fmt.Errorf(
+	"mcp auth: token belongs to a different definition: %w",
+	ErrTokenBindingInvalid,
+)
+
+// ErrTokenRejected reports a stored credential rejected by its bound resource.
+var ErrTokenRejected = errors.New("mcp auth: remote server rejected the stored token (HTTP 401)")
+
+// ErrTokenResolution reports a stored token whose material or binding could not be loaded.
+var ErrTokenResolution = errors.New("mcp auth: stored token could not be resolved")
+
 // ErrTokenExpired reports a bearer token that cannot be used for a new request.
 var ErrTokenExpired = errors.New("mcp auth: token is expired")
 
@@ -156,6 +168,7 @@ type ServerConfig struct {
 
 // Metadata is the OAuth authorization server metadata needed for PKCE flows.
 type Metadata struct {
+	grantTypesSupported           []string
 	Issuer                        string   `json:"issuer,omitempty"`
 	AuthorizationEndpoint         string   `json:"authorization_endpoint"`
 	TokenEndpoint                 string   `json:"token_endpoint"`
@@ -202,6 +215,7 @@ type ClientRegistration struct {
 
 // Status is the token-redacted state used by CLI and settings APIs.
 type Status struct {
+	renewalDue   bool
 	Owner        string      `json:"owner"`
 	ServerName   string      `json:"server_name"`
 	Scope        Scope       `json:"scope"`
@@ -221,6 +235,9 @@ type Status struct {
 	// to the broader scope that declares the effective definition.
 	Inherited bool `json:"inherited,omitempty"`
 }
+
+// RenewalDue reports whether a still-valid token should be renewed before use.
+func (s Status) RenewalDue() bool { return s.renewalDue }
 
 // TokenStore persists OAuth token material behind a narrow boundary.
 type TokenStore interface {

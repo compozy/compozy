@@ -3,9 +3,12 @@ import type { ReactNode } from "react";
 
 import { Icon, cn } from "@compozy/ui";
 
+import { onDisclosureArrowKey } from "../../lib/session-list-stops";
+
 export interface SessionListGroupToggleProps {
   collapsed: boolean;
-  count: number;
+  /** The rows the group holds; `null` shows none (a search narrows what it would count). */
+  count: number | string | null;
   identity: ReactNode;
   onToggle?: () => void;
   /** What a collapsed group still has to say about its rows. */
@@ -27,8 +30,10 @@ export function SessionListGroupToggle({
       type="button"
       aria-expanded={!collapsed}
       data-testid={testId}
+      data-sidebar-stop="group"
       className="flex min-h-7 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none"
       onClick={onToggle}
+      onKeyDown={event => onDisclosureArrowKey(event, !collapsed, onToggle)}
     >
       <Icon
         as={ChevronRight}
@@ -37,7 +42,7 @@ export function SessionListGroupToggle({
       />
       <span className="flex min-w-0 flex-1 items-center">{identity}</span>
       {collapsed ? signal : null}
-      <span className="font-mono text-micro text-faint">{count}</span>
+      {count === null ? null : <span className="font-mono text-micro text-faint">{count}</span>}
     </button>
   );
 }

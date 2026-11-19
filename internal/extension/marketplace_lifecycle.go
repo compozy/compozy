@@ -313,7 +313,11 @@ func installMarketplaceArchive(
 		version = strings.TrimSpace(req.Trust.Version)
 		expectedDigest = strings.TrimSpace(req.Trust.ArchiveDigestSHA256)
 	}
-	result, err := registrypkg.NewInstaller(downloader).Install(ctx, slug, registrypkg.DownloadOpts{
+	var options []registrypkg.InstallerOption
+	if req.Plugin != nil {
+		options = append(options, registrypkg.WithInstallerManifestlessPlugin(req.Plugin.Record.EntryID))
+	}
+	result, err := registrypkg.NewInstaller(downloader, options...).Install(ctx, slug, registrypkg.DownloadOpts{
 		Version:        version,
 		Asset:          strings.TrimSpace(req.Asset),
 		ExpectedSHA256: expectedDigest,

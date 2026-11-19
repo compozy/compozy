@@ -41,10 +41,12 @@ type CallExecutor struct {
 	httpClient     *http.Client
 	secureClient   *securehttp.Client
 	authGeneration *mcpauth.MutationGeneration
+	redirectURI    string
 	timeout        time.Duration
 	toolListFloor  time.Duration
 	toolCache      mcpToolListCache
 	stdioPool      *StdioSessionPool
+	catalogHTTP    *mcpCatalogHTTP
 }
 
 var _ toolspkg.MCPCallExecutor = (*CallExecutor)(nil)
@@ -52,6 +54,16 @@ var _ toolspkg.MCPAuthStatusProvider = (*CallExecutor)(nil)
 
 // CallExecutorOption configures the daemon-owned MCP executor.
 type CallExecutorOption func(*CallExecutor)
+
+// WithToolCatalogNotifications enables lifecycle-owned HTTP discovery subscriptions.
+func WithToolCatalogNotifications() CallExecutorOption {
+	return func(e *CallExecutor) {
+		e.catalogHTTP = &mcpCatalogHTTP{
+			sessions: make(map[string]mcpCatalogHTTPEntry), changes: make(chan struct{}, 1),
+			invalidate: e.invalidateToolListing, expire: e.expireSubscribedToolListing,
+		}
+	}
+}
 
 func WithDefinitionDigestKey(key []byte) CallExecutorOption {
 	return func(e *CallExecutor) { e.digestKey = bytes.Clone(key) }
@@ -73,6 +85,11 @@ func WithAuthMutationGeneration(generation *mcpauth.MutationGeneration) CallExec
 	return func(executor *CallExecutor) {
 		executor.authGeneration = generation
 	}
+}
+
+// WithAuthRedirectURI supplies the configured OAuth callback URI for CIMD renewal.
+func WithAuthRedirectURI(redirectURI string) CallExecutorOption {
+	return func(executor *CallExecutor) { executor.redirectURI = redirectURI }
 }
 
 // WithSecretLookup resolves auth client secret environment-variable names.
@@ -205,34 +222,36 @@ func NewMCPCallExecutor(
 		executor.httpClient = &cloned
 	}
 	if executor.auth == nil && executor.tokenStore != nil {
-		options := []mcpauth.ServiceOption{
-			mcpauth.WithMutationGeneration(executor.authGeneration),
-			mcpauth.WithNetworkAuthorization(executor.authNetwork),
-		}
-		authClient := executor.secureClient
-		if authClient == nil {
-			authClient = securehttp.NewClient(
-				securehttp.WithAllowLoopback(true),
-				securehttp.WithTimeout(executor.timeout),
-			)
-		}
-		options = append(options, mcpauth.WithSecureHTTPClient(authClient))
-		if executor.secretResolver != nil {
-			options = append(options, mcpauth.WithSecretRefResolver(executor.secretResolver.ResolveRef))
-		}
-		if registrations, ok := executor.tokenStore.(mcpauth.RegistrationStore); ok {
-			options = append(options, mcpauth.WithRegistrationStore(registrations))
-		}
-		service, err := mcpauth.NewService(
-			executor.tokenStore,
-			options...,
-		)
+		service, err := executor.newAuthService()
 		if err != nil {
 			return nil, fmt.Errorf("mcp: create auth service: %w", err)
 		}
 		executor.auth = service
 	}
 	return executor, nil
+}
+
+func (e *CallExecutor) newAuthService() (*mcpauth.Service, error) {
+	if e.authGeneration == nil {
+		e.authGeneration = mcpauth.NewMutationGeneration()
+	}
+	authClient := e.secureClient
+	if authClient == nil {
+		authClient = securehttp.NewClient(securehttp.WithAllowLoopback(true), securehttp.WithTimeout(e.timeout))
+	}
+	options := []mcpauth.ServiceOption{
+		mcpauth.WithMutationGeneration(e.authGeneration),
+		mcpauth.WithNetworkAuthorization(e.authNetwork),
+		mcpauth.WithRedirectURI(e.redirectURI),
+		mcpauth.WithSecureHTTPClient(authClient),
+	}
+	if e.secretResolver != nil {
+		options = append(options, mcpauth.WithSecretRefResolver(e.secretResolver.ResolveRef))
+	}
+	if registrations, ok := e.tokenStore.(mcpauth.RegistrationStore); ok {
+		options = append(options, mcpauth.WithRegistrationStore(registrations))
+	}
+	return mcpauth.NewService(e.tokenStore, options...)
 }
 
 // WithAuthNetworkAuthorization guards continued OAuth network activity.

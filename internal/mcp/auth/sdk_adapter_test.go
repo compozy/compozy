@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,8 +19,402 @@ import (
 
 	"github.com/compozy/compozy/internal/mcp/securehttp"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
+
+// Invariant: augment only supported grants and preserve the issuer's authorization parameters.
+// Owner: OAuth authorization and token exchange; canonical suite: sdk_adapter_test.go.
+func TestOAuthOfflineAccess(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, scopes, grants, prompt                  string
+		challengeScopes, resourceScopes, requestedDCR string
+		registeredScopes                              *string
+		configured, want, legacyScopes                []string
+		refresh, preRegistered, replace, denied       bool
+	}{
+		{
+			name:   "Should request advertised offline access and preserve issuer consent",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token", prompt: "consent",
+			configured: []string{"tools.read"}, want: []string{"tools.read", "offline_access"}, refresh: true,
+		},
+		{
+			name:   "Should accept access without a refresh token and leave issuer prompts alone",
+			scopes: "tools.read offline_access", configured: []string{"tools.read"},
+			want: []string{"tools.read", "offline_access"},
+		},
+		{
+			name:   "Should retain an explicitly configured offline scope without duplicating it",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			configured: []string{"tools.read", "offline_access"}, want: []string{"tools.read", "offline_access"},
+			refresh: true,
+		},
+		{
+			name:   "Should preserve existing resource scopes when offline access is not advertised",
+			scopes: "tools.read", grants: "authorization_code refresh_token",
+			configured: []string{"tools.read"}, want: []string{"tools.read"},
+		},
+		{
+			name:   "Should leave scopes unchanged when refresh is excluded from the grant types",
+			scopes: "tools.read offline_access", grants: "authorization_code",
+			configured: []string{"tools.read"}, want: []string{"tools.read"},
+		},
+		{
+			name:   "Should leave default resource scopes to the issuer when scope is omitted",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+		},
+		{
+			name:   "Should use the resource challenge scopes for a bare remote",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", resourceScopes: "tools.write",
+			want: []string{"tools.read", "offline_access"}, refresh: true,
+		},
+		{
+			name:   "Should use the resource challenge when the issuer cannot grant offline access",
+			scopes: "tools.read", grants: "authorization_code refresh_token", challengeScopes: "tools.read",
+			want: []string{"tools.read"},
+		},
+		{
+			name:   "Should use protected-resource metadata scopes when there is no challenge scope",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			resourceScopes: "tools.read", want: []string{"tools.read", "offline_access"}, refresh: true,
+		},
+		{
+			name:   "Should preserve scopes for a pre-registered client with unknown grant permissions",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			configured: []string{"tools.read"}, want: []string{"tools.read"}, preRegistered: true,
+		},
+		{
+			name:   "Should reuse an older registration without asking for an unregistered scope",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", want: []string{"tools.read"}, legacyScopes: []string{"tools.read"},
+		},
+		{
+			name:   "Should keep issuer defaults for an older unscoped client when only metadata lists scopes",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			resourceScopes: "tools.read", legacyScopes: []string{},
+		},
+		{
+			name:   "Should keep the challenge scope when registration omits offline access",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", want: []string{"tools.read"},
+			requestedDCR: "tools.read offline_access", registeredScopes: new("tools.read"),
+		},
+		{
+			name:   "Should persist the issuer grant without expanding authorization to unrequested resource scopes",
+			scopes: "tools.read tools.write offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", want: []string{"tools.read", "offline_access"},
+			registeredScopes: new("tools.read tools.write offline_access"), refresh: true,
+		},
+		{
+			name:   "Should stop before handoff when the issuer declines a required scope",
+			scopes: "tools.read tools.write offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read tools.write", legacyScopes: []string{"tools.read"},
+			requestedDCR:     "tools.read tools.write offline_access",
+			registeredScopes: new("tools.read offline_access"), replace: true, denied: true,
+		},
+		{
+			name:   "Should treat an explicit empty scope grant as a denial of required scopes",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", requestedDCR: "tools.read offline_access",
+			registeredScopes: new(""), denied: true,
+		},
+		{
+			name:   "Should register a client that covers the current resource scopes",
+			scopes: "tools.read tools.write offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", legacyScopes: []string{"tools.write", "offline_access"},
+			want: []string{"tools.read", "offline_access"}, refresh: true, replace: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var registrations atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				base := "http://" + r.Host
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/mcp":
+					w.Header().Set("WWW-Authenticate", fmt.Sprintf(
+						`Bearer resource_metadata=%q, scope=%q`, base+"/.well-known/oauth-protected-resource/mcp",
+						tc.challengeScopes,
+					))
+					w.WriteHeader(http.StatusUnauthorized)
+				case "/.well-known/oauth-protected-resource/mcp":
+					metadata := map[string]any{
+						"resource": base + "/mcp", "authorization_servers": []string{base},
+					}
+					if tc.resourceScopes != "" {
+						metadata["scopes_supported"] = strings.Fields(tc.resourceScopes)
+					}
+					if err := json.NewEncoder(w).Encode(metadata); err != nil {
+						t.Error(err)
+					}
+				case "/.well-known/oauth-authorization-server":
+					endpoint := base + "/authorize"
+					if tc.prompt != "" {
+						endpoint += "?prompt=" + url.QueryEscape(tc.prompt)
+					}
+					metadata := map[string]any{
+						"issuer":                 base,
+						"authorization_endpoint": endpoint,
+						"token_endpoint":         base + "/token",
+						"registration_endpoint":  base + "/register",
+						"code_challenge_methods_supported": []string{
+							"S256",
+						},
+						"scopes_supported": strings.Fields(tc.scopes),
+					}
+					if tc.grants != "" {
+						metadata["grant_types_supported"] = strings.Fields(tc.grants)
+					}
+					if err := json.NewEncoder(w).Encode(metadata); err != nil {
+						t.Error(err)
+					}
+				case "/register":
+					registrations.Add(1)
+					var request oauthex.ClientRegistrationMetadata
+					if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+						t.Error(err)
+						return
+					}
+					want := strings.Join(tc.want, " ")
+					if tc.requestedDCR != "" {
+						want = tc.requestedDCR
+					}
+					if request.Scope != want {
+						t.Errorf("DCR scope = %q, want %q", request.Scope, want)
+					}
+					w.WriteHeader(http.StatusCreated)
+					grant := map[string]any{"client_id": "client", "token_endpoint_auth_method": "none"}
+					if tc.registeredScopes != nil {
+						grant["scope"] = *tc.registeredScopes
+					}
+					if err := json.NewEncoder(w).Encode(grant); err != nil {
+						t.Error(err)
+					}
+				case "/token":
+					response := `{"access_token":"fixture-access","scope":"tools.read","expires_in":3600}`
+					if tc.refresh {
+						response = `{"access_token":"fixture-access","refresh_token":"fixture-refresh","expires_in":3600}`
+					}
+					writeManagerTestResponse(t, w, response)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			store := &adapterTestStore{}
+			service, cfg := newPreRegisteredTestService(t, store, server, WithRegistrationStore(store))
+			cfg.Scopes = tc.configured
+			const callback = "http://127.0.0.1:2123/callback"
+			if !tc.preRegistered {
+				cfg.IssuerURL, cfg.ClientID, cfg.Registration = "", "", RegistrationAuto
+			}
+			if tc.legacyScopes != nil {
+				fingerprint, err := ServerDefinitionFingerprint(cfg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				store.registration = ClientRegistration{
+					Target:                  cfg.Target,
+					DefinitionFingerprint:   fingerprint,
+					Issuer:                  server.URL,
+					ResourceURL:             cfg.RemoteURL,
+					ClientID:                "legacy-client",
+					TokenEndpointAuthMethod: tokenEndpointAuthMethodNone,
+					RedirectURL:             callback,
+					Scopes:                  tc.legacyScopes,
+				}
+			}
+			login, err := service.BeginLogin(t.Context(), cfg, callback)
+			if tc.denied {
+				if err == nil || !strings.Contains(err.Error(), "omitted required resource scopes") ||
+					login.AuthorizationURL != "" || registrations.Load() != 1 {
+					t.Fatal("a partial client grant did not stop authorization before browser handoff")
+				}
+				if !slices.Equal(store.registration.Scopes, tc.legacyScopes) {
+					t.Fatal("a partial client grant replaced the stored registration")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			authURL, err := url.Parse(login.AuthorizationURL)
+			if err != nil {
+				t.Fatal("unable to parse authorization URL")
+			}
+			query := authURL.Query()
+			if len(tc.want) == 0 && query.Has("scope") {
+				t.Error("an omitted resource scope was replaced in the authorization request")
+			}
+			if got := strings.Fields(query.Get("scope")); !slices.Equal(got, tc.want) {
+				t.Errorf("requested scopes = %v, want %v", got, tc.want)
+			}
+			if query.Get("resource") != cfg.RemoteURL || query.Get("prompt") != tc.prompt {
+				t.Error("resource or issuer consent parameter changed")
+			}
+			exchanged, err := service.Exchange(
+				t.Context(), &login, oauthCallbackURL(t, login.RedirectURL, login.State, ""),
+			)
+			if err != nil || exchanged.Status != StatusAuthenticated || exchanged.Refreshable != tc.refresh {
+				t.Fatalf("exchange status = %+v, err = %v", exchanged, err)
+			}
+			if tc.refresh && !slices.Equal(exchanged.Scopes, tc.want) {
+				t.Errorf("scope omitted by issuer should preserve the request, got %v", exchanged.Scopes)
+			}
+			wantRegistrations := int32(1)
+			if tc.preRegistered || (tc.legacyScopes != nil && !tc.replace) {
+				wantRegistrations = 0
+			}
+			if got := registrations.Load(); got != wantRegistrations {
+				t.Fatalf("new registrations = %d, want %d", got, wantRegistrations)
+			}
+			if tc.registeredScopes != nil &&
+				!slices.Equal(store.registration.Scopes, strings.Fields(*tc.registeredScopes)) {
+				t.Fatal("the stored registration did not mirror the issuer's granted scopes")
+			}
+		})
+	}
+	t.Run("Should skip offline access for a client document that only declares authorization code", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{
+				Scopes:                            []string{"tools.read", "offline_access"},
+				ClientIDMetadataDocumentSupported: true,
+			},
+		)
+		const callback = "http://127.0.0.1:2123/callback"
+		document := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeManagerTestResponse(t, w, fmt.Sprintf(
+				`{"client_id":%q,"redirect_uris":[%q],"grant_types":["authorization_code"]}`,
+				"https://"+r.Host+r.URL.Path, callback,
+			))
+		}))
+		t.Cleanup(document.Close)
+		clientID := document.URL + "/.well-known/mcp-client.json"
+		store := &adapterTestStore{}
+		service, err := NewService(store, WithRegistrationStore(store),
+			withHTTPClientForTest(document.Client()), WithClientMetadataURL(clientID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		login, err := service.BeginLogin(t.Context(), ServerConfig{
+			Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+			RemoteURL: fixture.Endpoints.MCPURL, Scopes: []string{"tools.read"},
+		}, callback)
+		if err != nil {
+			t.Fatal(err)
+		}
+		authorize, err := url.Parse(login.AuthorizationURL)
+		if err != nil {
+			t.Fatal("unable to parse authorization URL")
+		}
+		query := authorize.Query()
+		if query.Get("client_id") != clientID || query.Get("scope") != "tools.read" {
+			t.Fatal("authorization did not select the code-only client with its resource scope")
+		}
+	})
+}
+
+// Invariant: a known unusable local registration skips discovery and resumes once repaired.
+// Owner: hosted OAuth refresh lifecycle; canonical suite: sdk_adapter_test.go.
+func TestOAuthLocalRefreshRepair(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		secretMissing bool
+	}{
+		{name: "Should stop retrying an expired registration secret and recover with the same grant"},
+		{name: "Should stop retrying a missing registration secret and recover with the same grant", secretMissing: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var discovery, refreshes atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/.well-known/oauth-protected-resource/mcp":
+					discovery.Add(1)
+					writeManagerTestResponse(t, w, fmt.Sprintf(
+						`{"resource":%q,"authorization_servers":[%q]}`, "http://"+r.Host+"/mcp", "http://"+r.Host,
+					))
+				case "/token":
+					refreshes.Add(1)
+					writeManagerTestResponse(t, w, `{"access_token":"renewed","expires_in":3600}`)
+				default:
+					writeOAuthMetadataResponse(t, w, r, false)
+				}
+			}))
+			t.Cleanup(server.Close)
+			now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+			cfg := ServerConfig{
+				Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+				RemoteURL: server.URL + "/mcp", Registration: RegistrationAuto,
+			}
+			fingerprint, err := ServerDefinitionFingerprint(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			token := TokenRecord{
+				Target: cfg.Target, DefinitionFingerprint: fingerprint, Issuer: server.URL, ClientID: "client",
+				AccessToken: "fixture-access", RefreshToken: "fixture-refresh", ExpiresAt: now,
+			}
+			store := &adapterTestStore{token: token, registration: ClientRegistration{
+				Target: cfg.Target, DefinitionFingerprint: fingerprint, ResourceURL: cfg.RemoteURL,
+				Issuer: server.URL, ClientID: token.ClientID, TokenEndpointAuthMethod: tokenEndpointAuthMethodPost,
+				RedirectURL: "http://127.0.0.1:2123/callback", ClientSecretExpiresAt: now,
+				ClientSecretRef: "vault:mcp/fixture/client-secret",
+			}}
+			secretMissing := tc.secretMissing
+			if secretMissing {
+				store.registration.ClientSecretExpiresAt = now.Add(time.Hour)
+				now = now.Add(-time.Second)
+			}
+			var logs bytes.Buffer
+			service, err := NewService(
+				store, WithRegistrationStore(store), withHTTPClientForTest(server.Client()),
+				WithNow(func() time.Time { return now }), WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))),
+				WithSecretRefResolver(func(_ context.Context, ref string) (string, error) {
+					if secretMissing {
+						if now.Before(token.ExpiresAt) {
+							now = token.ExpiresAt
+						}
+						return "", fmt.Errorf("%w: %s", vault.ErrSecretNotFound, ref)
+					}
+					return "fixture-secret", nil
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				status, err := service.Refresh(t.Context(), cfg)
+				if err != nil || status.Status != StatusExpired || !status.TokenPresent || status.Refreshable ||
+					!strings.Contains(status.Diagnostic, "login again") {
+					t.Errorf("local refresh failure status = %+v, err = %v", status, err)
+				}
+				now = now.Add(time.Minute)
+			}
+			if discovery.Load() != 0 || refreshes.Load() != 0 || logs.Len() != 0 {
+				t.Error("known local failure started remote or logged refresh attempts")
+			}
+			assertAdapterTokenUnchanged(t, store, token)
+			passive, err := service.Status(t.Context(), cfg)
+			if err != nil || passive.Refreshable || !strings.Contains(passive.Diagnostic, "login again") {
+				t.Errorf("passive auth status = %+v, err = %v", passive, err)
+			}
+			store.registration.ClientSecretExpiresAt = now.Add(time.Hour)
+			secretMissing = false
+			status, err := service.Refresh(t.Context(), cfg)
+			if err != nil || status.Status != StatusAuthenticated || refreshes.Load() != 1 {
+				t.Fatalf("recovery status = %+v, refresh attempts = %d, err = %v", status, refreshes.Load(), err)
+			}
+		})
+	}
+}
 
 func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 	t.Parallel()
@@ -363,6 +758,58 @@ func TestManagerExchangeSupportsRFC9207Issuer(t *testing.T) {
 
 func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 	t.Parallel()
+	// Invariant: a callback persists individual grants and older comma-joined grants still bind.
+	// Owner: OAuth token exchange and binding; canonical suite: TestPreRegisteredAuthorizationBindsResource.
+	t.Run("Should bind comma and space delimited grants to the configured scope list", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{
+				TokenResponseScope: "tools.read,tools.write extra.read",
+			},
+		)
+		store := &adapterTestStore{}
+		service, err := NewService(store, withHTTPClientForTest(fixture.Server.Client()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := ServerConfig{
+			Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+			RemoteURL: fixture.Endpoints.MCPURL, ClientID: "registered-client", Registration: RegistrationPreRegistered,
+			Scopes: []string{"tools.read", "tools.write"},
+		}
+		state, err := service.BeginLogin(t.Context(), cfg, "http://127.0.0.1:2123/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Exchange(
+			t.Context(),
+			&state,
+			oauthCallbackURL(t, state.RedirectURL, state.State, ""),
+		); err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"tools.read", "tools.write", "extra.read"}
+		token, err := store.GetMCPAuthToken(t.Context(), cfg.Target)
+		if err != nil || !slices.Equal(token.Scopes, want) {
+			t.Fatalf("stored scopes = %v, err = %v, want %v", token.Scopes, err, want)
+		}
+		if _, err := service.AuthorizationToken(t.Context(), cfg); err != nil {
+			t.Fatalf("new token binding: %v", err)
+		}
+		token.Scopes = []string{"tools.read,tools.write,extra.read"}
+		if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+			t.Fatal(err)
+		}
+		for _, required := range [][]string{cfg.Scopes, {"tools.read,tools.write"}} {
+			cfg.Scopes = required
+			if _, err := service.AuthorizationToken(t.Context(), cfg); err != nil {
+				t.Fatalf("stored comma-joined token binding: %v", err)
+			}
+		}
+	})
+
 	t.Run("Should discover a separate issuer for pre-registered credentials", func(t *testing.T) {
 		t.Parallel()
 
@@ -500,8 +947,217 @@ func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 	})
 }
 
+func TestCIMDRegistrationRefresh(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name                string
+		legacy              bool
+		change              func(*ClientRegistration)
+		redirectChanged     bool
+		replaceRegistration bool
+		wantUsable          bool
+	}{
+		{name: "Should refresh a newly authorized CIMD client", wantUsable: true},
+		{name: "Should refresh a stored CIMD client with an empty auth method", legacy: true, wantUsable: true},
+		{name: "Should require reauthorization after changing the CIMD redirect URI", legacy: true, redirectChanged: true},
+		{
+			name: "Should reject a different CIMD client selected during refresh discovery", legacy: true,
+			replaceRegistration: true,
+		},
+		{
+			name:   "Should reject an empty auth method on a registration with a client secret",
+			legacy: true,
+			change: func(registration *ClientRegistration) {
+				registration.ClientSecretRef = "vault:mcp/test/client-secret"
+			},
+		},
+		{
+			name:   "Should reject an empty auth method on a DCR client with a URL client ID",
+			legacy: true,
+			change: func(registration *ClientRegistration) {
+				registration.RegistrationClientURI = "https://issuer.example/registration/client"
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := mcpfixture.StartOAuthHTTP(t, mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+				mcpfixture.OAuthConfig{ClientIDMetadataDocumentSupported: true})
+			const redirect = "http://127.0.0.1:2123/api/mcp/oauth/callback"
+			document := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/.well-known/mcp-client.json" {
+					http.NotFound(w, r)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if _, err := fmt.Fprintf(w, `{"client_id":%q,"redirect_uris":[%q],"token_endpoint_auth_method":"none"}`,
+					"https://"+r.Host+r.URL.Path, redirect); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(document.Close)
+			clientID := document.URL + "/.well-known/mcp-client.json"
+			now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+			store := &adapterTestStore{}
+			cfg := ServerConfig{
+				Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+				RemoteURL: fixture.Endpoints.MCPURL, Registration: RegistrationAuto, Scopes: []string{"tools.read"},
+			}
+			options := []ServiceOption{
+				withHTTPClientForTest(document.Client()), WithRegistrationStore(store),
+				WithNow(func() time.Time { return now }), WithRedirectURI(redirect),
+			}
+			codeExchanges := 0
+			if tc.legacy {
+				fingerprint, err := ServerDefinitionFingerprint(cfg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				store.registration = ClientRegistration{
+					Target: cfg.Target, DefinitionFingerprint: fingerprint, ResourceURL: cfg.RemoteURL,
+					Issuer: fixture.Endpoints.IssuerURL, ClientID: clientID, RedirectURL: redirect, Scopes: cfg.Scopes,
+				}
+				store.token = TokenRecord{
+					Target: cfg.Target, DefinitionFingerprint: fingerprint, Issuer: fixture.Endpoints.IssuerURL,
+					ClientID: clientID, Scopes: cfg.Scopes, AccessToken: "expired-fixture-access",
+					RefreshToken: mcpfixture.RefreshToken, ObtainedAt: now, ExpiresAt: now.Add(time.Hour),
+				}
+			} else {
+				service, err := NewService(store, append(options, WithClientMetadataURL(clientID))...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				state, err := service.BeginLogin(t.Context(), cfg, redirect)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if state.Config.ClientID != clientID || len(fixture.Requests().Registration) != 0 {
+					t.Fatal("sign-in did not select CIMD")
+				}
+				callback := oauthCallbackURL(t, redirect, state.State, "")
+				if _, err := service.Exchange(t.Context(), &state, callback); err != nil {
+					t.Fatal(err)
+				}
+				codeExchanges = 1
+			}
+			if tc.change != nil {
+				tc.change(&store.registration)
+			}
+			if tc.redirectChanged {
+				options = append(options, WithRedirectURI(redirect+"-changed"))
+			}
+			if tc.replaceRegistration {
+				replacement := store.registration
+				replacement.ClientID = "https://replacement.example/.well-known/mcp-client.json"
+				var once sync.Once
+				var saveErr error
+				options = append(options, WithNetworkAuthorization(func(ctx context.Context, _ ServerConfig) error {
+					once.Do(func() {
+						_, saveErr = store.SaveMCPAuthRegistration(ctx, replacement, RegistrationSecrets{})
+					})
+					return saveErr
+				}))
+			}
+			// The executor uses the registration that was saved at sign-in, including for a custom CIMD URL.
+			renewal, err := NewService(store, options...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(time.Hour)
+			before, err := renewal.Status(t.Context(), cfg)
+			if err != nil || before.Status != StatusExpired || !before.TokenPresent ||
+				before.Refreshable != (tc.wantUsable || tc.replaceRegistration) {
+				t.Fatalf("expired status = %+v, err = %v, want refreshable = %t", before, err,
+					tc.wantUsable || tc.replaceRegistration)
+			}
+			after, err := renewal.Refresh(t.Context(), cfg)
+			requests := fixture.Requests()
+			if tc.replaceRegistration {
+				if !errors.Is(err, ErrTokenBindingInvalid) || len(requests.Token) != codeExchanges {
+					t.Fatalf("refresh error = %v, want binding rejection before contacting the token endpoint", err)
+				}
+				return
+			}
+			if !tc.wantUsable {
+				if err != nil || after.Status != StatusExpired || after.Refreshable || !after.TokenPresent ||
+					!strings.Contains(after.Diagnostic, "stored registration is no longer valid") {
+					t.Fatalf("refresh = %+v, %v; want an expired retained token requiring reauthorization", after, err)
+				}
+				if len(requests.Token) != codeExchanges {
+					t.Fatal("invalid registration reached the refresh endpoint")
+				}
+				return
+			}
+			if err != nil || after.Status != StatusAuthenticated || !after.Refreshable || !after.TokenPresent {
+				t.Fatalf("refreshed status = %+v, err = %v", after, err)
+			}
+			if len(requests.Registration) != 0 || len(requests.Token) != codeExchanges+1 {
+				t.Fatal("refresh did not reuse the existing client")
+			}
+			request := requests.Token[codeExchanges]
+			if request.Get("grant_type") != "refresh_token" || request.Get("client_id") != clientID ||
+				request.Get("refresh_token") != mcpfixture.RefreshToken || request.Has("client_secret") ||
+				request.Get("resource") != cfg.RemoteURL {
+				t.Fatal("refresh did not use a resource-bound public client grant")
+			}
+			token, err := renewal.AuthorizationToken(t.Context(), cfg)
+			if err != nil || !token.ExpiresAt.Equal(now.Add(time.Hour)) {
+				t.Fatal("the refreshed token was not persisted and usable")
+			}
+			if tc.legacy {
+				return
+			}
+			t.Run("Should use DCR when the newly configured CIMD document is unavailable", func(t *testing.T) {
+				fallback, err := NewService(store, append(options, WithClientMetadataURL(document.URL+"/missing"))...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				login, err := fallback.BeginLogin(t.Context(), cfg, redirect)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if login.Config.ClientID == clientID || len(fixture.Requests().Registration) != 1 {
+					t.Fatal("fallback reused a CIMD client instead of registering dynamically")
+				}
+			})
+		})
+	}
+}
+
 func TestDynamicRegistrationReuseValidatesBindings(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reuse a public DCR client whose issued ID is an HTTPS URL", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(
+			t, mcpfixture.MustNew(mcpfixture.ProfileModern2026), mcpfixture.OAuthConfig{},
+		)
+		cfg := ServerConfig{
+			Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+			RemoteURL: fixture.Endpoints.MCPURL, Registration: RegistrationAuto,
+		}
+		fingerprint, err := ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const clientID = "https://issuer.example/clients/public"
+		const redirect = "http://127.0.0.1:2123/api/mcp/oauth/callback"
+		store := &adapterTestStore{registration: ClientRegistration{
+			Target: cfg.Target, DefinitionFingerprint: fingerprint, ResourceURL: cfg.RemoteURL,
+			Issuer: fixture.Endpoints.IssuerURL, RedirectURL: redirect, ClientID: clientID,
+			TokenEndpointAuthMethod: tokenEndpointAuthMethodNone,
+		}}
+		service, err := NewService(store, withHTTPClientForTest(fixture.Server.Client()), WithRegistrationStore(store))
+		if err != nil {
+			t.Fatal(err)
+		}
+		login, err := service.BeginLogin(t.Context(), cfg, redirect)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if login.Config.ClientID != clientID || len(fixture.Requests().Registration) != 0 {
+			t.Fatal("sign-in replaced the existing public DCR client")
+		}
+	})
 	t.Run("Should re-register when redirect scopes or secret lifetime no longer cover the flow", func(t *testing.T) {
 		t.Parallel()
 		fixture := mcpfixture.StartOAuthHTTP(
@@ -683,6 +1339,136 @@ func TestProtectedResourceMetadataURLs(t *testing.T) {
 			t.Fatalf("endpoint candidate = %q, want no query or fragment", candidates[0].URL)
 		}
 	})
+}
+
+func TestHostedOAuthRootResourceDiscovery(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name           string
+		resourceSuffix string
+		otherOrigin    bool
+		rootStatus     int
+		wantLogin      bool
+	}{
+		{name: "Should authorize with a slash-terminated root resource", resourceSuffix: "/", wantLogin: true},
+		{name: "Should authorize with an empty-path root resource", wantLogin: true},
+		{name: "Should reject a root resource on another origin", otherOrigin: true},
+		{name: "Should reject an unrelated resource path", resourceSuffix: "/other"},
+		{name: "Should bound discovery when root metadata returns HTTP 429", rootStatus: http.StatusTooManyRequests},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := mcpfixture.StartOAuthHTTP(
+				t, mcpfixture.MustNew(mcpfixture.ProfileModern2026), mcpfixture.OAuthConfig{},
+			)
+			var probes, endpointRequests, rootRequests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/mcp":
+					probes.Add(1)
+					w.WriteHeader(http.StatusUnauthorized)
+				case "/.well-known/oauth-protected-resource/mcp":
+					endpointRequests.Add(1)
+					http.NotFound(w, r)
+				case "/.well-known/oauth-protected-resource":
+					rootRequests.Add(1)
+					if tc.rootStatus != 0 {
+						w.WriteHeader(tc.rootStatus)
+						return
+					}
+					origin := "http://" + r.Host
+					resource := origin + tc.resourceSuffix
+					if tc.otherOrigin {
+						resource = "https://other.example/"
+					}
+					w.Header().Set("Content-Type", "application/json")
+					if err := json.NewEncoder(w).Encode(oauthex.ProtectedResourceMetadata{
+						Resource: resource, AuthorizationServers: []string{origin},
+					}); err != nil {
+						t.Errorf("encode protected resource metadata: %v", err)
+					}
+				default:
+					fixture.Server.Config.Handler.ServeHTTP(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			client := server.Client()
+			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+			store := &adapterTestStore{}
+			service, err := NewService(
+				store,
+				withHTTPClientForTest(client),
+				WithRegistrationStore(store),
+				WithSecretRefResolver(func(context.Context, string) (string, error) {
+					return store.secrets.ClientSecret, nil
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			manager, err := NewManager(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg := ServerConfig{
+				Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
+				Type:         authTypeOAuth,
+				RemoteURL:    server.URL + "/mcp",
+				Registration: RegistrationAuto,
+			}
+			begin, err := manager.Begin(t.Context(), cfg, "http://127.0.0.1:2123/callback")
+			if probe, endpoint, root := probes.Load(), endpointRequests.Load(), rootRequests.Load(); probe != 1 ||
+				endpoint != 1 || root < 1 || root > 2 {
+				t.Fatalf("discovery requests: probe=%d endpoint=%d root=%d", probe, endpoint, root)
+			}
+			if tc.wantLogin && tc.resourceSuffix == "" && rootRequests.Load() != 1 {
+				t.Fatal("discovery fetched root metadata again after accepting the empty-path resource")
+			}
+			if !tc.wantLogin {
+				const want = "mcp auth: protected resource metadata discovery failed"
+				if err == nil || err.Error() != want {
+					t.Fatalf("Begin() error = %v, want %q", err, want)
+				}
+				requests := fixture.Requests()
+				if len(requests.Registration) != 0 || len(requests.Token) != 0 {
+					t.Fatal("invalid metadata reached registration or token exchange")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Begin() error = %v", err)
+			}
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, begin.AuthorizationURL, http.NoBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := drainAndCloseResponseBody(resp.Body); err != nil {
+					t.Errorf("close authorization response: %v", err)
+				}
+			}()
+			if resp.StatusCode != http.StatusFound {
+				t.Fatalf("authorize HTTP status = %d, want %d", resp.StatusCode, http.StatusFound)
+			}
+			authorizations := fixture.Requests().Authorization
+			if len(authorizations) != 1 || authorizations[0].Get("code_challenge_method") != "S256" {
+				t.Fatal("authorization did not use S256 PKCE")
+			}
+			if _, err := manager.Exchange(
+				t.Context(), cfg, ExchangeInput{RedirectURL: resp.Header.Get("Location")},
+			); err != nil {
+				t.Fatalf("Exchange() error = %v", err)
+			}
+			status, err := manager.Status(t.Context(), cfg)
+			if err != nil || status.Status != StatusAuthenticated || !status.TokenPresent {
+				t.Fatalf("Status() = %+v, error = %v, want authenticated with a token", status, err)
+			}
+		})
+	}
 }
 
 func TestRegisterClientReportsRejectionStatus(t *testing.T) {
@@ -911,6 +1697,41 @@ func TestManagerStepUpPreservesApprovedScopes(t *testing.T) {
 
 func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 	t.Parallel()
+	// Invariant: interrupted credential reads propagate to the caller without classifying the token as invalid.
+	// Owner: OAuth status and binding; canonical suite: TestAuthorizationTokenRequiresBaselineScopes.
+	for _, test := range []struct {
+		name    string
+		stored  bool
+		wantErr error
+	}{
+		{"Should propagate cancellation during token resolution", false, context.Canceled},
+		{"Should propagate a token resolution deadline", false, context.DeadlineExceeded},
+		{"Should propagate cancellation during registration lookup", true, context.Canceled},
+		{"Should propagate a registration lookup deadline", true, context.DeadlineExceeded},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := ServerConfig{
+				Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+				Transport: "http", RemoteURL: "https://mcp.example.test", Registration: RegistrationAuto,
+			}
+			store := &adapterTestStore{}
+			if test.stored {
+				store.token = managerBoundToken(t, cfg, "fixture-access")
+				store.registrationErr = test.wantErr
+			} else {
+				store.tokenErr = errors.Join(ErrTokenResolution, test.wantErr)
+			}
+			service, err := NewService(store, WithRegistrationStore(store))
+			if err != nil {
+				t.Fatal(err)
+			}
+			status, err := service.Status(t.Context(), cfg)
+			if !errors.Is(err, test.wantErr) || status.Status != "" {
+				t.Fatalf("interrupted status = %+v, %v, want no observation and %v", status, err, test.wantErr)
+			}
+		})
+	}
 	t.Run("Should probe an implicit remote when its old credential no longer matches", func(t *testing.T) {
 		t.Parallel()
 		store := &adapterTestStore{}
@@ -941,6 +1762,8 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 		}
 	})
 
+	// Invariant: a configured client with missing grants still reports needs_login and cannot send the bearer.
+	// Owner: OAuth token binding and status; canonical suite: TestAuthorizationTokenRequiresBaselineScopes.
 	t.Run("Should accept step-up scopes and reject a missing baseline scope", func(t *testing.T) {
 		t.Parallel()
 		store := &adapterTestStore{}
@@ -977,6 +1800,10 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 			ErrTokenBindingInvalid,
 		) {
 			t.Fatalf("AuthorizationToken(missing baseline) error = %v, want invalid binding", err)
+		}
+		status, err := service.Status(t.Context(), cfg)
+		if err != nil || status.Status != StatusNeedsLogin || status.TokenPresent {
+			t.Fatalf("Status(missing baseline) = %#v, %v", status, err)
 		}
 	})
 }
@@ -1086,22 +1913,27 @@ func TestOAuthTokenResponseLifecycleContract(t *testing.T) {
 	})
 }
 
-// Invariant: rediscovery cannot send persisted credentials to a replacement issuer.
+// Invariant: issuer replacement never receives persisted credentials and is reported once.
 // Owner: OAuth token lifecycle; canonical suite: sdk_adapter_test.go.
 func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
 	t.Parallel()
-	for _, logout := range []bool{false, true} {
-		name := "Should reject refresh after advertised issuer changes"
-		if logout {
-			name = "Should clean up logout without revoking at a replacement issuer"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		logout, hosted bool
+	}{
+		{name: "Should reject refresh after the advertised issuer changes"},
+		{name: "Should clean up logout without revoking at a replacement issuer", logout: true},
+		{name: "Should retain valid hosted access and stop refreshing after an issuer change", hosted: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var replacementRequests atomic.Int32
+			var replacementMetadata atomic.Int32
 			replacement := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/token" || r.URL.Path == "/revoke" {
 					replacementRequests.Add(1)
 				}
+				replacementMetadata.Add(1)
 				writeOAuthMetadataResponse(t, w, r, true)
 			}))
 			t.Cleanup(replacement.Close)
@@ -1109,7 +1941,18 @@ func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
 			original := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case "/.well-known/oauth-authorization-server", "/.well-known/openid-configuration":
-					writeOAuthMetadataResponse(t, w, r, true)
+					if !tc.hosted {
+						writeOAuthMetadataResponse(t, w, r, true)
+						return
+					}
+					base := "http://" + r.Host
+					writeManagerTestResponse(t, w, fmt.Sprintf(
+						`{"issuer":%q,"authorization_endpoint":%q,"token_endpoint":%q,"registration_endpoint":%q,"code_challenge_methods_supported":["S256"]}`,
+						base,
+						base+"/authorize",
+						base+"/token",
+						base+"/register",
+					))
 				case "/.well-known/oauth-protected-resource/mcp":
 					issuer := "http://" + r.Host
 					if switched.Load() {
@@ -1127,18 +1970,30 @@ func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
 				case "/token":
 					w.Header().Set("Content-Type", "application/json")
 					if _, err := w.Write(
-						[]byte(`{"access_token":"access-A","refresh_token":"refresh-A","token_type":"Bearer"}`),
+						[]byte(
+							`{"access_token":"access-A","refresh_token":"refresh-A","token_type":"Bearer","expires_in":60}`,
+						),
 					); err != nil {
 						t.Error(err)
 					}
+				case "/register":
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusCreated)
+					writeManagerTestResponse(t, w, `{"client_id":"client","token_endpoint_auth_method":"none"}`)
 				default:
 					http.NotFound(w, r)
 				}
 			}))
 			t.Cleanup(original.Close)
+			now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
 			store := &adapterTestStore{}
-			service, cfg := newPreRegisteredTestService(t, store, original)
+			var logs bytes.Buffer
+			service, cfg := newPreRegisteredTestService(t, store, original, WithRegistrationStore(store),
+				WithNow(func() time.Time { return now }), WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))))
 			cfg.IssuerURL = ""
+			if tc.hosted {
+				cfg.Registration, cfg.ClientID = RegistrationAuto, ""
+			}
 			state, err := service.BeginLogin(t.Context(), cfg, "http://127.0.0.1:2123/callback")
 			if err != nil {
 				t.Fatal(err)
@@ -1151,18 +2006,34 @@ func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
 				t.Fatal(err)
 			}
 			switched.Store(true)
-			if logout {
+			now = now.Add(55 * time.Second)
+			if tc.logout {
 				status, err := service.Logout(t.Context(), cfg)
 				if err != nil || !store.authorizationStateDeleted || store.token.AccessToken != "" ||
 					status.Status != StatusNeedsLogin {
 					t.Fatalf("logout = %+v, %v; deleted=%v", status, err, store.authorizationStateDeleted)
 				}
 			} else {
-				if _, err := service.Refresh(t.Context(), cfg); !errors.Is(err, ErrTokenBindingInvalid) {
+				status, err := service.Refresh(t.Context(), cfg)
+				if !errors.Is(err, ErrTokenBindingInvalid) || status.Status != StatusAuthenticated ||
+					status.Refreshable ||
+					!status.TokenPresent ||
+					!strings.Contains(status.Diagnostic, "login again") {
 					t.Fatalf("refresh = %v", err)
 				}
-				if store.token.AccessToken != "access-A" {
-					t.Fatal("refresh changed persisted token")
+				token, err := service.AuthorizationToken(t.Context(), cfg)
+				if err != nil || token.AccessToken != "access-A" || token.RefreshToken != "" {
+					t.Fatal("issuer replacement did not retain only the bound access token")
+				}
+				discoveryCount := replacementMetadata.Load()
+				now = now.Add(time.Minute)
+				after, err := service.Refresh(t.Context(), cfg)
+				if err != nil || after.Status != StatusExpired || after.Refreshable ||
+					replacementMetadata.Load() != discoveryCount {
+					t.Fatalf("expired status = %+v, err = %v; want expiry without rediscovery", after, err)
+				}
+				if strings.Count(logs.String(), `"cause_class":"binding_invalid"`) != 1 {
+					t.Fatal("issuer replacement should emit one redacted binding warning")
 				}
 			}
 			if replacementRequests.Load() != 0 {
@@ -1783,6 +2654,8 @@ type adapterTestStore struct {
 	secrets                   RegistrationSecrets
 	authorizationStateDeleted bool
 	token                     TokenRecord
+	tokenErr                  error
+	registrationErr           error
 }
 
 func (s *adapterTestStore) SaveMCPAuthToken(_ context.Context, token TokenRecord) error {
@@ -1794,6 +2667,9 @@ func (s *adapterTestStore) SaveMCPAuthToken(_ context.Context, token TokenRecord
 func (s *adapterTestStore) GetMCPAuthToken(context.Context, Target) (TokenRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.tokenErr != nil {
+		return TokenRecord{}, s.tokenErr
+	}
 	if s.token.AccessToken == "" {
 		return TokenRecord{}, ErrTokenNotFound
 	}
@@ -1829,6 +2705,9 @@ func (s *adapterTestStore) GetMCPAuthRegistration(
 ) (ClientRegistration, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.registrationErr != nil {
+		return ClientRegistration{}, s.registrationErr
+	}
 	if s.registration.ClientID == "" {
 		return ClientRegistration{}, ErrRegistrationNotFound
 	}

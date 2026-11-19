@@ -15,6 +15,7 @@ import {
   sessionMCPNeedsSignInFixture,
   sessionMCPPendingFixture,
   sessionMCPReloadFailedFixture,
+  sessionMCPRowFixture,
   sessionMCPRuntimeOffFixture,
   sessionMCPSummaryFixture,
   sessionMCPWaitingFixture,
@@ -56,6 +57,22 @@ function renderControl(props: Partial<Parameters<typeof MCPComposerControl>[0]> 
 }
 
 describe("MCPComposerControl", () => {
+  it("Should show the reason for an off server without offering repair", async () => {
+    const user = userEvent.setup();
+    const data = sessionMCPFixture({
+      compozy: [
+        sessionMCPRowFixture({ name: "echo", state: "off", reason: "Turned off in CompozyOS" }),
+      ],
+    });
+    renderControl({ summary: sessionMCPSummaryFixture(data), data });
+    await user.click(screen.getByTestId("composer-mcp-button"));
+
+    const row = within(screen.getByTestId("composer-mcp-echo"));
+    await waitFor(() => expect(row.getByText("Off")).toBeVisible());
+    expect(row.getByText("Turned off in CompozyOS")).toBeVisible();
+    expect(row.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("UT-W08: Should render nothing for a session without an MCP summary", () => {
     renderControl({ summary: null, data: sessionMCPAllReadyFixture });
     expect(screen.queryByTestId("composer-mcp-button")).not.toBeInTheDocument();

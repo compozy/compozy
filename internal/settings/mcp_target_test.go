@@ -191,7 +191,10 @@ func TestMCPImportSecretCommitOwnership(t *testing.T) {
 			}
 			switch outcome {
 			case "uncommitted":
-				deps.MCPDefinitionWriter = func(compozyconfig.HomePaths, string, string, compozyconfig.WriteTarget, compozyconfig.MCPServer) error {
+				deps.MCPDefinitionWriter = func(
+					context.Context, compozyconfig.HomePaths, string, string, compozyconfig.WriteTarget,
+					compozyconfig.MCPServer,
+				) error {
 					return failure
 				}
 			case "restored":
@@ -319,9 +322,15 @@ func TestMCPImportSecretCommitOwnership(t *testing.T) {
 		)
 		store := newFakeProviderSecretStore()
 		failure := errors.New("write refused")
-		settings := testService(t, home, Dependencies{ProviderSecrets: store, MCPDefinitionWriter: func(compozyconfig.HomePaths, string, string, compozyconfig.WriteTarget, compozyconfig.MCPServer) error {
-			return failure
-		}}).(*service)
+		settings := testService(t, home, Dependencies{
+			ProviderSecrets: store,
+			MCPDefinitionWriter: func(
+				context.Context, compozyconfig.HomePaths, string, string, compozyconfig.WriteTarget,
+				compozyconfig.MCPServer,
+			) error {
+				return failure
+			},
+		}).(*service)
 		_, err := settings.putMCPServer(
 			t.Context(),
 			ScopeUser,

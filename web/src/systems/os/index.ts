@@ -127,6 +127,12 @@ export { buildWindowManagerMinimums } from "./lib/window-manager-view";
 // which is what makes their ids, labels and chords identical by construction.
 export { CmdPaletteRegistryProvider } from "./contexts/cmd-palette-registry-context";
 export { usePaletteCommand, usePaletteRegistry } from "./hooks/use-palette-registry";
+export { useTerminalHostShortcut } from "./hooks/use-terminal-host-shortcut";
+export {
+  isRetiredShortcutId,
+  retiredShortcutTitle,
+  withoutRetiredShortcuts,
+} from "./lib/window-manager-retired-shortcuts";
 export { registryShortcutActions } from "./lib/cmd-palette-shortcut-actions";
 export { cmdPaletteKeys } from "./lib/cmd-palette-query-keys";
 export { resetCmdPalettePersonalization } from "./adapters/cmd-palette-api";
@@ -143,9 +149,6 @@ export {
   chordFromKeyboardEvent,
   coveringShortcutFamily,
   deriveShortcutCheatsheet,
-  effectiveShortcutMap,
-  expandShortcutOverrides,
-  findShortcutConflicts,
   isShortcutOverrideActionId,
   parseShortcutChord,
   resolveWindowManagerActions,
@@ -164,6 +167,11 @@ export {
   type ShortcutMap,
   type ShortcutRangeFamily,
 } from "./lib/window-manager-shortcuts";
+export {
+  effectiveShortcutMap,
+  expandShortcutOverrides,
+  findShortcutConflicts,
+} from "./lib/window-manager-shortcut-overrides";
 
 // Attention: the system notification channel's truthful platform state, read by
 // Settings so the switch can never claim to be armed when the platform refused.

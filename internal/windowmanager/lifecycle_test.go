@@ -616,6 +616,118 @@ func TestTabsAndSplits(t *testing.T) {
 			}
 		}
 	})
+	for _, tc := range []struct {
+		name  string
+		edge  DropPlacement
+		axis  Axis
+		index int
+	}{
+		{name: "Should place a tiled open right of its anchor by default", edge: "", axis: AxisHorizontal, index: 1},
+		{name: "Should place a tiled open right of its anchor", edge: DropRight, axis: AxisHorizontal, index: 1},
+		{name: "Should place a tiled open left of its anchor", edge: DropLeft, axis: AxisHorizontal, index: 0},
+		{name: "Should place a tiled open below its anchor", edge: DropBottom, axis: AxisVertical, index: 1},
+		{name: "Should place a tiled open above its anchor", edge: DropTop, axis: AxisVertical, index: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			e := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			openTestWindow(t, e.manager, "workspace-a", nil, "first", "desktop-default")
+			client := ClientID("caller")
+			registerTestClient(t, e.manager, "workspace-a", client)
+			r := executeTestCommand(t, e.manager, "workspace-a", &client, OpenWindowCommand{Window: WindowSpec{
+				ID: "a", App: "Test", Route: testRoute("/new"), InsertTiled: true, InsertEdge: tc.edge,
+			}})
+			root := tabFor(t, r.Snapshot, "a").Root
+			if valueOrZero(root.Axis) != tc.axis || len(root.Children) != 2 ||
+				valueOrZero(root.Children[tc.index].WindowID) != "a" {
+				t.Fatalf("edge %q open=%+v", tc.edge, root)
+			}
+		})
+	}
+	t.Run("Should move focus within a stacked column instead of to a full-height neighbor", func(t *testing.T) {
+		t.Parallel()
+		// Split right, then split down on the right: "first" spans the height beside "top" over "bottom".
+		e := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, e.manager, "workspace-a", nil, "first", "desktop-default")
+		client := ClientID("caller")
+		registerTestClient(t, e.manager, "workspace-a", client)
+		executeTestCommand(t, e.manager, "workspace-a", &client, OpenWindowCommand{Window: WindowSpec{
+			ID: "top", App: "Test", Route: testRoute("/top"), InsertTiled: true,
+		}})
+		r := executeTestCommand(t, e.manager, "workspace-a", &client, OpenWindowCommand{Window: WindowSpec{
+			ID: "bottom", App: "Test", Route: testRoute("/bottom"), InsertTiled: true, InsertEdge: DropBottom,
+		}})
+		for _, tc := range []struct {
+			name      string
+			from      WindowID
+			direction FocusDirection
+			want      WindowID
+		}{
+			{name: "Should move down to the lower pane", from: "top", direction: FocusDown, want: "bottom"},
+			{name: "Should move up to the upper pane", from: "bottom", direction: FocusUp, want: "top"},
+			{name: "Should move left to the full-height window", from: "bottom", direction: FocusLeft, want: "first"},
+			{name: "Should find nothing above the top pane", from: "top", direction: FocusUp, want: ""},
+			{name: "Should find nothing below the bottom pane", from: "bottom", direction: FocusDown, want: ""},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				view := ClientView{ActiveDesktopID: "desktop-default", FocusedWindowID: new(tc.from)}
+				got, err := resolveFocusTarget(view, r.Snapshot, FocusWindowCommand{Direction: tc.direction})
+				if err != nil || got != tc.want {
+					t.Fatalf("focus %s from %s = %q, %v; want %q", tc.direction, tc.from, got, err, tc.want)
+				}
+			})
+		}
+	})
+	for _, tc := range []struct {
+		name    string
+		command OpenWindowCommand
+	}{
+		{
+			name:    "Should reject an insert edge without a tiled insert",
+			command: OpenWindowCommand{Window: WindowSpec{InsertEdge: DropBottom}},
+		},
+		{
+			name: "Should reject an insert edge with a stack target",
+			command: OpenWindowCommand{Window: WindowSpec{
+				InsertTiled: true, InsertEdge: DropBottom, StackTargetWindowID: new(WindowID("first")),
+			}},
+		},
+		{
+			name:    "Should reject an insert edge on a legacy floating open",
+			command: OpenWindowCommand{Window: WindowSpec{InsertTiled: true, Floating: true, InsertEdge: DropBottom}},
+		},
+		{
+			name:    "Should reject an insert edge with an unknown side",
+			command: OpenWindowCommand{Window: WindowSpec{InsertTiled: true, InsertEdge: DropCenter}},
+		},
+		{
+			name: "Should reject an insert edge on a restore",
+			command: OpenWindowCommand{
+				RestoreWindowID: new(WindowID("first")),
+				Window:          WindowSpec{InsertTiled: true, InsertEdge: DropRight},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			e := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			openTestWindow(t, e.manager, "workspace-a", nil, "first", "desktop-default")
+			tc.command.Window.App, tc.command.Window.Route = "Test", testRoute("/new")
+			snapshot := mustSnapshot(t, e.manager, "workspace-a")
+			request := CommandRequest{
+				WorkspaceID:      "workspace-a",
+				CommandID:        CommandWindowOpen,
+				ExpectedRevision: snapshot.Revision,
+				Payload:          tc.command,
+			}
+			if _, err := e.manager.Preview(t.Context(), request); !errors.Is(err, ErrInvalidCommand) {
+				t.Fatalf("Preview(window.open) error = %v, want %v", err, ErrInvalidCommand)
+			}
+			if _, err := e.manager.Execute(t.Context(), request); !errors.Is(err, ErrInvalidCommand) {
+				t.Fatalf("Execute(window.open) error = %v, want %v", err, ErrInvalidCommand)
+			}
+		})
+	}
 	t.Run("Should activate the deprecated restore target without a commit", func(t *testing.T) {
 		t.Parallel()
 		e := threeTabs(t)

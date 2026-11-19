@@ -135,6 +135,7 @@ function SessionListGroupSplit({
     showAutomation: view.showAutomation,
     search: view.groupFilters.q,
     worktreeId: view.worktreeId,
+    pinned: view.groupFilters.pinned,
     enabled: true,
   });
   if (split.error) {

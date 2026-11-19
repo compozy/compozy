@@ -19,6 +19,7 @@ type instanceDefinitions struct {
 	profiles           session.ProfileNameResolver
 	agents             session.AgentResolver
 	sessions           *session.Manager
+	mainRecoveryReady  func() bool
 	// scriptsEnabled is the poller's own `agents.heartbeat.sources.scripts_enabled`, so instance
 	// reads ask for approval exactly where a poll would run the script.
 	scriptsEnabled bool

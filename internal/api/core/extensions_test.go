@@ -405,7 +405,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			taskpkg.ActorContext,
 		) (contract.ExtensionPayload, error) {
 			return contract.ExtensionPayload{}, &extensionpkg.AgentPluginManifestValidationError{
-				Path: "/tmp/plugin/plugin.json",
+				Path: "/tmp/plugin/.claude-plugin/plugin.json",
 				Issues: []agentplugin.Issue{
 					{Path: "name", Message: "name contains compozy_claim_secret-123"},
 					{Path: "author.email", Message: "must be a string"},
@@ -426,12 +426,46 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 		}
 		if payload.Diagnostic == nil ||
 			payload.Diagnostic.Code != diagnosticcontract.CodeExtensionAgentPluginManifestInvalid ||
-			len(payload.Issues) != 2 || payload.Issues[0].Field != "name" || payload.Issues[1].Field != "author.email" {
+			len(
+				payload.Issues,
+			) != 2 || payload.Issues[0].Field != "name" || payload.Issues[1].Field != "author.email" ||
+			payload.Issues[0].Path != ".claude-plugin/plugin.json" || payload.Issues[1].Path != ".claude-plugin/plugin.json" {
 			t.Fatalf("portable validation payload = %#v", payload)
 		}
 		if strings.Contains(response.Body.String(), "compozy_claim_secret-123") ||
 			!strings.Contains(payload.Issues[0].Message, "[REDACTED]") {
 			t.Fatalf("portable validation payload leaked claim token: %s", response.Body.String())
+		}
+	})
+
+	t.Run("Should return 422 when preview rejects an unrelated plugin schema", func(t *testing.T) {
+		t.Parallel()
+		service := extensionServiceStub{previewInstallFn: func(
+			context.Context,
+			contract.InstallExtensionRequest,
+			taskpkg.ActorContext,
+		) (contract.ExtensionInstallPreviewPayload, error) {
+			return contract.ExtensionInstallPreviewPayload{}, &agentplugin.ManifestError{
+				ManifestPath: ".claude-plugin/plugin.json",
+				Issues:       []agentplugin.Issue{{Path: "$schema", Message: "unrelated client manifest"}},
+			}
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions/preview-install", handlers.PreviewExtensionInstall)
+		response := performRequest(t, engine, http.MethodPost, "/extensions/preview-install",
+			[]byte(`{"source":"marketplace","ref":"team/tool","allow_unverified":true}`))
+		var payload contract.ExtensionValidationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusUnprocessableEntity || payload.Diagnostic == nil ||
+			payload.Diagnostic.Code != diagnosticcontract.CodeExtensionAgentPluginManifestInvalid ||
+			len(payload.Issues) != 1 || payload.Issues[0].Field != "$schema" ||
+			payload.Issues[0].Path != ".claude-plugin/plugin.json" ||
+			!strings.Contains(payload.Error, "unrelated client manifest") ||
+			strings.Contains(payload.Error, "archive missing") {
+			t.Fatalf("preview = %d %s", response.Code, response.Body.String())
 		}
 	})
 
@@ -854,6 +888,7 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map an invalid plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginManifestInvalid, want: http.StatusUnprocessableEntity},
 		{name: "Should map permanent removal of a non-built-in to unprocessable", err: extensionpkg.ErrExtensionNotBuiltin, want: http.StatusUnprocessableEntity},
 		{name: "Should map permanent removal of an attached built-in to conflict", err: extensionpkg.ErrExtensionBuiltinAttached, want: http.StatusConflict},
+		{name: "Should map acquisition manifest issues to unprocessable", err: &agentplugin.ManifestError{}, want: http.StatusUnprocessableEntity},
 		{name: "Should map unknown failures to internal error", err: errors.New("unknown"), want: http.StatusInternalServerError},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {

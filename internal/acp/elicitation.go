@@ -230,6 +230,7 @@ func elicitationQuestions(message string, schema acpsdk.UnstableElicitationSchem
 				rendered.customKey = custom
 				consumed[custom] = struct{}{}
 			}
+			rendered.question.ChoicesOnly = rendered.customKey == ""
 		}
 		questions = append(questions, rendered)
 	}

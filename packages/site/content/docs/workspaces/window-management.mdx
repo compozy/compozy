@@ -68,7 +68,8 @@ focus that explicit client.
 New windows open as a new tab right after the active tab (`new_window_policy = "tab"`). Set
 `new_window_policy = "beside_focus"` to open them split to the right of the focused window instead.
 An explicit placement wins over the policy: `--stack-target <window-id>` opens a tab right after that
-window's tab, and `--tiled` splits beside the client's focus.
+window's tab, and `--tiled` splits beside the client's focus. Add `--edge left|right|top|bottom`
+(`insert_edge` on the API) to choose the side of that split; it defaults to the right.
 
 In the app, the tab bar at the top of the work area lists every tab of the active desktop. A tab
 shows the icon and title of its lead window (the one you focused last); a split tab shows up to three
@@ -171,21 +172,23 @@ window takes the main column), **Columns** (all side by side), **Grid** (up to f
 
 ## Shortcuts
 
-| Shortcut ID                                              | Default     | Does                                            |
-| -------------------------------------------------------- | ----------- | ----------------------------------------------- |
-| `window.tab.new`                                         | ⌘T          | New tab                                         |
-| `window.tab.next`, `window.tab.previous`                 | ⌃Tab, ⌃⇧Tab | Next or previous tab                            |
-| `window.tab.jump.1`–`8`, `window.tab.last`               | ⌘1–⌘8, ⌘9   | Go to a tab                                     |
-| `window.tab.reopen`                                      | ⌘⇧T         | Reopen closed tab                               |
-| `window.close`                                           | ⌘W          | Close window                                    |
-| `window.tile.left`, `right`, `top`, `bottom`             | ⌃⌥ + arrow  | Move the focused window to that edge of its tab |
-| `window.unsplit`                                         | unbound     | Move to new tab                                 |
-| `window.swap.left`, `right`, `up`, `down`                | unbound     | Swap the focused window with its neighbor       |
-| `window.tab.move_left`, `window.tab.move_right`          | unbound     | Move tab left or right                          |
-| `window.focus.left`, `right`, `up`, `down`               | ⌃ + arrow   | Focus the neighboring window                    |
-| `layout.balance`                                         | ⌃⌥B         | Balance sizes                                   |
-| `layout.arrange.main-stack`, `columns`, `grid`, `two-up` | unbound     | Arrange presets                                 |
-| `layout.undo`, `layout.redo`                             | ⌘Z, ⌘⇧Z     | Undo or redo a layout change                    |
+| Shortcut ID                                              | Default                          | Does                                            |
+| -------------------------------------------------------- | -------------------------------- | ----------------------------------------------- |
+| `window.tab.new`                                         | ⌘T, ⌥T                           | New tab                                         |
+| `window.tab.next`, `window.tab.previous`                 | ⌃Tab, ⌃⇧Tab, ⌃⌥L, ⌃⌥H            | Next or previous tab                            |
+| `window.tab.jump.1`–`8`, `window.tab.last`               | ⌘1–⌘8, ⌘9                        | Go to a tab                                     |
+| `window.tab.reopen`                                      | ⌘⇧T                              | Reopen closed tab                               |
+| `window.close`                                           | ⌘W, ⌥W                           | Close window                                    |
+| `window.split.right`, `window.split.down`                | ⌥;, ⌥⇧;                          | Split right or down with a New tab pane         |
+| `window.tile.left`, `right`, `top`, `bottom`             | ⌃⌥←, ⌃⌥→; top and bottom unbound | Move the focused window to that edge of its tab |
+| `window.unsplit`                                         | unbound                          | Move to new tab                                 |
+| `window.swap.left`, `right`, `up`, `down`                | unbound                          | Swap the focused window with its neighbor       |
+| `window.tab.move_left`, `window.tab.move_right`          | unbound                          | Move tab left or right                          |
+| `window.focus.left`, `right`, `up`, `down`               | ⌥H/L/K/J, ⌃ + arrow              | Focus the neighboring window                    |
+| `window.focus.last`                                      | ⌥O, ⌃⌥O                          | Focus the last window                           |
+| `layout.balance`                                         | ⌃⌥B                              | Balance sizes                                   |
+| `layout.arrange.main-stack`, `columns`, `grid`, `two-up` | unbound                          | Arrange presets                                 |
+| `layout.undo`, `layout.redo`                             | ⌘Z, ⌘⇧Z                          | Undo or redo a layout change                    |
 
 Change them in Settings → Shortcuts or under `[window_manager.shortcuts]`; see
 [Shortcuts](/docs/configuration/shortcuts).

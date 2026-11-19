@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 const definitionFingerprintPrefix = "sha256:"
@@ -115,7 +116,7 @@ func (s *Service) tokenBinding(
 			"mcp auth: registration store is required to validate token binding",
 		)
 	}
-	registration, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
+	registration, err := s.loadTokenRegistration(ctx, cfg.Target)
 	if err != nil {
 		if errors.Is(err, ErrRegistrationNotFound) {
 			return false, nil, nil
@@ -135,13 +136,25 @@ func (s *Service) tokenBinding(
 
 func scopesCover(granted []string, required []string) bool {
 	grantedSet := make(map[string]struct{}, len(granted))
-	for _, scope := range trimStrings(granted) {
+	for _, scope := range normalizeScopes(granted) {
 		grantedSet[scope] = struct{}{}
 	}
-	for _, scope := range trimStrings(required) {
+	for _, scope := range normalizeScopes(required) {
 		if _, ok := grantedSet[scope]; !ok {
 			return false
 		}
 	}
 	return true
+}
+
+func parseScopes(value string) []string {
+	return strings.FieldsFunc(value, func(r rune) bool { return r == ',' || unicode.IsSpace(r) })
+}
+
+func normalizeScopes(values []string) []string {
+	var scopes []string
+	for _, value := range values {
+		scopes = append(scopes, parseScopes(value)...)
+	}
+	return scopes
 }

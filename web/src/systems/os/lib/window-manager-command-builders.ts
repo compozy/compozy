@@ -36,6 +36,9 @@ export function openWindowCommand(
         route: target.route ?? defaultOsWindowRoute(target.app),
         desktop_id: desktopId,
         ...(target.placement === "split" ? { insert_tiled: true } : {}),
+        ...(target.placement === "split" && target.splitEdge
+          ? { insert_edge: target.splitEdge }
+          : {}),
         ...(target.afterWindowId ? { stack_target_window_id: target.afterWindowId } : {}),
       },
     },

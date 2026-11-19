@@ -266,8 +266,14 @@ type SettingsMCPSecretValuesPayload struct {
 	OAuthClientSecret *string           `json:"oauth_client_secret,omitzero"`
 }
 
+// SettingsMCPServerEnabledRequest is a daemon API value.
+type SettingsMCPServerEnabledRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
 // SettingsMCPServerItemPayload is a daemon API value.
 type SettingsMCPServerItemPayload struct {
+	Disabled           bool                                   `json:"disabled,omitzero"`
 	DefinitionSource   string                                 `json:"definition_source,omitempty"`
 	Approval           SettingsMCPApprovalStatePayload        `json:"approval"`
 	CallableInSessions bool                                   `json:"callable_in_sessions"`
@@ -433,15 +439,4 @@ type SettingsProviderCredentialSlotPayload struct {
 	SecretRef string `json:"secret_ref"`
 	Kind      string `json:"kind,omitempty"`
 	Required  bool   `json:"required"`
-}
-
-// SettingsProviderCredentialStatusPayload is a daemon API value.
-type SettingsProviderCredentialStatusPayload struct {
-	Name      string `json:"name"`
-	TargetEnv string `json:"target_env"`
-	SecretRef string `json:"secret_ref"`
-	Kind      string `json:"kind,omitempty"`
-	Required  bool   `json:"required"`
-	Present   bool   `json:"present"`
-	Source    string `json:"source,omitempty"`
 }

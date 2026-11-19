@@ -5,6 +5,7 @@ const (
 	GatewayConsentRecorded      = "gateway.consent.recorded"
 	GatewayDevicePaired         = "gateway.device.paired"
 	GatewayDeviceRevoked        = "gateway.device.revoked"
+	GatewayDeviceRemoved        = "gateway.device.removed"
 	GatewayProviderStateChanged = "gateway.provider.state_changed"
 	GatewayEndpointVerified     = "gateway.endpoint.verified"
 	GatewayEndpointRejected     = "gateway.endpoint.rejected"

@@ -53,7 +53,10 @@ func sessionMCPConsentFilter(state *bootState) session.MCPConsentFilter {
 			if err != nil {
 				return nil, err
 			}
-			if decision.Admitted && digest == decision.DefinitionDigest {
+			if decision.Admitted && !decision.Disabled && digest == decision.DefinitionDigest {
+				if server.IsDisabled() {
+					server.Disabled = new(false)
+				}
 				admitted = append(admitted, server)
 			}
 		}

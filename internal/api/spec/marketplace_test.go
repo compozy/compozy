@@ -155,7 +155,7 @@ func TestMarketplaceOperations(t *testing.T) {
 					{name: "profile", in: openapi3.ParameterInQuery},
 					{name: "workspace_id", in: openapi3.ParameterInQuery},
 				},
-				statuses: []int{200, 400, 404, 409, 500, 503},
+				statuses: []int{200, 400, 404, 409, 422, 500, 503},
 			},
 			{
 				name:     "Should describe marketplace refresh",

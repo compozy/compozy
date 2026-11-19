@@ -196,28 +196,6 @@ func (h *BaseHandlers) LogoutSettingsMCPAuth(c *gin.Context) {
 	c.JSON(http.StatusOK, settingsMCPAuthStatusPayload(&status))
 }
 
-// CompleteSettingsMCPAuthCallback completes a browser redirect and renders a close-tab page.
-func (h *BaseHandlers) CompleteSettingsMCPAuthCallback(c *gin.Context) {
-	if h.Settings == nil {
-		c.Data(http.StatusServiceUnavailable, "text/html; charset=utf-8", []byte(mcpOAuthFailurePage))
-		return
-	}
-	callbackURL, err := h.mcpOAuthCallbackURL()
-	if err != nil {
-		c.Data(http.StatusServiceUnavailable, "text/html; charset=utf-8", []byte(mcpOAuthFailurePage))
-		return
-	}
-	if strings.TrimSpace(c.Request.URL.RawQuery) != "" {
-		callbackURL += "?" + c.Request.URL.RawQuery
-	}
-	status, err := h.Settings.CompleteMCPAuthCallback(c.Request.Context(), callbackURL)
-	if err != nil || status.Status != mcpauth.StatusAuthenticated || !status.TokenPresent {
-		c.Data(http.StatusBadRequest, "text/html; charset=utf-8", []byte(mcpOAuthFailurePage))
-		return
-	}
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(mcpOAuthSuccessPage))
-}
-
 func parseSettingsMCPAuthTarget(c *gin.Context) (settingspkg.MCPAuthTargetRequest, error) {
 	name := strings.TrimSpace(c.Param("name"))
 	scope := strings.TrimSpace(c.Query("scope"))
@@ -261,7 +239,3 @@ func isLoopbackMCPCallbackHost(host string) bool {
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
 }
-
-const mcpOAuthSuccessPage = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Authorization complete</title></head><body><main><h1>Authorization complete</h1><p>You can close this tab and return to Compozy.</p></main></body></html>`
-
-const mcpOAuthFailurePage = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Authorization failed</title></head><body><main><h1>Authorization failed</h1><p>Return to Compozy and try again, or use manual authorization.</p></main></body></html>`

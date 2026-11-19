@@ -6,7 +6,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { windowManagerStore } from "../../stores/window-manager-store";
-import { completePaletteNewTabOpen, paletteInvokeIdentity } from "../use-desktop-shell-body";
+import {
+  completePaletteNewTabOpen,
+  completePaletteSplitOpen,
+  paletteInvokeIdentity,
+} from "../use-desktop-shell-body";
 
 afterEach(() => {
   windowManagerStore.trigger.paletteIntentCleared();
@@ -47,6 +51,28 @@ describe("desktop shell palette new-tab handoff", () => {
     expect(closePalette).toHaveBeenCalledOnce();
     expect(userOpen).toHaveBeenCalledExactlyOnceWith({ app: "new-tab" });
     expect(windowManagerStore.getSnapshot().context.paletteIntent).toBeNull();
+  });
+});
+
+describe("desktop shell palette split handoff", () => {
+  it("Should open a fresh New tab pane on the edge and publish its destination", async () => {
+    const closePalette = vi.fn();
+    const userOpen = vi.fn(async () => "window:split");
+
+    await completePaletteSplitOpen({ closePalette, splitEdge: "bottom", userOpen });
+
+    expect(closePalette).toHaveBeenCalledOnce();
+    // A new instance every time, so a pending or existing New tab is never reused.
+    expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+      app: "new-tab",
+      forceNewInstance: true,
+      placement: "split",
+      splitEdge: "bottom",
+    });
+    expect(windowManagerStore.getSnapshot().context.paletteIntent).toEqual({
+      kind: "destination",
+      windowId: "window:split",
+    });
   });
 });
 

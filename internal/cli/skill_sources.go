@@ -150,7 +150,7 @@ func skillSourceState(source contract.SettingsSkillSourcePayload) string {
 	if source.Enabled {
 		return cliEnabledKey
 	}
-	return "disabled"
+	return daemonDisabledKey
 }
 
 func skillSourceCount(roots []contract.SettingsSkillSourceRootPayload) string {

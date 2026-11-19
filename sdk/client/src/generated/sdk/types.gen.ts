@@ -2965,12 +2965,14 @@ export type GatewayIssuedCredentialPayload = {
 export type GatewayPairingArtifactPayload = {
   artifact: string;
   expires_at: string;
+  manual_code: string;
 };
 
 export type GatewayPairingRedeemRequest = {
   actor_kind: string;
-  artifact: string;
+  artifact?: string;
   credential?: string;
+  manual_code?: string;
   name: string;
 };
 
@@ -2994,6 +2996,12 @@ export type GatewayProviderPayload = {
 export type GatewayRefusalPayload = {
   cause: string;
   fix: string;
+};
+
+export type GatewayRemovedDevicePayload = {
+  canceled: number;
+  device: GatewayDevicePayload;
+  revoked: boolean;
 };
 
 export type GatewayRevokePayload = {
@@ -8217,6 +8225,7 @@ export type SessionPayload = {
   parent_title?: string;
   pending_interactions: Array<PendingInteractionPayload>;
   permission_mode_degraded: boolean;
+  pinned_at?: string | null;
   process_summary?: SessionProcessSummaryPayload | null;
   profile_archived?: boolean;
   profile_color?: string;
@@ -9309,6 +9318,10 @@ export type SettingsMCPSecretValuesPayload = {
   };
 };
 
+export type SettingsMCPServerEnabledRequest = {
+  enabled: boolean;
+};
+
 export type SettingsMCPServerItemPayload = {
   approval: SettingsMCPApprovalStatePayload;
   args?: Array<string>;
@@ -9319,6 +9332,7 @@ export type SettingsMCPServerItemPayload = {
   catalog_version?: string;
   command?: string;
   definition_source?: string;
+  disabled?: boolean;
   env_keys?: Array<string>;
   headers_configured?: boolean;
   name: string;
@@ -21900,6 +21914,41 @@ export type RenameGatewayDeviceResponses = {
 export type RenameGatewayDeviceResponse =
   RenameGatewayDeviceResponses[keyof RenameGatewayDeviceResponses];
 
+export type RemoveGatewayDeviceData = {
+  body?: never;
+  path: {
+    /**
+     * Gateway device id
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/gateway/devices/{id}/record";
+};
+
+export type RemoveGatewayDeviceErrors = {
+  /**
+   * Gateway device not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type RemoveGatewayDeviceError = RemoveGatewayDeviceErrors[keyof RemoveGatewayDeviceErrors];
+
+export type RemoveGatewayDeviceResponses = {
+  /**
+   * Removed
+   */
+  200: GatewayRemovedDevicePayload;
+};
+
+export type RemoveGatewayDeviceResponse =
+  RemoveGatewayDeviceResponses[keyof RemoveGatewayDeviceResponses];
+
 export type BindGatewayIngressData = {
   /**
    * JSON request body
@@ -22947,6 +22996,10 @@ export type GetMarketplaceCatalogEntryErrors = {
    * Package bytes differ from the listed digest
    */
   409: ExtensionOperationErrorPayload;
+  /**
+   * Invalid plugin manifest
+   */
+  422: ExtensionValidationErrorPayload | ExtensionOperationErrorPayload;
   /**
    * Internal server error
    */
@@ -26593,9 +26646,21 @@ export type ListSessionsData = {
      */
     later?: "exclude" | "only" | "include";
     /**
-     * Stable session ordering
+     * Visibility of pinned sessions; included by default
      */
-    sort?: "recent" | "created" | "name" | "last_activity" | "attention" | "navigator" | "manual";
+    pinned?: "exclude" | "only" | "include";
+    /**
+     * Stable session ordering; pinned (pin order, oldest first) requires pinned=only
+     */
+    sort?:
+      | "recent"
+      | "created"
+      | "name"
+      | "last_activity"
+      | "attention"
+      | "navigator"
+      | "manual"
+      | "pinned";
     /**
      * Opaque next_cursor from the previous page
      */
@@ -26810,6 +26875,10 @@ export type ListSessionFacetsData = {
      * Visibility of sessions parked in Later; excluded by default
      */
     later?: "exclude" | "only" | "include";
+    /**
+     * Visibility of pinned sessions; included by default
+     */
+    pinned?: "exclude" | "only" | "include";
     /**
      * Read one profile's rows by name
      */
@@ -28958,6 +29027,82 @@ export type CheckSettingsMCPServerResponses = {
 
 export type CheckSettingsMCPServerResponse =
   CheckSettingsMCPServerResponses[keyof CheckSettingsMCPServerResponses];
+
+export type SetSettingsMCPServerEnabledData = {
+  /**
+   * JSON request body
+   */
+  body: SettingsMCPServerEnabledRequest;
+  path: {
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query: {
+    /**
+     * Exact MCP settings scope
+     */
+    scope: "user" | "profile" | "workspace";
+    /**
+     * Required when scope is workspace
+     */
+    workspace_id?: string;
+    /**
+     * Required when scope is profile
+     */
+    profile?: string;
+    /**
+     * Definition owner: manual or extension:<name>; omitted owner selects manual
+     */
+    owner?: string;
+    /**
+     * Declaring file from the Settings MCP row. Selects one same-name definition in the requested scope.
+     */
+    definition_source?: string;
+  };
+  url: "/api/settings/mcp-servers/{name}/enabled";
+};
+
+export type SetSettingsMCPServerEnabledErrors = {
+  /**
+   * Invalid MCP server owner, scope, or payload
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * MCP server definition is ambiguous or cannot be edited
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * MCP server state could not be applied
+   */
+  503: ErrorPayload;
+};
+
+export type SetSettingsMCPServerEnabledError =
+  SetSettingsMCPServerEnabledErrors[keyof SetSettingsMCPServerEnabledErrors];
+
+export type SetSettingsMCPServerEnabledResponses = {
+  /**
+   * Updated server
+   */
+  200: SettingsMCPServerResponse;
+};
+
+export type SetSettingsMCPServerEnabledResponse =
+  SetSettingsMCPServerEnabledResponses[keyof SetSettingsMCPServerEnabledResponses];
 
 export type GetSettingsObservabilityData = {
   body?: never;
@@ -38586,9 +38731,21 @@ export type ListWorkspaceSessionsData = {
      */
     later?: "exclude" | "only" | "include";
     /**
-     * Stable session ordering
+     * Visibility of pinned sessions; included by default
      */
-    sort?: "recent" | "created" | "name" | "last_activity" | "attention" | "navigator" | "manual";
+    pinned?: "exclude" | "only" | "include";
+    /**
+     * Stable session ordering; pinned (pin order, oldest first) requires pinned=only
+     */
+    sort?:
+      | "recent"
+      | "created"
+      | "name"
+      | "last_activity"
+      | "attention"
+      | "navigator"
+      | "manual"
+      | "pinned";
     /**
      * Opaque next_cursor from the previous page
      */
@@ -41875,6 +42032,116 @@ export type ListSessionPendingInteractionsResponses = {
 
 export type ListSessionPendingInteractionsResponse =
   ListSessionPendingInteractionsResponses[keyof ListSessionPendingInteractionsResponses];
+
+export type UnpinSessionData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pin";
+};
+
+export type UnpinSessionErrors = {
+  /**
+   * Conflicting profile selectors (profile_selection_conflict)
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Subagent sessions follow their parent and an always-on agent's main session lives in its avatar, so neither can be pinned
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type UnpinSessionError = UnpinSessionErrors[keyof UnpinSessionErrors];
+
+export type UnpinSessionResponses = {
+  /**
+   * OK
+   */
+  200: SessionResponse;
+};
+
+export type UnpinSessionResponse = UnpinSessionResponses[keyof UnpinSessionResponses];
+
+export type PinSessionData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pin";
+};
+
+export type PinSessionErrors = {
+  /**
+   * Conflicting profile selectors (profile_selection_conflict)
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Subagent sessions follow their parent and an always-on agent's main session lives in its avatar, so neither can be pinned
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type PinSessionError = PinSessionErrors[keyof PinSessionErrors];
+
+export type PinSessionResponses = {
+  /**
+   * OK
+   */
+  200: SessionResponse;
+};
+
+export type PinSessionResponse = PinSessionResponses[keyof PinSessionResponses];
 
 export type UpdateSessionPresenceData = {
   /**

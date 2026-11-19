@@ -203,6 +203,12 @@ profile layer, `--scope workspace --workspace <id>` for a workspace layer, and c
 `authenticated` with `token_present=true`. `--timeout` bounds the whole attempt, including manual
 input and exchange, and the active PKCE session expiry may shorten it.
 
+Configure pre-registered OAuth scopes as individual `auth.scopes` entries. Token responses can
+return space-separated or comma-separated grants. After `compozy mcp check <name>` observes a 401
+for the stored bearer credential, auth status reports `expired` when the credential can refresh or
+`needs_login` when it requires sign-in. Run another check to trigger an available refresh. A
+connection or protocol failure gives a redacted cause in the check diagnostic when available.
+
 OAuth credentials belong to the scope that declares the effective server definition. Resolution
 order, narrowest first: workspace-profile, workspace, profile, user. A workspace or profile that
 only inherits a server declared at a broader scope uses that scope's credential at runtime. Status
@@ -227,9 +233,20 @@ invalidates pending completion, and a stored token is never sent when the transp
 OAuth settings no longer match. A mismatched or pre-fingerprint token remains stored until explicit
 logout but status reports that login is required; begin a new authorization for the current definition.
 
-Tool discovery and execution renew expired OAuth tokens using that target's persisted client
-registration. Refresh does not require another login callback or register a replacement client.
-If the registration no longer matches or its client secret has expired, authorize that target again.
+Sign-in adds `offline_access` alongside configured or resource-advertised scopes if the issuer
+advertises it and the selected client metadata or registration allows it. When neither side
+specifies resource scopes, the issuer's defaults apply. The issuer controls consent and whether
+it issues a refresh token. Tool discovery and execution try renewal in the final 10% of an
+access token's lifetime, up to 30 seconds before expiry,
+using the client bound to that target. Refresh needs no new login callback or replacement
+registration.
+For a client ID metadata document (CIMD), renewal uses the persisted document URL as the public
+client ID and sends no client secret. CIMD registrations from earlier releases renew the same
+way when their bindings still match and a refresh token is present.
+If the stored registration cannot renew, including an expired or unavailable client secret,
+status shows that the target needs reauthorization. Discovery makes no refresh request until the
+local credentials support renewal again. A discovered replacement issuer receives no stored
+credential. The old refresh grant is removed and the bound access token remains usable until expiry.
 Refreshing or logging out an extension-owned MCP leaves manual MCP credentials unchanged.
 
 HTTP/UDS auth routes include `GET /api/settings/mcp-servers/{name}/auth/status`; it reads only the
@@ -252,8 +269,9 @@ repair requires `authenticated` plus `token_present=true`. Reads project `env_ke
 An `expired` OAuth status with `token_present=true` and `refreshable=true` keeps MCP tools
 advertised: discovery or a call renews the token. Do not request manual sign-in solely for this
 combination. Refreshes share one in-flight attempt per credential target and use jittered retry
-backoff (about 1 s, doubling to at most 60 s). Transient failures retain the credentials and listed
-tools; definitive rejection (`invalid_grant`, revoked credentials) clears the token and reports
+backoff (about 1 s, doubling to at most 60 s). Transient failures retain the credentials, listed
+tools, and the use of a still-valid access token. Definitive rejection (`invalid_grant`,
+`revoked`, `invalid_client`, or `unauthorized_client`) clears the token and reports
 `needs_login`. Expiry without a usable refresh path remains blocked. Successful sign-in or renewal
 clears that server's authentication-related dead mark without clearing health-only failures.
 `mcp.auth.refresh_failed` logs contain server, cause class, and attempt count, never credentials.
@@ -313,8 +331,23 @@ interrupted. Health-only failures never trigger a reload. Each attempt emits
   `409 session_mcp_reload_failed` (`retryable: true`, `provider_error`, `client_message_id`). Send it
   again; the next message retries. There is no separate reload operation.
 
+The same refusal applies if hosted MCP misses its bind deadline or cannot project tools while
+starting a session's first or idle-released runtime. The message was never accepted, and sending it
+again retries the bind. A bind without a pending MCP change does not emit `session.mcp_reloaded`.
+
 `session.mcp_changed` carries the new `mcp_summary{usable,attention,pending_reload}` for open
 sessions; the single-session payload has the same `mcp_summary`.
+
+**Turn one configured server off or on** in Settings → MCP servers or with
+`compozy mcp disable <name>` / `compozy mcp enable <name>`. Use the exact `--scope`, `--workspace`,
+`--profile`, and `--owner extension:<installed-name>` selectors for the declaration. When names
+repeat in one scope, pass the declaring path as `--definition-source`. HTTP and UDS use
+`PUT /api/settings/mcp-servers/{name}/enabled` with the same query selectors as authentication,
+the optional `definition_source` selector, and `{"enabled": false}` or `{"enabled": true}`. Manual `config.toml` and `mcp.json` definitions
+accept `disabled`; definitions that omit it are on by default. Turning a server off keeps its
+definition, credentials and approval. CompozyOS skips connection, discovery, checks and renewal for
+that server. `compozy__mcp_list` exposes `disabled`, `compozy__mcp_status` reports `state: "off"`,
+and `compozy__mcp_auth_status` includes `status.disabled` alongside the redacted credential state.
 
 **Derived sessions follow the current server set.** Forks, continues, provenance and recovery
 sessions inherit the current admitted servers of their own profile and workspace. A child inherits
@@ -327,25 +360,39 @@ authored list inherit. `permission_policy.mcp_servers` on public lineage reports
 **Diagnose a missing MCP tool** with `compozy__session_mcp_list` (CLI `compozy session mcp <id>`,
 HTTP `GET /api/workspaces/{ws}/sessions/{id}/mcp`). It lists every configured server of the session's
 scope, including waiting, signed-out and excluded ones, with a repair reason. `needs_sign_in` → run
-the sign-in flow above; `waiting_approval` → allow it; `not_available` → the session's restriction
+the sign-in flow above; `waiting_approval` → allow it; `off` → turn it back on in Settings;
+`not_available` → the session's restriction
 excludes it (start a session without that restriction); `applies_next_message` → send the next
 message.
+
+**Catalog discovery runs in the background.** A new hosted session binds with the tools already
+available. Session MCP rows report pending discovery, timeout, and unreachable-server reasons.
+A successful refresh publishes the changed catalog to bound proxies. HTTP subscriptions and
+stdio notifications invalidate the affected server's listing. When a server has no live
+`tools/list_changed` subscription, background refresh runs only while an authorized session
+is bound. Sessions share one refresh per server and credential binding. The interval is at
+least 60 seconds, or the server's `ttlMs` hint if it is longer. Without a hint, it is two
+minutes. Until the next successful refresh, these servers can show an older catalog. An
+unchanged listing reuses the existing descriptors and projection. Stdio backoff is visible
+in a runtime check's diagnostic.
 
 Use `compozy session mcp check <id> <name> [--owner extension:<name>]` to retry one server.
 The session POST route is `/api/workspaces/{ws}/sessions/{id}/mcp/servers/{name}/check`;
 `owner` defaults to `manual`. It returns refreshed session MCP availability, performs discovery
 only for that effective server, and never restarts the agent. Waiting, restricted, or needs-sign-in servers stay
-unprobed. A recovered server that needs activation reports `applies_next_message`.
+unprobed. An off server returns `off` without making a request to it. A recovered server that needs
+activation reports `applies_next_message`.
 Settings can retry one item with `compozy mcp check <name>` or
 `POST /api/settings/mcp-servers/{name}/check` with the same
 `scope`, `workspace_id`, `profile`, and `owner` selectors as authentication. It returns the item
-with `runtime_status`. These check routes deny app tokens and preserve consent requirements.
+with `runtime_status`, including `state: "off"`, `probe: "skipped"` and `reason: "server_disabled"`
+for an off server. These check routes deny app tokens and preserve consent requirements.
 Session rows expose `scope`, optional `workspace_id`/`profile`, `transport`, and `source.kind`.
 Only `waiting_approval` rows expose the definition preview (`command`/`args`/`url`, `source.path`)
 and `approval{reason,definition_digest}`. Preview text is redacted; URLs omit userinfo and mask
 all query values. App-token reads omit the preview entirely. Checks bypass tools/list caches,
 retain last-known-good tools on failure, and publish changed session summaries without a reload.
-Unavailable checks return 503, disabled sources 400, and client-canceled checks 499.
+Invalid checks return 400, unavailable checks 503, and client-canceled checks 499.
 Settings items expose the declaration file as `definition_source` when available.
 
 Use the canonical ID returned by tool discovery in approvals and policy selectors. A tool such as

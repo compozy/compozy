@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -865,18 +866,24 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		if contentType := callback.Header().Get("Content-Type"); contentType != "text/html; charset=utf-8" {
 			t.Fatalf("callback Content-Type = %q, want HTML", contentType)
 		}
+		policy := callback.Header().Get("Content-Security-Policy")
+		if !strings.HasPrefix(policy, "default-src 'none'") {
+			t.Fatalf("callback Content-Security-Policy = %q, want locked-down policy", policy)
+		}
 		for _, expected := range []string{
-			"<title>Authorization complete</title>",
-			"<h1>Authorization complete</h1>",
-			"You can close this tab and return to Compozy.",
+			"<title>linear is connected · CompozyOS</title>",
+			`<h1 class="cb__title">linear is connected</h1>`,
+			"You can close this tab.",
 		} {
 			if !strings.Contains(callback.Body.String(), expected) {
-				t.Fatalf("callback success body missing %q: %s", expected, callback.Body.String())
+				t.Fatalf("callback success body missing %q", expected)
 			}
 		}
 		service.CompleteMCPAuthFn = func(context.Context, string) (mcpauth.Status, error) {
 			return mcpauth.Status{}, errors.New("provider rejected sensitive-failure-code")
 		}
+		var logs bytes.Buffer
+		fixture.Handlers.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
 		failedCallback := performRequest(
 			t,
 			fixture.Engine,
@@ -897,12 +904,178 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 			t.Fatalf("callback failure reflected secret or internal error: %s", failedCallback.Body.String())
 		}
 		for _, expected := range []string{
-			"<title>Authorization failed</title>",
-			"<h1>Authorization failed</h1>",
-			"Return to Compozy and try again, or use manual authorization.",
+			"<title>Sign-in didn’t finish · CompozyOS</title>",
+			"reason: unclassified\nserver: unknown\nhttp_status: 400",
 		} {
 			if !strings.Contains(failedCallback.Body.String(), expected) {
-				t.Fatalf("callback failure body missing %q: %s", expected, failedCallback.Body.String())
+				t.Fatalf("callback failure body missing %q", expected)
+			}
+		}
+		if !strings.Contains(logs.String(), "MCP OAuth callback failed") {
+			t.Fatalf("callback failure was not logged: %s", logs.String())
+		}
+		for _, secret := range []string{"sensitive-failure-code", "provider rejected", "public-state"} {
+			if strings.Contains(logs.String(), secret) {
+				t.Fatalf("callback failure log leaked %q: %s", secret, logs.String())
+			}
+		}
+	})
+}
+
+func TestSettingsMCPAuthCallbackRendersOutcomePages(t *testing.T) {
+	t.Parallel()
+
+	linearTarget := mcpauth.Target{ServerName: "linear", Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a"}
+	afterTarget := func(err error) error {
+		return &settingspkg.MCPAuthCallbackError{Target: linearTarget, Err: err}
+	}
+	tests := []struct {
+		name       string
+		query      string
+		err        error
+		wantStatus int
+		want       []string
+		absent     []string
+	}{
+		{
+			name:       "Should name the server when the provider declined access",
+			query:      "error=access_denied&state=public-state",
+			err:        afterTarget(errors.New("mcp auth: OAuth callback reported an error")),
+			wantStatus: http.StatusBadRequest,
+			want:       []string{"linear didn’t grant access", `<p class="cb__code">access_denied</p>`},
+			absent:     []string{"Technical details"},
+		},
+		{
+			name:       "Should not reflect a provider error outside the OAuth error registry",
+			query:      "error=%3Cscript%3Ealert(1)%3C/script%3E&state=public-state",
+			err:        errors.New("mcp auth: OAuth callback reported an error"),
+			wantStatus: http.StatusBadRequest,
+			want:       []string{"Access wasn’t granted", `<p class="cb__code">provider_error</p>`},
+			absent:     []string{"alert(1)"},
+		},
+		{
+			name:       "Should not reflect an unregistered provider error that looks like an OAuth code",
+			query:      "code=sensitive-callback-code&state=public-state&error=sensitive-callback-code",
+			err:        fmt.Errorf("%w: %w", settingspkg.ErrValidation, mcpauth.ErrLoginSessionNotFound),
+			wantStatus: http.StatusBadRequest,
+			want:       []string{"Access wasn’t granted", `<p class="cb__code">provider_error</p>`},
+		},
+		{
+			name:       "Should explain an expired sign-in link",
+			query:      "code=sensitive-callback-code&state=public-state",
+			err:        fmt.Errorf("%w: %w", settingspkg.ErrValidation, mcpauth.ErrLoginSessionExpired),
+			wantStatus: http.StatusBadRequest,
+			want: []string{
+				"This sign-in link has expired",
+				"Sign-in links last 5 minutes",
+				"login_session_expired",
+			},
+		},
+		{
+			name:       "Should treat an already used sign-in link as expired",
+			query:      "code=sensitive-callback-code&state=public-state",
+			err:        fmt.Errorf("%w: %w", settingspkg.ErrValidation, mcpauth.ErrLoginSessionNotFound),
+			wantStatus: http.StatusBadRequest,
+			want:       []string{"This sign-in link has expired", "login_session_not_found"},
+		},
+		{
+			name:       "Should explain a server definition that changed during sign-in",
+			query:      "code=sensitive-callback-code&state=public-state",
+			err:        afterTarget(fmt.Errorf("%w: %w", settingspkg.ErrValidation, mcpauth.ErrLoginSessionStale)),
+			wantStatus: http.StatusBadRequest,
+			want:       []string{"linear changed while you signed in", "login_session_stale"},
+		},
+		{
+			name:       "Should report an unavailable runtime with HTTP 503",
+			query:      "code=sensitive-callback-code&state=public-state",
+			err:        fmt.Errorf("%w: MCP auth runtime is unavailable", settingspkg.ErrUnavailable),
+			wantStatus: http.StatusServiceUnavailable,
+			want:       []string{"CompozyOS couldn’t finish signing in", "settings_unavailable"},
+		},
+		{
+			name:       "Should summarize an unclassified failure without its error text",
+			query:      "code=sensitive-callback-code&state=public-state",
+			err:        afterTarget(errors.New("token endpoint echoed sensitive-callback-code")),
+			wantStatus: http.StatusBadRequest,
+			want: []string{
+				"Sign-in didn’t finish",
+				"Technical details",
+				"reason: unclassified\nserver: linear\nhttp_status: 400",
+				"Copy details",
+			},
+			absent: []string{"token endpoint echoed"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &stubSettingsService{
+				CompleteMCPAuthFn: func(context.Context, string) (mcpauth.Status, error) {
+					return mcpauth.Status{}, tt.err
+				},
+			}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			var logs bytes.Buffer
+			fixture.Handlers.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
+			response := performRequest(t, fixture.Engine, http.MethodGet, "/api/mcp/oauth/callback?"+tt.query, nil)
+			if response.Code != tt.wantStatus {
+				t.Fatalf("callback status = %d, want %d", response.Code, tt.wantStatus)
+			}
+			if policy := response.Header().
+				Get("Content-Security-Policy"); !strings.Contains(
+				policy,
+				"script-src 'sha256-",
+			) {
+				t.Fatalf("callback Content-Security-Policy = %q, want hashed script source", policy)
+			}
+			body := response.Body.String()
+			for _, expected := range tt.want {
+				if !strings.Contains(body, expected) {
+					t.Fatalf("callback body missing %q", expected)
+				}
+			}
+			for _, unexpected := range append(tt.absent, "sensitive-callback-code", "public-state") {
+				if strings.Contains(body, unexpected) {
+					t.Fatalf("callback body reflected %q", unexpected)
+				}
+				if strings.Contains(logs.String(), unexpected) {
+					t.Fatalf("callback log recorded %q: %s", unexpected, logs.String())
+				}
+			}
+		})
+	}
+
+	t.Run("Should describe where a connected server applies and how it renews", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{
+			CompleteMCPAuthFn: func(context.Context, string) (mcpauth.Status, error) {
+				return mcpauth.Status{
+					ServerName:   "linear",
+					Scope:        mcpauth.ScopeUser,
+					RemoteURL:    "https://mcp.linear.app/sse",
+					Status:       mcpauth.StatusAuthenticated,
+					TokenPresent: true,
+					Refreshable:  true,
+					Scopes:       []string{"read", "issues:create"},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/api/mcp/oauth/callback?code=c&state=s", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("callback status = %d, want %d", response.Code, http.StatusOK)
+		}
+		for _, expected := range []string{
+			`<span class="cb__fact-mono">mcp.linear.app</span>`,
+			"<dd>All projects</dd>",
+			`<span class="cb__scope">issues:create</span>`,
+			"<dd>Renews on its own</dd>",
+			`href="compozyos://open/settings/mcp"`,
+		} {
+			if !strings.Contains(response.Body.String(), expected) {
+				t.Fatalf("connected body missing %q", expected)
 			}
 		}
 	})
@@ -4143,56 +4316,77 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 		})
 	})
 
-	// Invariant: extension detail requires owner plus logical name, prefers the local definition, inherits its parent, and excludes siblings.
+	// Invariant: owner-qualified MCP detail resolves the default profile's workspace alias and excludes siblings.
 	// Owner: Settings HTTP/UDS detail boundary; canonical suite: settings_test.go.
 	t.Run(
 		"Should resolve MCP detail by owner and logical name without crossing scope",
 		func(t *testing.T) {
 			t.Parallel()
-			t.Run("Should decode the shared request", func(t *testing.T) {
-				t.Parallel()
-				service := &stubSettingsService{
-					ListCollectionFn: func(_ context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
-						if !req.SkipRuntimeStatus {
-							t.Fatal("definition GET requested a runtime probe")
-						}
-						return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{
-							{
-								Name:        "github",
-								Owner:       "extension:github",
-								RuntimeName: "github.github",
-								Scope:       settingspkg.ScopeUser,
-							},
-							{Name: "github", Owner: "manual", Scope: settingspkg.ScopeUser},
-							{
-								Name:        "github",
-								Owner:       "extension:github",
-								RuntimeName: "github.github.2",
-								Scope:       settingspkg.ScopeWorkspace,
-								WorkspaceID: "workspace-a",
-							},
-						}}, nil
-					},
-				}
-				fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
-				for _, tc := range []struct {
-					path, owner, runtimeName string
-					status                   int
-				}{
-					{"github", "manual", "github", http.StatusOK},
-					{"github?owner=manual", "manual", "github", http.StatusOK},
-					{"github?owner=extension:github", "extension:github", "github.github", http.StatusOK},
-					{"github.github", "", "", http.StatusNotFound},
-					{"github.github?owner=extension:github", "", "", http.StatusNotFound},
-					{"github?owner=extension:other", "", "", http.StatusNotFound},
-					{"github.github?owner=manual", "", "", http.StatusNotFound},
-					{"github?owner=bad", "", "", http.StatusBadRequest},
-					{"github?owner=extension:github&scope=workspace&workspace_id=workspace-a", "extension:github", "github.github.2", http.StatusOK},
-					{"github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "extension:github", "github.github", http.StatusOK},
-					{"github.github.2?scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
-					{"github.github.2?owner=extension:github&scope=workspace&workspace_id=workspace-a", "", "", http.StatusNotFound},
-					{"github.github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
-				} {
+			servers := []settingspkg.MCPServerItem{
+				{
+					Name:        "github",
+					Owner:       "extension:github",
+					RuntimeName: "github.github",
+					Scope:       settingspkg.ScopeUser,
+				},
+				{Name: "github", Owner: "manual", Scope: settingspkg.ScopeUser},
+				{
+					Name:        "github",
+					Owner:       "extension:github",
+					RuntimeName: "github.github.2",
+					Scope:       settingspkg.ScopeWorkspace,
+					WorkspaceID: "workspace-a",
+				},
+				{
+					Name:        "github",
+					Owner:       "extension:github",
+					RuntimeName: "github.github.3",
+					Scope:       settingspkg.ScopeProfile,
+					WorkspaceID: "workspace-c",
+					ProfileName: "default",
+				},
+				{
+					Name:        "github",
+					Owner:       "extension:github",
+					RuntimeName: "github.github.4",
+					Scope:       settingspkg.ScopeProfile,
+					WorkspaceID: "workspace-b",
+					ProfileName: "work",
+				},
+			}
+			for _, tc := range []struct {
+				name, path, owner, runtimeName, errorFragment string
+				status                                        int
+			}{
+				{"Should resolve a manual definition without an owner", "github", "manual", "github", "", http.StatusOK},
+				{"Should resolve a manual definition with an explicit owner", "github?owner=manual", "manual", "github", "", http.StatusOK},
+				{"Should resolve the user extension by logical name", "github?owner=extension:github", "extension:github", "github.github", "", http.StatusOK},
+				{"Should reject a runtime name without an owner", "github.github", "", "", "not found", http.StatusNotFound},
+				{"Should reject a runtime name with the extension owner", "github.github?owner=extension:github", "", "", "not found", http.StatusNotFound},
+				{"Should reject a different extension owner", "github?owner=extension:other", "", "", "not found", http.StatusNotFound},
+				{"Should reject a runtime name with the manual owner", "github.github?owner=manual", "", "", "not found", http.StatusNotFound},
+				{"Should reject a malformed owner", "github?owner=bad", "", "", "MCP owner must be manual", http.StatusBadRequest},
+				{"Should prefer the workspace definition over the user definition", "github?owner=extension:github&scope=workspace&workspace_id=workspace-a", "extension:github", "github.github.2", "", http.StatusOK},
+				{"Should inherit the user definition without crossing into another profile", "github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "extension:github", "github.github", "", http.StatusOK},
+				{"Should resolve the default profile publication by workspace alias", "github?owner=extension:github&scope=workspace&workspace_id=workspace-c", "extension:github", "github.github.3", "", http.StatusOK},
+				{"Should resolve the default profile publication by exact scope", "github?owner=extension:github&scope=profile&profile=default&workspace_id=workspace-c", "extension:github", "github.github.3", "", http.StatusOK},
+				{"Should reject the default profile without a workspace", "github?owner=extension:github&scope=profile&profile=default", "", "", "settings.profile is required", http.StatusBadRequest},
+				{"Should resolve the requested non-default workspace profile", "github?owner=extension:github&scope=profile&profile=work&workspace_id=workspace-b", "extension:github", "github.github.4", "", http.StatusOK},
+				{"Should reject a foreign runtime name without an owner", "github.github.2?scope=workspace&workspace_id=workspace-b", "", "", "not found", http.StatusNotFound},
+				{"Should reject the local extension runtime name", "github.github.2?owner=extension:github&scope=workspace&workspace_id=workspace-a", "", "", "not found", http.StatusNotFound},
+				{"Should reject the inherited extension runtime name", "github.github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "", "", "not found", http.StatusNotFound},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					service := &stubSettingsService{
+						ListCollectionFn: func(_ context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+							if !req.SkipRuntimeStatus {
+								t.Fatal("definition GET requested a runtime probe")
+							}
+							return settingspkg.CollectionEnvelope{MCPServers: servers}, nil
+						},
+					}
+					fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
 					result := performRequest(
 						t,
 						fixture.Engine,
@@ -4204,7 +4398,14 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 						t.Fatalf("detail %s status %d: %s", tc.path, result.Code, result.Body.String())
 					}
 					if tc.status != http.StatusOK {
-						continue
+						var payload contract.ErrorPayload
+						if err := json.Unmarshal(result.Body.Bytes(), &payload); err != nil {
+							t.Fatal(err)
+						}
+						if !strings.Contains(payload.Error, tc.errorFragment) {
+							t.Fatalf("detail %s error = %q, want %q", tc.path, payload.Error, tc.errorFragment)
+						}
+						return
 					}
 					var payload contract.SettingsMCPServerResponse
 					if err := json.Unmarshal(result.Body.Bytes(), &payload); err != nil {
@@ -4214,8 +4415,8 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 						payload.Server.RuntimeName != tc.runtimeName {
 						t.Fatalf("wrong detail for %s: %#v", tc.path, payload)
 					}
-				}
-			})
+				})
+			}
 		},
 	)
 	// Invariant: the shared MCP decoder exposes actionable collision codes and extension identity without secret bindings.

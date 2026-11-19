@@ -31,6 +31,8 @@ func TestGatewayPairingArtifactOutput(t *testing.T) {
 	t.Parallel()
 
 	rawArtifact := "cpz_gwp_pairing-artifact-material-that-must-not-be-emitted"
+	// The manual code is the human-readable alias and is expected in command output.
+	const manualCode = "482913"
 	expiresAt := time.Date(2026, 8, 7, 18, 30, 0, 0, time.UTC)
 	for _, format := range []string{"human", "json", "jsonl", "toon"} {
 		t.Run("Should emit only a private artifact reference as "+format, func(t *testing.T) {
@@ -43,7 +45,7 @@ func TestGatewayPairingArtifactOutput(t *testing.T) {
 				t.Fatalf("EnsureHomeLayout() error = %v", err)
 			}
 			gatewayAPI := &gatewayPairingAPIStub{minted: contract.GatewayPairingArtifactPayload{
-				Artifact: rawArtifact, ExpiresAt: expiresAt,
+				Artifact: rawArtifact, ManualCode: manualCode, ExpiresAt: expiresAt,
 			}}
 			deps := commandDeps{
 				resolveHome: func() (compozyconfig.HomePaths, error) { return homePaths, nil },
@@ -83,8 +85,68 @@ func TestGatewayPairingArtifactOutput(t *testing.T) {
 			if !strings.Contains(stdout, matches[0]) {
 				t.Fatalf("pair mint -o %s output = %q, want artifact reference %q", format, stdout, matches[0])
 			}
+			if !strings.Contains(stdout, manualCode) {
+				t.Fatalf("pair mint -o %s output = %q, want manual code %q", format, stdout, manualCode)
+			}
 		})
 	}
+}
+
+func TestGatewayDeviceRemoveCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove a device record through the typed client", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		gatewayAPI := &gatewayPairingAPIStub{}
+		deps := commandDeps{
+			resolveHome: func() (compozyconfig.HomePaths, error) { return homePaths, nil },
+			loadConfig:  func() (compozyconfig.Config, error) { return compozyconfig.LoadForHome(homePaths) },
+			newClient: func(ClientTarget) (DaemonClient, error) {
+				return &gatewayPairingDaemonClient{DaemonClient: &stubClient{}, gatewayClientAPI: gatewayAPI}, nil
+			},
+		}
+		stdout, _, err := executeRootCommand(t, deps, "device", "remove", "dev_1", "-o", "json")
+		if err != nil {
+			t.Fatalf("device remove error = %v", err)
+		}
+		var payload contract.GatewayRemovedDevicePayload
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("device remove output = %q, want JSON: %v", stdout, err)
+		}
+		if gatewayAPI.removals.Load() != 1 || gatewayAPI.revocations.Load() != 0 {
+			t.Fatalf(
+				"device remove calls = removals:%d revocations:%d",
+				gatewayAPI.removals.Load(),
+				gatewayAPI.revocations.Load(),
+			)
+		}
+		if payload.Device.ID != "dev_1" || !payload.Revoked || payload.Canceled != 2 {
+			t.Fatalf("device remove payload = %#v", payload)
+		}
+	})
+}
+
+func TestGatewayPairingRedeemRequestInput(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should normalize a typed code and keep an opaque artifact distinct", func(t *testing.T) {
+		t.Parallel()
+		code := gatewayPairingRedeemRequest("123 456", "laptop", "credential")
+		if code.ManualCode != "123456" || code.Artifact != "" {
+			t.Fatalf("typed code request = %#v", code)
+		}
+		artifact := gatewayPairingRedeemRequest("cpz_gwp_artifact", "laptop", "credential")
+		if artifact.Artifact != "cpz_gwp_artifact" || artifact.ManualCode != "" {
+			t.Fatalf("artifact request = %#v", artifact)
+		}
+	})
 }
 
 func TestGatewayClientTargetErrorsAndIsolation(t *testing.T) {
@@ -1248,6 +1310,7 @@ type gatewayPairingAPIStub struct {
 	minted          contract.GatewayPairingArtifactPayload
 	issued          contract.GatewayIssuedCredentialPayload
 	revocations     atomic.Int32
+	removals        atomic.Int32
 	redeemCalls     atomic.Int32
 	redeemStarted   chan struct{}
 	redeemRelease   <-chan struct{}
@@ -1297,6 +1360,17 @@ func (s *gatewayPairingAPIStub) RevokeGatewayDevice(
 ) (contract.GatewayRevokePayload, error) {
 	s.revocations.Add(1)
 	return contract.GatewayRevokePayload{}, nil
+}
+
+func (s *gatewayPairingAPIStub) RemoveGatewayDevice(
+	_ context.Context,
+	id string,
+) (contract.GatewayRemovedDevicePayload, error) {
+	s.removals.Add(1)
+	return contract.GatewayRemovedDevicePayload{
+		Device:  contract.GatewayDevicePayload{ID: id, Name: "Laptop"},
+		Revoked: true, Canceled: 2,
+	}, nil
 }
 
 type gatewayPairingDaemonClient struct {

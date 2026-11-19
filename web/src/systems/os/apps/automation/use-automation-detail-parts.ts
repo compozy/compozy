@@ -25,6 +25,7 @@ import {
   useUpdateAutomationJob,
   useUpdateAutomationTrigger,
 } from "@/systems/automation";
+import type { ProfileScopeParams } from "@/systems/profiles";
 import { LoopsApiError, useLoop } from "@/systems/loops";
 
 export const RUN_LIMIT = { limit: 10 } as const;
@@ -78,12 +79,18 @@ export function useAutomationDetailEntity(
   id: string,
   liveDataEnabled: boolean,
   activeWorkspaceId: string | null | undefined,
-  workspaceLoading: boolean
+  workspaceLoading: boolean,
+  profileScope?: ProfileScopeParams
 ) {
   const isJob = kind === "job";
-  const jobQuery = useAutomationJob(id, { enabled: liveDataEnabled && isJob && Boolean(id) });
+  const scope = profileScope ? { profileScope } : {};
+  const jobQuery = useAutomationJob(id, {
+    enabled: liveDataEnabled && isJob && Boolean(id),
+    ...scope,
+  });
   const triggerQuery = useAutomationTrigger(id, {
     enabled: liveDataEnabled && !isJob && Boolean(id),
+    ...scope,
   });
   const detailQuery = isJob ? jobQuery : triggerQuery;
   const accessError = automationWorkspaceAccessError(
@@ -97,11 +104,18 @@ export function useAutomationDetailEntity(
 }
 
 /** The last runs of the routed entity; read only once the entity is visible. */
-export function useAutomationDetailRuns(kind: AutomationEntityKind, id: string, enabled: boolean) {
+export function useAutomationDetailRuns(
+  kind: AutomationEntityKind,
+  id: string,
+  enabled: boolean,
+  profileScope?: ProfileScopeParams
+) {
+  const scope = profileScope ? { profileScope } : {};
   const isJob = kind === "job";
-  const jobRunsQuery = useAutomationJobRuns(id, RUN_LIMIT, { enabled: enabled && isJob });
+  const jobRunsQuery = useAutomationJobRuns(id, RUN_LIMIT, { enabled: enabled && isJob, ...scope });
   const triggerRunsQuery = useAutomationTriggerRuns(id, RUN_LIMIT, {
     enabled: enabled && !isJob,
+    ...scope,
   });
   return isJob ? jobRunsQuery : triggerRunsQuery;
 }

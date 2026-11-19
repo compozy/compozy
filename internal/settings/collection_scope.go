@@ -44,6 +44,13 @@ func validateCollectionScope(collection CollectionName, scope ScopeKind) ([]Scop
 // normalizeSettingsProfileName enforces the scope/profile relationship at the
 // settings boundary. Callers use the returned value for both loading and
 // writing so whitespace cannot select one profile and report another.
+func normalizeMCPSettingsProfileName(scope ScopeKind, workspaceID, raw string) (string, error) {
+	if scope == ScopeProfile && workspaceID != "" && strings.TrimSpace(raw) == mcpAuthDefaultProfileName {
+		return mcpAuthDefaultProfileName, nil
+	}
+	return normalizeSettingsProfileName(scope, raw)
+}
+
 func normalizeSettingsProfileName(scope ScopeKind, raw string) (string, error) {
 	profileName := strings.TrimSpace(raw)
 	if scope == ScopeProfile {

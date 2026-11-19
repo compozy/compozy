@@ -25,6 +25,9 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 	target mcpauth.Target,
 	server compozyconfig.MCPServer,
 ) (settingspkg.MCPServerRuntimeStatus, error) {
+	if server.IsDisabled() {
+		return settingspkg.OffMCPServerRuntimeStatus(), nil
+	}
 	status := settingspkg.MCPServerRuntimeStatus{Configured: true}
 	if err := s.requireMCPConsent(ctx, target, server); err != nil {
 		status.State = mcpWaitingApproval
@@ -153,6 +156,7 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 		}),
 		mcppkg.WithTokenStore(s.mcpAuthStore),
 		mcppkg.WithAuthMutationGeneration(s.mcpAuthGeneration),
+		mcppkg.WithAuthRedirectURI(s.config.MCP.OAuth.RedirectURI),
 		mcppkg.WithAuthRecovery(func(ctx context.Context, resolved *mcppkg.ResolvedServer) error {
 			return s.recoverMCPAuthentication(ctx, resolved.Target, resolved.Server)
 		}),

@@ -60,8 +60,8 @@ func newPairMintCommand(deps commandDeps) *cobra.Command {
 func newPairRedeemCommand(deps commandDeps) *cobra.Command {
 	var options pairRedeemOptions
 	cmd := &cobra.Command{
-		Use:   "redeem <artifact>",
-		Short: "Redeem a pairing artifact into a named remote profile",
+		Use:   "redeem <artifact-or-code>",
+		Short: "Redeem a pairing artifact or 6-digit code into a named remote profile",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return redeemGatewayProfile(cmd, deps, strings.TrimSpace(args[0]), options)

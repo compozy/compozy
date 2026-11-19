@@ -130,6 +130,8 @@ export const CMD_PALETTE_WINDOW_OPS: ReadonlyMap<string, PaletteClientOpHandler>
       ] as const
   ),
   ["window.tab.new", context => context.shell.openNewTab(focusedWindowId(context))],
+  ["window.split.right", context => context.shell.openSplit("right")],
+  ["window.split.down", context => context.shell.openSplit("bottom")],
   ["window.tab.reopen", context => void context.manager.reopenWindow().completion],
   ["window.tab.next", context => activateBarTab(context, (count, index) => (index + 1) % count)],
   [

@@ -127,6 +127,39 @@ func TestSessionLayoutPlacements(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep an unlisted pinned member at its slot when the visible rows reorder", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db, scope := openSessionLayoutTestDB(t, "reorder-pinned")
+		for _, id := range []string{"sess-a", "sess-b", "sess-c", "sess-d"} {
+			registerLayoutSession(ctx, t, db, scope.WorkspaceID, id)
+		}
+		createLayoutFolder(ctx, t, db, scope, "sfold-a", "Alpha")
+		if err := db.ReorderSessions(
+			ctx,
+			scope,
+			"sfold-a",
+			[]string{"sess-a", "sess-b", "sess-c", "sess-d"},
+		); err != nil {
+			t.Fatalf("ReorderSessions(full) error = %v", err)
+		}
+		if _, err := db.PinSession(ctx, scope.WorkspaceID, "sess-b"); err != nil {
+			t.Fatalf("PinSession(sess-b) error = %v", err)
+		}
+		// The folder shows a, c, d while b sits in Pinned; reversing them keeps b second.
+		if err := db.ReorderSessions(ctx, scope, "sfold-a", []string{"sess-d", "sess-c", "sess-a"}); err != nil {
+			t.Fatalf("ReorderSessions(visible) error = %v", err)
+		}
+		got := map[string]int{}
+		for id, placement := range readPlacements(ctx, t, db, "sess-a", "sess-b", "sess-c", "sess-d") {
+			got[id] = placement.Position
+		}
+		want := map[string]int{"sess-d": 0, "sess-b": 1, "sess-c": 2, "sess-a": 3}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("positions = %v, want %v", got, want)
+		}
+	})
+
 	t.Run("Should append moves to a folder and unplace moves to the root", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)

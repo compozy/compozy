@@ -112,3 +112,27 @@ fails keeps the panel open with "Still not working after the check."
 QA impact 2026-11-17 (#1794, daemon CPU hot paths):
 HTTP detail summaries reuse the daemon read model with the same payload. Auth and runtime revisions fence reuse; unsignaled external health is revalidated at the configured poll cadence. The targeted run exercises HTTP payloads and hosted transport; it does not claim this complete browser matrix.
 See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).
+
+QA impact 2026-11-18 (#1828): for a remote OAuth server with an expired access token and a usable
+CIMD registration, Settings receives `refreshable=true` even for registrations saved without
+the auth method. The server keeps its tools and does not offer **Sign in** solely because of
+expiry. A runtime `auth_refresh_failed` result continues to offer **Reauthorize**.
+Follow the refresh steps in [ET-api-mcp-oauth-endpoints](ET-api-mcp-oauth-endpoints.md).
+
+QA impact 2026-11-18 (#1830, #1831): with a local fixture, probe during the early renewal window
+and return a transient refresh failure. Expect **Ready** while the bound access token still works.
+With an expired access token and an unusable persisted registration, expect **Sign-in expired**
+and **Reauthorize**. Discovery should not contact the OAuth issuer again until the local
+credentials allow renewal. These cases reuse the existing status and repair controls.
+
+QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
+
+With one slow fixture, verify the session MCP control shows its discovery reason while other rows
+remain ready. Use Check again in Settings and confirm the targeted runtime diagnostic reports the
+latest attempt.
+
+For #1850, turn one fixture server off using its Settings switch. Reload Settings and verify
+the row and its definition are still present, the switch is unchecked, and the neutral **Off**
+status replaces Ready. The settings payload reports `off` with `probe: "skipped"`. Re-enable it
+and verify discovery resumes while the second fixture's state stays unchanged.
+See the [off-switch walk](../reports/2026-11-18-mcp-server-off-switch.md).

@@ -5,7 +5,7 @@ title: Command palette renders every row from the daemon registry
 persona: Bruno
 journey: J-command-os-from-palette
 expected: Command-K opens instantly against the last-known catalog and lists apps, shell, window, tab, layout and settings commands sourced from the daemon registry with their effective chords; a command unavailable in context stays visible and disabled carrying the runtime's own reason verbatim, a command irrelevant to this surface is absent rather than dead, a capped group states the exact overflow, and the same id, label and chord appear on the palette row, the menubar item, the cheatsheet line and the settings shortcut table.
-entry_points: Command-K; menubar palette affordance; menubar Go/Window/Session/Help menus; Help > Keyboard shortcuts; Settings > Layouts > Shortcuts; compozy cmd-palette list
+entry_points: Command-K; menubar palette affordance; menubar Go/Window/Session/Help menus; Help > Keyboard shortcuts; Settings > Shortcuts; compozy cmd-palette list
 qa_status: skipped
 bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
@@ -55,3 +55,7 @@ degradation; structured `cmd-palette list` output for the parity and reason chec
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-18 keyboard-first navigation (#1826). Shortcuts moved from Settings › Layouts to
+their own Settings › Shortcuts page (shortcut table, aliases, conflicts and global hotkeys); walk the
+steps above there. An old `/settings/layouts?command=<id>` link opens Settings › Shortcuts on that row.

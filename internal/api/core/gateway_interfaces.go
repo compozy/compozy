@@ -17,6 +17,7 @@ type GatewayService interface {
 	RedeemPairing(context.Context, gateway.RedeemRequest) (gateway.IssuedCredential, error)
 	ListDevices(context.Context) ([]gateway.DeviceSession, error)
 	RevokeDevice(context.Context, string) (gateway.RevokeResult, error)
+	RemoveDevice(context.Context, string) (gateway.RemoveResult, error)
 	RenameDevice(context.Context, string, string) (gateway.DeviceSession, error)
 	MintStreamTicket(context.Context, string) (gateway.StreamTicket, error)
 	BindIngress(context.Context, gateway.IngressBindRequest) (gateway.IngressBinding, error)

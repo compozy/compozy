@@ -4,6 +4,20 @@ package client
 
 import "time"
 
+// SettingsTerminalPayload is a daemon API value.
+type SettingsTerminalPayload struct {
+	DefaultShell           string `json:"default_shell"`
+	ShellIntegration       bool   `json:"shell_integration"`
+	ScrollbackBytes        int    `json:"scrollback_bytes"`
+	DetachedTTL            string `json:"detached_ttl"`
+	ExitRetention          string `json:"exit_retention"`
+	Recording              bool   `json:"recording"`
+	RecordingRetentionDays int    `json:"recording_retention_days"`
+	MaxPerWorkspace        int    `json:"max_per_workspace"`
+	MaxPerDaemon           int    `json:"max_per_daemon"`
+	MaxSubscribers         int    `json:"max_subscribers"`
+}
+
 // SettingsTransportParityPayload is a daemon API value.
 type SettingsTransportParityPayload struct {
 	Known          bool `json:"known"`
@@ -424,25 +438,3 @@ type SnapConfig struct {
 	ExitSlack    float64   `json:"exit_slack"`
 	RepeatRatios []float64 `json:"repeat_ratios"`
 }
-
-// Snapshot is a daemon API value.
-type Snapshot struct {
-	Runtime     string                `json:"runtime"`
-	DisplayName string                `json:"display_name"`
-	Installed   bool                  `json:"installed"`
-	RuntimeMCP  RuntimemcpRuntimeMode `json:"runtime_mcp"`
-	ReadState   string                `json:"read_state"`
-	ReadError   string                `json:"read_error,omitempty"`
-	ConfigFiles []string              `json:"config_files"`
-	Notes       []string              `json:"notes,omitempty"`
-	Servers     []Server              `json:"servers"`
-}
-
-// SourceErrorCode is a daemon API value.
-type SourceErrorCode string
-
-// SourceHealth is a daemon API value.
-type SourceHealth string
-
-// SourceKind is a daemon API value.
-type SourceKind string

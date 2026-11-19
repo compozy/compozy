@@ -99,6 +99,7 @@ func toMCPServerDecls(servers []compozyconfig.MCPServer) []MCPServerDecl {
 	decls := make([]MCPServerDecl, 0, len(servers))
 	for _, server := range servers {
 		decls = append(decls, MCPServerDecl{
+			Disabled:  server.Disabled,
 			Name:      server.Name,
 			Command:   server.Command,
 			Args:      append([]string(nil), server.Args...),
@@ -110,7 +111,12 @@ func toMCPServerDecls(servers []compozyconfig.MCPServer) []MCPServerDecl {
 }
 
 func cloneMCPServerDecl(decl MCPServerDecl) MCPServerDecl {
+	var disabled *bool
+	if decl.Disabled != nil {
+		disabled = new(*decl.Disabled)
+	}
 	return MCPServerDecl{
+		Disabled:  disabled,
 		Name:      decl.Name,
 		Command:   decl.Command,
 		Args:      append([]string(nil), decl.Args...),

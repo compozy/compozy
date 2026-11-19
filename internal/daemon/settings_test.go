@@ -307,6 +307,72 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 			testSettingsMCPAuthRecovery(t, manual)
 		})
 	}
+	t.Run("Should discover tools by renewing an expired token from a stored CIMD registration", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		fixture := mcpfixture.StartOAuthHTTP(t, mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{ClientIDMetadataDocumentSupported: true, OmitRefreshScope: true})
+		db := openDaemonTestGlobalDB(t)
+		const redirectURI = "http://127.0.0.1:2123/api/mcp/oauth/callback"
+		oauthConfig := compozyconfig.MCPOAuthConfig{RedirectURI: redirectURI}
+		manager, err := newSettingsMCPAuthManagerWithAuthorization(db, nil, db, nil, oauthConfig, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			digestKey: []byte("test installation key"), mcpAuthStore: db, mcpAuthManager: manager,
+			config: compozyconfig.Config{MCP: compozyconfig.MCPConfig{OAuth: oauthConfig}},
+		}
+		target := globalMCPTestTarget("cimd-fixture")
+		server := compozyconfig.MCPServer{
+			Name: target.ServerName, Transport: compozyconfig.MCPServerTransportHTTP, URL: fixture.Endpoints.MCPURL,
+		}
+		cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, server, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const clientID = "https://client.example/.well-known/mcp-client.json"
+		if _, err := db.SaveMCPAuthRegistration(ctx, mcpauth.ClientRegistration{
+			Target: target, DefinitionFingerprint: fingerprint, ResourceURL: fixture.Endpoints.MCPURL,
+			Issuer: fixture.Endpoints.IssuerURL, ClientID: clientID,
+			RedirectURL: redirectURI,
+		}, mcpauth.RegistrationSecrets{}); err != nil {
+			t.Fatal(err)
+		}
+		expiredAt := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+		if err := db.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
+			Target: target, DefinitionFingerprint: fingerprint, Issuer: fixture.Endpoints.IssuerURL,
+			ClientID: clientID, AccessToken: "expired-fixture-access", RefreshToken: mcpfixture.RefreshToken,
+			Scopes: []string{"tools.read"}, ObtainedAt: expiredAt.Add(-time.Hour), ExpiresAt: expiredAt,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		before, err := surface.MCPAuthStatus(ctx, target, server)
+		if err != nil || before.Status != mcpauth.StatusExpired || !before.Refreshable || !before.TokenPresent {
+			t.Fatalf("expired auth status = %+v, err = %v", before, err)
+		}
+		runtime, err := surface.MCPServerRuntimeStatus(ctx, target, server)
+		if err != nil || runtime.State != settingspkg.MCPServerRuntimeStateReady || runtime.ToolCount == 0 {
+			t.Fatalf("discovery across CIMD expiry: %+v, err = %v", runtime, err)
+		}
+		after, err := surface.MCPAuthStatus(ctx, target, server)
+		if err != nil || after.Status != mcpauth.StatusAuthenticated || !after.Refreshable || !after.TokenPresent {
+			t.Fatalf("renewed auth status = %+v, err = %v", after, err)
+		}
+		if !slices.Equal(after.Scopes, []string{"tools.read"}) {
+			t.Fatalf("renewed auth status scopes = %v, want tools.read", after.Scopes)
+		}
+		requests := fixture.Requests()
+		if len(requests.Registration) != 0 || len(requests.Token) != 1 ||
+			requests.Token[0].Get("grant_type") != "refresh_token" || requests.Token[0].Get("client_id") != clientID ||
+			requests.Token[0].Has("client_secret") {
+			t.Fatal("discovery did not renew through the original CIMD client")
+		}
+	})
 	t.Run("Should discover and complete OAuth for optional plugin header credentials", func(t *testing.T) {
 		t.Parallel()
 		fixture := mcpfixture.StartOAuthHTTP(t, mcpfixture.MustNew(mcpfixture.ProfileModern2026),
@@ -711,6 +777,204 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 }
 
 func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
+	// Invariant: settings keeps a safe upstream diagnostic and reflects an observed bearer rejection.
+	// Owner: daemon Settings runtime; canonical suite: TestSettingsRuntimeSurfaceMCPServerRuntimeStatus.
+	t.Run(
+		"Should redact upstream diagnostics and require sign-in after a bound token gets HTTP 401",
+		func(t *testing.T) {
+			t.Parallel()
+			const access, refresh = "opaque-fixture-access", "opaque-fixture-refresh"
+			var httpStatus atomic.Int32
+			httpStatus.Store(http.StatusBadRequest)
+			endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodDelete {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				if r.Header.Get("Authorization") != "Bearer "+access {
+					t.Error("MCP request missing the bound bearer credential")
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				if code := int(httpStatus.Load()); code != http.StatusBadRequest {
+					w.WriteHeader(code)
+					return
+				}
+				var request struct{ ID json.RawMessage }
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					t.Error(err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				if err := json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      request.ID,
+					"error": map[string]any{
+						"code":    -32047,
+						"message": "upstream fixture refused discovery " + access + " " + refresh,
+					},
+				}); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(endpoint.Close)
+			definition := compozyconfig.MCPServer{
+				Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: endpoint.URL,
+				Auth: compozyconfig.MCPAuthConfig{
+					Registration: compozyconfig.MCPAuthRegistrationPreRegistered, ClientID: "fixture-client",
+					IssuerURL: "https://issuer.example.test",
+				},
+			}
+			target := globalMCPTestTarget(definition.Name)
+			store := openDaemonTestGlobalDB(t)
+			generation := mcpauth.NewMutationGeneration()
+			manager, err := newSettingsMCPAuthManagerWithAuthorization(
+				store, nil, store, nil, compozyconfig.MCPOAuthConfig{}, nil, generation,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			surface := &settingsRuntimeSurface{
+				digestKey: []byte("test installation key"), mcpAuthStore: store,
+				mcpAuthManager: manager, mcpAuthGeneration: generation,
+			}
+			cfg, err := surface.mcpAuthServerConfig(t.Context(), target, definition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			token := mcpauth.TokenRecord{
+				Target: target, DefinitionFingerprint: fingerprint, Issuer: cfg.IssuerURL, ClientID: cfg.ClientID,
+				AccessToken: access, RefreshToken: refresh, TokenType: "Bearer",
+			}
+			if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+				t.Fatal(err)
+			}
+			for _, check := range []struct {
+				name       string
+				code       int
+				state      settingspkg.MCPServerRuntimeState
+				reason     toolspkg.ReasonCode
+				diagnostic string
+				auth       mcpauth.StatusValue
+			}{
+				{"Should report a redacted JSON-RPC rejection", http.StatusBadRequest, settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
+					toolspkg.ReasonMCPUnreachable, "JSON-RPC error -32047: upstream fixture refused discovery", mcpauth.StatusAuthenticated},
+				{"Should report the upstream HTTP 503", http.StatusServiceUnavailable, settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
+					toolspkg.ReasonMCPUnreachable, "upstream HTTP 503", mcpauth.StatusAuthenticated},
+				{"Should require sign-in after a non-refreshable token is rejected", http.StatusUnauthorized, settingspkg.MCPServerRuntimeStateAuthRequired,
+					toolspkg.ReasonMCPAuthRequired, "rejected the stored token (HTTP 401)", mcpauth.StatusNeedsLogin},
+			} {
+				t.Run(check.name, func(t *testing.T) {
+					if check.code == http.StatusUnauthorized {
+						token.RefreshToken = ""
+						if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+							t.Fatal(err)
+						}
+					}
+					httpStatus.Store(int32(check.code))
+					status, err := surface.CheckMCPServerRuntime(t.Context(), target, definition)
+					if err != nil || status.State != check.state || status.Reason != string(check.reason) ||
+						!strings.Contains(status.Diagnostic, check.diagnostic) {
+						t.Fatalf("HTTP %d, status=%+v, err=%v", check.code, status, err)
+					}
+					if strings.Contains(status.Diagnostic, access) || strings.Contains(status.Diagnostic, refresh) {
+						t.Fatal("runtime diagnostic exposed a fixture token")
+					}
+					authStatus, err := surface.MCPAuthStatus(t.Context(), target, definition)
+					if err != nil || authStatus.Status != check.auth {
+						t.Fatalf("HTTP %d, auth status=%+v, err=%v", check.code, authStatus, err)
+					}
+				})
+			}
+			if _, err := store.GetMCPAuthToken(t.Context(), target); err != nil {
+				t.Fatalf("rejection discarded stored credentials: %v", err)
+			}
+		},
+	)
+
+	// Invariant: an unreadable credential affects only its own Settings item; replaced definitions remain probeable.
+	// Owner: daemon Settings composition; canonical suite: TestSettingsRuntimeSurfaceMCPServerRuntimeStatus.
+	t.Run("Should list healthy remotes alongside invalid implicit credentials", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		home := testHomePaths(t)
+		if err := os.WriteFile(filepath.Join(home.HomeDir, compozyconfig.MCPJSONName), []byte(`{"mcpServers":{
+			"unreadable":{"url":"https://mcp.example.test"},
+			"stale":{"url":"https://mcp.example.test"},
+			"open":{"url":"https://mcp.example.test"}
+		}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		store := openDaemonTestGlobalDB(t)
+		manager, err := newSettingsMCPAuthManagerWithConfig(store, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			digestKey: []byte("test installation key"), mcpAuthStore: store, mcpAuthManager: manager,
+		}
+		for _, name := range []string{"unreadable", "stale"} {
+			target := globalMCPTestTarget(name)
+			cfg, err := surface.mcpAuthServerConfig(ctx, target, compozyconfig.MCPServer{
+				Name: name, Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://previous.example.test",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
+				Target: target, DefinitionFingerprint: fingerprint, Issuer: "https://issuer.example.test",
+				ClientID: "fixture-client", AccessToken: "fixture-access", TokenType: "Bearer",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		prefix, err := vault.MCPSecretOwnerPrefix(globalMCPTestTarget("unreadable").VaultTarget())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.DeleteVaultSecret(ctx, prefix+"oauth/access-token"); err != nil {
+			t.Fatal(err)
+		}
+		profiles, err := profilepkg.NewManager(profilepkg.WithStore(store), profilepkg.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		service, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			ProfileResolver: profiles, AttentionWorkspaceMutes: store, MCPAuth: surface, MCPRuntime: surface,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		listing, err := service.ListCollection(ctx, settingspkg.CollectionRequest{
+			Collection: settingspkg.CollectionMCPServers, CachedRuntimeStatus: true,
+		})
+		if err != nil || len(listing.MCPServers) != 3 {
+			t.Fatalf("MCP list returned %d items, %v", len(listing.MCPServers), err)
+		}
+		for _, item := range listing.MCPServers {
+			if item.Name != "unreadable" {
+				if item.AuthStatus == nil || item.AuthStatus.Status != mcpauth.StatusUnconfigured {
+					t.Fatalf("%s remote lost its unconfigured auth status: %+v", item.Name, item.AuthStatus)
+				}
+				continue
+			}
+			if item.AuthStatus == nil || item.AuthStatus.Status != mcpauth.StatusInvalid ||
+				item.RuntimeStatus == nil || item.RuntimeStatus.State != settingspkg.MCPServerRuntimeStateAuthInvalid {
+				t.Fatalf("%s did not report per-item invalid auth", item.Name)
+			}
+		}
+	})
+
 	t.Run(
 		"Should refuse to present sign-in for a plugin header rejection without a resource challenge",
 		func(t *testing.T) {
@@ -2162,6 +2426,334 @@ func TestDaemonMCPCloneInputs(t *testing.T) {
 		rendered, _, err := cloned.RenderInputs(nil)
 		if err != nil || rendered.Headers["X-Tenant"] != "tenant-a" {
 			t.Fatalf("clone rendering failed: %v", err)
+		}
+	})
+}
+
+// Invariant: off servers retain consent and contribute no tools or network traffic.
+// Owner: daemon Settings and discovery boundary; canonical suite: settings.
+func TestSettingsMCPDisabled(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep approval and never contact the off server through discovery or check", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		state, consentRequest := newMCPConsentFixtureForHome(t, home)
+		var requests atomic.Int64
+		handler := mcpfixture.MustNew(mcpfixture.ProfileModern2026).StreamableHTTPHandler()
+		fixture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests.Add(1)
+			handler.ServeHTTP(w, r)
+		}))
+		t.Cleanup(fixture.Close)
+		server := compozyconfig.MCPServer{
+			Name: consentRequest.Server.Name, DefinitionSource: consentRequest.Server.DefinitionSource,
+			Transport: compozyconfig.MCPServerTransportHTTP, URL: fixture.URL,
+		}
+		publish := func(version int64, disabled bool) {
+			t.Helper()
+			server.Disabled = new(disabled)
+			payload, err := json.Marshal(map[string]any{"mcpServers": map[string]any{
+				server.Name: map[string]any{"url": server.URL, "transport": "http", "disabled": disabled},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(server.DefinitionSource, payload, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			state.mcpServerCatalog.Replace(version, []resources.Record[compozyconfig.MCPServer]{
+				{
+					ID:      "workspace-server",
+					Version: version,
+					Spec:    server,
+					Scope: resources.ResourceScope{
+						Kind: resources.ResourceScopeKindWorkspace,
+						ID:   consentRequest.WorkspaceID,
+					},
+				},
+			})
+		}
+		publish(2, false)
+		consentRequest.Server = server
+		consent := settingsMCPConsent{state: state}
+		decision, err := consent.MCPConsent(t.Context(), consentRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := consent.ApproveMCP(t.Context(), consentRequest, decision.DefinitionDigest, false); err != nil {
+			t.Fatal(err)
+		}
+		provider, _, err := (&Daemon{}).newDaemonMCPToolProvider(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		scope := toolspkg.Scope{WorkspaceID: consentRequest.WorkspaceID, ProfileID: store.DefaultProfileID}
+		if tools, err := provider.List(t.Context(), scope); err != nil || len(tools) == 0 || requests.Load() == 0 {
+			t.Fatalf("enabled discovery: descriptors=%d requests=%d err=%v", len(tools), requests.Load(), err)
+		}
+		publish(3, true)
+		before := requests.Load()
+		if tools, err := provider.List(t.Context(), scope); err != nil || len(tools) != 0 {
+			t.Fatalf("off discovery: descriptors=%d err=%v", len(tools), err)
+		}
+		if err := provider.CheckMCPServer(t.Context(), scope, server.Name); err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{state: state, digestKey: testMCPDigestKey(t, state)}
+		service, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			WorkspaceResolver: state.workspaceResolver, ProfileResolver: state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPRuntime:              surface, MCPConsent: consent,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		checker := service.(core.MCPSettingsChecker)
+		item, err := checker.CheckMCPServer(t.Context(), settingspkg.MCPAuthTargetRequest{
+			Scope: settingspkg.ScopeWorkspace, WorkspaceID: scope.WorkspaceID, Name: server.Name,
+		})
+		if err != nil || !item.Disabled || item.CallableInSessions || item.Approval.State != "allowed" ||
+			item.RuntimeStatus == nil || *item.RuntimeStatus != settingspkg.OffMCPServerRuntimeStatus() {
+			t.Fatalf("off check: %+v, %v", item, err)
+		}
+		if requests.Load() != before {
+			t.Fatalf("off server received %d requests", requests.Load()-before)
+		}
+		publish(4, false)
+		if tools, err := provider.List(t.Context(), scope); err != nil || len(tools) == 0 {
+			t.Fatalf("re-enabled discovery: descriptors=%d err=%v", len(tools), err)
+		}
+	})
+	t.Run("Should write only the selected default-profile sidecar", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		state, req := newMCPConsentFixtureForHome(t, home)
+		parentPath := req.Server.DefinitionSource
+		profilePath := filepath.Join(filepath.Dir(parentPath), "profiles", "default", compozyconfig.MCPJSONName)
+		writeMCPDeclarationFile(t, parentPath, `{"mcpServers":{"sentry":{"command":"project"}}}`)
+		writeMCPDeclarationFile(t, profilePath, `{"mcpServers":{"sentry":{"command":"profile"}}}`)
+		db := state.registry.(settingspkg.ApplyRecordDBSource)
+		svc, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			WorkspaceResolver:       state.workspaceResolver,
+			ProfileResolver:         state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPConsent:              settingsMCPConsent{state: state},
+			ApplyRecords: settingspkg.NewConfigApplyRecordRepository(
+				db.DB(),
+				time.Now,
+				settingspkg.WithConfigApplyReadDB(db.ReadDB()),
+			),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		writer := svc.(interface {
+			SetMCPServerEnabled(context.Context, settingspkg.MCPAuthTargetRequest, bool) (settingspkg.MCPServerItem, error)
+		})
+		target := settingspkg.MCPAuthTargetRequest{
+			Scope:            settingspkg.ScopeProfile,
+			ProfileName:      "default",
+			WorkspaceID:      req.WorkspaceID,
+			Name:             req.Server.Name,
+			DefinitionSource: profilePath,
+		}
+		item, err := writer.SetMCPServerEnabled(t.Context(), target, false)
+		if err != nil || !item.Disabled || item.Command != "profile" || item.DefinitionSource != profilePath {
+			t.Fatalf("disable workspace profile: %+v, %v", item, err)
+		}
+		servers, err := compozyconfig.LoadMCPServersJSONFile(parentPath)
+		if err != nil || len(servers) != 1 || servers[0].Command != "project" || servers[0].Disabled != nil {
+			t.Fatalf("workspace declaration changed: %+v, %v", servers, err)
+		}
+	})
+	t.Run("Should persist a published switch across declaration revisions", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		state, req := newMCPConsentFixtureForHome(t, home)
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: req.WorkspaceID}
+		record := resources.Record[compozyconfig.MCPServer]{
+			ID: "agent-resource-revision-1", Scope: scope, Spec: req.Server, Source: agentSkillSyncActor().Source,
+		}
+		record.Spec.DefinitionSource = filepath.Join(filepath.Dir(req.Server.DefinitionSource), "agents", "agent.md")
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{record})
+		svc, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			WorkspaceResolver: state.workspaceResolver, ProfileResolver: state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPConsent:              settingsMCPConsent{state: state},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		enabled := svc.(interface {
+			SetMCPServerEnabled(context.Context, settingspkg.MCPAuthTargetRequest, bool) (settingspkg.MCPServerItem, error)
+		})
+		target := settingspkg.MCPAuthTargetRequest{
+			Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID, Name: req.Server.Name,
+			DefinitionSource: record.Spec.DefinitionSource,
+		}
+		for _, want := range []bool{false, true} {
+			item, err := enabled.SetMCPServerEnabled(t.Context(), target, want)
+			if err != nil || item.Disabled == want || item.Command != record.Spec.Command {
+				t.Fatalf("set enabled=%t: %+v, %v", want, item, err)
+			}
+			record.ID += "-new"
+			state.mcpServerCatalog.Replace(
+				state.mcpServerCatalog.Revision()+1,
+				[]resources.Record[compozyconfig.MCPServer]{record},
+			)
+			source := toolspkg.SourceRef{ResourceID: record.ID, WorkspaceID: req.WorkspaceID}
+			projected, err := resolveDaemonMCPResource(t.Context(), state, source, req.Server.Name, "manual")
+			if err != nil || projected.Server.IsDisabled() == want {
+				t.Fatalf("republished enabled=%t: %+v, %v", want, projected.Server, err)
+			}
+		}
+	})
+	// Invariant: management selects the same published definition as Settings and direct session launch.
+	// Owner: daemon publication and enablement; canonical suite: Settings MCP.
+	t.Run("Should share a global server preference with its default-profile publication", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		state, req := newMCPConsentFixtureForHome(t, home)
+		server := req.Server
+		server.Disabled = new(true)
+		record := resources.Record[compozyconfig.MCPServer]{
+			ID: "global-agent", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			Spec: server, Source: agentSkillSyncActor().Source,
+		}
+		alias := record
+		alias.ID = "default-profile-agent"
+		alias.Scope = resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: store.DefaultProfileID}
+		inherited := record
+		inherited.ID = "workspace-profile-inherited"
+		inherited.Scope = resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspaceProfile, ID: req.WorkspaceID + "@pf:default",
+		}
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{record, alias, inherited})
+		consent := settingsMCPConsent{state: state}
+		definitions, err := consent.PublishedMCPDefinitions(t.Context(), settingspkg.MCPAuthTargetRequest{
+			Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID,
+		})
+		if err != nil || len(definitions) != 1 ||
+			definitions[0].ManagementTarget.Scope != mcpauth.ScopeWorkspaceProfile ||
+			definitions[0].Target.Scope != mcpauth.ScopeWorkspace {
+			t.Fatalf("workspace projection of the shared file: %+v, %v", definitions, err)
+		}
+		svc, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			ProfileResolver: state.profiles, MCPConsent: consent,
+			WorkspaceResolver:       state.workspaceResolver,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPRuntime:              &settingsRuntimeSurface{state: state},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		target := settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeUser, Name: server.Name}
+		item, err := svc.(core.MCPSettingsChecker).CheckMCPServer(t.Context(), target)
+		if err != nil || !item.Disabled {
+			t.Fatalf("check the off declaration shared by projections: %+v, %v", item, err)
+		}
+		target.DefinitionSource = server.DefinitionSource
+		definition, found, err := consent.SetPublishedMCPEnabled(t.Context(), target, true)
+		if err != nil || !found || definition.Server.IsDisabled() {
+			t.Fatalf("enable the shared definition: found=%t, err=%v", found, err)
+		}
+		for _, resourceID := range []string{record.ID, alias.ID, inherited.ID} {
+			source := toolspkg.SourceRef{ResourceID: resourceID, ProfileID: store.DefaultProfileID}
+			resolved, err := resolveDaemonMCPResource(t.Context(), state, source, server.Name, "manual")
+			if err != nil || resolved.Server.IsDisabled() {
+				t.Fatalf("enabled publication %q: %v", resourceID, err)
+			}
+		}
+		servers, err := sessionMCPConsentFilter(
+			state,
+		)(
+			t.Context(),
+			store.DefaultProfileID,
+			"",
+			[]compozyconfig.MCPServer{server},
+		)
+		if err != nil || len(servers) != 1 || servers[0].IsDisabled() {
+			t.Fatalf("direct launch retained the authored off flag: %+v, %v", servers, err)
+		}
+	})
+
+	// Invariant: the scoped check uses the same narrower declaration as runtime discovery.
+	// Owner: daemon Settings MCP; canonical suite: MCP enablement.
+	t.Run("Should check an off workspace publication ahead of a same-name global config", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		state, req := newMCPConsentFixtureForHome(t, home)
+		globalSource := filepath.Join(home.HomeDir, compozyconfig.MCPJSONName)
+		writeMCPDeclarationFile(
+			t,
+			globalSource,
+			`{"mcpServers":{"sentry":{"command":"global-fixture","disabled":true}}}`,
+		)
+		server := req.Server
+		server.Disabled = new(true)
+		server.DefinitionSource = filepath.Join(filepath.Dir(req.Server.DefinitionSource), "agents", "agent.md")
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{
+			{ID: "workspace-agent", Spec: server, Source: agentSkillSyncActor().Source,
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: req.WorkspaceID}},
+		})
+		svc, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			WorkspaceResolver:       state.workspaceResolver,
+			ProfileResolver:         state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPConsent: settingsMCPConsent{
+				state: state,
+			},
+			MCPRuntime: &settingsRuntimeSurface{state: state},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		checker := svc.(core.MCPSettingsChecker)
+		target := settingspkg.MCPAuthTargetRequest{
+			Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID, Name: server.Name,
+		}
+		item, err := checker.CheckMCPServer(t.Context(), target)
+		if err != nil || !item.Disabled || item.DefinitionSource != server.DefinitionSource ||
+			item.RuntimeStatus == nil || item.RuntimeStatus.State != settingspkg.MCPServerRuntimeStateOff {
+			t.Fatalf("check the workspace publication: %+v, %v", item, err)
+		}
+		target.DefinitionSource = globalSource
+		item, err = checker.CheckMCPServer(t.Context(), target)
+		if err != nil || item.DefinitionSource != globalSource || item.Command != "global-fixture" || !item.Disabled {
+			t.Fatalf("check the explicitly selected global declaration: %+v, %v", item, err)
+		}
+		target.DefinitionSource = filepath.Join(home.HomeDir, "missing.json")
+		if _, err := checker.CheckMCPServer(t.Context(), target); !errors.Is(err, settingspkg.ErrNotFound) {
+			t.Fatalf("check the missing declaration: %v", err)
+		}
+	})
+
+	t.Run("Should use the workspace-profile selector for a static extension server", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		record := resources.Record[compozyconfig.MCPServer]{
+			ID: "extension/test/agent/default/mcp_server/sentry",
+			Scope: resources.ResourceScope{
+				Kind: resources.ResourceScopeKindWorkspaceProfile,
+				ID:   req.WorkspaceID + "@pf:default",
+			},
+			Spec:   req.Server,
+			Owner:  *extensionOwner("test"),
+			Source: agentSkillSyncActor().Source,
+		}
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{record})
+		definitions, err := (settingsMCPExtensionDefinitions{state: state}).ListMCPExtensionDefinitions(t.Context(),
+			settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID})
+		if err != nil || len(definitions) != 1 || definitions[0].Target.Scope != mcpauth.ScopeWorkspace ||
+			definitions[0].ManagementTarget.Scope != mcpauth.ScopeWorkspaceProfile {
+			t.Fatalf("workspace static extension definitions: %+v, %v", definitions, err)
+		}
+		definition, found, err := (settingsMCPConsent{state: state}).SetPublishedMCPEnabled(t.Context(),
+			settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeProfile, WorkspaceID: req.WorkspaceID,
+				ProfileName: "default", Owner: "extension:test", Name: record.Spec.Name,
+				DefinitionSource: definitions[0].Server.DefinitionSource}, false)
+		if err != nil || !found || !definition.Server.IsDisabled() {
+			t.Fatalf("disable the selected static extension definition: found=%t, err=%v", found, err)
 		}
 	})
 }

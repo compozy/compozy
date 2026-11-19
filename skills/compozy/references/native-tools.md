@@ -162,8 +162,9 @@ if the answer itself exceeds the result budget, page its returned artifact norma
 required `title` of at most 80 characters and an optional `body` of at most 240 characters. The
 daemon sanitizes and redacts both fields before delivery, then returns exactly one provable outcome:
 `delivered` when at least one live operator catalog-stream subscriber accepted the event,
-`no-client`, `muted-workspace`, or `rate-limited` with `retry_after_ms`. The per-session limit is one
-send per second, including sends suppressed by a workspace mute. CLI fallback: `compozy notify`.
+`no-client` when the notice was saved for the sender profile's attention bell, `muted-workspace`,
+or `rate-limited` with `retry_after_ms`. The per-session limit is one send per second, including
+sends suppressed by a workspace mute. CLI fallback: `compozy notify`.
 
 Monitor tools, also in the `sessions` toolset: `compozy__monitor_create`, `compozy__monitor_list`,
 `compozy__monitor_cancel`. A monitor is a daemon-owned watch that wakes the bound session with a new
@@ -548,7 +549,8 @@ root `--profile` selection outside a session. CLI:
 `compozy --profile <profile> tool approvals set|list|revoke --workspace <workspace>`.
 
 Clarification: `compozy__clarify` asks one active-session question with at most four choices and returns
-zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session clarify pending|answer`
+zero-based `{choice,text,fallback}`. It is not approval. A provider select question without a custom-text field (ACP
+`elicitation/create`) accepts only a choice; a text answer to it is refused as invalid. CLI: `compozy session clarify pending|answer`
 (choice presentation is one-based).
 
 `compozy__session_list` accepts `board_column: ["needs_you", "working", "waiting", "in_review", "done"]`
@@ -562,7 +564,11 @@ filters participate in the cursor fingerprint. PR facts are display-cache reads,
 `compozy__session_list` returns one counted catalog page and accepts workspace, exact state, exact
 session `type`, exact agent, exact `parent` (direct children) or `root` (whole tree, root included),
 search, resumability, health, archive visibility, sort, cursor, and limit inputs. Archive visibility defaults to `exclude`; use `only` or `include` when the workflow needs
-archived rows. Use `type: "user"` when a workflow needs operator-created sessions without
+archived rows. Pin visibility (`pinned`) defaults to `include`; `exclude` drops sessions pinned
+above the session list, `only` returns just them, and `sort: "pinned"` (oldest pin first) requires
+`only`. Rows report `pinned_at`. Pinning has no native tool: use `compozy session pin <id>` and
+`compozy session unpin <id>`; subagent sessions and always-on mains are refused.
+Use `type: "user"` when a workflow needs operator-created sessions without
 daemon-managed system, coordinator, or spawned sessions. `compozy__session_archive` archives a
 stopped session; a live session is refused unless the input sets `stop: true`, which stops it
 through the normal stop path (canceling any active turn and cascading to subagents) and then
@@ -705,7 +711,8 @@ Gateway tool: `compozy__gateway`, in toolset `compozy__gateway`. Resolve its liv
 calling it. `status`, `audit`, and `device_list` are read actions and remain callable in every
 session permission mode while the Gateway service is available. Management actions are
 `surface_set`, `provider_enable`, `provider_disable`, `device_rename`, `device_revoke`,
-`ingress_bind`, and `ingress_unbind`. A local operator may call them directly; an agent session must
+`device_remove`, `ingress_bind`, and `ingress_unbind`. A local operator may call them directly; an
+agent session must
 have effective permission mode `approve-all`. Lower modes return `tool_denied` with
 `policy_denied`. The tool returns only redacted projections and intentionally has no pairing,
 credential, or stream-ticket issuance action. Use the local CLI or private management API when a
@@ -866,7 +873,8 @@ window's whole tab with a required `pinned` boolean; `window_reopen` needs only 
 `target_window_id` puts the window beside that window in its tab, with `target_tab_id` at that
 root edge of the tab; `placement: "tab"` makes it its own tab; `move_group` moves the whole tab.
 `window_open` accepts `stack_target_window_id` (a new tab right after that window's tab) and
-`insert_tiled` (a split member right of the focused window); `window_navigate` accepts `mode`
+`insert_tiled` (a split member right of the focused window) with an optional `insert_edge`
+(`left`/`right`/`top`/`bottom`, default right); `window_navigate` accepts `mode`
 (`replace`/`push`/`pop`, and `pop` forbids `route`); `window_close` accepts `scope`
 (`tab`/`group`/`others`/`right`/`left`/`all`); `layout_balance` takes `tab_id` or `split_id`.
 Results carry `changes.tab_ids`, `tab_split`, `tab_unsplit` and, when a retired input was used,
