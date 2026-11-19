@@ -911,7 +911,6 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		{name: "Should bind a worker under an always-on descendant", descendant: true},
 	} {
 		t.Run(origin.name, func(t *testing.T) {
-			t.Parallel()
 			testLoopBindingFromAlwaysOnOrigin(t, origin.descendant)
 		})
 	}
