@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -881,6 +882,8 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		service.CompleteMCPAuthFn = func(context.Context, string) (mcpauth.Status, error) {
 			return mcpauth.Status{}, errors.New("provider rejected sensitive-failure-code")
 		}
+		var logs bytes.Buffer
+		fixture.Handlers.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
 		failedCallback := performRequest(
 			t,
 			fixture.Engine,
@@ -902,11 +905,18 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		}
 		for _, expected := range []string{
 			"<title>Sign-in didn’t finish · CompozyOS</title>",
-			"reason: unclassified",
-			"The full error is in the CompozyOS daemon log.",
+			"reason: unclassified\nserver: unknown\nhttp_status: 400",
 		} {
 			if !strings.Contains(failedCallback.Body.String(), expected) {
 				t.Fatalf("callback failure body missing %q", expected)
+			}
+		}
+		if !strings.Contains(logs.String(), "MCP OAuth callback failed") {
+			t.Fatalf("callback failure was not logged: %s", logs.String())
+		}
+		for _, secret := range []string{"sensitive-failure-code", "provider rejected", "public-state"} {
+			if strings.Contains(logs.String(), secret) {
+				t.Fatalf("callback failure log leaked %q: %s", secret, logs.String())
 			}
 		}
 	})

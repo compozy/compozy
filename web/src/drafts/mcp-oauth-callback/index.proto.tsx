@@ -2,6 +2,7 @@ import "@/drafts/mcp-oauth-callback/callback.css";
 
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
+import { BrowserFrame } from "@/drafts/mcp-oauth-callback/browser-frame";
 import { CallbackPage } from "@/drafts/mcp-oauth-callback/callback-page";
 import { SCENES } from "@/drafts/mcp-oauth-callback/scenes";
 
@@ -22,20 +23,8 @@ export const meta = definePrototype({
 
 export default function Prototype({ state }: PrototypeProps) {
   return (
-    <div className="cb-stage">
-      <div className="cb-browser">
-        <div className="cb-browser__bar">
-          <div className="cb-browser__lights" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
-          <span className="cb-browser__url">
-            http://<b>127.0.0.1:2123</b>/api/mcp/oauth/callback?code=…&amp;state=…
-          </span>
-        </div>
-        <CallbackPage key={state} scene={SCENES[state] ?? SCENES.connected} />
-      </div>
-    </div>
+    <BrowserFrame>
+      <CallbackPage key={state} scene={SCENES[state] ?? SCENES.connected} />
+    </BrowserFrame>
   );
 }

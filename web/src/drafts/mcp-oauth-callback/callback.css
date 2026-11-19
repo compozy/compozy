@@ -136,7 +136,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  align-self: center;
+  align-self: safe center;
   align-items: center;
   inline-size: 100%;
   max-inline-size: 480px;

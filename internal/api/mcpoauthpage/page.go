@@ -32,9 +32,6 @@ const (
 // openURL opens the MCP servers settings in the desktop app, where every sign-in starts.
 const openURL = "compozyos://open/settings/mcp"
 
-// SignInWindow is how long a sign-in link stays valid; the expired copy states it.
-const SignInWindow = 5 * time.Minute
-
 // span is the number of points on each side of the handshake mark.
 const span = 9
 
@@ -156,7 +153,7 @@ func copyFor(outcome Outcome, server *Server) (string, string) {
 		return "This sign-in link has expired", fmt.Sprintf(
 			"Sign-in links last %d minutes and work only once. "+
 				"Start a new sign-in from the server’s settings in CompozyOS.",
-			int(SignInWindow/time.Minute),
+			int(mcpauth.DefaultLoginSessionTTL/time.Minute),
 		)
 	case OutcomeChanged:
 		title := "The server changed while you signed in"

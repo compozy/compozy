@@ -43,7 +43,7 @@ func (h *BaseHandlers) CompleteSettingsMCPAuthCallback(c *gin.Context) {
 			Outcome: mcpoauthpage.OutcomeFailed,
 			Code:    "callback_unavailable",
 			Now:     now,
-		}, err)
+		})
 		return
 	}
 	if c.Request.URL.RawQuery != "" {
@@ -53,7 +53,7 @@ func (h *BaseHandlers) CompleteSettingsMCPAuthCallback(c *gin.Context) {
 	if err != nil {
 		code, page := mcpOAuthFailurePage(err, c.Query("error"))
 		page.Now = now
-		h.renderMCPOAuthFailure(c, code, page, err)
+		h.renderMCPOAuthFailure(c, code, page)
 		return
 	}
 	if status.Status != mcpauth.StatusAuthenticated || !status.TokenPresent {
@@ -62,7 +62,7 @@ func (h *BaseHandlers) CompleteSettingsMCPAuthCallback(c *gin.Context) {
 			Server:  &mcpoauthpage.Server{Name: status.ServerName},
 			Code:    "token_missing",
 			Now:     now,
-		}, fmt.Errorf("settings: MCP auth callback finished without a usable token (status %q)", status.Status))
+		})
 		return
 	}
 	h.renderMCPOAuthPage(c, http.StatusOK, mcpoauthpage.Page{
@@ -112,38 +112,42 @@ func mcpOAuthFailurePage(err error, providerError string) (int, mcpoauthpage.Pag
 	return http.StatusBadRequest, page
 }
 
-// renderMCPOAuthFailure logs the full error and renders the failure page. The page never carries
-// the error text, which may hold inbound OAuth material; unclassified failures get a copyable
-// summary that points at the daemon log instead.
-func (h *BaseHandlers) renderMCPOAuthFailure(c *gin.Context, code int, page mcpoauthpage.Page, err error) {
+// renderMCPOAuthFailure logs and renders a failure. Neither the log nor the page carries the
+// error text: token-endpoint errors can echo the authorization code or other credentials, so
+// both state only the classified reason, the server and the HTTP status.
+func (h *BaseHandlers) renderMCPOAuthFailure(c *gin.Context, code int, page mcpoauthpage.Page) {
+	reason, server := mcpOAuthReason(page), mcpOAuthServer(page)
 	if h.Logger != nil {
 		h.Logger.WarnContext(
 			c.Request.Context(),
 			"MCP OAuth callback failed",
 			"outcome", string(page.Outcome),
-			"reason", page.Code,
-			"error", err,
+			"reason", reason,
+			"server", server,
+			"http_status", code,
 		)
 	}
 	if page.Outcome == mcpoauthpage.OutcomeFailed {
-		page.Diagnostic = mcpOAuthDiagnostic(page, code)
+		page.Diagnostic = fmt.Sprintf(
+			"reason: %s\nserver: %s\nhttp_status: %d\ntime: %s",
+			reason, server, code, page.Now.Format(time.RFC3339),
+		)
 	}
 	h.renderMCPOAuthPage(c, code, page)
 }
 
-func mcpOAuthDiagnostic(page mcpoauthpage.Page, code int) string {
-	reason := page.Code
-	if reason == "" {
-		reason = "unclassified"
+func mcpOAuthReason(page mcpoauthpage.Page) string {
+	if page.Code == "" {
+		return "unclassified"
 	}
-	server := unknownMCPOAuthServer
-	if page.Server != nil && strings.TrimSpace(page.Server.Name) != "" {
-		server = page.Server.Name
+	return page.Code
+}
+
+func mcpOAuthServer(page mcpoauthpage.Page) string {
+	if page.Server == nil || strings.TrimSpace(page.Server.Name) == "" {
+		return unknownMCPOAuthServer
 	}
-	return fmt.Sprintf(
-		"reason: %s\nserver: %s\nhttp_status: %d\ntime: %s\nThe full error is in the CompozyOS daemon log.",
-		reason, server, code, page.Now.Format(time.RFC3339),
-	)
+	return page.Server.Name
 }
 
 func (h *BaseHandlers) renderMCPOAuthPage(c *gin.Context, code int, page mcpoauthpage.Page) {
