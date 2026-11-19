@@ -20,7 +20,7 @@ export const sideChatMainSessionFixture: SessionPayload = {
 
 /** The main session with `badge` (and `state`) as given, for the status chip states. */
 export function sideChatMainSession(
-  badge: string,
+  badge: SessionPayload["badge"],
   state: SessionPayload["state"] = "active"
 ): SessionPayload {
   return { ...sideChatMainSessionFixture, badge, state };

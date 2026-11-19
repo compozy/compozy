@@ -33,9 +33,9 @@ export const SIDE_CHAT_COPY = {
   listFailed: "Couldn't load side chats.",
 } as const;
 
-/** The wire's lineage value. The generated contract adds `"side"` with the backend slice. */
+/** A side chat is a session whose lineage kind is `side`. */
 export function isSideChatSession(session: Pick<SessionPayload, "lineage">): boolean {
-  return (session.lineage?.kind as string | undefined) === "side";
+  return session.lineage?.kind === "side";
 }
 
 /** Only a user session that is not itself a side chat can hold side chats (Business Rule 2). */
