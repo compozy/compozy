@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
 	"log/slog"
 	"maps"
 	"sync"
@@ -184,18 +185,23 @@ func (c *mcpCatalogRefresh) logSubscriptionError(ctx context.Context, err error)
 }
 
 func (p *MCPProvider) refreshCatalogSource(ctx context.Context, source SourceRef) {
-	if value, found := p.discovered.Load(source); found {
+	if _, failed := p.discoveryFailures.Load(source); failed {
+		ctx = WithFreshMCPDiscovery(ctx)
+	} else if value, found := p.discovered.Load(source); found {
 		snapshot, ok := value.(*mcpDiscoverySnapshot)
 		if !ok {
 			panic("invariant: discovered MCP source has an unexpected type")
 		}
 		snapshot.currentDescriptors()
-		if generation, ok := p.exec.(mcpProjectionGenerationSource); ok {
-			if _, fresh := generation.ProjectionGeneration(ctx, []SourceRef{source}); fresh {
+		if executor, ok := p.exec.(interface {
+			CatalogContentRevision(context.Context, SourceRef) ([sha256.Size]byte, bool)
+		}); ok {
+			if content, fresh := executor.CatalogContentRevision(ctx, source); fresh && content == snapshot.content {
 				return
 			}
 		}
 	}
+	ctx = context.WithValue(ctx, mcpOwnedDiscoveryKey{}, true)
 	if _, _, err := p.listSourceDescriptors(ctx, source, source.ProfileID, p.discoveryBudget); err != nil &&
 		ctx.Err() == nil {
 		p.recordDiscoveryFailure(ctx, source, err)

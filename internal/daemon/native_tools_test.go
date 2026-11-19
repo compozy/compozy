@@ -11844,7 +11844,9 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		var enumerations int
 		resolver.scopeTools = func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
 			enumerations++
-			return []toolspkg.ToolView{{Descriptor: toolspkg.Descriptor{ID: toolID, Source: toolspkg.BuiltinSource()}}}, nil
+			return []toolspkg.ToolView{{
+				Descriptor: toolspkg.Descriptor{ID: toolID, Source: toolspkg.BuiltinSource()},
+			}}, nil
 		}
 		for i := range 19 {
 			mode := store.PermissionInherit

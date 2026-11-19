@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -38,48 +39,58 @@ func TestStdioSessionPool(t *testing.T) {
 	t.Run("Should recycle only after stdio response deadlines and back off by target", func(t *testing.T) {
 		t.Parallel()
 
-		var logs bytes.Buffer
-		pool := &StdioSessionPool{cfg: normalizeStdioPoolConfig(StdioPoolConfig{
-			Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
-		})}
-		target := mcpauth.Target{ServerName: "slow-fixture", Scope: mcpauth.ScopeUser}
-		spec := mcpStdioSpec{slot: "fixture", target: target, digest: "fixture-v1"}
-		slot := &stdioSlot{target: target}
-		session := &stdioSession{slot: slot, digest: spec.digest, sem: make(chan struct{}, 1)}
-		slot.current = session
-		pool.slots = map[string]*stdioSlot{spec.slot: slot}
+		// Invariant: only a deadline owned by the RPC increments the pool's failure history.
+		// Owner: stdio executor and pool; canonical suite: TestStdioSessionPool.
+		synctest.Test(t, func(t *testing.T) {
+			var logs bytes.Buffer
+			pool := &StdioSessionPool{cfg: normalizeStdioPoolConfig(StdioPoolConfig{
+				Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+			})}
+			target := mcpauth.Target{ServerName: "slow-fixture", Scope: mcpauth.ScopeUser}
+			spec := mcpStdioSpec{slot: "fixture", target: target, digest: "fixture-v1"}
+			slot := &stdioSlot{target: target}
+			session := &stdioSession{slot: slot, digest: spec.digest, sem: make(chan struct{}, 1)}
+			slot.current = session
+			pool.slots = map[string]*stdioSlot{spec.slot: slot}
 
-		exchange := func(cause error) {
-			ctx, cancel := context.WithDeadlineCause(t.Context(), time.Unix(0, 0), cause)
-			defer cancel()
-			session.sem <- struct{}{}
-			session.inFlight++
-			lease := &stdioLease{pool: pool, session: session}
-			client := &managedMCPClient{release: lease.release}
-			client.observeExchange(ctx, ctx.Err())
-			if err := closeMCPClient(client); err != nil {
-				t.Fatalf("closeMCPClient() = %v", err)
+			executor := &CallExecutor{timeout: time.Second}
+			exchange := func(callerBudget time.Duration) {
+				caller, cancel := context.WithTimeout(t.Context(), callerBudget)
+				defer cancel()
+				ctx, cancelCall := executor.callContext(caller)
+				defer cancelCall()
+				session.sem <- struct{}{}
+				session.inFlight++
+				lease := &stdioLease{pool: pool, session: session}
+				client := &managedMCPClient{release: lease.release}
+				rpc, cancelRPC := executor.exchangeContext(ctx, client)
+				defer cancelRPC()
+				<-rpc.Done()
+				client.observeExchange(rpc, rpc.Err())
+				if err := closeMCPClient(client); err != nil {
+					t.Fatalf("closeMCPClient() = %v", err)
+				}
 			}
-		}
-		for range 2 * stdioRetireAfterTimeouts {
-			exchange(context.DeadlineExceeded)
-		}
-		if got, err := pool.sessionFor(spec); err != nil || got != session {
-			t.Fatalf("sessionFor() after caller deadlines = %p, %v, want existing child", got, err)
-		}
-		for range stdioRetireAfterTimeouts {
-			exchange(errStdioResponseDeadline)
-		}
-		if _, err := pool.sessionFor(spec); err == nil || !strings.Contains(err.Error(), "backing off") {
-			t.Fatalf("sessionFor() after response deadlines = %v, want cooldown", err)
-		}
-		for _, want := range []string{
-			"mcp: recycling unresponsive stdio server", `"server":"slow-fixture"`, `"scope":"user"`,
-		} {
-			if !strings.Contains(logs.String(), want) {
-				t.Errorf("retirement log missing %q", want)
+			for range 2 * stdioRetireAfterTimeouts {
+				exchange(100 * time.Millisecond)
 			}
-		}
+			if got, err := pool.sessionFor(spec); err != nil || got != session {
+				t.Fatalf("sessionFor() after caller deadlines = %p, %v, want existing child", got, err)
+			}
+			for range stdioRetireAfterTimeouts {
+				exchange(2 * time.Second)
+			}
+			if _, err := pool.sessionFor(spec); err == nil || !strings.Contains(err.Error(), "backing off") {
+				t.Fatalf("sessionFor() after response deadlines = %v, want cooldown", err)
+			}
+			for _, want := range []string{
+				"mcp: recycling unresponsive stdio server", `"server":"slow-fixture"`, `"scope":"user"`,
+			} {
+				if !strings.Contains(logs.String(), want) {
+					t.Errorf("retirement log missing %q", want)
+				}
+			}
+		})
 	})
 
 	t.Run("Should reuse one stdio child for discovery and concurrent tool calls", func(t *testing.T) {

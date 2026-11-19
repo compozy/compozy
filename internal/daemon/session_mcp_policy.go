@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -35,12 +36,16 @@ func (r *nativeToolPolicyResolver) applyHostedSessionToolPolicy(
 	if err != nil {
 		return err
 	}
+	ceilingTools := plan.policy.Tools
+	if plan.root && plan.policy.ToolsMode != store.PermissionList {
+		ceilingTools = nil
+	}
 	ceiling, err := json.Marshal(struct {
 		Tools   []string
 		Servers []string
 		Intent  string
 		Root    bool
-	}{plan.policy.Tools, plan.policy.MCPServers, string(plan.policy.ToolsMode), plan.root})
+	}{ceilingTools, plan.policy.MCPServers, string(plan.policy.ToolsMode), plan.root})
 	if err != nil {
 		return err
 	}
@@ -49,7 +54,7 @@ func (r *nativeToolPolicyResolver) applyHostedSessionToolPolicy(
 	scope.SessionID, scope.AgentName = "", ""
 	inputs.Session, err = toolspkg.CachedHostedSessionPolicy(ctx, scope, plan.inputs, string(ceiling),
 		func() (toolspkg.SessionToolPolicy, error) {
-			policy, err := r.materializeMCPAuthority(ctx, plan)
+			policy, err := r.materializeMCPAuthority(ctx, &plan)
 			if err != nil {
 				return toolspkg.SessionToolPolicy{}, err
 			}

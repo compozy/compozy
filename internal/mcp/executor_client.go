@@ -24,9 +24,10 @@ import (
 )
 
 type managedMCPClient struct {
-	session  *mcpsdk.ClientSession
-	cleanup  func() error
-	borrowed bool
+	session     *mcpsdk.ClientSession
+	cleanup     func() error
+	borrowed    bool
+	catalogLive func() bool
 	// release returns a pooled session instead of closing it.
 	release  func(stdioExchangeOutcome)
 	exchange stdioExchangeOutcome
@@ -47,7 +48,7 @@ func (e *CallExecutor) exchangeContext(
 		return ctx, func() {}
 	}
 	timeout := e.timeout
-	if discoveryBudget := toolspkg.MCPDiscoveryResponseBudget(ctx); discoveryBudget > 0 {
+	if discoveryBudget := toolspkg.MCPDiscoveryResponseBudget(ctx); discoveryBudget >= mcpToolListFloor {
 		timeout = min(timeout, discoveryBudget)
 	}
 	return context.WithTimeoutCause(parent, timeout, errStdioResponseDeadline)
@@ -161,6 +162,7 @@ func connectMCPClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.
 
 func connectMCPClientWithCatalogChanges(
 	ctx context.Context, transport mcpsdk.Transport, onChange func(context.Context, *mcpsdk.ToolListChangedRequest),
+	receiving ...mcpsdk.Middleware,
 ) (*mcpsdk.ClientSession, error) {
 	client := mcpsdk.NewClient(
 		&mcpsdk.Implementation{Name: "compozy", Version: version.Current().Version},
@@ -171,6 +173,7 @@ func connectMCPClientWithCatalogChanges(
 		},
 	)
 	client.AddSendingMiddleware(executorToolListCache)
+	client.AddReceivingMiddleware(receiving...)
 	session, err := client.Connect(ctx, transport, nil)
 	if err != nil {
 		return nil, normalizeMCPError("", err)

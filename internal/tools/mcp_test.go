@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1434,6 +1435,15 @@ func (e *projectionMCPExecutor) ProjectionGeneration(
 	return e.generation, e.known
 }
 
+type catalogRevisionMCPExecutor struct{ *fakeMCPExecutor }
+
+func (e *catalogRevisionMCPExecutor) CatalogContentRevision(context.Context, SourceRef) ([sha256.Size]byte, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	revision, err := FingerprintMCPToolDescriptors(e.tools)
+	return revision, err == nil
+}
+
 func newFakeMCPExecutor(tools []MCPToolDescriptor) *fakeMCPExecutor {
 	return &fakeMCPExecutor{
 		tools:  tools,
@@ -1678,6 +1688,39 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 				t.Fatalf("upstream listings = %d, want 1 from background discovery", got)
 			}
 		})
+	})
+
+	// Invariant: profiles refresh their own snapshot when the shared source contents change.
+	// Owner: MCP provider discovery; canonical suite: TestMCPProjectionDiscoveryIsBounded.
+	t.Run("Should refresh both profiles of a shared declaration and reuse converged snapshots", func(t *testing.T) {
+		t.Parallel()
+		source := SourceRef{Kind: SourceMCP, Owner: "docs", Scope: mcpSourceScopeWorkspace, WorkspaceID: "ws-a"}
+		executor := &catalogRevisionMCPExecutor{newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName: "before", InputSchema: json.RawMessage(`{"type":"object"}`),
+		}})}
+		provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+			return []SourceRef{source}, nil
+		}), executor, nil, WithMCPBackgroundDiscovery(nil, nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		first, peer := source, source
+		first.ProfileID, peer.ProfileID = "profile-a", "profile-b"
+		provider.refreshCatalogSource(t.Context(), first)
+		provider.refreshCatalogSource(t.Context(), peer)
+		executor.tools[0].RawName = "after"
+		provider.refreshCatalogSource(t.Context(), first)
+		provider.refreshCatalogSource(t.Context(), peer)
+		for _, profile := range []SourceRef{first, peer} {
+			views := provider.cachedSourceDescriptors(profile)
+			if len(views) != 1 || views[0].ID != "mcp__docs__after" {
+				t.Fatalf("profile %q snapshot=%+v, want changed catalog", profile.ProfileID, views)
+			}
+			provider.refreshCatalogSource(t.Context(), profile)
+		}
+		if got := len(executor.listedSources); got != 4 {
+			t.Fatalf("provider listing reads=%d, want 2 initial and 2 after the revision", got)
+		}
 	})
 
 	t.Run("Should omit a stalled source within budget and still discover healthy sources", func(t *testing.T) {

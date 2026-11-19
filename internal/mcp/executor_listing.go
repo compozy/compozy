@@ -11,6 +11,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -204,7 +205,7 @@ func (e *CallExecutor) listToolsWithCatalogClient(
 ) (discovery ToolDiscovery, healthErr error, err error) {
 	client, err := e.openToolListingClient(ctx, resolved, authorizationHeader)
 	if err != nil && ctx.Err() == nil && e.catalogHTTP != nil &&
-		resolved.Server.EffectiveTransport() == compozyconfig.MCPServerTransportHTTP {
+		resolved.Server.EffectiveTransport() == compozyconfig.MCPServerTransportHTTP && !catalogAuthError(err) {
 		client, err = e.openRenderedClient(ctx, resolved, authorizationHeader)
 	}
 	if err != nil {
@@ -213,12 +214,15 @@ func (e *CallExecutor) listToolsWithCatalogClient(
 	defer func() {
 		err = joinMCPClientCleanup(err, client)
 	}()
+	if e.stdioPool != nil && resolved.listingSpec != nil {
+		resolved.listingBinding = e.stdioListingBinding(*resolved.listingSpec)
+	}
 	discovery, healthErr, err = e.listToolsFromClient(
 		ctx, client, source, resolved, negotiatedProtocolVersion(client.session), authorizationHeader,
 	)
-	if client.borrowed && healthErr != nil && ctx.Err() == nil {
+	if client.borrowed && healthErr != nil {
 		retireErr := e.catalogHTTP.forget(client.session)
-		if reason, ok := tools.ReasonOf(err); ok && reason == tools.ReasonMCPAuthRequired {
+		if ctx.Err() != nil || catalogAuthError(err) {
 			return discovery, healthErr, errors.Join(err, retireErr)
 		}
 		replacement, openErr := e.openRenderedClient(ctx, resolved, authorizationHeader)
@@ -237,6 +241,15 @@ func (e *CallExecutor) listToolsWithCatalogClient(
 		}
 	}
 	return discovery, healthErr, err
+}
+
+func catalogAuthError(err error) bool {
+	if errors.Is(err, mcpauth.ErrTokenRejected) || errors.Is(err, ErrAuthorizationRequired) ||
+		errors.Is(err, errRemoteAuthenticationRejected) {
+		return true
+	}
+	reason, _ := tools.ReasonOf(err)
+	return reason == tools.ReasonMCPAuthRequired || reason == tools.ReasonMCPAuthUnconfigured
 }
 
 // listToolsFromClient answers discovery over an open client, preferring a cached projection. The
@@ -280,11 +293,12 @@ func (e *CallExecutor) listToolsFromClient(
 	}
 	discovery, err := e.normalizeToolListing(cacheKey, source, resolved, protocolVersion, raw)
 	if err != nil {
-		return ToolDiscovery{}, err, err
+		return ToolDiscovery{}, nil, err
 	}
 	stdio := e.stdioPool != nil && resolved.listingSpec != nil
-	if client.borrowed || (stdio && e.stdioPool.catalogSubscribed(*resolved.listingSpec)) {
-		ttlMs = mcpSubscribedListTTL
+	subscribed := client.catalogLive
+	if stdio {
+		subscribed = func() bool { return e.stdioPool.catalogSubscribed(*resolved.listingSpec) }
 	}
 	if err := e.publishToolList(
 		cacheKey,
@@ -295,6 +309,7 @@ func (e *CallExecutor) listToolsFromClient(
 		ttlMs,
 		mcpProjectionSourceKey(source, authorizationHeader, resolved.listingBinding),
 		stdio,
+		subscribed,
 	); err != nil {
 		return ToolDiscovery{}, nil, err
 	}
@@ -326,11 +341,15 @@ func (e *CallExecutor) prepareToolListing(ctx context.Context, resolved *Resolve
 		return err
 	}
 	resolved.listingSpec = &spec
-	resolved.listingBinding = spec.digest
-	if e.stdioPool != nil {
-		resolved.listingBinding += ":" + strconv.FormatUint(e.stdioPool.catalogRevision(spec), 10)
-	}
+	resolved.listingBinding = e.stdioListingBinding(spec)
 	return nil
+}
+
+func (e *CallExecutor) stdioListingBinding(spec mcpStdioSpec) string {
+	if e.stdioPool == nil {
+		return spec.digest
+	}
+	return spec.digest + ":" + strconv.FormatUint(e.stdioPool.catalogRevision(spec), 10)
 }
 
 func (e *CallExecutor) cachedHTTPTools(

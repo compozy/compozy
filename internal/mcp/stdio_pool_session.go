@@ -38,7 +38,7 @@ func (p *StdioSessionPool) run(session *stdioSession, spec mcpStdioSpec) {
 		func(context.Context, *mcpsdk.ToolListChangedRequest) {
 			p.mu.Lock()
 			if session.slot.current == session {
-				session.slot.catalogRevision++
+				p.advanceCatalogRevision(session.slot)
 			}
 			p.mu.Unlock()
 		},
@@ -100,7 +100,7 @@ func (p *StdioSessionPool) finishSession(session *stdioSession, exitErr error, c
 	if slot.current == session {
 		slot.current = nil
 		if session.catalogPush {
-			slot.catalogRevision++
+			p.advanceCatalogRevision(slot)
 		}
 	}
 	slot.lastStderr = session.stderr
@@ -144,6 +144,12 @@ func withStdioStderr(err error, stderr *stdioStderrRing) error {
 		return err
 	}
 	return fmt.Errorf("%w; stderr: %s", err, tail)
+}
+
+// advanceCatalogRevision is called with the pool locked; deleting a slot never reuses its revision.
+func (p *StdioSessionPool) advanceCatalogRevision(slot *stdioSlot) {
+	p.catalogSequence++
+	slot.catalogRevision = p.catalogSequence
 }
 
 func (p *StdioSessionPool) catalogRevision(spec mcpStdioSpec) uint64 {
@@ -208,7 +214,8 @@ func (p *StdioSessionPool) reapIdleOnce() {
 		current := slot.current
 		if current != nil && current.session != nil && current.inFlight == 0 &&
 			now.Sub(current.lastUsed) >= p.cfg.IdleTimeout {
-			if _, retained := p.catalogSlots[stdioCatalogBinding{key, current.digest}]; !retained || !current.catalogPush {
+			_, retained := p.catalogSlots[stdioCatalogBinding{key, current.digest}]
+			if !retained || !current.catalogPush {
 				p.retireLocked(current)
 			}
 		}

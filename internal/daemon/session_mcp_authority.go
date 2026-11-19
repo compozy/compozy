@@ -59,7 +59,7 @@ func (r *nativeToolPolicyResolver) resolveEffectiveMCPAuthority(
 	if err != nil {
 		return store.SessionPermissionPolicy{}, err
 	}
-	return r.materializeMCPAuthority(ctx, plan)
+	return r.materializeMCPAuthority(ctx, &plan)
 }
 
 type mcpAuthorityPlan struct {
@@ -109,7 +109,7 @@ func (r *nativeToolPolicyResolver) planMCPAuthority(ctx context.Context, id stri
 }
 
 func (r *nativeToolPolicyResolver) materializeMCPAuthority(
-	ctx context.Context, plan mcpAuthorityPlan,
+	ctx context.Context, plan *mcpAuthorityPlan,
 ) (store.SessionPermissionPolicy, error) {
 	policy := plan.policy
 	if r.scopeTools != nil && !mcpAuthorityRead(ctx) {

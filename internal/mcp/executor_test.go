@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -1980,6 +1981,66 @@ func TestMCPClientCleanup(t *testing.T) {
 // Owning layer: internal/mcp unit cache.
 // Canonical suite: internal/mcp/executor_test.go.
 func TestMCPToolListCache(t *testing.T) {
+	// Invariant: an advertised subscription keeps finite expiry until the transport has a live channel.
+	// Owner: executor HTTP catalog cache; canonical suite: TestMCPToolListCache.
+	t.Run("Should cache by push only after the notification stream opens", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, method string
+			status       int
+			acknowledge  bool
+		}{
+			{name: "Should fall back when a legacy GET is refused", method: http.MethodGet,
+				status: http.StatusMethodNotAllowed},
+			{name: "Should use an established legacy stream", method: http.MethodGet,
+				status: http.StatusOK, acknowledge: true},
+			{name: "Should require acknowledgement on a modern stream", method: http.MethodPost,
+				status: http.StatusOK, acknowledge: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				drops := 0
+				stream := &catalogNotificationStream{
+					next: mcpRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+						return &http.Response{StatusCode: tc.status,
+							Header: http.Header{"Content-Type": []string{"text/event-stream"}},
+							Body:   io.NopCloser(strings.NewReader(""))}, nil
+					}),
+					ended: func() { drops++ },
+				}
+				req, err := http.NewRequestWithContext(t.Context(), tc.method, "https://example.com/mcp",
+					strings.NewReader(`{"method":"subscriptions/listen"}`))
+				if err != nil {
+					t.Fatal(err)
+				}
+				resp, err := stream.RoundTrip(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if tc.method == http.MethodPost {
+					if stream.live() {
+						t.Fatal("unacknowledged stream was treated as live")
+					}
+					acknowledge := stream.observeAcknowledgement(
+						func(context.Context, string, mcpsdk.Request) (mcpsdk.Result, error) { return nil, nil },
+					)
+					if _, err := acknowledge(t.Context(), "notifications/subscriptions/acknowledged", nil); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if stream.live() != tc.acknowledge {
+					t.Fatalf("stream live = %v, want %v", stream.live(), tc.acknowledge)
+				}
+				if err := resp.Body.Close(); err != nil {
+					t.Fatal(err)
+				}
+				if stream.live() || (drops == 1) != tc.acknowledge {
+					t.Fatalf("stream live = %v after close, drops = %d", stream.live(), drops)
+				}
+			})
+		}
+	})
+
 	// Invariant: one upstream notification invalidates its source across a large catalog.
 	// Owner: executor discovery cache; canonical suite: TestMCPToolListCache.
 	t.Run("Should relist only the changed source for incident-scale cached readers", func(t *testing.T) {

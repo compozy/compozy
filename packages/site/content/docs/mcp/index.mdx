@@ -44,7 +44,8 @@ MCP control shows when discovery is pending or has failed for a server.
 For a server with a live `tools/list_changed` subscription, a change refreshes that server's
 catalog and notifies the running agent. Servers without a live subscription refresh at cache
 expiry. Without a cache hint, their fallback expiry is two minutes. The daemon checks for expired
-catalogs every three seconds. Runtimes that need to reload pick up the change on the next message.
+catalogs every three seconds. A notification-capable stdio child stays available while a consented
+session reads its catalog. Runtimes that need to reload pick up the change on the next message.
 
 Use **Check again** to contact one server immediately. If the check fails, CompozyOS keeps
 its last successful catalog. The status shows when a stdio server is backing off before

@@ -57,11 +57,12 @@ type StdioSessionPool struct {
 	cancelConnect context.CancelFunc
 	stopReaper    chan struct{}
 
-	mu           sync.Mutex
-	slots        map[string]*stdioSlot
-	catalogSlots map[stdioCatalogBinding]struct{}
-	closed       bool
-	wg           sync.WaitGroup
+	mu              sync.Mutex
+	slots           map[string]*stdioSlot
+	catalogSlots    map[stdioCatalogBinding]struct{}
+	catalogSequence uint64
+	closed          bool
+	wg              sync.WaitGroup
 }
 
 // stdioSlot is the restart history of one target; it outlives the children it launches.
@@ -220,6 +221,7 @@ func (p *StdioSessionPool) sessionFor(spec mcpStdioSpec) (*stdioSession, error) 
 	slot := p.slots[spec.slot]
 	if slot == nil {
 		slot = &stdioSlot{target: spec.target}
+		p.advanceCatalogRevision(slot)
 		p.slots[spec.slot] = slot
 	}
 	slot.lastSeen = now
@@ -389,7 +391,7 @@ func (p *StdioSessionPool) retireLocked(session *stdioSession) {
 		session.slot.current = nil
 		session.slot.lastStderr = session.stderr
 		if session.catalogPush {
-			session.slot.catalogRevision++
+			p.advanceCatalogRevision(session.slot)
 		}
 	}
 	session.retiring = true

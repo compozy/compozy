@@ -91,8 +91,11 @@ func projectionPolicy(inputs PolicyInputs) visibilityPolicy {
 	if digest != [sha256.Size]byte{} {
 		inputs.Session.Tools = nil
 	}
-	return visibilityPolicy{inputs, projectionPatterns(inputs.AllowTools), projectionPatterns(inputs.DenyTools),
-		inputs.Agent.Enforced, projectionPatterns(inputs.Agent.Tools), projectionPatterns(inputs.Agent.DenyTools), digest}
+	return visibilityPolicy{
+		Inputs: inputs, Allow: projectionPatterns(inputs.AllowTools), Deny: projectionPatterns(inputs.DenyTools),
+		AgentEnforced: inputs.Agent.Enforced, AgentAllow: projectionPatterns(inputs.Agent.Tools),
+		AgentDeny: projectionPatterns(inputs.Agent.DenyTools), SessionDigest: digest,
+	}
 }
 
 func projectionPatterns(patterns []ToolPattern) []string {

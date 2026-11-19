@@ -148,8 +148,7 @@ func (e *CallExecutor) CallTool(
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, runtimeHealthErr
 	}
-	result, err = toolResultFromMCP(mcpResult)
-	if err != nil {
+	if result, err = toolResultFromMCP(mcpResult); err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, runtimeHealthErr
 	}

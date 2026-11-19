@@ -1,11 +1,13 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"sync"
 	"time"
 
@@ -37,11 +39,14 @@ func (p *MCPProvider) discoverSource(
 	}
 	discoveryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	discoveryCtx = context.WithValue(discoveryCtx, mcpDiscoveryResponseBudgetKey{}, timeout/2)
+	if owned, ok := ctx.Value(mcpOwnedDiscoveryKey{}).(bool); ok && owned {
+		discoveryCtx = context.WithValue(discoveryCtx, mcpDiscoveryResponseBudgetKey{}, timeout/2)
+	}
 	return p.exec.ListTools(discoveryCtx, source)
 }
 
 type mcpDiscoveryResponseBudgetKey struct{}
+type mcpOwnedDiscoveryKey struct{}
 
 // MCPDiscoveryResponseBudget reserves server response time inside the daemon's discovery budget.
 func MCPDiscoveryResponseBudget(ctx context.Context) time.Duration {
@@ -65,6 +70,7 @@ func (p *MCPProvider) cachedSourceDescriptors(source SourceRef) []Descriptor {
 
 type mcpDiscoverySnapshot struct {
 	source      SourceRef
+	content     [sha256.Size]byte
 	raw         []MCPToolDescriptor
 	descriptors []Descriptor
 
@@ -134,9 +140,33 @@ func (p *MCPProvider) normalizeDiscovery(source SourceRef, discovered []MCPToolD
 		raw[i].InputSchema = cloneRawMessage(raw[i].InputSchema)
 		raw[i].OutputSchema = cloneRawMessage(raw[i].OutputSchema)
 	}
-	snapshot := &mcpDiscoverySnapshot{source: source, raw: raw, descriptors: descriptors}
+	content, err := FingerprintMCPToolDescriptors(discovered)
+	if err != nil {
+		return nil, err
+	}
+	snapshot := &mcpDiscoverySnapshot{source: source, content: content, raw: raw, descriptors: descriptors}
 	p.discovered.Store(source, snapshot)
 	return cloneDescriptors(snapshot.currentDescriptors()), nil
+}
+
+// FingerprintMCPToolDescriptors identifies the contents of one normalized listing.
+func FingerprintMCPToolDescriptors(descriptors []MCPToolDescriptor) ([sha256.Size]byte, error) {
+	canonical := make([]json.RawMessage, 0, len(descriptors))
+	for index := range descriptors {
+		encoded, err := json.Marshal(descriptors[index])
+		if err != nil {
+			return [sha256.Size]byte{}, fmt.Errorf("mcp: encode tool projection descriptor: %w", err)
+		}
+		canonical = append(canonical, encoded)
+	}
+	slices.SortFunc(canonical, func(left, right json.RawMessage) int {
+		return bytes.Compare(left, right)
+	})
+	encoded, err := json.Marshal(canonical)
+	if err != nil {
+		return [sha256.Size]byte{}, fmt.Errorf("mcp: encode tool projection generation: %w", err)
+	}
+	return sha256.Sum256(encoded), nil
 }
 
 func cloneDescriptors(descriptors []Descriptor) []Descriptor {

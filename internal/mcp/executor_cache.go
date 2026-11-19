@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -72,7 +71,7 @@ func (e *CallExecutor) finishToolList(key string) {
 
 func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh bool,
 	discovery ToolDiscovery, raw []*mcpsdk.Tool, ttlMs int,
-	projectionKey string, stdio bool,
+	projectionKey string, stdio bool, subscribed func() bool,
 ) error {
 	e.toolCache.publicationMu.Lock()
 	defer e.toolCache.publicationMu.Unlock()
@@ -85,6 +84,9 @@ func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh
 		e.toolCache.attempts[key] = current
 	}
 	now := time.Now()
+	if subscribed != nil && subscribed() {
+		ttlMs = mcpSubscribedListTTL
+	}
 	if stdio {
 		e.pruneStdioCatalogRevisions(key)
 	}
@@ -111,7 +113,9 @@ func (e *CallExecutor) pruneStdioCatalogRevisions(key string) {
 		previous, err := strconv.ParseUint(candidate[end:], 10, 64)
 		return err == nil && previous < revision
 	}
-	maps.DeleteFunc(e.toolCache.entries, func(candidate string, _ mcpToolListCacheEntry) bool { return older(candidate) })
+	maps.DeleteFunc(e.toolCache.entries, func(candidate string, _ mcpToolListCacheEntry) bool {
+		return older(candidate)
+	})
 	maps.DeleteFunc(e.toolCache.normalizations, func(candidate string, _ mcpToolNormalization) bool {
 		return older(candidate)
 	})
@@ -130,6 +134,25 @@ func (e *CallExecutor) invalidateToolListing(key string) {
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
 	e.dropToolListingLocked(key)
+}
+
+// expireSubscribedToolListing falls back to a bounded refresh without waking another reconnect.
+func (e *CallExecutor) expireSubscribedToolListing(key string) {
+	e.toolCache.publicationMu.Lock()
+	defer e.toolCache.publicationMu.Unlock()
+	e.toolCache.mu.Lock()
+	defer e.toolCache.mu.Unlock()
+	expiry := time.Now().Add(defaultMCPToolListTTL)
+	if entry, ok := e.toolCache.entries[key]; ok && entry.expiresAt.IsZero() {
+		entry.expiresAt = expiry
+		e.toolCache.entries[key] = entry
+	}
+	for source, state := range e.toolCache.projectionStates {
+		if state.listingKey == key && state.expiresAt.IsZero() {
+			state.expiresAt = expiry
+			e.toolCache.projectionStates[source] = state
+		}
+	}
 }
 
 func (e *CallExecutor) dropToolListingLocked(key string) {
@@ -287,7 +310,7 @@ func (e *CallExecutor) ProjectionGeneration(
 func (e *CallExecutor) recordToolProjection(
 	key string, listingKey string, descriptors []toolspkg.MCPToolDescriptor, ttl time.Duration, now time.Time,
 ) error {
-	fingerprint, err := fingerprintMCPToolDescriptors(descriptors)
+	fingerprint, err := toolspkg.FingerprintMCPToolDescriptors(descriptors)
 	if err != nil {
 		return err
 	}
@@ -311,23 +334,18 @@ func (e *CallExecutor) recordToolProjection(
 	return nil
 }
 
-func fingerprintMCPToolDescriptors(descriptors []toolspkg.MCPToolDescriptor) ([sha256.Size]byte, error) {
-	canonical := make([]json.RawMessage, 0, len(descriptors))
-	for index := range descriptors {
-		encoded, err := json.Marshal(descriptors[index])
-		if err != nil {
-			return [sha256.Size]byte{}, fmt.Errorf("mcp: encode tool projection descriptor: %w", err)
-		}
-		canonical = append(canonical, encoded)
+// CatalogContentRevision returns the current cached content for this exact authorized binding.
+func (e *CallExecutor) CatalogContentRevision(
+	ctx context.Context, source toolspkg.SourceRef,
+) ([sha256.Size]byte, bool) {
+	key, ok := e.projectionSourceKey(ctx, source)
+	if !ok {
+		return [sha256.Size]byte{}, false
 	}
-	slices.SortFunc(canonical, func(left, right json.RawMessage) int {
-		return bytes.Compare(left, right)
-	})
-	encoded, err := json.Marshal(canonical)
-	if err != nil {
-		return [sha256.Size]byte{}, fmt.Errorf("mcp: encode tool projection generation: %w", err)
-	}
-	return sha256.Sum256(encoded), nil
+	e.toolCache.mu.Lock()
+	defer e.toolCache.mu.Unlock()
+	state, found := e.toolCache.projectionStates[key]
+	return state.fingerprint, found && !toolListExpired(state.expiresAt, time.Now())
 }
 
 func (e *CallExecutor) projectionSourceKey(
@@ -341,6 +359,10 @@ func (e *CallExecutor) projectionSourceKey(
 	if err != nil {
 		return "", false
 	}
+	header, err := e.authorizationHeader(ctx, &resolved)
+	if err != nil {
+		return "", false
+	}
 	if err := e.prepareToolListing(ctx, &resolved); err != nil {
 		return "", false
 	}
@@ -348,10 +370,6 @@ func (e *CallExecutor) projectionSourceKey(
 		if _, ok := e.stdioPool.knownProtocol(*resolved.listingSpec); !ok {
 			return "", false
 		}
-	}
-	header, err := e.authorizationHeader(ctx, &resolved)
-	if err != nil {
-		return "", false
 	}
 	return mcpProjectionSourceKey(source, header, resolved.listingBinding), true
 }

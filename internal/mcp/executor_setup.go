@@ -60,7 +60,7 @@ func WithToolCatalogNotifications() CallExecutorOption {
 	return func(e *CallExecutor) {
 		e.catalogHTTP = &mcpCatalogHTTP{
 			sessions: make(map[string]mcpCatalogHTTPEntry), changes: make(chan struct{}, 1),
-			invalidate: e.invalidateToolListing,
+			invalidate: e.invalidateToolListing, expire: e.expireSubscribedToolListing,
 		}
 	}
 }
