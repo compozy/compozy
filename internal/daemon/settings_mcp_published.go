@@ -21,7 +21,7 @@ func (s settingsMCPConsent) PublishedMCPDefinitions(
 		return nil, err
 	}
 	var definitions []settingspkg.MCPPublishedDefinition
-	seen := make(map[string]struct{})
+	positions := make(map[string]int)
 	for _, record := range s.state.mcpServerCatalog.Snapshot() {
 		if record.Owner.Kind == extensionResourceOwnerKind {
 			continue
@@ -45,12 +45,11 @@ func (s settingsMCPConsent) PublishedMCPDefinitions(
 		if record.Source == toolMCPSyncActor().Source {
 			continue
 		}
+		candidate := settingspkg.MCPPublishedDefinition{Target: target, ManagementTarget: managementTarget}
 		key := publishedMCPEnablementKey(record)
-		if key != "" {
-			if _, duplicate := seen[key]; duplicate {
-				continue
-			}
-			seen[key] = struct{}{}
+		index, duplicate := positions[key]
+		if duplicate && candidate.ScopePrecedence() <= definitions[index].ScopePrecedence() {
+			continue
 		}
 		resolved, err := resolveDaemonMCPResource(
 			ctx,
@@ -67,12 +66,15 @@ func (s settingsMCPConsent) PublishedMCPDefinitions(
 		if err != nil {
 			return nil, err
 		}
-		definitions = append(
-			definitions,
-			settingspkg.MCPPublishedDefinition{
-				Target: resolved.Target, ManagementTarget: managementTarget, Server: resolved.Server,
-			},
-		)
+		candidate.Server = resolved.Server
+		if duplicate {
+			definitions[index] = candidate
+			continue
+		}
+		if key != "" {
+			positions[key] = len(definitions)
+		}
+		definitions = append(definitions, candidate)
 	}
 	return definitions, nil
 }

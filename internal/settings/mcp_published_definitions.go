@@ -92,11 +92,7 @@ func (s *service) resolvePublishedMCPDefinition(
 		if definition.Server.Name != req.Name {
 			continue
 		}
-		scope := definition.ManagementTarget.Scope
-		if scope == "" {
-			scope = definition.Target.Scope
-		}
-		rank := publishedMCPScopeRank(scope)
+		rank := definition.ScopePrecedence()
 		if rank < bestRank {
 			continue
 		}
@@ -110,6 +106,15 @@ func (s *service) resolvePublishedMCPDefinition(
 		return result, false, conflictError(fmt.Errorf("MCP server %q has multiple published definitions", req.Name))
 	}
 	return result, matches == 1, nil
+}
+
+// ScopePrecedence ranks the visible publication independently of its OAuth owner.
+func (d *MCPPublishedDefinition) ScopePrecedence() int {
+	scope := d.ManagementTarget.Scope
+	if scope == "" {
+		scope = d.Target.Scope
+	}
+	return publishedMCPScopeRank(scope)
 }
 
 func publishedMCPScopeRank(scope mcpauth.Scope) int {
@@ -128,7 +133,8 @@ func publishedMCPScopeRank(scope mcpauth.Scope) int {
 func publishedMCPAuthDefinition(definition MCPPublishedDefinition, requested mcpauth.Target) mcpAuthDefinition {
 	return mcpAuthDefinition{
 		target: definition.Target, server: definition.Server,
-		inherited: !mcpAuthTargetCovers(requested, definition.Target.Normalize()),
+		inherited:  !mcpAuthTargetCovers(requested, definition.Target.Normalize()),
+		precedence: definition.ScopePrecedence(),
 	}
 }
 

@@ -2669,6 +2669,42 @@ func TestSettingsMCPDisabled(t *testing.T) {
 		}
 	})
 
+	// Invariant: the scoped check uses the same narrower declaration as runtime discovery.
+	// Owner: daemon Settings MCP; canonical suite: MCP enablement.
+	t.Run("Should check an off workspace publication ahead of a same-name global config", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		state, req := newMCPConsentFixtureForHome(t, home)
+		writeMCPDeclarationFile(t, filepath.Join(home.HomeDir, compozyconfig.MCPJSONName),
+			`{"mcpServers":{"sentry":{"command":"global-fixture"}}}`)
+		server := req.Server
+		server.Disabled = new(true)
+		server.DefinitionSource = filepath.Join(filepath.Dir(req.Server.DefinitionSource), "agents", "agent.md")
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{
+			{ID: "workspace-agent", Spec: server, Source: agentSkillSyncActor().Source,
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: req.WorkspaceID}},
+		})
+		svc, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			WorkspaceResolver:       state.workspaceResolver,
+			ProfileResolver:         state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPConsent: settingsMCPConsent{
+				state: state,
+			},
+			MCPRuntime: &settingsRuntimeSurface{state: state},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		item, err := svc.(core.MCPSettingsChecker).CheckMCPServer(t.Context(), settingspkg.MCPAuthTargetRequest{
+			Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID, Name: server.Name,
+		})
+		if err != nil || !item.Disabled || item.DefinitionSource != server.DefinitionSource ||
+			item.RuntimeStatus == nil || item.RuntimeStatus.State != settingspkg.MCPServerRuntimeStateOff {
+			t.Fatalf("check the workspace publication: %+v, %v", item, err)
+		}
+	})
+
 	t.Run("Should use the workspace-profile selector for a static extension server", func(t *testing.T) {
 		t.Parallel()
 		state, req := newMCPConsentFixture(t)

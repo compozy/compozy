@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -228,6 +229,48 @@ func (s *service) declaredMCPDisabled(
 		}
 	}
 	return nil, nil
+}
+
+func (s *service) resolveManualMCPAuthDefinition(
+	ctx context.Context, req MCPAuthTargetRequest, requested mcpauth.Target, sources map[string][]mcpSourceEntry,
+) (mcpAuthDefinition, error) {
+	kind, _ := preferredMCPAuthTarget(req, requested.ServerName, sources)
+	entry, exact := mcpSourceForTarget(requested.ServerName, kind, sources)
+	if !exact {
+		entries := sources[requested.ServerName]
+		if len(entries) > 0 {
+			entry = entries[len(entries)-1]
+		}
+	}
+	var configDefinition mcpAuthDefinition
+	if entry.Target != "" {
+		target, err := mcpAuthTargetForSource(entry)
+		if err != nil {
+			return mcpAuthDefinition{}, err
+		}
+		scope := target.Scope
+		if entry.Target == WriteTargetWorkspaceProfileConfig || entry.Target == WriteTargetWorkspaceProfileMCPSidecar {
+			scope = mcpauth.ScopeWorkspaceProfile
+		}
+		configDefinition = mcpAuthDefinition{
+			target: target, server: entry.Server, source: entry.Source,
+			inherited: !mcpAuthTargetCovers(requested, target.Normalize()), precedence: publishedMCPScopeRank(scope),
+		}
+		if exact {
+			return configDefinition, nil
+		}
+	}
+	published, found, err := s.resolvePublishedMCPDefinition(ctx, req, requested)
+	if entry.Target != "" && published.precedence <= configDefinition.precedence &&
+		(err == nil || errors.Is(err, ErrConflict)) {
+		return configDefinition, nil
+	}
+	if err != nil || found {
+		return published, err
+	}
+	return mcpAuthDefinition{}, notFoundError(
+		fmt.Errorf("settings: MCP server %q has no definition in %s scope", requested.ServerName, requested.Scope),
+	)
 }
 
 func (s *service) resolveMCPPutTarget(

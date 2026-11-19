@@ -48,7 +48,7 @@ func (s settingsMCPExtensionDefinitions) updateMCPExtensionOverride(
 		if err != nil {
 			return err
 		}
-		target, _, found, err := s.ResolveMCPExtensionDefinition(ctx, req)
+		definition, found, err := s.resolveMCPExtensionDefinition(ctx, req)
 		if err != nil {
 			return err
 		}
@@ -59,7 +59,7 @@ func (s settingsMCPExtensionDefinitions) updateMCPExtensionOverride(
 		if err != nil {
 			return err
 		}
-		base.Owner, base.RuntimeName = target.Owner, current.RuntimeName
+		base.Owner, base.RuntimeName = definition.Target.Owner, current.RuntimeName
 		override.Disabled = current.Disabled
 		if enabled != nil {
 			override = current.Override
@@ -69,10 +69,11 @@ func (s settingsMCPExtensionDefinitions) updateMCPExtensionOverride(
 		if err != nil {
 			return fmt.Errorf("%w: %w", settingspkg.ErrValidation, err)
 		}
-		if err := s.commitMCPExtensionOverride(ctx, target, current, override, enabled == nil); err != nil {
+		if err := s.commitMCPExtensionOverride(ctx, definition.Target, current, override, enabled == nil); err != nil {
 			return err
 		}
-		result = settingspkg.MCPExtensionDefinition{Target: target, Server: server, Override: override}
+		definition.Server, definition.Override = server, override
+		result = definition
 		return nil
 	})
 	return result, err

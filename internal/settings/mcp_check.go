@@ -25,6 +25,25 @@ func (s *service) CheckMCPServer(ctx context.Context, req MCPAuthTargetRequest) 
 	if err != nil {
 		return MCPServerItem{}, err
 	}
+	item, err := s.mcpCheckItem(ctx, req, resolved)
+	if err != nil || item.Disabled {
+		return item, err
+	}
+	ctx = mcpauth.WithConsentScope(
+		ctx,
+		mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID},
+	)
+	status, err := checker.CheckMCPServerRuntime(ctx, resolved.target, resolved.server)
+	if err != nil {
+		return MCPServerItem{}, err
+	}
+	setMCPRuntimeObservation(&item, resolved.server, status)
+	return item, nil
+}
+
+func (s *service) mcpCheckItem(
+	ctx context.Context, req MCPAuthTargetRequest, resolved mcpAuthDefinition,
+) (MCPServerItem, error) {
 	collection, err := s.ListCollection(ctx, CollectionRequest{
 		Collection: CollectionMCPServers, Scope: req.Scope, WorkspaceID: req.WorkspaceID,
 		ProfileName: req.ProfileName, SkipRuntimeStatus: true,
@@ -34,23 +53,17 @@ func (s *service) CheckMCPServer(ctx context.Context, req MCPAuthTargetRequest) 
 	}
 	for i := range collection.MCPServers {
 		item := &collection.MCPServers[i]
-		if item.Name != req.Name || item.DefinitionSource != resolved.server.DefinitionSource ||
-			vault.NormalizeMCPOwner(item.Owner) != vault.NormalizeMCPOwner(req.Owner) {
-			continue
-		}
-		if item.Disabled {
+		if item.Name == req.Name && item.DefinitionSource == resolved.server.DefinitionSource &&
+			vault.NormalizeMCPOwner(item.Owner) == vault.NormalizeMCPOwner(req.Owner) {
 			return *item, nil
 		}
-		ctx = mcpauth.WithConsentScope(
-			ctx,
-			mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID},
-		)
-		status, err := checker.CheckMCPServerRuntime(ctx, resolved.target, resolved.server)
-		if err != nil {
-			return MCPServerItem{}, err
-		}
-		setMCPRuntimeObservation(item, resolved.server, status)
-		return *item, nil
+	}
+	// An exact definition can be hidden by a narrower row in the collection lens.
+	if resolved.source.Kind != "" {
+		entry := mcpSourceEntry{Server: resolved.server, Source: resolved.source, AuthTarget: &resolved.target}
+		item := baseMCPServerItem(entry, []mcpSourceEntry{entry}, req.Scope, req.WorkspaceID, req.ProfileName)
+		err := s.populateMCPServerStatuses(ctx, &item, entry, true, false)
+		return item, err
 	}
 	return MCPServerItem{}, notFoundError(fmt.Errorf("settings: MCP server %q is unavailable", req.Name))
 }

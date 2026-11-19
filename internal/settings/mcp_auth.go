@@ -252,9 +252,11 @@ func (s *service) LogoutMCPAuth(
 
 // mcpAuthDefinition is the MCP definition whose declaring scope owns the OAuth credential.
 type mcpAuthDefinition struct {
-	target    mcpauth.Target
-	server    compozyconfig.MCPServer
-	inherited bool
+	target     mcpauth.Target
+	server     compozyconfig.MCPServer
+	inherited  bool
+	precedence int
+	source     SourceRef
 }
 
 // resolveMCPAuthTarget resolves the exact credential owner for an auth mutation. A request for a
@@ -309,39 +311,7 @@ func (s *service) resolveMCPAuthDefinition(
 	if err != nil {
 		return mcpAuthDefinition{}, err
 	}
-	targetKind, ok := preferredMCPAuthTarget(req, target.ServerName, sources)
-	if !ok {
-		entries := sources[target.ServerName]
-		if len(entries) > 0 {
-			effective := entries[len(entries)-1]
-			inherited, err := mcpAuthTargetForSource(effective)
-			if err != nil {
-				return mcpAuthDefinition{}, err
-			}
-			resolvedTarget := inherited.Normalize()
-			return mcpAuthDefinition{
-				target:    resolvedTarget,
-				server:    effective.Server,
-				inherited: !mcpAuthTargetCovers(target, resolvedTarget),
-			}, nil
-		}
-		if published, found, err := s.resolvePublishedMCPDefinition(ctx, req, target); err != nil || found {
-			return published, err
-		}
-		return mcpAuthDefinition{}, notFoundError(
-			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
-		)
-	}
-	entry, ok := mcpSourceForTarget(target.ServerName, targetKind, sources)
-	if !ok {
-		if published, found, err := s.resolvePublishedMCPDefinition(ctx, req, target); err != nil || found {
-			return published, err
-		}
-		return mcpAuthDefinition{}, notFoundError(
-			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
-		)
-	}
-	return mcpAuthDefinition{target: target, server: entry.Server}, nil
+	return s.resolveManualMCPAuthDefinition(ctx, req, target, sources)
 }
 
 // mcpAuthTargetCovers reports whether the resolved credential owner is the requested scope itself.
