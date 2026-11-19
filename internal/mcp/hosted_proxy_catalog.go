@@ -10,12 +10,20 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const hostedDiscoveryRefreshTimeout = 250 * time.Millisecond
+const (
+	defaultHostedDiscoveryRefreshTimeout = 250 * time.Millisecond
+	defaultHostedPendingDiscoveryTTL     = 30 * time.Second
+)
 
 type hostedProxyCatalog struct {
-	mu        sync.Mutex
+	listMu sync.Mutex
+	mu     sync.Mutex
+
+	threshold               int
+	discoveryRefreshTimeout time.Duration
+	pendingDiscoveryTTL     time.Duration
+
 	catalog   tools.AdvertisedCatalog
-	threshold int
 	search    *tools.Descriptor
 	listed    map[string]string
 	listedAt  map[string]uint64
@@ -24,6 +32,20 @@ type hostedProxyCatalog struct {
 	pending   map[tools.ToolID]time.Time
 	changed   chan struct{}
 	delivery  hostedListDelivery
+}
+
+func newHostedProxyCatalog(opts HostedProxyOptions) *hostedProxyCatalog {
+	if opts.DiscoveryRefreshTimeout <= 0 {
+		opts.DiscoveryRefreshTimeout = defaultHostedDiscoveryRefreshTimeout
+	}
+	if opts.PendingDiscoveryTTL <= 0 {
+		opts.PendingDiscoveryTTL = defaultHostedPendingDiscoveryTTL
+	}
+	return &hostedProxyCatalog{
+		threshold:               opts.ToolListThreshold,
+		discoveryRefreshTimeout: opts.DiscoveryRefreshTimeout,
+		pendingDiscoveryTTL:     opts.PendingDiscoveryTTL,
+	}
 }
 
 func (c *hostedProxyCatalog) apply(
@@ -46,24 +68,34 @@ func (c *hostedProxyCatalog) middleware(client HostedProxyClient, bindID string)
 			if method != mcpToolsListMethod {
 				return next(ctx, method, req)
 			}
-			c.mu.Lock()
-			defer c.mu.Unlock()
-			result, err := next(ctx, method, req)
+			// Serialize snapshots and receipts so an older digest cannot overwrite a newer one.
+			c.listMu.Lock()
+			defer c.listMu.Unlock()
+			result, digest, err := c.listSnapshot(ctx, next, method, req)
 			if err != nil {
 				return result, err
 			}
 			if err := client.ReportHostedMCPServed(
 				ctx,
-				HostedServedRequest{BindID: bindID, Digest: c.catalog.Digest},
+				HostedServedRequest{BindID: bindID, Digest: digest},
 			); err != nil {
 				slog.WarnContext(ctx, "mcp.hosted.served_receipt_failed", "bind_id", bindID, "error", err)
-			}
-			if c.threshold > 0 {
-				c.delivery.record(req, result)
 			}
 			return result, nil
 		}
 	}
+}
+
+func (c *hostedProxyCatalog) listSnapshot(
+	ctx context.Context, next sdkmcp.MethodHandler, method string, req sdkmcp.Request,
+) (sdkmcp.Result, string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	result, err := next(ctx, method, req)
+	if err == nil && c.threshold > 0 {
+		c.delivery.record(req, result)
+	}
+	return result, c.catalog.Digest, err
 }
 
 func (c *hostedProxyCatalog) signal() {
@@ -92,7 +124,7 @@ func (c *hostedProxyCatalog) nameDelivered(name string) bool {
 }
 
 func (c *hostedProxyCatalog) awaitDiscovery(ctx context.Context, ids []tools.ToolID) int {
-	delay := time.NewTimer(hostedDiscoveryRefreshTimeout)
+	delay := time.NewTimer(c.discoveryRefreshTimeout)
 	defer delay.Stop()
 	for {
 		count, changed := c.unready(ids)

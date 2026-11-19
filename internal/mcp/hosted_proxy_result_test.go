@@ -388,7 +388,7 @@ func TestHostedToolOffloadedDiscovery(t *testing.T) {
 				return HostedCallResponse{}, nil
 			}
 			updates, opts := hostedListUpdates()
-			client := startHostedBudgetProxy(t, proxy, 1, opts)
+			client := startHostedBudgetProxy(t, proxy, HostedProxyOptions{ToolListThreshold: 1}, opts)
 			result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: tc.id.String(), Arguments: args})
 			if err != nil || result.IsError || hostedHasPendingDiscovery(result) {
 				t.Fatalf("offloaded discovery = %#v, %v", result, err)

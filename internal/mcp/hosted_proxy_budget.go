@@ -17,7 +17,6 @@ const (
 	hostedDirectoryMaxServers   = 16
 	hostedDirectoryMaxNameBytes = 72
 	hostedPendingDiscoveryLimit = 512
-	hostedPendingDiscoveryTTL   = 30 * time.Second
 )
 
 type hostedDiscovery func(context.Context, []tools.ToolID) int
@@ -205,5 +204,5 @@ func (c *hostedProxyCatalog) queuePending(id tools.ToolID, now time.Time) {
 	if c.pending == nil {
 		c.pending = make(map[tools.ToolID]time.Time)
 	}
-	c.pending[id] = now.Add(hostedPendingDiscoveryTTL)
+	c.pending[id] = now.Add(c.pendingDiscoveryTTL)
 }

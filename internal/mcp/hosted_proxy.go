@@ -58,6 +58,11 @@ type HostedProxyOptions struct {
 	Stdout            io.Writer
 	Stderr            io.Writer
 	Version           string
+
+	// DiscoveryRefreshTimeout defaults to 250 ms when nonpositive.
+	DiscoveryRefreshTimeout time.Duration
+	// PendingDiscoveryTTL defaults to 30 s when nonpositive.
+	PendingDiscoveryTTL time.Duration
 }
 
 // RunHostedProxy binds to the daemon and serves hosted Compozy tools over MCP stdio.
@@ -111,7 +116,7 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 		},
 	)
 	defer hostedServerToolFingerprints.Delete(mcpServer)
-	catalog := &hostedProxyCatalog{threshold: opts.ToolListThreshold}
+	catalog := newHostedProxyCatalog(opts)
 	mcpServer.AddReceivingMiddleware(catalog.middleware(client, bind.BindID))
 	mcpServer.AddReceivingMiddleware(privateToolListCacheMiddleware())
 	mcpServer.AddReceivingMiddleware(hostedProviderProtocolVersionMiddleware())
