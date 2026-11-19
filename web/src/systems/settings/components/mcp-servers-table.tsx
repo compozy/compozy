@@ -1,8 +1,8 @@
-import { Button, cn, Pill, Skeleton, SkeletonText } from "@compozy/ui";
+import { Button, cn, Pill, Skeleton, SkeletonText, Switch } from "@compozy/ui";
 import { ChevronRight, Pencil, Plug } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
-import { mcpDefinitionKey } from "../lib/mcp-management-target";
+import { deriveMCPEnablementFilter, mcpDefinitionKey } from "../lib/mcp-management-target";
 import {
   isMCPApprovalWaiting,
   mcpApprovalReason,
@@ -50,6 +50,8 @@ export interface MCPServersTableProps {
   onAllow?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
   /** Opens why a server is not working, with Check again, beside its row button. */
   onCheck?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  onSetEnabled?: (entry: SettingsMCPServerEntry, enabled: boolean) => void;
+  changingEnablement?: boolean;
   /** Definition key of the row whose Allow is in flight. */
   allowingServer?: string;
   /** Per definition key: why the row waits and the last refused Allow. */
@@ -68,6 +70,8 @@ export function MCPServersTable({
   onAuthorize,
   onAllow,
   onCheck,
+  onSetEnabled,
+  changingEnablement,
   allowingServer,
   approvalNotes,
   highlightedServer,
@@ -93,6 +97,8 @@ export function MCPServersTable({
             onAuthorize={onAuthorize}
             onAllow={onAllow}
             onCheck={onCheck}
+            onSetEnabled={onSetEnabled}
+            changingEnablement={changingEnablement}
             allowing={mcpDefinitionKey(server) === allowingServer}
             approvalNote={approvalNotes?.[mcpDefinitionKey(server)]}
           />
@@ -165,6 +171,8 @@ function MCPServerRow({
   onAuthorize,
   onAllow,
   onCheck,
+  onSetEnabled,
+  changingEnablement,
   allowing,
   approvalNote,
 }: {
@@ -176,11 +184,13 @@ function MCPServerRow({
   onAuthorize: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
   onAllow?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
   onCheck?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  onSetEnabled?: MCPServersTableProps["onSetEnabled"];
+  changingEnablement?: boolean;
   allowing: boolean;
   approvalNote?: MCPApprovalNote;
 }) {
   const status = composeMCPRowStatus(server);
-  const waiting = onAllow !== undefined && isMCPApprovalWaiting(server);
+  const waiting = !server.disabled && onAllow !== undefined && isMCPApprovalWaiting(server);
   const extension = mcpOwnerExtensionName(server.owner);
   const sourceLine = mcpServerProvenanceLine(server);
   const rowTestId = mcpServerRowTestId(server);
@@ -252,6 +262,17 @@ function MCPServerRow({
         onAuthorize={onAuthorize}
         onAllow={onAllow}
         onCheck={onCheck}
+        enablement={
+          onSetEnabled && deriveMCPEnablementFilter(server) ? (
+            <Switch
+              aria-label={`Enable ${accessibleName}`}
+              checked={!server.disabled}
+              disabled={changingEnablement}
+              onCheckedChange={enabled => onSetEnabled(server, enabled)}
+              size="sm"
+            />
+          ) : null
+        }
       />
     </div>
   );
@@ -297,6 +318,7 @@ function MCPServerRowActions({
   onAuthorize,
   onAllow,
   onCheck,
+  enablement,
 }: {
   server: SettingsMCPServerEntry;
   status: MCPRowStatus;
@@ -308,6 +330,7 @@ function MCPServerRowActions({
   onAuthorize: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
   onAllow?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
   onCheck?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  enablement: ReactNode;
 }) {
   return (
     <div className="flex items-center justify-end gap-1.5">
@@ -358,6 +381,7 @@ function MCPServerRowActions({
       >
         <Pencil className="size-3.5" />
       </Button>
+      {enablement}
     </div>
   );
 }

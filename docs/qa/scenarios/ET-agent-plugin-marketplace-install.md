@@ -84,7 +84,9 @@ Install from Marketplace is now one-step **Add** = install + enable (US-005–US
    dialog; its primary button reads **Add** and confirming installs and enables.
 3. **Set up:** an entry with a server waiting for sign-in or a missing input reads **Set up**;
    activating it starts the sign-in or opens detail with `?setup=1` focused on the first missing
-   input. `compozy__mcp_auth_status` agrees.
+   input. For a single MCP server installed into a workspace on the default profile, confirm that
+   Set up opens the browser and the panel, then wait for the panel to confirm and the row to show
+   Ready. `compozy__mcp_auth_status` agrees.
 4. **Turn on:** disable the extension from Installed; the row reads **Turn on** and turning it on
    restores Ready/Set up.
 5. **Enable failure:** when enabling fails after install (for example a package whose enable is
@@ -95,6 +97,8 @@ Install from Marketplace is now one-step **Add** = install + enable (US-005–US
 6. Detail shows the "From {source}" attribution line.
 
 Capture an Add that ends Ready, a Set up state, Turn on, and the Retry state when reproducible.
+For a folder source containing only a root MCP file with a required placeholder, compare the
+required input in the refreshed catalog entry and the preview of the approved archive.
 
 ### Walk result 2026-11-07 (S8 integrated lab, `feat/mpc-s8` with S1–S7 + S9)
 
@@ -150,3 +154,26 @@ in Browse and category views deterministically; `marketplace-plugin-catalog E2E-
 browser/daemon callback and captures the confirmed dialog beside the Ready row in CI. This entry
 defines the replay; a pending CI run is not a passing QA result. No credential, permission or
 installation-policy behavior changes.
+
+## QA impact 2026-11-18 — Marketplace install during a slow refresh
+
+Refresh a local plugin source and record the listed package digest. Start refreshing a different
+source whose HTTP response is held open. Refresh the local source again so its package-cache sweep
+queues behind the slow refresh. While the slow response is still held, preview the published plugin
+and install it with the approved digest. Verify HTTP 200 and the planned name and digest on
+`/api/extensions/preview-install`, then HTTP 201 and the matching installed package on
+`/api/extensions`. Release the slow source and verify that both refreshes finish. The
+`TestBootMarketplaceLifecycle` case drives both public routes using a
+real source fetch, SQLite catalog and local package cache. `TestPackageCache` covers canceling a
+waiting hold and retaining the package through publication and eviction.
+
+## QA impact 2026-11-18 — Claude Code schema in Marketplace archives
+
+Refresh a plugin source containing a valid `.claude-plugin/plugin.json` that declares the official
+Claude Code schema alongside a valid Codex manifest with a different name. Confirm that the entry
+is installable, its detail and preview succeed, and the installed instance uses the Claude Code
+name and layout. Repeat with an unrelated schema in the Claude Code manifest. The entry must be
+blocked, and HTTP and UDS detail and preview must return 422 with the manifest diagnostic.
+The registry and managed Marketplace lifecycle suites cover package selection and installation,
+the catalog integration suite covers blocked projections, and the shared handler suite covers
+status and diagnostic mapping.

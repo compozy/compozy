@@ -8,6 +8,7 @@ import (
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -16,6 +17,18 @@ func agentPluginManifestErrorPayload(
 	err error,
 	maskInternal bool,
 ) contract.ExtensionValidationErrorPayload {
+	path := "plugin.json"
+	var manifestIssues []agentplugin.Issue
+	if validationErr, _ := errors.AsType[*extensionpkg.AgentPluginManifestValidationError](err); validationErr != nil {
+		path = agentplugin.PackageManifestPath(validationErr.Path)
+		manifestIssues = validationErr.Issues
+	} else if archiveErr, _ := errors.AsType[*agentplugin.ManifestError](err); archiveErr != nil {
+		manifestIssues = archiveErr.Issues
+		if archiveErr.ManifestPath != "" {
+			path = agentplugin.PackageManifestPath(archiveErr.ManifestPath)
+			err = archiveErr
+		}
+	}
 	message := redactAgentPluginIssueText(ErrorPayloadForStatus(status, err, maskInternal).Error)
 	diagnostic := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
 		ID:            "extension.agent_plugin.manifest_invalid",
@@ -27,14 +40,13 @@ func agentPluginManifestErrorPayload(
 		DataFreshness: diagnosticcontract.FreshnessLive,
 	})
 	issues := []contract.ValidationIssue{{
-		Path: "plugin.json", Message: message, Severity: contract.IssueSeverityError,
+		Path: path, Message: message, Severity: contract.IssueSeverityError,
 	}}
-	if validationErr, ok := errors.AsType[*extensionpkg.AgentPluginManifestValidationError](err); ok &&
-		validationErr != nil && len(validationErr.Issues) > 0 {
-		issues = make([]contract.ValidationIssue, 0, len(validationErr.Issues))
-		for _, item := range validationErr.Issues {
+	if len(manifestIssues) > 0 {
+		issues = make([]contract.ValidationIssue, 0, len(manifestIssues))
+		for _, item := range manifestIssues {
 			issues = append(issues, contract.ValidationIssue{
-				Path:     "plugin.json",
+				Path:     path,
 				Field:    redactAgentPluginIssueText(item.Path),
 				Message:  redactAgentPluginIssueText(item.Message),
 				Severity: contract.IssueSeverityError,

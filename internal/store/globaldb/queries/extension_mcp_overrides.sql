@@ -14,7 +14,7 @@ INSERT INTO extension_mcp_overrides (
 -- name: UpdateExtensionMCPOverride :execrows
 UPDATE extension_mcp_overrides
 SET env_json = sqlc.arg(env_json), headers_json = sqlc.arg(headers_json),
- url = sqlc.arg(url), updated_at = sqlc.arg(updated_at)
+ url = sqlc.arg(url), disabled = sqlc.arg(disabled), updated_at = sqlc.arg(updated_at)
 WHERE extension = sqlc.arg(extension) AND profile = sqlc.arg(profile)
  AND workspace_id = sqlc.arg(workspace_id) AND server = sqlc.arg(server);
 

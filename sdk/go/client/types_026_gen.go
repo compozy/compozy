@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// TaskCatalogOwnerFacetPayload is a daemon API value.
+type TaskCatalogOwnerFacetPayload struct {
+	Owner Ownership `json:"owner"`
+	Count int       `json:"count"`
+}
+
 // TaskCatalogRunPayload is a daemon API value.
 type TaskCatalogRunPayload struct {
 	ID                   string               `json:"id"`
@@ -435,11 +441,4 @@ type TaskLatencyMetricPayload struct {
 	Samples       int   `json:"samples"`
 	AverageMillis int64 `json:"average_ms"`
 	MaximumMillis int64 `json:"maximum_ms"`
-}
-
-// TaskOwnerTotalPayload is a daemon API value.
-type TaskOwnerTotalPayload struct {
-	OwnerKind string `json:"owner_kind"`
-	OwnerRef  string `json:"owner_ref"`
-	Count     int    `json:"count"`
 }

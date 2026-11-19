@@ -36,6 +36,9 @@ func (s *service) withMCPAuthDefinitionMutation(
 	if rollback == nil {
 		return mcpDefinitionMutationUnchanged, errors.New("settings: MCP definition rollback is required")
 	}
+	if err := ctx.Err(); err != nil {
+		return mcpDefinitionMutationUnchanged, err
+	}
 	if s.mcpAuth == nil {
 		if err := mutate(); err != nil {
 			return mcpDefinitionMutationUnchanged, err

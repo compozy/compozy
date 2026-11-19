@@ -3797,6 +3797,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/mcp-servers/{name}/enabled": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Turn one scoped MCP server on or off */
+    put: operations["setSettingsMCPServerEnabled"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/settings/observability": {
     parameters: {
       query?: never;
@@ -6220,7 +6237,7 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** Set the manual session order in a folder or the workspace root */
+    /** Set the manual session order in a folder, the workspace root, or Pinned */
     put: operations["reorderSessions"];
     post?: never;
     delete?: never;
@@ -7012,6 +7029,24 @@ export interface paths {
     put?: never;
     post?: never;
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/pin": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pin a session above the session list; pinning a pinned session changes nothing */
+    post: operations["pinSession"];
+    /** Unpin a session so it returns to its place in the list; an unpinned session is unchanged */
+    delete: operations["unpinSession"];
     options?: never;
     head?: never;
     patch?: never;
@@ -14992,6 +15027,7 @@ export interface components {
     };
     ReorderSessionsRequest: {
       folder_id?: string;
+      pinned?: boolean;
       session_ids: string[];
     };
     ReorderWorkspaceFoldersRequest: {
@@ -16625,6 +16661,8 @@ export interface components {
       parent_title?: string;
       pending_interactions: components["schemas"]["PendingInteractionPayload"][];
       permission_mode_degraded: boolean;
+      /** Format: date-time */
+      pinned_at?: string | null;
       process_summary?: components["schemas"]["SessionProcessSummaryPayload"] | null;
       profile_archived?: boolean;
       profile_color?: string;
@@ -17727,6 +17765,9 @@ export interface components {
         [key: string]: string;
       };
     };
+    SettingsMCPServerEnabledRequest: {
+      enabled: boolean;
+    };
     SettingsMCPServerItemPayload: {
       approval: components["schemas"]["SettingsMCPApprovalStatePayload"];
       args?: string[];
@@ -17737,6 +17778,7 @@ export interface components {
       catalog_version?: string;
       command?: string;
       definition_source?: string;
+      disabled?: boolean;
       env_keys?: string[];
       headers_configured?: boolean;
       name: string;
@@ -34762,6 +34804,17 @@ export interface operations {
           "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
+      /** @description Invalid plugin manifest */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ExtensionValidationErrorPayload"]
+            | components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -39667,7 +39720,9 @@ export interface operations {
         archive?: "exclude" | "only" | "include";
         /** @description Visibility of sessions parked in Later; excluded by default */
         later?: "exclude" | "only" | "include";
-        /** @description Stable session ordering */
+        /** @description Visibility of pinned sessions and the subtrees their pins carry; included by default */
+        pinned?: "exclude" | "only" | "include";
+        /** @description Stable session ordering; pinned (the operator's Pinned order, pages by pin with each pin's subtree) requires pinned=only */
         sort?:
           | "recent"
           | "created"
@@ -39675,7 +39730,8 @@ export interface operations {
           | "last_activity"
           | "attention"
           | "navigator"
-          | "manual";
+          | "manual"
+          | "pinned";
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
         /** @description Sessions per page (1-100) */
@@ -39969,6 +40025,8 @@ export interface operations {
         archive?: "exclude" | "only" | "include";
         /** @description Visibility of sessions parked in Later; excluded by default */
         later?: "exclude" | "only" | "include";
+        /** @description Visibility of pinned sessions and the subtrees their pins carry; included by default */
+        pinned?: "exclude" | "only" | "include";
         /** @description Read one profile's rows by name */
         profile?: string;
         /** @description Read the owner-labeled all-profiles aggregate */
@@ -42620,6 +42678,99 @@ export interface operations {
         };
       };
       /** @description MCP check runtime unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  setSettingsMCPServerEnabled: {
+    parameters: {
+      query: {
+        /** @description Exact MCP settings scope */
+        scope: "user" | "profile" | "workspace";
+        /** @description Required when scope is workspace */
+        workspace_id?: string;
+        /** @description Required when scope is profile */
+        profile?: string;
+        /** @description Definition owner: manual or extension:<name>; omitted owner selects manual */
+        owner?: string;
+        /** @description Declaring file from the Settings MCP row. Selects one same-name definition in the requested scope. */
+        definition_source?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Configured MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SettingsMCPServerEnabledRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated server */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SettingsMCPServerResponse"];
+        };
+      };
+      /** @description Invalid MCP server owner, scope, or payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server definition is ambiguous or cannot be edited */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server state could not be applied */
       503: {
         headers: {
           [name: string]: unknown;
@@ -55302,7 +55453,9 @@ export interface operations {
         archive?: "exclude" | "only" | "include";
         /** @description Visibility of sessions parked in Later; excluded by default */
         later?: "exclude" | "only" | "include";
-        /** @description Stable session ordering */
+        /** @description Visibility of pinned sessions and the subtrees their pins carry; included by default */
+        pinned?: "exclude" | "only" | "include";
+        /** @description Stable session ordering; pinned (the operator's Pinned order, pages by pin with each pin's subtree) requires pinned=only */
         sort?:
           | "recent"
           | "created"
@@ -55310,7 +55463,8 @@ export interface operations {
           | "last_activity"
           | "attention"
           | "navigator"
-          | "manual";
+          | "manual"
+          | "pinned";
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
         /** @description Sessions per page (1-100) */
@@ -59244,6 +59398,152 @@ export interface operations {
         };
       };
       /** @description Session attention is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  pinSession: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionResponse"];
+        };
+      };
+      /** @description Conflicting profile selectors (profile_selection_conflict) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Subagent sessions follow their parent and an always-on agent's main session lives in its avatar, so neither can be pinned */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  unpinSession: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionResponse"];
+        };
+      };
+      /** @description Conflicting profile selectors (profile_selection_conflict) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Subagent sessions follow their parent and an always-on agent's main session lives in its avatar, so neither can be pinned */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
       503: {
         headers: {
           [name: string]: unknown;

@@ -65,9 +65,14 @@ type MCPReloadError struct {
 var _ error = (*MCPReloadError)(nil)
 
 func (e *MCPReloadError) Error() string {
+	reason := "with the new MCP servers"
+	cause := e.Cause
+	if readiness, ok := errors.AsType[*HostedMCPReadinessError](cause); ok {
+		reason, cause = "with hosted MCP", readiness
+	}
 	return fmt.Sprintf(
-		"Couldn't start %s with the new MCP servers: %s. Your message wasn't sent. (%s)",
-		providerDisplayName(e.Provider), diagnostics.RedactAndBound(e.Cause.Error(), 2048), MCPReloadFailedCode,
+		"Couldn't start %s %s: %s. Your message wasn't sent. (%s)",
+		providerDisplayName(e.Provider), reason, diagnostics.RedactAndBound(cause.Error(), 2048), MCPReloadFailedCode,
 	)
 }
 
@@ -235,7 +240,9 @@ func (m *Manager) reloadActivationRuntime(
 			s.activation = before.clone()
 			s.activation.lastReload = last
 			s.mu.Unlock()
-			err = &MCPReloadError{Provider: selection.Provider, Cause: err}
+			if _, refused := errors.AsType[*MCPReloadError](err); !refused {
+				err = &MCPReloadError{Provider: selection.Provider, Cause: err}
+			}
 		}
 	}()
 	command, env := "", snapshot.acceptedSessionEnv

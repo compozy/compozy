@@ -21,6 +21,7 @@ const (
 	serviceBearerValue     = "Bearer"
 	serviceAccessTokenKey  = "access_token"
 	serviceRefreshTokenKey = "refresh_token"
+	offlineAccessScope     = "offline_access"
 )
 
 // ServiceOption configures the OAuth service.
@@ -44,6 +45,7 @@ type Service struct {
 	refreshBackoff    time.Duration
 	refreshBackoffMax time.Duration
 	refreshTimeout    time.Duration
+	renewalWindow     time.Duration
 }
 
 // NewService constructs an MCP auth service.
@@ -62,6 +64,7 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 		refreshBackoff:    time.Second,
 		refreshBackoffMax: time.Minute,
 		refreshTimeout:    30 * time.Second,
+		renewalWindow:     maxEarlyRenewalWindow,
 		clientMetadataURL: compozyconfig.DefaultMCPClientMetadataURL,
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -104,6 +107,7 @@ func (s *Service) sdkHTTPClientFor(cfg ServerConfig) *http.Client {
 
 // LoginState holds the short-lived in-memory authorization flow state.
 type LoginState struct {
+	requestedScopes  []string
 	Target           Target
 	RedirectURL      string
 	State            string
@@ -135,15 +139,16 @@ func (s *Service) BeginLogin(
 }
 
 func authorizationURL(
-	endpoint string,
+	metadata Metadata,
 	cfg ServerConfig,
 	redirectURL string,
 	state string,
 	pkce PKCEPair,
-) (string, error) {
-	parsed, err := url.Parse(strings.TrimSpace(endpoint))
+	refreshCapable bool,
+) (string, []string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(metadata.AuthorizationEndpoint))
 	if err != nil {
-		return "", fmt.Errorf("mcp auth: parse authorization endpoint: %w", err)
+		return "", nil, fmt.Errorf("mcp auth: parse authorization endpoint: %w", err)
 	}
 	values := parsed.Query()
 	values.Set("response_type", "code")
@@ -152,14 +157,27 @@ func authorizationURL(
 	values.Set("state", state)
 	values.Set("code_challenge", pkce.Challenge)
 	values.Set("code_challenge_method", pkce.Method)
-	if scopes := strings.Join(trimStrings(cfg.Scopes), " "); scopes != "" {
-		values.Set("scope", scopes)
+	scopes := trimStrings(cfg.Scopes)
+	if len(scopes) == 0 {
+		scopes = strings.Fields(values.Get("scope"))
+	}
+	scopes = withOfflineAccess(scopes, metadata, refreshCapable)
+	if len(scopes) > 0 {
+		values.Set("scope", strings.Join(scopes, " "))
 	}
 	if resourceURL := firstNonEmpty(cfg.ResourceURL, cfg.RemoteURL); resourceURL != "" {
 		values.Set("resource", resourceURL)
 	}
 	parsed.RawQuery = values.Encode()
-	return parsed.String(), nil
+	return parsed.String(), scopes, nil
+}
+
+func withOfflineAccess(scopes []string, metadata Metadata, refreshCapable bool) []string {
+	if len(scopes) > 0 && refreshCapable && metadata.supportsOfflineAccess() &&
+		!slices.Contains(scopes, offlineAccessScope) {
+		return append(scopes, offlineAccessScope)
+	}
+	return scopes
 }
 
 func authorizationCodeFromCallbackMetadata(callbackURL string, wantState string, metadata Metadata) (string, error) {
@@ -233,7 +251,11 @@ func (s *Service) exchangeCode(ctx context.Context, state *LoginState, code stri
 	if err != nil {
 		return TokenRecord{}, err
 	}
-	return s.tokenRecordFromResponse(state.Config, state.Metadata, resp, TokenRecord{})
+	cfg := state.Config
+	if state.requestedScopes != nil {
+		cfg.Scopes = state.requestedScopes
+	}
+	return s.tokenRecordFromResponse(cfg, state.Metadata, resp, TokenRecord{})
 }
 
 func (s *Service) refreshToken(
@@ -308,12 +330,12 @@ func (s *Service) tokenRecordFromResponse(
 	if refreshToken == "" {
 		refreshToken = strings.TrimSpace(current.RefreshToken)
 	}
-	scopes := trimStrings(strings.Fields(resp.Scope))
+	scopes := parseScopes(resp.Scope)
 	if len(scopes) == 0 {
 		if current.AccessToken != "" {
-			scopes = trimStrings(current.Scopes)
+			scopes = normalizeScopes(current.Scopes)
 		} else {
-			scopes = trimStrings(cfg.Scopes)
+			scopes = normalizeScopes(cfg.Scopes)
 		}
 	}
 	expiresAt := time.Time{}
@@ -434,7 +456,7 @@ func statusFromTokenWithDiagnostic(
 	status.Refreshable = strings.TrimSpace(token.RefreshToken) != ""
 	status.Issuer = strings.TrimSpace(token.Issuer)
 	if len(token.Scopes) > 0 {
-		status.Scopes = slices.Clone(token.Scopes)
+		status.Scopes = normalizeScopes(token.Scopes)
 	}
 	if !token.ExpiresAt.IsZero() {
 		status.ExpiresAt = new(token.ExpiresAt.UTC())

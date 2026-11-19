@@ -69,6 +69,7 @@ type sessionInfoRow struct {
 	laterReturnedAt        sql.NullString
 	laterPendingMessages   int
 	failureSeenAt          sql.NullString
+	pinnedAt               sql.NullString
 	createdAtRaw           string
 	updatedAtRaw           string
 }
@@ -231,6 +232,9 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 	if err := populateSessionLaterScanParts(session, row); err != nil {
 		return err
 	}
+	if session.PinnedAt, err = parseOptionalLaterTimestamp(row.pinnedAt, "pinned at"); err != nil {
+		return err
+	}
 
 	createdAt, updatedAt, err := parseSessionInfoTimestamps(row.createdAtRaw, row.updatedAtRaw)
 	if err != nil {
@@ -312,7 +316,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.soulDigest,
 		&row.parentSoulDigest,
 		&row.parkedAt, &row.parkReason, &row.parkUntil, &row.laterReturnedAt, &row.laterPendingMessages,
-		&row.failureSeenAt,
+		&row.failureSeenAt, &row.pinnedAt,
 		&row.createdAtRaw, &row.updatedAtRaw, &row.session.VerdictOnly,
 	); err != nil {
 		return sessionInfoRow{}, fmt.Errorf("store: scan session info: %w", err)

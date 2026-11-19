@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/redact"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -21,6 +22,7 @@ func (e *CallExecutor) descriptorFromTool(
 	source toolspkg.SourceRef,
 	server compozyconfig.MCPServer,
 	tool mcpsdk.Tool,
+	snapshot *redact.SecretSnapshot,
 ) (toolspkg.MCPToolDescriptor, error) {
 	id, err := toolspkg.Canonicalize(server.EffectiveRuntimeName(), tool.Name)
 	if err != nil {
@@ -84,7 +86,7 @@ func (e *CallExecutor) descriptorFromTool(
 		ReadOnlyOverrideOrigin: overrideOrigin,
 		Destructive:            destructive,
 	}
-	return redactMCPToolDescriptor(descriptor)
+	return toolspkg.RedactMCPToolDescriptor(descriptor, snapshot)
 }
 
 func mcpToolTitle(tool mcpsdk.Tool) string {

@@ -191,6 +191,10 @@ CREATE TABLE sessions (
 		initiator_kind TEXT NOT NULL DEFAULT '',
 		initiator_id TEXT NOT NULL DEFAULT '',
 		failure_seen_at TEXT,
+		pinned_at TEXT,
+		-- Manual order of the Pinned section: the smallest position leads, and a new pin takes
+		-- one below the current smallest. Pin sets it and unpin clears it with pinned_at.
+		pin_position INTEGER,
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
 		CHECK ((scope = 'workspace') = (workspace_id <> '')),
@@ -326,6 +330,11 @@ CREATE INDEX idx_session_input_queue_goal_owner
 
 CREATE INDEX idx_sessions_attach_lock
 			ON sessions(attached_to, attach_expires_at);
+
+-- Pinned sessions are few; the sidebar's Pinned read and exclusion stay index-only.
+CREATE INDEX idx_sessions_pinned
+			ON sessions(pinned_at, id)
+			WHERE pinned_at IS NOT NULL;
 
 CREATE INDEX idx_sessions_global_catalog_recent
  ON sessions(archived_at, updated_at DESC, created_at DESC, id DESC);

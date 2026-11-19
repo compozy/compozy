@@ -8,7 +8,9 @@ import (
 	"time"
 )
 
-const defaultLoginSessionTTL = 5 * time.Minute
+// DefaultLoginSessionTTL is how long a started OAuth sign-in stays valid. The callback page
+// states it, so the copy and the enforced lifetime share this one value.
+const DefaultLoginSessionTTL = 5 * time.Minute
 
 var (
 	// ErrLoginSessionNotFound reports a missing or superseded OAuth session.
@@ -96,7 +98,7 @@ func NewManager(service *Service, opts ...ManagerOption) (*Manager, error) {
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		ttl:        defaultLoginSessionTTL,
+		ttl:        DefaultLoginSessionTTL,
 		byTarget:   make(map[string]*loginSession),
 		byState:    make(map[string]string),
 		revision:   make(map[string]uint64),

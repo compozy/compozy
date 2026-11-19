@@ -387,7 +387,7 @@ export interface UseSessionSidebarStateResult {
   /** A group's stored fold alone; `undefined` follows `foldAll`. */
   groupFlag: (groupId: string) => boolean | undefined;
   toggleGroup: (groupId: string) => void;
-  /** The last Collapse all or Expand all in this window. */
+  /** The last Collapse all, Expand groups or Expand all in this window. */
   foldAll: SessionFoldAll;
   setFoldAll: (foldAll: Exclude<SessionFoldAll, null>) => void;
   /** Project grouping lists projects with no sessions too (#1085); new windows inherit it. */

@@ -1035,6 +1035,440 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 	})
 
+	t.Run("Should split pinned sessions into their own ordered read without touching activity", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-session-pinned",
+			filepath.Join(t.TempDir(), "workspace-session-pinned"),
+		)
+		otherWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-session-pinned-other",
+			filepath.Join(t.TempDir(), "workspace-session-pinned-other"),
+		)
+		baseAt := time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC)
+		ids := []string{"sess-pin-a", "sess-pin-b", "sess-pin-c", "sess-pin-d"}
+		for _, id := range ids {
+			info := sessionInfoForWorkspaceStateIndexTest(id, workspaceID, globalDBSessionStateStopped, baseAt)
+			if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", id, err)
+			}
+		}
+		// Pin c, then a, then b: each new pin takes the top, whatever the activity order.
+		for index, id := range []string{"sess-pin-c", "sess-pin-a", "sess-pin-b"} {
+			globalDB.now = func() time.Time { return baseAt.Add(time.Duration(index+1) * time.Hour) }
+			pinned, err := globalDB.PinSession(ctx, workspaceID, id)
+			if err != nil || pinned.PinnedAt == nil {
+				t.Fatalf("PinSession(%q) = %#v, %v, want a pin", id, pinned.PinnedAt, err)
+			}
+			if !pinned.UpdatedAt.Equal(baseAt.Add(time.Duration(len(id)) * time.Second)) {
+				t.Fatalf("PinSession(%q) updated_at = %v, want activity untouched", id, pinned.UpdatedAt)
+			}
+		}
+		globalDB.now = func() time.Time { return baseAt.Add(10 * time.Hour) }
+		again, err := globalDB.PinSession(ctx, workspaceID, "sess-pin-c")
+		if err != nil || again.PinnedAt == nil || !again.PinnedAt.Equal(baseAt.Add(time.Hour)) {
+			t.Fatalf("PinSession(again) = %#v, %v, want the first pin time kept", again.PinnedAt, err)
+		}
+
+		for _, testCase := range []struct {
+			name   string
+			pinned store.SessionPinnedFilter
+			want   int
+		}{
+			{name: "exclude", pinned: store.SessionPinnedExclude, want: 1},
+			{name: "only", pinned: store.SessionPinnedOnly, want: 3},
+			{name: "include", pinned: store.SessionPinnedInclude, want: 4},
+		} {
+			query := store.SessionCatalogPageQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: workspaceID,
+				Pinned:      testCase.pinned,
+				Sort:        sessionCatalogSortRecent,
+				Limit:       10,
+			}
+			page, pageErr := globalDB.PageSessions(ctx, query)
+			if pageErr != nil || len(page.Sessions) != testCase.want || page.Total != testCase.want {
+				t.Fatalf("PageSessions(%s) = %d rows total=%d, %v; want %d",
+					testCase.name, len(page.Sessions), page.Total, pageErr, testCase.want)
+			}
+			facets, facetsErr := globalDB.SessionCatalogFacets(ctx, query)
+			if facetsErr != nil || facets.Facets.All != testCase.want {
+				t.Fatalf("SessionCatalogFacets(%s) all=%d, %v; want %d",
+					testCase.name, facets.Facets.All, facetsErr, testCase.want)
+			}
+		}
+
+		pinnedQuery := store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceID,
+			Pinned:      store.SessionPinnedOnly,
+			Sort:        sessionCatalogSortPinned,
+			Limit:       2,
+		}
+		first, err := globalDB.PageSessions(ctx, pinnedQuery)
+		if err != nil || len(first.Sessions) != 2 || first.Total != 3 || len(first.PinnedRootIDs) != 3 {
+			t.Fatalf("PageSessions(pinned first) = %#v total=%d, %v, want two of three pins",
+				first.Sessions, first.Total, err)
+		}
+		anchor := first.Sessions[1]
+		if anchor.PinScope == nil || anchor.PinScope.RootID != anchor.ID {
+			t.Fatalf("pinned row scope = %#v, want the pin as its own root", anchor.PinScope)
+		}
+		pinnedQuery.After = &store.SessionCatalogPosition{
+			PinPosition:   new(anchor.PinScope.Position),
+			PinRootID:     anchor.PinScope.RootID,
+			AttentionRank: store.SessionCatalogAttentionRankNone,
+			PrimaryAt:     anchor.UpdatedAt,
+			SecondaryAt:   anchor.UpdatedAt,
+			CreatedAt:     anchor.CreatedAt,
+			ID:            anchor.ID,
+		}
+		second, err := globalDB.PageSessions(ctx, pinnedQuery)
+		if err != nil {
+			t.Fatalf("PageSessions(pinned second) error = %v", err)
+		}
+		got := append(sessionIDsForWorkspaceStateIndexTest(first.Sessions),
+			sessionIDsForWorkspaceStateIndexTest(second.Sessions)...)
+		if want := []string{"sess-pin-b", "sess-pin-a", "sess-pin-c"}; !slices.Equal(got, want) {
+			t.Fatalf("pinned order = %#v, want %#v", got, want)
+		}
+		// A reorder of some pins moves them among their own slots; the others keep theirs.
+		layout := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID}
+		if err := globalDB.ReorderPinnedSessions(ctx, layout, []string{"sess-pin-c", "sess-pin-b"}); err != nil {
+			t.Fatalf("ReorderPinnedSessions() error = %v", err)
+		}
+		pinnedQuery.After, pinnedQuery.Limit = nil, 10
+		reordered, err := globalDB.PageSessions(ctx, pinnedQuery)
+		if got, want := sessionIDsForWorkspaceStateIndexTest(reordered.Sessions),
+			[]string{"sess-pin-c", "sess-pin-a", "sess-pin-b"}; err != nil || !slices.Equal(got, want) {
+			t.Fatalf("pinned order after reorder = %#v, %v, want %#v", got, err, want)
+		}
+		if err := globalDB.ReorderPinnedSessions(ctx, layout, []string{"sess-pin-d"}); !errors.Is(
+			err, store.ErrSessionLayoutConflict,
+		) {
+			t.Fatalf("ReorderPinnedSessions(unpinned) error = %v, want ErrSessionLayoutConflict", err)
+		}
+		if err := globalDB.ReorderPinnedSessions(ctx, store.SessionLayoutScope{
+			ProfileID: store.DefaultProfileID, WorkspaceID: otherWorkspaceID,
+		}, []string{"sess-pin-a"}); !errors.Is(err, store.ErrSessionNotFound) {
+			t.Fatalf("ReorderPinnedSessions(other workspace) error = %v, want ErrSessionNotFound", err)
+		}
+		pinnedQuery.Limit = 2
+		pinnedQuery.Pinned = store.SessionPinnedInclude
+		pinnedQuery.After = nil
+		if _, err := globalDB.PageSessions(ctx, pinnedQuery); err == nil ||
+			!strings.Contains(err.Error(), "pinned sort requires the pinned=only filter") {
+			t.Fatalf("PageSessions(sort pinned without only) error = %v, want the pinned=only refusal", err)
+		}
+
+		if _, err := globalDB.PinSession(
+			ctx,
+			otherWorkspaceID,
+			"sess-pin-d",
+		); !errors.Is(
+			err,
+			store.ErrSessionNotFound,
+		) {
+			t.Fatalf("PinSession(other workspace) error = %v, want ErrSessionNotFound", err)
+		}
+		unpinned, changed, err := globalDB.UnpinSession(ctx, workspaceID, "sess-pin-a")
+		if err != nil || !changed || unpinned.PinnedAt != nil {
+			t.Fatalf("UnpinSession() = %#v, %v, %v, want unpinned", unpinned.PinnedAt, changed, err)
+		}
+		pins, err := globalDB.SessionPinnedAt(ctx, ids)
+		if err != nil || len(pins) != 2 || !pins["sess-pin-b"].Equal(baseAt.Add(3*time.Hour)) {
+			t.Fatalf("SessionPinnedAt() = %#v, %v, want b and c pinned", pins, err)
+		}
+		// Unpinning a session that is not pinned changes nothing and says so.
+		if again, changed, err := globalDB.UnpinSession(ctx, workspaceID, "sess-pin-a"); err != nil ||
+			changed || again.PinnedAt != nil {
+			t.Fatalf("UnpinSession(unpinned) = %#v, %v, %v, want a no-op", again.PinnedAt, changed, err)
+		}
+
+		// A pin outlives archive and Later, and the Later count covers pinned sessions
+		// even in a read that leaves them out.
+		if _, err := globalDB.SetSessionArchived(ctx, workspaceID, "sess-pin-b", true); err != nil {
+			t.Fatalf("SetSessionArchived(archive) error = %v", err)
+		}
+		if _, err := globalDB.SetSessionArchived(ctx, workspaceID, "sess-pin-b", false); err != nil {
+			t.Fatalf("SetSessionArchived(unarchive) error = %v", err)
+		}
+		if _, err := globalDB.ParkSession(ctx, store.SessionLaterPark{
+			WorkspaceID: workspaceID, SessionID: "sess-pin-c",
+		}); err != nil {
+			t.Fatalf("ParkSession() error = %v", err)
+		}
+		pins, err = globalDB.SessionPinnedAt(ctx, ids)
+		if err != nil || !pins["sess-pin-b"].Equal(baseAt.Add(3*time.Hour)) ||
+			!pins["sess-pin-c"].Equal(baseAt.Add(time.Hour)) {
+			t.Fatalf("SessionPinnedAt(after archive and Later) = %#v, %v, want both pins kept", pins, err)
+		}
+		facets, err := globalDB.SessionCatalogFacets(ctx, store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceID,
+			Pinned:      store.SessionPinnedExclude,
+			Sort:        sessionCatalogSortRecent,
+			Limit:       10,
+		})
+		if err != nil || facets.Later != 1 {
+			t.Fatalf("SessionCatalogFacets(pinned exclude) later=%d, %v; want the pinned parked session",
+				facets.Later, err)
+		}
+	})
+
+	t.Run("Should carry a pinned session's subtree into Pinned and back on unpin", func(t *testing.T) {
+		t.Parallel()
+		ctx, db := t.Context(), openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "pin-subtree", filepath.Join(t.TempDir(), "workspace"))
+		base := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		// A conductor's child continued twice; a fork of the child and its continuation; a
+		// continuation of the conductor itself; and an unrelated top-level session.
+		lineage := map[string][2]string{
+			"worker":      {"conductor", string(store.LineageKindProvenance)},
+			"worker-2":    {"worker", string(store.LineageKindContinue)},
+			"worker-3":    {"worker-2", string(store.LineageKindContinue)},
+			"helper":      {"worker", string(store.LineageKindSpawn)},
+			"conductor-2": {"conductor", string(store.LineageKindContinue)},
+			"worker-fork": {"worker", string(store.LineageKindFork)},
+			"fork-2":      {"worker-fork", string(store.LineageKindContinue)},
+		}
+		ids := []string{
+			"conductor", "worker", "worker-2", "worker-3", "helper", "conductor-2", "worker-fork", "fork-2", "other",
+		}
+		for _, id := range ids {
+			if err := db.RegisterSession(
+				ctx,
+				new(sessionInfoForWorkspaceStateIndexTest(id, workspace, globalDBSessionStateStopped, base)),
+			); err != nil {
+				t.Fatal(err)
+			}
+			relation, ok := lineage[id]
+			if !ok {
+				continue
+			}
+			if _, err := db.db.ExecContext(
+				ctx,
+				`UPDATE sessions SET parent_session_id=?, lineage_kind=?, root_session_id='conductor', spawn_depth=1,
+ origin_agent_name=CASE WHEN ? IN ('fork','continue') THEN 'coder' ELSE '' END WHERE id=?`,
+				relation[0], relation[1], relation[1], id,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		read := func(pinned store.SessionPinnedFilter, sort string) ([]string, int) {
+			t.Helper()
+			query := store.SessionCatalogPageQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: workspace,
+				Archive:     store.SessionArchiveExclude,
+				Pinned:      pinned,
+				Sort:        sort,
+				Limit:       20,
+			}
+			page, err := db.PageSessions(ctx, query)
+			if err != nil {
+				t.Fatalf("PageSessions(%s) error = %v", pinned, err)
+			}
+			facets, err := db.SessionCatalogFacets(ctx, query)
+			if err != nil {
+				t.Fatalf("SessionCatalogFacets(%s) error = %v", pinned, err)
+			}
+			got := sessionIDsForWorkspaceStateIndexTest(page.Sessions)
+			if sort != sessionCatalogSortPinned && facets.Facets.All != len(got) {
+				t.Fatalf(
+					"SessionCatalogFacets(%s) all = %d, want the %d listed rows",
+					pinned,
+					facets.Facets.All,
+					len(got),
+				)
+			}
+			return got, page.Total
+		}
+		// The inner pin is carried by the outer one, so it lists once, under its root.
+		for _, id := range []string{"worker-2", "conductor"} {
+			if _, err := db.PinSession(ctx, workspace, id); err != nil {
+				t.Fatalf("PinSession(%s) error = %v", id, err)
+			}
+		}
+		carried := []string{"conductor", "worker", "worker-2", "worker-3", "helper"}
+		pinned, total := read(store.SessionPinnedOnly, sessionCatalogSortPinned)
+		if total != 1 || len(pinned) != len(carried) || pinned[0] != "conductor" {
+			t.Fatalf("pinned page = %#v total=%d, want the conductor first with its whole subtree", pinned, total)
+		}
+		for _, id := range carried {
+			if !slices.Contains(pinned, id) {
+				t.Fatalf("pinned page = %#v, want %s carried", pinned, id)
+			}
+		}
+		rest, _ := read(store.SessionPinnedExclude, sessionCatalogSortRecent)
+		slices.Sort(rest)
+		if want := []string{"conductor-2", "fork-2", "other", "worker-fork"}; !slices.Equal(rest, want) {
+			t.Fatalf("unpinned rows = %#v, want %#v (forks and continuations of the pin stay)", rest, want)
+		}
+		scopes, err := db.SessionPinScopes(ctx, ids)
+		if err != nil || len(scopes) != len(carried) || scopes["worker-3"].RootID != "conductor" {
+			t.Fatalf("SessionPinScopes() = %#v, %v, want the subtree under the conductor", scopes, err)
+		}
+
+		// A page counts pins, not rows: with a limit of one, the first page holds the conductor's
+		// whole subtree and the next holds the other pin, with no row on both.
+		if _, err := db.PinSession(ctx, workspace, "other"); err != nil {
+			t.Fatal(err)
+		}
+		pageQuery := store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspace,
+			Pinned:      store.SessionPinnedOnly,
+			Sort:        sessionCatalogSortPinned,
+			Limit:       1,
+		}
+		firstPage, err := db.PageSessions(ctx, pageQuery)
+		if got := sessionIDsForWorkspaceStateIndexTest(firstPage.Sessions); err != nil || firstPage.Total != 2 ||
+			!slices.Equal(got, []string{"other"}) {
+			t.Fatalf("pinned first page = %#v total=%d, %v, want the newest pin alone", got, firstPage.Total, err)
+		}
+		last := firstPage.Sessions[len(firstPage.Sessions)-1]
+		pageQuery.After = &store.SessionCatalogPosition{
+			PinPosition:   new(last.PinScope.Position),
+			PinRootID:     last.PinScope.RootID,
+			AttentionRank: store.SessionCatalogAttentionRankNone,
+			PrimaryAt:     last.UpdatedAt,
+			SecondaryAt:   last.UpdatedAt,
+			CreatedAt:     last.CreatedAt,
+			ID:            last.ID,
+		}
+		secondPage, err := db.PageSessions(ctx, pageQuery)
+		second := sessionIDsForWorkspaceStateIndexTest(secondPage.Sessions)
+		if err != nil || secondPage.Total != 2 || len(second) != len(carried) || second[0] != "conductor" ||
+			slices.Contains(second, "other") {
+			t.Fatalf("pinned second page = %#v total=%d, %v, want the conductor's whole subtree", second,
+				secondPage.Total, err)
+		}
+		// With the conductor first, the cursor taken from its last carried row still anchors the
+		// pin, so the next page is the other pin alone.
+		layout := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: workspace}
+		if err := db.ReorderPinnedSessions(ctx, layout, []string{"conductor", "other"}); err != nil {
+			t.Fatalf("ReorderPinnedSessions() error = %v", err)
+		}
+		pageQuery.After = nil
+		firstPage, err = db.PageSessions(ctx, pageQuery)
+		first := sessionIDsForWorkspaceStateIndexTest(firstPage.Sessions)
+		if err != nil || len(first) != len(carried) || first[0] != "conductor" || slices.Contains(first, "other") {
+			t.Fatalf("reordered first page = %#v, %v, want the conductor's whole subtree", first, err)
+		}
+		last = firstPage.Sessions[len(firstPage.Sessions)-1]
+		if last.ID == "conductor" || last.PinScope == nil || last.PinScope.RootID != "conductor" {
+			t.Fatalf("last row = %s scope %#v, want a carried row under the conductor", last.ID, last.PinScope)
+		}
+		pageQuery.After = &store.SessionCatalogPosition{
+			PinPosition:   new(last.PinScope.Position),
+			PinRootID:     last.PinScope.RootID,
+			AttentionRank: store.SessionCatalogAttentionRankNone,
+			PrimaryAt:     last.UpdatedAt,
+			SecondaryAt:   last.UpdatedAt,
+			CreatedAt:     last.CreatedAt,
+			ID:            last.ID,
+		}
+		secondPage, err = db.PageSessions(ctx, pageQuery)
+		if got := sessionIDsForWorkspaceStateIndexTest(secondPage.Sessions); err != nil ||
+			!slices.Equal(got, []string{"other"}) {
+			t.Fatalf("page after a carried-row cursor = %#v, %v, want the other pin alone", got, err)
+		}
+		if _, _, err := db.UnpinSession(ctx, workspace, "other"); err != nil {
+			t.Fatal(err)
+		}
+
+		// A child spawned into another project stays in that project's list: a pin carries only
+		// within its own workspace, where Pinned can show it above the child.
+		remoteWorkspace := registerWorkspaceForGlobalTests(
+			t, db, "pin-subtree-remote", filepath.Join(t.TempDir(), "remote"),
+		)
+		if err := db.RegisterSession(ctx, new(sessionInfoForWorkspaceStateIndexTest(
+			"remote-helper", remoteWorkspace, globalDBSessionStateStopped, base,
+		))); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE sessions SET parent_session_id='conductor',
+ root_session_id='conductor', spawn_depth=1, lineage_kind='spawn' WHERE id='remote-helper'`); err != nil {
+			t.Fatal(err)
+		}
+		remote, err := db.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: remoteWorkspace,
+			Pinned:      store.SessionPinnedExclude,
+			Sort:        sessionCatalogSortRecent,
+			Limit:       20,
+		})
+		if got := sessionIDsForWorkspaceStateIndexTest(remote.Sessions); err != nil ||
+			!slices.Equal(got, []string{"remote-helper"}) {
+			t.Fatalf("remote unpinned rows = %#v, %v, want the cross-project child listed in place", got, err)
+		}
+
+		// An archived pin stays pinned but carries nothing: a list without it gets its subtree back,
+		// and a pin inside that subtree takes its own slot.
+		if _, err := db.SetSessionArchived(ctx, workspace, "conductor", true); err != nil {
+			t.Fatal(err)
+		}
+		if pinned, total = read(store.SessionPinnedOnly, sessionCatalogSortPinned); total != 1 ||
+			!slices.Equal(pinned, []string{"worker-2"}) {
+			t.Fatalf("pinned page with the root archived = %#v total=%d, want only the inner pin", pinned, total)
+		}
+		if rest, _ := read(store.SessionPinnedExclude, sessionCatalogSortRecent); !slices.Contains(rest, "worker") ||
+			!slices.Contains(rest, "helper") {
+			t.Fatalf("unpinned rows with the root archived = %#v, want its subtree back in place", rest)
+		}
+		if _, err := db.SetSessionArchived(ctx, workspace, "conductor", false); err != nil {
+			t.Fatal(err)
+		}
+
+		// Unpinning the root hands the inner pin its own slot and returns the rest in place; a
+		// continuation of a pin stands beside it, so worker-3 returns to the conductor's thread.
+		if _, _, err := db.UnpinSession(ctx, workspace, "conductor"); err != nil {
+			t.Fatal(err)
+		}
+		pinned, total = read(store.SessionPinnedOnly, sessionCatalogSortPinned)
+		if want := []string{"worker-2"}; total != 1 || !slices.Equal(pinned, want) {
+			t.Fatalf("pinned page after unpin = %#v total=%d, want %#v", pinned, total, want)
+		}
+		if _, _, err := db.UnpinSession(ctx, workspace, "worker-2"); err != nil {
+			t.Fatal(err)
+		}
+		if rest, _ := read(store.SessionPinnedExclude, sessionCatalogSortRecent); len(rest) != len(ids) {
+			t.Fatalf("unpinned rows after every unpin = %#v, want all %d sessions back", rest, len(ids))
+		}
+	})
+
+	t.Run("Should refuse pins on subagent sessions and always-on agent mains", func(t *testing.T) {
+		t.Parallel()
+
+		db, workspace, parent, now := subagentFixture(t)
+		registerSubagentSession(t, db, workspace, "child", parent, store.SubagentSpawnRole, now)
+		if _, err := db.PinSession(
+			t.Context(),
+			workspace,
+			"child",
+		); !errors.Is(
+			err,
+			store.ErrSubagentPinFollowsParent,
+		) {
+			t.Fatalf("PinSession(subagent) error = %v, want ErrSubagentPinFollowsParent", err)
+		}
+		makeInstanceMainForCleanupTest(t, db, workspace, parent, now)
+		if _, err := db.PinSession(t.Context(), workspace, parent); !errors.Is(err, store.ErrSessionPinInstanceMain) {
+			t.Fatalf("PinSession(instance main) error = %v, want ErrSessionPinInstanceMain", err)
+		}
+		if pins, err := db.SessionPinnedAt(t.Context(), []string{"child", parent}); err != nil || len(pins) != 0 {
+			t.Fatalf("SessionPinnedAt() = %#v, %v, want no pins", pins, err)
+		}
+	})
+
 	t.Run("Should preserve normal sessions with null spawn roles", func(t *testing.T) {
 		t.Parallel()
 
@@ -3789,7 +4223,7 @@ func TestSessionCatalogBoard(t *testing.T) {
 			}
 			if _, err := db.db.ExecContext(
 				ctx,
-				`UPDATE sessions SET parent_session_id=?, lineage_kind=?,
+				`UPDATE sessions SET parent_session_id=?, lineage_kind=?, root_session_id='conductor', spawn_depth=1,
  origin_agent_name=CASE WHEN ? IN ('fork','continue') THEN 'coder' ELSE '' END WHERE id=?`,
 				relation[0], relation[1], relation[1], id,
 			); err != nil {

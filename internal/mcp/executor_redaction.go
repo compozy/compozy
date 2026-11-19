@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -79,6 +80,8 @@ func redactMCPError(err error) error {
 		return nil
 	}
 	switch typed := err.(type) {
+	case *toolspkg.MCPCatalogPollDeferred:
+		return typed
 	case *toolspkg.ToolError:
 		return redactMCPToolError(typed)
 	case *toolspkg.ValidationError:
@@ -223,6 +226,8 @@ func redactMCPKnownCause(err error) error {
 		return context.DeadlineExceeded
 	case errors.Is(err, ErrAuthorizationRequired):
 		return ErrAuthorizationRequired
+	case errors.Is(err, mcpauth.ErrTokenRejected):
+		return mcpauth.ErrTokenRejected
 	case errors.Is(err, errRemoteAuthenticationRejected):
 		return errRemoteAuthenticationRejected
 	case errors.Is(err, toolspkg.ErrToolNotFound):

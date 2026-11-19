@@ -5,6 +5,7 @@ import {
   importRuntimeMCPServer,
   putSettingsMCPApproval,
   putSettingsProvider,
+  setSettingsMCPServerEnabled,
   SettingsApiError,
 } from "../adapters/settings-api";
 import { providerDraftFromEntry, providerDraftToRequest } from "../lib/provider-draft";
@@ -15,6 +16,7 @@ import type {
   RuntimeMCPImportRequest,
   SettingsMCPApprovalRequest,
   SettingsMCPAuthFilter,
+  SettingsMCPEnablementFilter,
   SettingsMCPServerCollection,
   SettingsMCPServerEntry,
 } from "../types";
@@ -54,6 +56,22 @@ export function useAllowMCPServer() {
 interface CheckParams {
   entry: SettingsMCPServerEntry;
   filter: SettingsMCPAuthFilter;
+}
+
+export function useSetMCPServerEnabled() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      entry,
+      filter,
+      enabled,
+    }: {
+      entry: SettingsMCPServerEntry;
+      filter: SettingsMCPEnablementFilter;
+      enabled: boolean;
+    }) => setSettingsMCPServerEnabled(entry.name, filter, enabled),
+    onSettled: () => invalidateMCPAndApply(queryClient),
+  });
 }
 
 /**

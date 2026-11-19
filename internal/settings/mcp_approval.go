@@ -12,6 +12,7 @@ import (
 
 type ConsentDecision struct {
 	Admitted         bool
+	Disabled         bool
 	Reason           string
 	Waiting          bool
 	DefinitionDigest string
@@ -150,7 +151,8 @@ func (s *service) SetMCPApproval(
 		return s.mcpConsent.ApproveMCP(ctx, consent, digest, false)
 	}
 	var approval store.MCPApproval
-	for _, resolved := range definitions {
+	for i := range definitions {
+		resolved := &definitions[i]
 		consent := consentRequestForTarget(resolved.target, resolved.server)
 		if consent.WorkspaceID == "" {
 			continue

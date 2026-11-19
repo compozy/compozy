@@ -1,0 +1,53 @@
+---
+title: "compozy session unpin"
+description: "Unpin a session so it returns to its place in the list"
+---
+
+## compozy session unpin
+
+Unpin a session so it returns to its place in the list
+
+### Synopsis
+
+Unpin a session. It returns with its child sessions to its project group or folder at the position it held. Unpinning a session that is not pinned changes nothing.
+
+```
+compozy session unpin <id> [flags]
+```
+
+### Examples
+
+```
+  compozy session unpin sess-123
+```
+
+### Options
+
+```
+  -h, --help   help for unpin
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session unpin <id> -o json
+```

@@ -35,6 +35,7 @@ type OAuthConfig struct {
 	ResourceURL                                string
 	MCPPath                                    string
 	Scopes                                     []string
+	TokenResponseScope                         string
 	StepUpScope                                string
 	CallbackIssuer                             string
 	AuthorizationResponseIssParameterSupported bool
@@ -269,7 +270,7 @@ func (s *OAuthHTTPServer) serveToken(writer http.ResponseWriter, request *http.R
 		"expires_in":      3600,
 	}
 	if !s.config.OmitRefreshScope || values.Get("grant_type") != refreshTokenGrant {
-		response["scope"] = strings.Join(s.config.Scopes, " ")
+		response["scope"] = cmp.Or(s.config.TokenResponseScope, strings.Join(s.config.Scopes, " "))
 	}
 	s.writeJSON(writer, http.StatusOK, response)
 }

@@ -32,6 +32,12 @@ func NativeToolError(id toolspkg.ToolID, err error) error {
 		if existing.Err != nil {
 			cause = existing.Err
 		}
+	} else if errors.Is(err, ErrSkillNotFound) {
+		message := sanitizeNativeToolMessage(err.Error())
+		skillError := toolspkg.NewToolError(toolspkg.ErrorCodeNotFound, id, message,
+			fmt.Errorf("%w: %w", toolspkg.ErrToolNotFound, err))
+		skillError.PublicMessage = message
+		return skillError
 	}
 	cause = nativeToolDomainCause(cause)
 	payload := ErrorPayloadForError(cause)

@@ -31,7 +31,8 @@ export interface SessionListProjectFoldersProps {
     path: readonly number[],
     arrange: SessionListGroupArrange | undefined
   ) => ReactNode;
-  emptyMessage: string;
+  /** `null` while the Pinned section above holds rows. */
+  emptyMessage: string | null;
   /** A search shows what it matches: no folder stays folded over a result. */
   filtering: boolean;
   testIdPrefix: string;
@@ -135,7 +136,7 @@ export function SessionListProjectFolders({
             Drop here to take it out of the folder.
           </p>
         ) : null}
-        {tree.root.length === 0 && tree.folders.length === 0 ? (
+        {tree.root.length === 0 && tree.folders.length === 0 && emptyMessage !== null ? (
           <p className="px-3 py-8 text-center text-small-body text-muted-foreground">
             {emptyMessage}
           </p>

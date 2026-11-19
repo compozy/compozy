@@ -38,6 +38,9 @@ func Codegen() error {
 	if err := SyncEmojibase(); err != nil {
 		return err
 	}
+	if err := SyncMCPOAuthPageAssets(); err != nil {
+		return err
+	}
 	return SyncDesignMD()
 }
 
@@ -85,6 +88,9 @@ func CodegenCheck() error {
 		return err
 	}
 	if err := SyncEmojibaseCheck(); err != nil {
+		return err
+	}
+	if err := SyncMCPOAuthPageAssetsCheck(); err != nil {
 		return err
 	}
 	if err := SyncDesignMDCheck(); err != nil {
@@ -151,6 +157,16 @@ func SyncEmojibase() error {
 // SyncEmojibaseCheck verifies the mirrored Emojibase JSON in web/public.
 func SyncEmojibaseCheck() error {
 	return runCommandInDir(context.Background(), ".", "bun", "run", emojibaseSyncScriptPath, "--check")
+}
+
+// SyncMCPOAuthPageAssets mirrors the tokens, fonts and brand images the MCP OAuth callback page embeds.
+func SyncMCPOAuthPageAssets() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", oauthPageSyncScriptPath, "--write")
+}
+
+// SyncMCPOAuthPageAssetsCheck verifies the MCP OAuth callback page's embedded assets.
+func SyncMCPOAuthPageAssetsCheck() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", oauthPageSyncScriptPath, "--check")
 }
 
 // SyncDesignMD refreshes generated DESIGN.md token frontmatter and tables.

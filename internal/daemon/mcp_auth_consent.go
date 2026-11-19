@@ -57,6 +57,11 @@ func authorizeMCPAuthNetwork(ctx context.Context, state *bootState, cfg mcpauth.
 	if err != nil {
 		return err
 	}
+	if resolved.Server.IsDisabled() {
+		return fmt.Errorf("%w: %w", mcpauth.ErrServerDisabled, &settingspkg.MCPApprovalError{
+			Code: "mcp_server_disabled", Message: fmt.Sprintf("MCP server %q is off", target.ServerName),
+		})
+	}
 	req := settingsConsentRequest(resolved.Target, resolved.Server)
 	if state.profiles != nil {
 		req.ProfileName, err = state.profiles.ProfileName(ctx, source.ProfileID)

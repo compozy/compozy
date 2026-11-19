@@ -4,6 +4,7 @@ import "strings"
 
 type mcpServerOverlay struct {
 	definitionSource string
+	Disabled         *bool               `toml:"disabled"`
 	ReadOnlyTools    *[]string           `toml:"read_only_tools"`
 	Name             *string             `toml:"name"`
 	Transport        *MCPServerTransport `toml:"transport"`
@@ -21,6 +22,9 @@ type mcpServerOverlay struct {
 
 func (o mcpServerOverlay) Apply(dst *MCPServer) {
 	dst.DefinitionSource = o.definitionSource
+	if o.Disabled != nil {
+		dst.Disabled = new(*o.Disabled)
+	}
 	if o.ReadOnlyTools != nil {
 		dst.ReadOnlyTools = append([]string(nil), (*o.ReadOnlyTools)...)
 	}

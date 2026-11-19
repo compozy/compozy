@@ -2,12 +2,14 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/redact"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -21,6 +23,7 @@ type ToolDiscovery struct {
 	ToolCount       int
 	ProtocolVersion string
 	Diagnostic      string
+	content         [sha256.Size]byte
 }
 
 func (d ToolDiscovery) clone() ToolDiscovery {
@@ -33,6 +36,7 @@ func (e *CallExecutor) descriptorsFromTools(
 	resolved *ResolvedServer,
 	protocolVersion string,
 	tools []*mcpsdk.Tool,
+	snapshot *redact.SecretSnapshot,
 ) (ToolDiscovery, error) {
 	server := resolved.Server
 	descriptors := make([]toolspkg.MCPToolDescriptor, 0, len(tools))
@@ -48,7 +52,7 @@ func (e *CallExecutor) descriptorsFromTools(
 		var descriptor toolspkg.MCPToolDescriptor
 		err := validateMCPTransportToolName(server, protocolVersion, tool.Name)
 		if err == nil {
-			descriptor, err = e.descriptorFromTool(source, server, *tool)
+			descriptor, err = e.descriptorFromTool(source, server, *tool, snapshot)
 		}
 		if err != nil {
 			validation, ok := errors.AsType[*toolspkg.ValidationError](err)
@@ -126,11 +130,34 @@ func mcpDiagnosticToolName(name string) string {
 	return fmt.Sprintf("%.128q", redactMCPDiagnosticString(name))
 }
 
+type toolListTTLKey struct{}
+
+// executorToolListCache delegates list freshness to the executor so explicit checks always send an RPC.
+func executorToolListCache(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+	return func(ctx context.Context, method string, req mcpsdk.Request) (mcpsdk.Result, error) {
+		result, err := next(ctx, method, req)
+		if err != nil || method != mcpToolsListMethod {
+			return result, err
+		}
+		list, ok := result.(*mcpsdk.ListToolsResult)
+		if !ok || list == nil || list.TTLMs <= 0 {
+			return result, nil
+		}
+		if ttl, ok := ctx.Value(toolListTTLKey{}).(*int); ok && (*ttl == 0 || list.TTLMs < *ttl) {
+			*ttl = list.TTLMs
+		}
+		uncached := *list
+		uncached.TTLMs = 0
+		return &uncached, nil
+	}
+}
+
 func listMCPTools(ctx context.Context, client *mcpsdk.ClientSession) ([]*mcpsdk.Tool, int, error) {
 	tools := make([]*mcpsdk.Tool, 0)
 	cursor := ""
 	seen := map[string]struct{}{}
 	ttlMs := 0
+	ctx = context.WithValue(ctx, toolListTTLKey{}, &ttlMs)
 	for range maxMCPToolListPages {
 		result, err := client.ListTools(ctx, &mcpsdk.ListToolsParams{Cursor: cursor})
 		if err != nil {

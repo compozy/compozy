@@ -1,5 +1,100 @@
 # Compozy Change Impact
 
+## Pinned sessions carry their subtree and keep a manual order (GH-1859)
+
+- **Native tools.** `compozy__session_list` `pinned` now includes or leaves out every session a pin
+  carries (hierarchy children, their continuations, subagents; not forks or continuations of the
+  pin itself), and `sort: "pinned"` follows the manual Pinned order and pages by pin with whole
+  subtrees. `compozy__session_reorder` gains `pinned: true` to order Pinned. No new tool.
+- **CLI/HTTP/UDS.** The catalog and facets reads apply the lineage-aware filter; `sort=pinned`
+  cursors anchor a pin (a previous-version pinned cursor is refused once with
+  `ErrListCursorInvalid`). `PUT /api/workspaces/{workspace_id}/session-order/sessions` accepts
+  `pinned: true` (excludes `folder_id`); `compozy session reorder <id>... --pinned`. Additive DTO
+  field, generated through OpenAPI and both SDKs.
+- **Extensibility, hooks and config.** None.
+- **State and isolation.** New nullable `sessions.pin_position` (migration 00209), backfilled from
+  `pinned_at` order so existing pins keep their order; a new pin takes the top. A reorder needs the
+  layout scope's workspace and owner profile, trades only the listed pins' slots, and leaves
+  every parent, folder placement, and manual position untouched.
+- **Web, official skill, docs and QA.** The Pinned section nests each pin's subtree, counts pins,
+  and reorders pins by drag or Move up/Move down where the list reads one pair. The native tool
+  reference, sessions guide, generated CLI docs, release note, and ET-web-session-list-pinned
+  describe the new rule.
+
+## Turn off a configured MCP server (GH-1850, requirement 10)
+
+- **Native tools, CLI, HTTP and UDS.** MCP list and status reads expose off definitions. The
+  session MCP list returns `off` and a reason. `mcp disable` and `mcp enable` share the scoped,
+  owner-qualified settings route and generated client contract. Both explicit checks skip off servers.
+- **Config, persistence and extensibility.** `disabled` is additive in TOML and JSON. Existing
+  files default to on. Extension allocations add a default-on persisted switch without rewriting
+  manifests or changing hook contracts. Published agent and skill servers use a local preference
+  keyed by declaring file or extension instance. Definition digests and credential owners exclude the switch.
+- **Workspace and profile isolation.** Resolve the effective source before testing its switch.
+  An off workspace definition keeps its precedence, and the change targets the declaring scope.
+- **Web, docs and official skill.** Settings shows the switch and neutral Off status. The session
+  composer shows the reason. MCP docs and the official skill cover supported selectors, activation,
+  and checks. The Settings, session, CLI and next-message QA scenarios include the off/on walk.
+
+## Session list expansion depth menu (GH-1846) — 2026-11-18
+
+- **Native tools and CLI/HTTP/UDS.** No route, DTO, CLI or `compozy__*` tool changes.
+- **Extensibility, hooks and config.** No hook, extension or config key changes.
+- **State and isolation.** The per-window `foldAll` in the browser-local sessions sidebar store gains
+  a `groups` value; stored windows with `collapsed`, `expanded` or no value load unchanged, and an
+  unknown value loads as no choice. Windows stay independent.
+- **Web, docs and official skill.** The List toolbar's fold button becomes a menu: Expand groups
+  (folders and project groups open, child session lists folded, no subagent list opened), Expand all
+  and Collapse all, with the current choice checked and named by the trigger. A search still shows
+  matching child sessions, and a thread opened by hand stays open. The Kanban head keeps its single
+  button. `COPY.md` and `ET-web-sessions-board-card-actions-group-sort` record the walk; the official
+  skill does not describe sidebar folds and needs no change.
+
+## Pinned sessions above the session list
+
+Owner: [#1827](https://github.com/compozy/compozy/issues/1827).
+
+- **Native tools.** `compozy__session_list` accepts `pinned: "exclude" | "only" | "include"`
+  (default `include`) and the `pinned` sort, which requires `pinned: "only"`; session rows report
+  `pinned_at`. No new tool: agents pin through the CLI or HTTP surfaces.
+- **CLI/HTTP/UDS.** `POST` and `DELETE /api/workspaces/{workspace_id}/sessions/{session_id}/pin`
+  with the Later route's workspace and owner-profile authority; the catalog and facets reads gain
+  the `pinned` query parameter and `sort=pinned`. `compozy session pin|unpin <id>` and
+  `compozy session list --pinned`. Subagents are refused with `subagent_pin_follows_parent` and
+  always-on mains with `session_pin_instance_main`. Additive only; the default filter keeps every
+  existing caller and cursor unchanged.
+- **Extensibility, hooks and config.** None.
+- **State and isolation.** New nullable `sessions.pinned_at` column and partial index (migration
+  00206); existing rows read as unpinned. The pin belongs to the session's workspace and profile;
+  the filter runs inside the scoped catalog query and over active sessions. Pin and unpin never
+  touch `updated_at`, folder placement, or manual order, and a manual reorder keeps hidden pinned
+  members at their index.
+- **Web, official skill, docs and QA.** The Active session list shows a Pinned section above
+  project groups and folders, with Pin to top / Unpin on rows and menus; Archived and Later show a
+  pin mark; the Kanban board is unchanged. The native tool reference, the sessions guide, and the
+  generated CLI docs describe pins; QA adds ET-web-session-list-pinned and notes the folder slot
+  rule in ET-web-session-folders-manual-order.
+
+## Run-agent creation under an always-on Loop origin
+
+Owner: [#1851](https://github.com/compozy/compozy/issues/1851).
+
+- **Native tools and CLI/HTTP/UDS.** A Loop started through `compozy__loop_run` from an
+  always-on main or its descendant can create its run-owned worker with the effective creation
+  profile. Existing session reads expose the worker identity and parent/root lineage. The tool
+  schema, routes, DTOs and CLI output retain their current shapes.
+- **Extensibility, hooks and config.** Profile resolution before reservation is read-only. Session
+  creation still runs its existing hooks and verifies the pinned identity against the final
+  profile. Extension contracts and configuration retain their current shapes.
+- **State and isolation.** The same instance ceiling narrows tools and runtime authority, and
+  the binding uses the effective profile in the originating workspace and profile. Creation
+  identity mismatches remain errors. No persisted format or schema changes.
+- **Web, official skill, docs and QA.** Existing Web projections and the official Loop reference
+  already describe run-owned system sessions and origin lineage. `LP-run-agent-session-lifecycle`
+  adds the always-on main and descendant cases. CI owns the managed runtime regression.
+
+||||||| 051fce873
+
 ## Composer reply answers a pending clarification (GH-1821)
 
 - **Native tools and CLI/HTTP/UDS.** Routes, DTOs and tool schemas keep their shapes. One answer
@@ -18,7 +113,6 @@
   the live pending list and never re-sent as a prompt. Stopping sessions and interrupt keep their
   behavior. The composer placeholder states the routing. The official skill's clarification note
   documents the choice-only rule. `RT-session-clarification-roundtrip` records the walk.
-
 ## Gateway manual 6-digit pairing and device removal — 2026-11-18
 
 Owner: branch `run/gateway-manual-6-digit-pairing-device-removal-backend-a87a1177`.
@@ -45,6 +139,28 @@ Owner: branch `run/gateway-manual-6-digit-pairing-device-removal-backend-a87a117
   `compozy device remove`, and RT-gateway-paired-device records the new backend receipts without
   claiming a product walk.
 
+||||||| parent of 9b114ea59 (feat: pin sessions above the session list)
+
+## MCP OAuth offline access, repair and early renewal
+
+Owners: [#1829](https://github.com/compozy/compozy/issues/1829), [#1830](https://github.com/compozy/compozy/issues/1830), and [#1831](https://github.com/compozy/compozy/issues/1831).
+
+- **Native tools and CLI/HTTP/UDS.** Tool discovery and calls can renew a token shortly before
+  expiry. `compozy__mcp_auth_status` and the equivalent CLI and API status surfaces show the
+  actual expiry and an actionable diagnostic for an unusable local registration. Credential
+  material stays redacted. The existing tools, routes and fields carry these outcomes.
+- **Extensibility, hooks and config.** Manual and extension-owned remotes share the OAuth flow.
+  Sign-in uses issuer-advertised offline access and honors issuer consent parameters. Extension
+  APIs, hooks and configuration shapes stay the same.
+- **State and isolation.** Access, refresh and registration state remain bound to the normalized
+  target, its definition, client and issuer. Existing SQLite rows and the CIMD compatibility
+  loader support renewal in place. Transient failures retain the bound access token and refresh
+  grant. Known local registration failures leave stored credentials available for repair.
+- **Web, official skill, docs and QA.** Settings uses its existing status and reauthorization
+  controls. The MCP configuration guide and official skill describe when renewal or sign-in is
+  needed. The ET-api-mcp-oauth-endpoints and ET-web-mcp-status-matrix scenarios cover the same
+  outcomes through the existing status fields and controls.
+
 ## MCP OAuth refresh for CIMD clients
 
 Owner: [#1828](https://github.com/compozy/compozy/issues/1828).
@@ -65,6 +181,7 @@ Owner: [#1828](https://github.com/compozy/compozy/issues/1828).
   The MCP skill reference and the ET-api-mcp-oauth-endpoints and
   ET-web-mcp-status-matrix scenarios cover automatic renewal of new and existing CIMD clients.
 
+||||||| parent of 3303a1254 (feat: pin sessions above the session list)
 ## MCP OAuth root protected-resource discovery
 
 Owner: [#1823](https://github.com/compozy/compozy/issues/1823).
@@ -79,6 +196,9 @@ Owner: [#1823](https://github.com/compozy/compozy/issues/1823).
 - **State and isolation.** Scope selection, registration and token storage are unchanged.
 - **Docs and QA.** ET-047 covers the path-specific 404, root fallback, scoped sign-in, and
   rejection of mismatched resources. The auth adapter suite exercises a local HTTP OAuth server.
+
+||||||| parent of 107366fab (feat: pin sessions above the session list)
+||||||| 051fce873
 
 ## Keyboard-first desktop navigation
 
@@ -109,7 +229,6 @@ Owner: [#1826](https://github.com/compozy/compozy/issues/1826).
 - **Official skill, docs and QA.** Updated `skills/compozy` window-management and native-tools
   references, the site shortcut and window-management pages, the release note, and the
   keyboard/settings QA scenarios (Terminal preset scenario retired).
-
 ## Pull request monitor check rounds
 
 Owner: [#1807](https://github.com/compozy/compozy/issues/1807).
@@ -125,6 +244,22 @@ Owner: [#1807](https://github.com/compozy/compozy/issues/1807).
 - **Web, official skill, docs and QA.** The existing transcript divider renders each new wake.
   The monitor guide, native tool reference and RT-session-monitor-wake scenario describe the
   revised completion rule and the limits of observing reruns between polls.
+
+## Claude Code plugin manifest acquisition
+
+Owner: [#1837](https://github.com/compozy/compozy/issues/1837).
+
+- **Native tools and CLI.** Marketplace search consumes the corrected installability result on
+  source refresh. Extension install and update use the existing archive path and the existing
+  manifest validation diagnostic when a selected plugin manifest is invalid.
+- **HTTP, UDS, Web and docs.** Entry detail and install preview report an invalid plugin manifest
+  as 422. Web disables installation for blocked listings and shows the 422 cause in the existing
+  detail error view. Source refresh reclassifies previously cached rows. The API reference and
+  `ET-agent-plugin-marketplace-install` cover the change.
+- **Extensibility, config and isolation.** The archive accepts the official schema in the Claude
+  Code layout and the existing adapter normalizes it in memory. Package digest, authored bytes,
+  consent, workspace and profile boundaries, hook and SDK contracts, config, and storage formats
+  retain their behavior. The official skill reuses the existing Marketplace and install tools.
 
 ## Agent Plugin MCP credentials and sign-in
 
@@ -6615,3 +6750,73 @@ Main CI is the only execution gate under the release directive.
   refused resume. The official runtime reference documents the behavior and `ensure-main` error.
   `RT-daemon-restart-continuation` and `TestBootResumesInstancesAfterServersStart` cover the first
   Heartbeat, a refused reopen and operator stops.
+
+## Pre-registered remote MCP OAuth and discovery
+
+Owner: [#1839](https://github.com/compozy/compozy/issues/1839).
+
+- **Native tools, CLI, HTTP and UDS.** Existing MCP status and check operations retain their
+  response shapes. Discovery reports redacted HTTP, JSON-RPC or connection details. An observed
+  rejection of the current bearer credential makes auth status report `expired` when it can
+  refresh the credential, or `needs_login` when it needs a fresh sign-in.
+- **Config and persisted state.** Keep scopes as individual `auth.scopes` entries. Token responses
+  accept comma and space delimiters. The OAuth binding boundary recognizes previously persisted
+  comma-joined scopes. Connections record token rejection in the running daemon without changing
+  stored rows. A successful refresh or new sign-in clears the rejection for that credential target.
+- **Extensibility and isolation.** Outbound Streamable HTTP accepts an SDK-negotiated MCP
+  `2025-06-18` session. Authorization remains scoped to the existing target and definition, and
+  rejection is tied to the observed credential revision. Hook, SDK, and extension contracts retain
+  their existing shapes.
+- **Web, docs and QA.** Existing Web status renders the new diagnostic and sign-in state. Updated
+  the official MCP reference, MCP setup guide, `ET-cli-mcp-authorize`, and `ET-mcp-protocol-interop`.
+
+## Marketplace install during concurrent refresh
+
+Owner: [#1836](https://github.com/compozy/compozy/issues/1836).
+
+- **Native tools, CLI, HTTP and UDS.** Marketplace installs, previews, inspection and updates
+  can enter the package cache while cleanup waits for another operation to publish. A caller
+  waiting on the cache can cancel its request. Tool IDs, routes, flags and payloads stay the same.
+- **Extensibility, hooks, config and workspace isolation.** Cache cleanup still reads the current
+  catalog and installed references after active publications finish. It uses the same home cache,
+  workspace and profile selection, and cache budget. Extension, hook, config and storage contracts
+  stay the same.
+- **Web, docs and official skill.** The existing Marketplace install dialog can load while a
+  different source is still refreshing. Existing instructions and controls apply. The concurrent
+  refresh scenario is recorded in `ET-agent-plugin-marketplace-install`.
+
+## Retryable hosted MCP bind refusal
+
+Owner: [#1838](https://github.com/compozy/compozy/issues/1838).
+
+- **HTTP, UDS, CLI and native tools.** A hosted MCP bind deadline or projection failure during
+  the first bind or an idle rebind returns the existing `session_mcp_reload_failed` refusal.
+  HTTP and UDS use 409 with `retryable` and the original `client_message_id`. The CLI and
+  `compozy__session_prompt` use their existing error mapping.
+- **Web.** The existing composer handler restores the draft and reports “Message not sent”
+  for this refusal. The same message can be sent again after MCP recovers.
+- **Extensibility, hooks, config and isolation.** The failure occurs before prompt admission
+  and leaves the routing, workspace and profile boundaries intact. No extension contract,
+  hook, config key, persistence schema or migration changes are needed.
+- **Docs, official skill and QA.** The MCP reference and `RT-mcp-reload-failure-recovery`
+  describe first-bind and idle-rebind recovery. Initial and subsequent hosted projections record
+  a fixed cause class in daemon logs when they fail.
+
+## Hosted MCP catalog discovery
+
+Owner [#1850](https://github.com/compozy/compozy/issues/1850).
+
+- **Native tools and CLI/HTTP/UDS.** The hosted handshake returns ready tools while the daemon
+  discovers external catalogs. Session MCP list surfaces report why a configured server is missing.
+  Explicit checks force upstream discovery and keep the previous catalog after failure.
+- **Workspace and profile isolation.** Upstream subscriptions follow the resolved source and
+  credential binding. Background discovery requires a live session bind with source authority
+  and project consent. Sessions share one fallback refresh per binding. Servers without a live
+  subscription use the longer of the server's `ttlMs` hint and a 60-second minimum, with a
+  two-minute default. An unchanged listing retains the shared projection. Shared projections
+  use the registry's visibility class, including profile, workspace and effective session policy.
+- **Extensibility, config and user state.** Existing declaration formats, generated API shapes,
+  extension and hook interfaces, and persisted state support the same inputs. Hosted updates use
+  the existing tool-list notification.
+- **Web, docs and official skill.** The MCP controls render the existing state and reason fields.
+  The MCP docs and tools-and-skills reference explain discovery, refresh and cooldown.

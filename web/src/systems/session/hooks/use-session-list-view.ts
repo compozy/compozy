@@ -10,8 +10,9 @@ import {
 } from "@/systems/workspace";
 
 import type { SessionListGroupSpec } from "../lib/session-list-groups";
-import { sessionListPair } from "../lib/session-list-groups";
+import { sessionListPair, type SessionListPair } from "../lib/session-list-groups";
 import { sessionListShelfFilters, type SessionListShelf } from "../lib/session-list-shelf";
+import { sessionListPinnedExclusion, sessionListPinnedFilters } from "../lib/session-list-pinned";
 import type { ProjectGroupTree } from "../lib/workspace-folders";
 import {
   availableSessionListGroupBys,
@@ -38,6 +39,7 @@ import {
   type SessionFoldAll,
   type SessionFoldSet,
 } from "./use-session-sidebar-state";
+import { useSessionPinnedOrder } from "./use-session-pinned-order";
 import { useSessionWindowOrder } from "./use-session-window-order";
 import { useProjectFolderGroups, type WorkspaceLayout } from "./use-workspace-layout";
 
@@ -133,6 +135,25 @@ export interface SessionListViewModel {
   selectionKey: string;
   /** Exact live-state totals of the list's whole scope, from facets; absent in the archive. */
   totals?: SessionListTotals;
+  /** The Pinned section's read, above every group and folder; absent off the active shelf. */
+  pinned?: SessionListPinnedRead;
+}
+
+/** The pins of the list's scope and filters with the subtrees they carry, in Pinned order. */
+export interface SessionListPinnedRead {
+  sessions: readonly SessionPayload[];
+  loading: boolean;
+  failed: boolean;
+  /** More pins than one page of the read holds. */
+  more: boolean;
+  retry: () => void;
+  /** The read's own paging (by pin), independent of the list's pages. */
+  catalog?: ReturnType<typeof useSessionCatalog>;
+  /**
+   * Gives the listed pins their order among the Pinned slots they hold; present where the list
+   * reads one (workspace, profile) pair, the scope a reorder is authorized in.
+   */
+  reorder?: (sessionIds: readonly string[]) => void;
 }
 
 /**
@@ -212,8 +233,11 @@ export function useSessionListView(
     showAutomation,
     search: remoteSearch,
     worktreeId: options.worktreeId,
+    pinned: groupFilters.pinned,
     enabled,
   });
+  const pending = options.pending === true;
+  const pinned = useSessionListPinnedRead({ scope, pair, groupFilters, enabled, shelf, pending });
   const arranged = useProjectFolderGroups({
     groups: grouping.groups,
     groupBy,
@@ -253,7 +277,7 @@ export function useSessionListView(
   const awaiting = awaitingReads(
     flat ? settledSearchCatalog(catalog, searchSettled) : undefined,
     grouping.loading,
-    options.pending === true
+    pending
   );
   const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
   const groupFolds = useSessionGroupFolds(scope, groupBy);
@@ -316,6 +340,43 @@ export function useSessionListView(
     badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
     selectionKey,
     totals,
+    pinned,
+  };
+}
+
+/**
+ * The Pinned section's read: the list's own filters over pins and what they carry, in Pinned
+ * order. Absent where the list has no Pinned section (the archive and Later shelves).
+ */
+function useSessionListPinnedRead({
+  scope,
+  pair,
+  groupFilters,
+  enabled,
+  shelf,
+  pending,
+}: {
+  scope: DataScope | null;
+  pair: SessionListPair | null;
+  groupFilters: SessionListFilters;
+  enabled: boolean;
+  shelf: SessionListShelf;
+  pending: boolean;
+}): SessionListPinnedRead | undefined {
+  // Only the active shelf has a Pinned section.
+  const shown = enabled && shelf === "active";
+  const read = useSessionCatalog(scope, sessionListPinnedFilters(groupFilters), shown);
+  const reorder = useSessionPinnedOrder(pair);
+  if (!shown) return undefined;
+  // While what the list reads under is unresolved, its pins read as loading, never as rows.
+  return {
+    sessions: pending ? [] : read.sessions,
+    loading: read.loading || pending,
+    failed: read.failed,
+    more: read.next || read.previous,
+    retry: read.retry,
+    catalog: read,
+    reorder,
   };
 }
 
@@ -351,6 +412,7 @@ function sessionListGroupFiltersFor(
     subagents: sessionListSubagentsParam(search),
     worktree: worktreeId,
     ...sessionListShelfFilters(shelf, showAutomation),
+    ...sessionListPinnedExclusion(shelf),
   };
 }
 

@@ -293,6 +293,7 @@ A subagent is a child agent session that another session's turn delegates one ta
 - Waiting banner: "Waiting on subagent {title}" or "Waiting on {N} subagents", "and {N} more", the action "Stop" ("Stopping…" while pending), and the toast "Could not stop subagents."
 - Tool rows: Check / Checking / Checked "subagent capabilities"; Delegate / Delegating / Delegated "a subagent"; Read / Reading / Read "subagent status"; Cancel / Canceling / Canceled "a subagent"; repeats add "… {N} times"; a failed call reads "Tried to check subagent capabilities".
 - Session list branch: the subagent indicator's aria reads "{live} of {total} subagents running", "{total} subagents, {failed} failed", or "{total} subagents" once all settled; the child-session indicator reads "{N} child sessions" ("Toggle {N} child sessions" when it is the row's only toggle); with both kinds the group is "Child sessions and subagents" and the chevron "Toggle child sessions and subagents". An open subagent list rows read "Open {title}", end with "Show {N} more", and a failed read says "Couldn't load subagents." with "Try again". A subagent row's right-click or Shift+F10 menu reads "Copy ▸" ("Copy subagent ID", "Copy title"), "Stop subagent" on a live delegated row, and "Delete subagent" on a delegated row; a provider-native row offers Copy only. The delete confirmation reads "Delete subagent", names the title, states it permanently removes the subagent and its session transcript and history, and keeps its destructive "Delete subagent" confirm ("Deleting" while pending). An open child-session list shows six children (open, selected, and needs-you children past six stay shown), then the same "Show {N} more", and "Show less" once it shows more than that.
+- Session list Pinned: the heading counts pins ("Pinned" with {n}, "100+" past that); a pin's carried child sessions nest under it uncounted. A pin's row menu reads "Move ▸" with "Move up" / "Move down" where it can move; a failed reorder toasts "Couldn't reorder the pinned sessions."
 - Inspector: section "Subagents", "Subagents · {N} running", "Previous subagents ({N})", "Show {N} more", the action "Stop subagent", and the toast "Could not stop subagent".
 - Composer control: aria "Subagents, none yet", "Subagents, none running", "Subagents, couldn't load" (a failed read with nothing running), or "Subagents, {N} running" (plus ", {n} needs you"); the popover reuses the inspector's title and rows, and with no subagents reads "Nothing delegated yet." with "When the agent hands work to a subagent, it shows up here."; a failed read says "Couldn't load subagents." with "Try again".
 - Isolated subagents (own worktree): the card and inspector row show the branch, middle-truncated, and a PR link "#{n}" with aria "Pull request #{n}, {open|draft|merged|closed}". Hover labels: Worktree · Branch · Base · Commits · PR · Observed. Values: "{n} ahead", "clean" or "{n} changed", "#{n} {state}", "No pull request" when the forge answered there is none, "PR status unknown" when CompozyOS could not check (never "No PR"), and "{relative} ago". Facts not yet observed are absent, never zero.
@@ -968,9 +969,13 @@ vertical name and count without extra words.
 
 The List toolbar and the Kanban header share one sliders button named "View options". Its menu holds
 "Sort by", "Group by" (only where a grouping applies), "Show empty projects" (under Project), "Filter" with
-"Hide child sessions" (Kanban only, because the List has no such filter), and one
-action that reads "Collapse all", or "Expand all" once everything is collapsed. In the Kanban the action
-shows only while the board has swimlanes. An empty swimlane reads "No sessions in {project} yet."
+"Hide child sessions" (Kanban only, because the List has no such filter). Beside it the List toolbar has
+a fold menu with three choices: "Expand groups" (folders and project groups open, child session lists
+folded), "Expand all" and "Collapse all". The chosen one is checked, and the button's name, tooltip and
+glyph read the current state: "Groups expanded", "All expanded", "All collapsed", or "Expand or collapse"
+before any choice. The Kanban head keeps a single action that reads "Collapse all", or "Expand all" once
+everything is collapsed; it shows only while the board has swimlanes. An empty swimlane reads "No sessions
+in {project} yet."
 
 ### Batch session actions
 

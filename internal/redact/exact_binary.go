@@ -27,12 +27,17 @@ func ExactBytes(value []byte) []byte {
 
 // ExactBinaryJSON removes literal secrets and whole JSON strings whose decoded bytes contain a registered secret.
 func ExactBinaryJSON(raw json.RawMessage) (json.RawMessage, error) {
-	return exactJSON(raw, RegisteredSecretSnapshot().exactBinaryString)
+	return RegisteredSecretSnapshot().ExactBinaryJSON(raw)
 }
 
 // ExactBinaryString removes literal and reversibly encoded registered secrets from text.
 func ExactBinaryString(value string) string {
-	return RegisteredSecretSnapshot().exactBinaryString(value)
+	return RegisteredSecretSnapshot().ExactBinaryString(value)
+}
+
+// ExactBinaryJSON redacts keys and string values against this fixed secret set.
+func (s *SecretSnapshot) ExactBinaryJSON(raw json.RawMessage) (json.RawMessage, error) {
+	return exactJSON(raw, s.ExactBinaryString)
 }
 
 // NeedsBinaryJSONRedaction reports whether any JSON string requires redaction under this snapshot.
@@ -47,13 +52,14 @@ func (s *SecretSnapshot) NeedsBinaryJSONRedaction(raw json.RawMessage) (bool, er
 		if err != nil {
 			return false, err
 		}
-		if value, ok := token.(string); ok && s.exactBinaryString(value) != value {
+		if value, ok := token.(string); ok && s.ExactBinaryString(value) != value {
 			return true, nil
 		}
 	}
 }
 
-func (s *SecretSnapshot) exactBinaryString(value string) string {
+// ExactBinaryString redacts text against this fixed secret set.
+func (s *SecretSnapshot) ExactBinaryString(value string) string {
 	changed := func(decoded []byte) bool {
 		text := string(decoded)
 		return replaceRegisteredSecrets(text, s.values) != text

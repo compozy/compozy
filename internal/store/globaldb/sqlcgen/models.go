@@ -632,6 +632,7 @@ type ExtensionMcpOverride struct {
 	HeadersJson string `json:"headers_json"`
 	Url         string `json:"url"`
 	UpdatedAt   string `json:"updated_at"`
+	Disabled    bool   `json:"disabled"`
 }
 
 type ExtensionProfileEnablement struct {
@@ -1684,6 +1685,8 @@ type Session struct {
 	InitiatorKind            string         `json:"initiator_kind"`
 	InitiatorID              string         `json:"initiator_id"`
 	FailureSeenAt            sql.NullString `json:"failure_seen_at"`
+	PinnedAt                 sql.NullString `json:"pinned_at"`
+	PinPosition              sql.NullInt64  `json:"pin_position"`
 }
 
 type SessionCreationProfile struct {

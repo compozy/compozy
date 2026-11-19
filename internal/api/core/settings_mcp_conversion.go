@@ -32,6 +32,7 @@ func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contrac
 	for i := range values {
 		value := &values[i]
 		payloads = append(payloads, contract.SettingsMCPServerItemPayload{
+			Disabled:         value.Disabled,
 			DefinitionSource: value.DefinitionSource,
 			Approval: contract.SettingsMCPApprovalStatePayload{
 				Reason:           value.Approval.Reason,

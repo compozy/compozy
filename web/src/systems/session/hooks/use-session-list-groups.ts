@@ -38,6 +38,11 @@ export interface SessionListGroupsInput {
    * group membership and totals count exactly the rows that surface shows.
    */
   population?: Pick<SessionListFilters, "children" | "subagents">;
+  /**
+   * The session list's `exclude`: pinned sessions show in its Pinned section, so its groups and
+   * their counts leave them out and a group whose only session is pinned is not listed.
+   */
+  pinned?: SessionListFilters["pinned"];
   /** A surface with no stream of its own for a group re-reads the counts on this interval. */
   refetchInterval?: number;
 }
@@ -66,12 +71,13 @@ export function useSessionListGroups({
   worktreeId,
   enabled,
   population,
+  pinned,
   refetchInterval,
 }: SessionListGroupsInput): SessionListGroupsModel {
   const grouped = enabled && groupBy !== "none" && scope !== null;
   const facets = useQuery({
-    ...sessionFacetsOptions(
-      sessionListFacetFilters({
+    ...sessionFacetsOptions({
+      ...sessionListFacetFilters({
         scope,
         lens,
         shelf,
@@ -79,8 +85,9 @@ export function useSessionListGroups({
         search,
         worktreeId,
         population,
-      })
-    ),
+      }),
+      ...(pinned ? { pinned } : {}),
+    }),
     enabled: grouped,
     ...(refetchInterval ? { refetchInterval } : {}),
   });

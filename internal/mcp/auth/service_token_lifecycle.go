@@ -62,8 +62,9 @@ func (s *Service) persistTokenAtGeneration(
 	cfg ServerConfig,
 	token TokenRecord,
 	generation uint64,
+	replacesAccess bool,
 ) (Status, error) {
-	committed, err := s.generation.CommitIfCurrent(cfg.Target, generation, func() error {
+	committed, err := s.generation.commitIfCurrent(cfg.Target, generation, replacesAccess, func() error {
 		return s.store.SaveMCPAuthToken(ctx, token)
 	})
 	if err != nil {
@@ -75,14 +76,12 @@ func (s *Service) persistTokenAtGeneration(
 	return statusFromToken(cfg, &token, s.now()), nil
 }
 
-func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenRecord) (Status, error) {
-	if err := cfg.Validate(); err != nil {
-		return Status{}, err
-	}
-	generation, err := s.generation.Snapshot(cfg.Target)
-	if err != nil {
-		return Status{}, err
-	}
+func (s *Service) refresh(
+	ctx context.Context,
+	cfg ServerConfig,
+	observed TokenRecord,
+	generation uint64,
+) (Status, error) {
 	current, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
 	if err != nil {
 		if errors.Is(err, ErrTokenNotFound) {
@@ -90,7 +89,7 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 		}
 		return Status{}, err
 	}
-	matches, err := s.tokenMatchesServerDefinition(ctx, current, cfg)
+	matches, registration, err := s.tokenBinding(ctx, current, cfg)
 	if err != nil {
 		return Status{}, err
 	}
@@ -104,10 +103,14 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 	}
 	if current.AccessToken != observed.AccessToken || current.RefreshToken != observed.RefreshToken ||
 		!current.UpdatedAt.Equal(observed.UpdatedAt) || !current.ExpiresAt.Equal(observed.ExpiresAt) {
-		return statusFromToken(cfg, &current, s.now()), nil
+		return s.Status(ctx, cfg)
 	}
-	if !current.ExpiresAt.IsZero() && current.ExpiresAt.After(s.now()) {
-		return statusFromToken(cfg, &current, s.now()), nil
+	status, err := s.statusWithRemoteRejection(cfg, s.storedTokenStatus(ctx, cfg, current, registration))
+	if err != nil || status.Status == StatusNeedsLogin {
+		return status, err
+	}
+	if !current.ExpiresAt.IsZero() && status.Status == StatusAuthenticated && !status.RenewalDue() {
+		return status, nil
 	}
 	if strings.TrimSpace(current.RefreshToken) == "" {
 		return statusFromTokenWithDiagnostic(
@@ -117,18 +120,37 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 			"refresh token is unavailable; run login again",
 		), nil
 	}
+	if !status.Refreshable {
+		return status, nil
+	}
+	return s.renewToken(ctx, cfg, current, generation)
+}
 
+func (s *Service) renewToken(
+	ctx context.Context,
+	cfg ServerConfig,
+	current TokenRecord,
+	generation uint64,
+) (Status, error) {
 	refreshConfig, metadata, err := s.refreshConfiguration(ctx, cfg)
-	if err != nil {
+	if errors.Is(err, errRefreshRegistrationInvalid) {
+		return localRefreshRepairStatus(statusFromToken(cfg, &current, s.now())), nil
+	}
+	// Hosted discovery can return a validated replacement issuer with a binding error.
+	if err != nil && metadata.Issuer == "" {
 		return Status{}, err
 	}
 	if !issuersEqual(current.Issuer, metadata.Issuer) {
 		// Keep access material bound to its original issuer, but stop advertising an unusable renewal path.
 		current.RefreshToken = ""
-		if _, err := s.persistTokenAtGeneration(ctx, cfg, current, generation); err != nil {
+		if _, err := s.persistTokenAtGeneration(ctx, cfg, current, generation, false); err != nil {
 			return Status{}, err
 		}
-		return Status{}, ErrTokenBindingInvalid
+		return statusFromTokenWithDiagnostic(cfg, &current, s.now(), "OAuth issuer changed; run login again"),
+			ErrTokenBindingInvalid
+	}
+	if err != nil {
+		return Status{}, err
 	}
 	if strings.TrimSpace(refreshConfig.ClientID) != strings.TrimSpace(current.ClientID) {
 		return Status{}, ErrTokenBindingInvalid
@@ -140,15 +162,15 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 		}
 		return Status{}, err
 	}
-	return s.persistTokenAtGeneration(ctx, cfg, refreshed, generation)
+	return s.persistTokenAtGeneration(ctx, cfg, refreshed, generation, true)
 }
 
 func (s *Service) rejectRefresh(ctx context.Context, cfg ServerConfig, generation uint64, cause error) (Status, error) {
-	committed, err := s.generation.CommitIfCurrent(cfg.Target, generation, func() error {
+	committed, err := s.generation.commitIfCurrent(cfg.Target, generation, true, func() error {
 		return s.store.DeleteMCPAuthToken(ctx, cfg.Target)
 	})
 	if err != nil {
-		return Status{}, err
+		return Status{}, errors.Join(cause, err)
 	}
 	if !committed {
 		return Status{}, ErrTokenMutationStale
@@ -175,8 +197,18 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 	if err := cfg.Validate(); err != nil {
 		return Status{}, err
 	}
+	status, _, err := s.generation.ReadAtRevision(ctx, cfg.Target, func() (Status, error) {
+		return s.readStoredStatus(ctx, cfg)
+	})
+	return status, err
+}
+
+func (s *Service) readStoredStatus(ctx context.Context, cfg ServerConfig) (Status, error) {
 	token, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
 	if err != nil {
+		if errors.Is(err, ErrTokenResolution) {
+			return s.unresolvedTokenStatus(cfg, err)
+		}
 		if errors.Is(err, ErrTokenNotFound) {
 			if cfg.Implicit {
 				cfg.Type = ""
@@ -187,20 +219,50 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 	}
 	matches, registration, err := s.tokenBinding(ctx, token, cfg)
 	if err != nil {
-		return Status{}, err
+		return s.unresolvedTokenStatus(cfg, err)
 	}
 	if !matches {
-		if cfg.Implicit {
-			cfg.Type = ""
+		const diagnostic = "stored token belongs to a different server definition; run login again"
+		if !cfg.Implicit {
+			return statusFromTokenWithDiagnostic(cfg, nil, s.now(), diagnostic), nil
 		}
-		return statusFromTokenWithDiagnostic(
-			cfg,
-			nil,
-			s.now(),
-			"stored token belongs to a different server definition; run login again",
-		), nil
+		if !tokenMatchesFingerprint(token, cfg) {
+			cfg.Type = ""
+			return statusFromToken(cfg, nil, s.now()), nil
+		}
+		return s.invalidTokenStatus(cfg, diagnostic), nil
 	}
-	return s.storedTokenStatus(cfg, token, registration), nil
+	return s.statusWithRemoteRejection(cfg, s.storedTokenStatus(ctx, cfg, token, registration))
+}
+
+func (s *Service) statusWithRemoteRejection(cfg ServerConfig, status Status) (Status, error) {
+	rejected, err := s.generation.remotelyRejected(cfg.Target)
+	if err != nil {
+		return Status{}, err
+	}
+	if !rejected {
+		return status, nil
+	}
+	if !status.Refreshable {
+		return statusFromTokenWithDiagnostic(cfg, nil, s.now(), ErrTokenRejected.Error()+"; sign in again"), nil
+	}
+	status.Status = StatusExpired
+	status.renewalDue = false
+	status.Diagnostic = ErrTokenRejected.Error() + "; refresh required"
+	return status, nil
+}
+
+func (s *Service) invalidTokenStatus(cfg ServerConfig, diagnostic string) Status {
+	status := statusFromTokenWithDiagnostic(cfg, nil, s.now(), diagnostic)
+	status.Status = StatusInvalid
+	return status
+}
+
+func (s *Service) unresolvedTokenStatus(cfg ServerConfig, err error) (Status, error) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return Status{}, err
+	}
+	return s.invalidTokenStatus(cfg, ErrTokenResolution.Error()+"; check the credential store"), nil
 }
 
 // AuthorizationToken returns bearer material only after full definition, registration, and scope binding validation.
@@ -214,10 +276,20 @@ func (s *Service) AuthorizationToken(ctx context.Context, cfg ServerConfig) (Tok
 	}
 	matches, err := s.tokenMatchesServerDefinition(ctx, token, cfg)
 	if err != nil {
-		return TokenRecord{}, err
+		return TokenRecord{}, errors.Join(ErrTokenResolution, err)
 	}
 	if !matches || strings.TrimSpace(token.AccessToken) == "" {
+		if cfg.Implicit && !tokenMatchesFingerprint(token, cfg) {
+			return TokenRecord{}, ErrTokenDefinitionChanged
+		}
 		return TokenRecord{}, ErrTokenBindingInvalid
+	}
+	rejected, err := s.generation.remotelyRejected(cfg.Target)
+	if err != nil {
+		return TokenRecord{}, err
+	}
+	if rejected {
+		return TokenRecord{}, ErrTokenRejected
 	}
 	if !token.ExpiresAt.IsZero() && !token.ExpiresAt.After(s.now().UTC()) {
 		return TokenRecord{}, ErrTokenExpired

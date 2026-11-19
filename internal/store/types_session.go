@@ -105,8 +105,13 @@ type SessionInfo struct {
 	TranscriptEpoch int64
 	Attention       *SessionAttention
 	ArchivedAt      *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// PinnedAt is when the operator pinned the session above the session list; nil when unpinned.
+	PinnedAt *time.Time
+	// PinScope places a session a pin carries in the Pinned section. Only a pinned read
+	// decorates it; it is never persisted.
+	PinScope  *SessionPinScope
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // SessionArchiveFilter controls whether archived rows participate in a catalog read.

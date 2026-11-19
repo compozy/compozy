@@ -1,0 +1,57 @@
+---
+title: "compozy session pin"
+description: "Pin a session above the session list"
+---
+
+## compozy session pin
+
+Pin a session above the session list
+
+### Synopsis
+
+Pin a session above the session list. It moves to the top of the Pinned section, above every project group and folder, and carries its child sessions with it, nested under it. Its folder, manual position and activity order, and those of its children, are kept. Pinning a pinned session changes nothing. Reorder pins with `compozy session reorder --pinned`. Subagent sessions and always-on agents' main sessions cannot be pinned.
+
+```
+compozy session pin <id> [flags]
+```
+
+### Examples
+
+```
+  # Keep a session and its children at the top of the list
+  compozy session pin sess-123
+
+  # List what is pinned, in Pinned order
+  compozy session list --pinned only --sort pinned
+```
+
+### Options
+
+```
+  -h, --help   help for pin
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session pin <id> -o json
+```

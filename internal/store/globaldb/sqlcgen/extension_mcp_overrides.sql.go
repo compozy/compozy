@@ -95,7 +95,7 @@ func (q *Queries) InsertExtensionMCPAllocation(ctx context.Context, arg InsertEx
 }
 
 const listAllExtensionMCPOverrides = `-- name: ListAllExtensionMCPOverrides :many
-SELECT extension, profile, workspace_id, server, runtime_name, env_json, headers_json, url, updated_at FROM extension_mcp_overrides ORDER BY profile, workspace_id, extension, server
+SELECT extension, profile, workspace_id, server, runtime_name, env_json, headers_json, url, updated_at, disabled FROM extension_mcp_overrides ORDER BY profile, workspace_id, extension, server
 `
 
 func (q *Queries) ListAllExtensionMCPOverrides(ctx context.Context) ([]ExtensionMcpOverride, error) {
@@ -117,6 +117,7 @@ func (q *Queries) ListAllExtensionMCPOverrides(ctx context.Context) ([]Extension
 			&i.HeadersJson,
 			&i.Url,
 			&i.UpdatedAt,
+			&i.Disabled,
 		); err != nil {
 			return nil, err
 		}
@@ -132,7 +133,7 @@ func (q *Queries) ListAllExtensionMCPOverrides(ctx context.Context) ([]Extension
 }
 
 const listExtensionMCPOverrides = `-- name: ListExtensionMCPOverrides :many
-SELECT extension, profile, workspace_id, server, runtime_name, env_json, headers_json, url, updated_at FROM extension_mcp_overrides
+SELECT extension, profile, workspace_id, server, runtime_name, env_json, headers_json, url, updated_at, disabled FROM extension_mcp_overrides
 WHERE profile = ?1 AND workspace_id = ?2
 ORDER BY extension, server
 `
@@ -161,6 +162,7 @@ func (q *Queries) ListExtensionMCPOverrides(ctx context.Context, arg ListExtensi
 			&i.HeadersJson,
 			&i.Url,
 			&i.UpdatedAt,
+			&i.Disabled,
 		); err != nil {
 			return nil, err
 		}
@@ -178,15 +180,16 @@ func (q *Queries) ListExtensionMCPOverrides(ctx context.Context, arg ListExtensi
 const updateExtensionMCPOverride = `-- name: UpdateExtensionMCPOverride :execrows
 UPDATE extension_mcp_overrides
 SET env_json = ?1, headers_json = ?2,
- url = ?3, updated_at = ?4
-WHERE extension = ?5 AND profile = ?6
- AND workspace_id = ?7 AND server = ?8
+ url = ?3, disabled = ?4, updated_at = ?5
+WHERE extension = ?6 AND profile = ?7
+ AND workspace_id = ?8 AND server = ?9
 `
 
 type UpdateExtensionMCPOverrideParams struct {
 	EnvJson     string `json:"env_json"`
 	HeadersJson string `json:"headers_json"`
 	Url         string `json:"url"`
+	Disabled    bool   `json:"disabled"`
 	UpdatedAt   string `json:"updated_at"`
 	Extension   string `json:"extension"`
 	Profile     string `json:"profile"`
@@ -199,6 +202,7 @@ func (q *Queries) UpdateExtensionMCPOverride(ctx context.Context, arg UpdateExte
 		arg.EnvJson,
 		arg.HeadersJson,
 		arg.Url,
+		arg.Disabled,
 		arg.UpdatedAt,
 		arg.Extension,
 		arg.Profile,

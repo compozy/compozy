@@ -26,6 +26,8 @@ const (
 	ListSortLastActivity = "last_activity"
 	ListSortAttention    = "attention"
 	ListSortManual       = "manual"
+	// ListSortPinned lists pinned sessions in pin order; it requires PinnedOnly.
+	ListSortPinned = "pinned"
 
 	ArchiveExclude = store.SessionArchiveExclude
 	ArchiveOnly    = store.SessionArchiveOnly
@@ -34,6 +36,10 @@ const (
 	LaterExclude = store.SessionLaterExclude
 	LaterOnly    = store.SessionLaterOnly
 	LaterInclude = store.SessionLaterInclude
+
+	PinnedExclude = store.SessionPinnedExclude
+	PinnedOnly    = store.SessionPinnedOnly
+	PinnedInclude = store.SessionPinnedInclude
 
 	sessionListCursorVersion = 2
 	sessionListCursorKind    = "sessions"
@@ -80,10 +86,12 @@ type ListQuery struct {
 	Badges               []Badge
 	Archive              store.SessionArchiveFilter
 	Later                store.SessionLaterFilter
-	Sort                 string
-	Cursor               string
-	Limit                int
-	SkipTotal            bool
+	// Pinned narrows the read to pinned sessions or leaves them out; empty includes them.
+	Pinned    store.SessionPinnedFilter
+	Sort      string
+	Cursor    string
+	Limit     int
+	SkipTotal bool
 }
 
 // ListPage contains one bounded public session catalog result.
@@ -121,7 +129,9 @@ type sessionListFingerprint struct {
 	Archive         store.SessionArchiveFilter `json:"archive"`
 	// Later stays empty for the default exclusion so pre-Later cursors remain valid.
 	Later store.SessionLaterFilter `json:"later,omitempty"`
-	Sort  string                   `json:"sort"`
+	// Pinned stays empty for the default inclusion so pre-pin cursors remain valid.
+	Pinned store.SessionPinnedFilter `json:"pinned,omitempty"`
+	Sort   string                    `json:"sort"`
 	// ExcludeInstanceMain binds the population, not the current main IDs, so a
 	// rotation between pages keeps the cursor valid.
 	ExcludeInstanceMain bool `json:"exclude_instance_main,omitempty"`
@@ -129,6 +139,27 @@ type sessionListFingerprint struct {
 	ExcludeFinishedAutomation bool `json:"exclude_finished_automation,omitempty"`
 	// ExcludeAutomation stays empty when unset so existing cursors remain valid.
 	ExcludeAutomation bool `json:"exclude_automation,omitempty"`
+}
+
+// cutSessionCatalogPage keeps one page of the merged candidates with its total and whether more
+// follow. A pinned page counts and cuts pins; the rows each pin carries list with it.
+func cutSessionCatalogPage(
+	candidates []store.SessionInfo,
+	normalized ListQuery,
+	durable store.SessionCatalogPage,
+	activeMatches []store.SessionInfo,
+	position func(*store.SessionInfo) store.SessionCatalogPosition,
+) (page []store.SessionInfo, total int, hasMore bool) {
+	if normalized.Sort == ListSortPinned {
+		total = sessionCatalogPinnedTotal(durable.PinnedRootIDs, activeMatches)
+		page, hasMore = cutSessionCatalogPinnedPage(candidates, normalized.Limit, position)
+		return page, total, hasMore
+	}
+	total = durable.Total + len(activeMatches)
+	if len(candidates) > normalized.Limit {
+		return candidates[:normalized.Limit], total, true
+	}
+	return candidates, total, false
 }
 
 // ListPage returns a stable, bounded union of durable and active sessions.
@@ -181,14 +212,10 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 
 	candidates := mergeSessionCatalogCandidates(durable.Sessions, activeMatches, after, position)
 
-	page := ListPage{
-		Total: durable.Total + len(activeMatches),
-		Limit: normalized.Limit,
-	}
-	if len(candidates) > normalized.Limit {
-		page.HasMore = true
-		candidates = candidates[:normalized.Limit]
-	}
+	page := ListPage{Limit: normalized.Limit}
+	candidates, page.Total, page.HasMore = cutSessionCatalogPage(
+		candidates, normalized, durable, activeMatches, position,
+	)
 	page.Sessions = projectSessionCatalogPage(candidates, activeByID)
 	m.decorateMCPAuthorities(ctx, page.Sessions, nil)
 	if err := m.populateCatalogRelations(
@@ -231,7 +258,7 @@ func mergeSessionCatalogCandidates(
 	for index := range activeMatches {
 		info := &activeMatches[index]
 		key := position(info)
-		if after == nil || compareSessionCatalogPosition(key, *after) > 0 {
+		if after == nil || sessionCatalogAfter(key, *after) {
 			candidates = append(candidates, candidate{info: info, position: key})
 		}
 	}
@@ -273,6 +300,7 @@ func sessionCatalogPageQuery(
 		Resumable:            normalized.Resumable,
 		Archive:              normalized.Archive,
 		Later:                normalized.Later,
+		Pinned:               normalized.Pinned,
 		Sort:                 normalized.Sort,
 		Limit:                normalized.Limit + 1,
 		After:                after,
@@ -347,6 +375,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		Badges:          append([]Badge(nil), query.Badges...),
 		Archive:         query.Archive,
 		Later:           laterFingerprint(query.Later),
+		Pinned:          query.Pinned,
 		Sort:            query.Sort,
 
 		ExcludeInstanceMain:       query.ExcludeInstanceMain,

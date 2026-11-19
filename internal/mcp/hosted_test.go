@@ -192,6 +192,35 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		}
 	})
 
+	// Invariant: an expired nonce remains a bind timeout for the runtime awaiting readiness.
+	// Owner: hosted service bind lifecycle; canonical suite: TestHostedServiceBindNonceLifecycle.
+	t.Run("Should retain the timeout when the proxy attempts to bind after the deadline", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+		executable := hostedTestExecutable(t, "compozy")
+		service := newHostedTestService(t, executable, &hostedRegistryStub{}, func() time.Time { return now })
+		const id = "sess-late-bind"
+		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: id, EagerTools: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := service.ArmLaunch(t.Context(), id); err != nil {
+			t.Fatal(err)
+		}
+		now = now.Add(time.Hour)
+		request := HostedBindRequest{SessionID: id, Nonce: hostedLaunchNonce(t, launch.Args)}
+		peer := hostedTestPeer(executable)
+		if _, err := service.Bind(t.Context(), request, peer); !errors.Is(err, ErrHostedNonceExpired) {
+			t.Fatalf("late Bind() = %v, want expired nonce", err)
+		}
+		if _, err := service.Bind(t.Context(), request, peer); !errors.Is(err, ErrHostedNonceInvalid) {
+			t.Fatalf("replayed Bind() = %v, want consumed nonce", err)
+		}
+		if err := service.WaitForBind(t.Context(), id); !errors.Is(err, ErrHostedBindTimeout) {
+			t.Fatalf("WaitForBind() = %v, want bind timeout", err)
+		}
+	})
+
 	t.Run("Should fail readiness when the full projection fails", func(t *testing.T) {
 		t.Parallel()
 		executable := hostedTestExecutable(t, "compozy")
@@ -1084,6 +1113,115 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 // Owning layer: internal/mcp hosted projection cache.
 // Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
+	// Invariant: a cold or slow upstream cannot block a hosted bind; equivalent peers
+	// reuse the warmed catalog and a later registered secret is never streamed.
+	// Owner: hosted service; canonical suite: TestHostedServiceProjectionGenerationCache.
+	t.Run("Should bind eighteen peers from one ready catalog without external discovery", func(t *testing.T) {
+		const catalogSize, peers = 1100, 18
+		const lateSecret = "catalog-late-secret-f1a72434"
+		var listCalls atomic.Int32
+		upstream := newFakeSDKServer(nil)
+		catalog := syntheticMCPTools(catalogSize)
+		catalog[0].Description = lateSecret
+		upstream.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				if method != mcpToolsListMethod {
+					return next(ctx, method, request)
+				}
+				listCalls.Add(1)
+				return &mcpsdk.ListToolsResult{Tools: catalog}, nil
+			}
+		})
+		server := newTestMCPHTTPServer(upstream)
+		t.Cleanup(server.Close)
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+			Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: server.URL,
+		})
+		source := tools.SourceRef{
+			Kind: tools.SourceMCP, Owner: "fixture", RawServerName: "fixture", RawToolName: "*", Scope: "user",
+		}
+		epoch := NewProjectionEpoch()
+		mcpProvider, err := tools.NewMCPProvider(
+			tools.MCPSourceListerFunc(func(context.Context) ([]tools.SourceRef, error) {
+				return []tools.SourceRef{source}, nil
+			}),
+			executor, nil, tools.WithMCPBackgroundDiscovery(func() { epoch.Advance() }, nil),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		native, err := tools.NewNativeProvider(tools.BuiltinSource(), hostedRuntimeNativeTool(
+			"compozy__catalog_ready", tools.RiskRead, true))
+		if err != nil {
+			t.Fatal(err)
+		}
+		counter := &hostedCountingProvider{Provider: native}
+		inputs := tools.DefaultPolicyInputs()
+		inputs.SystemPermissionMode = tools.PermissionModeApproveAll
+		inputs.ExternalDefault = tools.ExternalDefaultEnabled
+		registry, err := tools.NewRegistry(
+			tools.WithProviders(counter, mcpProvider), tools.WithPolicyInputs(inputs, tools.ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		executable := hostedTestExecutable(t, "compozy")
+		service, err := NewHostedService(&HostedConfig{
+			Enabled: true, ExpectedBinary: executable, Registry: func() tools.Registry { return registry },
+			ProjectionEpoch: epoch.Current, ProjectionChanges: epoch.Changes,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		peer := hostedTestPeer(executable)
+		bind := func(id string) HostedBindResponse {
+			t.Helper()
+			launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: id, EagerTools: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := service.ArmLaunch(t.Context(), id); err != nil {
+				t.Fatal(err)
+			}
+			bound, err := service.Bind(t.Context(), HostedBindRequest{
+				SessionID: id, Nonce: hostedLaunchNonce(t, launch.Args),
+			}, peer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return bound
+		}
+		first := bind("sess-cold")
+		if got := listCalls.Load(); got != 0 || len(first.Tools) != 1 {
+			t.Fatalf("cold bind = %d tools, %d upstream lists; want native-only, zero lists", len(first.Tools), got)
+		}
+		if err := mcpProvider.CheckMCPServer(t.Context(), tools.Scope{}, "fixture"); err != nil {
+			t.Fatal(err)
+		}
+		nativeBefore := counter.calls.Load()
+		for i := range peers {
+			bound := bind(fmt.Sprintf("sess-warm-%d", i))
+			if got := len(bound.Tools); got != catalogSize+1 {
+				t.Fatalf("bind %d tools = %d, want %d", i, got, catalogSize+1)
+			}
+		}
+		if got := counter.calls.Load() - nativeBefore; got != 1 || listCalls.Load() != 1 {
+			t.Fatalf("warm binds used %d builds, %d total upstream lists; want one of each", got, listCalls.Load())
+		}
+		cleanup := redact.RegisterRequiredSecret(lateSecret)
+		defer cleanup()
+		projection, err := service.Projection(t.Context(), first.BindID, peer)
+		if err != nil || len(projection.Tools) != catalogSize+1 || listCalls.Load() != 1 {
+			t.Fatalf("late credential projection has %d tools, %d total upstream lists, error %v",
+				len(projection.Tools), listCalls.Load(), err)
+		}
+		for _, view := range projection.Tools {
+			if strings.Contains(view.Descriptor.Description, lateSecret) {
+				t.Fatal("projection leaked newly registered material")
+			}
+		}
+	})
+
 	t.Parallel()
 	// Invariant: secret changes preserve safe hosted reads without caching a projection built across revisions.
 	// Owner: hosted projection; canonical suite: hosted projection generations.
@@ -1249,7 +1387,11 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			t.Parallel()
 			remote := newTestMCPHTTPServer(newFakeSDKServer(nil))
 			t.Cleanup(remote.Close)
-			auth := &fakeAuthService{status: mcpauth.Status{Status: mcpauth.StatusAuthenticated, TokenPresent: true}}
+			auth := &fakeAuthService{
+				status:                mcpauth.Status{Status: mcpauth.StatusAuthenticated, TokenPresent: true},
+				authorizationToken:    mcpauth.TokenRecord{AccessToken: "fixture-access", TokenType: "Bearer"},
+				hasAuthorizationToken: true,
+			}
 			executor := newTestMCPExecutor(t, authEnabledServer("echo", "http", remote.URL), withAuthService(auth))
 			source := tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo", Scope: "user"}
 			provider, err := tools.NewMCPProvider(
@@ -1988,8 +2130,9 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			projectionStates: make(map[string]mcpToolProjectionState),
 		}}
 		now := time.Now()
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "", ""),
+			"",
 			alpha,
 			time.Minute,
 			now,
@@ -2012,8 +2155,9 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		if _, err := service.Projection(t.Context(), bind.BindID, peer); err != nil {
 			t.Fatalf("Projection(alpha) error = %v", err)
 		}
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "", ""),
+			"",
 			alpha,
 			time.Millisecond,
 			now.Add(-time.Second),
@@ -2021,8 +2165,9 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			t.Fatalf("recordToolProjection(expire alpha) error = %v", err)
 		}
 		registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "", ""),
+			"",
 			beta,
 			time.Minute,
 			time.Now(),

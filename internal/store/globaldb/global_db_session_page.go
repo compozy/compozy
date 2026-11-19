@@ -64,7 +64,7 @@ const sessionInfoSelectQuery = `SELECT COALESCE(instance_id, ''), initiator_kind
 	last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at, ended_early_turn_id,
 	soul_snapshot_id, soul_digest, parent_soul_digest,
 	parked_at, park_reason, park_until, later_returned_at, ` + sessionLaterPendingMessagesExpression + `,
-	failure_seen_at,
+	failure_seen_at, pinned_at,
 	created_at, updated_at, ` + sessionCatalogVerdictOnlyExpression + `
 FROM sessions`
 
@@ -98,13 +98,27 @@ func (g *SessionRepo) PageSessions(
 		if sourceErr != nil {
 			return store.SessionCatalogPage{}, sourceErr
 		}
-		countQuery := store.AppendWhere("SELECT COUNT(1) FROM "+source, where)
-		// dynamic-sql: page filters and exclusion slices alter the count query structure.
-		if err := tx.QueryRowContext(ctx, countQuery, append(sourceArgs, args...)...).Scan(&page.Total); err != nil {
-			return store.SessionCatalogPage{}, fmt.Errorf("store: count session catalog page: %w", err)
+		if sessionCatalogPinnedSort(query) {
+			// A pinned page counts pins: the subtrees they carry list with them.
+			page.PinnedRootIDs, err = pageSessionCatalogPinnedRoots(ctx, tx, query, where, args)
+			if err != nil {
+				return store.SessionCatalogPage{}, err
+			}
+			page.Total = len(page.PinnedRootIDs)
+		} else {
+			countQuery := store.AppendWhere("SELECT COUNT(1) FROM "+source, where)
+			// dynamic-sql: page filters and exclusion slices alter the count query structure.
+			if err := tx.QueryRowContext(ctx, countQuery, append(sourceArgs, args...)...).
+				Scan(&page.Total); err != nil {
+				return store.SessionCatalogPage{}, fmt.Errorf("store: count session catalog page: %w", err)
+			}
 		}
 	}
-	page.Sessions, err = querySessionCatalogRows(ctx, tx, query, where, args)
+	if sessionCatalogPinnedSort(query) {
+		page.Sessions, err = queryPinnedSessionCatalogRows(ctx, tx, query, where, args)
+	} else {
+		page.Sessions, err = querySessionCatalogRows(ctx, tx, query, where, args)
+	}
 	if err != nil {
 		return store.SessionCatalogPage{}, err
 	}
@@ -275,6 +289,7 @@ func sessionCatalogPageFilters(
 	}
 	where, args = appendSessionArchiveFilter(where, args, query.Archive)
 	where = appendSessionLaterFilter(where, query.Later)
+	where = appendSessionPinnedFilter(where, query.Pinned)
 	where, args, err = appendSessionCatalogExclusion(where, args, "id", query.ExcludeIDs)
 	if err != nil {
 		return nil, nil, err

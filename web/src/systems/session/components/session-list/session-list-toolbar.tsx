@@ -5,11 +5,9 @@ import type { SessionListGroupBy, SessionListSort } from "../../lib/session-list
 import { SessionViewOptionsMenu } from "../session-view-options-menu";
 import { SessionListCreateMenu } from "./session-list-create-menu";
 import type { SessionListShelf } from "../../lib/session-list-shelf";
-import {
-  SessionArchivedToggle,
-  SessionFoldAllButton,
-  SessionLaterToggle,
-} from "./session-toolbar-toggles";
+import type { SessionFoldAll } from "../../lib/session-sidebar-scope";
+import { SessionFoldMenu } from "./session-fold-menu";
+import { SessionArchivedToggle, SessionLaterToggle } from "./session-toolbar-toggles";
 
 export interface SessionListToolbarProps {
   /** Active, the archive, or Later: the two toggles switch between them. */
@@ -30,9 +28,9 @@ export interface SessionListToolbarProps {
   /** "Show automation runs" (#1355): automation job and trigger sessions join the list. */
   showAutomation: boolean;
   onShowAutomationChange: (show: boolean) => void;
-  /** Collapse all is on: folders, groups, child session lists and subagent lists. */
-  allCollapsed: boolean;
-  onAllCollapsedChange: (collapsed: boolean) => void;
+  /** How deep the list opens: Expand groups, Expand all or Collapse all (#1846). */
+  foldAll: SessionFoldAll;
+  onFoldAllChange: (foldAll: Exclude<SessionFoldAll, null>) => void;
   onNewSession: () => void;
   /** Present only where folders apply; turns (+) into a New session / New folder menu. */
   onNewFolder?: () => void;
@@ -47,7 +45,7 @@ export interface SessionListToolbarProps {
  * Contents, order, grouping, and the create action for a session list. Breadth
  * is the topbar globe's (ADR-004); this toolbar has no breadth control.
  *
- * Order, grouping and filters live in one View options menu; Collapse all sits beside it. They persist per window and are
+ * Order, grouping and filters live in one View options menu; the fold menu sits beside it. They persist per window and are
  * shared with that window's Kanban; the archive and Later are ways of looking
  * right now, so they reset when the list is reopened. Turning one on turns the
  * other off; turning it off returns to the active list.
@@ -68,8 +66,8 @@ export function SessionListToolbar({
   onShowEmptyProjectsChange,
   showAutomation,
   onShowAutomationChange,
-  allCollapsed,
-  onAllCollapsedChange,
+  foldAll,
+  onFoldAllChange,
   onNewSession,
   onNewFolder,
   newFolderUnavailable,
@@ -89,10 +87,10 @@ export function SessionListToolbar({
         onLaterChange={on => onShelfChange(on ? "later" : "active")}
         testId={`${testIdPrefix}-later`}
       />
-      <SessionFoldAllButton
-        allCollapsed={allCollapsed}
+      <SessionFoldMenu
         className="ml-auto"
-        onAllCollapsedChange={onAllCollapsedChange}
+        foldAll={foldAll}
+        onFoldAllChange={onFoldAllChange}
         testId={testIdPrefix}
       />
       <SessionViewOptionsMenu

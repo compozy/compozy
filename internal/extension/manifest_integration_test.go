@@ -24,11 +24,11 @@ import (
 func TestPluginCatalogInstallability(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name            string
-		skills, servers int
+		name, invalidManifest string
+		skills, servers       int
 	}{
-		{name: "open-design", servers: 1},
-		{name: "loop-engineering", skills: 7},
+		{name: "open-design", servers: 1, invalidManifest: `{"name":`},
+		{name: "loop-engineering", skills: 7, invalidManifest: `{"name":"broken","$schema":"https://example.invalid/other.json"}`},
 	} {
 		t.Run(
 			"Should derive "+tc.name+" installability from cached authored bytes through the install loader",
@@ -51,7 +51,12 @@ func TestPluginCatalogInstallability(t *testing.T) {
 				if err := os.MkdirAll(broken, 0o700); err != nil {
 					t.Fatal(err)
 				}
-				writeFile(t, filepath.Join(broken, "plugin.json"), `{"name":`)
+				writeFile(t, filepath.Join(broken, "plugin.json"), tc.invalidManifest)
+				codex := filepath.Join(root, "broken", ".codex-plugin")
+				if err := os.MkdirAll(codex, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, filepath.Join(codex, "plugin.json"), `{"name":"codex-sibling"}`)
 				writeFile(
 					t,
 					filepath.Join(root, "marketplace.json"),
@@ -78,7 +83,8 @@ func TestPluginCatalogInstallability(t *testing.T) {
 				}
 				entries, diagnostics := doc.Entries, doc.Diagnostics
 				if len(entries) != 2 || len(diagnostics) != 3 || !entries[0].Installable ||
-					entries[1].Installable || entries[1].InstallBlocker != "load_failed" || entries[1].Layout != "claude-plugin" {
+					entries[1].Installable || entries[1].InstallBlocker != marketplace.PluginManifestInvalidBlocker ||
+					entries[1].Layout != "claude-plugin" {
 					t.Fatalf("real loader projection = %+v, diagnostics %+v, %v", entries, diagnostics, err)
 				}
 				if diagnostics[0].Plugin != "good" || diagnostics[0].Code != "client_component_ignored" ||
@@ -98,6 +104,20 @@ func TestPluginCatalogInstallability(t *testing.T) {
 				paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 				if err != nil {
 					t.Fatal(err)
+				}
+				blocked, err := marketplace.ProjectEntry(entries[1])
+				if err != nil || blocked.Extension == nil || blocked.Extension.Acquisition == nil {
+					t.Fatalf("blocked acquisition = %+v, %v", blocked, err)
+				}
+				_, err = InspectMarketplacePackage(t.Context(), paths, MarketplaceInstallRequest{
+					Slug:           entries[1].InstallSlug,
+					ExpectedDigest: entries[1].DigestSHA256,
+					Plugin: &MarketplacePluginAcquisition{
+						SourceName: "team", Record: *blocked.Extension.Acquisition, Acquirer: resolver,
+					},
+				}, "default")
+				if !errors.Is(err, ErrAgentPluginManifestInvalid) {
+					t.Fatalf("blocked archive inspection = %v, want invalid plugin manifest", err)
 				}
 				preview, err := InspectMarketplacePackage(t.Context(), paths, MarketplaceInstallRequest{
 					Slug:           entries[0].InstallSlug,
@@ -148,7 +168,8 @@ func TestPluginCatalogInstallability(t *testing.T) {
 				if err != nil || page.Total != 2 || page.State.Installable != 1 ||
 					page.State.SourceRef != doc.SourceRef || page.State.DocumentDigest != doc.DocumentDigest ||
 					page.State.DocumentPath != doc.DocumentPath || !page.State.GeneratedAt.IsZero() ||
-					len(page.State.Diagnostics) != 3 || page.Entries[0].InstallBlocker != "load_failed" ||
+					len(page.State.Diagnostics) != 3 ||
+					page.Entries[0].InstallBlocker != marketplace.PluginManifestInvalidBlocker ||
 					!page.Entries[1].Installable || page.Entries[1].Description != "" {
 					t.Fatalf("durable plugin projection = %+v, %v", page, err)
 				}
@@ -268,6 +289,7 @@ func TestClientPluginManagedInstall(t *testing.T) {
 	}
 }
 
+// Manifestless catalog entries expose the same derived inputs after refresh and archive inspection.
 func TestDerivedInputCatalogIntegration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should refresh derived inputs into durable entry detail", func(t *testing.T) {
@@ -342,9 +364,24 @@ func TestDerivedInputCatalogIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		detail, err := marketplace.ProjectEntry(*entry)
-		if err != nil || len(detail.Extension.Inputs) != 1 || detail.Extension.Inputs[0].ID != "HOST" ||
+		if err != nil || !entry.Installable || detail.Extension == nil || detail.Extension.Acquisition == nil ||
+			len(detail.Extension.Inputs) != 1 || detail.Extension.Inputs[0].ID != "HOST" ||
 			!detail.Extension.Inputs[0].Required {
 			t.Fatalf("entry detail = %+v, %v", detail, err)
+		}
+		home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		preview, err := InspectMarketplacePackage(t.Context(), home, MarketplaceInstallRequest{
+			Slug:           entry.InstallSlug,
+			ExpectedDigest: entry.DigestSHA256,
+			Plugin: &MarketplacePluginAcquisition{
+				SourceName: "team", Record: *detail.Extension.Acquisition, Acquirer: resolver,
+			},
+		}, "default")
+		if err != nil || len(preview.Inputs) != 1 || preview.Inputs[0].ID != "HOST" || !preview.Inputs[0].Required {
+			t.Fatalf("approved-byte preview inputs = %+v, %v", preview.Inputs, err)
 		}
 	})
 }

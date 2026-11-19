@@ -362,7 +362,7 @@ func (s *service) executeMCPSecretCleanupPlan(
 			"committed MCP replacement retained after partial secret cleanup rollback: " + cleanupFailure.Error(),
 		}, nil
 	}
-	restoreErr := s.writeMCPServer(root, name, target, plan.previousSource.Server)
+	restoreErr := s.writeMCPServer(context.WithoutCancel(ctx), root, name, target, plan.previousSource.Server)
 	if restoreErr != nil {
 		restoreErr = fmt.Errorf(
 			"settings: restore MCP server %q after superseded secret cleanup failure: %w",

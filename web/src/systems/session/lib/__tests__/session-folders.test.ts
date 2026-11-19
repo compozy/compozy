@@ -10,6 +10,7 @@
 // Projects with no sessions in view — and folders holding only those — show only
 // while the operator shows empty projects (#1085).
 // Owning layer: unit (systems/session/lib)
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
@@ -18,6 +19,7 @@ import {
   applyFolderRemoval,
   applySessionMove,
   applySessionOrder,
+  applySessionSlotOrder,
   applySessionsMovedFirst,
   buildSessionListSections,
   placeId,
@@ -29,6 +31,10 @@ import {
   visibleSessionOrder,
 } from "../session-folders";
 import { buildSessionListThreads } from "../session-list-threads";
+import {
+  sessionListVisibleOrder,
+  type SessionListOrderSource,
+} from "../session-list-visible-order";
 import { projectSessionGroups } from "../session-list-groups";
 import {
   buildProjectGroupTree,
@@ -169,6 +175,25 @@ describe("layout order helpers", () => {
     expect(root.find(item => item.id === "a")?.folder_id).toBeUndefined();
   });
 
+  it("Should trade pins' slots and keep the rows they carry nested under them", () => {
+    const page = [
+      session("p1"),
+      session("c1", undefined, "p1"),
+      session("p2"),
+      session("c2", "f", "p2"),
+    ];
+    const next = applySessionSlotOrder(page, ["p2", "p1"]);
+    expect(next.map(item => item.id)).toEqual(["p2", "c1", "p1", "c2"]);
+    expect(next.find(item => item.id === "c2")?.folder_id).toBe("f");
+    const threads = buildSessionListThreads(next, "");
+    expect(threads.map(thread => [thread.session.id, thread.childSessions.map(c => c.id)])).toEqual(
+      [
+        ["p2", ["c2"]],
+        ["p1", ["c1"]],
+      ]
+    );
+  });
+
   it("Should move a session to the end of its new folder and clear a deleted folder", () => {
     const page = [session("m"), session("a", "f"), session("b", "f"), session("z")];
     expect(applySessionMove(page, "m", "f").map(item => [item.id, item.folder_id])).toEqual([
@@ -217,6 +242,32 @@ describe("visibleSessionOrder", () => {
         })
       )
     ).toEqual(["sess-b", "sess-a", "sess-a-child"]);
+  });
+
+  // Invariant (#1827): the keyboard cycle walks the Pinned section first while it is open (a
+  // search opens it), then the list below; a folded Pinned section is skipped.
+  it("Should cycle pinned rows before the list and skip them while Pinned is folded", () => {
+    const pinned = session("pinned");
+    const listed = session("listed");
+    const source = (collapsed: readonly string[]): SessionListOrderSource => ({
+      catalog: { sessions: [listed] },
+      groups: [],
+      groupBy: "none",
+      groupFilters: {},
+      sort: "last_activity",
+      collapsedGroupKeys: new Set(collapsed),
+      shelf: "active",
+      pinned: { sessions: [pinned] },
+    });
+    const input = {
+      queryClient: new QueryClient(),
+      sessions: [],
+      collapsedThreadIds: new Set<string>(),
+      collapsedFolderIds: new Set<string>(),
+    };
+
+    expect(order(sessionListVisibleOrder(source([]), input))).toEqual(["pinned", "listed"]);
+    expect(order(sessionListVisibleOrder(source(["pinned"]), input))).toEqual(["listed"]);
   });
 
   // Invariant (#1732): the cycle walks a thread's children in the rows' order, active work first.

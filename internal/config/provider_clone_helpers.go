@@ -83,7 +83,12 @@ func cloneMCPServersWithCapacity(src []MCPServer, capacity int) []MCPServer {
 }
 
 func cloneMCPServer(src MCPServer) MCPServer {
+	var disabled *bool
+	if src.Disabled != nil {
+		disabled = new(*src.Disabled)
+	}
 	return MCPServer{
+		Disabled:         disabled,
 		AgentPlugin:      src.AgentPlugin,
 		DefinitionSource: src.DefinitionSource,
 		InputValues:      maps.Clone(src.InputValues),

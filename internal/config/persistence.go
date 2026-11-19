@@ -50,13 +50,15 @@ const (
 	// WriteTargetProfileConfig writes `~/.compozy/profiles/<name>/config.toml`.
 	WriteTargetProfileConfig WriteTargetKind = "profile-config"
 	// WriteTargetWorkspaceConfig writes `<workspace>/.compozy/config.toml`.
-	WriteTargetWorkspaceConfig WriteTargetKind = "workspace-config"
+	WriteTargetWorkspaceConfig        WriteTargetKind = "workspace-config"
+	WriteTargetWorkspaceProfileConfig WriteTargetKind = "workspace-profile-config"
 	// WriteTargetGlobalMCPSidecar writes `~/.compozy/mcp.json`.
 	WriteTargetGlobalMCPSidecar WriteTargetKind = "global-mcp-sidecar"
 	// WriteTargetProfileMCPSidecar writes `~/.compozy/profiles/<name>/mcp.json`.
 	WriteTargetProfileMCPSidecar WriteTargetKind = "profile-mcp-sidecar"
 	// WriteTargetWorkspaceMCPSidecar writes `<workspace>/.compozy/mcp.json`.
-	WriteTargetWorkspaceMCPSidecar WriteTargetKind = "workspace-mcp-sidecar"
+	WriteTargetWorkspaceMCPSidecar        WriteTargetKind = "workspace-mcp-sidecar"
+	WriteTargetWorkspaceProfileMCPSidecar WriteTargetKind = "workspace-profile-mcp-sidecar"
 )
 
 // WriteTarget captures a semantic destination while keeping the on-disk path
@@ -86,12 +88,12 @@ func (t WriteTarget) Path() string {
 
 func (t WriteTarget) isConfigTarget() bool {
 	return t.kind == WriteTargetGlobalConfig || t.kind == WriteTargetProfileConfig ||
-		t.kind == WriteTargetWorkspaceConfig
+		t.kind == WriteTargetWorkspaceConfig || t.kind == WriteTargetWorkspaceProfileConfig
 }
 
 func (t WriteTarget) isMCPSidecarTarget() bool {
 	return t.kind == WriteTargetGlobalMCPSidecar || t.kind == WriteTargetProfileMCPSidecar ||
-		t.kind == WriteTargetWorkspaceMCPSidecar
+		t.kind == WriteTargetWorkspaceMCPSidecar || t.kind == WriteTargetWorkspaceProfileMCPSidecar
 }
 
 // ResolveConfigWriteTarget resolves the canonical config overlay destination for

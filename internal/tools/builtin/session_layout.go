@@ -68,7 +68,9 @@ func sessionReorderDescriptor() toolspkg.Descriptor {
 		toolspkg.ToolIDSessionReorder, "session_reorder", "Session Reorder",
 		"Pin a manual session order in one folder, or in the workspace root when folder_id is omitted. "+
 			"Listed sessions move into that container in order; members not listed keep their order after them. "+
-			"The catalog shows this order with sort=manual.",
+			"The catalog shows this order with sort=manual. With pinned=true, order the Pinned section "+
+			"instead: the listed pinned sessions take the Pinned slots they hold now, in the listed order, "+
+			"and other pins keep theirs (sort=pinned, pinned=only shows it).",
 		sessionReorderInputSchema, toolspkg.RiskMutating, false,
 		[]string{"reorder sessions", "manual session order", "sort sessions manually"},
 	)
@@ -161,6 +163,7 @@ const sessionReorderInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"folder_id":{"type":"string"},
+		"pinned":{"type":"boolean"},
 		"session_ids":{"type":"array","minItems":1,"maxItems":500,"items":{"type":"string","minLength":1}}
 	},
 	"additionalProperties":false

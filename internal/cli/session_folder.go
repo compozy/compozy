@@ -166,17 +166,23 @@ func newSessionMoveCommand(deps commandDeps) *cobra.Command {
 
 func newSessionReorderCommand(deps commandDeps) *cobra.Command {
 	var folderID string
+	var pinned bool
 	cmd := &cobra.Command{
 		Use:   "reorder <id>...",
 		Short: "Pin a manual session order in a folder or the workspace root",
 		Long: "Pin the listed sessions, in order, at the top of one folder (or the workspace root). " +
 			"Sessions already there but not listed keep their order after them. " +
-			"List sessions with --sort manual to see this order.",
+			"List sessions with --sort manual to see this order. " +
+			"With --pinned, order the Pinned section instead: the listed pinned sessions take the " +
+			"Pinned slots they hold now, in order, and other pins keep theirs.",
 		Example: `  # Order two sessions at the top of the workspace root
   compozy session reorder sess_b sess_a
 
   # Order sessions inside a folder
-  compozy session reorder sess_c sess_a --folder sfold-1234`,
+  compozy session reorder sess_c sess_a --folder sfold-1234
+
+  # Put one pinned session above another in Pinned
+  compozy session reorder sess_b sess_a --pinned`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspace, err := sessionLayoutClientFromDeps(cmd, deps)
@@ -184,7 +190,7 @@ func newSessionReorderCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			response, err := client.ReorderSessions(cmd.Context(), workspace, contract.ReorderSessionsRequest{
-				FolderID: strings.TrimSpace(folderID), SessionIDs: args,
+				FolderID: strings.TrimSpace(folderID), Pinned: pinned, SessionIDs: args,
 			})
 			if err != nil {
 				return err
@@ -193,6 +199,7 @@ func newSessionReorderCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&folderID, sessionFolderFlagName, "", "Folder ID (omit for the workspace root)")
+	cmd.Flags().BoolVar(&pinned, "pinned", false, "Order the Pinned section instead of a folder or the root")
 	return withSessionLayoutWorkspaceFlag(cmd)
 }
 

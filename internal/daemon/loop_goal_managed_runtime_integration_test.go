@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
@@ -901,6 +902,18 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			}
 		})
 	})
+
+	for _, origin := range []struct {
+		name       string
+		descendant bool
+	}{
+		{name: "Should bind a worker under an always-on main"},
+		{name: "Should bind a worker under an always-on descendant", descendant: true},
+	} {
+		t.Run(origin.name, func(t *testing.T) {
+			testLoopBindingFromAlwaysOnOrigin(t, origin.descendant)
+		})
+	}
 
 	t.Run("Should preserve a deleted provenance parent as an orphan when a managed retry advances", func(t *testing.T) {
 		var failingManager *failFirstEnsureCreatedManager
@@ -2304,6 +2317,137 @@ func assertSessionProvenanceParent(
 	}
 	if wantParentID == "" && (info.Lineage.RootSessionID != sessionID || info.Lineage.SpawnDepth != 0) {
 		t.Fatalf("Status(%q).Lineage = %#v, want self-rooted lineage", sessionID, info.Lineage)
+	}
+}
+
+func testLoopBindingFromAlwaysOnOrigin(t *testing.T, descendant bool) {
+	t.Helper()
+	ctx := t.Context()
+	const (
+		allowedTool  = "compozy__workspace_list"
+		excludedTool = "compozy__session_list"
+		sharedKey    = "action:always-on-origin"
+	)
+	fixture := newLoopGoalManagedRuntimeFixture(t, "always-on-origin", nil,
+		withoutInitialGoalBinding(),
+		withGoalRuntimeAgentTools(allowedTool, excludedTool),
+	)
+	main, err := fixture.manager.CreateAccepted(ctx, &session.CreateAcceptedOpts{
+		Session: session.CreateOpts{AgentName: fixture.agentName, Workspace: string(fixture.run.WorkspaceID)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ceiling, err := json.Marshal(store.SessionPermissionPolicy{
+		Tools: []string{allowedTool}, ToolsMode: store.PermissionList,
+		WorkspacePaths: []string{fixture.workspaceRoot},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instances := fixture.daemonInstance.registry.(instanceRepositoryProvider).Instances()
+	if _, err := instances.Adopt(ctx, agentinstance.Instance{
+		ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: main.WorkspaceID,
+		PermissionCeiling: string(ceiling), CreatedByKind: "human",
+	}, main.ID, 10); err != nil {
+		t.Fatalf("Adopt(main) error = %v", err)
+	}
+	fixture.manager.SetInstanceCeilingReader(instanceCeilingReader(instances))
+	parent := main
+	if descendant {
+		parent, err = fixture.manager.CreateAccepted(ctx, &session.CreateAcceptedOpts{
+			Session: session.CreateOpts{
+				AgentName: fixture.agentName, Workspace: main.WorkspaceID,
+				Lineage: &store.SessionLineage{ParentSessionID: main.ID},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted(descendant) error = %v", err)
+		}
+	}
+	registry := fixture.daemonInstance.registry.(interface{ DB() *sql.DB })
+	if _, err := registry.DB().ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+		loop_run_id, generation, node_id, item_index, status, task_run_id, attempt, epoch
+	) VALUES (?, 1, ?, 0, 'enqueued', ?, 1, 0)`, fixture.run.ID, fixture.key.NodeID, fixture.taskRunID); err != nil {
+		t.Fatalf("seed run-agent cell: %v", err)
+	}
+	actions, err := looppkg.NewActionRegistry(
+		inertActionToolRegistry{}, looppkg.WithActionSessionBinder(fixture.runtime),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope := toolspkg.Scope{ProfileID: main.ProfileID}
+	executor, err := actions.Resolve(ctx, scope, string(loopdsl.ActionRunAgent))
+	if err != nil {
+		t.Fatal(err)
+	}
+	node := loopdsl.Node{
+		ID: fixture.key.NodeID, Class: loopdsl.NodeClassAction, Kind: string(loopdsl.ActionRunAgent),
+		Params: loopdsl.NodeParams{
+			"agent":         fixture.agentName,
+			"prompt":        "Run the worker",
+			"allowed_tools": []string{allowedTool, excludedTool},
+		},
+		Session: &loopdsl.SessionSpec{Isolated: true},
+	}
+	input := looppkg.ActionExecutionInput{
+		WorkspaceID: fixture.run.WorkspaceID, LoopRunID: fixture.run.ID, Generation: 1, NodeID: node.ID,
+		ToolScope: scope, CorrelationID: fixture.taskRunID, SessionSharedKey: sharedKey,
+		ProvenanceParentSessionID: parent.ID,
+		RuntimeSelection:          &looppkg.ActionRuntimeSelection{Catalog: integrationRuntimeCatalog{}},
+	}
+	first, err := executor.Execute(ctx, node, input)
+	if err != nil || first.Text != "reply" {
+		t.Fatalf("run-agent result = %#v, %v, want provider reply", first, err)
+	}
+	info, err := fixture.manager.Status(ctx, first.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Type != session.SessionTypeSystem || info.InstanceID != "" || info.AgentName != fixture.agentName ||
+		info.WorkspaceID != main.WorkspaceID || info.ProfileID != main.ProfileID {
+		t.Fatalf(
+			"bound session identity = %s/%s/%s/%s/%s",
+			info.Type,
+			info.InstanceID,
+			info.AgentName,
+			info.WorkspaceID,
+			info.ProfileID,
+		)
+	}
+	if info.Lineage == nil || info.Lineage.Kind != store.LineageKindProvenance ||
+		info.Lineage.ParentSessionID != parent.ID || info.Lineage.RootSessionID != main.ID ||
+		!slices.Equal(info.Lineage.PermissionPolicy.Tools, []string{allowedTool}) {
+		t.Fatalf(
+			"bound lineage = %#v, want parent %q, root %q and tools [%s]",
+			info.Lineage,
+			parent.ID,
+			main.ID,
+			allowedTool,
+		)
+	}
+	key := goalpkg.BindingKey{WorkspaceID: fixture.run.WorkspaceID, LoopRunID: fixture.run.ID, Handle: sharedKey}
+	binding, err := fixture.goalStore.GetActiveSessionBinding(ctx, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity, err := fixture.goalStore.GetSessionCreationIdentity(ctx, first.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if identity.CreationProfileRef != binding.CreationProfileRef ||
+		identity.PolicySpecDigest != binding.PolicySpecDigest ||
+		identity.CreationDigest != binding.CreationDigest {
+		t.Fatalf("persisted identity = %#v, want binding identity %#v", identity, binding)
+	}
+	profile, err := fixture.goalStore.GetSessionCreationProfile(ctx, identity.CreationProfileRef)
+	if err != nil || !slices.Equal(profile.AgentTools, []string{allowedTool}) {
+		t.Fatalf("persisted profile tools = %v, %v, want [%s]", profile.AgentTools, err, allowedTool)
+	}
+	matched, err := executor.Execute(ctx, node, input)
+	if err != nil || matched.SessionID != first.SessionID || matched.Text != "reply" {
+		t.Fatalf("run-agent reuse = %#v, %v, want provider reply from %q", matched, err, first.SessionID)
 	}
 }
 

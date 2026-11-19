@@ -19,7 +19,7 @@ import { formatAbsoluteTime, toast } from "@compozy/ui";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { expectFetchRequest } from "@/test/fetch-test-utils";
+import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 import { allModelsListOptions, type ProviderModelPayload } from "@/systems/model-catalog";
 import {
   clearActiveWorkspaceSelection,
@@ -988,6 +988,28 @@ describe("SessionList subagents", () => {
 
     expect(screen.queryByTestId("session-sidebar-session-one-child")).toBeNull();
     expect(screen.getByTestId("session-sidebar-session-two-child")).toBeVisible();
+  });
+
+  // Invariant (#1846): Expand groups folds child session lists like Collapse all, opens no
+  // subagent list, keeps a thread opened by hand open, and never hides a search result.
+  it("Should fold child sessions and leave subagents closed under Expand groups", () => {
+    vi.mocked(globalThis.fetch).mockImplementation(async () => subagentPage(0, 1));
+    const sessions = [
+      row("solo", summary(0, 1)),
+      row("one", {}),
+      row("one-child", { lineage: lineage("one") }),
+      row("two", {}),
+      row("two-child", { lineage: lineage("two") }),
+    ];
+    const grouped = { ...view, foldAll: "groups" as const, openThreadIds: ["two"] };
+    const list = renderList({ sessions, view: grouped });
+
+    expect(screen.queryByTestId("session-sidebar-session-one-child")).toBeNull();
+    expect(screen.getByTestId("session-sidebar-session-two-child")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-subagents-solo")).toBeNull();
+
+    list.update(sessions, { ...grouped, search: "one" });
+    expect(screen.getByTestId("session-sidebar-session-one-child")).toBeVisible();
   });
 
   // Invariant (#1132): Collapse all never hides a search result behind its parent's fold.
@@ -2213,6 +2235,236 @@ describe("SessionList Later", () => {
     expect(screen.queryByTestId("session-row-later-parked")).not.toBeInTheDocument();
     await user.click(await screen.findByTestId("session-row-back-from-later-parked"));
     expect(actions.onBackFromLater).toHaveBeenCalledExactlyOnceWith(parked);
+  });
+});
+
+// Invariant (#1827): the active list shows pinned sessions on their own in a Pinned section above
+// every group and row (oldest pin first, foldable, counted unless searching); a pinned list is
+// never "empty"; a row pins from its own button and unpins from its menu through the session's pin
+// route; a subagent row offers neither. Owner: SessionList through its sidebar host.
+describe("SessionList Pinned", () => {
+  const pinned: SessionPayload = {
+    ...primarySessionFixture,
+    id: "pinned",
+    name: "Launch plan",
+    archived_at: null,
+    state: "stopped",
+    pinned_at: "2026-11-18T09:00:00Z",
+  };
+  const pinnedRead = (rows: SessionPayload[], more = false) => ({
+    sessions: rows,
+    loading: false,
+    failed: false,
+    more,
+    retry: vi.fn(),
+  });
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("Should list pinned sessions above the list and show no empty state below them", async () => {
+    const user = userEvent.setup();
+    const toggleGroup = vi.fn();
+    const { update } = renderList({
+      sessions: [],
+      view: { ...view, pinned: pinnedRead([pinned]), toggleGroup },
+    });
+
+    const section = screen.getByTestId("session-sidebar-pinned");
+    expect(section).toHaveAccessibleName("Pinned");
+    expect(within(section).getByTestId("session-sidebar-session-pinned")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned1");
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
+    // A pinned row is out of its folder and order for now: Move ▸ offers neither.
+    await user.click(screen.getByTestId("session-row-actions-pinned"));
+    expect(screen.queryByTestId("session-row-up-pinned")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByTestId("session-sidebar-pinned-toggle"));
+    expect(toggleGroup).toHaveBeenCalledExactlyOnceWith("pinned");
+    update([], {
+      ...view,
+      pinned: pinnedRead([pinned], true),
+      collapsedGroupKeys: new Set(["pinned"]),
+    });
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned100+");
+    expect(screen.queryByTestId("session-sidebar-session-pinned")).not.toBeInTheDocument();
+
+    // A search narrows the rows, so the header names no count; no pins means no section.
+    update([], { ...view, search: "launch", setSearch: vi.fn(), pinned: pinnedRead([pinned]) });
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent(/^Pinned$/);
+    update([], { ...view, pinned: pinnedRead([]) });
+    expect(screen.queryByTestId("session-sidebar-pinned")).not.toBeInTheDocument();
+    // A later page an unpin emptied keeps the section and its Previous; the list is not empty.
+    update([], {
+      ...view,
+      catalog: sessionListCatalogFixture(),
+      pinned: { ...pinnedRead([], true), catalog: sessionListCatalogFixture({ previous: true }) },
+    });
+    expect(
+      within(screen.getByTestId("session-sidebar-pinned")).getByRole("button", {
+        name: "Previous sessions",
+      })
+    ).toBeVisible();
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
+
+    // A pin carries its subtree: the child nests under its pin and the count names pins only.
+    const pinnedChild: SessionPayload = {
+      ...pinned,
+      id: "pinned-child",
+      name: "Launch copy",
+      pinned_at: null,
+      lineage: {
+        spawn_role: "worker",
+        parent_session_id: pinned.id,
+        root_session_id: pinned.id,
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      },
+    };
+    update([], { ...view, pinned: pinnedRead([pinned, pinnedChild]) });
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned1");
+    expect(
+      within(screen.getByTestId("session-sidebar-pinned")).getByTestId(
+        "session-sidebar-session-pinned-child"
+      )
+    ).toBeVisible();
+
+    // While the pins are still being read, the list below is not declared empty yet.
+    const settled = { ...view, catalog: sessionListCatalogFixture() };
+    update([], { ...settled, pinned: pinnedRead([]) });
+    expect(screen.getByText(/^No sessions/)).toBeVisible();
+    update([], { ...settled, pinned: { ...pinnedRead([]), loading: true } });
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
+  });
+
+  it("Should pin a row from its button and unpin a pinned row from its menu", async () => {
+    const user = userEvent.setup();
+    const listed = { ...sessions[1]! };
+    mockJsonResponse({ session: { ...listed, pinned_at: "2026-11-18T10:00:00Z" } });
+    renderList({ sessions: [listed], view: { ...view, pinned: pinnedRead([pinned]) } });
+
+    const pin = screen.getByTestId(`session-row-pin-${listed.id}`);
+    expect(pin).toHaveAccessibleName(`Pin to top: ${listed.name}`);
+    await user.click(pin);
+    await expectFetchRequest({
+      method: "POST",
+      path: `/api/workspaces/${listed.workspace_id}/sessions/${listed.id}/pin?profile=${listed.profile_name}`,
+    });
+    await waitFor(() => expect(screen.getByText(`Pinned ${listed.name}.`)).toBeInTheDocument());
+
+    vi.mocked(globalThis.fetch).mockClear();
+    mockJsonResponse({ session: { ...pinned, pinned_at: null } });
+    await user.click(screen.getByTestId("session-row-actions-pinned"));
+    await user.click(await screen.findByTestId("session-row-unpin-pinned"));
+    await expectFetchRequest({
+      method: "DELETE",
+      path: `/api/workspaces/${pinned.workspace_id}/sessions/pinned/pin?profile=${pinned.profile_name}`,
+    });
+    await waitFor(() => expect(screen.getByText("Unpinned Launch plan.")).toBeInTheDocument());
+  });
+
+  // Invariant (#1859): pins reorder by Move up and Move down where the list reads one pair; the
+  // rows a pin carries take no order verbs, and a search turns the verbs off.
+  it("Should reorder pins from the row menu and leave carried rows unordered", async () => {
+    const user = userEvent.setup();
+    const reorder = vi.fn();
+    const second: SessionPayload = { ...pinned, id: "pinned-2", name: "Release notes" };
+    const carried: SessionPayload = {
+      ...pinned,
+      id: "carried",
+      name: "Notes draft",
+      pinned_at: null,
+      lineage: {
+        spawn_role: "worker",
+        parent_session_id: second.id,
+        root_session_id: second.id,
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      },
+    };
+    // A carried row whose pin is outside this read (archived, filtered) stands as a root but is
+    // no pin, so it never joins the order the section sends.
+    const orphan: SessionPayload = {
+      ...carried,
+      id: "orphan",
+      name: "Stray worker",
+      lineage: { ...carried.lineage!, parent_session_id: "gone", root_session_id: "gone" },
+    };
+    const { update } = renderList({
+      sessions: [],
+      view: { ...view, pinned: { ...pinnedRead([pinned, second, carried, orphan]), reorder } },
+    });
+
+    await user.click(screen.getByTestId("session-row-actions-pinned-2"));
+    await openSubmenu(user, await screen.findByTestId("session-row-move-pinned-2"));
+    await chooseItem(user, await screen.findByTestId("session-row-up-pinned-2"));
+    expect(reorder).toHaveBeenCalledExactlyOnceWith(["pinned-2", "pinned"]);
+
+    // Dragging a pin past another reorders them; a carried row is no drag source.
+    reorder.mockClear();
+    const row = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`).parentElement!;
+    for (const id of ["carried", "orphan"]) {
+      fireEvent.dragStart(row(id));
+      fireEvent.dragOver(row("pinned"));
+      fireEvent.drop(row("pinned"));
+    }
+    expect(reorder).not.toHaveBeenCalled();
+    fireEvent.dragStart(row("pinned"));
+    fireEvent.dragOver(row("pinned-2"));
+    fireEvent.drop(row("pinned-2"));
+    expect(reorder).toHaveBeenCalledExactlyOnceWith(["pinned-2", "pinned"]);
+
+    // A search can list a carried row as a root, so the section stops reordering meanwhile.
+    reorder.mockClear();
+    update([], {
+      ...view,
+      search: "notes",
+      setSearch: vi.fn(),
+      pinned: { ...pinnedRead([pinned, second]), reorder },
+    });
+    fireEvent.dragStart(row("pinned"));
+    fireEvent.dragOver(row("pinned-2"));
+    fireEvent.drop(row("pinned-2"));
+    expect(reorder).not.toHaveBeenCalled();
+  });
+
+  it("Should offer no pin verb on a subagent row", async () => {
+    const user = userEvent.setup();
+    const subagent: SessionPayload = {
+      ...sessions[1]!,
+      id: "sub",
+      lineage: {
+        spawn_role: "subagent",
+        parent_session_id: "gone",
+        root_session_id: "gone",
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      },
+    };
+    renderList({ sessions: [subagent], view: { ...view, pinned: pinnedRead([]) } });
+
+    expect(screen.queryByTestId("session-row-pin-sub")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("session-row-actions-sub"));
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-pin-sub")).not.toBeInTheDocument();
   });
 });
 
@@ -3755,17 +4007,60 @@ describe("SessionList breadth and Group by", () => {
     expect(setGroupBy).toHaveBeenCalledWith("project");
   });
 
-  // #1132: the toolbar button's name says what a click will do, and it reports the opposite state.
+  // #1846: the toolbar's fold control is a menu; its name and checked item say the current depth.
   it.each([
-    { foldAll: null, label: "Collapse all", next: "collapsed" },
-    { foldAll: "expanded", label: "Collapse all", next: "collapsed" },
-    { foldAll: "collapsed", label: "Expand all", next: "expanded" },
-  ] as const)("Should offer $label while foldAll is $foldAll", async ({ foldAll, label, next }) => {
+    { foldAll: null, name: "Expand or collapse", checked: "nothing", pick: "Expand groups" },
+    { foldAll: "groups", name: "Groups expanded", checked: "Expand groups", pick: "Expand all" },
+    { foldAll: "expanded", name: "All expanded", checked: "Expand all", pick: "Collapse all" },
+    { foldAll: "collapsed", name: "All collapsed", checked: "Collapse all", pick: "Expand groups" },
+  ] as const)(
+    "Should mark $checked and offer every depth while foldAll is $foldAll",
+    async ({ foldAll, name, checked, pick }) => {
+      const user = userEvent.setup();
+      const setFoldAll = vi.fn();
+      renderList({ view: { ...view, foldAll, setFoldAll } });
+      await user.click(screen.getByRole("button", { name }));
+      const items = await screen.findAllByRole("menuitemradio");
+      expect(items.map(item => item.textContent)).toEqual([
+        "Expand groups",
+        "Expand all",
+        "Collapse all",
+      ]);
+      expect(
+        items.filter(item => item.getAttribute("aria-checked") === "true").map(i => i.textContent)
+      ).toEqual(checked === "nothing" ? [] : [checked]);
+      await user.click(screen.getByRole("menuitemradio", { name: pick }));
+      expect(setFoldAll).toHaveBeenCalledWith(
+        { "Expand groups": "groups", "Expand all": "expanded", "Collapse all": "collapsed" }[pick]
+      );
+    }
+  );
+
+  // #1846: the fold menu works from the keyboard alone.
+  it("Should open the fold menu with Enter or Space, move with arrows, pick with Enter and close on Escape", async () => {
     const user = userEvent.setup();
     const setFoldAll = vi.fn();
-    renderList({ view: { ...view, foldAll, setFoldAll } });
-    await user.click(screen.getByRole("button", { name: label }));
-    expect(setFoldAll).toHaveBeenCalledWith(next);
+    renderList({ view: { ...view, foldAll: "collapsed", setFoldAll } });
+    const trigger = screen.getByRole("button", { name: "All collapsed" });
+    act(() => trigger.focus());
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(setFoldAll).not.toHaveBeenCalled();
+
+    await user.keyboard(" ");
+    await screen.findByRole("menu");
+    await waitFor(() =>
+      expect(screen.getByRole("menuitemradio", { name: "Expand groups" })).toHaveFocus()
+    );
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitemradio", { name: "Expand all" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(setFoldAll).toHaveBeenCalledWith("expanded");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   // The filter belongs to the board: the List has no such control, and showing children marks

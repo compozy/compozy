@@ -57,14 +57,17 @@ type StdioSessionPool struct {
 	cancelConnect context.CancelFunc
 	stopReaper    chan struct{}
 
-	mu     sync.Mutex
-	slots  map[string]*stdioSlot
-	closed bool
-	wg     sync.WaitGroup
+	mu              sync.Mutex
+	slots           map[string]*stdioSlot
+	catalogSlots    map[stdioCatalogBinding]struct{}
+	catalogSequence uint64
+	closed          bool
+	wg              sync.WaitGroup
 }
 
 // stdioSlot is the restart history of one target; it outlives the children it launches.
 type stdioSlot struct {
+	target       mcpauth.Target
 	current      *stdioSession
 	failures     int
 	retryAt      time.Time
@@ -78,6 +81,7 @@ type stdioSlot struct {
 	releasePrevSecrets func()
 	protocolDigest     string
 	protocol           string
+	catalogRevision    uint64
 	lastSeen           time.Time
 }
 
@@ -91,13 +95,14 @@ type stdioSession struct {
 	session *mcpsdk.ClientSession
 
 	// Guarded by StdioSessionPool.mu.
-	inFlight   int
-	lastUsed   time.Time
-	startedAt  time.Time
-	timeouts   int
-	retiring   bool
-	terminated bool
-	closing    bool
+	inFlight    int
+	lastUsed    time.Time
+	startedAt   time.Time
+	timeouts    int
+	retiring    bool
+	terminated  bool
+	closing     bool
+	catalogPush bool
 }
 
 // NewStdioSessionPool constructs a pool and starts its idle reaper. Close releases every child.
@@ -215,7 +220,8 @@ func (p *StdioSessionPool) sessionFor(spec mcpStdioSpec) (*stdioSession, error) 
 	now := p.cfg.now()
 	slot := p.slots[spec.slot]
 	if slot == nil {
-		slot = &stdioSlot{}
+		slot = &stdioSlot{target: spec.target}
+		p.advanceCatalogRevision(slot)
 		p.slots[spec.slot] = slot
 	}
 	slot.lastSeen = now
@@ -326,28 +332,41 @@ func (s *stdioSlot) releaseSecretProtection() {
 	s.secretsDigest = ""
 }
 
-func (l *stdioLease) release(callErr error) {
+type stdioExchangeOutcome uint8
+
+const (
+	stdioExchangeUnobserved stdioExchangeOutcome = iota
+	stdioExchangeSucceeded
+	stdioExchangeTimedOut
+)
+
+func (l *stdioLease) release(outcome stdioExchangeOutcome) {
 	if l == nil {
 		return
 	}
 	l.once.Do(func() {
-		l.pool.releaseSession(l.session, callErr)
+		l.pool.releaseSession(l.session, outcome)
 	})
 }
 
-func (p *StdioSessionPool) releaseSession(session *stdioSession, callErr error) {
+func (p *StdioSessionPool) releaseSession(session *stdioSession, outcome stdioExchangeOutcome) {
 	p.mu.Lock()
 	session.inFlight--
 	session.lastUsed = p.cfg.now()
-	switch {
-	case callErr == nil:
-		session.timeouts = 0
-		session.slot.failures = 0
-	case isMCPCallTimeout(callErr):
-		session.timeouts++
-		if session.timeouts >= stdioRetireAfterTimeouts {
-			p.cfg.Logger.Warn("mcp: recycling unresponsive stdio server", "timeouts", session.timeouts)
-			p.retireLocked(session)
+	if session.slot.current == session && !session.retiring {
+		switch outcome {
+		case stdioExchangeSucceeded:
+			session.timeouts = 0
+			session.slot.failures = 0
+		case stdioExchangeTimedOut:
+			session.timeouts++
+			logger := p.loggerFor(session.slot)
+			logger.Debug("mcp: stdio server response timed out", "timeouts", session.timeouts)
+			if session.timeouts >= stdioRetireAfterTimeouts {
+				logger.Warn("mcp: recycling unresponsive stdio server", "timeouts", session.timeouts)
+				p.recordFailureLocked(session.slot, session.digest, errStdioResponseDeadline)
+				p.retireLocked(session)
+			}
 		}
 	}
 	if session.retiring && session.inFlight == 0 {
@@ -357,12 +376,13 @@ func (p *StdioSessionPool) releaseSession(session *stdioSession, callErr error) 
 	<-session.sem
 }
 
-func isMCPCallTimeout(err error) bool {
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, toolspkg.ErrToolTimedOut) {
-		return true
-	}
-	reason, ok := toolspkg.ReasonOf(err)
-	return ok && reason == toolspkg.ReasonCallTimedOut
+func (p *StdioSessionPool) loggerFor(slot *stdioSlot) *slog.Logger {
+	return p.cfg.Logger.With(
+		"server", redactMCPDiagnosticString(slot.target.ServerName),
+		"scope", slot.target.Scope,
+		"scope_id", redactMCPDiagnosticString(slot.target.WorkspaceID),
+		"owner", redactMCPDiagnosticString(slot.target.Owner),
+	)
 }
 
 // retireLocked detaches session from its slot and closes it once no request uses it.
@@ -370,6 +390,9 @@ func (p *StdioSessionPool) retireLocked(session *stdioSession) {
 	if session.slot.current == session {
 		session.slot.current = nil
 		session.slot.lastStderr = session.stderr
+		if session.catalogPush {
+			p.advanceCatalogRevision(session.slot)
+		}
 	}
 	session.retiring = true
 	if session.inFlight == 0 {
@@ -387,7 +410,8 @@ func (p *StdioSessionPool) closeSessionLocked(session *stdioSession) {
 	client := session.session
 	p.wg.Go(func() {
 		if err := client.Close(); err != nil {
-			p.cfg.Logger.Debug("mcp: close retired stdio session", "error", redactMCPDiagnosticString(err.Error()))
+			p.loggerFor(session.slot).
+				Debug("mcp: close retired stdio session", "error", redactMCPDiagnosticString(err.Error()))
 		}
 	})
 }

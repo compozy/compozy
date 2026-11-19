@@ -32,6 +32,7 @@
         "**/routeTree.gen.ts",
         "**/.output/**",
         "extensions/open-design/lint.gen.mjs",
+        "internal/api/mcpoauthpage/assets/**",
         ".compozy/tasks/**",
         "docs/**",
         "packages/launch-video/.agents/**",

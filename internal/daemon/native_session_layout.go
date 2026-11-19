@@ -18,6 +18,7 @@ type sessionLayoutInput struct {
 	SessionID  string   `json:"session_id,omitempty"`
 	FolderIDs  []string `json:"folder_ids,omitempty"`
 	SessionIDs []string `json:"session_ids,omitempty"`
+	Pinned     bool     `json:"pinned,omitempty"`
 }
 
 type sessionLayoutCall func(
@@ -136,7 +137,9 @@ func sessionReorder(
 	scope store.SessionLayoutScope,
 	input sessionLayoutInput,
 ) (toolspkg.ToolResult, error) {
-	if err := manager.ReorderSessions(ctx, scope, input.FolderID, input.SessionIDs); err != nil {
+	if err := core.ReorderSessionLayout(ctx, manager, scope, contract.ReorderSessionsRequest{
+		FolderID: input.FolderID, Pinned: input.Pinned, SessionIDs: input.SessionIDs,
+	}); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	return sessionFoldersResult(ctx, manager, scope)

@@ -713,6 +713,10 @@ test.describe("MCP Settings authorization", () => {
       await expect(
         appPage.locator('[data-testid="mcp-sign-in-panel"][data-phase="connected"]')
       ).toBeVisible({ timeout: 15_000 });
+      // The daemon's callback page renders under its own locked-down CSP in the browser tab.
+      await expect(
+        popup.getByRole("heading", { name: `${SERVER_NAME} is connected`, exact: true })
+      ).toBeVisible();
     } finally {
       if (popup && !popup.isClosed()) await popup.close();
       if (seeded) await cleanupBrowserSettingsFixtures(runtime, seeded);

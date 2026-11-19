@@ -248,13 +248,7 @@ func cloneMCPServerDecls(decls []MCPServerDecl) []MCPServerDecl {
 
 	clone := make([]MCPServerDecl, len(decls))
 	for i, decl := range decls {
-		clone[i] = MCPServerDecl{
-			Name:      decl.Name,
-			Command:   decl.Command,
-			Args:      append([]string(nil), decl.Args...),
-			Env:       cloneStringMap(decl.Env),
-			SecretEnv: cloneStringMap(decl.SecretEnv),
-		}
+		clone[i] = cloneMCPServerDecl(decl)
 	}
 
 	return clone

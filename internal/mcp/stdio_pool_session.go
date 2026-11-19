@@ -33,7 +33,16 @@ func (p *StdioSessionPool) run(session *stdioSession, spec mcpStdioSpec) {
 		return
 	}
 	connectCtx, cancel := context.WithTimeout(p.connectCtx, p.cfg.ConnectTimeout)
-	client, err := connectMCPClient(connectCtx, &mcpsdk.CommandTransport{Command: launch.command})
+	client, err := connectMCPClientWithCatalogChanges(
+		connectCtx, &mcpsdk.CommandTransport{Command: launch.command},
+		func(context.Context, *mcpsdk.ToolListChangedRequest) {
+			p.mu.Lock()
+			if session.slot.current == session {
+				p.advanceCatalogRevision(session.slot)
+			}
+			p.mu.Unlock()
+		},
+	)
 	cancel()
 	if err != nil {
 		// The SDK closes a session whose handshake fails; kill covers a child it never reached.
@@ -73,6 +82,7 @@ func (p *StdioSessionPool) finishConnect(session *stdioSession, client *mcpsdk.C
 		return
 	}
 	session.session = client
+	session.catalogPush = supportsToolListChanges(client)
 	session.lastUsed = p.cfg.now()
 	slot.protocolDigest = session.digest
 	slot.protocol = negotiatedProtocolVersion(client)
@@ -89,10 +99,13 @@ func (p *StdioSessionPool) finishSession(session *stdioSession, exitErr error, c
 	session.terminated = true
 	if slot.current == session {
 		slot.current = nil
+		if session.catalogPush {
+			p.advanceCatalogRevision(slot)
+		}
 	}
 	slot.lastStderr = session.stderr
 	if cleanupErr != nil {
-		p.cfg.Logger.Warn("mcp: remove stdio server home", "error", redactMCPDiagnosticString(cleanupErr.Error()))
+		p.loggerFor(slot).Warn("mcp: remove stdio server home", "error", redactMCPDiagnosticString(cleanupErr.Error()))
 	}
 	if session.retiring {
 		return
@@ -116,7 +129,7 @@ func (p *StdioSessionPool) recordFailureLocked(slot *stdioSlot, digest string, e
 	}
 	slot.retryAt = p.cfg.now().Add(delay)
 	slot.lastErr = redactMCPDiagnosticString(err.Error())
-	p.cfg.Logger.Warn(
+	p.loggerFor(slot).Warn(
 		"mcp: stdio server failed; backing off",
 		"failures", slot.failures,
 		"retry_in", delay.String(),
@@ -131,6 +144,48 @@ func withStdioStderr(err error, stderr *stdioStderrRing) error {
 		return err
 	}
 	return fmt.Errorf("%w; stderr: %s", err, tail)
+}
+
+// advanceCatalogRevision is called with the pool locked; deleting a slot never reuses its revision.
+func (p *StdioSessionPool) advanceCatalogRevision(slot *stdioSlot) {
+	p.catalogSequence++
+	slot.catalogRevision = p.catalogSequence
+}
+
+func (p *StdioSessionPool) catalogRevision(spec mcpStdioSpec) uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if slot := p.slots[spec.slot]; slot != nil {
+		return slot.catalogRevision
+	}
+	return 0
+}
+
+// retainCatalog keeps notification-capable children alive while a consented reader needs them.
+func (p *StdioSessionPool) retainCatalog(active map[stdioCatalogBinding]struct{}) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for binding := range p.catalogSlots {
+		if _, retained := active[binding]; retained {
+			continue
+		}
+		if slot := p.slots[binding.slot]; slot != nil && slot.current != nil &&
+			slot.current.catalogPush && slot.current.digest == binding.digest {
+			p.retireLocked(slot.current)
+		}
+	}
+	p.catalogSlots = active
+}
+
+type stdioCatalogBinding struct{ slot, digest string }
+
+func (p *StdioSessionPool) catalogSubscribed(spec mcpStdioSpec) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	slot := p.slots[spec.slot]
+	_, retained := p.catalogSlots[stdioCatalogBinding{spec.slot, spec.digest}]
+	return retained && slot != nil && slot.current != nil &&
+		slot.current.digest == spec.digest && slot.current.catalogPush
 }
 
 func (p *StdioSessionPool) reapIdle() {
@@ -159,7 +214,10 @@ func (p *StdioSessionPool) reapIdleOnce() {
 		current := slot.current
 		if current != nil && current.session != nil && current.inFlight == 0 &&
 			now.Sub(current.lastUsed) >= p.cfg.IdleTimeout {
-			p.retireLocked(current)
+			_, retained := p.catalogSlots[stdioCatalogBinding{key, current.digest}]
+			if !retained || !current.catalogPush {
+				p.retireLocked(current)
+			}
 		}
 		if slot.current == nil && !now.Before(slot.retryAt) && now.Sub(slot.lastSeen) >= retention {
 			slot.releaseSecretProtection()

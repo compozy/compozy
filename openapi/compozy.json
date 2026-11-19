@@ -23496,6 +23496,9 @@
           "folder_id": {
             "type": "string"
           },
+          "pinned": {
+            "type": "boolean"
+          },
           "session_ids": {
             "items": {
               "type": "string"
@@ -29579,6 +29582,11 @@
           "permission_mode_degraded": {
             "type": "boolean"
           },
+          "pinned_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "process_summary": {
             "oneOf": [
               {
@@ -33252,6 +33260,17 @@
         },
         "type": "object"
       },
+      "SettingsMCPServerEnabledRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
       "SettingsMCPServerItemPayload": {
         "properties": {
           "approval": {
@@ -33303,6 +33322,9 @@
           },
           "definition_source": {
             "type": "string"
+          },
+          "disabled": {
+            "type": "boolean"
           },
           "env_keys": {
             "items": {
@@ -68364,6 +68386,23 @@
             },
             "description": "Package bytes differ from the listed digest"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ExtensionValidationErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Invalid plugin manifest"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -75490,7 +75529,20 @@
             }
           },
           {
-            "description": "Stable session ordering",
+            "description": "Visibility of pinned sessions and the subtrees their pins carry; included by default",
+            "in": "query",
+            "name": "pinned",
+            "schema": {
+              "enum": [
+                "exclude",
+                "only",
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Stable session ordering; pinned (the operator's Pinned order, pages by pin with each pin's subtree) requires pinned=only",
             "in": "query",
             "name": "sort",
             "schema": {
@@ -75501,7 +75553,8 @@
                 "last_activity",
                 "attention",
                 "navigator",
-                "manual"
+                "manual",
+                "pinned"
               ],
               "type": "string"
             }
@@ -76051,6 +76104,19 @@
             "description": "Visibility of sessions parked in Later; excluded by default",
             "in": "query",
             "name": "later",
+            "schema": {
+              "enum": [
+                "exclude",
+                "only",
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Visibility of pinned sessions and the subtrees their pins carry; included by default",
+            "in": "query",
+            "name": "pinned",
             "schema": {
               "enum": [
                 "exclude",
@@ -80155,6 +80221,160 @@
           }
         },
         "summary": "Retry one scoped MCP server runtime probe",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/mcp-servers/{name}/enabled": {
+      "put": {
+        "operationId": "setSettingsMCPServerEnabled",
+        "parameters": [
+          {
+            "description": "Configured MCP server name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact MCP settings scope",
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "enum": [
+                "user",
+                "profile",
+                "workspace"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when scope is workspace",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when scope is profile",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Definition owner: manual or extension:\u003cname\u003e; omitted owner selects manual",
+            "in": "query",
+            "name": "owner",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Declaring file from the Settings MCP row. Selects one same-name definition in the requested scope.",
+            "in": "query",
+            "name": "definition_source",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsMCPServerEnabledRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsMCPServerResponse"
+                }
+              }
+            },
+            "description": "Updated server"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid MCP server owner, scope, or payload"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server definition is ambiguous or cannot be edited"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server state could not be applied"
+          }
+        },
+        "summary": "Turn one scoped MCP server on or off",
         "tags": [
           "settings"
         ],
@@ -98567,7 +98787,7 @@
             "description": "Session layout unavailable"
           }
         },
-        "summary": "Set the manual session order in a folder or the workspace root",
+        "summary": "Set the manual session order in a folder, the workspace root, or Pinned",
         "tags": [
           "sessions"
         ],
@@ -98820,7 +99040,20 @@
             }
           },
           {
-            "description": "Stable session ordering",
+            "description": "Visibility of pinned sessions and the subtrees their pins carry; included by default",
+            "in": "query",
+            "name": "pinned",
+            "schema": {
+              "enum": [
+                "exclude",
+                "only",
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Stable session ordering; pinned (the operator's Pinned order, pages by pin with each pin's subtree) requires pinned=only",
             "in": "query",
             "name": "sort",
             "schema": {
@@ -98831,7 +99064,8 @@
                 "last_activity",
                 "attention",
                 "navigator",
-                "manual"
+                "manual",
+                "pinned"
               ],
               "type": "string"
             }
@@ -105101,6 +105335,212 @@
           }
         },
         "summary": "List pending session interactions",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/pin": {
+      "delete": {
+        "operationId": "unpinSession",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflicting profile selectors (profile_selection_conflict)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Subagent sessions follow their parent and an always-on agent's main session lives in its avatar, so neither can be pinned"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Unpin a session so it returns to its place in the list; an unpinned session is unchanged",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "post": {
+        "operationId": "pinSession",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflicting profile selectors (profile_selection_conflict)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Subagent sessions follow their parent and an always-on agent's main session lives in its avatar, so neither can be pinned"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Pin a session above the session list; pinning a pinned session changes nothing",
         "tags": [
           "sessions"
         ],

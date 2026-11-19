@@ -3820,7 +3820,9 @@ func TestDaemonNativeTools(t *testing.T) {
 				ToolID: toolspkg.ToolIDSkillView, Input: json.RawMessage(`{"name":"missing-fixture"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+		if !errors.Is(err, core.ErrSkillNotFound) || !errors.Is(err, toolspkg.ErrToolNotFound) {
+			t.Fatalf("skill_view error = %v, want a missing skill with the existing not-found classification", err)
+		}
 		privateCause := errors.New("private backend path and credential")
 		backendErr := skillViewCatalogError(t.Context(), toolspkg.ToolIDSkillView, privateCause)
 		requireToolReason(t, backendErr, toolspkg.ErrToolBackendFailed, toolspkg.ReasonBackendUnhealthy)
@@ -4603,7 +4605,12 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"command_id":"skill:workspace:missing:sha256:abc"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeNotFound || !errors.Is(err, core.ErrSkillNotFound) ||
+			!strings.Contains(toolErr.PublicMessage, "skill:workspace:missing:sha256:abc") ||
+			slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonToolUnknown) {
+			t.Fatalf("skill_view error = %+v, want a missing skill identified by command id", err)
+		}
 	})
 
 	t.Run("Should discover result view contracts through native catalog tools", func(t *testing.T) {
@@ -11815,6 +11822,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			t.Fatalf("fresh listings=%d, want two", got)
 		}
 	})
+
 	// Invariant: v0.7.0 non-delegated sessions keep current tools; governed/authored lists stay closed.
 	// Owner: daemon authority and effective policy; canonical suite: native runtime policy resolver.
 	for _, tc := range []struct {
@@ -16459,6 +16467,15 @@ func (s *nativeLayoutSessions) ReorderSessions(
 	return nil
 }
 
+func (s *nativeLayoutSessions) ReorderPinnedSessions(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	sessionIDs []string,
+) error {
+	s.folders("reorder-pinned "+strings.Join(sessionIDs, ","), scope)
+	return nil
+}
+
 func TestNativeSessionLayoutTools(t *testing.T) {
 	t.Parallel()
 
@@ -19679,4 +19696,61 @@ func (p *nativePolicyCountingProvider) List(ctx context.Context, scope toolspkg.
 }
 func (p *nativePolicyCountingProvider) ProjectionScope(toolspkg.Scope) toolspkg.Scope {
 	return toolspkg.Scope{}
+}
+
+// Run serially because the materialization key includes the process-wide redaction revision.
+func TestDaemonHostedMCPAuthoritySharing(t *testing.T) {
+	// Invariant: sessions with equal authority enumerate one catalog; a narrower lineage keeps its ceiling.
+	// Owner: daemon policy resolver; canonical suite: hosted MCP authority.
+	t.Run("Should materialize hosted authority once for equivalent root sessions", func(t *testing.T) {
+		cfg := testConfig(t, testHomePaths(t))
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg})
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider, err := toolspkg.NewMCPProvider(
+			toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) { return nil, nil }),
+			&sessionMCPExecutorStub{}, nil, toolspkg.WithMCPBackgroundDiscovery(nil, nil),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, err := toolspkg.NewRegistry(toolspkg.WithProviders(provider))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cached := registry.HostedProjectionContext(t.Context())
+		if !cached {
+			t.Fatal("expected hosted catalog context")
+		}
+		ctx = toolspkg.WithProjectionListings(ctx, toolspkg.NewProjectionListings())
+		const toolID toolspkg.ToolID = "compozy__mcp_list"
+		var enumerations int
+		resolver.scopeTools = func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+			enumerations++
+			return []toolspkg.ToolView{{
+				Descriptor: toolspkg.Descriptor{ID: toolID, Source: toolspkg.BuiltinSource()},
+			}}, nil
+		}
+		for i := range 19 {
+			mode := store.PermissionInherit
+			var want []toolspkg.ToolID
+			if i == 18 {
+				mode = store.PermissionList
+			} else {
+				want = []toolspkg.ToolID{toolID}
+			}
+			info := &session.Info{ID: fmt.Sprintf("hosted-%d", i), Type: session.SessionTypeUser,
+				Lineage: &store.SessionLineage{Kind: store.LineageKindRoot,
+					PermissionPolicy: store.SessionPermissionPolicy{ToolsMode: mode}}}
+			var inputs toolspkg.PolicyInputs
+			if err := resolver.applyEffectiveSessionToolPolicy(ctx, &inputs, info); err != nil ||
+				!slices.Equal(inputs.Session.Tools, want) {
+				t.Fatalf("session %d authority = %v, want %v, error %v", i, inputs.Session.Tools, want, err)
+			}
+		}
+		if enumerations != 2 {
+			t.Fatalf("authority enumerations = %d, want one per distinct ceiling", enumerations)
+		}
+	})
 }

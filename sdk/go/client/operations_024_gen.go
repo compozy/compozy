@@ -9,6 +9,28 @@ import (
 	"strings"
 )
 
+// ListSessionProcesses List attributed session processes
+func (c *Client) ListSessionProcesses(ctx context.Context, params ListSessionProcessesParams) (*SessionProcessesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/processes"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionProcessesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionSubagentsParams carries the path, query, and header parameters.
 type ListSessionSubagentsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -120,6 +142,7 @@ type ListSessionsParams struct {
 	Badge                     *string   `url:"badge"`
 	Archive                   *string   `url:"archive"`
 	Later                     *string   `url:"later"`
+	Pinned                    *string   `url:"pinned"`
 	Sort                      *string   `url:"sort"`
 	Cursor                    *string   `url:"cursor"`
 	Limit                     *int      `url:"limit"`
@@ -209,6 +232,9 @@ func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*
 	}
 	if params.Later != nil {
 		query.Set("later", *params.Later)
+	}
+	if params.Pinned != nil {
+		query.Set("pinned", *params.Pinned)
 	}
 	if params.Sort != nil {
 		query.Set("sort", *params.Sort)
@@ -399,46 +425,6 @@ func (c *Client) ListTaskBlocks(ctx context.Context, params ListTaskBlocksParams
 
 // ListTaskReviewsParams carries the path, query, and header parameters.
 type ListTaskReviewsParams struct {
-	ID                string  `url:"id"`
-	Status            *string `url:"status"`
-	ReviewerSessionID *string `url:"reviewer_session_id"`
-	Limit             *int    `url:"limit"`
-	Profile           *string `url:"profile"`
-	AllProfiles       *bool   `url:"all_profiles"`
-}
-
-// ListTaskReviews List task-run reviews for one task
-func (c *Client) ListTaskReviews(ctx context.Context, params ListTaskReviewsParams) (*TaskRunReviewsResponse, error) {
-	path := "/api/tasks/{id}/reviews"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.ReviewerSessionID != nil {
-		query.Set("reviewer_session_id", *params.ReviewerSessionID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunReviewsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListTaskRunReviewsParams carries the path, query, and header parameters.
-type ListTaskRunReviewsParams struct {
 	ID                string  `url:"id"`
 	Status            *string `url:"status"`
 	ReviewerSessionID *string `url:"reviewer_session_id"`

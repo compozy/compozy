@@ -28,6 +28,7 @@ func (s *service) buildMCPServerItems(
 		root = resolved.RootDir
 	}
 
+	generation := s.mcpProbeSnapshot(skipRuntimeStatus || cachedRuntimeStatus)
 	sources, err := s.loadMCPSources(workspaceID, root, scope, profileName)
 	if err != nil {
 		return nil, err
@@ -63,7 +64,13 @@ func (s *service) buildMCPServerItems(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.populateMCPCollectionStatuses(ctx, items, skipRuntimeStatus, cachedRuntimeStatus); err != nil {
+	if err := s.populateMCPCollectionStatuses(
+		ctx,
+		items,
+		skipRuntimeStatus,
+		cachedRuntimeStatus,
+		generation,
+	); err != nil {
 		return nil, err
 	}
 	markInheritedMCPAuthStatuses(items, MCPAuthTargetRequest{

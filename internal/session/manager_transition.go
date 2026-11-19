@@ -225,6 +225,8 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 			FailureSeenAt:          cloneTimePointer(info.FailureSeenAt),
 		},
 		ArchivedAt: cloneTimePointer(info.ArchivedAt),
+		PinnedAt:   cloneTimePointer(info.PinnedAt),
+		PinScope:   clonePinScope(info.PinScope),
 		CreatedAt:  info.CreatedAt,
 		UpdatedAt:  info.UpdatedAt,
 	}

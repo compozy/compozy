@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	"github.com/compozy/compozy/internal/store"
@@ -969,6 +970,35 @@ func TestMarketplaceCatalog(t *testing.T) {
 		if result.Code != "extension_source_changed" || result.ListedDigest != listed ||
 			result.FetchedDigest != fetched {
 			t.Fatalf("conflict = %#v", result)
+		}
+	})
+	t.Run("Should return 422 with a manifest diagnostic for an invalid catalog package", func(t *testing.T) {
+		t.Parallel()
+		entry := marketplaceEntryForTest()
+		entry.Installable, entry.InstallBlocker = false, marketplacepkg.PluginManifestInvalidBlocker
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+		handlers.MarketplaceCatalog = marketplaceCatalogStub{
+			detailFn: func(context.Context, string, string) (*marketplacepkg.Entry, error) { return &entry, nil },
+		}
+		handlers.Extensions = marketplaceInspectionService{
+			inspectFn: func(context.Context, marketplacepkg.Entry, string) (contract.MarketplaceExtensionDetailPayload, error) {
+				return contract.MarketplaceExtensionDetailPayload{}, &agentplugin.ManifestError{
+					ManifestPath: ".claude-plugin/plugin.json",
+					Issues:       []agentplugin.Issue{{Path: "$schema", Message: "unrelated client manifest"}},
+				}
+			},
+		}
+		engine := gin.New()
+		engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
+		response := performRequest(t, engine, http.MethodGet, "/marketplace/entries/"+entry.EntryID, nil)
+		var payload contract.ExtensionValidationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusUnprocessableEntity || len(payload.Issues) != 1 ||
+			payload.Issues[0].Field != "$schema" || payload.Issues[0].Path != ".claude-plugin/plugin.json" ||
+			!strings.Contains(payload.Error, ".claude-plugin/plugin.json") {
+			t.Fatalf("detail = %d %s", response.Code, response.Body.String())
 		}
 	})
 	// Invariant: discovery detail exposes install prompts and typed defaults before installation.

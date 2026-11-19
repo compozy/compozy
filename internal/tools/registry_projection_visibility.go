@@ -36,24 +36,13 @@ func (r *RuntimeRegistry) ProjectionVisibility(ctx context.Context, scope Scope)
 	if inputs.CheckIn != nil {
 		return "", false
 	}
-	// ToolPattern and agent enforcement are intentionally absent from PolicyInputs' JSON shape.
-	type visibilityPolicy struct {
-		Inputs        PolicyInputs
-		Allow         []string
-		Deny          []string
-		AgentEnforced bool
-		AgentAllow    []string
-		AgentDeny     []string
-	}
-	policy := visibilityPolicy{inputs, projectionPatterns(inputs.AllowTools), projectionPatterns(inputs.DenyTools),
-		inputs.Agent.Enforced, projectionPatterns(inputs.Agent.Tools), projectionPatterns(inputs.Agent.DenyTools)}
 	material := struct {
 		Profile   string
 		Workspace string
 		Policy    visibilityPolicy
 		Providers []Scope
 		Native    []Availability
-	}{Profile: scope.ProfileID, Workspace: scope.WorkspaceID, Policy: policy}
+	}{Profile: scope.ProfileID, Workspace: scope.WorkspaceID, Policy: projectionPolicy(inputs)}
 	for _, provider := range r.providers {
 		if native, ok := provider.(*NativeProvider); ok {
 			for _, id := range native.ids {
@@ -84,6 +73,29 @@ func (r *RuntimeRegistry) ProjectionVisibility(ctx context.Context, scope Scope)
 	cache.visibilities[key] = class
 	cache.visibilityMu.Unlock()
 	return class, true
+}
+
+// ToolPattern and agent enforcement are absent from PolicyInputs' JSON shape.
+type visibilityPolicy struct {
+	Inputs        PolicyInputs
+	Allow         []string
+	Deny          []string
+	AgentEnforced bool
+	AgentAllow    []string
+	AgentDeny     []string
+	SessionDigest [sha256.Size]byte
+}
+
+func projectionPolicy(inputs PolicyInputs) visibilityPolicy {
+	digest := inputs.Session.projectionDigest
+	if digest != [sha256.Size]byte{} {
+		inputs.Session.Tools = nil
+	}
+	return visibilityPolicy{
+		Inputs: inputs, Allow: projectionPatterns(inputs.AllowTools), Deny: projectionPatterns(inputs.DenyTools),
+		AgentEnforced: inputs.Agent.Enforced, AgentAllow: projectionPatterns(inputs.Agent.Tools),
+		AgentDeny: projectionPatterns(inputs.Agent.DenyTools), SessionDigest: digest,
+	}
 }
 
 func projectionPatterns(patterns []ToolPattern) []string {

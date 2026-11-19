@@ -55,7 +55,8 @@ export interface SessionListSectionsProps {
   selection?: SessionRowSelection;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
-  emptyMessage: string;
+  /** `null` while the Pinned section above holds rows. */
+  emptyMessage: string | null;
 }
 
 /**
@@ -159,7 +160,7 @@ export function SessionListSections({
       >
         {renderThreads(sections.root, null)}
       </div>
-      {empty ? (
+      {empty && emptyMessage !== null ? (
         <Empty
           className="px-3 py-8"
           fill={false}

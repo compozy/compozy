@@ -3998,6 +3998,13 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addSessionCatalogFacetsLater(baseline) == 0 {
 		t.Fatal("approved facets Later total: no historical session catalog facets schemas found")
 	}
+	// #1827: optional pinned_at on session payloads, the pinned catalog filter and the pinned sort.
+	if addSessionPinSchemas(baseline) == 0 {
+		t.Fatal("approved pin addition: no historical session schemas found")
+	}
+	addSessionCatalogPinnedParameter(t, baseline)
+	// #1859: the session reorder request gains the optional pinned flag that orders Pinned.
+	addSessionReorderPinnedProperty(t, baseline)
 	for _, code := range []tools.ErrorCode{
 		tools.ErrorCodeSessionInLater,
 		tools.ErrorCodeSubagentLaterFollowsParent,
@@ -5716,6 +5723,81 @@ func addSessionCatalogLaterParameter(t *testing.T, baseline map[string]any) {
 	}
 }
 
+func addSessionPinSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionPinSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionPinSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["badge"] == nil || properties["attachable"] == nil || properties["workspace_id"] == nil ||
+			properties["id"] == nil {
+			return count
+		}
+		properties["pinned_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+		count++
+	}
+	return count
+}
+
+// addSessionReorderPinnedProperty adds the optional pinned flag to the session reorder request.
+func addSessionReorderPinnedProperty(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	schema := baseline
+	for _, key := range []string{
+		"paths", "/api/workspaces/{workspace_id}/session-order/sessions", "put", "requestBody", "content",
+		"application/json", "schema",
+	} {
+		next, ok := schema[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved reorder pinned flag: baseline has no %s", key)
+		}
+		schema = next
+	}
+	if ref, ok := schema["$ref"].(string); ok {
+		name := strings.TrimPrefix(ref, "#/components/schemas/")
+		schema = baseline["components"].(map[string]any)["schemas"].(map[string]any)[name].(map[string]any)
+	}
+	schema["properties"].(map[string]any)["pinned"] = map[string]any{"type": "boolean"}
+}
+
+// addSessionCatalogPinnedParameter inserts the pinned filter after the Later
+// filter of each session catalog read and the pinned value into its sort.
+func addSessionCatalogPinnedParameter(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	pinned := map[string]any{
+		"description": "Visibility of pinned sessions; included by default",
+		"in":          "query", "name": "pinned",
+		"schema": map[string]any{"enum": []any{"exclude", "only", "include"}, "type": "string"},
+	}
+	for _, path := range []string{"/api/sessions", "/api/sessions/facets", "/api/workspaces/{workspace_id}/sessions"} {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		at := slices.IndexFunc(parameters, func(parameter any) bool {
+			return parameter.(map[string]any)["name"] == "later"
+		})
+		if at < 0 {
+			t.Fatalf("approved pinned filter: %s has no later parameter", path)
+		}
+		operation["parameters"] = slices.Concat(parameters[:at+1], []any{pinned}, parameters[at+1:])
+		for _, parameter := range operation["parameters"].([]any) {
+			parameter := parameter.(map[string]any)
+			if parameter["name"] != "sort" {
+				continue
+			}
+			parameter["description"] = "Stable session ordering; pinned (pin order, oldest first) requires pinned=only"
+			schema := parameter["schema"].(map[string]any)
+			schema["enum"] = append(schema["enum"].([]any), "pinned")
+		}
+	}
+}
+
 func addPromptDispositionValue(value any, disposition string) int {
 	count := 0
 	switch node := value.(type) {
@@ -7073,6 +7155,8 @@ func addMCPHotActivationSchemas(t *testing.T, baseline, current map[string]any) 
 					t.Fatal("missing approved MCP field definition_source")
 				}
 				properties["definition_source"] = serverProperties["definition_source"]
+				// #1852 adds one optional boolean without changing the existing MCP server fields.
+				properties["disabled"] = map[string]any{"type": "boolean"}
 			}
 		}
 	}

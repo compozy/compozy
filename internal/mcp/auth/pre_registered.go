@@ -26,17 +26,20 @@ func (s *Service) beginPreRegisteredOAuth(
 	if err != nil {
 		return LoginState{}, err
 	}
-	authorizationURL, err := authorizationURL(
-		metadata.AuthorizationEndpoint,
+	// A pre-registered client's grant permissions are known only to its issuer.
+	authorizationURL, scopes, err := authorizationURL(
+		metadata,
 		cfg,
 		redirectURL,
 		state,
 		pkce,
+		false,
 	)
 	if err != nil {
 		return LoginState{}, err
 	}
 	return LoginState{
+		requestedScopes:  scopes,
 		Target:           cfg.Target.Normalize(),
 		RedirectURL:      strings.TrimSpace(redirectURL),
 		State:            state,

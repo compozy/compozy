@@ -379,6 +379,98 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		})
 	}
 
+	t.Run("Should split live and stopped pinned sessions out of the page in Pinned order", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		h, _ := newMentionHarness(t)
+		live := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, live.ID) })
+		stopped := createSession(t, h)
+		reportSessionStop(t, h, stopped.ID)
+		other := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, other.ID) })
+		for _, id := range []string{stopped.ID, live.ID} {
+			pinned, err := h.manager.Pin(ctx, h.workspaceID, id)
+			if err != nil || pinned.PinnedAt == nil {
+				t.Fatalf("Pin(%s) = %#v, %v, want a pin", id, pinned, err)
+			}
+		}
+		info, err := h.manager.Status(ctx, live.ID)
+		if err != nil || info.PinnedAt == nil || info.State != StateActive {
+			t.Fatalf("Status(live pinned) = %#v, %v, want active with its pin", info, err)
+		}
+		pinnedQuery := ListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: h.workspaceID,
+			Pinned:      PinnedOnly,
+			Sort:        ListSortPinned,
+			Limit:       1,
+		}
+		first, err := h.manager.ListPage(ctx, pinnedQuery)
+		if err != nil || len(first.Sessions) != 1 || first.Sessions[0].ID != live.ID || !first.HasMore ||
+			first.Total != 2 {
+			t.Fatalf("ListPage(pinned first) = %#v, %v, want the newest pin on top and more", first, err)
+		}
+		pinnedQuery.Cursor = first.NextCursor
+		second, err := h.manager.ListPage(ctx, pinnedQuery)
+		if err != nil || len(second.Sessions) != 1 || second.Sessions[0].ID != stopped.ID || second.HasMore {
+			t.Fatalf("ListPage(pinned second) = %#v, %v, want the older pin last", second, err)
+		}
+		layoutScope := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID}
+		if err := h.manager.ReorderPinnedSessions(ctx, layoutScope, []string{stopped.ID, live.ID}); err != nil {
+			t.Fatalf("ReorderPinnedSessions() error = %v", err)
+		}
+		pinnedQuery.Cursor, pinnedQuery.Limit = "", 10
+		reordered, err := h.manager.ListPage(ctx, pinnedQuery)
+		if err != nil || len(reordered.Sessions) != 2 || reordered.Sessions[0].ID != stopped.ID ||
+			reordered.Sessions[1].ID != live.ID {
+			t.Fatalf("ListPage(pinned reordered) = %#v, %v, want the operator's order", reordered.Sessions, err)
+		}
+		rest := ListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: h.workspaceID,
+			Pinned:      PinnedExclude,
+			Limit:       10,
+		}
+		page, err := h.manager.ListPage(ctx, rest)
+		facets, facetsErr := h.manager.CatalogFacets(ctx, rest)
+		if err != nil || facetsErr != nil || len(page.Sessions) != 1 || page.Sessions[0].ID != other.ID ||
+			facets.Facets.All != 1 {
+			t.Fatalf("ListPage(exclude) = %#v, %v facets=%#v, %v, want only the unpinned session",
+				page.Sessions, err, facets.Facets, facetsErr)
+		}
+		if _, err := h.manager.ListPage(ctx, ListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Sort: ListSortPinned,
+		}); !errors.Is(err, ErrListQueryInvalid) {
+			t.Fatalf("ListPage(sort pinned without only) error = %v, want ErrListQueryInvalid", err)
+		}
+		unpinned, err := h.manager.Unpin(ctx, h.workspaceID, live.ID)
+		if err != nil || unpinned.PinnedAt != nil {
+			t.Fatalf("Unpin(live) = %#v, %v, want unpinned", unpinned, err)
+		}
+		page, err = h.manager.ListPage(ctx, rest)
+		if err != nil || len(page.Sessions) != 2 {
+			t.Fatalf("ListPage(exclude after unpin) = %#v, %v, want the live session back", page.Sessions, err)
+		}
+		catalogEvents, cancel, err := h.manager.SubscribeSessionCatalogEvents(
+			ctx,
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+		}
+		defer cancel()
+		again, err := h.manager.Unpin(ctx, h.workspaceID, live.ID)
+		if err != nil || again.PinnedAt != nil {
+			t.Fatalf("Unpin(live again) = %#v, %v, want unpinned", again, err)
+		}
+		select {
+		case event := <-catalogEvents:
+			t.Fatalf("unpin of an unpinned session published catalog event %+v", event)
+		case <-time.After(200 * time.Millisecond):
+		}
+	})
+
 	t.Run("Should drop instance main sessions from the page and its total", func(t *testing.T) {
 		t.Parallel()
 		catalog := &multiPagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}

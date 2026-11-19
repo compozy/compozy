@@ -69,6 +69,9 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, err
 	}
 	query.Later = later
+	if err := normalizePinnedFilter(&query); err != nil {
+		return ListQuery{}, err
+	}
 	scopeAutomationExclusions(&query)
 	if query.Limit == 0 {
 		query.Limit = DefaultListLimit
@@ -78,7 +81,7 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	}
 	switch query.Sort {
 	case ListSortRecent, ListSortCreated, ListSortName, ListSortNavigator, ListSortLastActivity, ListSortAttention,
-		ListSortManual:
+		ListSortManual, ListSortPinned:
 	default:
 		return ListQuery{}, fmt.Errorf("%w: unsupported sort %q", ErrListQueryInvalid, query.Sort)
 	}
@@ -127,7 +130,8 @@ func scopeAutomationExclusions(query *ListQuery) {
 // counting the default population.
 func explicitSessionLookup(query ListQuery) bool {
 	return query.Search != "" || query.SessionType != "" || query.ParentSessionID != "" ||
-		query.RootSessionID != "" || query.Archive == ArchiveOnly || query.Later == LaterOnly
+		query.RootSessionID != "" || query.Archive == ArchiveOnly || query.Later == LaterOnly ||
+		query.Pinned == PinnedOnly
 }
 
 func normalizeListSearch(query *ListQuery) error {
@@ -166,8 +170,7 @@ func sessionMatchesLinkedWorkSearch(info *Info, search string) bool {
 
 func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if !sessionMatchesIdentityFilters(info, query) || !sessionMatchesLineageFilters(info, query) ||
-		query.Resumable && !AttachableForInfo(info, now) || !sessionMatchesArchiveFilter(info, query.Archive) ||
-		!sessionMatchesLaterFilter(info, query.Later) {
+		query.Resumable && !AttachableForInfo(info, now) || !sessionMatchesShelfFilters(info, query) {
 		return false
 	}
 	badge := BadgeForInfo(info)
@@ -208,6 +211,12 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 		}
 	}
 	return false
+}
+
+// sessionMatchesShelfFilters applies the archive, Later and pinned populations.
+func sessionMatchesShelfFilters(info *Info, query ListQuery) bool {
+	return sessionMatchesArchiveFilter(info, query.Archive) && sessionMatchesLaterFilter(info, query.Later) &&
+		sessionMatchesPinnedFilter(info, query.Pinned)
 }
 
 func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {

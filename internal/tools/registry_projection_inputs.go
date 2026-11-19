@@ -46,6 +46,12 @@ func (r *RuntimeRegistry) ExternalProjectionFingerprint(ctx context.Context, sco
 		if _, native := provider.(*NativeProvider); native {
 			continue
 		}
+		if mcp, ok := provider.(*MCPProvider); ok && mcp.catalog != nil {
+			if generation, known := mcp.ProjectionGeneration(ctx, scope); known {
+				appendProjectionGenerationPart(&stamp, mcp.ID().Owner, generation)
+				continue
+			}
+		}
 		providerScope := scope
 		if scoped, ok := provider.(ProjectionScopeProvider); ok {
 			providerScope = scoped.ProjectionScope(scope)

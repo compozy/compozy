@@ -30,7 +30,8 @@ func (r *sessionMCPReadModel) CheckSessionMCP(ctx context.Context, id, name, own
 		return session.MCP{}, fmt.Errorf("%w: MCP server %q", settingspkg.ErrNotFound, name)
 	}
 	row := current.CompozyServers[index]
-	if row.State == mcpWaitingApproval || row.State == "not_available" || row.State == mcpNeedsSignIn {
+	if row.State == string(settingspkg.MCPServerRuntimeStateOff) || row.State == mcpWaitingApproval ||
+		row.State == "not_available" || row.State == mcpNeedsSignIn {
 		return current, nil
 	}
 	checker, ok := r.state.mcpToolProvider.(interface {

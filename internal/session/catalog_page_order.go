@@ -22,7 +22,7 @@ func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.Sessi
 	if sortKey == ListSortCreated {
 		position.PrimaryAt = info.CreatedAt.UTC()
 	}
-	if sortKey == ListSortLastActivity {
+	if sortKey == ListSortLastActivity || sortKey == ListSortPinned {
 		position.SecondaryAt = info.UpdatedAt.UTC()
 		if info.Liveness != nil && info.Liveness.LastUpdateAt != nil && !info.Liveness.LastUpdateAt.IsZero() {
 			position.PrimaryAt = info.Liveness.LastUpdateAt.UTC()
@@ -35,6 +35,10 @@ func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.Sessi
 			position.PrimaryAt = attention.AttentionChangedAt.UTC()
 		}
 		position.SecondaryAt = info.UpdatedAt.UTC()
+	}
+	if sortKey == ListSortPinned && info.PinScope != nil {
+		position.PinPosition = new(info.PinScope.Position)
+		position.PinRootID = strings.TrimSpace(info.PinScope.RootID)
 	}
 	if sortKey == ListSortNavigator {
 		band := 3
@@ -69,10 +73,21 @@ func sessionCatalogAttentionRank(info *store.SessionInfo) store.SessionCatalogAt
 	}
 }
 
-func compareSessionCatalogPosition(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
+// compareSessionCatalogKeyedPosition orders the sorts with a dedicated key: manual and pinned.
+func compareSessionCatalogKeyedPosition(left, right store.SessionCatalogPosition) (int, bool) {
 	if left.ManualFolderRank != nil && right.ManualFolderRank != nil &&
 		left.ManualPosition != nil && right.ManualPosition != nil {
-		return compareSessionCatalogManualPosition(left, right)
+		return compareSessionCatalogManualPosition(left, right), true
+	}
+	if left.PinPosition != nil && right.PinPosition != nil {
+		return compareSessionCatalogPinnedPosition(left, right), true
+	}
+	return 0, false
+}
+
+func compareSessionCatalogPosition(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
+	if order, keyed := compareSessionCatalogKeyedPosition(left, right); keyed {
+		return order
 	}
 	if left.Name != nil && right.Name != nil {
 		if order := strings.Compare(*left.Name, *right.Name); order != 0 {

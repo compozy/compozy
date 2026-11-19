@@ -2738,6 +2738,13 @@
             "resource": "cmdPalette",
             "app_access": "denied"
         },
+        "pinSession": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.pinSession({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PinSession(ctx, client.PinSessionParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
         "planSessionHistoryCleanup": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.planSessionHistoryCleanup({ body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PlanSessionHistoryCleanup(ctx, client.PlanSessionHistoryCleanupParams{}, client.SessionHistoryCleanupRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -3578,6 +3585,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "setSettingsMCPServerEnabled": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.setSettingsMCPServerEnabled({ path: { \"name\": \"name\" }, query: { \"scope\": \"user\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SetSettingsMCPServerEnabled(ctx, client.SetSettingsMCPServerEnabledParams{Name: \"name\", Scope: \"user\"}, client.SettingsMCPServerEnabledRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "settings",
+            "app_access": "denied"
+        },
         "setSettingsProviderEnabled": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.setSettingsProviderEnabled({ path: { \"name\": \"name\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SetSettingsProviderEnabled(ctx, client.SetSettingsProviderEnabledParams{Name: \"name\"}, client.SetSettingsProviderEnabledRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -3871,6 +3885,13 @@
             "kind": "json",
             "resource": "cmdPalette",
             "app_access": "denied"
+        },
+        "unpinSession": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.unpinSession({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UnpinSession(ctx, client.UnpinSessionParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
         },
         "unregisterWindowManagerClient": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.unregisterWindowManagerClient({ path: { \"workspace_id\": \"workspace_id\", \"client_id\": \"client_id\" } });",
