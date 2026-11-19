@@ -23,14 +23,15 @@ type MutationGeneration struct {
 }
 
 type targetMutationGeneration struct {
-	mu                sync.Mutex
-	value             uint64
-	revision          uint64
-	refreshGate       chan struct{}
-	refreshGeneration uint64
-	refreshAttempts   int
-	refreshRetryAt    time.Time
-	remoteRejected    bool
+	mu                       sync.Mutex
+	value                    uint64
+	revision                 uint64
+	refreshGate              chan struct{}
+	refreshGeneration        uint64
+	refreshAttempts          int
+	refreshRetryAt           time.Time
+	refreshCanUseAccessToken bool
+	remoteRejected           bool
 }
 
 // NewMutationGeneration constructs a process-wide token mutation coordinator.

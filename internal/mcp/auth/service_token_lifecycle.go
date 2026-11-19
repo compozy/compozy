@@ -76,11 +76,12 @@ func (s *Service) persistTokenAtGeneration(
 	return statusFromToken(cfg, &token, s.now()), nil
 }
 
-func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenRecord) (Status, error) {
-	generation, err := s.generation.Snapshot(cfg.Target)
-	if err != nil {
-		return Status{}, err
-	}
+func (s *Service) refresh(
+	ctx context.Context,
+	cfg ServerConfig,
+	observed TokenRecord,
+	generation uint64,
+) (Status, error) {
 	current, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
 	if err != nil {
 		if errors.Is(err, ErrTokenNotFound) {
@@ -88,7 +89,7 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 		}
 		return Status{}, err
 	}
-	matches, err := s.tokenMatchesServerDefinition(ctx, current, cfg)
+	matches, registration, err := s.tokenBinding(ctx, current, cfg)
 	if err != nil {
 		return Status{}, err
 	}
@@ -104,12 +105,12 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 		!current.UpdatedAt.Equal(observed.UpdatedAt) || !current.ExpiresAt.Equal(observed.ExpiresAt) {
 		return s.Status(ctx, cfg)
 	}
-	rejected, err := s.generation.remotelyRejected(cfg.Target)
-	if err != nil {
-		return Status{}, err
+	status, err := s.statusWithRemoteRejection(cfg, s.storedTokenStatus(ctx, cfg, current, registration))
+	if err != nil || status.Status == StatusNeedsLogin {
+		return status, err
 	}
-	if !rejected && current.ExpiresAt.After(s.now()) {
-		return statusFromToken(cfg, &current, s.now()), nil
+	if !current.ExpiresAt.IsZero() && status.Status == StatusAuthenticated && !status.RenewalDue() {
+		return status, nil
 	}
 	if strings.TrimSpace(current.RefreshToken) == "" {
 		return statusFromTokenWithDiagnostic(
@@ -119,9 +120,24 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 			"refresh token is unavailable; run login again",
 		), nil
 	}
+	if !status.Refreshable {
+		return status, nil
+	}
+	return s.renewToken(ctx, cfg, current, generation)
+}
 
+func (s *Service) renewToken(
+	ctx context.Context,
+	cfg ServerConfig,
+	current TokenRecord,
+	generation uint64,
+) (Status, error) {
 	refreshConfig, metadata, err := s.refreshConfiguration(ctx, cfg)
-	if err != nil {
+	if errors.Is(err, errRefreshRegistrationInvalid) {
+		return localRefreshRepairStatus(statusFromToken(cfg, &current, s.now())), nil
+	}
+	// Hosted discovery can return a validated replacement issuer with a binding error.
+	if err != nil && metadata.Issuer == "" {
 		return Status{}, err
 	}
 	if !issuersEqual(current.Issuer, metadata.Issuer) {
@@ -130,7 +146,11 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 		if _, err := s.persistTokenAtGeneration(ctx, cfg, current, generation, false); err != nil {
 			return Status{}, err
 		}
-		return Status{}, ErrTokenBindingInvalid
+		return statusFromTokenWithDiagnostic(cfg, &current, s.now(), "OAuth issuer changed; run login again"),
+			ErrTokenBindingInvalid
+	}
+	if err != nil {
+		return Status{}, err
 	}
 	if strings.TrimSpace(refreshConfig.ClientID) != strings.TrimSpace(current.ClientID) {
 		return Status{}, ErrTokenBindingInvalid
@@ -150,7 +170,7 @@ func (s *Service) rejectRefresh(ctx context.Context, cfg ServerConfig, generatio
 		return s.store.DeleteMCPAuthToken(ctx, cfg.Target)
 	})
 	if err != nil {
-		return Status{}, err
+		return Status{}, errors.Join(cause, err)
 	}
 	if !committed {
 		return Status{}, ErrTokenMutationStale
@@ -212,11 +232,14 @@ func (s *Service) readStoredStatus(ctx context.Context, cfg ServerConfig) (Statu
 		}
 		return s.invalidTokenStatus(cfg, diagnostic), nil
 	}
+	return s.statusWithRemoteRejection(cfg, s.storedTokenStatus(ctx, cfg, token, registration))
+}
+
+func (s *Service) statusWithRemoteRejection(cfg ServerConfig, status Status) (Status, error) {
 	rejected, err := s.generation.remotelyRejected(cfg.Target)
 	if err != nil {
 		return Status{}, err
 	}
-	status := s.storedTokenStatus(cfg, token, registration)
 	if !rejected {
 		return status, nil
 	}
@@ -224,6 +247,7 @@ func (s *Service) readStoredStatus(ctx context.Context, cfg ServerConfig) (Statu
 		return statusFromTokenWithDiagnostic(cfg, nil, s.now(), ErrTokenRejected.Error()+"; sign in again"), nil
 	}
 	status.Status = StatusExpired
+	status.renewalDue = false
 	status.Diagnostic = ErrTokenRejected.Error() + "; refresh required"
 	return status, nil
 }

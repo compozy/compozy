@@ -12,11 +12,15 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/sync/semaphore"
+
 	"github.com/compozy/compozy/internal/filesnap"
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const DefaultMaxCacheBytes int64 = 1 << 30
+
+const cacheWriteWeight = 1 << 30
 
 var (
 	ErrPackageUnavailable = errors.New("marketplace package is unavailable")
@@ -28,16 +32,16 @@ type PackageCache struct {
 	Root string
 	// Zero selects the 1 GiB default; Sweep applies the aggregate budget at refresh commit.
 	MaxBytes   int64
-	mu         sync.RWMutex
-	useMu      sync.RWMutex
+	fileOnce   sync.Once
+	fileGate   *semaphore.Weighted
+	holds      cacheHolds
 	verifiedMu sync.Mutex
 	verified   map[string]filesnap.Snapshot
 }
 
-// Hold keeps packages available until a refresh or installation publishes its references.
-func (c *PackageCache) Hold() func() {
-	c.useMu.RLock()
-	return c.useMu.RUnlock
+func (c *PackageCache) files() *semaphore.Weighted {
+	c.fileOnce.Do(func() { c.fileGate = semaphore.NewWeighted(cacheWriteWeight) })
+	return c.fileGate
 }
 
 // Put verifies the stream before publishing one complete blob under its digest.
@@ -52,11 +56,11 @@ func (c *PackageCache) Put(ctx context.Context, digest string, source io.Reader)
 	if source == nil {
 		return errors.New("marketplace package cache: source is required")
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if err := ctx.Err(); err != nil {
+	files := c.files()
+	if err := files.Acquire(ctx, cacheWriteWeight); err != nil {
 		return err
 	}
+	defer files.Release(cacheWriteWeight)
 	directory, err := fileutil.OpenOrCreateDirectory(c.Root, 0o700)
 	if err != nil {
 		return fmt.Errorf("marketplace package cache: open root: %w", err)
@@ -138,11 +142,11 @@ func (c *PackageCache) Open(ctx context.Context, digest string) (io.ReadCloser, 
 	if err != nil {
 		return nil, err
 	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if err := ctx.Err(); err != nil {
+	files := c.files()
+	if err := files.Acquire(ctx, 1); err != nil {
 		return nil, err
 	}
+	defer files.Release(1)
 	file, err := openCacheBlob(c.Root, digest)
 	if err != nil {
 		return nil, err

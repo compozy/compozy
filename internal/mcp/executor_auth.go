@@ -13,10 +13,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-const (
-	executorBearerValue     = "Bearer"
-	authStatusRefreshFailed = "refresh_failed"
-)
+const executorBearerValue = "Bearer"
 
 func (e *CallExecutor) prepareAuthorization(ctx context.Context, resolved *ResolvedServer) (string, error) {
 	if err := e.ensureAuthorized(ctx, resolved); err != nil {
@@ -30,52 +27,62 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved *ResolvedS
 	if !mcpauth.OAuthCapable(server) {
 		return nil
 	}
-	status, err := e.authStatus(ctx, resolved)
+	status, err := e.readAuthStatus(ctx, resolved)
 	if err != nil {
 		return err
 	}
 	switch status.Status {
-	case string(mcpauth.StatusUnconfigured):
+	case mcpauth.StatusUnconfigured:
 		if server.Auth.IsZero() {
 			return nil
 		}
 		return toolspkg.MCPAuthRequiredError("", server.Name)
-	case string(mcpauth.StatusAuthenticated):
-		return nil
-	case string(mcpauth.StatusInvalid):
+	case mcpauth.StatusInvalid:
 		return toolspkg.NewToolError(toolspkg.ErrorCodeUnavailable, "", status.Diagnostic,
 			toolspkg.ErrToolUnavailable, toolspkg.ReasonMCPAuthInvalid)
-	case string(mcpauth.StatusExpired):
-		refreshed, refreshErr := e.refreshAuth(ctx, resolved)
-		if refreshErr != nil {
-			return toolspkg.NewToolError(
-				toolspkg.ErrorCodeUnavailable,
-				"",
-				"mcp auth refresh failed",
-				toolspkg.ErrToolUnavailable,
-				toolspkg.ReasonMCPAuthRefreshFailed,
-			)
-		}
-		if refreshed.Status == string(mcpauth.StatusAuthenticated) {
-			if e.authRecovery != nil {
-				if err := e.authRecovery(ctx, resolved); err != nil {
-					slog.WarnContext(ctx, "mcp.auth.recovery_failed", "server", server.Name)
-				}
-			}
+	case mcpauth.StatusAuthenticated:
+		if !status.RenewalDue() {
 			return nil
 		}
-		reason, ok := toolspkg.MCPAuthStatusReason(refreshed)
-		if !ok {
-			reason = toolspkg.ReasonMCPAuthRefreshFailed
+		fallthrough
+	case mcpauth.StatusExpired:
+		if !status.Refreshable {
+			return unavailableAuthError(toolspkg.ReasonMCPAuthExpired)
 		}
-		return unavailableAuthError(reason)
+		return e.ensureRenewedAuthorization(ctx, resolved)
 	default:
-		reason, ok := toolspkg.MCPAuthStatusReason(status)
+		reason, ok := toolspkg.MCPAuthStatusReason(redactedAuthStatus(status))
 		if !ok || reason == toolspkg.ReasonMCPAuthRequired || reason == toolspkg.ReasonMCPAuthUnconfigured {
 			return e.authorizationRequired(ctx, resolved)
 		}
 		return unavailableAuthError(reason)
 	}
+}
+
+func (e *CallExecutor) ensureRenewedAuthorization(ctx context.Context, resolved *ResolvedServer) error {
+	refreshed, err := e.refreshAuth(ctx, resolved)
+	if err != nil && (!refreshed.TokenPresent || !errors.Is(err, mcpauth.ErrTokenBindingInvalid)) {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			"",
+			"mcp auth refresh failed",
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonMCPAuthRefreshFailed,
+		)
+	}
+	if refreshed.Status == mcpauth.StatusAuthenticated {
+		if e.authRecovery != nil && !refreshed.RenewalDue() && refreshed.Diagnostic == "" {
+			if err := e.authRecovery(ctx, resolved); err != nil {
+				slog.WarnContext(ctx, "mcp.auth.recovery_failed", "server", resolved.Server.Name)
+			}
+		}
+		return nil
+	}
+	reason, ok := toolspkg.MCPAuthStatusReason(redactedAuthStatus(refreshed))
+	if !ok {
+		reason = toolspkg.ReasonMCPAuthRefreshFailed
+	}
+	return unavailableAuthError(reason)
 }
 
 func (e *CallExecutor) authorizationRequired(ctx context.Context, resolved *ResolvedServer) error {
@@ -97,20 +104,25 @@ func (e *CallExecutor) authStatus(
 	ctx context.Context,
 	resolved *ResolvedServer,
 ) (toolspkg.MCPAuthStatus, error) {
+	status, err := e.readAuthStatus(ctx, resolved)
+	return redactedAuthStatus(status), err
+}
+
+func (e *CallExecutor) readAuthStatus(ctx context.Context, resolved *ResolvedServer) (mcpauth.Status, error) {
 	server := resolved.Server
 	cfg, err := e.serverAuthConfig(ctx, resolved, e.resolveSecretRef)
 	if err != nil {
-		return toolspkg.MCPAuthStatus{}, authorizationConfigError(err)
+		return mcpauth.Status{}, authorizationConfigError(err)
 	}
 	unconfigured := mcpauth.Status{
 		Owner: resolved.Target.Owner, ServerName: server.Name, Scope: resolved.Target.Scope,
 		WorkspaceID: resolved.Target.WorkspaceID, Status: mcpauth.StatusUnconfigured, RemoteURL: server.URL,
 	}
 	if !mcpauth.OAuthCapable(server) || (server.Auth.IsZero() && e.auth == nil) {
-		return redactedAuthStatus(unconfigured), nil
+		return unconfigured, nil
 	}
 	if e.auth == nil {
-		return toolspkg.MCPAuthStatus{}, toolspkg.NewValidationError(
+		return mcpauth.Status{}, toolspkg.NewValidationError(
 			"auth",
 			toolspkg.ReasonDependencyMissing,
 			"mcp auth service is required for auth-enabled servers",
@@ -119,19 +131,19 @@ func (e *CallExecutor) authStatus(
 	status, err := e.auth.Status(ctx, cfg)
 	if err != nil {
 		if cfg.Implicit && canProbeWithoutStoredCredential(err) {
-			return redactedAuthStatus(unconfigured), nil
+			return unconfigured, nil
 		}
-		return toolspkg.MCPAuthStatus{}, authorizationLookupError(err)
+		return mcpauth.Status{}, authorizationLookupError(err)
 	}
-	return redactedAuthStatus(status), nil
+	return status, nil
 }
 
 func (e *CallExecutor) refreshAuth(
 	ctx context.Context,
 	resolved *ResolvedServer,
-) (toolspkg.MCPAuthStatus, error) {
+) (mcpauth.Status, error) {
 	if e.auth == nil {
-		return toolspkg.MCPAuthStatus{}, toolspkg.NewValidationError(
+		return mcpauth.Status{}, toolspkg.NewValidationError(
 			"auth",
 			toolspkg.ReasonDependencyMissing,
 			"mcp auth service is required for refresh",
@@ -139,26 +151,9 @@ func (e *CallExecutor) refreshAuth(
 	}
 	cfg, err := e.serverAuthConfig(ctx, resolved, e.resolveSecretRef)
 	if err != nil {
-		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: build auth config: %w", err)
+		return mcpauth.Status{}, fmt.Errorf("mcp: build auth config: %w", err)
 	}
-	status, err := e.auth.Refresh(ctx, cfg)
-	if err != nil {
-		redacted := redactedAuthStatus(mcpauth.Status{
-			Owner:        cfg.Target.Owner,
-			ServerName:   cfg.Target.ServerName,
-			Scope:        cfg.Target.Scope,
-			WorkspaceID:  cfg.Target.WorkspaceID,
-			Status:       mcpauth.StatusInvalid,
-			AuthType:     cfg.Type,
-			ClientID:     cfg.ClientID,
-			Scopes:       cfg.Scopes,
-			Diagnostic:   "refresh failed",
-			TokenPresent: false,
-		})
-		redacted.Status = authStatusRefreshFailed
-		return redacted, err
-	}
-	return redactedAuthStatus(status), nil
+	return e.auth.Refresh(ctx, cfg)
 }
 
 func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved *ResolvedServer) (string, error) {

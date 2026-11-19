@@ -73,6 +73,26 @@ Owner: branch `run/gateway-manual-6-digit-pairing-device-removal-backend-a87a117
 
 ||||||| parent of 9b114ea59 (feat: pin sessions above the session list)
 
+## MCP OAuth offline access, repair and early renewal
+
+Owners: [#1829](https://github.com/compozy/compozy/issues/1829), [#1830](https://github.com/compozy/compozy/issues/1830), and [#1831](https://github.com/compozy/compozy/issues/1831).
+
+- **Native tools and CLI/HTTP/UDS.** Tool discovery and calls can renew a token shortly before
+  expiry. `compozy__mcp_auth_status` and the equivalent CLI and API status surfaces show the
+  actual expiry and an actionable diagnostic for an unusable local registration. Credential
+  material stays redacted. The existing tools, routes and fields carry these outcomes.
+- **Extensibility, hooks and config.** Manual and extension-owned remotes share the OAuth flow.
+  Sign-in uses issuer-advertised offline access and honors issuer consent parameters. Extension
+  APIs, hooks and configuration shapes stay the same.
+- **State and isolation.** Access, refresh and registration state remain bound to the normalized
+  target, its definition, client and issuer. Existing SQLite rows and the CIMD compatibility
+  loader support renewal in place. Transient failures retain the bound access token and refresh
+  grant. Known local registration failures leave stored credentials available for repair.
+- **Web, official skill, docs and QA.** Settings uses its existing status and reauthorization
+  controls. The MCP configuration guide and official skill describe when renewal or sign-in is
+  needed. The ET-api-mcp-oauth-endpoints and ET-web-mcp-status-matrix scenarios cover the same
+  outcomes through the existing status fields and controls.
+
 ## MCP OAuth refresh for CIMD clients
 
 Owner: [#1828](https://github.com/compozy/compozy/issues/1828).
@@ -6681,6 +6701,21 @@ Owner: [#1839](https://github.com/compozy/compozy/issues/1839).
   their existing shapes.
 - **Web, docs and QA.** Existing Web status renders the new diagnostic and sign-in state. Updated
   the official MCP reference, MCP setup guide, `ET-cli-mcp-authorize`, and `ET-mcp-protocol-interop`.
+
+## Marketplace install during concurrent refresh
+
+Owner: [#1836](https://github.com/compozy/compozy/issues/1836).
+
+- **Native tools, CLI, HTTP and UDS.** Marketplace installs, previews, inspection and updates
+  can enter the package cache while cleanup waits for another operation to publish. A caller
+  waiting on the cache can cancel its request. Tool IDs, routes, flags and payloads stay the same.
+- **Extensibility, hooks, config and workspace isolation.** Cache cleanup still reads the current
+  catalog and installed references after active publications finish. It uses the same home cache,
+  workspace and profile selection, and cache budget. Extension, hook, config and storage contracts
+  stay the same.
+- **Web, docs and official skill.** The existing Marketplace install dialog can load while a
+  different source is still refreshing. Existing instructions and controls apply. The concurrent
+  refresh scenario is recorded in `ET-agent-plugin-marketplace-install`.
 
 ## Retryable hosted MCP bind refusal
 

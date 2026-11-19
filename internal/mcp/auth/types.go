@@ -168,6 +168,7 @@ type ServerConfig struct {
 
 // Metadata is the OAuth authorization server metadata needed for PKCE flows.
 type Metadata struct {
+	grantTypesSupported           []string
 	Issuer                        string   `json:"issuer,omitempty"`
 	AuthorizationEndpoint         string   `json:"authorization_endpoint"`
 	TokenEndpoint                 string   `json:"token_endpoint"`
@@ -214,6 +215,7 @@ type ClientRegistration struct {
 
 // Status is the token-redacted state used by CLI and settings APIs.
 type Status struct {
+	renewalDue   bool
 	Owner        string      `json:"owner"`
 	ServerName   string      `json:"server_name"`
 	Scope        Scope       `json:"scope"`
@@ -233,6 +235,9 @@ type Status struct {
 	// to the broader scope that declares the effective definition.
 	Inherited bool `json:"inherited,omitempty"`
 }
+
+// RenewalDue reports whether a still-valid token should be renewed before use.
+func (s Status) RenewalDue() bool { return s.renewalDue }
 
 // TokenStore persists OAuth token material behind a narrow boundary.
 type TokenStore interface {

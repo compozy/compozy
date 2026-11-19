@@ -1162,6 +1162,182 @@ func TestMCPCallExecutor(t *testing.T) {
 		requireReason(t, err, toolspkg.ReasonMCPAuthInvalid)
 	})
 
+	// Invariant: discovery uses the bound token through real expiry and renews once within the bounded window.
+	// Owner: MCP executor discovery and authorization; canonical suite: TestMCPCallExecutor.
+	for _, tc := range []struct {
+		name       string
+		lifetime   time.Duration
+		window     time.Duration
+		retryAfter time.Duration
+		windowCap  time.Duration
+		noRefresh  bool
+		rejected   bool
+	}{
+		{name: "Should renew within the maximum window", lifetime: time.Hour, window: 30 * time.Second},
+		{name: "Should scale the window to short lifetimes", lifetime: 20 * time.Second, window: 2 * time.Second},
+		{name: "Should honor a shorter renewal cap", lifetime: time.Hour, window: 5 * time.Second, windowCap: 5 * time.Second},
+		{
+			name:     "Should use the still-valid token during transient renewal failure and backoff",
+			lifetime: time.Minute, window: 6 * time.Second, retryAfter: 2 * time.Second,
+		},
+		{
+			name:     "Should withhold a bearer that expires during renewal backoff",
+			lifetime: time.Minute, window: 6 * time.Second, retryAfter: 10 * time.Second,
+		},
+		{name: "Should allow an access-only grant until expiry", lifetime: time.Minute, window: 6 * time.Second, noRefresh: true},
+		{name: "Should withdraw a definitively rejected grant before expiry", lifetime: time.Minute, window: 6 * time.Second, rejected: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var renewals atomic.Int32
+			var mcpRequests atomic.Int32
+			var failRefresh atomic.Bool
+			failRefresh.Store(tc.retryAfter > 0)
+			handler := newTestMCPHandler(newFakeSDKServer(nil))
+			remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/.well-known/oauth-authorization-server":
+					base := "http://" + r.Host
+					w.Header().Set("Content-Type", "application/json")
+					if err := json.NewEncoder(w).Encode(map[string]any{
+						"issuer":                           base,
+						"authorization_endpoint":           base + "/authorize",
+						"token_endpoint":                   base + "/token",
+						"code_challenge_methods_supported": []string{"S256"},
+					}); err != nil {
+						t.Error(err)
+					}
+				case "/token":
+					renewals.Add(1)
+					w.Header().Set("Content-Type", "application/json")
+					if tc.rejected {
+						w.WriteHeader(http.StatusBadRequest)
+						if _, err := w.Write([]byte(`{"error":"invalid_grant"}`)); err != nil {
+							t.Error(err)
+						}
+						return
+					}
+					if failRefresh.Load() {
+						w.WriteHeader(http.StatusServiceUnavailable)
+						if _, err := w.Write([]byte(`{"error":"temporarily_unavailable"}`)); err != nil {
+							t.Error(err)
+						}
+						return
+					}
+					if _, err := w.Write([]byte(`{"access_token":"renewed-access","expires_in":3600}`)); err != nil {
+						t.Error(err)
+					}
+				default:
+					mcpRequests.Add(1)
+					want := "Bearer current-access"
+					if renewals.Load() > 0 && !failRefresh.Load() {
+						want = "Bearer renewed-access"
+					}
+					if r.Header.Get("Authorization") != want {
+						http.Error(w, "invalid bearer", http.StatusUnauthorized)
+						return
+					}
+					handler.ServeHTTP(w, r)
+				}
+			}))
+			t.Cleanup(remote.Close)
+			issuedAt := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+			expiresAt := issuedAt.Add(tc.lifetime)
+			now := expiresAt.Add(-tc.window - time.Second)
+			server := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, remote.URL)
+			server.Auth.IssuerURL = remote.URL
+			target := userMCPExecutorTarget(server.Name)
+			store := newMemoryTokenStore()
+			token := mcpauth.TokenRecord{
+				Target: target, DefinitionFingerprint: definitionFingerprint(t, target, server),
+				Issuer: remote.URL, ClientID: server.Auth.ClientID, Scopes: server.Auth.Scopes,
+				AccessToken: "current-access", ExpiresAt: expiresAt, UpdatedAt: issuedAt,
+				// ObtainedAt may date back to an earlier grant. UpdatedAt measures this token's lifetime.
+				ObtainedAt: issuedAt.Add(-time.Hour),
+			}
+			if !tc.noRefresh {
+				token.RefreshToken = "fixture-refresh"
+			}
+			if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+				t.Fatal(err)
+			}
+			service, err := mcpauth.NewService(store, mcpauth.WithNow(func() time.Time { return now }),
+				mcpauth.WithRefreshBackoff(tc.retryAfter, tc.retryAfter), mcpauth.WithEarlyRenewalWindow(tc.windowCap),
+				mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))))
+			if err != nil {
+				t.Fatal(err)
+			}
+			recoveries := 0
+			executor := newTestMCPExecutor(t, server, withAuthService(service),
+				WithAuthRecovery(func(context.Context, *ResolvedServer) error {
+					recoveries++
+					return nil
+				}))
+			source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+			requireMCPDescriptor(t, executor, server.Name, "mcp__secure__echo")
+			if renewals.Load() != 0 {
+				t.Fatal("renewal began before the window")
+			}
+			now = expiresAt.Add(-tc.window)
+			status, err := executor.Status(t.Context(), source, "")
+			if err != nil || status.Status != string(mcpauth.StatusAuthenticated) ||
+				status.ExpiresAt == nil || !status.ExpiresAt.Equal(expiresAt) || renewals.Load() != 0 {
+				t.Fatalf("passive status before expiry = %+v, err = %v", status, err)
+			}
+			if tc.rejected {
+				_, err := executor.ListTools(t.Context(), source)
+				requireReason(t, err, toolspkg.ReasonMCPAuthRequired)
+				if _, err := store.GetMCPAuthToken(t.Context(), target); !errors.Is(err, mcpauth.ErrTokenNotFound) {
+					t.Fatalf("rejected credential remains stored: %v", err)
+				}
+				return
+			}
+			requireMCPDescriptor(t, executor, server.Name, "mcp__secure__echo")
+			if tc.noRefresh {
+				now = expiresAt
+				_, err := executor.ListTools(t.Context(), source)
+				requireReason(t, err, toolspkg.ReasonMCPAuthExpired)
+				if renewals.Load() != 0 {
+					t.Fatal("access-only grant attempted renewal")
+				}
+				return
+			}
+			if renewals.Load() != 1 {
+				t.Fatalf("renewals at the boundary = %d, want 1", renewals.Load())
+			}
+			requireMCPDescriptor(t, executor, server.Name, "mcp__secure__echo")
+			if renewals.Load() != 1 {
+				t.Fatal("renewal repeated while backed off or freshly renewed")
+			}
+			if tc.retryAfter > 0 {
+				if recoveries != 0 {
+					t.Fatal("transient failure was reported as auth recovery")
+				}
+				if tc.retryAfter > tc.window {
+					requestsBeforeExpiry := mcpRequests.Load()
+					now = expiresAt
+					_, err := executor.ListTools(t.Context(), source)
+					requireReason(t, err, toolspkg.ReasonMCPAuthRefreshFailed)
+					if renewals.Load() != 1 || mcpRequests.Load() != requestsBeforeExpiry {
+						t.Fatal(
+							"discovery during backoff contacted the issuer or sent a request with an expired bearer",
+						)
+					}
+					return
+				}
+				failRefresh.Store(false)
+				now = now.Add(tc.retryAfter)
+				requireMCPDescriptor(t, executor, server.Name, "mcp__secure__echo")
+				if renewals.Load() != 2 {
+					t.Fatal("renewal did not recover after backoff")
+				}
+			}
+			if recoveries != 1 {
+				t.Fatalf("auth recovery calls = %d, want 1", recoveries)
+			}
+		})
+	}
+
 	t.Run("Should Attempt One Refresh And Return Redacted Refresh Failure", func(t *testing.T) {
 		t.Parallel()
 
