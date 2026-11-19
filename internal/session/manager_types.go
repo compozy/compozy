@@ -267,6 +267,7 @@ type Manager struct {
 	mcpResolver                  MCPResolver
 	mcpConsentFilter             MCPConsentFilter
 	hostedMCP                    HostedMCPLauncher
+	hostedMCPToolListThreshold   int
 	runtimeMCPInventory          RuntimeMCPInventory
 	mcpReader                    MCPReader
 	soulStore                    SoulSnapshotStore

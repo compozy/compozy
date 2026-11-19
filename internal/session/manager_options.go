@@ -143,6 +143,13 @@ func WithHostedMCPLauncher(launcher HostedMCPLauncher) Option {
 	}
 }
 
+// WithHostedMCPToolListThreshold sets the experimental provider-side listing budget.
+func WithHostedMCPToolListThreshold(threshold int) Option {
+	return func(manager *Manager) {
+		manager.hostedMCPToolListThreshold = threshold
+	}
+}
+
 // WithSoulSnapshotStore injects durable Soul snapshot/session provenance storage.
 func WithSoulSnapshotStore(store SoulSnapshotStore) Option {
 	return func(manager *Manager) {

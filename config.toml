@@ -108,6 +108,8 @@ default_max_result_bytes = 262144
 
 [tools.hosted_mcp]
 bind_nonce_ttl_seconds = 30
+# Experimental. Zero keeps full listings. A positive value defers larger MCP servers on Claude.
+tool_list_threshold = 0
 
 [tools.policy]
 external_default = "disabled"

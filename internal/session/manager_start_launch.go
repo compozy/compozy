@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/toolmeta"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -67,6 +69,7 @@ func (m *Manager) prepareSessionLaunch(
 		return acp.StartOpts{}, err
 	}
 	m.constrainTriageLaunch(spec, runtime, &startOpts)
+	startOpts.MCPServers = m.hostedMCPBudgetedServers(runtime.agent.Harness, startOpts)
 
 	if spec.resumeReplay || spec.resumeReplayBlock != "" {
 		if err := m.prepareSessionReplay(ctx, spec, session, runtime); err != nil {
@@ -162,6 +165,25 @@ func (m *Manager) prepareHostedMCPStartup(
 	}
 
 	return startOpts
+}
+
+func (m *Manager) hostedMCPBudgetedServers(
+	harness compozyconfig.ProviderHarness, opts acp.StartOpts,
+) []compozyconfig.MCPServer {
+	if m.hostedMCPToolListThreshold <= 0 || m.hostedMCP == nil ||
+		harness == compozyconfig.ProviderHarnessPiACP || !providerexec.IsClaudeAgentBridge(opts.Command) {
+		return opts.MCPServers
+	}
+	index := slices.IndexFunc(opts.MCPServers, func(server compozyconfig.MCPServer) bool {
+		return server.Name == toolmeta.HostedServerName && slices.Contains(server.Args, toolmeta.HostedBindNonceFlag)
+	})
+	if index < 0 {
+		return opts.MCPServers
+	}
+	servers := slices.Clone(opts.MCPServers)
+	servers[index].Args = append(slices.Clone(servers[index].Args),
+		toolmeta.HostedToolListThresholdFlag, strconv.Itoa(m.hostedMCPToolListThreshold))
+	return servers
 }
 
 func (m *Manager) prepareSessionReplay(

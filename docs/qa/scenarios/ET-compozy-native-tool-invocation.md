@@ -68,6 +68,13 @@ coding/review work can continue without unavailable native manuals, while capabi
 remains forbidden. Static instruction review is not a model-compliance score. See
 [focused verification](../reports/2026-10-23-harness-dogfood.md).
 
+Budgeted variant (#1869): open a Claude ACP session with a small and a deferred external MCP server.
+Confirm all permitted native names are still listed and callable. Use a multi-word
+`compozy__tool_search` query and call a newly listed external tool in that same prompt. Confirm
+the transcript, risk annotation, and any approval prompt identify the external tool by its real
+name. Repeat discovery with an agent-denied tool and confirm its diagnostic never adds it to
+`tools/list`. A Codex session with the same daemon setting receives the full listing.
+
 ## Native error parity — 2026-10-28
 
 Native error parity (#1012): exercise archive/worktree refusals through both the CLI and native gateway. Registered domain codes must survive generic adapter wrapping, existing specialized reasons/partial results must remain compatible, and backend failures must retain a bounded sanitized cause. Do not infer a transport outage from `tool_backend_failed` alone.
