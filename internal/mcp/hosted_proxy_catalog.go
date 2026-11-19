@@ -18,7 +18,9 @@ type hostedProxyCatalog struct {
 	threshold int
 	search    *tools.Descriptor
 	listed    map[string]string
+	listedAt  map[string]uint64
 	deferred  map[tools.ToolID]*tools.ToolView
+	directory map[string]int
 	pending   map[tools.ToolID]time.Time
 	changed   chan struct{}
 	delivery  hostedListDelivery
@@ -76,11 +78,17 @@ func (c *hostedProxyCatalog) unready(ids []tools.ToolID) (int, <-chan struct{}) 
 	defer c.mu.Unlock()
 	count := 0
 	for _, id := range ids {
-		if _, listed := c.listed[id.String()]; !listed || c.delivery.delivered != c.delivery.revision {
+		view := c.deferred[id]
+		if !c.nameDelivered(id.String()) && (view == nil || hostedToolActivatable(view)) {
 			count++
 		}
 	}
 	return count, c.changed
+}
+
+func (c *hostedProxyCatalog) nameDelivered(name string) bool {
+	revision, listed := c.listedAt[name]
+	return listed && revision <= c.delivery.delivered
 }
 
 func (c *hostedProxyCatalog) awaitDiscovery(ctx context.Context, ids []tools.ToolID) int {

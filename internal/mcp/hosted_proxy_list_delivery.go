@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"io"
 	"net/http"
+	"sync/atomic"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -27,7 +28,9 @@ type hostedListDelivery struct {
 	delivered      uint64
 	cursorRevision uint64
 	cursor         string
+	pagesRevision  uint64
 	pages          map[string]hostedListPage
+	hasPages       atomic.Bool
 }
 
 func hostedListRequestIdentity(request *jsonrpc.Request) (*jsonrpc.Request, error) {
@@ -60,7 +63,14 @@ func (d *hostedListDelivery) record(req sdkmcp.Request, result sdkmcp.Result) {
 		return
 	}
 	id := req.GetExtra().Header.Get(hostedListRequestHeader)
-	if id == "" || len(d.pages) >= hostedListPageLimit {
+	if id == "" {
+		return
+	}
+	if d.pagesRevision != d.revision {
+		clear(d.pages)
+		d.pagesRevision = d.revision
+	}
+	if len(d.pages) >= hostedListPageLimit {
 		return
 	}
 	request, ok := req.(*sdkmcp.ListToolsRequest)
@@ -75,6 +85,7 @@ func (d *hostedListDelivery) record(req sdkmcp.Request, result sdkmcp.Result) {
 		d.pages = make(map[string]hostedListPage)
 	}
 	d.pages[id] = hostedListPage{revision: d.revision, cursor: cursor, next: page.NextCursor}
+	d.hasPages.Store(true)
 }
 
 func (d *hostedListDelivery) written(id string) bool {
@@ -109,6 +120,9 @@ func (w hostedListOutput) Write(data []byte) (int, error) {
 }
 
 func (c *hostedProxyCatalog) listResponsesWritten(data []byte) {
+	if !c.delivery.hasPages.Load() {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(c.delivery.pages) == 0 {
@@ -144,4 +158,5 @@ func (c *hostedProxyCatalog) listResponsesWritten(data []byte) {
 			c.signal()
 		}
 	}
+	c.delivery.hasPages.Store(len(c.delivery.pages) > 0)
 }

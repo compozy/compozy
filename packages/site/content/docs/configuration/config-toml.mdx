@@ -1723,7 +1723,7 @@ snapshots these settings at boot; config changes require a restart.
 | Field                    | Type    | Default | Valid values               | Description                                                                                                                                    |
 | ------------------------ | ------- | ------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bind_nonce_ttl_seconds` | integer | `30`    | `1` through `300` seconds. | Lifetime for the non-secret hosted MCP bind nonce before UDS peer binding, and the post-release window that admits one replacement proxy bind. |
-| `tool_list_threshold` | integer | `0` | `0` or a positive integer. | Experimental per-server tool count for budgeted listing. Zero keeps the full listing. |
+| `tool_list_threshold`    | integer | `0`     | `0` or a positive integer. | Experimental per-server tool count for budgeted listing. Zero keeps the full listing.                                                          |
 
 The daemon reads the experimental threshold at startup. The Claude ACP bridge lists each external
 MCP server at or below the threshold in full. For larger servers, the description of

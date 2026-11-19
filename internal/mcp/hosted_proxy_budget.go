@@ -59,7 +59,7 @@ func (c *hostedProxyCatalog) applyBudgetedListing(
 		count := counts[name]
 		_, listed := previous[d.ID.String()]
 		_, requested := c.pending[d.ID]
-		promoted := requested && view.Decision.Callable
+		promoted := requested && hostedToolActivatable(view)
 		delete(c.pending, d.ID)
 		if c.search != nil && d.Source.Kind == tools.SourceMCP && count > c.threshold &&
 			!listed && !promoted {
@@ -78,9 +78,25 @@ func (c *hostedProxyCatalog) applyBudgetedListing(
 	next := reconcileHostedListing(server, client, bindID, previous, listing)
 	if !maps.Equal(previous, next) {
 		c.delivery.revision++
+		if c.listedAt == nil {
+			c.listedAt = make(map[string]uint64, len(next))
+		}
+		maps.DeleteFunc(c.listedAt, func(name string, _ uint64) bool {
+			_, retained := next[name]
+			return !retained
+		})
+		for name := range next {
+			if _, listed := c.listedAt[name]; !listed {
+				c.listedAt[name] = c.delivery.revision
+			}
+		}
 		c.signal()
 	}
-	c.listed, c.deferred = next, deferred
+	c.listed, c.deferred, c.directory = next, deferred, servers
+}
+
+func hostedToolActivatable(view *tools.ToolView) bool {
+	return view.Decision.Callable && view.Availability.Executable
 }
 
 func hostedServerDirectory(servers map[string]int) string {
@@ -135,22 +151,27 @@ func (c *hostedProxyCatalog) activate(
 		if !strings.HasPrefix(id.String(), "mcp__") || slices.Contains(wait, id) {
 			continue
 		}
-		if _, listed := c.listed[id.String()]; listed && c.delivery.delivered == c.delivery.revision {
+		if c.nameDelivered(id.String()) {
 			continue
 		}
-		if view, deferred := c.deferred[id]; deferred && view.Decision.Callable {
+		if view, deferred := c.deferred[id]; deferred {
+			if !hostedToolActivatable(view) {
+				continue
+			}
 			tool := hostedMCPTool(view.Descriptor)
 			c.listed[tool.Name] = registerHostedTool(server, client, bindID, view.Descriptor, &tool, "", nil)
+			c.listedAt[tool.Name] = c.delivery.revision + 1
 			delete(c.deferred, id)
 			added = true
-		} else if _, listed := c.listed[id.String()]; !listed && !deferred {
+		} else if _, listed := c.listed[id.String()]; !listed {
 			c.queuePending(id, now)
 		}
 		wait = append(wait, id)
 	}
 	if added {
-		if len(c.deferred) == 0 {
+		if c.pruneDirectory() {
 			search := hostedMCPTool(*c.search)
+			search.Description += hostedServerDirectory(c.directory)
 			c.listed[search.Name] = registerHostedTool(
 				server, client, bindID, *c.search, &search, c.listed[search.Name],
 				func(ctx context.Context, ids []tools.ToolID) int {
@@ -162,6 +183,19 @@ func (c *hostedProxyCatalog) activate(
 		c.signal()
 	}
 	return wait
+}
+
+func (c *hostedProxyCatalog) pruneDirectory() bool {
+	remaining := make(map[string]struct{}, len(c.directory))
+	for _, view := range c.deferred {
+		remaining[view.Descriptor.Source.RawServerName] = struct{}{}
+	}
+	before := len(c.directory)
+	maps.DeleteFunc(c.directory, func(name string, _ int) bool {
+		_, deferred := remaining[name]
+		return !deferred
+	})
+	return len(c.directory) != before
 }
 
 func (c *hostedProxyCatalog) queuePending(id tools.ToolID, now time.Time) {
