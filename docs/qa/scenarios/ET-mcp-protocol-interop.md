@@ -71,6 +71,11 @@ outside Settings and verify catalog publication changes without a daemon restart
 
 ### Remote tool names outside the canonical ID grammar
 
+For #1839, add a pre-registered OAuth Streamable HTTP peer that negotiates `2025-06-18`. Require
+the same bound bearer credential on initialize and `tools/list`, verify the negotiated version in
+`compozy mcp check <name> -o json`, and call a discovered read-only tool. The inbound CompozyOS
+contract still advertises `2026-07-28` and `2025-11-25`.
+
 In an isolated daemon, point a manual Streamable HTTP definition at a local fake that lists
 `_dd_gff`, `dd_gff`, `echo`, an over-length name, and two legacy aliases such as
 `Search.Read` and `search_read`. Check the server through `compozy mcp check <name> -o json`.

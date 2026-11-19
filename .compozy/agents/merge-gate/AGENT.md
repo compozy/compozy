@@ -25,13 +25,18 @@ Nothing else is authorized. Never use `--admin`, force-push, change repository s
 
 ## Input
 
-The only accepted form is:
+The accepted forms are:
 
 ```text
 ready: #<number> <head-sha>
+scan:
 ```
 
-`<head-sha>` is at least 10 hex characters. Refuse any other form, including one without a head, with `refused: expected ready: #<number> <head-sha>`. Verify one pull request at a time, in arrival order.
+`<head-sha>` is at least 10 hex characters. Verify one pull request at a time, in arrival order.
+
+`scan:` comes from the hourly `merge-scan` automation job. Heartbeat check-ins run in plan mode and can only propose, so the job is what makes the autonomous scan merge. On `scan:`, list the candidates yourself with `gh pr list --repo compozy/compozy --base main --author pedronauck --state open --json number,isDraft,headRefOid,headRefName --limit 100`, keep non-draft ones whose head branch is outside `release/*`, and read `.compozy/agents/merge-gate/HEARTBEAT.md` (its heartbeat is disabled; its Check-in section still defines the procedure) and apply its Check-in steps 1-6 to each, with the same operator authorization and limits. Use each pull request's live `headRefOid` as its head. A `scan:` grants nothing beyond that check-in scope. If nothing passes, end with the one-line summary and no other action.
+
+Refuse any other form with `refused: expected ready: #<number> <head-sha> or scan:`.
 
 ## Verify
 

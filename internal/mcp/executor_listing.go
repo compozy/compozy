@@ -159,6 +159,7 @@ func (e *CallExecutor) listResolvedTools(
 	var runtimeHealthErr error
 	servedFromCache := false
 	defer func() {
+		e.recordBearerRejection(ctx, &resolved, runtimeHealthErr)
 		if servedFromCache {
 			// A cached answer never touched the server, so it proves nothing about its health.
 			return
@@ -169,11 +170,11 @@ func (e *CallExecutor) listResolvedTools(
 		}
 		e.runtimeHealth.RecordSuccess(healthObservation)
 	}()
-	if err := e.ensureAuthorized(ctx, &resolved); err != nil {
+	authorizationHeader, err := e.prepareAuthorization(ctx, &resolved)
+	if err != nil {
 		runtimeHealthErr = err
 		return ToolDiscovery{}, err
 	}
-	authorizationHeader := e.authorizationHeader(ctx, &resolved)
 	if err = e.prepareToolListing(ctx, &resolved); err != nil {
 		runtimeHealthErr = err
 		return ToolDiscovery{}, err
@@ -217,6 +218,9 @@ func (e *CallExecutor) listToolsWithCatalogClient(
 	)
 	if client.borrowed && healthErr != nil && ctx.Err() == nil {
 		retireErr := e.catalogHTTP.forget(client.session)
+		if reason, ok := tools.ReasonOf(err); ok && reason == tools.ReasonMCPAuthRequired {
+			return discovery, healthErr, errors.Join(err, retireErr)
+		}
 		replacement, openErr := e.openRenderedClient(ctx, resolved, authorizationHeader)
 		if openErr != nil {
 			return ToolDiscovery{}, openErr, errors.Join(

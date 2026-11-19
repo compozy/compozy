@@ -777,6 +777,204 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 }
 
 func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
+	// Invariant: settings keeps a safe upstream diagnostic and reflects an observed bearer rejection.
+	// Owner: daemon Settings runtime; canonical suite: TestSettingsRuntimeSurfaceMCPServerRuntimeStatus.
+	t.Run(
+		"Should redact upstream diagnostics and require sign-in after a bound token gets HTTP 401",
+		func(t *testing.T) {
+			t.Parallel()
+			const access, refresh = "opaque-fixture-access", "opaque-fixture-refresh"
+			var httpStatus atomic.Int32
+			httpStatus.Store(http.StatusBadRequest)
+			endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodDelete {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				if r.Header.Get("Authorization") != "Bearer "+access {
+					t.Error("MCP request missing the bound bearer credential")
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				if code := int(httpStatus.Load()); code != http.StatusBadRequest {
+					w.WriteHeader(code)
+					return
+				}
+				var request struct{ ID json.RawMessage }
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					t.Error(err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				if err := json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      request.ID,
+					"error": map[string]any{
+						"code":    -32047,
+						"message": "upstream fixture refused discovery " + access + " " + refresh,
+					},
+				}); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(endpoint.Close)
+			definition := compozyconfig.MCPServer{
+				Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: endpoint.URL,
+				Auth: compozyconfig.MCPAuthConfig{
+					Registration: compozyconfig.MCPAuthRegistrationPreRegistered, ClientID: "fixture-client",
+					IssuerURL: "https://issuer.example.test",
+				},
+			}
+			target := globalMCPTestTarget(definition.Name)
+			store := openDaemonTestGlobalDB(t)
+			generation := mcpauth.NewMutationGeneration()
+			manager, err := newSettingsMCPAuthManagerWithAuthorization(
+				store, nil, store, nil, compozyconfig.MCPOAuthConfig{}, nil, generation,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			surface := &settingsRuntimeSurface{
+				digestKey: []byte("test installation key"), mcpAuthStore: store,
+				mcpAuthManager: manager, mcpAuthGeneration: generation,
+			}
+			cfg, err := surface.mcpAuthServerConfig(t.Context(), target, definition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			token := mcpauth.TokenRecord{
+				Target: target, DefinitionFingerprint: fingerprint, Issuer: cfg.IssuerURL, ClientID: cfg.ClientID,
+				AccessToken: access, RefreshToken: refresh, TokenType: "Bearer",
+			}
+			if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+				t.Fatal(err)
+			}
+			for _, check := range []struct {
+				name       string
+				code       int
+				state      settingspkg.MCPServerRuntimeState
+				reason     toolspkg.ReasonCode
+				diagnostic string
+				auth       mcpauth.StatusValue
+			}{
+				{"Should report a redacted JSON-RPC rejection", http.StatusBadRequest, settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
+					toolspkg.ReasonMCPUnreachable, "JSON-RPC error -32047: upstream fixture refused discovery", mcpauth.StatusAuthenticated},
+				{"Should report the upstream HTTP 503", http.StatusServiceUnavailable, settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
+					toolspkg.ReasonMCPUnreachable, "upstream HTTP 503", mcpauth.StatusAuthenticated},
+				{"Should require sign-in after a non-refreshable token is rejected", http.StatusUnauthorized, settingspkg.MCPServerRuntimeStateAuthRequired,
+					toolspkg.ReasonMCPAuthRequired, "rejected the stored token (HTTP 401)", mcpauth.StatusNeedsLogin},
+			} {
+				t.Run(check.name, func(t *testing.T) {
+					if check.code == http.StatusUnauthorized {
+						token.RefreshToken = ""
+						if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+							t.Fatal(err)
+						}
+					}
+					httpStatus.Store(int32(check.code))
+					status, err := surface.CheckMCPServerRuntime(t.Context(), target, definition)
+					if err != nil || status.State != check.state || status.Reason != string(check.reason) ||
+						!strings.Contains(status.Diagnostic, check.diagnostic) {
+						t.Fatalf("HTTP %d, status=%+v, err=%v", check.code, status, err)
+					}
+					if strings.Contains(status.Diagnostic, access) || strings.Contains(status.Diagnostic, refresh) {
+						t.Fatal("runtime diagnostic exposed a fixture token")
+					}
+					authStatus, err := surface.MCPAuthStatus(t.Context(), target, definition)
+					if err != nil || authStatus.Status != check.auth {
+						t.Fatalf("HTTP %d, auth status=%+v, err=%v", check.code, authStatus, err)
+					}
+				})
+			}
+			if _, err := store.GetMCPAuthToken(t.Context(), target); err != nil {
+				t.Fatalf("rejection discarded stored credentials: %v", err)
+			}
+		},
+	)
+
+	// Invariant: an unreadable credential affects only its own Settings item; replaced definitions remain probeable.
+	// Owner: daemon Settings composition; canonical suite: TestSettingsRuntimeSurfaceMCPServerRuntimeStatus.
+	t.Run("Should list healthy remotes alongside invalid implicit credentials", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		home := testHomePaths(t)
+		if err := os.WriteFile(filepath.Join(home.HomeDir, compozyconfig.MCPJSONName), []byte(`{"mcpServers":{
+			"unreadable":{"url":"https://mcp.example.test"},
+			"stale":{"url":"https://mcp.example.test"},
+			"open":{"url":"https://mcp.example.test"}
+		}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		store := openDaemonTestGlobalDB(t)
+		manager, err := newSettingsMCPAuthManagerWithConfig(store, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			digestKey: []byte("test installation key"), mcpAuthStore: store, mcpAuthManager: manager,
+		}
+		for _, name := range []string{"unreadable", "stale"} {
+			target := globalMCPTestTarget(name)
+			cfg, err := surface.mcpAuthServerConfig(ctx, target, compozyconfig.MCPServer{
+				Name: name, Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://previous.example.test",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
+				Target: target, DefinitionFingerprint: fingerprint, Issuer: "https://issuer.example.test",
+				ClientID: "fixture-client", AccessToken: "fixture-access", TokenType: "Bearer",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		prefix, err := vault.MCPSecretOwnerPrefix(globalMCPTestTarget("unreadable").VaultTarget())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.DeleteVaultSecret(ctx, prefix+"oauth/access-token"); err != nil {
+			t.Fatal(err)
+		}
+		profiles, err := profilepkg.NewManager(profilepkg.WithStore(store), profilepkg.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		service, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			ProfileResolver: profiles, AttentionWorkspaceMutes: store, MCPAuth: surface, MCPRuntime: surface,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		listing, err := service.ListCollection(ctx, settingspkg.CollectionRequest{
+			Collection: settingspkg.CollectionMCPServers, CachedRuntimeStatus: true,
+		})
+		if err != nil || len(listing.MCPServers) != 3 {
+			t.Fatalf("MCP list returned %d items, %v", len(listing.MCPServers), err)
+		}
+		for _, item := range listing.MCPServers {
+			if item.Name != "unreadable" {
+				if item.AuthStatus == nil || item.AuthStatus.Status != mcpauth.StatusUnconfigured {
+					t.Fatalf("%s remote lost its unconfigured auth status: %+v", item.Name, item.AuthStatus)
+				}
+				continue
+			}
+			if item.AuthStatus == nil || item.AuthStatus.Status != mcpauth.StatusInvalid ||
+				item.RuntimeStatus == nil || item.RuntimeStatus.State != settingspkg.MCPServerRuntimeStateAuthInvalid {
+				t.Fatalf("%s did not report per-item invalid auth", item.Name)
+			}
+		}
+	})
+
 	t.Run(
 		"Should refuse to present sign-in for a plugin header rejection without a resource challenge",
 		func(t *testing.T) {

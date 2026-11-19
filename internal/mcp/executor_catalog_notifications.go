@@ -197,6 +197,10 @@ func (e *CallExecutor) RetainCatalogSubscriptions(ctx context.Context, sources m
 		if e.consent != nil && e.consent(ctx, source, resolved) != nil {
 			continue
 		}
+		header, err := e.authorizationHeader(ctx, &resolved)
+		if err != nil {
+			continue
+		}
 		if err := e.prepareToolListing(ctx, &resolved); err != nil {
 			continue
 		}
@@ -204,7 +208,7 @@ func (e *CallExecutor) RetainCatalogSubscriptions(ctx context.Context, sources m
 			stdio[stdioCatalogBinding{spec.slot, spec.digest}] = struct{}{}
 			continue
 		}
-		if key, err := e.toolCacheKey(ctx, &resolved, "", e.authorizationHeader(ctx, &resolved)); err == nil {
+		if key, err := e.toolCacheKey(ctx, &resolved, "", header); err == nil {
 			active[key] = true
 		}
 	}

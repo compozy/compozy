@@ -345,7 +345,11 @@ func (e *CallExecutor) projectionSourceKey(
 			return "", false
 		}
 	}
-	return mcpProjectionSourceKey(source, e.authorizationHeader(ctx, &resolved), resolved.listingBinding), true
+	header, err := e.authorizationHeader(ctx, &resolved)
+	if err != nil {
+		return "", false
+	}
+	return mcpProjectionSourceKey(source, header, resolved.listingBinding), true
 }
 
 func (e *CallExecutor) pruneToolProjectionStatesLocked(now time.Time) {

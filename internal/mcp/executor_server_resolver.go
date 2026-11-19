@@ -15,6 +15,7 @@ type ResolvedServer struct {
 	requestHeaders          http.Header
 	listingSpec             *mcpStdioSpec
 	listingBinding          string
+	authRevision            uint64
 	requireResourceMetadata bool
 
 	ConsentScope           mcpauth.ConsentScope

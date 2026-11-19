@@ -1,6 +1,6 @@
 ---
 version: 1
-enabled: true
+enabled: false
 summary: "Merge Pedro's pull requests to main that the merge-candidates source reports, after verifying each one fresh, then sync the root checkout."
 preferences:
   min_interval: "1h"
