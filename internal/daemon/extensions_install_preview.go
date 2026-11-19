@@ -22,7 +22,11 @@ func (s *daemonExtensionService) PreviewInstall(
 		return contract.ExtensionInstallPreviewPayload{}, err
 	}
 	if s.marketplaceCache != nil && normalizedInstallSource(req.Source) == contract.InstallExtensionSourceMarketplace {
-		defer s.marketplaceCache.Hold()()
+		release, err := s.marketplaceCache.Hold(ctx)
+		if err != nil {
+			return contract.ExtensionInstallPreviewPayload{}, fmt.Errorf("daemon: install preview cache hold: %w", err)
+		}
+		defer release()
 	}
 	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
 	if err != nil {

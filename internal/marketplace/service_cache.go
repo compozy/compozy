@@ -32,8 +32,11 @@ func (s *CatalogService) refreshWithPackageCache(
 	if s.packageCache == nil {
 		return s.refreshSource(ctx, source)
 	}
-	release := s.packageCache.Hold()
-	outcome, err := s.refreshSource(ctx, source)
+	release, err := s.packageCache.Hold(ctx)
+	if err != nil {
+		return s.recordFailure(source, classifyFetchError(err), errors.Join(ErrSourceUnavailable, err))
+	}
+	outcome, err = s.refreshSource(ctx, source)
 	release()
 	maintenanceCtx, cancel := s.boundedLifecycleContext()
 	defer cancel()

@@ -34,11 +34,10 @@ func (c *PackageCache) SweepCurrent(
 	if loadPins == nil {
 		return CacheSweepReport{}, errors.New("marketplace package cache: pin loader is required")
 	}
-	c.useMu.Lock()
-	defer c.useMu.Unlock()
-	if err := ctx.Err(); err != nil {
+	if err := c.holds.acquire(ctx, true); err != nil {
 		return CacheSweepReport{}, err
 	}
+	defer c.holds.release(true)
 	pins, err := loadPins(ctx)
 	if err != nil {
 		return CacheSweepReport{}, err
@@ -64,12 +63,12 @@ func (c *PackageCache) sweep(ctx context.Context, pinned map[string]struct{}, re
 			return errors.New("marketplace package cache: invalid pinned digest")
 		}
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.clearVerifiedSnapshots()
-	if err := ctx.Err(); err != nil {
+	files := c.files()
+	if err := files.Acquire(ctx, cacheWriteWeight); err != nil {
 		return err
 	}
+	defer files.Release(cacheWriteWeight)
+	c.clearVerifiedSnapshots()
 	directory, err := fileutil.OpenDirectoryForMutation(c.Root)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
