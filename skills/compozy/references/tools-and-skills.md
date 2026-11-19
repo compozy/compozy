@@ -227,12 +227,17 @@ invalidates pending completion, and a stored token is never sent when the transp
 OAuth settings no longer match. A mismatched or pre-fingerprint token remains stored until explicit
 logout but status reports that login is required; begin a new authorization for the current definition.
 
-Tool discovery and execution renew expired OAuth tokens using that target's persisted client
-registration. Refresh does not require another login callback or register a replacement client.
+For refresh-capable clients, sign-in requests `offline_access` when the issuer advertises it.
+The issuer controls consent and whether it issues a refresh token. Tool discovery and execution
+try renewal in the final 10% of an access token's lifetime, up to 30 seconds before expiry,
+using the client bound to that target. Refresh needs no new login callback or replacement
+registration.
 For a client ID metadata document (CIMD), renewal uses the persisted document URL as the public
 client ID and sends no client secret. CIMD registrations from earlier releases renew the same
 way when their bindings still match and a refresh token is present.
-If the registration no longer matches or its client secret has expired, authorize that target again.
+If the stored registration cannot renew, including an expired or unavailable client secret,
+status shows that the target needs reauthorization. Discovery makes no refresh request until the
+local credentials support renewal again. A bound access token remains usable until its expiry.
 Refreshing or logging out an extension-owned MCP leaves manual MCP credentials unchanged.
 
 HTTP/UDS auth routes include `GET /api/settings/mcp-servers/{name}/auth/status`; it reads only the
@@ -255,8 +260,9 @@ repair requires `authenticated` plus `token_present=true`. Reads project `env_ke
 An `expired` OAuth status with `token_present=true` and `refreshable=true` keeps MCP tools
 advertised: discovery or a call renews the token. Do not request manual sign-in solely for this
 combination. Refreshes share one in-flight attempt per credential target and use jittered retry
-backoff (about 1 s, doubling to at most 60 s). Transient failures retain the credentials and listed
-tools; definitive rejection (`invalid_grant`, revoked credentials) clears the token and reports
+backoff (about 1 s, doubling to at most 60 s). Transient failures retain the credentials, listed
+tools, and the use of a still-valid access token. Definitive rejection (`invalid_grant`,
+`revoked`, `invalid_client`, or `unauthorized_client`) clears the token and reports
 `needs_login`. Expiry without a usable refresh path remains blocked. Successful sign-in or renewal
 clears that server's authentication-related dead mark without clearing health-only failures.
 `mcp.auth.refresh_failed` logs contain server, cause class, and attempt count, never credentials.

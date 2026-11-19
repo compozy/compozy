@@ -21,6 +21,7 @@ const (
 	serviceBearerValue     = "Bearer"
 	serviceAccessTokenKey  = "access_token"
 	serviceRefreshTokenKey = "refresh_token"
+	offlineAccessScope     = "offline_access"
 )
 
 // ServiceOption configures the OAuth service.
@@ -104,6 +105,7 @@ func (s *Service) sdkHTTPClientFor(cfg ServerConfig) *http.Client {
 
 // LoginState holds the short-lived in-memory authorization flow state.
 type LoginState struct {
+	requestedScopes  []string
 	Target           Target
 	RedirectURL      string
 	State            string
@@ -135,15 +137,16 @@ func (s *Service) BeginLogin(
 }
 
 func authorizationURL(
-	endpoint string,
+	metadata Metadata,
 	cfg ServerConfig,
 	redirectURL string,
 	state string,
 	pkce PKCEPair,
-) (string, error) {
-	parsed, err := url.Parse(strings.TrimSpace(endpoint))
+	refreshCapable bool,
+) (string, []string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(metadata.AuthorizationEndpoint))
 	if err != nil {
-		return "", fmt.Errorf("mcp auth: parse authorization endpoint: %w", err)
+		return "", nil, fmt.Errorf("mcp auth: parse authorization endpoint: %w", err)
 	}
 	values := parsed.Query()
 	values.Set("response_type", "code")
@@ -152,14 +155,23 @@ func authorizationURL(
 	values.Set("state", state)
 	values.Set("code_challenge", pkce.Challenge)
 	values.Set("code_challenge_method", pkce.Method)
-	if scopes := strings.Join(trimStrings(cfg.Scopes), " "); scopes != "" {
-		values.Set("scope", scopes)
+	scopes := trimStrings(cfg.Scopes)
+	if len(scopes) == 0 {
+		scopes = strings.Fields(values.Get("scope"))
+	}
+	if refreshCapable && slices.Contains(metadata.ScopesSupported, offlineAccessScope) &&
+		(len(metadata.grantTypesSupported) == 0 || slices.Contains(metadata.grantTypesSupported, serviceRefreshTokenKey)) &&
+		!slices.Contains(scopes, offlineAccessScope) {
+		scopes = append(scopes, offlineAccessScope)
+	}
+	if len(scopes) > 0 {
+		values.Set("scope", strings.Join(scopes, " "))
 	}
 	if resourceURL := firstNonEmpty(cfg.ResourceURL, cfg.RemoteURL); resourceURL != "" {
 		values.Set("resource", resourceURL)
 	}
 	parsed.RawQuery = values.Encode()
-	return parsed.String(), nil
+	return parsed.String(), scopes, nil
 }
 
 func authorizationCodeFromCallbackMetadata(callbackURL string, wantState string, metadata Metadata) (string, error) {
@@ -233,7 +245,11 @@ func (s *Service) exchangeCode(ctx context.Context, state *LoginState, code stri
 	if err != nil {
 		return TokenRecord{}, err
 	}
-	return s.tokenRecordFromResponse(state.Config, state.Metadata, resp, TokenRecord{})
+	cfg := state.Config
+	if state.requestedScopes != nil {
+		cfg.Scopes = state.requestedScopes
+	}
+	return s.tokenRecordFromResponse(cfg, state.Metadata, resp, TokenRecord{})
 }
 
 func (s *Service) refreshToken(

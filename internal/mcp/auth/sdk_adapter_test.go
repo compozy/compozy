@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,8 +19,246 @@ import (
 
 	"github.com/compozy/compozy/internal/mcp/securehttp"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
+
+// Invariant: augment only supported grants and preserve the issuer's authorization parameters.
+// Owner: OAuth authorization and token exchange; canonical suite: sdk_adapter_test.go.
+func TestOAuthOfflineAccess(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, scopes, grants, prompt string
+		configured, want             []string
+		refresh                      bool
+	}{
+		{
+			name:   "Should request advertised offline access and preserve issuer consent",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token", prompt: "consent",
+			configured: []string{"tools.read"}, want: []string{"tools.read", "offline_access"}, refresh: true,
+		},
+		{
+			name:   "Should accept access without a refresh token and leave issuer prompts alone",
+			scopes: "tools.read offline_access", configured: []string{"tools.read"},
+			want: []string{"tools.read", "offline_access"},
+		},
+		{
+			name:   "Should retain an explicitly configured offline scope without duplicating it",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			configured: []string{"tools.read", "offline_access"}, want: []string{"tools.read", "offline_access"},
+			refresh: true,
+		},
+		{
+			name:   "Should preserve existing resource scopes when offline access is not advertised",
+			scopes: "tools.read", grants: "authorization_code refresh_token",
+			configured: []string{"tools.read"}, want: []string{"tools.read"},
+		},
+		{
+			name:   "Should leave scopes unchanged when refresh is excluded from the grant types",
+			scopes: "tools.read offline_access", grants: "authorization_code",
+			configured: []string{"tools.read"}, want: []string{"tools.read"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				base := "http://" + r.Host
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/.well-known/oauth-authorization-server":
+					endpoint := base + "/authorize"
+					if tc.prompt != "" {
+						endpoint += "?prompt=" + url.QueryEscape(tc.prompt)
+					}
+					metadata := map[string]any{
+						"issuer":                 base,
+						"authorization_endpoint": endpoint,
+						"token_endpoint":         base + "/token",
+						"code_challenge_methods_supported": []string{
+							"S256",
+						},
+						"scopes_supported": strings.Fields(tc.scopes),
+					}
+					if tc.grants != "" {
+						metadata["grant_types_supported"] = strings.Fields(tc.grants)
+					}
+					if err := json.NewEncoder(w).Encode(metadata); err != nil {
+						t.Error(err)
+					}
+				case "/token":
+					response := `{"access_token":"fixture-access","scope":"tools.read","expires_in":3600}`
+					if tc.refresh {
+						response = `{"access_token":"fixture-access","refresh_token":"fixture-refresh","expires_in":3600}`
+					}
+					writeManagerTestResponse(t, w, response)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			store := &adapterTestStore{}
+			service, cfg := newPreRegisteredTestService(t, store, server)
+			cfg.Scopes = tc.configured
+			login, err := service.BeginLogin(t.Context(), cfg, "http://127.0.0.1:2123/callback")
+			if err != nil {
+				t.Fatal(err)
+			}
+			authURL, err := url.Parse(login.AuthorizationURL)
+			if err != nil {
+				t.Fatal("unable to parse authorization URL")
+			}
+			query := authURL.Query()
+			if got := strings.Fields(query.Get("scope")); !slices.Equal(got, tc.want) {
+				t.Errorf("requested scopes = %v, want %v", got, tc.want)
+			}
+			if query.Get("resource") != cfg.RemoteURL || query.Get("prompt") != tc.prompt {
+				t.Error("resource or issuer consent parameter changed")
+			}
+			exchanged, err := service.Exchange(
+				t.Context(), &login, oauthCallbackURL(t, login.RedirectURL, login.State, ""),
+			)
+			if err != nil || exchanged.Status != StatusAuthenticated || exchanged.Refreshable != tc.refresh {
+				t.Fatalf("exchange status = %+v, err = %v", exchanged, err)
+			}
+			if tc.refresh && !slices.Equal(exchanged.Scopes, tc.want) {
+				t.Errorf("scope omitted by issuer should preserve the request, got %v", exchanged.Scopes)
+			}
+		})
+	}
+	t.Run("Should skip offline access for a client document that only declares authorization code", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{
+				Scopes:                            []string{"tools.read", "offline_access"},
+				ClientIDMetadataDocumentSupported: true,
+			},
+		)
+		const callback = "http://127.0.0.1:2123/callback"
+		document := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeManagerTestResponse(t, w, fmt.Sprintf(
+				`{"client_id":%q,"redirect_uris":[%q],"grant_types":["authorization_code"]}`,
+				"https://"+r.Host+r.URL.Path, callback,
+			))
+		}))
+		t.Cleanup(document.Close)
+		clientID := document.URL + "/.well-known/mcp-client.json"
+		store := &adapterTestStore{}
+		service, err := NewService(store, WithRegistrationStore(store),
+			withHTTPClientForTest(document.Client()), WithClientMetadataURL(clientID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		login, err := service.BeginLogin(t.Context(), ServerConfig{
+			Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+			RemoteURL: fixture.Endpoints.MCPURL, Scopes: []string{"tools.read"},
+		}, callback)
+		if err != nil {
+			t.Fatal(err)
+		}
+		authorize, err := url.Parse(login.AuthorizationURL)
+		if err != nil {
+			t.Fatal("unable to parse authorization URL")
+		}
+		query := authorize.Query()
+		if query.Get("client_id") != clientID || query.Get("scope") != "tools.read" {
+			t.Fatal("authorization did not select the code-only client with its resource scope")
+		}
+	})
+}
+
+// Invariant: a known unusable local registration skips discovery and resumes once repaired.
+// Owner: hosted OAuth refresh lifecycle; canonical suite: sdk_adapter_test.go.
+func TestOAuthLocalRefreshRepair(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		secretMissing bool
+	}{
+		{name: "Should stop retrying an expired registration secret and recover with the same grant"},
+		{name: "Should stop retrying a missing registration secret and recover with the same grant", secretMissing: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var discovery, refreshes atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/.well-known/oauth-protected-resource/mcp":
+					discovery.Add(1)
+					writeManagerTestResponse(t, w, fmt.Sprintf(
+						`{"resource":%q,"authorization_servers":[%q]}`, "http://"+r.Host+"/mcp", "http://"+r.Host,
+					))
+				case "/token":
+					refreshes.Add(1)
+					writeManagerTestResponse(t, w, `{"access_token":"renewed","expires_in":3600}`)
+				default:
+					writeOAuthMetadataResponse(t, w, r, false)
+				}
+			}))
+			t.Cleanup(server.Close)
+			now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+			cfg := ServerConfig{
+				Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+				RemoteURL: server.URL + "/mcp", Registration: RegistrationAuto,
+			}
+			fingerprint, err := ServerDefinitionFingerprint(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			token := TokenRecord{
+				Target: cfg.Target, DefinitionFingerprint: fingerprint, Issuer: server.URL, ClientID: "client",
+				AccessToken: "fixture-access", RefreshToken: "fixture-refresh", ExpiresAt: now,
+			}
+			store := &adapterTestStore{token: token, registration: ClientRegistration{
+				Target: cfg.Target, DefinitionFingerprint: fingerprint, ResourceURL: cfg.RemoteURL,
+				Issuer: server.URL, ClientID: token.ClientID, TokenEndpointAuthMethod: tokenEndpointAuthMethodPost,
+				RedirectURL: "http://127.0.0.1:2123/callback", ClientSecretExpiresAt: now,
+				ClientSecretRef: "vault:mcp/fixture/client-secret",
+			}}
+			secretMissing := tc.secretMissing
+			if secretMissing {
+				store.registration.ClientSecretExpiresAt = now.Add(time.Hour)
+			}
+			var logs bytes.Buffer
+			service, err := NewService(
+				store, WithRegistrationStore(store), withHTTPClientForTest(server.Client()),
+				WithNow(func() time.Time { return now }), WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))),
+				WithSecretRefResolver(func(_ context.Context, ref string) (string, error) {
+					if secretMissing {
+						return "", fmt.Errorf("%w: %s", vault.ErrSecretNotFound, ref)
+					}
+					return "fixture-secret", nil
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				status, err := service.Refresh(t.Context(), cfg)
+				if err != nil || status.Status != StatusExpired || !status.TokenPresent || status.Refreshable ||
+					!strings.Contains(status.Diagnostic, "login again") {
+					t.Errorf("local refresh failure status = %+v, err = %v", status, err)
+				}
+				now = now.Add(time.Minute)
+			}
+			if discovery.Load() != 0 || refreshes.Load() != 0 || logs.Len() != 0 {
+				t.Error("known local failure started remote or logged refresh attempts")
+			}
+			assertAdapterTokenUnchanged(t, store, token)
+			passive, err := service.Status(t.Context(), cfg)
+			if err != nil || passive.Refreshable || !strings.Contains(passive.Diagnostic, "login again") {
+				t.Errorf("passive auth status = %+v, err = %v", passive, err)
+			}
+			store.registration.ClientSecretExpiresAt = now.Add(time.Hour)
+			secretMissing = false
+			status, err := service.Refresh(t.Context(), cfg)
+			if err != nil || status.Status != StatusAuthenticated || refreshes.Load() != 1 {
+				t.Fatalf("recovery status = %+v, refresh attempts = %d, err = %v", status, refreshes.Load(), err)
+			}
+		})
+	}
+}
 
 func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 	t.Parallel()
@@ -632,9 +871,9 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 				return
 			}
 			if !tc.wantUsable {
-				cause := errors.Unwrap(err)
-				if cause == nil || !strings.Contains(cause.Error(), "stored registration is no longer valid") {
-					t.Fatalf("refresh error = %v, cause = %v, want registration validation failure", err, cause)
+				if err != nil || after.Status != StatusExpired || after.Refreshable || !after.TokenPresent ||
+					!strings.Contains(after.Diagnostic, "stored registration is no longer valid") {
+					t.Fatalf("refresh = %+v, %v; want an expired retained token requiring reauthorization", after, err)
 				}
 				if len(requests.Token) != codeExchanges {
 					t.Fatal("invalid registration reached the refresh endpoint")

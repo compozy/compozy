@@ -75,14 +75,12 @@ func (s *Service) persistTokenAtGeneration(
 	return statusFromToken(cfg, &token, s.now()), nil
 }
 
-func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenRecord) (Status, error) {
-	if err := cfg.Validate(); err != nil {
-		return Status{}, err
-	}
-	generation, err := s.generation.Snapshot(cfg.Target)
-	if err != nil {
-		return Status{}, err
-	}
+func (s *Service) refresh(
+	ctx context.Context,
+	cfg ServerConfig,
+	observed TokenRecord,
+	generation uint64,
+) (Status, error) {
 	current, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
 	if err != nil {
 		if errors.Is(err, ErrTokenNotFound) {
@@ -90,7 +88,7 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 		}
 		return Status{}, err
 	}
-	matches, err := s.tokenMatchesServerDefinition(ctx, current, cfg)
+	matches, registration, err := s.tokenBinding(ctx, current, cfg)
 	if err != nil {
 		return Status{}, err
 	}
@@ -102,12 +100,13 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 			"stored token belongs to a different server definition; run login again",
 		), nil
 	}
+	status := s.storedTokenStatus(ctx, cfg, current, registration)
 	if current.AccessToken != observed.AccessToken || current.RefreshToken != observed.RefreshToken ||
 		!current.UpdatedAt.Equal(observed.UpdatedAt) || !current.ExpiresAt.Equal(observed.ExpiresAt) {
-		return statusFromToken(cfg, &current, s.now()), nil
+		return status, nil
 	}
-	if !current.ExpiresAt.IsZero() && current.ExpiresAt.After(s.now()) {
-		return statusFromToken(cfg, &current, s.now()), nil
+	if !current.ExpiresAt.IsZero() && status.Status == StatusAuthenticated && !status.RenewalDue() {
+		return status, nil
 	}
 	if strings.TrimSpace(current.RefreshToken) == "" {
 		return statusFromTokenWithDiagnostic(
@@ -117,8 +116,22 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 			"refresh token is unavailable; run login again",
 		), nil
 	}
+	if !status.Refreshable {
+		return status, nil
+	}
+	return s.renewToken(ctx, cfg, current, generation)
+}
 
+func (s *Service) renewToken(
+	ctx context.Context,
+	cfg ServerConfig,
+	current TokenRecord,
+	generation uint64,
+) (Status, error) {
 	refreshConfig, metadata, err := s.refreshConfiguration(ctx, cfg)
+	if errors.Is(err, errRefreshRegistrationInvalid) {
+		return localRefreshRepairStatus(statusFromToken(cfg, &current, s.now())), nil
+	}
 	if err != nil {
 		return Status{}, err
 	}
@@ -148,7 +161,7 @@ func (s *Service) rejectRefresh(ctx context.Context, cfg ServerConfig, generatio
 		return s.store.DeleteMCPAuthToken(ctx, cfg.Target)
 	})
 	if err != nil {
-		return Status{}, err
+		return Status{}, errors.Join(cause, err)
 	}
 	if !committed {
 		return Status{}, ErrTokenMutationStale
@@ -200,7 +213,7 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 			"stored token belongs to a different server definition; run login again",
 		), nil
 	}
-	return s.storedTokenStatus(cfg, token, registration), nil
+	return s.storedTokenStatus(ctx, cfg, token, registration), nil
 }
 
 // AuthorizationToken returns bearer material only after full definition, registration, and scope binding validation.

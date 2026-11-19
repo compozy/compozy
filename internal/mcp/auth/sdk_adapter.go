@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -39,7 +40,7 @@ func (s *Service) beginHostedOAuth(
 	if err != nil {
 		return LoginState{}, err
 	}
-	clientID, clientSecret, tokenEndpointAuthMethod, err := s.resolveHostedRegistration(
+	client, err := s.resolveHostedRegistration(
 		ctx,
 		cfg,
 		resourceURL,
@@ -62,20 +63,22 @@ func (s *Service) beginHostedOAuth(
 		return LoginState{}, err
 	}
 	effectiveCfg := cfg
-	effectiveCfg.ClientID = clientID
-	effectiveCfg.ClientSecret = clientSecret
-	effectiveCfg.TokenEndpointAuthMethod = tokenEndpointAuthMethod
-	authorizationURL, err := authorizationURL(
-		metadata.AuthorizationEndpoint,
+	effectiveCfg.ClientID = client.id
+	effectiveCfg.ClientSecret = client.secret
+	effectiveCfg.TokenEndpointAuthMethod = client.authMethod
+	authorizationURL, scopes, err := authorizationURL(
+		metadata,
 		effectiveCfg,
 		redirectURL,
 		state,
 		pkce,
+		client.refreshCapable,
 	)
 	if err != nil {
 		return LoginState{}, err
 	}
 	return LoginState{
+		requestedScopes:  scopes,
 		Target:           cfg.Target.Normalize(),
 		RedirectURL:      strings.TrimSpace(redirectURL),
 		State:            state,
@@ -118,22 +121,45 @@ func (s *Service) hostedRefreshConfig(
 		fingerprint,
 		resourceURL,
 		registration.RedirectURL,
-		asm.Issuer,
+		registration.Issuer,
 	) {
-		return ServerConfig{}, Metadata{}, errors.New(
-			"mcp auth: stored registration is no longer valid; run login again",
-		)
+		return ServerConfig{}, Metadata{}, errRefreshRegistrationInvalid
 	}
-	clientSecret, err := s.resolveRegistrationSecret(ctx, registration.ClientSecretRef)
-	if err != nil {
-		return ServerConfig{}, Metadata{}, err
+	if !issuersEqual(registration.Issuer, asm.Issuer) {
+		return ServerConfig{}, Metadata{}, fmt.Errorf(
+			"mcp auth: stored registration is no longer valid for the discovered issuer: %w",
+			ErrTokenBindingInvalid,
+		)
 	}
 	resolved := cfg
 	resolved.ResourceURL = resourceURL
 	resolved.ClientID = registration.ClientID
-	resolved.ClientSecret = clientSecret
 	resolved.TokenEndpointAuthMethod = registration.TokenEndpointAuthMethod
+	if resolved.TokenEndpointAuthMethod != tokenEndpointAuthMethodNone {
+		if s.secretResolver == nil {
+			return ServerConfig{}, Metadata{}, errRefreshRegistrationInvalid
+		}
+		secret, err := s.resolveRegistrationSecret(ctx, registration.ClientSecretRef)
+		if registrationSecretUnavailable(err) || (err == nil && strings.TrimSpace(secret) == "") {
+			return ServerConfig{}, Metadata{}, errRefreshRegistrationInvalid
+		}
+		if err != nil {
+			return ServerConfig{}, Metadata{}, err
+		}
+		resolved.ClientSecret = secret
+	}
 	return resolved, metadataFromAuthServer(asm), nil
+}
+
+func (s *Service) hostedRegistrationRefreshable(
+	cfg ServerConfig,
+	registration ClientRegistration,
+	fingerprint string,
+) bool {
+	return s.dynamicRegistrationReusable(
+		registration, cfg, fingerprint,
+		firstNonEmpty(cfg.ResourceURL, cfg.RemoteURL), registration.RedirectURL, registration.Issuer,
+	) && (registration.TokenEndpointAuthMethod == tokenEndpointAuthMethodNone || s.secretResolver != nil)
 }
 
 func (s *Service) protectedResourceMetadata(
@@ -303,8 +329,14 @@ func metadataFromAuthServer(asm *oauthex.AuthServerMeta) Metadata {
 		RevocationEndpoint:            strings.TrimSpace(asm.RevocationEndpoint),
 		CodeChallengeMethodsSupported: append([]string(nil), asm.CodeChallengeMethodsSupported...),
 		ScopesSupported:               append([]string(nil), asm.ScopesSupported...),
+		grantTypesSupported:           slices.Clone(asm.GrantTypesSupported),
 		IssuerParameterSupported:      asm.AuthorizationResponseIssParameterSupported,
 	}
+}
+
+type hostedOAuthClient struct {
+	id, secret, authMethod string
+	refreshCapable         bool
 }
 
 func (s *Service) resolveHostedRegistration(
@@ -313,18 +345,21 @@ func (s *Service) resolveHostedRegistration(
 	resourceURL string,
 	redirectURL string,
 	asm *oauthex.AuthServerMeta,
-) (string, string, string, error) {
+) (hostedOAuthClient, error) {
 	if cfg.registrationStrategy() == RegistrationPreRegistered {
 		if !issuersEqual(cfg.IssuerURL, asm.Issuer) {
-			return "", "", "", errors.New(
+			return hostedOAuthClient{}, errors.New(
 				"mcp auth: pre-registered issuer does not match authorization server",
 			)
 		}
 		method, err := effectiveTokenEndpointAuthMethod(cfg)
 		if err != nil {
-			return "", "", "", err
+			return hostedOAuthClient{}, err
 		}
-		return strings.TrimSpace(cfg.ClientID), strings.TrimSpace(cfg.ClientSecret), method, nil
+		return hostedOAuthClient{
+			id: strings.TrimSpace(cfg.ClientID), secret: strings.TrimSpace(cfg.ClientSecret),
+			authMethod: method, refreshCapable: true,
+		}, nil
 	}
 	if asm.ClientIDMetadataDocumentSupported {
 		clientMetadataURL := strings.TrimSpace(s.clientMetadataURL)
@@ -332,7 +367,12 @@ func (s *Service) resolveHostedRegistration(
 			clientMetadataURL = compozyconfig.DefaultMCPClientMetadataURL
 		}
 		if err := validateClientMetadataURL(clientMetadataURL); err == nil {
-			if validateErr := s.validateCIMD(ctx, cfg, clientMetadataURL, redirectURL); validateErr == nil {
+			if refreshCapable, validateErr := s.validateCIMD(
+				ctx,
+				cfg,
+				clientMetadataURL,
+				redirectURL,
+			); validateErr == nil {
 				if persistErr := s.persistCIMDRegistration(
 					ctx,
 					cfg,
@@ -341,13 +381,16 @@ func (s *Service) resolveHostedRegistration(
 					asm.Issuer,
 					clientMetadataURL,
 				); persistErr != nil {
-					return "", "", "", persistErr
+					return hostedOAuthClient{}, persistErr
 				}
-				return clientMetadataURL, "", tokenEndpointAuthMethodNone, nil
+				return hostedOAuthClient{
+					id: clientMetadataURL, authMethod: tokenEndpointAuthMethodNone, refreshCapable: refreshCapable,
+				}, nil
 			}
 		}
 	}
-	return s.dynamicClientRegistration(ctx, cfg, resourceURL, redirectURL, asm)
+	id, secret, method, err := s.dynamicClientRegistration(ctx, cfg, resourceURL, redirectURL, asm)
+	return hostedOAuthClient{id: id, secret: secret, authMethod: method, refreshCapable: true}, err
 }
 
 func (s *Service) validateCIMD(
@@ -355,42 +398,43 @@ func (s *Service) validateCIMD(
 	cfg ServerConfig,
 	metadataURL string,
 	redirectURL string,
-) (err error) {
+) (refreshCapable bool, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL, http.NoBody)
 	if err != nil {
-		return fmt.Errorf("mcp auth: build CIMD request: %w", err)
+		return false, fmt.Errorf("mcp auth: build CIMD request: %w", err)
 	}
 	resp, err := s.clientFor(cfg).Do(req)
 	if err != nil {
-		return fmt.Errorf("mcp auth: fetch CIMD: %w", err)
+		return false, fmt.Errorf("mcp auth: fetch CIMD: %w", err)
 	}
 	defer func() {
 		err = errors.Join(err, drainAndCloseResponseBody(resp.Body))
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return errors.New("mcp auth: CIMD unavailable")
+		return false, errors.New("mcp auth: CIMD unavailable")
 	}
 	var document struct {
 		ClientID     string   `json:"client_id"`
 		RedirectURIs []string `json:"redirect_uris"`
+		GrantTypes   []string `json:"grant_types"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&document); err != nil {
-		return fmt.Errorf("mcp auth: decode CIMD: %w", err)
+		return false, fmt.Errorf("mcp auth: decode CIMD: %w", err)
 	}
 	configuredID, err := canonicalCIMDURL(metadataURL)
 	if err != nil {
-		return err
+		return false, err
 	}
 	documentID, err := canonicalCIMDURL(document.ClientID)
 	if err != nil || documentID != configuredID {
-		return errors.New("mcp auth: CIMD client_id does not match configured URL")
+		return false, errors.New("mcp auth: CIMD client_id does not match configured URL")
 	}
 	for _, candidate := range document.RedirectURIs {
 		if strings.TrimSpace(candidate) == strings.TrimSpace(redirectURL) {
-			return nil
+			return slices.Contains(document.GrantTypes, serviceRefreshTokenKey), nil
 		}
 	}
-	return errors.New("mcp auth: CIMD does not permit the active redirect URL")
+	return false, errors.New("mcp auth: CIMD does not permit the active redirect URL")
 }
 
 func (s *Service) persistCIMDRegistration(

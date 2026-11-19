@@ -99,3 +99,21 @@ or new registration. Verify that an omitted `scope` on refresh preserves the gra
 status, and that changing the configured CIMD redirect URI disables renewal until reauthorization.
 The isolated SQLite and HTTP path is covered by
 `TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback`.
+
+QA impact 2026-11-18 (#1829, #1830, #1831), using only local OAuth and MCP fixtures:
+
+- Advertise `offline_access` at the issuer and authorize a refresh-capable client with a resource
+  scope. Verify both scopes and the issuer's existing consent parameters in the authorization
+  request. Repeat without issuer support and with a response that grants access without a refresh
+  token. Auth status shows the result through the existing redacted fields.
+- Expire the persisted registration's client secret. Observe `refreshable=false`, an instruction to
+  sign in again, and a retained token. Repeat discovery across the retry interval and confirm
+  there is no OAuth traffic. Repair the registration and confirm discovery renews with the same
+  grant. Inspect status and logs for absence of credentials and Vault references.
+- Advance a fixture clock into the final 10% of the access token lifetime, up to 30 seconds before
+  expiry. Passive auth status still reports `authenticated` with the original expiry. Discovery
+  starts one renewal. On a transient failure, discovery still uses the existing bearer until
+  expiry and respects backoff. For an access-only response, discovery works through the same
+  window without attempting renewal.
+
+The OAuth adapter and executor suites cover these fixture walks.
