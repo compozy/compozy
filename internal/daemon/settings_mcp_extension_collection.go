@@ -38,7 +38,8 @@ func (s settingsMCPExtensionDefinitions) ListMCPExtensionDefinitions(
 		if err != nil {
 			return nil, err
 		}
-		if !settingsMCPExtensionTargetVisible(req, target) {
+		management := extensionMCPManagementTarget(record, target)
+		if !settingsMCPExtensionTargetVisible(req, target) && !settingsMCPExtensionTargetVisible(req, management) {
 			continue
 		}
 		server, err := projectExtensionSecretHeaders(ctx, s.state, record, "")
@@ -56,7 +57,7 @@ func (s settingsMCPExtensionDefinitions) ListMCPExtensionDefinitions(
 			ServerName:  record.Spec.Name,
 		}
 		definitions = append(definitions, settingspkg.MCPExtensionDefinition{
-			Target: target, Server: server, Override: byTarget[allocation],
+			Target: target, ManagementTarget: management, Server: server, Override: byTarget[allocation],
 		})
 	}
 	return definitions, nil

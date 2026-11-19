@@ -216,13 +216,19 @@ func (e *CallExecutor) Status(
 
 func (e *CallExecutor) authorizeServer(ctx context.Context, source toolspkg.SourceRef, resolved *ResolvedServer) error {
 	if resolved.Server.IsDisabled() {
-		return toolspkg.NewToolError("source_disabled", "", fmt.Sprintf("MCP server %q is off", resolved.Server.Name),
-			toolspkg.ErrToolUnavailable, toolspkg.ReasonSourceDisabled)
+		return mcpServerDisabledError(resolved.Server.Name)
 	}
 	if e.consent != nil {
 		return e.consent(ctx, source, *resolved)
 	}
 	return nil
+}
+
+func mcpServerDisabledError(name string) error {
+	return toolspkg.NewToolError(
+		"source_disabled", "", fmt.Sprintf("MCP server %q is off", name),
+		toolspkg.ErrToolUnavailable, toolspkg.ReasonSourceDisabled,
+	)
 }
 
 func (e *CallExecutor) callContext(ctx context.Context) (context.Context, context.CancelFunc) {

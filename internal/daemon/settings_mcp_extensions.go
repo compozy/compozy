@@ -7,6 +7,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/resources"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
@@ -44,10 +45,11 @@ func (s settingsMCPExtensionDefinitions) ResolveMCPExtensionDefinition(
 		if err != nil {
 			return mcpauth.Target{}, compozyconfig.MCPServer{}, false, err
 		}
-		if !settingsMCPExtensionTargetVisible(req, target) {
+		management := extensionMCPManagementTarget(record, target)
+		if !settingsMCPExtensionTargetVisible(req, target) && !settingsMCPExtensionTargetVisible(req, management) {
 			continue
 		}
-		exact := settingsMCPExtensionTargetMatches(req, target)
+		exact := settingsMCPExtensionTargetMatches(req, target) || settingsMCPExtensionTargetMatches(req, management)
 		if found && foundExact && !exact {
 			continue
 		}
@@ -62,6 +64,15 @@ func (s settingsMCPExtensionDefinitions) ResolveMCPExtensionDefinition(
 		foundTarget, foundServer, found, foundExact = target, server, true, exact
 	}
 	return foundTarget, foundServer, found, nil
+}
+
+func extensionMCPManagementTarget(
+	record resources.Record[compozyconfig.MCPServer], target mcpauth.Target,
+) mcpauth.Target {
+	if record.Source == agentSkillSyncActor().Source {
+		return publishedMCPManagementTarget(record.Scope, target)
+	}
+	return target
 }
 
 func settingsMCPExtensionTargetMatches(req settingspkg.MCPAuthTargetRequest, target mcpauth.Target) bool {

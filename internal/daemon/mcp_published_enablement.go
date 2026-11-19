@@ -10,6 +10,7 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type publishedMCPEnablementStore interface {
@@ -26,6 +27,9 @@ func publishedMCPEnablementKey(record resources.Record[config.MCPServer]) string
 	if owner.Kind == extensionResourceOwnerKind {
 		// Extension publications already have stable, manifest-relative IDs.
 		identity = record.ID
+	} else if scope.Kind == resources.ResourceScopeKindProfile && scope.ID == store.DefaultProfileID {
+		// The default profile republishes global files under a second resource ID.
+		scope = resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	}
 	if identity == "" {
 		return ""
@@ -60,16 +64,22 @@ func (s settingsMCPConsent) SetPublishedMCPEnabled(
 	}
 	var selected resources.Record[config.MCPServer]
 	var target mcpauth.Target
+	var selectedKey string
+	owner := (mcpauth.Target{Owner: req.Owner}).Normalize().Owner
 	for _, record := range state.mcpServerCatalog.Snapshot() {
-		if publishedMCPEnablementKey(record) == "" || record.Spec.Name != req.Name ||
+		if record.Spec.Name != req.Name ||
 			(req.DefinitionSource != "" && req.DefinitionSource != record.Spec.DefinitionSource) {
+			continue
+		}
+		key := publishedMCPEnablementKey(record)
+		if key == "" || key == selectedKey {
 			continue
 		}
 		candidate, err := mcpAuthTargetForResource(ctx, state, record.Scope, record.Spec.Name, record.Owner)
 		if err != nil {
 			return settings.MCPPublishedDefinition{}, false, err
 		}
-		if candidate.Owner != (mcpauth.Target{Owner: req.Owner}).Normalize().Owner ||
+		if candidate.Owner != owner ||
 			!settingsMCPExtensionTargetMatches(req, publishedMCPManagementTarget(record.Scope, candidate)) {
 			continue
 		}
@@ -81,7 +91,7 @@ func (s settingsMCPConsent) SetPublishedMCPEnabled(
 					req.Name,
 				)
 		}
-		selected, target = record, candidate
+		selected, target, selectedKey = record, candidate, key
 	}
 	if selected.ID == "" {
 		return settings.MCPPublishedDefinition{}, false, nil
@@ -95,7 +105,7 @@ func (s settingsMCPConsent) SetPublishedMCPEnabled(
 	if err != nil {
 		return settings.MCPPublishedDefinition{}, false, err
 	}
-	if err := store.SetAppMetadata(ctx, publishedMCPEnablementKey(selected), fmt.Sprint(enabled)); err != nil {
+	if err := store.SetAppMetadata(ctx, selectedKey, fmt.Sprint(enabled)); err != nil {
 		return settings.MCPPublishedDefinition{}, false, err
 	}
 	if state.toolProjectionEpoch != nil {

@@ -154,7 +154,7 @@ func (s *service) setPublishedMCPServerEnabled(
 		item = publishedMCPCollectionItem(definition, req)
 	} else {
 		item = extensionMCPCollectionItem(MCPExtensionDefinition{
-			Target: definition.Target, Server: definition.Server,
+			Target: definition.Target, ManagementTarget: definition.ManagementTarget, Server: definition.Server,
 		})
 	}
 	err = s.populateMCPServerStatuses(ctx, &item.item, item.entry, true, false)

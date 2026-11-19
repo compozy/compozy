@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/compozy/compozy/internal/vault"
@@ -214,7 +215,13 @@ func (s *Service) serializedRefresh(
 		return Status{}, target.refreshCanUseAccessToken, ErrRefreshBackoff
 	}
 	target.refreshAttempts++
+	off := new(atomic.Bool)
+	refreshCtx = context.WithValue(refreshCtx, renewalOffKey{}, off)
 	status, err := s.refresh(refreshCtx, cfg, observed, generation)
+	if off.Load() {
+		target.refreshAttempts, target.refreshRetryAt = 0, time.Time{}
+		return Status{}, false, ErrServerDisabled
+	}
 	if err != nil {
 		s.logger.WarnContext(ctx, "mcp.auth.refresh_failed",
 			"server", cfg.Target.ServerName, "owner", cfg.Target.Normalize().Owner,

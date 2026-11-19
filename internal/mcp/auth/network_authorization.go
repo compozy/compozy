@@ -2,14 +2,22 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"sync/atomic"
 )
+
+// ErrServerDisabled prevents fallback to a valid access token after an off switch.
+var ErrServerDisabled = errors.New("mcp auth: server is off")
 
 // WithNetworkAuthorization rechecks source consent immediately before every OAuth request,
 // including discovery, registration, refresh, revocation and redirected requests.
 func WithNetworkAuthorization(check func(context.Context, ServerConfig) error) ServiceOption {
 	return func(s *Service) { s.authorizeNetwork = check }
 }
+
+// Renewal may pass through SDK helpers that discard the type of a transport error.
+type renewalOffKey struct{}
 
 type authorizedTransport struct {
 	base   http.RoundTripper
@@ -18,7 +26,14 @@ type authorizedTransport struct {
 }
 
 func (t authorizedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	off, _ := req.Context().Value(renewalOffKey{}).(*atomic.Bool)
+	if off != nil && off.Load() {
+		return nil, ErrServerDisabled
+	}
 	if err := t.check(req.Context(), t.config); err != nil {
+		if off != nil && errors.Is(err, ErrServerDisabled) {
+			off.Store(true)
+		}
 		return nil, err
 	}
 	return t.base.RoundTrip(req)

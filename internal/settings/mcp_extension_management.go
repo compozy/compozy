@@ -13,9 +13,10 @@ var ErrMCPServerNameTaken = errors.New("mcp_server_name_taken")
 
 // MCPExtensionDefinition is an owner-qualified published server with editable override state.
 type MCPExtensionDefinition struct {
-	Target   mcpauth.Target
-	Server   compozyconfig.MCPServer
-	Override extensionmcp.Override
+	Target           mcpauth.Target
+	ManagementTarget mcpauth.Target
+	Server           compozyconfig.MCPServer
+	Override         extensionmcp.Override
 }
 
 // MCPExtensionManagement reads published definitions and protects retained runtime allocations.
@@ -30,7 +31,11 @@ type MCPExtensionManagement interface {
 }
 
 func extensionMCPCollectionItem(definition MCPExtensionDefinition) mcpCollectionItem {
-	req := mcpAuthTargetRequest(definition.Target)
+	target := definition.ManagementTarget
+	if target.Scope == "" {
+		target = definition.Target
+	}
+	req := mcpAuthTargetRequest(target)
 	entry := mcpSourceEntry{
 		Server:     definition.Server,
 		AuthTarget: &definition.Target,

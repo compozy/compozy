@@ -2410,6 +2410,76 @@ func TestSettingsMCPDisabled(t *testing.T) {
 			}
 		}
 	})
+	// Invariant: management selects the same published definition as Settings and direct session launch.
+	// Owner: daemon publication and enablement; canonical suite: Settings MCP.
+	t.Run("Should share a global server preference with its default-profile publication", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		server := req.Server
+		server.Disabled = new(true)
+		record := resources.Record[compozyconfig.MCPServer]{
+			ID: "global-agent", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			Spec: server, Source: agentSkillSyncActor().Source,
+		}
+		alias := record
+		alias.ID = "default-profile-agent"
+		alias.Scope = resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: store.DefaultProfileID}
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{record, alias})
+		definition, found, err := (settingsMCPConsent{state: state}).SetPublishedMCPEnabled(t.Context(),
+			settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeUser, Name: server.Name,
+				DefinitionSource: server.DefinitionSource}, true)
+		if err != nil || !found || definition.Server.IsDisabled() {
+			t.Fatalf("enable the shared definition: found=%t, err=%v", found, err)
+		}
+		for _, resourceID := range []string{record.ID, alias.ID} {
+			source := toolspkg.SourceRef{ResourceID: resourceID, ProfileID: store.DefaultProfileID}
+			resolved, err := resolveDaemonMCPResource(t.Context(), state, source, server.Name, "manual")
+			if err != nil || resolved.Server.IsDisabled() {
+				t.Fatalf("enabled publication %q: %v", resourceID, err)
+			}
+		}
+		servers, err := sessionMCPConsentFilter(
+			state,
+		)(
+			t.Context(),
+			store.DefaultProfileID,
+			"",
+			[]compozyconfig.MCPServer{server},
+		)
+		if err != nil || len(servers) != 1 || servers[0].IsDisabled() {
+			t.Fatalf("direct launch retained the authored off flag: %+v, %v", servers, err)
+		}
+	})
+
+	t.Run("Should use the workspace-profile selector for a static extension server", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		record := resources.Record[compozyconfig.MCPServer]{
+			ID: "extension/test/agent/default/mcp_server/sentry",
+			Scope: resources.ResourceScope{
+				Kind: resources.ResourceScopeKindWorkspaceProfile,
+				ID:   req.WorkspaceID + "@pf:default",
+			},
+			Spec:   req.Server,
+			Owner:  *extensionOwner("test"),
+			Source: agentSkillSyncActor().Source,
+		}
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{record})
+		definitions, err := (settingsMCPExtensionDefinitions{state: state}).ListMCPExtensionDefinitions(t.Context(),
+			settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID})
+		if err != nil || len(definitions) != 1 || definitions[0].Target.Scope != mcpauth.ScopeWorkspace ||
+			definitions[0].ManagementTarget.Scope != mcpauth.ScopeWorkspaceProfile {
+			t.Fatalf("workspace static extension definitions: %+v, %v", definitions, err)
+		}
+		definition, found, err := (settingsMCPConsent{state: state}).SetPublishedMCPEnabled(t.Context(),
+			settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeProfile, WorkspaceID: req.WorkspaceID,
+				ProfileName: "default", Owner: "extension:test", Name: record.Spec.Name,
+				DefinitionSource: definitions[0].Server.DefinitionSource}, false)
+		if err != nil || !found || !definition.Server.IsDisabled() {
+			t.Fatalf("disable the selected static extension definition: found=%t, err=%v", found, err)
+		}
+	})
+
 }
 
 // Invariant (UT-110/037): no OAuth/probe network call precedes digest-bound consent;

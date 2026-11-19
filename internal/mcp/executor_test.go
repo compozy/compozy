@@ -1032,6 +1032,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		windowCap  time.Duration
 		noRefresh  bool
 		rejected   bool
+		disabled   bool
 	}{
 		{name: "Should renew within the maximum window", lifetime: time.Hour, window: 30 * time.Second},
 		{name: "Should scale the window to short lifetimes", lifetime: 20 * time.Second, window: 2 * time.Second},
@@ -1045,6 +1046,8 @@ func TestMCPCallExecutor(t *testing.T) {
 			lifetime: time.Minute, window: 6 * time.Second, retryAfter: 10 * time.Second,
 		},
 		{name: "Should allow an access-only grant until expiry", lifetime: time.Minute, window: 6 * time.Second, noRefresh: true},
+		{name: "Should stop before connecting when renewal observes the switch off", lifetime: time.Minute,
+			window: 6 * time.Second, disabled: true},
 		{name: "Should withdraw a definitively rejected grant before expiry", lifetime: time.Minute, window: 6 * time.Second, rejected: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1123,7 +1126,14 @@ func TestMCPCallExecutor(t *testing.T) {
 			}
 			service, err := mcpauth.NewService(store, mcpauth.WithNow(func() time.Time { return now }),
 				mcpauth.WithRefreshBackoff(tc.retryAfter, tc.retryAfter), mcpauth.WithEarlyRenewalWindow(tc.windowCap),
-				mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))))
+				mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))),
+				mcpauth.WithNetworkAuthorization(func(context.Context, mcpauth.ServerConfig) error {
+					if tc.disabled {
+						return mcpauth.ErrServerDisabled
+					}
+					return nil
+				}),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1143,6 +1153,17 @@ func TestMCPCallExecutor(t *testing.T) {
 			if err != nil || status.Status != string(mcpauth.StatusAuthenticated) ||
 				status.ExpiresAt == nil || !status.ExpiresAt.Equal(expiresAt) || renewals.Load() != 0 {
 				t.Fatalf("passive status before expiry = %+v, err = %v", status, err)
+			}
+			if tc.disabled {
+				before := mcpRequests.Load()
+				_, err := executor.ListTools(t.Context(), source)
+				requireReason(t, err, toolspkg.ReasonSourceDisabled)
+				stored, err := store.GetMCPAuthToken(t.Context(), target)
+				if mcpRequests.Load() != before || renewals.Load() != 0 || err != nil ||
+					stored.AccessToken != token.AccessToken {
+					t.Fatal("disabled renewal contacted the server or changed persisted authorization")
+				}
+				return
 			}
 			if tc.rejected {
 				_, err := executor.ListTools(t.Context(), source)
@@ -3665,6 +3686,22 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		}, "extension:bundle")
 		if err != nil || status.Owner != "extension:bundle" || status.ServerName != "github" {
 			t.Fatalf("diagnostic status = %#v, error = %v", status, err)
+		}
+	})
+	// Invariant: the native status reader can report an off server with an unavailable OAuth secret.
+	// Owner: MCP executor status; canonical suite: TestMCPCallExecutor.
+	t.Run("Should report off when the OAuth client secret is unavailable", func(t *testing.T) {
+		t.Parallel()
+		server := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, "https://mcp.example.test/mcp")
+		server.Disabled = new(true)
+		server.Auth.ClientSecretRef = "env:MCP_CLIENT_SECRET"
+		executor := newTestMCPExecutor(t, server, withAuthService(&fakeAuthService{}),
+			WithSecretLookup(func(string) string { return "" }))
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+		status, err := executor.Status(t.Context(), source, "")
+		if err != nil || !status.Disabled || status.ServerName != server.Name ||
+			status.Scope != string(mcpauth.ScopeUser) {
+			t.Fatalf("disabled status = %+v, err = %v", status, err)
 		}
 	})
 	t.Run("Should Return Redacted Status And Use Secret Lookup Internally", func(t *testing.T) {
