@@ -59,6 +59,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithCheckInTools(deps.CheckInTools),
 			session.WithAttentionConfig(deps.AttentionConfig),
 			session.WithAttentionWorkspaceMuteReader(deps.AttentionWorkspaceMutes),
+			session.WithOperatorNoticeOutbox(deps.OperatorNoticeOutbox),
 			session.WithSessionHealthStore(deps.SessionHealthStore),
 			session.WithSessionCatalog(deps.SessionCatalog),
 			session.WithEventLedger(deps.EventLedger),

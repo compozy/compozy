@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ErrSnapshotUnavailable requires a fresh notification read before retrying.
@@ -34,6 +37,21 @@ type Store interface {
 	CaptureAttentionSnapshot(context.Context, Scope, []string) (string, []string, error)
 	AttentionSnapshotOccurrences(context.Context, Scope, string, string) ([]string, error)
 	AcknowledgeAttentionSnapshot(context.Context, Scope, string, string) error
+}
+
+// AutomationFailure is the bell's lightweight projection of a failed run.
+type AutomationFailure struct {
+	OccurrenceID string
+	RunID        string
+	JobID        string
+	TriggerID    string
+	WorkspaceID  string
+	OccurredAt   time.Time
+}
+
+// AutomationFailureReader keeps source selection independent of receipt ownership.
+type AutomationFailureReader interface {
+	ListUnreadAutomationFailures(context.Context, Scope, store.ReadScope, []string) ([]AutomationFailure, error)
 }
 
 // Identity preserves source boundaries even when identifiers contain separators.

@@ -1460,6 +1460,19 @@ type NotificationCursor struct {
 	UpdatedAt       string         `json:"updated_at"`
 }
 
+type OperatorNoticeOutbox struct {
+	ID          string         `json:"id"`
+	ProfileID   string         `json:"profile_id"`
+	WorkspaceID sql.NullString `json:"workspace_id"`
+	SessionID   string         `json:"session_id"`
+	Kind        string         `json:"kind"`
+	Action      string         `json:"action"`
+	Resource    string         `json:"resource"`
+	Title       string         `json:"title"`
+	Body        string         `json:"body"`
+	CreatedAt   string         `json:"created_at"`
+}
+
 type PermissionLog struct {
 	InitiatorKind string `json:"initiator_kind"`
 	InitiatorID   string `json:"initiator_id"`

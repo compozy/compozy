@@ -127,7 +127,7 @@ func (t monitorSessionTargets) TargetChanges(
 	}
 	watchCtx, stop := context.WithCancel(ctx)
 	events, cancel, err := manager.SubscribeSessionCatalogEvents(watchCtx, session.CatalogScope{
-		ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+		ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, ExcludeOperatorNotifications: true,
 	})
 	if err != nil {
 		stop()

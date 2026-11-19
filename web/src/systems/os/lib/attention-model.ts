@@ -136,6 +136,31 @@ export interface OsLayoutUpgradeAttentionRow {
   stale: boolean;
 }
 
+export interface OsAutomationFailureAttentionRow {
+  kind: "automation-failure";
+  id: string;
+  automationId: string;
+  automationKind: "job" | "trigger";
+  title: string;
+  workspaceId: string;
+  workspaceLabel: string;
+  reason: string;
+  occurredAt: string;
+  stale: boolean;
+}
+
+export interface OsOperatorNoticeAttentionRow {
+  kind: "operator-notice";
+  id: string;
+  sessionId: string;
+  title: string;
+  workspaceId: string;
+  workspaceLabel: string;
+  reason: string;
+  occurredAt: string;
+  stale: boolean;
+}
+
 export type OsAttentionRow = (
   | OsSessionAttentionRow
   | OsTaskAttentionRow
@@ -143,6 +168,8 @@ export type OsAttentionRow = (
   | OsLoopRequestAttentionRow
   | OsTerminalInputAttentionRow
   | OsLayoutUpgradeAttentionRow
+  | OsAutomationFailureAttentionRow
+  | OsOperatorNoticeAttentionRow
 ) & { notificationId?: string };
 
 export interface OsAttentionSections {

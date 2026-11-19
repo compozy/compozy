@@ -6,19 +6,27 @@ persona: Cora
 journey: J-respond-to-agent-attention
 expected: The bell separates Needs you from Finished, counts exact unread needs-you occurrences across all workspaces and source profiles, preserves task-approval rows and honest quiet or disconnected states, and activation opens the named task or focuses the named session after any required workspace switch.
 entry_points: web OS shell attention bell; pending task approval row; session needs-you or finished row
-qa_status: skipped
+qa_status: pass
 bug_ids: BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
-retest_status: pending
+retest_status: pass
 fix_commits:
-evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-cross-workspace-needs-you-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-attention-all-quiet-cleared.png; .compozy/tasks/herdr-parity/evidence/visual/task_03
-last_report: docs/qa/reports/2026-10-02-untested.md
+evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-cross-workspace-needs-you-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-attention-all-quiet-cleared.png; .compozy/tasks/herdr-parity/evidence/visual/task_03; docs/qa/reports/2026-11-18-attention-pr1820.md
+last_report: docs/qa/reports/2026-11-18-attention-pr1820.md
 overlaps: RT-session-attention-catalog; ET-web-session-cross-workspace-confirm
 ---
 
 Walk populated, quiet, stale, muted, 100-plus-row, same-workspace, and foreign-workspace states. Keep
 one pending task approval beside the new session rows and prove its row, count, and task landing did
 not regress.
+
+Close the UI before a scheduled job in a project and an event trigger in User fail. Reopen the
+shell in a different profile and confirm both failures appear under Needs you with names and
+scopes. Repeat in All profiles. Select each row and confirm it opens the corresponding automation. Mark one read, reload,
+and verify only the other is unread. Clear all and verify both failures remain in run history.
+With all catalog clients closed, send an operator notice from a User session. Reopen the shell and
+verify its bell row opens the sender session and can be marked read independently of a run failure.
+
 Confirm a stale or already-resolved row still lands honestly. Each row offers Mark as read; Clear all acknowledges the frozen full population, including rows beyond the display cap. Finished arrivals can also be acknowledged without opening the session.
 
 QA impact 2026-08-16: Task 03 added the web bell and shared cross-workspace jump. Flag only; Task 08
@@ -48,3 +56,5 @@ QA impact 2026-11-08 (#1388): a session row in the bell names an automation run 
 job and its agent shared a name. `GET /api/notifications/attention` session items now also carry the additive
 optional fields `session_type` and `instance_id`. Owners: `TestAttentionNotificationReceipts` (daemon payload)
 and `use-os-attention.test.tsx` (bell title). Not walked.
+
+QA 2026-11-18, PR #1820: targeted real-daemon CLI and Chromium journeys passed. Confirmed a failed User job in the bell, job-detail navigation, acknowledgement across refresh with retained run history, and the existing cross-project session-navigation and disconnected-source canaries. Coverage, fixture-provider use and limits are recorded in docs/qa/reports/2026-11-18-attention-pr1820.md.

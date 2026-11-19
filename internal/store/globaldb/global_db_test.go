@@ -3504,6 +3504,61 @@ func TestOpenGlobalDBRefusesLegacyDatabaseWithoutMutation(t *testing.T) {
 func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should finish multiple retention batches and preserve the cutoff across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		cutoff := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+		const expiredCount = 1025
+		summaries := make([]EventSummary, 0, expiredCount+2)
+		for i := range expiredCount {
+			summaries = append(summaries, EventSummary{
+				ProfileID: store.DefaultProfileID, ID: fmt.Sprintf("expired-%04d", i),
+				Type: "settings.changed", Timestamp: cutoff.Add(-time.Nanosecond),
+			})
+		}
+		for _, entry := range []struct {
+			id string
+			at time.Time
+		}{
+			{id: "boundary", at: cutoff},
+			{id: "fresh", at: cutoff.Add(time.Nanosecond)},
+		} {
+			summaries = append(summaries, EventSummary{
+				ProfileID: store.DefaultProfileID, ID: entry.id, Type: "settings.changed", Timestamp: entry.at,
+			})
+		}
+		if err := db.WriteEventSummaries(ctx, summaries); err != nil {
+			t.Fatal(err)
+		}
+		result, err := db.SweepObservability(ctx, cutoff)
+		if err != nil || result.DeletedEventSummaries != expiredCount {
+			t.Fatalf("sweep = %#v, %v, want %d expired summaries", result, err, expiredCount)
+		}
+		path := db.Path()
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		db = openGlobalDBForTest(t, path)
+		remaining, err := db.ListEventSummaries(ctx, EventSummaryQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(remaining) != 2 || !slices.ContainsFunc(remaining, func(summary EventSummary) bool {
+			return summary.ID == "boundary" && summary.Timestamp.Equal(cutoff)
+		}) || !slices.ContainsFunc(remaining, func(summary EventSummary) bool {
+			return summary.ID == "fresh" && summary.Timestamp.Equal(cutoff.Add(time.Nanosecond))
+		}) {
+			t.Fatalf("remaining summaries = %#v, want only the boundary and fresh summaries", remaining)
+		}
+		result, err = db.SweepObservability(ctx, cutoff)
+		if err != nil || result.DeletedEventSummaries != 0 {
+			t.Fatalf("repeated sweep = %#v, %v, want no expired summaries", result, err)
+		}
+	})
+
 	t.Run("Should avoid waiting for the writer when no observability rows have expired", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

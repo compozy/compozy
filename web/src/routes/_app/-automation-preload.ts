@@ -88,10 +88,13 @@ async function prefetchAutomationDetail(
 
 export function preloadAutomationJobDetailRoute(
   queryClient: QueryClient,
-  jobId: string
+  jobId: string,
+  fromBell?: true
 ): Promise<void> {
   if (!jobId) return Promise.resolve();
-  const profileScope = readProfileScopeParams(queryClient);
+  const profileScope = fromBell
+    ? ({ all_profiles: true } as const)
+    : readProfileScopeParams(queryClient);
   return settleRouteQueries([
     prefetchAutomationDetail(
       queryClient,
@@ -104,10 +107,13 @@ export function preloadAutomationJobDetailRoute(
 
 export function preloadAutomationTriggerDetailRoute(
   queryClient: QueryClient,
-  triggerId: string
+  triggerId: string,
+  fromBell?: true
 ): Promise<void> {
   if (!triggerId) return Promise.resolve();
-  const profileScope = readProfileScopeParams(queryClient);
+  const profileScope = fromBell
+    ? ({ all_profiles: true } as const)
+    : readProfileScopeParams(queryClient);
   return settleRouteQueries([
     prefetchAutomationDetail(
       queryClient,

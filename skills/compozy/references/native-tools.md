@@ -162,8 +162,9 @@ if the answer itself exceeds the result budget, page its returned artifact norma
 required `title` of at most 80 characters and an optional `body` of at most 240 characters. The
 daemon sanitizes and redacts both fields before delivery, then returns exactly one provable outcome:
 `delivered` when at least one live operator catalog-stream subscriber accepted the event,
-`no-client`, `muted-workspace`, or `rate-limited` with `retry_after_ms`. The per-session limit is one
-send per second, including sends suppressed by a workspace mute. CLI fallback: `compozy notify`.
+`no-client` when the notice was saved for the sender profile's attention bell, `muted-workspace`,
+or `rate-limited` with `retry_after_ms`. The per-session limit is one send per second, including
+sends suppressed by a workspace mute. CLI fallback: `compozy notify`.
 
 Monitor tools, also in the `sessions` toolset: `compozy__monitor_create`, `compozy__monitor_list`,
 `compozy__monitor_cancel`. A monitor is a daemon-owned watch that wakes the bound session with a new

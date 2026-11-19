@@ -1894,10 +1894,12 @@ describe("route query preloading", () => {
 
     await invokeLoader(JobDetailRoute, {
       ...context(queryClient),
+      deps: { fromBell: undefined },
       params: { jobId: "job-foreign" },
     });
     await invokeLoader(TriggerDetailRoute, {
       ...context(queryClient),
+      deps: { fromBell: undefined },
       params: { triggerId: "trigger-foreign" },
     });
     // The loaders release navigation before the reads settle; the ownership check follows them.
@@ -1910,6 +1912,30 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
+  it("Should preload the automation and its runs across profiles for a bell link", async () => {
+    const queryClient = createQueryClient();
+    adapterMocks.getAutomationJob.mockResolvedValueOnce({ id: "job-from-bell", scope: "global" });
+
+    await invokeLoader(JobDetailRoute, {
+      ...context(queryClient),
+      deps: { fromBell: true },
+      params: { jobId: "job-from-bell" },
+    });
+
+    await waitFor(() => expect(adapterMocks.listAutomationJobRuns).toHaveBeenCalledTimes(1));
+    expect(adapterMocks.getAutomationJob).toHaveBeenCalledExactlyOnceWith(
+      "job-from-bell",
+      { all_profiles: true },
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.listAutomationJobRuns).toHaveBeenCalledExactlyOnceWith(
+      "job-from-bell",
+      { all_profiles: true, limit: 10 },
+      expect.any(AbortSignal)
+    );
+    queryClient.clear();
+  });
+
   it("Should release navigation while an automation detail read remains in flight, then warm its runs", async () => {
     const queryClient = createQueryClient();
     const jobRead = createDeferred<{ id: string; scope: string }>();
@@ -1918,11 +1944,16 @@ describe("route query preloading", () => {
     adapterMocks.getAutomationTrigger.mockReturnValueOnce(triggerRead.promise);
 
     await expect(
-      invokeLoader(JobDetailRoute, { ...context(queryClient), params: { jobId: "job-1" } })
+      invokeLoader(JobDetailRoute, {
+        ...context(queryClient),
+        deps: { fromBell: undefined },
+        params: { jobId: "job-1" },
+      })
     ).resolves.toBeUndefined();
     await expect(
       invokeLoader(TriggerDetailRoute, {
         ...context(queryClient),
+        deps: { fromBell: undefined },
         params: { triggerId: "trigger-1" },
       })
     ).resolves.toBeUndefined();

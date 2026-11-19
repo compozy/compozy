@@ -1,4 +1,5 @@
 import {
+  Bell,
   BellOff,
   Clock3,
   KeyRound,
@@ -78,6 +79,10 @@ function RowMark({ row }: { row: OsAttentionRow }) {
       );
     case "layout-upgrade":
       return <LayoutUpgradeMark />;
+    case "automation-failure":
+      return <NonSessionMark icon={TriangleAlert} tone="bg-warning-tint text-warning" />;
+    case "operator-notice":
+      return <NonSessionMark icon={Bell} tone={INFO_TONE} />;
   }
 }
 
@@ -118,6 +123,8 @@ function rowReason(row: OsAttentionRow): ReactNode {
       );
     case "loop-node":
       return row.state;
+    case "automation-failure":
+    case "operator-notice":
     case "layout-upgrade":
       return row.reason;
   }
@@ -128,6 +135,8 @@ function rowWorkspace(row: OsAttentionRow): string | null {
     case "session":
     case "loop-request":
     case "terminal-input":
+    case "automation-failure":
+    case "operator-notice":
     case "layout-upgrade":
       return row.workspaceLabel;
     case "task":
@@ -141,6 +150,8 @@ function rowIsStale(row: OsAttentionRow): boolean {
     case "session":
     case "loop-request":
     case "terminal-input":
+    case "automation-failure":
+    case "operator-notice":
     case "layout-upgrade":
       return row.stale;
     case "task":
@@ -200,7 +211,7 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
         ) : null}
         {isSession ? <Time iso={row.changedAt} /> : null}
         {isTerminalInput ? <Time iso={row.requestedAt} /> : null}
-        {row.kind === "layout-upgrade" ? <Time iso={row.occurredAt} /> : null}
+        {"occurredAt" in row ? <Time iso={row.occurredAt} /> : null}
         {isLoopRequest ? (
           <span className="flex flex-col items-end">
             <Time iso={row.openedAt} />
