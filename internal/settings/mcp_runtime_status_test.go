@@ -355,6 +355,23 @@ func TestMCPServerCollectionBoundsRuntimeProbes(t *testing.T) {
 		}
 		entries := sources["echo"]
 		queued := mcpCollectionItem{entry: entries[0], item: baseMCPServerItem(entries[0], entries, ScopeUser, "", "")}
+		// A request that rejects before writing must leave this probe eligible.
+		_, err = svc.SetMCPServerEnabled(t.Context(), MCPAuthTargetRequest{Scope: ScopeUser, Name: "missing"}, false)
+		if !errors.Is(err, ErrNotFound) {
+			t.Fatalf("disable an unknown server: %v", err)
+		}
+		if err := svc.populateMCPCollectionStatuses(
+			t.Context(),
+			[]mcpCollectionItem{queued},
+			false,
+			false,
+			generation,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if len(runtime.calls) != 1 {
+			t.Fatalf("rejected write canceled the queued probe: %v", runtime.calls)
+		}
 		if _, err := svc.SetMCPServerEnabled(
 			t.Context(),
 			MCPAuthTargetRequest{Scope: ScopeUser, Name: "echo"},
@@ -371,7 +388,7 @@ func TestMCPServerCollectionBoundsRuntimeProbes(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		if len(runtime.calls) != 0 {
+		if len(runtime.calls) != 1 {
 			t.Fatalf("queued probe started after disable: %v", runtime.calls)
 		}
 	})

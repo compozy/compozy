@@ -44,10 +44,13 @@ func applyPublishedMCPEnablement(
 		return nil
 	}
 	value, found, err := store.GetAppMetadata(ctx, key)
+	if err != nil {
+		return fmt.Errorf("daemon: read enablement for published MCP server %q: %w", server.Name, err)
+	}
 	if found {
 		server.Disabled = new(value == "false")
 	}
-	return err
+	return nil
 }
 
 func (s settingsMCPConsent) SetPublishedMCPEnabled(
@@ -101,7 +104,8 @@ func (s settingsMCPConsent) SetPublishedMCPEnabled(
 		return settings.MCPPublishedDefinition{}, false, err
 	}
 	if err := store.SetAppMetadata(ctx, selectedKey, fmt.Sprint(enabled)); err != nil {
-		return settings.MCPPublishedDefinition{}, false, err
+		return settings.MCPPublishedDefinition{}, false,
+			fmt.Errorf("daemon: persist enablement for published MCP server %q: %w", req.Name, err)
 	}
 	if state.toolProjectionEpoch != nil {
 		state.toolProjectionEpoch.Advance()

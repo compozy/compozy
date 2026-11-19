@@ -25,10 +25,7 @@ func (s *service) SetMCPServerEnabled(
 	s.applyMu.Lock()
 	defer s.applyMu.Unlock()
 	s.mcpProbeMu.Lock()
-	defer func() {
-		s.mcpProbeGeneration++
-		s.mcpProbeMu.Unlock()
-	}()
+	defer s.mcpProbeMu.Unlock()
 	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
 	if err != nil {
 		return MCPServerItem{}, err
@@ -104,6 +101,7 @@ func (s *service) setManualMCPServerEnabled(
 			err,
 		)
 	}
+	s.mcpProbeGeneration++
 	result := mutationResultAtPath(
 		mutationResultForCollection(CollectionMCPServers, req.Scope, req.WorkspaceID, kind),
 		target.Path(),
@@ -137,8 +135,7 @@ func (s *service) setManualMCPServerEnabled(
 	entries := sources[req.Name]
 	index := slices.IndexFunc(entries, func(source mcpSourceEntry) bool { return source.Target == kind })
 	item := baseMCPServerItem(entry, entries[:index+1], req.Scope, req.WorkspaceID, req.ProfileName)
-	err = s.populateMCPServerStatuses(ctx, &item, entry, true, false)
-	return item, err
+	return s.enrichMCPEnablementResult(ctx, item, entry), nil
 }
 
 func mcpEnablementConfigSource(
@@ -171,6 +168,7 @@ func (s *service) setPublishedMCPServerEnabled(
 	if err != nil || !found {
 		return MCPServerItem{}, found, err
 	}
+	s.mcpProbeGeneration++
 	var item mcpCollectionItem
 	if req.Owner == "" || req.Owner == mcpManualOwner {
 		item = publishedMCPCollectionItem(definition, req)
@@ -179,8 +177,7 @@ func (s *service) setPublishedMCPServerEnabled(
 			Target: definition.Target, ManagementTarget: definition.ManagementTarget, Server: definition.Server,
 		})
 	}
-	err = s.populateMCPServerStatuses(ctx, &item.item, item.entry, true, false)
-	return item.item, true, err
+	return s.enrichMCPEnablementResult(ctx, item.item, item.entry), true, nil
 }
 
 func (s *service) setExtensionMCPServerEnabled(
@@ -197,7 +194,23 @@ func (s *service) setExtensionMCPServerEnabled(
 	if err != nil {
 		return MCPServerItem{}, err
 	}
+	s.mcpProbeGeneration++
 	item := extensionMCPCollectionItem(definition)
-	err = s.populateMCPServerStatuses(ctx, &item.item, item.entry, true, false)
-	return item.item, err
+	return s.enrichMCPEnablementResult(ctx, item.item, item.entry), nil
+}
+
+func (s *service) enrichMCPEnablementResult(
+	ctx context.Context, item MCPServerItem, entry mcpSourceEntry,
+) MCPServerItem {
+	if err := s.populateMCPServerStatuses(ctx, &item, entry, true, false); err != nil {
+		status := MCPServerRuntimeStatus{
+			Configured: true, State: MCPServerRuntimeStateUnknown,
+			Probe: MCPServerProbeSkipped, Reason: "not_observed",
+		}
+		if item.Disabled {
+			status = OffMCPServerRuntimeStatus()
+		}
+		setMCPRuntimeObservation(&item, entry.Server, status)
+	}
+	return item
 }
