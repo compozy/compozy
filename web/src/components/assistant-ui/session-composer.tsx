@@ -58,11 +58,23 @@ export type { SessionBusyInputHandler } from "./hooks/use-session-busy-input-act
  */
 export type SessionComposerStopPhase = "idle" | "stopping";
 
+/**
+ * Claims a submission before it reaches this session (`/side <question>`, `_uiux.md` S1): idle
+ * Enter, the busy verbs, and the Send control all ask it first, so a claimed text never becomes a
+ * message in this session's thread.
+ */
+export interface SessionComposerSubmitInterceptor {
+  claims: (text: string) => boolean;
+  /** Resolves whether the composer clears; `false` keeps the text where it was typed. */
+  submit: (submission: { text: string; attachmentCount: number }) => boolean | Promise<boolean>;
+}
+
 export interface SessionComposerProps {
   commandCatalog?: SessionComposerCommandCatalog;
   commandCatalogStatus?: "loading" | "ready";
   onCommandCatalogOpen?: () => void;
   onCommandAction?: (token: string) => boolean;
+  submitInterceptor?: SessionComposerSubmitInterceptor;
   canPrompt: boolean;
   onCancelPrompt: () => void;
   onQueuePrompt?: SessionBusyInputHandler;
@@ -299,7 +311,7 @@ function SessionComposerInput() {
     >
       <SessionComposerHandleBridge onHandle={actions.setComposerInputElement} />
       <SessionBusyEnterPlugin
-        active={Boolean(edit?.active) || state.busyEnterActive}
+        active={Boolean(edit?.active) || state.busyEnterActive || state.intercepting}
         blocker={state.sendBlocker}
         onBlocked={reason => notifyUser({ message: reason, tone: "warning" })}
         onEnter={
@@ -352,6 +364,7 @@ function SessionComposerControls() {
       handleDisconnectedSend={
         state.transportDisconnected ? actions.handleDisconnectedSend : undefined
       }
+      handleInterceptedSend={state.intercepting ? actions.submitIntercepted : undefined}
       handleInterruptAction={actions.handleInterruptAction}
       handleQueueAction={actions.handleQueueAction}
       handleSteerAction={actions.handleSteerAction}

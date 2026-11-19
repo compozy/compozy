@@ -1,8 +1,9 @@
 import { use } from "react";
 import { useSelector } from "@xstate/store-react";
-import { SubagentDrawerContext, subagentDrawerLogic } from "../contexts/subagent-drawer-context";
+import { SubagentDrawerContext } from "../contexts/subagent-drawer-context";
+import { sessionWindowDrawerLogic } from "../contexts/session-window-drawer-store";
 
-const emptyDrawerStore = subagentDrawerLogic.createStore();
+const emptyDrawerStore = sessionWindowDrawerLogic.createStore();
 
 export function useSubagentDrawerSelected(id: string): boolean {
   const drawer = use(SubagentDrawerContext);

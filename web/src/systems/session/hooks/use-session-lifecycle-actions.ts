@@ -43,6 +43,7 @@ import {
   settleTreeTarget,
 } from "@/systems/session/hooks/session-lifecycle-helpers";
 import { useSessionLaterActions } from "./use-session-later-actions";
+import { useSessionHasSideChats } from "./use-session-sides";
 import { useSessionBatchAdmission } from "./use-session-batch-admission";
 import { useMarkSessionSeenAction } from "./use-mark-session-seen";
 import type {
@@ -97,6 +98,11 @@ export function useSessionLifecycleActions(
     deleteTarget?.openedAt ?? Infinity
   );
   const deleteSession = deleteSessions?.[0] ?? null;
+  const deleteSideChats = useSessionHasSideChats(
+    deleteSession?.workspace_id ?? "",
+    deleteSession?.id ?? "",
+    { enabled: deleteSession !== null && deleteSessions?.length === 1 }
+  );
   // A target the batch already deleted has no tree left to read or to ask about.
   const remainingDeleteTargets = deleteTarget?.sessions.filter(
     session => !batchResults.some(result => result.id === session.id && result.status === "done")
@@ -432,6 +438,7 @@ export function useSessionLifecycleActions(
       sessions: deleteSessions,
       results: deleteTarget?.bulk ? batchResults : undefined,
       isDeleting: remove.isPending || batchAction === "delete",
+      sideChats: deleteSideChats,
       childSessions: sessionChildrenChoice(deleteScope, deleteChildren, setDeleteChildren, {
         pending: !deleteRead.settled,
         onRetry: deleteRead.onRetry,

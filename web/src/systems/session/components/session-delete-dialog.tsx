@@ -14,6 +14,7 @@ import type { SessionBatchResult } from "../lib/session-batch";
 
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import { sessionProcessChoiceCopy } from "../lib/session-process-choice";
+import { SIDE_CHAT_COPY } from "../lib/session-side";
 import { sessionRunningProcesses } from "../lib/session-processes";
 import type { SessionChildrenChoice } from "../lib/session-tree";
 import type { SessionPayload } from "../types";
@@ -28,6 +29,8 @@ export interface SessionDeleteDialogProps {
   isDeleting: boolean;
   /** Present when the targets have child sessions; absent keeps the dialog unchanged. */
   childSessions?: SessionChildrenChoice;
+  /** The session has side chats (closed ones included): deleting it deletes them too (S5). */
+  sideChats?: boolean;
   /** `processes` answers what happens to running processes; absent when none run. */
   onConfirm: (processes?: SessionProcessPolicy) => void;
 }
@@ -42,6 +45,7 @@ export function SessionDeleteDialog({
   onRetry,
   isDeleting,
   childSessions,
+  sideChats = false,
   onConfirm,
 }: SessionDeleteDialogProps) {
   if (sessions && sessions.length > 1) {
@@ -87,6 +91,7 @@ export function SessionDeleteDialog({
             This permanently removes <strong>{session.name?.trim() || session.id}</strong>,
             including its transcript and history, and removes it from the session list.
             {processChoice ? ` ${processChoice.description}` : null}
+            {sideChats ? ` ${SIDE_CHAT_COPY.deleteLine}` : null}
           </DialogDescription>
         </DialogHeader>
         {childSessions ? (

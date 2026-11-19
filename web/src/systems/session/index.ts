@@ -493,6 +493,7 @@ export { SessionDraftRuntimeProvider } from "./contexts/session-draft-runtime-pr
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";
 export type { SessionThreadBranchChange, SessionThreadSegment } from "./lib/session-thread-branch";
 export * from "./subagents";
+export * from "./side-chat";
 // Processes surface — what a session left running and the stop/keep choice (./processes).
 export * from "./processes";
 export * from "./board-drawer";

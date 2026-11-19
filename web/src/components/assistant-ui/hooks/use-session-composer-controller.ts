@@ -77,6 +77,7 @@ export function useSessionComposerController({
   commandCatalogStatus,
   onCommandCatalogOpen,
   onCommandAction,
+  submitInterceptor,
   promptImageCapability = "unknown",
   promptEmbeddedContextCapability = "unknown",
   sessionId,
@@ -184,6 +185,25 @@ export function useSessionComposerController({
     return () => window.clearTimeout(timer);
   }, [dismissFeedback, visibleFeedback]);
 
+  // A claimed submission (`/side …`) leaves through the interceptor on every submit path, idle or
+  // busy, so it never lands in this session's thread. It clears the field only once it was taken.
+  const intercepting = !edit?.active && submitInterceptor?.claims(composerText) === true;
+  const submitIntercepted = (): boolean => {
+    if (!submitInterceptor || edit?.active || !submitInterceptor.claims(composerText)) return false;
+    const submitted = composerText;
+    void Promise.resolve(
+      submitInterceptor.submit({ text: submitted, attachmentCount: composerAttachments.length })
+    ).then(clear => {
+      if (clear) consumeSubmittedDraft({ composerText: submitted, attachmentIds: [] });
+    });
+    return true;
+  };
+  const intercepted =
+    <T extends unknown[]>(action: (...args: T) => void) =>
+    (...args: T) => {
+      if (!submitIntercepted()) action(...args);
+    };
+
   const enterHint = composerEnterHint(busyEnterActive, isStopping, busyInputDefaultMode, queueFull);
 
   return {
@@ -191,6 +211,7 @@ export function useSessionComposerController({
       busyEnterActive,
       canSubmitBusyInput,
       commandFormatter,
+      intercepting,
       commandScope,
       composerAttachmentCount: composerAttachments.length,
       composerText,
@@ -210,8 +231,15 @@ export function useSessionComposerController({
     actions: {
       ...busyActions,
       // The modifier has no opposite to perform while stopping: both variants queue.
-      handleEnterAction: (variant: "default" | "opposite") =>
-        busyActions.handleEnterAction(isStopping ? "default" : variant),
+      handleEnterAction: intercepted((variant: "default" | "opposite") =>
+        busyActions.handleEnterAction(isStopping ? "default" : variant)
+      ),
+      handleInterruptAction: intercepted(busyActions.handleInterruptAction),
+      handleQueueAction: intercepted(busyActions.handleQueueAction),
+      handleSteerAction: intercepted(busyActions.handleSteerAction),
+      submitIntercepted: () => {
+        submitIntercepted();
+      },
       recordPendingCommandAction: (token: string, beforeSelection: string) => {
         pendingCommandActionRef.current = { beforeSelection, token };
       },

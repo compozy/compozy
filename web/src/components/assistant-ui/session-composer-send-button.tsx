@@ -22,6 +22,7 @@ export function SessionComposerSendButton({
   canPrompt,
   hasStagedQuote = false,
   onDisconnectedSend,
+  onInterceptedSend,
   sessionId,
   promptEmbeddedContextCapability,
   promptImageCapability,
@@ -30,6 +31,8 @@ export function SessionComposerSendButton({
   hasStagedQuote?: boolean;
   /** While the live stream is down the press answers with the guard note; nothing leaves. */
   onDisconnectedSend?: () => void;
+  /** The composer's interceptor claims the text (`/side`): the press goes there, not to this session. */
+  onInterceptedSend?: () => void;
   sessionId: string;
   promptEmbeddedContextCapability: SessionPromptCapability;
   promptImageCapability: SessionPromptCapability;
@@ -61,6 +64,21 @@ export function SessionComposerSendButton({
         onClick={() => {
           void edit.submit();
         }}
+        size="send"
+        title={blocker ?? undefined}
+      >
+        <ArrowUp strokeWidth={2} />
+      </InputGroupButton>
+    );
+  }
+
+  if (onInterceptedSend) {
+    return (
+      <InputGroupButton
+        aria-label="Send message"
+        data-testid="composer-send-button"
+        disabled={disabled}
+        onClick={onInterceptedSend}
         size="send"
         title={blocker ?? undefined}
       >

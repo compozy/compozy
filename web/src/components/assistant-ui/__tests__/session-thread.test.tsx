@@ -100,6 +100,7 @@ import {
   takePendingTerminalQuote,
 } from "@/systems/terminal/parts";
 import { discardComposerDraftAttachments, resetSessionPromptRecovery } from "@/systems/session";
+import { parseSideCommand, SessionSideThreadBoundary } from "@/systems/session";
 
 beforeEach(() => {
   vi.spyOn(toast, "error").mockReturnValue("toast");
@@ -471,6 +472,8 @@ interface ThreadStateOptions {
   /** The Fork dialog host's request; absent outside a host ("Fork from here" hides). */
   forkRequest?: SessionForkRequest | null;
   subagentNavigation?: ComponentProps<typeof SessionThread>["subagentNavigation"];
+  /** Rendered as a side chat's thread inside the main window's derive hosts (S6). */
+  sideChat?: boolean;
 }
 
 function threadStateElement(
@@ -497,6 +500,7 @@ function threadStateElement(
     origin = null,
     forkRequest = null,
     subagentNavigation = null,
+    sideChat = false,
   }: ThreadStateOptions
 ) {
   if (durableMessageIds.length > 0) {
@@ -527,6 +531,28 @@ function threadStateElement(
     );
   }
 
+  const thread = (
+    <SessionThread
+      sessionId={primarySessionFixture.id}
+      agentName={primarySessionFixture.agent_name}
+      canPrompt
+      onCancelPrompt={() => {}}
+      isSessionRunning={isSessionRunning}
+      statusSession={statusSession}
+      stopCompletionNote={stopCompletionNote}
+      stopPhase={stopPhase}
+      acpSessionId={acpSessionId}
+      sessionState={sessionState}
+      failure={failure}
+      readOnly={readOnly}
+      liveDataEnabled={liveDataEnabled}
+      contextControl={contextControl}
+      subagentControl={subagentControl}
+      mcpControl={mcpControl}
+      subagentNavigation={subagentNavigation}
+    />
+  );
+
   return (
     <QueryClientProvider client={queryClient}>
       <SessionChatRuntimeProvider
@@ -542,25 +568,7 @@ function threadStateElement(
         >
           <SessionOriginContext value={origin}>
             <SessionForkContext value={forkRequest}>
-              <SessionThread
-                sessionId={primarySessionFixture.id}
-                agentName={primarySessionFixture.agent_name}
-                canPrompt
-                onCancelPrompt={() => {}}
-                isSessionRunning={isSessionRunning}
-                statusSession={statusSession}
-                stopCompletionNote={stopCompletionNote}
-                stopPhase={stopPhase}
-                acpSessionId={acpSessionId}
-                sessionState={sessionState}
-                failure={failure}
-                readOnly={readOnly}
-                liveDataEnabled={liveDataEnabled}
-                contextControl={contextControl}
-                subagentControl={subagentControl}
-                mcpControl={mcpControl}
-                subagentNavigation={subagentNavigation}
-              />
+              {sideChat ? <SessionSideThreadBoundary>{thread}</SessionSideThreadBoundary> : thread}
             </SessionForkContext>
           </SessionOriginContext>
         </SessionTranscriptThreadProvider>
@@ -2222,6 +2230,23 @@ describe("SessionThread transcript states", () => {
     expect(forkRequest).toHaveBeenCalledExactlyOnceWith(undefined, {
       messageId: "transcript_user_001",
     });
+  });
+
+  // S6 (`_uiux.md`): a side chat's transcript sits inside the main window's derive hosts, yet a
+  // side chat is never forked or continued, so its messages offer neither.
+  it("Should not offer Fork from here on a side chat's messages", async () => {
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+    renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+      forkRequest: vi.fn(),
+      sideChat: true,
+    });
+
+    expect(await screen.findByTestId("user-message-rewind")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Fork from here" })).not.toBeInTheDocument();
   });
 
   it("Should not offer Fork from here for an optimistic tail, without a host, or read-only", async () => {
@@ -5714,6 +5739,115 @@ describe("SessionThread composer running semantics", () => {
     });
     // The runtime send never fired, so no user message entered the thread.
     expect(screen.queryByText("steer this follow-up")).not.toBeInTheDocument();
+  });
+
+  // UT-087 (US-001.AC-6): `/side <question>` leaves through the composer's interceptor on every
+  // submit path, so the main session receives nothing and its thread gains no message.
+  describe("side chat routing", () => {
+    const sideInterceptor = (result = true) => ({
+      claims: (text: string) => parseSideCommand(text) !== null,
+      submit: vi.fn(() => Promise.resolve(result)),
+    });
+
+    it("UT-087: Should route an idle `/side` Enter and Send press to the interceptor and send nothing", async () => {
+      const promptCalls: string[] = [];
+      vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+      const interceptor = sideInterceptor();
+      renderComposer({ isSessionRunning: false, submitInterceptor: interceptor });
+
+      const editable = await findComposerEditable();
+      await setComposerText("/side why this file?");
+      await act(async () => {
+        fireEvent.keyDown(editable, { key: "Enter" });
+      });
+      await waitFor(() =>
+        expect(interceptor.submit).toHaveBeenCalledExactlyOnceWith({
+          text: "/side why this file?",
+          attachmentCount: 0,
+        })
+      );
+      await waitFor(() => expect(composerText()).toBe(""));
+
+      await setComposerText("/side and this one?");
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("composer-send-button"));
+      });
+      await waitFor(() => expect(interceptor.submit).toHaveBeenCalledTimes(2));
+      expect(interceptor.submit).toHaveBeenLastCalledWith({
+        text: "/side and this one?",
+        attachmentCount: 0,
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(promptCalls).toHaveLength(0);
+      expect(screen.queryByText("why this file?")).not.toBeInTheDocument();
+    });
+
+    it("UT-087: Should route a busy `/side` Enter to the interceptor instead of steering or queueing", async () => {
+      const onQueuePrompt = vi.fn(() => Promise.resolve());
+      const onSteerPrompt = vi.fn(() => Promise.resolve());
+      const interceptor = sideInterceptor();
+      renderComposer({
+        isSessionRunning: true,
+        allowBusyInput: true,
+        onQueuePrompt,
+        onSteerPrompt,
+        submitInterceptor: interceptor,
+      });
+
+      const editable = await findComposerEditable();
+      await setComposerText("/side what is it doing?");
+      await act(async () => {
+        fireEvent.keyDown(editable, { key: "Enter" });
+        fireEvent.keyDown(editable, { key: "Enter", metaKey: true });
+      });
+
+      await waitFor(() => expect(interceptor.submit).toHaveBeenCalled());
+      expect(interceptor.submit).toHaveBeenCalledWith({
+        text: "/side what is it doing?",
+        attachmentCount: 0,
+      });
+      expect(onSteerPrompt).not.toHaveBeenCalled();
+      expect(onQueuePrompt).not.toHaveBeenCalled();
+      await waitFor(() => expect(composerText()).toBe(""));
+    });
+
+    it("Should keep the `/side` text where it was typed when the side chat is refused", async () => {
+      const promptCalls: string[] = [];
+      vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+      const interceptor = sideInterceptor(false);
+      renderComposer({ isSessionRunning: false, submitInterceptor: interceptor });
+
+      const editable = await findComposerEditable();
+      await setComposerText("/side too early?");
+      await act(async () => {
+        fireEvent.keyDown(editable, { key: "Enter" });
+      });
+
+      await waitFor(() => expect(interceptor.submit).toHaveBeenCalledOnce());
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(composerText()).toBe("/side too early?");
+      expect(promptCalls).toHaveLength(0);
+    });
+
+    it("Should send other text to the session as usual", async () => {
+      const promptCalls: string[] = [];
+      vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+      const interceptor = sideInterceptor();
+      renderComposer({ isSessionRunning: false, submitInterceptor: interceptor });
+
+      const editable = await findComposerEditable();
+      await setComposerText("/sidebar is not a side chat");
+      await act(async () => {
+        fireEvent.keyDown(editable, { key: "Enter" });
+      });
+
+      await waitFor(() => expect(promptCalls).toHaveLength(1));
+      expect(interceptor.submit).not.toHaveBeenCalled();
+    });
   });
 
   it("Should queue on Enter when the daemon default is queue and steer with the modifier (E2E-012 unit shadow)", async () => {

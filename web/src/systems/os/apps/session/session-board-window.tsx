@@ -163,6 +163,7 @@ export function SessionBoardWindow({
               <SessionDeleteDialog
                 isDeleting={deleteDialog.isDeleting}
                 childSessions={deleteDialog.childSessions}
+                sideChats={deleteDialog.sideChats}
                 onConfirm={deleteDialog.onConfirm}
                 onOpenChange={deleteDialog.onOpenChange}
                 onRetry={deleteDialog.onRetry}

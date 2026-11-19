@@ -11,7 +11,7 @@ import { act, createElement, Profiler, use, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
-import { SubagentDrawerContext, subagentDrawerLogic } from "@/systems/session";
+import { SubagentDrawerContext, sessionWindowDrawerLogic } from "@/systems/session";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/systems/session/adapters/subagent-api", () => ({
@@ -469,7 +469,7 @@ describe("subagent card drill-in (UT-W16)", () => {
   // Owner/canonical suite: provider → card → window drawer store wiring, UT-W16.
   it("Should select a queued subagent in the drawer before its child session exists", () => {
     const queued = view("sub-1", { status: "queued", child_session_id: null });
-    const store = subagentDrawerLogic.createStore();
+    const store = sessionWindowDrawerLogic.createStore();
     const openSession = vi.fn();
     const Host = harness([queued], { openSession });
     function Wrapper({ children }: { children: ReactNode }) {

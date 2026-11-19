@@ -27,6 +27,8 @@ interface SessionComposerActionRowProps {
   sessionId: string;
   /** Present while the live stream is down: Send answers with the guard note instead of a request. */
   handleDisconnectedSend?: () => void;
+  /** The Send control's press when the composer's interceptor claims the text (`/side`). */
+  handleInterceptedSend?: () => void;
   handleInterruptAction: () => void;
   handleQueueAction: () => void;
   handleSteerAction: () => void;
@@ -278,6 +280,7 @@ export function SessionComposerActionRow({
   hasStagedQuote = false,
   sessionId,
   handleDisconnectedSend,
+  handleInterceptedSend,
   handleInterruptAction,
   handleQueueAction,
   handleSteerAction,
@@ -342,6 +345,7 @@ export function SessionComposerActionRow({
           canPrompt={canPrompt}
           hasStagedQuote={hasStagedQuote}
           onDisconnectedSend={handleDisconnectedSend}
+          onInterceptedSend={handleInterceptedSend}
           sessionId={sessionId}
           promptEmbeddedContextCapability={promptEmbeddedContextCapability}
           promptImageCapability={promptImageCapability}

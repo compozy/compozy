@@ -147,6 +147,7 @@ export function SessionThread({
   commandCatalogStatus,
   onCommandCatalogOpen,
   onCommandAction,
+  submitInterceptor,
   promptImageCapability = "unknown",
   promptEmbeddedContextCapability = "unknown",
   readOnly = false,
@@ -292,6 +293,7 @@ export function SessionThread({
                       commandCatalogStatus={commandCatalogStatus}
                       onCommandCatalogOpen={onCommandCatalogOpen}
                       onCommandAction={onCommandAction}
+                      submitInterceptor={submitInterceptor}
                       promptImageCapability={promptImageCapability}
                       promptEmbeddedContextCapability={promptEmbeddedContextCapability}
                     />
