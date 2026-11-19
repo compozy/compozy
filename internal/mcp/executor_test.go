@@ -1165,14 +1165,15 @@ func TestMCPCallExecutor(t *testing.T) {
 	// Invariant: discovery uses the bound token through real expiry and renews once within the bounded window.
 	// Owner: MCP executor discovery and authorization; canonical suite: TestMCPCallExecutor.
 	for _, tc := range []struct {
-		name       string
-		lifetime   time.Duration
-		window     time.Duration
-		retryAfter time.Duration
-		windowCap  time.Duration
-		noRefresh  bool
-		rejected   bool
-		disabled   bool
+		name                 string
+		lifetime             time.Duration
+		window               time.Duration
+		retryAfter           time.Duration
+		windowCap            time.Duration
+		noRefresh            bool
+		rejected             bool
+		disabled             bool
+		disableDuringBackoff bool
 	}{
 		{name: "Should renew within the maximum window", lifetime: time.Hour, window: 30 * time.Second},
 		{name: "Should scale the window to short lifetimes", lifetime: 20 * time.Second, window: 2 * time.Second},
@@ -1185,6 +1186,11 @@ func TestMCPCallExecutor(t *testing.T) {
 			name:     "Should withhold a bearer that expires during renewal backoff",
 			lifetime: time.Minute, window: 6 * time.Second, retryAfter: 10 * time.Second,
 		},
+		{
+			name:     "Should stop before connecting when backoff returns a still-valid bearer",
+			lifetime: time.Minute, window: 6 * time.Second, retryAfter: 2 * time.Second,
+			disableDuringBackoff: true,
+		},
 		{name: "Should allow an access-only grant until expiry", lifetime: time.Minute, window: 6 * time.Second, noRefresh: true},
 		{name: "Should stop before connecting when renewal observes the switch off", lifetime: time.Minute,
 			window: 6 * time.Second, disabled: true},
@@ -1194,7 +1200,8 @@ func TestMCPCallExecutor(t *testing.T) {
 			t.Parallel()
 			var renewals atomic.Int32
 			var mcpRequests atomic.Int32
-			var failRefresh atomic.Bool
+			var failRefresh, off atomic.Bool
+			off.Store(tc.disabled)
 			failRefresh.Store(tc.retryAfter > 0)
 			handler := newTestMCPHandler(newFakeSDKServer(nil))
 			remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1268,7 +1275,7 @@ func TestMCPCallExecutor(t *testing.T) {
 				mcpauth.WithRefreshBackoff(tc.retryAfter, tc.retryAfter), mcpauth.WithEarlyRenewalWindow(tc.windowCap),
 				mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))),
 				mcpauth.WithNetworkAuthorization(func(context.Context, mcpauth.ServerConfig) error {
-					if tc.disabled {
+					if off.Load() {
 						return mcpauth.ErrServerDisabled
 					}
 					return nil
@@ -1320,6 +1327,16 @@ func TestMCPCallExecutor(t *testing.T) {
 				requireReason(t, err, toolspkg.ReasonMCPAuthExpired)
 				if renewals.Load() != 0 {
 					t.Fatal("access-only grant attempted renewal")
+				}
+				return
+			}
+			if tc.disableDuringBackoff {
+				off.Store(true)
+				before := mcpRequests.Load()
+				_, err := executor.ListTools(t.Context(), source)
+				requireReason(t, err, toolspkg.ReasonSourceDisabled)
+				if mcpRequests.Load() != before || renewals.Load() != 1 {
+					t.Fatal("discovery started while off during renewal backoff")
 				}
 				return
 			}

@@ -10,7 +10,6 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/settings"
-	"github.com/compozy/compozy/internal/store"
 )
 
 type publishedMCPEnablementStore interface {
@@ -22,21 +21,17 @@ func publishedMCPEnablementKey(record resources.Record[config.MCPServer]) string
 	if record.Source != agentSkillSyncActor().Source {
 		return ""
 	}
-	scope, owner := record.Scope.Normalize(), record.Owner.Normalize()
+	owner := record.Owner.Normalize()
+	// Each projection of an inherited file refers to the same declaration.
 	identity := record.Spec.DefinitionSource
 	if owner.Kind == extensionResourceOwnerKind {
-		// Extension publications already have stable, manifest-relative IDs.
+		// Extension publication IDs retain their own instance scope.
 		identity = record.ID
-	} else if scope.Kind == resources.ResourceScopeKindProfile && scope.ID == store.DefaultProfileID {
-		// The default profile republishes global files under a second resource ID.
-		scope = resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	}
 	if identity == "" {
 		return ""
 	}
-	key := strings.Join([]string{
-		string(scope.Kind), scope.ID, string(owner.Kind), owner.ID, identity, record.Spec.Name,
-	}, "\x00")
+	key := strings.Join([]string{string(owner.Kind), owner.ID, identity, record.Spec.Name}, "\x00")
 	return fmt.Sprintf("mcp.published.enabled.%x", sha256.Sum256([]byte(key)))
 }
 

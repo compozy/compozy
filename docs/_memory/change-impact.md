@@ -8,7 +8,7 @@
 - **Config, persistence and extensibility.** `disabled` is additive in TOML and JSON. Existing
   files default to on. Extension allocations add a default-on persisted switch without rewriting
   manifests or changing hook contracts. Published agent and skill servers use a local preference
-  keyed by declaring scope and identity. Definition digests and credential owners exclude the switch.
+  keyed by declaring file or extension instance. Definition digests and credential owners exclude the switch.
 - **Workspace and profile isolation.** Resolve the effective source before testing its switch.
   An off workspace definition keeps its precedence, and the change targets the declaring scope.
 - **Web, docs and official skill.** Settings shows the switch and neutral Off status. The session

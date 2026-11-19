@@ -2612,7 +2612,8 @@ func TestSettingsMCPDisabled(t *testing.T) {
 	// Owner: daemon publication and enablement; canonical suite: Settings MCP.
 	t.Run("Should share a global server preference with its default-profile publication", func(t *testing.T) {
 		t.Parallel()
-		state, req := newMCPConsentFixture(t)
+		home := testHomePaths(t)
+		state, req := newMCPConsentFixtureForHome(t, home)
 		server := req.Server
 		server.Disabled = new(true)
 		record := resources.Record[compozyconfig.MCPServer]{
@@ -2622,14 +2623,33 @@ func TestSettingsMCPDisabled(t *testing.T) {
 		alias := record
 		alias.ID = "default-profile-agent"
 		alias.Scope = resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: store.DefaultProfileID}
-		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{record, alias})
-		definition, found, err := (settingsMCPConsent{state: state}).SetPublishedMCPEnabled(t.Context(),
-			settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeUser, Name: server.Name,
-				DefinitionSource: server.DefinitionSource}, true)
+		inherited := record
+		inherited.ID = "workspace-profile-inherited"
+		inherited.Scope = resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspaceProfile, ID: req.WorkspaceID + "@pf:default",
+		}
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{record, alias, inherited})
+		consent := settingsMCPConsent{state: state}
+		svc, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			ProfileResolver: state.profiles, MCPConsent: consent,
+			WorkspaceResolver:       state.workspaceResolver,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPRuntime:              &settingsRuntimeSurface{state: state},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		target := settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeUser, Name: server.Name}
+		item, err := svc.(core.MCPSettingsChecker).CheckMCPServer(t.Context(), target)
+		if err != nil || !item.Disabled {
+			t.Fatalf("check the off declaration shared by projections: %+v, %v", item, err)
+		}
+		target.DefinitionSource = server.DefinitionSource
+		definition, found, err := consent.SetPublishedMCPEnabled(t.Context(), target, true)
 		if err != nil || !found || definition.Server.IsDisabled() {
 			t.Fatalf("enable the shared definition: found=%t, err=%v", found, err)
 		}
-		for _, resourceID := range []string{record.ID, alias.ID} {
+		for _, resourceID := range []string{record.ID, alias.ID, inherited.ID} {
 			source := toolspkg.SourceRef{ResourceID: resourceID, ProfileID: store.DefaultProfileID}
 			resolved, err := resolveDaemonMCPResource(t.Context(), state, source, server.Name, "manual")
 			if err != nil || resolved.Server.IsDisabled() {

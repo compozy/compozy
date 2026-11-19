@@ -21,6 +21,7 @@ func (s settingsMCPConsent) PublishedMCPDefinitions(
 		return nil, err
 	}
 	var definitions []settingspkg.MCPPublishedDefinition
+	seen := make(map[string]struct{})
 	for _, record := range s.state.mcpServerCatalog.Snapshot() {
 		if record.Owner.Kind == extensionResourceOwnerKind {
 			continue
@@ -43,6 +44,13 @@ func (s settingsMCPConsent) PublishedMCPDefinitions(
 		// Config declarations are read freshly by Settings, including definitions not published yet.
 		if record.Source == toolMCPSyncActor().Source {
 			continue
+		}
+		key := publishedMCPEnablementKey(record)
+		if key != "" {
+			if _, duplicate := seen[key]; duplicate {
+				continue
+			}
+			seen[key] = struct{}{}
 		}
 		resolved, err := resolveDaemonMCPResource(
 			ctx,
