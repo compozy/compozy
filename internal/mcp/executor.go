@@ -134,13 +134,11 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	exchangeCtx, finishExchange := e.exchangeContext(ctx, client)
-	defer finishExchange()
-	mcpResult, err := client.session.CallTool(exchangeCtx, params)
-	client.observeExchange(exchangeCtx, err)
+	mcpResult, err := client.session.CallTool(ctx, params)
+	client.observeExchange(ctx, err)
 	if err != nil {
 		runtimeHealthErr = err
-		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(exchangeCtx, req.ToolID, err, false)
+		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
 	}
 	if err := validateMCPToolResultCapabilities(req.ToolID, mcpResult); err != nil {
 		runtimeHealthErr = err
@@ -253,7 +251,7 @@ func mcpServerDisabledError(name string) error {
 }
 
 func (e *CallExecutor) callContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithValue(ctx, mcpCallParentKey{}, ctx), e.timeout)
+	return context.WithTimeout(ctx, e.timeout)
 }
 
 func (e *CallExecutor) resolveServer(

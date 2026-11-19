@@ -13,20 +13,26 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+const (
+	catalogCloseTimeout     = 5 * time.Second
+	catalogCloseParallelism = 4
+)
+
 type mcpCatalogHTTP struct {
 	mu         sync.Mutex
 	workers    sync.WaitGroup
 	sessions   map[string]mcpCatalogHTTPEntry
 	changes    chan struct{}
 	closed     bool
-	invalidate func(string)
+	invalidate func(string, bool)
 	expire     func(string)
 }
 
 type mcpCatalogHTTPEntry struct {
-	session *mcpsdk.ClientSession
-	stream  *catalogNotificationStream
-	usedAt  time.Time
+	session     *mcpsdk.ClientSession
+	stream      *catalogNotificationStream
+	usedAt      time.Time
+	established *catalogNotificationBody
 }
 
 func (e *CallExecutor) openToolListingClient(
@@ -50,13 +56,17 @@ func (e *CallExecutor) openToolListingClient(
 	// RPC deadlines come from the caller; bounded dial and response-header timeouts are
 	// retained. The SDK owns the notification stream until the session is closed.
 	httpClient.Timeout = 0
-	stream := &catalogNotificationStream{next: httpClient.Transport, ended: func() { catalog.expire(key) }}
-	stream.established = func() { e.markToolListingSubscribed(key, stream.live) }
+	stream := &catalogNotificationStream{
+		next:             httpClient.Transport,
+		handshakeTimeout: min(e.timeout, defaultCatalogStreamHandshakeTimeout),
+	}
+	stream.established = func() { catalog.streamEstablished(key, stream) }
+	stream.ended = func() { catalog.streamEnded(key, stream) }
 	httpClient.Transport = stream
 	session, err := connectMCPClientWithCatalogChanges(ctx, &mcpsdk.StreamableClientTransport{
 		Endpoint: strings.TrimSpace(resolved.Server.URL), HTTPClient: httpClient, MaxRetries: -1,
 	}, func(context.Context, *mcpsdk.ToolListChangedRequest) {
-		catalog.notify(key)
+		catalog.notify(key, stream)
 	}, stream.observeAcknowledgement)
 	if err != nil {
 		return nil, err
@@ -87,11 +97,48 @@ func supportsToolListChanges(session *mcpsdk.ClientSession) bool {
 		result.Capabilities.Tools.ListChanged
 }
 
-func (c *mcpCatalogHTTP) notify(key string) {
-	c.invalidate(key)
+func (c *mcpCatalogHTTP) notify(key string, stream *catalogNotificationStream) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.sessions[key].stream == stream && stream.live() {
+		c.invalidateAndWake(key, true)
+	}
+}
+
+func (c *mcpCatalogHTTP) streamEstablished(key string, stream *catalogNotificationStream) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry := c.sessions[key]
+	if entry.stream == stream {
+		c.acceptEstablished(key, entry)
+	}
+}
+
+// acceptEstablished fences the prior stream's listing before the worker fetches under a live stream.
+func (c *mcpCatalogHTTP) acceptEstablished(key string, entry mcpCatalogHTTPEntry) {
+	if body := entry.stream.liveBody(); body != nil && body != entry.established {
+		entry.established = body
+		c.sessions[key] = entry
+		c.invalidateAndWake(key, false)
+	}
+}
+
+func (c *mcpCatalogHTTP) invalidateAndWake(key string, notified bool) {
+	c.invalidate(key, notified)
 	select {
 	case c.changes <- struct{}{}:
 	default:
+	}
+}
+
+func (c *mcpCatalogHTTP) streamEnded(key string, stream *catalogNotificationStream) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry := c.sessions[key]
+	if entry.stream == stream && !stream.live() {
+		entry.established = nil
+		c.sessions[key] = entry
+		c.expire(key)
 	}
 }
 
@@ -131,52 +178,72 @@ func (c *mcpCatalogHTTP) store(
 		c.expire(oldest)
 	}
 	c.sessions[key] = entry
+	c.acceptEstablished(key, entry)
 	c.workers.Go(func() {
 		if err := entry.session.Wait(); err != nil && !errors.Is(err, mcpsdk.ErrConnectionClosed) {
 			slog.Debug("mcp: HTTP catalog connection ended")
 		}
-		if err := c.forget(entry.session); err != nil {
+		if err := c.forget(context.Background(), entry.session); err != nil {
 			slog.Debug("mcp: close expired HTTP catalog connection failed")
 		}
 	})
 	return entry, retired
 }
 
-func (c *mcpCatalogHTTP) forget(session *mcpsdk.ClientSession) error {
-	return c.retire(func(_ string, entry mcpCatalogHTTPEntry) bool { return entry.session == session }, false)
+func (c *mcpCatalogHTTP) forget(ctx context.Context, session *mcpsdk.ClientSession) error {
+	return c.retire(ctx, func(_ string, entry mcpCatalogHTTPEntry) bool { return entry.session == session }, false)
 }
 
-func (c *mcpCatalogHTTP) retire(match func(string, mcpCatalogHTTPEntry) bool, closeAll bool) error {
+func (c *mcpCatalogHTTP) retire(
+	ctx context.Context,
+	match func(string, mcpCatalogHTTPEntry) bool,
+	closeAll bool,
+) error {
 	if c == nil {
 		return nil
 	}
 	c.mu.Lock()
 	c.closed = c.closed || closeAll
-	var retired []*mcpsdk.ClientSession
+	var retired []mcpCatalogHTTPEntry
 	for key, entry := range c.sessions {
 		if closeAll || match(key, entry) {
-			retired = append(retired, entry.session)
+			retired = append(retired, entry)
 			delete(c.sessions, key)
 			c.expire(key)
 		}
 	}
 	c.mu.Unlock()
-	var err error
-	for _, session := range retired {
-		err = errors.Join(err, session.Close())
+	return closeCatalogEntries(ctx, retired)
+}
+
+func closeCatalogEntries(ctx context.Context, entries []mcpCatalogHTTPEntry) error {
+	ctx, cancel := context.WithTimeout(ctx, catalogCloseTimeout)
+	defer cancel()
+	retirement := &catalogRetirement{ctx}
+	var workers sync.WaitGroup
+	slots := make(chan struct{}, catalogCloseParallelism)
+	failures := make([]error, len(entries))
+	for i, entry := range entries {
+		entry.stream.retirement.Store(retirement)
+		slots <- struct{}{}
+		workers.Go(func() {
+			defer func() { <-slots }()
+			failures[i] = entry.session.Close()
+		})
 	}
-	return err
+	workers.Wait()
+	return errors.Join(failures...)
 }
 
 // CloseCatalogConnections retires every HTTP discovery subscription at daemon shutdown.
-func (e *CallExecutor) CloseCatalogConnections() error {
+func (e *CallExecutor) CloseCatalogConnections(ctx context.Context) error {
 	if e.catalogHTTP == nil {
 		return nil
 	}
 	if e.stdioPool != nil {
 		e.stdioPool.retainCatalog(nil)
 	}
-	err := e.catalogHTTP.retire(nil, true)
+	err := e.catalogHTTP.retire(ctx, nil, true)
 	e.catalogHTTP.workers.Wait()
 	return err
 }
@@ -226,7 +293,7 @@ func (e *CallExecutor) RetainCatalogSubscriptions(ctx context.Context, sources m
 	if e.stdioPool != nil {
 		e.stdioPool.retainCatalog(stdio)
 	}
-	err := e.catalogHTTP.retire(func(key string, _ mcpCatalogHTTPEntry) bool {
+	err := e.catalogHTTP.retire(ctx, func(key string, _ mcpCatalogHTTPEntry) bool {
 		return !active[key]
 	}, false)
 	e.retainCatalogPolls(polls)

@@ -40,6 +40,8 @@ func RedactMCPToolDescriptor(descriptor MCPToolDescriptor, snapshot *redact.Secr
 	if err := toolmeta.ValidateDescriptorMetadata(redacted.FriendlyVerb, redacted.Preview); err != nil {
 		return MCPToolDescriptor{}, fmt.Errorf("mcp: invalid redacted tool presentation metadata: %w", err)
 	}
-	redacted.Source.RawToolName = redacted.RawName
+	if redacted.Source.RawToolName == "" {
+		redacted.Source.RawToolName = redacted.RawName
+	}
 	return redacted, nil
 }

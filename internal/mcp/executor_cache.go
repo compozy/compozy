@@ -72,7 +72,7 @@ func (e *CallExecutor) finishToolList(key string) {
 
 func (e *CallExecutor) publishToolList(key, pollKey string, attempt mcpListAttempt, fresh bool,
 	discovery ToolDiscovery, raw []*mcpsdk.Tool, ttlMs int,
-	projectionKey string, stdio bool, subscribed func() bool,
+	projectionKey string, stdio, background bool, subscribed func() bool,
 ) {
 	e.toolCache.publicationMu.Lock()
 	defer e.toolCache.publicationMu.Unlock()
@@ -94,7 +94,9 @@ func (e *CallExecutor) publishToolList(key, pollKey string, attempt mcpListAttem
 	}
 	e.cacheTools(key, discovery, raw, ttlMs, now)
 	e.recordToolProjectionState(projectionKey, key, discovery.content, e.effectiveToolListTTL(ttlMs), now)
-	e.recordCatalogListing(key, pollKey, fallbackTTL, ttlMs != mcpSubscribedListTTL, now)
+	if background || e.catalogHTTP != nil || e.catalogPoll(pollKey).interval != 0 {
+		e.recordCatalogListing(key, pollKey, fallbackTTL, ttlMs != mcpSubscribedListTTL, now)
+	}
 }
 
 func (e *CallExecutor) pruneStdioCatalogRevisions(key string) {
@@ -127,15 +129,25 @@ func (e *CallExecutor) pruneStdioCatalogRevisions(key string) {
 	})
 }
 
-func (e *CallExecutor) invalidateToolListing(key string) {
+func (e *CallExecutor) invalidateToolListing(key string, notified bool) {
 	e.toolCache.publicationMu.Lock()
 	defer e.toolCache.publicationMu.Unlock()
-	if attempt, ok := e.toolCache.attempts[key]; ok {
-		attempt.check++
-		e.toolCache.attempts[key] = attempt
-	}
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
+	_, published := e.toolCache.entries[key]
+	_, listing := e.toolCache.attempts[key]
+	_, polling := e.toolCache.polls[key]
+	// Establishment before the first list starts only wakes the worker. Invalidation
+	// matters once a list can have been fetched before this subscription was live.
+	if !notified && !published && !listing && !polling {
+		return
+	}
+	for _, binding := range []string{key, catalogPollAttemptKey(key)} {
+		if attempt, ok := e.toolCache.attempts[binding]; ok {
+			attempt.check++
+			e.toolCache.attempts[binding] = attempt
+		}
+	}
 	delete(e.toolCache.polls, key)
 	e.dropToolListingLocked(key)
 }
@@ -151,6 +163,7 @@ type mcpToolListCacheEntry struct {
 	discovery ToolDiscovery
 	raw       []*mcpsdk.Tool
 	expiresAt time.Time
+	listedAt  time.Time
 }
 
 type mcpToolProjectionState struct {
@@ -192,10 +205,10 @@ func (e *CallExecutor) cacheTools(
 	if _, exists := e.toolCache.entries[key]; !exists &&
 		len(e.toolCache.entries) >= defaultToolNormalizationCacheCapacity {
 		var oldest string
-		var expiresAt time.Time
+		var eviction mcpToolListCacheEntry
 		for candidate, entry := range e.toolCache.entries {
-			if oldest == "" || entry.expiresAt.Before(expiresAt) {
-				oldest, expiresAt = candidate, entry.expiresAt
+			if oldest == "" || expiresBefore(entry, eviction) {
+				oldest, eviction = candidate, entry
 			}
 		}
 		e.dropToolListingLocked(oldest)
@@ -205,8 +218,22 @@ func (e *CallExecutor) cacheTools(
 		discovery: discovery.clone(),
 		raw:       raw,
 		expiresAt: toolListExpiry(now, ttl),
+		listedAt:  now,
 	}
 	e.toolCache.mu.Unlock()
+}
+
+func expiresBefore(candidate, current mcpToolListCacheEntry) bool {
+	switch {
+	case candidate.expiresAt.IsZero() && current.expiresAt.IsZero():
+		return candidate.listedAt.Before(current.listedAt)
+	case candidate.expiresAt.IsZero():
+		return false
+	case current.expiresAt.IsZero():
+		return true
+	default:
+		return candidate.expiresAt.Before(current.expiresAt)
+	}
 }
 
 // RetainCatalogSources releases descriptors owned by removed or superseded declarations.
@@ -217,12 +244,14 @@ func (e *CallExecutor) RetainCatalogSources(sources []toolspkg.SourceRef) {
 	}
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
-	for key, normalization := range e.toolCache.normalizations {
-		if !active[toolspkg.MCPDeclarationSource(normalization.source)] {
-			delete(e.toolCache.normalizations, key)
+	for key, entry := range e.toolCache.entries {
+		if !active[entry.discovery.source] {
 			e.dropToolListingLocked(key)
 		}
 	}
+	maps.DeleteFunc(e.toolCache.normalizations, func(_ string, normalization mcpToolNormalization) bool {
+		return !active[normalization.source]
+	})
 }
 
 func (e *CallExecutor) effectiveToolListTTL(ttlMs int) time.Duration {

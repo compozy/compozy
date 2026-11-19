@@ -53,17 +53,18 @@ func TestStdioSessionPool(t *testing.T) {
 			slot.current = session
 			pool.slots = map[string]*stdioSlot{spec.slot: slot}
 
-			executor := &CallExecutor{timeout: time.Second}
-			exchange := func(callerBudget time.Duration) {
+			executor := &CallExecutor{timeout: 5 * time.Second}
+			exchange := func(callerBudget, admissionDelay time.Duration) {
 				caller, cancel := context.WithTimeout(t.Context(), callerBudget)
 				defer cancel()
 				ctx, cancelCall := executor.callContext(caller)
 				defer cancelCall()
+				time.Sleep(admissionDelay)
 				session.sem <- struct{}{}
 				session.inFlight++
 				lease := &stdioLease{pool: pool, session: session}
 				client := &managedMCPClient{release: lease.release}
-				rpc, cancelRPC := executor.exchangeContext(ctx, client)
+				rpc, cancelRPC := exchangeContext(ctx, client, 3*time.Second)
 				defer cancelRPC()
 				<-rpc.Done()
 				client.observeExchange(rpc, rpc.Err())
@@ -72,13 +73,14 @@ func TestStdioSessionPool(t *testing.T) {
 				}
 			}
 			for range 2 * stdioRetireAfterTimeouts {
-				exchange(100 * time.Millisecond)
+				exchange(100*time.Millisecond, 0)
+				exchange(10*time.Second, 4*time.Second)
 			}
 			if got, err := pool.sessionFor(spec); err != nil || got != session {
 				t.Fatalf("sessionFor() after caller deadlines = %p, %v, want existing child", got, err)
 			}
 			for range stdioRetireAfterTimeouts {
-				exchange(2 * time.Second)
+				exchange(4*time.Second, 0)
 			}
 			if _, err := pool.sessionFor(spec); err == nil || !strings.Contains(err.Error(), "backing off") {
 				t.Fatalf("sessionFor() after response deadlines = %v, want cooldown", err)

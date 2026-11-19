@@ -11815,60 +11815,6 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			t.Fatalf("fresh listings=%d, want two", got)
 		}
 	})
-	// Invariant: sessions with equal authority enumerate one catalog; a narrower lineage keeps its ceiling.
-	// Owner: daemon policy resolver; canonical suite: TestDaemonNativeRuntimePolicyResolver.
-	t.Run("Should materialize hosted authority once for equivalent root sessions", func(t *testing.T) {
-		t.Parallel()
-		cfg := testConfig(t, testHomePaths(t))
-		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg})
-		if err != nil {
-			t.Fatal(err)
-		}
-		provider, err := toolspkg.NewMCPProvider(
-			toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) { return nil, nil }),
-			&sessionMCPExecutorStub{}, nil, toolspkg.WithMCPBackgroundDiscovery(nil, nil),
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		registry, err := toolspkg.NewRegistry(toolspkg.WithProviders(provider))
-		if err != nil {
-			t.Fatal(err)
-		}
-		ctx, cached := registry.HostedProjectionContext(t.Context())
-		if !cached {
-			t.Fatal("expected hosted catalog context")
-		}
-		ctx = toolspkg.WithProjectionListings(ctx, toolspkg.NewProjectionListings())
-		const toolID toolspkg.ToolID = "compozy__mcp_list"
-		var enumerations int
-		resolver.scopeTools = func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
-			enumerations++
-			return []toolspkg.ToolView{{
-				Descriptor: toolspkg.Descriptor{ID: toolID, Source: toolspkg.BuiltinSource()},
-			}}, nil
-		}
-		for i := range 19 {
-			mode := store.PermissionInherit
-			var want []toolspkg.ToolID
-			if i == 18 {
-				mode = store.PermissionList
-			} else {
-				want = []toolspkg.ToolID{toolID}
-			}
-			info := &session.Info{ID: fmt.Sprintf("hosted-%d", i), Type: session.SessionTypeUser,
-				Lineage: &store.SessionLineage{Kind: store.LineageKindRoot,
-					PermissionPolicy: store.SessionPermissionPolicy{ToolsMode: mode}}}
-			var inputs toolspkg.PolicyInputs
-			if err := resolver.applyEffectiveSessionToolPolicy(ctx, &inputs, info); err != nil ||
-				!slices.Equal(inputs.Session.Tools, want) {
-				t.Fatalf("session %d authority = %v, want %v, error %v", i, inputs.Session.Tools, want, err)
-			}
-		}
-		if enumerations != 2 {
-			t.Fatalf("authority enumerations = %d, want one per distinct ceiling", enumerations)
-		}
-	})
 
 	// Invariant: v0.7.0 non-delegated sessions keep current tools; governed/authored lists stay closed.
 	// Owner: daemon authority and effective policy; canonical suite: native runtime policy resolver.
@@ -19734,4 +19680,61 @@ func (p *nativePolicyCountingProvider) List(ctx context.Context, scope toolspkg.
 }
 func (p *nativePolicyCountingProvider) ProjectionScope(toolspkg.Scope) toolspkg.Scope {
 	return toolspkg.Scope{}
+}
+
+// Run serially because the materialization key includes the process-wide redaction revision.
+func TestDaemonHostedMCPAuthoritySharing(t *testing.T) {
+	// Invariant: sessions with equal authority enumerate one catalog; a narrower lineage keeps its ceiling.
+	// Owner: daemon policy resolver; canonical suite: hosted MCP authority.
+	t.Run("Should materialize hosted authority once for equivalent root sessions", func(t *testing.T) {
+		cfg := testConfig(t, testHomePaths(t))
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg})
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider, err := toolspkg.NewMCPProvider(
+			toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) { return nil, nil }),
+			&sessionMCPExecutorStub{}, nil, toolspkg.WithMCPBackgroundDiscovery(nil, nil),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, err := toolspkg.NewRegistry(toolspkg.WithProviders(provider))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cached := registry.HostedProjectionContext(t.Context())
+		if !cached {
+			t.Fatal("expected hosted catalog context")
+		}
+		ctx = toolspkg.WithProjectionListings(ctx, toolspkg.NewProjectionListings())
+		const toolID toolspkg.ToolID = "compozy__mcp_list"
+		var enumerations int
+		resolver.scopeTools = func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+			enumerations++
+			return []toolspkg.ToolView{{
+				Descriptor: toolspkg.Descriptor{ID: toolID, Source: toolspkg.BuiltinSource()},
+			}}, nil
+		}
+		for i := range 19 {
+			mode := store.PermissionInherit
+			var want []toolspkg.ToolID
+			if i == 18 {
+				mode = store.PermissionList
+			} else {
+				want = []toolspkg.ToolID{toolID}
+			}
+			info := &session.Info{ID: fmt.Sprintf("hosted-%d", i), Type: session.SessionTypeUser,
+				Lineage: &store.SessionLineage{Kind: store.LineageKindRoot,
+					PermissionPolicy: store.SessionPermissionPolicy{ToolsMode: mode}}}
+			var inputs toolspkg.PolicyInputs
+			if err := resolver.applyEffectiveSessionToolPolicy(ctx, &inputs, info); err != nil ||
+				!slices.Equal(inputs.Session.Tools, want) {
+				t.Fatalf("session %d authority = %v, want %v, error %v", i, inputs.Session.Tools, want, err)
+			}
+		}
+		if enumerations != 2 {
+			t.Fatalf("authority enumerations = %d, want one per distinct ceiling", enumerations)
+		}
+	})
 }

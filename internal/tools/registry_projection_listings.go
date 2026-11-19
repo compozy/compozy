@@ -32,10 +32,8 @@ func WithProjectionValidationCacheCapacity(capacity int) RegistryOption {
 type ProjectionListings struct {
 	mu          sync.Mutex
 	entries     map[projectionListingKey]*projectionListing
-	policyMu    sync.Mutex
-	policies    map[projectionPolicyKey][]ToolView
-	authorityMu sync.Mutex
-	authorities map[hostedSessionPolicyKey]SessionToolPolicy
+	policies    projectionMemo[projectionPolicyKey, []ToolView]
+	authorities projectionMemo[hostedSessionPolicyKey, SessionToolPolicy]
 }
 
 type hostedSessionPolicyKey struct {
@@ -59,28 +57,18 @@ func CachedHostedSessionPolicy(
 		return SessionToolPolicy{}, fmt.Errorf("tools: encode hosted authority inputs: %w", err)
 	}
 	key := hostedSessionPolicyKey{scope, sha256.Sum256(data), ceiling, redact.SecretFingerprint()}
-	listings.authorityMu.Lock()
-	defer listings.authorityMu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return SessionToolPolicy{}, err
-	}
-	if policy, found := listings.authorities[key]; found {
-		return policy, nil
-	}
-	policy, err := materialize()
-	if err != nil || key.redaction != redact.SecretFingerprint() {
-		return policy, err
-	}
-	encoded, err := json.Marshal(policy)
-	if err != nil {
-		return SessionToolPolicy{}, fmt.Errorf("tools: encode hosted authority: %w", err)
-	}
-	policy.projectionDigest = sha256.Sum256(encoded)
-	if len(listings.authorities) >= defaultProjectionValidationCacheCapacity || listings.authorities == nil {
-		listings.authorities = make(map[hostedSessionPolicyKey]SessionToolPolicy)
-	}
-	listings.authorities[key] = policy
-	return policy, nil
+	return listings.authorities.load(ctx, key, func() (SessionToolPolicy, bool, error) {
+		policy, err := materialize()
+		if err != nil || key.redaction != redact.SecretFingerprint() {
+			return policy, false, err
+		}
+		encoded, err := json.Marshal(policy)
+		if err != nil {
+			return SessionToolPolicy{}, false, fmt.Errorf("tools: encode hosted authority: %w", err)
+		}
+		policy.projectionDigest = sha256.Sum256(encoded)
+		return policy, true, nil
+	})
 }
 
 type projectionPolicyKey struct {
@@ -98,19 +86,68 @@ func (l *ProjectionListings) loadPolicy(
 		return nil, fmt.Errorf("tools: encode projection policy: %w", err)
 	}
 	key := projectionPolicyKey{r, scope, sha256.Sum256(data), r.ProjectionRedactionRevision()}
-	l.policyMu.Lock()
-	defer l.policyMu.Unlock()
-	if views, ok := l.policies[key]; ok {
-		return views, nil
-	}
-	views, err := r.policyProjection(ctx, scope, inputs)
-	if err == nil && key.redaction == r.ProjectionRedactionRevision() {
-		if l.policies == nil || len(l.policies) >= defaultProjectionValidationCacheCapacity {
-			l.policies = make(map[projectionPolicyKey][]ToolView)
+	return l.policies.load(ctx, key, func() ([]ToolView, bool, error) {
+		views, err := r.policyProjection(ctx, scope, inputs)
+		return views, key.redaction == r.ProjectionRedactionRevision(), err
+	})
+}
+
+type projectionMemo[K comparable, V any] struct {
+	mu      sync.Mutex
+	entries map[K]V
+	pending map[K]chan struct{}
+}
+
+// load coalesces successful builds. A waiter can leave on cancellation or retry a failed build.
+func (m *projectionMemo[K, V]) load(ctx context.Context, key K, build func() (V, bool, error)) (V, error) {
+	for {
+		if err := ctx.Err(); err != nil {
+			var zero V
+			return zero, err
 		}
-		l.policies[key] = views
+		m.mu.Lock()
+		if value, found := m.entries[key]; found {
+			m.mu.Unlock()
+			return value, nil
+		}
+		done, pending := m.pending[key]
+		if !pending {
+			done = make(chan struct{})
+			if m.pending == nil {
+				m.pending = make(map[K]chan struct{})
+			}
+			m.pending[key] = done
+		}
+		m.mu.Unlock()
+		if !pending {
+			return m.build(key, done, build)
+		}
+		select {
+		case <-ctx.Done():
+			var zero V
+			return zero, ctx.Err()
+		case <-done:
+		}
 	}
-	return views, err
+}
+
+func (m *projectionMemo[K, V]) build(key K, done chan struct{}, build func() (V, bool, error)) (V, error) {
+	defer func() {
+		m.mu.Lock()
+		delete(m.pending, key)
+		close(done)
+		m.mu.Unlock()
+	}()
+	value, cacheable, err := build()
+	if cacheable && err == nil {
+		m.mu.Lock()
+		if len(m.entries) >= defaultProjectionValidationCacheCapacity || m.entries == nil {
+			m.entries = make(map[K]V)
+		}
+		m.entries[key] = value
+		m.mu.Unlock()
+	}
+	return value, err
 }
 
 type projectionListingKey struct {

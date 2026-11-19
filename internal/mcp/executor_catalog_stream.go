@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime"
 	"net/http"
@@ -13,26 +14,36 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const catalogStreamHandshakeTimeout = time.Second
+const defaultCatalogStreamHandshakeTimeout = time.Second
+
+type catalogRetirement struct{ ctx context.Context }
 
 // catalogNotificationStream observes the stream the SDK owns, including silent subscription loss.
 type catalogNotificationStream struct {
-	next        http.RoundTripper
-	established func()
-	ended       func()
-	body        atomic.Pointer[catalogNotificationBody]
+	next             http.RoundTripper
+	handshakeTimeout time.Duration
+	retirement       atomic.Pointer[catalogRetirement]
+	established      func()
+	ended            func()
+	body             atomic.Pointer[catalogNotificationBody]
 }
 
-func (s *catalogNotificationStream) live() bool {
+func (s *catalogNotificationStream) live() bool { return s.liveBody() != nil }
+
+func (s *catalogNotificationStream) liveBody() *catalogNotificationBody {
 	body := s.body.Load()
-	return body != nil && body.acknowledged.Load()
+	if body != nil && body.acknowledged.Load() {
+		return body
+	}
+	return nil
 }
 
 func (s *catalogNotificationStream) observeAcknowledgement(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
 	return func(ctx context.Context, method string, req mcpsdk.Request) (mcpsdk.Result, error) {
-		if method == "notifications/subscriptions/acknowledged" {
-			if body := s.body.Load(); body != nil {
-				body.acknowledged.Store(true)
+		if method == "notifications/subscriptions/acknowledged" && req != nil {
+			params, ok := req.GetParams().(*mcpsdk.SubscriptionsAcknowledgedParams)
+			if body := s.body.Load(); ok && params != nil && params.Notifications.ToolsListChanged &&
+				body != nil && body.acknowledged.CompareAndSwap(false, true) {
 				s.signalEstablished()
 			}
 		}
@@ -47,13 +58,22 @@ func (s *catalogNotificationStream) signalEstablished() {
 }
 
 func (s *catalogNotificationStream) RoundTrip(req *http.Request) (*http.Response, error) {
+	if retirement := s.retirement.Load(); req.Method == http.MethodDelete && retirement != nil {
+		return s.deleteSession(req, retirement.ctx)
+	}
 	if !isCatalogListenRequest(req) {
 		return s.next.RoundTrip(req)
 	}
 	ctx, cancel := context.WithCancel(req.Context())
-	timer := time.AfterFunc(catalogStreamHandshakeTimeout, cancel)
+	timer := time.AfterFunc(s.handshakeTimeout, cancel)
 	resp, err := s.next.RoundTrip(req.WithContext(ctx))
-	timer.Stop()
+	if !timer.Stop() {
+		cancel()
+		if resp != nil && resp.Body != nil {
+			err = errors.Join(err, resp.Body.Close())
+		}
+		return nil, errors.Join(context.DeadlineExceeded, err)
+	}
 	if err != nil {
 		cancel()
 		return nil, err
@@ -76,12 +96,29 @@ func (s *catalogNotificationStream) RoundTrip(req *http.Request) (*http.Response
 	}
 	// A legacy GET has no acknowledgement message. Its accepted SSE response opens the channel.
 	body.acknowledged.Store(req.Method == http.MethodGet)
-	s.body.Store(body)
+	previous := s.body.Swap(body)
 	if body.acknowledged.Load() {
 		s.signalEstablished()
+	} else if previous != nil {
+		s.ended()
 	}
 	resp.Body = body
 	return resp, nil
+}
+
+func (s *catalogNotificationStream) deleteSession(
+	req *http.Request,
+	retirement context.Context,
+) (*http.Response, error) {
+	if err := retirement.Err(); err != nil {
+		return nil, err
+	}
+	// The SDK closes the response without reading its body after receiving the DELETE headers.
+	ctx, cancel := context.WithCancel(req.Context())
+	stop := context.AfterFunc(retirement, cancel)
+	defer stop()
+	defer cancel()
+	return s.next.RoundTrip(req.WithContext(ctx))
 }
 
 func isCatalogListenRequest(req *http.Request) bool {

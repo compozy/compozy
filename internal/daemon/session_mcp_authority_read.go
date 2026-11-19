@@ -47,12 +47,15 @@ func (r *nativeToolPolicyResolver) resolveMCPAuthorityScope(
 	result.workspace, result.cfg, result.err = r.resolveWorkspaceConfig(ctx, scope)
 	if result.err == nil {
 		result.inputs, result.err = nativeToolPolicyInputs(result.cfg)
+		if r.mcpResourceNames != nil {
+			result.inputs.MCPResourceNames = r.mcpResourceNames()
+		}
 	}
 	if result.err == nil {
 		result.err = r.applyScopedSourceGrants(ctx, &result.inputs, scope, result.workspace)
 	}
 	if result.err == nil {
-		result.names = r.admittedMCPNames(result.inputs, result.cfg.MCPServers)
+		result.names = admittedMCPNames(result.inputs, result.cfg.MCPServers)
 	}
 	if cache != nil {
 		cache[key] = result

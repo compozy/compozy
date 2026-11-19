@@ -13,6 +13,7 @@ type mcpCatalogPoll struct {
 	interval   time.Duration
 	expiresAt  time.Time
 	failure    tools.ReasonCode
+	updatedAt  time.Time
 }
 
 func (e *CallExecutor) toolPollKey(ctx context.Context, resolved *ResolvedServer, header string) (string, error) {
@@ -31,28 +32,31 @@ func (e *CallExecutor) catalogPoll(key string) mcpCatalogPoll {
 	return e.toolCache.polls[key]
 }
 
+func catalogPollAttemptKey(binding string) string { return "catalog-poll\x00" + binding }
+
 func (e *CallExecutor) recordCatalogListing(key, pollKey string, interval time.Duration, fallback bool, now time.Time) {
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
-	if e.toolCache.polls == nil {
-		e.toolCache.polls = make(map[string]mcpCatalogPoll)
-	}
-	poll := mcpCatalogPoll{listingKey: key, interval: interval}
+	poll := mcpCatalogPoll{listingKey: key, interval: interval, updatedAt: now}
 	if fallback {
 		poll.expiresAt = now.Add(interval)
 	}
-	e.toolCache.polls[pollKey] = poll
+	e.storeCatalogPollLocked(pollKey, poll)
 }
 
-func (e *CallExecutor) recordCatalogPollFailure(key string, previous mcpCatalogPoll, err error) {
+func (e *CallExecutor) recordCatalogPollFailure(
+	key string, previous mcpCatalogPoll, attempt mcpListAttempt, err error,
+) {
+	e.toolCache.publicationMu.Lock()
+	defer e.toolCache.publicationMu.Unlock()
+	if e.toolCache.attempts[catalogPollAttemptKey(key)].check != attempt.check {
+		return
+	}
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
 	// An explicit check or notification can supersede the failed background attempt.
 	if e.toolCache.polls[key] != previous {
 		return
-	}
-	if e.toolCache.polls == nil {
-		e.toolCache.polls = make(map[string]mcpCatalogPoll)
 	}
 	interval := previous.interval
 	if interval == 0 {
@@ -62,9 +66,27 @@ func (e *CallExecutor) recordCatalogPollFailure(key string, previous mcpCatalogP
 	if reason == "" {
 		reason = tools.ReasonBackendUnhealthy
 	}
-	e.toolCache.polls[key] = mcpCatalogPoll{
-		interval: interval, expiresAt: time.Now().Add(interval), failure: reason,
+	now := time.Now()
+	e.storeCatalogPollLocked(key, mcpCatalogPoll{
+		interval: interval, expiresAt: now.Add(interval), failure: reason, updatedAt: now,
+	})
+}
+
+func (e *CallExecutor) storeCatalogPollLocked(key string, poll mcpCatalogPoll) {
+	if e.toolCache.polls == nil {
+		e.toolCache.polls = make(map[string]mcpCatalogPoll)
 	}
+	if _, exists := e.toolCache.polls[key]; !exists && len(e.toolCache.polls) >= defaultToolNormalizationCacheCapacity {
+		var oldest string
+		var updatedAt time.Time
+		for binding, previous := range e.toolCache.polls {
+			if oldest == "" || previous.updatedAt.Before(updatedAt) {
+				oldest, updatedAt = binding, previous.updatedAt
+			}
+		}
+		delete(e.toolCache.polls, oldest)
+	}
+	e.toolCache.polls[key] = poll
 }
 
 func (e *CallExecutor) retainCatalogPolls(active map[string]bool) {
@@ -73,32 +95,6 @@ func (e *CallExecutor) retainCatalogPolls(active map[string]bool) {
 	maps.DeleteFunc(e.toolCache.polls, func(key string, _ mcpCatalogPoll) bool {
 		return !active[key]
 	})
-}
-
-func (e *CallExecutor) markToolListingSubscribed(key string, live func() bool) {
-	e.toolCache.publicationMu.Lock()
-	defer e.toolCache.publicationMu.Unlock()
-	if !live() {
-		return
-	}
-	e.toolCache.mu.Lock()
-	defer e.toolCache.mu.Unlock()
-	entry, ok := e.toolCache.entries[key]
-	if !ok || toolListExpired(entry.expiresAt, time.Now()) {
-		return
-	}
-	entry.expiresAt = time.Time{}
-	e.toolCache.entries[key] = entry
-	if poll, ok := e.toolCache.polls[key]; ok && poll.listingKey == key {
-		poll.expiresAt = time.Time{}
-		e.toolCache.polls[key] = poll
-	}
-	for source, state := range e.toolCache.projectionStates {
-		if state.listingKey == key {
-			state.expiresAt = time.Time{}
-			e.toolCache.projectionStates[source] = state
-		}
-	}
 }
 
 // expireSubscribedToolListing falls back to a bounded refresh without waking another reconnect.

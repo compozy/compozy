@@ -39,21 +39,14 @@ const minStdioDiscoveryResponseBudget = 3 * time.Second
 
 var errStdioResponseDeadline = errors.New("mcp: stdio server response deadline exceeded")
 
-type mcpCallParentKey struct{}
-
 // exchangeContext starts the stdio response timer only after preparation and pool admission.
-func (e *CallExecutor) exchangeContext(
-	ctx context.Context, client *managedMCPClient,
+func exchangeContext(
+	ctx context.Context, client *managedMCPClient, responseBudget time.Duration,
 ) (context.Context, context.CancelFunc) {
-	parent, ok := ctx.Value(mcpCallParentKey{}).(context.Context)
-	if client.release == nil || !ok || ctx.Err() != nil {
+	if client.release == nil || ctx.Err() != nil || responseBudget < minStdioDiscoveryResponseBudget {
 		return ctx, func() {}
 	}
-	timeout := e.timeout
-	if discoveryBudget := toolspkg.MCPDiscoveryResponseBudget(ctx); discoveryBudget >= minStdioDiscoveryResponseBudget {
-		timeout = min(timeout, discoveryBudget)
-	}
-	return context.WithTimeoutCause(parent, timeout, errStdioResponseDeadline)
+	return context.WithTimeoutCause(ctx, responseBudget, errStdioResponseDeadline)
 }
 
 func (c *managedMCPClient) observeExchange(ctx context.Context, err error) {

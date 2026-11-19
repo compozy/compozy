@@ -137,8 +137,8 @@ func (p *MCPProvider) RunCatalogRefresh(ctx context.Context) {
 		changes = source.CatalogChanges()
 	}
 	defer func() {
-		if closer, ok := p.exec.(interface{ CloseCatalogConnections() error }); ok {
-			p.catalog.logSubscriptionError(ctx, closer.CloseCatalogConnections())
+		if closer, ok := p.exec.(interface{ CloseCatalogConnections(context.Context) error }); ok {
+			p.catalog.logSubscriptionError(ctx, closer.CloseCatalogConnections(context.WithoutCancel(ctx)))
 		}
 	}()
 	for {
@@ -245,6 +245,8 @@ func (p *MCPProvider) refreshCatalogSource(ctx context.Context, source SourceRef
 			CatalogContentRevision(context.Context, SourceRef) ([sha256.Size]byte, bool)
 		}); ok {
 			if content, fresh := executor.CatalogContentRevision(ctx, source); fresh && content == snapshot.content {
+				// A matching cache entry cannot prove recovery from a failed explicit check.
+				// Wait for notification, fallback expiry or another explicit check.
 				return
 			}
 		}

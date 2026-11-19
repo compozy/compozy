@@ -7132,6 +7132,8 @@ func addMCPHotActivationSchemas(t *testing.T, baseline, current map[string]any) 
 					t.Fatal("missing approved MCP field definition_source")
 				}
 				properties["definition_source"] = serverProperties["definition_source"]
+				// #1852 adds one optional boolean without changing the existing MCP server fields.
+				properties["disabled"] = map[string]any{"type": "boolean"}
 			}
 		}
 	}

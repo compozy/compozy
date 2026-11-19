@@ -122,7 +122,7 @@ func (r *nativeToolPolicyResolver) materializeMCPAuthority(
 	return store.NormalizeSessionPermissionPolicy(policy), nil
 }
 
-func (r *nativeToolPolicyResolver) admittedMCPNames(
+func admittedMCPNames(
 	inputs toolspkg.PolicyInputs,
 	servers []compozyconfig.MCPServer,
 ) []string {
@@ -132,15 +132,11 @@ func (r *nativeToolPolicyResolver) admittedMCPNames(
 			names = append(names, server.Name)
 		}
 	}
-	resources := map[string]string{}
-	if r.mcpResourceNames != nil {
-		resources = r.mcpResourceNames()
-	}
 	for _, grant := range inputs.AllowSources {
 		if grant.Kind != toolspkg.SourceMCP {
 			continue
 		}
-		name := resources[grant.ResourceID]
+		name := inputs.MCPResourceNames[grant.ResourceID]
 		if grant.ResourceID == "" {
 			name = grant.Owner
 		}
@@ -164,10 +160,7 @@ func (r *nativeToolPolicyResolver) effectiveScopeTools(
 	if err != nil {
 		return nil, err
 	}
-	names := map[string]string{}
-	if r.mcpResourceNames != nil {
-		names = r.mcpResourceNames()
-	}
+	names := inputs.MCPResourceNames
 	denied := make(map[string]bool)
 	for i := range views {
 		view := &views[i]
@@ -237,16 +230,12 @@ func bindSessionMCPAuthority(state *bootState, resolver *nativeToolPolicyResolve
 func (r *nativeToolPolicyResolver) hostedCatalogSources(
 	ctx context.Context, scope toolspkg.Scope, sources []toolspkg.SourceRef,
 ) ([]toolspkg.SourceRef, error) {
-	policy, err := r.EffectiveMCPAuthority(r.MCPAuthorityReadContext(ctx), scope.SessionID)
+	plan, err := r.planMCPAuthority(r.MCPAuthorityReadContext(ctx), scope.SessionID)
 	if err != nil {
 		return nil, err
 	}
-	var names map[string]string
-	if r.mcpResourceNames != nil {
-		names = r.mcpResourceNames()
-	}
 	return slices.DeleteFunc(sources, func(source toolspkg.SourceRef) bool {
-		return !slices.Contains(policy.MCPServers, mcpAuthoritySourceName(source, names))
+		return !slices.Contains(plan.policy.MCPServers, mcpAuthoritySourceName(source, plan.inputs.MCPResourceNames))
 	}), nil
 }
 

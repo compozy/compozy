@@ -3,6 +3,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -32,6 +33,7 @@ import (
 	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -2046,7 +2048,7 @@ func TestMCPToolListCache(t *testing.T) {
 					return next(ctx, method, request)
 				}
 				if lists.Add(1) == 1 {
-					return nil, errors.New("fixture unavailable")
+					return nil, &jsonrpc.Error{Code: -32000, Message: "fixture unavailable"}
 				}
 				return &mcpsdk.ListToolsResult{Tools: syntheticMCPTools(1)}, nil
 			}
@@ -2056,8 +2058,10 @@ func TestMCPToolListCache(t *testing.T) {
 		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{Name: "fixture", URL: server.URL})
 		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", ProfileID: "first"}
 		ctx := testContext(t)
-		if _, err := executor.listResolvedTools(ctx, source, true); err == nil {
-			t.Fatal("expected the first background list to fail")
+		_, firstErr := executor.listResolvedTools(ctx, source, true)
+		requireReason(t, firstErr, toolspkg.ReasonMCPUnreachable)
+		if firstErr == nil || !strings.Contains(firstErr.Error(), "fixture unavailable") {
+			t.Fatalf("first poll error = %v, want fixture rejection", firstErr)
 		}
 		peer := source
 		peer.ProfileID = "second"
@@ -2123,11 +2127,52 @@ func TestMCPToolListCache(t *testing.T) {
 				t.Fatalf("replacement deadline = %v, want %v", got, want)
 			}
 			time.Sleep(3 * time.Minute)
-			executor.recordCatalogPollFailure(replacementKey, previous, errors.New("upstream failed"))
+			attempt := executor.beginToolList(catalogPollAttemptKey(key), false)
+			defer executor.finishToolList(catalogPollAttemptKey(key))
+			executor.recordCatalogPollFailure(replacementKey, previous, attempt, errors.New("upstream failed"))
 			if got, want := executor.catalogPoll(key).expiresAt, now.Add(6*time.Minute); !got.Equal(want) {
 				t.Fatalf("shared retry deadline = %v, want %v", got, want)
 			}
 		})
+	})
+
+	// Invariant: retired subscriptions cannot invalidate an active binding, even on the first failed poll.
+	// Owner: executor HTTP catalog cache; canonical suite: TestMCPToolListCache.
+	t.Run("Should fence subscription callbacks and failed polls across replacement", func(t *testing.T) {
+		t.Parallel()
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{}, WithToolCatalogNotifications())
+		catalog := executor.catalogHTTP
+		key := "catalog-binding"
+		active := &catalogNotificationStream{}
+		body := &catalogNotificationBody{}
+		body.acknowledged.Store(true)
+		active.body.Store(body)
+		catalog.sessions[key] = mcpCatalogHTTPEntry{stream: active}
+		stale := &catalogNotificationStream{}
+		stale.body.Store(body)
+
+		attemptKey := catalogPollAttemptKey(key)
+		attempt := executor.beginToolList(attemptKey, false)
+		defer executor.finishToolList(attemptKey)
+		catalog.streamEstablished(key, stale)
+		catalog.notify(key, stale)
+		select {
+		case <-executor.CatalogChanges():
+			t.Fatal("replaced stream woke the catalog")
+		default:
+		}
+
+		catalog.streamEstablished(key, active)
+		select {
+		case <-executor.CatalogChanges():
+		default:
+			t.Fatal("establishment did not schedule a fresh listing")
+		}
+		catalog.notify(key, active)
+		executor.recordCatalogPollFailure(key, mcpCatalogPoll{}, attempt, errors.New("old request failed"))
+		if poll := executor.catalogPoll(key); !poll.expiresAt.IsZero() {
+			t.Fatalf("superseded failure installed expiry %v", poll.expiresAt)
+		}
 	})
 
 	// Invariant: an advertised subscription keeps finite expiry until the transport has a live channel.
@@ -2145,11 +2190,14 @@ func TestMCPToolListCache(t *testing.T) {
 				status: http.StatusOK, acknowledge: true},
 			{name: "Should require acknowledgement on a modern stream", method: http.MethodPost,
 				status: http.StatusOK, acknowledge: true},
+			{name: "Should poll when the acknowledged filter omits tool changes", method: http.MethodPost,
+				status: http.StatusOK},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				drops := 0
 				stream := &catalogNotificationStream{
+					handshakeTimeout: time.Second,
 					next: mcpRoundTripperFunc(func(*http.Request) (*http.Response, error) {
 						return &http.Response{StatusCode: tc.status,
 							Header: http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -2173,7 +2221,12 @@ func TestMCPToolListCache(t *testing.T) {
 					acknowledge := stream.observeAcknowledgement(
 						func(context.Context, string, mcpsdk.Request) (mcpsdk.Result, error) { return nil, nil },
 					)
-					if _, err := acknowledge(t.Context(), "notifications/subscriptions/acknowledged", nil); err != nil {
+					req := &mcpsdk.ServerRequest[*mcpsdk.SubscriptionsAcknowledgedParams]{
+						Params: &mcpsdk.SubscriptionsAcknowledgedParams{
+							Notifications: mcpsdk.NotificationSubscriptions{ToolsListChanged: tc.acknowledge},
+						},
+					}
+					if _, err := acknowledge(t.Context(), "notifications/subscriptions/acknowledged", req); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -2183,7 +2236,7 @@ func TestMCPToolListCache(t *testing.T) {
 				if err := resp.Body.Close(); err != nil {
 					t.Fatal(err)
 				}
-				if stream.live() || (drops == 1) != tc.acknowledge {
+				if stream.live() || (drops == 1) != (tc.status == http.StatusOK) {
 					t.Fatalf("stream live = %v after close, drops = %d", stream.live(), drops)
 				}
 			})
@@ -2201,7 +2254,6 @@ func TestMCPToolListCache(t *testing.T) {
 		var sdk [servers]*mcpsdk.Server
 		configured := make(map[string]compozyconfig.MCPServer, servers)
 		sources := make([]toolspkg.SourceRef, 0, servers)
-		subscribed := make(chan struct{})
 		for i := range servers {
 			name := fmt.Sprintf("catalog%d", i)
 			sdk[i] = mcpsdk.NewServer(&mcpsdk.Implementation{Name: name}, &mcpsdk.ServerOptions{
@@ -2227,16 +2279,6 @@ func TestMCPToolListCache(t *testing.T) {
 			}
 			sources = append(sources, toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: name, RawServerName: name})
 		}
-		acknowledged := sync.OnceFunc(func() { close(subscribed) })
-		sdk[0].AddSendingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
-			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
-				result, err := next(ctx, method, request)
-				if err == nil && method == "notifications/subscriptions/acknowledged" {
-					acknowledged()
-				}
-				return result, err
-			}
-		})
 		executor, err := NewMCPCallExecutor(
 			ServerResolverFunc(func(_ context.Context, source toolspkg.SourceRef, _ string) (ResolvedServer, error) {
 				return ResolvedServer{
@@ -2250,10 +2292,11 @@ func TestMCPToolListCache(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() {
-			if err := executor.CloseCatalogConnections(); err != nil {
+			if err := executor.CloseCatalogConnections(context.WithoutCancel(t.Context())); err != nil {
 				t.Error(err)
 			}
 		})
+		establishTestCatalogSubscription(t, ctx, executor, sources[0])
 		for range readers {
 			for _, source := range sources {
 				got, err := executor.ListTools(ctx, source)
@@ -2261,11 +2304,6 @@ func TestMCPToolListCache(t *testing.T) {
 					t.Fatalf("ListTools(%q) = %d tools, %v", source.Owner, len(got), err)
 				}
 			}
-		}
-		select {
-		case <-subscribed:
-		case <-ctx.Done():
-			t.Fatal("server never acknowledged catalog subscription")
 		}
 		sdk[0].RemoveTools("catalog_tool_0000")
 		select {
@@ -2341,10 +2379,12 @@ func TestMCPToolListCache(t *testing.T) {
 		lateCleanup := redact.RegisterRequiredSecret(late)
 		defer lateCleanup()
 		for range readers {
-			for _, descriptor := range read().Descriptors {
-				if strings.Contains(descriptor.Description, late) {
-					t.Fatal("late credential appears in cached descriptor")
-				}
+			descriptors := read().Descriptors
+			marked := slices.IndexFunc(descriptors, func(descriptor toolspkg.MCPToolDescriptor) bool {
+				return descriptor.RawName == "catalog_tool_0000"
+			})
+			if marked < 0 || strings.Contains(descriptors[marked].Description, late) {
+				t.Fatal("marked descriptor is absent or still contains the late credential")
 			}
 		}
 		if got := encodes; got != initial {
@@ -2371,16 +2411,17 @@ func TestMCPToolListCache(t *testing.T) {
 			raw := syntheticMCPTools(1)
 			var encodes int
 			cleanup := func() {}
-			defer func() { cleanup() }()
 			raw[0].InputSchema = countMCPJSONEncodes{count: &encodes, beforeEncode: func() {
 				if tc.related {
 					if encodes == 1 {
 						cleanup = redact.RegisterRequiredSecret(secret)
+						t.Cleanup(cleanup)
 					}
 					return
 				}
 				cleanup()
 				cleanup = redact.RegisterRequiredSecret(fmt.Sprintf("%s-%d", secret, encodes))
+				t.Cleanup(cleanup)
 			}}
 			if tc.related {
 				raw[0].Description = secret
@@ -2429,6 +2470,7 @@ func TestMCPToolListCache(t *testing.T) {
 				protocolVersionModern,
 				"",
 				key,
+				false,
 			)
 			if !errors.Is(err, toolspkg.ErrToolTimedOut) || healthErr != nil {
 				t.Fatalf("listing wait error = %v, upstream health error = %v", err, healthErr)
@@ -2861,15 +2903,19 @@ func TestMCPToolListCache(t *testing.T) {
 			URL:       server.URL,
 		}, WithToolCatalogNotifications())
 		t.Cleanup(func() {
-			if err := executor.CloseCatalogConnections(); err != nil {
+			if err := executor.CloseCatalogConnections(context.WithoutCancel(t.Context())); err != nil {
 				t.Error(err)
 			}
 		})
 		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
-		ctx := t.Context()
-
+		ctx := testContext(t)
+		key := establishTestCatalogSubscription(t, ctx, executor, source)
 		if _, err := executor.ListTools(ctx, source); err != nil {
 			t.Fatal(err)
+		}
+		entry, found := executor.cachedToolListing(key, time.Now())
+		if !found || !entry.expiresAt.IsZero() {
+			t.Fatal("initial listing did not use the live subscription")
 		}
 		if _, err := executor.ListTools(toolspkg.WithFreshMCPDiscovery(ctx), source); err != nil {
 			t.Fatal(err)
@@ -2912,6 +2958,24 @@ func TestMCPToolListCache(t *testing.T) {
 		}
 		if got, want := string(second.Descriptors[0].OutputSchema), `{"type":"string"}`; got != want {
 			t.Fatalf("cached output schema = %q, want %q", got, want)
+		}
+	})
+
+	// Invariant: removing a declaration releases its listing and projection without a normalization owner.
+	// Owner: executor listing cache; canonical suite: TestMCPToolListCache.
+	t.Run("Should prune removed listings after their normalizations were evicted", func(t *testing.T) {
+		t.Parallel()
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{})
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "removed"}
+		now := time.Now()
+		executor.cacheTools("removed", ToolDiscovery{source: source}, nil, mcpSubscribedListTTL, now)
+		executor.recordToolProjectionState("removed-projection", "removed", [sha256.Size]byte{}, 0, now)
+		executor.RetainCatalogSources(nil)
+		if _, found := executor.cachedToolListing("removed", now); found {
+			t.Fatal("removed source retained its cache entry")
+		}
+		if len(executor.toolCache.projectionStates) != 0 {
+			t.Fatal("removed source retained its projection generation")
 		}
 	})
 
@@ -3234,6 +3298,36 @@ func TestMCPToolListCache(t *testing.T) {
 	})
 }
 
+func establishTestCatalogSubscription(
+	t *testing.T,
+	ctx context.Context,
+	executor *CallExecutor,
+	source toolspkg.SourceRef,
+) string {
+	t.Helper()
+	resolved, err := executor.resolveServer(ctx, source, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := executor.openToolListingClient(ctx, &resolved, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-executor.CatalogChanges():
+	case <-ctx.Done():
+		t.Fatal("executor never acknowledged the tool catalog subscription")
+	}
+	if client.catalogLive == nil || !client.catalogLive() {
+		t.Fatal("tool catalog subscription is not live")
+	}
+	key, err := executor.toolPollKey(ctx, &resolved, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return key
+}
+
 type countMCPJSONEncodes struct {
 	count        *int
 	beforeEncode func()
@@ -3533,6 +3627,24 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 		}
 	})
 
+	// Invariant: refreshing metadata preserves the existing upstream dispatch name.
+	// Owner: MCP descriptor redaction; canonical suite: executor descriptor projection.
+	t.Run("Should retain an upstream dispatch name carried by the source", func(t *testing.T) {
+		t.Parallel()
+		descriptor := safeMCPDescriptorForRedactionTest()
+		descriptor.Source.RawToolName = descriptor.RawName
+		descriptor.RawName = ""
+		got, err := toolspkg.RedactMCPToolDescriptor(descriptor, redact.RegisteredSecretSnapshot())
+		if err != nil || got.Source.RawToolName != descriptor.Source.RawToolName {
+			t.Fatalf(
+				"redacted dispatch name = %q, error = %v, want %q",
+				got.Source.RawToolName,
+				err,
+				descriptor.Source.RawToolName,
+			)
+		}
+	})
+
 	t.Run("Should reject credential material in descriptor identity fields", func(t *testing.T) {
 		t.Parallel()
 
@@ -3592,8 +3704,9 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 		}
 		descriptor := safeMCPDescriptorForRedactionTest()
 		descriptor.InputSchema = collisionSchema
-		if _, err := toolspkg.RedactMCPToolDescriptor(descriptor, redact.RegisteredSecretSnapshot()); err == nil {
-			t.Fatal("RedactMCPToolDescriptor(collision schema) error = nil, want fail-closed collision")
+		_, err = toolspkg.RedactMCPToolDescriptor(descriptor, redact.RegisteredSecretSnapshot())
+		if err == nil || !strings.Contains(err.Error(), "JSON keys collide after exact redaction") {
+			t.Fatalf("RedactMCPToolDescriptor(collision schema) error = %v, want redacted key collision", err)
 		}
 	})
 }
