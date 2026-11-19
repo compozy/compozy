@@ -118,3 +118,9 @@ CIMD registration, Settings receives `refreshable=true` even for registrations s
 the auth method. The server keeps its tools and does not offer **Sign in** solely because of
 expiry. A runtime `auth_refresh_failed` result continues to offer **Reauthorize**.
 Follow the refresh steps in [ET-api-mcp-oauth-endpoints](ET-api-mcp-oauth-endpoints.md).
+
+For #1850, turn one fixture server off using its Settings switch. Reload Settings and verify
+the row and its definition are still present, the switch is unchecked, and the neutral **Off**
+status replaces Ready. The settings payload reports `off` with `probe: "skipped"`. Re-enable it
+and verify discovery resumes while the second fixture's state stays unchanged.
+See the [off-switch walk](../reports/2026-11-18-mcp-server-off-switch.md).

@@ -110,6 +110,11 @@ func (s *service) BeginMCPAuth(
 	if err != nil {
 		return mcpauth.BeginResult{}, err
 	}
+	if server.IsDisabled() {
+		return mcpauth.BeginResult{}, &MCPApprovalError{
+			Code: "mcp_server_disabled", Message: fmt.Sprintf("MCP server %q is off", target.ServerName),
+		}
+	}
 	if !mcpauth.OAuthCapable(server) {
 		return mcpauth.BeginResult{}, validationError(
 			errors.New(

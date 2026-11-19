@@ -35,7 +35,7 @@ func (s *service) populateMCPServerStatuses(
 		required := (target.Scope == mcpauth.ScopeWorkspace || target.Scope == mcpauth.ScopeWorkspaceProfile) &&
 			!strings.HasPrefix(target.Owner, "extension:")
 		item.Approval = approvalState(decision, required)
-		item.CallableInSessions = decision.Admitted
+		item.CallableInSessions = decision.Admitted && !item.Disabled
 		skipRuntimeStatus = skipRuntimeStatus || !decision.Admitted
 	}
 	name := entry.Server.Name
@@ -45,6 +45,10 @@ func (s *service) populateMCPServerStatuses(
 			return fmt.Errorf("settings: load MCP auth status for %q: %w", name, statusErr)
 		}
 		item.AuthStatus = &status
+	}
+	if item.Disabled {
+		setMCPRuntimeObservation(item, entry.Server, OffMCPServerRuntimeStatus())
+		return nil
 	}
 	if s.mcpRuntime != nil && !skipRuntimeStatus {
 		var status MCPServerRuntimeStatus

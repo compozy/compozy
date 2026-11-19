@@ -2,7 +2,35 @@
 
 package client
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+// WindowManagerRebaseGuard is a daemon API value.
+type WindowManagerRebaseGuard struct {
+	TabID         *TabID               `json:"tab_id,omitzero"`
+	WindowID      *WindowID            `json:"window_id,omitzero"`
+	SourceNodeID  *WindowmanagerNodeID `json:"source_node_id,omitzero"`
+	TargetNodeID  *WindowmanagerNodeID `json:"target_node_id,omitzero"`
+	SplitID       *WindowmanagerNodeID `json:"split_id,omitzero"`
+	BoundaryIndex *int                 `json:"boundary_index,omitzero"`
+}
+
+// WindowManagerResult is a daemon API value.
+type WindowManagerResult struct {
+	Deprecations []Deprecation            `json:"deprecations"`
+	Snapshot     WindowManagerSnapshot    `json:"snapshot"`
+	Applied      bool                     `json:"applied"`
+	Changes      ChangeSet                `json:"changes"`
+	Diagnostics  []Diagnostic             `json:"diagnostics,omitempty"`
+	Client       *WindowManagerClientView `json:"client,omitzero"`
+	RebasedFrom  *WindowManagerRevision   `json:"rebased_from,omitzero"`
+}
+
+// WindowManagerRevision is a daemon API value.
+// WindowManagerRevision preserves its custom JSON wire representation.
+type WindowManagerRevision = json.RawMessage
 
 // WindowManagerSnapshot is a daemon API value.
 type WindowManagerSnapshot struct {
@@ -415,34 +443,4 @@ type WorktreeRepoPayload struct {
 // WorktreeResponse is a daemon API value.
 type WorktreeResponse struct {
 	Worktree WorktreePayload `json:"worktree"`
-}
-
-// WorktreeStatusPayload is a daemon API value.
-type WorktreeStatusPayload struct {
-	Branch      *string    `json:"branch"`
-	Detached    *bool      `json:"detached"`
-	HeadSHA     *string    `json:"head_sha"`
-	DirtyFiles  *int       `json:"dirty_files"`
-	Insertions  *int       `json:"insertions"`
-	Deletions   *int       `json:"deletions"`
-	HasUpstream *bool      `json:"has_upstream"`
-	Ahead       *int       `json:"ahead"`
-	AheadOfBase *int       `json:"ahead_of_base"`
-	Behind      *int       `json:"behind"`
-	ReadError   string     `json:"read_error,omitempty"`
-	RefreshedAt *time.Time `json:"refreshed_at"`
-}
-
-// WorktreeStatusResponse is a daemon API value.
-type WorktreeStatusResponse struct {
-	WorktreeID string                      `json:"worktree_id"`
-	Status     WorktreeStatusPayload       `json:"status"`
-	Forge      *WorktreeForgeStatusPayload `json:"forge"`
-}
-
-// WorktreesResponse is a daemon API value.
-type WorktreesResponse struct {
-	Worktrees  []WorktreePayload           `json:"worktrees"`
-	Discovered []DiscoveredWorktreePayload `json:"discovered"`
-	Repo       WorktreeRepoPayload         `json:"repo"`
 }

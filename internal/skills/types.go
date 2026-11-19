@@ -124,6 +124,7 @@ const (
 
 // MCPServerDecl declares an MCP server dependency in skill frontmatter.
 type MCPServerDecl struct {
+	Disabled  *bool             `yaml:"disabled,omitempty"   json:"disabled,omitzero"`
 	Name      string            `yaml:"name"`
 	Command   string            `yaml:"command"`
 	Args      []string          `yaml:"args,omitempty"`

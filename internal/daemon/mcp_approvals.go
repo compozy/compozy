@@ -193,10 +193,12 @@ func mcpSourceConsent(
 			if err != nil {
 				return ConsentDecision{}, err
 			}
-			return (settingsMCPConsent{state: state}).MCPConsent(
+			decision, err := (settingsMCPConsent{state: state}).MCPConsent(
 				ctx,
 				settingsConsentRequest(resolved.Target, resolved.Server),
 			)
+			decision.Disabled = resolved.Server.IsDisabled()
+			return decision, err
 		}
 	}
 	if state.mcpServerCatalog == nil {
@@ -210,7 +212,9 @@ func mcpSourceConsent(
 		if err != nil {
 			return ConsentDecision{}, err
 		}
-		return mcpDefinitionConsent(ctx, state, scope, record, server)
+		decision, err := mcpDefinitionConsent(ctx, state, scope, record, server)
+		decision.Disabled = server.IsDisabled()
+		return decision, err
 	}
 	return ConsentDecision{}, nil
 }
@@ -225,10 +229,12 @@ func requireMCPSourceConsent(ctx context.Context, state *bootState, source tools
 	if err != nil {
 		return err
 	}
-	if !decision.Admitted {
+	if decision.Disabled || !decision.Admitted {
 		name := firstNonEmpty(source.RawServerName, source.Owner)
 		message := fmt.Sprintf("%s was removed from CompozyOS", name)
-		if decision.DefinitionDigest != "" {
+		if decision.Disabled {
+			message = fmt.Sprintf("MCP server %q is off", name)
+		} else if decision.DefinitionDigest != "" {
 			workspace := source.WorkspaceID
 			if state.workspaceResolver != nil {
 				if resolved, resolveErr := state.workspaceResolver.Resolve(ctx, workspace); resolveErr == nil {

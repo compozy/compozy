@@ -131,10 +131,8 @@ func (e *CallExecutor) listResolvedTools(
 	if err != nil {
 		return ToolDiscovery{}, err
 	}
-	if e.consent != nil {
-		if err := e.consent(ctx, source, resolved); err != nil {
-			return ToolDiscovery{}, err
-		}
+	if err := e.authorizeServer(ctx, source, &resolved); err != nil {
+		return ToolDiscovery{}, err
 	}
 	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
 	var runtimeHealthErr error

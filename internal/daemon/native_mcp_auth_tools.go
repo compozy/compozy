@@ -194,6 +194,8 @@ func mcpRuntimeStatusByName(
 
 func mcpRuntimeProbeState(state settingspkg.MCPServerRuntimeState, fallback string) string {
 	switch state {
+	case settingspkg.MCPServerRuntimeStateOff:
+		return string(state)
 	case settingspkg.MCPServerRuntimeStateDead:
 		return "dead"
 	case settingspkg.MCPServerRuntimeStateReady:

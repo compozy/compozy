@@ -101,6 +101,41 @@ async function openSettings() {
 }
 
 describe("MCP Settings page", () => {
+  it("Should turn off only the selected owner and show the saved state", async () => {
+    const user = userEvent.setup();
+    const writes: Array<{ owner: string | null; enabled: boolean }> = [];
+    server.use(
+      http.put("*/api/settings/mcp-servers/:name/enabled", async ({ request }) => {
+        const query = new URL(request.url).searchParams;
+        const body = (await request.json()) as { enabled: boolean };
+        expect(query.get("scope")).toBe("user");
+        writes.push({ owner: query.get("owner"), enabled: body.enabled });
+        const updated = { ...definitions[1]!, disabled: !body.enabled };
+        definitions[1] = updated;
+        return HttpResponse.json({ server: updated });
+      })
+    );
+    await openSettings();
+    const manual = screen.getByRole("switch", { name: "Enable github" });
+    const extension = screen.getByRole("switch", { name: "Enable github from github" });
+    expect(manual).toBeChecked();
+    expect(extension).toBeChecked();
+
+    await user.click(extension);
+    await waitFor(() => expect(extension).not.toBeChecked());
+    expect(manual).toBeChecked();
+    expect(
+      within(screen.getByTestId(mcpServerRowTestId(definitions[1]!))).getByText("Off")
+    ).toBeVisible();
+
+    await user.click(extension);
+    await waitFor(() => expect(extension).toBeChecked());
+    expect(writes).toEqual([
+      { owner: "extension:github", enabled: false },
+      { owner: "extension:github", enabled: true },
+    ]);
+  });
+
   it("Should hold the table's place with a skeleton, and claim no server count, while the servers load", async () => {
     server.use(
       http.get("*/api/settings/mcp-servers", async () => {

@@ -4,6 +4,7 @@ import "strings"
 
 // MCPServer describes an MCP server passed through to the agent runtime.
 type MCPServer struct {
+	Disabled         *bool                    `json:"disabled,omitzero"           yaml:"disabled,omitempty"        toml:"disabled,omitempty"`
 	AgentPlugin      bool                     `json:"-"                           yaml:"-"                         toml:"-"`
 	DefinitionSource string                   `json:"definition_source,omitempty" yaml:"-"                         toml:"-"`
 	ReadOnlyTools    []string                 `json:"read_only_tools,omitempty"   yaml:"read_only_tools,omitempty" toml:"read_only_tools,omitempty"`
@@ -24,6 +25,10 @@ type MCPServer struct {
 	Auth             MCPAuthConfig            `json:"auth"                        yaml:"auth,omitempty"            toml:"auth,omitempty"`
 	CatalogEntry     string                   `json:"catalog_entry,omitempty"     yaml:"catalog_entry,omitempty"   toml:"catalog_entry,omitempty"`
 	CatalogVersion   string                   `json:"catalog_version,omitempty"   yaml:"catalog_version,omitempty" toml:"catalog_version,omitempty"`
+}
+
+func (s MCPServer) IsDisabled() bool {
+	return s.Disabled != nil && *s.Disabled
 }
 
 // EffectiveRuntimeName is the published launch/tool name; credentials retain Name.

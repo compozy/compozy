@@ -108,7 +108,11 @@ func mcpListBundle(result contract.MCPListResponse) outputBundle {
 				fmt.Fprintf(&out, "COMPOZYOS · %d servers\n", len(result.CompozyServers))
 				for i := range result.CompozyServers {
 					s := &result.CompozyServers[i]
-					fmt.Fprintf(&out, "  %-24s %-10s %-8s\n", s.Name, s.Scope, s.Transport)
+					state := ""
+					if s.Disabled {
+						state = "  Off"
+					}
+					fmt.Fprintf(&out, "  %-24s %-10s %-8s%s\n", s.Name, s.Scope, s.Transport, state)
 				}
 			}
 			for _, group := range result.Runtimes {

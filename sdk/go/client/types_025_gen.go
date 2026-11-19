@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// SourceStatus is a daemon API value.
+type SourceStatus struct {
+	Source string       `json:"source"`
+	Status SourceHealth `json:"status"`
+	Reason string       `json:"reason,omitempty"`
+}
+
+// SpawnBudgetPayload is a daemon API value.
+type SpawnBudgetPayload struct {
+	MaxChildren           int   `json:"max_children"`
+	MaxDepth              int   `json:"max_depth"`
+	TTLSeconds            int64 `json:"ttl_seconds"`
+	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
+}
+
 // SpawnNewWorktreeRequest is a daemon API value.
 type SpawnNewWorktreeRequest struct {
 	Name    string `json:"name,omitempty"`
@@ -432,10 +447,4 @@ type TaskCatalogItemPayload struct {
 	ActiveRun            *TaskCatalogRunPayload `json:"active_run,omitempty"`
 	LastActivityAt       *time.Time             `json:"last_activity_at,omitempty"`
 	Loop                 *LoopProvenance        `json:"loop,omitempty"`
-}
-
-// TaskCatalogOwnerFacetPayload is a daemon API value.
-type TaskCatalogOwnerFacetPayload struct {
-	Owner Ownership `json:"owner"`
-	Count int       `json:"count"`
 }

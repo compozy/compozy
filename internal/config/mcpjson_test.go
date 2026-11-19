@@ -12,6 +12,26 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
+func TestMCPJSONServerDisabled(t *testing.T) {
+	t.Parallel()
+	t.Run("Should round trip the off setting and accept definitions without it", func(t *testing.T) {
+		t.Parallel()
+		servers, err := ParseMCPServersJSON([]byte(`{"mcpServers":{"keep":{"command":"fixture"}},`+
+			`"mcp_servers":{"switch":{"command":"fixture","disabled":true}}}`), MCPJSONName)
+		if err != nil || len(servers) != 2 || servers[0].IsDisabled() || !servers[1].IsDisabled() {
+			t.Fatalf("unexpected MCP JSON servers: %+v %v", servers, err)
+		}
+		raw, err := marshalMCPJSONServer(servers[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		roundTrip, err := ParseMCPServersJSON([]byte(`{"mcpServers":{"switch":`+string(raw)+`}}`), MCPJSONName)
+		if err != nil || len(roundTrip) != 1 || !roundTrip[0].IsDisabled() {
+			t.Fatalf("off state lost after save: %+v %v", roundTrip, err)
+		}
+	})
+}
+
 func TestParseMCPServersJSONAcceptsBothKeyStyles(t *testing.T) {
 	t.Parallel()
 

@@ -12,6 +12,7 @@ import (
 
 type ConsentDecision struct {
 	Admitted         bool
+	Disabled         bool
 	Reason           string
 	Waiting          bool
 	DefinitionDigest string

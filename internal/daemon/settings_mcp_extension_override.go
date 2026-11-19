@@ -18,6 +18,18 @@ import (
 func (s settingsMCPExtensionDefinitions) UpdateMCPExtensionOverride(
 	ctx context.Context, req settingspkg.MCPAuthTargetRequest, override extensionmcp.Override,
 ) (settingspkg.MCPExtensionDefinition, error) {
+	return s.updateMCPExtensionOverride(ctx, req, override, nil)
+}
+
+func (s settingsMCPExtensionDefinitions) SetMCPExtensionEnabled(
+	ctx context.Context, req settingspkg.MCPAuthTargetRequest, enabled bool,
+) (settingspkg.MCPExtensionDefinition, error) {
+	return s.updateMCPExtensionOverride(ctx, req, extensionmcp.Override{}, new(enabled))
+}
+
+func (s settingsMCPExtensionDefinitions) updateMCPExtensionOverride(
+	ctx context.Context, req settingspkg.MCPAuthTargetRequest, override extensionmcp.Override, enabled *bool,
+) (settingspkg.MCPExtensionDefinition, error) {
 	if s.state == nil || s.state.extensionMCP == nil || s.state.toolMCPResources == nil {
 		return settingspkg.MCPExtensionDefinition{}, errors.New("daemon: extension MCP publisher is unavailable")
 	}
@@ -48,11 +60,16 @@ func (s settingsMCPExtensionDefinitions) UpdateMCPExtensionOverride(
 			return err
 		}
 		base.Owner, base.RuntimeName = target.Owner, current.RuntimeName
+		override.Disabled = current.Disabled
+		if enabled != nil {
+			override = current.Override
+			override.Disabled = !*enabled
+		}
 		server, err := override.Apply(base)
 		if err != nil {
 			return fmt.Errorf("%w: %w", settingspkg.ErrValidation, err)
 		}
-		if err := s.commitMCPExtensionOverride(ctx, target, current, override); err != nil {
+		if err := s.commitMCPExtensionOverride(ctx, target, current, override, enabled == nil); err != nil {
 			return err
 		}
 		result = settingspkg.MCPExtensionDefinition{Target: target, Server: server, Override: override}
@@ -132,8 +149,9 @@ func (s *daemonExtensionService) extensionMCPOverrideDeclaration(
 
 func (s settingsMCPExtensionDefinitions) commitMCPExtensionOverride(
 	ctx context.Context, target mcpauth.Target, previous extensionmcp.Record, override extensionmcp.Override,
+	replaceCredentials bool,
 ) error {
-	if s.auth != nil {
+	if replaceCredentials && s.auth != nil {
 		if err := s.auth.MCPAuthInvalidate(target); err != nil {
 			return err
 		}
@@ -143,18 +161,22 @@ func (s settingsMCPExtensionDefinitions) commitMCPExtensionOverride(
 	}
 	s.state.mcpRuntimeHealth.EvictInstance(previous.Extension, previous.WorkspaceID)
 	if err := s.state.toolMCPResources.Sync(ctx); err != nil {
-		return s.rollbackMCPExtensionOverride(ctx, target, previous, err)
+		err = s.rollbackMCPExtensionOverride(ctx, previous, err)
+		if replaceCredentials && s.auth != nil {
+			err = errors.Join(err, s.auth.MCPAuthInvalidate(target))
+		}
+		return err
 	}
-	if s.auth != nil {
+	if replaceCredentials && s.auth != nil {
 		if err := s.auth.MCPAuthDeleteState(ctx, target); err != nil {
-			return s.rollbackMCPExtensionOverride(ctx, target, previous, err)
+			return errors.Join(s.rollbackMCPExtensionOverride(ctx, previous, err), s.auth.MCPAuthInvalidate(target))
 		}
 	}
 	return nil
 }
 
 func (s settingsMCPExtensionDefinitions) rollbackMCPExtensionOverride(
-	ctx context.Context, target mcpauth.Target, previous extensionmcp.Record, cause error,
+	ctx context.Context, previous extensionmcp.Record, cause error,
 ) error {
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), extensionSecretRollbackTimeout)
 	defer cancel()
@@ -163,9 +185,5 @@ func (s settingsMCPExtensionDefinitions) rollbackMCPExtensionOverride(
 		s.state.mcpRuntimeHealth.EvictInstance(previous.Extension, previous.WorkspaceID)
 		restoreErr = s.state.toolMCPResources.Sync(rollbackCtx)
 	}
-	var invalidateErr error
-	if s.auth != nil {
-		invalidateErr = s.auth.MCPAuthInvalidate(target)
-	}
-	return errors.Join(cause, restoreErr, invalidateErr)
+	return errors.Join(cause, restoreErr)
 }

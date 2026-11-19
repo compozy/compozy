@@ -201,6 +201,7 @@ func validateSkillResourceProvenance(provenance *Provenance) error {
 
 func normalizeMCPServerDecl(decl MCPServerDecl) MCPServerDecl {
 	normalized := MCPServerDecl{
+		Disabled:  decl.Disabled,
 		Name:      strings.TrimSpace(decl.Name),
 		Command:   strings.TrimSpace(decl.Command),
 		Args:      append([]string(nil), decl.Args...),

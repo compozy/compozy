@@ -619,6 +619,7 @@ type ExtensionMcpOverride struct {
 	HeadersJson string `json:"headers_json"`
 	Url         string `json:"url"`
 	UpdatedAt   string `json:"updated_at"`
+	Disabled    bool   `json:"disabled"`
 }
 
 type ExtensionProfileEnablement struct {

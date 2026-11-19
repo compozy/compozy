@@ -20,17 +20,23 @@ func PutMCPSidecarServer(
 	workspaceRoot string,
 	target WriteTarget,
 	server MCPServer,
-) (cfg Config, err error) {
-	if !target.isMCPSidecarTarget() {
-		return Config{}, fmt.Errorf("config: write target %q is not an MCP sidecar", target.Kind())
-	}
-
+) (Config, error) {
 	normalized := cloneMCPServer(server)
 	normalized.Name = normalizeMCPServerName(normalized.Name)
 	if err := normalized.Validate("mcp_server"); err != nil {
 		return Config{}, fmt.Errorf("config: validate MCP sidecar write: %w", err)
 	}
+	return editMCPSidecarServer(homePaths, workspaceRoot, target, func(doc *editableMCPJSONDocument) error {
+		return doc.Put(normalized)
+	})
+}
 
+func editMCPSidecarServer(
+	homePaths HomePaths, workspaceRoot string, target WriteTarget, edit func(*editableMCPJSONDocument) error,
+) (cfg Config, err error) {
+	if !target.isMCPSidecarTarget() {
+		return Config{}, fmt.Errorf("config: write target %q is not an MCP sidecar", target.Kind())
+	}
 	directory, name, err := fileutil.OpenOrCreateParentDirectory(target.path, privateDirMode)
 	if err != nil {
 		return Config{}, fmt.Errorf("config: open MCP sidecar parent %q: %w", target.path, err)
@@ -40,7 +46,7 @@ func PutMCPSidecarServer(
 			err = errors.Join(err, fmt.Errorf("config: close MCP sidecar parent %q: %w", target.path, closeErr))
 		}
 	}()
-	return putMCPSidecarServerInDirectory(homePaths, workspaceRoot, target, normalized, directory, name)
+	return editMCPSidecarServerInDirectory(homePaths, workspaceRoot, target, directory, name, edit)
 }
 
 func putMCPSidecarServerInDirectory(
@@ -51,7 +57,23 @@ func putMCPSidecarServerInDirectory(
 	directory *fileutil.Directory,
 	name string,
 ) (Config, error) {
-	contents, _, err := readOptionalRegularFileFromDirectory(directory, name, target.path, "MCP sidecar")
+	return editMCPSidecarServerInDirectory(
+		homePaths,
+		workspaceRoot,
+		target,
+		directory,
+		name,
+		func(doc *editableMCPJSONDocument) error {
+			return doc.Put(server)
+		},
+	)
+}
+
+func editMCPSidecarServerInDirectory(
+	homePaths HomePaths, workspaceRoot string, target WriteTarget, directory *fileutil.Directory, name string,
+	edit func(*editableMCPJSONDocument) error,
+) (Config, error) {
+	contents, existed, err := readOptionalRegularFileFromDirectory(directory, name, target.path, "MCP sidecar")
 	if err != nil {
 		return Config{}, err
 	}
@@ -60,7 +82,7 @@ func putMCPSidecarServerInDirectory(
 	if err != nil {
 		return Config{}, err
 	}
-	if err := document.Put(server); err != nil {
+	if err := edit(document); err != nil {
 		return Config{}, err
 	}
 
@@ -71,6 +93,9 @@ func putMCPSidecarServerInDirectory(
 
 	finalCfg, err := validateEffectiveConfigWrite(homePaths, workspaceRoot, target, rendered)
 	if err != nil {
+		return Config{}, err
+	}
+	if err := requireOverlayContents(directory, name, target.path, contents, existed); err != nil {
 		return Config{}, err
 	}
 	if err := writePersistedFileInDirectory(directory, name, target.path, rendered, true); err != nil {
@@ -369,6 +394,7 @@ func (c *mcpJSONCollection) delete(name string) bool {
 
 func marshalMCPJSONServer(server MCPServer) (json.RawMessage, error) {
 	type writableMCPJSONServer struct {
+		Disabled       *bool              `json:"disabled,omitempty"`
 		ReadOnlyTools  []string           `json:"read_only_tools,omitempty"`
 		Reference      bool               `json:"reference,omitempty"`
 		SecretHeaders  map[string]string  `json:"secret_headers,omitempty"`
@@ -388,6 +414,7 @@ func marshalMCPJSONServer(server MCPServer) (json.RawMessage, error) {
 		auth = &normalizedAuth
 	}
 	payload, err := json.Marshal(writableMCPJSONServer{
+		Disabled:       server.Disabled,
 		ReadOnlyTools:  append([]string(nil), server.ReadOnlyTools...),
 		Reference:      server.Reference,
 		SecretHeaders:  mergeStringMaps(nil, server.SecretHeaders),

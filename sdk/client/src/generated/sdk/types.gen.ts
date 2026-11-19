@@ -9296,6 +9296,10 @@ export type SettingsMCPSecretValuesPayload = {
   };
 };
 
+export type SettingsMCPServerEnabledRequest = {
+  enabled: boolean;
+};
+
 export type SettingsMCPServerItemPayload = {
   approval: SettingsMCPApprovalStatePayload;
   args?: Array<string>;
@@ -9306,6 +9310,7 @@ export type SettingsMCPServerItemPayload = {
   catalog_version?: string;
   command?: string;
   definition_source?: string;
+  disabled?: boolean;
   env_keys?: Array<string>;
   headers_configured?: boolean;
   name: string;
@@ -28879,6 +28884,74 @@ export type CheckSettingsMCPServerResponses = {
 
 export type CheckSettingsMCPServerResponse =
   CheckSettingsMCPServerResponses[keyof CheckSettingsMCPServerResponses];
+
+export type SetSettingsMCPServerEnabledData = {
+  /**
+   * JSON request body
+   */
+  body: SettingsMCPServerEnabledRequest;
+  path: {
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query: {
+    /**
+     * Exact MCP settings scope
+     */
+    scope: "user" | "profile" | "workspace";
+    /**
+     * Required when scope is workspace
+     */
+    workspace_id?: string;
+    /**
+     * Required when scope is profile
+     */
+    profile?: string;
+    /**
+     * Definition owner: manual or extension:<name>; omitted owner selects manual
+     */
+    owner?: string;
+  };
+  url: "/api/settings/mcp-servers/{name}/enabled";
+};
+
+export type SetSettingsMCPServerEnabledErrors = {
+  /**
+   * Invalid MCP server owner, scope, or payload
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * MCP server state could not be applied
+   */
+  503: ErrorPayload;
+};
+
+export type SetSettingsMCPServerEnabledError =
+  SetSettingsMCPServerEnabledErrors[keyof SetSettingsMCPServerEnabledErrors];
+
+export type SetSettingsMCPServerEnabledResponses = {
+  /**
+   * Updated server
+   */
+  200: SettingsMCPServerResponse;
+};
+
+export type SetSettingsMCPServerEnabledResponse =
+  SetSettingsMCPServerEnabledResponses[keyof SetSettingsMCPServerEnabledResponses];
 
 export type GetSettingsObservabilityData = {
   body?: never;

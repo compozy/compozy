@@ -62,6 +62,9 @@ func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {
 			Env:       stringMapValue(skill, "metadata.compozy.mcp_servers", idx, "env", entry["env"]),
 			SecretEnv: stringMapValue(skill, "metadata.compozy.mcp_servers", idx, "secret_env", entry["secret_env"]),
 		}
+		if disabled, ok := entry["disabled"].(bool); ok {
+			server.Disabled = new(disabled)
+		}
 		if server.Name == "" {
 			warnCompozyMetadata(
 				skill,

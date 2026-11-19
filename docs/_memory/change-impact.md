@@ -1,5 +1,19 @@
 # Compozy Change Impact
 
+## Turn off a configured MCP server (GH-1850, requirement 10)
+
+- **Native tools, CLI, HTTP and UDS.** MCP list and status reads expose off definitions. The
+  session MCP list returns `off` and a reason. `mcp disable` and `mcp enable` share the scoped,
+  owner-qualified settings route and generated client contract. Both explicit checks skip off servers.
+- **Config, persistence and extensibility.** `disabled` is additive in TOML and JSON. Existing
+  files default to on. Extension allocations add a default-on persisted switch without rewriting
+  manifests or changing hook contracts. Definition digests and credential owners exclude the switch.
+- **Workspace and profile isolation.** Resolve the effective source before testing its switch.
+  An off workspace definition keeps its precedence, and the change targets the declaring scope.
+- **Web, docs and official skill.** Settings shows the switch and neutral Off status. The session
+  composer shows the reason. MCP docs and the official skill cover supported selectors, activation,
+  and checks. The Settings, session, CLI and next-message QA scenarios include the off/on walk.
+
 ## Composer reply answers a pending clarification (GH-1821)
 
 - **Native tools and CLI/HTTP/UDS.** Routes, DTOs and tool schemas keep their shapes. One answer

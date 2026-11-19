@@ -28,6 +28,7 @@ type MCPAuthStatus = mcpauth.Status
 type MCPServerRuntimeState string
 
 const (
+	MCPServerRuntimeStateOff     MCPServerRuntimeState = "off"
 	MCPServerRuntimeStateUnknown MCPServerRuntimeState = "unknown"
 	// MCPServerRuntimeStateReady reports a server that initialized and listed tools.
 	MCPServerRuntimeStateReady MCPServerRuntimeState = "ready"
@@ -48,6 +49,17 @@ const (
 	// MCPServerRuntimeStateDead reports a durably suppressed server awaiting recovery.
 	MCPServerRuntimeStateDead MCPServerRuntimeState = "dead"
 )
+
+const MCPServerOffReason = "server_disabled"
+
+func OffMCPServerRuntimeStatus() MCPServerRuntimeStatus {
+	return MCPServerRuntimeStatus{
+		Configured: true,
+		State:      MCPServerRuntimeStateOff,
+		Probe:      MCPServerProbeSkipped,
+		Reason:     MCPServerOffReason,
+	}
+}
 
 // MCPServerProbeState reports whether the runtime probe actually touched the server.
 type MCPServerProbeState string

@@ -198,6 +198,7 @@ type SettingsMCPApprovalStatePayload struct {
 }
 
 type SettingsMCPServerItemPayload struct {
+	Disabled           bool                                   `json:"disabled,omitzero"`
 	DefinitionSource   string                                 `json:"definition_source,omitempty"`
 	Approval           SettingsMCPApprovalStatePayload        `json:"approval"`
 	CallableInSessions bool                                   `json:"callable_in_sessions"`

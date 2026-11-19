@@ -2234,6 +2234,100 @@ func TestDaemonMCPCloneInputs(t *testing.T) {
 
 // Invariant (UT-110/037): no OAuth/probe network call precedes digest-bound consent;
 // passive status remains readable. Owner: daemon Settings auth boundary; canonical suite: settings.
+func TestSettingsMCPDisabled(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep approval and never contact the off server through discovery or check", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		state, consentRequest := newMCPConsentFixtureForHome(t, home)
+		var requests atomic.Int64
+		handler := mcpfixture.MustNew(mcpfixture.ProfileModern2026).StreamableHTTPHandler()
+		fixture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests.Add(1)
+			handler.ServeHTTP(w, r)
+		}))
+		t.Cleanup(fixture.Close)
+		server := compozyconfig.MCPServer{
+			Name: consentRequest.Server.Name, DefinitionSource: consentRequest.Server.DefinitionSource,
+			Transport: compozyconfig.MCPServerTransportHTTP, URL: fixture.URL,
+		}
+		publish := func(version int64, disabled bool) {
+			t.Helper()
+			server.Disabled = new(disabled)
+			payload, err := json.Marshal(map[string]any{"mcpServers": map[string]any{
+				server.Name: map[string]any{"url": server.URL, "transport": "http", "disabled": disabled},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(server.DefinitionSource, payload, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			state.mcpServerCatalog.Replace(version, []resources.Record[compozyconfig.MCPServer]{
+				{
+					ID:      "workspace-server",
+					Version: version,
+					Spec:    server,
+					Scope: resources.ResourceScope{
+						Kind: resources.ResourceScopeKindWorkspace,
+						ID:   consentRequest.WorkspaceID,
+					},
+				},
+			})
+		}
+		publish(2, false)
+		consentRequest.Server = server
+		consent := settingsMCPConsent{state: state}
+		decision, err := consent.MCPConsent(t.Context(), consentRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := consent.ApproveMCP(t.Context(), consentRequest, decision.DefinitionDigest, false); err != nil {
+			t.Fatal(err)
+		}
+		provider, _, err := (&Daemon{}).newDaemonMCPToolProvider(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		scope := toolspkg.Scope{WorkspaceID: consentRequest.WorkspaceID, ProfileID: store.DefaultProfileID}
+		if tools, err := provider.List(t.Context(), scope); err != nil || len(tools) == 0 || requests.Load() == 0 {
+			t.Fatalf("enabled discovery: descriptors=%d requests=%d err=%v", len(tools), requests.Load(), err)
+		}
+		publish(3, true)
+		before := requests.Load()
+		if tools, err := provider.List(t.Context(), scope); err != nil || len(tools) != 0 {
+			t.Fatalf("off discovery: descriptors=%d err=%v", len(tools), err)
+		}
+		if err := provider.CheckMCPServer(t.Context(), scope, server.Name); err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{state: state, digestKey: testMCPDigestKey(t, state)}
+		service, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			WorkspaceResolver: state.workspaceResolver, ProfileResolver: state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPRuntime:              surface, MCPConsent: consent,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		checker := service.(core.MCPSettingsChecker)
+		item, err := checker.CheckMCPServer(t.Context(), settingspkg.MCPAuthTargetRequest{
+			Scope: settingspkg.ScopeWorkspace, WorkspaceID: scope.WorkspaceID, Name: server.Name,
+		})
+		if err != nil || !item.Disabled || item.CallableInSessions || item.Approval.State != "allowed" ||
+			item.RuntimeStatus == nil || *item.RuntimeStatus != settingspkg.OffMCPServerRuntimeStatus() {
+			t.Fatalf("off check: %+v, %v", item, err)
+		}
+		if requests.Load() != before {
+			t.Fatalf("off server received %d requests", requests.Load()-before)
+		}
+		publish(4, false)
+		if tools, err := provider.List(t.Context(), scope); err != nil || len(tools) == 0 {
+			t.Fatalf("re-enabled discovery: descriptors=%d err=%v", len(tools), err)
+		}
+	})
+}
+
 func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 	t.Parallel()
 	state, req := newMCPConsentFixture(t)

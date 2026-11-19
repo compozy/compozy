@@ -35,6 +35,9 @@ func (s *service) CheckMCPServer(ctx context.Context, req MCPAuthTargetRequest) 
 		if item.Name != req.Name || vault.NormalizeMCPOwner(item.Owner) != vault.NormalizeMCPOwner(req.Owner) {
 			continue
 		}
+		if item.Disabled {
+			return *item, nil
+		}
 		ctx = mcpauth.WithConsentScope(
 			ctx,
 			mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID},

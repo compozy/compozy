@@ -122,3 +122,33 @@ export async function checkSettingsMCPServer(
   }
   return requireResponseData(data, response, `Couldn't check ${name}`);
 }
+
+export async function setSettingsMCPServerEnabled(
+  name: string,
+  filter: SettingsMCPAuthFilter,
+  enabled: boolean
+): Promise<SettingsMCPServerEntry> {
+  const { data, error, response } = await apiClient.PUT(
+    "/api/settings/mcp-servers/{name}/enabled",
+    {
+      params: {
+        path: { name },
+        query: {
+          ...normalizeSettingsLayerFilter(filter),
+          owner: normalizeOptionalText(filter.owner),
+        },
+      },
+      body: { enabled },
+    }
+  );
+  const message = `Couldn't turn ${name} ${enabled ? "on" : "off"}`;
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage(message, response, error),
+      response.status,
+      undefined,
+      error?.code
+    );
+  }
+  return requireResponseData(data, response, message).server;
+}

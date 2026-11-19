@@ -1,4 +1,8 @@
-import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "../types";
+import type {
+  SettingsMCPAuthFilter,
+  SettingsMCPServerEntry,
+  SettingsMCPServerTarget,
+} from "../types";
 
 type MCPManagementTarget = Exclude<SettingsMCPServerTarget, "auto">;
 
@@ -75,6 +79,21 @@ export function mcpManagementScopeLabel(server: SettingsMCPServerEntry): string 
   if (filter.scope === "workspace") return `project · ${filter.workspace_id}`;
   if (filter.scope === "profile") return `profile · ${filter.profile}`;
   return "personal";
+}
+
+export function deriveMCPEnablementFilter(
+  server: SettingsMCPServerEntry
+): SettingsMCPAuthFilter | null {
+  const source = server.source_metadata?.effective_source;
+  if (
+    source?.kind === "workspace-profile-config" ||
+    source?.kind === "workspace-profile-mcp-sidecar"
+  ) {
+    const profile = source.profile?.trim();
+    const workspaceId = source.workspace_id?.trim();
+    return profile && workspaceId ? { scope: "profile", profile, workspace_id: workspaceId } : null;
+  }
+  return deriveMCPManagementFilter(server);
 }
 
 /** Full definition identity for selection and React keys; names may repeat across owners and scopes. */

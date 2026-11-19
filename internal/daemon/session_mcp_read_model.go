@@ -183,18 +183,12 @@ func sessionMCPRow(
 	if name == "" {
 		name = item.Name
 	}
-	for i := range diagnostics {
-		view := &diagnostics[i]
-		if view.Descriptor.Source.Kind == toolspkg.SourceMCP && view.Descriptor.Source.RawServerName == name {
-			row.ToolCount++
-		}
+	if item.Disabled {
+		row.State, row.Reason = string(settingspkg.MCPServerRuntimeStateOff), "Turned off in CompozyOS"
+		return row
 	}
-	for i := range callable {
-		view := &callable[i]
-		if view.Descriptor.Source.Kind == toolspkg.SourceMCP && view.Descriptor.Source.RawServerName == name {
-			row.CallableCount++
-		}
-	}
+	row.ToolCount = sessionMCPToolCount(diagnostics, name)
+	row.CallableCount = sessionMCPToolCount(callable, name)
 	switch {
 	case item.Approval.State == mcpApprovalWaiting:
 		row.State, row.Reason = mcpWaitingApproval, "Project server waiting for approval"
@@ -210,6 +204,17 @@ func sessionMCPRow(
 		row.State = "applies_next_message"
 	}
 	return row
+}
+
+func sessionMCPToolCount(views []toolspkg.ToolView, name string) int {
+	count := 0
+	for i := range views {
+		source := views[i].Descriptor.Source
+		if source.Kind == toolspkg.SourceMCP && source.RawServerName == name {
+			count++
+		}
+	}
+	return count
 }
 
 func setSessionMCPPreview(row *session.MCPServerRow, item *settingspkg.MCPServerItem) {

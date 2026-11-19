@@ -241,8 +241,14 @@ type SettingsMCPSecretValuesPayload struct {
 	OAuthClientSecret *string           `json:"oauth_client_secret,omitzero"`
 }
 
+// SettingsMCPServerEnabledRequest is a daemon API value.
+type SettingsMCPServerEnabledRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
 // SettingsMCPServerItemPayload is a daemon API value.
 type SettingsMCPServerItemPayload struct {
+	Disabled           bool                                   `json:"disabled,omitzero"`
 	DefinitionSource   string                                 `json:"definition_source,omitempty"`
 	Approval           SettingsMCPApprovalStatePayload        `json:"approval"`
 	CallableInSessions bool                                   `json:"callable_in_sessions"`
@@ -431,18 +437,4 @@ type SettingsProviderEnabledResponse struct {
 type SettingsProviderFallbackPayload struct {
 	Source   SettingsSourceRefPayload        `json:"source"`
 	Settings SettingsProviderSettingsPayload `json:"settings"`
-}
-
-// SettingsProviderItemPayload is a daemon API value.
-type SettingsProviderItemPayload struct {
-	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
-	Name             string                                    `json:"name"`
-	Settings         SettingsProviderSettingsPayload           `json:"settings"`
-	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
-	Default          bool                                      `json:"default"`
-	CommandAvailable bool                                      `json:"command_available"`
-	Credentials      []SettingsProviderCredentialStatusPayload `json:"credentials,omitempty"`
-	AuthStatus       *SettingsProviderAuthStatusPayload        `json:"auth_status,omitzero"`
-	SourceMetadata   SettingsSourceMetadataPayload             `json:"source_metadata"`
-	Fallback         *SettingsProviderFallbackPayload          `json:"fallback,omitzero"`
 }

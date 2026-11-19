@@ -159,6 +159,9 @@ func (s *service) normalizeAndValidateMCPServerWrite(
 			name,
 		))
 	}
+	if previous, ok := mcpSourceForTarget(name, target, sources); ok && server.Disabled == nil {
+		server.Disabled = previous.Server.Disabled
+	}
 	if err := preserveMCPEnvValues(name, target, sources, &server, envPreservation); err != nil {
 		return compozyconfig.MCPServer{}, err
 	}
