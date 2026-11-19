@@ -1,6 +1,5 @@
 import { SessionSideDrawer } from "./session-side-drawer";
 import { SessionSubagentDrawer } from "./session-subagent-drawer";
-import { useSessionWindowSideChat } from "./use-session-window-side-chat";
 import {
   SessionComposerMCP,
   SessionComposerMonitors,
@@ -20,7 +19,8 @@ import { SessionPullRequestExitSurface } from "./session-pull-request-exit-surfa
 import { SessionWindowRowDialogs } from "./session-window-row-dialogs";
 import { useForkDeadSession } from "./use-fork-dead-session";
 import { useSessionWindowController } from "./use-session-window-controller";
-import { useSessionWindowDerive } from "./use-session-window-derive";
+import { useSessionWindowDerivedSessions } from "./hooks/use-session-window-derived-sessions";
+import type { useSessionWindowDerive } from "./use-session-window-derive";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
 import { sessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import { requestSessionInspectorSection } from "@/systems/session/hooks/use-session-inspector-focus";
@@ -185,8 +185,7 @@ export function SessionWindowContent({
   focused?: boolean;
 }) {
   const worktreeDialogs = use(WorktreeDialogActionsContext);
-  const derive = useSessionWindowDerive({ session, workspaceId });
-  const sideChat = useSessionWindowSideChat({ windowId, session, workspaceId });
+  const { derive, sideChat } = useSessionWindowDerivedSessions({ windowId, session, workspaceId });
   const page = useSessionWindowController({
     windowId,
     sessionId,

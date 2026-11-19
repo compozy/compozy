@@ -63,10 +63,11 @@ import {
 } from "../use-session-window-side-chat";
 
 const WORKSPACE_ID = "ws-side";
-let chat: SessionWindowSideChat;
+/** The window's side chat host as of its latest render; each render refreshes it in place. */
+const chat = {} as SessionWindowSideChat;
 
 function MainPane({ value, permission }: { value: SessionWindowSideChat; permission: boolean }) {
-  chat = value;
+  Object.assign(chat, value);
   return (
     <div>
       {value.control}
