@@ -5804,7 +5804,7 @@ describe("SessionThread composer running semantics", () => {
       });
 
       await waitFor(() => expect(interceptor.submit).toHaveBeenCalled());
-      expect(interceptor.submit).toHaveBeenCalledWith({
+      expect(interceptor.submit).toHaveBeenCalledExactlyOnceWith({
         text: "/side what is it doing?",
         attachmentCount: 0,
       });

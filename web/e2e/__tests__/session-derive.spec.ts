@@ -431,7 +431,7 @@ test.describe("side chat", () => {
   });
 
   // Invariant: the head toggle opens an empty side chat whose first question creates it, and the
-  // `session.side.toggle` shortcut brings the same side chat back after Escape hides it.
+  // `session.side.toggle` shortcut brings the same side chat back after Escape in the panel hides it.
   test("E2E-002: operator opens a side chat from the head toggle and reopens it with the shortcut", async ({
     appPage,
     runtime,
@@ -447,7 +447,11 @@ test.describe("side chat", () => {
     await expect(panel).toContainText("side: quick answer");
     await expect(win.getByTestId("session-side-toggle-count")).toHaveText("1");
 
-    await appPage.keyboard.press("Escape");
+    // The question settles into its thread and focus lands in the side composer, so Escape there
+    // hides the non-modal panel; Escape from the main pane leaves it open.
+    const sideComposer = panel.getByRole("textbox", { name: "Session prompt" });
+    await expect(sideComposer).toBeFocused();
+    await sideComposer.press("Escape");
     await expect(panel).toBeHidden();
     await appPage.keyboard.press(
       process.platform === "darwin" ? "Meta+Alt+KeyS" : "Control+Alt+KeyS"

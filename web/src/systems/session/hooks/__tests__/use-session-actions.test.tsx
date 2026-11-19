@@ -75,6 +75,12 @@ vi.mock("../../adapters/session-archive-api", async importOriginal => ({
   listSessionDescendants: vi.fn(),
 }));
 
+vi.mock("../../adapters/session-side-api", () => ({
+  fetchSessionSides: vi.fn(async () => ({ sides: [] })),
+}));
+import { fetchSessionSides } from "../../adapters/session-side-api";
+import { sideChatIdleFixture } from "../../mocks/side-chat-fixtures";
+
 vi.mock("../../adapters/session-mark-seen-api", () => ({ markSessionSeen: vi.fn() }));
 import { markSessionSeen } from "../../adapters/session-mark-seen-api";
 
@@ -1221,6 +1227,22 @@ describe("session actions", () => {
       expect(result.current.processDialog.processCount).toBeGreaterThan(0);
       act(() => result.current.processDialog.childSessions?.onIncludedChange(false));
       expect(result.current.processDialog.processCount).toBe(0);
+    });
+
+    // UT-062 (US-010.AC-3): the delete line counts closed side chats, so the host reads them too.
+    it("names the session's side chats, closed ones included, in a single delete", async () => {
+      vi.mocked(fetchSessionSides).mockResolvedValue({ sides: [sideChatIdleFixture] });
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+      act(() => result.current.actions.onDelete(createdSession));
+      await waitFor(() => expect(result.current.deleteDialog.sideChats).toBe(true));
+      expect(fetchSessionSides).toHaveBeenCalledWith(
+        createdSession.workspace_id,
+        createdSession.id,
+        { archived: true },
+        expect.anything()
+      );
     });
 
     // Invariant: failed tree discovery blocks mutation and offers a retry with a fresh count.

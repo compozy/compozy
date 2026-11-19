@@ -70,9 +70,15 @@ function MainPane({ value, permission }: { value: SessionWindowSideChat; permiss
   return (
     <div>
       {value.control}
-      <textarea aria-label="Session prompt" data-testid="composer-input" />
+      <div data-focus-target="session-composer">
+        <textarea aria-label="Session prompt" data-testid="composer-input" />
+      </div>
       {permission ? (
-        <button data-testid="permission-allow-once" type="button">
+        <button
+          data-focus-target="permission-allow-once"
+          data-testid="permission-allow-once"
+          type="button"
+        >
           Allow once
         </button>
       ) : null}
@@ -494,6 +500,46 @@ describe("Side chat head toggle", () => {
 
     expect(await screen.findByTestId("side-chat-question-input")).toHaveValue("half a question");
   });
+
+  // N-010: the draft lives beside the view, so switching to a side chat and back keeps it.
+  it("UT-060: Should keep the new side chat's draft across switching to a side chat and back", async () => {
+    renderWindow({ sides: [sideChatIdleFixture] });
+    await waitFor(() =>
+      expect(screen.getByTestId("session-side-toggle-count")).toHaveTextContent("1")
+    );
+    act(() => chat.show({ kind: "new" }));
+    fireEvent.change(await screen.findByTestId("side-chat-question-input"), {
+      target: { value: "half a question" },
+    });
+
+    act(() => chat.show({ kind: "side", id: sideChatIdleFixture.id }));
+    expect(await screen.findByTestId("side-thread-stub")).toHaveAttribute(
+      "data-session",
+      sideChatIdleFixture.id
+    );
+    act(() => chat.show({ kind: "new" }));
+
+    expect(await screen.findByTestId("side-chat-question-input")).toHaveValue("half a question");
+  });
+
+  // N-002: the panel is non-modal, so Escape hides it only while focus is inside it.
+  it("Should hide the panel on Escape only while focus is inside it", async () => {
+    renderWindow();
+    await sidesLoaded();
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    const question = await screen.findByTestId("side-chat-question-input");
+
+    const main = screen.getByTestId("composer-input");
+    act(() => main.focus());
+    fireEvent.keyDown(main, { key: "Escape" });
+    expect(screen.getByTestId("side-chat-new-panel")).toBeVisible();
+
+    act(() => question.focus());
+    fireEvent.keyDown(question, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByTestId("side-chat-new-panel")).not.toBeInTheDocument()
+    );
+  });
 });
 
 describe("Side chat drawer store", () => {
@@ -503,7 +549,8 @@ describe("Side chat drawer store", () => {
       typeof store.trigger.opened
     >[0]["subagent"];
 
-    store.trigger.sideShown({ view: { kind: "new", draft: "kept" } });
+    store.trigger.sideShown({ view: { kind: "new" } });
+    store.trigger.sideDraftChanged({ draft: "kept" });
     expect(sessionWindowDrawerKind(store.getSnapshot().context)).toBe("side");
 
     store.trigger.opened({ subagent, workspaceId: WORKSPACE_ID, trigger: null });
@@ -512,7 +559,8 @@ describe("Side chat drawer store", () => {
     store.trigger.sideShown({});
     expect(sessionWindowDrawerKind(store.getSnapshot().context)).toBe("side");
     expect(store.getSnapshot().context.selected).toBeNull();
-    expect(store.getSnapshot().context.side.view).toEqual({ kind: "new", draft: "kept" });
+    expect(store.getSnapshot().context.side.view).toEqual({ kind: "new" });
+    expect(store.getSnapshot().context.side.draft).toBe("kept");
   });
 });
 
