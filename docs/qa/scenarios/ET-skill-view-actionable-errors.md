@@ -6,10 +6,10 @@ persona: Ada
 journey: J-load-skill-in-managed-session
 expected: A native skill_view failure identifies an absent skill by name, distinguishes a missing resource from a malformed skill definition, and preserves safe diagnostics and recovery guidance across hosted MCP
 entry_points: managed session prompt; compozy__skill_view; hosted MCP tools/call; POST /api/tools/invoke
-qa_status: pass
+qa_status: partial
 bug_ids: [678, 1440, 1864]
 fix_status: fixed
-retest_status: pass
+retest_status: partial
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-reported-issues-20260929-20260930-025651-581547-lab/qa-artifacts/qa/skill-resource-recovered.json
 last_report: docs/qa/reports/2026-09-29-reported-issues.md
@@ -87,3 +87,5 @@ and confirm its decision is callable. Read the installed `compozy` skill and che
 body. Then request an absent skill by name. Expect MCP `isError` with code `tool_not_found` and
 a message naming the missing skill. The response must omit `tool_unknown`, which identifies an
 unknown tool ID. `TestHostedMCPSkillView` exercises the hosted proxy and UDS call handler in process.
+The focused fixture passed. A managed-provider re-walk for #1864 remains pending. The lab evidence
+above covers the earlier resource recovery scenario.

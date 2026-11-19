@@ -3820,8 +3820,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				ToolID: toolspkg.ToolIDSkillView, Input: json.RawMessage(`{"name":"missing-fixture"}`),
 			},
 		)
-		if !errors.Is(err, core.ErrSkillNotFound) {
-			t.Fatalf("skill_view error = %v, want a missing skill despite the absent authored agent", err)
+		if !errors.Is(err, core.ErrSkillNotFound) || !errors.Is(err, toolspkg.ErrToolNotFound) {
+			t.Fatalf("skill_view error = %v, want a missing skill with the existing not-found classification", err)
 		}
 		privateCause := errors.New("private backend path and credential")
 		backendErr := skillViewCatalogError(t.Context(), toolspkg.ToolIDSkillView, privateCause)
