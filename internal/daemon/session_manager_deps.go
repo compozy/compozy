@@ -119,7 +119,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		EventLedger:             sessionEventLedgerDependency(state.registry),
 		ProcessRegistry:         state.processRegistry,
 		Terminals:               state.terminals,
-		HostedMCP:               hostedMCPLauncher(state.hostedMCP),
+		HostedMCP:               hostedMCPLauncher(state.hostedMCP, state.cfg.Tools.HostedMCP.ToolListThreshold),
 		RuntimeMCPInventory:     state.runtimeMCPInventory,
 		ProviderSecrets:         sessionProviderVaultDependency(state.providerVault),
 		ProfileNames:            state.profiles,

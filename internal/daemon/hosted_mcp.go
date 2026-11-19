@@ -13,7 +13,8 @@ import (
 )
 
 type hostedMCPLauncherAdapter struct {
-	service *mcppkg.HostedService
+	service           *mcppkg.HostedService
+	toolListThreshold int
 }
 
 func (d *Daemon) buildHostedMCPService(state *bootState) (*mcppkg.HostedService, error) {
@@ -132,11 +133,15 @@ func (l hostedMCPLauncherAdapter) ReleaseSession(sessionID string) {
 	}
 }
 
-func hostedMCPLauncher(service *mcppkg.HostedService) session.HostedMCPLauncher {
+func hostedMCPLauncher(service *mcppkg.HostedService, threshold int) session.HostedMCPLauncher {
 	if service == nil {
 		return nil
 	}
-	return hostedMCPLauncherAdapter{service: service}
+	return hostedMCPLauncherAdapter{service: service, toolListThreshold: threshold}
+}
+
+func (l hostedMCPLauncherAdapter) HostedToolListThreshold() int {
+	return l.toolListThreshold
 }
 
 func (l hostedMCPLauncherAdapter) WaitForBind(ctx context.Context, sessionID string) error {

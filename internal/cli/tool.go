@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	mcppkg "github.com/compozy/compozy/internal/mcp"
+	"github.com/compozy/compozy/internal/toolmeta"
 	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -35,6 +36,7 @@ func newToolCommand(deps commandDeps) *cobra.Command {
 func newToolMCPCommand(deps commandDeps) *cobra.Command {
 	var sessionID string
 	var bindNonce string
+	var toolListThreshold int
 	cmd := &cobra.Command{
 		Use:    toolMCPKey,
 		Short:  "Serve session-bound CompozyOS tools over MCP stdio",
@@ -64,16 +66,19 @@ func newToolMCPCommand(deps commandDeps) *cobra.Command {
 				return errors.New("cli: daemon client does not support hosted MCP")
 			}
 			return mcppkg.RunHostedProxy(cmd.Context(), hostedClient, mcppkg.HostedProxyOptions{
-				SessionID: sessionID,
-				Nonce:     bindNonce,
-				Stdin:     os.Stdin,
-				Stdout:    os.Stdout,
-				Stderr:    os.Stderr,
-				Version:   version.Current().Version,
+				SessionID:         sessionID,
+				Nonce:             bindNonce,
+				Stdin:             os.Stdin,
+				Stdout:            os.Stdout,
+				Stderr:            os.Stderr,
+				Version:           version.Current().Version,
+				ToolListThreshold: toolListThreshold,
 			})
 		},
 	}
 	cmd.Flags().StringVar(&sessionID, "session", "", "Session id to bind")
 	cmd.Flags().StringVar(&bindNonce, "bind-nonce", "", "Hosted MCP bind nonce")
+	cmd.Flags().
+		IntVar(&toolListThreshold, toolmeta.HostedToolListThresholdFlag, 0, "MCP tools listed per server before deferral")
 	return cmd
 }

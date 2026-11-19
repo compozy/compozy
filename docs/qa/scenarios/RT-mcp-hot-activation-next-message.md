@@ -71,3 +71,9 @@ keep that session open, and send the next message. The off fixture contributes z
 other fixture remains usable. Turn the same server on and send another message in that session.
 Its tools return using the same definition and approval, with no delete or re-import.
 See the [off-switch walk](../reports/2026-11-18-mcp-server-off-switch.md).
+
+Budgeted variant (#1869): open a Claude session with a small fixture and a fixture above the
+threshold. Search for a deferred tool and call it in that same prompt. Refresh the large fixture's
+catalog and verify the activated tool stays listed. Turn the large fixture off and verify its tools
+are removed before the next call. Turn it back on and verify search can activate its tools again.
+The full projected catalog drives Ready and pending status throughout the walk.

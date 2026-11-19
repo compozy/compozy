@@ -34,12 +34,17 @@ Use this sequence for CompozyOS-native work:
 
 `compozy__*` names are canonical IDs, not harness call names. Use them for registry, policy, CLI, descriptors, and `tool_id`; call only the reference the harness returns.
 
-Hosted MCP projects the full availability-gated callable catalog for a bare managed session. CompozyOS no
-longer caps that projection to bootstrap/catalog tools unless the agent definition or session
-lineage explicitly narrows it. Use `compozy__tool_search` and `compozy__tool_info` to diagnose known but
-denied tools; page `compozy__tool_list` with `offset`/`next_offset` for compact summaries of the
-currently callable set, then
-`compozy__tool_info` for one complete schema and backend descriptor.
+Hosted MCP lists the availability-gated callable catalog for a bare managed session by default.
+Agent definitions and session lineage can narrow the projection. If the operator enables
+`tools.hosted_mcp.tool_list_threshold`, the Claude ACP bridge defers external MCP servers above the
+threshold. Look for its bounded server directory in `compozy__tool_search`. Search with a server
+name and an action, or inspect a known ID with `compozy__tool_info`. Callable deferred matches are
+added to the current bind under their real names. The bridge keeps them listed while they remain
+in the projection.
+
+Use the same discovery tools for denied diagnostics. Page `compozy__tool_list` with
+`offset`/`next_offset` for compact summaries of the currently callable set, then read a complete
+schema and backend descriptor with `compozy__tool_info`.
 
 External MCP declarations in user, personal-profile, workspace and workspace-profile config or
 `mcp.json` feed the same hosted catalog. See [MCP Activation And Consent](#mcp-activation-and-consent)

@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -1161,6 +1162,17 @@ func listHostedProxyTools(t *testing.T, server *sdkmcp.Server) map[string]*sdkmc
 
 func connectHostedProxyClient(t *testing.T, server *sdkmcp.Server) *sdkmcp.ClientSession {
 	t.Helper()
+	return connectHostedProxyClientWithOptions(
+		t,
+		server,
+		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+	)
+}
+
+func connectHostedProxyClientWithOptions(
+	t *testing.T, server *sdkmcp.Server, opts *sdkmcp.ClientOptions,
+) *sdkmcp.ClientSession {
+	t.Helper()
 	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(t.Context(), serverTransport, nil)
 	if err != nil {
@@ -1173,7 +1185,7 @@ func connectHostedProxyClient(t *testing.T, server *sdkmcp.Server) *sdkmcp.Clien
 	})
 	client := sdkmcp.NewClient(
 		&sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "test"},
-		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+		opts,
 	)
 	clientSession, err := client.Connect(t.Context(), clientTransport, nil)
 	if err != nil {
@@ -1881,17 +1893,17 @@ func (c *hostedProxyClientStub) ReportHostedMCPServed(_ context.Context, req Hos
 	return c.servedErr
 }
 
-// Invariant: tools/list reports the revision actually served, not a later daemon projection.
+// Invariant: tools/list acknowledges the complete projected revision behind that response.
 // Owner: bind-scoped hosted proxy; canonical suite: hosted proxy tests (UT-039/UT-113).
 func TestHostedProxyServedCatalogReceipt(t *testing.T) {
 	t.Parallel()
-	t.Run("Should serve tools when receipt persistence fails and report only installed tools", func(t *testing.T) {
+	t.Run("Should serve tools when receipt persistence fails and report the applied projection", func(t *testing.T) {
 		t.Parallel()
 		client := newHostedProxyClientStub(HostedBindResponse{})
 		client.servedErr = errors.New("retired bind")
 		server := newHostedProxyTestServer()
 		catalog := new(hostedProxyCatalog)
-		server.AddReceivingMiddleware(catalog.middleware(client, "bind-revision"))
+		server.AddReceivingMiddleware(catalog.middleware(server, client, "bind-revision"))
 		view := hostedToolView("mcp__echo__ping")
 		view.Descriptor.Source = tools.SourceRef{
 			Kind:          tools.SourceMCP,
@@ -1923,7 +1935,7 @@ func TestHostedProxyServedCatalogReceipt(t *testing.T) {
 		client := newHostedProxyClientStub(HostedBindResponse{})
 		server := newHostedProxyTestServer()
 		catalog := new(hostedProxyCatalog)
-		server.AddReceivingMiddleware(catalog.middleware(client, "bind-revision"))
+		server.AddReceivingMiddleware(catalog.middleware(server, client, "bind-revision"))
 		view := hostedToolView("mcp__echo__ping")
 		view.Descriptor.Source = tools.SourceRef{
 			Kind:          tools.SourceMCP,
@@ -1968,4 +1980,252 @@ func TestHostedProxyServedCatalogReceipt(t *testing.T) {
 			t.Fatalf("served receipts = %+v", client.served)
 		}
 	})
+}
+
+func TestHostedProxyBudgetedToolList(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve the complete default list payload", func(t *testing.T) {
+		t.Parallel()
+		views := []tools.ToolView{
+			hostedToolView(tools.ToolIDToolSearch),
+			hostedBudgetTestView("large", "alpha"),
+			hostedBudgetTestView("large", "beta"),
+		}
+		baseline := newHostedProxyTestServer()
+		applyHostedTools(baseline, &hostedProxyClientStub{}, "bind-full", views)
+		baseline.AddReceivingMiddleware(privateToolListCacheMiddleware())
+		server := newHostedProxyTestServer()
+		proxy := &hostedProxyClientStub{}
+		catalog := new(hostedProxyCatalog)
+		catalog.apply(server, proxy, "bind-default", HostedProjectionResponse{Tools: views})
+		server.AddReceivingMiddleware(
+			catalog.middleware(server, proxy, "bind-default"),
+			privateToolListCacheMiddleware(),
+		)
+		want, got := hostedListBytes(t, baseline), hostedListBytes(t, server)
+		if !bytes.Equal(got, want) {
+			t.Fatalf("default tools/list payload changed\ngot: %s\nwant: %s", got, want)
+		}
+	})
+
+	t.Run("Should retain the full list without a callable search tool", func(t *testing.T) {
+		t.Parallel()
+		server := newHostedProxyTestServer()
+		views := []tools.ToolView{hostedBudgetTestView("large", "alpha"), hostedBudgetTestView("large", "beta")}
+		catalog := &hostedProxyCatalog{threshold: 1}
+		catalog.apply(server, &hostedProxyClientStub{}, "bind-full", HostedProjectionResponse{Tools: views})
+		if got := len(listHostedProxyTools(t, server)); got != len(views) {
+			t.Fatalf("tools/list count = %d, want %d", got, len(views))
+		}
+	})
+
+	t.Run("Should bound the directory for many large servers", func(t *testing.T) {
+		t.Parallel()
+		server := newHostedProxyTestServer()
+		views := []tools.ToolView{hostedToolView(tools.ToolIDToolSearch)}
+		for i := range hostedDirectoryMaxServers + 2 {
+			name := fmt.Sprintf("wide%02d%s", i, strings.Repeat("x", 100))
+			views = append(views, hostedBudgetTestView(name, "alpha"), hostedBudgetTestView(name, "beta"))
+		}
+		catalog := &hostedProxyCatalog{threshold: 1}
+		catalog.apply(server, &hostedProxyClientStub{}, "bind-directory", HostedProjectionResponse{Tools: views})
+		listed := listHostedProxyTools(t, server)
+		desc := listed[tools.ToolIDToolSearch.String()].Description
+		if len(listed) != 1 || strings.Count(desc, "(2 tools)") != hostedDirectoryMaxServers ||
+			!strings.Contains(desc, "2 more servers") || strings.Contains(desc, strings.Repeat("x", 80)) {
+			t.Fatalf("unexpected directory: %q", desc)
+		}
+	})
+}
+
+// The bind advertises discovered callable tools by real name and acknowledges the complete projection.
+func TestHostedProxyBudgetedDiscovery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should activate scoped results, announce them, and withdraw removed tools", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		search, info := tools.ToolIDToolSearch.String(), tools.ToolIDToolInfo.String()
+		initial := []tools.ToolView{
+			hostedToolView(tools.ToolIDToolSearch), hostedToolView(tools.ToolIDToolInfo),
+			hostedBudgetTestView("small", "alpha"), hostedBudgetTestView("small", "beta"),
+		}
+		large := []tools.ToolView{
+			hostedBudgetTestView("large", "search_match"),
+			hostedBudgetTestView("large", "info_match"),
+			hostedBudgetTestView("large", "denied"),
+		}
+		full := append(slices.Clone(initial), large...)
+		first, second, denied := large[0].Descriptor.ID.String(), large[1].Descriptor.ID.String(), large[2].Descriptor.ID.String()
+		const outside = "mcp__outside__echo"
+		proxy := newHostedProxyClientStub(HostedBindResponse{BindID: "bind-budget", Tools: full, Digest: "initial"})
+		proxy.block = func(req HostedCallRequest) (HostedCallResponse, error) {
+			switch req.ToolName {
+			case search:
+				return HostedCallResponse{Result: tools.ToolResult{Structured: fmt.Appendf(nil,
+					`{"tools":[{"descriptor":{"id":%q},"decision":{"callable":true}},`+
+						`{"descriptor":{"id":%q},"decision":{"callable":false}},`+
+						`{"descriptor":{"id":%q},"decision":{"callable":true}}]}`, first, denied, outside)}}, nil
+			case info:
+				return HostedCallResponse{Result: tools.ToolResult{Structured: fmt.Appendf(nil,
+					`{"tool":{"descriptor":{"id":%q},"decision":{"callable":true}}}`, second)}}, nil
+			default:
+				return HostedCallResponse{Result: tools.ToolResult{Content: []tools.ToolContent{
+					{Type: "text", Text: req.ToolName},
+				}}}, nil
+			}
+		}
+		serverReader, clientWriter := io.Pipe()
+		clientReader, serverWriter := io.Pipe()
+		exited := make(chan error, 1)
+		go func() {
+			exited <- RunHostedProxy(ctx, proxy, HostedProxyOptions{
+				SessionID: "sess-budget", Nonce: "nonce-budget", Stdin: serverReader, Stdout: serverWriter,
+				ToolListThreshold: 2,
+			})
+		}()
+		t.Cleanup(func() {
+			if err := clientWriter.Close(); err != nil {
+				t.Error(err)
+			}
+			if err := clientReader.Close(); err != nil {
+				t.Error(err)
+			}
+			select {
+			case <-exited:
+			case <-time.After(2 * time.Second):
+				t.Error("hosted proxy did not exit")
+			}
+		})
+		type refreshedList struct {
+			result *sdkmcp.ListToolsResult
+			err    error
+		}
+		updates := make(chan refreshedList, 8)
+		client := sdkmcp.NewClient(
+			&sdkmcp.Implementation{Name: "budget-client", Version: "test"},
+			&sdkmcp.ClientOptions{
+				Capabilities: &sdkmcp.ClientCapabilities{},
+				ToolListChangedHandler: func(ctx context.Context, req *sdkmcp.ToolListChangedRequest) {
+					result, err := req.Session.ListTools(ctx, nil)
+					updates <- refreshedList{result: result, err: err}
+				},
+			},
+		)
+		session, err := client.Connect(ctx, &sdkmcp.IOTransport{Reader: clientReader, Writer: clientWriter}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := session.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		list, err := session.ListTools(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantNames := []string{info, search, "mcp__small__alpha", "mcp__small__beta"}
+		if got := sdkToolNames(list.Tools); !slices.Equal(got, wantNames) {
+			t.Fatalf("initial list = %v, want %v", got, wantNames)
+		}
+		if !slices.ContainsFunc(list.Tools, func(tool *sdkmcp.Tool) bool {
+			return tool.Name == search && strings.Contains(tool.Description, `"large" (3 tools)`)
+		}) {
+			t.Fatal("the search tool did not advertise the large server")
+		}
+		requireHostedBudgetReceipt(t, proxy, full)
+		call := func(name string) {
+			t.Helper()
+			result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{Name: name})
+			if err != nil || result == nil || result.IsError {
+				t.Fatalf("call %s = %+v, error = %v", name, result, err)
+			}
+		}
+		requireUpdate := func(want []string, activated string) {
+			t.Helper()
+			select {
+			case update := <-updates:
+				if update.err != nil {
+					t.Fatal(update.err)
+				}
+				if got := sdkToolNames(update.result.Tools); !slices.Equal(got, want) {
+					t.Fatalf("notified list = %v, want %v", got, want)
+				}
+				if activated != "" && !slices.ContainsFunc(update.result.Tools, func(tool *sdkmcp.Tool) bool {
+					return tool.Name == activated && tool.Meta["anthropic/alwaysLoad"] == true
+				}) {
+					t.Fatalf("activated tool %s was not marked for immediate visibility", activated)
+				}
+			case <-ctx.Done():
+				t.Fatal("no tools/list_changed notification")
+			}
+		}
+		call(search)
+		withFirst := append(slices.Clone(wantNames[:2]), first, wantNames[2], wantNames[3])
+		requireUpdate(withFirst, first)
+		call(first)
+		if got := proxy.lastCall(t).ToolName; got != first {
+			t.Fatalf("forwarded name = %q, want %q", got, first)
+		}
+		for _, name := range []string{denied, outside} {
+			result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{Name: name})
+			if err == nil && result != nil && !result.IsError {
+				t.Fatalf("unexpectedly called %s", name)
+			}
+			if got := proxy.lastCall(t).ToolName; got != first {
+				t.Fatalf("unlisted %s reached the daemon", name)
+			}
+		}
+
+		call(info)
+		withBoth := append(slices.Clone(withFirst[:2]), second, first, wantNames[2], wantNames[3])
+		requireUpdate(withBoth, second)
+		call(second)
+		requireHostedBudgetReceipt(t, proxy, full)
+
+		refreshed := append(slices.Clone(full[:len(full)-1]), hostedBudgetTestView("large", "replacement"))
+		proxy.emitProjection(t, HostedProjectionResponse{Tools: refreshed, Digest: "hidden-tool-changed"})
+		requireUpdate(withBoth, first)
+		requireHostedBudgetReceipt(t, proxy, refreshed)
+
+		proxy.emitProjection(t, HostedProjectionResponse{Tools: initial, Digest: "large-server-removed"})
+		requireUpdate(wantNames, "")
+		requireHostedBudgetReceipt(t, proxy, initial)
+	})
+}
+
+func hostedBudgetTestView(server, name string) tools.ToolView {
+	view := hostedToolView(tools.ToolID("mcp__" + server + "__" + name))
+	view.Descriptor.Source = tools.SourceRef{
+		Kind:          tools.SourceMCP,
+		Owner:         server,
+		RawServerName: server,
+		RawToolName:   name,
+	}
+	view.Decision = tools.EffectiveToolDecision{Callable: true, VisibleToSession: true}
+	return view
+}
+
+func hostedListBytes(t *testing.T, server *sdkmcp.Server) []byte {
+	t.Helper()
+	list, err := connectHostedProxyClient(t, server).ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func requireHostedBudgetReceipt(t *testing.T, client *hostedProxyClientStub, views []tools.ToolView) {
+	t.Helper()
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	want := tools.AdvertisedCatalogDigest(views)
+	if len(client.served) == 0 || client.served[len(client.served)-1].Digest != want {
+		t.Fatalf("served receipts = %+v, want latest digest %s", client.served, want)
+	}
 }

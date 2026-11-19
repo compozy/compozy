@@ -51,12 +51,13 @@ type HostedProxyClient interface {
 
 // HostedProxyOptions configures one `compozy tool mcp` stdio proxy process.
 type HostedProxyOptions struct {
-	SessionID string
-	Nonce     string
-	Stdin     io.Reader
-	Stdout    io.Writer
-	Stderr    io.Writer
-	Version   string
+	ToolListThreshold int
+	SessionID         string
+	Nonce             string
+	Stdin             io.Reader
+	Stdout            io.Writer
+	Stderr            io.Writer
+	Version           string
 }
 
 // RunHostedProxy binds to the daemon and serves hosted Compozy tools over MCP stdio.
@@ -110,8 +111,8 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 		},
 	)
 	defer hostedServerToolFingerprints.Delete(mcpServer)
-	catalog := &hostedProxyCatalog{}
-	mcpServer.AddReceivingMiddleware(catalog.middleware(client, bind.BindID))
+	catalog := &hostedProxyCatalog{threshold: opts.ToolListThreshold}
+	mcpServer.AddReceivingMiddleware(catalog.middleware(mcpServer, client, bind.BindID))
 	mcpServer.AddReceivingMiddleware(privateToolListCacheMiddleware())
 	mcpServer.AddReceivingMiddleware(hostedProviderProtocolVersionMiddleware())
 	catalog.apply(mcpServer, client, bind.BindID, HostedProjectionResponse{Tools: bind.Tools, Catalog: bind.Catalog})
@@ -206,29 +207,28 @@ func reconcileHostedTools(
 	previous map[string]string,
 	views []tools.ToolView,
 ) map[string]string {
-	next := make(map[string]string, len(views))
-	for i := range views {
-		view := views[i]
-		name := view.Descriptor.ID.String()
+	return reconcileHostedListing(registry, client, bindID, previous, hostedListing{views: views})
+}
+
+func reconcileHostedListing(
+	registry hostedToolRegistry,
+	client HostedProxyClient,
+	bindID string,
+	previous map[string]string,
+	listing hostedListing,
+) map[string]string {
+	next := make(map[string]string, len(listing.views))
+	for i := range listing.views {
+		view := &listing.views[i]
+		id := view.Descriptor.ID
 		tool := hostedMCPTool(view.Descriptor)
-		requiresStructured := len(view.Descriptor.OutputSchema) > 0
-		if contracts := view.Descriptor.ResultViews(); contracts != nil {
-			requiresStructured = len(contracts.Compact.Schema) > 0
+		if _, activated := listing.activated[id]; activated {
+			tool.Meta["anthropic/alwaysLoad"] = true
 		}
-		fingerprint := hostedToolFingerprint(&tool, requiresStructured)
-		next[name] = fingerprint
-		if fingerprint != "" && previous[name] == fingerprint {
-			continue
+		if id == tools.ToolIDToolSearch {
+			tool.Description += listing.directory
 		}
-		registry.AddTool(
-			&tool,
-			func(
-				ctx context.Context,
-				req *sdkmcp.CallToolRequest,
-			) (*sdkmcp.CallToolResult, error) {
-				return callHostedTool(ctx, client, bindID, requiresStructured, req)
-			},
-		)
+		next[tool.Name] = registerHostedTool(registry, client, bindID, view.Descriptor, &tool, previous[tool.Name])
 	}
 	stale := make([]string, 0, len(previous))
 	for name := range previous {
@@ -240,6 +240,23 @@ func reconcileHostedTools(
 		registry.RemoveTools(stale...)
 	}
 	return next
+}
+
+func registerHostedTool(
+	registry hostedToolRegistry, client HostedProxyClient, bindID string,
+	descriptor tools.Descriptor, tool *sdkmcp.Tool, previousFingerprint string,
+) string {
+	requiresStructured := len(descriptor.OutputSchema) > 0
+	if contracts := descriptor.ResultViews(); contracts != nil {
+		requiresStructured = len(contracts.Compact.Schema) > 0
+	}
+	fingerprint := hostedToolFingerprint(tool, requiresStructured)
+	if fingerprint == "" || fingerprint != previousFingerprint {
+		registry.AddTool(tool, func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+			return callHostedTool(ctx, client, bindID, requiresStructured, req)
+		})
+	}
+	return fingerprint
 }
 
 func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
