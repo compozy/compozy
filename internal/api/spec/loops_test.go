@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"encoding/json"
 	"reflect"
 	"slices"
 	"strconv"
@@ -552,11 +553,11 @@ func TestLoopOpenAPIContract(t *testing.T) {
 			"POST",
 		)
 		assertLoopResponseStatusesExactly(t, operation, []int{
-			200, 202, 400, 404, 409, 413, 422, 500, 503,
+			200, 201, 202, 400, 404, 409, 413, 422, 500, 503,
 		})
-		for _, status := range []int{200, 202, 404, 409, 422} {
+		for _, status := range []int{200, 201, 202, 404, 409, 422} {
 			schema := jsonResponseSchema(t, operation, status)
-			if status == 200 || status == 202 {
+			if status == 200 || status == 201 || status == 202 {
 				assertRequired(t, schema, "prompt")
 				assertPropertyAbsent(t, schema, "outcome")
 			} else if len(schema.OneOf) != 2 {
@@ -583,6 +584,41 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				propertySchema(t, snapshot, "status"),
 				"active", "paused", "blocked", "usage-limited", "budget-limited", "complete", "waiting",
 			)
+		}
+	})
+
+	// Invariant B-014: published prompt schemas accept plain and committed-child errors
+	// exactly once, alongside the distinct Goal envelope where that envelope is supported.
+	t.Run("Should validate prompt errors and Goal envelopes against the published response schemas", func(t *testing.T) {
+		t.Parallel()
+		operation := operationFor(t, doc, "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt", "POST")
+		goal := contract.SendPromptResultResponse{Prompt: contract.SendPromptResultPayload{
+			Status: "goal_error", Delivery: contract.PromptDeliveryNone, MessageID: "goal-message", IdempotencyKey: "goal-key",
+			Goal: &contract.GoalCommandResult{Outcome: contract.GoalOutcomeError},
+		}}
+		rawGoal, err := json.Marshal(goal)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var goalExample any
+		if err := json.Unmarshal(rawGoal, &goalExample); err != nil {
+			t.Fatal(err)
+		}
+		for _, status := range []int{400, 404, 409, 422, 500, 503} {
+			schema := jsonResponseSchema(t, operation, status)
+			for _, example := range []map[string]any{{"error": "busy"}, {"error": "busy", "child_session_id": "s"}} {
+				if err := schema.VisitJSON(example); err != nil {
+					t.Fatalf("prompt response %d rejects error %+v: %v", status, example, err)
+				}
+			}
+			goalErr := schema.VisitJSON(goalExample)
+			if status == 404 || status == 409 || status == 422 {
+				if goalErr != nil {
+					t.Fatalf("prompt response %d rejects Goal envelope: %v", status, goalErr)
+				}
+			} else if goalErr == nil {
+				t.Fatalf("prompt response %d accepts an unsupported Goal envelope", status)
+			}
 		}
 	})
 

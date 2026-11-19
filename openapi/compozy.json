@@ -106118,14 +106118,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/ErrorPayload"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                 }
               }
             },
@@ -106136,9 +106129,6 @@
               "application/json": {
                 "schema": {
                   "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/ErrorPayload"
-                    },
                     {
                       "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                     },
@@ -106156,9 +106146,6 @@
               "application/json": {
                 "schema": {
                   "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/ErrorPayload"
-                    },
                     {
                       "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                     },
@@ -106187,9 +106174,6 @@
                 "schema": {
                   "oneOf": [
                     {
-                      "$ref": "#/components/schemas/ErrorPayload"
-                    },
-                    {
                       "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                     },
                     {
@@ -106205,14 +106189,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/ErrorPayload"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                 }
               }
             },
@@ -106222,14 +106199,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/ErrorPayload"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                 }
               }
             },

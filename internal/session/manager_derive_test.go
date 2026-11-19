@@ -2911,6 +2911,26 @@ func (h *deriveHarness) openSide(t *testing.T, source *Session, key string) *Ses
 	return child
 }
 
+// deriveSnapshotQueryBarrier pauses one real event query after the live-source snapshot.
+type deriveSnapshotQueryBarrier struct {
+	*sessiondb.SessionDB
+	entered chan struct{}
+	release <-chan struct{}
+	armed   atomic.Bool
+}
+
+func (r *deriveSnapshotQueryBarrier) Query(ctx context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
+	if r.armed.CompareAndSwap(true, false) {
+		close(r.entered)
+		select {
+		case <-r.release:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return r.SessionDB.Query(ctx, query)
+}
+
 func TestOpenSideContext(t *testing.T) {
 	t.Parallel()
 	// Invariant: a side carries a frozen open-turn snapshot without changing the source; owner: derive.
@@ -3008,6 +3028,84 @@ func TestOpenSideContext(t *testing.T) {
 			}
 		})
 	}
+	// Invariant B-018: events from a prompt admitted during the snapshot carry the live-turn marker.
+	// Owner: derive snapshots; canonical suite: TestOpenSideContext.
+	t.Run("Should mark a live turn that starts after the snapshot metadata read", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		if source.IsPrompting() {
+			t.Fatal("source is not idle before snapshot")
+		}
+		base, ok := source.recorderHandle().(*sessiondb.SessionDB)
+		if !ok {
+			t.Fatal("source fixture requires a real session database")
+		}
+		releaseQuery := make(chan struct{})
+		unblockQuery := sync.OnceFunc(func() { close(releaseQuery) })
+		defer unblockQuery()
+		barrier := &deriveSnapshotQueryBarrier{SessionDB: base, entered: make(chan struct{}), release: releaseQuery}
+		barrier.armed.Store(true)
+		source.setRecorder(barrier)
+		entered, releasePrompt := make(chan struct{}), make(chan struct{})
+		unblockPrompt := sync.OnceFunc(func() { close(releasePrompt) })
+		defer unblockPrompt()
+		h.driver.promptHook = func(proc *fakeProcess, request acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent)
+			go func() {
+				defer close(events)
+				if request.Message == "start during snapshot" {
+					events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: request.TurnID, Text: "mid-snapshot answer", Timestamp: time.Now().UTC()}
+					close(entered)
+					<-releasePrompt
+				}
+				emitDonePromptEvents(events, proc.handle.SessionID, request.TurnID)
+			}()
+			return events, nil
+		}
+		opened, openErrors := make(chan DeriveResult, 1), make(chan error, 1)
+		go func() {
+			result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "mid-snapshot-turn"))
+			opened <- result
+			openErrors <- err
+		}()
+		select {
+		case <-barrier.entered:
+		case <-t.Context().Done():
+			t.Fatal(t.Context().Err())
+		}
+		working, err := h.manager.Prompt(t.Context(), source.ID, "start during snapshot")
+		if err != nil {
+			t.Fatal(err)
+		}
+		<-entered
+		waitForCondition(t, "mid-snapshot answer persisted", func() bool {
+			rows, err := base.Query(t.Context(), store.EventQuery{})
+			if err != nil {
+				return false
+			}
+			for _, event := range rows {
+				if strings.Contains(event.Content, "mid-snapshot answer") {
+					return true
+				}
+			}
+			return false
+		})
+		unblockQuery()
+		result, openErr := <-opened, <-openErrors
+		if openErr != nil {
+			t.Fatal(openErr)
+		}
+		imported := h.childMeta(t, result.ChildSessionID).ImportedContext
+		if !result.SourceTurnInProgress || !source.IsPrompting() || imported == nil ||
+			!strings.Contains(imported.MessagesJSON, "start during snapshot") ||
+			!strings.Contains(imported.MessagesJSON, "mid-snapshot answer") ||
+			!strings.Contains(imported.MessagesJSON, "compozy_turn_in_progress") {
+			t.Fatalf("mid-snapshot result=%+v context=%+v", result, imported)
+		}
+		unblockPrompt()
+		collectEvents(t, working)
+	})
 	// Invariant N-009: a stopped source retains its partial transcript without claiming ongoing work.
 	t.Run("Should replay an unended turn from a stopped source without an in-progress note", func(t *testing.T) {
 		t.Parallel()

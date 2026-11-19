@@ -59907,9 +59907,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json":
-            | components["schemas"]["ErrorPayload"]
-            | components["schemas"]["SessionDeriveErrorPayload"];
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
       /** @description Session or attachment not found */
@@ -59919,7 +59917,6 @@ export interface operations {
         };
         content: {
           "application/json":
-            | components["schemas"]["ErrorPayload"]
             | components["schemas"]["SessionDeriveErrorPayload"]
             | components["schemas"]["SendPromptResultResponse"];
         };
@@ -59931,7 +59928,6 @@ export interface operations {
         };
         content: {
           "application/json":
-            | components["schemas"]["ErrorPayload"]
             | components["schemas"]["SessionDeriveErrorPayload"]
             | components["schemas"]["SendPromptResultResponse"];
         };
@@ -59952,7 +59948,6 @@ export interface operations {
         };
         content: {
           "application/json":
-            | components["schemas"]["ErrorPayload"]
             | components["schemas"]["SessionDeriveErrorPayload"]
             | components["schemas"]["SendPromptResultResponse"];
         };
@@ -59963,9 +59958,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json":
-            | components["schemas"]["ErrorPayload"]
-            | components["schemas"]["SessionDeriveErrorPayload"];
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
       /** @description New-work admission is unavailable while the daemon is draining */
@@ -59974,9 +59967,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json":
-            | components["schemas"]["ErrorPayload"]
-            | components["schemas"]["SessionDeriveErrorPayload"];
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
     };
