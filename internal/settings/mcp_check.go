@@ -34,7 +34,8 @@ func (s *service) CheckMCPServer(ctx context.Context, req MCPAuthTargetRequest) 
 	}
 	for i := range collection.MCPServers {
 		item := &collection.MCPServers[i]
-		if item.Name != req.Name || vault.NormalizeMCPOwner(item.Owner) != vault.NormalizeMCPOwner(req.Owner) {
+		if item.Name != req.Name || item.DefinitionSource != resolved.server.DefinitionSource ||
+			vault.NormalizeMCPOwner(item.Owner) != vault.NormalizeMCPOwner(req.Owner) {
 			continue
 		}
 		if item.Disabled {

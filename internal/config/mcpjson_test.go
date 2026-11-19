@@ -53,7 +53,7 @@ func TestMCPJSONServerDisabled(t *testing.T) {
    "mcp_servers":{"demo":{"command":"winning","env":{"MODE":"test"}}}
   }`)
 		for _, disabled := range []bool{true, false} {
-			cfg, err := SetMCPSidecarServerDisabled(home, workspace, target, "demo", disabled)
+			cfg, err := SetMCPSidecarServerDisabled(t.Context(), home, workspace, target, "demo", disabled)
 			if err != nil {
 				t.Fatal(err)
 			}

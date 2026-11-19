@@ -30,8 +30,10 @@ func (c *daemonClient) SetSettingsMCPServerEnabled(
 	if target.DefinitionSource != "" {
 		query.Set("definition_source", target.DefinitionSource)
 	}
-	err := c.doJSON(ctx, http.MethodPut, path, query, body, &result)
-	return result, err
+	if err := c.doJSON(ctx, http.MethodPut, path, query, body, &result); err != nil {
+		return result, fmt.Errorf("set MCP server %q enabled=%t: %w", target.Name, enabled, err)
+	}
+	return result, nil
 }
 
 func newMCPEnabledCommand(deps commandDeps, enabled bool) *cobra.Command {

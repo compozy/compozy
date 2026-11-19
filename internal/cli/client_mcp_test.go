@@ -239,6 +239,18 @@ const loggedOutClientMCPAuthStatusJSON = `{
 
 func TestMCPListCommand(t *testing.T) {
 	t.Parallel()
+	// Invariant: TOON inventory exposes the same persisted switch as JSON.
+	// Owner: CLI MCP output; canonical suite: MCP list.
+	t.Run("Should report a disabled server in TOON", func(t *testing.T) {
+		t.Parallel()
+		output, err := mcpListBundle(contract.MCPListResponse{
+			CompozyServers: []contract.SettingsMCPServerItemPayload{{Name: "fixture", Disabled: true}},
+		}).toon()
+		if err != nil || !strings.Contains(output, ",disabled}:") || !strings.HasSuffix(output, ",true") {
+			t.Fatalf("TOON off inventory = %q, err = %v", output, err)
+		}
+	})
+
 	// Invariant: explicit workspace inventory uses a matching workspace lens; owner: CLI HTTP boundary.
 	t.Run("Should send workspace scope with the inventory workspace", func(t *testing.T) {
 		t.Parallel()

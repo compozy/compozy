@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -37,13 +38,14 @@ func ResolveMCPEnabledWriteTarget(
 
 // SetMCPSidecarServerDisabled edits the control field of an existing JSON declaration.
 func SetMCPSidecarServerDisabled(
+	ctx context.Context,
 	home HomePaths,
 	root string,
 	target WriteTarget,
 	name string,
 	disabled bool,
 ) (Config, error) {
-	return editMCPSidecarServer(home, root, target, true, func(doc *editableMCPJSONDocument) error {
+	cfg, err := editMCPSidecarServer(ctx, home, root, target, true, func(doc *editableMCPJSONDocument) error {
 		name = normalizeMCPServerName(name)
 		collection := doc.collectionForPut(name)
 		actualName, ok := collection.nameIndex[name]
@@ -67,6 +69,10 @@ func SetMCPSidecarServerDisabled(
 		collection.entries[actualName] = encoded
 		return nil
 	})
+	if err != nil {
+		return Config{}, fmt.Errorf("config: set MCP sidecar server %q disabled=%t: %w", name, disabled, err)
+	}
+	return cfg, nil
 }
 
 // SetMCPServerDisabled updates just the control field of an existing TOML declaration.

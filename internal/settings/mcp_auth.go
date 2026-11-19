@@ -325,7 +325,7 @@ func (s *service) resolveMCPAuthDefinition(
 				inherited: !mcpAuthTargetCovers(target, resolvedTarget),
 			}, nil
 		}
-		if published, found, err := s.resolvePublishedMCPDefinition(ctx, req); err != nil || found {
+		if published, found, err := s.resolvePublishedMCPDefinition(ctx, req, target); err != nil || found {
 			return published, err
 		}
 		return mcpAuthDefinition{}, notFoundError(
@@ -334,7 +334,7 @@ func (s *service) resolveMCPAuthDefinition(
 	}
 	entry, ok := mcpSourceForTarget(target.ServerName, targetKind, sources)
 	if !ok {
-		if published, found, err := s.resolvePublishedMCPDefinition(ctx, req); err != nil || found {
+		if published, found, err := s.resolvePublishedMCPDefinition(ctx, req, target); err != nil || found {
 			return published, err
 		}
 		return mcpAuthDefinition{}, notFoundError(

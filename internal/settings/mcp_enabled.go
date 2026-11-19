@@ -82,19 +82,27 @@ func (s *service) setManualMCPServerEnabled(
 	}
 	entry.Server.Disabled = new(!enabled)
 	if sidecar {
-		_, err = compozyconfig.SetMCPSidecarServerDisabled(s.homePaths, root, target, req.Name, !enabled)
+		_, err = compozyconfig.SetMCPSidecarServerDisabled(ctx, s.homePaths, root, target, req.Name, !enabled)
 	} else {
 		_, err = compozyconfig.EditConfigOverlay(
 			s.homePaths,
 			root,
 			target,
 			func(editor *compozyconfig.OverlayEditor) error {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				return editor.SetMCPServerDisabled(req.Name, !enabled)
 			},
 		)
 	}
 	if err != nil {
-		return MCPServerItem{}, err
+		return MCPServerItem{}, fmt.Errorf(
+			"settings: write MCP server %q enablement at %s scope: %w",
+			req.Name,
+			req.Scope,
+			err,
+		)
 	}
 	result := mutationResultAtPath(
 		mutationResultForCollection(CollectionMCPServers, req.Scope, req.WorkspaceID, kind),
@@ -104,13 +112,27 @@ func (s *service) setManualMCPServerEnabled(
 	result = applyCollectionLifecycle(result, CollectionMCPServers, collectionMutationPut, true)
 	applied, err := s.recordMutationApply(ctx, result)
 	if err != nil {
-		return MCPServerItem{}, err
+		return MCPServerItem{}, fmt.Errorf(
+			"settings: apply persisted MCP server %q enablement at %s scope: %w",
+			req.Name,
+			req.Scope,
+			err,
+		)
 	}
 	if !applied.Applied {
-		return MCPServerItem{}, unavailableError(errors.New("settings: MCP server state could not be applied"))
+		return MCPServerItem{}, unavailableError(fmt.Errorf(
+			"settings: enablement for MCP server %q at %s scope was saved and could not be applied",
+			req.Name,
+			req.Scope,
+		))
 	}
 	if _, err := s.finalizeCommittedCollectionMutation(ctx, result, nil, "replace", false); err != nil {
-		return MCPServerItem{}, err
+		return MCPServerItem{}, fmt.Errorf(
+			"settings: finalize persisted MCP server %q enablement at %s scope: %w",
+			req.Name,
+			req.Scope,
+			err,
+		)
 	}
 	entries := sources[req.Name]
 	index := slices.IndexFunc(entries, func(source mcpSourceEntry) bool { return source.Target == kind })

@@ -54,6 +54,10 @@ func profileFileSecretRefs(root, oldName, newName string, apply bool) (int, erro
 }
 
 func profileFileSecretRefEdits(path, oldName, newName string, apply bool) (count int, err error) {
+	if apply {
+		configOverlayWriteMu.Lock()
+		defer configOverlayWriteMu.Unlock()
+	}
 	directory, name, err := fileutil.OpenParentDirectory(path)
 	if err != nil {
 		return 0, err

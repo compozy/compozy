@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,15 +27,26 @@ func PutMCPSidecarServer(
 	if err := normalized.Validate("mcp_server"); err != nil {
 		return Config{}, fmt.Errorf("config: validate MCP sidecar write: %w", err)
 	}
-	return editMCPSidecarServer(homePaths, workspaceRoot, target, false, func(doc *editableMCPJSONDocument) error {
-		return doc.Put(normalized)
-	})
+	return editMCPSidecarServer(
+		context.Background(),
+		homePaths,
+		workspaceRoot,
+		target,
+		false,
+		func(doc *editableMCPJSONDocument) error {
+			return doc.Put(normalized)
+		},
+	)
 }
 
 func editMCPSidecarServer(
+	ctx context.Context,
 	homePaths HomePaths, workspaceRoot string, target WriteTarget, allowShadowing bool,
 	edit func(*editableMCPJSONDocument) error,
 ) (cfg Config, err error) {
+	if err := ctx.Err(); err != nil {
+		return Config{}, err
+	}
 	if !target.isMCPSidecarTarget() {
 		return Config{}, fmt.Errorf("config: write target %q is not an MCP sidecar", target.Kind())
 	}
@@ -47,7 +59,7 @@ func editMCPSidecarServer(
 			err = errors.Join(err, fmt.Errorf("config: close MCP sidecar parent %q: %w", target.path, closeErr))
 		}
 	}()
-	return editMCPSidecarServerInDirectory(homePaths, workspaceRoot, target, directory, name, allowShadowing, edit)
+	return editMCPSidecarServerInDirectory(ctx, homePaths, workspaceRoot, target, directory, name, allowShadowing, edit)
 }
 
 func putMCPSidecarServerInDirectory(
@@ -59,6 +71,7 @@ func putMCPSidecarServerInDirectory(
 	name string,
 ) (Config, error) {
 	return editMCPSidecarServerInDirectory(
+		context.Background(),
 		homePaths,
 		workspaceRoot,
 		target,
@@ -72,10 +85,16 @@ func putMCPSidecarServerInDirectory(
 }
 
 func editMCPSidecarServerInDirectory(
+	ctx context.Context,
 	homePaths HomePaths, workspaceRoot string, target WriteTarget, directory *fileutil.Directory, name string,
 	allowShadowing bool,
 	edit func(*editableMCPJSONDocument) error,
 ) (Config, error) {
+	configOverlayWriteMu.Lock()
+	defer configOverlayWriteMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return Config{}, err
+	}
 	contents, existed, err := readOptionalRegularFileFromDirectory(directory, name, target.path, "MCP sidecar")
 	if err != nil {
 		return Config{}, err
@@ -94,8 +113,14 @@ func editMCPSidecarServerInDirectory(
 		return Config{}, err
 	}
 
-	finalCfg, err := validateEffectiveConfigWrite(homePaths, workspaceRoot, target, rendered)
+	if err := ctx.Err(); err != nil {
+		return Config{}, err
+	}
+	finalCfg, err := validateEffectiveConfigWriteLocked(homePaths, workspaceRoot, target, rendered)
 	if err != nil {
+		return Config{}, err
+	}
+	if err := ctx.Err(); err != nil {
 		return Config{}, err
 	}
 	if err := requireOverlayContents(directory, name, target.path, contents, existed); err != nil {
@@ -116,6 +141,8 @@ func DeleteMCPSidecarServer(
 	target WriteTarget,
 	name string,
 ) (cfg Config, deleted bool, err error) {
+	configOverlayWriteMu.Lock()
+	defer configOverlayWriteMu.Unlock()
 	if !target.isMCPSidecarTarget() {
 		return Config{}, false, fmt.Errorf("config: write target %q is not an MCP sidecar", target.Kind())
 	}
@@ -167,7 +194,7 @@ func deleteMCPSidecarServerFromContents(
 	}
 	deleted := document.Delete(name)
 	if !deleted {
-		cfg, err := validateEffectiveConfigWrite(homePaths, workspaceRoot, target, contents)
+		cfg, err := validateEffectiveConfigWriteLocked(homePaths, workspaceRoot, target, contents)
 		return cfg, false, err
 	}
 
@@ -176,7 +203,7 @@ func deleteMCPSidecarServerFromContents(
 		return Config{}, false, err
 	}
 
-	finalCfg, err := validateEffectiveConfigWrite(homePaths, workspaceRoot, target, rendered)
+	finalCfg, err := validateEffectiveConfigWriteLocked(homePaths, workspaceRoot, target, rendered)
 	if err != nil {
 		return Config{}, false, err
 	}

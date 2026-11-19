@@ -80,28 +80,56 @@ func publishedMCPCollectionItem(definition MCPPublishedDefinition, req MCPAuthTa
 }
 
 func (s *service) resolvePublishedMCPDefinition(
-	ctx context.Context,
-	req MCPAuthTargetRequest,
+	ctx context.Context, req MCPAuthTargetRequest, requested mcpauth.Target,
 ) (mcpAuthDefinition, bool, error) {
 	definitions, err := s.publishedMCPDefinitions(ctx, req)
 	if err != nil {
 		return mcpAuthDefinition{}, false, err
 	}
 	var result mcpAuthDefinition
-	found := false
+	bestRank, matches := -1, 0
 	for _, definition := range definitions {
 		if definition.Server.Name != req.Name {
 			continue
 		}
-		if found {
-			return result, false, conflictError(
-				fmt.Errorf("MCP server %q has multiple published definitions", req.Name),
-			)
+		scope := definition.ManagementTarget.Scope
+		if scope == "" {
+			scope = definition.Target.Scope
 		}
-		result = mcpAuthDefinition{target: definition.Target, server: definition.Server}
-		found = true
+		rank := publishedMCPScopeRank(scope)
+		if rank < bestRank {
+			continue
+		}
+		if rank > bestRank {
+			result = publishedMCPAuthDefinition(definition, requested)
+			bestRank, matches = rank, 0
+		}
+		matches++
 	}
-	return result, found, nil
+	if matches > 1 {
+		return result, false, conflictError(fmt.Errorf("MCP server %q has multiple published definitions", req.Name))
+	}
+	return result, matches == 1, nil
+}
+
+func publishedMCPScopeRank(scope mcpauth.Scope) int {
+	switch scope {
+	case mcpauth.ScopeWorkspaceProfile:
+		return 3
+	case mcpauth.ScopeWorkspace:
+		return 2
+	case mcpauth.ScopeProfile:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func publishedMCPAuthDefinition(definition MCPPublishedDefinition, requested mcpauth.Target) mcpAuthDefinition {
+	return mcpAuthDefinition{
+		target: definition.Target, server: definition.Server,
+		inherited: !mcpAuthTargetCovers(requested, definition.Target.Normalize()),
+	}
 }
 
 func mcpApprovalNotFound(name string, err error) error {
@@ -120,10 +148,14 @@ func (s *service) mcpApprovalDefinitions(ctx context.Context, req MCPAuthTargetR
 	if err != nil {
 		return nil, err
 	}
+	requested, err := normalizeMCPAuthTarget(req)
+	if err != nil {
+		return nil, err
+	}
 	var definitions []mcpAuthDefinition
 	for _, definition := range published {
 		if definition.Server.Name == req.Name {
-			definitions = append(definitions, mcpAuthDefinition{target: definition.Target, server: definition.Server})
+			definitions = append(definitions, publishedMCPAuthDefinition(definition, requested))
 		}
 	}
 	resolved, err := s.resolveMCPAuthDefinition(ctx, req)

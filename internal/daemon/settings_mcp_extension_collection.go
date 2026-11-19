@@ -38,7 +38,7 @@ func (s settingsMCPExtensionDefinitions) ListMCPExtensionDefinitions(
 		if err != nil {
 			return nil, err
 		}
-		management := extensionMCPManagementTarget(record, target)
+		management := publishedMCPManagementTarget(record.Scope, target)
 		if !settingsMCPExtensionTargetVisible(req, target) && !settingsMCPExtensionTargetVisible(req, management) {
 			continue
 		}
