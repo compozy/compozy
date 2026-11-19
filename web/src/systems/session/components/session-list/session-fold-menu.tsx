@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ChevronsDownUp, ChevronsUpDown, FolderTree, type LucideIcon } from "@compozy/ui/icons";
 
 import {
@@ -14,6 +15,7 @@ import {
   cn,
 } from "@compozy/ui";
 
+import { SESSION_MENU_CHOICE_ITEM } from "../../lib/session-menu-choice-class";
 import { SESSION_FOLD_ALLS, type SessionFoldAll } from "../../lib/session-sidebar-scope";
 
 type SessionFoldChoice = Exclude<SessionFoldAll, null>;
@@ -23,10 +25,6 @@ const FOLD_ITEMS: Record<SessionFoldChoice, { label: string; state: string; icon
   expanded: { label: "Expand all", state: "All expanded", icon: ChevronsUpDown },
   collapsed: { label: "Collapse all", state: "All collapsed", icon: ChevronsDownUp },
 };
-
-/** Choices read quieter than the chosen one: the check and the ink mark it together. */
-const CHOICE_ITEM =
-  "text-muted-foreground *:[svg]:text-subtle focus:*:[svg]:text-fg data-checked:font-medium data-checked:text-fg data-checked:*:[svg]:text-fg";
 
 export interface SessionFoldMenuProps {
   /** The window's last choice; `null` until the operator makes one, so nothing is marked. */
@@ -49,9 +47,18 @@ export function SessionFoldMenu({
 }: SessionFoldMenuProps) {
   const current = foldAll === null ? null : FOLD_ITEMS[foldAll];
   const state = current?.state ?? "Expand or collapse";
+  // Hover only: focus returns to the trigger when the menu closes, and a tooltip opened by that
+  // focus would take the next Escape meant for the surrounding dialog.
+  const [tooltipOpen, setTooltipOpen] = useState(false);
   return (
     <DropdownMenu>
-      <Tooltip>
+      <Tooltip
+        open={tooltipOpen}
+        onOpenChange={(open, details) => {
+          if (open && details.reason === "trigger-focus") return;
+          setTooltipOpen(open);
+        }}
+      >
         <TooltipTrigger
           render={
             <DropdownMenuTrigger
@@ -79,7 +86,9 @@ export function SessionFoldMenu({
         >
           {SESSION_FOLD_ALLS.map(choice => (
             <DropdownMenuRadioItem
-              className={CHOICE_ITEM}
+              className={SESSION_MENU_CHOICE_ITEM}
+              // One choice per open: picking a depth closes the menu.
+              closeOnClick
               data-testid={`${testId}-fold-${choice}`}
               key={choice}
               value={choice}

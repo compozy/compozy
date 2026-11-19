@@ -3779,7 +3779,7 @@ describe("SessionList breadth and Group by", () => {
 
   // #1846: the toolbar's fold control is a menu; its name and checked item say the current depth.
   it.each([
-    { foldAll: null, name: "Expand or collapse", checked: null, pick: "Expand groups" },
+    { foldAll: null, name: "Expand or collapse", checked: "nothing", pick: "Expand groups" },
     { foldAll: "groups", name: "Groups expanded", checked: "Expand groups", pick: "Expand all" },
     { foldAll: "expanded", name: "All expanded", checked: "Expand all", pick: "Collapse all" },
     { foldAll: "collapsed", name: "All collapsed", checked: "Collapse all", pick: "Expand groups" },
@@ -3798,7 +3798,7 @@ describe("SessionList breadth and Group by", () => {
       ]);
       expect(
         items.filter(item => item.getAttribute("aria-checked") === "true").map(i => i.textContent)
-      ).toEqual(checked ? [checked] : []);
+      ).toEqual(checked === "nothing" ? [] : [checked]);
       await user.click(screen.getByRole("menuitemradio", { name: pick }));
       expect(setFoldAll).toHaveBeenCalledWith(
         { "Expand groups": "groups", "Expand all": "expanded", "Collapse all": "collapsed" }[pick]
@@ -3807,20 +3807,20 @@ describe("SessionList breadth and Group by", () => {
   );
 
   // #1846: the fold menu works from the keyboard alone.
-  it("Should open the fold menu with Enter, move with arrows, pick with Enter and close on Escape", async () => {
+  it("Should open the fold menu with Enter or Space, move with arrows, pick with Enter and close on Escape", async () => {
     const user = userEvent.setup();
     const setFoldAll = vi.fn();
     renderList({ view: { ...view, foldAll: "collapsed", setFoldAll } });
     const trigger = screen.getByRole("button", { name: "All collapsed" });
-    trigger.focus();
+    act(() => trigger.focus());
     await user.keyboard("{Enter}");
     expect(await screen.findByRole("menu")).toBeInTheDocument();
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
     expect(setFoldAll).not.toHaveBeenCalled();
 
-    trigger.focus();
-    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
     await screen.findByRole("menu");
     await waitFor(() =>
       expect(screen.getByRole("menuitemradio", { name: "Expand groups" })).toHaveFocus()
@@ -3829,6 +3829,8 @@ describe("SessionList breadth and Group by", () => {
     expect(screen.getByRole("menuitemradio", { name: "Expand all" })).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(setFoldAll).toHaveBeenCalledWith("expanded");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   // The filter belongs to the board: the List has no such control, and showing children marks
