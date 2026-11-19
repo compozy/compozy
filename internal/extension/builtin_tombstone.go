@@ -20,6 +20,9 @@ type BuiltinTombstone struct {
 // BuiltinTombstones is the durable store of permanently removed bundled names.
 // The Registry implements it. A tombstone gates only bundled enrollment: it never
 // changes a non-bundled row that happens to share the name.
+// The interface is the package contract from the spec's Core Interfaces. Production removal and restore use the
+// transactional and restore writers directly, so Tombstone and Tombstoned are consumed by contract tests and by
+// future callers; they stay on the interface on purpose.
 type BuiltinTombstones interface {
 	// Tombstone records name as permanently removed and returns the stored record.
 	Tombstone(ctx context.Context, name string, removedBy string) (BuiltinTombstone, error)

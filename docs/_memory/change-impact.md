@@ -16,10 +16,22 @@
 - **State and isolation.** New table `extension_builtin_tombstones` (migration `00206`, additive, keyed by
   name, no foreign key to `extensions`). It is global to the daemon home, as bundled rows are global, not
   per profile or workspace. Permanent removal commits the row delete and the tombstone in one transaction.
-  Restore clears the tombstone under the package mutation lock and writes it back when enrollment fails.
+  Restore clears the tombstone under the package mutation lock and writes it back when enrollment fails,
+  unless a partially enrolled row cannot be removed: then the row stays, no tombstone is written, and the
+  error is `extension_restore_failed`, so a row and a tombstone never coexist for one name.
   Boot and restore never touch a non-bundled row under the same name. An explicit install keeps the
   tombstone in place (Q2 a). Input and secret values follow plain `remove` (Q1 a). Tool-policy trust follows
   row presence, so a tombstoned built-in grants none.
+- **Errors and compensation.** New code `extension_removal_compensation_failed` (HTTP 500, category
+  `extension`, additive in `diagnosticcontract`). It answers a removal whose compensation failed after the
+  row delete: `ErrExtensionRemovalCompensationFailed` is the generic sentinel from `RemoveManagedExtension`,
+  and `ErrExtensionBuiltinRemovalCompensationFailed` wraps it for permanent removal only when the tombstone
+  is still recorded. The built-in sentinel's diagnostic suggests `compozy extension restore <name>`; the
+  generic one suggests `compozy doctor`. Decision (review round 01, F1, option a): the removal and its
+  tombstone stay committed after a failed compensation, and the code reports it, rather than rolling back
+  silently. Safety Invariant 1 in the spec records this. Install conflicts (`install`, local install,
+  marketplace install, and restore) now also carry the code `extension_exists` and the operation payload
+  with its diagnostic, and stay 409. This is intentional and additive.
 - **Web.** The extension remove dialog offers "Remove permanently" for bundled rows only, with the default
   non-permanent. A "Removed built-ins" section lists tombstones with a restore action, and a successful
   restore refreshes the installed list. Visual design belongs to the designer lane; E2E-004 covers the

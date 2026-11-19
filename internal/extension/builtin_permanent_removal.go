@@ -18,6 +18,12 @@ var ErrExtensionNotBuiltin = errors.New("extension: extension is not a built-in 
 // removal would only detach one scope and could not record a tombstone for the built-in.
 var ErrExtensionBuiltinAttached = errors.New("extension: built-in extension has other installations")
 
+// ErrExtensionBuiltinRemovalCompensationFailed reports that a permanent removal committed its tombstone and its
+// compensation failed. The built-in stays removed, and restore brings it back.
+var ErrExtensionBuiltinRemovalCompensationFailed = errors.New(
+	"extension: built-in removal was committed and could not be fully compensated",
+)
+
 // ExtensionNotBuiltinError names the source of a row that permanent removal refused.
 type ExtensionNotBuiltinError struct {
 	Name   string
@@ -51,7 +57,9 @@ func RequireBuiltinForPermanentRemoval(info *ExtensionInfo) error {
 
 // RemoveBuiltinPermanently removes one bundled extension exactly as RemoveManagedExtension does, and
 // records its tombstone in the same registry transaction as the row delete (Safety Invariant 1).
-// A later failure restores the row and directory, then clears the tombstone once the row is back.
+// A later failure restores the row and directory, then clears the tombstone once the row is back. If that
+// compensation fails, the removal stays committed with its tombstone, and the error wraps
+// ErrExtensionBuiltinRemovalCompensationFailed so the caller can name the restore path.
 func RemoveBuiltinPermanently(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
@@ -92,6 +100,12 @@ func RemoveBuiltinPermanently(
 		commit,
 	)
 	if err != nil {
+		if errors.Is(err, ErrExtensionRemovalCompensationFailed) && tombstoneRemains(registry, trimmedName) {
+			return ManagedRemoveResult{}, fmt.Errorf(
+				"%w: %q keeps its tombstone; run `compozy extension restore %s` to bring it back: %w",
+				ErrExtensionBuiltinRemovalCompensationFailed, trimmedName, trimmedName, err,
+			)
+		}
 		return ManagedRemoveResult{}, err
 	}
 	if routed.tombstone == nil {
@@ -103,6 +117,13 @@ func RemoveBuiltinPermanently(
 	result.Tombstone = routed.tombstone
 	slog.Info("extension.builtin.tombstoned", "name", trimmedName, "removed_by", actor)
 	return result, nil
+}
+
+// tombstoneRemains reports whether the built-in's tombstone is still recorded. It reads the registry rather than
+// tracking the write, because a compensation can clear the tombstone and then fail.
+func tombstoneRemains(registry *Registry, name string) bool {
+	tombstoned, err := registry.Tombstoned(registryContext(), name)
+	return err == nil && tombstoned
 }
 
 // builtinPermanentRegistry routes the coordinator's row step through the transactional tombstone write

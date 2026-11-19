@@ -26,6 +26,10 @@ type managedRemovalSnapshot struct {
 // ManagedRemovalCommit preserves state on failure; post-commit cleanup failures only warn.
 type ManagedRemovalCommit func(context.Context) error
 
+// ErrExtensionRemovalCompensationFailed reports that a removal failed after its row delete and the
+// compensation that should restore the row also failed. The registry may differ from its pre-removal state.
+var ErrExtensionRemovalCompensationFailed = errors.New("extension: removal could not be fully compensated")
+
 // RemoveManagedExtension rolls back registry and filesystem state when reloading after removal fails.
 func RemoveManagedExtension(
 	ctx context.Context,
@@ -155,6 +159,9 @@ func rollbackManagedRemoval(
 	}
 	if restoreErr == nil && reload != nil {
 		restoreErr = reload(rollbackCtx)
+	}
+	if restoreErr != nil {
+		restoreErr = fmt.Errorf("%w: %w", ErrExtensionRemovalCompensationFailed, restoreErr)
 	}
 	return errors.Join(cause, restoreErr)
 }

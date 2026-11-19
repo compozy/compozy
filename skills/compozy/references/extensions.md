@@ -330,7 +330,7 @@ Restore clears the tombstone and enrolls the bundled version at once, enabled, w
 `POST /api/extensions/<name>/restore`, or `compozy__extensions_restore` with `{"name": "<name>"}`. It needs
 write authority, as `remove` does. Its refusals are `extension_builtin_not_removed` (409) when no tombstone
 exists and `extension_exists` (409) when a non-bundled row uses the name. If enrollment fails, the tombstone
-is written back and the error is `extension_restore_failed` (500). To list tombstones, use
+is written back and the error is `extension_restore_failed` (500); if the partially enrolled row cannot be removed, that row stays and no tombstone is written. If a permanent removal commits and its compensation then fails, the error is `extension_removal_compensation_failed` (500): the tombstone stays, and `compozy extension restore <name>` brings the built-in back. To list tombstones, use
 `compozy extension removed [-o json]`, `GET /api/extensions/removed-builtins`, or
 `compozy__extensions_removed_list`; with none, the result is `{"removed":[]}`.
 
