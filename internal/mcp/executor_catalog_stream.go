@@ -50,8 +50,8 @@ func (s *catalogNotificationStream) RoundTrip(req *http.Request) (*http.Response
 		cancel()
 		return nil, err
 	}
-	contentType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	if resp.StatusCode != http.StatusOK || contentType != "text/event-stream" || resp.Body == nil {
+	contentType, _, mimeErr := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if mimeErr != nil || resp.StatusCode != http.StatusOK || contentType != "text/event-stream" || resp.Body == nil {
 		if resp.Body == nil {
 			cancel()
 		} else {
