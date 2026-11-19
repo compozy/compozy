@@ -33,8 +33,10 @@ type loopActionSessionBinder struct {
 
 type loopManagedSessionManager interface {
 	session.IdempotentSessionCreator
+	ResolveCreationProfile(context.Context, *session.CreateOpts) (store.SessionCreationProfile, error)
 }
 
+var _ loopManagedSessionManager = (*session.Manager)(nil)
 var _ looppkg.ActionSessionBinder = (*loopActionSessionBinder)(nil)
 var _ looppkg.ManagedActionSessionBinder = (*loopActionSessionBinder)(nil)
 
@@ -161,7 +163,9 @@ func (b *loopActionSessionBinder) adoptOriginBinding(
 	if pinned := strings.TrimSpace(req.PinnedCreationDigest); pinned != "" && pinned != identity.CreationDigest {
 		return looppkg.ActionSessionBinding{}, bindingMismatch("origin creation digest differs from pinned identity")
 	}
-	appliedRuntime, err := b.revalidatePersistedProfile(ctx, req, identity, true)
+	profileRequest := req
+	profileRequest.ProvenanceParentSessionID = ""
+	appliedRuntime, err := b.revalidatePersistedProfile(ctx, profileRequest, identity, true)
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, err
 	}
