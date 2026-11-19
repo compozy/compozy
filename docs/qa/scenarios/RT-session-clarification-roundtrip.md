@@ -122,8 +122,23 @@ pending list and is never re-sent as a prompt. A stopping session and interrupt 
 behavior. Automated evidence:
 `web/src/systems/session/hooks/__tests__/use-session-clarifications.test.tsx`,
 `internal/daemon/clarify_bridge_test.go` (choices-only refusal) and
-`internal/acp/elicitation_test.go` (choices-only flag). Outstanding walk (deferred by operator
-directive while the host is overloaded): with a bounded `compozy__clarify` question, a free-text
-question and an ACP select elicitation without a custom field pending, type a reply in the main
-composer in steer and in queue mode; confirm the dock clears and the turn continues for the first
-two, and the draft stays with the choice-only reason for the third.
+`internal/acp/elicitation_test.go` (choices-only flag).
+
+Walked 2026-11-18 (#1821, PR #1835 at `e9bcd2d5`) in an isolated Playwright lab: worktree daemon
+build, temporary home, acpmock agent, `compozy__clarify` called through the hosted MCP client.
+Results, all pass:
+
+- A bounded question ("Which environment should deploy first?", Staging/Production) is docked, the
+  session shows `waiting-for-input`, and the composer placeholder reads "Type here to answer the
+  agent's question".
+- A typed composer reply sent with Enter (steer mode) POSTs the answer endpoint (200). The blocked
+  tool call returns `{text: "Production, after a one-hour canary", choice: null}` about 20 ms after
+  the send, the dock clears, the receipt shows the typed text, the session is `running` again and
+  the prompt queue stays empty.
+- With a free-text question pending, a reply carrying a file is refused before any request:
+  "Not sent — an answer to the agent's question can't carry files. Remove them to answer." The text
+  and the file tile stay in the composer and the question stays docked.
+
+Not walked: queue mode, which goes through the same wrapper and is covered by the hook suite. Also
+not walked: the ACP select elicitation without a custom field, which acpmock cannot raise; the
+broker suite covers its choice-only refusal.
