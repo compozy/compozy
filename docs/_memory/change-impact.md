@@ -89,8 +89,9 @@ Owners: [#1829](https://github.com/compozy/compozy/issues/1829), [#1830](https:/
   loader support renewal in place. Transient failures retain the bound access token and refresh
   grant. Known local registration failures leave stored credentials available for repair.
 - **Web, official skill, docs and QA.** Settings uses its existing status and reauthorization
-  controls. The MCP skill and the ET-api-mcp-oauth-endpoints and ET-web-mcp-status-matrix
-  scenarios document the new renewal behavior and repair path.
+  controls. The MCP configuration guide and official skill describe when renewal or sign-in is
+  needed. The ET-api-mcp-oauth-endpoints and ET-web-mcp-status-matrix scenarios cover the same
+  outcomes through the existing status fields and controls.
 
 ## MCP OAuth refresh for CIMD clients
 
