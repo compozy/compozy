@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
@@ -901,6 +902,19 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			}
 		})
 	})
+
+	for _, origin := range []struct {
+		name       string
+		descendant bool
+	}{
+		{name: "Should bind a worker under an always-on main"},
+		{name: "Should bind a worker under an always-on descendant", descendant: true},
+	} {
+		t.Run(origin.name, func(t *testing.T) {
+			t.Parallel()
+			testLoopBindingFromAlwaysOnOrigin(t, origin.descendant)
+		})
+	}
 
 	t.Run("Should preserve a deleted provenance parent as an orphan when a managed retry advances", func(t *testing.T) {
 		var failingManager *failFirstEnsureCreatedManager
@@ -2304,6 +2318,94 @@ func assertSessionProvenanceParent(
 	}
 	if wantParentID == "" && (info.Lineage.RootSessionID != sessionID || info.Lineage.SpawnDepth != 0) {
 		t.Fatalf("Status(%q).Lineage = %#v, want self-rooted lineage", sessionID, info.Lineage)
+	}
+}
+
+func testLoopBindingFromAlwaysOnOrigin(t *testing.T, descendant bool) {
+	t.Helper()
+	ctx := t.Context()
+	const allowedTool = "compozy__workspace_list"
+	fixture := newLoopGoalManagedRuntimeFixture(t, "always-on-origin", nil,
+		withoutInitialGoalBinding(),
+		withGoalRuntimeAgentTools(allowedTool, "compozy__session_list"),
+	)
+	main, err := fixture.manager.CreateAccepted(ctx, &session.CreateAcceptedOpts{
+		Session: session.CreateOpts{AgentName: fixture.agentName, Workspace: string(fixture.run.WorkspaceID)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ceiling, err := json.Marshal(store.SessionPermissionPolicy{
+		Tools: []string{allowedTool}, ToolsMode: store.PermissionList,
+		WorkspacePaths: []string{fixture.workspaceRoot},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instances := fixture.daemonInstance.registry.(instanceRepositoryProvider).Instances()
+	if _, err := instances.Adopt(ctx, agentinstance.Instance{
+		ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: main.WorkspaceID,
+		PermissionCeiling: string(ceiling), CreatedByKind: "human",
+	}, main.ID, 10); err != nil {
+		t.Fatalf("Adopt(main) error = %v", err)
+	}
+	fixture.manager.SetInstanceCeilingReader(instanceCeilingReader(instances))
+	parent := main
+	if descendant {
+		parent, err = fixture.manager.CreateAccepted(ctx, &session.CreateAcceptedOpts{
+			Session: session.CreateOpts{
+				AgentName: fixture.agentName, Workspace: main.WorkspaceID,
+				Lineage: &store.SessionLineage{ParentSessionID: main.ID},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted(descendant) error = %v", err)
+		}
+	}
+	request := fixture.bindingRequest("always-on-origin")
+	request.ProvenanceParentSessionID = parent.ID
+	binding, err := fixture.runtime.BindActionSession(ctx, request)
+	if err != nil {
+		t.Fatalf("BindActionSession() error = %v", err)
+	}
+	info, err := fixture.manager.Status(ctx, binding.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Type != session.SessionTypeSystem || info.InstanceID != "" || info.AgentName != fixture.agentName ||
+		info.WorkspaceID != main.WorkspaceID || info.ProfileID != main.ProfileID {
+		t.Fatalf(
+			"bound session identity = %s/%s/%s/%s/%s",
+			info.Type,
+			info.InstanceID,
+			info.AgentName,
+			info.WorkspaceID,
+			info.ProfileID,
+		)
+	}
+	if info.Lineage == nil || info.Lineage.Kind != store.LineageKindProvenance ||
+		info.Lineage.ParentSessionID != parent.ID || info.Lineage.RootSessionID != main.ID ||
+		!slices.Equal(info.Lineage.PermissionPolicy.Tools, []string{allowedTool}) {
+		t.Fatalf(
+			"bound lineage = %#v, want parent %q, root %q and tools [%s]",
+			info.Lineage,
+			parent.ID,
+			main.ID,
+			allowedTool,
+		)
+	}
+	identity, err := fixture.goalStore.GetSessionCreationIdentity(ctx, binding.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if identity.CreationProfileRef != binding.CreationProfileRef ||
+		identity.PolicySpecDigest != binding.PolicySpecDigest ||
+		identity.CreationDigest != binding.CreationDigest {
+		t.Fatalf("persisted identity = %#v, want binding identity %#v", identity, binding)
+	}
+	matched, err := fixture.runtime.BindActionSession(ctx, request)
+	if err != nil || matched.SessionID != binding.SessionID || matched.BindingEpoch != binding.BindingEpoch {
+		t.Fatalf("BindActionSession(reuse) = %#v, %v, want original session %q", matched, err, binding.SessionID)
 	}
 }
 

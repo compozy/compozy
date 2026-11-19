@@ -36,6 +36,7 @@ func (b *loopActionSessionBinder) resolveEffectiveCreationProfile(
 		)
 	}
 	opts = b.baseCreateOptions(req, agent, loopManagedGoalKind)
+	opts.ProvenanceParentSessionID = strings.TrimSpace(req.ProvenanceParentSessionID)
 	resolution, err := b.policyGate.applyResolved(ctx, &opts, agent, opts.AllowedToolsOverride)
 	if err != nil {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
@@ -64,6 +65,9 @@ func (b *loopActionSessionBinder) resolvePinnedCreationProfile(
 		}
 	}
 	opts := createOptionsFromProfile(req, profile)
+	if !allowRuntimeOverride {
+		opts.ProvenanceParentSessionID = strings.TrimSpace(req.ProvenanceParentSessionID)
+	}
 	if len(req.AllowedTools) > 0 {
 		opts.AllowedToolsOverride = slices.Clone(req.AllowedTools)
 	}
@@ -99,6 +103,16 @@ func (b *loopActionSessionBinder) validateLoopCreationProfile(
 	opts := *optsInput
 
 	profile := profileFromPolicyResolution(&(opts), resolution)
+	if resolver, ok := b.sessions.(interface {
+		ResolveCreationProfile(context.Context, *session.CreateOpts) (store.SessionCreationProfile, error)
+	}); ok && opts.ProvenanceParentSessionID != "" {
+		effective, err := resolver.ResolveCreationProfile(ctx, &opts)
+		if err != nil {
+			return store.SessionCreationProfile{}, session.CreateOpts{}, nil,
+				b.rollbackLoopActionEnvironment(ctx, req, materialized, err)
+		}
+		profile = effective
+	}
 	profileRef, err := profile.Ref()
 	if err != nil {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil,

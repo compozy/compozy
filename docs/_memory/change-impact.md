@@ -25,6 +25,24 @@ Owner: [#1827](https://github.com/compozy/compozy/issues/1827).
   generated CLI docs describe pins; QA adds ET-web-session-list-pinned and notes the folder slot
   rule in ET-web-session-folders-manual-order.
 
+## Run-agent creation under an always-on Loop origin
+
+Owner: [#1851](https://github.com/compozy/compozy/issues/1851).
+
+- **Native tools and CLI/HTTP/UDS.** A Loop started through `compozy__loop_run` from an
+  always-on main or its descendant can create its run-owned worker with the effective creation
+  profile. Existing session reads expose the worker identity and parent/root lineage. The tool
+  schema, routes, DTOs and CLI output retain their current shapes.
+- **Extensibility, hooks and config.** Profile resolution before reservation is read-only. Session
+  creation still runs its existing hooks and verifies the pinned identity against the final
+  profile. Extension contracts and configuration retain their current shapes.
+- **State and isolation.** The same instance ceiling narrows tools and runtime authority, and
+  the binding uses the effective profile in the originating workspace and profile. Creation
+  identity mismatches remain errors. No persisted format or schema changes.
+- **Web, official skill, docs and QA.** Existing Web projections and the official Loop reference
+  already describe run-owned system sessions and origin lineage. `LP-run-agent-session-lifecycle`
+  adds the always-on main and descendant cases. CI owns the managed runtime regression.
+
 ||||||| 051fce873
 
 ## Composer reply answers a pending clarification (GH-1821)

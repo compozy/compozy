@@ -64,6 +64,22 @@ type IdempotentSessionCreator interface {
 
 var _ IdempotentSessionCreator = (*Manager)(nil)
 
+// ResolveCreationProfile previews the effective profile before a caller reserves a session identity.
+func (m *Manager) ResolveCreationProfile(
+	ctx context.Context,
+	opts *CreateOpts,
+) (store.SessionCreationProfile, error) {
+	spec, err := m.resolveCreateStartSpec(ctx, opts)
+	if err != nil {
+		return store.SessionCreationProfile{}, err
+	}
+	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, true)
+	if err != nil {
+		return store.SessionCreationProfile{}, err
+	}
+	return creationProfileFromStart(&spec, runtime.agent), nil
+}
+
 // EnsureCreated creates one preallocated session exactly once by immutable creation identity.
 func (m *Manager) EnsureCreated(ctx context.Context, optsInput *CreateOpts) (EnsureCreatedResult, error) {
 	opts := *optsInput
