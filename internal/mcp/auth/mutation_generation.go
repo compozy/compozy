@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -56,6 +58,39 @@ func (g *MutationGeneration) Revision(target Target) (uint64, error) {
 	generation.mu.Lock()
 	defer generation.mu.Unlock()
 	return generation.revision, nil
+}
+
+// ReadAtRevision retries a credential observation if the target changes during the read.
+func (g *MutationGeneration) ReadAtRevision[T any](
+	ctx context.Context,
+	target Target,
+	read func() (T, error),
+) (T, uint64, error) {
+	if g == nil {
+		value, err := read()
+		return value, 0, err
+	}
+	var zero T
+	for {
+		if err := ctx.Err(); err != nil {
+			return zero, 0, err
+		}
+		before, err := g.Revision(target)
+		if err != nil {
+			return zero, 0, err
+		}
+		value, readErr := read()
+		if errors.Is(readErr, context.Canceled) || errors.Is(readErr, context.DeadlineExceeded) {
+			return zero, 0, readErr
+		}
+		after, err := g.Revision(target)
+		if err != nil {
+			return zero, 0, err
+		}
+		if before == after {
+			return value, before, readErr
+		}
+	}
 }
 
 // RejectIfCurrent records a 401 for the observed credential without affecting a replacement login.

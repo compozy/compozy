@@ -177,6 +177,13 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 	if err := cfg.Validate(); err != nil {
 		return Status{}, err
 	}
+	status, _, err := s.generation.ReadAtRevision(ctx, cfg.Target, func() (Status, error) {
+		return s.readStoredStatus(ctx, cfg)
+	})
+	return status, err
+}
+
+func (s *Service) readStoredStatus(ctx context.Context, cfg ServerConfig) (Status, error) {
 	token, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
 	if err != nil {
 		if errors.Is(err, ErrTokenResolution) {

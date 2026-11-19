@@ -169,7 +169,9 @@ func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved *Resolv
 	if err != nil {
 		return "", authorizationConfigError(err)
 	}
-	token, revision, err := e.authorizationTokenAtRevision(ctx, cfg)
+	token, revision, err := e.authGeneration.ReadAtRevision(ctx, cfg.Target, func() (mcpauth.TokenRecord, error) {
+		return e.auth.AuthorizationToken(ctx, cfg)
+	})
 	switch {
 	case cfg.Implicit && errors.Is(err, mcpauth.ErrTokenDefinitionChanged):
 		return "", nil
@@ -189,36 +191,6 @@ func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved *Resolv
 	registerMCPRequestSecret(ctx, access)
 	registerMCPRequestSecret(ctx, token.RefreshToken)
 	return "Bearer " + access, nil
-}
-
-func (e *CallExecutor) authorizationTokenAtRevision(
-	ctx context.Context,
-	cfg mcpauth.ServerConfig,
-) (mcpauth.TokenRecord, uint64, error) {
-	if e.authGeneration == nil {
-		token, err := e.auth.AuthorizationToken(ctx, cfg)
-		return token, 0, err
-	}
-	for {
-		if err := ctx.Err(); err != nil {
-			return mcpauth.TokenRecord{}, 0, err
-		}
-		before, err := e.authGeneration.Revision(cfg.Target)
-		if err != nil {
-			return mcpauth.TokenRecord{}, 0, err
-		}
-		token, lookupErr := e.auth.AuthorizationToken(ctx, cfg)
-		if errors.Is(lookupErr, context.Canceled) || errors.Is(lookupErr, context.DeadlineExceeded) {
-			return mcpauth.TokenRecord{}, 0, lookupErr
-		}
-		after, err := e.authGeneration.Revision(cfg.Target)
-		if err != nil {
-			return mcpauth.TokenRecord{}, 0, err
-		}
-		if before == after {
-			return token, before, lookupErr
-		}
-	}
 }
 
 func canProbeWithoutStoredCredential(err error) bool {

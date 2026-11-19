@@ -19,6 +19,54 @@ import (
 
 func TestManagerSessionMutationRaces(t *testing.T) {
 	t.Parallel()
+	// Invariant: status uses the replacement credential's renewal capability when its rejection races a read.
+	// Owner: OAuth credential mutation and status; canonical suite: TestManagerSessionMutationRaces.
+	t.Run("Should report the refreshability of a replacement rejected during status lookup", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		cfg := ServerConfig{
+			Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+			Transport: "http", RemoteURL: "https://mcp.example.test", IssuerURL: "https://issuer.example.test",
+			ClientID: "fixture-client", Registration: RegistrationPreRegistered,
+		}
+		generation := NewMutationGeneration()
+		store := &statusReadHookStore{managerTestStore: &managerTestStore{}}
+		if err := store.SaveMCPAuthToken(ctx, managerBoundToken(t, cfg, "original-fixture-access")); err != nil {
+			t.Fatal(err)
+		}
+		replacement := managerBoundToken(t, cfg, "replacement-fixture-access")
+		replacement.RefreshToken = "fixture-renewal"
+		replacement.ExpiresAt = time.Date(2126, 1, 1, 0, 0, 0, 0, time.UTC)
+		store.afterRead = func(ctx context.Context) error {
+			version, err := generation.Snapshot(cfg.Target)
+			if err != nil {
+				return err
+			}
+			committed, err := generation.CommitAndAdvanceIfCurrent(cfg.Target, version, func() error {
+				return store.SaveMCPAuthToken(ctx, replacement)
+			})
+			if err != nil {
+				return err
+			}
+			if !committed {
+				return ErrTokenMutationStale
+			}
+			revision, err := generation.Revision(cfg.Target)
+			if err != nil {
+				return err
+			}
+			return generation.RejectIfCurrent(cfg.Target, revision)
+		}
+		service, err := NewService(store, WithMutationGeneration(generation))
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, err := service.Status(ctx, cfg)
+		if err != nil || status.Status != StatusExpired || !status.Refreshable || !status.TokenPresent {
+			t.Fatalf("replacement status = %+v, %v, want an expired credential eligible for refresh", status, err)
+		}
+	})
+
 	// Invariant: a late remote rejection cannot invalidate a new login reissuing the same token.
 	// Owner: OAuth credential mutation; canonical suite: TestManagerSessionMutationRaces.
 	t.Run("Should ignore a stale remote rejection after replacing the credential", func(t *testing.T) {
@@ -432,6 +480,21 @@ type managerTestStore struct {
 	registrationStarted chan struct{}
 	registrationOnce    sync.Once
 	releaseRegistration chan struct{}
+}
+
+type statusReadHookStore struct {
+	*managerTestStore
+	afterRead func(context.Context) error
+}
+
+func (s *statusReadHookStore) GetMCPAuthToken(ctx context.Context, target Target) (TokenRecord, error) {
+	token, err := s.managerTestStore.GetMCPAuthToken(ctx, target)
+	if err != nil || s.afterRead == nil {
+		return token, err
+	}
+	hook := s.afterRead
+	s.afterRead = nil
+	return token, hook(ctx)
 }
 
 func (s *managerTestStore) SaveMCPAuthToken(_ context.Context, token TokenRecord) error {
