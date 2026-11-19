@@ -153,7 +153,12 @@ func (p *MCPProvider) normalizeDiscovery(source SourceRef, discovered []MCPToolD
 func FingerprintMCPToolDescriptors(descriptors []MCPToolDescriptor) ([sha256.Size]byte, error) {
 	canonical := make([]json.RawMessage, 0, len(descriptors))
 	for index := range descriptors {
-		encoded, err := json.Marshal(descriptors[index])
+		// Providers may leave ID empty and let the registry derive it from the upstream name.
+		descriptor := &descriptors[index]
+		encoded, err := json.Marshal(struct {
+			*MCPToolDescriptor
+			ID string `json:"id"`
+		}{descriptor, string(descriptor.ID)})
 		if err != nil {
 			return [sha256.Size]byte{}, fmt.Errorf("mcp: encode tool projection descriptor: %w", err)
 		}
