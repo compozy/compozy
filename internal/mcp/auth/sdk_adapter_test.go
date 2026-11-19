@@ -1757,7 +1757,7 @@ func TestOAuthTokenResponseLifecycleContract(t *testing.T) {
 	})
 }
 
-// Invariant: rediscovery cannot send persisted credentials to a replacement issuer.
+// Invariant: issuer replacement never receives persisted credentials and is reported once.
 // Owner: OAuth token lifecycle; canonical suite: sdk_adapter_test.go.
 func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
 	t.Parallel()
@@ -1831,8 +1831,9 @@ func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
 			t.Cleanup(original.Close)
 			now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
 			store := &adapterTestStore{}
+			var logs bytes.Buffer
 			service, cfg := newPreRegisteredTestService(t, store, original, WithRegistrationStore(store),
-				WithNow(func() time.Time { return now }))
+				WithNow(func() time.Time { return now }), WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))))
 			cfg.IssuerURL = ""
 			if tc.hosted {
 				cfg.Registration, cfg.ClientID = RegistrationAuto, ""
@@ -1874,6 +1875,9 @@ func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
 				if err != nil || after.Status != StatusExpired || after.Refreshable ||
 					replacementMetadata.Load() != discoveryCount {
 					t.Fatalf("expired status = %+v, err = %v; want expiry without rediscovery", after, err)
+				}
+				if strings.Count(logs.String(), `"cause_class":"binding_invalid"`) != 1 {
+					t.Fatal("issuer replacement should emit one redacted binding warning")
 				}
 			}
 			if replacementRequests.Load() != 0 {

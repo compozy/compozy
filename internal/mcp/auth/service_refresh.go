@@ -202,14 +202,16 @@ func (s *Service) refreshWithBackoff(
 	}
 	target.refreshAttempts++
 	status, err := s.refresh(refreshCtx, cfg, observed, generation)
+	if err != nil {
+		s.logger.WarnContext(ctx, "mcp.auth.refresh_failed",
+			"server", cfg.Target.ServerName, "owner", cfg.Target.Normalize().Owner,
+			"scope", string(cfg.Target.Scope), "workspace_id", cfg.Target.WorkspaceID,
+			"cause_class", refreshFailureClass(err), "attempt", target.refreshAttempts)
+	}
 	if err == nil || (status.TokenPresent && errors.Is(err, ErrTokenBindingInvalid)) {
 		target.refreshAttempts, target.refreshRetryAt = 0, time.Time{}
 		return status, err
 	}
-	s.logger.WarnContext(ctx, "mcp.auth.refresh_failed",
-		"server", cfg.Target.ServerName, "owner", cfg.Target.Normalize().Owner,
-		"scope", string(cfg.Target.Scope), "workspace_id", cfg.Target.WorkspaceID,
-		"cause_class", refreshFailureClass(err), "attempt", target.refreshAttempts)
 	if definitiveRefreshFailure(err) && status.Status == StatusNeedsLogin {
 		return status, nil
 	}
