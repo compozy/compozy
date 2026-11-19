@@ -360,7 +360,9 @@ const sideFixturePath = path.join(acpmockTestdata, "browser_side_chat_fixture.js
 const sideAgent = "side-web-agent";
 
 test.describe("side chat", () => {
+  // The side panel is an inline drawer only from 1440px; below that it is a sheet over the main composer.
   test.use({
+    viewport: { width: 1600, height: 900 },
     runtimeOptions: {
       seed: { mockAgents: [{ fixturePath: sideFixturePath, fixtureAgent: sideAgent }] },
     },
