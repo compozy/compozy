@@ -4,6 +4,7 @@ import type { SessionFolderPayload, SessionListFilters, SessionPayload } from ".
 import { sessionCatalogOptions, sessionFoldersOptions } from "./session-catalog-options";
 import { visibleSessionOrder } from "./session-folders";
 import { sessionListGroupFilters, type SessionListGroupSpec } from "./session-list-groups";
+import { SESSION_LIST_PINNED_FOLD_KEY } from "./session-list-pinned";
 import { sessionCatalogScopedFilters } from "./session-catalog-scope";
 import type { SessionListSort } from "./session-list-preferences";
 import type { SessionListShelf } from "./session-list-shelf";
@@ -20,6 +21,8 @@ export interface SessionListOrderSource {
   collapsedGroupKeys: SessionFoldSet;
   shelf: SessionListShelf;
   search?: string;
+  /** The Pinned section's rows, shown above everything else. */
+  pinned?: { sessions: readonly SessionPayload[] };
 }
 
 /**
@@ -39,6 +42,23 @@ export function sessionListVisibleOrder(
   }
 ): SessionPayload[] {
   const grouped = view.groupBy !== "none";
+  // A collapsed Pinned section hides its rows; a search opens it like every fold.
+  const pinned = view.collapsedGroupKeys.has(SESSION_LIST_PINNED_FOLD_KEY)
+    ? []
+    : visibleSessionOrder(view.pinned?.sessions ?? [], {
+        collapsedThreadIds: input.collapsedThreadIds,
+        collapsedFolderIds: input.collapsedFolderIds,
+        shelved: false,
+        filtering: (view.search ?? "").trim() !== "",
+      });
+  return [...pinned, ...listedSessionOrder(view, input, grouped)];
+}
+
+function listedSessionOrder(
+  view: SessionListOrderSource,
+  input: Parameters<typeof sessionListVisibleOrder>[1],
+  grouped: boolean
+): SessionPayload[] {
   return visibleSessionOrder(view.catalog?.sessions ?? input.sessions, {
     collapsedThreadIds: input.collapsedThreadIds,
     collapsedFolderIds: input.collapsedFolderIds,

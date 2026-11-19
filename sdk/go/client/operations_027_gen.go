@@ -10,6 +10,51 @@ import (
 	"strings"
 )
 
+// MoveSession Move a session into a folder or back to the workspace root
+func (c *Client) MoveSession(ctx context.Context, params MoveSessionParams, body MoveSessionRequest) (*SessionFoldersResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/move"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionFoldersResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MoveSessionToLaterParams carries the path, query, and header parameters.
+type MoveSessionToLaterParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// MoveSessionToLater Stop a session and its children and park them in Later, with an optional reason and return time
+func (c *Client) MoveSessionToLater(ctx context.Context, params MoveSessionToLaterParams, body MoveSessionToLaterRequest) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/later"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // MoveSessionToProfileParams carries the path, query, and header parameters.
 type MoveSessionToProfileParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -320,6 +365,32 @@ func (c *Client) PinCmdPaletteCommand(ctx context.Context, params PinCmdPaletteC
 	return &out, nil
 }
 
+// PinSessionParams carries the path, query, and header parameters.
+type PinSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// PinSession Pin a session above the session list; pinning a pinned session changes nothing
+func (c *Client) PinSession(ctx context.Context, params PinSessionParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/pin"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PlanSessionHistoryCleanupParams carries the path, query, and header parameters.
 type PlanSessionHistoryCleanupParams struct {
 	Profile *string `url:"profile"`
@@ -365,81 +436,4 @@ func (f PlanSessionHistoryCleanupFrame) AsSessionHistoryCleanupStartResponse() (
 		return nil, err
 	}
 	return &out, nil
-}
-
-// PlanSessionHistoryCleanup Preview (dry_run) or start the background deletion of archived sessions archived before a cutoff: whole threads, or only their child sessions or subagents
-func (c *Client) PlanSessionHistoryCleanup(ctx context.Context, params PlanSessionHistoryCleanupParams, body SessionHistoryCleanupRequest) (*PlanSessionHistoryCleanupFrame, error) {
-	path := "/api/sessions/history-cleanup"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out PlanSessionHistoryCleanupFrame
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PrepareProfileArchiveParams carries the path, query, and header parameters.
-type PrepareProfileArchiveParams struct {
-	Name string `url:"name"`
-}
-
-// PrepareProfileArchive Preview profile archival
-func (c *Client) PrepareProfileArchive(ctx context.Context, params PrepareProfileArchiveParams) (*ArchiveProfilePlan, error) {
-	path := "/api/profiles/{name}/archive-plan"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out ArchiveProfilePlan
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PrepareProfileDeleteParams carries the path, query, and header parameters.
-type PrepareProfileDeleteParams struct {
-	Name string `url:"name"`
-}
-
-// PrepareProfileDelete Preview profile deletion
-func (c *Client) PrepareProfileDelete(ctx context.Context, params PrepareProfileDeleteParams) (*DeleteProfilePlan, error) {
-	path := "/api/profiles/{name}/delete-plan"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out DeleteProfilePlan
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PrepareProfileRenameParams carries the path, query, and header parameters.
-type PrepareProfileRenameParams struct {
-	Name    string `url:"name"`
-	NewName string `url:"new_name"`
-}
-
-// PrepareProfileRename Preview a profile rename
-func (c *Client) PrepareProfileRename(ctx context.Context, params PrepareProfileRenameParams) (*RenameProfilePlan, error) {
-	path := "/api/profiles/{name}/rename-plan"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("new_name", params.NewName)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RenameProfilePlan
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PrepareWorktreeExitPlanParams carries the path, query, and header parameters.
-type PrepareWorktreeExitPlanParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	WorktreeID  string `url:"worktree_id"`
 }

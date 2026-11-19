@@ -1,6 +1,7 @@
 package core
 
 import (
+	"cmp"
 	"errors"
 	"strconv"
 	"strings"
@@ -67,7 +68,8 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if errors.Is(err, session.ErrSessionArchiveRequiresStopped) {
 		payload.Code = "session_archive_requires_stopped"
 	}
-	if code := sessionLaterErrorCode(err); code != "" {
+	// Later and pin refusals are distinct sentinels, so at most one names a code.
+	if code := cmp.Or(sessionLaterErrorCode(err), sessionPinErrorCode(err)); code != "" {
 		payload.Code = code
 	}
 	if code := attentionSeenErrorCode(err); code != "" {

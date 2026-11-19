@@ -1,7 +1,6 @@
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
-import { useState } from "react";
 
-import { Button, SearchInput } from "@compozy/ui";
+import { SearchInput } from "@compozy/ui";
 
 import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
@@ -14,13 +13,15 @@ import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lif
 import { emptyForScope } from "@/systems/profiles";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 import { sessionListShelfNoun } from "../../lib/session-list-shelf";
+import { sessionListHasPinnedRows } from "../../lib/session-list-pinned";
+import { useSessionListPin } from "../../hooks/use-session-pin-actions";
+import { useSessionListLocalState } from "../../hooks/use-session-list-local-state";
+import { SessionListCatalogNavigation, SessionListControls } from "./session-list-controls";
+import { SessionListPinned } from "./session-list-pinned";
 
 import type { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
 import { useSessionListSelection } from "../../hooks/use-session-list-selection";
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
-import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
-import type { WorkspaceFolderPayload } from "../../types";
-import { AlwaysOnCreateMenu } from "../always-on/always-on-create-menu";
 import { AlwaysOnListTop } from "../always-on/always-on-list-top";
 import { ArchivedCleanup } from "./archived-cleanup";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
@@ -28,11 +29,9 @@ import { SessionListTotals } from "./session-list-totals";
 import { SessionListGroups } from "./session-list-groups";
 import { SessionListStatus } from "./session-list-status";
 import { SessionListSections } from "./session-list-sections";
-import { SessionListSelectionBar } from "./session-list-selection-bar";
 import { SessionListSelectionFolders } from "./session-list-selection-folders";
 import { SessionListSkeleton } from "./session-list-skeleton";
 import { SessionListThreadList } from "./session-list-thread-list";
-import { SessionListToolbar } from "./session-list-toolbar";
 import { SessionListSubagentActionsHost } from "./session-list-subagent-actions";
 import {
   sessionThreadFolds,
@@ -64,7 +63,9 @@ export interface SessionListProps {
  * Say what is empty AND for whom: an operator in Marketing needs to know the
  * list is empty in Marketing, not on the machine (US-009.EC-3).
  */
-function emptySessionListMessage(filtering: boolean, view: SessionListViewModel): string {
+function emptySessionListMessage(filtering: boolean, view: SessionListViewModel): string | null {
+  // Every session the list holds sits in Pinned above: the list is not empty.
+  if (sessionListHasPinnedRows(view)) return null;
   if (filtering) return `${emptyForScope("matching sessions", view.scopeLabel)}.`;
   return `${emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.`;
 }
@@ -90,21 +91,14 @@ export function SessionList({
   onThreadBranchChange,
   onSelectSession,
   onNewSession,
-  sessionActions,
+  sessionActions: hostActions,
   testIdPrefix,
   header,
 }: SessionListProps) {
-  const [filter, setFilter] = useState("");
-  // A project folder dialog belongs to the lens it opened under: a profile or
-  // scope change drops it, so it never submits a folder from the old profile.
-  const [projectFolderDialogState, setProjectFolderDialogState] = useState<{
-    lens: string;
-    dialog: SessionFolderDialogState<WorkspaceFolderPayload>;
-  }>({ lens: view.selectionKey, dialog: null });
-  const projectFolderDialog =
-    projectFolderDialogState.lens === view.selectionKey ? projectFolderDialogState.dialog : null;
-  const setProjectFolderDialog = (dialog: SessionFolderDialogState<WorkspaceFolderPayload>) =>
-    setProjectFolderDialogState({ lens: view.selectionKey, dialog });
+  // The list owns its Pinned section, so it owns Pin to top and Unpin: a board card has neither.
+  const { contentRef, sessionActions, announcement } = useSessionListPin(hostActions, testIdPrefix);
+  const { filter, setFilter, projectFolderDialog, setProjectFolderDialog } =
+    useSessionListLocalState(view.selectionKey);
   const projectLayout = view.projectFolders?.layout;
   const remoteSearch = view.search !== undefined;
   const normalizedFilter = (view.search ?? filter).trim().toLocaleLowerCase();
@@ -125,6 +119,19 @@ export function SessionList({
     foldAll: view.foldAll,
     filtering,
   });
+  const pinnedSection = (
+    <SessionListPinned
+      view={view}
+      filtering={filtering}
+      collapsedThreads={collapsedThreads}
+      subagentThreads={subagentThreads}
+      currentSessionId={currentSessionId}
+      onThreadBranchChange={onThreadBranchChange}
+      onSelectSession={onSelectSession}
+      sessionActions={sessionActions}
+      testIdPrefix={testIdPrefix}
+    />
+  );
   const folders = useSessionListFolderLayout(view, threads, filtering);
   const { layout, sections } = folders;
   // A grouped list's groups each read their own page and publish their rows to it.
@@ -147,7 +154,11 @@ export function SessionList({
           className="flex min-h-0 flex-1 flex-col"
           data-testid={`${testIdPrefix}-content`}
           onKeyDown={bulk.onKeyDown}
+          ref={contentRef}
         >
+          <span role="status" aria-live="polite" className="sr-only">
+            {announcement}
+          </span>
           {header?.(visibleCount)}
           <SessionListControls
             bulk={bulk}
@@ -180,6 +191,7 @@ export function SessionList({
               className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
               data-group-by={view.groupBy}
             >
+              {pinnedSection}
               <SessionListGroupSelectionContext value={groupSelection}>
                 <SessionListGroups
                   view={view}
@@ -198,6 +210,7 @@ export function SessionList({
             </div>
           ) : sections && layout ? (
             <SessionListFolderBody
+              pinnedSection={pinnedSection}
               sections={sections}
               layout={layout}
               folders={folders}
@@ -215,6 +228,7 @@ export function SessionList({
             />
           ) : (
             <SessionListBody
+              pinnedSection={pinnedSection}
               view={view}
               threads={threads}
               collapsedThreads={collapsedThreads}
@@ -288,7 +302,9 @@ function SessionListFolderBody({
   onNewSession,
   sessionActions,
   testIdPrefix,
+  pinnedSection,
 }: {
+  pinnedSection: React.ReactNode;
   sections: NonNullable<SessionListFolderLayoutModel["sections"]>;
   layout: NonNullable<SessionListFolderLayoutModel["layout"]>;
   folders: SessionListFolderLayoutModel;
@@ -312,6 +328,7 @@ function SessionListFolderBody({
       className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
       aria-busy={view.catalog?.paging || undefined}
     >
+      {pinnedSection}
       <SessionListSections
         sections={sections}
         layout={layout}
@@ -340,68 +357,6 @@ function SessionListFolderBody({
   );
 }
 
-function SessionListControls({
-  bulk,
-  view,
-  onNewSession,
-  onNewFolder,
-  newFolderUnavailable,
-  testIdPrefix,
-}: {
-  bulk: ReturnType<typeof useSessionListBulkSelection>;
-  view: SessionListViewModel;
-  onNewSession: () => void;
-  onNewFolder?: () => void;
-  newFolderUnavailable: string | null;
-  testIdPrefix: string;
-}) {
-  return bulk.active ? (
-    <SessionListSelectionBar {...bulk.bar} testIdPrefix={testIdPrefix} />
-  ) : (
-    <>
-      <SessionListToolbar
-        shelf={view.shelf}
-        laterCount={view.laterCount}
-        sort={view.sort}
-        groupBy={view.groupBy}
-        groupByOptions={view.groupByOptions}
-        onShelfChange={view.setShelf}
-        onSortChange={view.setSort}
-        onGroupByChange={view.setGroupBy}
-        showEmptyProjects={view.showEmptyProjects}
-        onShowEmptyProjectsChange={view.setShowEmptyProjects}
-        showAutomation={view.showAutomation}
-        onShowAutomationChange={view.setShowAutomation}
-        allCollapsed={view.foldAll === "collapsed"}
-        onAllCollapsedChange={collapsed => view.setFoldAll(collapsed ? "collapsed" : "expanded")}
-        onNewSession={onNewSession}
-        onNewFolder={onNewFolder}
-        newFolderUnavailable={newFolderUnavailable}
-        createMenu={
-          <AlwaysOnCreateMenu
-            newFolderUnavailable={newFolderUnavailable}
-            onNewFolder={onNewFolder}
-            onNewSession={onNewSession}
-            alwaysOn={
-              view.focusedWorkspaceId
-                ? { place: view.focusedWorkspaceId, name: view.focusedScopeName }
-                : null
-            }
-            testId={testIdPrefix}
-            variant="quiet"
-          />
-        }
-        testIdPrefix={testIdPrefix}
-      />
-      {view.sortNote ? (
-        <p className="px-3 pb-1 text-micro text-subtle" data-testid={`${testIdPrefix}-sort-note`}>
-          {view.sortNote}
-        </p>
-      ) : null}
-    </>
-  );
-}
-
 function SessionListBody({
   view,
   threads,
@@ -414,6 +369,7 @@ function SessionListBody({
   selection,
   sessionActions,
   testIdPrefix,
+  pinnedSection,
 }: Pick<
   SessionListProps,
   | "view"
@@ -428,6 +384,7 @@ function SessionListBody({
   subagentThreads: SessionSubagentFolds;
   normalizedFilter: string;
   selection: ReturnType<typeof useSessionListBulkSelection>["rowSelection"];
+  pinnedSection: React.ReactNode;
 }) {
   const ownerOf = view.aggregate ? view.ownerOf : undefined;
   // Nothing has answered yet: placeholder rows, never the empty state.
@@ -437,6 +394,7 @@ function SessionListBody({
       className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
       aria-busy={view.catalog?.paging || undefined}
     >
+      {pinnedSection}
       <SessionListBadgeContext value={view.badgeOf}>
         <SessionListThreadList
           threads={threads}
@@ -459,42 +417,14 @@ function SessionListBody({
   );
 }
 
-function SessionListCatalogNavigation({
-  catalog,
-}: {
-  catalog: NonNullable<SessionListViewModel["catalog"]>;
-}) {
-  return (
-    <div className="flex items-center justify-between px-2 py-2">
-      {catalog.paging ? <span role="status">Loading sessions…</span> : null}
-      {catalog.previous ? (
-        <Button variant="ghost" size="sm" disabled={catalog.paging} onClick={catalog.previousPage}>
-          Previous sessions
-        </Button>
-      ) : (
-        <span />
-      )}
-      {catalog.next ? (
-        <Button variant="ghost" size="sm" disabled={catalog.paging} onClick={catalog.nextPage}>
-          Next sessions
-        </Button>
-      ) : null}
-      {/* An empty failed list already states the failure with its one Retry above. */}
-      {catalog.failed && catalog.sessions.length > 0 ? (
-        <Button variant="ghost" size="sm" onClick={catalog.retry}>
-          Retry loading sessions
-        </Button>
-      ) : null}
-    </div>
-  );
-}
-
 function sessionListVisibleCount(
   view: SessionListViewModel,
   threads: ReturnType<typeof buildSessionListThreads>,
   filter: string
 ): number | null {
-  if (view.groupBy === "none") return countThreadSessions(threads);
+  // The list's own reads leave pinned sessions to the Pinned section, which counts them back.
+  const pinned = view.pinned?.sessions.length ?? 0;
+  if (view.groupBy === "none") return countThreadSessions(threads) + pinned;
   if (filter) return null;
-  return view.groups.reduce((sum, group) => sum + group.total, 0);
+  return view.groups.reduce((sum, group) => sum + group.total, pinned);
 }

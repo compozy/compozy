@@ -36,6 +36,9 @@ func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.Sessi
 		}
 		position.SecondaryAt = info.UpdatedAt.UTC()
 	}
+	if sortKey == ListSortPinned && info.PinnedAt != nil {
+		position.PinnedAt = new(info.PinnedAt.UTC())
+	}
 	if sortKey == ListSortNavigator {
 		band := 3
 		badge := BadgeForInfo(sessionInfoFromCatalog(info))
@@ -69,10 +72,21 @@ func sessionCatalogAttentionRank(info *store.SessionInfo) store.SessionCatalogAt
 	}
 }
 
-func compareSessionCatalogPosition(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
+// compareSessionCatalogKeyedPosition orders the sorts with a dedicated key: manual and pinned.
+func compareSessionCatalogKeyedPosition(left, right store.SessionCatalogPosition) (int, bool) {
 	if left.ManualFolderRank != nil && right.ManualFolderRank != nil &&
 		left.ManualPosition != nil && right.ManualPosition != nil {
-		return compareSessionCatalogManualPosition(left, right)
+		return compareSessionCatalogManualPosition(left, right), true
+	}
+	if left.PinnedAt != nil && right.PinnedAt != nil {
+		return compareSessionCatalogPinnedPosition(left, right), true
+	}
+	return 0, false
+}
+
+func compareSessionCatalogPosition(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
+	if order, keyed := compareSessionCatalogKeyedPosition(left, right); keyed {
+		return order
 	}
 	if left.Name != nil && right.Name != nil {
 		if order := strings.Compare(*left.Name, *right.Name); order != 0 {

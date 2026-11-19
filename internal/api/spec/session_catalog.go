@@ -85,75 +85,88 @@ func sessionCatalogListOperation() OperationSpec {
 		Summary:     "List sessions",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: withProfileScope(
-			queryParam("workspace_id", "Workspace id or path", false),
-			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
-			workspaceIDsQueryParam("Project IDs or @user; repeatable, requires all_workspaces"),
-			boolQueryParam("include_health", "Include metadata-only health for returned sessions"),
-			boolQueryParam("skip_total", "Omit the exact catalog count for a bounded cursor read"),
-			boolQueryParam("exclude_instance_main", "Exclude always-on main sessions from the page and its total"),
-			boolQueryParam("exclude_finished_automation", finishedAutomationParamDescription),
-			boolQueryParam("exclude_automation", automationParamDescription),
-			enumQueryParam(
-				"state",
-				"Filter by exact session state",
-				[]string{"starting", specActiveKey, "stopping", specStoppedKey},
-			),
-			enumQueryParam("type", "Filter by exact session type", sessionCatalogTypeValues()),
-			queryParam("agent", "Filter by exact agent definition name", false),
-			enumQueryParam(
-				"subagents",
-				"Subagent session visibility (default include)",
-				[]string{specIncludeKey, specExcludeKey, specOnlyKey},
-			),
-			enumQueryParam("children", "Managed child visibility", []string{"include", "exclude"}),
-			queryParam("parent", "Filter by exact parent session id", false),
-			queryParam("root", "Filter by exact root session id (includes the root itself)", false),
-			queryParam(
-				"exclude_root",
-				"Leave out this session and every session rooted at it (for example, a session's own tree)",
-				false,
-			),
-			queryParam("worktree", "Filter by exact bound worktree id", false),
-			queryParam(
-				"q",
-				"Search session id, name, agent, or provider; title_agent searches visible title and agent",
-				false,
-			),
-			enumQueryParam(
-				"search_fields",
-				"Select visible title/agent search instead of the default catalog fields",
-				[]string{"title_agent"},
-			),
-			boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
-			boolQueryParam("attention", "Only list sessions in the needs-you attention class"),
-			ParameterSpec{
-				Name:        "board_column",
-				In:          specParameterInQuery,
-				Kind:        specArrayKind,
-				Description: "Repeatable board column filter: needs_you, working, waiting, in_review, done",
-			},
-			queryParam("badge", "Filter by comma-separated exact session badges", false),
-			enumQueryParam(
-				"archive",
-				"Archived session visibility",
-				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
-			),
-			enumQueryParam(
-				"later",
-				"Visibility of sessions parked in Later; excluded by default",
-				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
-			),
-			enumQueryParam(
-				"sort",
-				"Stable session ordering",
-				[]string{"recent", "created", "name", "last_activity", "attention", "navigator", "manual"},
-			),
-			queryParam("cursor", "Opaque next_cursor from the previous page", false),
-			intQueryParam("limit", "Sessions per page (1-100)"),
-		),
-		Responses: sessionCatalogListResponses(),
+		Parameters:  sessionCatalogListParameters(),
+		Responses:   sessionCatalogListResponses(),
 	}
+}
+
+// sessionCatalogListParameters lists the catalog read's filters: scope and
+// population first, then the shelf visibilities, ordering and paging.
+func sessionCatalogListParameters() []ParameterSpec {
+	params := []ParameterSpec{
+		queryParam("workspace_id", "Workspace id or path", false),
+		boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
+		workspaceIDsQueryParam("Project IDs or @user; repeatable, requires all_workspaces"),
+		boolQueryParam("include_health", "Include metadata-only health for returned sessions"),
+		boolQueryParam("skip_total", "Omit the exact catalog count for a bounded cursor read"),
+		boolQueryParam("exclude_instance_main", "Exclude always-on main sessions from the page and its total"),
+		boolQueryParam("exclude_finished_automation", finishedAutomationParamDescription),
+		boolQueryParam("exclude_automation", automationParamDescription),
+		enumQueryParam(
+			"state",
+			"Filter by exact session state",
+			[]string{"starting", specActiveKey, "stopping", specStoppedKey},
+		),
+		enumQueryParam("type", "Filter by exact session type", sessionCatalogTypeValues()),
+		queryParam("agent", "Filter by exact agent definition name", false),
+		enumQueryParam(
+			"subagents",
+			"Subagent session visibility (default include)",
+			[]string{specIncludeKey, specExcludeKey, specOnlyKey},
+		),
+		enumQueryParam("children", "Managed child visibility", []string{"include", "exclude"}),
+		queryParam("parent", "Filter by exact parent session id", false),
+		queryParam("root", "Filter by exact root session id (includes the root itself)", false),
+		queryParam(
+			"exclude_root",
+			"Leave out this session and every session rooted at it (for example, a session's own tree)",
+			false,
+		),
+		queryParam("worktree", "Filter by exact bound worktree id", false),
+		queryParam(
+			"q",
+			"Search session id, name, agent, or provider; title_agent searches visible title and agent",
+			false,
+		),
+		enumQueryParam(
+			"search_fields",
+			"Select visible title/agent search instead of the default catalog fields",
+			[]string{"title_agent"},
+		),
+		boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
+		boolQueryParam("attention", "Only list sessions in the needs-you attention class"),
+		{
+			Name:        "board_column",
+			In:          specParameterInQuery,
+			Kind:        specArrayKind,
+			Description: "Repeatable board column filter: needs_you, working, waiting, in_review, done",
+		},
+		queryParam("badge", "Filter by comma-separated exact session badges", false),
+	}
+	return withProfileScope(append(params,
+		enumQueryParam(
+			"archive",
+			"Archived session visibility",
+			[]string{specExcludeKey, specOnlyKey, specIncludeKey},
+		),
+		enumQueryParam(
+			"later",
+			"Visibility of sessions parked in Later; excluded by default",
+			[]string{specExcludeKey, specOnlyKey, specIncludeKey},
+		),
+		enumQueryParam(
+			"pinned",
+			"Visibility of pinned sessions; included by default",
+			[]string{specExcludeKey, specOnlyKey, specIncludeKey},
+		),
+		enumQueryParam(
+			"sort",
+			"Stable session ordering; pinned (pin order, oldest first) requires pinned=only",
+			[]string{"recent", "created", "name", "last_activity", "attention", "navigator", "manual", "pinned"},
+		),
+		queryParam("cursor", "Opaque next_cursor from the previous page", false),
+		intQueryParam("limit", "Sessions per page (1-100)"),
+	)...)
 }
 
 func sessionPresenceOperation() OperationSpec {
@@ -327,6 +340,11 @@ func sessionCatalogFacetsOperation() OperationSpec {
 			enumQueryParam(
 				"later",
 				"Visibility of sessions parked in Later; excluded by default",
+				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
+			),
+			enumQueryParam(
+				"pinned",
+				"Visibility of pinned sessions; included by default",
 				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
 			),
 		),

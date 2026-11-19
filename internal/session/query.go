@@ -152,6 +152,9 @@ func (m *Manager) StoredStatus(ctx context.Context, id string) (*Info, error) {
 		if err := m.populateInstanceMetadata(ctx, info); err != nil {
 			return nil, err
 		}
+		if err := m.overlayPinnedAt(ctx, []*Info{info}); err != nil {
+			return nil, err
+		}
 		return info, nil
 	}
 
@@ -172,6 +175,9 @@ func (m *Manager) StoredStatus(ctx context.Context, id string) (*Info, error) {
 		return nil, err
 	}
 	if err := m.populateCatalogMetadata(ctx, info); err != nil {
+		return nil, err
+	}
+	if err := m.overlayPinnedAt(ctx, []*Info{info}); err != nil {
 		return nil, err
 	}
 	return info, nil

@@ -5,6 +5,7 @@ import type { WorkspaceFolderPayload } from "../../types";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 import { sessionListGroupTarget, type SessionListGroupSpec } from "../../lib/session-list-groups";
 import { sessionListShelfNoun } from "../../lib/session-list-shelf";
+import { sessionListHasPinnedRows } from "../../lib/session-list-pinned";
 import { AlwaysOnProjectRow } from "../always-on/always-on-signals";
 import {
   GroupLoadFailure,
@@ -120,12 +121,17 @@ export function SessionListGroups(props: GroupRowProps & SessionListProjectFolde
             arrange={arrange}
           />
         )}
-        emptyMessage={`${emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.`}
+        emptyMessage={
+          sessionListHasPinnedRows(view)
+            ? null
+            : `${emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.`
+        }
         testIdPrefix={testIdPrefix}
       />
     );
   }
   if (view.groups.length === 0) {
+    if (sessionListHasPinnedRows(view)) return null;
     return (
       <p className="px-3 py-8 text-center text-small-body text-muted-foreground">
         {emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.

@@ -64,7 +64,7 @@ const sessionInfoSelectQuery = `SELECT COALESCE(instance_id, ''), initiator_kind
 	last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at, ended_early_turn_id,
 	soul_snapshot_id, soul_digest, parent_soul_digest,
 	parked_at, park_reason, park_until, later_returned_at, ` + sessionLaterPendingMessagesExpression + `,
-	failure_seen_at,
+	failure_seen_at, pinned_at,
 	created_at, updated_at, ` + sessionCatalogVerdictOnlyExpression + `
 FROM sessions`
 
@@ -275,6 +275,7 @@ func sessionCatalogPageFilters(
 	}
 	where, args = appendSessionArchiveFilter(where, args, query.Archive)
 	where = appendSessionLaterFilter(where, query.Later)
+	where = appendSessionPinnedFilter(where, query.Pinned)
 	where, args, err = appendSessionCatalogExclusion(where, args, "id", query.ExcludeIDs)
 	if err != nil {
 		return nil, nil, err
@@ -392,6 +393,8 @@ func sessionCatalogOrderClause(sortKey string) (string, error) {
 		return sessionCatalogAttentionOrderClause, nil
 	case sessionCatalogSortManual:
 		return sessionCatalogManualOrderClause, nil
+	case sessionCatalogSortPinned:
+		return sessionCatalogPinnedOrderClause, nil
 	default:
 		return "", fmt.Errorf("store: unsupported session catalog sort %q", sortKey)
 	}
@@ -409,6 +412,9 @@ func sessionCatalogCursorClause(
 	}
 	if strings.TrimSpace(sortKey) == sessionCatalogSortManual {
 		return sessionCatalogManualCursorClause(position, created)
+	}
+	if strings.TrimSpace(sortKey) == sessionCatalogSortPinned {
+		return sessionCatalogPinnedCursorClause(position)
 	}
 	if strings.TrimSpace(sortKey) == sessionCatalogSortName {
 		return `(` + sessionCatalogNameExpression + ` > ? OR (` + sessionCatalogNameExpression + ` = ? AND
