@@ -98,13 +98,26 @@ func (g *SessionRepo) PageSessions(
 		if sourceErr != nil {
 			return store.SessionCatalogPage{}, sourceErr
 		}
-		countQuery := store.AppendWhere("SELECT COUNT(1) FROM "+source, where)
-		// dynamic-sql: page filters and exclusion slices alter the count query structure.
-		if err := tx.QueryRowContext(ctx, countQuery, append(sourceArgs, args...)...).Scan(&page.Total); err != nil {
-			return store.SessionCatalogPage{}, fmt.Errorf("store: count session catalog page: %w", err)
+		if sessionCatalogPinnedSort(query) {
+			// A pinned page counts pins: the subtrees they carry list with them.
+			page.PinnedRootIDs, err = pageSessionCatalogPinnedRoots(ctx, tx, query, where, args)
+			if err != nil {
+				return store.SessionCatalogPage{}, err
+			}
+			page.Total = len(page.PinnedRootIDs)
+		} else {
+			countQuery := store.AppendWhere("SELECT COUNT(1) FROM "+source, where)
+			// dynamic-sql: page filters and exclusion slices alter the count query structure.
+			if err := tx.QueryRowContext(ctx, countQuery, append(sourceArgs, args...)...).Scan(&page.Total); err != nil {
+				return store.SessionCatalogPage{}, fmt.Errorf("store: count session catalog page: %w", err)
+			}
 		}
 	}
-	page.Sessions, err = querySessionCatalogRows(ctx, tx, query, where, args)
+	if sessionCatalogPinnedSort(query) {
+		page.Sessions, err = queryPinnedSessionCatalogRows(ctx, tx, query, where, args)
+	} else {
+		page.Sessions, err = querySessionCatalogRows(ctx, tx, query, where, args)
+	}
 	if err != nil {
 		return store.SessionCatalogPage{}, err
 	}
@@ -393,8 +406,6 @@ func sessionCatalogOrderClause(sortKey string) (string, error) {
 		return sessionCatalogAttentionOrderClause, nil
 	case sessionCatalogSortManual:
 		return sessionCatalogManualOrderClause, nil
-	case sessionCatalogSortPinned:
-		return sessionCatalogPinnedOrderClause, nil
 	default:
 		return "", fmt.Errorf("store: unsupported session catalog sort %q", sortKey)
 	}
@@ -412,9 +423,6 @@ func sessionCatalogCursorClause(
 	}
 	if strings.TrimSpace(sortKey) == sessionCatalogSortManual {
 		return sessionCatalogManualCursorClause(position, created)
-	}
-	if strings.TrimSpace(sortKey) == sessionCatalogSortPinned {
-		return sessionCatalogPinnedCursorClause(position)
 	}
 	if strings.TrimSpace(sortKey) == sessionCatalogSortName {
 		return `(` + sessionCatalogNameExpression + ` > ? OR (` + sessionCatalogNameExpression + ` = ? AND

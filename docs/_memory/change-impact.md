@@ -1,5 +1,26 @@
 # Compozy Change Impact
 
+## Pinned sessions carry their subtree and keep a manual order (GH-1859)
+
+- **Native tools.** `compozy__session_list` `pinned` now includes or leaves out every session a pin
+  carries (hierarchy children, their continuations, subagents; not forks or continuations of the
+  pin itself), and `sort: "pinned"` follows the manual Pinned order and pages by pin with whole
+  subtrees. `compozy__session_reorder` gains `pinned: true` to order Pinned. No new tool.
+- **CLI/HTTP/UDS.** The catalog and facets reads apply the lineage-aware filter; `sort=pinned`
+  cursors anchor a pin (a previous-version pinned cursor is refused once with
+  `ErrListCursorInvalid`). `PUT /api/workspaces/{workspace_id}/session-order/sessions` accepts
+  `pinned: true` (excludes `folder_id`); `compozy session reorder <id>... --pinned`. Additive DTO
+  field, generated through OpenAPI and both SDKs.
+- **Extensibility, hooks and config.** None.
+- **State and isolation.** New nullable `sessions.pin_position` (migration 00209), backfilled from
+  `pinned_at` order so existing pins keep their order; a new pin takes the top. A reorder needs the
+  layout scope's workspace and owner profile, trades only the listed pins' slots, and leaves
+  every parent, folder placement, and manual position untouched.
+- **Web, official skill, docs and QA.** The Pinned section nests each pin's subtree, counts pins,
+  and reorders pins by drag or Move up/Move down where the list reads one pair. The native tool
+  reference, sessions guide, generated CLI docs, release note, and ET-web-session-list-pinned
+  describe the new rule.
+
 ## Turn off a configured MCP server (GH-1850, requirement 10)
 
 - **Native tools, CLI, HTTP and UDS.** MCP list and status reads expose off definitions. The

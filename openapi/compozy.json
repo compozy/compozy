@@ -23496,6 +23496,9 @@
           "folder_id": {
             "type": "string"
           },
+          "pinned": {
+            "type": "boolean"
+          },
           "session_ids": {
             "items": {
               "type": "string"
@@ -75526,7 +75529,7 @@
             }
           },
           {
-            "description": "Visibility of pinned sessions; included by default",
+            "description": "Visibility of pinned sessions and the subtrees their pins carry; included by default",
             "in": "query",
             "name": "pinned",
             "schema": {
@@ -75539,7 +75542,7 @@
             }
           },
           {
-            "description": "Stable session ordering; pinned (pin order, oldest first) requires pinned=only",
+            "description": "Stable session ordering; pinned (the operator's Pinned order, pages by pin with each pin's subtree) requires pinned=only",
             "in": "query",
             "name": "sort",
             "schema": {
@@ -76111,7 +76114,7 @@
             }
           },
           {
-            "description": "Visibility of pinned sessions; included by default",
+            "description": "Visibility of pinned sessions and the subtrees their pins carry; included by default",
             "in": "query",
             "name": "pinned",
             "schema": {
@@ -98784,7 +98787,7 @@
             "description": "Session layout unavailable"
           }
         },
-        "summary": "Set the manual session order in a folder or the workspace root",
+        "summary": "Set the manual session order in a folder, the workspace root, or Pinned",
         "tags": [
           "sessions"
         ],
@@ -99037,7 +99040,7 @@
             }
           },
           {
-            "description": "Visibility of pinned sessions; included by default",
+            "description": "Visibility of pinned sessions and the subtrees their pins carry; included by default",
             "in": "query",
             "name": "pinned",
             "schema": {
@@ -99050,7 +99053,7 @@
             }
           },
           {
-            "description": "Stable session ordering; pinned (pin order, oldest first) requires pinned=only",
+            "description": "Stable session ordering; pinned (the operator's Pinned order, pages by pin with each pin's subtree) requires pinned=only",
             "in": "query",
             "name": "sort",
             "schema": {

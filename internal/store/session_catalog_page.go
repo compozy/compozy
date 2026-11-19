@@ -34,8 +34,10 @@ type SessionCatalogPosition struct {
 	// SessionManualRootRank for sessions outside any folder.
 	ManualFolderRank *int `json:"manual_folder_rank,omitzero"`
 	ManualPosition   *int `json:"manual_position,omitzero"`
-	// PinnedAt anchors the pinned sort, oldest pin first.
-	PinnedAt      *time.Time                  `json:"pinned_at,omitzero"`
+	// PinPosition and PinRootID anchor the pinned sort at a pin: rows a pin carries share its
+	// anchor, so the cursor never lands inside a subtree.
+	PinPosition   *int                        `json:"pin_position,omitzero"`
+	PinRootID     string                      `json:"pin_root_id,omitzero"`
 	AttentionRank SessionCatalogAttentionRank `json:"attention_rank"`
 	PrimaryAt     time.Time                   `json:"primary_at"`
 	SecondaryAt   time.Time                   `json:"secondary_at"`
@@ -149,7 +151,7 @@ func (q SessionCatalogPageQuery) Validate() error {
 func (q SessionCatalogPageQuery) validateCursor() error {
 	// The cursor clause dispatches on the trimmed key, so the guards read the same key.
 	sort := strings.TrimSpace(q.Sort)
-	if q.After != nil && sort == "pinned" && q.After.PinnedAt == nil {
+	if q.After != nil && sort == "pinned" && (q.After.PinPosition == nil || strings.TrimSpace(q.After.PinRootID) == "") {
 		return fmt.Errorf("store: session catalog pinned cursor key is required")
 	}
 	if q.After != nil && sort == "name" && q.After.Name == nil {
@@ -174,6 +176,8 @@ func (q SessionCatalogPageQuery) validateCursor() error {
 type SessionCatalogPage struct {
 	Sessions []SessionInfo
 	Total    int
+	// PinnedRootIDs lists every pin a pinned-sort read counts in Total; it is empty for other sorts.
+	PinnedRootIDs []string
 }
 
 // SessionCatalogPager exposes the bounded catalog read used by public session lists.

@@ -16460,6 +16460,15 @@ func (s *nativeLayoutSessions) ReorderSessions(
 	return nil
 }
 
+func (s *nativeLayoutSessions) ReorderPinnedSessions(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	sessionIDs []string,
+) error {
+	s.folders("reorder-pinned "+strings.Join(sessionIDs, ","), scope)
+	return nil
+}
+
 func TestNativeSessionLayoutTools(t *testing.T) {
 	t.Parallel()
 

@@ -2962,7 +2962,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "826fcd6edf125b43aa80ef0229aae080805f6de886c81f1875a8d91bff1f1056",
+    "input_schema_digest": "eeb93a6143ce6c72f6761ba573105acf921897f5b5f033f99a0d1354730d78f2",
     "output_schema_digest": "d6204aa89b9ab5005dcd7fdc18018f9a23097d593604a7d46324c8fd11fe2202",
     "result_contract": "compact_full",
     "compact_output_schema_digest": "d6204aa89b9ab5005dcd7fdc18018f9a23097d593604a7d46324c8fd11fe2202",
@@ -3146,7 +3146,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "3e3223efb85cb7af72cd614ff54365e483b8839b7e1671435b791587fe974e18",
+    "input_schema_digest": "a5a26fc4abaa92dc54fa57979bc2b863bd42d43d663df4c15af5c56055ef76a7",
     "output_schema_digest": "468051fe332693c0f406829e383a438a1a906a56a45495087df39e115d894818",
     "result_contract": "single",
     "single_result_reason": "minimal"

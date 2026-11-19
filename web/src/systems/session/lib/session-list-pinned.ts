@@ -3,7 +3,7 @@ import { createContext } from "react";
 import type { SessionListFilters } from "../types";
 import type { SessionListShelf } from "./session-list-shelf";
 
-/** The Pinned read's page: pins past it show as "100+". */
+/** The Pinned read's page counts pins, each with the subtree it carries: pins past it show as "100+". */
 export const SESSION_LIST_PINNED_LIMIT = 100;
 
 /** The Pinned section's fold key among the list's group folds. */
@@ -17,7 +17,8 @@ export const SessionListPinnedSectionContext = createContext(false);
 
 /**
  * Only the active shelf has a Pinned section, so only there do the list's own reads leave pinned
- * sessions out: they show once, in Pinned. The archive and Later list them in place.
+ * sessions out, with every session their pins carry: a pinned session's subtree shows once, in
+ * Pinned, and returns to its group and folder on unpin. The archive and Later list them in place.
  */
 export function sessionListPinnedExclusion(
   shelf: SessionListShelf
@@ -36,7 +37,10 @@ export function sessionListHasPinnedRows(view: {
   return Boolean(pinned?.loading || pinned?.more) || (pinned?.sessions.length ?? 0) > 0;
 }
 
-/** The Pinned read: the list's own filters over pinned sessions only, oldest pin first. */
+/**
+ * The Pinned read: the list's own filters over pinned sessions and the subtrees they carry, in the
+ * operator's Pinned order (a new pin on top).
+ */
 export function sessionListPinnedFilters(groupFilters: SessionListFilters): SessionListFilters {
   return {
     ...groupFilters,

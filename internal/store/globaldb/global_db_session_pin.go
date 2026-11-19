@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,28 +15,8 @@ import (
 
 const sessionCatalogSortPinned = "pinned"
 
-// Pinned order is pin order: the oldest pin leads and a new pin lands last, so
-// rows already pinned never shift. The sort only reads pinned rows.
-const sessionCatalogPinnedOrderClause = " ORDER BY pinned_at ASC, id ASC"
-
-func sessionCatalogPinnedCursorClause(position store.SessionCatalogPosition) (string, []any) {
-	pinned := store.FormatTimestamp(*position.PinnedAt)
-	return `(pinned_at > ? OR (pinned_at = ? AND id > ?))`, []any{pinned, pinned, strings.TrimSpace(position.ID)}
-}
-
-func appendSessionPinnedFilter(where []string, filter store.SessionPinnedFilter) []string {
-	switch filter {
-	case store.SessionPinnedExclude:
-		return append(where, "pinned_at IS NULL")
-	case store.SessionPinnedOnly:
-		return append(where, "pinned_at IS NOT NULL")
-	default:
-		return where
-	}
-}
-
-// PinSession pins one listed session. A session pinned already keeps its pin
-// time, so pinning again never moves it within the pinned order.
+// PinSession pins one listed session at the top of the Pinned order. A session pinned already
+// keeps its pin time and position, so pinning again never moves it.
 func (g *SessionRepo) PinSession(ctx context.Context, workspaceID string, sessionID string) (store.SessionInfo, error) {
 	info, _, err := g.setSessionPinned(ctx, workspaceID, sessionID, true)
 	return info, err
@@ -96,6 +77,73 @@ func (g *SessionRepo) setSessionPinned(
 	})
 	// Unpin matches only a pinned row, so its row count says whether a pin was cleared.
 	return result, rows > 0, err
+}
+
+// ReorderPinnedSessions gives the listed pins the Pinned slots they hold now, in the listed order,
+// so a partial list (one page, a search, one project of the aggregate) moves only its own pins and
+// every other pin keeps its slot. Each listed session must be pinned and belong to the scope's
+// workspace and profile; a pin cleared meanwhile reports a layout conflict.
+func (g *SessionRepo) ReorderPinnedSessions(
+	ctx context.Context,
+	scope store.SessionLayoutScope,
+	sessionIDs []string,
+) error {
+	if err := g.checkReady(ctx, "reorder pinned sessions"); err != nil {
+		return err
+	}
+	scope, err := scope.Normalize()
+	if err != nil {
+		return err
+	}
+	sessionIDs, err = store.NormalizeSessionLayoutIDs(sessionIDs, store.MaxSessionLayoutOrder)
+	if err != nil {
+		return err
+	}
+	if len(sessionIDs) == 0 {
+		return fmt.Errorf("%w: pinned order is empty", store.ErrSessionLayoutInvalid)
+	}
+	encoded, err := subagentIDsJSON(sessionIDs)
+	if err != nil {
+		return err
+	}
+	return g.withImmediateTransaction(ctx, "reorder pinned sessions", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		rows, e := q.ListLayoutPinPositions(ctx, sqlcgen.ListLayoutPinPositionsParams{
+			WorkspaceID: scope.WorkspaceID, ProfileID: scope.ProfileID, SessionIds: encoded,
+		})
+		if e != nil {
+			return fmt.Errorf("store: read pinned positions: %w", e)
+		}
+		current := make(map[string]int64, len(rows))
+		for _, row := range rows {
+			current[row.ID] = row.PinPosition
+		}
+		slots := make([]int64, 0, len(sessionIDs))
+		for _, sessionID := range sessionIDs {
+			position, ok := current[sessionID]
+			if !ok {
+				if e := requireSessionLayoutMember(ctx, q, scope, sessionID); e != nil {
+					return e
+				}
+				return fmt.Errorf("%w: session %s is not pinned", store.ErrSessionLayoutConflict, sessionID)
+			}
+			slots = append(slots, position)
+		}
+		slices.Sort(slots)
+		for index, sessionID := range sessionIDs {
+			if current[sessionID] == slots[index] {
+				continue
+			}
+			if _, e := q.SetSessionPinPosition(ctx, sqlcgen.SetSessionPinPositionParams{
+				PinPosition: sql.NullInt64{Int64: slots[index], Valid: true},
+				WorkspaceID: scope.WorkspaceID,
+				ID:          sessionID,
+			}); e != nil {
+				return fmt.Errorf("store: set pinned position %q: %w", sessionID, e)
+			}
+		}
+		return nil
+	})
 }
 
 // guardSessionPinnable refuses sessions the session list never shows as their

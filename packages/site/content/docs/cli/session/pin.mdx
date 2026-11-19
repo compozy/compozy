@@ -9,7 +9,7 @@ Pin a session above the session list
 
 ### Synopsis
 
-Pin a session above the session list. It moves on its own to the Pinned section at the top, above every project group and folder; its folder, manual position and activity order are kept. Pinning a pinned session changes nothing. Subagent sessions and always-on agents' main sessions cannot be pinned.
+Pin a session above the session list. It moves to the top of the Pinned section, above every project group and folder, and carries its child sessions with it, nested under it. Its folder, manual position and activity order, and those of its children, are kept. Pinning a pinned session changes nothing. Reorder pins with `compozy session reorder --pinned`. Subagent sessions and always-on agents' main sessions cannot be pinned.
 
 ```
 compozy session pin <id> [flags]
@@ -18,10 +18,10 @@ compozy session pin <id> [flags]
 ### Examples
 
 ```
-  # Keep a session at the top of the list
+  # Keep a session and its children at the top of the list
   compozy session pin sess-123
 
-  # List what is pinned, in pin order
+  # List what is pinned, in Pinned order
   compozy session list --pinned only --sort pinned
 ```
 

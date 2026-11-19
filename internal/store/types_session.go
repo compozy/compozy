@@ -106,7 +106,10 @@ type SessionInfo struct {
 	Attention       *SessionAttention
 	ArchivedAt      *time.Time
 	// PinnedAt is when the operator pinned the session above the session list; nil when unpinned.
-	PinnedAt  *time.Time
+	PinnedAt *time.Time
+	// PinScope places a session a pin carries in the Pinned section. Only a pinned read
+	// decorates it; it is never persisted.
+	PinScope  *SessionPinScope
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

@@ -195,7 +195,11 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		Total: durable.Total + len(activeMatches),
 		Limit: normalized.Limit,
 	}
-	if len(candidates) > normalized.Limit {
+	if normalized.Sort == ListSortPinned {
+		// A pinned page counts and cuts pins; the rows each pin carries list with it.
+		page.Total = sessionCatalogPinnedTotal(durable.PinnedRootIDs, activeMatches)
+		candidates, page.HasMore = cutSessionCatalogPinnedPage(candidates, normalized.Limit, position)
+	} else if len(candidates) > normalized.Limit {
 		page.HasMore = true
 		candidates = candidates[:normalized.Limit]
 	}
@@ -241,7 +245,7 @@ func mergeSessionCatalogCandidates(
 	for index := range activeMatches {
 		info := &activeMatches[index]
 		key := position(info)
-		if after == nil || compareSessionCatalogPosition(key, *after) > 0 {
+		if after == nil || sessionCatalogAfter(key, *after) {
 			candidates = append(candidates, candidate{info: info, position: key})
 		}
 	}

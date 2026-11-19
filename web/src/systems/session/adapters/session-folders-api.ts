@@ -117,6 +117,24 @@ export async function reorderSessions(
   return requireResponseData(data, response, "Failed to reorder sessions").folders;
 }
 
+/**
+ * Orders the Pinned section: the listed pinned sessions take the Pinned slots they hold now, in the
+ * listed order, and every other pin keeps its slot.
+ */
+export async function reorderPinnedSessions(
+  scope: SessionLayoutScope,
+  sessionIds: readonly string[]
+): Promise<SessionFoldersResponse["folders"]> {
+  const { data, error, response } = await apiClient.PUT(
+    "/api/workspaces/{workspace_id}/session-order/sessions",
+    { params: layoutParams(scope), body: { pinned: true, session_ids: [...sessionIds] } }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, "Failed to reorder pinned sessions");
+  }
+  return requireResponseData(data, response, "Failed to reorder pinned sessions").folders;
+}
+
 /** Moves one session to the end of a folder, or back to the workspace root when `folderId` is null. */
 export async function moveSessionToFolder(
   scope: SessionLayoutScope,

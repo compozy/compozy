@@ -31,7 +31,7 @@ func decodeSessionListCursor(raw string, fingerprint string, sortKey string) (*s
 	if sortKey == ListSortNavigator && position.NavigatorBand == nil {
 		return nil, fmt.Errorf("%w: navigator cursor band is required", ErrListCursorInvalid)
 	}
-	if sortKey == ListSortPinned && position.PinnedAt == nil {
+	if sortKey == ListSortPinned && (position.PinPosition == nil || strings.TrimSpace(position.PinRootID) == "") {
 		return nil, fmt.Errorf("%w: pinned cursor key is required", ErrListCursorInvalid)
 	}
 	if sortKey == ListSortManual && (position.ManualFolderRank == nil || position.ManualPosition == nil) {
@@ -41,6 +41,7 @@ func decodeSessionListCursor(raw string, fingerprint string, sortKey string) (*s
 	position.SecondaryAt = position.SecondaryAt.UTC()
 	position.CreatedAt = position.CreatedAt.UTC()
 	position.ID = strings.TrimSpace(position.ID)
+	position.PinRootID = strings.TrimSpace(position.PinRootID)
 	return &position, nil
 }
 

@@ -59,6 +59,15 @@ export interface SessionDropContainer {
   ids: readonly string[];
 }
 
+/**
+ * The layout verbs a drop resolves to. A session list passes its folder layout; the Pinned
+ * section passes its pin order alone, with no folders to drop into.
+ */
+export type SessionDropLayout = Pick<
+  SessionListLayout,
+  "folders" | "moveSession" | "reorderFolders" | "reorderSessions"
+>;
+
 export type SessionDragHandlers = Pick<
   React.HTMLAttributes<HTMLElement>,
   "onDragStart" | "onDragEnd" | "onDragOver" | "onDragLeave" | "onDrop"
@@ -106,7 +115,7 @@ const DRAG_MIME = "application/x-compozy-session-layout";
  * while rows cannot reorder — becomes that row's child, when the row accepts it.
  */
 export function useSessionListDnd(
-  layout: SessionListLayout | undefined,
+  layout: SessionDropLayout | undefined,
   options: { manual: boolean; reorderable: boolean }
 ): SessionListDnd {
   const [dragging, setDragging] = useState<SessionDragItem | null>(null);
