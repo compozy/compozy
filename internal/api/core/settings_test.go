@@ -946,12 +946,19 @@ func TestSettingsMCPAuthCallbackRendersOutcomePages(t *testing.T) {
 			absent:     []string{"Technical details"},
 		},
 		{
-			name:       "Should not reflect a provider error outside the OAuth code alphabet",
+			name:       "Should not reflect a provider error outside the OAuth error registry",
 			query:      "error=%3Cscript%3Ealert(1)%3C/script%3E&state=public-state",
 			err:        errors.New("mcp auth: OAuth callback reported an error"),
 			wantStatus: http.StatusBadRequest,
 			want:       []string{"Access wasn’t granted", `<p class="cb__code">provider_error</p>`},
 			absent:     []string{"alert(1)"},
+		},
+		{
+			name:       "Should not reflect an unregistered provider error that looks like an OAuth code",
+			query:      "code=sensitive-callback-code&state=public-state&error=sensitive-callback-code",
+			err:        fmt.Errorf("%w: %w", settingspkg.ErrValidation, mcpauth.ErrLoginSessionNotFound),
+			wantStatus: http.StatusBadRequest,
+			want:       []string{"Access wasn’t granted", `<p class="cb__code">provider_error</p>`},
 		},
 		{
 			name:       "Should explain an expired sign-in link",
@@ -1009,6 +1016,8 @@ func TestSettingsMCPAuthCallbackRendersOutcomePages(t *testing.T) {
 				},
 			}
 			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			var logs bytes.Buffer
+			fixture.Handlers.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
 			response := performRequest(t, fixture.Engine, http.MethodGet, "/api/mcp/oauth/callback?"+tt.query, nil)
 			if response.Code != tt.wantStatus {
 				t.Fatalf("callback status = %d, want %d", response.Code, tt.wantStatus)
@@ -1029,6 +1038,9 @@ func TestSettingsMCPAuthCallbackRendersOutcomePages(t *testing.T) {
 			for _, unexpected := range append(tt.absent, "sensitive-callback-code", "public-state") {
 				if strings.Contains(body, unexpected) {
 					t.Fatalf("callback body reflected %q", unexpected)
+				}
+				if strings.Contains(logs.String(), unexpected) {
+					t.Fatalf("callback log recorded %q: %s", unexpected, logs.String())
 				}
 			}
 		})

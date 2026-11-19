@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
@@ -20,8 +19,27 @@ import (
 // unknownMCPOAuthServer names the server in a diagnostic when the callback no longer resolves.
 const unknownMCPOAuthServer = "unknown"
 
-// oauthErrorCode is the RFC 6749 error-code alphabet; anything else from the provider is not shown.
-var oauthErrorCode = regexp.MustCompile(`^[a-z0-9_.-]{1,64}$`)
+// oauthErrorCodes are the registered authorization-endpoint error codes (RFC 6749 §4.1.2.1 and
+// OpenID Connect Core §3.1.2.6). The provider `error` value is inbound and untrusted, so the page
+// and the log name it only when it is one of these; anything else becomes provider_error.
+var oauthErrorCodes = map[string]struct{}{
+	"access_denied":              {},
+	"account_selection_required": {},
+	"consent_required":           {},
+	"interaction_required":       {},
+	"invalid_request":            {},
+	"invalid_request_object":     {},
+	"invalid_request_uri":        {},
+	"invalid_scope":              {},
+	"login_required":             {},
+	"registration_not_supported": {},
+	"request_not_supported":      {},
+	"request_uri_not_supported":  {},
+	"server_error":               {},
+	"temporarily_unavailable":    {},
+	"unauthorized_client":        {},
+	"unsupported_response_type":  {},
+}
 
 // CompleteSettingsMCPAuthCallback completes a browser redirect and renders the outcome page.
 func (h *BaseHandlers) CompleteSettingsMCPAuthCallback(c *gin.Context) {
@@ -89,7 +107,7 @@ func mcpOAuthFailurePage(err error, providerError string) (int, mcpoauthpage.Pag
 	case providerError != "":
 		page.Outcome = mcpoauthpage.OutcomeDeclined
 		page.Code = "provider_error"
-		if oauthErrorCode.MatchString(providerError) {
+		if _, registered := oauthErrorCodes[providerError]; registered {
 			page.Code = providerError
 		}
 		return http.StatusBadRequest, page
