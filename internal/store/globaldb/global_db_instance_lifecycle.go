@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
@@ -145,38 +146,18 @@ func (r *InstanceRepo) Resume(
 			if row.ArchivedAt.Valid {
 				return agentinstance.ErrNotFound
 			}
-			if !operator && row.State == "paused" && agentinstance.OperatorOnlyResume(row.PauseReason) {
+			if !operator && row.State == goalStatusPaused && agentinstance.OperatorOnlyResume(row.PauseReason) {
 				return agentinstance.ErrForbidden
 			}
 			if row.State == "starting" {
 				return agentinstance.ErrStarting
 			}
-			if row.State == "paused" && row.PauseReason == "daily_budget" {
-				budgetRow, budgetErr := q.GetAgentInstanceDailyBudgetLimits(ctx, id)
-				if budgetErr != nil && !errors.Is(budgetErr, sql.ErrNoRows) {
-					return fmt.Errorf("store: read budget on resume: %w", budgetErr)
-				}
-				if budgetErr == nil {
-					limits, err := decodeInstanceDailyBudgetLimits(budgetRow)
-					if err != nil {
-						return err
-					}
-					if limits.Tokens != nil || limits.USD != nil {
-						usage, err := readDailyBudgetUsage(ctx, q, row.ProfileID, id, store.LocalDay(r.now()))
-						if err != nil {
-							return err
-						}
-						assessment, err := agentinstance.EvaluateDailyBudget(limits, usage, false)
-						if err != nil {
-							return err
-						}
-						if assessment.Exhausted {
-							return fmt.Errorf("%w: daily budget remains exhausted", agentinstance.ErrPaused)
-						}
-					}
+			if row.State == goalStatusPaused && row.PauseReason == dailyBudgetPauseReason {
+				if err := checkDailyBudgetResume(ctx, q, row, r.now()); err != nil {
+					return err
 				}
 			}
-			if row.State == "paused" {
+			if row.State == goalStatusPaused {
 				count, err := q.CountActiveAgentInstances(ctx, row.ProfileID)
 				if err != nil {
 					return err
@@ -209,6 +190,34 @@ func (r *InstanceRepo) Resume(
 	)
 	return result, err
 }
+func checkDailyBudgetResume(
+	ctx context.Context, q *sqlcgen.Queries, row sqlcgen.AgentInstance, now time.Time,
+) error {
+	budgetRow, err := q.GetAgentInstanceDailyBudgetLimits(ctx, row.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("store: read budget on resume: %w", err)
+	}
+	limits, err := decodeInstanceDailyBudgetLimits(budgetRow)
+	if err != nil || (limits.Tokens == nil && limits.USD == nil) {
+		return err
+	}
+	usage, err := readDailyBudgetUsage(ctx, q, row.ProfileID, row.ID, store.LocalDay(now))
+	if err != nil {
+		return err
+	}
+	assessment, err := agentinstance.EvaluateDailyBudget(limits, usage, false)
+	if err != nil {
+		return err
+	}
+	if assessment.Exhausted {
+		return fmt.Errorf("%w: daily budget remains exhausted", agentinstance.ErrPaused)
+	}
+	return nil
+}
+
 func (r *InstanceRepo) Archive(ctx context.Context, id string) (agentinstance.Instance, error) {
 	if err := r.checkReady(ctx, "archive instance"); err != nil {
 		return agentinstance.Instance{}, err

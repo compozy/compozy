@@ -45,7 +45,13 @@ func warnForAcceptedBudgetReceipt(
 	if instance.ArchivedAt.Valid {
 		return nil
 	}
-	limitsRow, err := q.GetAgentInstanceDailyBudgetLimits(ctx, owner.InstanceID)
+	return warnForInstanceDailyBudgetUsage(ctx, q, instance, at)
+}
+
+func warnForInstanceDailyBudgetUsage(
+	ctx context.Context, q *sqlcgen.Queries, instance sqlcgen.AgentInstance, at time.Time,
+) error {
+	limitsRow, err := q.GetAgentInstanceDailyBudgetLimits(ctx, instance.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
@@ -77,12 +83,12 @@ func warnForAcceptedBudgetReceipt(
 	}
 	day := store.LocalDay(at)
 	issued, err := q.HasInstanceDailyBudgetNotice(ctx, sqlcgen.HasInstanceDailyBudgetNoticeParams{
-		InstanceID: owner.InstanceID, Day: day,
+		InstanceID: instance.ID, Day: day,
 	})
 	if err != nil || issued > 0 {
 		return err
 	}
-	usage, err := readDailyBudgetUsage(ctx, q, owner.ProfileID, owner.InstanceID, day)
+	usage, err := readDailyBudgetUsage(ctx, q, instance.ProfileID, instance.ID, day)
 	if errors.Is(err, errDailyBudgetTotalsInvalid) {
 		return nil
 	}
@@ -118,7 +124,7 @@ func reserveDailyBudgetWarningTx(
 	if err != nil || rows == 0 {
 		return false, err
 	}
-	noticeID, err := store.NewID("onot")
+	noticeID, err := store.NewID("onot") //nolint:misspell // Preserve the existing opaque notice ID prefix.
 	if err != nil {
 		return false, err
 	}

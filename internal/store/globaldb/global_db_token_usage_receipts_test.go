@@ -53,7 +53,8 @@ func TestRecordTokenUsageReceiptsAreIdempotentAcrossReplays(t *testing.T) {
 			t.Fatalf("duplicate replay changed daily rollup: %+v", usage)
 		}
 		var receipts int
-		if err := db.db.QueryRowContext(ctx, `SELECT count(*) FROM token_usage_receipts WHERE session_id = ?`, stats.SessionID).Scan(&receipts); err != nil {
+		if err := db.db.QueryRowContext(ctx, `SELECT count(*) FROM token_usage_receipts WHERE session_id = ?`, stats.SessionID).
+			Scan(&receipts); err != nil {
 			t.Fatal(err)
 		}
 		if receipts != 1 {
@@ -66,7 +67,8 @@ func TestRecordTokenUsageReceiptsAreIdempotentAcrossReplays(t *testing.T) {
 		if _, err := db.RecordTokenUsageOnce(ctx, stats, daily); err != nil {
 			t.Fatalf("replay after session deletion: %v", err)
 		}
-		if err := db.db.QueryRowContext(ctx, `SELECT count(*) FROM token_usage_receipts WHERE session_id = ?`, stats.SessionID).Scan(&receipts); err != nil {
+		if err := db.db.QueryRowContext(ctx, `SELECT count(*) FROM token_usage_receipts WHERE session_id = ?`, stats.SessionID).
+			Scan(&receipts); err != nil {
 			t.Fatal(err)
 		}
 		if receipts != 1 {
@@ -270,7 +272,11 @@ func TestTokenUsageReceiptProfileDeletion(t *testing.T) {
 		}
 		// Existing daily rollups independently constrain profile deletion. Simulate
 		// their normal retention cleanup before asserting receipt-owned cascade.
-		if _, err := db.db.ExecContext(ctx, `DELETE FROM token_usage_daily WHERE profile_id = ?`, profileID); err != nil {
+		if _, err := db.db.ExecContext(
+			ctx,
+			`DELETE FROM token_usage_daily WHERE profile_id = ?`,
+			profileID,
+		); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := db.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = ?`, profileID); err != nil {

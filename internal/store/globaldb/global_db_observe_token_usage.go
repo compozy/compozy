@@ -252,15 +252,15 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 	if err != nil {
 		return false, err
 	}
-	var amount any
+	var amount sql.NullString
 	if stats.CostAmount != nil && stats.CostCurrency != nil &&
 		strings.EqualFold(strings.TrimSpace(*stats.CostCurrency), "USD") {
-		amount = strconv.FormatFloat(*stats.CostAmount, 'f', -1, 64)
+		amount = sql.NullString{String: strconv.FormatFloat(*stats.CostAmount, 'f', -1, 64), Valid: true}
 	}
 	receipt := sqlcgen.InsertTokenUsageReceiptParams{
 		ProfileID: sessionOwner.ProfileID, SessionID: stats.SessionID, TurnID: stats.TurnID,
 		InstanceID: sessionOwner.InstanceID, Day: daily.Day, TotalTokens: tokens,
-		UsdAmount: nullableReceiptAmount(amount), CostStatus: stats.CostStatus,
+		UsdAmount: amount, CostStatus: stats.CostStatus,
 		CreatedAt: store.FormatTimestamp(daily.UpdatedAt),
 	}
 	rows, err := queries.InsertTokenUsageReceipt(ctx, receipt)
@@ -273,13 +273,6 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 		}
 	}
 	return rows == 1, nil
-}
-
-func nullableReceiptAmount(value any) sql.NullString {
-	if value == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: value.(string), Valid: true}
 }
 
 func receiptTokenCount(stats store.TokenStatsUpdate) (int64, error) {

@@ -64,7 +64,12 @@ func TestDailyBudgetBackfillDoesNotExpireNewerUsage(t *testing.T) {
 		if err := db.DB().QueryRowContext(ctx, `SELECT day, created_at FROM token_usage_receipts
 			WHERE session_id='backfill-retention' AND turn_id='older-day'`).Scan(&day, &updatedAt); err != nil ||
 			day != store.LocalDay(older) || updatedAt != store.FormatTimestamp(older) {
-			t.Fatalf("recovered receipt day=%q created=%q error=%v; want the original Done timestamp", day, updatedAt, err)
+			t.Fatalf(
+				"recovered receipt day=%q created=%q error=%v; want the original Done timestamp",
+				day,
+				updatedAt,
+				err,
+			)
 		}
 	})
 }

@@ -81,7 +81,9 @@ func TestTokenUsageReceiptPreservesOwnedDescendantAfterPlainDelete(t *testing.T)
 			t.Fatalf("instance usage = %+v, err=%v, want only the owned leaf's 7 tokens", usage, err)
 		}
 		var catalogEntries int
-		if err := db.DB().QueryRowContext(ctx, `SELECT count(*) FROM sessions WHERE id=?`, middle).Scan(&catalogEntries); err != nil ||
+		if err := db.DB().
+			QueryRowContext(ctx, `SELECT count(*) FROM sessions WHERE id=?`, middle).
+			Scan(&catalogEntries); err != nil ||
 			catalogEntries != 0 {
 			t.Fatalf("deleted catalog entries=%d err=%v, want the parent still deleted", catalogEntries, err)
 		}

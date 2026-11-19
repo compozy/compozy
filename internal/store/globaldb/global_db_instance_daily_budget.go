@@ -138,7 +138,9 @@ func decodeInstanceDailyBudgetLimits(
 			return agentinstance.DailyBudgetLimits{}, fmt.Errorf("store: invalid stored daily USD cap: %w", parseErr)
 		}
 		if strconv.FormatFloat(amount, 'f', -1, 64) != row.UsdCap.String {
-			return agentinstance.DailyBudgetLimits{}, errors.New("store: stored daily USD cap is not a canonical decimal")
+			return agentinstance.DailyBudgetLimits{}, errors.New(
+				"store: stored daily USD cap is not a canonical decimal",
+			)
 		}
 		limits.USD = &amount
 	}

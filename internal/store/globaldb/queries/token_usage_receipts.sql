@@ -30,15 +30,23 @@ SELECT owner.profile_id,
     ), '') AS TEXT) AS instance_id
 FROM sessions owner
 WHERE owner.id = sqlc.arg(session_id)
-  AND EXISTS (SELECT 1 FROM ancestry a
-      WHERE a.lineage_kind IN ('continue', 'fork', 'provenance')
-         OR a.parent_session_id IS NULL OR a.parent_session_id = '')
+  AND (
+      EXISTS (SELECT 1 FROM ancestry a
+          WHERE a.lineage_kind IN ('continue', 'fork', 'provenance')
+             OR a.parent_session_id IS NULL OR a.parent_session_id = '')
+      OR (
+          -- Older ordinary deletes kept spawned children but no parent edge.
+          -- A known standalone profile can retain unowned usage safely.
+          owner.root_session_id IS NOT NULL AND owner.root_session_id != ''
+          AND NOT EXISTS (SELECT 1 FROM agent_instances i WHERE i.profile_id = owner.profile_id)
+          AND EXISTS (SELECT 1 FROM ancestry a WHERE a.lineage_kind = 'spawn'
+              AND a.parent_session_id IS NOT NULL AND a.parent_session_id != ''
+              AND NOT EXISTS (SELECT 1 FROM sessions parent WHERE parent.id = a.parent_session_id)
+              AND NOT EXISTS (SELECT 1 FROM deleted_session_budget_lineage parent WHERE parent.id = a.parent_session_id))
+      )
+  )
   AND NOT EXISTS (
       SELECT 1 FROM ancestry a WHERE a.profile_id != owner.profile_id
-      OR (a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
-          AND a.parent_session_id IS NOT NULL AND a.parent_session_id != ''
-          AND NOT EXISTS (SELECT 1 FROM sessions parent WHERE parent.id = a.parent_session_id)
-          AND NOT EXISTS (SELECT 1 FROM deleted_session_budget_lineage parent WHERE parent.id = a.parent_session_id))
       OR (a.instance_id IS NOT NULL AND a.instance_id != ''
           AND NOT EXISTS (SELECT 1 FROM agent_instances i
               WHERE i.id = a.instance_id AND i.profile_id = owner.profile_id))

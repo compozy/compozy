@@ -39,7 +39,11 @@ func TestInstanceDailyBudgetResumeEligibility(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.Instances().Resume(ctx, "budget-resume", 10, false); !errors.Is(err, agentinstance.ErrForbidden) {
+		if _, err := db.Instances().
+			Resume(ctx, "budget-resume", 10, false); !errors.Is(
+			err,
+			agentinstance.ErrForbidden,
+		) {
 			t.Fatalf("nonoperator resume error = %v, want forbidden", err)
 		}
 		if _, err := db.Instances().Resume(ctx, "budget-resume", 10, true); !errors.Is(err, agentinstance.ErrPaused) {
@@ -76,7 +80,8 @@ func TestInstanceDailyBudgetResumeEligibility(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if err := db.Instances().SetDailyBudgetLimits(ctx, "budget-cleared", agentinstance.DailyBudgetLimits{}); err != nil {
+		if err := db.Instances().
+			SetDailyBudgetLimits(ctx, "budget-cleared", agentinstance.DailyBudgetLimits{}); err != nil {
 			t.Fatal(err)
 		}
 		for _, receipt := range []struct {
@@ -95,7 +100,11 @@ func TestInstanceDailyBudgetResumeEligibility(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, err := db.Instances().Resume(ctx, "budget-cleared", 10, false); !errors.Is(err, agentinstance.ErrForbidden) {
+		if _, err := db.Instances().
+			Resume(ctx, "budget-cleared", 10, false); !errors.Is(
+			err,
+			agentinstance.ErrForbidden,
+		) {
 			t.Fatalf("nonoperator resume after removing caps error = %v, want forbidden", err)
 		}
 		resumed, err := db.Instances().Resume(ctx, "budget-cleared", 10, true)

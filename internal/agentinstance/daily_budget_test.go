@@ -89,7 +89,12 @@ func TestEvaluateDailyBudget(t *testing.T) {
 	t.Run("Should exhaust estimated USD at the exact cap", func(t *testing.T) {
 		t.Parallel()
 		usdCap := 2.0
-		got := mustEvaluateDailyBudget(t, DailyBudgetLimits{USD: &usdCap}, DailyBudgetUsage{USD: big.NewRat(2, 1)}, false)
+		got := mustEvaluateDailyBudget(
+			t,
+			DailyBudgetLimits{USD: &usdCap},
+			DailyBudgetUsage{USD: big.NewRat(2, 1)},
+			false,
+		)
 		if !got.Exhausted || !got.USDExhausted {
 			t.Fatalf("USD cap = %+v, want exhausted", got)
 		}
@@ -124,7 +129,12 @@ func TestEvaluateDailyBudget(t *testing.T) {
 	t.Run("Should block a zero USD cap even when the provider has no price", func(t *testing.T) {
 		t.Parallel()
 		usdCap := 0.0
-		got := mustEvaluateDailyBudget(t, DailyBudgetLimits{USD: &usdCap}, DailyBudgetUsage{HasUnpricedUsage: true}, false)
+		got := mustEvaluateDailyBudget(
+			t,
+			DailyBudgetLimits{USD: &usdCap},
+			DailyBudgetUsage{HasUnpricedUsage: true},
+			false,
+		)
 		if !got.USDExhausted || !got.Exhausted {
 			t.Fatalf("zero USD cap and unpriced usage = %+v, want exhausted", got)
 		}
@@ -133,7 +143,12 @@ func TestEvaluateDailyBudget(t *testing.T) {
 	t.Run("Should warn at exact fractional USD threshold without binary rounding loss", func(t *testing.T) {
 		t.Parallel()
 		usdCap := 0.10
-		got := mustEvaluateDailyBudget(t, DailyBudgetLimits{USD: &usdCap}, DailyBudgetUsage{USD: big.NewRat(8, 100)}, false)
+		got := mustEvaluateDailyBudget(
+			t,
+			DailyBudgetLimits{USD: &usdCap},
+			DailyBudgetUsage{USD: big.NewRat(8, 100)},
+			false,
+		)
 		if !got.Warn || got.Exhausted {
 			t.Fatalf("fractional threshold = %+v, want warning only", got)
 		}
@@ -153,7 +168,11 @@ func TestEvaluateDailyBudget(t *testing.T) {
 	t.Run("Should reject invalid caps without panicking", func(t *testing.T) {
 		t.Parallel()
 		invalidCap := math.NaN()
-		_, err := EvaluateDailyBudget(DailyBudgetLimits{USD: &invalidCap}, DailyBudgetUsage{USD: big.NewRat(1, 1)}, false)
+		_, err := EvaluateDailyBudget(
+			DailyBudgetLimits{USD: &invalidCap},
+			DailyBudgetUsage{USD: big.NewRat(1, 1)},
+			false,
+		)
 		if err == nil {
 			t.Fatal("EvaluateDailyBudget() accepted NaN cap")
 		}

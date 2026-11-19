@@ -28,7 +28,7 @@ func (r *InstanceRepo) ReadDailyBudgetUsage(
 	instanceID string,
 	at time.Time,
 ) (usage agentinstance.DailyBudgetUsage, err error) {
-	if err = r.checkReady(ctx, "read instance daily budget usage"); err != nil {
+	if err := r.checkReady(ctx, "read instance daily budget usage"); err != nil {
 		return usage, err
 	}
 	if instanceID == "" || strings.TrimSpace(instanceID) != instanceID || at.IsZero() {

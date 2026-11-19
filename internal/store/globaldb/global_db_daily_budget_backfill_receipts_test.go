@@ -66,7 +66,8 @@ func TestDailyBudgetBackfillDoesNotReprojectExistingLegacyUsage(t *testing.T) {
 		}
 		var receipts, projectedTurns int64
 		if err := db.DB().QueryRowContext(ctx,
-			`SELECT count(*) FROM token_usage_receipts WHERE session_id='budget-backfill'`).Scan(&receipts); err != nil {
+			`SELECT count(*) FROM token_usage_receipts WHERE session_id='budget-backfill'`).
+			Scan(&receipts); err != nil {
 			t.Fatal(err)
 		}
 		if err := db.DB().QueryRowContext(ctx,
