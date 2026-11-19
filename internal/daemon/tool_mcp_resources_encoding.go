@@ -115,7 +115,12 @@ func cloneResourceRecord[T any](record resources.Record[T], cloneSpec func(T) T)
 }
 
 func cloneDaemonMCPServer(src compozyconfig.MCPServer) compozyconfig.MCPServer {
+	var disabled *bool
+	if src.Disabled != nil {
+		disabled = new(*src.Disabled)
+	}
 	return compozyconfig.MCPServer{
+		Disabled:         disabled,
 		AgentPlugin:      src.AgentPlugin,
 		Name:             src.Name,
 		DefinitionSource: src.DefinitionSource,

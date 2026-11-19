@@ -114,10 +114,11 @@ func (s *service) commitMCPServerDefinition(
 ) (mcpDefinitionMutationOutcome, error) {
 	previousSource, previousFound := mcpSourceForTarget(name, target.Kind(), sources)
 	rollback := func() error {
+		rollbackCtx := context.WithoutCancel(ctx)
 		if previousFound {
-			return s.writeMCPServer(root, name, target, previousSource.Server)
+			return s.writeMCPServer(rollbackCtx, root, name, target, previousSource.Server)
 		}
-		return s.deleteMCPServerDefinition(root, name, target)
+		return s.deleteMCPServerDefinition(rollbackCtx, root, name, target)
 	}
 	return s.withMCPAuthDefinitionMutation(
 		ctx,
@@ -125,7 +126,7 @@ func (s *service) commitMCPServerDefinition(
 		workspaceID,
 		profileName,
 		name,
-		func() error { return s.writeMCPServer(root, name, target, server) },
+		func() error { return s.writeMCPServer(ctx, root, name, target, server) },
 		rollback,
 	)
 }
@@ -159,6 +160,13 @@ func (s *service) normalizeAndValidateMCPServerWrite(
 			name,
 		))
 	}
+	if server.Disabled == nil {
+		disabled, err := s.declaredMCPDisabled(name, target, sources)
+		if err != nil {
+			return compozyconfig.MCPServer{}, err
+		}
+		server.Disabled = disabled
+	}
 	if err := preserveMCPEnvValues(name, target, sources, &server, envPreservation); err != nil {
 		return compozyconfig.MCPServer{}, err
 	}
@@ -184,18 +192,20 @@ func (s *service) normalizeAndValidateMCPServerWrite(
 }
 
 func (s *service) writeMCPServer(
+	ctx context.Context,
 	root string,
 	name string,
 	target compozyconfig.WriteTarget,
 	server compozyconfig.MCPServer,
 ) error {
-	if err := s.mcpDefinitionWriter(s.homePaths, root, name, target, server); err != nil {
+	if err := s.mcpDefinitionWriter(ctx, s.homePaths, root, name, target, server); err != nil {
 		return fmt.Errorf("settings: write MCP server %q: %w", name, err)
 	}
 	return nil
 }
 
 func writeMCPDefinition(
+	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
 	root string,
 	name string,
@@ -203,7 +213,7 @@ func writeMCPDefinition(
 	server compozyconfig.MCPServer,
 ) error {
 	if isMCPDefinitionSidecarTarget(target.Kind()) {
-		if _, err := compozyconfig.PutMCPSidecarServer(homePaths, root, target, server); err != nil {
+		if _, err := compozyconfig.PutMCPSidecarServer(ctx, homePaths, root, target, server); err != nil {
 			return err
 		}
 		return nil

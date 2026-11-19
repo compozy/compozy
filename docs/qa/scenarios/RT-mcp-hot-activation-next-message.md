@@ -53,3 +53,9 @@ token, missing credentials, revoked consent and session-budget exclusions must r
 QA impact 2026-11-17 (#1794, daemon CPU hot paths):
 Unchanged MCP listings share a three-second discovery floor; explicit checks bypass it. Project approval still invalidates hosted projections immediately and next-message activation remains required. The targeted real-transport walk covers pending-to-approved tool visibility without restart.
 See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).
+
+For #1850, open one session with two ready fixtures and send a message. Turn one server off,
+keep that session open, and send the next message. The off fixture contributes zero tools and the
+other fixture remains usable. Turn the same server on and send another message in that session.
+Its tools return using the same definition and approval, with no delete or re-import.
+See the [off-switch walk](../reports/2026-11-18-mcp-server-off-switch.md).

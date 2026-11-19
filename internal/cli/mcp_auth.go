@@ -23,15 +23,16 @@ const (
 )
 
 type mcpAuthCommandOptions struct {
-	digest                 string
-	owner                  string
-	scope                  string
-	workspaceID            string
-	profile                string
-	manual                 bool
-	timeout                time.Duration
-	approvedScopes         []string
-	approveScopeEscalation bool
+	digest                  string
+	owner                   string
+	scope                   string
+	workspaceID             string
+	profile                 string
+	workspaceDefaultProfile bool
+	manual                  bool
+	timeout                 time.Duration
+	approvedScopes          []string
+	approveScopeEscalation  bool
 }
 
 func newMCPAuthCommand(deps commandDeps) *cobra.Command {
@@ -276,7 +277,8 @@ func (o mcpAuthCommandOptions) validateScope() error {
 			return errors.New("cli: --workspace requires --scope workspace")
 		}
 	case contract.SettingsLayeredScopeProfile:
-		if strings.TrimSpace(o.profile) == "" || strings.TrimSpace(o.profile) == configDefaultKey {
+		if strings.TrimSpace(o.profile) == "" || (strings.TrimSpace(o.profile) == configDefaultKey &&
+			(!o.workspaceDefaultProfile || strings.TrimSpace(o.workspaceID) == "")) {
 			return errors.New("cli: --scope profile requires an active non-default profile")
 		}
 	case contract.SettingsLayeredScopeWorkspace:

@@ -134,6 +134,9 @@ func projectExtensionSecretHeaders(
 	if owner.Kind == extensionResourceOwnerKind {
 		server.Owner = "extension:" + owner.ID
 	}
+	if err := applyPublishedMCPEnablement(ctx, state, record, &server); err != nil {
+		return compozyconfig.MCPServer{}, err
+	}
 	if owner.Kind != extensionResourceOwnerKind || state.extensionEnvBindings == nil ||
 		server.EffectiveTransport() != compozyconfig.MCPServerTransportHTTP {
 		return server, nil

@@ -78,7 +78,7 @@ func (s *service) updateExtensionMCPOverride(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	collectionItem := extensionMCPCollectionItem(definition)
+	collectionItem := extensionMCPCollectionItem(&definition)
 	item := cloneMCPServerItem(&collectionItem.item)
 	return MutationResult{
 		Section: SectionName(

@@ -89,6 +89,7 @@ CREATE TABLE extension_mcp_overrides (
  headers_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(headers_json)),
  url TEXT NOT NULL DEFAULT '',
  updated_at TEXT NOT NULL,
+ disabled BOOLEAN NOT NULL DEFAULT FALSE CHECK (disabled IN (0, 1)),
  PRIMARY KEY (extension, profile, workspace_id, server),
  UNIQUE (profile, workspace_id, runtime_name)
 );

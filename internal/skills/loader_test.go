@@ -457,6 +457,35 @@ func TestParseSkillFileMergesMCPSidecar(t *testing.T) {
 func TestParseSkillFileParsesCompozyMetadataFixtures(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: malformed enablement never publishes an enabled server.
+	// Owner: skill declaration loader; canonical suite: Compozy metadata fixtures.
+	t.Run("Should reject a non-boolean MCP disabled flag", func(t *testing.T) {
+		t.Parallel()
+		path := writeSkillFile(t, t.TempDir(), "mcp/SKILL.md", `---
+name: mcp
+description: MCP declarations
+metadata:
+  compozy:
+    mcp_servers:
+      - name: invalid
+        command: fixture
+        disabled: "true"
+      - name: valid
+        command: fixture
+        disabled: true
+---
+MCP fixture
+`)
+		skill, err := ParseSkillFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(skill.MCPServers) != 1 || skill.MCPServers[0].Name != "valid" ||
+			skill.MCPServers[0].Disabled == nil || !*skill.MCPServers[0].Disabled {
+			t.Fatalf("parsed declarations = %+v", skill.MCPServers)
+		}
+	})
+
 	tests := []struct {
 		name     string
 		fixture  string

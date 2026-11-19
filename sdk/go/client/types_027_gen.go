@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// TaskOwnerTotalPayload is a daemon API value.
+type TaskOwnerTotalPayload struct {
+	OwnerKind string `json:"owner_kind"`
+	OwnerRef  string `json:"owner_ref"`
+	Count     int    `json:"count"`
+}
+
 // TaskPayload is a daemon API value.
 type TaskPayload struct {
 	ID                   string          `json:"id"`
@@ -436,15 +443,3 @@ type TerminalApprovalCountPayload struct {
 
 // TerminalAttachMode is a daemon API value.
 type TerminalAttachMode string
-
-// TerminalAttachTicketRequest is a daemon API value.
-type TerminalAttachTicketRequest struct {
-	Mode     TerminalAttachMode `json:"mode"`
-	ClientID string             `json:"client_id,omitempty"`
-}
-
-// TerminalAttachTicketResponse is a daemon API value.
-type TerminalAttachTicketResponse struct {
-	Ticket    string    `json:"ticket"`
-	ExpiresAt time.Time `json:"expires_at"`
-}

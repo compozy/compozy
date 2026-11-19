@@ -23,6 +23,19 @@ func (p *MCPProvider) ProjectionGeneration(ctx context.Context, scope Scope) (st
 		return "", false
 	}
 	sources = MCPSourcesForScope(sources, scope)
+	if p.consent != nil {
+		admitted := make([]SourceRef, 0, len(sources))
+		for _, source := range sources {
+			allowed, err := p.consent(ctx, source, scope.ProfileID)
+			if err != nil {
+				return "", false
+			}
+			if allowed {
+				admitted = append(admitted, source)
+			}
+		}
+		sources = admitted
+	}
 	if len(sources) == 0 {
 		return "0", true
 	}

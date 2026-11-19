@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// UpdateJobRequest is a daemon API value.
+type UpdateJobRequest struct {
+	Name       *string          `json:"name,omitempty"`
+	Prompt     *string          `json:"prompt,omitempty"`
+	Schedule   *ScheduleSpec    `json:"schedule,omitempty"`
+	Task       *JobTaskConfig   `json:"task,omitempty"`
+	LoopTarget *LoopTarget      `json:"loop_target,omitempty"`
+	Enabled    *bool            `json:"enabled,omitempty"`
+	Retry      *RetryConfig     `json:"retry,omitempty"`
+	FireLimit  *FireLimitConfig `json:"fire_limit,omitempty"`
+}
+
+// UpdateMarketplaceSourceRequest is a daemon API value.
+type UpdateMarketplaceSourceRequest struct {
+	Enabled *bool `json:"enabled"`
+}
+
+// UpdateProfileRequest is a daemon API value.
+type UpdateProfileRequest struct {
+	Color *string `json:"color,omitzero"`
+	Icon  *string `json:"icon,omitzero"`
+	Emoji *string `json:"emoji,omitzero"`
+}
+
 // UpdateSettingsAttentionPayload is a daemon API value.
 type UpdateSettingsAttentionPayload struct {
 	Toasts          bool      `json:"toasts"`
@@ -420,28 +444,3 @@ type WindowManagerPreview struct {
 	Diagnostics  []Diagnostic             `json:"diagnostics,omitempty"`
 	Client       *WindowManagerClientView `json:"client,omitzero"`
 }
-
-// WindowManagerRebaseGuard is a daemon API value.
-type WindowManagerRebaseGuard struct {
-	TabID         *TabID               `json:"tab_id,omitzero"`
-	WindowID      *WindowID            `json:"window_id,omitzero"`
-	SourceNodeID  *WindowmanagerNodeID `json:"source_node_id,omitzero"`
-	TargetNodeID  *WindowmanagerNodeID `json:"target_node_id,omitzero"`
-	SplitID       *WindowmanagerNodeID `json:"split_id,omitzero"`
-	BoundaryIndex *int                 `json:"boundary_index,omitzero"`
-}
-
-// WindowManagerResult is a daemon API value.
-type WindowManagerResult struct {
-	Deprecations []Deprecation            `json:"deprecations"`
-	Snapshot     WindowManagerSnapshot    `json:"snapshot"`
-	Applied      bool                     `json:"applied"`
-	Changes      ChangeSet                `json:"changes"`
-	Diagnostics  []Diagnostic             `json:"diagnostics,omitempty"`
-	Client       *WindowManagerClientView `json:"client,omitzero"`
-	RebasedFrom  *WindowManagerRevision   `json:"rebased_from,omitzero"`
-}
-
-// WindowManagerRevision is a daemon API value.
-// WindowManagerRevision preserves its custom JSON wire representation.
-type WindowManagerRevision = json.RawMessage

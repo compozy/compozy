@@ -160,6 +160,7 @@ func (r *ExtensionMCPRepo) Update(
 			return queries.UpdateExtensionMCPOverride(ctx, sqlcgen.UpdateExtensionMCPOverrideParams{
 				Extension: target.Extension, Profile: target.ProfileID, WorkspaceID: target.WorkspaceID,
 				Server: target.ServerName, EnvJson: string(env), HeadersJson: string(headers), Url: override.URL,
+				Disabled:  override.Disabled,
 				UpdatedAt: store.FormatTimestamp(r.now().UTC()),
 			})
 		},
@@ -228,6 +229,7 @@ func decodeExtensionMCPRecords(rows []sqlcgen.ExtensionMcpOverride) ([]extension
 			return nil, fmt.Errorf("store: decode MCP override headers: %w", err)
 		}
 		record.URL = row.Url
+		record.Disabled = row.Disabled
 		record.UpdatedAt, err = store.ParseTimestamp(row.UpdatedAt)
 		if err != nil {
 			return nil, err

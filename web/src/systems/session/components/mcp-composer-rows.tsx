@@ -137,6 +137,9 @@ function CompozyRow({
     >
       {view.attention ? <StatusDot tone={view.attention} size="sm" /> : null}
       <span className={NAME}>{row.name}</span>
+      {row.state === "off" && row.reason ? (
+        <span className="min-w-0 text-meta text-muted-foreground">{row.reason}</span>
+      ) : null}
       {side}
     </li>
   );

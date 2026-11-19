@@ -2,7 +2,9 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,6 +13,91 @@ import (
 
 	"github.com/compozy/compozy/internal/fileutil"
 )
+
+func TestMCPJSONServerDisabled(t *testing.T) {
+	t.Parallel()
+	t.Run("Should round trip the off setting and accept definitions without it", func(t *testing.T) {
+		t.Parallel()
+		servers, err := ParseMCPServersJSON([]byte(`{"mcpServers":{"keep":{"command":"fixture"}},`+
+			`"mcp_servers":{"switch":{"command":"fixture","disabled":true}}}`), MCPJSONName)
+		if err != nil || len(servers) != 2 || servers[0].IsDisabled() || !servers[1].IsDisabled() {
+			t.Fatalf("unexpected MCP JSON servers: %+v %v", servers, err)
+		}
+		raw, err := marshalMCPJSONServer(servers[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		roundTrip, err := ParseMCPServersJSON([]byte(`{"mcpServers":{"switch":`+string(raw)+`}}`), MCPJSONName)
+		if err != nil || len(roundTrip) != 1 || !roundTrip[0].IsDisabled() {
+			t.Fatalf("off state lost after save: %+v %v", roundTrip, err)
+		}
+	})
+	// Invariant: enablement follows sidecar precedence and preserves the launch definition.
+	// Owner: config persistence; canonical suite: MCP JSON.
+	t.Run("Should toggle the winning definition when both key styles declare the same name", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace := t.TempDir()
+		target, err := ResolveMCPEnabledWriteTarget(home, workspace, WriteScopeProfile, "default", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspaceTarget, err := ResolveMCPSidecarWriteTarget(home, workspace, WriteScopeWorkspace, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, workspaceTarget.Path(), `{"mcpServers":{"demo":{"command":"project"}}}`)
+		writeFile(t, target.Path(), `{
+   "mcpServers":{"demo":{"command":"shadowed"},"other":{"command":"other"}},
+   "mcp_servers":{"demo":{"command":"winning","env":{"MODE":"test"}}}
+  }`)
+		for _, disabled := range []bool{true, false} {
+			cfg, err := SetMCPSidecarServerDisabled(t.Context(), home, workspace, target, "demo", disabled)
+			if err != nil {
+				t.Fatal(err)
+			}
+			servers := cfg.MCPServers
+			if len(servers) != 2 || servers[0].Command != "winning" || servers[0].Env["MODE"] != "test" ||
+				servers[0].IsDisabled() != disabled || servers[1].IsDisabled() {
+				t.Fatalf("unexpected effective MCP servers after disabled=%t: %+v", disabled, servers)
+			}
+		}
+		base, err := LoadMCPServersJSONFile(workspaceTarget.Path())
+		if err != nil || len(base) != 1 || base[0].Command != "project" || base[0].Disabled != nil {
+			t.Fatalf("workspace layer changed: %+v, %v", base, err)
+		}
+	})
+	t.Run("Should preserve the sidecar when a requested mutation is canceled", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		target, err := ResolveMCPSidecarWriteTarget(home, "", WriteScopeUser, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		const original = `{"mcpServers":{"demo":{"command":"fixture"}}}`
+		writeFile(t, target.Path(), original)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		server := MCPServer{Name: "demo", Command: "replacement"}
+		if _, err := PutMCPSidecarServer(ctx, home, "", target, server); !errors.Is(err, context.Canceled) {
+			t.Fatalf("put returned %v, want context cancellation", err)
+		}
+		if _, deleted, err := DeleteMCPSidecarServer(ctx, home, "", target, server.Name); deleted ||
+			!errors.Is(err, context.Canceled) {
+			t.Fatalf("delete returned deleted=%t and %v, want context cancellation", deleted, err)
+		}
+		contents, err := os.ReadFile(target.Path())
+		if err != nil || string(contents) != original {
+			t.Fatalf("canceled mutation changed the sidecar: %s, %v", contents, err)
+		}
+	})
+}
 
 func TestParseMCPServersJSONAcceptsBothKeyStyles(t *testing.T) {
 	t.Parallel()
@@ -173,7 +260,7 @@ func TestPutMCPSidecarServerPreservesUnknownTopLevelKeysAndUntouchedEntries(t *t
   }
 }`)
 
-	cfg, err := PutMCPSidecarServer(homePaths, "", target, MCPServer{
+	cfg, err := PutMCPSidecarServer(t.Context(), homePaths, "", target, MCPServer{
 		Name:    "alpha",
 		Command: "updated-alpha",
 		Args:    []string{"--flag"},
@@ -248,7 +335,7 @@ func TestPutMCPSidecarServerRejectsSymlinkWithoutReadingTarget(t *testing.T) {
 		t.Fatalf("os.Symlink(mcp.json) error = %v", err)
 	}
 
-	_, err = PutMCPSidecarServer(homePaths, "", target, MCPServer{Name: "alpha", Command: "alpha"})
+	_, err = PutMCPSidecarServer(t.Context(), homePaths, "", target, MCPServer{Name: "alpha", Command: "alpha"})
 	if err == nil {
 		t.Fatal("PutMCPSidecarServer(symlink) error = nil, want symlink rejection")
 	}
@@ -291,7 +378,7 @@ func TestDeleteMCPSidecarServerRejectsSymlinkWithoutReadingTarget(t *testing.T) 
 		t.Fatalf("os.Symlink(mcp.json) error = %v", err)
 	}
 
-	_, _, err = DeleteMCPSidecarServer(homePaths, "", target, "leaked")
+	_, _, err = DeleteMCPSidecarServer(t.Context(), homePaths, "", target, "leaked")
 	if err == nil {
 		t.Fatal("DeleteMCPSidecarServer(symlink) error = nil, want symlink rejection")
 	}
@@ -356,21 +443,26 @@ func TestMCPSidecarMutationKeepsTheHeldParentAfterPathReplacement(t *testing.T) 
 			t.Fatalf("os.Symlink(external home) error = %v", err)
 		}
 
-		if _, err := putMCPSidecarServerInDirectory(
+		if _, err := editMCPSidecarServerInDirectory(
+			t.Context(),
 			homePaths,
 			"",
 			target,
-			MCPServer{Name: "alpha", Command: "updated"},
 			directory,
 			MCPJSONName,
+			false,
+			func(doc *editableMCPJSONDocument) error {
+				return doc.Put(MCPServer{Name: "alpha", Command: "updated"})
+			},
 		); err != nil {
-			t.Fatalf("putMCPSidecarServerInDirectory() error = %v", err)
+			t.Fatalf("editMCPSidecarServerInDirectory() error = %v", err)
 		}
 		contents, _, err := readOptionalRegularFileFromDirectory(directory, MCPJSONName, livePath, "MCP sidecar")
 		if err != nil {
 			t.Fatalf("readOptionalRegularFileFromDirectory() error = %v", err)
 		}
 		if _, deleted, err := deleteMCPSidecarServerFromContents(
+			t.Context(),
 			homePaths,
 			"",
 			target,
@@ -407,7 +499,7 @@ func TestPutMCPSidecarServerPreservesRemoteAuthFields(t *testing.T) {
 			t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 		}
 
-		cfg, err := PutMCPSidecarServer(homePaths, "", target, MCPServer{
+		cfg, err := PutMCPSidecarServer(t.Context(), homePaths, "", target, MCPServer{
 			Name:      "linear",
 			Transport: MCPServerTransportHTTP,
 			URL:       "https://mcp.linear.app/mcp",
@@ -497,7 +589,7 @@ func TestDeleteMCPSidecarServerRemovesEntriesFromSnakeCaseCollectionWhenBothExis
   }
 }`)
 
-	cfg, deleted, err := DeleteMCPSidecarServer(homePaths, "", target, "beta")
+	cfg, deleted, err := DeleteMCPSidecarServer(t.Context(), homePaths, "", target, "beta")
 	if err != nil {
 		t.Fatalf("DeleteMCPSidecarServer() error = %v", err)
 	}
@@ -559,7 +651,7 @@ func TestPutMCPSidecarServerPreservesExistingCamelCaseCollection(t *testing.T) {
   }
 }`)
 
-	_, err = PutMCPSidecarServer(homePaths, "", target, MCPServer{
+	_, err = PutMCPSidecarServer(t.Context(), homePaths, "", target, MCPServer{
 		Name:    "alpha",
 		Command: "updated-camel",
 	})
@@ -621,7 +713,7 @@ func TestDeleteMCPSidecarServerNoOpPreservesDocument(t *testing.T) {
 		t.Fatalf("ReadFile(before) error = %v", err)
 	}
 
-	cfg, deleted, err := DeleteMCPSidecarServer(homePaths, "", target, "missing")
+	cfg, deleted, err := DeleteMCPSidecarServer(t.Context(), homePaths, "", target, "missing")
 	if err != nil {
 		t.Fatalf("DeleteMCPSidecarServer() error = %v", err)
 	}

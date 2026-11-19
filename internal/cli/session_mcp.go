@@ -129,6 +129,8 @@ func sessionMCPStateLabel(state string) string {
 		return "Couldn't connect"
 	case "not_available":
 		return "Not available in this session"
+	case mcpOffState:
+		return "Off"
 	case "loaded_by_runtime":
 		return "Loaded by runtime"
 	case "off_in_compozy_sessions":

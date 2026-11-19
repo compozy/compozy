@@ -10,6 +10,78 @@ import (
 	"time"
 )
 
+func TestMCPServerDisabled(t *testing.T) {
+	t.Parallel()
+	t.Run("Should honor an explicit false over an inherited off setting", func(t *testing.T) {
+		t.Parallel()
+		cfg := defaultTestConfig(t)
+		path := filepath.Join(t.TempDir(), "mcp.toml")
+		writeFile(t, path, "[[mcp_servers]]\nname = 'demo'\ncommand = 'fixture'\n")
+		if err := ApplyConfigOverlayFile(path, &cfg); err != nil || cfg.MCPServers[0].IsDisabled() {
+			t.Fatalf("legacy declaration should default to on: %v", err)
+		}
+		for _, disabled := range []bool{true, false} {
+			overlay := "[[mcp_servers]]\nname = 'demo'\ndisabled = false\n"
+			if disabled {
+				overlay = strings.Replace(overlay, "false", "true", 1)
+			}
+			writeFile(t, path, overlay)
+			if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			server := cfg.MCPServers[0]
+			if server.IsDisabled() != disabled || server.Command != "fixture" {
+				t.Fatalf("disabled = %v, command = %q", server.IsDisabled(), server.Command)
+			}
+		}
+	})
+	// Invariant: toggling the effective declaration preserves its launch fields and siblings.
+	// Owner: config persistence; canonical suite: MCP config.
+	for _, test := range []struct{ name, config string }{
+		{"inline", "mcp_servers = [{name = 'demo', command = 'fixture'}, {name = 'demo', disabled = false}, {name = 'other', command = 'other'}]\n"},
+		{"array tables", "[[mcp_servers]]\nname = 'demo'\ncommand = 'fixture'\n[[mcp_servers]]\nname = 'demo'\ndisabled = false\n[[mcp_servers]]\nname = 'other'\ncommand = 'other'\n"},
+	} {
+		t.Run("Should switch the effective "+test.name+" declaration", func(t *testing.T) {
+			t.Parallel()
+			home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			target, err := ResolveMCPEnabledWriteTarget(home, "", WriteScopeUser, "", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, target.Path(), test.config)
+			for _, disabled := range []bool{true, false} {
+				cfg, err := EditConfigOverlay(home, "", target, func(editor *OverlayEditor) error {
+					return editor.SetMCPServerDisabled("demo", disabled)
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(cfg.MCPServers) != 2 || cfg.MCPServers[0].IsDisabled() != disabled ||
+					cfg.MCPServers[0].Command != "fixture" || cfg.MCPServers[1].IsDisabled() {
+					t.Fatalf("unexpected effective MCP servers after disabled=%t: %+v", disabled, cfg.MCPServers)
+				}
+			}
+		})
+	}
+	t.Run("Should retain the definition digest across the enablement change", func(t *testing.T) {
+		t.Parallel()
+		server := MCPServer{Name: "demo", Command: "fixture"}
+		key := []byte("fixture")
+		before, err := MCPDefinitionDigest(server, key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		server.Disabled = new(true)
+		after, err := MCPDefinitionDigest(server, key)
+		if err != nil || before != after {
+			t.Fatalf("enablement changed the approval digest: %v", err)
+		}
+	})
+}
+
 func TestMCPRenderHeaderInputs(t *testing.T) {
 	t.Parallel()
 	t.Run(

@@ -3583,6 +3583,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			runtime := &recordingMCPAuthRuntime{deleteStateErrs: map[int]error{1: invalidateErr}}
 			writeCalls := 0
 			writer := func(
+				ctx context.Context,
 				home compozyconfig.HomePaths,
 				root string,
 				name string,
@@ -3593,7 +3594,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 				if writeCalls == 2 {
 					return rollbackErr
 				}
-				return writeMCPDefinition(home, root, name, target, server)
+				return writeMCPDefinition(ctx, home, root, name, target, server)
 			}
 			service := testService(t, homePaths, Dependencies{
 				MCPAuth:             runtime,

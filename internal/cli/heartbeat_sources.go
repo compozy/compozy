@@ -113,7 +113,7 @@ func newAgentHeartbeatSourcesCommand(deps commandDeps) *cobra.Command {
 				}
 				state := "enabled"
 				if !catalog.ScriptsEnabled {
-					state = "disabled"
+					state = daemonDisabledKey
 				}
 				fmt.Fprintf(
 					&b,

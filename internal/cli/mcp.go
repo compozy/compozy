@@ -6,6 +6,7 @@ const (
 	mcpScopeValue     = "Scope"
 	mcpScopeKey       = "scope"
 	mcpWorkspaceIDKey = "workspace_id"
+	mcpOffState       = "off"
 )
 
 func newMCPCommand(deps commandDeps) *cobra.Command {
@@ -19,6 +20,7 @@ func newMCPCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.AddCommand(newMCPListCommand(deps))
 	cmd.AddCommand(newMCPCheckCommand(deps))
+	cmd.AddCommand(newMCPEnabledCommand(deps, true), newMCPEnabledCommand(deps, false))
 	cmd.AddCommand(newMCPAuthCommand(deps))
 	cmd.AddCommand(newMCPAllowCommand(deps))
 	cmd.AddCommand(newMCPImportCommand(deps))

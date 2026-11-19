@@ -271,6 +271,16 @@ func TestProviderEnabledLayerRestriction(t *testing.T) {
 		return homePaths, t.TempDir()
 	}
 
+	validateWrite := func(
+		t *testing.T, homePaths HomePaths, workspaceRoot string, target WriteTarget, overlay string,
+	) error {
+		t.Helper()
+		configOverlayWriteMu.Lock()
+		defer configOverlayWriteMu.Unlock()
+		_, err := validateEffectiveConfigWriteLocked(homePaths, workspaceRoot, target, []byte(overlay))
+		return err
+	}
+
 	t.Run("Should reject a workspace overlay at load", func(t *testing.T) {
 		t.Parallel()
 		homePaths, workspaceRoot := setup(t)
@@ -300,7 +310,7 @@ func TestProviderEnabledLayerRestriction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget(workspace) error = %v", err)
 		}
-		_, err = validateEffectiveConfigWrite(homePaths, workspaceRoot, target, []byte(overlay))
+		err = validateWrite(t, homePaths, workspaceRoot, target, overlay)
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatalf("validateEffectiveConfigWrite(workspace) error = %v, want %q", err, want)
 		}
@@ -314,12 +324,7 @@ func TestProviderEnabledLayerRestriction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget(profile) error = %v", err)
 		}
-		_, err = validateEffectiveConfigWrite(
-			homePaths,
-			workspaceRoot,
-			target,
-			[]byte("[defaults]\nagent = \"general\"\n"),
-		)
+		err = validateWrite(t, homePaths, workspaceRoot, target, "[defaults]\nagent = \"general\"\n")
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatalf("validateEffectiveConfigWrite(workspace profile) error = %v, want %q", err, want)
 		}
@@ -342,7 +347,7 @@ func TestProviderEnabledLayerRestriction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget(profile) error = %v", err)
 		}
-		if _, err := validateEffectiveConfigWrite(homePaths, workspaceRoot, target, []byte(overlay)); err != nil {
+		if err := validateWrite(t, homePaths, workspaceRoot, target, overlay); err != nil {
 			t.Fatalf("validateEffectiveConfigWrite(profile) error = %v", err)
 		}
 	})

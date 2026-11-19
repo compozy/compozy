@@ -3797,6 +3797,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/mcp-servers/{name}/enabled": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Turn one scoped MCP server on or off */
+    put: operations["setSettingsMCPServerEnabled"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/settings/observability": {
     parameters: {
       query?: never;
@@ -17747,6 +17764,9 @@ export interface components {
         [key: string]: string;
       };
     };
+    SettingsMCPServerEnabledRequest: {
+      enabled: boolean;
+    };
     SettingsMCPServerItemPayload: {
       approval: components["schemas"]["SettingsMCPApprovalStatePayload"];
       args?: string[];
@@ -17757,6 +17777,7 @@ export interface components {
       catalog_version?: string;
       command?: string;
       definition_source?: string;
+      disabled?: boolean;
       env_keys?: string[];
       headers_configured?: boolean;
       name: string;
@@ -42656,6 +42677,99 @@ export interface operations {
         };
       };
       /** @description MCP check runtime unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  setSettingsMCPServerEnabled: {
+    parameters: {
+      query: {
+        /** @description Exact MCP settings scope */
+        scope: "user" | "profile" | "workspace";
+        /** @description Required when scope is workspace */
+        workspace_id?: string;
+        /** @description Required when scope is profile */
+        profile?: string;
+        /** @description Definition owner: manual or extension:<name>; omitted owner selects manual */
+        owner?: string;
+        /** @description Declaring file from the Settings MCP row. Selects one same-name definition in the requested scope. */
+        definition_source?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Configured MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SettingsMCPServerEnabledRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated server */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SettingsMCPServerResponse"];
+        };
+      };
+      /** @description Invalid MCP server owner, scope, or payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server definition is ambiguous or cannot be edited */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server state could not be applied */
       503: {
         headers: {
           [name: string]: unknown;

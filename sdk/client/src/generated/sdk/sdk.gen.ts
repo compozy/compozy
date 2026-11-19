@@ -1542,6 +1542,9 @@ import type {
   SetSessionRuntimeData,
   SetSessionRuntimeErrors,
   SetSessionRuntimeResponses,
+  SetSettingsMCPServerEnabledData,
+  SetSettingsMCPServerEnabledErrors,
+  SetSettingsMCPServerEnabledResponses,
   SetSettingsProviderEnabledData,
   SetSettingsProviderEnabledErrors,
   SetSettingsProviderEnabledResponses,
@@ -7083,6 +7086,33 @@ export class settings extends HeyApiClient {
       responseStyle: "data",
       url: "/api/settings/mcp-servers/{name}/check",
       ...options,
+    });
+  }
+
+  /**
+   * Turn one scoped MCP server on or off
+   */
+  public setSettingsMCPServerEnabled<ThrowOnError extends boolean = true>(
+    options: Options<SetSettingsMCPServerEnabledData, ThrowOnError>
+  ): RequestResult<
+    SetSettingsMCPServerEnabledResponses,
+    SetSettingsMCPServerEnabledErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).put<
+      SetSettingsMCPServerEnabledResponses,
+      SetSettingsMCPServerEnabledErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/mcp-servers/{name}/enabled",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 

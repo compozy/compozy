@@ -125,6 +125,10 @@ type SettingsMCPServerResponse struct {
 	Server SettingsMCPServerItemPayload `json:"server"`
 }
 
+type SettingsMCPServerEnabledRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
 type SettingsMCPServersResponse struct {
 	SettingsLayeredCollectionResponseMetaPayload
 	MCPServers []SettingsMCPServerItemPayload `json:"mcp_servers"`

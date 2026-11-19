@@ -14,6 +14,7 @@ import (
 
 // MCPServerItem is one MCP server collection row.
 type MCPServerItem struct {
+	Disabled               bool
 	Approval               MCPApprovalState
 	CallableInSessions     bool
 	readOnlyTools          *[]string
@@ -57,6 +58,7 @@ func baseMCPServerItem(
 	clientSecretConfigured := strings.TrimSpace(auth.ClientSecretRef) != ""
 	auth.ClientSecretRef = ""
 	return MCPServerItem{
+		Disabled:               effective.Server.IsDisabled(),
 		Name:                   effective.Server.Name,
 		DefinitionSource:       effective.Server.DefinitionSource,
 		readOnlyTools:          new(slices.Clone(effective.Server.ReadOnlyTools)),

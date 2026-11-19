@@ -333,6 +333,66 @@ command = "docs-mcp"
 func TestMCPServerCollectionBoundsRuntimeProbes(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: work queued by a live Settings list cannot probe a server after it is switched off.
+	// Owner: settings collection service; canonical suite: MCP runtime status.
+	t.Run("Should skip a queued probe after the switch commits", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(t, home.ConfigFile, "[[mcp_servers]]\nname = 'echo'\ncommand = 'echo'\n")
+		db, err := openSettingsTestGlobalDB(t.Context(), t, filepath.Join(t.TempDir(), "registry.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime := &fakeMCPRuntimeProvider{targets: map[string]mcpauth.Target{}}
+		svc := testService(t, home, Dependencies{
+			MCPRuntime:   runtime,
+			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+		}).(*service)
+		generation := svc.mcpProbeSnapshot(false)
+		sources, err := svc.loadMCPSources("", "", ScopeUser, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries := sources["echo"]
+		queued := mcpCollectionItem{entry: entries[0], item: baseMCPServerItem(entries[0], entries, ScopeUser, "", "")}
+		// A request that rejects before writing must leave this probe eligible.
+		_, err = svc.SetMCPServerEnabled(t.Context(), MCPAuthTargetRequest{Scope: ScopeUser, Name: "missing"}, false)
+		if !errors.Is(err, ErrNotFound) {
+			t.Fatalf("disable an unknown server: %v", err)
+		}
+		if err := svc.populateMCPCollectionStatuses(
+			t.Context(),
+			[]mcpCollectionItem{queued},
+			false,
+			false,
+			generation,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if len(runtime.calls) != 1 {
+			t.Fatalf("rejected write canceled the queued probe: %v", runtime.calls)
+		}
+		if _, err := svc.SetMCPServerEnabled(
+			t.Context(),
+			MCPAuthTargetRequest{Scope: ScopeUser, Name: "echo"},
+			false,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.populateMCPCollectionStatuses(
+			t.Context(),
+			[]mcpCollectionItem{queued},
+			false,
+			false,
+			generation,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if len(runtime.calls) != 1 {
+			t.Fatalf("queued probe started after disable: %v", runtime.calls)
+		}
+	})
+
 	t.Run("Should probe no more than four configured MCP servers concurrently", func(t *testing.T) {
 		t.Parallel()
 

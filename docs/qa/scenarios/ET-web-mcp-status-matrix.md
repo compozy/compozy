@@ -124,3 +124,9 @@ and return a transient refresh failure. Expect **Ready** while the bound access 
 With an expired access token and an unusable persisted registration, expect **Sign-in expired**
 and **Reauthorize**. Discovery should not contact the OAuth issuer again until the local
 credentials allow renewal. These cases reuse the existing status and repair controls.
+
+For #1850, turn one fixture server off using its Settings switch. Reload Settings and verify
+the row and its definition are still present, the switch is unchecked, and the neutral **Off**
+status replaces Ready. The settings payload reports `off` with `probe: "skipped"`. Re-enable it
+and verify discovery resumes while the second fixture's state stays unchanged.
+See the [off-switch walk](../reports/2026-11-18-mcp-server-off-switch.md).
