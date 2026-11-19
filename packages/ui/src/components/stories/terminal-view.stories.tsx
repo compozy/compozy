@@ -64,11 +64,13 @@ function TerminalStage({
   payload,
   readOnly,
   label,
+  isHostShortcut,
 }: {
   instanceId: string;
   payload: string;
   readOnly?: boolean;
   label: string;
+  isHostShortcut?: (event: KeyboardEvent) => boolean;
 }) {
   const handleRef = useSeededTerminal(payload);
   return (
@@ -78,6 +80,7 @@ function TerminalStage({
         className="px-3.5 pt-2.5 pb-3"
         handleRef={handleRef}
         instanceId={instanceId}
+        isHostShortcut={isHostShortcut}
         readOnly={readOnly}
       />
     </div>
@@ -103,6 +106,36 @@ export const ReadOnly: Story = {
       label="Terminal output — watching"
       payload={SESSION_TRANSCRIPT}
       readOnly
+    />
+  ),
+};
+
+/** Option+H/J/K/L belong to the host here; every other chord reaches the shell. */
+function bindsOptionHjkl(event: KeyboardEvent): boolean {
+  return (
+    event.altKey &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    ["KeyH", "KeyJ", "KeyK", "KeyL"].includes(event.code)
+  );
+}
+
+export const HostShortcuts: Story = {
+  name: "Host shortcuts — bound chords leave the shell",
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`isHostShortcut` names the chords the host runs from the terminal. A bound chord is released to the page instead of typed (Option+H/J/K/L here); unbound chords, Ctrl chords on macOS among them, still reach the shell.",
+      },
+    },
+  },
+  render: () => (
+    <TerminalStage
+      instanceId="story-terminal-host-shortcuts"
+      isHostShortcut={bindsOptionHjkl}
+      label="Terminal output"
+      payload={SESSION_TRANSCRIPT}
     />
   ),
 };

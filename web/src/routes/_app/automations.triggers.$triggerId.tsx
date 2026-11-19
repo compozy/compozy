@@ -10,10 +10,12 @@ export const Route = createFileRoute("/_app/automations/triggers/$triggerId")({
     // Parent `/automations` crumb already supplies the Automations link.
     topbar: { crumb: { label: params.triggerId } },
   }),
-  loader: async ({ context, params }) =>
+  loaderDeps: ({ search }) => ({ fromBell: search.from_bell }),
+  loader: async ({ context, params, deps }) =>
     (await import("./-automation-preload")).preloadAutomationTriggerDetailRoute(
       context.queryClient,
-      params.triggerId
+      params.triggerId,
+      deps.fromBell
     ),
   component: createOsRouteSync("automations"),
 });

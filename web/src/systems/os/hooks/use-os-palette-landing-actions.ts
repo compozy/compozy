@@ -55,16 +55,27 @@ export function useOsPaletteLandingActions({
     windowManagerStore.trigger.paletteIntentCleared();
     // An empty desktop has no tab to replace, and another client may have closed the New Tab
     // already (#1799): either way the pick opens unanchored, with nothing left to close.
-    if (
-      destinationWindowId === null ||
-      manager.getState().windows[destinationWindowId] === undefined
-    ) {
+    const destinationWindow =
+      destinationWindowId === null ? undefined : manager.getState().windows[destinationWindowId];
+    if (destinationWindowId === null || destinationWindow === undefined) {
       void coordinator.userOpen(target);
       return;
     }
-    void coordinator.userOpen({ ...target, afterWindowId: destinationWindowId }).then(openedId => {
+    const replaceDestination = (openedId: string | null) => {
       if (openedId !== null) void manager.closeWindow(destinationWindowId);
-    });
+    };
+    if (destinationWindow.inSplit) {
+      // A split pane (Split right/down): the pick opens tiled beside the focused New Tab and the
+      // New Tab closes, so the pick takes its pane. A stack target would open a separate tab.
+      void coordinator
+        .userFocus(destinationWindowId)
+        .then(() => coordinator.userOpen({ ...target, forceNewInstance: true, placement: "split" }))
+        .then(replaceDestination);
+      return;
+    }
+    void coordinator
+      .userOpen({ ...target, afterWindowId: destinationWindowId })
+      .then(replaceDestination);
   };
   const landSession = (session: OsPaletteSessionResult) => {
     if (session.busy) return;

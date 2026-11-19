@@ -265,6 +265,7 @@ export type SettingsSectionSlug =
   | "terminal"
   | "appearance"
   | "layouts"
+  | "shortcuts"
   | "palette"
   | "profiles"
   | "providers"

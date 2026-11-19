@@ -217,6 +217,7 @@ type Manager struct {
 	notifyMu                sync.Mutex
 	notifyConfig            compozyconfig.AttentionConfig
 	attentionWorkspaceMutes AttentionWorkspaceMuteReader
+	operatorNoticeOutbox    OperatorNoticeOutbox
 	notifyLastBySession     map[string]time.Time
 	waitRegistry            *sessionWaitRegistry
 	clarifyMu               sync.RWMutex

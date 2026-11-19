@@ -27,3 +27,7 @@ report's session matrix in a future QA cycle.
 qa-impact: 2026-11-13 window-tabs-split S10. The destination is now the target desktop's tab bar; decks no longer exist. Walk: Preconditions: an isolated lab from `eng-qa-bootstrap` running this build, one workspace open in the Web shell. With one desktop, open Window: Move to desktop is disabled with "needs another desktop". Create desktops "Build" and "Review". On desktop 1 split two windows in one tab, then Window › Move to desktop › Review: the tab leaves desktop 1, the client stays there, and switching to Review shows the tab at the end of its bar with both windows still split. Move the last tab of a desktop away: that desktop shows a New Tab window. ⌘Z undoes the move. CLI: `compozy window move --id <w> --desktop <build-id> --group --revision <r>` moves the whole tab.
 
 qa-impact: 2026-11-17 #1799. Moving the last tab of a desktop away leaves that desktop with no tabs and the empty-desktop prompt instead of a New Tab window; walk that step once.
+
+qa-impact: 2026-11-18 keyboard-first navigation (#1826). Shortcuts moved from Settings › Layouts to
+their own Settings › Shortcuts page (shortcut table, aliases, conflicts and global hotkeys); walk the
+steps above there. An old `/settings/layouts?command=<id>` link opens Settings › Shortcuts on that row.

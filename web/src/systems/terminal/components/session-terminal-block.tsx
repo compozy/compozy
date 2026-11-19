@@ -45,6 +45,8 @@ export interface SessionTerminalBlockProps {
   socketFactory?: TerminalAttachmentSocketFactory;
   /** Replaces the emulator. Tests and playback harnesses only. */
   engineLoader?: TerminalEngineLoader;
+  /** The host runs this keystroke from the terminal, so the screen releases it. */
+  isHostShortcut?: (event: KeyboardEvent) => boolean;
 }
 
 /**
@@ -74,6 +76,7 @@ function SessionTerminalBlockBody({
   exit,
   socketFactory,
   engineLoader,
+  isHostShortcut,
 }: SessionTerminalBlockProps) {
   // Scoped as fully as the caller can name it: the block, the workspace and
   // profile when known, and the terminal. Length-prefixed so no id containing a
@@ -130,6 +133,7 @@ function SessionTerminalBlockBody({
         // A distinct identity from the app's pane: the preview is a second
         // view of the same terminal, never a second owner of its buffer.
         instanceId={instanceId}
+        {...(isHostShortcut ? { isHostShortcut } : {})}
         onAttached={onAttached}
         onProposeDimensions={sizing.onProposeDimensions}
         readOnly

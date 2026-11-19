@@ -141,6 +141,7 @@ export type AutomationDetailEditParam = 1 | "options";
  */
 export interface AutomationDetailRouteSearch extends Omit<AutomationsRouteSearch, "create"> {
   edit?: AutomationDetailEditParam;
+  from_bell?: true;
 }
 
 export function validateAutomationDetailSearch(
@@ -149,6 +150,7 @@ export function validateAutomationDetailSearch(
   const { create: _create, ...listing } = validateAutomationsSearch(raw);
   const edit =
     raw.edit === "options" ? "options" : raw.edit === "1" || raw.edit === 1 ? 1 : undefined;
+  if (raw.from_bell === true) return { ...listing, ...(edit ? { edit } : {}), from_bell: true };
   return edit ? { ...listing, edit } : listing;
 }
 
@@ -156,7 +158,7 @@ export function validateAutomationDetailSearch(
 export function automationListingSearch(
   search: AutomationDetailRouteSearch
 ): AutomationsRouteSearch {
-  const { edit: _edit, ...listing } = search;
+  const { edit: _edit, from_bell: _fromBell, ...listing } = search;
   return listing;
 }
 

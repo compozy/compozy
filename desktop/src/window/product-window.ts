@@ -8,7 +8,7 @@ import { productWindowChrome } from "./product-window-chrome";
 import { presentWindow, type WindowPresentation } from "./window-presentation";
 import type { WindowTheme } from "./window-theme";
 import { MINIMUM_WINDOW_SIZE, restoreWindowBounds } from "./window-state-policy";
-import { nextZoomLevel } from "./zoom-policy";
+import { nextZoomLevel, zoomDirectionForInput, type ZoomDirection } from "./zoom-policy";
 
 import { productContextMenu, type SpellcheckSettings } from "./context-menu";
 
@@ -164,7 +164,7 @@ export class ProductWindow {
     this.focus();
   }
 
-  adjustZoom(direction: "in" | "out" | "reset"): void {
+  adjustZoom(direction: ZoomDirection): void {
     const window = this.#window;
     if (!window || window.isDestroyed()) return;
     this.#zoomLevel = nextZoomLevel(this.#zoomLevel, direction);
@@ -276,15 +276,7 @@ export class ProductWindow {
         this.toggleDevTools();
         return;
       }
-      if (!input.control && !input.meta) return;
-      const direction =
-        input.key === "0"
-          ? "reset"
-          : input.key === "+" || input.key === "="
-            ? "in"
-            : input.key === "-"
-              ? "out"
-              : null;
+      const direction = zoomDirectionForInput(input, process.platform);
       if (!direction) return;
       event.preventDefault();
       this.adjustZoom(direction);

@@ -26,6 +26,8 @@ import type { TerminalRendererBinding, TerminalRendererKind } from "./terminal-r
 export interface TerminalInstanceListener {
   onData(data: string): void;
   onSelectionChange(selection: string): void;
+  /** The host binds this keystroke, so the emulator releases it instead of sending it. */
+  isHostShortcut(event: KeyboardEvent): boolean;
   onRendererChange(renderer: TerminalRendererKind): void;
   /**
    * The emulator's type metrics were rewritten, so its cell size changed while

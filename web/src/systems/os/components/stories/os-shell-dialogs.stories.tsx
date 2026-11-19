@@ -13,7 +13,7 @@ import {
 } from "../../mocks/cmd-palette-fixtures";
 
 import { OsShellContext } from "../../contexts/os-shell-context";
-import { effectiveShortcutMap } from "../../lib/window-manager-shortcuts";
+import { effectiveShortcutMap } from "../../lib/window-manager-shortcut-overrides";
 import type { WindowManagerConfig } from "../../lib/window-manager-types";
 import { OsAboutDialog } from "../os-about-dialog";
 import { OsShortcutsDialog } from "../os-shortcuts-dialog";

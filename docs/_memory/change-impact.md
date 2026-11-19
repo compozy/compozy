@@ -25,6 +25,26 @@ Owner: [#1827](https://github.com/compozy/compozy/issues/1827).
   generated CLI docs describe pins; QA adds ET-web-session-list-pinned and notes the folder slot
   rule in ET-web-session-folders-manual-order.
 
+||||||| 051fce873
+
+## Composer reply answers a pending clarification (GH-1821)
+
+- **Native tools and CLI/HTTP/UDS.** Routes, DTOs and tool schemas keep their shapes. One answer
+  rule tightens: a provider select question (ACP `elicitation/create` `oneOf` field) without a
+  `<key>_custom` text companion now refuses a text answer with `ErrClarifyInvalid` (HTTP 400; the
+  native answer tool's existing invalid-answer error), leaving the question answerable. Before,
+  the text was accepted, then declined to the provider and lost. `compozy__clarify` questions still accept text.
+- **Extensibility, hooks and config.** No hook, SDK, extension or config key changes;
+  `tools.clarify.timeout` keeps its meaning for unanswered questions.
+- **Workspace and profile isolation.** The composer answer uses the dock's answer endpoint and
+  scope.
+- **Web, docs and official skill.** While a clarification is pending, a steer or queue send from
+  the main composer answers it as free text. A question that settled first passes the text to the
+  next pending question, or to the original send when none waits; a send with files or a refused
+  choice-only answer keeps its draft with the reason; a lost acknowledgment is reconciled against
+  the live pending list and never re-sent as a prompt. Stopping sessions and interrupt keep their
+  behavior. The composer placeholder states the routing. The official skill's clarification note
+  documents the choice-only rule. `RT-session-clarification-roundtrip` records the walk.
 ## Gateway manual 6-digit pairing and device removal — 2026-11-18
 
 Owner: branch `run/gateway-manual-6-digit-pairing-device-removal-backend-a87a1177`.
@@ -90,6 +110,37 @@ Owner: [#1823](https://github.com/compozy/compozy/issues/1823).
   rejection of mismatched resources. The auth adapter suite exercises a local HTTP OAuth server.
 
 ||||||| parent of 107366fab (feat: pin sessions above the session list)
+||||||| 051fce873
+
+## Keyboard-first desktop navigation
+
+Owner: [#1826](https://github.com/compozy/compozy/issues/1826).
+
+- **Native tools.** `compozy__window_open` accepts an optional `insert_edge`
+  (`left`/`right`/`top`/`bottom`) beside `insert_tiled`; the daemon rejects it without
+  `insert_tiled`, with `stack_target_window_id` or legacy `floating`, or with another value. Tool ids
+  and the remaining schema are unchanged. The palette catalog adds `window.split.right`,
+  `window.split.down` and `settings.shortcuts`; existing command ids are kept.
+- **CLI/HTTP/UDS.** Additive `insert_edge` on the `window.open` payload (OpenAPI enum
+  `WindowManagerInsertEdge`) and `compozy window open --edge`, which requires `--tiled` and conflicts
+  with `--restore` and `--stack-target`. Nothing is removed or renamed.
+- **Extensibility, hooks and config.** `[window_manager.shortcuts]` grammar and every command id are
+  unchanged. Defaults change (Option+H/J/K/L focus, Option+; splits, Control+Option+↑/↓ sessions,
+  `window.tile.top|bottom` unbound). A stored override that collides with a new default keeps its
+  chord on every read (`TolerantEffectiveKeymap`, `EffectiveStoredKeymap`); recording a new colliding
+  chord still returns `shortcut_conflict`. Extension defaults keep their bind-if-free rule against
+  the new map. Electron global hotkeys accept the canonical `control` modifier.
+- **User state.** No schema or migration. Values a user applied from the retired Terminal preset stay
+  in `config.toml` and remain valid.
+- **Workspace isolation.** Workspace keymaps resolve from the shipped defaults plus the merged global
+  and workspace overrides, so a global override never leaks a displaced default into a project.
+- **Web.** One chord-eligibility policy for the shell listener and the terminal; Settings ›
+  Shortcuts (`/settings/shortcuts`) owns the keymap table and global hotkeys; the Terminal preset
+  card is removed; `/settings/layouts?command=` redirects (remove in v0.9.0); the session rail walk
+  visits headers and rows in screen order.
+- **Official skill, docs and QA.** Updated `skills/compozy` window-management and native-tools
+  references, the site shortcut and window-management pages, the release note, and the
+  keyboard/settings QA scenarios (Terminal preset scenario retired).
 ## Pull request monitor check rounds
 
 Owner: [#1807](https://github.com/compozy/compozy/issues/1807).

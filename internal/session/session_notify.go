@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/notifications"
 	redactpkg "github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -50,18 +51,7 @@ type NotifyResult struct {
 	RetryAfterMS int64
 }
 
-type OperatorNotification struct {
-	Kind           string
-	Action         string
-	Resource       string
-	NotificationID string
-	SessionID      string
-	ProfileID      string
-	WorkspaceID    string
-	Title          string
-	Body           string
-	At             time.Time
-}
+type OperatorNotification = notifications.OperatorNotice
 
 // AttentionWorkspaceMuteReader reads the typed profile/workspace mute relation.
 type AttentionWorkspaceMuteReader interface {
@@ -143,6 +133,14 @@ func (m *Manager) publishOperatorNotification(
 		OperatorNotification: &notification,
 	})
 	if delivered == 0 {
+		if m.operatorNoticeOutbox != nil {
+			if err := m.operatorNoticeOutbox.EnqueueOperatorNotice(ctx, notification); err != nil {
+				if rateLimit {
+					m.releaseNotificationRateSlot(notification.SessionID, notification.At)
+				}
+				return NotifyResult{}, fmt.Errorf("session: queue operator notification: %w", err)
+			}
+		}
 		result := NotifyResult{Outcome: NotifyOutcomeNoClient}
 		m.logNotificationOutcome(ctx, notification, result, 0)
 		return result, nil
@@ -150,6 +148,15 @@ func (m *Manager) publishOperatorNotification(
 	result := NotifyResult{Outcome: NotifyOutcomeDelivered}
 	m.logNotificationOutcome(ctx, notification, result, delivered)
 	return result, nil
+}
+
+func (m *Manager) releaseNotificationRateSlot(sessionID string, at time.Time) {
+	m.notifyMu.Lock()
+	defer m.notifyMu.Unlock()
+	// A later send may have acquired the slot while the write was pending.
+	if m.notifyLastBySession[sessionID].Equal(at) {
+		delete(m.notifyLastBySession, sessionID)
+	}
 }
 
 // attentionWorkspaceMuted reports whether the profile muted the owning workspace.

@@ -7,6 +7,10 @@ import (
 
 func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (bool, error) {
 	spec := command.Window
+	edge, err := openInsertEdge(spec)
+	if err != nil {
+		return false, err
+	}
 	if spec.StackTargetWindowID != nil {
 		target, ok := snapshot.Windows[*spec.StackTargetWindowID]
 		if !ok {
@@ -31,7 +35,7 @@ func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (boo
 	}
 	split := spec.StackTargetWindowID == nil && (spec.InsertTiled || policy == NewWindowInsert)
 	if split && anchor != nil {
-		if err := r.insertOpenWindow(snapshot, d, window.ID, *anchor, active); err != nil {
+		if err := r.insertOpenWindow(snapshot, d, window.ID, *anchor, active, edge); err != nil {
 			return false, err
 		}
 	} else {
@@ -49,6 +53,24 @@ func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (boo
 	r.changes.window(window.ID)
 	r.changes.desktop(d.ID)
 	return true, nil
+}
+
+// openInsertEdge resolves where a tiled open lands beside its anchor. An edge
+// is only meaningful for a tiled insert, so it is rejected without one.
+func openInsertEdge(spec WindowSpec) (DropPlacement, error) {
+	switch spec.InsertEdge {
+	case "":
+		return DropRight, nil
+	case DropLeft, DropRight, DropTop, DropBottom:
+	default:
+		return "", fmt.Errorf(
+			"insert_edge %q is not left, right, top or bottom: %w", spec.InsertEdge, ErrInvalidCommand,
+		)
+	}
+	if !spec.InsertTiled || spec.StackTargetWindowID != nil {
+		return "", fmt.Errorf("insert_edge requires insert_tiled without a stack target: %w", ErrInvalidCommand)
+	}
+	return spec.InsertEdge, nil
 }
 
 func (r *reducer) newTab(windowID WindowID) (Tab, error) {
@@ -162,6 +184,7 @@ func (r *reducer) insertOpenWindow(
 	windowID WindowID,
 	anchor WindowID,
 	active TabID,
+	edge DropPlacement,
 ) error {
 	leaf, err := newLeaf(windowID, r.generate)
 	if err != nil {
@@ -171,7 +194,7 @@ func (r *reducer) insertOpenWindow(
 	if ti < 0 {
 		return ErrInvalidTopology
 	}
-	root, found, err := insertRelativeInNode(d.Tabs[ti].Root, anchor, leaf, DropRight, r.generate)
+	root, found, err := insertRelativeInNode(d.Tabs[ti].Root, anchor, leaf, edge, r.generate)
 	if err != nil {
 		return err
 	}

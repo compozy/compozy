@@ -41,6 +41,9 @@ const (
 type ClarifyQuestion struct {
 	Question string   `json:"question"`
 	Choices  []string `json:"choices,omitempty"`
+	// ChoicesOnly refuses free-text answers. A provider select field without a
+	// custom-text companion sets it: such a provider can only accept a listed choice.
+	ChoicesOnly bool `json:"-"`
 }
 
 // Normalize validates and isolates one clarification question.
@@ -60,6 +63,7 @@ func (q ClarifyQuestion) Normalize() (ClarifyQuestion, error) {
 	if len(q.Choices) == 0 {
 		return normalized, nil
 	}
+	normalized.ChoicesOnly = q.ChoicesOnly
 	normalized.Choices = make([]string, 0, len(q.Choices))
 	for index, raw := range q.Choices {
 		choice := strings.TrimSpace(raw)
@@ -137,6 +141,12 @@ func (r ClarifyAnswerRequest) Normalize(question ClarifyQuestion) (ClarifyAnswer
 			)
 		}
 		return ClarifyAnswer{Choice: new(index)}, nil
+	}
+	if question.ChoicesOnly {
+		return ClarifyAnswer{}, fmt.Errorf(
+			"%w: question only accepts a listed choice",
+			ErrClarifyInvalid,
+		)
 	}
 	return ClarifyAnswer{Text: text}, nil
 }

@@ -5,6 +5,7 @@ import {
   Command,
   Cpu,
   Gauge,
+  Keyboard,
   Palette,
   PanelTop,
   Puzzle,
@@ -62,7 +63,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     label: "Layouts",
     icon: PanelTop,
     group: "workspace",
-    keywords: "window manager desktops tabs splits profiles gaps focus shortcuts alias",
+    keywords: "window manager desktops tabs splits saved layouts gaps focus history",
   },
   {
     slug: "profiles",
@@ -123,6 +124,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     group: "system",
     keywords:
       "gateway remote reachability exposure overlay public pairing devices revoke audit ingress",
+  },
+  {
+    slug: "shortcuts",
+    label: "Shortcuts",
+    icon: Keyboard,
+    group: "operator",
+    keywords: "keyboard shortcuts keymap keybindings hotkeys global alias rebind chord cheatsheet",
   },
   {
     slug: "palette",

@@ -9,13 +9,13 @@ import {
   CORE_SHORTCUT_SOURCE,
   coveringShortcutFamily,
   expandShortcutOverrides,
+  isRetiredShortcutId,
+  retiredShortcutTitle,
   shortcutSourceLabel,
   type ShortcutConflict,
   type WindowManagerSettingsSection,
   type WindowManagerShortcutMap,
 } from "@/systems/os";
-
-import { isRetiredShortcutId, retiredShortcutTitle } from "./window-manager-retired-shortcuts";
 
 export interface ShortcutTableRow {
   commandId: string;

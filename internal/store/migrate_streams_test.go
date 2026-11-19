@@ -1535,9 +1535,8 @@ UPDATE sessions SET created_at='2026-11-01T00:00:00.500Z' WHERE id='same-second'
 			if err := store.Apply(ctx, db, stream); err != nil {
 				t.Fatal(err)
 			}
-			status, err := store.Status(ctx, db, stream)
-			if err != nil || status.Version != 206 {
-				t.Fatalf("upgraded status=%+v err=%v", status, err)
+			if err := store.RequireCurrent(ctx, db, stream); err != nil {
+				t.Fatalf("upgraded schema: %v", err)
 			}
 			before := map[string]string{}
 			verify := func() {

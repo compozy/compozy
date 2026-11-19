@@ -108,6 +108,34 @@ describe("useMenubarAttentionSelection", () => {
     });
   });
 
+  it("Should open a failed automation under All projects in its owning project", () => {
+    const { result } = renderHook(() => useMenubarAttentionSelection(vi.fn()));
+
+    act(() =>
+      result.current({
+        kind: "automation-failure",
+        id: "run-42",
+        automationId: "morning/briefing",
+        automationKind: "job",
+        title: "Morning briefing",
+        workspaceId: "ws-beta",
+        workspaceLabel: "Beta",
+        reason: "Run failed",
+        occurredAt: "2026-11-18T11:30:00Z",
+        stale: false,
+      })
+    );
+
+    expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+      app: "automations",
+      route: {
+        pathname: "/automations/jobs/morning%2Fbriefing",
+        search: { workspace: "ws-beta", from_bell: true },
+      },
+    });
+    expect(focusDestination).not.toHaveBeenCalled();
+  });
+
   it("Should focus a foreign task's project first in project mode", () => {
     dataScope = { kind: "project", workspaceId: "ws-alpha" };
     commandWorkspaceId = "ws-alpha";

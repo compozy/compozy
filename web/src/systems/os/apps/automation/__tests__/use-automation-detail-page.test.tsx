@@ -29,6 +29,8 @@ beforeEach(() => {
 const state = vi.hoisted(() => ({
   activeWorkspaceId: "ws_checkout_api" as string | null,
   navigate: vi.fn(),
+  readJob: vi.fn(),
+  readJobRuns: vi.fn(),
   job: { data: undefined as unknown, error: null as unknown, isLoading: false, isPending: false },
   trigger: {
     data: undefined as unknown,
@@ -83,9 +85,15 @@ vi.mock("@/systems/automation", async importOriginal => {
   const runsQuery = () => ({ data: state.runs, error: null, isLoading: false, refetch: vi.fn() });
   return {
     ...actual,
-    useAutomationJob: () => state.job,
+    useAutomationJob: (...args: unknown[]) => {
+      state.readJob(...args);
+      return state.job;
+    },
     useAutomationTrigger: () => state.trigger,
-    useAutomationJobRuns: runsQuery,
+    useAutomationJobRuns: (...args: unknown[]) => {
+      state.readJobRuns(...args);
+      return runsQuery();
+    },
     useAutomationTriggerRuns: runsQuery,
     useAutomationEditor: () => ({ editorDialogProps: {}, openEdit: state.openEdit }),
     useUpdateAutomationJob: () => mutation(state.update),
@@ -106,6 +114,15 @@ describe("useAutomationDetailPage", () => {
     state.trigger = { data: rerunDeliveryTrigger, error: null, isLoading: false, isPending: false };
     state.runs = [];
     state.loopError = null;
+  });
+
+  it("Should read the automation and runs across profiles when opened from the bell", () => {
+    const search = validateAutomationDetailSearch({ from_bell: true });
+    renderHook(() => useAutomationDetailPage("job", "morning-digest", search));
+
+    const options = { enabled: true, profileScope: { all_profiles: true } };
+    expect(state.readJob).toHaveBeenCalledWith("morning-digest", options);
+    expect(state.readJobRuns).toHaveBeenCalledWith("morning-digest", { limit: 10 }, options);
   });
 
   it("Should project a job into one ready view with its sentence and next run", () => {

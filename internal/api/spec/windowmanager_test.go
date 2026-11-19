@@ -27,7 +27,7 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		for component, fields := range map[string][]string{
-			"WindowManagerWindowSpecPayload":     {"floating_rect", "insert_tiled"},
+			"WindowManagerWindowSpecPayload":     {"floating_rect", "insert_tiled", "insert_edge"},
 			"WindowManagerCloseWindowPayload":    {"minimize"},
 			"WindowManagerResizeWindowPayload":   {"frame"},
 			"WindowManagerArrangeLayoutPayload":  {"frame", "group_id"},
@@ -81,7 +81,7 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 			}
 		}
 		for component, fields := range map[string][]string{
-			"WindowManagerWindowSpecPayload":    {"insert_tiled", "stack_target_window_id"},
+			"WindowManagerWindowSpecPayload":    {"insert_tiled", "insert_edge", "stack_target_window_id"},
 			"WindowManagerMoveWindowPayload":    {"placement", "move_group", "target_tab_id"},
 			"WindowManagerArrangeLayoutPayload": {"arrangement"},
 		} {

@@ -46,6 +46,11 @@ func projectNode(node LayoutNode, frame NormalizedRect, output map[WindowID]Norm
 	}
 }
 
+// directionalWindow picks the neighbor of current in direction, the way a tiling window
+// manager moves focus: only windows past current's edge qualify, a window sharing
+// current's span on the other axis beats one diagonal to it, then the nearest edge wins,
+// then the closest center. Comparing centers alone let a full-height window beside a
+// stacked pair count as "below" the top pane and steal focus from the pane under it.
 func directionalWindow(
 	snapshot Snapshot,
 	desktopID DesktopID,
@@ -57,47 +62,85 @@ func directionalWindow(
 	if !exists {
 		return "", false
 	}
-	cx, cy := center(currentRect)
 	type candidate struct {
-		id                 WindowID
-		primary, secondary float64
+		id WindowID
+		directionalFit
 	}
 	var candidates []candidate
 	for windowID, rect := range rects {
 		if windowID == current || snapshot.Windows[windowID].TabID != snapshot.Windows[current].TabID {
 			continue
 		}
-		x, y := center(rect)
-		var primary, secondary float64
-		switch direction {
-		case FocusLeft:
-			primary, secondary = cx-x, math.Abs(cy-y)
-		case FocusRight:
-			primary, secondary = x-cx, math.Abs(cy-y)
-		case FocusUp:
-			primary, secondary = cy-y, math.Abs(cx-x)
-		case FocusDown:
-			primary, secondary = y-cy, math.Abs(cx-x)
-		default:
-			return "", false
+		next, ok := directionalCandidate(currentRect, rect, direction)
+		if !ok {
+			continue
 		}
-		if primary > weightTolerance {
-			candidates = append(candidates, candidate{id: windowID, primary: primary, secondary: secondary})
-		}
+		candidates = append(candidates, candidate{id: windowID, directionalFit: next})
 	}
 	if len(candidates) == 0 {
 		return "", false
 	}
 	slices.SortFunc(candidates, func(a, b candidate) int {
-		if math.Abs(a.primary-b.primary) > weightTolerance {
-			return cmp.Compare(a.primary, b.primary)
+		if a.overlaps != b.overlaps {
+			if a.overlaps {
+				return -1
+			}
+			return 1
 		}
-		if math.Abs(a.secondary-b.secondary) > weightTolerance {
-			return cmp.Compare(a.secondary, b.secondary)
+		if math.Abs(a.gap-b.gap) > weightTolerance {
+			return cmp.Compare(a.gap, b.gap)
+		}
+		if math.Abs(a.centerDistance-b.centerDistance) > weightTolerance {
+			return cmp.Compare(a.centerDistance, b.centerDistance)
 		}
 		return cmp.Compare(a.id, b.id)
 	})
 	return candidates[0].id, true
+}
+
+type directionalFit struct {
+	overlaps            bool
+	gap, centerDistance float64
+}
+
+// directionalCandidate measures rect from current along direction; ok is false when rect
+// does not lie past current's edge in that direction.
+func directionalCandidate(current, rect NormalizedRect, direction FocusDirection) (directionalFit, bool) {
+	cx, cy := center(current)
+	x, y := center(rect)
+	var gap, overlap, centerDistance float64
+	switch direction {
+	case FocusLeft:
+		gap = current.X - (rect.X + rect.Width)
+		overlap = spanOverlap(current.Y, current.Height, rect.Y, rect.Height)
+		centerDistance = math.Abs(cy - y)
+	case FocusRight:
+		gap = rect.X - (current.X + current.Width)
+		overlap = spanOverlap(current.Y, current.Height, rect.Y, rect.Height)
+		centerDistance = math.Abs(cy - y)
+	case FocusUp:
+		gap = current.Y - (rect.Y + rect.Height)
+		overlap = spanOverlap(current.X, current.Width, rect.X, rect.Width)
+		centerDistance = math.Abs(cx - x)
+	case FocusDown:
+		gap = rect.Y - (current.Y + current.Height)
+		overlap = spanOverlap(current.X, current.Width, rect.X, rect.Width)
+		centerDistance = math.Abs(cx - x)
+	default:
+		return directionalFit{}, false
+	}
+	if gap < -weightTolerance {
+		return directionalFit{}, false
+	}
+	return directionalFit{
+		overlaps:       overlap > weightTolerance,
+		gap:            math.Max(gap, 0),
+		centerDistance: centerDistance,
+	}, true
+}
+
+func spanOverlap(start, length, otherStart, otherLength float64) float64 {
+	return min(start+length, otherStart+otherLength) - max(start, otherStart)
 }
 
 func center(rect NormalizedRect) (float64, float64) {

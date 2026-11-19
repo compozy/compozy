@@ -36,6 +36,7 @@ import {
   SessionTransportFailureNotice,
   useSessionTranscriptThreadMessages,
   SessionTransportHistoryResetNotice,
+  useClarificationComposerAnswer,
   type SessionBusyInputHandler,
   type SessionFailurePayload,
   type SessionState,
@@ -174,6 +175,15 @@ export function SessionThread({
         return onSteerPrompt(draft);
       }
     : undefined;
+  // A pending question blocks the turn: a steer or queue send answers it instead (#1821).
+  const clarificationAnswer = useClarificationComposerAnswer({
+    allowBusyInput,
+    enabled: liveDataEnabled,
+    readOnly,
+    sessionId,
+    stopPhase,
+    workspaceId,
+  });
   const content = (
     <ThreadPrimitive.Root
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
@@ -251,9 +261,10 @@ export function SessionThread({
                       }
                       canPrompt={thread.lifecycleCanPrompt}
                       onCancelPrompt={thread.handleCancelPrompt}
-                      onQueuePrompt={onQueuePrompt}
+                      onQueuePrompt={clarificationAnswer.answering(onQueuePrompt)}
                       onInterruptPrompt={onInterruptPrompt}
-                      onSteerPrompt={handleSteerPrompt}
+                      onSteerPrompt={clarificationAnswer.answering(handleSteerPrompt)}
+                      placeholder={clarificationAnswer.placeholder}
                       isBusyInputPending={isBusyInputPending}
                       isSessionRunning={thread.runtimeRunning}
                       stopPhase={stopPhase}

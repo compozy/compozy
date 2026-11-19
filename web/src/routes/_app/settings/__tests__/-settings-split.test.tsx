@@ -1,8 +1,17 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { parseSettingsWindowManagerSection } from "@/systems/os";
+import {
+  useLayoutsSettingsData,
+  useShortcutsSettingsData,
+  type LayoutsSettingsData,
+  type ShortcutsSettingsData,
+} from "@/systems/settings";
 import { settingsHooksExtensionsSectionFixture } from "@/systems/settings/mocks/fixtures";
+import { settingsWindowManagerSectionFixture } from "@/systems/settings/mocks/window-manager-fixtures";
 import { profileFlowFromSearch, validateProfilesSettingsSearch } from "@/systems/profiles";
 
 vi.mock("@/systems/settings", async importOriginal => {
@@ -10,6 +19,7 @@ vi.mock("@/systems/settings", async importOriginal => {
   return {
     ...original,
     useLayoutsSettingsData: vi.fn(() => ({ isPending: true })),
+    useShortcutsSettingsData: vi.fn(() => ({ isPending: true })),
     useSettingsTopbar: vi.fn(),
   };
 });
@@ -38,6 +48,14 @@ import { PolicySection } from "../-extensions-policy-section";
 import { ExtensionPalettePanel, ExtensionPalettePanels } from "../-extension-palette-panel";
 import { HooksSection } from "../-hooks-section";
 import { LayoutsSettingsPage } from "../-layouts-settings-page";
+import { ShortcutsSettingsPage } from "../-shortcuts-settings-page";
+
+const KEYBOARD = parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture);
+
+function withQueryClient(children: ReactNode) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 function notesExtension() {
   const extension = settingsHooksExtensionsSectionFixture.installed?.find(
@@ -80,6 +98,43 @@ describe("Settings route split", () => {
     render(<LayoutsSettingsPage />);
 
     expect(screen.getByTestId("settings-page-layouts-loading")).toBeInTheDocument();
+  });
+
+  it("Should keep the shortcut table and global hotkeys on Shortcuts, not on Layouts", () => {
+    // Invariant: the keyboard surface lives on its own page; Layouts keeps window settings only.
+    vi.mocked(useShortcutsSettingsData).mockReturnValueOnce({
+      isPending: false,
+      error: null,
+      workspaceId: "workspace:alpha",
+      workspaceName: "Alpha",
+      clientId: "client:settings",
+      keyboard: KEYBOARD,
+      retry: vi.fn(),
+    } satisfies ShortcutsSettingsData);
+    const shortcuts = render(withQueryClient(<ShortcutsSettingsPage />));
+
+    expect(screen.getByTestId("settings-page-shortcuts")).toBeInTheDocument();
+    expect(screen.getByTestId("window-manager-shortcut-table")).toBeInTheDocument();
+    expect(screen.getByTestId("window-manager-global-hotkeys")).toBeInTheDocument();
+    shortcuts.unmount();
+
+    vi.mocked(useLayoutsSettingsData).mockReturnValueOnce({
+      isPending: false,
+      error: null,
+      workspaceId: "",
+      profileName: "default",
+      workspaceName: null,
+      config: KEYBOARD.config,
+      layout: null,
+      profiles: [],
+      retry: vi.fn(),
+    } satisfies LayoutsSettingsData);
+    render(withQueryClient(<LayoutsSettingsPage />));
+
+    expect(screen.getByTestId("settings-page-layouts")).toBeInTheDocument();
+    expect(screen.getByText("Window behavior")).toBeInTheDocument();
+    expect(screen.queryByTestId("window-manager-shortcut-table")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("window-manager-global-hotkeys")).not.toBeInTheDocument();
   });
 
   it("Should show effective, dormant, and view palette contributions", () => {

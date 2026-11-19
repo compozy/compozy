@@ -257,6 +257,8 @@ function SessionRowTarget({
         emphasized && "font-medium"
       )}
       data-slot="session-row-target"
+      data-sidebar-stop="session"
+      data-session-id={session.id}
       // The end slot swaps the time for actions on hover, and the meta line sits
       // under the target, so the full timestamp and attention detail ride on the row.
       title={[formatAbsoluteTime(session.updated_at), meta.reason?.detail]

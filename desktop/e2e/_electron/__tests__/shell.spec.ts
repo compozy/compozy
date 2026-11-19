@@ -2344,7 +2344,7 @@ test("E2E-029: a captured replacement restores the previous binding and relaunch
     "-o",
     "json",
   ]);
-  await product.goto(new URL("/settings/layouts", product.url()).toString(), {
+  await product.goto(new URL("/settings/shortcuts", product.url()).toString(), {
     waitUntil: "domcontentloaded",
   });
   const failed = await waitForGlobalShortcut(product, "palette.summon.global", "failed_in_use");
@@ -2374,7 +2374,7 @@ test("E2E-029: a captured replacement restores the previous binding and relaunch
     active_chord: "meta+alt+Space",
     intended_chord: "meta+alt+Space",
   });
-  await relaunched.cli(["app", "open", "/settings/layouts"]);
+  await relaunched.cli(["app", "open", "/settings/shortcuts"]);
   await expect(relaunchedProduct.getByTestId("window-manager-global-hotkeys")).toContainText(
     "active"
   );
@@ -2390,7 +2390,7 @@ test("E2E-030: a plain browser explains global hotkeys while keeping the in-app 
   const browser = await playwright.chromium.launch();
   try {
     const page = await browser.newPage();
-    await page.goto(new URL("/settings/layouts", product.url()).toString());
+    await page.goto(new URL("/settings/shortcuts", product.url()).toString());
     const globalSection = page.getByTestId("window-manager-global-hotkeys");
     await expect(globalSection).toContainText("desktop only");
     await expect(globalSection).toContainText("requires desktop shell");

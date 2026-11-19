@@ -273,6 +273,7 @@ func TestProviderAbsorption(t *testing.T) {
 			"settings.profiles=/settings/profiles",
 			"settings.providers=/settings/providers",
 			"settings.roles=/settings/roles",
+			"settings.shortcuts=/settings/shortcuts",
 			"settings.skills=/settings/skills",
 		}
 		slices.Sort(actual)
@@ -447,7 +448,7 @@ func TestWindowTabCommandAliases(t *testing.T) {
 			}
 		}
 		commands := mustCommands(t)
-		for _, id := range []cmdpalette.CommandID{"window.unsplit", "window.tab.move_left", "window.tab.move_right", "window.tile.left", "window.tile.right", "window.tile.top", "window.tile.bottom", "window.swap.left", "window.swap.right", "window.swap.up", "window.swap.down"} {
+		for _, id := range []cmdpalette.CommandID{"window.split.right", "window.split.down", "window.unsplit", "window.tab.move_left", "window.tab.move_right", "window.tile.left", "window.tile.right", "window.tile.top", "window.tile.bottom", "window.swap.left", "window.swap.right", "window.swap.up", "window.swap.down"} {
 			index := slices.IndexFunc(commands, func(command cmdpalette.Descriptor) bool { return command.ID == id })
 			if index < 0 || commands[index].Action.Kind != cmdpalette.ActionKindClientOp ||
 				commands[index].Action.Op != string(id) {

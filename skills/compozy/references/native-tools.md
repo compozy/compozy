@@ -162,8 +162,9 @@ if the answer itself exceeds the result budget, page its returned artifact norma
 required `title` of at most 80 characters and an optional `body` of at most 240 characters. The
 daemon sanitizes and redacts both fields before delivery, then returns exactly one provable outcome:
 `delivered` when at least one live operator catalog-stream subscriber accepted the event,
-`no-client`, `muted-workspace`, or `rate-limited` with `retry_after_ms`. The per-session limit is one
-send per second, including sends suppressed by a workspace mute. CLI fallback: `compozy notify`.
+`no-client` when the notice was saved for the sender profile's attention bell, `muted-workspace`,
+or `rate-limited` with `retry_after_ms`. The per-session limit is one send per second, including
+sends suppressed by a workspace mute. CLI fallback: `compozy notify`.
 
 Monitor tools, also in the `sessions` toolset: `compozy__monitor_create`, `compozy__monitor_list`,
 `compozy__monitor_cancel`. A monitor is a daemon-owned watch that wakes the bound session with a new
@@ -548,7 +549,8 @@ root `--profile` selection outside a session. CLI:
 `compozy --profile <profile> tool approvals set|list|revoke --workspace <workspace>`.
 
 Clarification: `compozy__clarify` asks one active-session question with at most four choices and returns
-zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session clarify pending|answer`
+zero-based `{choice,text,fallback}`. It is not approval. A provider select question without a custom-text field (ACP
+`elicitation/create`) accepts only a choice; a text answer to it is refused as invalid. CLI: `compozy session clarify pending|answer`
 (choice presentation is one-based).
 
 `compozy__session_list` accepts `board_column: ["needs_you", "working", "waiting", "in_review", "done"]`
@@ -871,7 +873,8 @@ window's whole tab with a required `pinned` boolean; `window_reopen` needs only 
 `target_window_id` puts the window beside that window in its tab, with `target_tab_id` at that
 root edge of the tab; `placement: "tab"` makes it its own tab; `move_group` moves the whole tab.
 `window_open` accepts `stack_target_window_id` (a new tab right after that window's tab) and
-`insert_tiled` (a split member right of the focused window); `window_navigate` accepts `mode`
+`insert_tiled` (a split member right of the focused window) with an optional `insert_edge`
+(`left`/`right`/`top`/`bottom`, default right); `window_navigate` accepts `mode`
 (`replace`/`push`/`pop`, and `pop` forbids `route`); `window_close` accepts `scope`
 (`tab`/`group`/`others`/`right`/`left`/`all`); `layout_balance` takes `tab_id` or `split_id`.
 Results carry `changes.tab_ids`, `tab_split`, `tab_unsplit` and, when a retired input was used,

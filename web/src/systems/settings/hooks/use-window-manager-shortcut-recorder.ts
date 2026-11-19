@@ -6,12 +6,12 @@ import {
   findShortcutConflicts,
   shortcutLabel,
   WindowManagerSettingsError,
+  withoutRetiredShortcuts,
   type ShortcutConflict,
   type WindowManagerSettingsSection,
   type WindowManagerShortcutMap,
 } from "@/systems/os";
 
-import { withoutRetiredShortcuts } from "../lib/window-manager-retired-shortcuts";
 import { withCommandReset } from "../lib/window-manager-shortcut-rows";
 import {
   shortcutRecorderLogic,
@@ -36,7 +36,6 @@ export interface ShortcutRecorderModel {
   dismissConflict: () => void;
   reset: (commandId: string) => void;
   resetAll: () => void;
-  applyShortcuts: (next: WindowManagerShortcutMap) => void;
 }
 
 function sameBinding(left: readonly string[], right: readonly string[]): boolean {
@@ -189,16 +188,6 @@ export function useWindowManagerShortcutRecorder(
         .catch((cause: unknown) => {
           store.trigger.errorSet({
             error: cause instanceof Error ? cause.message : "Unable to restore the shortcuts.",
-          });
-        });
-    },
-    applyShortcuts: next => {
-      store.trigger.errorCleared();
-      void commit({ shortcuts: next })
-        .then(() => store.trigger.announced({ announcement: "Shortcuts updated." }))
-        .catch((cause: unknown) => {
-          store.trigger.errorSet({
-            error: cause instanceof Error ? cause.message : "Unable to save the shortcuts.",
           });
         });
     },

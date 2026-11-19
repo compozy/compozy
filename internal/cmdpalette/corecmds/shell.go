@@ -85,7 +85,7 @@ var fixedShellCommands = []shellCommandDefinition{
 		id:                 "shortcuts.cheatsheet",
 		title:              "Keyboard shortcuts",
 		section:            coreSectionShell,
-		icon:               "keyboard",
+		icon:               coreIconKeyboard,
 		availabilityExempt: true,
 	},
 	{id: "window.close", title: "Close window", section: coreSectionWindow, icon: "x-square"},
@@ -94,6 +94,8 @@ var fixedShellCommands = []shellCommandDefinition{
 	{id: "window.focus.up", title: "Focus up", section: coreSectionWindow, icon: coreIconArrowUp},
 	{id: "window.focus.down", title: "Focus down", section: coreSectionWindow, icon: coreIconArrowDown},
 	{id: "window.focus.last", title: "Focus last window", section: coreSectionWindow, icon: "history"},
+	{id: "window.split.right", title: "Split right", section: coreSectionWindow, icon: "columns-2"},
+	{id: "window.split.down", title: "Split down", section: coreSectionWindow, icon: "rows-2"},
 	{id: "window.tab.new", title: "New tab", section: coreSectionTabs, icon: coreIconPlus},
 	{id: "window.tab.next", title: "Next tab", section: coreSectionTabs, icon: coreIconChevronRight},
 	{

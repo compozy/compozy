@@ -49,6 +49,8 @@ var userScopeMigrationInventory = []string{
 	"mcp_oauth_registrations",
 	"model_catalog_execution_contexts",
 	"notification_cursors",
+	// The outbox is created after the User-scope migration and is included in the current inventory.
+	"operator_notice_outbox",
 	"event_summaries",
 	"event_summary_outbox",
 	"dead_entities",

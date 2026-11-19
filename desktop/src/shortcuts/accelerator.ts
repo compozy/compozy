@@ -1,5 +1,6 @@
 const MODIFIERS: ReadonlyMap<string, string> = new Map([
   ["meta", "CommandOrControl"],
+  ["control", "Control"],
   ["ctrl", "Control"],
   ["alt", "Alt"],
   ["shift", "Shift"],

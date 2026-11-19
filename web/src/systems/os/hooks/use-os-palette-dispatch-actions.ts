@@ -64,7 +64,7 @@ export function useOsPaletteDispatchActions({
         close();
         void coordinator.userOpen({
           app: "settings",
-          route: { pathname: "/settings/layouts", search: { command: intent.commandId } },
+          route: { pathname: "/settings/shortcuts", search: { command: intent.commandId } },
         });
         return;
       case "land-session":

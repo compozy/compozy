@@ -40,3 +40,19 @@ CREATE TABLE attention_snapshots (
 );
 
 CREATE INDEX attention_snapshots_expiry_idx ON attention_snapshots(expires_at);
+
+CREATE TABLE operator_notice_outbox (
+    id TEXT PRIMARY KEY NOT NULL,
+    profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    action TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX operator_notice_outbox_profile_idx ON operator_notice_outbox(profile_id, created_at);
+CREATE INDEX operator_notice_outbox_workspace_idx ON operator_notice_outbox(workspace_id);

@@ -2,8 +2,8 @@
  * Shortcut IDs the window manager retired with tabs and splits. A stored
  * binding to one still loads and does nothing (US-018.EC-1); the daemon skips
  * them (`internal/windowmanager/retired_shortcuts.go`) but its settings payload
- * does not say which IDs are retired, so Settings keeps this one list to mark
- * them. Remove in v0.8.0, together with the daemon's acceptance of these IDs.
+ * does not say which IDs are retired, so the web keeps this one list to resolve
+ * and mark them. Remove in v0.8.0, together with the daemon's acceptance of these IDs.
  */
 const RETIRED_SHORTCUT_TITLES: Readonly<Record<string, string>> = {
   "window.minimize": "Minimize window",
