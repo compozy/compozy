@@ -256,12 +256,21 @@ func TestHostedMCPSkillView(t *testing.T) {
 		}
 
 		missing := call(toolspkg.ToolIDSkillView, map[string]string{"name": "missing-fixture"})
+		const wantMessage = `skill not found: "missing-fixture"`
 		var payload contract.ToolErrorResponse
 		decodeHostedSkillTestContent(t, missing.StructuredContent, &payload)
 		if !missing.IsError || payload.Error.Code != toolspkg.ErrorCodeNotFound ||
-			payload.Error.ToolID != toolspkg.ToolIDSkillView || payload.Error.Message != `skill not found: "missing-fixture"` ||
+			payload.Error.ToolID != toolspkg.ToolIDSkillView || payload.Error.Message != wantMessage ||
 			slices.Contains(payload.Error.ReasonCodes, toolspkg.ReasonToolUnknown) {
 			t.Fatalf("missing skill payload = %+v, want a named skill lookup failure", payload.Error)
+		}
+		if len(missing.Content) == 0 {
+			t.Fatal("missing skill response did not include display text")
+		}
+		display, ok := missing.Content[0].(*sdkmcp.TextContent)
+		if !ok || !strings.Contains(display.Text, wantMessage) ||
+			strings.Contains(display.Text, string(toolspkg.ReasonToolUnknown)) {
+			t.Fatalf("missing skill display = %+v, want the named skill lookup failure", missing.Content[0])
 		}
 	})
 }
