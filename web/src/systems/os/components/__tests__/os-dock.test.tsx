@@ -24,7 +24,7 @@ import { OsDockTabBar } from "../os-dock-tab-bar";
 import { OsDockAppMenu } from "../os-dock-app-menu";
 import { useDesktopDock } from "../../hooks/use-desktop-dock";
 import { pickLastCreatedSession } from "../../lib/last-created-session";
-import type { SessionPayload } from "@/systems/session";
+import { sessionKeys, type SessionPayload } from "@/systems/session";
 
 const dockShell = vi.hoisted(() => ({
   state: null as unknown,
@@ -70,7 +70,7 @@ vi.mock("@/systems/session", async importOriginal => ({
   sessionCatalogOptions: (filters: Record<string, unknown>) => {
     catalogInputs.catalog.filters.push(filters);
     return {
-      queryKey: ["launch-catalog", JSON.stringify(filters)],
+      queryKey: ["sessions", "list", filters.workspace_id ?? "", "page", filters],
       queryFn: async () => ({
         sessions: catalogInputs.catalog.sessions,
         page: { has_more: false },
@@ -616,7 +616,7 @@ describe("OsDock", () => {
     });
   });
 
-  it("Should resolve the Sessions launch catalog across every workspace in Global scope", async () => {
+  it("Should resolve the latest Sessions launch target in Global scope on demand", async () => {
     const { useSessionLaunchCatalog } = await vi.importActual<
       typeof import("../../hooks/use-session-launch-catalog")
     >("../../hooks/use-session-launch-catalog");
@@ -645,6 +645,18 @@ describe("OsDock", () => {
     await waitFor(() =>
       expect(result.current.sessions.map(session => session.id)).toEqual(["sess-global"])
     );
+
+    // Catalog wakes refresh the list without repeating the dock's preload read.
+    catalogInputs.catalog.sessions = [
+      catalogSession("sess-new", "2026-08-03T00:00:00Z", { workspace_id: "workspace:other" }),
+    ];
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+    });
+    expect(result.current.sessions.map(session => session.id)).toEqual(["sess-global"]);
+    await act(async () => {
+      await expect(result.current.resolveLatest()).resolves.toMatchObject({ id: "sess-new" });
+    });
 
     catalogInputs.workspace = { runtimeWorkspaceId: null, pending: true };
     const pending = renderHook(() => useSessionLaunchCatalog(), { wrapper });

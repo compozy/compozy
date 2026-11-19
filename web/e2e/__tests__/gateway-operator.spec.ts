@@ -81,34 +81,36 @@ test("E2E-001 (local legs) operator mints a pairing, the daemon redeems it once,
 
   // Mint through the UI; the artifact is shown once, and it is obtainable without a camera.
   await appPage.getByTestId("gateway-pair-device").click();
-  await expect(appPage.getByTestId("gateway-pairing-dialog")).toBeVisible();
-  const artifact = (await appPage.getByTestId("gateway-pairing-code").innerText()).trim();
+  const pairing = appPage.getByTestId("gateway-pairing-dialog");
+  await expect(pairing).toBeVisible();
+  const digits = pairing.getByTestId("gateway-pairing-manual-code").locator('[aria-hidden="true"]');
+  await expect(digits).toHaveText(/^\d{3} \d{3}$/u);
+  const manualCode = (await digits.innerText()).replace(/\s/gu, "");
+  const artifact = (await pairing.getByTestId("gateway-pairing-artifact-value").innerText()).trim();
   expect(artifact).not.toBe("");
-  await expect(
-    appPage
-      .getByTestId("gateway-pairing-dialog")
-      .getByRole("button", { name: /copy pairing code/i })
-  ).toBeVisible();
+  await expect(pairing.getByRole("button", { name: "Copy code", exact: true })).toBeVisible();
 
   // The one-time secret never reaches a server-visible surface.
   expect(new URL(appPage.url()).search).not.toContain(artifact);
   expect(new URL(appPage.url()).pathname).not.toContain(artifact);
+  expect(new URL(appPage.url()).search).not.toContain(manualCode);
+  expect(new URL(appPage.url()).pathname).not.toContain(manualCode);
 
-  // A second device redeems the same artifact against the daemon.
+  // A second device redeems the manual code against the daemon.
   const redeemed = await runtime.requestJSON<{ device: { id: string; name: string } }>(
     "/api/gateway/pairings/redeem",
     {
       method: "POST",
       body: JSON.stringify({
         actor_kind: "operator_device",
-        artifact,
+        manual_code: manualCode,
         name: "Second browser",
       }),
     }
   );
   expect(redeemed.device.name).toBe("Second browser");
 
-  // A single-use artifact cannot be redeemed twice.
+  // Redeeming the manual code also consumes the long artifact for the same pairing.
   await expect(
     runtime.requestJSON("/api/gateway/pairings/redeem", {
       method: "POST",

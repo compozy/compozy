@@ -4143,7 +4143,7 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 		})
 	})
 
-	// Invariant: extension detail requires owner plus logical name, prefers the local definition, inherits its parent, and excludes siblings.
+	// Invariant: owner-qualified MCP detail resolves the default profile's workspace alias and excludes siblings.
 	// Owner: Settings HTTP/UDS detail boundary; canonical suite: settings_test.go.
 	t.Run(
 		"Should resolve MCP detail by owner and logical name without crossing scope",
@@ -4171,6 +4171,22 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 								Scope:       settingspkg.ScopeWorkspace,
 								WorkspaceID: "workspace-a",
 							},
+							{
+								Name:        "github",
+								Owner:       "extension:github",
+								RuntimeName: "github.github.3",
+								Scope:       settingspkg.ScopeProfile,
+								WorkspaceID: "workspace-c",
+								ProfileName: "default",
+							},
+							{
+								Name:        "github",
+								Owner:       "extension:github",
+								RuntimeName: "github.github.4",
+								Scope:       settingspkg.ScopeProfile,
+								WorkspaceID: "workspace-b",
+								ProfileName: "work",
+							},
 						}}, nil
 					},
 				}
@@ -4189,6 +4205,10 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 					{"github?owner=bad", "", "", http.StatusBadRequest},
 					{"github?owner=extension:github&scope=workspace&workspace_id=workspace-a", "extension:github", "github.github.2", http.StatusOK},
 					{"github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "extension:github", "github.github", http.StatusOK},
+					{"github?owner=extension:github&scope=workspace&workspace_id=workspace-c", "extension:github", "github.github.3", http.StatusOK},
+					{"github?owner=extension:github&scope=profile&profile=default&workspace_id=workspace-c", "extension:github", "github.github.3", http.StatusOK},
+					{"github?owner=extension:github&scope=profile&profile=default", "", "", http.StatusBadRequest},
+					{"github?owner=extension:github&scope=profile&profile=work&workspace_id=workspace-b", "extension:github", "github.github.4", http.StatusOK},
 					{"github.github.2?scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
 					{"github.github.2?owner=extension:github&scope=workspace&workspace_id=workspace-a", "", "", http.StatusNotFound},
 					{"github.github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
