@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -334,22 +333,6 @@ func (s *daemonExtensionService) Remove(
 	return s.removeInstalledExtension(ctx, name, actor, "", false)
 }
 
-// RemovePermanently removes a bundled built-in and records its tombstone, so boot and update never
-// re-enroll it until restore. Only operator sessions may call it.
-func (s *daemonExtensionService) RemovePermanently(
-	ctx context.Context,
-	name string,
-	actor taskpkg.ActorContext,
-) (contract.ManagedExtensionRemovePayload, error) {
-	if err := s.checkReady(); err != nil {
-		return contract.ManagedExtensionRemovePayload{}, err
-	}
-	if err := validateExtensionPermanentRemovalActor(actor); err != nil {
-		return contract.ManagedExtensionRemovePayload{}, err
-	}
-	return s.removeInstalledExtension(ctx, name, actor, "", true)
-}
-
 // Credential before-images remain available until package removal and allocation retirement commit.
 // A permanent removal writes the built-in tombstone inside the row-delete transaction of the coordinator.
 func (s *daemonExtensionService) removeManagedExtensionLocked(
@@ -382,15 +365,7 @@ func (s *daemonExtensionService) removeManagedExtensionLocked(
 		return s.reloadExtensions(reloadCtx, name)
 	}
 	commit := func(ctx context.Context) error { return s.deleteRemovedExtensionMCPAllocations(ctx, name, key, orphan) }
-	var removed extensionpkg.ManagedRemoveResult
-	var removeErr error
-	if permanent {
-		removed, removeErr = extensionpkg.RemoveBuiltinPermanently(
-			ctx, s.homePaths, s.registry, name, extensionInstalledBy(actor), reload, commit,
-		)
-	} else {
-		removed, removeErr = extensionpkg.RemoveManagedExtension(ctx, s.homePaths, s.registry, name, reload, commit)
-	}
+	removed, removeErr := s.removeExtensionPackage(ctx, name, actor, permanent, reload, commit)
 	if removeErr != nil {
 		return contract.ManagedExtensionRemovePayload{}, errors.Join(removeErr, retirement.rollback(ctx, s))
 	}
@@ -403,10 +378,7 @@ func (s *daemonExtensionService) removeManagedExtensionLocked(
 		Status:         removed.Status,
 		Warnings:       append([]contract.DiagnosticItem(nil), removed.Warnings...),
 	}
-	if removed.Tombstone != nil {
-		item.Permanent = true
-		item.TombstonedAt = removed.Tombstone.RemovedAt.UTC().Format(time.RFC3339)
-	}
+	applyBuiltinTombstone(&item, removed.Tombstone)
 	return item, s.recordExtensionRemoveEvent(ctx, actor, item)
 }
 

@@ -156,8 +156,9 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 	tombstone extensionpkg.BuiltinTombstone,
 	cause error,
 ) error {
-	// The caller may already be canceled, so the rollback runs detached with its own budget. The tombstone write
-	// gets a budget of its own: a slow removal or reload must not leave the built-in with neither a row nor a tombstone.
+	// The caller may already be canceled, so the rollback runs detached with its own budget. The read-back that
+	// confirms the row is gone and the tombstone write each get a budget of their own: a slow removal or reload must
+	// not leave the built-in with neither a row nor a tombstone.
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.restoreRollbackBudget())
 	defer cancel()
 	var rollbackErr error
@@ -170,7 +171,7 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 		removeErr := s.removePartialRow(rollbackCtx, name)
 		// A removal can delete the row and still fail while it compensates, so its error does not decide absence.
 		// The row is read back instead; only a confirmed not-found counts as gone.
-		gone, readErr := s.partialRowAbsent(rollbackCtx, name)
+		gone, readErr := s.partialRowAbsentAfterRemoval(ctx, name)
 		partialRowGone = gone
 		rollbackErr = errors.Join(rollbackErr, removeErr, readErr)
 		rollbackErr = errors.Join(rollbackErr, s.reloadExtensions(rollbackCtx, name))
@@ -236,6 +237,18 @@ func (s *daemonExtensionService) partialRowAbsent(ctx context.Context, name stri
 	default:
 		return false, readErr
 	}
+}
+
+// partialRowAbsentAfterRemoval confirms the partial row is gone on a detached budget of its own. The rollback
+// budget covers the removal and the reload; either can spend it, and an expired read would report a deadline
+// instead of the not-found that decides absence, leaving the built-in with neither a row nor a tombstone.
+func (s *daemonExtensionService) partialRowAbsentAfterRemoval(
+	ctx context.Context,
+	name string,
+) (bool, error) {
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), builtinRestoreRollbackTimeout)
+	defer cancel()
+	return s.partialRowAbsent(readCtx, name)
 }
 
 // readPartialRow reads the registry row of a partial built-in: nil while it exists, not-found once it is gone.
