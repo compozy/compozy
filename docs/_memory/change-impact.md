@@ -1,5 +1,19 @@
 # Compozy Change Impact
 
+## Session list expansion depth menu (GH-1846) — 2026-11-18
+
+- **Native tools and CLI/HTTP/UDS.** No route, DTO, CLI or `compozy__*` tool changes.
+- **Extensibility, hooks and config.** No hook, extension or config key changes.
+- **State and isolation.** The per-window `foldAll` in the browser-local sessions sidebar store gains
+  a `groups` value; stored windows with `collapsed`, `expanded` or no value load unchanged, and an
+  unknown value loads as no choice. Windows stay independent.
+- **Web, docs and official skill.** The List toolbar's fold button becomes a menu: Expand groups
+  (folders and project groups open, child session lists folded, no subagent list opened), Expand all
+  and Collapse all, with the current choice checked and named by the trigger. A search still shows
+  matching child sessions, and a thread opened by hand stays open. The Kanban head keeps its single
+  button. `COPY.md` and `ET-web-sessions-board-card-actions-group-sort` record the walk; the official
+  skill does not describe sidebar folds and needs no change.
+
 ## Pinned sessions above the session list
 
 Owner: [#1827](https://github.com/compozy/compozy/issues/1827).

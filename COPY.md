@@ -968,9 +968,13 @@ vertical name and count without extra words.
 
 The List toolbar and the Kanban header share one sliders button named "View options". Its menu holds
 "Sort by", "Group by" (only where a grouping applies), "Show empty projects" (under Project), "Filter" with
-"Hide child sessions" (Kanban only, because the List has no such filter), and one
-action that reads "Collapse all", or "Expand all" once everything is collapsed. In the Kanban the action
-shows only while the board has swimlanes. An empty swimlane reads "No sessions in {project} yet."
+"Hide child sessions" (Kanban only, because the List has no such filter). Beside it the List toolbar has
+a fold menu with three choices: "Expand groups" (folders and project groups open, child session lists
+folded), "Expand all" and "Collapse all". The chosen one is checked, and the button's name, tooltip and
+glyph read the current state: "Groups expanded", "All expanded", "All collapsed", or "Expand or collapse"
+before any choice. The Kanban head keeps a single action that reads "Collapse all", or "Expand all" once
+everything is collapsed; it shows only while the board has swimlanes. An empty swimlane reads "No sessions
+in {project} yet."
 
 ### Batch session actions
 

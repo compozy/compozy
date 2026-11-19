@@ -33,8 +33,8 @@ Owning automated coverage: `sessions-board.test.tsx` (card context menu, `…` w
 keyboard reach, swimlanes reading their own scope), `use-sessions.test.tsx` (board read model:
 manual → last_activity, lanes from facets, inapplicable grouping renders flat),
 `use-session-sidebar-state.test.ts` (per-window order shared across the toggle, independent
-windows, daemon seed), `session-list.test.tsx` (one View options menu, Clear conversation only on the
-window's own row), `use-session-topbar-slot.test.tsx` (no session overflow menu).
+windows, daemon seed), `session-list.test.tsx` (one View options menu, the fold menu's depths and keyboard, Clear
+conversation only on the window's own row), `use-session-topbar-slot.test.tsx` (no session overflow menu).
 
 QA impact 2026-11-01 (issue #1132): one View options menu replaces the Sort and Group by icons in the
 List and Kanban. Walk: grouped by project under All projects, check Show empty projects in either view
@@ -46,6 +46,8 @@ action covers swimlanes and leaves column folds alone. Open one group after Coll
 choice and that exception hold, and a second window is unchanged. The Later and Archive shelves keep working.
 
 QA impact 2026-11-13 (grouped menus PR): Collapse all left View options for its own icon button, just before the View options sliders in the List toolbar and the Kanban head; its name and tooltip read Collapse all or Expand all. View options and the List's (+) are plain quiet icon buttons with a hover state; View options marks a non-default view with brand ink instead of a gray plate. Walk: hover both icons and see the hover plate appear only on hover; change Group by and see the sliders turn brand; click Collapse all in List and on the board and see the button flip to Expand all.
+
+QA impact 2026-11-18 (issue #1846): the List toolbar's fold control opens a menu with Expand groups, Expand all and Collapse all; the Kanban head keeps the single Collapse all / Expand all button. Walk: in a List grouped by project with a folder and a parent that has child sessions, open the menu with a click and again with Enter, arrow through the items and close it with Escape. Choose Expand groups: folders and project groups open, child session lists stay folded, no subagent list opens, and the button reads Groups expanded with that item checked. Open one parent's children by hand, then search for a child under another parent: both show. Choose Expand all: child session lists open as before and the button reads All expanded. Choose Collapse all: everything folds. Reload: the choice holds in that window only.
 
 QA impact 2026-11-01 (PR #1133): "Hide child sessions" moved from the board head into View options as a checkbox in a Filter section. The board head no longer shows it, and the List menu has no Filter section. The trigger is marked while child sessions show. The choice still survives a reload per window.
 

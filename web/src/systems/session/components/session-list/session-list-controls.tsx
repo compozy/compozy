@@ -39,8 +39,8 @@ export function SessionListControls({
         onShowEmptyProjectsChange={view.setShowEmptyProjects}
         showAutomation={view.showAutomation}
         onShowAutomationChange={view.setShowAutomation}
-        allCollapsed={view.foldAll === "collapsed"}
-        onAllCollapsedChange={collapsed => view.setFoldAll(collapsed ? "collapsed" : "expanded")}
+        foldAll={view.foldAll}
+        onFoldAllChange={view.setFoldAll}
         onNewSession={onNewSession}
         onNewFolder={onNewFolder}
         newFolderUnavailable={newFolderUnavailable}
