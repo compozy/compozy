@@ -41,7 +41,7 @@ func (s *Service) beginHostedOAuth(
 		return LoginState{}, err
 	}
 	metadata := metadataFromAuthServer(asm)
-	loginScopes := prm.loginScopes(cfg.Scopes, metadata)
+	loginScopes := prm.loginScopes(cfg.Scopes)
 	client, err := s.resolveHostedRegistration(
 		ctx,
 		cfg,
@@ -69,7 +69,7 @@ func (s *Service) beginHostedOAuth(
 	effectiveCfg.ClientSecret = client.secret
 	effectiveCfg.TokenEndpointAuthMethod = client.authMethod
 	authorizationCfg := effectiveCfg
-	authorizationCfg.Scopes = loginScopes
+	authorizationCfg.Scopes = client.scopes
 	authorizationURL, scopes, err := authorizationURL(
 		metadata,
 		authorizationCfg,
@@ -360,6 +360,7 @@ func metadataFromAuthServer(asm *oauthex.AuthServerMeta) Metadata {
 
 type hostedOAuthClient struct {
 	id, secret, authMethod string
+	scopes                 []string
 	allowOfflineAccess     bool
 }
 
@@ -369,7 +370,7 @@ func (s *Service) resolveHostedRegistration(
 	resourceURL string,
 	redirectURL string,
 	asm *oauthex.AuthServerMeta,
-	loginScopes []string,
+	loginScopes hostedLoginScopes,
 ) (hostedOAuthClient, error) {
 	if asm.ClientIDMetadataDocumentSupported {
 		clientMetadataURL := strings.TrimSpace(s.clientMetadataURL)
@@ -394,7 +395,8 @@ func (s *Service) resolveHostedRegistration(
 					return hostedOAuthClient{}, persistErr
 				}
 				return hostedOAuthClient{
-					id: clientMetadataURL, authMethod: tokenEndpointAuthMethodNone, allowOfflineAccess: refreshCapable,
+					id: clientMetadataURL, authMethod: tokenEndpointAuthMethodNone,
+					scopes: loginScopes.values, allowOfflineAccess: refreshCapable,
 				}, nil
 			}
 		}

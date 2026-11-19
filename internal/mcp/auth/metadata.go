@@ -20,15 +20,20 @@ type discoveredProtectedResource struct {
 	challengeScopes []string
 }
 
-func (r discoveredProtectedResource) loginScopes(configured []string, metadata Metadata) []string {
+type hostedLoginScopes struct {
+	values       []string
+	metadataOnly bool
+}
+
+func (r discoveredProtectedResource) loginScopes(configured []string) hostedLoginScopes {
 	scopes := trimStrings(configured)
-	if len(scopes) != 0 || !metadata.supportsOfflineAccess() {
-		return scopes
+	if len(scopes) != 0 {
+		return hostedLoginScopes{values: scopes}
 	}
 	if len(r.challengeScopes) != 0 {
-		return r.challengeScopes
+		return hostedLoginScopes{values: r.challengeScopes}
 	}
-	return resourceOAuthScopes(r.ScopesSupported)
+	return hostedLoginScopes{values: resourceOAuthScopes(r.ScopesSupported), metadataOnly: true}
 }
 
 func resourceOAuthScopes(scopes []string) []string {

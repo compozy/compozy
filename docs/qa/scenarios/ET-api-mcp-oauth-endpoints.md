@@ -109,7 +109,9 @@ QA impact 2026-11-18 (#1829, #1830, #1831), using only local OAuth and MCP fixtu
   resource metadata. With neither source available, verify the request leaves the issuer's
   defaults in effect.
   Reuse a registration that did not register offline access and confirm it keeps its original
-  scopes. Auth status shows the result through the existing redacted fields.
+  scopes. When the issuer declines a required resource scope at registration, expect an error
+  before browser handoff and retention of the existing registration. Auth status shows the
+  result through the existing redacted fields.
 - Expire the persisted registration's client secret. Observe `refreshable=false`, an instruction to
   sign in again, and a retained token. Repeat discovery across the retry interval and confirm
   there is no OAuth traffic. Repair the registration and confirm discovery renews with the same

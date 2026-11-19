@@ -28,10 +28,11 @@ import (
 func TestOAuthOfflineAccess(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, scopes, grants, prompt, registeredScopes string
-		challengeScopes, resourceScopes                string
-		configured, want, legacyScopes                 []string
-		refresh, preRegistered, replace                bool
+		name, scopes, grants, prompt                  string
+		challengeScopes, resourceScopes, requestedDCR string
+		registeredScopes                              *string
+		configured, want, legacyScopes                []string
+		refresh, preRegistered, replace, denied       bool
 	}{
 		{
 			name:   "Should request advertised offline access and preserve issuer consent",
@@ -70,6 +71,11 @@ func TestOAuthOfflineAccess(t *testing.T) {
 			want: []string{"tools.read", "offline_access"}, refresh: true,
 		},
 		{
+			name:   "Should use the resource challenge when the issuer cannot grant offline access",
+			scopes: "tools.read", grants: "authorization_code refresh_token", challengeScopes: "tools.read",
+			want: []string{"tools.read"},
+		},
+		{
 			name:   "Should use protected-resource metadata scopes when there is no challenge scope",
 			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
 			resourceScopes: "tools.read", want: []string{"tools.read", "offline_access"}, refresh: true,
@@ -85,9 +91,34 @@ func TestOAuthOfflineAccess(t *testing.T) {
 			challengeScopes: "tools.read", want: []string{"tools.read"}, legacyScopes: []string{"tools.read"},
 		},
 		{
+			name:   "Should keep issuer defaults for an older unscoped client when only metadata lists scopes",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			resourceScopes: "tools.read", legacyScopes: []string{},
+		},
+		{
 			name:   "Should keep the challenge scope when registration omits offline access",
 			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
-			challengeScopes: "tools.read", want: []string{"tools.read"}, registeredScopes: "tools.read",
+			challengeScopes: "tools.read", want: []string{"tools.read"},
+			requestedDCR: "tools.read offline_access", registeredScopes: new("tools.read"),
+		},
+		{
+			name:   "Should persist the issuer grant without expanding authorization to unrequested resource scopes",
+			scopes: "tools.read tools.write offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", want: []string{"tools.read", "offline_access"},
+			registeredScopes: new("tools.read tools.write offline_access"), refresh: true,
+		},
+		{
+			name:   "Should stop before handoff when the issuer declines a required scope",
+			scopes: "tools.read tools.write offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read tools.write", legacyScopes: []string{"tools.read"},
+			requestedDCR:     "tools.read tools.write offline_access",
+			registeredScopes: new("tools.read offline_access"), replace: true, denied: true,
+		},
+		{
+			name:   "Should treat an explicit empty scope grant as a denial of required scopes",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", requestedDCR: "tools.read offline_access",
+			registeredScopes: new(""), denied: true,
 		},
 		{
 			name:   "Should register a client that covers the current resource scopes",
@@ -148,16 +179,20 @@ func TestOAuthOfflineAccess(t *testing.T) {
 						return
 					}
 					want := strings.Join(tc.want, " ")
-					if tc.registeredScopes != "" {
-						want = tc.registeredScopes + " offline_access"
+					if tc.requestedDCR != "" {
+						want = tc.requestedDCR
 					}
 					if request.Scope != want {
 						t.Errorf("DCR scope = %q, want %q", request.Scope, want)
 					}
 					w.WriteHeader(http.StatusCreated)
-					writeManagerTestResponse(t, w, fmt.Sprintf(
-						`{"client_id":"client","token_endpoint_auth_method":"none","scope":%q}`, tc.registeredScopes,
-					))
+					grant := map[string]any{"client_id": "client", "token_endpoint_auth_method": "none"}
+					if tc.registeredScopes != nil {
+						grant["scope"] = *tc.registeredScopes
+					}
+					if err := json.NewEncoder(w).Encode(grant); err != nil {
+						t.Error(err)
+					}
 				case "/token":
 					response := `{"access_token":"fixture-access","scope":"tools.read","expires_in":3600}`
 					if tc.refresh {
@@ -176,7 +211,7 @@ func TestOAuthOfflineAccess(t *testing.T) {
 			if !tc.preRegistered {
 				cfg.IssuerURL, cfg.ClientID, cfg.Registration = "", "", RegistrationAuto
 			}
-			if len(tc.legacyScopes) > 0 {
+			if tc.legacyScopes != nil {
 				fingerprint, err := ServerDefinitionFingerprint(cfg)
 				if err != nil {
 					t.Fatal(err)
@@ -193,6 +228,16 @@ func TestOAuthOfflineAccess(t *testing.T) {
 				}
 			}
 			login, err := service.BeginLogin(t.Context(), cfg, callback)
+			if tc.denied {
+				if err == nil || !strings.Contains(err.Error(), "omitted required resource scopes") ||
+					login.AuthorizationURL != "" || registrations.Load() != 1 {
+					t.Fatal("a partial client grant did not stop authorization before browser handoff")
+				}
+				if !slices.Equal(store.registration.Scopes, tc.legacyScopes) {
+					t.Fatal("a partial client grant replaced the stored registration")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -220,11 +265,15 @@ func TestOAuthOfflineAccess(t *testing.T) {
 				t.Errorf("scope omitted by issuer should preserve the request, got %v", exchanged.Scopes)
 			}
 			wantRegistrations := int32(1)
-			if tc.preRegistered || (len(tc.legacyScopes) > 0 && !tc.replace) {
+			if tc.preRegistered || (tc.legacyScopes != nil && !tc.replace) {
 				wantRegistrations = 0
 			}
 			if got := registrations.Load(); got != wantRegistrations {
 				t.Fatalf("new registrations = %d, want %d", got, wantRegistrations)
+			}
+			if tc.registeredScopes != nil &&
+				!slices.Equal(store.registration.Scopes, strings.Fields(*tc.registeredScopes)) {
+				t.Fatal("the stored registration did not mirror the issuer's granted scopes")
 			}
 		})
 	}
