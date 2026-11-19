@@ -58,7 +58,7 @@ export function useSessionHasSideChats(
 
 /** Side chats are named in the delete dialog only for a single delete target. */
 export function useDeleteTargetHasSideChats(
-  sessions: readonly { id: string; workspace_id: string }[] | null | undefined
+  sessions: readonly { id: string; workspace_id?: string | null }[] | null | undefined
 ): boolean {
   const single = sessions?.length === 1 ? sessions[0] : undefined;
   return useSessionHasSideChats(single?.workspace_id ?? "", single?.id ?? "", {
