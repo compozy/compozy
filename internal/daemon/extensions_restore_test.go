@@ -489,7 +489,7 @@ func TestDaemonExtensionBuiltinRestore(t *testing.T) {
 			// not-found. Absence is unconfirmed, so the rollback must not write the tombstone beside the row.
 			readErr := errors.New("injected read-back failure")
 			service.partialRowRemoval = func(context.Context, string) error { return nil }
-			service.partialRowLookup = func(string) error { return readErr }
+			service.partialRowLookup = func(context.Context, string) error { return readErr }
 
 			_, err := service.RestoreBuiltin(t.Context(), "spec-cycle", restoreTestOperator(t))
 			if !errors.Is(err, extensionpkg.ErrExtensionRestoreFailed) {
@@ -510,6 +510,37 @@ func TestDaemonExtensionBuiltinRestore(t *testing.T) {
 					err,
 				)
 			}
+		},
+	)
+
+	t.Run(
+		"Should read the partial row back under the rollback budget",
+		func(t *testing.T) {
+			t.Parallel()
+			service, registry := restoreTestService(t)
+			restoreTestRemovePermanently(t, service, registry, "spec-cycle")
+			service.builtinEnrollments = []bundledEnrollment{{
+				Name: "spec-cycle",
+				Enroll: func(_ compozyconfig.HomePaths, reg *extensionpkg.Registry) error {
+					restoreTestSeedRow(t, reg, "spec-cycle", extensionpkg.SourceBundled)
+					return errors.New("injected enrollment failure")
+				},
+			}}
+			service.partialRowRemoval = func(context.Context, string) error { return nil }
+			service.partialRowLookup = func(ctx context.Context, _ string) error {
+				if _, ok := ctx.Deadline(); !ok {
+					return errors.New("read-back ran without the rollback deadline")
+				}
+				return extensionpkg.ErrExtensionNotFound
+			}
+
+			if _, err := service.RestoreBuiltin(t.Context(), "spec-cycle", restoreTestOperator(t)); !errors.Is(
+				err,
+				extensionpkg.ErrExtensionRestoreFailed,
+			) {
+				t.Fatalf("RestoreBuiltin(rollback budget) error = %v, want ErrExtensionRestoreFailed", err)
+			}
+			restoreTestRequireTombstone(t, registry, "spec-cycle", true)
 		},
 	)
 }

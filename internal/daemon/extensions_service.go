@@ -71,7 +71,7 @@ type daemonExtensionService struct {
 	partialRowRemoval func(ctx context.Context, name string) error
 	// partialRowLookup overrides the read-back that decides whether a partial row remains for tests; nil reads the
 	// registry.
-	partialRowLookup func(name string) error
+	partialRowLookup func(ctx context.Context, name string) error
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)

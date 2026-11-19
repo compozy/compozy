@@ -170,7 +170,7 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 		removeErr := s.removePartialRow(rollbackCtx, name)
 		// A removal can delete the row and still fail while it compensates, so its error does not decide absence.
 		// The row is read back instead; only a confirmed not-found counts as gone.
-		gone, readErr := s.partialRowAbsent(name)
+		gone, readErr := s.partialRowAbsent(rollbackCtx, name)
 		partialRowGone = gone
 		rollbackErr = errors.Join(rollbackErr, removeErr, readErr)
 		rollbackErr = errors.Join(rollbackErr, s.reloadExtensions(rollbackCtx, name))
@@ -226,8 +226,8 @@ func (s *daemonExtensionService) removePartialRow(ctx context.Context, name stri
 
 // partialRowAbsent reads back a partial row after its removal. Absence is reported only for a confirmed not-found;
 // any other read failure leaves absence unconfirmed and is returned.
-func (s *daemonExtensionService) partialRowAbsent(name string) (bool, error) {
-	readErr := s.readPartialRow(name)
+func (s *daemonExtensionService) partialRowAbsent(ctx context.Context, name string) (bool, error) {
+	readErr := s.readPartialRow(ctx, name)
 	switch {
 	case errors.Is(readErr, extensionpkg.ErrExtensionNotFound):
 		return true, nil
@@ -240,11 +240,11 @@ func (s *daemonExtensionService) partialRowAbsent(name string) (bool, error) {
 
 // readPartialRow reads the registry row of a partial built-in: nil while it exists, not-found once it is gone.
 // Tests replace it through partialRowLookup.
-func (s *daemonExtensionService) readPartialRow(name string) error {
+func (s *daemonExtensionService) readPartialRow(ctx context.Context, name string) error {
 	if s.partialRowLookup != nil {
-		return s.partialRowLookup(name)
+		return s.partialRowLookup(ctx, name)
 	}
-	_, err := s.registry.Get(name)
+	_, err := s.registry.GetContext(ctx, name)
 	return err
 }
 
