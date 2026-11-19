@@ -19,7 +19,7 @@ var errRefreshRegistrationInvalid = errors.New("mcp auth: stored registration is
 
 const maxEarlyRenewalWindow = 30 * time.Second
 
-func tokenRenewalDue(token TokenRecord, now time.Time) bool {
+func (s *Service) tokenRenewalDue(token TokenRecord, now time.Time) bool {
 	if token.ExpiresAt.IsZero() {
 		return false
 	}
@@ -27,11 +27,20 @@ func tokenRenewalDue(token TokenRecord, now time.Time) bool {
 	if issuedAt.IsZero() {
 		issuedAt = token.ObtainedAt
 	}
-	window := maxEarlyRenewalWindow
+	window := s.renewalWindow
 	if lifetime := token.ExpiresAt.Sub(issuedAt); !issuedAt.IsZero() && lifetime > 0 {
 		window = min(window, lifetime/10)
 	}
 	return !now.Before(token.ExpiresAt.Add(-window))
+}
+
+// WithEarlyRenewalWindow shortens the default cap on proactive renewal. Nonpositive values keep the default.
+func WithEarlyRenewalWindow(window time.Duration) ServiceOption {
+	return func(s *Service) {
+		if window > 0 {
+			s.renewalWindow = min(window, maxEarlyRenewalWindow)
+		}
+	}
 }
 
 func registrationSecretUnavailable(err error) bool {
@@ -137,14 +146,17 @@ func (s *Service) storedTokenStatus(
 		if registration == nil || !s.hostedRegistrationRefreshable(cfg, *registration, token.DefinitionFingerprint) {
 			return localRefreshRepairStatus(status)
 		}
-		if tokenRenewalDue(token, now) && registration.TokenEndpointAuthMethod != tokenEndpointAuthMethodNone {
+		if s.tokenRenewalDue(token, now) && registration.TokenEndpointAuthMethod != tokenEndpointAuthMethodNone {
 			secret, err := s.resolveRegistrationSecret(ctx, registration.ClientSecretRef)
+			now = s.now()
+			status = statusFromToken(cfg, &token, now)
 			if registrationSecretUnavailable(err) || (err == nil && strings.TrimSpace(secret) == "") {
 				return localRefreshRepairStatus(status)
 			}
+			// A transient read leaves the grant eligible because renewal resolves the secret again.
 		}
 	}
-	status.renewalDue = status.Status == StatusAuthenticated && status.Refreshable && tokenRenewalDue(token, now)
+	status.renewalDue = status.Status == StatusAuthenticated && status.Refreshable && s.tokenRenewalDue(token, now)
 	return status
 }
 
@@ -171,34 +183,35 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 	if err != nil {
 		return Status{}, err
 	}
+	status, canUseAccess, err := s.serializedRefresh(ctx, cfg, observed, target)
+	if canUseAccess {
+		return s.keepValidAccessToken(ctx, cfg, err)
+	}
+	return status, err
+}
+
+func (s *Service) serializedRefresh(
+	ctx context.Context, cfg ServerConfig, observed TokenRecord, target *targetMutationGeneration,
+) (Status, bool, error) {
 	select {
 	case target.refreshGate <- struct{}{}:
 		defer func() { <-target.refreshGate }()
 	case <-ctx.Done():
-		return Status{}, ctx.Err()
+		return Status{}, false, ctx.Err()
 	}
-	return s.refreshWithBackoff(ctx, cfg, observed, target)
-}
-
-func (s *Service) refreshWithBackoff(
-	ctx context.Context, cfg ServerConfig, observed TokenRecord, target *targetMutationGeneration,
-) (Status, error) {
 	// Once renewal starts, persist a rotated refresh token even if the requesting discovery times out.
 	refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.refreshTimeout)
 	defer cancel()
 	generation, err := s.generation.Snapshot(cfg.Target)
 	if err != nil {
-		return Status{}, err
+		return Status{}, false, err
 	}
 	if target.refreshGeneration != generation {
 		target.refreshGeneration = generation
 		target.refreshAttempts, target.refreshRetryAt = 0, time.Time{}
 	}
 	if s.now().Before(target.refreshRetryAt) {
-		if target.refreshCanUseAccessToken {
-			return s.keepValidAccessToken(ctx, cfg, observed, ErrRefreshBackoff)
-		}
-		return Status{}, ErrRefreshBackoff
+		return Status{}, target.refreshCanUseAccessToken, ErrRefreshBackoff
 	}
 	target.refreshAttempts++
 	status, err := s.refresh(refreshCtx, cfg, observed, generation)
@@ -210,10 +223,10 @@ func (s *Service) refreshWithBackoff(
 	}
 	if err == nil || (status.TokenPresent && errors.Is(err, ErrTokenBindingInvalid)) {
 		target.refreshAttempts, target.refreshRetryAt = 0, time.Time{}
-		return status, err
+		return status, false, err
 	}
 	if definitiveRefreshFailure(err) && status.Status == StatusNeedsLogin {
-		return status, nil
+		return status, false, nil
 	}
 	if !errors.Is(err, ErrTokenMutationStale) {
 		delay := s.refreshBackoff
@@ -227,20 +240,16 @@ func (s *Service) refreshWithBackoff(
 	}
 	target.refreshCanUseAccessToken = !definitiveRefreshFailure(err) && !errors.Is(err, ErrTokenBindingInvalid) &&
 		!errors.Is(err, ErrTokenMutationStale)
-	if target.refreshCanUseAccessToken {
-		return s.keepValidAccessToken(ctx, cfg, observed, &refreshFailure{err: err})
-	}
-	return Status{}, &refreshFailure{err: err}
+	return Status{}, target.refreshCanUseAccessToken, &refreshFailure{err: err}
 }
 
-func (s *Service) keepValidAccessToken(
-	ctx context.Context, cfg ServerConfig, observed TokenRecord, refreshErr error,
-) (Status, error) {
-	if observed.ExpiresAt.After(s.now()) {
-		status, err := s.Status(ctx, cfg)
-		if err == nil && status.Status == StatusAuthenticated {
-			return status, nil
-		}
+func (s *Service) keepValidAccessToken(ctx context.Context, cfg ServerConfig, refreshErr error) (Status, error) {
+	ctx, cancel := context.WithTimeout(ctx, s.refreshTimeout)
+	defer cancel()
+	status, err := s.Status(ctx, cfg)
+	if err == nil && status.Status == StatusAuthenticated && status.ExpiresAt != nil &&
+		status.ExpiresAt.After(s.now()) {
+		return status, nil
 	}
 	return Status{}, refreshErr
 }

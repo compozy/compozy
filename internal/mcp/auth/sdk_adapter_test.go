@@ -30,8 +30,8 @@ func TestOAuthOfflineAccess(t *testing.T) {
 	for _, tc := range []struct {
 		name, scopes, grants, prompt, registeredScopes string
 		challengeScopes, resourceScopes                string
-		configured, want                               []string
-		refresh, preRegistered, reuse                  bool
+		configured, want, legacyScopes                 []string
+		refresh, preRegistered, replace                bool
 	}{
 		{
 			name:   "Should request advertised offline access and preserve issuer consent",
@@ -82,12 +82,18 @@ func TestOAuthOfflineAccess(t *testing.T) {
 		{
 			name:   "Should reuse an older registration without asking for an unregistered scope",
 			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
-			configured: []string{"tools.read"}, want: []string{"tools.read"}, reuse: true,
+			challengeScopes: "tools.read", want: []string{"tools.read"}, legacyScopes: []string{"tools.read"},
 		},
 		{
-			name:   "Should respect the scopes the issuer allows at registration",
+			name:   "Should keep the challenge scope when registration omits offline access",
 			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
-			configured: []string{"tools.read"}, want: []string{"tools.read"}, registeredScopes: "tools.read",
+			challengeScopes: "tools.read", want: []string{"tools.read"}, registeredScopes: "tools.read",
+		},
+		{
+			name:   "Should register a client that covers the current resource scopes",
+			scopes: "tools.read tools.write offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", legacyScopes: []string{"tools.write", "offline_access"},
+			want: []string{"tools.read", "offline_access"}, refresh: true, replace: true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -170,7 +176,7 @@ func TestOAuthOfflineAccess(t *testing.T) {
 			if !tc.preRegistered {
 				cfg.IssuerURL, cfg.ClientID, cfg.Registration = "", "", RegistrationAuto
 			}
-			if tc.reuse {
+			if len(tc.legacyScopes) > 0 {
 				fingerprint, err := ServerDefinitionFingerprint(cfg)
 				if err != nil {
 					t.Fatal(err)
@@ -183,7 +189,7 @@ func TestOAuthOfflineAccess(t *testing.T) {
 					ClientID:                "legacy-client",
 					TokenEndpointAuthMethod: tokenEndpointAuthMethodNone,
 					RedirectURL:             callback,
-					Scopes:                  cfg.Scopes,
+					Scopes:                  tc.legacyScopes,
 				}
 			}
 			login, err := service.BeginLogin(t.Context(), cfg, callback)
@@ -213,8 +219,12 @@ func TestOAuthOfflineAccess(t *testing.T) {
 			if tc.refresh && !slices.Equal(exchanged.Scopes, tc.want) {
 				t.Errorf("scope omitted by issuer should preserve the request, got %v", exchanged.Scopes)
 			}
-			if (tc.reuse || tc.preRegistered) && registrations.Load() != 0 {
-				t.Fatal("authorization replaced an existing client")
+			wantRegistrations := int32(1)
+			if tc.preRegistered || (len(tc.legacyScopes) > 0 && !tc.replace) {
+				wantRegistrations = 0
+			}
+			if got := registrations.Load(); got != wantRegistrations {
+				t.Fatalf("new registrations = %d, want %d", got, wantRegistrations)
 			}
 		})
 	}
@@ -312,6 +322,7 @@ func TestOAuthLocalRefreshRepair(t *testing.T) {
 			secretMissing := tc.secretMissing
 			if secretMissing {
 				store.registration.ClientSecretExpiresAt = now.Add(time.Hour)
+				now = now.Add(-time.Second)
 			}
 			var logs bytes.Buffer
 			service, err := NewService(
@@ -319,6 +330,9 @@ func TestOAuthLocalRefreshRepair(t *testing.T) {
 				WithNow(func() time.Time { return now }), WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))),
 				WithSecretRefResolver(func(_ context.Context, ref string) (string, error) {
 					if secretMissing {
+						if now.Before(token.ExpiresAt) {
+							now = token.ExpiresAt
+						}
 						return "", fmt.Errorf("%w: %s", vault.ErrSecretNotFound, ref)
 					}
 					return "fixture-secret", nil

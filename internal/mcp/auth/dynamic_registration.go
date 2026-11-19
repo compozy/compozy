@@ -35,9 +35,11 @@ func (s *Service) dynamicClientRegistration(
 		return hostedOAuthClient{}, err
 	}
 	existing, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
+	reuseCfg := cfg
+	reuseCfg.Scopes = loginScopes
 	if err == nil && s.dynamicRegistrationReusable(
 		existing,
-		cfg,
+		reuseCfg,
 		fingerprint,
 		resourceURL,
 		redirectURL,
@@ -73,6 +75,7 @@ func (s *Service) dynamicClientRegistration(
 	if err != nil {
 		return hostedOAuthClient{}, fmt.Errorf("mcp auth: dynamic client registration: %w", err)
 	}
+	cfg.Scopes = loginScopes
 	if grants := response.Registration.GrantTypes; len(grants) == 0 || slices.Contains(grants, serviceRefreshTokenKey) {
 		if granted := strings.Fields(
 			response.Registration.Scope,

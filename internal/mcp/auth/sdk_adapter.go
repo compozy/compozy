@@ -69,9 +69,7 @@ func (s *Service) beginHostedOAuth(
 	effectiveCfg.ClientSecret = client.secret
 	effectiveCfg.TokenEndpointAuthMethod = client.authMethod
 	authorizationCfg := effectiveCfg
-	if client.allowOfflineAccess {
-		authorizationCfg.Scopes = loginScopes
-	}
+	authorizationCfg.Scopes = loginScopes
 	authorizationURL, scopes, err := authorizationURL(
 		metadata,
 		authorizationCfg,

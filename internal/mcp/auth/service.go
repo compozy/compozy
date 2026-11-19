@@ -45,6 +45,7 @@ type Service struct {
 	refreshBackoff    time.Duration
 	refreshBackoffMax time.Duration
 	refreshTimeout    time.Duration
+	renewalWindow     time.Duration
 }
 
 // NewService constructs an MCP auth service.
@@ -63,6 +64,7 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 		refreshBackoff:    time.Second,
 		refreshBackoffMax: time.Minute,
 		refreshTimeout:    30 * time.Second,
+		renewalWindow:     maxEarlyRenewalWindow,
 		clientMetadataURL: compozyconfig.DefaultMCPClientMetadataURL,
 		now: func() time.Time {
 			return time.Now().UTC()

@@ -1029,14 +1029,20 @@ func TestMCPCallExecutor(t *testing.T) {
 		lifetime   time.Duration
 		window     time.Duration
 		retryAfter time.Duration
+		windowCap  time.Duration
 		noRefresh  bool
 		rejected   bool
 	}{
 		{name: "Should renew within the maximum window", lifetime: time.Hour, window: 30 * time.Second},
 		{name: "Should scale the window to short lifetimes", lifetime: 20 * time.Second, window: 2 * time.Second},
+		{name: "Should honor a shorter renewal cap", lifetime: time.Hour, window: 5 * time.Second, windowCap: 5 * time.Second},
 		{
 			name:     "Should use the still-valid token during transient renewal failure and backoff",
 			lifetime: time.Minute, window: 6 * time.Second, retryAfter: 2 * time.Second,
+		},
+		{
+			name:     "Should withhold a bearer that expires during renewal backoff",
+			lifetime: time.Minute, window: 6 * time.Second, retryAfter: 10 * time.Second,
 		},
 		{name: "Should allow an access-only grant until expiry", lifetime: time.Minute, window: 6 * time.Second, noRefresh: true},
 		{name: "Should withdraw a definitively rejected grant before expiry", lifetime: time.Minute, window: 6 * time.Second, rejected: true},
@@ -1044,6 +1050,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var renewals atomic.Int32
+			var mcpRequests atomic.Int32
 			var failRefresh atomic.Bool
 			failRefresh.Store(tc.retryAfter > 0)
 			handler := newTestMCPHandler(newFakeSDKServer(nil))
@@ -1081,6 +1088,7 @@ func TestMCPCallExecutor(t *testing.T) {
 						t.Error(err)
 					}
 				default:
+					mcpRequests.Add(1)
 					want := "Bearer current-access"
 					if renewals.Load() > 0 && !failRefresh.Load() {
 						want = "Bearer renewed-access"
@@ -1114,6 +1122,7 @@ func TestMCPCallExecutor(t *testing.T) {
 				t.Fatal(err)
 			}
 			service, err := mcpauth.NewService(store, mcpauth.WithNow(func() time.Time { return now }),
+				mcpauth.WithRefreshBackoff(tc.retryAfter, tc.retryAfter), mcpauth.WithEarlyRenewalWindow(tc.windowCap),
 				mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))))
 			if err != nil {
 				t.Fatal(err)
@@ -1163,6 +1172,18 @@ func TestMCPCallExecutor(t *testing.T) {
 			if tc.retryAfter > 0 {
 				if recoveries != 0 {
 					t.Fatal("transient failure was reported as auth recovery")
+				}
+				if tc.retryAfter > tc.window {
+					requestsBeforeExpiry := mcpRequests.Load()
+					now = expiresAt
+					_, err := executor.ListTools(t.Context(), source)
+					requireReason(t, err, toolspkg.ReasonMCPAuthRefreshFailed)
+					if renewals.Load() != 1 || mcpRequests.Load() != requestsBeforeExpiry {
+						t.Fatal(
+							"discovery during backoff contacted the issuer or sent a request with an expired bearer",
+						)
+					}
+					return
 				}
 				failRefresh.Store(false)
 				now = now.Add(tc.retryAfter)
