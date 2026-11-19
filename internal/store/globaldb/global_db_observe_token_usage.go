@@ -41,6 +41,56 @@ func (g *ObserveRepo) RecordTokenUsageOnce(
 	return g.recordTokenUsage(ctx, stats, daily, true)
 }
 
+// BackfillDailyBudgetReceipt recovers one durable Done receipt. Only events
+// carrying the canonical writer marker can repair both additive projections.
+func (g *ObserveRepo) BackfillDailyBudgetReceipt(
+	ctx context.Context,
+	stats store.TokenStatsUpdate,
+	daily store.TokenUsageDailyUpdate,
+	canonicalWriter bool,
+) error {
+	if err := g.checkReady(ctx, "backfill daily budget receipt"); err != nil {
+		return err
+	}
+	if err := stats.Validate(); err != nil {
+		return err
+	}
+	if err := daily.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(stats.TurnID) == "" || stats.TurnID != strings.TrimSpace(stats.TurnID) {
+		return errors.New("store: backfill requires canonical turn id")
+	}
+	if err := validateTokenReceiptPair(stats, daily); err != nil {
+		return err
+	}
+	return store.ExecuteWriteOperation(ctx, g.db, "backfill daily budget receipt", func(
+		ctx context.Context, tx *store.WriteTx,
+	) error {
+		inserted, err := g.insertTokenUsageReceipt(ctx, tx, stats, daily)
+		if err != nil || !inserted {
+			return err
+		}
+		queries := sqlcgen.New(tx)
+		if canonicalWriter {
+			statsParams, err := g.tokenStatsParams(stats)
+			if err != nil {
+				return err
+			}
+			if err := queries.UpsertTokenStats(ctx, statsParams); err != nil {
+				return fmt.Errorf("store: restore token stats after lost observer write: %w", err)
+			}
+			if err := queries.UpsertTokenUsageDaily(ctx, g.tokenUsageDailyParams(daily)); err != nil {
+				return fmt.Errorf("store: restore daily usage after lost observer write: %w", err)
+			}
+		}
+		if daily.Day == store.LocalDay(g.now()) {
+			return warnForAcceptedBudgetReceipt(ctx, queries, stats.SessionID, daily.UpdatedAt)
+		}
+		return nil
+	})
+}
+
 func validateTokenReceiptPair(stats store.TokenStatsUpdate, daily store.TokenUsageDailyUpdate) error {
 	if stats.Turns > 1 || daily.Turns > 1 || stats.Turns < 0 || daily.Turns < 0 {
 		return errors.New("store: a canonical token receipt must represent exactly one turn")
@@ -180,6 +230,23 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 	}
 	if sessionOwner.ProfileID != daily.ProfileID {
 		return false, fmt.Errorf("store: token receipt session %q profile does not match usage owner", stats.SessionID)
+	}
+	// Adoption stamps an existing standalone session with a new instance ID.
+	// Receipts from before that instance existed remain standalone, including
+	// when the observer first sees them during a later crash recovery. The
+	// immutable receipt fence makes the same decision for live and replay.
+	if sessionOwner.InstanceID != "" {
+		instance, err := queries.GetAgentInstance(ctx, sessionOwner.InstanceID)
+		if err != nil {
+			return false, fmt.Errorf("store: read receipt instance creation: %w", err)
+		}
+		createdAt, err := store.ParseTimestamp(instance.CreatedAt)
+		if err != nil {
+			return false, err
+		}
+		if daily.UpdatedAt.Before(createdAt) {
+			sessionOwner.InstanceID = ""
+		}
 	}
 	tokens, err := receiptTokenCount(stats)
 	if err != nil {

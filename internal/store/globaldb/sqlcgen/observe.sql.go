@@ -237,7 +237,7 @@ ON CONFLICT(session_id, agent_name) DO UPDATE SET
     ELSE token_stats.cost_source
   END,
   turn_count = token_stats.turn_count + excluded.turn_count,
-  updated_at = excluded.updated_at
+  updated_at = MAX(token_stats.updated_at, excluded.updated_at)
 `
 
 type UpsertTokenStatsParams struct {

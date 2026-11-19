@@ -33,6 +33,13 @@ func warnForAcceptedBudgetReceipt(
 	if instance.ProfileID != owner.ProfileID {
 		return agentinstance.ErrScopeMismatch
 	}
+	createdAt, err := store.ParseTimestamp(instance.CreatedAt)
+	if err != nil {
+		return err
+	}
+	if at.Before(createdAt) {
+		return nil // pre-adoption standalone usage cannot issue this instance's bell
+	}
 	// An in-flight turn may finish after an instance was archived. Its usage
 	// still belongs in the ledger, but archived instances receive no new bells.
 	if instance.ArchivedAt.Valid {
