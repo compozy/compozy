@@ -3,10 +3,10 @@ package daemon
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
 func (n *daemonNativeTools) workspaceToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
-	describeAvailability toolspkg.NativeAvailabilityFunc,
-	agentCreateAvailability toolspkg.NativeAvailabilityFunc,
-	agentCatalogAvailability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
+	describeAvailability *toolspkg.NativeAvailabilityGroup,
+	agentCreateAvailability *toolspkg.NativeAvailabilityGroup,
+	agentCatalogAvailability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDAgentList: {
@@ -39,7 +39,7 @@ func (n *daemonNativeTools) workspaceToolBindings(
 }
 
 func (n *daemonNativeTools) vaultToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDVaultList: {call: n.vaultList, availability: availability},

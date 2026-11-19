@@ -3,7 +3,7 @@ package daemon
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
 func (n *daemonNativeTools) taskRunToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDTaskRunList: {

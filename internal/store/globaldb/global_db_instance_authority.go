@@ -50,6 +50,64 @@ func (r *InstanceRepo) InstanceCaller(ctx context.Context, sessionID string) (ag
 	return result, nil
 }
 
+// MCPProjectionState reads the caller ceiling and current instance binding using the same
+// repository queries as policy resolution, without decoding tool IDs or occurrence history.
+func (r *InstanceRepo) MCPProjectionState(
+	ctx context.Context, sessionID, sessionType string,
+) (agentinstance.ProjectionState, error) {
+	if err := r.checkReady(ctx, "observe instance policy"); err != nil {
+		return agentinstance.ProjectionState{}, err
+	}
+	if sessionType != "" && sessionType != "triage" {
+		ancestry, err := r.readQueries.SessionMayHaveInstanceAncestry(ctx, sessionID)
+		if err != nil || ancestry.Valid && !ancestry.Bool {
+			return agentinstance.ProjectionState{}, err
+		}
+	}
+	row, err := r.readQueries.GetInstanceCaller(ctx, sessionID)
+	if err != nil {
+		return agentinstance.ProjectionState{}, err
+	}
+	id, idOK := row.OriginatingInstanceID.(string)
+	depth, depthOK := row.InstanceDepth.(int64)
+	if !idOK || !depthOK {
+		return agentinstance.ProjectionState{}, errors.New("store: invalid MCP instance caller")
+	}
+	state := agentinstance.ProjectionState{
+		CallerInstanceID: id, InstanceID: id, Depth: depth, Policy: row.PermissionPolicyJson,
+		Grant: row.EffectiveWorkspaceAccess, LineageKind: row.LineageKind, SessionType: row.SessionType,
+		ProfileID: row.ProfileID, AgentName: row.AgentName,
+	}
+	if sessionType == "" {
+		sessionType = row.SessionType
+		state.WorkspaceID, err = r.readQueries.GetSessionWorkspaceID(ctx, sessionID)
+		if err != nil {
+			return agentinstance.ProjectionState{}, err
+		}
+	}
+	if sessionType == "triage" {
+		binding, occurrence, err := r.CheckInSessionBinding(ctx, sessionID)
+		if err != nil {
+			return agentinstance.ProjectionState{}, err
+		}
+		if binding != "" {
+			state.InstanceID, state.OccurrenceID = binding, occurrence
+		}
+	}
+	if state.InstanceID == "" {
+		return state, nil
+	}
+	instance, err := r.readQueries.GetAgentInstance(ctx, state.InstanceID)
+	if err != nil {
+		return agentinstance.ProjectionState{}, err
+	}
+	state.MainSessionID = instance.MainSessionID.String
+	state.State, state.PauseReason = instance.State, instance.PauseReason
+	state.PermissionCeiling, state.ChecksEnabled, state.Archived = instance.PermissionCeiling,
+		instance.ChecksEnabled, instance.ArchivedAt.Valid
+	return state, nil
+}
+
 func (r *SessionRepo) CheckSessionSuperseded(ctx context.Context, sessionID string) error {
 	if err := r.checkReady(ctx, "check session supersession"); err != nil {
 		return err

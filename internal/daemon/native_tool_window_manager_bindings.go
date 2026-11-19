@@ -2,14 +2,14 @@ package daemon
 
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
-func (n *daemonNativeTools) windowManagerAvailability() toolspkg.NativeAvailabilityFunc {
+func (n *daemonNativeTools) windowManagerAvailability() *toolspkg.NativeAvailabilityGroup {
 	return n.dependencyAvailability(func() bool {
 		return n.deps.WindowManagers != nil && n.deps.Workspaces != nil
 	})
 }
 
 func (n *daemonNativeTools) windowManagerToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDDesktopList:    {call: n.desktopList, availability: availability},

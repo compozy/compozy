@@ -13,12 +13,14 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/managedsidecar"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type authorityPolicyKey struct {
 	profile, dir string
 	digest       [32]byte
+	published    string
 }
 type authorityPolicyValue struct {
 	policy      heartbeat.ResolvedPolicy
@@ -55,6 +57,11 @@ func (r *nativeToolPolicyResolver) cachedAuthorityPolicy(
 		dir = filepath.Dir(agent.SourcePath)
 	}
 	key := authorityPolicyKey{profile: info.ProfileID, dir: dir, digest: sha256.Sum256(data)}
+	if catalog, ok := r.agentResolver.(*resourceAgentCatalog); ok {
+		key.published = catalog.projectionHeartbeat(tools.Scope{
+			ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, AgentName: agent.Name,
+		})
+	}
 	r.authorityMu.Lock()
 	defer r.authorityMu.Unlock()
 	if cached, ok := r.authorityCache[key]; ok {

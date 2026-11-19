@@ -10,11 +10,19 @@ import (
 // NativeAvailabilityFunc computes runtime availability for one daemon-compiled tool.
 type NativeAvailabilityFunc func(ctx context.Context, scope Scope) Availability
 
+// NativeAvailabilityGroup allows bindings with the same service check to share its
+// projection observation. Scoped checks retain the session's scope.
+type NativeAvailabilityGroup struct {
+	Check  NativeAvailabilityFunc
+	Shared bool
+}
+
 // NativeTool binds one descriptor to an in-process daemon handler.
 type NativeTool struct {
-	Descriptor   Descriptor
-	Call         NativeToolFunc
-	Availability NativeAvailabilityFunc
+	Descriptor        Descriptor
+	Call              NativeToolFunc
+	Availability      NativeAvailabilityFunc
+	AvailabilityGroup *NativeAvailabilityGroup
 }
 
 // NativeProvider serves daemon-compiled native_go tools.
@@ -38,6 +46,7 @@ func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProv
 		tools:  make(map[ToolID]*NativeTool, len(nativeTools)),
 		ids:    make([]ToolID, 0, len(nativeTools)),
 	}
+	groups := make(map[*NativeAvailabilityGroup]bool)
 	for i := range nativeTools {
 		nativeTool := &nativeTools[i]
 		descriptor, err := DescriptorWithSchemaDigests(nativeTool.Descriptor)
@@ -56,20 +65,26 @@ func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProv
 				fmt.Sprintf("duplicate native tool %q", id),
 			)
 		}
+		group := nativeTool.AvailabilityGroup
+		if group != nil {
+			nativeTool.Availability = group.Check
+		}
 		provider.tools[id] = cloneNativeTool(nativeTool)
 		provider.ids = append(provider.ids, id)
-		if nativeTool.Availability != nil {
+		if nativeTool.Availability == nil || groups[group] {
+			continue
+		}
+		if group != nil {
+			groups[group] = true
+		}
+		if group != nil && group.Shared {
+			provider.sharedAvailability = append(provider.sharedAvailability, group.Check)
+		} else {
 			provider.scopedAvailability = append(provider.scopedAvailability, nativeTool.Availability)
 		}
 	}
 	slices.Sort(provider.ids)
 	return provider, nil
-}
-
-// SetProjectionAvailabilityChecks registers equivalent shared probes before publishing the provider.
-func (p *NativeProvider) SetProjectionAvailabilityChecks(shared, scoped []NativeAvailabilityFunc) {
-	p.sharedAvailability = slices.Clone(shared)
-	p.scopedAvailability = slices.Clone(scoped)
 }
 
 // ID returns the provider provenance.

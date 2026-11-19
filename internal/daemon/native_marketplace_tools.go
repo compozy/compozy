@@ -22,7 +22,7 @@ type marketplaceSearchInput struct {
 }
 
 func (n *daemonNativeTools) marketplaceToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDMarketplaceCategories: {call: n.marketplaceCategories, availability: availability},

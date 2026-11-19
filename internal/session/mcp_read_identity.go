@@ -3,6 +3,12 @@ package session
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
+	"os"
+	"path/filepath"
+
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/filesnap"
 
 	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/store"
@@ -69,30 +75,69 @@ type MCPPolicyIdentity struct {
 	lineage                   *store.SessionLineage
 	profile, workspace, agent string
 	permissions               string
-	kind                      Type
+	Kind                      Type
+	instance                  string
+	access                    string
+	metadata                  filesnap.Snapshot
+}
+
+// Scope returns the policy owner captured from a live session, or the zero scope for stored metadata.
+func (i MCPPolicyIdentity) Scope() tools.Scope {
+	return tools.Scope{ProfileID: i.profile, WorkspaceID: i.workspace, AgentName: i.agent}
 }
 
 func (m *Manager) MCPPolicyIdentity(id string) (MCPPolicyIdentity, bool) {
 	s, ok := m.Get(id)
-	if !ok {
+	if ok {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		return s.mcpPolicyIdentityLocked(), true
+	}
+	target, err := normalizeStoredSessionID(id)
+	if err != nil {
 		return MCPPolicyIdentity{}, false
+	}
+	path := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
+	metadata, err := filesnap.FromPath(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return MCPPolicyIdentity{}, false
+	}
+	return MCPPolicyIdentity{metadata: metadata}, metadata.Reusable()
+}
+
+func (s *Session) mcpPolicyIdentityLocked() MCPPolicyIdentity {
+	return MCPPolicyIdentity{
+		session:     s,
+		lineage:     s.Lineage,
+		profile:     s.ProfileID,
+		workspace:   s.WorkspaceID,
+		agent:       s.AgentName,
+		permissions: reportedPermissionMode(s.EffectivePermissions, s.permissionModeDegradedLocked()),
+		Kind:        s.Type,
+		instance:    s.InstanceID,
+		access:      s.EffectiveWorkspaceAccess,
+	}
+}
+
+func (s *Session) permissionModeDegradedLocked() bool {
+	if s.process == nil {
+		return s.ACPCaps.PermissionModeDegraded
+	}
+	if proc, ok := s.process.native.(*acp.AgentProcess); ok {
+		return proc.PermissionModeDegraded()
+	}
+	return s.process.CapsSnapshot().PermissionModeDegraded
+}
+
+func (m *Manager) MCPProjectionSessionScope(id string) (tools.Scope, string, bool) {
+	s, ok := m.Get(id)
+	if !ok {
+		return tools.Scope{}, "", false
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.mcpPolicyIdentityLocked()
-}
-
-func (s *Session) mcpPolicyIdentityLocked() (MCPPolicyIdentity, bool) {
-	if s.InstanceID != "" || s.Type == SessionTypeTriage {
-		// Instance and check-in policy consult live repository inputs.
-		return MCPPolicyIdentity{}, false
-	}
-	caps, _ := s.capabilitiesSnapshotLocked()
-	return MCPPolicyIdentity{
-		session: s, lineage: s.Lineage, profile: s.ProfileID, workspace: s.WorkspaceID,
-		agent: s.AgentName, permissions: reportedPermissionMode(s.EffectivePermissions, caps.PermissionModeDegraded),
-		kind: s.Type,
-	}, true
+	return tools.Scope{SessionID: s.ID, ProfileID: s.ProfileID, WorkspaceID: s.WorkspaceID, AgentName: s.AgentName},
+		s.EffectiveWorkspaceAccess, true
 }
 
 // MCPSummaryIdentity captures only inputs to a bound session's MCP summary.
@@ -113,11 +158,11 @@ func (m *Manager) BoundMCPSummaryIdentity(id string) (tools.Scope, MCPSummaryIde
 		return tools.Scope{}, MCPSummaryIdentity{}, false
 	}
 	s.mu.RLock()
-	policy, known := s.mcpPolicyIdentityLocked()
-	if !known || s.process == nil {
+	if s.process == nil {
 		s.mu.RUnlock()
 		return tools.Scope{}, MCPSummaryIdentity{}, false
 	}
+	policy := s.mcpPolicyIdentityLocked()
 	identity := MCPSummaryIdentity{
 		policy: policy, process: s.process, generation: s.RuntimeGeneration,
 		selectionRevision: s.RuntimeSelectionRevision, requiresReload: s.hostedMCPRequiresReload,

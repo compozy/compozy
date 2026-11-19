@@ -51,21 +51,23 @@ type nativeToolPolicyAgentResolver interface {
 }
 
 type nativeToolPolicyResolver struct {
-	scopeTools        func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error)
-	readFence         func() sessionMCPReadFence
-	authorityMu       sync.Mutex
-	authorityCache    map[authorityPolicyKey]authorityPolicyValue
-	approvalGrants    toolspkg.ApprovalGrantStore
-	instanceCallers   agentinstance.CallerReader
-	cfg               *compozyconfig.Config
-	sessions          nativeToolPolicySessionReader
-	workspaceResolver nativeToolPolicyWorkspaceResolver
-	profileNames      session.ProfileNameResolver
-	agentResolver     nativeToolPolicyAgentResolver
-	extensionRegistry *extensionpkg.Registry
-	approvalAvailable bool
-	mcpSourceGrants   nativeToolPolicyMCPSourceGrants
-	mcpResourceNames  func() map[string]string
+	scopeTools               func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error)
+	readFence                func() sessionMCPReadFence
+	authorityMu              sync.Mutex
+	authorityCache           map[authorityPolicyKey]authorityPolicyValue
+	projectionDefinitions    map[projectionDefinitionKey]projectionDefinition
+	heartbeatCatalogRevision func() int64
+	approvalGrants           toolspkg.ApprovalGrantStore
+	instanceCallers          agentinstance.CallerReader
+	cfg                      *compozyconfig.Config
+	sessions                 nativeToolPolicySessionReader
+	workspaceResolver        nativeToolPolicyWorkspaceResolver
+	profileNames             session.ProfileNameResolver
+	agentResolver            nativeToolPolicyAgentResolver
+	extensionRegistry        *extensionpkg.Registry
+	approvalAvailable        bool
+	mcpSourceGrants          nativeToolPolicyMCPSourceGrants
+	mcpResourceNames         func() map[string]string
 }
 
 var _ toolspkg.PolicyInputResolver = (*nativeToolPolicyResolver)(nil)
@@ -114,25 +116,11 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 		return nil, err
 	}
 	resolver.readFence = state.sessionMCPReadFence
+	resolver.heartbeatCatalogRevision = state.heartbeatCatalog.Revision
 	if provider, ok := state.registry.(instanceRepositoryProvider); ok {
 		resolver.instanceCallers = provider.Instances()
 	}
 	return resolver, nil
-}
-
-// ProjectionPolicyIdentity reads session-local policy inputs before resolving the catalog.
-func (r *nativeToolPolicyResolver) ProjectionPolicyIdentity(_ context.Context, scope toolspkg.Scope) (any, bool) {
-	manager, ok := r.sessions.(*session.Manager)
-	if !ok || r.readFence == nil {
-		return nil, false
-	}
-	identity, ok := manager.MCPPolicyIdentity(scope.SessionID)
-	fence := r.readFence()
-	return struct {
-		session                             session.MCPPolicyIdentity
-		auth, workspace, heartbeatAuthority uint64
-		catalog                             int64
-	}{identity, fence.auth, fence.workspace, fence.heartbeatAuthority, fence.catalog}, ok
 }
 
 func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.Scope) (toolspkg.PolicyInputs, error) {

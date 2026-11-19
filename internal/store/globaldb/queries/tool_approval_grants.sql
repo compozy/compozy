@@ -58,6 +58,18 @@ WHERE profile_id = sqlc.arg(profile_id)
 	AND workspace_id = sqlc.arg(workspace_id)
 ORDER BY created_at DESC, id;
 
+-- name: ReadCheckInApprovalDecisions :one
+SELECT CAST(json_group_array(json_array(agent_name, tool_id, input_digest, decision)) AS TEXT)
+FROM (
+  SELECT agent_name, tool_id, input_digest, decision
+  FROM tool_approval_grants
+  WHERE profile_id = sqlc.arg(profile_id)
+    AND workspace_id = sqlc.arg(workspace_id)
+    AND (agent_name = '' OR agent_name = sqlc.arg(agent_name))
+    AND access_scope = ''
+  ORDER BY agent_name, tool_id, input_digest, id
+);
+
 -- name: RevokeApprovalGrant :execrows
 DELETE FROM tool_approval_grants
 WHERE profile_id = sqlc.arg(profile_id)

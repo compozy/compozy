@@ -21,7 +21,7 @@ const (
 )
 
 func (n *daemonNativeTools) loopToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	bindings := n.loopCoreToolBindings(availability)
 	maps.Copy(bindings, n.loopInteractionToolBindings(availability))

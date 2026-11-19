@@ -224,6 +224,32 @@ func (q *Queries) PutApprovalGrant(ctx context.Context, arg PutApprovalGrantPara
 	return i, err
 }
 
+const readCheckInApprovalDecisions = `-- name: ReadCheckInApprovalDecisions :one
+SELECT CAST(json_group_array(json_array(agent_name, tool_id, input_digest, decision)) AS TEXT)
+FROM (
+  SELECT agent_name, tool_id, input_digest, decision
+  FROM tool_approval_grants
+  WHERE profile_id = ?1
+    AND workspace_id = ?2
+    AND (agent_name = '' OR agent_name = ?3)
+    AND access_scope = ''
+  ORDER BY agent_name, tool_id, input_digest, id
+)
+`
+
+type ReadCheckInApprovalDecisionsParams struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+}
+
+func (q *Queries) ReadCheckInApprovalDecisions(ctx context.Context, arg ReadCheckInApprovalDecisionsParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, readCheckInApprovalDecisions, arg.ProfileID, arg.WorkspaceID, arg.AgentName)
+	var column_1 string
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const revokeApprovalGrant = `-- name: RevokeApprovalGrant :execrows
 DELETE FROM tool_approval_grants
 WHERE profile_id = ?1

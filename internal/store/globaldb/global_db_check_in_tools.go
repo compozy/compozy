@@ -116,7 +116,7 @@ func (r *InstanceRepo) ApprovedAuthority(ctx context.Context, profile, dir strin
 	return value, err
 }
 func (r *InstanceRepo) ApproveAuthority(ctx context.Context, profile, dir, hash, via string, now time.Time) error {
-	err := r.executeWriteQuery(ctx, "approve heartbeat authority", func(ctx context.Context, q *sqlcgen.Queries) error {
+	return r.executeWriteQuery(ctx, "approve heartbeat authority", func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.ApproveHeartbeatAuthority(
 			ctx,
 			sqlcgen.ApproveHeartbeatAuthorityParams{
@@ -128,27 +128,14 @@ func (r *InstanceRepo) ApproveAuthority(ctx context.Context, profile, dir, hash,
 			},
 		)
 	})
-	if err == nil && r.heartbeatAuthorityRevision != nil {
-		r.heartbeatAuthorityRevision.Add(1)
-	}
-	return err
 }
 func (r *InstanceRepo) RevokeAuthority(ctx context.Context, profile, dir string) error {
-	err := r.executeWriteQuery(ctx, "revoke heartbeat authority", func(ctx context.Context, q *sqlcgen.Queries) error {
+	return r.executeWriteQuery(ctx, "revoke heartbeat authority", func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.RevokeHeartbeatAuthority(
 			ctx,
 			sqlcgen.RevokeHeartbeatAuthorityParams{ProfileID: profile, DefinitionDir: dir},
 		)
 	})
-	if err == nil && r.heartbeatAuthorityRevision != nil {
-		r.heartbeatAuthorityRevision.Add(1)
-	}
-	return err
-}
-
-// HeartbeatAuthorityRevision identifies committed check-in authority changes for projection readers.
-func (g *GlobalDB) HeartbeatAuthorityRevision() uint64 {
-	return g.heartbeatAuthorityRevision.Load()
 }
 
 type checkInToolRecorder struct{ repo *InstanceRepo }

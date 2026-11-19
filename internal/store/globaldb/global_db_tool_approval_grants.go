@@ -238,6 +238,16 @@ func (g *ApprovalGrantRepo) ListApprovalGrants(
 	return grants, nil
 }
 
+// CheckInApprovalProjection observes remembered tool decisions in the original grant scope.
+func (g *ApprovalGrantRepo) CheckInApprovalProjection(ctx context.Context, scope toolspkg.Scope) (string, error) {
+	if err := g.checkReady(ctx, "observe check-in approvals"); err != nil {
+		return "", err
+	}
+	return g.readQueries.ReadCheckInApprovalDecisions(ctx, sqlcgen.ReadCheckInApprovalDecisionsParams{
+		ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID, AgentName: scope.AgentName,
+	})
+}
+
 // RevokeApprovalGrant removes one profile/workspace-scoped remembered decision.
 func (g *ApprovalGrantRepo) RevokeApprovalGrant(ctx context.Context, profileID, workspaceID, id string) error {
 	if err := g.checkReady(ctx, "revoke tool approval grant"); err != nil {

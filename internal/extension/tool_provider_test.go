@@ -421,6 +421,46 @@ func TestExtensionToolProviderProjectionGeneration(t *testing.T) {
 		}
 	})
 
+	// Invariant: generation-backed observations track manifest and runtime-only edits.
+	// Owner: extension projection provider; canonical suite: projection generations.
+	t.Run("Should change external fingerprints with manifest and runtime state", func(t *testing.T) {
+		t.Parallel()
+		env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-fingerprint", true)
+		runtime := newFakeExtensionToolRuntime(t, env.registry, fixture.manifest.Name,
+			[]toolspkg.ExtensionToolRuntimeDescriptor{descriptor.RuntimeDescriptor})
+		provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime { return runtime })
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, err := toolspkg.NewRegistry(toolspkg.WithProviders(provider))
+		if err != nil {
+			t.Fatal(err)
+		}
+		fingerprint := func() string {
+			t.Helper()
+			stamp, err := registry.ExternalProjectionFingerprint(t.Context(), toolspkg.Scope{})
+			if err != nil || stamp == "" {
+				t.Fatalf("external fingerprint = %q, %v", stamp, err)
+			}
+			return stamp
+		}
+		initial := fingerprint()
+		runtime.extension.Status.Healthy = false
+		unhealthy := fingerprint()
+		if unhealthy == initial {
+			t.Fatal("runtime health change kept the initial fingerprint")
+		}
+		info, err := env.registry.Get(fixture.manifest.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		original, stat := readManifestContentAndMetadata(t, info.ManifestPath)
+		replaceManifestContentPreservingMetadata(t, info.ManifestPath, malformedManifestContent(original), stat)
+		if changed := fingerprint(); changed == unhealthy {
+			t.Fatal("manifest edit kept the previous fingerprint")
+		}
+	})
+
 	t.Run("Should keep healthy partial projections for unchanged invalid manifests", func(t *testing.T) {
 		t.Parallel()
 

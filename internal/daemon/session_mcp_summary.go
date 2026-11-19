@@ -38,15 +38,20 @@ type sessionMCPScopeSnapshot struct {
 
 type sessionMCPSummaryBatchKey struct{}
 
+type boundMCPSummaryIdentity struct {
+	runtime any
+	policy  sessionProjectionPolicyIdentity
+}
+
 type sessionMCPSummaryBatch struct {
 	id    uint64
 	views map[string]sessionMCPToolViews
 }
 
 type sessionMCPReadFence struct {
-	epoch, inventory, auth, workspace, heartbeatAuthority uint64
-	catalog                                               int64
-	redaction                                             [sha256.Size]byte
+	epoch, inventory, auth, workspace uint64
+	catalog                           int64
+	redaction                         [sha256.Size]byte
 }
 
 func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) (*session.MCPSummary, error) {
@@ -58,7 +63,7 @@ func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) 
 	} else {
 		ctx = r.registry.ReadContext(tools.EnsureProjectionListings(ctx))
 	}
-	scope, local, err := r.summaryIdentity(ctx, id)
+	scope, local, err := r.summaryIdentity(ctx, id, fence)
 	if err != nil {
 		if errors.Is(err, session.ErrSessionNotFound) {
 			r.mu.Lock()
@@ -79,8 +84,9 @@ func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) 
 		r.snapshots[id] = cached
 	}
 	r.mu.Unlock()
-	_, boundOrdinary := local.(session.MCPSummaryIdentity)
-	fenceChanged := cached.fence != fence && (!boundOrdinary || inputs.policy == "")
+	_, boundVersioned := local.(boundMCPSummaryIdentity)
+	fenceChanged := cached.fence.redaction != fence.redaction ||
+		cached.fence != fence && (!boundVersioned || inputs.policy == "")
 	if !found || local == nil || fenceChanged || cached.identity != local || cached.scopeKey != inputs.fingerprint ||
 		!r.state.runtimeMCPInventory.matches(cached.inventory) {
 		cached, err = r.buildSessionMCPSummary(ctx, scope, inputs, fence, local)
@@ -124,11 +130,11 @@ func (r *sessionMCPReadModel) buildSessionMCPSummary(
 		hasServers: len(result.CompozyServers)+len(result.RuntimeServers.Servers) > 0,
 	}
 	// Re-read live fences, not the request-local policy/listing snapshots.
-	currentScope, after, err := r.summaryIdentity(ctx, info.ID)
+	afterFence := r.state.sessionMCPReadFence()
+	currentScope, after, err := r.summaryIdentity(ctx, info.ID, afterFence)
 	if err != nil {
 		return sessionMCPSummarySnapshot{}, err
 	}
-	afterFence := r.state.sessionMCPReadFence()
 	afterFence.inventory = 0
 	if local != nil && local == after && scope == currentScope && fence == afterFence &&
 		r.state.runtimeMCPInventory.matches(inventory) {
@@ -273,9 +279,6 @@ func (s *bootState) sessionMCPReadFence() sessionMCPReadFence {
 	if s.workspaceResolver != nil {
 		fence.workspace = s.workspaceResolver.AgentConfigRevision()
 	}
-	if source, ok := s.registry.(interface{ HeartbeatAuthorityRevision() uint64 }); ok {
-		fence.heartbeatAuthority = source.HeartbeatAuthorityRevision()
-	}
 	return fence
 }
 
@@ -283,10 +286,15 @@ func (r *sessionMCPReadModel) summaryIdleTTL() time.Duration {
 	return r.state.cfg.Skills.EffectivePollInterval()
 }
 
-func (r *sessionMCPReadModel) summaryIdentity(ctx context.Context, id string) (tools.Scope, any, error) {
-	if manager, ok := r.state.sessions.(*session.Manager); ok {
-		if scope, identity, known := manager.BoundMCPSummaryIdentity(id); known {
-			return scope, identity, nil
+func (r *sessionMCPReadModel) summaryIdentity(
+	ctx context.Context, id string, fence sessionMCPReadFence,
+) (tools.Scope, any, error) {
+	if manager, ok := r.state.sessions.(interface {
+		BoundMCPSummaryIdentity(string) (tools.Scope, session.MCPSummaryIdentity, bool)
+	}); ok {
+		if scope, identity, bound := manager.BoundMCPSummaryIdentity(id); bound {
+			local := r.summaryBoundPolicy(ctx, scope, identity, fence)
+			return scope, local, nil
 		}
 	}
 	info, err := storedSessionStatus(ctx, r.state.sessions, id)
@@ -294,23 +302,30 @@ func (r *sessionMCPReadModel) summaryIdentity(ctx context.Context, id string) (t
 		return tools.Scope{}, nil, err
 	}
 	scope := tools.Scope{
-		ProfileID:   info.ProfileID,
-		WorkspaceID: info.WorkspaceID,
-		SessionID:   info.ID,
-		AgentName:   info.AgentName,
+		ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, SessionID: info.ID, AgentName: info.AgentName,
 	}
 	local, err := r.summaryLocalInputs(info)
-	if local == "" {
+	if local == "" || err != nil {
 		return scope, nil, err
 	}
-	return scope, local, err
+	if info.Type == session.SessionTypeTriage || info.InstanceID != "" {
+		return scope, r.summaryBoundPolicy(ctx, scope, local, fence), nil
+	}
+	return scope, local, nil
+}
+
+func (r *sessionMCPReadModel) summaryBoundPolicy(
+	ctx context.Context, scope tools.Scope, runtime any, fence sessionMCPReadFence,
+) any {
+	if resolver, ok := r.authority.(*nativeToolPolicyResolver); ok {
+		if policy, known := resolver.sessionProjectionPolicy(ctx, scope, fence); known {
+			return boundMCPSummaryIdentity{runtime, policy}
+		}
+	}
+	return nil
 }
 
 func (r *sessionMCPReadModel) summaryLocalInputs(info *session.Info) (string, error) {
-	if info.Type == session.SessionTypeTriage || info.InstanceID != "" {
-		// Check-in/instance authority includes mutable repository inputs without a complete generation.
-		return "", nil
-	}
 	identity, known := r.state.sessions.(interface{ MCPReadIdentity(string) (string, error) })
 	if !known {
 		// Unversioned implementations retain synchronous projection reads.

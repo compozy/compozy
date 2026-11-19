@@ -11,46 +11,46 @@ import (
 )
 
 type nativeToolAvailabilitySet struct {
-	registry             toolspkg.NativeAvailabilityFunc
-	cmdPalette           toolspkg.NativeAvailabilityFunc
-	toolArtifacts        toolspkg.NativeAvailabilityFunc
-	toolApprovals        toolspkg.NativeAvailabilityFunc
-	clarify              toolspkg.NativeAvailabilityFunc
-	skills               toolspkg.NativeAvailabilityFunc
-	sessions             toolspkg.NativeAvailabilityFunc
-	profiles             toolspkg.NativeAvailabilityFunc
-	sessionOrchestration toolspkg.NativeAvailabilityFunc
-	sessionWait          toolspkg.NativeAvailabilityFunc
-	sessionSpawn         toolspkg.NativeAvailabilityFunc
-	sessionClarifyAnswer toolspkg.NativeAvailabilityFunc
-	notifications        toolspkg.NativeAvailabilityFunc
-	sessionCatalog       toolspkg.NativeAvailabilityFunc
-	sessionRuntime       toolspkg.NativeAvailabilityFunc
-	sessionHealth        toolspkg.NativeAvailabilityFunc
-	heartbeatStatus      toolspkg.NativeAvailabilityFunc
-	heartbeatWake        toolspkg.NativeAvailabilityFunc
-	workspaces           toolspkg.NativeAvailabilityFunc
-	worktrees            toolspkg.NativeAvailabilityFunc
-	workspaceDetails     toolspkg.NativeAvailabilityFunc
-	agentCreate          toolspkg.NativeAvailabilityFunc
-	agentCatalog         toolspkg.NativeAvailabilityFunc
-	vault                toolspkg.NativeAvailabilityFunc
-	tasks                toolspkg.NativeAvailabilityFunc
-	observe              toolspkg.NativeAvailabilityFunc
-	gateway              toolspkg.NativeAvailabilityFunc
-	config               toolspkg.NativeAvailabilityFunc
-	hookRead             toolspkg.NativeAvailabilityFunc
-	hookMutation         toolspkg.NativeAvailabilityFunc
-	automation           toolspkg.NativeAvailabilityFunc
-	loops                toolspkg.NativeAvailabilityFunc
-	extensions           toolspkg.NativeAvailabilityFunc
-	marketplace          toolspkg.NativeAvailabilityFunc
-	resources            toolspkg.NativeAvailabilityFunc
-	terminal             toolspkg.NativeAvailabilityFunc
-	sessionMonitors      toolspkg.NativeAvailabilityFunc
-	windowManager        toolspkg.NativeAvailabilityFunc
-	mcpStatus            toolspkg.NativeAvailabilityFunc
-	mcpAuth              toolspkg.NativeAvailabilityFunc
+	registry             *toolspkg.NativeAvailabilityGroup
+	cmdPalette           *toolspkg.NativeAvailabilityGroup
+	toolArtifacts        *toolspkg.NativeAvailabilityGroup
+	toolApprovals        *toolspkg.NativeAvailabilityGroup
+	clarify              *toolspkg.NativeAvailabilityGroup
+	skills               *toolspkg.NativeAvailabilityGroup
+	sessions             *toolspkg.NativeAvailabilityGroup
+	profiles             *toolspkg.NativeAvailabilityGroup
+	sessionOrchestration *toolspkg.NativeAvailabilityGroup
+	sessionWait          *toolspkg.NativeAvailabilityGroup
+	sessionSpawn         *toolspkg.NativeAvailabilityGroup
+	sessionClarifyAnswer *toolspkg.NativeAvailabilityGroup
+	notifications        *toolspkg.NativeAvailabilityGroup
+	sessionCatalog       *toolspkg.NativeAvailabilityGroup
+	sessionRuntime       *toolspkg.NativeAvailabilityGroup
+	sessionHealth        *toolspkg.NativeAvailabilityGroup
+	heartbeatStatus      *toolspkg.NativeAvailabilityGroup
+	heartbeatWake        *toolspkg.NativeAvailabilityGroup
+	workspaces           *toolspkg.NativeAvailabilityGroup
+	worktrees            *toolspkg.NativeAvailabilityGroup
+	workspaceDetails     *toolspkg.NativeAvailabilityGroup
+	agentCreate          *toolspkg.NativeAvailabilityGroup
+	agentCatalog         *toolspkg.NativeAvailabilityGroup
+	vault                *toolspkg.NativeAvailabilityGroup
+	tasks                *toolspkg.NativeAvailabilityGroup
+	observe              *toolspkg.NativeAvailabilityGroup
+	gateway              *toolspkg.NativeAvailabilityGroup
+	config               *toolspkg.NativeAvailabilityGroup
+	hookRead             *toolspkg.NativeAvailabilityGroup
+	hookMutation         *toolspkg.NativeAvailabilityGroup
+	automation           *toolspkg.NativeAvailabilityGroup
+	loops                *toolspkg.NativeAvailabilityGroup
+	extensions           *toolspkg.NativeAvailabilityGroup
+	marketplace          *toolspkg.NativeAvailabilityGroup
+	resources            *toolspkg.NativeAvailabilityGroup
+	terminal             *toolspkg.NativeAvailabilityGroup
+	sessionMonitors      *toolspkg.NativeAvailabilityGroup
+	windowManager        *toolspkg.NativeAvailabilityGroup
+	mcpStatus            *toolspkg.NativeAvailabilityGroup
+	mcpAuth              *toolspkg.NativeAvailabilityGroup
 }
 
 func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
@@ -143,7 +143,7 @@ func (n *daemonNativeTools) applySessionNativeToolAvailability(availability *nat
 	n.applyTaskNativeToolAvailability(availability)
 }
 
-func (n *daemonNativeTools) worktreeAvailability() toolspkg.NativeAvailabilityFunc {
+func (n *daemonNativeTools) worktreeAvailability() *toolspkg.NativeAvailabilityGroup {
 	return n.observeNativeService(func(ctx context.Context, _ toolspkg.Scope) toolspkg.Availability {
 		if n == nil || n.deps == nil || n.deps.Worktrees == nil || n.deps.Workspaces == nil {
 			return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
@@ -196,14 +196,14 @@ func (n *daemonNativeTools) applyServiceNativeToolAvailability(availability *nat
 	availability.mcpAuth = n.dependencyAvailability(func() bool { return n.mcpAuthProvider() != nil })
 }
 
-func (n *daemonNativeTools) sessionRuntimeAvailability() toolspkg.NativeAvailabilityFunc {
+func (n *daemonNativeTools) sessionRuntimeAvailability() *toolspkg.NativeAvailabilityGroup {
 	return n.dependencyAvailability(func() bool {
 		_, ok := n.deps.Sessions.(core.SessionRuntimeSelectionManager)
 		return ok
 	})
 }
 
-func (n *daemonNativeTools) sessionCreateAvailability() toolspkg.NativeAvailabilityFunc {
+func (n *daemonNativeTools) sessionCreateAvailability() *toolspkg.NativeAvailabilityGroup {
 	return n.dependencyAvailability(func() bool {
 		if n == nil || n.deps == nil {
 			return false

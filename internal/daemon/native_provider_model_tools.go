@@ -49,8 +49,8 @@ type providerModelsCurateInput struct {
 }
 
 func (n *daemonNativeTools) providerModelToolBindings(
-	readAvailability toolspkg.NativeAvailabilityFunc,
-	mutationAvailability toolspkg.NativeAvailabilityFunc,
+	readAvailability *toolspkg.NativeAvailabilityGroup,
+	mutationAvailability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDProviderModelsList: {
@@ -72,11 +72,11 @@ func (n *daemonNativeTools) providerModelToolBindings(
 	}
 }
 
-func (n *daemonNativeTools) providerModelReadAvailability() toolspkg.NativeAvailabilityFunc {
+func (n *daemonNativeTools) providerModelReadAvailability() *toolspkg.NativeAvailabilityGroup {
 	return n.dependencyAvailability(func() bool { return n.deps.ModelCatalog != nil })
 }
 
-func (n *daemonNativeTools) providerModelMutationAvailability() toolspkg.NativeAvailabilityFunc {
+func (n *daemonNativeTools) providerModelMutationAvailability() *toolspkg.NativeAvailabilityGroup {
 	return n.dependencyAvailability(func() bool {
 		return n.deps.ModelCatalog != nil && n.settingsService() != nil
 	})

@@ -25,7 +25,7 @@ type sessionLaterInput struct {
 const nativeLaterOperationTimeout = 3 * time.Minute
 
 func (n *daemonNativeTools) sessionLaterToolBindings(
-	catalogAvailability toolspkg.NativeAvailabilityFunc,
+	catalogAvailability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDSessionLater:       {call: n.sessionLater, availability: catalogAvailability},

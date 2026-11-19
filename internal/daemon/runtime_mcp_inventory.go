@@ -35,6 +35,7 @@ type runtimeMCPCacheEntry struct {
 type runtimeMCPObservation struct {
 	key      string
 	revision uint64
+	unknown  bool
 }
 
 type runtimeMCPObservationKey struct{}
@@ -135,7 +136,12 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 	result := cloneRuntimeMCPInventory(cached.inventory)
 	result.GeneratedAt = s.now().UTC()
 	if observed, ok := ctx.Value(runtimeMCPObservationKey{}).(*runtimeMCPObservation); ok {
-		*observed = runtimeMCPObservation{key, cached.revision}
+		switch {
+		case observed.key == "":
+			*observed = runtimeMCPObservation{key: key, revision: cached.revision}
+		case observed.key != key || observed.revision != cached.revision:
+			observed.unknown = true
+		}
 	}
 	return result, nil
 }
@@ -200,6 +206,9 @@ func runtimeMCPFilesUnchanged(
 }
 
 func (s *runtimeMCPInventory) matches(observation runtimeMCPObservation) bool {
+	if observation.unknown {
+		return false
+	}
 	if observation.key == "" || s == nil {
 		return true
 	}
@@ -220,6 +229,11 @@ func captureRuntimeMCPFiles(paths []string) map[string]filesnap.Snapshot {
 }
 
 func captureRuntimeMCPFile(path string) (filesnap.Snapshot, bool) {
+	// Most runtime locations are absent. A single lookup can prove absence without
+	// walking each ancestor to canonicalize a path we cannot open.
+	if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
+		return filesnap.Snapshot{}, false
+	}
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return filesnap.Uncacheable(), !errors.Is(err, os.ErrNotExist)

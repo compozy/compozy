@@ -13290,7 +13290,7 @@ func TestValidateNativeToolBindings(t *testing.T) {
 		return toolspkg.ToolResult{}, nil
 	}
 	descriptor := toolspkg.Descriptor{ID: toolspkg.ToolID("compozy__test")}
-	validBinding := nativeToolBinding{call: call, availability: available}
+	validBinding := nativeToolBinding{call: call, availability: &toolspkg.NativeAvailabilityGroup{Check: available}}
 
 	t.Run("Should accept an exact executable binding set", func(t *testing.T) {
 		t.Parallel()

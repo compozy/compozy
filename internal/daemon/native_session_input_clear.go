@@ -39,7 +39,7 @@ func (n *daemonNativeTools) sessionInputsClear(
 }
 
 func (n *daemonNativeTools) sessionInputToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDSessionInputsList: {

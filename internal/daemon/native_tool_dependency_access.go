@@ -8,7 +8,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func (n *daemonNativeTools) registryAvailability() toolspkg.NativeAvailabilityFunc {
+func (n *daemonNativeTools) registryAvailability() *toolspkg.NativeAvailabilityGroup {
 	return n.observeNativeService(func(context.Context, toolspkg.Scope) toolspkg.Availability {
 		if n.registry() == nil {
 			return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
@@ -17,7 +17,7 @@ func (n *daemonNativeTools) registryAvailability() toolspkg.NativeAvailabilityFu
 	})
 }
 
-func (n *daemonNativeTools) dependencyAvailability(ready func() bool) toolspkg.NativeAvailabilityFunc {
+func (n *daemonNativeTools) dependencyAvailability(ready func() bool) *toolspkg.NativeAvailabilityGroup {
 	return n.observeNativeService(func(context.Context, toolspkg.Scope) toolspkg.Availability {
 		if ready == nil || !ready() {
 			return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
@@ -26,12 +26,11 @@ func (n *daemonNativeTools) dependencyAvailability(ready func() bool) toolspkg.N
 	})
 }
 
-// Service probes are registered once per shared dependency when the native bindings are built.
+// Bindings sharing a service dependency use one projection probe.
 func (n *daemonNativeTools) observeNativeService(
 	check toolspkg.NativeAvailabilityFunc,
-) toolspkg.NativeAvailabilityFunc {
-	n.projectionChecks = append(n.projectionChecks, check)
-	return check
+) *toolspkg.NativeAvailabilityGroup {
+	return &toolspkg.NativeAvailabilityGroup{Check: check, Shared: true}
 }
 
 func (n *daemonNativeTools) registry() toolspkg.Registry {
