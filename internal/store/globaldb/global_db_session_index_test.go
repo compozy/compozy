@@ -1351,6 +1351,36 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			t.Fatalf("pinned second page = %#v total=%d, %v, want the conductor's whole subtree", second,
 				secondPage.Total, err)
 		}
+		// With the conductor first, the cursor taken from its last carried row still anchors the
+		// pin, so the next page is the other pin alone.
+		layout := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: workspace}
+		if err := db.ReorderPinnedSessions(ctx, layout, []string{"conductor", "other"}); err != nil {
+			t.Fatalf("ReorderPinnedSessions() error = %v", err)
+		}
+		pageQuery.After = nil
+		firstPage, err = db.PageSessions(ctx, pageQuery)
+		first := sessionIDsForWorkspaceStateIndexTest(firstPage.Sessions)
+		if err != nil || len(first) != len(carried) || first[0] != "conductor" || slices.Contains(first, "other") {
+			t.Fatalf("reordered first page = %#v, %v, want the conductor's whole subtree", first, err)
+		}
+		last = firstPage.Sessions[len(firstPage.Sessions)-1]
+		if last.ID == "conductor" || last.PinScope == nil || last.PinScope.RootID != "conductor" {
+			t.Fatalf("last row = %s scope %#v, want a carried row under the conductor", last.ID, last.PinScope)
+		}
+		pageQuery.After = &store.SessionCatalogPosition{
+			PinPosition:   new(last.PinScope.Position),
+			PinRootID:     last.PinScope.RootID,
+			AttentionRank: store.SessionCatalogAttentionRankNone,
+			PrimaryAt:     last.UpdatedAt,
+			SecondaryAt:   last.UpdatedAt,
+			CreatedAt:     last.CreatedAt,
+			ID:            last.ID,
+		}
+		secondPage, err = db.PageSessions(ctx, pageQuery)
+		if got := sessionIDsForWorkspaceStateIndexTest(secondPage.Sessions); err != nil ||
+			!slices.Equal(got, []string{"other"}) {
+			t.Fatalf("page after a carried-row cursor = %#v, %v, want the other pin alone", got, err)
+		}
 		if _, _, err := db.UnpinSession(ctx, workspace, "other"); err != nil {
 			t.Fatal(err)
 		}
