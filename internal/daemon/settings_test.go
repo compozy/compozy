@@ -856,38 +856,41 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, check := range []struct {
+				name       string
 				code       int
 				state      settingspkg.MCPServerRuntimeState
 				reason     toolspkg.ReasonCode
 				diagnostic string
 				auth       mcpauth.StatusValue
 			}{
-				{http.StatusBadRequest, settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
+				{"Should report a redacted JSON-RPC rejection", http.StatusBadRequest, settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
 					toolspkg.ReasonMCPUnreachable, "JSON-RPC error -32047: upstream fixture refused discovery", mcpauth.StatusAuthenticated},
-				{http.StatusServiceUnavailable, settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
+				{"Should report the upstream HTTP 503", http.StatusServiceUnavailable, settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
 					toolspkg.ReasonMCPUnreachable, "upstream HTTP 503", mcpauth.StatusAuthenticated},
-				{http.StatusUnauthorized, settingspkg.MCPServerRuntimeStateAuthRequired,
+				{"Should require sign-in after a non-refreshable token is rejected", http.StatusUnauthorized, settingspkg.MCPServerRuntimeStateAuthRequired,
 					toolspkg.ReasonMCPAuthRequired, "rejected the stored token (HTTP 401)", mcpauth.StatusNeedsLogin},
 			} {
-				if check.code == http.StatusUnauthorized {
-					token.RefreshToken = ""
-					if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
-						t.Fatal(err)
+				t.Run(check.name, func(t *testing.T) {
+					if check.code == http.StatusUnauthorized {
+						token.RefreshToken = ""
+						if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+							t.Fatal(err)
+						}
 					}
-				}
-				httpStatus.Store(int32(check.code))
-				status, err := surface.CheckMCPServerRuntime(t.Context(), target, definition)
-				if err != nil || status.State != check.state || status.Reason != string(check.reason) ||
-					!strings.Contains(status.Diagnostic, check.diagnostic) {
-					t.Fatalf("HTTP %d, status=%+v, err=%v", check.code, status, err)
-				}
-				if strings.Contains(status.Diagnostic, access) || strings.Contains(status.Diagnostic, refresh) {
-					t.Fatal("runtime diagnostic exposed a fixture token")
-				}
-				authStatus, err := surface.MCPAuthStatus(t.Context(), target, definition)
-				if err != nil || authStatus.Status != check.auth {
-					t.Fatalf("HTTP %d, auth status=%+v, err=%v", check.code, authStatus, err)
-				}
+					httpStatus.Store(int32(check.code))
+					status, err := surface.CheckMCPServerRuntime(t.Context(), target, definition)
+					if err != nil || status.State != check.state || status.Reason != string(check.reason) ||
+						!strings.Contains(status.Diagnostic, check.diagnostic) {
+						t.Fatalf("HTTP %d, status=%+v, err=%v", check.code, status, err)
+					}
+					if strings.Contains(status.Diagnostic, access) || strings.Contains(status.Diagnostic, refresh) {
+						t.Fatal("runtime diagnostic exposed a fixture token")
+					}
+					authStatus, err := surface.MCPAuthStatus(t.Context(), target, definition)
+					if err != nil || authStatus.Status != check.auth {
+						t.Fatalf("HTTP %d, auth status=%+v, err=%v", check.code, authStatus, err)
+					}
+				})
 			}
 			if _, err := store.GetMCPAuthToken(t.Context(), target); err != nil {
 				t.Fatalf("rejection discarded stored credentials: %v", err)

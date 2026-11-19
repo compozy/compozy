@@ -3577,6 +3577,49 @@ func TestMCPStdioHelperProcess(t *testing.T) {
 }
 
 func TestMCPCallExecutorHelpers(t *testing.T) {
+	// Invariant: a 401 is attributed to the credential actually read during a concurrent replacement.
+	// Owner: MCP request authorization; canonical suite: TestMCPCallExecutorHelpers.
+	t.Run("Should record rejection for a token replaced during authorization lookup", func(t *testing.T) {
+		t.Parallel()
+		server := authEnabledServer("fixture", compozyconfig.MCPServerTransportHTTP, "https://mcp.example.test")
+		target := userMCPExecutorTarget(server.Name)
+		generation := mcpauth.NewMutationGeneration()
+		store := &tokenReadHookStore{memoryTokenStore: newMemoryTokenStore()}
+		token := mcpauth.TokenRecord{
+			Target: target, DefinitionFingerprint: definitionFingerprint(t, target, server),
+			Issuer: server.Auth.IssuerURL, ClientID: server.Auth.ClientID, Scopes: server.Auth.Scopes,
+			AccessToken: "original-fixture-access", TokenType: "Bearer",
+		}
+		if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+			t.Fatal(err)
+		}
+		store.beforeRead = func(ctx context.Context) error {
+			store.beforeRead = nil
+			current, err := generation.Snapshot(target)
+			if err != nil {
+				return err
+			}
+			token.AccessToken = "replacement-fixture-access"
+			committed, err := generation.CommitAndAdvanceIfCurrent(target, current, func() error {
+				return store.SaveMCPAuthToken(ctx, token)
+			})
+			if err == nil && !committed {
+				return mcpauth.ErrTokenMutationStale
+			}
+			return err
+		}
+		executor := newTestMCPExecutor(t, server, WithTokenStore(store), WithAuthMutationGeneration(generation))
+		resolved := ResolvedServer{Server: server, Target: target}
+		header, err := executor.authorizationHeader(t.Context(), &resolved)
+		if err != nil || header != "Bearer replacement-fixture-access" {
+			t.Fatalf("did not read the replacement credential: %v", err)
+		}
+		executor.recordBearerRejection(t.Context(), &resolved, mcpauth.ErrTokenRejected)
+		status, err := executor.authStatus(t.Context(), &resolved)
+		if err != nil || status.Status != string(mcpauth.StatusNeedsLogin) {
+			t.Fatalf("replacement rejection produced auth status %+v, %v", status, err)
+		}
+	})
 	t.Run("Should reject construction without an installation digest key", func(t *testing.T) {
 		t.Parallel()
 		resolver := ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
@@ -4748,6 +4791,20 @@ type memoryTokenStore struct {
 	getErr        error
 	tokens        map[string]mcpauth.TokenRecord
 	registrations map[string]mcpauth.ClientRegistration
+}
+
+type tokenReadHookStore struct {
+	*memoryTokenStore
+	beforeRead func(context.Context) error
+}
+
+func (s *tokenReadHookStore) GetMCPAuthToken(ctx context.Context, target mcpauth.Target) (mcpauth.TokenRecord, error) {
+	if s.beforeRead != nil {
+		if err := s.beforeRead(ctx); err != nil {
+			return mcpauth.TokenRecord{}, err
+		}
+	}
+	return s.memoryTokenStore.GetMCPAuthToken(ctx, target)
 }
 
 func newMemoryTokenStore() *memoryTokenStore {

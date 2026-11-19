@@ -180,7 +180,7 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 	token, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
 	if err != nil {
 		if errors.Is(err, ErrTokenResolution) {
-			return s.invalidTokenStatus(cfg, ErrTokenResolution.Error()+"; check the credential store"), nil
+			return s.unresolvedTokenStatus(cfg, err)
 		}
 		if errors.Is(err, ErrTokenNotFound) {
 			if cfg.Implicit {
@@ -192,7 +192,7 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 	}
 	matches, registration, err := s.tokenBinding(ctx, token, cfg)
 	if err != nil {
-		return s.invalidTokenStatus(cfg, ErrTokenResolution.Error()+"; check the credential store"), nil
+		return s.unresolvedTokenStatus(cfg, err)
 	}
 	if !matches {
 		const diagnostic = "stored token belongs to a different server definition; run login again"
@@ -225,6 +225,13 @@ func (s *Service) invalidTokenStatus(cfg ServerConfig, diagnostic string) Status
 	status := statusFromTokenWithDiagnostic(cfg, nil, s.now(), diagnostic)
 	status.Status = StatusInvalid
 	return status
+}
+
+func (s *Service) unresolvedTokenStatus(cfg ServerConfig, err error) (Status, error) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return Status{}, err
+	}
+	return s.invalidTokenStatus(cfg, ErrTokenResolution.Error()+"; check the credential store"), nil
 }
 
 // AuthorizationToken returns bearer material only after full definition, registration, and scope binding validation.

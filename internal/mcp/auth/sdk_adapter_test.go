@@ -1303,6 +1303,41 @@ func TestManagerStepUpPreservesApprovedScopes(t *testing.T) {
 
 func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 	t.Parallel()
+	// Invariant: interrupted credential reads propagate to the caller without classifying the token as invalid.
+	// Owner: OAuth status and binding; canonical suite: TestAuthorizationTokenRequiresBaselineScopes.
+	for _, test := range []struct {
+		name    string
+		stored  bool
+		wantErr error
+	}{
+		{"Should propagate cancellation during token resolution", false, context.Canceled},
+		{"Should propagate a token resolution deadline", false, context.DeadlineExceeded},
+		{"Should propagate cancellation during registration lookup", true, context.Canceled},
+		{"Should propagate a registration lookup deadline", true, context.DeadlineExceeded},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := ServerConfig{
+				Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+				Transport: "http", RemoteURL: "https://mcp.example.test", Registration: RegistrationAuto,
+			}
+			store := &adapterTestStore{}
+			if test.stored {
+				store.token = managerBoundToken(t, cfg, "fixture-access")
+				store.registrationErr = test.wantErr
+			} else {
+				store.tokenErr = errors.Join(ErrTokenResolution, test.wantErr)
+			}
+			service, err := NewService(store, WithRegistrationStore(store))
+			if err != nil {
+				t.Fatal(err)
+			}
+			status, err := service.Status(t.Context(), cfg)
+			if !errors.Is(err, test.wantErr) || status.Status != "" {
+				t.Fatalf("interrupted status = %+v, %v, want no observation and %v", status, err, test.wantErr)
+			}
+		})
+	}
 	t.Run("Should probe an implicit remote when its old credential no longer matches", func(t *testing.T) {
 		t.Parallel()
 		store := &adapterTestStore{}
@@ -2181,6 +2216,8 @@ type adapterTestStore struct {
 	secrets                   RegistrationSecrets
 	authorizationStateDeleted bool
 	token                     TokenRecord
+	tokenErr                  error
+	registrationErr           error
 }
 
 func (s *adapterTestStore) SaveMCPAuthToken(_ context.Context, token TokenRecord) error {
@@ -2192,6 +2229,9 @@ func (s *adapterTestStore) SaveMCPAuthToken(_ context.Context, token TokenRecord
 func (s *adapterTestStore) GetMCPAuthToken(context.Context, Target) (TokenRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.tokenErr != nil {
+		return TokenRecord{}, s.tokenErr
+	}
 	if s.token.AccessToken == "" {
 		return TokenRecord{}, ErrTokenNotFound
 	}
@@ -2227,6 +2267,9 @@ func (s *adapterTestStore) GetMCPAuthRegistration(
 ) (ClientRegistration, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.registrationErr != nil {
+		return ClientRegistration{}, s.registrationErr
+	}
 	if s.registration.ClientID == "" {
 		return ClientRegistration{}, ErrRegistrationNotFound
 	}
