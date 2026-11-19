@@ -71,13 +71,29 @@ func (e *CallExecutor) normalizeToolListing(
 	for range 2 {
 		snapshot := redact.RegisteredSecretSnapshot()
 		discovery, err := e.normalizeToolListingAt(key, source, resolved, protocolVersion, raw, snapshot)
-		if err != nil || snapshot.MaterialFingerprint() == redact.RegisteredSecretSnapshot().MaterialFingerprint() {
+		if err != nil || toolListingSafeAtCurrentRevision(&discovery, snapshot) {
 			return discovery, err
 		}
 	}
 	return ToolDiscovery{}, tools.NewValidationError(
 		"listing", tools.ReasonSecretMetadata, "mcp tool metadata changed during redaction",
 	)
+}
+
+func toolListingSafeAtCurrentRevision(discovery *ToolDiscovery, normalizedAt *redact.SecretSnapshot) bool {
+	current := redact.RegisteredSecretSnapshot()
+	if normalizedAt.MaterialFingerprint() == current.MaterialFingerprint() {
+		return true
+	}
+	// Recheck the published metadata when credentials change during normalization.
+	// The cache still records the original revision so later reads can re-normalize if needed.
+	raw, err := json.Marshal(discovery)
+	if err != nil {
+		return false
+	}
+	unsafe, err := current.NeedsBinaryJSONRedaction(raw)
+	return err == nil && !unsafe &&
+		current.MaterialFingerprint() == redact.RegisteredSecretSnapshot().MaterialFingerprint()
 }
 
 func (e *CallExecutor) normalizeToolListingAt(

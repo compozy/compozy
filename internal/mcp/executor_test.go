@@ -2309,7 +2309,7 @@ func TestMCPToolListCache(t *testing.T) {
 		var encodes int
 		raw := syntheticMCPTools(size)
 		for _, tool := range raw {
-			tool.InputSchema = countMCPJSONEncodes{&encodes}
+			tool.InputSchema = countMCPJSONEncodes{count: &encodes}
 		}
 		raw[0].Description = late
 		read := func() ToolDiscovery {
@@ -2329,6 +2329,8 @@ func TestMCPToolListCache(t *testing.T) {
 		if initial != size*2 {
 			t.Fatalf("schema encodes = %d, want one fingerprint and one normalization pass", initial)
 		}
+		stableCleanup := redact.RegisterRequiredSecret(stable)
+		defer stableCleanup()
 		raw = slices.Clone(raw)
 		slices.Reverse(raw)
 		read()
@@ -2336,19 +2338,65 @@ func TestMCPToolListCache(t *testing.T) {
 			t.Fatalf("schema encodes after an unchanged, reordered listing = %d, want one fingerprint pass", got)
 		}
 		encodes = 0
-		stableCleanup := redact.RegisterRequiredSecret(stable)
-		defer stableCleanup()
 		lateCleanup := redact.RegisterRequiredSecret(late)
 		defer lateCleanup()
 		for range readers {
-			if listing := read(); strings.Contains(listing.Descriptors[0].Description, late) {
-				t.Fatal("late credential appears in cached descriptor")
+			for _, descriptor := range read().Descriptors {
+				if strings.Contains(descriptor.Description, late) {
+					t.Fatal("late credential appears in cached descriptor")
+				}
 			}
 		}
 		if got := encodes; got != initial {
 			t.Fatalf("schema encodes after a new credential = %d, want one new pass", got)
 		}
 	})
+
+	// Invariant: only a newly registered secret that appears in the listing requires another normalization pass.
+	// Owner: executor descriptor normalization; canonical suite: TestMCPToolListCache.
+	for _, tc := range []struct {
+		name      string
+		related   bool
+		wantCount int
+	}{
+		{name: "Should return safe descriptors when unrelated secrets churn", wantCount: 2},
+		{name: "Should redact a credential registered during listing", related: true, wantCount: 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const secret = "listing-registered-secret-fcb0278e"
+			server := compozyconfig.MCPServer{Name: "fixture", URL: "https://example.com/mcp"}
+			executor := newTestMCPExecutor(t, server)
+			resolved := &ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}
+			source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+			raw := syntheticMCPTools(1)
+			var encodes int
+			cleanup := func() {}
+			defer func() { cleanup() }()
+			raw[0].InputSchema = countMCPJSONEncodes{count: &encodes, beforeEncode: func() {
+				if tc.related {
+					if encodes == 1 {
+						cleanup = redact.RegisterRequiredSecret(secret)
+					}
+					return
+				}
+				cleanup()
+				cleanup = redact.RegisterRequiredSecret(fmt.Sprintf("%s-%d", secret, encodes))
+			}}
+			if tc.related {
+				raw[0].Description = secret
+			}
+			listing, err := executor.normalizeToolListing("fixture", source, resolved, protocolVersionModern, raw)
+			if err != nil || len(listing.Descriptors) != 1 {
+				t.Fatalf("normalized %d descriptors, err = %v", len(listing.Descriptors), err)
+			}
+			if got := listing.Descriptors[0].Description; strings.Contains(got, secret) {
+				t.Fatal("newly registered credential appears in a descriptor")
+			}
+			if encodes != tc.wantCount {
+				t.Fatalf("schema encodes = %d, want %d", encodes, tc.wantCount)
+			}
+		})
+	}
 
 	// Invariant: a waiter's deadline is an MCP timeout and carries no upstream health failure.
 	// Owner: MCP executor listing coordination; canonical suite: TestMCPToolListCache.
@@ -3186,10 +3234,16 @@ func TestMCPToolListCache(t *testing.T) {
 	})
 }
 
-type countMCPJSONEncodes struct{ count *int }
+type countMCPJSONEncodes struct {
+	count        *int
+	beforeEncode func()
+}
 
 func (s countMCPJSONEncodes) MarshalJSON() ([]byte, error) {
 	(*s.count)++
+	if s.beforeEncode != nil {
+		s.beforeEncode()
+	}
 	return []byte(`{"type":"object","properties":{"query":{"type":"string"}}}`), nil
 }
 

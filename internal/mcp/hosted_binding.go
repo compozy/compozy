@@ -70,11 +70,11 @@ func (s *HostedService) Bind(
 		return HostedBindResponse{}, err
 	}
 	phase = "publish"
-	runtime, _ := s.currentRegistry().(*tools.RuntimeRegistry)
+	runtime, cached := s.currentRegistry().(*tools.RuntimeRegistry)
 	s.mu.Lock()
 	active := s.binds[bindID]
 	if active != nil {
-		if runtime != nil {
+		if cached && runtime != nil {
 			active.releaseCatalog = runtime.BindHostedCatalog(record.scope())
 		}
 		active.initialToolDigest = projection.Catalog.Digest

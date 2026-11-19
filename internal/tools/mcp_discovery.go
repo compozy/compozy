@@ -50,8 +50,7 @@ type mcpOwnedDiscoveryKey struct{}
 
 // BackgroundMCPDiscovery reports whether the daemon's hosted catalog worker owns the read.
 func BackgroundMCPDiscovery(ctx context.Context) bool {
-	owned, _ := ctx.Value(mcpOwnedDiscoveryKey{}).(bool)
-	return owned
+	return ctx.Value(mcpOwnedDiscoveryKey{}) != nil
 }
 
 // MCPCatalogPollDeferred reports that a shared upstream attempt is still within its refresh interval.
