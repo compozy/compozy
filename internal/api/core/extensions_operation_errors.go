@@ -96,8 +96,8 @@ func extensionOperationErrorPayload(
 	return payload, true
 }
 
-// extensionBuiltinOperationPayload maps the built-in lifecycle conflicts (not removed, existing copy,
-// failed restore) onto their stable codes. It reports false for every other kind.
+// extensionBuiltinOperationPayload maps the built-in lifecycle conflicts (not removed, existing copy, failed
+// restore, failed removal compensation) onto their stable codes. It reports false for every other kind.
 func extensionBuiltinOperationPayload(
 	kind extensionErrorKind,
 	message string,
@@ -129,6 +129,25 @@ func extensionBuiltinOperationPayload(
 			"extension.restore_failed",
 			payload.Code,
 			"Built-in extension restore failed",
+			message,
+			"compozy doctor",
+		)
+	case extensionErrorBuiltinRemovalCompensationFailed:
+		// The tombstone is still recorded, so restore is the action that brings the built-in back.
+		payload.Code = diagnosticcontract.CodeExtensionRemovalCompensationFailed
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.removal_compensation_failed",
+			payload.Code,
+			"Built-in extension removal could not be compensated",
+			message,
+			extensionRestoreCommandFor(name),
+		)
+	case extensionErrorRemovalCompensationFailed:
+		payload.Code = diagnosticcontract.CodeExtensionRemovalCompensationFailed
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.removal_compensation_failed",
+			payload.Code,
+			"Extension removal could not be compensated",
 			message,
 			"compozy doctor",
 		)
@@ -179,6 +198,15 @@ func extensionRemoveCommandFor(name string) string {
 		return ""
 	}
 	return "compozy extension remove " + name
+}
+
+// extensionRestoreCommandFor suggests restoring a permanently removed built-in. It is empty when the request
+// carries no extension name.
+func extensionRestoreCommandFor(name string) string {
+	if name = strings.TrimSpace(name); name == "" {
+		return ""
+	}
+	return "compozy extension restore " + name
 }
 
 func extensionGatewayRetryCommand(name, digest string) string {

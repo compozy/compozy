@@ -62,7 +62,8 @@ func (s *daemonExtensionService) ListRemovedBuiltins(
 }
 
 // restoreBuiltinLocked runs the restore order: tombstone check, operator-row check, tombstone clear,
-// shared enrollment, reload. A failure after the clear rolls back to the removed state.
+// shared enrollment, reload. A failure after the clear rolls back to the removed state, unless a partially
+// enrolled row cannot be removed; see rollbackBuiltinRestore.
 func (s *daemonExtensionService) restoreBuiltinLocked(
 	ctx context.Context,
 	name string,
@@ -133,7 +134,9 @@ func (s *daemonExtensionService) restoredBuiltinPayload(name string) (contract.E
 
 // rollbackBuiltinRestore returns the registry to the removed state after a failed restore. It removes a
 // partially enrolled bundled row, reloads so the runtime matches the registry, and writes the tombstone back
-// exactly as it was read. The log carries the name only, because enrollment errors can contain paths.
+// exactly as it was read, but only once no row remains for the name. When the partial row cannot be removed,
+// the row stays and the tombstone stays clear, because a row and a tombstone must never coexist for one name.
+// The log carries the name only, because enrollment errors can contain paths.
 func (s *daemonExtensionService) rollbackBuiltinRestore(
 	ctx context.Context,
 	name string,
@@ -141,20 +144,34 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 	cause error,
 ) error {
 	var rollbackErr error
-	if _, getErr := s.registry.Get(name); getErr == nil {
+	partialRowGone := false
+	_, getErr := s.registry.Get(name)
+	switch {
+	case errors.Is(getErr, extensionpkg.ErrExtensionNotFound):
+		partialRowGone = true
+	case getErr == nil:
 		noopReload := func(context.Context) error { return nil }
 		noopCommit := func(context.Context) error { return nil }
-		if _, removeErr := extensionpkg.RemoveManagedExtension(
+		_, removeErr := extensionpkg.RemoveManagedExtension(
 			ctx, s.homePaths, s.registry, name, noopReload, noopCommit,
-		); removeErr != nil {
-			rollbackErr = errors.Join(rollbackErr, removeErr)
-		}
+		)
+		partialRowGone = removeErr == nil
+		rollbackErr = errors.Join(rollbackErr, removeErr)
 		rollbackErr = errors.Join(rollbackErr, s.reloadExtensions(ctx, name))
+	default:
+		// The row state is unknown, so the tombstone stays clear rather than risk a row beside it.
+		rollbackErr = errors.Join(rollbackErr, getErr)
 	}
-	if err := s.registry.RestoreBuiltinTombstone(ctx, tombstone); err != nil {
-		rollbackErr = errors.Join(rollbackErr, err)
+	if partialRowGone {
+		if err := s.registry.RestoreBuiltinTombstone(ctx, tombstone); err != nil {
+			rollbackErr = errors.Join(rollbackErr, err)
+		}
 	}
-	s.logger.Error("extension.builtin.restore_failed", "name", name, "rolled_back", rollbackErr == nil)
+	s.logger.Error(
+		"extension.builtin.restore_failed",
+		"name", name,
+		"rolled_back", partialRowGone && rollbackErr == nil,
+	)
 	return errors.Join(extensionpkg.ErrExtensionRestoreFailed, cause, rollbackErr)
 }
 

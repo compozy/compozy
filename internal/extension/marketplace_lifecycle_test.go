@@ -2833,6 +2833,75 @@ func TestRemoveBuiltinPermanentlyCompensation(t *testing.T) {
 			t.Fatalf("Get(dev-cycle) error = %v, want the row untouched", err)
 		}
 	})
+
+	t.Run(
+		"Should keep the removal and its tombstone and name the restore path when compensation fails",
+		func(t *testing.T) {
+			env := newRegistryTestEnv(t)
+			homePaths := seedBundledRegistryRow(t, env)
+			reloadErr := errors.New("reload failed")
+
+			_, err := RemoveBuiltinPermanently(
+				t.Context(), homePaths, env.registry, builtinPermanentTestName, "operator",
+				func(context.Context) error {
+					corruptStagedRemovalBackup(t, ManagedInstallPath(homePaths, builtinPermanentTestName))
+					return reloadErr
+				}, nil,
+			)
+			if !errors.Is(err, ErrExtensionBuiltinRemovalCompensationFailed) ||
+				!errors.Is(err, ErrExtensionRemovalCompensationFailed) {
+				t.Fatalf(
+					"RemoveBuiltinPermanently(compensation failure) error = %v, want both compensation sentinels",
+					err,
+				)
+			}
+			if !errors.Is(err, reloadErr) {
+				t.Fatalf(
+					"RemoveBuiltinPermanently(compensation failure) error = %v, want the reload cause in the chain",
+					err,
+				)
+			}
+			if !strings.Contains(err.Error(), "compozy extension restore "+builtinPermanentTestName) {
+				t.Fatalf("RemoveBuiltinPermanently(compensation failure) error = %q, want the restore command", err)
+			}
+			if _, err := env.registry.Get(builtinPermanentTestName); !errors.Is(err, ErrExtensionNotFound) {
+				t.Fatalf(
+					"Get(after failed compensation) error = %v, want ErrExtensionNotFound: the row stays removed",
+					err,
+				)
+			}
+			tombstoned, err := env.registry.Tombstoned(t.Context(), builtinPermanentTestName)
+			if err != nil || !tombstoned {
+				t.Fatalf(
+					"Tombstoned() = %v, %v; want true, nil: the committed removal keeps its tombstone",
+					tombstoned,
+					err,
+				)
+			}
+		},
+	)
+
+	t.Run("Should wrap a non-permanent compensation failure with the generic sentinel only", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		homePaths := seedBundledRegistryRow(t, env)
+
+		_, err := RemoveManagedExtension(
+			t.Context(), homePaths, env.registry, builtinPermanentTestName,
+			func(context.Context) error {
+				corruptStagedRemovalBackup(t, ManagedInstallPath(homePaths, builtinPermanentTestName))
+				return errors.New("reload failed")
+			}, nil,
+		)
+		if !errors.Is(err, ErrExtensionRemovalCompensationFailed) {
+			t.Fatalf(
+				"RemoveManagedExtension(compensation failure) error = %v, want ErrExtensionRemovalCompensationFailed",
+				err,
+			)
+		}
+		if errors.Is(err, ErrExtensionBuiltinRemovalCompensationFailed) {
+			t.Fatal("RemoveManagedExtension(compensation failure) reported the built-in sentinel without a tombstone")
+		}
+	})
 }
 
 func requireBuiltinDirExists(t *testing.T, homePaths compozyconfig.HomePaths) {
@@ -2840,4 +2909,28 @@ func requireBuiltinDirExists(t *testing.T, homePaths compozyconfig.HomePaths) {
 	if _, err := os.Stat(ManagedInstallPath(homePaths, builtinPermanentTestName)); err != nil {
 		t.Fatalf("os.Stat(built-in install dir) error = %v, want the directory present", err)
 	}
+}
+
+// corruptStagedRemovalBackup breaks the manifest of the staged removal backup. It is called from a reload
+// callback, which runs after the row delete and the directory staging, so the compensation's reinstall fails on
+// the state a real compensation failure starts from.
+func corruptStagedRemovalBackup(t *testing.T, installDir string) {
+	t.Helper()
+	parent := filepath.Dir(installDir)
+	prefix := filepath.Base(installDir) + ".compozy-backup-"
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		t.Fatalf("os.ReadDir(%q) error = %v", parent, err)
+	}
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), prefix) {
+			continue
+		}
+		manifestPath := filepath.Join(parent, entry.Name(), manifestTOMLFileName)
+		if err := os.WriteFile(manifestPath, []byte("name = [\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(staged manifest) error = %v", err)
+		}
+		return
+	}
+	t.Fatalf("no staged removal backup for %q in %q", installDir, parent)
 }

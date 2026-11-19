@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"errors"
+	"os"
 	"sync"
 	"testing"
 
@@ -158,6 +159,73 @@ func TestDaemonExtensionBuiltinRestore(t *testing.T) {
 			restoreTestRequireTombstone(t, registry, "spec-cycle", true)
 			if _, err := registry.Get("spec-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 				t.Fatalf("Get(after failed restore) error = %v, want ErrExtensionNotFound", err)
+			}
+		},
+	)
+
+	t.Run(
+		"Should write the tombstone back when the partial row enrolled before the failure is removed",
+		func(t *testing.T) {
+			t.Parallel()
+			service, registry := restoreTestService(t)
+			restoreTestRemovePermanently(t, service, registry, "spec-cycle")
+			service.builtinEnrollments = []bundledEnrollment{{
+				Name: "spec-cycle",
+				Enroll: func(_ compozyconfig.HomePaths, reg *extensionpkg.Registry) error {
+					restoreTestSeedRow(t, reg, "spec-cycle", extensionpkg.SourceBundled)
+					return errors.New("injected enrollment failure")
+				},
+			}}
+
+			_, err := service.RestoreBuiltin(t.Context(), "spec-cycle", restoreTestOperator(t))
+			if !errors.Is(err, extensionpkg.ErrExtensionRestoreFailed) {
+				t.Fatalf("RestoreBuiltin(partial row) error = %v, want ErrExtensionRestoreFailed", err)
+			}
+			restoreTestRequireTombstone(t, registry, "spec-cycle", true)
+			if _, err := registry.Get("spec-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+				t.Fatalf("Get(after rollback) error = %v, want ErrExtensionNotFound", err)
+			}
+		},
+	)
+
+	t.Run(
+		"Should keep the partial row and leave the tombstone clear when that row cannot be removed",
+		func(t *testing.T) {
+			t.Parallel()
+			service, registry := restoreTestService(t)
+			restoreTestRemovePermanently(t, service, registry, "spec-cycle")
+			service.builtinEnrollments = []bundledEnrollment{{
+				Name: "spec-cycle",
+				Enroll: func(_ compozyconfig.HomePaths, reg *extensionpkg.Registry) error {
+					restoreTestSeedRow(t, reg, "spec-cycle", extensionpkg.SourceBundled)
+					// A plain file where the partial row's install directory belongs makes its removal fail.
+					installed, err := reg.Get("spec-cycle")
+					if err != nil {
+						t.Fatalf("Get(partial row) error = %v", err)
+					}
+					dir := extensionpkg.PackageRootFromManifest(installed.ManifestPath)
+					if err := os.RemoveAll(dir); err != nil {
+						t.Fatalf("os.RemoveAll(%q) error = %v", dir, err)
+					}
+					if err := os.WriteFile(dir, []byte("not a directory"), 0o600); err != nil {
+						t.Fatalf("os.WriteFile(%q) error = %v", dir, err)
+					}
+					return errors.New("injected enrollment failure")
+				},
+			}}
+
+			_, err := service.RestoreBuiltin(t.Context(), "spec-cycle", restoreTestOperator(t))
+			if !errors.Is(err, extensionpkg.ErrExtensionRestoreFailed) {
+				t.Fatalf("RestoreBuiltin(unremovable partial row) error = %v, want ErrExtensionRestoreFailed", err)
+			}
+			restoreTestRequireTombstone(t, registry, "spec-cycle", false)
+			installed, err := registry.Get("spec-cycle")
+			if err != nil || installed.Source != extensionpkg.SourceBundled {
+				t.Fatalf(
+					"Get(partial row) = %#v, %v; want the bundled row kept, never a row with a tombstone",
+					installed,
+					err,
+				)
 			}
 		},
 	)

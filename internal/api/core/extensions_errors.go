@@ -36,6 +36,8 @@ const (
 	extensionErrorBuiltinNotRemoved
 	extensionErrorExists
 	extensionErrorRestoreFailed
+	extensionErrorRemovalCompensationFailed
+	extensionErrorBuiltinRemovalCompensationFailed
 	extensionErrorConflict
 	extensionErrorUnprocessable
 	extensionErrorBadRequest
@@ -85,7 +87,7 @@ func ExtensionStatusCode(err error) int {
 }
 
 func classifyExtensionError(err error) extensionErrorKind {
-	if kind := classifyExtensionAcquisitionError(err); kind != extensionErrorUnknown {
+	if kind := classifyExtensionPrecedenceError(err); kind != extensionErrorUnknown {
 		return kind
 	}
 	switch {
@@ -147,6 +149,19 @@ func classifyExtensionError(err error) extensionErrorKind {
 		return extensionErrorUnavailable
 	default:
 		return extensionErrorUnknown
+	}
+}
+
+// classifyExtensionPrecedenceError matches the kinds whose errors wrap a cause of any other kind, so they must win
+// over the cause-typed kinds: removal compensation failures first, then acquisition failures.
+func classifyExtensionPrecedenceError(err error) extensionErrorKind {
+	switch {
+	case errors.Is(err, extensionpkg.ErrExtensionBuiltinRemovalCompensationFailed):
+		return extensionErrorBuiltinRemovalCompensationFailed
+	case errors.Is(err, extensionpkg.ErrExtensionRemovalCompensationFailed):
+		return extensionErrorRemovalCompensationFailed
+	default:
+		return classifyExtensionAcquisitionError(err)
 	}
 }
 

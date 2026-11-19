@@ -12,8 +12,8 @@ import (
 // ErrExtensionBuiltinNotRemoved reports that restore targeted a built-in with no tombstone.
 var ErrExtensionBuiltinNotRemoved = errors.New("extension: built-in extension is not permanently removed")
 
-// ErrExtensionRestoreFailed reports that restoring a built-in failed. The tombstone is written back
-// before this error is returned, so the built-in stays removed.
+// ErrExtensionRestoreFailed reports that restoring a built-in failed. Unless a partially enrolled row cannot be
+// removed, the tombstone is written back before this error is returned, so the built-in stays removed.
 var ErrExtensionRestoreFailed = errors.New("extension: restore built-in extension failed")
 
 // BuiltinTombstoneFor returns the tombstone recorded for name. The boolean is false when none exists.

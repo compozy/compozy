@@ -303,3 +303,65 @@ func TestRemoveExtensionPermanentStatusCodes(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: a removal whose compensation failed answers 500 extension_removal_compensation_failed. The suggested
+// command is restore when a built-in's tombstone remains, and doctor otherwise (Safety Invariant 1).
+func TestRemoveExtensionCompensationFailureCode(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should suggest restore when a permanent removal kept its tombstone", func(t *testing.T) {
+		t.Parallel()
+
+		service := removeStub{permanentFn: func(
+			context.Context,
+			string,
+			taskpkg.ActorContext,
+		) (contract.ManagedExtensionRemovePayload, error) {
+			return contract.ManagedExtensionRemovePayload{}, errors.Join(
+				extensionpkg.ErrExtensionBuiltinRemovalCompensationFailed,
+				extensionpkg.ErrExtensionRemovalCompensationFailed,
+			)
+		}}
+		payload := assertRemoveCompensationFailure(t, removeEngine(service), "/extensions/spec-cycle?permanent=true")
+		if payload.Diagnostic == nil || payload.Diagnostic.SuggestedCommand != "compozy extension restore spec-cycle" {
+			t.Fatalf("diagnostic = %#v, want the restore command for spec-cycle", payload.Diagnostic)
+		}
+	})
+
+	t.Run("Should suggest doctor when a non-permanent removal could not be compensated", func(t *testing.T) {
+		t.Parallel()
+
+		service := removeStub{removeFn: func(
+			context.Context,
+			string,
+			taskpkg.ActorContext,
+		) (contract.ManagedExtensionRemovePayload, error) {
+			return contract.ManagedExtensionRemovePayload{}, extensionpkg.ErrExtensionRemovalCompensationFailed
+		}}
+		payload := assertRemoveCompensationFailure(t, removeEngine(service), "/extensions/spec-cycle")
+		if payload.Diagnostic == nil || payload.Diagnostic.SuggestedCommand != "compozy doctor" {
+			t.Fatalf("diagnostic = %#v, want the doctor command", payload.Diagnostic)
+		}
+	})
+}
+
+func assertRemoveCompensationFailure(
+	t *testing.T,
+	engine *gin.Engine,
+	target string,
+) contract.ExtensionOperationErrorPayload {
+	t.Helper()
+	response := performRequest(t, engine, http.MethodDelete, target, nil)
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", response.Code, response.Body.String())
+	}
+	var payload contract.ExtensionOperationErrorPayload
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(error) error = %v", err)
+	}
+	if payload.Code != diagnosticcontract.CodeExtensionRemovalCompensationFailed {
+		t.Fatalf("code = %q, want %q; body=%s", payload.Code, diagnosticcontract.CodeExtensionRemovalCompensationFailed,
+			response.Body.String())
+	}
+	return payload
+}
