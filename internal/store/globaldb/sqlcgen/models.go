@@ -534,6 +534,14 @@ type DeadEntity struct {
 	MarkedAt    string `json:"marked_at"`
 }
 
+type DeletedSessionBudgetLineage struct {
+	ID              string         `json:"id"`
+	ProfileID       string         `json:"profile_id"`
+	ParentSessionID sql.NullString `json:"parent_session_id"`
+	InstanceID      sql.NullString `json:"instance_id"`
+	LineageKind     string         `json:"lineage_kind"`
+}
+
 type EventSummaryOutbox struct {
 	Seq                  int64          `json:"seq"`
 	ID                   string         `json:"id"`

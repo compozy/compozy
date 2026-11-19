@@ -33,12 +33,18 @@ WITH RECURSIVE ancestry(id, parent_session_id, instance_id, profile_id, lineage_
         COALESCE(NULLIF(instance_id, ''), '')
     FROM sessions WHERE id = ?1
     UNION
-    SELECT s.id, s.parent_session_id, s.instance_id, s.profile_id, s.lineage_kind,
+    SELECT COALESCE(s.id, deleted.id),
+        CASE WHEN s.id IS NOT NULL THEN s.parent_session_id ELSE deleted.parent_session_id END,
+        CASE WHEN s.id IS NOT NULL THEN s.instance_id ELSE deleted.instance_id END,
+        COALESCE(s.profile_id, deleted.profile_id), COALESCE(s.lineage_kind, deleted.lineage_kind),
         CASE WHEN a.nearest_instance_id != '' THEN a.nearest_instance_id
-             ELSE COALESCE(NULLIF(s.instance_id, ''), '') END
-    FROM sessions s JOIN ancestry a ON s.id = a.parent_session_id
+             ELSE COALESCE(NULLIF(CASE WHEN s.id IS NOT NULL THEN s.instance_id ELSE deleted.instance_id END, ''), '') END
+    FROM ancestry a
+    LEFT JOIN sessions s ON s.id = a.parent_session_id
+    LEFT JOIN deleted_session_budget_lineage deleted ON s.id IS NULL AND deleted.id = a.parent_session_id
     WHERE a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
       AND a.parent_session_id IS NOT NULL AND a.parent_session_id != ''
+      AND (s.id IS NOT NULL OR deleted.id IS NOT NULL)
 )
 SELECT owner.profile_id,
     CAST(COALESCE((
@@ -56,7 +62,8 @@ WHERE owner.id = ?1
       SELECT 1 FROM ancestry a WHERE a.profile_id != owner.profile_id
       OR (a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
           AND a.parent_session_id IS NOT NULL AND a.parent_session_id != ''
-          AND NOT EXISTS (SELECT 1 FROM sessions parent WHERE parent.id = a.parent_session_id))
+          AND NOT EXISTS (SELECT 1 FROM sessions parent WHERE parent.id = a.parent_session_id)
+          AND NOT EXISTS (SELECT 1 FROM deleted_session_budget_lineage parent WHERE parent.id = a.parent_session_id))
       OR (a.instance_id IS NOT NULL AND a.instance_id != ''
           AND NOT EXISTS (SELECT 1 FROM agent_instances i
               WHERE i.id = a.instance_id AND i.profile_id = owner.profile_id))
