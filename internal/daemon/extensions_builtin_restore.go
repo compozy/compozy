@@ -14,6 +14,10 @@ import (
 
 const extensionRestoreStatusRestored = "restored"
 
+// builtinRestoreRollbackTimeout bounds the rollback of a failed restore. It matches the 15-second rollback budget of
+// rollbackManagedRemoval, the other compensation path; no shared constant exists for it.
+const builtinRestoreRollbackTimeout = 15 * time.Second
+
 // RestoreBuiltin clears a built-in's tombstone and enrolls it at its bundled version, enabled, under the
 // package lock permanent removal uses. Restore needs write authority like other extension writes, so agents
 // with that authority can restore (Q5 a).
@@ -143,6 +147,10 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 	tombstone extensionpkg.BuiltinTombstone,
 	cause error,
 ) error {
+	// The caller may already be canceled. A canceled context would fail the tombstone write and leave the built-in
+	// with neither a row nor a tombstone, so the rollback runs detached with its own budget.
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), builtinRestoreRollbackTimeout)
+	defer cancel()
 	var rollbackErr error
 	partialRowGone := false
 	_, getErr := s.registry.Get(name)
@@ -153,17 +161,17 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 		noopReload := func(context.Context) error { return nil }
 		noopCommit := func(context.Context) error { return nil }
 		_, removeErr := extensionpkg.RemoveManagedExtension(
-			ctx, s.homePaths, s.registry, name, noopReload, noopCommit,
+			rollbackCtx, s.homePaths, s.registry, name, noopReload, noopCommit,
 		)
 		partialRowGone = removeErr == nil
 		rollbackErr = errors.Join(rollbackErr, removeErr)
-		rollbackErr = errors.Join(rollbackErr, s.reloadExtensions(ctx, name))
+		rollbackErr = errors.Join(rollbackErr, s.reloadExtensions(rollbackCtx, name))
 	default:
 		// The row state is unknown, so the tombstone stays clear rather than risk a row beside it.
 		rollbackErr = errors.Join(rollbackErr, getErr)
 	}
 	if partialRowGone {
-		if err := s.registry.RestoreBuiltinTombstone(ctx, tombstone); err != nil {
+		if err := s.registry.RestoreBuiltinTombstone(rollbackCtx, tombstone); err != nil {
 			rollbackErr = errors.Join(rollbackErr, err)
 		}
 	}

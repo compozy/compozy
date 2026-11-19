@@ -19831,8 +19831,14 @@ func TestDaemonNativeExtensionBuiltinTools(t *testing.T) {
 		if err := call(`{"name":"no-such-builtin"}`); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 			t.Fatalf("restore of an unknown name error = %v, want ErrExtensionNotFound", err)
 		}
-		if err := call(`{"name":"   "}`); err == nil {
-			t.Fatal("restore with a blank name error = nil, want validation failure")
+		blankErr := call(`{"name":"   "}`)
+		if !errors.Is(blankErr, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("restore with a blank name error = %v, want ErrToolInvalidInput", blankErr)
+		}
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](blankErr)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+			toolErr.Err == nil || !strings.Contains(toolErr.Err.Error(), "name is required") {
+			t.Fatalf("restore with a blank name tool error = %#v, want invalid input for name is required", toolErr)
 		}
 	})
 

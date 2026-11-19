@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"errors"
 	"os"
 	"sync"
@@ -162,6 +163,31 @@ func TestDaemonExtensionBuiltinRestore(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should write the tombstone back when the caller cancels during enrollment", func(t *testing.T) {
+		t.Parallel()
+		service, registry := restoreTestService(t)
+		restoreTestRemovePermanently(t, service, registry, "spec-cycle")
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		service.builtinEnrollments = []bundledEnrollment{{
+			Name: "spec-cycle",
+			Enroll: func(compozyconfig.HomePaths, *extensionpkg.Registry) error {
+				// The caller goes away after the tombstone clear; the rollback must still record the tombstone.
+				cancel()
+				return errors.New("injected enrollment failure")
+			},
+		}}
+
+		_, err := service.RestoreBuiltin(ctx, "spec-cycle", restoreTestOperator(t))
+		if !errors.Is(err, extensionpkg.ErrExtensionRestoreFailed) {
+			t.Fatalf("RestoreBuiltin(canceled enrollment) error = %v, want ErrExtensionRestoreFailed", err)
+		}
+		restoreTestRequireTombstone(t, registry, "spec-cycle", true)
+		if _, err := registry.Get("spec-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("Get(after canceled restore) error = %v, want ErrExtensionNotFound", err)
+		}
+	})
 
 	t.Run(
 		"Should write the tombstone back when the partial row enrolled before the failure is removed",

@@ -253,15 +253,17 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := prepareExtensionProfileRead(cmd, deps, baseClient); err != nil {
-				return err
-			}
 			if permanent {
+				// Permanent removal targets the global built-in. A profile selection must not reach its request,
+				// which the daemon answers with 400, so this branch returns before the profile is prepared.
 				item, removeErr := removeExtensionPermanently(cmd.Context(), baseClient, args[0])
 				if removeErr != nil {
 					return removeErr
 				}
 				return writeCommandOutput(cmd, extensionRemoveBundle(item))
+			}
+			if err := prepareExtensionProfileRead(cmd, deps, baseClient); err != nil {
+				return err
 			}
 
 			client, supportsDev := baseClient.(extensionDevClient)

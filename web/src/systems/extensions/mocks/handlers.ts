@@ -244,7 +244,21 @@ export const handlers: HttpHandler[] = [
   }),
   compozyApiMock.delete("/api/extensions/{name}", ({ params, request }) => {
     const name = String(params.name);
-    const workspace = new URL(request.url).searchParams.get("workspace")?.trim() ?? "";
+    const search = new URL(request.url).searchParams;
+    const workspace = search.get("workspace")?.trim() ?? "";
+    const profile = search.get("profile")?.trim() ?? "";
+    const permanent = search.get("permanent") === "true";
+    // Mirror the daemon: permanent removal is global, so a workspace or profile scope is refused before any branch
+    // below mutates state.
+    if (permanent && (workspace !== "" || profile !== "")) {
+      return HttpResponse.json(
+        {
+          error:
+            "permanent removal applies to the global built-in; drop the workspace or profile query",
+        },
+        { status: 400 }
+      );
+    }
     if (workspace !== "") {
       const overlays = devExtensionsState[workspace] ?? [];
       const extension = overlays.find(item => item.name === name);
@@ -276,7 +290,6 @@ export const handlers: HttpHandler[] = [
     if (!existing) {
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
     }
-    const permanent = new URL(request.url).searchParams.get("permanent") === "true";
     if (permanent && existing.source !== "bundled") {
       return HttpResponse.json(
         {

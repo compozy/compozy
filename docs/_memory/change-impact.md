@@ -18,15 +18,20 @@
   per profile or workspace. Permanent removal commits the row delete and the tombstone in one transaction.
   Restore clears the tombstone under the package mutation lock and writes it back when enrollment fails,
   unless a partially enrolled row cannot be removed: then the row stays, no tombstone is written, and the
-  error is `extension_restore_failed`, so a row and a tombstone never coexist for one name.
+  error is `extension_restore_failed`, so a row and a tombstone never coexist for one name. The rollback runs
+  detached from the caller's cancellation with a 15-second budget, so a canceled restore still writes the
+  tombstone back.
   Boot and restore never touch a non-bundled row under the same name. An explicit install keeps the
   tombstone in place (Q2 a). Input and secret values follow plain `remove` (Q1 a). Tool-policy trust follows
-  row presence, so a tombstoned built-in grants none.
+  row presence, so a tombstoned built-in grants none. Extension MCP overrides (`extension_mcp_overrides`) are
+  kept by permanent removal and restore (Q1 b): neither path deletes them, which matches keeping user data by
+  default and plain `remove`.
 - **Errors and compensation.** New code `extension_removal_compensation_failed` (HTTP 500, category
   `extension`, additive in `diagnosticcontract`). It answers a removal whose compensation failed after the
   row delete: `ErrExtensionRemovalCompensationFailed` is the generic sentinel from `RemoveManagedExtension`,
-  and `ErrExtensionBuiltinRemovalCompensationFailed` wraps it for permanent removal only when the tombstone
-  is still recorded. The built-in sentinel's diagnostic suggests `compozy extension restore <name>`; the
+  and `ErrExtensionBuiltinRemovalCompensationFailed` wraps it for every permanent-removal compensation failure.
+  A failed compensation first returns the built-in to its removed state (no row, no install directory, tombstone
+  recorded), so the built-in sentinel's diagnostic suggests `compozy extension restore <name>`; the
   generic one suggests `compozy doctor`. Decision (review round 01, F1, option a): the removal and its
   tombstone stay committed after a failed compensation, and the code reports it, rather than rolling back
   silently. Safety Invariant 1 in the spec records this. Install conflicts (`install`, local install,

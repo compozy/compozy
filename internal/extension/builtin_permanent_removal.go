@@ -6,10 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
+
+// builtinCompensationTimeout bounds the detached work that returns a failed built-in removal to its removed state.
+// It matches the 15-second rollback budget of rollbackManagedRemoval, so both compensation paths share one lifetime.
+const builtinCompensationTimeout = 15 * time.Second
 
 // ErrExtensionNotBuiltin reports that permanent removal targeted a row that is not bundled.
 var ErrExtensionNotBuiltin = errors.New("extension: extension is not a built-in extension")
@@ -58,8 +63,8 @@ func RequireBuiltinForPermanentRemoval(info *ExtensionInfo) error {
 // RemoveBuiltinPermanently removes one bundled extension exactly as RemoveManagedExtension does, and
 // records its tombstone in the same registry transaction as the row delete (Safety Invariant 1).
 // A later failure restores the row and directory, then clears the tombstone once the row is back. If that
-// compensation fails, the removal stays committed with its tombstone, and the error wraps
-// ErrExtensionBuiltinRemovalCompensationFailed so the caller can name the restore path.
+// compensation fails, the built-in returns to its removed state (no row, no install directory, tombstone recorded),
+// and the error wraps ErrExtensionBuiltinRemovalCompensationFailed so the caller can name the restore path.
 func RemoveBuiltinPermanently(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
@@ -83,6 +88,10 @@ func RemoveBuiltinPermanently(
 	if err != nil {
 		return ManagedRemoveResult{}, err
 	}
+	installDir, err := InstalledExtensionDir(info)
+	if err != nil {
+		return ManagedRemoveResult{}, err
+	}
 
 	routed := &builtinPermanentRegistry{
 		RemovalRegistry: registry,
@@ -100,13 +109,14 @@ func RemoveBuiltinPermanently(
 		commit,
 	)
 	if err != nil {
-		if errors.Is(err, ErrExtensionRemovalCompensationFailed) && tombstoneRemains(registry, trimmedName) {
-			return ManagedRemoveResult{}, fmt.Errorf(
-				"%w: %q keeps its tombstone; run `compozy extension restore %s` to bring it back: %w",
-				ErrExtensionBuiltinRemovalCompensationFailed, trimmedName, trimmedName, err,
-			)
+		if !errors.Is(err, ErrExtensionRemovalCompensationFailed) {
+			return ManagedRemoveResult{}, err
 		}
-		return ManagedRemoveResult{}, err
+		keepErr := routed.keepRemovedAfterFailedCompensation(ctx, installDir)
+		return ManagedRemoveResult{}, fmt.Errorf(
+			"%w: %q keeps its tombstone; run `compozy extension restore %s` to bring it back: %w",
+			ErrExtensionBuiltinRemovalCompensationFailed, trimmedName, trimmedName, errors.Join(err, keepErr),
+		)
 	}
 	if routed.tombstone == nil {
 		return ManagedRemoveResult{}, fmt.Errorf(
@@ -119,15 +129,8 @@ func RemoveBuiltinPermanently(
 	return result, nil
 }
 
-// tombstoneRemains reports whether the built-in's tombstone is still recorded. It reads the registry rather than
-// tracking the write, because a compensation can clear the tombstone and then fail.
-func tombstoneRemains(registry *Registry, name string) bool {
-	tombstoned, err := registry.Tombstoned(registryContext(), name)
-	return err == nil && tombstoned
-}
-
 // builtinPermanentRegistry routes the coordinator's row step through the transactional tombstone write
-// and clears that tombstone only when compensation has put the row back.
+// and clears that tombstone when compensation reinstalls the row.
 type builtinPermanentRegistry struct {
 	RemovalRegistry
 	registry  *Registry
@@ -150,7 +153,9 @@ func (p *builtinPermanentRegistry) Uninstall(name string) error {
 	return nil
 }
 
-// Install is the compensation path that restores the row. The tombstone clears only after the row is back.
+// Install is the compensation path that restores the row. The tombstone clears here, before the reload that follows:
+// a tombstoned name grants no tool trust, and the reload publishes the restored row. When a later compensation step
+// fails, keepRemovedAfterFailedCompensation returns the built-in to its removed state.
 func (p *builtinPermanentRegistry) Install(
 	manifest *Manifest,
 	path string,
@@ -164,6 +169,48 @@ func (p *builtinPermanentRegistry) Install(
 		return fmt.Errorf("extension: clear built-in tombstone after restoring %q: %w", p.name, err)
 	}
 	return nil
+}
+
+// keepRemovedAfterFailedCompensation returns a failed compensation to the removed state: no row, no install
+// directory, and the tombstone recorded. A compensation that fails after its reinstall has already put the row back
+// and cleared the tombstone, so the row delete and directory removal run again and the tombstone returns from the
+// record the removal committed. It runs detached from the caller's cancellation, like the other rollbacks.
+func (p *builtinPermanentRegistry) keepRemovedAfterFailedCompensation(ctx context.Context, installDir string) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), builtinCompensationTimeout)
+	defer cancel()
+	_, getErr := p.registry.Get(p.name)
+	if getErr != nil && !errors.Is(getErr, ErrExtensionNotFound) {
+		return getErr
+	}
+	if getErr != nil {
+		// No row was reinstalled, so the tombstone was never cleared and only needs to be confirmed.
+		return p.ensureTombstone(cleanupCtx)
+	}
+	if err := p.RemovalRegistry.Uninstall(p.name); err != nil {
+		return err
+	}
+	return errors.Join(p.ensureTombstone(cleanupCtx), removeRestoredInstallDir(installDir))
+}
+
+// ensureTombstone writes the removal's tombstone back when it is not recorded, from the record the removal committed.
+func (p *builtinPermanentRegistry) ensureTombstone(ctx context.Context) error {
+	tombstoned, err := p.registry.Tombstoned(ctx, p.name)
+	if err != nil || tombstoned {
+		return err
+	}
+	if p.tombstone == nil {
+		return fmt.Errorf("extension: built-in tombstone for %q was never recorded", p.name)
+	}
+	return p.registry.RestoreBuiltinTombstone(ctx, *p.tombstone)
+}
+
+// removeRestoredInstallDir removes the install directory that a compensation reinstall put back.
+func removeRestoredInstallDir(installDir string) error {
+	change, err := stageExtensionDirRemoval(installDir)
+	if err != nil {
+		return err
+	}
+	return change.Commit()
 }
 
 // uninstallBuiltinTombstoned deletes a bundled row and inserts its tombstone in one write transaction.

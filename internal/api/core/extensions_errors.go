@@ -91,9 +91,6 @@ func classifyExtensionError(err error) extensionErrorKind {
 		return kind
 	}
 	switch {
-	// Restore failures wrap their enrollment cause, so they are matched before any cause-typed kind.
-	case errors.Is(err, extensionpkg.ErrExtensionRestoreFailed):
-		return extensionErrorRestoreFailed
 	case errors.Is(err, extensionpkg.ErrExtensionBuiltinNotRemoved):
 		return extensionErrorBuiltinNotRemoved
 	case errors.Is(err, extensionpkg.ErrAgentPluginNotManifest):
@@ -153,13 +150,16 @@ func classifyExtensionError(err error) extensionErrorKind {
 }
 
 // classifyExtensionPrecedenceError matches the kinds whose errors wrap a cause of any other kind, so they must win
-// over the cause-typed kinds: removal compensation failures first, then acquisition failures.
+// over the cause-typed kinds, in order: removal compensation failures, restore failures, then acquisition failures.
+// A restore failure can wrap an acquisition cause such as missing inputs, and it must still answer 500.
 func classifyExtensionPrecedenceError(err error) extensionErrorKind {
 	switch {
 	case errors.Is(err, extensionpkg.ErrExtensionBuiltinRemovalCompensationFailed):
 		return extensionErrorBuiltinRemovalCompensationFailed
 	case errors.Is(err, extensionpkg.ErrExtensionRemovalCompensationFailed):
 		return extensionErrorRemovalCompensationFailed
+	case errors.Is(err, extensionpkg.ErrExtensionRestoreFailed):
+		return extensionErrorRestoreFailed
 	default:
 		return classifyExtensionAcquisitionError(err)
 	}

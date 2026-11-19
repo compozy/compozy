@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
@@ -73,9 +75,14 @@ func TestExtensionRestoreCommand(t *testing.T) {
 
 		deps, _ := newExtensionLocalDeps(t, &stubClient{
 			restoreExtensionBuiltinFn: func(context.Context, string) (ExtensionRestoreRecord, error) {
-				return ExtensionRestoreRecord{}, errors.New(
-					diagnosticcontract.CodeExtensionBuiltinNotRemoved + ": spec-cycle is not permanently removed",
-				)
+				return ExtensionRestoreRecord{}, &extensionOperationAPIError{
+					statusCode: http.StatusConflict,
+					status:     "409 Conflict",
+					payload: contract.ExtensionOperationErrorPayload{
+						Error: "spec-cycle is not permanently removed",
+						Code:  diagnosticcontract.CodeExtensionBuiltinNotRemoved,
+					},
+				}
 			},
 		})
 		markExtensionDaemonRunning(&deps)
@@ -86,6 +93,14 @@ func TestExtensionRestoreCommand(t *testing.T) {
 		}
 		if got := cliExitCodeForError(err); got != 1 {
 			t.Fatalf("exit code = %d, want 1", got)
+		}
+		apiErr, ok := errors.AsType[*extensionOperationAPIError](err)
+		if !ok || apiErr.payload.Code != diagnosticcontract.CodeExtensionBuiltinNotRemoved {
+			t.Fatalf(
+				"restore conflict = %v, want diagnostic code %q",
+				err,
+				diagnosticcontract.CodeExtensionBuiltinNotRemoved,
+			)
 		}
 	})
 
@@ -107,6 +122,9 @@ func TestExtensionRestoreCommand(t *testing.T) {
 		}
 		if got := cliExitCodeForError(err); got != 2 {
 			t.Fatalf("exit code = %d, want 2 for invalid usage", got)
+		}
+		if !strings.Contains(err.Error(), "accepts 1 arg(s), received 0") {
+			t.Fatalf("usage error = %q, want the one-argument requirement", err)
 		}
 		if calls != 0 {
 			t.Fatalf("RestoreExtensionBuiltin calls = %d, want 0 for invalid usage", calls)

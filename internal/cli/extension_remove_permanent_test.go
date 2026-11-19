@@ -149,8 +149,8 @@ func TestExtensionRemovePermanentCommand(t *testing.T) {
 	t.Run("Should exit 1 when the daemon refuses permanent removal", func(t *testing.T) {
 		t.Parallel()
 
-		refusals := []error{
-			&extensionOperationAPIError{
+		refusals := []*extensionOperationAPIError{
+			{
 				statusCode: http.StatusUnprocessableEntity,
 				status:     "422 Unprocessable Entity",
 				payload: contract.ExtensionOperationErrorPayload{
@@ -158,12 +158,12 @@ func TestExtensionRemovePermanentCommand(t *testing.T) {
 					Code:  diagnosticcontract.CodeExtensionNotBuiltin,
 				},
 			},
-			&extensionOperationAPIError{
+			{
 				statusCode: http.StatusNotFound,
 				status:     "404 Not Found",
 				payload:    contract.ExtensionOperationErrorPayload{Error: "spec-cycle is not installed"},
 			},
-			&extensionOperationAPIError{
+			{
 				statusCode: http.StatusConflict,
 				status:     "409 Conflict",
 				payload:    contract.ExtensionOperationErrorPayload{Error: "concurrent mutation"},
@@ -184,6 +184,44 @@ func TestExtensionRemovePermanentCommand(t *testing.T) {
 			if got := cliExitCodeForError(err); got != 1 {
 				t.Fatalf("exit code = %d for %v, want 1", got, refusal)
 			}
+			apiErr, ok := errors.AsType[*extensionOperationAPIError](err)
+			if !ok || apiErr.payload.Code != refusal.payload.Code {
+				t.Fatalf("refusal diagnostic = %v, want code %q from the daemon", err, refusal.payload.Code)
+			}
+			if !strings.Contains(err.Error(), refusal.payload.Error) {
+				t.Fatalf("refusal message = %q, want the daemon message %q", err.Error(), refusal.payload.Error)
+			}
+		}
+	})
+
+	t.Run("Should send no profile selection with permanent removal when --profile is set", func(t *testing.T) {
+		t.Parallel()
+
+		var profileSeen string
+		deps, _ := newExtensionLocalDeps(t, &stubClient{
+			resolveWorkspaceRefs: true,
+			listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+				return []contract.Profile{
+					{Name: configDefaultKey, State: authoredContextActiveKey},
+					{Name: "team", State: authoredContextActiveKey},
+				}, nil
+			},
+			removePermanentExtensionFn: func(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error) {
+				profileSeen = profileQueryValues(ctx, nil).Get(profileFlagName)
+				return ManagedExtensionRemoveRecord{Name: name, Status: "removed", Permanent: true}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+
+		_, _, err := executeRootCommand(
+			t, deps, "extension", "remove", "spec-cycle", "--permanent", "--profile", "team",
+		)
+		if err != nil {
+			t.Fatalf("extension remove --permanent --profile error = %v", err)
+		}
+		// The daemon answers a profile query on permanent removal with 400, so the request must carry none.
+		if profileSeen != "" {
+			t.Fatalf("permanent removal request profile = %q, want none", profileSeen)
 		}
 	})
 
@@ -207,27 +245,31 @@ func TestExtensionRemovePermanentCommand(t *testing.T) {
 func TestExtensionRemovePermanentNeverFallsBackToNonPermanentRoute(t *testing.T) {
 	t.Parallel()
 
-	// Invariant: --permanent never degrades to the non-permanent DELETE. When the permanent call fails,
-	// the command fails with exit 1 and the plain removal is not attempted.
-	removeCalls := 0
-	deps, _ := newExtensionLocalDeps(t, &stubClient{
-		removeExtensionFn: func(context.Context, string) (ManagedExtensionRemoveRecord, error) {
-			removeCalls++
-			return ManagedExtensionRemoveRecord{Name: "spec-cycle", Status: "removed"}, nil
-		},
-		removePermanentExtensionFn: func(context.Context, string) (ManagedExtensionRemoveRecord, error) {
-			return ManagedExtensionRemoveRecord{}, errors.New("daemon refused")
-		},
+	t.Run("Should not degrade a failed permanent removal to the plain route", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: --permanent never degrades to the non-permanent DELETE. When the permanent call fails,
+		// the command fails with exit 1 and the plain removal is not attempted.
+		removeCalls := 0
+		deps, _ := newExtensionLocalDeps(t, &stubClient{
+			removeExtensionFn: func(context.Context, string) (ManagedExtensionRemoveRecord, error) {
+				removeCalls++
+				return ManagedExtensionRemoveRecord{Name: "spec-cycle", Status: "removed"}, nil
+			},
+			removePermanentExtensionFn: func(context.Context, string) (ManagedExtensionRemoveRecord, error) {
+				return ManagedExtensionRemoveRecord{}, errors.New("daemon refused")
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+		_, _, err := executeRootCommand(t, deps, "extension", "remove", "spec-cycle", "--permanent")
+		if err == nil || !strings.Contains(err.Error(), "daemon refused") {
+			t.Fatalf("extension remove --permanent error = %v, want the daemon refusal", err)
+		}
+		if got := cliExitCodeForError(err); got != 1 {
+			t.Fatalf("exit code = %d, want 1", got)
+		}
+		if removeCalls != 0 {
+			t.Fatalf("RemoveExtension calls = %d, want 0 after a failed permanent removal", removeCalls)
+		}
 	})
-	markExtensionDaemonRunning(&deps)
-	_, _, err := executeRootCommand(t, deps, "extension", "remove", "spec-cycle", "--permanent")
-	if err == nil {
-		t.Fatal("extension remove --permanent error = nil, want the daemon refusal")
-	}
-	if got := cliExitCodeForError(err); got != 1 {
-		t.Fatalf("exit code = %d, want 1", got)
-	}
-	if removeCalls != 0 {
-		t.Fatalf("RemoveExtension calls = %d, want 0 after a failed permanent removal", removeCalls)
-	}
 }

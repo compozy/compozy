@@ -128,6 +128,23 @@ func TestRestoreExtensionStatusCodes(t *testing.T) {
 		assertRestoreError(t, service, http.StatusInternalServerError, diagnosticcontract.CodeExtensionRestoreFailed)
 	})
 
+	t.Run("Should return 500 extension_restore_failed even when the cause requires inputs", func(t *testing.T) {
+		t.Parallel()
+
+		// The restore kind must outrank the acquisition kind, which would answer 422 for the inputs cause.
+		service := restoreStub{restoreFn: func(
+			context.Context,
+			string,
+			taskpkg.ActorContext,
+		) (contract.ExtensionRestorePayload, error) {
+			return contract.ExtensionRestorePayload{}, errors.Join(
+				extensionpkg.ErrExtensionRestoreFailed,
+				extensionpkg.ErrExtensionInputsRequired,
+			)
+		}}
+		assertRestoreError(t, service, http.StatusInternalServerError, diagnosticcontract.CodeExtensionRestoreFailed)
+	})
+
 	t.Run("Should return 404 for a name that is neither removed nor a known built-in", func(t *testing.T) {
 		t.Parallel()
 
