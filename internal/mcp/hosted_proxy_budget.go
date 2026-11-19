@@ -75,23 +75,28 @@ func (c *hostedProxyCatalog) applyBudgetedListing(
 		delete(previous, tools.ToolIDToolSearch.String())
 	}
 	next := reconcileHostedListing(server, client, bindID, previous, listing)
-	if !maps.Equal(previous, next) {
-		c.delivery.revision++
-		if c.listedAt == nil {
-			c.listedAt = make(map[string]uint64, len(next))
-		}
-		maps.DeleteFunc(c.listedAt, func(name string, _ uint64) bool {
-			_, retained := next[name]
-			return !retained
-		})
-		for name := range next {
-			if _, listed := c.listedAt[name]; !listed {
-				c.listedAt[name] = c.delivery.revision
-			}
-		}
-		c.signal()
-	}
+	c.trackListingRevision(previous, next)
 	c.listed, c.deferred, c.directory = next, deferred, servers
+}
+
+func (c *hostedProxyCatalog) trackListingRevision(previous, next map[string]string) {
+	if maps.Equal(previous, next) {
+		return
+	}
+	c.delivery.revision++
+	if c.listedAt == nil {
+		c.listedAt = make(map[string]uint64, len(next))
+	}
+	maps.DeleteFunc(c.listedAt, func(name string, _ uint64) bool {
+		_, retained := next[name]
+		return !retained
+	})
+	for name, fingerprint := range next {
+		if prior, listed := previous[name]; !listed || prior != fingerprint {
+			c.listedAt[name] = c.delivery.revision
+		}
+	}
+	c.signal()
 }
 
 func hostedToolActivatable(view *tools.ToolView) bool {

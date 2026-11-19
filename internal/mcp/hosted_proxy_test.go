@@ -2247,8 +2247,10 @@ func TestHostedProxyBudgetedDiscovery(t *testing.T) {
 		}
 		for _, name := range []string{denied.String(), outside} {
 			result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{Name: name})
-			if err == nil && (result == nil || !result.IsError) {
-				t.Fatalf("call %s = %+v, want rejection", name, result)
+			rpcErr, ok := errors.AsType[*jsonrpc.Error](err)
+			if !ok || rpcErr.Code != jsonrpc.CodeInvalidParams ||
+				rpcErr.Message != fmt.Sprintf("unknown tool %q", name) {
+				t.Fatalf("call %s = %+v, %v, want InvalidParams for unknown tool %q", name, result, err, name)
 			}
 			if got := proxy.lastCall(t).ToolName; got != first.String() {
 				t.Fatalf("unlisted %s reached the daemon", name)
@@ -2577,6 +2579,85 @@ func hostedHasPendingDiscovery(result *sdkmcp.CallToolResult) bool {
 // Serving a first page cannot acknowledge a refresh, and a timed-out discovery remains actionable.
 func TestHostedProxyBudgetedListDelivery(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		change func(*tools.Descriptor)
+	}{
+		{
+			name: "Should wait for a changed input schema to be written",
+			change: func(d *tools.Descriptor) {
+				d.InputSchema = json.RawMessage(`{"type":"object","properties":{"updated":{"type":"boolean"}}}`)
+			},
+		},
+		{
+			name:   "Should wait for a changed description to be written",
+			change: func(d *tools.Descriptor) { d.Description = "Updated tool description" },
+		},
+		{
+			name:   "Should wait for changed annotations to be written",
+			change: func(d *tools.Descriptor) { d.ReadOnly = !d.ReadOnly },
+		},
+		{name: "Should wait for a removed and re-added name to be written"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			catalog := newHostedProxyCatalog(HostedProxyOptions{ToolListThreshold: 1})
+			server, proxy := newHostedProxyTestServer(), &hostedProxyClientStub{}
+			view, unchanged := hostedBudgetTestView("small", "target"), hostedBudgetTestView("other", "stable")
+			base := []tools.ToolView{hostedToolView(tools.ToolIDToolSearch), unchanged}
+			apply := func(views []tools.ToolView) {
+				t.Helper()
+				catalog.apply(server, proxy, "bind-revisions", HostedProjectionResponse{Tools: views})
+			}
+			recordList := func() []byte {
+				t.Helper()
+				result, err := connectHostedProxyClient(t, server).ListTools(t.Context(), nil)
+				if err != nil {
+					t.Fatalf("tools/list failed: %v", err)
+				}
+				catalog.delivery.record(&sdkmcp.ListToolsRequest{
+					Extra: &sdkmcp.RequestExtra{Header: http.Header{hostedListRequestHeader: {"n:1"}}},
+				}, result)
+				data, err := json.Marshal(result)
+				if err != nil {
+					t.Fatalf("encode tools/list result: %v", err)
+				}
+				return fmt.Appendf(nil, `{"jsonrpc":"2.0","id":1,"result":%s}`, data)
+			}
+			writeList := func(data []byte) {
+				t.Helper()
+				writer := hostedListOutput{Writer: io.Discard, catalog: catalog}
+				if n, err := writer.Write(data); err != nil || n != len(data) {
+					t.Fatalf("write tools/list response: wrote %d of %d bytes, %v", n, len(data), err)
+				}
+			}
+			ids := []tools.ToolID{view.Descriptor.ID, unchanged.Descriptor.ID}
+			apply(append(base, view))
+			writeList(recordList())
+			if pending, _ := catalog.unready(ids); pending != 0 {
+				t.Fatalf("initial list has %d names pending after write", pending)
+			}
+
+			if tc.change == nil {
+				apply(base)
+			} else {
+				tc.change(&view.Descriptor)
+			}
+			apply(append(base, view))
+			refreshed := recordList()
+			if waiting := catalog.activate(server, proxy, "bind-revisions", ids); !slices.Equal(waiting, ids[:1]) {
+				t.Fatalf("discovery before the write waits for %v, want only %s", waiting, ids[0])
+			}
+			if pending, _ := catalog.unready(ids); pending != 1 {
+				t.Fatalf("recorded refresh has %d names pending, want one until the write", pending)
+			}
+			writeList(refreshed)
+			if pending, _ := catalog.unready(ids); pending != 0 {
+				t.Fatalf("written refresh has %d names pending, want zero", pending)
+			}
+		})
+	}
+
 	t.Run("Should report a delayed final page and allow the call after refresh", func(t *testing.T) {
 		t.Parallel()
 		search := tools.ToolIDToolSearch.String()
