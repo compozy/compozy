@@ -40,6 +40,18 @@ CREATE TABLE agent_instance_daily_budget_notices (
     PRIMARY KEY (instance_id, day)
 );
 
+-- The sum advances atomically with each accepted immutable receipt.
+CREATE TABLE agent_instance_daily_budget_usage (
+    instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
+    profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    day TEXT NOT NULL CHECK (length(day) = 10),
+    total_tokens INTEGER NOT NULL CHECK (total_tokens >= 0),
+    usd_total TEXT,
+    has_unpriced_usage INTEGER NOT NULL CHECK (has_unpriced_usage IN (0, 1)),
+    invalid INTEGER NOT NULL CHECK (invalid IN (0, 1)),
+    PRIMARY KEY (instance_id, profile_id, day)
+);
+
 CREATE TABLE agent_instance_reports (
     id TEXT PRIMARY KEY,
     instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,

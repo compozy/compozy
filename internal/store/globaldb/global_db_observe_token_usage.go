@@ -123,7 +123,12 @@ func (g *ObserveRepo) recordTokenUsage(
 				return fmt.Errorf("store: upsert token usage daily for day %q: %w", daily.Day, dailyErr)
 			}
 			if withReceipt {
-				if warningErr := warnForAcceptedBudgetReceipt(ctx, queries, stats.SessionID, daily.UpdatedAt); warningErr != nil {
+				if warningErr := warnForAcceptedBudgetReceipt(
+					ctx,
+					queries,
+					stats.SessionID,
+					daily.UpdatedAt,
+				); warningErr != nil {
 					return fmt.Errorf("store: assess accepted daily budget receipt warning: %w", warningErr)
 				}
 			}
@@ -154,7 +159,10 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 	})
 	if err == nil {
 		if receiptOwner != daily.ProfileID {
-			return false, fmt.Errorf("store: replayed token receipt for session %q has a different profile", stats.SessionID)
+			return false, fmt.Errorf(
+				"store: replayed token receipt for session %q has a different profile",
+				stats.SessionID,
+			)
 		}
 		return false, nil
 	}
@@ -182,14 +190,20 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 		strings.EqualFold(strings.TrimSpace(*stats.CostCurrency), "USD") {
 		amount = strconv.FormatFloat(*stats.CostAmount, 'f', -1, 64)
 	}
-	rows, err := queries.InsertTokenUsageReceipt(ctx, sqlcgen.InsertTokenUsageReceiptParams{
+	receipt := sqlcgen.InsertTokenUsageReceiptParams{
 		ProfileID: sessionOwner.ProfileID, SessionID: stats.SessionID, TurnID: stats.TurnID,
 		InstanceID: sessionOwner.InstanceID, Day: daily.Day, TotalTokens: tokens,
 		UsdAmount: nullableReceiptAmount(amount), CostStatus: stats.CostStatus,
 		CreatedAt: store.FormatTimestamp(daily.UpdatedAt),
-	})
+	}
+	rows, err := queries.InsertTokenUsageReceipt(ctx, receipt)
 	if err != nil {
 		return false, fmt.Errorf("store: insert token receipt for session %q: %w", stats.SessionID, err)
+	}
+	if rows == 1 && receipt.InstanceID != "" {
+		if err := projectDailyBudgetReceipt(ctx, queries, receipt); err != nil {
+			return false, fmt.Errorf("store: project daily budget receipt for session %q: %w", stats.SessionID, err)
+		}
 	}
 	return rows == 1, nil
 }

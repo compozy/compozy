@@ -124,6 +124,16 @@ type AgentInstanceDailyBudgetNotice struct {
 	IssuedAt   string `json:"issued_at"`
 }
 
+type AgentInstanceDailyBudgetUsage struct {
+	InstanceID       string         `json:"instance_id"`
+	ProfileID        string         `json:"profile_id"`
+	Day              string         `json:"day"`
+	TotalTokens      int64          `json:"total_tokens"`
+	UsdTotal         sql.NullString `json:"usd_total"`
+	HasUnpricedUsage int64          `json:"has_unpriced_usage"`
+	Invalid          int64          `json:"invalid"`
+}
+
 type AgentInstanceEvent struct {
 	ID           string         `json:"id"`
 	InstanceID   string         `json:"instance_id"`

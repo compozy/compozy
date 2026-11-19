@@ -18,6 +18,8 @@ import (
 
 const dailyBudgetReceiptPageSize = 128
 
+var errDailyBudgetTotalsInvalid = errors.New("store: cannot establish an accurate daily budget total")
+
 // ReadDailyBudgetUsage reads a stable snapshot of canonical receipts for one
 // instance's local day. Historical rollups are deliberately not added because
 // they predate the per-turn receipt fence and cannot be safely deduplicated.
@@ -62,6 +64,16 @@ func readDailyBudgetUsage(
 	q *sqlcgen.Queries,
 	profileID, instanceID, day string,
 ) (agentinstance.DailyBudgetUsage, error) {
+	usage, found, err := loadDailyBudgetTotal(ctx, q, profileID, instanceID, day)
+	if found || err != nil {
+		return usage, err
+	}
+	return scanDailyBudgetReceipts(ctx, q, profileID, instanceID, day)
+}
+
+func scanDailyBudgetReceipts(
+	ctx context.Context, q *sqlcgen.Queries, profileID, instanceID, day string,
+) (agentinstance.DailyBudgetUsage, error) {
 	var usage agentinstance.DailyBudgetUsage
 	params := sqlcgen.ListInstanceDailyBudgetReceiptPageParams{
 		ProfileID: profileID, InstanceID: instanceID, Day: day, PageSize: dailyBudgetReceiptPageSize,
@@ -72,27 +84,8 @@ func readDailyBudgetUsage(
 			return agentinstance.DailyBudgetUsage{}, fmt.Errorf("store: read daily token receipts: %w", err)
 		}
 		for _, row := range rows {
-			if row.TotalTokens < 0 || usage.Tokens > math.MaxInt64-row.TotalTokens {
-				return agentinstance.DailyBudgetUsage{}, errors.New("store: daily token receipt total overflows")
-			}
-			usage.Tokens += row.TotalTokens
-			if !row.UsdAmount.Valid {
-				if row.CostStatus != string(modelcatalog.CostStatusIncluded) {
-					usage.HasUnpricedUsage = true
-				}
-				continue
-			}
-			if row.UsdAmount.String != "-0" && !isReceiptDecimalUSD(row.UsdAmount.String) {
-				return agentinstance.DailyBudgetUsage{}, errors.New("store: invalid daily receipt USD decimal")
-			}
-			amount, ok := new(big.Rat).SetString(row.UsdAmount.String)
-			if !ok || amount.Sign() < 0 {
-				return agentinstance.DailyBudgetUsage{}, errors.New("store: invalid daily receipt USD amount")
-			}
-			if usage.USD == nil {
-				usage.USD = amount
-			} else {
-				usage.USD.Add(usage.USD, amount)
+			if err := addDailyBudgetReceipt(&usage, row.TotalTokens, row.UsdAmount, row.CostStatus); err != nil {
+				return agentinstance.DailyBudgetUsage{}, err
 			}
 		}
 		if len(rows) < dailyBudgetReceiptPageSize {
@@ -101,6 +94,96 @@ func readDailyBudgetUsage(
 		last := rows[len(rows)-1]
 		params.AfterSessionID, params.AfterTurnID = last.SessionID, last.TurnID
 	}
+}
+
+func addDailyBudgetReceipt(
+	usage *agentinstance.DailyBudgetUsage, tokens int64, usd sql.NullString, costStatus string,
+) error {
+	if tokens < 0 || usage.Tokens > math.MaxInt64-tokens {
+		return fmt.Errorf("%w: token total overflows", errDailyBudgetTotalsInvalid)
+	}
+	usage.Tokens += tokens
+	if !usd.Valid {
+		if costStatus != string(modelcatalog.CostStatusIncluded) {
+			usage.HasUnpricedUsage = true
+		}
+		return nil
+	}
+	if usd.String != "-0" && !isReceiptDecimalUSD(usd.String) {
+		return fmt.Errorf("%w: invalid receipt USD decimal", errDailyBudgetTotalsInvalid)
+	}
+	amount, ok := new(big.Rat).SetString(usd.String)
+	if !ok || amount.Sign() < 0 {
+		return fmt.Errorf("%w: invalid receipt USD amount", errDailyBudgetTotalsInvalid)
+	}
+	if usage.USD == nil {
+		usage.USD = amount
+	} else {
+		usage.USD.Add(usage.USD, amount)
+	}
+	return nil
+}
+
+func loadDailyBudgetTotal(
+	ctx context.Context, q *sqlcgen.Queries, profileID, instanceID, day string,
+) (agentinstance.DailyBudgetUsage, bool, error) {
+	row, err := q.ReadInstanceDailyBudgetTotal(ctx, sqlcgen.ReadInstanceDailyBudgetTotalParams{
+		ProfileID: profileID, InstanceID: instanceID, Day: day,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return agentinstance.DailyBudgetUsage{}, false, nil
+	}
+	if err != nil {
+		return agentinstance.DailyBudgetUsage{}, false, err
+	}
+	if row.Invalid != 0 {
+		return agentinstance.DailyBudgetUsage{}, true, errDailyBudgetTotalsInvalid
+	}
+	usage := agentinstance.DailyBudgetUsage{Tokens: row.TotalTokens, HasUnpricedUsage: row.HasUnpricedUsage != 0}
+	if row.UsdTotal.Valid {
+		var ok bool
+		usage.USD, ok = new(big.Rat).SetString(row.UsdTotal.String)
+		if !ok || usage.USD.RatString() != row.UsdTotal.String {
+			return agentinstance.DailyBudgetUsage{}, true, errDailyBudgetTotalsInvalid
+		}
+	}
+	if err := usage.Validate(); err != nil {
+		return agentinstance.DailyBudgetUsage{}, true, fmt.Errorf("%w: %w", errDailyBudgetTotalsInvalid, err)
+	}
+	return usage, true, nil
+}
+
+func projectDailyBudgetReceipt(
+	ctx context.Context, q *sqlcgen.Queries, receipt sqlcgen.InsertTokenUsageReceiptParams,
+) error {
+	usage, found, err := loadDailyBudgetTotal(ctx, q, receipt.ProfileID, receipt.InstanceID, receipt.Day)
+	if err == nil {
+		if found {
+			err = addDailyBudgetReceipt(&usage, receipt.TotalTokens, receipt.UsdAmount, receipt.CostStatus)
+		} else {
+			// Include older receipts when a day gets its first projection.
+			usage, err = scanDailyBudgetReceipts(ctx, q, receipt.ProfileID, receipt.InstanceID, receipt.Day)
+		}
+	}
+	params := sqlcgen.WriteInstanceDailyBudgetTotalParams{
+		InstanceID: receipt.InstanceID, ProfileID: receipt.ProfileID, Day: receipt.Day,
+	}
+	switch {
+	case errors.Is(err, errDailyBudgetTotalsInvalid):
+		// Preserve accepted receipts while failing closed on budget reads for this day.
+		params.Invalid = 1
+	case err != nil:
+		return err
+	default:
+		params.TotalTokens = usage.Tokens
+		if usage.USD != nil {
+			params.UsdTotal = sql.NullString{String: usage.USD.RatString(), Valid: true}
+		}
+		if usage.HasUnpricedUsage {
+			params.HasUnpricedUsage = 1
+		}
+	}
+	return q.WriteInstanceDailyBudgetTotal(ctx, params)
 }
 
 // Receipt costs are stored as base-ten non-negative decimals, never ratios,

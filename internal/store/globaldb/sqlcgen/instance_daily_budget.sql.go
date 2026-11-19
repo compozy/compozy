@@ -61,8 +61,27 @@ func (q *Queries) GetAgentInstanceDailyBudgetNotices(ctx context.Context, instan
 	return items, nil
 }
 
+const hasInstanceDailyBudgetNotice = `-- name: HasInstanceDailyBudgetNotice :one
+SELECT count(*) FROM agent_instance_daily_budget_notices
+WHERE instance_id = ?1 AND day = ?2
+`
+
+type HasInstanceDailyBudgetNoticeParams struct {
+	InstanceID string `json:"instance_id"`
+	Day        string `json:"day"`
+}
+
+func (q *Queries) HasInstanceDailyBudgetNotice(ctx context.Context, arg HasInstanceDailyBudgetNoticeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, hasInstanceDailyBudgetNotice, arg.InstanceID, arg.Day)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const listInstanceDailyBudgetReceiptPage = `-- name: ListInstanceDailyBudgetReceiptPage :many
-SELECT session_id, turn_id, total_tokens, usd_amount, cost_status
+SELECT session_id, turn_id,
+       CAST(CASE WHEN typeof(total_tokens) = 'integer' THEN total_tokens ELSE -1 END AS INTEGER) AS total_tokens,
+       usd_amount, cost_status
 FROM token_usage_receipts
 WHERE profile_id = ?1
   AND instance_id = ?2
@@ -125,6 +144,38 @@ func (q *Queries) ListInstanceDailyBudgetReceiptPage(ctx context.Context, arg Li
 	return items, nil
 }
 
+const readInstanceDailyBudgetTotal = `-- name: ReadInstanceDailyBudgetTotal :one
+SELECT CAST(CASE WHEN typeof(total_tokens) = 'integer' THEN total_tokens ELSE -1 END AS INTEGER) AS total_tokens,
+       usd_total, has_unpriced_usage, invalid
+FROM agent_instance_daily_budget_usage
+WHERE instance_id = ?1 AND profile_id = ?2 AND day = ?3
+`
+
+type ReadInstanceDailyBudgetTotalParams struct {
+	InstanceID string `json:"instance_id"`
+	ProfileID  string `json:"profile_id"`
+	Day        string `json:"day"`
+}
+
+type ReadInstanceDailyBudgetTotalRow struct {
+	TotalTokens      int64          `json:"total_tokens"`
+	UsdTotal         sql.NullString `json:"usd_total"`
+	HasUnpricedUsage int64          `json:"has_unpriced_usage"`
+	Invalid          int64          `json:"invalid"`
+}
+
+func (q *Queries) ReadInstanceDailyBudgetTotal(ctx context.Context, arg ReadInstanceDailyBudgetTotalParams) (ReadInstanceDailyBudgetTotalRow, error) {
+	row := q.db.QueryRowContext(ctx, readInstanceDailyBudgetTotal, arg.InstanceID, arg.ProfileID, arg.Day)
+	var i ReadInstanceDailyBudgetTotalRow
+	err := row.Scan(
+		&i.TotalTokens,
+		&i.UsdTotal,
+		&i.HasUnpricedUsage,
+		&i.Invalid,
+	)
+	return i, err
+}
+
 const reserveAgentInstanceDailyBudgetNotice = `-- name: ReserveAgentInstanceDailyBudgetNotice :execrows
 INSERT INTO agent_instance_daily_budget_notices (instance_id, day, issued_at)
 VALUES (?1, ?2, ?3)
@@ -167,6 +218,38 @@ func (q *Queries) UpsertAgentInstanceDailyBudgetLimits(ctx context.Context, arg 
 		arg.TokenCap,
 		arg.UsdCap,
 		arg.UpdatedAt,
+	)
+	return err
+}
+
+const writeInstanceDailyBudgetTotal = `-- name: WriteInstanceDailyBudgetTotal :exec
+INSERT INTO agent_instance_daily_budget_usage(
+    instance_id, profile_id, day, total_tokens, usd_total, has_unpriced_usage, invalid
+) VALUES (?1, ?2, ?3, ?4,
+          ?5, ?6, ?7)
+ON CONFLICT(instance_id, profile_id, day) DO UPDATE SET total_tokens = excluded.total_tokens,
+    usd_total = excluded.usd_total, has_unpriced_usage = excluded.has_unpriced_usage, invalid = excluded.invalid
+`
+
+type WriteInstanceDailyBudgetTotalParams struct {
+	InstanceID       string         `json:"instance_id"`
+	ProfileID        string         `json:"profile_id"`
+	Day              string         `json:"day"`
+	TotalTokens      int64          `json:"total_tokens"`
+	UsdTotal         sql.NullString `json:"usd_total"`
+	HasUnpricedUsage int64          `json:"has_unpriced_usage"`
+	Invalid          int64          `json:"invalid"`
+}
+
+func (q *Queries) WriteInstanceDailyBudgetTotal(ctx context.Context, arg WriteInstanceDailyBudgetTotalParams) error {
+	_, err := q.db.ExecContext(ctx, writeInstanceDailyBudgetTotal,
+		arg.InstanceID,
+		arg.ProfileID,
+		arg.Day,
+		arg.TotalTokens,
+		arg.UsdTotal,
+		arg.HasUnpricedUsage,
+		arg.Invalid,
 	)
 	return err
 }

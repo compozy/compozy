@@ -69,16 +69,16 @@ func warnForAcceptedBudgetReceipt(
 		}
 	}
 	day := store.LocalDay(at)
-	previousNotices, err := q.GetAgentInstanceDailyBudgetNotices(ctx, owner.InstanceID)
-	if err != nil {
-		return fmt.Errorf("store: read daily budget warning reservations: %w", err)
-	}
-	for _, previous := range previousNotices {
-		if previous.Day == day {
-			return nil
-		}
+	issued, err := q.HasInstanceDailyBudgetNotice(ctx, sqlcgen.HasInstanceDailyBudgetNoticeParams{
+		InstanceID: owner.InstanceID, Day: day,
+	})
+	if err != nil || issued > 0 {
+		return err
 	}
 	usage, err := readDailyBudgetUsage(ctx, q, owner.ProfileID, owner.InstanceID, day)
+	if errors.Is(err, errDailyBudgetTotalsInvalid) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

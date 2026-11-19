@@ -21,7 +21,9 @@ WHERE instance_id = sqlc.arg(instance_id)
 ORDER BY day DESC;
 
 -- name: ListInstanceDailyBudgetReceiptPage :many
-SELECT session_id, turn_id, total_tokens, usd_amount, cost_status
+SELECT session_id, turn_id,
+       CAST(CASE WHEN typeof(total_tokens) = 'integer' THEN total_tokens ELSE -1 END AS INTEGER) AS total_tokens,
+       usd_amount, cost_status
 FROM token_usage_receipts
 WHERE profile_id = sqlc.arg(profile_id)
   AND instance_id = sqlc.arg(instance_id)
@@ -29,3 +31,21 @@ WHERE profile_id = sqlc.arg(profile_id)
   AND (session_id, turn_id) > (sqlc.arg(after_session_id), sqlc.arg(after_turn_id))
 ORDER BY session_id, turn_id
 LIMIT sqlc.arg(page_size);
+
+-- name: ReadInstanceDailyBudgetTotal :one
+SELECT CAST(CASE WHEN typeof(total_tokens) = 'integer' THEN total_tokens ELSE -1 END AS INTEGER) AS total_tokens,
+       usd_total, has_unpriced_usage, invalid
+FROM agent_instance_daily_budget_usage
+WHERE instance_id = sqlc.arg(instance_id) AND profile_id = sqlc.arg(profile_id) AND day = sqlc.arg(day);
+
+-- name: WriteInstanceDailyBudgetTotal :exec
+INSERT INTO agent_instance_daily_budget_usage(
+    instance_id, profile_id, day, total_tokens, usd_total, has_unpriced_usage, invalid
+) VALUES (sqlc.arg(instance_id), sqlc.arg(profile_id), sqlc.arg(day), sqlc.arg(total_tokens),
+          sqlc.narg(usd_total), sqlc.arg(has_unpriced_usage), sqlc.arg(invalid))
+ON CONFLICT(instance_id, profile_id, day) DO UPDATE SET total_tokens = excluded.total_tokens,
+    usd_total = excluded.usd_total, has_unpriced_usage = excluded.has_unpriced_usage, invalid = excluded.invalid;
+
+-- name: HasInstanceDailyBudgetNotice :one
+SELECT count(*) FROM agent_instance_daily_budget_notices
+WHERE instance_id = sqlc.arg(instance_id) AND day = sqlc.arg(day);
