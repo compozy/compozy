@@ -38,7 +38,7 @@ var alwaysOnHardeningAdditions = []struct {
 	// Side chat receipts and catalog wake identities are optional additions to these exact contracts.
 	{"#/components/schemas/SendPromptResultPayload", []string{"side"}},
 	{"#/components/schemas/SessionDeriveErrorPayload", []string{"child_session_id"}},
-	{"#/components/schemas/SessionCatalogEventPayload", []string{"side_session_id"}},
+	{"#/components/schemas/SessionCatalogEventPayload", []string{"name", "side_session_id"}},
 	// Held diagnostics are optional additions to these three exact contracts.
 	{"#/components/schemas/SendPromptResultPayload", []string{"held_reason", "held_instance_id"}},
 	{"#/components/schemas/SessionInputPayload", []string{"held_reason", "held_instance_id"}},
