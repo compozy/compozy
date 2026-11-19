@@ -1977,10 +1977,66 @@ func TestMCPClientCleanup(t *testing.T) {
 	})
 }
 
+func recordTestToolProjection(
+	executor *CallExecutor,
+	key, listingKey string,
+	descriptors []toolspkg.MCPToolDescriptor,
+	ttl time.Duration,
+	now time.Time,
+) error {
+	content, err := toolspkg.FingerprintMCPToolDescriptors(descriptors)
+	if err != nil {
+		return err
+	}
+	executor.recordToolProjectionState(key, listingKey, content, ttl, now)
+	return nil
+}
+
 // Invariant: authoritative MCP projections change only with logical descriptor or credential state and retain no expired cache state.
 // Owning layer: internal/mcp unit cache.
 // Canonical suite: internal/mcp/executor_test.go.
 func TestMCPToolListCache(t *testing.T) {
+	// Invariant: retries share a server binding and honor the previous TTL through a failure.
+	// Owner: MCP executor fallback discovery; canonical suite: TestMCPToolListCache.
+	t.Run("Should retain the fallback interval across child replacement and failed polls", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			server := compozyconfig.MCPServer{Name: "fixture", Command: "fixture"}
+			executor := newTestMCPExecutor(t, server)
+			resolved := &ResolvedServer{
+				Server: server, Target: userMCPExecutorTarget(server.Name),
+				listingSpec: &mcpStdioSpec{digest: "stdio-fixture"}, listingBinding: "stdio-fixture:1",
+			}
+			key, err := executor.toolPollKey(t.Context(), resolved, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := executor.effectiveToolListTTL(1); got != time.Minute {
+				t.Fatalf("short hint expiry = %v, want 1 minute", got)
+			}
+			if got := executor.effectiveToolListTTL(0); got != 2*time.Minute {
+				t.Fatalf("expiry without a hint = %v, want 2 minutes", got)
+			}
+			interval := executor.effectiveToolListTTL(180_000)
+			now := time.Now()
+			executor.recordCatalogListing("old-child", key, interval, true, now)
+			resolved.listingBinding = "stdio-fixture:2"
+			replacementKey, err := executor.toolPollKey(t.Context(), resolved, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			previous := executor.catalogPoll(replacementKey)
+			if got, want := previous.expiresAt, now.Add(3*time.Minute); !got.Equal(want) {
+				t.Fatalf("replacement deadline = %v, want %v", got, want)
+			}
+			time.Sleep(3 * time.Minute)
+			executor.recordCatalogPollFailure(replacementKey, previous, errors.New("upstream failed"))
+			if got, want := executor.catalogPoll(key).expiresAt, now.Add(6*time.Minute); !got.Equal(want) {
+				t.Fatalf("shared retry deadline = %v, want %v", got, want)
+			}
+		})
+	})
+
 	// Invariant: an advertised subscription keeps finite expiry until the transport has a live channel.
 	// Owner: executor HTTP catalog cache; canonical suite: TestMCPToolListCache.
 	t.Run("Should cache by push only after the notification stream opens", func(t *testing.T) {
@@ -2217,7 +2273,15 @@ func TestMCPToolListCache(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			defer cancel()
-			_, healthErr, err := executor.listToolsFromClient(ctx, nil, source, resolved, protocolVersionModern, "")
+			_, healthErr, err := executor.listToolsFromClient(
+				ctx,
+				nil,
+				source,
+				resolved,
+				protocolVersionModern,
+				"",
+				key,
+			)
 			if !errors.Is(err, toolspkg.ErrToolTimedOut) || healthErr != nil {
 				t.Fatalf("listing wait error = %v, upstream health error = %v", err, healthErr)
 			}
@@ -2738,7 +2802,7 @@ func TestMCPToolListCache(t *testing.T) {
 			ID:          "mcp__fixture__alpha",
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		}}
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "", ""),
 			"",
 			first,
@@ -2756,7 +2820,7 @@ func TestMCPToolListCache(t *testing.T) {
 			ID:          "mcp__fixture__beta",
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		}}
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "", ""),
 			"",
 			second,
@@ -2791,7 +2855,7 @@ func TestMCPToolListCache(t *testing.T) {
 		alpha := toolspkg.MCPToolDescriptor{ID: "mcp__fixture__alpha"}
 		beta := toolspkg.MCPToolDescriptor{ID: "mcp__fixture__beta"}
 		now := time.Now()
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "", ""),
 			"",
 			[]toolspkg.MCPToolDescriptor{alpha, beta},
@@ -2806,7 +2870,7 @@ func TestMCPToolListCache(t *testing.T) {
 		}
 
 		reorderedDescriptors := []toolspkg.MCPToolDescriptor{beta, alpha}
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "", ""),
 			"",
 			reorderedDescriptors,
@@ -2853,7 +2917,7 @@ func TestMCPToolListCache(t *testing.T) {
 			ID:          "mcp__fixture__alpha",
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		}}
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "Bearer first-token", ""),
 			"",
 			descriptors,
@@ -2998,7 +3062,7 @@ func TestMCPToolListCache(t *testing.T) {
 			RawServerName: "fixture",
 			Scope:         "global",
 		}
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "", ""),
 			"",
 			[]toolspkg.MCPToolDescriptor{{ID: "mcp__fixture__alpha"}},

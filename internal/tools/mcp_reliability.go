@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"strings"
@@ -163,6 +164,12 @@ func (p *MCPProvider) discoveryFailed(
 	if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
 		return nil, false, contextError
 	}
+	if deferred, ok := errors.AsType[*MCPCatalogPollDeferred](err); ok {
+		if deferred.Reason != "" {
+			p.recordDiscoveryReason(ctx, source, deferred.Reason)
+		}
+		return p.cachedSourceDescriptors(source), false, nil
+	}
 	p.recordDiscoveryFailure(ctx, source, err)
 	if tracked && p.reliability != nil {
 		if recordErr := p.reliability.service.RecordFailure(
@@ -185,9 +192,13 @@ func (p *MCPProvider) recordDiscoveryFailure(ctx context.Context, source SourceR
 	if reason == "" {
 		reason = ReasonBackendUnhealthy
 	}
+	p.recordDiscoveryReason(ctx, source, reason)
+}
+
+func (p *MCPProvider) recordDiscoveryReason(ctx context.Context, source SourceRef, reason ReasonCode) {
 	previous, _ := p.discoveryFailures.Swap(source, reason)
 	if p.catalog != nil && previous != reason {
-		p.catalog.sourceChanged(ctx, source, err)
+		p.catalog.sourceChanged(ctx, source, reason)
 	}
 }
 
@@ -218,7 +229,7 @@ func (p *MCPProvider) discoverySucceeded(
 	}
 	after, _ := p.discovered.Load(source)
 	if p.catalog != nil && (!hadDiscovery || before != after || wasFailed) {
-		p.catalog.sourceChanged(ctx, source, nil)
+		p.catalog.sourceChanged(ctx, source, "")
 	}
 	return descriptors, true, nil
 }

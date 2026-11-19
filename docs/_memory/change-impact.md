@@ -6742,8 +6742,11 @@ Owner [#1850](https://github.com/compozy/compozy/issues/1850).
   discovers external catalogs. Session MCP list surfaces report why a configured server is missing.
   Explicit checks force upstream discovery and keep the previous catalog after failure.
 - **Workspace and profile isolation.** Upstream subscriptions follow the resolved source and
-  credential binding. Project consent is checked before discovery. Shared projections use the
-  registry's visibility class, including profile, workspace and effective session policy.
+  credential binding. Background discovery requires a live session bind with source authority
+  and project consent. Sessions share one fallback refresh per binding. Servers without a live
+  subscription use the longer of the server's `ttlMs` hint and a 60-second minimum, with a
+  two-minute default. An unchanged listing retains the shared projection. Shared projections
+  use the registry's visibility class, including profile, workspace and effective session policy.
 - **Extensibility, config and user state.** Existing declaration formats, generated API shapes,
   extension and hook interfaces, and persisted state support the same inputs. Hosted updates use
   the existing tool-list notification.

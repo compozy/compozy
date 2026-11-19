@@ -356,10 +356,13 @@ message.
 **Catalog discovery runs in the background.** A new hosted session binds with the tools already
 available. Session MCP rows report pending discovery, timeout, and unreachable-server reasons.
 A successful refresh publishes the changed catalog to bound proxies. HTTP subscriptions and
-stdio notifications invalidate the affected server's listing. The discovery worker checks expiry
-every three seconds for servers without a live subscription. Without a cache hint, the fallback
-expiry is two minutes. A shorter advertised expiry is subject to the three-second discovery floor.
-Stdio backoff is visible in a runtime check's diagnostic.
+stdio notifications invalidate the affected server's listing. When a server has no live
+`tools/list_changed` subscription, background refresh runs only while an authorized session
+is bound. Sessions share one refresh per server and credential binding. The interval is at
+least 60 seconds, or the server's `ttlMs` hint if it is longer. Without a hint, it is two
+minutes. Until the next successful refresh, these servers can show an older catalog. An
+unchanged listing reuses the existing descriptors and projection. Stdio backoff is visible
+in a runtime check's diagnostic.
 
 Use `compozy session mcp check <id> <name> [--owner extension:<name>]` to retry one server.
 The session POST route is `/api/workspaces/{ws}/sessions/{id}/mcp/servers/{name}/check`;

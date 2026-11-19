@@ -1653,41 +1653,63 @@ func (c *mcpReliabilityTestClock) Advance(delta time.Duration) {
 
 func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 	t.Parallel()
-	// Invariant: cache-only hosted reads keep the scope eligible for discovery.
-	// Owner: MCP provider discovery; canonical suite: bounded MCP projection discovery.
-	t.Run("Should keep discovery active while hosted reads reuse existing projections", func(t *testing.T) {
+	// Invariant: only an authorized live bind creates demand, and shared demand produces one listing.
+	// Owner: MCP provider discovery; canonical suite: TestMCPProjectionDiscoveryIsBounded.
+	t.Run("Should discover only while an admitted session has an active bind", func(t *testing.T) {
 		t.Parallel()
-		synctest.Test(t, func(t *testing.T) {
-			source := SourceRef{
-				Kind: SourceMCP, Owner: "workspace-server", Scope: mcpSourceScopeWorkspace, WorkspaceID: "ws-a",
-			}
-			executor := newFakeMCPExecutor(nil)
-			provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
-				return []SourceRef{source}, nil
-			}), executor, nil, WithMCPBackgroundDiscovery(nil, nil))
-			if err != nil {
-				t.Fatal(err)
-			}
-			registry := newMCPRegistry(t, provider)
-			scope := Scope{WorkspaceID: "ws-a"}
-			ctx, cached := registry.HostedProjectionContext(t.Context(), scope)
-			if !cached {
-				t.Fatal("expected a cache-only hosted read")
-			}
-			if _, err := provider.List(ctx, scope); err != nil {
-				t.Fatal(err)
-			}
-			for range 3 {
-				time.Sleep(mcpCatalogScopeLifetime / 2)
-				if _, cached := registry.HostedProjectionContext(t.Context(), scope); !cached {
-					t.Fatal("expected a cache-only hosted read")
+		source := SourceRef{
+			Kind: SourceMCP, Owner: "workspace-server", Scope: mcpSourceScopeWorkspace, WorkspaceID: "ws-a",
+		}
+		executor := newFakeMCPExecutor(nil)
+		provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+			return []SourceRef{source}, nil
+		}), executor, nil, WithMCPBackgroundDiscovery(nil, nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider.SetHostedCatalogAuthority(
+			func(_ context.Context, scope Scope, sources []SourceRef) ([]SourceRef, error) {
+				if scope.SessionID == "denied" {
+					return nil, nil
 				}
-			}
-			provider.refreshCatalog(t.Context())
-			if got := len(executor.listedSources); got != 1 {
-				t.Fatalf("upstream listings = %d, want 1 from background discovery", got)
-			}
-		})
+				return sources, nil
+			},
+		)
+		registry := newMCPRegistry(t, provider)
+		first := Scope{WorkspaceID: "ws-a", SessionID: "first"}
+		ctx, cached := registry.HostedProjectionContext(t.Context())
+		if !cached {
+			t.Fatal("expected a cache-only hosted read")
+		}
+		if _, err := provider.List(ctx, first); err != nil {
+			t.Fatal(err)
+		}
+		releaseDenied := registry.BindHostedCatalog(Scope{WorkspaceID: "ws-a", SessionID: "denied"})
+		defer releaseDenied()
+		provider.refreshCatalog(t.Context())
+		if got := len(executor.listedSources); got != 0 {
+			t.Fatalf("unbound read and denied bind produced %d upstream listings, want 0", got)
+		}
+
+		releaseFirst := registry.BindHostedCatalog(first)
+		releaseSecond := registry.BindHostedCatalog(Scope{WorkspaceID: "ws-a", SessionID: "second"})
+		defer releaseFirst()
+		defer releaseSecond()
+		provider.refreshCatalog(t.Context())
+		if got := len(executor.listedSources); got != 1 {
+			t.Fatalf("two authorized binds produced %d upstream listings, want 1", got)
+		}
+
+		releaseFirst()
+		provider.refreshCatalog(t.Context())
+		if got := len(executor.listedSources); got != 2 {
+			t.Fatalf("upstream listings with one remaining bind = %d, want 2 total", got)
+		}
+		releaseSecond()
+		provider.refreshCatalog(t.Context())
+		if got := len(executor.listedSources); got != 2 {
+			t.Fatalf("upstream listings after the last admitted bind ended = %d, want 2 total", got)
+		}
 	})
 
 	// Invariant: profiles refresh their own snapshot when the shared source contents change.

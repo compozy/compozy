@@ -223,12 +223,31 @@ func sourcePolicyAdmitted(result string) bool {
 
 func bindSessionMCPAuthority(state *bootState, resolver *nativeToolPolicyResolver, registry *toolspkg.RuntimeRegistry) {
 	resolver.scopeTools = registry.PolicyProjection
+	if provider, ok := state.mcpToolProvider.(*toolspkg.MCPProvider); ok {
+		provider.SetHostedCatalogAuthority(resolver.hostedCatalogSources)
+	}
 	bindSessionMCPReader(state, resolver, registry)
 	if manager, ok := state.sessions.(interface {
 		SetMCPAuthorityResolver(session.MCPAuthorityResolver)
 	}); ok {
 		manager.SetMCPAuthorityResolver(resolver)
 	}
+}
+
+func (r *nativeToolPolicyResolver) hostedCatalogSources(
+	ctx context.Context, scope toolspkg.Scope, sources []toolspkg.SourceRef,
+) ([]toolspkg.SourceRef, error) {
+	policy, err := r.EffectiveMCPAuthority(r.MCPAuthorityReadContext(ctx), scope.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	var names map[string]string
+	if r.mcpResourceNames != nil {
+		names = r.mcpResourceNames()
+	}
+	return slices.DeleteFunc(sources, func(source toolspkg.SourceRef) bool {
+		return !slices.Contains(policy.MCPServers, mcpAuthoritySourceName(source, names))
+	}), nil
 }
 
 func listedMCPAuthorityTools(

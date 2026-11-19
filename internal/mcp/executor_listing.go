@@ -101,11 +101,16 @@ func (e *CallExecutor) normalizeToolListingAt(
 	}
 	fingerprint := sha256.Sum256(encoded)
 	if exists && cached.fingerprint == fingerprint && cached.revision == revision {
+		cached.raw = raw
 		cached.usedAt = time.Now()
 		e.toolCache.normalizations[key] = cached
 		return cached.discovery.clone(), nil
 	}
 	discovery, err := e.descriptorsFromTools(source, resolved, protocolVersion, raw, snapshot)
+	if err != nil {
+		return ToolDiscovery{}, err
+	}
+	discovery.content, err = tools.FingerprintMCPToolDescriptors(discovery.Descriptors)
 	if err != nil {
 		return ToolDiscovery{}, err
 	}
@@ -180,28 +185,63 @@ func (e *CallExecutor) listResolvedTools(
 		runtimeHealthErr = err
 		return ToolDiscovery{}, err
 	}
-	if !tools.FreshMCPDiscovery(ctx) {
-		if cached, ok := e.cachedHTTPTools(ctx, &resolved, source, authorizationHeader); ok {
-			servedFromCache = true
-			return cached, nil
-		}
+	pollKey, err := e.toolPollKey(ctx, &resolved, authorizationHeader)
+	if err != nil {
+		return ToolDiscovery{}, err
 	}
-	if cached, ok := e.cachedPooledStdioTools(
-		ctx,
-		&resolved,
-		source,
-		authorizationHeader,
-	); ok &&
-		!tools.FreshMCPDiscovery(ctx) {
+	background := tools.BackgroundMCPDiscovery(ctx) && !tools.FreshMCPDiscovery(ctx)
+	if background {
+		release, err := e.acquireToolListing(ctx, "catalog-poll\x00"+pollKey)
+		if err != nil {
+			return ToolDiscovery{}, normalizeMCPErrorWithContext(ctx, "", err, true)
+		}
+		defer release()
+	}
+	if cached, ok := e.cachedResolvedTools(ctx, &resolved, source, authorizationHeader); ok {
 		servedFromCache = true
 		return cached, nil
 	}
-	discovery, runtimeHealthErr, err = e.listToolsWithCatalogClient(ctx, source, &resolved, authorizationHeader)
+	previous := e.catalogPoll(pollKey)
+	if background && time.Now().Before(previous.expiresAt) {
+		servedFromCache = true
+		if entry, ok := e.cachedToolListing(previous.listingKey, time.Now()); ok {
+			return e.normalizeToolListing(
+				previous.listingKey,
+				source,
+				&resolved,
+				entry.discovery.ProtocolVersion,
+				entry.raw,
+			)
+		}
+		return ToolDiscovery{}, &tools.MCPCatalogPollDeferred{Reason: previous.failure}
+	}
+	discovery, runtimeHealthErr, err = e.listToolsWithCatalogClient(
+		ctx,
+		source,
+		&resolved,
+		authorizationHeader,
+		pollKey,
+	)
+	if background && err != nil {
+		e.recordCatalogPollFailure(pollKey, previous, err)
+	}
 	return discovery, err
 }
 
+func (e *CallExecutor) cachedResolvedTools(
+	ctx context.Context, resolved *ResolvedServer, source tools.SourceRef, authorizationHeader string,
+) (ToolDiscovery, bool) {
+	if tools.FreshMCPDiscovery(ctx) {
+		return ToolDiscovery{}, false
+	}
+	if cached, ok := e.cachedHTTPTools(ctx, resolved, source, authorizationHeader); ok {
+		return cached, true
+	}
+	return e.cachedPooledStdioTools(ctx, resolved, source, authorizationHeader)
+}
+
 func (e *CallExecutor) listToolsWithCatalogClient(
-	ctx context.Context, source tools.SourceRef, resolved *ResolvedServer, authorizationHeader string,
+	ctx context.Context, source tools.SourceRef, resolved *ResolvedServer, authorizationHeader, pollKey string,
 ) (discovery ToolDiscovery, healthErr error, err error) {
 	client, err := e.openToolListingClient(ctx, resolved, authorizationHeader)
 	if err != nil && ctx.Err() == nil && e.catalogHTTP != nil &&
@@ -218,11 +258,11 @@ func (e *CallExecutor) listToolsWithCatalogClient(
 		resolved.listingBinding = e.stdioListingBinding(*resolved.listingSpec)
 	}
 	discovery, healthErr, err = e.listToolsFromClient(
-		ctx, client, source, resolved, negotiatedProtocolVersion(client.session), authorizationHeader,
+		ctx, client, source, resolved, negotiatedProtocolVersion(client.session), authorizationHeader, pollKey,
 	)
 	if client.borrowed && healthErr != nil {
 		retireErr := e.catalogHTTP.forget(client.session)
-		if ctx.Err() != nil || catalogAuthError(err) {
+		if ctx.Err() != nil || catalogAuthError(err) || tools.BackgroundMCPDiscovery(ctx) {
 			return discovery, healthErr, errors.Join(err, retireErr)
 		}
 		replacement, openErr := e.openRenderedClient(ctx, resolved, authorizationHeader)
@@ -234,7 +274,7 @@ func (e *CallExecutor) listToolsWithCatalogClient(
 		}
 		client = replacement
 		discovery, healthErr, err = e.listToolsFromClient(
-			ctx, client, source, resolved, negotiatedProtocolVersion(client.session), authorizationHeader,
+			ctx, client, source, resolved, negotiatedProtocolVersion(client.session), authorizationHeader, pollKey,
 		)
 		if err != nil {
 			err = errors.Join(err, retireErr)
@@ -261,6 +301,7 @@ func (e *CallExecutor) listToolsFromClient(
 	resolved *ResolvedServer,
 	protocolVersion string,
 	authorizationHeader string,
+	pollKey string,
 ) (ToolDiscovery, error, error) {
 	cacheKey, err := e.toolCacheKey(ctx, resolved, protocolVersion, authorizationHeader)
 	if err != nil {
@@ -300,8 +341,9 @@ func (e *CallExecutor) listToolsFromClient(
 	if stdio {
 		subscribed = func() bool { return e.stdioPool.catalogSubscribed(*resolved.listingSpec) }
 	}
-	if err := e.publishToolList(
+	e.publishToolList(
 		cacheKey,
+		pollKey,
 		attempt,
 		fresh,
 		discovery,
@@ -310,9 +352,7 @@ func (e *CallExecutor) listToolsFromClient(
 		mcpProjectionSourceKey(source, authorizationHeader, resolved.listingBinding),
 		stdio,
 		subscribed,
-	); err != nil {
-		return ToolDiscovery{}, nil, err
-	}
+	)
 	return discovery, nil, nil
 }
 

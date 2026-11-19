@@ -2130,7 +2130,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			projectionStates: make(map[string]mcpToolProjectionState),
 		}}
 		now := time.Now()
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "", ""),
 			"",
 			alpha,
@@ -2155,7 +2155,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		if _, err := service.Projection(t.Context(), bind.BindID, peer); err != nil {
 			t.Fatalf("Projection(alpha) error = %v", err)
 		}
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "", ""),
 			"",
 			alpha,
@@ -2165,7 +2165,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			t.Fatalf("recordToolProjection(expire alpha) error = %v", err)
 		}
 		registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})
-		if err := executor.recordToolProjection(
+		if err := recordTestToolProjection(executor,
 			mcpProjectionSourceKey(source, "", ""),
 			"",
 			beta,

@@ -68,6 +68,16 @@ func (s *HostedService) bindLaunch(
 	return record.clone(), nil
 }
 
+// removeBindLocked releases its background discovery interest; callers hold s.mu.
+func (s *HostedService) removeBindLocked(bindID string) *hostedBindRecord {
+	record := s.binds[bindID]
+	delete(s.binds, bindID)
+	if record != nil && record.releaseCatalog != nil {
+		record.releaseCatalog()
+	}
+	return record
+}
+
 func (s *HostedService) recordForBind(
 	ctx context.Context,
 	bindID string,

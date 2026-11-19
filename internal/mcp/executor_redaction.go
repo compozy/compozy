@@ -80,6 +80,8 @@ func redactMCPError(err error) error {
 		return nil
 	}
 	switch typed := err.(type) {
+	case *toolspkg.MCPCatalogPollDeferred:
+		return typed
 	case *toolspkg.ToolError:
 		return redactMCPToolError(typed)
 	case *toolspkg.ValidationError:

@@ -13,14 +13,13 @@ import (
 
 const (
 	mcpCatalogRefreshInterval = 3 * time.Second
-	mcpCatalogScopeLifetime   = time.Minute
-	mcpCatalogMaxScopes       = 128
 	mcpCatalogParallelism     = 4
 )
 
 type mcpCatalogRefresh struct {
 	mu         sync.Mutex
-	scopes     map[Scope]time.Time
+	scopes     map[Scope]int
+	authority  func(context.Context, Scope, []SourceRef) ([]SourceRef, error)
 	wake       chan struct{}
 	invalidate func()
 	logger     *slog.Logger
@@ -30,7 +29,7 @@ type mcpCatalogRefresh struct {
 func WithMCPBackgroundDiscovery(invalidate func(), logger *slog.Logger) MCPProviderOption {
 	return func(p *MCPProvider) {
 		p.catalog = &mcpCatalogRefresh{
-			scopes: make(map[Scope]time.Time), wake: make(chan struct{}, 1),
+			scopes: make(map[Scope]int), wake: make(chan struct{}, 1),
 			invalidate: invalidate, logger: logger,
 		}
 	}
@@ -43,11 +42,10 @@ func IsHostedCatalogRead(ctx context.Context) bool {
 	return ctx.Value(hostedMCPProjectionKey{}) != nil
 }
 
-// HostedProjectionContext keeps discovery active even when a hosted read hits the shared cache.
-func (r *RuntimeRegistry) HostedProjectionContext(ctx context.Context, scope Scope) (context.Context, bool) {
+// HostedProjectionContext projects the catalog without discovering upstream servers.
+func (r *RuntimeRegistry) HostedProjectionContext(ctx context.Context) (context.Context, bool) {
 	for _, provider := range r.providers {
 		if mcp, ok := provider.(*MCPProvider); ok && mcp.catalog != nil {
-			mcp.catalog.observe(mcp.ProjectionScope(scope))
 			return context.WithValue(WithCachedMCPProjection(ctx), hostedMCPProjectionKey{}, true), true
 		}
 	}
@@ -64,33 +62,58 @@ func (r *RuntimeRegistry) HostedCatalogEpochCoversProviders() bool {
 	return true
 }
 
-func (c *mcpCatalogRefresh) observe(scope Scope) {
-	now := time.Now()
-	c.mu.Lock()
-	previous, exists := c.scopes[scope]
-	if !exists && len(c.scopes) >= mcpCatalogMaxScopes {
-		var oldest Scope
-		oldestAt := now
-		for candidate, seen := range c.scopes {
-			if seen.Before(oldestAt) {
-				oldest, oldestAt = candidate, seen
-			}
-		}
-		delete(c.scopes, oldest)
-	}
-	c.scopes[scope] = now
-	c.mu.Unlock()
-	if previous.IsZero() {
-		select {
-		case c.wake <- struct{}{}:
-		default:
-		}
+// SetHostedCatalogAuthority limits background discovery to servers admitted by a bound session.
+func (p *MCPProvider) SetHostedCatalogAuthority(
+	authority func(context.Context, Scope, []SourceRef) ([]SourceRef, error),
+) {
+	if p.catalog != nil {
+		p.catalog.mu.Lock()
+		p.catalog.authority = authority
+		p.catalog.mu.Unlock()
 	}
 }
 
-func (c *mcpCatalogRefresh) sourceChanged(ctx context.Context, source SourceRef, err error) {
-	if err != nil && c.logger != nil {
-		reason, _ := ReasonOf(err)
+// BindHostedCatalog registers an active hosted bind and returns its release hook.
+func (r *RuntimeRegistry) BindHostedCatalog(scope Scope) func() {
+	for _, provider := range r.providers {
+		if mcp, ok := provider.(*MCPProvider); ok && mcp.catalog != nil {
+			return mcp.catalog.bind(scope)
+		}
+	}
+	return nil
+}
+
+func (c *mcpCatalogRefresh) bind(scope Scope) func() {
+	c.mu.Lock()
+	c.scopes[scope]++
+	first := c.scopes[scope] == 1
+	c.mu.Unlock()
+	if first {
+		c.signal()
+	}
+	return sync.OnceFunc(func() {
+		c.mu.Lock()
+		c.scopes[scope]--
+		last := c.scopes[scope] == 0
+		if last {
+			delete(c.scopes, scope)
+		}
+		c.mu.Unlock()
+		if last {
+			c.signal()
+		}
+	})
+}
+
+func (c *mcpCatalogRefresh) signal() {
+	select {
+	case c.wake <- struct{}{}:
+	default:
+	}
+}
+
+func (c *mcpCatalogRefresh) sourceChanged(ctx context.Context, source SourceRef, reason ReasonCode) {
+	if reason != "" && c.logger != nil {
 		c.logger.WarnContext(ctx, "mcp: catalog discovery failed",
 			"server", redact.ExactString(mcpSourceServerName(source)),
 			"scope", source.Scope, "workspace_id", source.WorkspaceID,
@@ -139,43 +162,70 @@ func (p *MCPProvider) refreshCatalog(ctx context.Context) {
 	if retainer, ok := p.exec.(interface{ RetainCatalogSources([]SourceRef) }); ok {
 		retainer.RetainCatalogSources(sources)
 	}
-	now := time.Now()
-	p.catalog.mu.Lock()
-	maps.DeleteFunc(p.catalog.scopes, func(_ Scope, seen time.Time) bool {
-		return now.Sub(seen) > mcpCatalogScopeLifetime
-	})
-	scopes := maps.Clone(p.catalog.scopes)
-	p.catalog.mu.Unlock()
-	selected := make(map[SourceRef]struct{})
-	for scope := range scopes {
-		for _, source := range MCPSourcesForScope(sources, scope) {
-			if p.consent != nil {
-				if admitted, err := p.consent(ctx, source, source.ProfileID); err != nil || !admitted {
-					continue
-				}
-			}
-			selected[source] = struct{}{}
-		}
-	}
+	demand := p.catalogDemand(ctx, sources)
 	if retainer, ok := p.exec.(interface {
 		RetainCatalogSubscriptions(context.Context, map[SourceRef]struct{}) error
 	}); ok {
+		selected := make(map[SourceRef]struct{}, len(demand))
+		for source := range demand {
+			selected[source] = struct{}{}
+		}
 		p.catalog.logSubscriptionError(ctx, retainer.RetainCatalogSubscriptions(ctx, selected))
 	}
 
 	var workers sync.WaitGroup
 	slots := make(chan struct{}, mcpCatalogParallelism)
-	for source := range selected {
+	for source, scopes := range demand {
 		if ctx.Err() != nil {
 			break
 		}
 		slots <- struct{}{}
 		workers.Go(func() {
 			defer func() { <-slots }()
-			p.refreshCatalogSource(ctx, source)
+			if p.catalog.hasDemand(scopes) {
+				p.refreshCatalogSource(ctx, source)
+			}
 		})
 	}
 	workers.Wait()
+}
+
+func (p *MCPProvider) catalogDemand(ctx context.Context, sources []SourceRef) map[SourceRef][]Scope {
+	p.catalog.mu.Lock()
+	scopes := maps.Clone(p.catalog.scopes)
+	authority := p.catalog.authority
+	p.catalog.mu.Unlock()
+	demand := make(map[SourceRef][]Scope)
+	for scope := range scopes {
+		admitted := MCPSourcesForScope(sources, scope)
+		if authority != nil {
+			var err error
+			admitted, err = authority(ctx, scope, admitted)
+			if err != nil {
+				continue
+			}
+		}
+		for _, source := range admitted {
+			if p.consent != nil {
+				if admitted, err := p.consent(ctx, source, source.ProfileID); err != nil || !admitted {
+					continue
+				}
+			}
+			demand[source] = append(demand[source], scope)
+		}
+	}
+	return demand
+}
+
+func (c *mcpCatalogRefresh) hasDemand(scopes []Scope) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, scope := range scopes {
+		if c.scopes[scope] > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *mcpCatalogRefresh) logSubscriptionError(ctx context.Context, err error) {
@@ -185,9 +235,7 @@ func (c *mcpCatalogRefresh) logSubscriptionError(ctx context.Context, err error)
 }
 
 func (p *MCPProvider) refreshCatalogSource(ctx context.Context, source SourceRef) {
-	if _, failed := p.discoveryFailures.Load(source); failed {
-		ctx = WithFreshMCPDiscovery(ctx)
-	} else if value, found := p.discovered.Load(source); found {
+	if value, found := p.discovered.Load(source); found {
 		snapshot, ok := value.(*mcpDiscoverySnapshot)
 		if !ok {
 			panic("invariant: discovered MCP source has an unexpected type")

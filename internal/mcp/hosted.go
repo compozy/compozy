@@ -179,6 +179,7 @@ type hostedBindRecord struct {
 	initialDeadline   time.Time
 	eagerTools        bool
 	digestMemo        *hostedProjectionDigestMemo
+	releaseCatalog    func()
 	bindID            string
 	sessionID         string
 	profileID         string
@@ -274,7 +275,7 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (co
 	releasedBindIDs := make([]string, 0)
 	for bindID, bind := range s.binds {
 		if bind != nil && bind.sessionID == sessionID {
-			delete(s.binds, bindID)
+			s.removeBindLocked(bindID)
 			releasedBindIDs = append(releasedBindIDs, bindID)
 		}
 	}
@@ -376,7 +377,7 @@ func (s *HostedService) ReleaseSession(sessionID string) {
 	releasedBindIDs := make([]string, 0)
 	for bindID, record := range s.binds {
 		if record.sessionID == sessionID {
-			delete(s.binds, bindID)
+			s.removeBindLocked(bindID)
 			releasedBindIDs = append(releasedBindIDs, bindID)
 		}
 	}

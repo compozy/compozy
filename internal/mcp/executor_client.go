@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -34,6 +35,7 @@ type managedMCPClient struct {
 }
 
 const maxAuthorizationChallengeDrainBytes = int64(64 << 10)
+const minStdioDiscoveryResponseBudget = 3 * time.Second
 
 var errStdioResponseDeadline = errors.New("mcp: stdio server response deadline exceeded")
 
@@ -48,7 +50,7 @@ func (e *CallExecutor) exchangeContext(
 		return ctx, func() {}
 	}
 	timeout := e.timeout
-	if discoveryBudget := toolspkg.MCPDiscoveryResponseBudget(ctx); discoveryBudget >= mcpToolListFloor {
+	if discoveryBudget := toolspkg.MCPDiscoveryResponseBudget(ctx); discoveryBudget >= minStdioDiscoveryResponseBudget {
 		timeout = min(timeout, discoveryBudget)
 	}
 	return context.WithTimeoutCause(parent, timeout, errStdioResponseDeadline)

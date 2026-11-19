@@ -59,3 +59,9 @@ QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
 Bind 18 sessions to a five-server catalog of about 1,300 tools. Change one fixture and send
 tools/list_changed. Verify its catalog is listed once and delivered to the sessions, while the
 other upstream list counters remain unchanged.
+
+Repeat with a fixture that has no live subscription and advertises a short `ttlMs`. Keep the
+sessions idle and check that the fixture gets one shared refresh per interval of at least 60 seconds.
+Use a longer `ttlMs` and verify that the refresh waits at least that long. An unchanged listing
+keeps the existing tool projection. Release the last authorized bind and verify that periodic
+refresh stops. An explicit check still contacts the fixture immediately.

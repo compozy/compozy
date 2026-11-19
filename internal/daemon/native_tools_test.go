@@ -11835,7 +11835,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx, cached := registry.HostedProjectionContext(t.Context(), toolspkg.Scope{})
+		ctx, cached := registry.HostedProjectionContext(t.Context())
 		if !cached {
 			t.Fatal("expected hosted catalog context")
 		}

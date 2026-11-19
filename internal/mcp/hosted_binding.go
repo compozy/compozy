@@ -70,9 +70,13 @@ func (s *HostedService) Bind(
 		return HostedBindResponse{}, err
 	}
 	phase = "publish"
+	runtime, _ := s.currentRegistry().(*tools.RuntimeRegistry)
 	s.mu.Lock()
 	active := s.binds[bindID]
 	if active != nil {
+		if runtime != nil {
+			active.releaseCatalog = runtime.BindHostedCatalog(record.scope())
+		}
 		active.initialToolDigest = projection.Catalog.Digest
 		active.initialCatalog = tools.AdvertisedCatalog{
 			Digest: projection.Catalog.Digest, Servers: maps.Clone(projection.Catalog.Servers),
@@ -303,8 +307,7 @@ func (s *HostedService) ReleaseBind(bindID string) {
 		return
 	}
 	s.mu.Lock()
-	record := s.binds[bindID]
-	delete(s.binds, bindID)
+	record := s.removeBindLocked(bindID)
 	if record != nil {
 		if launch := s.launches[record.sessionID]; launch != nil && launch.bindID == bindID {
 			// Providers may replace their stdio proxy while retaining the same ACP session.

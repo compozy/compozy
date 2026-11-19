@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	mcpToolListFloor      = 3 * time.Second
+	mcpToolListFloor      = time.Minute
 	defaultMCPToolListTTL = 2 * time.Minute
 	mcpSubscribedListTTL  = -1
 )
@@ -34,6 +34,7 @@ type mcpToolListCache struct {
 	mu                    sync.Mutex
 	entries               map[string]mcpToolListCacheEntry
 	projectionStates      map[string]mcpToolProjectionState
+	polls                 map[string]mcpCatalogPoll
 }
 
 type mcpListAttempt struct {
@@ -69,21 +70,22 @@ func (e *CallExecutor) finishToolList(key string) {
 	}
 }
 
-func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh bool,
+func (e *CallExecutor) publishToolList(key, pollKey string, attempt mcpListAttempt, fresh bool,
 	discovery ToolDiscovery, raw []*mcpsdk.Tool, ttlMs int,
 	projectionKey string, stdio bool, subscribed func() bool,
-) error {
+) {
 	e.toolCache.publicationMu.Lock()
 	defer e.toolCache.publicationMu.Unlock()
 	current := e.toolCache.attempts[key]
 	if current.check != attempt.check || (!fresh && current.list != attempt.list) {
-		return nil
+		return
 	}
 	if fresh {
 		current.list++
 		e.toolCache.attempts[key] = current
 	}
 	now := time.Now()
+	fallbackTTL := e.effectiveToolListTTL(ttlMs)
 	if subscribed != nil && subscribed() {
 		ttlMs = mcpSubscribedListTTL
 	}
@@ -91,7 +93,8 @@ func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh
 		e.pruneStdioCatalogRevisions(key)
 	}
 	e.cacheTools(key, discovery, raw, ttlMs, now)
-	return e.recordToolProjection(projectionKey, key, discovery.Descriptors, e.effectiveToolListTTL(ttlMs), now)
+	e.recordToolProjectionState(projectionKey, key, discovery.content, e.effectiveToolListTTL(ttlMs), now)
+	e.recordCatalogListing(key, pollKey, fallbackTTL, ttlMs != mcpSubscribedListTTL, now)
 }
 
 func (e *CallExecutor) pruneStdioCatalogRevisions(key string) {
@@ -133,7 +136,34 @@ func (e *CallExecutor) invalidateToolListing(key string) {
 	}
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
+	delete(e.toolCache.polls, key)
 	e.dropToolListingLocked(key)
+}
+
+func (e *CallExecutor) markToolListingSubscribed(key string, live func() bool) {
+	e.toolCache.publicationMu.Lock()
+	defer e.toolCache.publicationMu.Unlock()
+	if !live() {
+		return
+	}
+	e.toolCache.mu.Lock()
+	defer e.toolCache.mu.Unlock()
+	entry, ok := e.toolCache.entries[key]
+	if !ok || toolListExpired(entry.expiresAt, time.Now()) {
+		return
+	}
+	entry.expiresAt = time.Time{}
+	e.toolCache.entries[key] = entry
+	if poll, ok := e.toolCache.polls[key]; ok && poll.listingKey == key {
+		poll.expiresAt = time.Time{}
+		e.toolCache.polls[key] = poll
+	}
+	for source, state := range e.toolCache.projectionStates {
+		if state.listingKey == key {
+			state.expiresAt = time.Time{}
+			e.toolCache.projectionStates[source] = state
+		}
+	}
 }
 
 // expireSubscribedToolListing falls back to a bounded refresh without waking another reconnect.
@@ -142,7 +172,13 @@ func (e *CallExecutor) expireSubscribedToolListing(key string) {
 	defer e.toolCache.publicationMu.Unlock()
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
-	expiry := time.Now().Add(defaultMCPToolListTTL)
+	now := time.Now()
+	expiry := now.Add(defaultMCPToolListTTL)
+	if poll, ok := e.toolCache.polls[key]; ok && poll.expiresAt.IsZero() {
+		expiry = now.Add(poll.interval)
+		poll.expiresAt = expiry
+		e.toolCache.polls[key] = poll
+	}
 	if entry, ok := e.toolCache.entries[key]; ok && entry.expiresAt.IsZero() {
 		entry.expiresAt = expiry
 		e.toolCache.entries[key] = entry
@@ -307,13 +343,9 @@ func (e *CallExecutor) ProjectionGeneration(
 	return generation.String(), true
 }
 
-func (e *CallExecutor) recordToolProjection(
-	key string, listingKey string, descriptors []toolspkg.MCPToolDescriptor, ttl time.Duration, now time.Time,
-) error {
-	fingerprint, err := toolspkg.FingerprintMCPToolDescriptors(descriptors)
-	if err != nil {
-		return err
-	}
+func (e *CallExecutor) recordToolProjectionState(
+	key, listingKey string, fingerprint [sha256.Size]byte, ttl time.Duration, now time.Time,
+) {
 	e.toolCache.mu.Lock()
 	if e.toolCache.projectionStates == nil {
 		e.toolCache.projectionStates = make(map[string]mcpToolProjectionState)
@@ -331,7 +363,6 @@ func (e *CallExecutor) recordToolProjection(
 	state.expiresAt = toolListExpiry(now, ttl)
 	e.toolCache.projectionStates[key] = state
 	e.toolCache.mu.Unlock()
-	return nil
 }
 
 // CatalogContentRevision returns the current cached content for this exact authorized binding.

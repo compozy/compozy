@@ -39,7 +39,7 @@ func (p *MCPProvider) discoverSource(
 	}
 	discoveryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if owned, ok := ctx.Value(mcpOwnedDiscoveryKey{}).(bool); ok && owned {
+	if BackgroundMCPDiscovery(ctx) {
 		discoveryCtx = context.WithValue(discoveryCtx, mcpDiscoveryResponseBudgetKey{}, timeout/2)
 	}
 	return p.exec.ListTools(discoveryCtx, source)
@@ -47,6 +47,18 @@ func (p *MCPProvider) discoverSource(
 
 type mcpDiscoveryResponseBudgetKey struct{}
 type mcpOwnedDiscoveryKey struct{}
+
+// BackgroundMCPDiscovery reports whether the daemon's hosted catalog worker owns the read.
+func BackgroundMCPDiscovery(ctx context.Context) bool {
+	owned, _ := ctx.Value(mcpOwnedDiscoveryKey{}).(bool)
+	return owned
+}
+
+// MCPCatalogPollDeferred reports that a shared upstream attempt is still within its refresh interval.
+// A deferred read can reproduce the last diagnostic, but provides no new evidence of failure.
+type MCPCatalogPollDeferred struct{ Reason ReasonCode }
+
+func (*MCPCatalogPollDeferred) Error() string { return "mcp: catalog refresh interval has not elapsed" }
 
 // MCPDiscoveryResponseBudget reserves server response time inside the daemon's discovery budget.
 func MCPDiscoveryResponseBudget(ctx context.Context) time.Duration {

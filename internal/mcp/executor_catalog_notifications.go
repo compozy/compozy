@@ -51,6 +51,7 @@ func (e *CallExecutor) openToolListingClient(
 	// retained. The SDK owns the notification stream until the session is closed.
 	httpClient.Timeout = 0
 	stream := &catalogNotificationStream{next: httpClient.Transport, ended: func() { catalog.expire(key) }}
+	stream.established = func() { e.markToolListingSubscribed(key, stream.live) }
 	httpClient.Transport = stream
 	session, err := connectMCPClientWithCatalogChanges(ctx, &mcpsdk.StreamableClientTransport{
 		Endpoint: strings.TrimSpace(resolved.Server.URL), HTTPClient: httpClient, MaxRetries: -1,
@@ -194,6 +195,7 @@ func (e *CallExecutor) RetainCatalogSubscriptions(ctx context.Context, sources m
 		return nil
 	}
 	active := make(map[string]bool, len(sources))
+	polls := make(map[string]bool, len(sources))
 	stdio := make(map[stdioCatalogBinding]struct{}, len(sources))
 	for source := range sources {
 		resolved, err := e.resolveServer(ctx, source, "")
@@ -210,18 +212,23 @@ func (e *CallExecutor) RetainCatalogSubscriptions(ctx context.Context, sources m
 		if err := e.prepareToolListing(ctx, &resolved); err != nil {
 			continue
 		}
+		key, err := e.toolPollKey(ctx, &resolved, header)
+		if err != nil {
+			continue
+		}
+		polls[key] = true
 		if spec := resolved.listingSpec; spec != nil {
 			stdio[stdioCatalogBinding{spec.slot, spec.digest}] = struct{}{}
 			continue
 		}
-		if key, err := e.toolCacheKey(ctx, &resolved, "", header); err == nil {
-			active[key] = true
-		}
+		active[key] = true
 	}
 	if e.stdioPool != nil {
 		e.stdioPool.retainCatalog(stdio)
 	}
-	return e.catalogHTTP.retire(func(key string, _ mcpCatalogHTTPEntry) bool {
+	err := e.catalogHTTP.retire(func(key string, _ mcpCatalogHTTPEntry) bool {
 		return !active[key]
 	}, false)
+	e.retainCatalogPolls(polls)
+	return err
 }

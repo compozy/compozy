@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -22,6 +23,7 @@ type ToolDiscovery struct {
 	ToolCount       int
 	ProtocolVersion string
 	Diagnostic      string
+	content         [sha256.Size]byte
 }
 
 func (d ToolDiscovery) clone() ToolDiscovery {

@@ -65,7 +65,7 @@ func (s *HostedService) projectionForGeneration(
 		return catalogProjectionWithRedactionCheck(ctx, registry, record, s.boundedUnversionedProjection)
 	}
 	if runtime, ok := registry.(*tools.RuntimeRegistry); ok {
-		if hostedCtx, cached := runtime.HostedProjectionContext(ctx, record.scope()); cached {
+		if hostedCtx, cached := runtime.HostedProjectionContext(ctx); cached {
 			return catalogProjectionWithRedactionCheck(hostedCtx, registry, record, s.boundedUnversionedProjection)
 		}
 	}
