@@ -28,7 +28,7 @@ func TestRecordTokenUsageReceiptsAreIdempotentAcrossReplays(t *testing.T) {
 			TotalTokens: new(int64(123)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 		}
 		daily := store.TokenUsageDailyUpdate{
-			ProfileID: store.DefaultProfileID, Day: "2026-11-19", AgentName: "writer",
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
 			TotalTokens: new(int64(123)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 		}
 		for range 3 {
@@ -44,7 +44,7 @@ func TestRecordTokenUsageReceiptsAreIdempotentAcrossReplays(t *testing.T) {
 			t.Fatalf("duplicate replay changed session aggregate: %+v", got)
 		}
 		usage, err := db.ListTokenUsageByDay(ctx, store.OverviewDayQuery{
-			ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: "2026-11-19",
+			ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: store.LocalDay(now),
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -103,7 +103,7 @@ func TestTokenUsageReceiptSurvivesDatabaseReopen(t *testing.T) {
 			TotalTokens: new(int64(51)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 		}
 		daily := store.TokenUsageDailyUpdate{
-			ProfileID: store.DefaultProfileID, Day: "2026-11-19", AgentName: "writer",
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
 			TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 		}
 		accepted, err := first.RecordTokenUsageOnce(ctx, stats, daily)
@@ -157,7 +157,7 @@ func TestTokenUsageReceiptCountsInputAndOutputWithoutReportedTotal(t *testing.T)
 			CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 		}
 		daily := store.TokenUsageDailyUpdate{
-			ProfileID: store.DefaultProfileID, Day: "2026-11-19", AgentName: "writer",
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
 			InputTokens: stats.InputTokens, OutputTokens: stats.OutputTokens,
 			CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 		}
@@ -200,7 +200,7 @@ func TestTokenUsageReceiptRollbackAndRetry(t *testing.T) {
 			TotalTokens: new(int64(77)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 		}
 		daily := store.TokenUsageDailyUpdate{
-			ProfileID: store.DefaultProfileID, Day: "2026-11-19", AgentName: "writer",
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
 			TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 		}
 		if _, err := db.db.ExecContext(ctx, `CREATE TRIGGER reject_receipt_rollup
@@ -258,7 +258,7 @@ func TestTokenUsageReceiptProfileDeletion(t *testing.T) {
 				TotalTokens: new(int64(42)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 			},
 			store.TokenUsageDailyUpdate{
-				ProfileID: profileID, Day: "2026-11-19", AgentName: "writer",
+				ProfileID: profileID, Day: store.LocalDay(now), AgentName: "writer",
 				TotalTokens: new(int64(42)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 			},
 		)
@@ -316,7 +316,7 @@ func TestTokenUsageReceiptCapturesInstanceAndNormalizedUSD(t *testing.T) {
 			CostStatus: "actual", CostSource: "agent_reported", UpdatedAt: now,
 		}
 		daily := store.TokenUsageDailyUpdate{
-			ProfileID: store.DefaultProfileID, Day: "2026-11-19", AgentName: "writer",
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
 			TotalTokens: stats.TotalTokens, CostAmount: &cost, CostCurrency: &currency,
 			CostStatus: "actual", CostSource: "agent_reported", UpdatedAt: now,
 		}

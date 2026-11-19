@@ -91,43 +91,8 @@ func (r *InstanceRepo) ReserveDailyBudgetWarning(
 		if !instance.MainSessionID.Valid || strings.TrimSpace(instance.MainSessionID.String) == "" {
 			return errors.New("agentinstance: daily budget warning requires a bound main session")
 		}
-		if instance.WorkspaceID != "" {
-			muted, err := q.IsAttentionWorkspaceMuted(ctx, sqlcgen.IsAttentionWorkspaceMutedParams{
-				ProfileID: instance.ProfileID, WorkspaceID: instance.WorkspaceID,
-			})
-			if err != nil {
-				return fmt.Errorf("store: read daily budget warning mute: %w", err)
-			}
-			if muted {
-				return nil
-			}
-		}
-		stamp := store.FormatTimestamp(at)
-		rows, err := q.ReserveAgentInstanceDailyBudgetNotice(
-			ctx,
-			sqlcgen.ReserveAgentInstanceDailyBudgetNoticeParams{
-				InstanceID: instanceID, Day: store.LocalDay(at), IssuedAt: stamp,
-			},
-		)
-		if err != nil || rows == 0 {
-			return err
-		}
-		noticeID, err := store.NewID("onot")
-		if err != nil {
-			return err
-		}
-		if err := q.InsertOperatorNotice(ctx, sqlcgen.InsertOperatorNoticeParams{
-			ID: noticeID, ProfileID: instance.ProfileID,
-			WorkspaceID: sql.NullString{String: instance.WorkspaceID, Valid: instance.WorkspaceID != ""},
-			SessionID:   instance.MainSessionID.String, Kind: "warning", Action: "review_budget",
-			Resource: "agent_instance", Title: "Daily agent budget warning",
-			Body:      "This always-on instance has crossed 80% of a configured daily spending limit.",
-			CreatedAt: stamp,
-		}); err != nil {
-			return fmt.Errorf("store: persist daily budget bell notice: %w", err)
-		}
-		issued = true
-		return nil
+		issued, err = reserveDailyBudgetWarningTx(ctx, q, instance, at)
+		return err
 	})
 	if err != nil {
 		return false, err

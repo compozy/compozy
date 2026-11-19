@@ -93,7 +93,7 @@ func (g *ObserveRepo) recordTokenUsage(
 	}
 	daily.ProfileID = strings.TrimSpace(daily.ProfileID)
 	daily.Day = strings.TrimSpace(daily.Day)
-	if daily.UpdatedAt.IsZero() {
+	if daily.UpdatedAt.IsZero() && !withReceipt {
 		daily.UpdatedAt = g.now()
 	}
 	dailyParams := g.tokenUsageDailyParams(daily)
@@ -121,6 +121,11 @@ func (g *ObserveRepo) recordTokenUsage(
 			}
 			if dailyErr := queries.UpsertTokenUsageDaily(ctx, dailyParams); dailyErr != nil {
 				return fmt.Errorf("store: upsert token usage daily for day %q: %w", daily.Day, dailyErr)
+			}
+			if withReceipt {
+				if warningErr := warnForAcceptedBudgetReceipt(ctx, queries, stats.SessionID, daily.UpdatedAt); warningErr != nil {
+					return fmt.Errorf("store: assess accepted daily budget receipt warning: %w", warningErr)
+				}
 			}
 			accepted = true
 			return nil
@@ -155,6 +160,11 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return false, fmt.Errorf("store: check token receipt for session %q: %w", stats.SessionID, err)
+	}
+	// A duplicate keeps its original day even if the daemon's local timezone
+	// changed. New receipts must agree with the writer's local-day boundary.
+	if daily.UpdatedAt.IsZero() || daily.Day != store.LocalDay(daily.UpdatedAt) {
+		return false, errors.New("store: canonical token receipt day does not match its timestamp")
 	}
 	sessionOwner, err := queries.GetTokenUsageReceiptSessionOwner(ctx, stats.SessionID)
 	if err != nil {
