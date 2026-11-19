@@ -6615,3 +6615,20 @@ Main CI is the only execution gate under the release directive.
   refused resume. The official runtime reference documents the behavior and `ensure-main` error.
   `RT-daemon-restart-continuation` and `TestBootResumesInstancesAfterServersStart` cover the first
   Heartbeat, a refused reopen and operator stops.
+
+## Retryable hosted MCP bind refusal
+
+Owner: [#1838](https://github.com/compozy/compozy/issues/1838).
+
+- **HTTP, UDS, CLI and native tools.** A hosted MCP bind deadline or projection failure during
+  the first bind or an idle rebind returns the existing `session_mcp_reload_failed` refusal.
+  HTTP and UDS use 409 with `retryable` and the original `client_message_id`. The CLI and
+  `compozy__session_prompt` use their existing error mapping.
+- **Web.** The existing composer handler restores the draft and reports “Message not sent”
+  for this refusal. The same message can be sent again after MCP recovers.
+- **Extensibility, hooks, config and isolation.** The failure occurs before prompt admission
+  and leaves the routing, workspace and profile boundaries intact. No extension contract,
+  hook, config key, persistence schema or migration changes are needed.
+- **Docs, official skill and QA.** The MCP reference and `RT-mcp-reload-failure-recovery`
+  describe first-bind and idle-rebind recovery. Initial and subsequent hosted projections record
+  a fixed cause class in daemon logs when they fail.

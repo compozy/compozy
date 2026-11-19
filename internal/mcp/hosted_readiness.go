@@ -3,6 +3,8 @@ package mcp
 import (
 	"context"
 	"errors"
+	"io/fs"
+	"net"
 	"time"
 
 	"github.com/compozy/compozy/internal/tools"
@@ -11,6 +13,31 @@ import (
 var ErrHostedProjectionFailed = errors.New("mcp: hosted tool projection failed")
 
 var errHostedBindPending = errors.New("mcp: hosted MCP bind is not ready")
+
+// HostedProjectionFailureClass classifies failures without including upstream text or credentials.
+func HostedProjectionFailureClass(err error) string {
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, tools.ErrToolCanceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, tools.ErrToolTimedOut):
+		return "deadline_exceeded"
+	case errors.Is(err, ErrHostedBindNotFound):
+		return "bind_not_found"
+	case errors.Is(err, ErrHostedRegistryRequired):
+		return "registry_unavailable"
+	case errors.Is(err, fs.ErrNotExist):
+		return "resource_not_found"
+	case errors.Is(err, fs.ErrPermission):
+		return "permission_denied"
+	}
+	if _, ok := errors.AsType[net.Error](err); ok {
+		return "network_error"
+	}
+	if _, ok := errors.AsType[*tools.ToolError](err); ok {
+		return "tool_registry_error"
+	}
+	return "backend_error"
+}
 
 // WaitForBind confirms the initial projection before the launch window expires.
 func (s *HostedService) WaitForBind(ctx context.Context, sessionID string) error {

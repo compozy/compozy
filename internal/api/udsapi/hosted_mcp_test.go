@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,6 +28,43 @@ import (
 func TestHostedMCPStreamErrorData(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: bootstrap and stream projection failures expose only a safe cause class in logs.
+	// Owner: hosted MCP projection routes; canonical suite: TestHostedMCPStreamErrorData.
+	for _, stage := range []string{"bind", "stream"} {
+		t.Run("Should log a redacted projection cause for "+stage, func(t *testing.T) {
+			t.Parallel()
+			base, err := toolspkg.NewRegistry()
+			if err != nil {
+				t.Fatal(err)
+			}
+			registry := &countingHostedMCPRegistry{Registry: base}
+			var logs bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logs, nil))
+			router, service, peer := newHostedMCPRouteTestHarnessWithConfig(t, &mcppkg.HostedConfig{
+				Registry: func() toolspkg.Registry { return registry },
+				Logger:   logger,
+			}, &core.BaseHandlerConfig{Logger: logger})
+			request, token := hostedProjectionFailureRequest(t, service, peer, stage)
+			const privateText = "private-upstream-credential"
+			registry.listErr = fmt.Errorf("upstream sent %s: %w", privateText, context.DeadlineExceeded)
+			request = request.WithContext(mcppkg.ContextWithPeerInfo(request.Context(), peer, nil))
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusInternalServerError ||
+				!strings.Contains(recorder.Body.String(), "backend error") {
+				t.Fatalf("projection error = %d %s", recorder.Code, recorder.Body)
+			}
+			for _, output := range []string{logs.String(), recorder.Body.String()} {
+				if strings.Contains(output, privateText) || strings.Contains(output, token) {
+					t.Fatal("projection error exposed private upstream text or the binding token")
+				}
+			}
+			if !strings.Contains(logs.String(), `"cause_class":"deadline_exceeded"`) {
+				t.Fatal("missing projection cause class in logs")
+			}
+		})
+	}
+
 	t.Run("Should emit stable stream error without raw backend details", func(t *testing.T) {
 		t.Parallel()
 
@@ -47,6 +85,32 @@ func TestHostedMCPStreamErrorData(t *testing.T) {
 			t.Fatalf("hosted MCP stream error payload = %#v, want stable forbidden error", payload)
 		}
 	})
+}
+
+func hostedProjectionFailureRequest(
+	t *testing.T, service *mcppkg.HostedService, peer mcppkg.PeerInfo, stage string,
+) (*http.Request, string) {
+	t.Helper()
+	const id = "sess-projection-cause"
+	if stage == "stream" {
+		bind := launchAndBindHostedMCP(t, service, peer, id)
+		return httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+			"/api/internal/hosted-mcp/projection/stream?bind_id="+bind.BindID, http.NoBody), bind.BindID
+	}
+	launch, err := service.Launch(t.Context(), mcppkg.HostedLaunchRequest{SessionID: id, EagerTools: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.ArmLaunch(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	nonce := hostedMCPTestNonce(t, launch.Args)
+	body, err := json.Marshal(mcppkg.HostedBindRequest{SessionID: id, Nonce: nonce})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+		"/api/internal/hosted-mcp/bind", bytes.NewReader(body)), nonce
 }
 
 func TestHostedMCPProjectionStreamGenerationCache(t *testing.T) {
@@ -599,6 +663,7 @@ func newHostedMCPRouteTestHarnessWithConfig(
 type countingHostedMCPRegistry struct {
 	toolspkg.Registry
 	listCalls atomic.Int32
+	listErr   error
 }
 
 func (r *countingHostedMCPRegistry) List(
@@ -606,6 +671,9 @@ func (r *countingHostedMCPRegistry) List(
 	scope toolspkg.Scope,
 ) ([]toolspkg.ToolView, error) {
 	r.listCalls.Add(1)
+	if r.listErr != nil {
+		return nil, r.listErr
+	}
 	return r.Registry.List(ctx, scope)
 }
 
