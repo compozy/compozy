@@ -17,6 +17,7 @@ import (
 // PutMCPSidecarServer upserts one MCP server definition in the selected sidecar
 // target and returns the merged effective config after validation.
 func PutMCPSidecarServer(
+	ctx context.Context,
 	homePaths HomePaths,
 	workspaceRoot string,
 	target WriteTarget,
@@ -28,7 +29,7 @@ func PutMCPSidecarServer(
 		return Config{}, fmt.Errorf("config: validate MCP sidecar write: %w", err)
 	}
 	return editMCPSidecarServer(
-		context.Background(),
+		ctx,
 		homePaths,
 		workspaceRoot,
 		target,
@@ -60,28 +61,6 @@ func editMCPSidecarServer(
 		}
 	}()
 	return editMCPSidecarServerInDirectory(ctx, homePaths, workspaceRoot, target, directory, name, allowShadowing, edit)
-}
-
-func putMCPSidecarServerInDirectory(
-	homePaths HomePaths,
-	workspaceRoot string,
-	target WriteTarget,
-	server MCPServer,
-	directory *fileutil.Directory,
-	name string,
-) (Config, error) {
-	return editMCPSidecarServerInDirectory(
-		context.Background(),
-		homePaths,
-		workspaceRoot,
-		target,
-		directory,
-		name,
-		false,
-		func(doc *editableMCPJSONDocument) error {
-			return doc.Put(server)
-		},
-	)
 }
 
 func editMCPSidecarServerInDirectory(
@@ -120,10 +99,10 @@ func editMCPSidecarServerInDirectory(
 	if err != nil {
 		return Config{}, err
 	}
-	if err := ctx.Err(); err != nil {
+	if err := requireOverlayContents(directory, name, target.path, contents, existed); err != nil {
 		return Config{}, err
 	}
-	if err := requireOverlayContents(directory, name, target.path, contents, existed); err != nil {
+	if err := ctx.Err(); err != nil {
 		return Config{}, err
 	}
 	if err := writePersistedFileInDirectory(directory, name, target.path, rendered, true); err != nil {
@@ -136,13 +115,20 @@ func editMCPSidecarServerInDirectory(
 // sidecar target when present and returns the merged effective config after
 // validation.
 func DeleteMCPSidecarServer(
+	ctx context.Context,
 	homePaths HomePaths,
 	workspaceRoot string,
 	target WriteTarget,
 	name string,
 ) (cfg Config, deleted bool, err error) {
+	if err := ctx.Err(); err != nil {
+		return Config{}, false, err
+	}
 	configOverlayWriteMu.Lock()
 	defer configOverlayWriteMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return Config{}, false, err
+	}
 	if !target.isMCPSidecarTarget() {
 		return Config{}, false, fmt.Errorf("config: write target %q is not an MCP sidecar", target.Kind())
 	}
@@ -155,7 +141,7 @@ func DeleteMCPSidecarServer(
 	directory, fileName, err := fileutil.OpenParentDirectory(target.path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return deleteMCPSidecarServerFromContents(homePaths, workspaceRoot, target, trimmedName, nil, "", nil)
+			return deleteMCPSidecarServerFromContents(ctx, homePaths, workspaceRoot, target, trimmedName, nil, "", nil)
 		}
 		return Config{}, false, fmt.Errorf("config: open MCP sidecar parent %q: %w", target.path, err)
 	}
@@ -169,6 +155,7 @@ func DeleteMCPSidecarServer(
 		return Config{}, false, err
 	}
 	return deleteMCPSidecarServerFromContents(
+		ctx,
 		homePaths,
 		workspaceRoot,
 		target,
@@ -180,6 +167,7 @@ func DeleteMCPSidecarServer(
 }
 
 func deleteMCPSidecarServerFromContents(
+	ctx context.Context,
 	homePaths HomePaths,
 	workspaceRoot string,
 	target WriteTarget,
@@ -188,6 +176,9 @@ func deleteMCPSidecarServerFromContents(
 	fileName string,
 	contents []byte,
 ) (Config, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return Config{}, false, err
+	}
 	document, err := loadEditableMCPJSONDocument(contents, target.path)
 	if err != nil {
 		return Config{}, false, err
@@ -209,6 +200,9 @@ func deleteMCPSidecarServerFromContents(
 	}
 	if directory == nil {
 		return Config{}, false, fmt.Errorf("config: MCP sidecar %q disappeared before deletion", target.path)
+	}
+	if err := ctx.Err(); err != nil {
+		return Config{}, false, err
 	}
 	if err := writePersistedFileInDirectory(directory, fileName, target.path, rendered, true); err != nil {
 		return Config{}, false, err

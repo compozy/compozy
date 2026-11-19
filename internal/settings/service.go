@@ -176,6 +176,7 @@ type ProviderSecretStore interface {
 
 // MCPDefinitionWriter persists one MCP definition to its selected config target.
 type MCPDefinitionWriter func(
+	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
 	workspaceRoot string,
 	name string,

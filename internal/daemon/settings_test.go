@@ -2683,8 +2683,12 @@ func TestSettingsMCPDisabled(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)
 		state, req := newMCPConsentFixtureForHome(t, home)
-		writeMCPDeclarationFile(t, filepath.Join(home.HomeDir, compozyconfig.MCPJSONName),
-			`{"mcpServers":{"sentry":{"command":"global-fixture"}}}`)
+		globalSource := filepath.Join(home.HomeDir, compozyconfig.MCPJSONName)
+		writeMCPDeclarationFile(
+			t,
+			globalSource,
+			`{"mcpServers":{"sentry":{"command":"global-fixture","disabled":true}}}`,
+		)
 		server := req.Server
 		server.Disabled = new(true)
 		server.DefinitionSource = filepath.Join(filepath.Dir(req.Server.DefinitionSource), "agents", "agent.md")
@@ -2704,12 +2708,23 @@ func TestSettingsMCPDisabled(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		item, err := svc.(core.MCPSettingsChecker).CheckMCPServer(t.Context(), settingspkg.MCPAuthTargetRequest{
+		checker := svc.(core.MCPSettingsChecker)
+		target := settingspkg.MCPAuthTargetRequest{
 			Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID, Name: server.Name,
-		})
+		}
+		item, err := checker.CheckMCPServer(t.Context(), target)
 		if err != nil || !item.Disabled || item.DefinitionSource != server.DefinitionSource ||
 			item.RuntimeStatus == nil || item.RuntimeStatus.State != settingspkg.MCPServerRuntimeStateOff {
 			t.Fatalf("check the workspace publication: %+v, %v", item, err)
+		}
+		target.DefinitionSource = globalSource
+		item, err = checker.CheckMCPServer(t.Context(), target)
+		if err != nil || item.DefinitionSource != globalSource || item.Command != "global-fixture" || !item.Disabled {
+			t.Fatalf("check the explicitly selected global declaration: %+v, %v", item, err)
+		}
+		target.DefinitionSource = filepath.Join(home.HomeDir, "missing.json")
+		if _, err := checker.CheckMCPServer(t.Context(), target); !errors.Is(err, settingspkg.ErrNotFound) {
+			t.Fatalf("check the missing declaration: %v", err)
 		}
 	})
 

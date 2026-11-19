@@ -47,7 +47,7 @@ func (s *service) deleteMCPServer(
 		if !sourceFound {
 			return fmt.Errorf("settings: MCP server %q rollback source is unavailable", name)
 		}
-		return s.writeMCPServer(root, name, target, deletedSource.Server)
+		return s.writeMCPServer(context.WithoutCancel(ctx), root, name, target, deletedSource.Server)
 	}
 	mutationOutcome, err := s.withMCPAuthDefinitionMutation(
 		ctx,
@@ -55,7 +55,7 @@ func (s *service) deleteMCPServer(
 		workspaceID,
 		profileName,
 		name,
-		func() error { return s.deleteMCPServerDefinition(root, name, target) },
+		func() error { return s.deleteMCPServerDefinition(ctx, root, name, target) },
 		rollbackDefinition,
 	)
 	if mutationOutcome == mcpDefinitionMutationCommitted &&
@@ -110,7 +110,7 @@ func (s *service) finishMCPServerDeletion(
 		}
 		return result, nil
 	}
-	restoreErr := s.writeMCPServer(root, name, target, deletedServer)
+	restoreErr := s.writeMCPServer(context.WithoutCancel(ctx), root, name, target, deletedServer)
 	if restoreErr != nil {
 		restoreErr = fmt.Errorf(
 			"settings: restore MCP server %q after secret cleanup failure: %w",
@@ -127,9 +127,11 @@ func (s *service) finishMCPServerDeletion(
 	return MutationResult{}, errors.Join(cleanupFailure, invalidateErr)
 }
 
-func (s *service) deleteMCPServerDefinition(root string, name string, target compozyconfig.WriteTarget) error {
+func (s *service) deleteMCPServerDefinition(
+	ctx context.Context, root string, name string, target compozyconfig.WriteTarget,
+) error {
 	if isMCPDefinitionSidecarTarget(target.Kind()) {
-		_, deleted, err := compozyconfig.DeleteMCPSidecarServer(s.homePaths, root, target, name)
+		_, deleted, err := compozyconfig.DeleteMCPSidecarServer(ctx, s.homePaths, root, target, name)
 		if err != nil {
 			return fmt.Errorf("settings: delete MCP server %q: %w", name, err)
 		}

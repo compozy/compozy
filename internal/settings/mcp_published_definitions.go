@@ -89,7 +89,8 @@ func (s *service) resolvePublishedMCPDefinition(
 	var result mcpAuthDefinition
 	bestRank, matches := -1, 0
 	for _, definition := range definitions {
-		if definition.Server.Name != req.Name {
+		if definition.Server.Name != req.Name ||
+			(req.DefinitionSource != "" && definition.Server.DefinitionSource != req.DefinitionSource) {
 			continue
 		}
 		rank := definition.ScopePrecedence()

@@ -234,14 +234,7 @@ func (s *service) declaredMCPDisabled(
 func (s *service) resolveManualMCPAuthDefinition(
 	ctx context.Context, req MCPAuthTargetRequest, requested mcpauth.Target, sources map[string][]mcpSourceEntry,
 ) (mcpAuthDefinition, error) {
-	kind, _ := preferredMCPAuthTarget(req, requested.ServerName, sources)
-	entry, exact := mcpSourceForTarget(requested.ServerName, kind, sources)
-	if !exact {
-		entries := sources[requested.ServerName]
-		if len(entries) > 0 {
-			entry = entries[len(entries)-1]
-		}
-	}
+	entry, exact := selectMCPAuthConfigSource(req, requested.ServerName, sources)
 	var configDefinition mcpAuthDefinition
 	if entry.Target != "" {
 		target, err := mcpAuthTargetForSource(entry)
@@ -272,6 +265,28 @@ func (s *service) resolveManualMCPAuthDefinition(
 	return mcpAuthDefinition{}, notFoundError(
 		fmt.Errorf("settings: MCP server %q has no definition in %s scope", requested.ServerName, requested.Scope),
 	)
+}
+
+func selectMCPAuthConfigSource(
+	req MCPAuthTargetRequest, name string, sources map[string][]mcpSourceEntry,
+) (mcpSourceEntry, bool) {
+	entries := sources[name]
+	if req.DefinitionSource != "" {
+		for _, entry := range slices.Backward(entries) {
+			if entry.Server.DefinitionSource == req.DefinitionSource {
+				return entry, true
+			}
+		}
+		return mcpSourceEntry{}, false
+	}
+	kind, _ := preferredMCPAuthTarget(req, name, sources)
+	if entry, found := mcpSourceForTarget(name, kind, sources); found {
+		return entry, true
+	}
+	if len(entries) > 0 {
+		return entries[len(entries)-1], false
+	}
+	return mcpSourceEntry{}, false
 }
 
 func (s *service) resolveMCPPutTarget(
