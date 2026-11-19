@@ -1,5 +1,28 @@
 # Compozy Change Impact
 
+## Budgeted hosted MCP tool listing (GH-1869) — 2026-11-19
+
+- **Native tools.** `compozy__tool_search` accepts multi-word queries and ranks results by where
+  the words match; every query that matched before still matches. With a positive threshold on the
+  Claude ACP bridge, the callable deferred tools returned by `compozy__tool_search`,
+  `compozy__tool_list` and `compozy__tool_info` are registered under their real names. Public
+  result shapes are unchanged. No new tool id.
+- **CLI/HTTP/UDS.** No public verb, route or DTO change. The hidden `compozy tool mcp` bridge
+  receives the threshold from the daemon through a private flag, and the private bridge call
+  response carries up to 100 discovered tool ids (additive, omitted when empty).
+- **Extensibility, hooks and config.** New experimental key `tools.hosted_mcp.tool_list_threshold`
+  (default `0`, the full listing as before). Hooks see the same tool calls and results. Providers
+  other than the Claude ACP bridge keep the full listing.
+- **State and isolation.** No persisted state. Activation lives in one bridge process and is
+  limited to tools in that bind's own callable projection; policy, approvals and revocation are
+  still enforced per call. The served receipt still carries the digest of the full projected
+  catalog. A replacement bind starts from the initial budget.
+- **Web, official skill, docs and QA.** Web unchanged. The site config reference,
+  `configuration.md`, `native-tools.md` and `tools-and-skills.md` describe the directory, schema
+  loading, the refresh-delay message and rediscovery after a relaunch. ET-048,
+  ET-compozy-native-tool-invocation, ET-mcp-protocol-interop and
+  RT-mcp-hot-activation-next-message carry the budgeted variant.
+
 ## Pinned sessions carry their subtree and keep a manual order (GH-1859)
 
 - **Native tools.** `compozy__session_list` `pinned` now includes or leaves out every session a pin

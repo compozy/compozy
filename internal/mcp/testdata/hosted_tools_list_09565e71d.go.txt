@@ -1,0 +1,43 @@
+package mcp
+
+import (
+	"encoding/json"
+	"os"
+	"testing"
+
+	"github.com/compozy/compozy/internal/tools"
+)
+
+func TestEncodeHostedListingBaseline(t *testing.T) {
+	t.Parallel()
+	t.Run("Should capture the pre-budget list payload", func(t *testing.T) {
+		t.Parallel()
+		views := []tools.ToolView{
+			hostedToolView(tools.ToolIDToolSearch),
+			hostedToolView(tools.ToolIDToolInfo),
+			hostedToolView("compozy__hosted_echo"),
+		}
+		for _, name := range []string{"alpha", "beta"} {
+			view := hostedToolView(tools.ToolID("mcp__large__" + name))
+			view.Descriptor.Source = tools.SourceRef{
+				Kind: tools.SourceMCP, Owner: "large", RawServerName: "large", RawToolName: name,
+			}
+			view.Descriptor.Backend = tools.BackendRef{Kind: tools.BackendMCP, MCPServer: "large", MCPTool: name}
+			views = append(views, view)
+		}
+		server := newHostedProxyTestServer()
+		applyHostedTools(server, &hostedProxyClientStub{}, "bind-base", views)
+		server.AddReceivingMiddleware(privateToolListCacheMiddleware())
+		list, err := connectHostedProxyClient(t, server).ListTools(t.Context(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := json.Marshal(list)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(os.Getenv("HOSTED_LIST_BASELINE_OUTPUT"), append(payload, '\n'), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	})
+}

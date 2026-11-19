@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -172,17 +173,7 @@ func (r *RuntimeRegistry) Search(ctx context.Context, scope Scope, q SearchQuery
 	if err != nil {
 		return nil, err
 	}
-	needle := strings.TrimSpace(strings.ToLower(q.Query))
-	if needle == "" {
-		return limitViews(views, q.Limit), nil
-	}
-	filtered := make([]ToolView, 0, len(views))
-	for i := range views {
-		if toolViewMatches(&views[i], needle) {
-			filtered = append(filtered, views[i])
-		}
-	}
-	return limitViews(filtered, q.Limit), nil
+	return rankedToolViews(views, q), nil
 }
 
 // Get returns one tool from the scoped projection.
@@ -214,17 +205,7 @@ func (r *RuntimeRegistry) DiagnosticSearch(ctx context.Context, scope Scope, q S
 	if err != nil {
 		return nil, err
 	}
-	needle := strings.TrimSpace(strings.ToLower(q.Query))
-	if needle == "" {
-		return limitViews(views, q.Limit), nil
-	}
-	filtered := make([]ToolView, 0, len(views))
-	for i := range views {
-		if toolViewMatches(&views[i], needle) {
-			filtered = append(filtered, views[i])
-		}
-	}
-	return limitViews(filtered, q.Limit), nil
+	return rankedToolViews(views, q), nil
 }
 
 // DiagnosticGet returns one diagnostic projection row even when the tool is not callable.
@@ -426,25 +407,62 @@ func limitViews(views []ToolView, limit int) []ToolView {
 	return views[:limit]
 }
 
-func toolViewMatches(view *ToolView, needle string) bool {
-	d := &view.Descriptor
-	values := []string{
-		d.ID.String(),
-		d.Presentation().DisplayTitle,
-		d.Description,
-		d.Source.Owner,
-		d.Source.RawServerName,
-		d.Source.RawToolName,
+func rankedToolViews(views []ToolView, q SearchQuery) []ToolView {
+	needle := strings.TrimSpace(strings.ToLower(q.Query))
+	if needle == "" {
+		return limitViews(views, q.Limit)
 	}
-	values = append(values, d.Tags...)
-	values = append(values, d.SearchHints...)
-	for _, toolset := range d.Toolsets {
-		values = append(values, toolset.String())
+	terms := strings.Fields(needle)
+	type match struct {
+		index int
+		score int
 	}
-	for _, value := range values {
-		if strings.Contains(strings.ToLower(value), needle) {
-			return true
+	matches := make([]match, 0, len(views))
+	for i := range views {
+		if score := toolViewSearchScore(&views[i], needle, terms); score > 0 {
+			matches = append(matches, match{index: i, score: score})
 		}
 	}
-	return false
+	slices.SortStableFunc(matches, func(a, b match) int { return cmp.Compare(b.score, a.score) })
+	filtered := make([]ToolView, 0, len(matches))
+	for _, m := range matches {
+		filtered = append(filtered, views[m.index])
+	}
+	return limitViews(filtered, q.Limit)
+}
+
+func toolViewSearchScore(view *ToolView, needle string, terms []string) int {
+	d := &view.Descriptor
+	if strings.EqualFold(d.ID.String(), needle) {
+		return len(terms)*3 + 1
+	}
+	names := []string{d.ID.String(), d.Source.Owner, d.Source.RawServerName, d.Source.RawToolName}
+	hints := []string{d.Presentation().DisplayTitle}
+	hints = append(hints, d.Tags...)
+	hints = append(hints, d.SearchHints...)
+	for _, toolset := range d.Toolsets {
+		hints = append(hints, toolset.String())
+	}
+	for i := range names {
+		names[i] = strings.ToLower(names[i])
+	}
+	for i := range hints {
+		hints[i] = strings.ToLower(hints[i])
+	}
+	descr := strings.ToLower(d.Description)
+	score := 0
+	for _, term := range terms {
+		contains := func(value string) bool { return strings.Contains(value, term) }
+		switch {
+		case slices.ContainsFunc(names, contains):
+			score += 3
+		case slices.ContainsFunc(hints, contains):
+			score += 2
+		case contains(descr):
+			score++
+		default:
+			return 0
+		}
+	}
+	return score
 }

@@ -64,6 +64,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSessionCatalog(deps.SessionCatalog),
 			session.WithEventLedger(deps.EventLedger),
 			session.WithHostedMCPLauncher(deps.HostedMCP),
+			session.WithHostedMCPToolListThreshold(deps.HostedMCPListThreshold),
 			session.WithRuntimeMCPInventory(deps.RuntimeMCPInventory),
 			session.WithProviderSecretResolver(deps.ProviderSecrets),
 			session.WithProviderTelemetryEnv(deps.ProviderTelemetryEnv),

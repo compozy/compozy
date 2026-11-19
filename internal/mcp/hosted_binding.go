@@ -235,9 +235,13 @@ func (s *HostedService) callRecord(
 		Input:         input,
 	}
 	var (
-		result tools.ToolResult
-		err    error
+		result        tools.ToolResult
+		err           error
+		readDiscovery func() []tools.ToolID
 	)
+	if req.DiscoverTools && tools.IsCatalogDiscoveryTool(toolID) {
+		ctx, readDiscovery = tools.WithCatalogDiscovery(ctx)
+	}
 	if bootstrap, ok := registry.(hostedBootstrapCallRegistry); ok {
 		result, err = bootstrap.BootstrapSessionCall(ctx, record.scope(), call)
 	} else {
@@ -246,7 +250,11 @@ func (s *HostedService) callRecord(
 	if err != nil {
 		return HostedCallResponse{}, err
 	}
-	return HostedCallResponse{Result: result}, nil
+	response := HostedCallResponse{Result: result}
+	if readDiscovery != nil {
+		response.DiscoveredToolIDs = readDiscovery()
+	}
+	return response, nil
 }
 
 // BindRun installs the authoritative active run identity for a hosted session.

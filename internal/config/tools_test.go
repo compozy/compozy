@@ -32,6 +32,9 @@ func TestToolsConfigDefaults(t *testing.T) {
 		if got, want := cfg.Tools.HostedMCP.BindNonceTTLSeconds, DefaultHostedMCPBindNonceTTLSeconds; got != want {
 			t.Fatalf("DefaultWithHome() Tools.HostedMCP.BindNonceTTLSeconds = %d, want %d", got, want)
 		}
+		if got := cfg.Tools.HostedMCP.ToolListThreshold; got != 0 {
+			t.Fatalf("default tool list threshold = %d, want disabled (0)", got)
+		}
 		if got, want := cfg.Tools.HostedMCP.BindNonceTTL(), 30*time.Second; got != want {
 			t.Fatalf("DefaultWithHome() Tools.HostedMCP.BindNonceTTL() = %s, want %s", got, want)
 		}
@@ -138,6 +141,13 @@ func TestToolsConfigValidation(t *testing.T) {
 			wantErr: "tools.hosted_mcp.bind_nonce_ttl_seconds",
 		},
 		{
+			name: "Should reject negative hosted MCP tool list threshold",
+			mutate: func(cfg *Config) {
+				cfg.Tools.HostedMCP.ToolListThreshold = -1
+			},
+			wantErr: "tools.hosted_mcp.tool_list_threshold",
+		},
+		{
 			name: "ShouldRejectZeroArtifactMaxCount",
 			mutate: func(cfg *Config) {
 				cfg.Tools.Artifacts.MaxCount = 0
@@ -239,6 +249,7 @@ default_max_result_bytes = 131072
 
 [tools.hosted_mcp]
 bind_nonce_ttl_seconds = 45
+tool_list_threshold = 40
 
 [tools.clarify]
 timeout = "2m"
@@ -266,6 +277,9 @@ trusted_sources = ["mcp:github", "extension:linear"]
 		if got, want := cfg.Tools.HostedMCP.BindNonceTTLSeconds, 45; got != want {
 			t.Fatalf("ApplyConfigOverlayFile() BindNonceTTLSeconds = %d, want %d", got, want)
 		}
+		if got := cfg.Tools.HostedMCP.ToolListThreshold; got != 40 {
+			t.Fatalf("tool list threshold = %d, want 40", got)
+		}
 		if got, want := cfg.Tools.Clarify.Timeout, 2*time.Minute; got != want {
 			t.Fatalf("ApplyConfigOverlayFile() Clarify.Timeout = %s, want %s", got, want)
 		}
@@ -287,6 +301,20 @@ trusted_sources = ["mcp:github", "extension:linear"]
 		if got, want := cfg.Tools.Policy.TrustedSources,
 			[]string{"mcp:github", "extension:linear"}; !slices.Equal(got, want) {
 			t.Fatalf("ApplyConfigOverlayFile() TrustedSources = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should disable the inherited threshold with an explicit zero", func(t *testing.T) {
+		t.Parallel()
+		cfg := defaultTestConfig(t)
+		cfg.Tools.HostedMCP.ToolListThreshold = 40
+		overlay := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlay, "[tools.hosted_mcp]\ntool_list_threshold = 0\n")
+		if err := ApplyConfigOverlayFile(overlay, &cfg); err != nil {
+			t.Fatal(err)
+		}
+		if got := cfg.Tools.HostedMCP.ToolListThreshold; got != 0 {
+			t.Fatalf("overlaid tool list threshold = %d, want 0", got)
 		}
 	})
 }

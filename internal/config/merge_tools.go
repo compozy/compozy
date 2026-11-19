@@ -17,6 +17,7 @@ type toolsOverlay struct {
 
 type toolsHostedMCPOverlay struct {
 	BindNonceTTLSeconds *int `toml:"bind_nonce_ttl_seconds"`
+	ToolListThreshold   *int `toml:"tool_list_threshold"`
 }
 
 type toolsClarifyOverlay struct {
@@ -54,6 +55,9 @@ func (o toolsOverlay) Apply(dst *ToolsConfig) {
 func (o toolsHostedMCPOverlay) Apply(dst *ToolsHostedMCPConfig) {
 	if o.BindNonceTTLSeconds != nil {
 		dst.BindNonceTTLSeconds = *o.BindNonceTTLSeconds
+	}
+	if o.ToolListThreshold != nil {
+		dst.ToolListThreshold = *o.ToolListThreshold
 	}
 }
 

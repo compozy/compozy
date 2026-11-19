@@ -71,14 +71,22 @@ envelope when available.
 - Toolset `compozy__bootstrap`: `compozy__tool_list`, `compozy__tool_search`, `compozy__tool_info`.
 - Toolset `compozy__catalog`: agent, command, skill, and redacted Vault-reference catalog access plus bootstrap tools.
 
-Bare managed sessions receive the full availability-gated callable catalog through hosted MCP. CompozyOS
-does not add an automatic bootstrap/catalog allowlist over the hosted projection. Explicit agent
-`tools`, `toolsets`, `deny_tools`, session lineage, disabled sources, and approval/risk gates still
-apply.
+Bare managed sessions receive the full availability-gated callable catalog through hosted MCP by
+default. The experimental `tools.hosted_mcp.tool_list_threshold` lets the Claude ACP bridge defer
+large external MCP servers. The search tool description lists up to 16 of those servers with their
+tool counts. Callable matches returned by `compozy__tool_search`, `compozy__tool_list`, and
+`compozy__tool_info` are registered under their real names. They use Claude's normal schema
+loading. If discovery reports that the list is still refreshing, retry discovery after the refresh
+if the name is unavailable. Idle release, crash recovery, and restart create a fresh bind. Rediscover
+deferred tools even if their earlier calls appear in the transcript. Explicit agent `tools`,
+`toolsets`, `deny_tools`, session lineage, disabled sources, and approval/risk gates still apply.
 
 The discovery loop and denial-handling rules live in the preceding tools-and-skills prompt section; this reference supplies the stable tool map.
 
 `compozy__tool_search` defaults to 20 results (maximum 100; zero uses the default).
+Each word must match descriptor text or provenance. Exact canonical IDs rank first. Other results
+sum the best field score for each word, with identity fields weighted above hints and descriptions.
+Ties keep projection order.
 Continue with `offset: next_offset` and the same query. Both views include `count`, `total` and `has_more`; `offset` and `next_offset` are omitted when zero.
 Compact rows summarize descriptors; `result_view: "full"` retains complete descriptors.
 `tool_info` reads one complete descriptor.
