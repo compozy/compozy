@@ -61,6 +61,24 @@ func (q *Queries) GetAgentInstanceDailyBudgetNotices(ctx context.Context, instan
 	return items, nil
 }
 
+const hasDailyBudgetEnforcementForSession = `-- name: HasDailyBudgetEnforcementForSession :one
+SELECT CAST(EXISTS (
+    SELECT 1 FROM agent_instances instance
+    LEFT JOIN agent_instance_daily_budget_limits limits ON limits.instance_id = instance.id
+    WHERE instance.profile_id = session.profile_id AND instance.archived_at IS NULL
+      AND (limits.token_cap IS NOT NULL OR limits.usd_cap IS NOT NULL
+           OR (instance.state = 'paused' AND instance.pause_reason = 'daily_budget'))
+) AS INTEGER) AS requires_enforcement
+FROM sessions session WHERE session.id = ?1
+`
+
+func (q *Queries) HasDailyBudgetEnforcementForSession(ctx context.Context, sessionID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, hasDailyBudgetEnforcementForSession, sessionID)
+	var requires_enforcement int64
+	err := row.Scan(&requires_enforcement)
+	return requires_enforcement, err
+}
+
 const hasInstanceDailyBudgetNotice = `-- name: HasInstanceDailyBudgetNotice :one
 SELECT count(*) FROM agent_instance_daily_budget_notices
 WHERE instance_id = ?1 AND day = ?2

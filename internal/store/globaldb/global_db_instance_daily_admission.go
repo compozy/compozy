@@ -47,6 +47,15 @@ const dailyBudgetPauseReason = "daily_budget"
 func admitDailyBudgetTurnTx(
 	ctx context.Context, q *sqlcgen.Queries, sessionID string, clock func() time.Time,
 ) (bool, *store.InstancePauseTrip, error) {
+	// A profile without any applicable guardrail keeps its ordinary dispatch
+	// behavior even when an older session has an incomplete ownership edge.
+	requiresEnforcement, err := q.HasDailyBudgetEnforcementForSession(ctx, sessionID)
+	if err != nil {
+		return false, nil, fmt.Errorf("store: check daily budget enforcement: %w", err)
+	}
+	if requiresEnforcement == 0 {
+		return true, nil, nil
+	}
 	owner, err := q.GetTokenUsageReceiptSessionOwner(ctx, sessionID)
 	if err != nil {
 		return false, nil, fmt.Errorf("store: resolve daily budget turn owner: %w", err)

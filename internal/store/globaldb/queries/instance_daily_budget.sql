@@ -10,6 +10,16 @@ ON CONFLICT(instance_id) DO UPDATE SET
 SELECT token_cap, usd_cap FROM agent_instance_daily_budget_limits
 WHERE instance_id = sqlc.arg(instance_id);
 
+-- name: HasDailyBudgetEnforcementForSession :one
+SELECT CAST(EXISTS (
+    SELECT 1 FROM agent_instances instance
+    LEFT JOIN agent_instance_daily_budget_limits limits ON limits.instance_id = instance.id
+    WHERE instance.profile_id = session.profile_id AND instance.archived_at IS NULL
+      AND (limits.token_cap IS NOT NULL OR limits.usd_cap IS NOT NULL
+           OR (instance.state = 'paused' AND instance.pause_reason = 'daily_budget'))
+) AS INTEGER) AS requires_enforcement
+FROM sessions session WHERE session.id = sqlc.arg(session_id);
+
 -- name: ReserveAgentInstanceDailyBudgetNotice :execrows
 INSERT INTO agent_instance_daily_budget_notices (instance_id, day, issued_at)
 VALUES (sqlc.arg(instance_id), sqlc.arg(day), sqlc.arg(issued_at))
