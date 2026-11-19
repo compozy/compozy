@@ -51,6 +51,11 @@ The installed provenance records `standard`, `claude-plugin`, `codex-plugin` or
 credential isolation and lifecycle rules still apply. Paths must remain inside the package.
 Codex and Cursor currently use the same client grammar as Claude Code.
 
+Marketplace archives accept the official Claude Code schema
+(`https://json.schemastore.org/claude-code-plugin-manifest.json`) in `.claude-plugin/plugin.json`.
+When an archive contains several client manifests, the first present layout wins in Claude Code,
+Codex, then Cursor order. An invalid manifest in that layout blocks the package.
+
 The vendored Open Design plugin contains one MCP server and no packaged skills;
 loop-engineering contains seven skills and no MCP declaration. The manifest description
 does not substitute for resources actually present in the package.

@@ -22870,6 +22870,10 @@ export type GetMarketplaceCatalogEntryErrors = {
    */
   409: ExtensionOperationErrorPayload;
   /**
+   * Invalid plugin manifest
+   */
+  422: ExtensionValidationErrorPayload | ExtensionOperationErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;

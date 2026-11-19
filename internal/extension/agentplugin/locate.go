@@ -21,6 +21,17 @@ var manifestLocations = []struct{ path, layout string }{
 	{".cursor-plugin/plugin.json", "cursor-plugin"},
 }
 
+// PackageManifestPath returns the recognized manifest location without the host directory.
+func PackageManifestPath(path string) string {
+	path = filepath.ToSlash(filepath.Clean(path))
+	for _, candidate := range manifestLocations[1:] {
+		if path == candidate.path || strings.HasSuffix(path, "/"+candidate.path) {
+			return candidate.path
+		}
+	}
+	return manifestFileName
+}
+
 // NotManifestError records the candidate paths checked during lookup.
 type NotManifestError struct {
 	Root    string

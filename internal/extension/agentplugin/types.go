@@ -51,6 +51,9 @@ const (
 
 var ErrSchemaUnsupported = errors.New("extension: Agent Plugins schema is unsupported")
 
+// ErrManifestInvalid identifies invalid plugin manifests at acquisition and load time.
+var ErrManifestInvalid = errors.New("extension: agent plugin manifest invalid")
+
 // SchemaUnsupportedError retains manifest identity across acquisition and loading boundaries.
 type SchemaUnsupportedError struct {
 	Path     string
@@ -149,17 +152,35 @@ type Issue struct {
 
 // ManifestError contains every deterministic fatal manifest issue.
 type ManifestError struct {
-	Issues []Issue
+	Cause        error
+	Issues       []Issue
+	ManifestPath string
+}
+
+func (e *ManifestError) Is(target error) bool { return target == ErrManifestInvalid }
+
+func (e *ManifestError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
 }
 
 // Error renders all issues without discarding their field paths.
 func (e *ManifestError) Error() string {
-	if e == nil || len(e.Issues) == 0 {
-		return "invalid Agent Plugins manifest"
+	message := "invalid Agent Plugins manifest"
+	if e == nil {
+		return message
+	}
+	if e.ManifestPath != "" {
+		message += fmt.Sprintf(" %q", e.ManifestPath)
+	}
+	if len(e.Issues) == 0 {
+		return message
 	}
 	parts := make([]string, 0, len(e.Issues))
 	for _, issue := range e.Issues {
 		parts = append(parts, fmt.Sprintf("%s: %s", issue.Path, issue.Message))
 	}
-	return "invalid Agent Plugins manifest: " + strings.Join(parts, "; ")
+	return message + ": " + strings.Join(parts, "; ")
 }

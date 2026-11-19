@@ -78,6 +78,10 @@ remain readable with `installable: false` and an `install_blocker` reason; the a
 Refresh after the publisher corrects a package. Older catalogs without these requirements are still
 readable, and package inspection and installation always enforce the packaged minimum version.
 
+Plugin-source refresh validates each acquired package before marking it installable. Invalid
+plugin manifests block installation. If entry detail or install preview encounters an invalid
+plugin manifest, it returns HTTP or UDS status `422` with the manifest diagnostic.
+
 ## Add An Extension
 
 Each row has one action. **Add** installs the entry and turns it on in one step; the row reads
