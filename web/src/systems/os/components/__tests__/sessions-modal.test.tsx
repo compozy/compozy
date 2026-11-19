@@ -413,7 +413,8 @@ describe("OsSessionsModal", () => {
     await user.keyboard("{Enter}");
     expect(setFoldAll).toHaveBeenCalledWith("groups");
     await waitFor(() => expect(fold).toHaveFocus());
-    expect(screen.queryByRole("tooltip")).toBeNull();
+    // Base UI tooltip popups carry no role; the slot is what marks an open tooltip.
+    expect(document.querySelector('[data-slot="tooltip-content"]')).toBeNull();
     await user.keyboard("{Escape}");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
