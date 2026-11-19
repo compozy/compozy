@@ -193,7 +193,7 @@ CREATE TABLE sessions (
 		failure_seen_at TEXT,
 		pinned_at TEXT,
 		-- Manual order of the Pinned section: the smallest position leads, and a new pin takes
-		-- one below the current smallest. Set exactly while pinned_at is set.
+		-- one below the current smallest. Pin sets it and unpin clears it with pinned_at.
 		pin_position INTEGER,
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),

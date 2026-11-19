@@ -2397,9 +2397,17 @@ describe("SessionList Pinned", () => {
         permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
       },
     };
+    // A carried row whose pin is outside this read (archived, filtered) stands as a root but is
+    // no pin, so it never joins the order the section sends.
+    const orphan: SessionPayload = {
+      ...carried,
+      id: "orphan",
+      name: "Stray worker",
+      lineage: { ...carried.lineage!, parent_session_id: "gone", root_session_id: "gone" },
+    };
     const { update } = renderList({
       sessions: [],
-      view: { ...view, pinned: { ...pinnedRead([pinned, second, carried]), reorder } },
+      view: { ...view, pinned: { ...pinnedRead([pinned, second, carried, orphan]), reorder } },
     });
 
     await user.click(screen.getByTestId("session-row-actions-pinned-2"));
@@ -2410,9 +2418,11 @@ describe("SessionList Pinned", () => {
     // Dragging a pin past another reorders them; a carried row is no drag source.
     reorder.mockClear();
     const row = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`).parentElement!;
-    fireEvent.dragStart(row("carried"));
-    fireEvent.dragOver(row("pinned"));
-    fireEvent.drop(row("pinned"));
+    for (const id of ["carried", "orphan"]) {
+      fireEvent.dragStart(row(id));
+      fireEvent.dragOver(row("pinned"));
+      fireEvent.drop(row("pinned"));
+    }
     expect(reorder).not.toHaveBeenCalled();
     fireEvent.dragStart(row("pinned"));
     fireEvent.dragOver(row("pinned-2"));

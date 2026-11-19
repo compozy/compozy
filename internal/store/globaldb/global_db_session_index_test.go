@@ -1267,6 +1267,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			query := store.SessionCatalogPageQuery{
 				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 				WorkspaceID: workspace,
+				Archive:     store.SessionArchiveExclude,
 				Pinned:      pinned,
 				Sort:        sort,
 				Limit:       20,
@@ -1309,6 +1310,49 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		scopes, err := db.SessionPinScopes(ctx, ids)
 		if err != nil || len(scopes) != len(carried) || scopes["worker-3"].RootID != "conductor" {
 			t.Fatalf("SessionPinScopes() = %#v, %v, want the subtree under the conductor", scopes, err)
+		}
+
+		// A child spawned into another project stays in that project's list: a pin carries only
+		// within its own workspace, where Pinned can show it above the child.
+		remoteWorkspace := registerWorkspaceForGlobalTests(
+			t, db, "pin-subtree-remote", filepath.Join(t.TempDir(), "remote"),
+		)
+		if err := db.RegisterSession(ctx, new(sessionInfoForWorkspaceStateIndexTest(
+			"remote-helper", remoteWorkspace, globalDBSessionStateStopped, base,
+		))); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE sessions SET parent_session_id='conductor',
+ lineage_kind='spawn' WHERE id='remote-helper'`); err != nil {
+			t.Fatal(err)
+		}
+		remote, err := db.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: remoteWorkspace,
+			Pinned:      store.SessionPinnedExclude,
+			Sort:        sessionCatalogSortRecent,
+			Limit:       20,
+		})
+		if got := sessionIDsForWorkspaceStateIndexTest(remote.Sessions); err != nil ||
+			!slices.Equal(got, []string{"remote-helper"}) {
+			t.Fatalf("remote unpinned rows = %#v, %v, want the cross-project child listed in place", got, err)
+		}
+
+		// An archived pin stays pinned but carries nothing: a list without it gets its subtree back,
+		// and a pin inside that subtree takes its own slot.
+		if _, err := db.SetSessionArchived(ctx, workspace, "conductor", true); err != nil {
+			t.Fatal(err)
+		}
+		if pinned, total = read(store.SessionPinnedOnly, sessionCatalogSortPinned); total != 1 ||
+			!slices.Equal(pinned, []string{"worker-2"}) {
+			t.Fatalf("pinned page with the root archived = %#v total=%d, want only the inner pin", pinned, total)
+		}
+		if rest, _ := read(store.SessionPinnedExclude, sessionCatalogSortRecent); !slices.Contains(rest, "worker") ||
+			!slices.Contains(rest, "helper") {
+			t.Fatalf("unpinned rows with the root archived = %#v, want its subtree back in place", rest)
+		}
+		if _, err := db.SetSessionArchived(ctx, workspace, "conductor", false); err != nil {
+			t.Fatal(err)
 		}
 
 		// Unpinning the root hands the inner pin its own slot and returns the rest in place; a

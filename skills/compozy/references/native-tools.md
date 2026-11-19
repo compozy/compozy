@@ -567,7 +567,9 @@ search, resumability, health, archive visibility, sort, cursor, and limit inputs
 archived rows. Pin visibility (`pinned`) defaults to `include`. A pin carries its session's subtree
 (children, their continuations and subagents, not forks): `exclude` drops pinned sessions and every
 session they carry, `only` returns just those, and `sort: "pinned"` requires `only`, follows the
-operator's Pinned order (a new pin on top) and pages by pin, each page holding whole subtrees.
+operator's Pinned order (a new pin on top) and pages by pin, each page holding whole subtrees, so a
+pin with a large subtree returns all of it on its page. Only an active pin carries, and only within
+its own workspace and profile; an archived or parked pin still lists itself as pinned.
 Rows report `pinned_at` only for the pinned session itself. Pinning has no native tool: use
 `compozy session pin <id>` and `compozy session unpin <id>`; subagent sessions and always-on mains
 are refused. `compozy__session_reorder` with `pinned: true` orders the Pinned section: the listed

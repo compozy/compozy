@@ -48,7 +48,10 @@ the order; Unpin and confirm every descendant returns to its group, folder, and 
 
 Known limits: there is no bulk Pin/Unpin; pinned rows in the Pinned section are not part of a bulk
 selection; the Pinned order cannot be changed in an aggregate (All projects or all profiles) list
-or during a search; subagent sessions follow their parent.
+or during a search; subagent sessions follow their parent. An archived or Later pin carries nothing
+until it is back, and a child started in another project stays in that project, so a carried row
+whose pin is not in the read lists as a root in Pinned without Move up/Move down or drag. A Pinned
+page returns each pin's whole subtree, however large.
 
 2026-11-18 isolated-lab walk (daemon and `web/dist` built from the branch at 88426ae31, demo-seeded
 Northstar Pay home on its own port and socket, plus a `launch-notes` project holding one unbound

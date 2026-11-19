@@ -15,13 +15,21 @@ import (
 // parent its continue chain began under, so a continuation of a carried session is carried while
 // a continuation of the pin itself stands beside it. A fork is new top-level work and is never
 // carried. A pin inside another pin's subtree is carried by the outer pin and is no root itself.
-const sessionPinScopeCTE = `WITH RECURSIVE pin_walk(pin_seed, pin_member, pin_carried) AS (
- SELECT id, id, 0 FROM sessions WHERE pinned_at IS NOT NULL
+// Only an active pin carries, and only within its own workspace and profile: an archived or
+// parked pin still lists as pinned itself, but it and a child spawned into another project never
+// pull rows out of a list that cannot show the pin above them.
+const sessionPinScopeCTE = `WITH RECURSIVE pin_walk(pin_seed, pin_member, pin_carried, pin_workspace, pin_profile,
+ pin_active) AS (
+ SELECT id, id, 0, workspace_id, profile_id, archived_at IS NULL AND parked_at IS NULL
+ FROM sessions WHERE pinned_at IS NOT NULL
  UNION
- SELECT pin_walk.pin_seed, pin_child.id, 1 FROM sessions AS pin_child
+ SELECT pin_walk.pin_seed, pin_child.id, 1, pin_walk.pin_workspace, pin_walk.pin_profile, 1
+ FROM sessions AS pin_child
  JOIN pin_walk ON pin_child.parent_session_id = pin_walk.pin_member
- WHERE pin_child.lineage_kind NOT IN ('continue', 'fork')
- OR (pin_child.lineage_kind = 'continue' AND pin_walk.pin_carried = 1)
+ WHERE pin_walk.pin_active = 1
+ AND pin_child.workspace_id = pin_walk.pin_workspace AND pin_child.profile_id = pin_walk.pin_profile
+ AND (pin_child.lineage_kind NOT IN ('continue', 'fork')
+ OR (pin_child.lineage_kind = 'continue' AND pin_walk.pin_carried = 1))
 ), pin_scope(pin_member, pin_root, pin_root_position) AS (
  SELECT DISTINCT pin_walk.pin_member, pin_walk.pin_seed, COALESCE(pin_root_row.pin_position, 0)
  FROM pin_walk JOIN sessions AS pin_root_row ON pin_root_row.id = pin_walk.pin_seed
