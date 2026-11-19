@@ -72,10 +72,13 @@ func (e *CallExecutor) finishToolList(key string) {
 
 func (e *CallExecutor) publishToolList(key, pollKey string, attempt mcpListAttempt, fresh bool,
 	listing mcpToolListCacheEntry, ttlMs int,
-	projectionKey string, stdio, background bool, subscribed func() bool,
+	projectionKey string, stdio, background bool, subscribed func() bool, owner *catalogNotificationStream,
 ) {
 	e.toolCache.publicationMu.Lock()
 	defer e.toolCache.publicationMu.Unlock()
+	if owner != nil && owner.revoked.Load() {
+		return
+	}
 	current := e.toolCache.attempts[key]
 	if current.check != attempt.check || (!fresh && current.list != attempt.list) {
 		return

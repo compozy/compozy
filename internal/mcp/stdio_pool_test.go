@@ -95,6 +95,50 @@ func TestStdioSessionPool(t *testing.T) {
 		})
 	})
 
+	// Invariant: tool calls charge response timeouts only after admission leaves a fair response window.
+	// Owner: stdio executor and pool; canonical suite: TestStdioSessionPool.
+	for _, tc := range []struct {
+		name          string
+		callerTimeout time.Duration
+		admission     time.Duration
+		cancel        bool
+		want          stdioExchangeOutcome
+	}{
+		{name: "Should count the executor deadline during a tool response", callerTimeout: 2 * time.Second,
+			want: stdioExchangeTimedOut},
+		{name: "Should exclude the caller deadline", callerTimeout: 100 * time.Millisecond},
+		{name: "Should exclude caller cancellation", callerTimeout: 2 * time.Second, cancel: true},
+		{name: "Should exclude time consumed by admission", callerTimeout: 2 * time.Second,
+			admission: 800 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				caller, cancel := context.WithTimeout(t.Context(), tc.callerTimeout)
+				defer cancel()
+				executor := &CallExecutor{timeout: time.Second}
+				ctx, release := executor.callContext(caller)
+				defer release()
+				time.Sleep(tc.admission)
+				client := &managedMCPClient{release: func(stdioExchangeOutcome) {}}
+				startedAt := time.Now()
+				if tc.cancel {
+					cancel()
+				}
+				<-ctx.Done()
+				executor.observeToolExchange(ctx, client, startedAt, ctx.Err())
+				if client.exchange != tc.want {
+					t.Fatalf(
+						"tool exchange = %v, want %v, context cause %v",
+						client.exchange,
+						tc.want,
+						context.Cause(ctx),
+					)
+				}
+			})
+		})
+	}
+
 	t.Run("Should keep an off server from starting for discovery or invocation", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStdioPoolFixture(t, StdioPoolConfig{}, nil)

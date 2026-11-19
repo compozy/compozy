@@ -385,7 +385,10 @@ func (e *CallExecutor) listToolsFromClient(
 	defer e.finishToolList(cacheKey)
 	exchangeCtx, finishExchange := exchangeContext(ctx, client, tools.MCPDiscoveryResponseBudget(ctx))
 	defer finishExchange()
-	subscribed := client.catalogLive
+	var subscribed func() bool
+	if client.catalogStream != nil {
+		subscribed = client.catalogStream.live
+	}
 	if e.stdioPool != nil && resolved.listingSpec != nil {
 		subscribed = func() bool { return e.stdioPool.catalogSubscribed(*resolved.listingSpec) }
 	}
@@ -413,6 +416,7 @@ func (e *CallExecutor) listToolsFromClient(
 		stdio,
 		background,
 		subscribed,
+		client.catalogStream,
 	)
 	return discovery, nil, nil
 }

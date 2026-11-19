@@ -88,7 +88,7 @@ func (e *CallExecutor) openToolListingClient(
 }
 
 func (e mcpCatalogHTTPEntry) client() *managedMCPClient {
-	return &managedMCPClient{session: e.session, borrowed: true, catalogLive: e.stream.live}
+	return &managedMCPClient{session: e.session, borrowed: true, catalogStream: e.stream}
 }
 
 func supportsToolListChanges(session *mcpsdk.ClientSession) bool {
@@ -173,9 +173,9 @@ func (c *mcpCatalogHTTP) store(
 				oldest, usedAt = candidate, previous.usedAt
 			}
 		}
-		retired = &managedMCPClient{session: c.sessions[oldest].session}
-		delete(c.sessions, oldest)
-		c.expire(oldest)
+		old := c.sessions[oldest]
+		retired = &managedMCPClient{session: old.session}
+		c.remove(oldest, old)
 	}
 	c.sessions[key] = entry
 	c.acceptEstablished(key, entry)
@@ -208,12 +208,18 @@ func (c *mcpCatalogHTTP) retire(
 	for key, entry := range c.sessions {
 		if closeAll || match(key, entry) {
 			retired = append(retired, entry)
-			delete(c.sessions, key)
-			c.expire(key)
+			c.remove(key, entry)
 		}
 	}
 	c.mu.Unlock()
 	return closeCatalogEntries(ctx, retired)
+}
+
+// remove revokes publication before expiring cached state. The caller holds c.mu.
+func (c *mcpCatalogHTTP) remove(key string, entry mcpCatalogHTTPEntry) {
+	entry.stream.revoked.Store(true)
+	delete(c.sessions, key)
+	c.expire(key)
 }
 
 func closeCatalogEntries(ctx context.Context, entries []mcpCatalogHTTPEntry) error {

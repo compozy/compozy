@@ -25,10 +25,10 @@ import (
 )
 
 type managedMCPClient struct {
-	session     *mcpsdk.ClientSession
-	cleanup     func() error
-	borrowed    bool
-	catalogLive func() bool
+	session       *mcpsdk.ClientSession
+	cleanup       func() error
+	borrowed      bool
+	catalogStream *catalogNotificationStream
 	// release returns a pooled session instead of closing it.
 	release  func(stdioExchangeOutcome)
 	exchange stdioExchangeOutcome
@@ -58,6 +58,21 @@ func (c *managedMCPClient) observeExchange(ctx context.Context, err error) {
 		c.exchange = stdioExchangeSucceeded
 	case errors.Is(err, context.DeadlineExceeded) && context.Cause(ctx) == errStdioResponseDeadline:
 		c.exchange = stdioExchangeTimedOut
+	}
+}
+
+// observeToolExchange attributes the existing total deadline only when the RPC had a fair response window.
+func (e *CallExecutor) observeToolExchange(
+	ctx context.Context, client *managedMCPClient, startedAt time.Time, err error,
+) {
+	client.observeExchange(ctx, err)
+	if client.release == nil || !errors.Is(err, context.DeadlineExceeded) ||
+		context.Cause(ctx) != errMCPExecutorDeadline {
+		return
+	}
+	// A local setup or pool wait that spent over half the budget must not penalize the child.
+	if deadline, ok := ctx.Deadline(); ok && deadline.Sub(startedAt) >= e.timeout/2 {
+		client.exchange = stdioExchangeTimedOut
 	}
 }
 

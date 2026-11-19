@@ -23,6 +23,7 @@ type catalogNotificationStream struct {
 	next             http.RoundTripper
 	handshakeTimeout time.Duration
 	retirement       atomic.Pointer[catalogRetirement]
+	revoked          atomic.Bool
 	established      func()
 	ended            func()
 	body             atomic.Pointer[catalogNotificationBody]
@@ -32,7 +33,7 @@ func (s *catalogNotificationStream) live() bool { return s.liveBody() != nil }
 
 func (s *catalogNotificationStream) liveBody() *catalogNotificationBody {
 	body := s.body.Load()
-	if body != nil && body.acknowledged.Load() {
+	if !s.revoked.Load() && body != nil && body.acknowledged.Load() {
 		return body
 	}
 	return nil

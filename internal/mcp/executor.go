@@ -134,8 +134,9 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	startedAt := time.Now()
 	mcpResult, err := client.session.CallTool(ctx, params)
-	client.observeExchange(ctx, err)
+	e.observeToolExchange(ctx, client, startedAt, err)
 	if err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
@@ -250,8 +251,10 @@ func mcpServerDisabledError(name string) error {
 	)
 }
 
+var errMCPExecutorDeadline = errors.New("mcp: executor deadline exceeded")
+
 func (e *CallExecutor) callContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, e.timeout)
+	return context.WithTimeoutCause(ctx, e.timeout, errMCPExecutorDeadline)
 }
 
 func (e *CallExecutor) resolveServer(

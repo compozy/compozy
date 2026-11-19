@@ -39,4 +39,6 @@ QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
 
 Expire several caller budgets against a shared stdio child and verify it remains reusable. Repeat
 with the child's own response timeout and confirm a cooldown, a named server and scope in logs,
-and no restart before the cooldown ends.
+and no restart before the cooldown ends. A tool call that reaches the executor's deadline counts
+when at least half of its configured time budget was available after pool admission. Check a call
+whose admission used most of the time budget and confirm it leaves the child reusable.

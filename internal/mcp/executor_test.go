@@ -2175,6 +2175,59 @@ func TestMCPToolListCache(t *testing.T) {
 		}
 	})
 
+	// Invariant: a late success cannot publish after another request retires its subscription.
+	// Owner: executor HTTP catalog publication; canonical suite: TestMCPToolListCache.
+	t.Run("Should revoke an in-flight listing when its subscription is retired", func(t *testing.T) {
+		t.Parallel()
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{}, WithToolCatalogNotifications())
+		catalog := executor.catalogHTTP
+		const key = "catalog-binding"
+		liveStream := func() *catalogNotificationStream {
+			stream := &catalogNotificationStream{}
+			body := &catalogNotificationBody{}
+			body.acknowledged.Store(true)
+			stream.body.Store(body)
+			return stream
+		}
+		publish := func(owner *catalogNotificationStream, attempt mcpListAttempt, label string) {
+			executor.publishToolList(key, key, attempt, false, mcpToolListCacheEntry{
+				discovery: ToolDiscovery{Diagnostic: label},
+			}, 0, key, false, false, owner.live, owner)
+		}
+
+		retired := liveStream()
+		entry := mcpCatalogHTTPEntry{stream: retired}
+		catalog.sessions[key] = entry
+		initial := executor.beginToolList(key, false)
+		publish(retired, initial, "last known")
+		executor.finishToolList(key)
+
+		executor.beginToolList(key, false) // The older request will fail and retire this subscription.
+		defer executor.finishToolList(key)
+		late := executor.beginToolList(key, false)
+		defer executor.finishToolList(key)
+		catalog.mu.Lock()
+		catalog.remove(key, entry)
+		catalog.mu.Unlock()
+		publish(retired, late, "retired result")
+		got, found := executor.cachedToolListing(key, time.Now())
+		if !found || got.expiresAt.IsZero() || got.discovery.Diagnostic != "last known" {
+			t.Fatalf("retirement kept listing %q with expiry %v, found %t",
+				got.discovery.Diagnostic, got.expiresAt, found)
+		}
+
+		replacement := liveStream()
+		catalog.sessions[key] = mcpCatalogHTTPEntry{stream: replacement}
+		newer := executor.beginToolList(key, false)
+		defer executor.finishToolList(key)
+		publish(replacement, newer, "fresh result")
+		got, found = executor.cachedToolListing(key, time.Now())
+		if !found || !got.expiresAt.IsZero() || got.discovery.Diagnostic != "fresh result" {
+			t.Fatalf("replacement kept listing %q with expiry %v, found %t",
+				got.discovery.Diagnostic, got.expiresAt, found)
+		}
+	})
+
 	// Invariant: an advertised subscription keeps finite expiry until the transport has a live channel.
 	// Owner: executor HTTP catalog cache; canonical suite: TestMCPToolListCache.
 	t.Run("Should cache by push only after the notification stream opens", func(t *testing.T) {
@@ -3323,7 +3376,7 @@ func establishTestCatalogSubscription(
 	case <-ctx.Done():
 		t.Fatal("executor never acknowledged the tool catalog subscription")
 	}
-	if client.catalogLive == nil || !client.catalogLive() {
+	if client.catalogStream == nil || !client.catalogStream.live() {
 		t.Fatal("tool catalog subscription is not live")
 	}
 	key, err := executor.toolPollKey(ctx, &resolved, "")
