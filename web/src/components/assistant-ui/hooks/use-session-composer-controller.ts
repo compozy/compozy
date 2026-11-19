@@ -1,5 +1,5 @@
 import { useAuiState } from "@assistant-ui/react";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 
 import {
   attachmentsFromPromptMessageParts,
@@ -188,15 +188,24 @@ export function useSessionComposerController({
 
   // A claimed submission (`/side …`) leaves through the interceptor on every submit path, idle or
   // busy, so it never lands in this session's thread. It clears the field only once it was taken.
+  // One submission at a time: a second press (Enter, ⌘Enter, Send) before the first settles is
+  // swallowed, since each submission opens its own side chat.
+  const interceptInFlight = useRef(false);
   const intercepting = !edit?.active && submitInterceptor?.claims(composerText) === true;
   const submitIntercepted = (): boolean => {
     if (!submitInterceptor || edit?.active || !submitInterceptor.claims(composerText)) return false;
+    if (interceptInFlight.current) return true;
+    interceptInFlight.current = true;
     const submitted = composerText;
     void Promise.resolve(
       submitInterceptor.submit({ text: submitted, attachmentCount: composerAttachments.length })
-    ).then(clear => {
-      if (clear) consumeSubmittedDraft({ composerText: submitted, attachmentIds: [] });
-    });
+    )
+      .then(clear => {
+        if (clear) consumeSubmittedDraft({ composerText: submitted, attachmentIds: [] });
+      })
+      .finally(() => {
+        interceptInFlight.current = false;
+      });
     return true;
   };
   const intercepted =
