@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,8 +19,402 @@ import (
 
 	"github.com/compozy/compozy/internal/mcp/securehttp"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
+
+// Invariant: augment only supported grants and preserve the issuer's authorization parameters.
+// Owner: OAuth authorization and token exchange; canonical suite: sdk_adapter_test.go.
+func TestOAuthOfflineAccess(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, scopes, grants, prompt                  string
+		challengeScopes, resourceScopes, requestedDCR string
+		registeredScopes                              *string
+		configured, want, legacyScopes                []string
+		refresh, preRegistered, replace, denied       bool
+	}{
+		{
+			name:   "Should request advertised offline access and preserve issuer consent",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token", prompt: "consent",
+			configured: []string{"tools.read"}, want: []string{"tools.read", "offline_access"}, refresh: true,
+		},
+		{
+			name:   "Should accept access without a refresh token and leave issuer prompts alone",
+			scopes: "tools.read offline_access", configured: []string{"tools.read"},
+			want: []string{"tools.read", "offline_access"},
+		},
+		{
+			name:   "Should retain an explicitly configured offline scope without duplicating it",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			configured: []string{"tools.read", "offline_access"}, want: []string{"tools.read", "offline_access"},
+			refresh: true,
+		},
+		{
+			name:   "Should preserve existing resource scopes when offline access is not advertised",
+			scopes: "tools.read", grants: "authorization_code refresh_token",
+			configured: []string{"tools.read"}, want: []string{"tools.read"},
+		},
+		{
+			name:   "Should leave scopes unchanged when refresh is excluded from the grant types",
+			scopes: "tools.read offline_access", grants: "authorization_code",
+			configured: []string{"tools.read"}, want: []string{"tools.read"},
+		},
+		{
+			name:   "Should leave default resource scopes to the issuer when scope is omitted",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+		},
+		{
+			name:   "Should use the resource challenge scopes for a bare remote",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", resourceScopes: "tools.write",
+			want: []string{"tools.read", "offline_access"}, refresh: true,
+		},
+		{
+			name:   "Should use the resource challenge when the issuer cannot grant offline access",
+			scopes: "tools.read", grants: "authorization_code refresh_token", challengeScopes: "tools.read",
+			want: []string{"tools.read"},
+		},
+		{
+			name:   "Should use protected-resource metadata scopes when there is no challenge scope",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			resourceScopes: "tools.read", want: []string{"tools.read", "offline_access"}, refresh: true,
+		},
+		{
+			name:   "Should preserve scopes for a pre-registered client with unknown grant permissions",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			configured: []string{"tools.read"}, want: []string{"tools.read"}, preRegistered: true,
+		},
+		{
+			name:   "Should reuse an older registration without asking for an unregistered scope",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", want: []string{"tools.read"}, legacyScopes: []string{"tools.read"},
+		},
+		{
+			name:   "Should keep issuer defaults for an older unscoped client when only metadata lists scopes",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			resourceScopes: "tools.read", legacyScopes: []string{},
+		},
+		{
+			name:   "Should keep the challenge scope when registration omits offline access",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", want: []string{"tools.read"},
+			requestedDCR: "tools.read offline_access", registeredScopes: new("tools.read"),
+		},
+		{
+			name:   "Should persist the issuer grant without expanding authorization to unrequested resource scopes",
+			scopes: "tools.read tools.write offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", want: []string{"tools.read", "offline_access"},
+			registeredScopes: new("tools.read tools.write offline_access"), refresh: true,
+		},
+		{
+			name:   "Should stop before handoff when the issuer declines a required scope",
+			scopes: "tools.read tools.write offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read tools.write", legacyScopes: []string{"tools.read"},
+			requestedDCR:     "tools.read tools.write offline_access",
+			registeredScopes: new("tools.read offline_access"), replace: true, denied: true,
+		},
+		{
+			name:   "Should treat an explicit empty scope grant as a denial of required scopes",
+			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", requestedDCR: "tools.read offline_access",
+			registeredScopes: new(""), denied: true,
+		},
+		{
+			name:   "Should register a client that covers the current resource scopes",
+			scopes: "tools.read tools.write offline_access", grants: "authorization_code refresh_token",
+			challengeScopes: "tools.read", legacyScopes: []string{"tools.write", "offline_access"},
+			want: []string{"tools.read", "offline_access"}, refresh: true, replace: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var registrations atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				base := "http://" + r.Host
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/mcp":
+					w.Header().Set("WWW-Authenticate", fmt.Sprintf(
+						`Bearer resource_metadata=%q, scope=%q`, base+"/.well-known/oauth-protected-resource/mcp",
+						tc.challengeScopes,
+					))
+					w.WriteHeader(http.StatusUnauthorized)
+				case "/.well-known/oauth-protected-resource/mcp":
+					metadata := map[string]any{
+						"resource": base + "/mcp", "authorization_servers": []string{base},
+					}
+					if tc.resourceScopes != "" {
+						metadata["scopes_supported"] = strings.Fields(tc.resourceScopes)
+					}
+					if err := json.NewEncoder(w).Encode(metadata); err != nil {
+						t.Error(err)
+					}
+				case "/.well-known/oauth-authorization-server":
+					endpoint := base + "/authorize"
+					if tc.prompt != "" {
+						endpoint += "?prompt=" + url.QueryEscape(tc.prompt)
+					}
+					metadata := map[string]any{
+						"issuer":                 base,
+						"authorization_endpoint": endpoint,
+						"token_endpoint":         base + "/token",
+						"registration_endpoint":  base + "/register",
+						"code_challenge_methods_supported": []string{
+							"S256",
+						},
+						"scopes_supported": strings.Fields(tc.scopes),
+					}
+					if tc.grants != "" {
+						metadata["grant_types_supported"] = strings.Fields(tc.grants)
+					}
+					if err := json.NewEncoder(w).Encode(metadata); err != nil {
+						t.Error(err)
+					}
+				case "/register":
+					registrations.Add(1)
+					var request oauthex.ClientRegistrationMetadata
+					if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+						t.Error(err)
+						return
+					}
+					want := strings.Join(tc.want, " ")
+					if tc.requestedDCR != "" {
+						want = tc.requestedDCR
+					}
+					if request.Scope != want {
+						t.Errorf("DCR scope = %q, want %q", request.Scope, want)
+					}
+					w.WriteHeader(http.StatusCreated)
+					grant := map[string]any{"client_id": "client", "token_endpoint_auth_method": "none"}
+					if tc.registeredScopes != nil {
+						grant["scope"] = *tc.registeredScopes
+					}
+					if err := json.NewEncoder(w).Encode(grant); err != nil {
+						t.Error(err)
+					}
+				case "/token":
+					response := `{"access_token":"fixture-access","scope":"tools.read","expires_in":3600}`
+					if tc.refresh {
+						response = `{"access_token":"fixture-access","refresh_token":"fixture-refresh","expires_in":3600}`
+					}
+					writeManagerTestResponse(t, w, response)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			store := &adapterTestStore{}
+			service, cfg := newPreRegisteredTestService(t, store, server, WithRegistrationStore(store))
+			cfg.Scopes = tc.configured
+			const callback = "http://127.0.0.1:2123/callback"
+			if !tc.preRegistered {
+				cfg.IssuerURL, cfg.ClientID, cfg.Registration = "", "", RegistrationAuto
+			}
+			if tc.legacyScopes != nil {
+				fingerprint, err := ServerDefinitionFingerprint(cfg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				store.registration = ClientRegistration{
+					Target:                  cfg.Target,
+					DefinitionFingerprint:   fingerprint,
+					Issuer:                  server.URL,
+					ResourceURL:             cfg.RemoteURL,
+					ClientID:                "legacy-client",
+					TokenEndpointAuthMethod: tokenEndpointAuthMethodNone,
+					RedirectURL:             callback,
+					Scopes:                  tc.legacyScopes,
+				}
+			}
+			login, err := service.BeginLogin(t.Context(), cfg, callback)
+			if tc.denied {
+				if err == nil || !strings.Contains(err.Error(), "omitted required resource scopes") ||
+					login.AuthorizationURL != "" || registrations.Load() != 1 {
+					t.Fatal("a partial client grant did not stop authorization before browser handoff")
+				}
+				if !slices.Equal(store.registration.Scopes, tc.legacyScopes) {
+					t.Fatal("a partial client grant replaced the stored registration")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			authURL, err := url.Parse(login.AuthorizationURL)
+			if err != nil {
+				t.Fatal("unable to parse authorization URL")
+			}
+			query := authURL.Query()
+			if len(tc.want) == 0 && query.Has("scope") {
+				t.Error("an omitted resource scope was replaced in the authorization request")
+			}
+			if got := strings.Fields(query.Get("scope")); !slices.Equal(got, tc.want) {
+				t.Errorf("requested scopes = %v, want %v", got, tc.want)
+			}
+			if query.Get("resource") != cfg.RemoteURL || query.Get("prompt") != tc.prompt {
+				t.Error("resource or issuer consent parameter changed")
+			}
+			exchanged, err := service.Exchange(
+				t.Context(), &login, oauthCallbackURL(t, login.RedirectURL, login.State, ""),
+			)
+			if err != nil || exchanged.Status != StatusAuthenticated || exchanged.Refreshable != tc.refresh {
+				t.Fatalf("exchange status = %+v, err = %v", exchanged, err)
+			}
+			if tc.refresh && !slices.Equal(exchanged.Scopes, tc.want) {
+				t.Errorf("scope omitted by issuer should preserve the request, got %v", exchanged.Scopes)
+			}
+			wantRegistrations := int32(1)
+			if tc.preRegistered || (tc.legacyScopes != nil && !tc.replace) {
+				wantRegistrations = 0
+			}
+			if got := registrations.Load(); got != wantRegistrations {
+				t.Fatalf("new registrations = %d, want %d", got, wantRegistrations)
+			}
+			if tc.registeredScopes != nil &&
+				!slices.Equal(store.registration.Scopes, strings.Fields(*tc.registeredScopes)) {
+				t.Fatal("the stored registration did not mirror the issuer's granted scopes")
+			}
+		})
+	}
+	t.Run("Should skip offline access for a client document that only declares authorization code", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{
+				Scopes:                            []string{"tools.read", "offline_access"},
+				ClientIDMetadataDocumentSupported: true,
+			},
+		)
+		const callback = "http://127.0.0.1:2123/callback"
+		document := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeManagerTestResponse(t, w, fmt.Sprintf(
+				`{"client_id":%q,"redirect_uris":[%q],"grant_types":["authorization_code"]}`,
+				"https://"+r.Host+r.URL.Path, callback,
+			))
+		}))
+		t.Cleanup(document.Close)
+		clientID := document.URL + "/.well-known/mcp-client.json"
+		store := &adapterTestStore{}
+		service, err := NewService(store, WithRegistrationStore(store),
+			withHTTPClientForTest(document.Client()), WithClientMetadataURL(clientID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		login, err := service.BeginLogin(t.Context(), ServerConfig{
+			Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+			RemoteURL: fixture.Endpoints.MCPURL, Scopes: []string{"tools.read"},
+		}, callback)
+		if err != nil {
+			t.Fatal(err)
+		}
+		authorize, err := url.Parse(login.AuthorizationURL)
+		if err != nil {
+			t.Fatal("unable to parse authorization URL")
+		}
+		query := authorize.Query()
+		if query.Get("client_id") != clientID || query.Get("scope") != "tools.read" {
+			t.Fatal("authorization did not select the code-only client with its resource scope")
+		}
+	})
+}
+
+// Invariant: a known unusable local registration skips discovery and resumes once repaired.
+// Owner: hosted OAuth refresh lifecycle; canonical suite: sdk_adapter_test.go.
+func TestOAuthLocalRefreshRepair(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		secretMissing bool
+	}{
+		{name: "Should stop retrying an expired registration secret and recover with the same grant"},
+		{name: "Should stop retrying a missing registration secret and recover with the same grant", secretMissing: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var discovery, refreshes atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/.well-known/oauth-protected-resource/mcp":
+					discovery.Add(1)
+					writeManagerTestResponse(t, w, fmt.Sprintf(
+						`{"resource":%q,"authorization_servers":[%q]}`, "http://"+r.Host+"/mcp", "http://"+r.Host,
+					))
+				case "/token":
+					refreshes.Add(1)
+					writeManagerTestResponse(t, w, `{"access_token":"renewed","expires_in":3600}`)
+				default:
+					writeOAuthMetadataResponse(t, w, r, false)
+				}
+			}))
+			t.Cleanup(server.Close)
+			now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+			cfg := ServerConfig{
+				Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+				RemoteURL: server.URL + "/mcp", Registration: RegistrationAuto,
+			}
+			fingerprint, err := ServerDefinitionFingerprint(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			token := TokenRecord{
+				Target: cfg.Target, DefinitionFingerprint: fingerprint, Issuer: server.URL, ClientID: "client",
+				AccessToken: "fixture-access", RefreshToken: "fixture-refresh", ExpiresAt: now,
+			}
+			store := &adapterTestStore{token: token, registration: ClientRegistration{
+				Target: cfg.Target, DefinitionFingerprint: fingerprint, ResourceURL: cfg.RemoteURL,
+				Issuer: server.URL, ClientID: token.ClientID, TokenEndpointAuthMethod: tokenEndpointAuthMethodPost,
+				RedirectURL: "http://127.0.0.1:2123/callback", ClientSecretExpiresAt: now,
+				ClientSecretRef: "vault:mcp/fixture/client-secret",
+			}}
+			secretMissing := tc.secretMissing
+			if secretMissing {
+				store.registration.ClientSecretExpiresAt = now.Add(time.Hour)
+				now = now.Add(-time.Second)
+			}
+			var logs bytes.Buffer
+			service, err := NewService(
+				store, WithRegistrationStore(store), withHTTPClientForTest(server.Client()),
+				WithNow(func() time.Time { return now }), WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))),
+				WithSecretRefResolver(func(_ context.Context, ref string) (string, error) {
+					if secretMissing {
+						if now.Before(token.ExpiresAt) {
+							now = token.ExpiresAt
+						}
+						return "", fmt.Errorf("%w: %s", vault.ErrSecretNotFound, ref)
+					}
+					return "fixture-secret", nil
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				status, err := service.Refresh(t.Context(), cfg)
+				if err != nil || status.Status != StatusExpired || !status.TokenPresent || status.Refreshable ||
+					!strings.Contains(status.Diagnostic, "login again") {
+					t.Errorf("local refresh failure status = %+v, err = %v", status, err)
+				}
+				now = now.Add(time.Minute)
+			}
+			if discovery.Load() != 0 || refreshes.Load() != 0 || logs.Len() != 0 {
+				t.Error("known local failure started remote or logged refresh attempts")
+			}
+			assertAdapterTokenUnchanged(t, store, token)
+			passive, err := service.Status(t.Context(), cfg)
+			if err != nil || passive.Refreshable || !strings.Contains(passive.Diagnostic, "login again") {
+				t.Errorf("passive auth status = %+v, err = %v", passive, err)
+			}
+			store.registration.ClientSecretExpiresAt = now.Add(time.Hour)
+			secretMissing = false
+			status, err := service.Refresh(t.Context(), cfg)
+			if err != nil || status.Status != StatusAuthenticated || refreshes.Load() != 1 {
+				t.Fatalf("recovery status = %+v, refresh attempts = %d, err = %v", status, refreshes.Load(), err)
+			}
+		})
+	}
+}
 
 func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 	t.Parallel()
@@ -632,9 +1027,9 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 				return
 			}
 			if !tc.wantUsable {
-				cause := errors.Unwrap(err)
-				if cause == nil || !strings.Contains(cause.Error(), "stored registration is no longer valid") {
-					t.Fatalf("refresh error = %v, cause = %v, want registration validation failure", err, cause)
+				if err != nil || after.Status != StatusExpired || after.Refreshable || !after.TokenPresent ||
+					!strings.Contains(after.Diagnostic, "stored registration is no longer valid") {
+					t.Fatalf("refresh = %+v, %v; want an expired retained token requiring reauthorization", after, err)
 				}
 				if len(requests.Token) != codeExchanges {
 					t.Fatal("invalid registration reached the refresh endpoint")
@@ -1425,22 +1820,27 @@ func TestOAuthTokenResponseLifecycleContract(t *testing.T) {
 	})
 }
 
-// Invariant: rediscovery cannot send persisted credentials to a replacement issuer.
+// Invariant: issuer replacement never receives persisted credentials and is reported once.
 // Owner: OAuth token lifecycle; canonical suite: sdk_adapter_test.go.
 func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
 	t.Parallel()
-	for _, logout := range []bool{false, true} {
-		name := "Should reject refresh after advertised issuer changes"
-		if logout {
-			name = "Should clean up logout without revoking at a replacement issuer"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		logout, hosted bool
+	}{
+		{name: "Should reject refresh after the advertised issuer changes"},
+		{name: "Should clean up logout without revoking at a replacement issuer", logout: true},
+		{name: "Should retain valid hosted access and stop refreshing after an issuer change", hosted: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var replacementRequests atomic.Int32
+			var replacementMetadata atomic.Int32
 			replacement := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/token" || r.URL.Path == "/revoke" {
 					replacementRequests.Add(1)
 				}
+				replacementMetadata.Add(1)
 				writeOAuthMetadataResponse(t, w, r, true)
 			}))
 			t.Cleanup(replacement.Close)
@@ -1448,7 +1848,18 @@ func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
 			original := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case "/.well-known/oauth-authorization-server", "/.well-known/openid-configuration":
-					writeOAuthMetadataResponse(t, w, r, true)
+					if !tc.hosted {
+						writeOAuthMetadataResponse(t, w, r, true)
+						return
+					}
+					base := "http://" + r.Host
+					writeManagerTestResponse(t, w, fmt.Sprintf(
+						`{"issuer":%q,"authorization_endpoint":%q,"token_endpoint":%q,"registration_endpoint":%q,"code_challenge_methods_supported":["S256"]}`,
+						base,
+						base+"/authorize",
+						base+"/token",
+						base+"/register",
+					))
 				case "/.well-known/oauth-protected-resource/mcp":
 					issuer := "http://" + r.Host
 					if switched.Load() {
@@ -1466,18 +1877,30 @@ func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
 				case "/token":
 					w.Header().Set("Content-Type", "application/json")
 					if _, err := w.Write(
-						[]byte(`{"access_token":"access-A","refresh_token":"refresh-A","token_type":"Bearer"}`),
+						[]byte(
+							`{"access_token":"access-A","refresh_token":"refresh-A","token_type":"Bearer","expires_in":60}`,
+						),
 					); err != nil {
 						t.Error(err)
 					}
+				case "/register":
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusCreated)
+					writeManagerTestResponse(t, w, `{"client_id":"client","token_endpoint_auth_method":"none"}`)
 				default:
 					http.NotFound(w, r)
 				}
 			}))
 			t.Cleanup(original.Close)
+			now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
 			store := &adapterTestStore{}
-			service, cfg := newPreRegisteredTestService(t, store, original)
+			var logs bytes.Buffer
+			service, cfg := newPreRegisteredTestService(t, store, original, WithRegistrationStore(store),
+				WithNow(func() time.Time { return now }), WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))))
 			cfg.IssuerURL = ""
+			if tc.hosted {
+				cfg.Registration, cfg.ClientID = RegistrationAuto, ""
+			}
 			state, err := service.BeginLogin(t.Context(), cfg, "http://127.0.0.1:2123/callback")
 			if err != nil {
 				t.Fatal(err)
@@ -1490,18 +1913,34 @@ func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
 				t.Fatal(err)
 			}
 			switched.Store(true)
-			if logout {
+			now = now.Add(55 * time.Second)
+			if tc.logout {
 				status, err := service.Logout(t.Context(), cfg)
 				if err != nil || !store.authorizationStateDeleted || store.token.AccessToken != "" ||
 					status.Status != StatusNeedsLogin {
 					t.Fatalf("logout = %+v, %v; deleted=%v", status, err, store.authorizationStateDeleted)
 				}
 			} else {
-				if _, err := service.Refresh(t.Context(), cfg); !errors.Is(err, ErrTokenBindingInvalid) {
+				status, err := service.Refresh(t.Context(), cfg)
+				if !errors.Is(err, ErrTokenBindingInvalid) || status.Status != StatusAuthenticated ||
+					status.Refreshable ||
+					!status.TokenPresent ||
+					!strings.Contains(status.Diagnostic, "login again") {
 					t.Fatalf("refresh = %v", err)
 				}
-				if store.token.AccessToken != "access-A" {
-					t.Fatal("refresh changed persisted token")
+				token, err := service.AuthorizationToken(t.Context(), cfg)
+				if err != nil || token.AccessToken != "access-A" || token.RefreshToken != "" {
+					t.Fatal("issuer replacement did not retain only the bound access token")
+				}
+				discoveryCount := replacementMetadata.Load()
+				now = now.Add(time.Minute)
+				after, err := service.Refresh(t.Context(), cfg)
+				if err != nil || after.Status != StatusExpired || after.Refreshable ||
+					replacementMetadata.Load() != discoveryCount {
+					t.Fatalf("expired status = %+v, err = %v; want expiry without rediscovery", after, err)
+				}
+				if strings.Count(logs.String(), `"cause_class":"binding_invalid"`) != 1 {
+					t.Fatal("issuer replacement should emit one redacted binding warning")
 				}
 			}
 			if replacementRequests.Load() != 0 {

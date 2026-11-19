@@ -7,7 +7,8 @@ import { onDisclosureArrowKey } from "../../lib/session-list-stops";
 
 export interface SessionListGroupToggleProps {
   collapsed: boolean;
-  count: number;
+  /** The rows the group holds; `null` shows none (a search narrows what it would count). */
+  count: number | string | null;
   identity: ReactNode;
   onToggle?: () => void;
   /** What a collapsed group still has to say about its rows. */
@@ -41,7 +42,7 @@ export function SessionListGroupToggle({
       />
       <span className="flex min-w-0 flex-1 items-center">{identity}</span>
       {collapsed ? signal : null}
-      <span className="font-mono text-micro text-faint">{count}</span>
+      {count === null ? null : <span className="font-mono text-micro text-faint">{count}</span>}
     </button>
   );
 }

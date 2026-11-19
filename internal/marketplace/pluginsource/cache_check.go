@@ -20,11 +20,11 @@ func (c *PackageCache) Check(ctx context.Context, digest string) (err error) {
 	if err != nil {
 		return err
 	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if err := ctx.Err(); err != nil {
+	files := c.files()
+	if err := files.Acquire(ctx, 1); err != nil {
 		return err
 	}
+	defer files.Release(1)
 	file, err := openCacheBlob(c.Root, digest)
 	if err != nil {
 		return err

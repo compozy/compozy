@@ -1240,6 +1240,37 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
+	t.Run("Should pin and unpin a session and refuse rows the list never shows alone", func(t *testing.T) {
+		previous := fixture.Handlers.Sessions
+		fixture.Handlers.Sessions = &laterHandlerSessionManager{StubSessionManager: *manager, now: now}
+		defer func() { fixture.Handlers.Sessions = previous }()
+		pinned := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/pin", nil,
+		)
+		var body contract.SessionResponse
+		if pinned.Code != http.StatusOK || json.Unmarshal(pinned.Body.Bytes(), &body) != nil ||
+			body.Session.PinnedAt == nil || !body.Session.PinnedAt.Equal(now) {
+			t.Fatalf("pin = %d %s, want 200 with pinned_at", pinned.Code, pinned.Body.String())
+		}
+		unpinned := performRequest(
+			t, fixture.Engine, http.MethodDelete, "/workspaces/ws-workspace/sessions/sess-a/pin", nil,
+		)
+		if unpinned.Code != http.StatusOK || strings.Contains(unpinned.Body.String(), `"pinned_at"`) {
+			t.Fatalf("unpin = %d %s, want 200 without pinned_at", unpinned.Code, unpinned.Body.String())
+		}
+		for id, code := range map[string]string{
+			"sess-child": "subagent_pin_follows_parent",
+			"sess-main":  "session_pin_instance_main",
+		} {
+			refused := performRequest(
+				t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/"+id+"/pin", nil,
+			)
+			if refused.Code != http.StatusConflict || !strings.Contains(refused.Body.String(), code) {
+				t.Fatalf("pin(%s) = %d %s, want 409 %s", id, refused.Code, refused.Body.String(), code)
+			}
+		}
+	})
+
 	t.Run("Should mark Needs you as seen and refuse a session waiting on an answer", func(t *testing.T) {
 		previous := fixture.Handlers.Sessions
 		later := &laterHandlerSessionManager{StubSessionManager: *manager, now: now}
@@ -7722,6 +7753,27 @@ func (s *laterHandlerSessionManager) MoveToLater(
 	info.ProfileID = store.DefaultProfileID
 	info.State = session.StateStopped
 	info.Later = &store.SessionLater{ParkedAt: s.now, Reason: req.Reason, ReturnAt: req.ReturnAt}
+	return info, nil
+}
+
+func (s *laterHandlerSessionManager) Pin(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+	switch {
+	case workspaceID != "ws-workspace":
+		return nil, fmt.Errorf("Pin workspace = %q, want ws-workspace", workspaceID)
+	case id == "sess-child":
+		return nil, session.ErrSubagentPinFollowsParent
+	case id == "sess-main":
+		return nil, session.ErrSessionPinInstanceMain
+	}
+	info := testutil.NewSessionInfo(id)
+	info.ProfileID = store.DefaultProfileID
+	info.PinnedAt = new(s.now)
+	return info, nil
+}
+
+func (s *laterHandlerSessionManager) Unpin(_ context.Context, _ string, id string) (*session.Info, error) {
+	info := testutil.NewSessionInfo(id)
+	info.ProfileID = store.DefaultProfileID
 	return info, nil
 }
 

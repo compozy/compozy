@@ -32,6 +32,7 @@ type SessionListQuery struct {
 	Badges        []session.Badge
 	Archive       string
 	Later         string
+	Pinned        string
 	IncludeHealth bool
 	Limit         int
 	Sort          string
@@ -109,27 +110,18 @@ func sessionListValues(query SessionListQuery) url.Values {
 	} else {
 		values.Set("all_workspaces", "true")
 	}
-	if trimmed := strings.TrimSpace(query.Worktree); trimmed != "" {
-		values.Set("worktree", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.State); trimmed != "" {
-		values.Set("state", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.Type); trimmed != "" {
-		values.Set("type", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.Agent); trimmed != "" {
-		values.Set("agent", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.Parent); trimmed != "" {
-		values.Set("parent", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.Root); trimmed != "" {
-		values.Set("root", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.Query); trimmed != "" {
-		values.Set("q", trimmed)
-	}
+	setTrimmedValue(values, "worktree", query.Worktree)
+	setTrimmedValue(values, "state", query.State)
+	setTrimmedValue(values, "type", query.Type)
+	setTrimmedValue(values, "agent", query.Agent)
+	setTrimmedValue(values, "parent", query.Parent)
+	setTrimmedValue(values, "root", query.Root)
+	setTrimmedValue(values, "q", query.Query)
+	setTrimmedValue(values, "archive", query.Archive)
+	setTrimmedValue(values, "later", query.Later)
+	setTrimmedValue(values, "pinned", query.Pinned)
+	setTrimmedValue(values, "sort", query.Sort)
+	setTrimmedValue(values, "cursor", query.Cursor)
 	if query.Resumable {
 		values.Set("resumable", "true")
 	}
@@ -143,25 +135,20 @@ func sessionListValues(query SessionListQuery) url.Values {
 		}
 		values.Set("badge", strings.Join(badges, ","))
 	}
-	if archive := strings.TrimSpace(query.Archive); archive != "" {
-		values.Set("archive", archive)
-	}
-	if later := strings.TrimSpace(query.Later); later != "" {
-		values.Set("later", later)
-	}
 	if query.IncludeHealth {
 		values.Set("include_health", "true")
 	}
 	if query.Limit != 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
 	}
-	if sortKey := strings.TrimSpace(query.Sort); sortKey != "" {
-		values.Set("sort", sortKey)
-	}
-	if cursor := strings.TrimSpace(query.Cursor); cursor != "" {
-		values.Set("cursor", cursor)
-	}
 	return values
+}
+
+// setTrimmedValue sets a non-blank value under its key, trimmed.
+func setTrimmedValue(values url.Values, key string, value string) {
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		values.Set(key, trimmed)
+	}
 }
 
 func appendSessionBoardValues(values url.Values, query SessionListQuery) {

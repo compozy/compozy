@@ -13,7 +13,7 @@ var (
 	// ErrAgentPluginNotManifest reports a root plugin.json owned by another ecosystem.
 	ErrAgentPluginNotManifest = errors.New("extension: plugin.json is not an Agent Plugins manifest")
 	// ErrAgentPluginManifestInvalid reports fatal portable root-manifest issues.
-	ErrAgentPluginManifestInvalid = errors.New("extension: agent plugin manifest invalid")
+	ErrAgentPluginManifestInvalid = agentplugin.ErrManifestInvalid
 )
 
 // AgentPluginNotManifestError identifies an unrelated root plugin.json.
