@@ -156,9 +156,10 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 	tombstone extensionpkg.BuiltinTombstone,
 	cause error,
 ) error {
-	// The caller may already be canceled, so the rollback runs detached with its own budget. The read-back that
-	// confirms the row is gone and the tombstone write each get a budget of their own: a slow removal or reload must
-	// not leave the built-in with neither a row nor a tombstone.
+	// The caller may already be canceled, so the rollback runs detached with budgets of its own. The removal runs on
+	// the shared rollback budget, while the reload and the read-back/tombstone write each get an independent budget:
+	// a slow removal must not leave the reload expired without reconciling the runtime, nor leave the built-in with
+	// neither a row nor a tombstone.
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.restoreRollbackBudget())
 	defer cancel()
 	var rollbackErr error
@@ -174,7 +175,7 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 		gone, readErr := s.partialRowAbsentAfterRemoval(ctx, name)
 		partialRowGone = gone
 		rollbackErr = errors.Join(rollbackErr, removeErr, readErr)
-		rollbackErr = errors.Join(rollbackErr, s.reloadExtensions(rollbackCtx, name))
+		rollbackErr = errors.Join(rollbackErr, s.reloadAfterRollback(ctx, name))
 	default:
 		// The row state is unknown, so the tombstone stays clear rather than risk a row beside it.
 		rollbackErr = errors.Join(rollbackErr, getErr)
@@ -192,8 +193,17 @@ func (s *daemonExtensionService) rollbackBuiltinRestore(
 	return errors.Join(extensionpkg.ErrExtensionRestoreFailed, cause, rollbackErr)
 }
 
+// reloadAfterRollback reloads the runtime after a partial row removal on a detached budget of its own. The rollback
+// budget covers the removal, and a slow removal must not leave the reload expired: without the reload the runtime
+// keeps serving a row the registry no longer holds.
+func (s *daemonExtensionService) reloadAfterRollback(ctx context.Context, name string) error {
+	reloadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.restoreRollbackBudget())
+	defer cancel()
+	return s.reloadExtensions(reloadCtx, name)
+}
+
 // writeTombstoneBack records the tombstone a failed restore cleared, on a detached budget of its own. The rollback
-// budget covers the removal and reload that precede it; a reload that spends it must not expire this write.
+// budget covers the removal; a removal that spends it must not expire this write.
 func (s *daemonExtensionService) writeTombstoneBack(
 	ctx context.Context,
 	tombstone extensionpkg.BuiltinTombstone,
@@ -203,8 +213,9 @@ func (s *daemonExtensionService) writeTombstoneBack(
 	return s.registry.RestoreBuiltinTombstone(tombstoneCtx, tombstone)
 }
 
-// restoreRollbackBudget returns the budget of the rollback's removal and reload. Tests shorten it through
-// restoreRollbackTimeout; production always uses builtinRestoreRollbackTimeout.
+// restoreRollbackBudget returns the rollback budget. The removal, the reload, and the read-back/tombstone write each
+// take it independently. Tests shorten it through restoreRollbackTimeout; production always uses
+// builtinRestoreRollbackTimeout.
 func (s *daemonExtensionService) restoreRollbackBudget() time.Duration {
 	if s.restoreRollbackTimeout > 0 {
 		return s.restoreRollbackTimeout
@@ -240,8 +251,8 @@ func (s *daemonExtensionService) partialRowAbsent(ctx context.Context, name stri
 }
 
 // partialRowAbsentAfterRemoval confirms the partial row is gone on a detached budget of its own. The rollback
-// budget covers the removal and the reload; either can spend it, and an expired read would report a deadline
-// instead of the not-found that decides absence, leaving the built-in with neither a row nor a tombstone.
+// budget covers the removal, which can spend it, and an expired read would report a deadline instead of the
+// not-found that decides absence, leaving the built-in with neither a row nor a tombstone.
 func (s *daemonExtensionService) partialRowAbsentAfterRemoval(
 	ctx context.Context,
 	name string,

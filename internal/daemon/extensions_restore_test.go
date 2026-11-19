@@ -405,12 +405,12 @@ func TestDaemonExtensionBuiltinRestore(t *testing.T) {
 		},
 	)
 
-	t.Run("Should write the tombstone back when a reload spends the rollback budget", func(t *testing.T) {
+	t.Run("Should write the tombstone back when the rollback reload expires on its own budget", func(t *testing.T) {
 		t.Parallel()
 		service, registry := restoreTestService(t)
 		restoreTestRemovePermanently(t, service, registry, "spec-cycle")
 		service.restoreRollbackTimeout = 500 * time.Millisecond
-		// The reload holds until the rollback budget expires, so only a tombstone write with its own budget survives.
+		// The reload holds until its own budget expires, so only a tombstone write with a budget of its own survives.
 		service.runtime = restoreTestRuntime{registry: registry, reload: func(ctx context.Context) error {
 			<-ctx.Done()
 			return ctx.Err()
@@ -551,6 +551,59 @@ func TestDaemonExtensionBuiltinRestore(t *testing.T) {
 					"RestoreBuiltin(spent rollback budget) error = %v, want the removal's deadline in the chain",
 					err,
 				)
+			}
+			restoreTestRequireTombstone(t, registry, "spec-cycle", true)
+			if _, err := registry.Get("spec-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+				t.Fatalf("Get(after rollback) error = %v, want ErrExtensionNotFound", err)
+			}
+		},
+	)
+
+	t.Run(
+		"Should reload the runtime when the partial row removal spends the rollback budget",
+		func(t *testing.T) {
+			t.Parallel()
+			service, registry := restoreTestService(t)
+			restoreTestRemovePermanently(t, service, registry, "spec-cycle")
+			service.restoreRollbackTimeout = 200 * time.Millisecond
+			service.builtinEnrollments = []bundledEnrollment{{
+				Name: "spec-cycle",
+				Enroll: func(_ compozyconfig.HomePaths, reg *extensionpkg.Registry) error {
+					restoreTestSeedRow(t, reg, "spec-cycle", extensionpkg.SourceBundled)
+					return errors.New("injected enrollment failure")
+				},
+			}}
+			// The removal holds until the rollback budget expires, deletes the partial row, and reports the deadline.
+			// The reload must still run on a budget of its own: on the removal's spent context it would fail without
+			// reconciling the runtime with the registry.
+			service.partialRowRemoval = func(ctx context.Context, name string) error {
+				<-ctx.Done()
+				if err := registry.Uninstall(name); err != nil {
+					t.Fatalf("Uninstall(%q) error = %v", name, err)
+				}
+				return ctx.Err()
+			}
+			reloaded := false
+			service.runtime = restoreTestRuntime{registry: registry, reload: func(ctx context.Context) error {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				reloaded = true
+				return nil
+			}}
+
+			_, err := service.RestoreBuiltin(t.Context(), "spec-cycle", restoreTestOperator(t))
+			if !errors.Is(err, extensionpkg.ErrExtensionRestoreFailed) {
+				t.Fatalf("RestoreBuiltin(spent rollback budget) error = %v, want ErrExtensionRestoreFailed", err)
+			}
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf(
+					"RestoreBuiltin(spent rollback budget) error = %v, want the removal's deadline in the chain",
+					err,
+				)
+			}
+			if !reloaded {
+				t.Fatal("rollback reload did not run after the removal spent the rollback budget")
 			}
 			restoreTestRequireTombstone(t, registry, "spec-cycle", true)
 			if _, err := registry.Get("spec-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
