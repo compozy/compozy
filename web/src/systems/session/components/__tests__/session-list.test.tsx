@@ -990,6 +990,28 @@ describe("SessionList subagents", () => {
     expect(screen.getByTestId("session-sidebar-session-two-child")).toBeVisible();
   });
 
+  // Invariant (#1846): Expand groups folds child session lists like Collapse all, opens no
+  // subagent list, keeps a thread opened by hand open, and never hides a search result.
+  it("Should fold child sessions and leave subagents closed under Expand groups", () => {
+    vi.mocked(globalThis.fetch).mockImplementation(async () => subagentPage(0, 1));
+    const sessions = [
+      row("solo", summary(0, 1)),
+      row("one", {}),
+      row("one-child", { lineage: lineage("one") }),
+      row("two", {}),
+      row("two-child", { lineage: lineage("two") }),
+    ];
+    const grouped = { ...view, foldAll: "groups" as const, openThreadIds: ["two"] };
+    const list = renderList({ sessions, view: grouped });
+
+    expect(screen.queryByTestId("session-sidebar-session-one-child")).toBeNull();
+    expect(screen.getByTestId("session-sidebar-session-two-child")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-subagents-solo")).toBeNull();
+
+    list.update(sessions, { ...grouped, search: "one" });
+    expect(screen.getByTestId("session-sidebar-session-one-child")).toBeVisible();
+  });
+
   // Invariant (#1132): Collapse all never hides a search result behind its parent's fold.
   it("Should show a matching child under Collapse all while searching", () => {
     renderList({
@@ -3911,17 +3933,60 @@ describe("SessionList breadth and Group by", () => {
     expect(setGroupBy).toHaveBeenCalledWith("project");
   });
 
-  // #1132: the toolbar button's name says what a click will do, and it reports the opposite state.
+  // #1846: the toolbar's fold control is a menu; its name and checked item say the current depth.
   it.each([
-    { foldAll: null, label: "Collapse all", next: "collapsed" },
-    { foldAll: "expanded", label: "Collapse all", next: "collapsed" },
-    { foldAll: "collapsed", label: "Expand all", next: "expanded" },
-  ] as const)("Should offer $label while foldAll is $foldAll", async ({ foldAll, label, next }) => {
+    { foldAll: null, name: "Expand or collapse", checked: "nothing", pick: "Expand groups" },
+    { foldAll: "groups", name: "Groups expanded", checked: "Expand groups", pick: "Expand all" },
+    { foldAll: "expanded", name: "All expanded", checked: "Expand all", pick: "Collapse all" },
+    { foldAll: "collapsed", name: "All collapsed", checked: "Collapse all", pick: "Expand groups" },
+  ] as const)(
+    "Should mark $checked and offer every depth while foldAll is $foldAll",
+    async ({ foldAll, name, checked, pick }) => {
+      const user = userEvent.setup();
+      const setFoldAll = vi.fn();
+      renderList({ view: { ...view, foldAll, setFoldAll } });
+      await user.click(screen.getByRole("button", { name }));
+      const items = await screen.findAllByRole("menuitemradio");
+      expect(items.map(item => item.textContent)).toEqual([
+        "Expand groups",
+        "Expand all",
+        "Collapse all",
+      ]);
+      expect(
+        items.filter(item => item.getAttribute("aria-checked") === "true").map(i => i.textContent)
+      ).toEqual(checked === "nothing" ? [] : [checked]);
+      await user.click(screen.getByRole("menuitemradio", { name: pick }));
+      expect(setFoldAll).toHaveBeenCalledWith(
+        { "Expand groups": "groups", "Expand all": "expanded", "Collapse all": "collapsed" }[pick]
+      );
+    }
+  );
+
+  // #1846: the fold menu works from the keyboard alone.
+  it("Should open the fold menu with Enter or Space, move with arrows, pick with Enter and close on Escape", async () => {
     const user = userEvent.setup();
     const setFoldAll = vi.fn();
-    renderList({ view: { ...view, foldAll, setFoldAll } });
-    await user.click(screen.getByRole("button", { name: label }));
-    expect(setFoldAll).toHaveBeenCalledWith(next);
+    renderList({ view: { ...view, foldAll: "collapsed", setFoldAll } });
+    const trigger = screen.getByRole("button", { name: "All collapsed" });
+    act(() => trigger.focus());
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(setFoldAll).not.toHaveBeenCalled();
+
+    await user.keyboard(" ");
+    await screen.findByRole("menu");
+    await waitFor(() =>
+      expect(screen.getByRole("menuitemradio", { name: "Expand groups" })).toHaveFocus()
+    );
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitemradio", { name: "Expand all" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(setFoldAll).toHaveBeenCalledWith("expanded");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   // The filter belongs to the board: the List has no such control, and showing children marks

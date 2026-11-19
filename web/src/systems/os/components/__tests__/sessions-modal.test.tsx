@@ -385,6 +385,40 @@ describe("OsSessionsModal", () => {
     expect(screen.getByText("No archived sessions in marketing yet.")).toBeInTheDocument();
   });
 
+  // #1846: picking a fold depth from the keyboard returns focus to the trigger without opening
+  // its tooltip, so one Escape still closes the dialog.
+  it("Should close the dialog with one Escape after a fold depth is chosen from the keyboard", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const setFoldAll = vi.fn();
+    render(
+      <TestShell value={createShell()}>
+        <OsSessionsModal
+          open
+          onOpenChange={onOpenChange}
+          sessions={SESSIONS}
+          disconnected={false}
+          view={listView({ setFoldAll })}
+          onNewSession={vi.fn()}
+          sessionActions={SESSION_ACTIONS}
+        />
+      </TestShell>
+    );
+    const fold = screen.getByRole("button", { name: "Expand or collapse" });
+    act(() => fold.focus());
+    await user.keyboard(" ");
+    await waitFor(() =>
+      expect(screen.getByRole("menuitemradio", { name: "Expand groups" })).toHaveFocus()
+    );
+    await user.keyboard("{Enter}");
+    expect(setFoldAll).toHaveBeenCalledWith("groups");
+    await waitFor(() => expect(fold).toHaveFocus());
+    // Base UI tooltip popups carry no role; the slot is what marks an open tooltip.
+    expect(document.querySelector('[data-slot="tooltip-content"]')).toBeNull();
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it("Should dismiss the Dialog and restore focus to the opener (UT-084)", async () => {
     const user = userEvent.setup();
     const shell = createShell();

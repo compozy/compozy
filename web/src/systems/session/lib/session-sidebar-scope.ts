@@ -11,11 +11,18 @@ import { normalizeSessionSidebarWidth } from "./session-sidebar-width";
 export type SessionWindowViewMode = "list" | "kanban";
 
 /**
- * The window's last Collapse all or Expand all; `null` until the operator uses either. It is the
- * default of every fold, loaded or not, so it also reaches rows and groups read later. A fold
- * flag stored afterwards is an exception to it.
+ * The window's last Collapse all, Expand groups or Expand all; `null` until the operator uses one.
+ * It is the default of every fold, loaded or not, so it also reaches rows and groups read later. A
+ * fold flag stored afterwards is an exception to it. `groups` (#1846) opens folders and groups like
+ * `expanded` and folds child session lists like `collapsed`.
  */
-export type SessionFoldAll = "collapsed" | "expanded" | null;
+export type SessionFoldAll = "collapsed" | "groups" | "expanded" | null;
+
+export const SESSION_FOLD_ALLS = [
+  "groups",
+  "expanded",
+  "collapsed",
+] as const satisfies readonly Exclude<SessionFoldAll, null>[];
 
 /** A fold answers for any id: flags alone cannot name what `foldAll` covers. */
 export type SessionFoldSet = Pick<ReadonlySet<string>, "has">;
@@ -86,7 +93,7 @@ export interface SessionSidebarScopeState {
    * this window's sessions until turned on. Window-only, like the board's filter.
    */
   showAutomation: boolean;
-  /** Collapse all / Expand all, shared by this window's List and Kanban. */
+  /** Collapse all / Expand groups / Expand all, shared by this window's List and Kanban. */
   foldAll: SessionFoldAll;
 }
 
@@ -150,7 +157,7 @@ export function normalizedScopeState(value: unknown): SessionSidebarScopeState {
     // Absent in blobs written before #1355: the default (off) holds.
     showAutomation: value.showAutomation === true,
     // Absent in blobs written before #1132: every fold keeps its own flag.
-    foldAll: value.foldAll === "collapsed" || value.foldAll === "expanded" ? value.foldAll : null,
+    foldAll: oneOf(SESSION_FOLD_ALLS, value.foldAll),
   };
 }
 
@@ -183,9 +190,11 @@ export function sessionThreadFolds(input: {
   const open = new Set(input.openThreadIds);
   const subagents = new Set(input.subagentThreadIds);
   const foldAll = input.filtering ? null : input.foldAll;
+  // Expand groups folds child session lists like Collapse all; only Expand all opens subagents.
+  const foldsThreads = foldAll === "collapsed" || foldAll === "groups";
   return {
     collapsedThreads: {
-      has: id => collapsed.has(id) || (foldAll === "collapsed" && !open.has(id)),
+      has: id => collapsed.has(id) || (foldsThreads && !open.has(id)),
     },
     subagentThreads: {
       has: id => subagents.has(id),

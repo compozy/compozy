@@ -36,6 +36,7 @@ import {
   type SessionListGroupBy,
   type SessionListSort,
 } from "../lib/session-list-preferences";
+import { SESSION_MENU_CHOICE_ITEM } from "../lib/session-menu-choice-class";
 
 const SORT_ITEMS: Record<SessionListSort, { label: string; icon: LucideIcon }> = {
   created: { label: "Created", icon: CalendarPlus },
@@ -50,10 +51,6 @@ const GROUP_BY_ITEMS: Record<SessionListGroupBy, { label: string; icon: LucideIc
   project: { label: "Project", icon: FolderGit2 },
   profile: { label: "Profile", icon: UserRound },
 };
-
-/** Choices read quieter than the chosen one: the check and the ink mark it together. */
-const CHOICE_ITEM =
-  "text-muted-foreground *:[svg]:text-subtle focus:*:[svg]:text-fg data-checked:font-medium data-checked:text-fg data-checked:*:[svg]:text-fg";
 
 /** Sections read as blocks: the rule is the line token, not the softer one between rows. */
 const SECTION_DIVIDER = "my-1.5 bg-line";
@@ -84,7 +81,7 @@ function ChoiceSection<T extends string>({
       <DropdownMenuRadioGroup value={value} onValueChange={next => onValueChange(next as T)}>
         {options.map(option => (
           <DropdownMenuRadioItem
-            className={CHOICE_ITEM}
+            className={SESSION_MENU_CHOICE_ITEM}
             data-testid={`${testId}-${option}`}
             key={option}
             value={option}
@@ -124,7 +121,7 @@ export interface SessionViewOptionsMenuProps {
 
 /**
  * How a window shows its sessions, in one menu: order, grouping and filters (the folds have
- * their own toolbar button, `SessionFoldAllButton`). The List and the
+ * their own toolbar control: `SessionFoldMenu` in the List, `SessionFoldAllButton` on the board). The List and the
  * Kanban render the same menu over the same window state.
  */
 export function SessionViewOptionsMenu({
@@ -198,7 +195,7 @@ export function SessionViewOptionsMenu({
               {groupBy === "project" ? (
                 <DropdownMenuCheckboxItem
                   checked={showEmptyProjects}
-                  className={CHOICE_ITEM}
+                  className={SESSION_MENU_CHOICE_ITEM}
                   data-testid={`${testId}-show-empty-projects`}
                   onCheckedChange={checked => onShowEmptyProjectsChange(checked === true)}
                 >
@@ -241,7 +238,7 @@ function FilterSection({
         {onHideChildrenChange ? (
           <DropdownMenuCheckboxItem
             checked={hideChildren}
-            className={CHOICE_ITEM}
+            className={SESSION_MENU_CHOICE_ITEM}
             data-testid={`${testId}-hide-children`}
             onCheckedChange={checked => onHideChildrenChange(checked === true)}
           >
@@ -252,7 +249,7 @@ function FilterSection({
         {onShowAutomationChange ? (
           <DropdownMenuCheckboxItem
             checked={showAutomation}
-            className={CHOICE_ITEM}
+            className={SESSION_MENU_CHOICE_ITEM}
             data-testid={`${testId}-show-automation`}
             onCheckedChange={checked => onShowAutomationChange(checked === true)}
           >
