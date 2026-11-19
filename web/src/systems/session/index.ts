@@ -241,6 +241,7 @@ export {
   SessionTransportHistoryResetNotice,
 } from "./components/session-transport-notices";
 export { sessionKeys } from "./lib/query-keys";
+export { sessionLaunchPreviewOptions } from "./lib/session-catalog-options";
 export {
   cachedForeignSessionOwner,
   resolveForeignSessionOwner,

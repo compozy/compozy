@@ -54,6 +54,7 @@ export {
   importRuntimeMCPServer,
   listRuntimeMCPServers,
   putSettingsMCPApproval,
+  setSettingsMCPServerEnabled,
 } from "./settings-runtime-mcp-api";
 export { getRolesStatus, getSettingsRoles, updateSettingsRoles } from "./settings-roles-api";
 

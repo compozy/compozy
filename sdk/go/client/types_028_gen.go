@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// TerminalAttachTicketRequest is a daemon API value.
+type TerminalAttachTicketRequest struct {
+	Mode     TerminalAttachMode `json:"mode"`
+	ClientID string             `json:"client_id,omitempty"`
+}
+
+// TerminalAttachTicketResponse is a daemon API value.
+type TerminalAttachTicketResponse struct {
+	Ticket    string    `json:"ticket"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // TerminalCapabilitiesPayload is a daemon API value.
 type TerminalCapabilitiesPayload struct {
 	Interactive bool `json:"interactive"`
@@ -430,18 +442,4 @@ type ToolApprovalPayload struct {
 	ExpiresAt     time.Time `json:"expires_at"`
 	ToolID        ToolID    `json:"tool_id"`
 	InputDigest   string    `json:"input_digest"`
-}
-
-// ToolApprovalRequest is a daemon API value.
-type ToolApprovalRequest struct {
-	SessionID   string          `json:"session_id"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	AgentName   string          `json:"agent_name,omitempty"`
-	Input       json.RawMessage `json:"input,omitempty"`
-	InputDigest string          `json:"input_digest,omitempty"`
-}
-
-// ToolApprovalResponse is a daemon API value.
-type ToolApprovalResponse struct {
-	Approval ToolApprovalPayload `json:"approval"`
 }

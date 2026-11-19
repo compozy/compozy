@@ -611,6 +611,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PUT /api/extensions/:name/secrets",
 			"PUT /api/settings/hooks/:name",
 			"PUT /api/settings/mcp-servers/:name",
+			"PUT /api/settings/mcp-servers/:name/enabled",
 			"PUT /api/settings/providers/:name",
 			"PATCH /api/settings/providers/:name/enabled",
 			"PUT /api/tool-approval-grants",

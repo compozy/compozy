@@ -1,18 +1,21 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -33,6 +36,127 @@ const (
 )
 
 func TestStdioSessionPool(t *testing.T) {
+	t.Run("Should recycle only after stdio response deadlines and back off by target", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: only a deadline owned by the RPC increments the pool's failure history.
+		// Owner: stdio executor and pool; canonical suite: TestStdioSessionPool.
+		synctest.Test(t, func(t *testing.T) {
+			var logs bytes.Buffer
+			pool := &StdioSessionPool{cfg: normalizeStdioPoolConfig(StdioPoolConfig{
+				Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+			})}
+			target := mcpauth.Target{ServerName: "slow-fixture", Scope: mcpauth.ScopeUser}
+			spec := mcpStdioSpec{slot: "fixture", target: target, digest: "fixture-v1"}
+			slot := &stdioSlot{target: target}
+			session := &stdioSession{slot: slot, digest: spec.digest, sem: make(chan struct{}, 1)}
+			slot.current = session
+			pool.slots = map[string]*stdioSlot{spec.slot: slot}
+
+			executor := &CallExecutor{timeout: 5 * time.Second}
+			exchange := func(callerBudget, admissionDelay time.Duration) {
+				caller, cancel := context.WithTimeout(t.Context(), callerBudget)
+				defer cancel()
+				ctx, cancelCall := executor.callContext(caller)
+				defer cancelCall()
+				time.Sleep(admissionDelay)
+				session.sem <- struct{}{}
+				session.inFlight++
+				lease := &stdioLease{pool: pool, session: session}
+				client := &managedMCPClient{release: lease.release}
+				rpc, cancelRPC := exchangeContext(ctx, client, 3*time.Second)
+				defer cancelRPC()
+				<-rpc.Done()
+				client.observeExchange(rpc, rpc.Err())
+				if err := closeMCPClient(client); err != nil {
+					t.Fatalf("closeMCPClient() = %v", err)
+				}
+			}
+			for range 2 * stdioRetireAfterTimeouts {
+				exchange(100*time.Millisecond, 0)
+				exchange(10*time.Second, 4*time.Second)
+			}
+			if got, err := pool.sessionFor(spec); err != nil || got != session {
+				t.Fatalf("sessionFor() after caller deadlines = %p, %v, want existing child", got, err)
+			}
+			for range stdioRetireAfterTimeouts {
+				exchange(4*time.Second, 0)
+			}
+			if _, err := pool.sessionFor(spec); err == nil || !strings.Contains(err.Error(), "backing off") {
+				t.Fatalf("sessionFor() after response deadlines = %v, want cooldown", err)
+			}
+			for _, want := range []string{
+				"mcp: recycling unresponsive stdio server", `"server":"slow-fixture"`, `"scope":"user"`,
+			} {
+				if !strings.Contains(logs.String(), want) {
+					t.Errorf("retirement log missing %q", want)
+				}
+			}
+		})
+	})
+
+	// Invariant: tool calls charge response timeouts only after admission leaves a fair response window.
+	// Owner: stdio executor and pool; canonical suite: TestStdioSessionPool.
+	for _, tc := range []struct {
+		name          string
+		callerTimeout time.Duration
+		admission     time.Duration
+		cancel        bool
+		want          stdioExchangeOutcome
+	}{
+		{name: "Should count the executor deadline during a tool response", callerTimeout: 2 * time.Second,
+			want: stdioExchangeTimedOut},
+		{name: "Should exclude the caller deadline", callerTimeout: 100 * time.Millisecond},
+		{name: "Should exclude caller cancellation", callerTimeout: 2 * time.Second, cancel: true},
+		{name: "Should exclude time consumed by admission", callerTimeout: 2 * time.Second,
+			admission: 800 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				caller, cancel := context.WithTimeout(t.Context(), tc.callerTimeout)
+				defer cancel()
+				executor := &CallExecutor{timeout: time.Second}
+				ctx, release := executor.callContext(caller)
+				defer release()
+				time.Sleep(tc.admission)
+				client := &managedMCPClient{release: func(stdioExchangeOutcome) {}}
+				startedAt := time.Now()
+				if tc.cancel {
+					cancel()
+				}
+				<-ctx.Done()
+				executor.observeToolExchange(ctx, client, startedAt, ctx.Err())
+				if client.exchange != tc.want {
+					t.Fatalf(
+						"tool exchange = %v, want %v, context cause %v",
+						client.exchange,
+						tc.want,
+						context.Cause(ctx),
+					)
+				}
+			})
+		})
+	}
+
+	t.Run("Should keep an off server from starting for discovery or invocation", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStdioPoolFixture(t, StdioPoolConfig{}, nil)
+		disabled := fixture.server
+		disabled.Disabled = new(true)
+		executor := fixture.executorFor(t, disabled)
+
+		_, err := executor.DiscoverTools(testContext(t), fixture.source())
+		requireReason(t, err, toolspkg.ReasonSourceDisabled)
+		_, err = executor.CallTool(testContext(t), fixture.source(), toolspkg.MCPToolCallRequest{
+			ToolID: "mcp__pooled__echo", RawToolName: "echo", Input: json.RawMessage(`{"message":"ignored"}`),
+		})
+		requireReason(t, err, toolspkg.ReasonSourceDisabled)
+		if launches := fixture.launches(); launches != 0 {
+			t.Fatalf("off stdio server started %d times", launches)
+		}
+	})
+
 	t.Run("Should reuse one stdio child for discovery and concurrent tool calls", func(t *testing.T) {
 		t.Parallel()
 

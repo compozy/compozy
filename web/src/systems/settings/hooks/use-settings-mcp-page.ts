@@ -1,12 +1,18 @@
 import { useState } from "react";
+import { toast } from "@compozy/ui";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
-import { deriveMCPManagementFilter, mcpDefinitionKey } from "../lib/mcp-management-target";
+import {
+  deriveMCPEnablementFilter,
+  deriveMCPManagementFilter,
+  mcpDefinitionKey,
+} from "../lib/mcp-management-target";
 import type { SettingsMCPServerEntry, SettingsMCPServerListFilter } from "../types";
 import { useMCPDefinitionAuthorization } from "./use-mcp-definition-authorization";
 import { useMCPEditor } from "./use-mcp-editor";
 import { useMCPRuntimeManagement } from "./use-mcp-runtime-management";
+import { useSetMCPServerEnabled } from "./use-mcp-runtime-mutations";
 import { useMCPServerCheck } from "./use-mcp-server-check";
 import { useMCPOverrideEditor } from "./use-mcp-override-editor";
 import { useSettingsMCPServers } from "./use-settings-collections";
@@ -47,6 +53,7 @@ export function useMCPServerManagement({
     },
   });
   const serverCheck = useMCPServerCheck();
+  const enablement = useSetMCPServerEnabled();
   const servers = collection.data?.mcp_servers ?? [];
   // A create checks names against a list refetched when the editor opens, never a stale cache.
   // `fetchStatus` stays `paused` (not fetching) while offline, so only `idle` proves it settled.
@@ -80,10 +87,22 @@ export function useMCPServerManagement({
     if (target) authorization.authorize.requestAuthorize(target, entry, trigger);
   };
   const removal = useMCPServerRemoval();
+  const setEnabled = (entry: SettingsMCPServerEntry, nextEnabled: boolean) => {
+    const target = deriveMCPEnablementFilter(entry);
+    if (!target || enablement.isPending) return;
+    enablement.mutate(
+      { entry, filter: target, enabled: nextEnabled },
+      {
+        onError: error => toast.error(error.message),
+      }
+    );
+  };
   return {
     collection,
     runtime,
     serverCheck,
+    setEnabled,
+    changingEnablement: enablement.isPending,
     servers,
     filteredServers,
     selected,

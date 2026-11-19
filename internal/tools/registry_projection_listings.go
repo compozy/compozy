@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -29,8 +30,124 @@ func WithProjectionValidationCacheCapacity(capacity int) RegistryOption {
 // ProjectionListings shares validated provider listings among projection passes attached to it.
 // It never expires entries: its owner bounds freshness by replacing the instance.
 type ProjectionListings struct {
+	mu          sync.Mutex
+	entries     map[projectionListingKey]*projectionListing
+	policies    projectionMemo[projectionPolicyKey, []ToolView]
+	authorities projectionMemo[hostedSessionPolicyKey, SessionToolPolicy]
+}
+
+type hostedSessionPolicyKey struct {
+	scope     Scope
+	policy    [sha256.Size]byte
+	ceiling   string
+	redaction [sha256.Size]byte
+}
+
+// CachedHostedSessionPolicy shares materialized authority for equal hosted visibility inputs.
+func CachedHostedSessionPolicy(
+	ctx context.Context, scope Scope, inputs PolicyInputs, ceiling string,
+	materialize func() (SessionToolPolicy, error),
+) (SessionToolPolicy, error) {
+	listings, ok := ctx.Value(projectionListingsKey{}).(*ProjectionListings)
+	if !ok || !IsHostedCatalogRead(ctx) {
+		return materialize()
+	}
+	data, err := json.Marshal(projectionPolicy(inputs))
+	if err != nil {
+		return SessionToolPolicy{}, fmt.Errorf("tools: encode hosted authority inputs: %w", err)
+	}
+	key := hostedSessionPolicyKey{scope, sha256.Sum256(data), ceiling, redact.SecretFingerprint()}
+	return listings.authorities.load(ctx, key, func() (SessionToolPolicy, bool, error) {
+		policy, err := materialize()
+		if err != nil || key.redaction != redact.SecretFingerprint() {
+			return policy, false, err
+		}
+		encoded, err := json.Marshal(policy)
+		if err != nil {
+			return SessionToolPolicy{}, false, fmt.Errorf("tools: encode hosted authority: %w", err)
+		}
+		policy.projectionDigest = sha256.Sum256(encoded)
+		return policy, true, nil
+	})
+}
+
+type projectionPolicyKey struct {
+	registry  *RuntimeRegistry
+	scope     Scope
+	policy    [sha256.Size]byte
+	redaction [sha256.Size]byte
+}
+
+func (l *ProjectionListings) loadPolicy(
+	ctx context.Context, r *RuntimeRegistry, scope Scope, inputs PolicyInputs,
+) ([]ToolView, error) {
+	data, err := json.Marshal(projectionPolicy(inputs))
+	if err != nil {
+		return nil, fmt.Errorf("tools: encode projection policy: %w", err)
+	}
+	key := projectionPolicyKey{r, scope, sha256.Sum256(data), r.ProjectionRedactionRevision()}
+	return l.policies.load(ctx, key, func() ([]ToolView, bool, error) {
+		views, err := r.policyProjection(ctx, scope, inputs)
+		return views, key.redaction == r.ProjectionRedactionRevision(), err
+	})
+}
+
+type projectionMemo[K comparable, V any] struct {
 	mu      sync.Mutex
-	entries map[projectionListingKey]*projectionListing
+	entries map[K]V
+	pending map[K]chan struct{}
+}
+
+// load coalesces successful builds. A waiter can leave on cancellation or retry a failed build.
+func (m *projectionMemo[K, V]) load(ctx context.Context, key K, build func() (V, bool, error)) (V, error) {
+	for {
+		if err := ctx.Err(); err != nil {
+			var zero V
+			return zero, err
+		}
+		m.mu.Lock()
+		if value, found := m.entries[key]; found {
+			m.mu.Unlock()
+			return value, nil
+		}
+		done, pending := m.pending[key]
+		if !pending {
+			done = make(chan struct{})
+			if m.pending == nil {
+				m.pending = make(map[K]chan struct{})
+			}
+			m.pending[key] = done
+		}
+		m.mu.Unlock()
+		if !pending {
+			return m.build(key, done, build)
+		}
+		select {
+		case <-ctx.Done():
+			var zero V
+			return zero, ctx.Err()
+		case <-done:
+		}
+	}
+}
+
+func (m *projectionMemo[K, V]) build(key K, done chan struct{}, build func() (V, bool, error)) (V, error) {
+	defer func() {
+		m.mu.Lock()
+		delete(m.pending, key)
+		close(done)
+		m.mu.Unlock()
+	}()
+	value, cacheable, err := build()
+	if cacheable && err == nil {
+		m.mu.Lock()
+		if len(m.entries) >= defaultProjectionValidationCacheCapacity || m.entries == nil {
+			m.entries = make(map[K]V)
+		}
+		m.entries[key] = value
+		m.mu.Unlock()
+	}
+	return value, err
 }
 
 type projectionListingKey struct {

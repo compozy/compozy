@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// ToolApprovalRequest is a daemon API value.
+type ToolApprovalRequest struct {
+	SessionID   string          `json:"session_id"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	AgentName   string          `json:"agent_name,omitempty"`
+	Input       json.RawMessage `json:"input,omitempty"`
+	InputDigest string          `json:"input_digest,omitempty"`
+}
+
+// ToolApprovalResponse is a daemon API value.
+type ToolApprovalResponse struct {
+	Approval ToolApprovalPayload `json:"approval"`
+}
+
 // ToolApprovalStatusResponse is a daemon API value.
 type ToolApprovalStatusResponse struct {
 	ApprovalStatus  ApprovalOutcome         `json:"approval_status"`
@@ -422,28 +436,4 @@ type UpdateExtensionsRequest struct {
 	Version         string           `json:"version,omitempty"`
 	CheckOnly       bool             `json:"check_only,omitzero"`
 	AllowUnverified bool             `json:"allow_unverified,omitzero"`
-}
-
-// UpdateJobRequest is a daemon API value.
-type UpdateJobRequest struct {
-	Name       *string          `json:"name,omitempty"`
-	Prompt     *string          `json:"prompt,omitempty"`
-	Schedule   *ScheduleSpec    `json:"schedule,omitempty"`
-	Task       *JobTaskConfig   `json:"task,omitempty"`
-	LoopTarget *LoopTarget      `json:"loop_target,omitempty"`
-	Enabled    *bool            `json:"enabled,omitempty"`
-	Retry      *RetryConfig     `json:"retry,omitempty"`
-	FireLimit  *FireLimitConfig `json:"fire_limit,omitempty"`
-}
-
-// UpdateMarketplaceSourceRequest is a daemon API value.
-type UpdateMarketplaceSourceRequest struct {
-	Enabled *bool `json:"enabled"`
-}
-
-// UpdateProfileRequest is a daemon API value.
-type UpdateProfileRequest struct {
-	Color *string `json:"color,omitzero"`
-	Icon  *string `json:"icon,omitzero"`
-	Emoji *string `json:"emoji,omitzero"`
 }

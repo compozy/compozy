@@ -14,11 +14,7 @@ export interface SessionCatalogCursor {
 export function sessionCatalogOptions(filters: SessionListFilters = {}) {
   const normalized = normalizeSessionListFilters({ ...filters, skip_total: true });
   return infiniteQueryOptions({
-    queryKey: [
-      ...sessionKeys.workspaceLists(normalized.workspace_id ?? ""),
-      "page",
-      normalized,
-    ] as const,
+    queryKey: sessionKeys.catalogPage(normalized),
     queryFn: ({ pageParam, signal }) =>
       fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal),
     initialPageParam: { previous: [] } as SessionCatalogCursor,
@@ -31,6 +27,17 @@ export function sessionCatalogOptions(filters: SessionListFilters = {}) {
         ? { cursor: current.previous.at(-1), previous: current.previous.slice(0, -1) }
         : undefined,
     maxPages: 1,
+    staleTime: 5_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+export function sessionLaunchPreviewOptions(filters: SessionListFilters) {
+  const normalized = normalizeSessionListFilters({ ...filters, skip_total: true });
+  return queryOptions({
+    queryKey: sessionKeys.launchPreview(normalized),
+    queryFn: ({ signal }) => fetchSessionCatalogPage(normalized, signal),
     staleTime: 5_000,
     refetchOnWindowFocus: false,
     retry: false,

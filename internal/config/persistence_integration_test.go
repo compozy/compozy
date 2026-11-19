@@ -179,7 +179,7 @@ func TestPutMCPSidecarServerRejectsDuplicateNamesAcrossTopLevelKeys(t *testing.T
   }
 }`)
 
-		_, err = PutMCPSidecarServer(homePaths, "", target, MCPServer{
+		_, err = PutMCPSidecarServer(t.Context(), homePaths, "", target, MCPServer{
 			Name:    "beta",
 			Command: "beta",
 		})

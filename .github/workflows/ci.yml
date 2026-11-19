@@ -853,6 +853,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Upload Sessions dock QA screenshot
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sessions-dock-evidence-shard-${{ matrix.shard }}
+          path: .tmp/playwright/test-results/*E2E-136*/compozy-artifacts/browser_screenshots/final.png
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload Marketplace recovery and production CSP evidence
         if: always()
         uses: actions/upload-artifact@v7

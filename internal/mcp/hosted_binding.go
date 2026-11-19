@@ -13,6 +13,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+const hostedSlowBindThreshold = time.Second
+
 // Bind consumes an armed launch window after validating the nonce, Unix peer and expected binary.
 func (s *HostedService) Bind(
 	ctx context.Context,
@@ -22,8 +24,11 @@ func (s *HostedService) Bind(
 	startedAt := time.Now()
 	sessionID := strings.TrimSpace(req.SessionID)
 	projectionFailureClass := ""
+	phase := "peer_validation"
+	var validationDuration, projectionDuration time.Duration
 	defer func() {
-		s.logBindOutcome(sessionID, peer, len(response.Tools), time.Since(startedAt), err, projectionFailureClass)
+		s.logBindOutcome(sessionID, peer, len(response.Tools), time.Since(startedAt), err, projectionFailureClass,
+			phase, validationDuration, projectionDuration)
 	}()
 
 	if err := ctxErr(ctx); err != nil {
@@ -42,6 +47,7 @@ func (s *HostedService) Bind(
 	if err := s.validatePeer(peer); err != nil {
 		return HostedBindResponse{}, err
 	}
+	phase = "launch_validation"
 	bindID, err := s.randomToken(hostedBindBytes)
 	if err != nil {
 		return HostedBindResponse{}, fmt.Errorf("mcp: mint hosted MCP bind id: %w", err)
@@ -50,7 +56,11 @@ func (s *HostedService) Bind(
 	if err != nil {
 		return HostedBindResponse{}, err
 	}
+	phase = "projection"
+	projectionStarted := time.Now()
+	validationDuration = projectionStarted.Sub(startedAt)
 	projection, err := s.bootstrapProjection(ctx, record)
+	projectionDuration = time.Since(projectionStarted)
 	if err != nil {
 		projectionFailureClass = HostedProjectionFailureClass(err)
 		if record.eagerTools {
@@ -59,9 +69,14 @@ func (s *HostedService) Bind(
 		s.ReleaseBind(bindID)
 		return HostedBindResponse{}, err
 	}
+	phase = "publish"
+	runtime, cached := s.currentRegistry().(*tools.RuntimeRegistry)
 	s.mu.Lock()
 	active := s.binds[bindID]
 	if active != nil {
+		if cached && runtime != nil {
+			active.releaseCatalog = runtime.BindHostedCatalog(record.scope())
+		}
 		active.initialToolDigest = projection.Catalog.Digest
 		active.initialCatalog = tools.AdvertisedCatalog{
 			Digest: projection.Catalog.Digest, Servers: maps.Clone(projection.Catalog.Servers),
@@ -88,6 +103,9 @@ func (s *HostedService) logBindOutcome(
 	duration time.Duration,
 	err error,
 	projectionFailureClass string,
+	phase string,
+	validationDuration time.Duration,
+	projectionDuration time.Duration,
 ) {
 	if s == nil || s.logger == nil {
 		return
@@ -96,6 +114,25 @@ func (s *HostedService) logBindOutcome(
 		"session_id", sessionID,
 		"peer_pid", peer.PID,
 		"duration_ms", duration.Milliseconds(),
+	}
+	if err != nil || duration >= hostedSlowBindThreshold {
+		if phase == "peer_validation" || phase == "launch_validation" {
+			validationDuration = duration
+		}
+		var publishDuration time.Duration
+		if phase == "publish" {
+			publishDuration = duration - validationDuration - projectionDuration
+		}
+		if err == nil {
+			switch max(validationDuration, projectionDuration, publishDuration) {
+			case validationDuration:
+				phase = "validation"
+			case projectionDuration:
+				phase = "projection"
+			}
+		}
+		attributes = append(attributes, "phase", phase, "validation_ms", validationDuration.Milliseconds(),
+			"projection_ms", projectionDuration.Milliseconds(), "publish_ms", publishDuration.Milliseconds())
 	}
 	if err != nil {
 		if projectionFailureClass != "" {
@@ -270,8 +307,7 @@ func (s *HostedService) ReleaseBind(bindID string) {
 		return
 	}
 	s.mu.Lock()
-	record := s.binds[bindID]
-	delete(s.binds, bindID)
+	record := s.removeBindLocked(bindID)
 	if record != nil {
 		if launch := s.launches[record.sessionID]; launch != nil && launch.bindID == bindID {
 			// Providers may replace their stdio proxy while retaining the same ACP session.

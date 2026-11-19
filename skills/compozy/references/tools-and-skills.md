@@ -338,6 +338,17 @@ again retries the bind. A bind without a pending MCP change does not emit `sessi
 `session.mcp_changed` carries the new `mcp_summary{usable,attention,pending_reload}` for open
 sessions; the single-session payload has the same `mcp_summary`.
 
+**Turn one configured server off or on** in Settings → MCP servers or with
+`compozy mcp disable <name>` / `compozy mcp enable <name>`. Use the exact `--scope`, `--workspace`,
+`--profile`, and `--owner extension:<installed-name>` selectors for the declaration. When names
+repeat in one scope, pass the declaring path as `--definition-source`. HTTP and UDS use
+`PUT /api/settings/mcp-servers/{name}/enabled` with the same query selectors as authentication,
+the optional `definition_source` selector, and `{"enabled": false}` or `{"enabled": true}`. Manual `config.toml` and `mcp.json` definitions
+accept `disabled`; definitions that omit it are on by default. Turning a server off keeps its
+definition, credentials and approval. CompozyOS skips connection, discovery, checks and renewal for
+that server. `compozy__mcp_list` exposes `disabled`, `compozy__mcp_status` reports `state: "off"`,
+and `compozy__mcp_auth_status` includes `status.disabled` alongside the redacted credential state.
+
 **Derived sessions follow the current server set.** Forks, continues, provenance and recovery
 sessions inherit the current admitted servers of their own profile and workspace. A child inherits
 unless its spawn or a hook named an MCP list; a hook can narrow but never widen. A child stays
@@ -349,25 +360,39 @@ authored list inherit. `permission_policy.mcp_servers` on public lineage reports
 **Diagnose a missing MCP tool** with `compozy__session_mcp_list` (CLI `compozy session mcp <id>`,
 HTTP `GET /api/workspaces/{ws}/sessions/{id}/mcp`). It lists every configured server of the session's
 scope, including waiting, signed-out and excluded ones, with a repair reason. `needs_sign_in` → run
-the sign-in flow above; `waiting_approval` → allow it; `not_available` → the session's restriction
+the sign-in flow above; `waiting_approval` → allow it; `off` → turn it back on in Settings;
+`not_available` → the session's restriction
 excludes it (start a session without that restriction); `applies_next_message` → send the next
 message.
+
+**Catalog discovery runs in the background.** A new hosted session binds with the tools already
+available. Session MCP rows report pending discovery, timeout, and unreachable-server reasons.
+A successful refresh publishes the changed catalog to bound proxies. HTTP subscriptions and
+stdio notifications invalidate the affected server's listing. When a server has no live
+`tools/list_changed` subscription, background refresh runs only while an authorized session
+is bound. Sessions share one refresh per server and credential binding. The interval is at
+least 60 seconds, or the server's `ttlMs` hint if it is longer. Without a hint, it is two
+minutes. Until the next successful refresh, these servers can show an older catalog. An
+unchanged listing reuses the existing descriptors and projection. Stdio backoff is visible
+in a runtime check's diagnostic.
 
 Use `compozy session mcp check <id> <name> [--owner extension:<name>]` to retry one server.
 The session POST route is `/api/workspaces/{ws}/sessions/{id}/mcp/servers/{name}/check`;
 `owner` defaults to `manual`. It returns refreshed session MCP availability, performs discovery
 only for that effective server, and never restarts the agent. Waiting, restricted, or needs-sign-in servers stay
-unprobed. A recovered server that needs activation reports `applies_next_message`.
+unprobed. An off server returns `off` without making a request to it. A recovered server that needs
+activation reports `applies_next_message`.
 Settings can retry one item with `compozy mcp check <name>` or
 `POST /api/settings/mcp-servers/{name}/check` with the same
 `scope`, `workspace_id`, `profile`, and `owner` selectors as authentication. It returns the item
-with `runtime_status`. These check routes deny app tokens and preserve consent requirements.
+with `runtime_status`, including `state: "off"`, `probe: "skipped"` and `reason: "server_disabled"`
+for an off server. These check routes deny app tokens and preserve consent requirements.
 Session rows expose `scope`, optional `workspace_id`/`profile`, `transport`, and `source.kind`.
 Only `waiting_approval` rows expose the definition preview (`command`/`args`/`url`, `source.path`)
 and `approval{reason,definition_digest}`. Preview text is redacted; URLs omit userinfo and mask
 all query values. App-token reads omit the preview entirely. Checks bypass tools/list caches,
 retain last-known-good tools on failure, and publish changed session summaries without a reload.
-Unavailable checks return 503, disabled sources 400, and client-canceled checks 499.
+Invalid checks return 400, unavailable checks 503, and client-canceled checks 499.
 Settings items expose the declaration file as `definition_source` when available.
 
 Use the canonical ID returned by tool discovery in approvals and policy selectors. A tool such as

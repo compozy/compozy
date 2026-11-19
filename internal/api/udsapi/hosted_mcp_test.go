@@ -28,7 +28,7 @@ import (
 func TestHostedMCPStreamErrorData(t *testing.T) {
 	t.Parallel()
 
-	// Invariant: bootstrap and stream projection failures expose only a safe cause class in logs.
+	// Invariant: bind failures report the projection phase with a safe cause class.
 	// Owner: hosted MCP projection routes; canonical suite: TestHostedMCPStreamErrorData.
 	for _, stage := range []string{"bind", "stream"} {
 		t.Run("Should log a redacted projection cause for "+stage, func(t *testing.T) {
@@ -61,6 +61,10 @@ func TestHostedMCPStreamErrorData(t *testing.T) {
 			}
 			if !strings.Contains(logs.String(), `"cause_class":"deadline_exceeded"`) {
 				t.Fatal("missing projection cause class in logs")
+			}
+			if stage == "bind" && (!strings.Contains(logs.String(), `"phase":"projection"`) ||
+				!strings.Contains(logs.String(), `"projection_ms":`)) {
+				t.Fatal("bind failure missing projection phase or duration")
 			}
 		})
 	}

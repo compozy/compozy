@@ -83,11 +83,17 @@ func findSettingsMCPServer(
 }
 
 func settingsMCPItemScopeRank(item *settingspkg.MCPServerItem, req settingspkg.CollectionRequest) int {
+	// Default-profile publications retain their workspace OAuth address.
+	if req.Scope == settingspkg.ScopeWorkspace && req.WorkspaceID != "" &&
+		item.Scope == settingspkg.ScopeProfile && item.ProfileName == profileDefaultName &&
+		item.WorkspaceID == req.WorkspaceID {
+		return 2
+	}
 	if item.ProfileName != req.ProfileName {
 		return 0
 	}
 	if item.Scope == req.Scope && item.WorkspaceID == req.WorkspaceID {
-		return 2
+		return 3
 	}
 	if req.WorkspaceID == "" || item.WorkspaceID != "" {
 		return 0

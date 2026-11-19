@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -24,13 +25,56 @@ import (
 )
 
 type managedMCPClient struct {
-	session *mcpsdk.ClientSession
-	cleanup func() error
+	session       *mcpsdk.ClientSession
+	cleanup       func() error
+	borrowed      bool
+	catalogStream *catalogNotificationStream
 	// release returns a pooled session instead of closing it.
-	release func(error)
+	release  func(stdioExchangeOutcome)
+	exchange stdioExchangeOutcome
 }
 
 const maxAuthorizationChallengeDrainBytes = int64(64 << 10)
+const minStdioDiscoveryResponseBudget = 3 * time.Second
+
+var errStdioResponseDeadline = errors.New("mcp: stdio server response deadline exceeded")
+
+// exchangeContext starts the stdio response timer only after preparation and pool admission.
+func exchangeContext(
+	ctx context.Context, client *managedMCPClient, responseBudget time.Duration,
+) (context.Context, context.CancelFunc) {
+	if client.release == nil || ctx.Err() != nil || responseBudget < minStdioDiscoveryResponseBudget {
+		return ctx, func() {}
+	}
+	return context.WithTimeoutCause(ctx, responseBudget, errStdioResponseDeadline)
+}
+
+func (c *managedMCPClient) observeExchange(ctx context.Context, err error) {
+	if c.release == nil {
+		return
+	}
+	switch {
+	case err == nil:
+		c.exchange = stdioExchangeSucceeded
+	case errors.Is(err, context.DeadlineExceeded) && context.Cause(ctx) == errStdioResponseDeadline:
+		c.exchange = stdioExchangeTimedOut
+	}
+}
+
+// observeToolExchange attributes the existing total deadline only when the RPC had a fair response window.
+func (e *CallExecutor) observeToolExchange(
+	ctx context.Context, client *managedMCPClient, startedAt time.Time, err error,
+) {
+	client.observeExchange(ctx, err)
+	if client.release == nil || !errors.Is(err, context.DeadlineExceeded) ||
+		context.Cause(ctx) != errMCPExecutorDeadline {
+		return
+	}
+	// A local setup or pool wait that spent over half the budget must not penalize the child.
+	if deadline, ok := ctx.Deadline(); ok && deadline.Sub(startedAt) >= e.timeout/2 {
+		client.exchange = stdioExchangeTimedOut
+	}
+}
 
 func (e *CallExecutor) openClient(
 	ctx context.Context,
@@ -123,13 +167,23 @@ func (e *CallExecutor) connectClient(ctx context.Context, transport mcpsdk.Trans
 }
 
 func connectMCPClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.ClientSession, error) {
+	return connectMCPClientWithCatalogChanges(ctx, transport, nil)
+}
+
+func connectMCPClientWithCatalogChanges(
+	ctx context.Context, transport mcpsdk.Transport, onChange func(context.Context, *mcpsdk.ToolListChangedRequest),
+	receiving ...mcpsdk.Middleware,
+) (*mcpsdk.ClientSession, error) {
 	client := mcpsdk.NewClient(
 		&mcpsdk.Implementation{Name: "compozy", Version: version.Current().Version},
 		&mcpsdk.ClientOptions{
-			Capabilities:   &mcpsdk.ClientCapabilities{},
-			MultiRoundTrip: &mcpsdk.MultiRoundTripOptions{Disabled: true},
+			Capabilities:           &mcpsdk.ClientCapabilities{},
+			MultiRoundTrip:         &mcpsdk.MultiRoundTripOptions{Disabled: true},
+			ToolListChangedHandler: onChange,
 		},
 	)
+	client.AddSendingMiddleware(executorToolListCache)
+	client.AddReceivingMiddleware(receiving...)
 	session, err := client.Connect(ctx, transport, nil)
 	if err != nil {
 		return nil, normalizeMCPError("", err)
@@ -178,19 +232,11 @@ func (e *CallExecutor) clientStdioSpec(ctx context.Context, resolved *ResolvedSe
 }
 
 func closeMCPClient(client *managedMCPClient) error {
-	return releaseMCPClient(client, nil)
-}
-
-func joinMCPClientCleanup(err error, client *managedMCPClient) error {
-	return errors.Join(err, releaseMCPClient(client, err))
-}
-
-func releaseMCPClient(client *managedMCPClient, callErr error) error {
-	if client == nil {
+	if client == nil || client.borrowed {
 		return nil
 	}
 	if client.release != nil {
-		client.release(callErr)
+		client.release(client.exchange)
 		return nil
 	}
 	var err error
@@ -205,6 +251,10 @@ func releaseMCPClient(client *managedMCPClient, callErr error) error {
 		}
 	}
 	return err
+}
+
+func joinMCPClientCleanup(err error, client *managedMCPClient) error {
+	return errors.Join(err, closeMCPClient(client))
 }
 
 func (e *CallExecutor) httpClientWithAuthorization(
@@ -324,12 +374,16 @@ func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Respo
 		cloned.Header.Set("Authorization", t.header)
 	}
 	response, err := t.next.RoundTrip(cloned)
-	if t.discoveryStatus != nil && request.Method == http.MethodPost {
+	discoveryStatus := mcpDiscoveryHTTPStatus(request.Context())
+	if discoveryStatus == nil {
+		discoveryStatus = t.discoveryStatus
+	}
+	if discoveryStatus != nil && request.Method == http.MethodPost {
 		var status int32
 		if err == nil && response != nil && response.StatusCode >= 300 && response.StatusCode <= 999 {
 			status = int32(response.StatusCode)
 		}
-		t.discoveryStatus.Store(status)
+		discoveryStatus.Store(status)
 	}
 	if err != nil {
 		return nil, err

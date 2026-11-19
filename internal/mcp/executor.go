@@ -68,7 +68,7 @@ func (e *CallExecutor) DiscoverTools(
 				"reason", reason, "diagnostic", err.Error())
 		}
 	}()
-	return e.listResolvedTools(ctx, source)
+	return e.listResolvedTools(ctx, source, toolspkg.BackgroundMCPDiscovery(ctx) && !toolspkg.FreshMCPDiscovery(ctx))
 }
 
 // CallTool invokes one configured MCP tool.
@@ -104,10 +104,8 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if e.consent != nil {
-		if err := e.consent(ctx, source, resolved); err != nil {
-			return toolspkg.ToolResult{}, err
-		}
+	if err := e.authorizeServer(ctx, source, &resolved); err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
 	var runtimeHealthErr error
@@ -136,7 +134,9 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	startedAt := time.Now()
 	mcpResult, err := client.session.CallTool(ctx, params)
+	e.observeToolExchange(ctx, client, startedAt, err)
 	if err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
@@ -145,8 +145,7 @@ func (e *CallExecutor) CallTool(
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, runtimeHealthErr
 	}
-	result, err = toolResultFromMCP(mcpResult)
-	if err != nil {
+	if result, err = toolResultFromMCP(mcpResult); err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, runtimeHealthErr
 	}
@@ -230,11 +229,32 @@ func (e *CallExecutor) Status(
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, err
 	}
-	return e.authStatus(ctx, &resolved)
+	status, err = e.authStatus(ctx, &resolved)
+	status.Disabled = resolved.Server.IsDisabled()
+	return status, err
 }
 
+func (e *CallExecutor) authorizeServer(ctx context.Context, source toolspkg.SourceRef, resolved *ResolvedServer) error {
+	if resolved.Server.IsDisabled() {
+		return mcpServerDisabledError(resolved.Server.Name)
+	}
+	if e.consent != nil {
+		return e.consent(ctx, source, *resolved)
+	}
+	return nil
+}
+
+func mcpServerDisabledError(name string) error {
+	return toolspkg.NewToolError(
+		"source_disabled", "", fmt.Sprintf("MCP server %q is off", name),
+		toolspkg.ErrToolUnavailable, toolspkg.ReasonSourceDisabled,
+	)
+}
+
+var errMCPExecutorDeadline = errors.New("mcp: executor deadline exceeded")
+
 func (e *CallExecutor) callContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, e.timeout)
+	return context.WithTimeoutCause(ctx, e.timeout, errMCPExecutorDeadline)
 }
 
 func (e *CallExecutor) resolveServer(

@@ -21,7 +21,7 @@ func parseSettingsSectionRequest(
 	c *gin.Context,
 	section settingspkg.SectionName,
 ) (settingspkg.SectionRequest, error) {
-	scope, workspaceID, profileName, err := parseSettingsOwner(c)
+	scope, workspaceID, profileName, err := parseSettingsOwner(c, false)
 	if err != nil {
 		return settingspkg.SectionRequest{}, err
 	}
@@ -50,7 +50,7 @@ func parseSettingsCollectionRequest(
 	c *gin.Context,
 	collection settingspkg.CollectionName,
 ) (settingspkg.CollectionRequest, error) {
-	scope, workspaceID, profileName, err := parseSettingsOwner(c)
+	scope, workspaceID, profileName, err := parseSettingsOwner(c, collection == settingspkg.CollectionMCPServers)
 	if err != nil {
 		return settingspkg.CollectionRequest{}, err
 	}

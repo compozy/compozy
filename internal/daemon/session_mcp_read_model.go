@@ -80,7 +80,26 @@ func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (se
 	if err != nil {
 		return session.MCP{}, err
 	}
-	return composeSessionMCP(id, collection.MCPServers, authority.MCPServers, callable, diagnostics, runtime), nil
+	result := composeSessionMCP(id, collection.MCPServers, authority.MCPServers, callable, diagnostics, runtime)
+	if provider, ok := r.state.mcpToolProvider.(*toolspkg.MCPProvider); ok {
+		for i := range result.CompozyServers {
+			row := &result.CompozyServers[i]
+			if row.State != hookAgentEventsFailedKey {
+				continue
+			}
+			index := slices.IndexFunc(collection.MCPServers, func(item settingspkg.MCPServerItem) bool {
+				return item.Name == row.Name && item.Owner == row.Owner
+			})
+			if index < 0 {
+				continue
+			}
+			name := cmp.Or(collection.MCPServers[index].RuntimeName, row.Name)
+			if reason := provider.CatalogDiscoveryReason(ctx, scope, name); reason != "" {
+				row.Reason = reason
+			}
+		}
+	}
+	return result, nil
 }
 
 func composeSessionMCP(
@@ -171,6 +190,10 @@ func sessionMCPRow(
 	if row.Scope == "" {
 		row.Scope, row.WorkspaceID, row.Profile = string(item.Scope), item.WorkspaceID, item.ProfileName
 	}
+	if item.Disabled {
+		row.State, row.Reason = string(settingspkg.MCPServerRuntimeStateOff), "Turned off in CompozyOS"
+		return row
+	}
 	if item.Approval.State == mcpApprovalWaiting {
 		row.Approval = &session.MCPServerApproval{
 			Reason:           item.Approval.Reason,
@@ -183,18 +206,8 @@ func sessionMCPRow(
 	if name == "" {
 		name = item.Name
 	}
-	for i := range diagnostics {
-		view := &diagnostics[i]
-		if view.Descriptor.Source.Kind == toolspkg.SourceMCP && view.Descriptor.Source.RawServerName == name {
-			row.ToolCount++
-		}
-	}
-	for i := range callable {
-		view := &callable[i]
-		if view.Descriptor.Source.Kind == toolspkg.SourceMCP && view.Descriptor.Source.RawServerName == name {
-			row.CallableCount++
-		}
-	}
+	row.ToolCount = sessionMCPToolCount(diagnostics, name)
+	row.CallableCount = sessionMCPToolCount(callable, name)
 	switch {
 	case item.Approval.State == mcpApprovalWaiting:
 		row.State, row.Reason = mcpWaitingApproval, "Project server waiting for approval"
@@ -210,6 +223,17 @@ func sessionMCPRow(
 		row.State = "applies_next_message"
 	}
 	return row
+}
+
+func sessionMCPToolCount(views []toolspkg.ToolView, name string) int {
+	count := 0
+	for i := range views {
+		source := views[i].Descriptor.Source
+		if source.Kind == toolspkg.SourceMCP && source.RawServerName == name {
+			count++
+		}
+	}
+	return count
 }
 
 func setSessionMCPPreview(row *session.MCPServerRow, item *settingspkg.MCPServerItem) {

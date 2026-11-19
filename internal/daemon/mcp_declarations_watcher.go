@@ -9,6 +9,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 const mcpDeclarationWatcherLabel = "MCP declaration watcher"
@@ -87,6 +88,14 @@ func (d *Daemon) bootMCPDeclarationWatcher(ctx context.Context, state *bootState
 		syncer.declarationWatch = &watcher
 	}
 	interval := state.cfg.Skills.EffectivePollInterval()
+	if provider, ok := state.mcpToolProvider.(*tools.MCPProvider); ok {
+		if catalogComplete, admitted := worker.Begin(); admitted {
+			go func() {
+				defer catalogComplete()
+				provider.RunCatalogRefresh(workerCtx)
+			}()
+		}
+	}
 	if policyComplete, ok := worker.Begin(); ok {
 		go func() {
 			defer policyComplete()

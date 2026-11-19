@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+	"time"
 )
 
 type registryTestProvider struct {
@@ -446,6 +447,45 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 }
 
 func TestRuntimeRegistryProjections(t *testing.T) {
+	// Invariant: slow projection work cannot block other keys, and a shared wait is cancelable.
+	// Owner: registry projection memoization; canonical suite: TestRuntimeRegistryProjections.
+	t.Run("Should isolate in-flight projection builds by key", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			cache := &projectionMemo[string, string]{}
+			build := func() (string, bool, error) { return "cached", true, nil }
+			if _, err := cache.load(t.Context(), "peer", build); err != nil {
+				t.Fatal(err)
+			}
+			release := make(chan struct{})
+			built := make(chan error, 1)
+			go func() {
+				_, err := cache.load(t.Context(), "slow", func() (string, bool, error) {
+					<-release
+					return "slow result", true, nil
+				})
+				built <- err
+			}()
+			synctest.Wait()
+
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			if got, err := cache.load(ctx, "peer", build); err != nil || got != "cached" {
+				t.Errorf("peer result = %q, %v", got, err)
+			}
+			if _, err := cache.load(ctx, "slow", build); !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("same-key wait error = %v, want deadline", err)
+			}
+			close(release)
+			if err := <-built; err != nil {
+				t.Fatal(err)
+			}
+			if got, err := cache.load(t.Context(), "slow", build); err != nil || got != "slow result" {
+				t.Fatalf("shared result = %q, %v", got, err)
+			}
+		})
+	})
+
 	t.Run("Should retain conflicts after native availability was classified in the same read", func(t *testing.T) {
 		t.Parallel()
 		descriptor := validDescriptor()

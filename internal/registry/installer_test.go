@@ -1204,7 +1204,7 @@ func TestManifestPathAtRootRejectsSymlinkedManifest(t *testing.T) {
 			t.Fatalf("Rename(stage) error = %v", err)
 		}
 
-		packageRoot, metadata, err := loadInstalledPackageMetadata(t.Context(), parentRoot, "stage", extractRoot)
+		packageRoot, metadata, err := loadInstalledPackageMetadata(t.Context(), parentRoot, "stage", extractRoot, "")
 		if err != nil {
 			t.Fatalf("loadInstalledPackageMetadata() error = %v", err)
 		}

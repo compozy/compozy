@@ -248,7 +248,7 @@ function CompozyGroup({
     );
   }
   if (visibleServers.length === 0) return null;
-  const waiting = servers.filter(isMCPApprovalWaiting).length;
+  const waiting = servers.filter(server => !server.disabled && isMCPApprovalWaiting(server)).length;
   return (
     <MCPServersTable
       {...table}
@@ -274,8 +274,8 @@ function CompozyGroupHeading({ count, waiting }: { count: number; waiting: numbe
         </span>
         <span className="truncate text-eyebrow text-subtle">
           {waiting > 0
-            ? `Every CompozyOS session can use these · ${waiting} waiting for approval`
-            : "Every CompozyOS session can use these from its next message"}
+            ? `Changes apply on the next message · ${waiting} waiting for approval`
+            : "Changes apply on the next message"}
         </span>
       </div>
     </header>

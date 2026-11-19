@@ -24,6 +24,7 @@ func (d *Daemon) newDaemonMCPToolProvider(
 	}
 	resolver := newDaemonMCPServerResolver(state)
 	options := []mcppkg.CallExecutorOption{
+		mcppkg.WithToolCatalogNotifications(),
 		mcppkg.WithAuthRecovery(func(ctx context.Context, resolved *mcppkg.ResolvedServer) error {
 			return recoverResolvedMCPAuthentication(ctx, state, resolved)
 		}),
@@ -33,13 +34,10 @@ func (d *Daemon) newDaemonMCPToolProvider(
 				return requireResolvedMCPConsent(ctx, state, source, &resolved)
 			},
 		),
-	}
-	options = append(
-		options,
 		mcppkg.WithAuthNetworkAuthorization(func(ctx context.Context, cfg mcpauth.ServerConfig) error {
 			return authorizeMCPAuthNetwork(ctx, state, cfg)
 		}),
-	)
+	}
 	if d != nil && d.getenv != nil {
 		options = append(options, mcppkg.WithSecretLookup(d.getenv))
 	}
@@ -71,6 +69,7 @@ func (d *Daemon) newDaemonMCPToolProvider(
 		}),
 		executor,
 		executor,
+		toolspkg.WithMCPBackgroundDiscovery(func() { state.toolProjectionEpoch.Advance() }, state.logger),
 		toolspkg.WithMCPDeadEntityService(state.deadEntities),
 		toolspkg.WithMCPConsent(func(ctx context.Context, source toolspkg.SourceRef, profileID string) (bool, error) {
 			decision, err := mcpSourceConsent(
@@ -79,7 +78,7 @@ func (d *Daemon) newDaemonMCPToolProvider(
 				toolspkg.Scope{ProfileID: profileID, WorkspaceID: source.WorkspaceID},
 				source,
 			)
-			return decision.Admitted, err
+			return decision.Admitted && !decision.Disabled, err
 		}),
 		toolspkg.WithMCPDiscoveryBudget(
 			min(state.cfg.MCP.StatusProbeTimeout, state.cfg.Tools.HostedMCP.BindNonceTTL()/2),

@@ -1,5 +1,34 @@
 # Compozy Change Impact
 
+## Turn off a configured MCP server (GH-1850, requirement 10)
+
+- **Native tools, CLI, HTTP and UDS.** MCP list and status reads expose off definitions. The
+  session MCP list returns `off` and a reason. `mcp disable` and `mcp enable` share the scoped,
+  owner-qualified settings route and generated client contract. Both explicit checks skip off servers.
+- **Config, persistence and extensibility.** `disabled` is additive in TOML and JSON. Existing
+  files default to on. Extension allocations add a default-on persisted switch without rewriting
+  manifests or changing hook contracts. Published agent and skill servers use a local preference
+  keyed by declaring file or extension instance. Definition digests and credential owners exclude the switch.
+- **Workspace and profile isolation.** Resolve the effective source before testing its switch.
+  An off workspace definition keeps its precedence, and the change targets the declaring scope.
+- **Web, docs and official skill.** Settings shows the switch and neutral Off status. The session
+  composer shows the reason. MCP docs and the official skill cover supported selectors, activation,
+  and checks. The Settings, session, CLI and next-message QA scenarios include the off/on walk.
+
+## Session list expansion depth menu (GH-1846) — 2026-11-18
+
+- **Native tools and CLI/HTTP/UDS.** No route, DTO, CLI or `compozy__*` tool changes.
+- **Extensibility, hooks and config.** No hook, extension or config key changes.
+- **State and isolation.** The per-window `foldAll` in the browser-local sessions sidebar store gains
+  a `groups` value; stored windows with `collapsed`, `expanded` or no value load unchanged, and an
+  unknown value loads as no choice. Windows stay independent.
+- **Web, docs and official skill.** The List toolbar's fold button becomes a menu: Expand groups
+  (folders and project groups open, child session lists folded, no subagent list opened), Expand all
+  and Collapse all, with the current choice checked and named by the trigger. A search still shows
+  matching child sessions, and a thread opened by hand stays open. The Kanban head keeps its single
+  button. `COPY.md` and `ET-web-sessions-board-card-actions-group-sort` record the walk; the official
+  skill does not describe sidebar folds and needs no change.
+
 ## Pinned sessions above the session list
 
 Owner: [#1827](https://github.com/compozy/compozy/issues/1827).
@@ -6751,3 +6780,22 @@ Owner: [#1838](https://github.com/compozy/compozy/issues/1838).
 - **Docs, official skill and QA.** The MCP reference and `RT-mcp-reload-failure-recovery`
   describe first-bind and idle-rebind recovery. Initial and subsequent hosted projections record
   a fixed cause class in daemon logs when they fail.
+
+## Hosted MCP catalog discovery
+
+Owner [#1850](https://github.com/compozy/compozy/issues/1850).
+
+- **Native tools and CLI/HTTP/UDS.** The hosted handshake returns ready tools while the daemon
+  discovers external catalogs. Session MCP list surfaces report why a configured server is missing.
+  Explicit checks force upstream discovery and keep the previous catalog after failure.
+- **Workspace and profile isolation.** Upstream subscriptions follow the resolved source and
+  credential binding. Background discovery requires a live session bind with source authority
+  and project consent. Sessions share one fallback refresh per binding. Servers without a live
+  subscription use the longer of the server's `ttlMs` hint and a 60-second minimum, with a
+  two-minute default. An unchanged listing retains the shared projection. Shared projections
+  use the registry's visibility class, including profile, workspace and effective session policy.
+- **Extensibility, config and user state.** Existing declaration formats, generated API shapes,
+  extension and hook interfaces, and persisted state support the same inputs. Hosted updates use
+  the existing tool-list notification.
+- **Web, docs and official skill.** The MCP controls render the existing state and reason fields.
+  The MCP docs and tools-and-skills reference explain discovery, refresh and cooldown.

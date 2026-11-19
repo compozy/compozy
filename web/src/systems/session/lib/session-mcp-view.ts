@@ -60,6 +60,7 @@ export function sessionMCPStateView(state: string): SessionMCPStateView {
     case "failed":
       return { label: "Not working", attention: "destructive", action: "check" };
     case "not_available":
+    case "off":
       return { label: "Off", quiet: true };
     default:
       return { label: state };

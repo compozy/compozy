@@ -18,6 +18,9 @@ overlaps: ET-web-sessions-catalog-modal; ET-web-desktop-shell-lifecycle
 
 story: As a builder, I can use the Sessions dock icon as a direct launch or return-to-session control without passing through the catalog.
 
+While the Sessions catalog is open, create a session from another client. The list updates from
+its live stream, and the next dock click resolves the newest session even if its preload hint is older.
+
 qa-impact: New ENG-136 behavior. The Session menu and palette remain the dedicated catalog controls; the dock action must preserve the current session window's workspace and focus truth.
 
 QA completion 2026-08-24: E2E-136 opened the cold new-session dialog with `general` selected, then restored and focused a minimized session window from the dock. Evidence: `docs/qa/evidence/2026-08-24-eng-136/cold-new-session.png` and `docs/qa/evidence/2026-08-24-eng-136/focused-existing-session.png`. Verdict: pass.

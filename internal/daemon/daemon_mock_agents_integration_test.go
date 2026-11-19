@@ -4737,7 +4737,7 @@ func TestDaemonSessionMCPReadSurfaces(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, entry := range page.Entries {
+			for _, entry := range slices.Backward(page.Entries) {
 				for _, part := range entry.Message.Parts {
 					if part.ToolCallID != "hosted-mcp-list" || part.State != "output-available" {
 						continue
@@ -4757,6 +4757,25 @@ func TestDaemonSessionMCPReadSurfaces(t *testing.T) {
 			return compozycontract.SessionMCPResponse{}
 		}
 		active := createBoundFixtureBackedSession(t, ctx, harness, "session-mcp", "read-model")
+		route := "/api/workspaces/" + active.WorkspaceID + "/sessions/" + active.ID + "/mcp"
+		// Background discovery can finish after the first bind; this provider refreshes on the next message.
+		waitForRuntimeCondition(t, "both MCP catalogs discovered", 15*time.Second, func() bool {
+			var body compozycontract.SessionMCPResponse
+			if err := harness.HTTPJSON(ctx, http.MethodGet, route, nil, &body); err != nil {
+				return false
+			}
+			for _, name := range []string{"linear", "sentry"} {
+				if !slices.ContainsFunc(body.CompozyServers, func(row session.MCPServerRow) bool {
+					return row.Name == name && row.CallableCount > 0
+				}) {
+					return false
+				}
+			}
+			return true
+		})
+		if _, err := harness.PromptSession(ctx, active.ID, "noop"); err != nil {
+			t.Fatalf("PromptSession(%q after discovery) error = %v", active.ID, err)
+		}
 		// Invariant: default-profile session detail resolves MCP summary through its workspace scope.
 		// Owner: daemon HTTP session read; canonical suite: session MCP read surfaces.
 		var detail compozycontract.SessionResponse
@@ -4770,7 +4789,6 @@ func TestDaemonSessionMCPReadSurfaces(t *testing.T) {
 
 		var httpBody, cliBody compozycontract.SessionMCPResponse
 		nativeBody := readNativeBody(active.ID)
-		route := "/api/workspaces/" + active.WorkspaceID + "/sessions/" + active.ID + "/mcp"
 		if err := harness.HTTPJSON(ctx, http.MethodGet, route, nil, &httpBody); err != nil {
 			t.Fatal(err)
 		}

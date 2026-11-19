@@ -171,10 +171,11 @@ func appendSkillResources(
 
 func mcpServerFromSkillDecl(decl skillspkg.MCPServerDecl) compozyconfig.MCPServer {
 	return compozyconfig.MCPServer{
-		Name:    strings.TrimSpace(decl.Name),
-		Command: strings.TrimSpace(decl.Command),
-		Args:    slices.Clone(decl.Args),
-		Env:     cloneStringMap(decl.Env),
+		Disabled: decl.Disabled,
+		Name:     strings.TrimSpace(decl.Name),
+		Command:  strings.TrimSpace(decl.Command),
+		Args:     slices.Clone(decl.Args),
+		Env:      cloneStringMap(decl.Env),
 	}
 }
 

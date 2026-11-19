@@ -25,6 +25,9 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 	target mcpauth.Target,
 	server compozyconfig.MCPServer,
 ) (settingspkg.MCPServerRuntimeStatus, error) {
+	if server.IsDisabled() {
+		return settingspkg.OffMCPServerRuntimeStatus(), nil
+	}
 	status := settingspkg.MCPServerRuntimeStatus{Configured: true}
 	if err := s.requireMCPConsent(ctx, target, server); err != nil {
 		status.State = mcpWaitingApproval

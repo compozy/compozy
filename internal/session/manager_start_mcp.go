@@ -99,7 +99,7 @@ func (m *Manager) directSessionMCPServers(
 		return nil, err
 	}
 	servers = slices.DeleteFunc(servers, func(server compozyconfig.MCPServer) bool {
-		return !slices.Contains(policy.MCPServers, server.Name)
+		return server.IsDisabled() || !slices.Contains(policy.MCPServers, server.Name)
 	})
 	return servers, err
 }
