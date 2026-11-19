@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -29,8 +30,40 @@ func WithProjectionValidationCacheCapacity(capacity int) RegistryOption {
 // ProjectionListings shares validated provider listings among projection passes attached to it.
 // It never expires entries: its owner bounds freshness by replacing the instance.
 type ProjectionListings struct {
-	mu      sync.Mutex
-	entries map[projectionListingKey]*projectionListing
+	mu       sync.Mutex
+	entries  map[projectionListingKey]*projectionListing
+	policyMu sync.Mutex
+	policies map[projectionPolicyKey][]ToolView
+}
+
+type projectionPolicyKey struct {
+	registry  *RuntimeRegistry
+	scope     Scope
+	policy    [sha256.Size]byte
+	redaction [sha256.Size]byte
+}
+
+func (l *ProjectionListings) loadPolicy(
+	ctx context.Context, r *RuntimeRegistry, scope Scope, inputs PolicyInputs,
+) ([]ToolView, error) {
+	data, err := json.Marshal(projectionPolicy(inputs))
+	if err != nil {
+		return nil, fmt.Errorf("tools: encode projection policy: %w", err)
+	}
+	key := projectionPolicyKey{r, scope, sha256.Sum256(data), r.ProjectionRedactionRevision()}
+	l.policyMu.Lock()
+	defer l.policyMu.Unlock()
+	if views, ok := l.policies[key]; ok {
+		return views, nil
+	}
+	views, err := r.policyProjection(ctx, scope, inputs)
+	if err == nil && key.redaction == r.ProjectionRedactionRevision() {
+		if l.policies == nil || len(l.policies) >= defaultProjectionValidationCacheCapacity {
+			l.policies = make(map[projectionPolicyKey][]ToolView)
+		}
+		l.policies[key] = views
+	}
+	return views, err
 }
 
 type projectionListingKey struct {

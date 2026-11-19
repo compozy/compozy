@@ -42,3 +42,9 @@ output has no column header, no CompozyOS STATUS/SOURCE columns and no group sta
 IDs are `kimi-cli` and `qwen-code`; `session mcp` prints "Failed" for `failed`.
 
 src: .compozy/tasks/mcp-extension-hot-activation/_tests.md
+
+QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
+
+Use compozy session mcp on a newly bound session with one unresponsive fixture. The failed row
+identifies that server and its discovery reason. Confirm compozy mcp check attempts a fresh
+tools/list for its target.

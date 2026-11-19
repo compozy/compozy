@@ -19,7 +19,10 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const mcpToolListFloor = 3 * time.Second
+const (
+	mcpToolListFloor      = 3 * time.Second
+	defaultMCPToolListTTL = 2 * time.Minute
+)
 
 type mcpToolListCache struct {
 	normalizationCapacity int
@@ -81,7 +84,22 @@ func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh
 	}
 	now := time.Now()
 	e.cacheTools(key, discovery, raw, ttlMs, now)
-	return e.recordToolProjection(projectionKey, discovery.Descriptors, e.effectiveToolListTTL(ttlMs), now)
+	return e.recordToolProjection(projectionKey, key, discovery.Descriptors, e.effectiveToolListTTL(ttlMs), now)
+}
+
+func (e *CallExecutor) invalidateToolListing(key string) {
+	e.toolCache.publicationMu.Lock()
+	defer e.toolCache.publicationMu.Unlock()
+	if attempt, ok := e.toolCache.attempts[key]; ok {
+		attempt.check++
+		e.toolCache.attempts[key] = attempt
+	}
+	e.toolCache.mu.Lock()
+	defer e.toolCache.mu.Unlock()
+	delete(e.toolCache.entries, key)
+	maps.DeleteFunc(e.toolCache.projectionStates, func(_ string, state mcpToolProjectionState) bool {
+		return state.listingKey == key
+	})
 }
 
 type mcpToolListCacheEntry struct {
@@ -91,6 +109,7 @@ type mcpToolListCacheEntry struct {
 }
 
 type mcpToolProjectionState struct {
+	listingKey  string
 	generation  uint64
 	fingerprint [sha256.Size]byte
 	expiresAt   time.Time
@@ -125,6 +144,18 @@ func (e *CallExecutor) cacheTools(
 	maps.DeleteFunc(e.toolCache.entries, func(_ string, entry mcpToolListCacheEntry) bool {
 		return !now.Before(entry.expiresAt)
 	})
+	if _, exists := e.toolCache.entries[key]; !exists &&
+		len(e.toolCache.entries) >= defaultToolNormalizationCacheCapacity {
+		var oldest string
+		var expiresAt time.Time
+		for candidate, entry := range e.toolCache.entries {
+			if oldest == "" || entry.expiresAt.Before(expiresAt) {
+				oldest, expiresAt = candidate, entry.expiresAt
+			}
+		}
+		delete(e.toolCache.entries, oldest)
+		delete(e.toolCache.normalizations, oldest)
+	}
 	e.toolCache.entries[key] = mcpToolListCacheEntry{
 		discovery: discovery.clone(),
 		raw:       raw,
@@ -133,9 +164,28 @@ func (e *CallExecutor) cacheTools(
 	e.toolCache.mu.Unlock()
 }
 
+// RetainCatalogSources releases descriptors owned by removed or superseded declarations.
+func (e *CallExecutor) RetainCatalogSources(sources []toolspkg.SourceRef) {
+	active := make(map[toolspkg.SourceRef]bool, len(sources))
+	for _, source := range sources {
+		active[source] = true
+	}
+	e.toolCache.mu.Lock()
+	defer e.toolCache.mu.Unlock()
+	for key, normalization := range e.toolCache.normalizations {
+		if !active[toolspkg.MCPDeclarationSource(normalization.source)] {
+			delete(e.toolCache.normalizations, key)
+			delete(e.toolCache.entries, key)
+		}
+	}
+}
+
 func (e *CallExecutor) effectiveToolListTTL(ttlMs int) time.Duration {
 	floor := e.toolListFloor
 	if floor <= 0 {
+		if ttlMs <= 0 {
+			return defaultMCPToolListTTL
+		}
 		floor = mcpToolListFloor
 	}
 	return max(floor, time.Duration(ttlMs)*time.Millisecond)
@@ -184,7 +234,7 @@ func (e *CallExecutor) ProjectionGeneration(
 }
 
 func (e *CallExecutor) recordToolProjection(
-	key string, descriptors []toolspkg.MCPToolDescriptor, ttl time.Duration, now time.Time,
+	key string, listingKey string, descriptors []toolspkg.MCPToolDescriptor, ttl time.Duration, now time.Time,
 ) error {
 	fingerprint, err := fingerprintMCPToolDescriptors(descriptors)
 	if err != nil {
@@ -196,6 +246,7 @@ func (e *CallExecutor) recordToolProjection(
 	}
 	e.pruneToolProjectionStatesLocked(now)
 	state := e.toolCache.projectionStates[key]
+	state.listingKey = listingKey
 	if state.fingerprint != fingerprint {
 		state.generation++
 	}
@@ -241,6 +292,11 @@ func (e *CallExecutor) projectionSourceKey(
 	}
 	if err := e.prepareToolListing(ctx, &resolved); err != nil {
 		return "", false
+	}
+	if e.stdioPool != nil && resolved.listingSpec != nil {
+		if _, ok := e.stdioPool.knownProtocol(*resolved.listingSpec); !ok {
+			return "", false
+		}
 	}
 	return mcpProjectionSourceKey(source, e.authorizationHeader(ctx, &resolved), resolved.listingBinding), true
 }

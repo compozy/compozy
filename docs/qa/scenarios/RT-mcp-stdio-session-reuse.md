@@ -34,3 +34,9 @@ QA impact 2026-10-31 (#1068): new scenario. Walked on the branch build against b
 see the report for before/after launch counts and timings.
 
 QA impact 2026-11-14 (MCP hot activation spec): A project-file stdio server waiting for approval is never launched by discovery, status probes or calls. Re-walk with an unapproved `.compozy/mcp.json` stdio server and confirm zero starts until **Allow** (ET-mcp-project-server-approval).
+
+QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
+
+Expire several caller budgets against a shared stdio child and verify it remains reusable. Repeat
+with the child's own response timeout and confirm a cooldown, a named server and scope in logs,
+and no restart before the cooldown ends.

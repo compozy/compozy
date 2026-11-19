@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/toolmeta"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -65,9 +66,9 @@ func redactMCPToolResult(result toolspkg.ToolResult) (toolspkg.ToolResult, error
 }
 
 func redactMCPToolDescriptor(
-	descriptor toolspkg.MCPToolDescriptor,
+	descriptor toolspkg.MCPToolDescriptor, snapshot *redact.SecretSnapshot,
 ) (toolspkg.MCPToolDescriptor, error) {
-	if mcpDescriptorIdentityContainsSecret(descriptor) {
+	if mcpDescriptorIdentityContainsSecret(descriptor, snapshot) {
 		return toolspkg.MCPToolDescriptor{}, toolspkg.NewValidationError(
 			"identity",
 			toolspkg.ReasonSecretMetadata,
@@ -76,16 +77,16 @@ func redactMCPToolDescriptor(
 	}
 
 	redacted := descriptor
-	redacted.Title = diagnostics.RedactExactBinary(descriptor.Title)
-	redacted.FriendlyVerb = diagnostics.RedactExactBinary(descriptor.FriendlyVerb)
-	redacted.Preview = diagnostics.RedactExactBinary(descriptor.Preview)
-	redacted.Description = diagnostics.RedactExactBinary(descriptor.Description)
+	redacted.Title = snapshot.ExactBinaryString(descriptor.Title)
+	redacted.FriendlyVerb = snapshot.ExactBinaryString(descriptor.FriendlyVerb)
+	redacted.Preview = snapshot.ExactBinaryString(descriptor.Preview)
+	redacted.Description = snapshot.ExactBinaryString(descriptor.Description)
 	var err error
-	redacted.InputSchema, err = diagnostics.RedactExactBinaryJSON(descriptor.InputSchema)
+	redacted.InputSchema, err = snapshot.ExactBinaryJSON(descriptor.InputSchema)
 	if err != nil {
 		return toolspkg.MCPToolDescriptor{}, fmt.Errorf("mcp: redact input schema: %w", err)
 	}
-	redacted.OutputSchema, err = diagnostics.RedactExactBinaryJSON(descriptor.OutputSchema)
+	redacted.OutputSchema, err = snapshot.ExactBinaryJSON(descriptor.OutputSchema)
 	if err != nil {
 		return toolspkg.MCPToolDescriptor{}, fmt.Errorf("mcp: redact output schema: %w", err)
 	}
@@ -96,7 +97,7 @@ func redactMCPToolDescriptor(
 	return redacted, nil
 }
 
-func mcpDescriptorIdentityContainsSecret(descriptor toolspkg.MCPToolDescriptor) bool {
+func mcpDescriptorIdentityContainsSecret(descriptor toolspkg.MCPToolDescriptor, snapshot *redact.SecretSnapshot) bool {
 	identityFields := []string{
 		string(descriptor.ID),
 		descriptor.RawName,
@@ -110,7 +111,7 @@ func mcpDescriptorIdentityContainsSecret(descriptor toolspkg.MCPToolDescriptor) 
 		descriptor.Source.Scope,
 	}
 	for _, value := range identityFields {
-		if diagnostics.RedactExactBinary(value) != value {
+		if snapshot.ExactBinaryString(value) != value {
 			return true
 		}
 	}

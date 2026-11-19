@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -61,10 +63,12 @@ func (e *CallExecutor) acquireToolListing(ctx context.Context, key string) (func
 func (e *CallExecutor) normalizeToolListing(
 	key string, source tools.SourceRef, resolved *ResolvedServer, protocolVersion string, raw []*mcpsdk.Tool,
 ) (ToolDiscovery, error) {
+	source = tools.MCPDeclarationSource(source)
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
 	cached, exists := e.toolCache.normalizations[key]
-	revision := redact.SecretFingerprint()
+	snapshot := redact.RegisteredSecretSnapshot()
+	revision := snapshot.MaterialFingerprint()
 	if exists && cached.matches(source, resolved, protocolVersion, raw, revision) {
 		return cached.discovery.clone(), nil
 	}
@@ -85,7 +89,7 @@ func (e *CallExecutor) normalizeToolListing(
 		e.toolCache.normalizations[key] = cached
 		return cached.discovery.clone(), nil
 	}
-	discovery, err := e.descriptorsFromTools(source, resolved, protocolVersion, raw)
+	discovery, err := e.descriptorsFromTools(source, resolved, protocolVersion, raw, snapshot)
 	if err != nil {
 		return ToolDiscovery{}, err
 	}
@@ -175,7 +179,7 @@ func (e *CallExecutor) listResolvedTools(
 		servedFromCache = true
 		return cached, nil
 	}
-	client, err := e.openRenderedClient(ctx, &resolved, authorizationHeader)
+	client, err := e.openToolListingClient(ctx, source, &resolved, authorizationHeader)
 	if err != nil {
 		runtimeHealthErr = err
 		return ToolDiscovery{}, normalizeMCPErrorWithContext(ctx, "", err, true)
@@ -224,9 +228,15 @@ func (e *CallExecutor) listToolsFromClient(
 	}
 	attempt := e.beginToolList(cacheKey, fresh)
 	defer e.finishToolList(cacheKey)
-	raw, ttlMs, err := listMCPTools(ctx, client.session)
+	exchangeCtx, finishExchange := e.exchangeContext(ctx, client)
+	defer finishExchange()
+	raw, ttlMs, err := listMCPTools(exchangeCtx, client.session)
+	client.observeExchange(exchangeCtx, err)
 	if err != nil {
-		return ToolDiscovery{}, err, normalizeMCPErrorWithContext(ctx, "", err, true)
+		if client.borrowed && errors.Is(err, mcpsdk.ErrConnectionClosed) {
+			err = errors.Join(err, e.catalogHTTP.forget(client.session))
+		}
+		return ToolDiscovery{}, err, normalizeMCPErrorWithContext(exchangeCtx, "", err, true)
 	}
 	discovery, err := e.normalizeToolListing(cacheKey, source, resolved, protocolVersion, raw)
 	if err != nil {
@@ -272,6 +282,9 @@ func (e *CallExecutor) prepareToolListing(ctx context.Context, resolved *Resolve
 	}
 	resolved.listingSpec = &spec
 	resolved.listingBinding = spec.digest
+	if e.stdioPool != nil {
+		resolved.listingBinding += ":" + strconv.FormatUint(e.stdioPool.catalogRevision(spec), 10)
+	}
 	return nil
 }
 

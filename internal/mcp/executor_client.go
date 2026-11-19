@@ -23,13 +23,42 @@ import (
 )
 
 type managedMCPClient struct {
-	session *mcpsdk.ClientSession
-	cleanup func() error
+	session  *mcpsdk.ClientSession
+	cleanup  func() error
+	borrowed bool
 	// release returns a pooled session instead of closing it.
-	release func(error)
+	release  func(stdioExchangeOutcome)
+	exchange stdioExchangeOutcome
 }
 
 const maxAuthorizationChallengeDrainBytes = int64(64 << 10)
+
+var errStdioResponseDeadline = errors.New("mcp: stdio server response deadline exceeded")
+
+type mcpCallParentKey struct{}
+
+// exchangeContext starts the stdio response timer only after preparation and pool admission.
+func (e *CallExecutor) exchangeContext(
+	ctx context.Context, client *managedMCPClient,
+) (context.Context, context.CancelFunc) {
+	parent, ok := ctx.Value(mcpCallParentKey{}).(context.Context)
+	if client.release == nil || !ok || ctx.Err() != nil {
+		return ctx, func() {}
+	}
+	return context.WithTimeoutCause(parent, e.timeout, errStdioResponseDeadline)
+}
+
+func (c *managedMCPClient) observeExchange(ctx context.Context, err error) {
+	if c.release == nil {
+		return
+	}
+	switch {
+	case err == nil:
+		c.exchange = stdioExchangeSucceeded
+	case errors.Is(err, context.DeadlineExceeded) && context.Cause(ctx) == errStdioResponseDeadline:
+		c.exchange = stdioExchangeTimedOut
+	}
+}
 
 func (e *CallExecutor) openClient(
 	ctx context.Context,
@@ -122,11 +151,18 @@ func (e *CallExecutor) connectClient(ctx context.Context, transport mcpsdk.Trans
 }
 
 func connectMCPClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.ClientSession, error) {
+	return connectMCPClientWithCatalogChanges(ctx, transport, nil)
+}
+
+func connectMCPClientWithCatalogChanges(
+	ctx context.Context, transport mcpsdk.Transport, onChange func(context.Context, *mcpsdk.ToolListChangedRequest),
+) (*mcpsdk.ClientSession, error) {
 	client := mcpsdk.NewClient(
 		&mcpsdk.Implementation{Name: "compozy", Version: version.Current().Version},
 		&mcpsdk.ClientOptions{
-			Capabilities:   &mcpsdk.ClientCapabilities{},
-			MultiRoundTrip: &mcpsdk.MultiRoundTripOptions{Disabled: true},
+			Capabilities:           &mcpsdk.ClientCapabilities{},
+			MultiRoundTrip:         &mcpsdk.MultiRoundTripOptions{Disabled: true},
+			ToolListChangedHandler: onChange,
 		},
 	)
 	session, err := client.Connect(ctx, transport, nil)
@@ -169,19 +205,11 @@ func (e *CallExecutor) clientStdioSpec(ctx context.Context, resolved *ResolvedSe
 }
 
 func closeMCPClient(client *managedMCPClient) error {
-	return releaseMCPClient(client, nil)
-}
-
-func joinMCPClientCleanup(err error, client *managedMCPClient) error {
-	return errors.Join(err, releaseMCPClient(client, err))
-}
-
-func releaseMCPClient(client *managedMCPClient, callErr error) error {
-	if client == nil {
+	if client == nil || client.borrowed {
 		return nil
 	}
 	if client.release != nil {
-		client.release(callErr)
+		client.release(client.exchange)
 		return nil
 	}
 	var err error
@@ -196,6 +224,10 @@ func releaseMCPClient(client *managedMCPClient, callErr error) error {
 		}
 	}
 	return err
+}
+
+func joinMCPClientCleanup(err error, client *managedMCPClient) error {
+	return errors.Join(err, closeMCPClient(client))
 }
 
 func (e *CallExecutor) httpClientWithAuthorization(

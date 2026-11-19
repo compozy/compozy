@@ -40,6 +40,7 @@ type hostedProjectionFlightKey struct {
 type hostedProjectionFlight struct {
 	done     chan struct{}
 	response HostedProjectionResponse
+	previous HostedProjectionResponse
 	err      error
 	retry    bool
 }
@@ -60,6 +61,11 @@ func (s *HostedService) projectionForGeneration(
 	registry tools.Registry,
 	unversioned hostedProjectionBuilder,
 ) (HostedProjectionResponse, error) {
+	if runtime, ok := registry.(*tools.RuntimeRegistry); ok {
+		if hostedCtx, cached := runtime.HostedProjectionContext(ctx); cached {
+			return catalogProjectionWithRedactionCheck(hostedCtx, registry, record, s.boundedUnversionedProjection)
+		}
+	}
 	if s.projectionGeneration == nil {
 		return projectionWithRedactionCheck(ctx, registry, record, unversioned)
 	}
@@ -101,6 +107,29 @@ func (s *HostedService) projectionForGeneration(
 		}
 	}
 	return projectionWithRedactionCheck(ctx, registry, record, buildHostedProjection)
+}
+
+// Cached catalogs validate source descriptors once per secret revision. If registrations
+// keep changing across a read, withhold MCP views rather than scanning each session's catalog.
+func catalogProjectionWithRedactionCheck(
+	ctx context.Context, registry tools.Registry, record *hostedBindRecord, build hostedProjectionBuilder,
+) (HostedProjectionResponse, error) {
+	var response HostedProjectionResponse
+	for range hostedProjectionGenerationRetries {
+		revision := projectionRedactionRevision(registry)
+		built, err := build(ctx, registry, record)
+		if err != nil || revision == projectionRedactionRevision(registry) {
+			return built, err
+		}
+		response = built
+	}
+	views := make([]tools.ToolView, 0, len(response.Tools))
+	for i := range response.Tools {
+		if response.Tools[i].Descriptor.Source.Kind != tools.SourceMCP {
+			views = append(views, response.Tools[i])
+		}
+	}
+	return hostedProjectionResponse(views, nil), nil
 }
 
 func projectionWithRedactionCheck(
@@ -175,7 +204,6 @@ func buildHostedProjection(
 		ctx = tools.EnsureProjectionListings(ctx)
 		views, err = registry.List(ctx, record.scope())
 		if err == nil {
-			response = hostedProjectionResponse(views, record.digestMemo)
 			if advertised, ok := registry.(interface {
 				AdvertisedSessionProjection(context.Context, tools.Scope) ([]tools.ToolView, error)
 			}); ok {
@@ -191,8 +219,12 @@ func buildHostedProjection(
 							native = append(native, *view)
 						}
 					}
-					response = hostedProjectionResponse(append(native, catalogViews...), record.digestMemo)
+					views = native
+					views = append(views, catalogViews...)
 				}
+			}
+			if err == nil {
+				response = hostedProjectionResponse(views, record.digestMemo)
 			}
 		}
 	}, "operation", "hosted_mcp_projection", "session_id", record.sessionID)

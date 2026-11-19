@@ -35,6 +35,22 @@ then shows one quiet line:
 Forks, continued sessions and child sessions follow the current server set too. A child session
 stays limited only when it was started with an explicit list of MCP servers.
 
+## Server discovery runs in the background
+
+A new session can start while a server connects or lists its tools. CompozyOS advertises
+the tools it already knows and updates the catalog as each server finishes. The session's
+MCP control shows when discovery is pending or has failed for a server.
+
+For a server that sends `tools/list_changed`, CompozyOS refreshes that server's catalog
+and notifies the running agent. CompozyOS also refreshes at the server's cache expiry.
+Without a cache hint, it checks again after two minutes. The daemon checks for expired
+catalogs every three seconds. Runtimes that need to reload pick up the change on the next
+message.
+
+Use **Check again** to contact one server immediately. If the check fails, CompozyOS keeps
+its last successful catalog. The status shows when a stdio server is backing off before
+another launch attempt.
+
 ## Who can turn a server on
 
 Adding a server through CompozyOS is your consent. These servers are usable right away:

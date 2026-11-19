@@ -118,3 +118,9 @@ CIMD registration, Settings receives `refreshable=true` even for registrations s
 the auth method. The server keeps its tools and does not offer **Sign in** solely because of
 expiry. A runtime `auth_refresh_failed` result continues to offer **Reauthorize**.
 Follow the refresh steps in [ET-api-mcp-oauth-endpoints](ET-api-mcp-oauth-endpoints.md).
+
+QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
+
+With one slow fixture, verify the session MCP control shows its discovery reason while other rows
+remain ready. Use Check again in Settings and confirm the targeted runtime diagnostic reports the
+latest attempt.

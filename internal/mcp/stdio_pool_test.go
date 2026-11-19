@@ -1,12 +1,14 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -33,6 +35,53 @@ const (
 )
 
 func TestStdioSessionPool(t *testing.T) {
+	t.Run("Should recycle only after stdio response deadlines and back off by target", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		pool := &StdioSessionPool{cfg: normalizeStdioPoolConfig(StdioPoolConfig{
+			Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+		})}
+		target := mcpauth.Target{ServerName: "slow-fixture", Scope: mcpauth.ScopeUser}
+		spec := mcpStdioSpec{slot: "fixture", target: target, digest: "fixture-v1"}
+		slot := &stdioSlot{target: target}
+		session := &stdioSession{slot: slot, digest: spec.digest, sem: make(chan struct{}, 1)}
+		slot.current = session
+		pool.slots = map[string]*stdioSlot{spec.slot: slot}
+
+		exchange := func(cause error) {
+			ctx, cancel := context.WithDeadlineCause(t.Context(), time.Unix(0, 0), cause)
+			defer cancel()
+			session.sem <- struct{}{}
+			session.inFlight++
+			lease := &stdioLease{pool: pool, session: session}
+			client := &managedMCPClient{release: lease.release}
+			client.observeExchange(ctx, ctx.Err())
+			if err := closeMCPClient(client); err != nil {
+				t.Fatalf("closeMCPClient() = %v", err)
+			}
+		}
+		for range 2 * stdioRetireAfterTimeouts {
+			exchange(context.DeadlineExceeded)
+		}
+		if got, err := pool.sessionFor(spec); err != nil || got != session {
+			t.Fatalf("sessionFor() after caller deadlines = %p, %v, want existing child", got, err)
+		}
+		for range stdioRetireAfterTimeouts {
+			exchange(errStdioResponseDeadline)
+		}
+		if _, err := pool.sessionFor(spec); err == nil || !strings.Contains(err.Error(), "backing off") {
+			t.Fatalf("sessionFor() after response deadlines = %v, want cooldown", err)
+		}
+		for _, want := range []string{
+			"mcp: recycling unresponsive stdio server", `"server":"slow-fixture"`, `"scope":"user"`,
+		} {
+			if !strings.Contains(logs.String(), want) {
+				t.Errorf("retirement log missing %q", want)
+			}
+		}
+	})
+
 	t.Run("Should reuse one stdio child for discovery and concurrent tool calls", func(t *testing.T) {
 		t.Parallel()
 

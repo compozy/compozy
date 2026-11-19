@@ -80,7 +80,26 @@ func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (se
 	if err != nil {
 		return session.MCP{}, err
 	}
-	return composeSessionMCP(id, collection.MCPServers, authority.MCPServers, callable, diagnostics, runtime), nil
+	result := composeSessionMCP(id, collection.MCPServers, authority.MCPServers, callable, diagnostics, runtime)
+	if provider, ok := r.state.mcpToolProvider.(*toolspkg.MCPProvider); ok {
+		for i := range result.CompozyServers {
+			row := &result.CompozyServers[i]
+			if row.State != hookAgentEventsFailedKey {
+				continue
+			}
+			index := slices.IndexFunc(collection.MCPServers, func(item settingspkg.MCPServerItem) bool {
+				return item.Name == row.Name && item.Owner == row.Owner
+			})
+			if index < 0 {
+				continue
+			}
+			name := cmp.Or(collection.MCPServers[index].RuntimeName, row.Name)
+			if reason := provider.CatalogDiscoveryReason(ctx, scope, name); reason != "" {
+				row.Reason = reason
+			}
+		}
+	}
+	return result, nil
 }
 
 func composeSessionMCP(

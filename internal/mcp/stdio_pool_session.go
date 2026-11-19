@@ -33,7 +33,16 @@ func (p *StdioSessionPool) run(session *stdioSession, spec mcpStdioSpec) {
 		return
 	}
 	connectCtx, cancel := context.WithTimeout(p.connectCtx, p.cfg.ConnectTimeout)
-	client, err := connectMCPClient(connectCtx, &mcpsdk.CommandTransport{Command: launch.command})
+	client, err := connectMCPClientWithCatalogChanges(
+		connectCtx, &mcpsdk.CommandTransport{Command: launch.command},
+		func(context.Context, *mcpsdk.ToolListChangedRequest) {
+			p.mu.Lock()
+			if session.slot.current == session {
+				session.slot.catalogRevision++
+			}
+			p.mu.Unlock()
+		},
+	)
 	cancel()
 	if err != nil {
 		// The SDK closes a session whose handshake fails; kill covers a child it never reached.
@@ -92,7 +101,7 @@ func (p *StdioSessionPool) finishSession(session *stdioSession, exitErr error, c
 	}
 	slot.lastStderr = session.stderr
 	if cleanupErr != nil {
-		p.cfg.Logger.Warn("mcp: remove stdio server home", "error", redactMCPDiagnosticString(cleanupErr.Error()))
+		p.loggerFor(slot).Warn("mcp: remove stdio server home", "error", redactMCPDiagnosticString(cleanupErr.Error()))
 	}
 	if session.retiring {
 		return
@@ -116,7 +125,7 @@ func (p *StdioSessionPool) recordFailureLocked(slot *stdioSlot, digest string, e
 	}
 	slot.retryAt = p.cfg.now().Add(delay)
 	slot.lastErr = redactMCPDiagnosticString(err.Error())
-	p.cfg.Logger.Warn(
+	p.loggerFor(slot).Warn(
 		"mcp: stdio server failed; backing off",
 		"failures", slot.failures,
 		"retry_in", delay.String(),

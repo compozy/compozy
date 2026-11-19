@@ -496,6 +496,44 @@ func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 }
 
 func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) {
+	// Invariant: health follows the logical server name even when its tool ID is canonicalized.
+	// Owner: MCP provider availability; canonical suite: retained discovery and recovery.
+	t.Run("Should report a failing named source alongside its retained descriptors", func(t *testing.T) {
+		t.Parallel()
+		source := SourceRef{Kind: SourceMCP, Owner: "fixture-server", RawServerName: "fixture-server"}
+		executor := newFakeMCPExecutor(
+			[]MCPToolDescriptor{{RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		)
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }),
+			executor, nil, WithMCPBackgroundDiscovery(nil, nil),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := provider.List(t.Context(), Scope{}); err != nil {
+			t.Fatal(err)
+		}
+		executor.setListError(NewToolError(
+			ErrorCodeTimedOut, "", "tools/list timed out", ErrToolTimedOut, ReasonCallTimedOut,
+		))
+		if err := provider.CheckMCPServer(t.Context(), Scope{}, source.Owner); err != nil {
+			t.Fatal(err)
+		}
+		ctx := WithCachedMCPProjection(t.Context())
+		handle, found, err := provider.Resolve(ctx, Scope{}, "mcp__fixture_server__lookup")
+		if err != nil || !found {
+			t.Fatalf("resolve previous descriptor found=%v, err=%v", found, err)
+		}
+		got := handle.Availability(ctx, Scope{})
+		if got.Executable || !slices.Contains(got.ReasonCodes, ReasonBackendUnhealthy) {
+			t.Fatalf("availability after failed check = %+v", got)
+		}
+		if reason := provider.CatalogDiscoveryReason(ctx, Scope{}, source.Owner); reason != "Tool discovery timed out" {
+			t.Fatalf("catalog diagnostic = %q, want discovery timeout", reason)
+		}
+	})
+
 	for _, tc := range []struct{ checkFails, checkFirst bool }{{false, false}, {true, false}, {false, true}} {
 		t.Run(
 			fmt.Sprintf("Should prioritize checks with failure=%v checkFirst=%v", tc.checkFails, tc.checkFirst),

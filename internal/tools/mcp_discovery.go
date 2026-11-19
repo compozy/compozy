@@ -2,9 +2,14 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/redact"
 )
 
 // DeferInitialDiscovery keeps vendor MCP startup out of the hosted session handshake.
@@ -40,20 +45,52 @@ func (p *MCPProvider) cachedSourceDescriptors(source SourceRef) []Descriptor {
 	if !ok {
 		return nil
 	}
-	if snapshot, ok := value.(mcpDiscoverySnapshot); ok {
-		return cloneDescriptors(snapshot.descriptors)
+	snapshot, ok := value.(*mcpDiscoverySnapshot)
+	if !ok {
+		panic("invariant: discovered MCP source has an unexpected type")
 	}
-	panic("invariant: discovered MCP descriptors have an unexpected type")
+	return cloneDescriptors(snapshot.currentDescriptors())
 }
 
 type mcpDiscoverySnapshot struct {
 	raw         []MCPToolDescriptor
 	descriptors []Descriptor
+
+	mu           sync.Mutex
+	hasSafeView  bool
+	safeRevision [sha256.Size]byte
+	safe         []Descriptor
+}
+
+func (s *mcpDiscoverySnapshot) currentDescriptors() []Descriptor {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	snapshot := redact.RegisteredSecretSnapshot()
+	revision := snapshot.MaterialFingerprint()
+	if s.hasSafeView && s.safeRevision == revision {
+		return s.safe
+	}
+	safe := make([]Descriptor, 0, len(s.descriptors))
+	for _, descriptor := range s.descriptors {
+		raw, err := json.Marshal(descriptor)
+		if err != nil {
+			continue
+		}
+		unsafe, err := snapshot.NeedsBinaryJSONRedaction(raw)
+		if err == nil && !unsafe {
+			safe = append(safe, descriptor)
+		}
+	}
+	if snapshot != redact.RegisteredSecretSnapshot() {
+		return nil
+	}
+	s.safeRevision, s.safe, s.hasSafeView = revision, safe, true
+	return safe
 }
 
 func (p *MCPProvider) normalizeDiscovery(source SourceRef, discovered []MCPToolDescriptor) ([]Descriptor, error) {
 	if value, ok := p.discovered.Load(source); ok {
-		if cached, ok := value.(mcpDiscoverySnapshot); ok {
+		if cached, ok := value.(*mcpDiscoverySnapshot); ok {
 			// Exact equality reuses schema digests without dropping internal read-authority metadata.
 			if reflect.DeepEqual(cached.raw, discovered) {
 				return cloneDescriptors(cached.descriptors), nil
@@ -72,7 +109,7 @@ func (p *MCPProvider) normalizeDiscovery(source SourceRef, discovered []MCPToolD
 		raw[i].InputSchema = cloneRawMessage(raw[i].InputSchema)
 		raw[i].OutputSchema = cloneRawMessage(raw[i].OutputSchema)
 	}
-	p.discovered.Store(source, mcpDiscoverySnapshot{raw, cloneDescriptors(descriptors)})
+	p.discovered.Store(source, &mcpDiscoverySnapshot{raw: raw, descriptors: cloneDescriptors(descriptors)})
 	return descriptors, nil
 }
 
@@ -85,17 +122,15 @@ func cloneDescriptors(descriptors []Descriptor) []Descriptor {
 }
 
 func (p *MCPProvider) forgetDiscovered(retire func(SourceRef) bool) {
-	p.discovered.Range(func(key, _ any) bool {
-		source, ok := key.(SourceRef)
-		if !ok {
-			panic("invariant: discovered MCP source has an unexpected type")
-		}
+	p.discoveryMu.Lock()
+	defer p.discoveryMu.Unlock()
+	for source := range p.discoveryGenerations {
 		if retire(source) {
-			p.discovered.Delete(key)
-			p.discoveryFailures.Delete(key)
+			delete(p.discoveryGenerations, source)
+			p.discovered.Delete(source)
+			p.discoveryFailures.Delete(source)
 		}
-		return true
-	})
+	}
 }
 
 func (p *MCPProvider) retainDiscoveredSources(sources []SourceRef) {
@@ -106,11 +141,15 @@ func (p *MCPProvider) retainDiscoveredSources(sources []SourceRef) {
 	// Prune against the full source inventory: a workspace override must not evict
 	// a global source's last discovery used by another workspace.
 	p.forgetDiscovered(func(source SourceRef) bool {
-		switch source.Scope {
-		case "", mcpSourceScopeUser, mcpSourceScopeWorkspace:
-			// Projection stamps the caller profile onto user and workspace sources.
-			source.ProfileID = ""
-		}
-		return !active[source]
+		return !active[MCPDeclarationSource(source)]
 	})
+}
+
+// MCPDeclarationSource removes the caller's profile from inherited declaration identities.
+func MCPDeclarationSource(source SourceRef) SourceRef {
+	switch source.Scope {
+	case "", mcpSourceScopeUser, mcpSourceScopeWorkspace:
+		source.ProfileID = ""
+	}
+	return source
 }

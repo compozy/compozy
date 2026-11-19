@@ -33,13 +33,14 @@ type secretRegistration struct {
 // derived once per change because redaction reads them for every string.
 type SecretSnapshot struct {
 	fingerprint [sha256.Size]byte
+	material    [sha256.Size]byte
 	values      []string
 	encodings   []string
 }
 
 func newDynamicSecretRegistry() *dynamicSecretRegistry {
 	registry := &dynamicSecretRegistry{values: make(map[string]secretRegistration)}
-	registry.snapshot.Store(&SecretSnapshot{fingerprint: sha256.Sum256(nil)})
+	registry.snapshot.Store(&SecretSnapshot{fingerprint: sha256.Sum256(nil), material: sha256.Sum256(nil)})
 	return registry
 }
 
@@ -115,12 +116,19 @@ func (r *dynamicSecretRegistry) storeSnapshotLocked() {
 	})
 	// An unrelated temporary registration can disappear without changing the lifetime of any retained secret.
 	registrations := make([]byte, 0, len(secrets)*8)
+	material := sha256.New()
+	var size [8]byte
 	for _, secret := range secrets {
 		registrations = binary.LittleEndian.AppendUint64(registrations, r.values[secret].sequence)
+		binary.LittleEndian.PutUint64(size[:], uint64(len(secret)))
+		// The concrete SHA-256 writer never returns an error.
+		_, _ = material.Write(size[:])
+		_, _ = material.Write([]byte(secret))
 	}
 	r.snapshot.Store(&SecretSnapshot{
 		values: secrets, encodings: secretEncodings(secrets),
 		fingerprint: sha256.Sum256(registrations),
+		material:    [sha256.Size]byte(material.Sum(nil)),
 	})
 }
 
@@ -137,3 +145,7 @@ func RegisteredSecretSnapshot() *SecretSnapshot { return dynamicSecrets.snapshot
 
 // SecretFingerprint identifies the current continuous registrations without exposing their values.
 func SecretFingerprint() [sha256.Size]byte { return RegisteredSecretSnapshot().fingerprint }
+
+// MaterialFingerprint identifies the same redaction inputs across repeated registrations.
+// The fingerprint is for in-process cache keys and must never be exposed or logged.
+func (s *SecretSnapshot) MaterialFingerprint() [sha256.Size]byte { return s.material }

@@ -13,6 +13,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+const hostedSlowBindThreshold = time.Second
+
 // Bind consumes an armed launch window after validating the nonce, Unix peer and expected binary.
 func (s *HostedService) Bind(
 	ctx context.Context,
@@ -22,8 +24,11 @@ func (s *HostedService) Bind(
 	startedAt := time.Now()
 	sessionID := strings.TrimSpace(req.SessionID)
 	projectionFailureClass := ""
+	phase := "peer_validation"
+	var projectionDuration time.Duration
 	defer func() {
-		s.logBindOutcome(sessionID, peer, len(response.Tools), time.Since(startedAt), err, projectionFailureClass)
+		s.logBindOutcome(sessionID, peer, len(response.Tools), time.Since(startedAt), err, projectionFailureClass,
+			phase, projectionDuration)
 	}()
 
 	if err := ctxErr(ctx); err != nil {
@@ -42,6 +47,7 @@ func (s *HostedService) Bind(
 	if err := s.validatePeer(peer); err != nil {
 		return HostedBindResponse{}, err
 	}
+	phase = "launch_validation"
 	bindID, err := s.randomToken(hostedBindBytes)
 	if err != nil {
 		return HostedBindResponse{}, fmt.Errorf("mcp: mint hosted MCP bind id: %w", err)
@@ -50,7 +56,10 @@ func (s *HostedService) Bind(
 	if err != nil {
 		return HostedBindResponse{}, err
 	}
+	phase = "projection"
+	projectionStarted := time.Now()
 	projection, err := s.bootstrapProjection(ctx, record)
+	projectionDuration = time.Since(projectionStarted)
 	if err != nil {
 		projectionFailureClass = HostedProjectionFailureClass(err)
 		if record.eagerTools {
@@ -59,6 +68,7 @@ func (s *HostedService) Bind(
 		s.ReleaseBind(bindID)
 		return HostedBindResponse{}, err
 	}
+	phase = "publish"
 	s.mu.Lock()
 	active := s.binds[bindID]
 	if active != nil {
@@ -88,6 +98,8 @@ func (s *HostedService) logBindOutcome(
 	duration time.Duration,
 	err error,
 	projectionFailureClass string,
+	phase string,
+	projectionDuration time.Duration,
 ) {
 	if s == nil || s.logger == nil {
 		return
@@ -96,6 +108,12 @@ func (s *HostedService) logBindOutcome(
 		"session_id", sessionID,
 		"peer_pid", peer.PID,
 		"duration_ms", duration.Milliseconds(),
+	}
+	if err != nil || duration >= hostedSlowBindThreshold {
+		if err == nil && projectionDuration >= duration-projectionDuration {
+			phase = "projection"
+		}
+		attributes = append(attributes, "phase", phase, "projection_ms", projectionDuration.Milliseconds())
 	}
 	if err != nil {
 		if projectionFailureClass != "" {

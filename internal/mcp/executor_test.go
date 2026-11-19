@@ -28,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/mcp/securehttp"
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -1663,6 +1664,159 @@ func TestMCPClientCleanup(t *testing.T) {
 // Owning layer: internal/mcp unit cache.
 // Canonical suite: internal/mcp/executor_test.go.
 func TestMCPToolListCache(t *testing.T) {
+	// Invariant: one upstream notification invalidates its source across a large catalog.
+	// Owner: executor discovery cache; canonical suite: TestMCPToolListCache.
+	t.Run("Should relist only the changed source for incident-scale cached readers", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+		const servers, toolsPerServer, readers = 5, 220, 18
+		var calls [servers]atomic.Int32
+		var sdk [servers]*mcpsdk.Server
+		configured := make(map[string]compozyconfig.MCPServer, servers)
+		sources := make([]toolspkg.SourceRef, 0, servers)
+		subscribed := make(chan struct{})
+		for i := range servers {
+			name := fmt.Sprintf("catalog%d", i)
+			sdk[i] = mcpsdk.NewServer(&mcpsdk.Implementation{Name: name}, &mcpsdk.ServerOptions{
+				Capabilities: &mcpsdk.ServerCapabilities{Tools: &mcpsdk.ToolCapabilities{ListChanged: i == 0}},
+			})
+			for _, tool := range syntheticMCPTools(toolsPerServer) {
+				sdk[i].AddTool(tool, func(context.Context, *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+					return &mcpsdk.CallToolResult{}, nil
+				})
+			}
+			sdk[i].AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+				return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+					if method == mcpToolsListMethod {
+						calls[i].Add(1)
+					}
+					return next(ctx, method, request)
+				}
+			})
+			server := newTestMCPHTTPServer(sdk[i])
+			t.Cleanup(server.Close)
+			configured[name] = compozyconfig.MCPServer{
+				Name: name, Transport: compozyconfig.MCPServerTransportHTTP, URL: server.URL,
+			}
+			sources = append(sources, toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: name, RawServerName: name})
+		}
+		acknowledged := sync.OnceFunc(func() { close(subscribed) })
+		sdk[0].AddSendingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				result, err := next(ctx, method, request)
+				if err == nil && method == "notifications/subscriptions/acknowledged" {
+					acknowledged()
+				}
+				return result, err
+			}
+		})
+		executor, err := NewMCPCallExecutor(
+			ServerResolverFunc(func(_ context.Context, source toolspkg.SourceRef, _ string) (ResolvedServer, error) {
+				return ResolvedServer{
+					Server: configured[source.Owner], Target: userMCPExecutorTarget(source.Owner),
+				}, nil
+			}),
+			WithDefinitionDigestKey([]byte("catalog notification test key")),
+			WithToolCatalogNotifications(),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := executor.CloseCatalogConnections(); err != nil {
+				t.Error(err)
+			}
+		})
+		for range readers {
+			for _, source := range sources {
+				got, err := executor.ListTools(ctx, source)
+				if err != nil || len(got) != toolsPerServer {
+					t.Fatalf("ListTools(%q) = %d tools, %v", source.Owner, len(got), err)
+				}
+			}
+		}
+		select {
+		case <-subscribed:
+		case <-ctx.Done():
+			t.Fatal("server never acknowledged catalog subscription")
+		}
+		sdk[0].RemoveTools("catalog_tool_0000")
+		select {
+		case <-executor.CatalogChanges():
+		case <-ctx.Done():
+			t.Fatal("executor did not receive tools/list_changed")
+		}
+		for range readers {
+			for i, source := range sources {
+				want := toolsPerServer
+				if i == 0 {
+					want--
+				}
+				got, err := executor.ListTools(ctx, source)
+				if err != nil || len(got) != want {
+					t.Fatalf("ListTools(%q) after change = %d tools, %v, want %d", source.Owner, len(got), err, want)
+				}
+			}
+		}
+		for i := range servers {
+			want := int32(1)
+			if i == 0 {
+				want++
+			}
+			if got := calls[i].Load(); got != want {
+				t.Errorf("server %d tools/list calls = %d, want %d", i, got, want)
+			}
+		}
+	})
+
+	// Invariant: repeat registrations reuse encoded schemas and a new secret performs one pass.
+	// Owner: executor descriptor normalization; canonical suite: TestMCPToolListCache.
+	t.Run("Should process registered secret material once per server catalog", func(t *testing.T) {
+		const size, readers = 1100, 18
+		const stable = "synthetic-request-secret-a5237a9d"
+		const late = "synthetic-catalog-secret-45fe9a81"
+		server := compozyconfig.MCPServer{Name: "fixture", URL: "https://example.com/mcp"}
+		executor := newTestMCPExecutor(t, server)
+		resolved := &ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+		var encodes int
+		raw := syntheticMCPTools(size)
+		for _, tool := range raw {
+			tool.InputSchema = countMCPJSONEncodes{&encodes}
+		}
+		raw[0].Description = late
+		read := func() ToolDiscovery {
+			t.Helper()
+			discovery, err := executor.normalizeToolListing("fixture", source, resolved, protocolVersionModern, raw)
+			if err != nil || len(discovery.Descriptors) != size {
+				t.Fatalf("normalized %d tools, error %v", len(discovery.Descriptors), err)
+			}
+			return discovery
+		}
+		for range readers {
+			cleanup := redact.RegisterRequiredSecret(stable)
+			read()
+			cleanup()
+		}
+		initial := encodes
+		if initial != size*2 {
+			t.Fatalf("schema encodes = %d, want one fingerprint and one normalization pass", initial)
+		}
+		stableCleanup := redact.RegisterRequiredSecret(stable)
+		defer stableCleanup()
+		lateCleanup := redact.RegisterRequiredSecret(late)
+		defer lateCleanup()
+		for range readers {
+			if listing := read(); strings.Contains(listing.Descriptors[0].Description, late) {
+				t.Fatal("late credential appears in cached descriptor")
+			}
+		}
+		if got := encodes - initial; got != initial {
+			t.Fatalf("schema encodes after a new credential = %d, want one new pass", got)
+		}
+	})
+
 	// Invariant: a waiter's deadline is an MCP timeout and carries no upstream health failure.
 	// Owner: MCP executor listing coordination; canonical suite: TestMCPToolListCache.
 	t.Run("Should classify a listing wait deadline as an MCP timeout", func(t *testing.T) {
@@ -2193,6 +2347,7 @@ func TestMCPToolListCache(t *testing.T) {
 		}}
 		if err := executor.recordToolProjection(
 			mcpProjectionSourceKey(source, "", ""),
+			"",
 			first,
 			time.Minute,
 			time.Now(),
@@ -2210,6 +2365,7 @@ func TestMCPToolListCache(t *testing.T) {
 		}}
 		if err := executor.recordToolProjection(
 			mcpProjectionSourceKey(source, "", ""),
+			"",
 			second,
 			time.Minute,
 			time.Now(),
@@ -2244,6 +2400,7 @@ func TestMCPToolListCache(t *testing.T) {
 		now := time.Now()
 		if err := executor.recordToolProjection(
 			mcpProjectionSourceKey(source, "", ""),
+			"",
 			[]toolspkg.MCPToolDescriptor{alpha, beta},
 			time.Minute,
 			now,
@@ -2258,6 +2415,7 @@ func TestMCPToolListCache(t *testing.T) {
 		reorderedDescriptors := []toolspkg.MCPToolDescriptor{beta, alpha}
 		if err := executor.recordToolProjection(
 			mcpProjectionSourceKey(source, "", ""),
+			"",
 			reorderedDescriptors,
 			time.Minute,
 			now.Add(time.Millisecond),
@@ -2304,6 +2462,7 @@ func TestMCPToolListCache(t *testing.T) {
 		}}
 		if err := executor.recordToolProjection(
 			mcpProjectionSourceKey(source, "Bearer first-token", ""),
+			"",
 			descriptors,
 			time.Minute,
 			time.Now(),
@@ -2448,6 +2607,7 @@ func TestMCPToolListCache(t *testing.T) {
 		}
 		if err := executor.recordToolProjection(
 			mcpProjectionSourceKey(source, "", ""),
+			"",
 			[]toolspkg.MCPToolDescriptor{{ID: "mcp__fixture__alpha"}},
 			time.Millisecond,
 			time.Now().Add(-time.Second),
@@ -2467,6 +2627,24 @@ func TestMCPToolListCache(t *testing.T) {
 			t.Fatalf("projection state count = %d, want 0 after expiry", projectionStateCount)
 		}
 	})
+}
+
+type countMCPJSONEncodes struct{ count *int }
+
+func (s countMCPJSONEncodes) MarshalJSON() ([]byte, error) {
+	(*s.count)++
+	return []byte(`{"type":"object","properties":{"query":{"type":"string"}}}`), nil
+}
+
+func syntheticMCPTools(count int) []*mcpsdk.Tool {
+	tools := make([]*mcpsdk.Tool, 0, count)
+	for i := range count {
+		tools = append(tools, &mcpsdk.Tool{
+			Name:        fmt.Sprintf("catalog_tool_%04d", i),
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}}}`),
+		})
+	}
+	return tools
 }
 
 func TestProtocolVersionMiddleware(t *testing.T) {
@@ -2673,12 +2851,25 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 		t.Parallel()
 		executor := &CallExecutor{}
 		tool := mcpsdk.Tool{Name: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}
-		manual, err := executor.descriptorFromTool(toolspkg.SourceRef{}, compozyconfig.MCPServer{Name: "github"}, tool)
+		manual, err := executor.descriptorFromTool(
+			toolspkg.SourceRef{},
+			compozyconfig.MCPServer{Name: "github"},
+			tool,
+			redact.RegisteredSecretSnapshot(),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		owned, err := executor.descriptorFromTool(toolspkg.SourceRef{ResourceID: "extension-record"},
-			compozyconfig.MCPServer{Name: "github", Owner: "extension:github", RuntimeName: "github.github"}, tool)
+		owned, err := executor.descriptorFromTool(
+			toolspkg.SourceRef{ResourceID: "extension-record"},
+			compozyconfig.MCPServer{
+				Name:        "github",
+				Owner:       "extension:github",
+				RuntimeName: "github.github",
+			},
+			tool,
+			redact.RegisteredSecretSnapshot(),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2705,6 +2896,7 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 					mcpPreviewMetadataKey:      "arg:query",
 				},
 			},
+			redact.RegisteredSecretSnapshot(),
 		)
 		if err != nil {
 			t.Fatalf("descriptorFromTool() error = %v", err)
@@ -2746,6 +2938,7 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 				Name:        "credential_" + encodedSecret,
 				InputSchema: json.RawMessage(`{"type":"object"}`),
 			},
+			redact.RegisteredSecretSnapshot(),
 		)
 		requireReason(t, err, toolspkg.ReasonSecretMetadata)
 		requireSecretAbsentFromReversibleString(t, "descriptorFromTool() error", err.Error(), secret)
@@ -2773,7 +2966,7 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 
 				descriptor := safeMCPDescriptorForRedactionTest()
 				test.mutate(&descriptor)
-				_, redactErr := redactMCPToolDescriptor(descriptor)
+				_, redactErr := redactMCPToolDescriptor(descriptor, redact.RegisteredSecretSnapshot())
 				requireReason(t, redactErr, toolspkg.ReasonSecretMetadata)
 				requireSecretAbsentFromReversibleString(t, "descriptor identity error", redactErr.Error(), secret)
 			})
@@ -2788,7 +2981,7 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 		}
 		descriptor := safeMCPDescriptorForRedactionTest()
 		descriptor.InputSchema = collisionSchema
-		if _, err := redactMCPToolDescriptor(descriptor); err == nil {
+		if _, err := redactMCPToolDescriptor(descriptor, redact.RegisteredSecretSnapshot()); err == nil {
 			t.Fatal("redactMCPToolDescriptor(collision schema) error = nil, want fail-closed collision")
 		}
 	})
@@ -4826,6 +5019,7 @@ func TestCheckInReadOnlyOverride(t *testing.T) {
 					}},
 					protocolVersionLegacy,
 					[]*mcpsdk.Tool{&tool},
+					redact.RegisteredSecretSnapshot(),
 				)
 				if err != nil {
 					t.Fatal(err)

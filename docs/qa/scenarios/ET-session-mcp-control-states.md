@@ -127,3 +127,9 @@ Settings opens, no MCP popover remains on screen, detached at the top-left corne
 QA impact 2026-11-17 (#1794, daemon CPU hot paths):
 Session details reuse a current MCP summary. Declarations, approvals, auth revisions, runtime identity and pending reloads invalidate or refresh it within the existing poll bound; triage/instance inputs without complete revisions remain synchronous. The targeted Settings-to-hosted-MCP probe covers approval publication without restart.
 See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).
+
+QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
+
+Start a session with four ready fixture servers and one server held during discovery. Confirm the
+prompt is accepted, the pending or failed row names the held server, and the ready tools remain
+available. Release it and confirm the catalog updates.

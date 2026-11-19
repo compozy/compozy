@@ -53,3 +53,9 @@ token, missing credentials, revoked consent and session-budget exclusions must r
 QA impact 2026-11-17 (#1794, daemon CPU hot paths):
 Unchanged MCP listings share a three-second discovery floor; explicit checks bypass it. Project approval still invalidates hosted projections immediately and next-message activation remains required. The targeted real-transport walk covers pending-to-approved tool visibility without restart.
 See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).
+
+QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
+
+Bind 18 sessions to a five-server catalog of about 1,300 tools. Change one fixture and send
+tools/list_changed. Verify its catalog is listed once and delivered to the sessions, while the
+other upstream list counters remain unchanged.

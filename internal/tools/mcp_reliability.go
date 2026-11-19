@@ -160,7 +160,14 @@ func (p *MCPProvider) discoveryFailed(
 	if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
 		return nil, false, contextError
 	}
-	p.discoveryFailures.Store(source, struct{}{})
+	reason, _ := ReasonOf(err)
+	if reason == "" {
+		reason = ReasonBackendUnhealthy
+	}
+	previous, _ := p.discoveryFailures.Swap(source, reason)
+	if p.catalog != nil && previous != reason {
+		p.catalog.sourceChanged(ctx, source, err)
+	}
 	if tracked && p.reliability != nil {
 		if recordErr := p.reliability.service.RecordFailure(
 			ctx,
@@ -185,6 +192,8 @@ func (p *MCPProvider) discoverySucceeded(
 	reliabilityState *mcpReliabilityState,
 	discovered []MCPToolDescriptor,
 ) ([]Descriptor, bool, error) {
+	before, hadDiscovery := p.discovered.Load(source)
+	_, wasFailed := p.discoveryFailures.Load(source)
 	descriptors, err := p.normalizeDiscovery(source, discovered)
 	if err != nil {
 		return nil, false, err
@@ -195,6 +204,10 @@ func (p *MCPProvider) discoverySucceeded(
 			return nil, false, fmt.Errorf("tools: record mcp source %q recovery: %w", source.Owner, err)
 		}
 		p.reliability.store(key, reliabilityState, descriptors)
+	}
+	after, _ := p.discovered.Load(source)
+	if p.catalog != nil && (!hadDiscovery || before != after || wasFailed) {
+		p.catalog.sourceChanged(ctx, source, nil)
 	}
 	return descriptors, true, nil
 }

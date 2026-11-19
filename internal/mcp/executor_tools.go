@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/redact"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -33,6 +34,7 @@ func (e *CallExecutor) descriptorsFromTools(
 	resolved *ResolvedServer,
 	protocolVersion string,
 	tools []*mcpsdk.Tool,
+	snapshot *redact.SecretSnapshot,
 ) (ToolDiscovery, error) {
 	server := resolved.Server
 	descriptors := make([]toolspkg.MCPToolDescriptor, 0, len(tools))
@@ -48,7 +50,7 @@ func (e *CallExecutor) descriptorsFromTools(
 		var descriptor toolspkg.MCPToolDescriptor
 		err := validateMCPTransportToolName(server, protocolVersion, tool.Name)
 		if err == nil {
-			descriptor, err = e.descriptorFromTool(source, server, *tool)
+			descriptor, err = e.descriptorFromTool(source, server, *tool, snapshot)
 		}
 		if err != nil {
 			validation, ok := errors.AsType[*toolspkg.ValidationError](err)

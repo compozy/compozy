@@ -6679,3 +6679,19 @@ Owner: [#1838](https://github.com/compozy/compozy/issues/1838).
 - **Docs, official skill and QA.** The MCP reference and `RT-mcp-reload-failure-recovery`
   describe first-bind and idle-rebind recovery. Initial and subsequent hosted projections record
   a fixed cause class in daemon logs when they fail.
+
+## Hosted MCP catalog discovery
+
+Owner [#1850](https://github.com/compozy/compozy/issues/1850).
+
+- **Native tools and CLI/HTTP/UDS.** The hosted handshake returns ready tools while the daemon
+  discovers external catalogs. Session MCP list surfaces report why a configured server is missing.
+  Explicit checks force upstream discovery and keep the previous catalog after failure.
+- **Workspace and profile isolation.** Upstream subscriptions follow the resolved source and
+  credential binding. Project consent is checked before discovery. Shared projections use the
+  registry's visibility class, including profile, workspace and effective session policy.
+- **Extensibility, config and user state.** Existing declaration formats, generated API shapes,
+  extension and hook interfaces, and persisted state support the same inputs. Hosted updates use
+  the existing tool-list notification.
+- **Web, docs and official skill.** The MCP controls render the existing state and reason fields.
+  The MCP docs and tools-and-skills reference explain discovery, refresh and cooldown.

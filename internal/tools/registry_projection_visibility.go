@@ -36,24 +36,13 @@ func (r *RuntimeRegistry) ProjectionVisibility(ctx context.Context, scope Scope)
 	if inputs.CheckIn != nil {
 		return "", false
 	}
-	// ToolPattern and agent enforcement are intentionally absent from PolicyInputs' JSON shape.
-	type visibilityPolicy struct {
-		Inputs        PolicyInputs
-		Allow         []string
-		Deny          []string
-		AgentEnforced bool
-		AgentAllow    []string
-		AgentDeny     []string
-	}
-	policy := visibilityPolicy{inputs, projectionPatterns(inputs.AllowTools), projectionPatterns(inputs.DenyTools),
-		inputs.Agent.Enforced, projectionPatterns(inputs.Agent.Tools), projectionPatterns(inputs.Agent.DenyTools)}
 	material := struct {
 		Profile   string
 		Workspace string
 		Policy    visibilityPolicy
 		Providers []Scope
 		Native    []Availability
-	}{Profile: scope.ProfileID, Workspace: scope.WorkspaceID, Policy: policy}
+	}{Profile: scope.ProfileID, Workspace: scope.WorkspaceID, Policy: projectionPolicy(inputs)}
 	for _, provider := range r.providers {
 		if native, ok := provider.(*NativeProvider); ok {
 			for _, id := range native.ids {
@@ -84,6 +73,21 @@ func (r *RuntimeRegistry) ProjectionVisibility(ctx context.Context, scope Scope)
 	cache.visibilities[key] = class
 	cache.visibilityMu.Unlock()
 	return class, true
+}
+
+// ToolPattern and agent enforcement are absent from PolicyInputs' JSON shape.
+type visibilityPolicy struct {
+	Inputs        PolicyInputs
+	Allow         []string
+	Deny          []string
+	AgentEnforced bool
+	AgentAllow    []string
+	AgentDeny     []string
+}
+
+func projectionPolicy(inputs PolicyInputs) visibilityPolicy {
+	return visibilityPolicy{inputs, projectionPatterns(inputs.AllowTools), projectionPatterns(inputs.DenyTools),
+		inputs.Agent.Enforced, projectionPatterns(inputs.Agent.Tools), projectionPatterns(inputs.Agent.DenyTools)}
 }
 
 func projectionPatterns(patterns []ToolPattern) []string {

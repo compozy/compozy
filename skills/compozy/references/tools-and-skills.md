@@ -338,6 +338,14 @@ the sign-in flow above; `waiting_approval` → allow it; `not_available` → the
 excludes it (start a session without that restriction); `applies_next_message` → send the next
 message.
 
+**Catalog discovery runs in the background.** A new hosted session binds with the tools already
+available. Session MCP rows report pending discovery, timeout, and unreachable-server reasons.
+A successful refresh publishes the changed catalog to bound proxies. HTTP subscriptions and
+stdio notifications invalidate the affected server's listing. The discovery worker checks expiry
+every three seconds. A server without a cache hint is refreshed after two minutes. A server's
+shorter advertised expiry is subject to the three-second discovery floor. Stdio backoff is
+visible in a runtime check's diagnostic.
+
 Use `compozy session mcp check <id> <name> [--owner extension:<name>]` to retry one server.
 The session POST route is `/api/workspaces/{ws}/sessions/{id}/mcp/servers/{name}/check`;
 `owner` defaults to `manual`. It returns refreshed session MCP availability, performs discovery
