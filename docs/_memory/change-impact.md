@@ -73,6 +73,26 @@ Owner: branch `run/gateway-manual-6-digit-pairing-device-removal-backend-a87a117
 
 ||||||| parent of 9b114ea59 (feat: pin sessions above the session list)
 
+## MCP OAuth offline access, repair and early renewal
+
+Owners: [#1829](https://github.com/compozy/compozy/issues/1829), [#1830](https://github.com/compozy/compozy/issues/1830), and [#1831](https://github.com/compozy/compozy/issues/1831).
+
+- **Native tools and CLI/HTTP/UDS.** Tool discovery and calls can renew a token shortly before
+  expiry. `compozy__mcp_auth_status` and the equivalent CLI and API status surfaces show the
+  actual expiry and an actionable diagnostic for an unusable local registration. Credential
+  material stays redacted. The existing tools, routes and fields carry these outcomes.
+- **Extensibility, hooks and config.** Manual and extension-owned remotes share the OAuth flow.
+  Sign-in uses issuer-advertised offline access and honors issuer consent parameters. Extension
+  APIs, hooks and configuration shapes stay the same.
+- **State and isolation.** Access, refresh and registration state remain bound to the normalized
+  target, its definition, client and issuer. Existing SQLite rows and the CIMD compatibility
+  loader support renewal in place. Transient failures retain the bound access token and refresh
+  grant. Known local registration failures leave stored credentials available for repair.
+- **Web, official skill, docs and QA.** Settings uses its existing status and reauthorization
+  controls. The MCP configuration guide and official skill describe when renewal or sign-in is
+  needed. The ET-api-mcp-oauth-endpoints and ET-web-mcp-status-matrix scenarios cover the same
+  outcomes through the existing status fields and controls.
+
 ## MCP OAuth refresh for CIMD clients
 
 Owner: [#1828](https://github.com/compozy/compozy/issues/1828).
