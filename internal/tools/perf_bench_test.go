@@ -43,6 +43,46 @@ var (
 	}
 )
 
+func BenchmarkCachedMCPExternalProjectionObservation(b *testing.B) {
+	descriptors := make([]MCPToolDescriptor, 806)
+	for i := range descriptors {
+		descriptors[i] = MCPToolDescriptor{
+			RawName: fmt.Sprintf("tool_%03d", i), ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`),
+		}
+	}
+	executor := newFakeMCPExecutor(descriptors)
+	source := SourceRef{Kind: SourceMCP, Owner: "bench", RawServerName: "bench", Scope: "user"}
+	provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+		return []SourceRef{source}, nil
+	}), executor, executor)
+	if err != nil {
+		b.Fatal(err)
+	}
+	registry, err := NewRegistry(WithProviders(provider))
+	if err != nil {
+		b.Fatal(err)
+	}
+	scope := Scope{ProfileID: "profile", WorkspaceID: "workspace"}
+	if listed, err := provider.List(b.Context(), scope); err != nil || len(listed) != len(descriptors) {
+		b.Fatalf("warm catalog tools=%d error=%v", len(listed), err)
+	}
+	ctx := WithCachedMCPProjection(b.Context())
+	expected, err := registry.ExternalProjectionFingerprint(ctx, scope)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		fingerprint, err := registry.ExternalProjectionFingerprint(registry.FreshReadContext(ctx), scope)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if fingerprint != expected {
+			b.Fatal("idle fingerprint changed")
+		}
+	}
+}
+
 func BenchmarkSourceKindString(b *testing.B) {
 	b.ReportAllocs()
 

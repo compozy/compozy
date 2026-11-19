@@ -88,3 +88,43 @@ func (p *MCPProvider) mcpSourceAvailabilityGeneration(
 	}
 	return fmt.Sprintf("blocked:%s", reason), true
 }
+
+// cachedProjectionObservation reads the exact inputs used by cache-only MCP listings.
+// Discovery owns descriptor validation and fingerprints when publishing a source snapshot.
+func (p *MCPProvider) cachedProjectionObservation(ctx context.Context, scope Scope) (string, error) {
+	sources, err := p.sources.ListMCPSources(ctx)
+	if err != nil {
+		return "", err
+	}
+	sources = MCPSourcesForScope(sources, scope)
+	slices.SortFunc(sources, func(left, right SourceRef) int {
+		return strings.Compare(sourceKey(left), sourceKey(right))
+	})
+	var stamp strings.Builder
+	fmt.Fprintf(&stamp, "%x", redact.SecretFingerprint())
+	for _, source := range sources {
+		if p.consent != nil {
+			allowed, err := p.consent(ctx, source, scope.ProfileID)
+			if err != nil {
+				return "", err
+			}
+			if !allowed {
+				continue
+			}
+		}
+		value, found := p.discovered.Load(source)
+		if !found {
+			continue
+		}
+		snapshot, ok := value.(*mcpDiscoverySnapshot)
+		if !ok {
+			panic("invariant: discovered MCP source has an unexpected type")
+		}
+		handle := mcpHandle{descriptor: Descriptor{Source: source}, exec: p.exec, auth: p.auth,
+			reliability: p.reliability, provider: p}
+		fmt.Fprintf(&stamp, "%x", snapshot.content)
+		appendProjectionGenerationPart(&stamp, sourceKey(source), source.ResourceVersion)
+		appendProjectionAvailability(&stamp, handle.Availability(ctx, scope))
+	}
+	return stamp.String(), ctx.Err()
+}

@@ -1223,6 +1223,103 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	})
 
 	t.Parallel()
+	// Invariant: an idle fallback does not resolve policy, and local changes only rebuild their bind.
+	// Owner: hosted projection cache; canonical suite: hosted projection generations.
+	t.Run("Should compare bounded observations before resolving stream policy", func(t *testing.T) {
+		t.Parallel()
+		executable := hostedTestExecutable(t, "compozy")
+		now := time.Now()
+		calls := make(map[string]int)
+		restrictions := make(map[string]bool)
+		available := true
+		const id tools.ToolID = "compozy__observed_tool"
+		native := hostedRuntimeNativeTool(id, tools.RiskRead, true)
+		native.Availability = func(_ context.Context, scope tools.Scope) tools.Availability {
+			if !available && scope.SessionID == "affected" {
+				return tools.Unavailable(tools.ReasonDependencyMissing)
+			}
+			return tools.Available()
+		}
+		provider, err := tools.NewNativeProvider(tools.BuiltinSource(), native)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver := hostedObservationPolicyResolver{
+			resolve: func(_ context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
+				calls[scope.SessionID]++
+				inputs := tools.DefaultPolicyInputs()
+				inputs.Session.Enforced = true
+				if !restrictions[scope.SessionID] {
+					inputs.Session.Tools = []tools.ToolID{id}
+				}
+				return inputs, nil
+			},
+			identity: func(scope tools.Scope) any { return restrictions[scope.SessionID] },
+		}
+		registry, err := tools.NewRegistry(tools.WithProviders(provider),
+			tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+		service.projectionEpoch = NewProjectionEpoch().Current
+		peer := hostedTestPeer(executable)
+		binds := map[string]string{}
+		digests := map[string]string{}
+		for _, sessionID := range []string{"affected", "sibling"} {
+			launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: sessionID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := service.ArmLaunch(t.Context(), sessionID); err != nil {
+				t.Fatal(err)
+			}
+			bound, err := service.Bind(t.Context(), HostedBindRequest{
+				SessionID: sessionID, Nonce: hostedLaunchNonce(t, launch.Args),
+			}, peer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			binds[sessionID] = bound.BindID
+			initial, err := service.StreamProjection(t.Context(), bound.BindID, peer, "")
+			if err != nil || len(initial.Tools) != 1 {
+				t.Fatalf("initial %s = %v, %v", sessionID, initial, err)
+			}
+			digests[sessionID] = initial.Digest
+		}
+		clear(calls)
+		read := func(sessionID string, count int, changed bool) {
+			t.Helper()
+			result, err := service.StreamProjection(t.Context(), binds[sessionID], peer, digests[sessionID])
+			if err != nil || len(result.Tools) != count || (result.Digest != digests[sessionID]) != changed {
+				t.Fatalf("projection %s = %v, %v", sessionID, result, err)
+			}
+			digests[sessionID] = result.Digest
+		}
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 0, false)
+		read("sibling", 0, false)
+		if len(calls) != 0 {
+			t.Fatalf("idle fallback resolved policies: %v", calls)
+		}
+
+		available = false
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 0, true)
+		read("sibling", 0, false)
+		if calls["affected"] == 0 || calls["sibling"] != 0 {
+			t.Fatalf("availability change resolved policies: %v", calls)
+		}
+
+		available = true
+		restrictions["affected"] = true
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 0, false)
+		read("sibling", 0, false)
+		if calls["sibling"] != 0 {
+			t.Fatalf("restriction rebuilt a sibling: %v", calls)
+		}
+	})
 	// Invariant: secret changes preserve safe hosted reads without caching a projection built across revisions.
 	// Owner: hosted projection; canonical suite: hosted projection generations.
 	for _, tc := range []struct {
@@ -3470,6 +3567,22 @@ func (p *hostedCountingProvider) List(ctx context.Context, scope tools.Scope) ([
 
 func (p *hostedCountingProvider) ProjectionScope(scope tools.Scope) tools.Scope {
 	return tools.Scope{ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID}
+}
+
+type hostedObservationPolicyResolver struct {
+	resolve  hostedPolicyResolver
+	identity func(tools.Scope) any
+}
+
+func (r hostedObservationPolicyResolver) Resolve(ctx context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
+	return r.resolve(ctx, scope)
+}
+
+func (r hostedObservationPolicyResolver) ProjectionPolicyIdentity(_ context.Context, scope tools.Scope) (any, bool) {
+	if r.identity == nil {
+		return nil, true
+	}
+	return r.identity(scope), true
 }
 
 type hostedPolicyResolver func(context.Context, tools.Scope) (tools.PolicyInputs, error)

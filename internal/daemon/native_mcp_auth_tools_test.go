@@ -560,6 +560,39 @@ func (p *nativeMCPAuthStatusProvider) Status(
 
 func TestRuntimeMCPInventory(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep the revision stable when multiple unchanged contexts expire together", func(t *testing.T) {
+		t.Parallel()
+		inventory := newTestRuntimeMCPInventory(t)
+		now := time.Now()
+		inventory.now = func() time.Time { return now }
+		root := t.TempDir()
+		requests := []runtimemcp.Request{
+			{
+				Runtime: "claude",
+				Context: runtimemcp.ReadContext{Home: root, SystemRoot: root, CWD: filepath.Join(root, "one")},
+			},
+			{
+				Runtime: "claude",
+				Context: runtimemcp.ReadContext{Home: root, SystemRoot: root, CWD: filepath.Join(root, "two")},
+			},
+		}
+		for _, request := range requests {
+			if _, err := inventory.List(t.Context(), request); err != nil {
+				t.Fatal(err)
+			}
+		}
+		before := inventory.Revision()
+		now = now.Add(runtimeMCPCacheTTL)
+		inventory.Poll()
+		for _, request := range requests {
+			if _, err := inventory.List(t.Context(), request); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if after := inventory.Revision(); after != before {
+			t.Fatalf("unchanged inventory revision = %d, want %d", after, before)
+		}
+	})
 	// Invariant: cache expiry alone does not publish an inventory change; file edits still do.
 	// Owner: daemon runtime inventory; canonical suite: runtime MCP inventory.
 	t.Run("Should retain the revision across an unchanged TTL refresh", func(t *testing.T) {
@@ -1232,6 +1265,51 @@ func newRuntimeMCPCopyFixture(t *testing.T, source string) runtimeMCPCopyFixture
 // Invariant: the session catalog retains blocked rows while projections remain callable-only and reads never discover. Owner: daemon MCP read model; UT-053, UT-080–082, UT-084, UT-091.
 func TestSessionMCPReadModel(t *testing.T) {
 	t.Parallel()
+	// Invariant: a runtime-owned file change rebuilds only dependencies of that file and publishes once.
+	// Owner: daemon session MCP summaries; canonical suite: session MCP reads.
+	t.Run("Should rebuild only the session whose runtime MCP file changed", func(t *testing.T) {
+		t.Parallel()
+		model, manager, _, _ := newSessionMCPReadFixture(t)
+		inventory := newTestRuntimeMCPInventory(t)
+		root := t.TempDir()
+		manager.boundIDs = []string{"sess-1", "sess-2"}
+		model.state.runtimeMCPInventory = inventory
+		model.state.sessions = &inventorySessionMCPManager{
+			sessionMCPManagerStub: manager,
+			inventory:             inventory,
+			root:                  root,
+		}
+
+		for range 2 {
+			if err := model.refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		reads := manager.reads
+		if len(manager.changes) != 2 {
+			t.Fatalf("initial summaries = %v", manager.changes)
+		}
+		dir := filepath.Join(root, "sess-2")
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, ".claude.json"),
+			[]byte(`{"mcpServers":{"local":{"command":"echo"}}}`),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		inventory.Poll()
+		for range 2 {
+			if err := model.refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if manager.reads != reads+1 || len(manager.changes) != 3 || manager.changes[2].Usable != 3 {
+			t.Fatalf("runtime edit: projections before=%d after=%d, changes=%v", reads, manager.reads, manager.changes)
+		}
+	})
 	t.Run("Should expose waiting definition and exact approval target", func(t *testing.T) {
 		t.Parallel()
 		model, _, executor, settings := newSessionMCPReadFixture(t)
@@ -1921,6 +1999,7 @@ func (s *sessionMCPManagerStub) ListSessionMCP(ctx context.Context, id string) (
 type sessionMCPExecutorStub struct {
 	discoveries int
 	fail        bool
+	descriptors []toolspkg.MCPToolDescriptor
 }
 
 var _ toolspkg.MCPCallExecutor = (*sessionMCPExecutorStub)(nil)
@@ -1929,6 +2008,9 @@ func (s *sessionMCPExecutorStub) ListTools(context.Context, toolspkg.SourceRef) 
 	s.discoveries++
 	if s.fail {
 		return nil, errors.New("MCP server unavailable")
+	}
+	if s.descriptors != nil {
+		return s.descriptors, nil
 	}
 	return []toolspkg.MCPToolDescriptor{
 		{RawName: "echo", ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`)},
@@ -1944,10 +2026,15 @@ func (*sessionMCPExecutorStub) CallTool(
 }
 
 func newSessionMCPReadFixture(
-	t *testing.T,
+	t testing.TB,
+) (*sessionMCPReadModel, *sessionMCPManagerStub, *sessionMCPExecutorStub, *nativeMCPSettingsService) {
+	return newSessionMCPReadFixtureWithExecutor(t, &sessionMCPExecutorStub{}, 2)
+}
+
+func newSessionMCPReadFixtureWithExecutor(
+	t testing.TB, executor *sessionMCPExecutorStub, toolCount int,
 ) (*sessionMCPReadModel, *sessionMCPManagerStub, *sessionMCPExecutorStub, *nativeMCPSettingsService) {
 	t.Helper()
-	executor := &sessionMCPExecutorStub{}
 	sources := []toolspkg.SourceRef{}
 	for _, name := range []string{"linear", "sentry", "waiting"} {
 		sources = append(
@@ -1982,7 +2069,7 @@ func newSessionMCPReadFixture(
 		AgentName:   "coder",
 	}
 	views, err := registry.SessionProjection(t.Context(), scope)
-	if err != nil || len(views) != 2 {
+	if err != nil || len(views) != toolCount {
 		t.Fatalf("warm projection=%+v, %v", views, err)
 	}
 	settings := &nativeMCPSettingsService{servers: []settingspkg.MCPServerItem{
@@ -2020,7 +2107,34 @@ func newSessionMCPReadFixture(
 	return model, manager, executor, settings
 }
 
-func newTestRuntimeMCPInventory(t *testing.T) *runtimeMCPInventory {
+type inventorySessionMCPManager struct {
+	*sessionMCPManagerStub
+	inventory *runtimeMCPInventory
+	root      string
+}
+
+func (m *inventorySessionMCPManager) MCPReadSnapshot(
+	ctx context.Context, id string, catalog toolspkg.AdvertisedCatalog,
+) (session.MCPRuntimeSnapshot, error) {
+	inventory, err := m.inventory.List(ctx, runtimemcp.Request{
+		Runtime: "claude",
+		Context: runtimemcp.ReadContext{
+			Home:       filepath.Join(m.root, id),
+			SystemRoot: m.root,
+			CWD:        filepath.Join(m.root, id),
+		},
+	})
+	if err != nil {
+		return session.MCPRuntimeSnapshot{}, err
+	}
+	result, err := m.sessionMCPManagerStub.MCPReadSnapshot(ctx, id, catalog)
+	if len(inventory.Runtimes) != 0 {
+		result.Inventory = inventory.Runtimes[0]
+	}
+	return result, err
+}
+
+func newTestRuntimeMCPInventory(t testing.TB) *runtimeMCPInventory {
 	t.Helper()
 	inventory, err := newRuntimeMCPInventory(vault.NewMCPDigestKeyProvider(t.TempDir()))
 	if err != nil {

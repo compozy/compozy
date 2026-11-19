@@ -5,16 +5,23 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"errors"
+	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-type InstanceRepo struct{ *repoBase }
+type InstanceRepo struct {
+	*repoBase
+	heartbeatAuthorityRevision *atomic.Uint64
+}
 
 func (g *GlobalDB) Instances() *InstanceRepo {
-	return &InstanceRepo{repoBase: newRepoBase(g.db, g.readDB, g.now, &g.closed)}
+	return &InstanceRepo{
+		repoBase:                   newRepoBase(g.db, g.readDB, g.now, &g.closed),
+		heartbeatAuthorityRevision: &g.heartbeatAuthorityRevision,
+	}
 }
 
 func (r *InstanceRepo) Get(ctx context.Context, id string) (agentinstance.Instance, error) {

@@ -98,6 +98,15 @@ func projectionPolicy(inputs PolicyInputs) visibilityPolicy {
 	}
 }
 
+// PolicyProjectionFingerprint returns the structural inputs to policy, including private patterns.
+func PolicyProjectionFingerprint(inputs PolicyInputs) ([sha256.Size]byte, error) {
+	encoded, err := json.Marshal(projectionPolicy(inputs))
+	if err != nil {
+		return [sha256.Size]byte{}, err
+	}
+	return sha256.Sum256(encoded), nil
+}
+
 func projectionPatterns(patterns []ToolPattern) []string {
 	result := make([]string, len(patterns))
 	for i, pattern := range patterns {

@@ -45,8 +45,10 @@ type daemonNativeTools struct {
 	deps *daemonNativeToolsDeps
 	// goalAvailability is nil when no projection epoch is wired, which keeps Goal availability live.
 	goalAvailability *nativeGoalAvailabilityCache
+	projectionChecks []toolspkg.NativeAvailabilityFunc
 }
 
+// Availability comes from a shared service probe or one of the scoped probes registered below.
 type nativeToolBinding struct {
 	call         toolspkg.NativeToolFunc
 	availability toolspkg.NativeAvailabilityFunc
@@ -110,7 +112,15 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 			Availability: binding.availability,
 		})
 	}
-	return toolspkg.NewNativeProvider(builtintools.Source(), nativeTools...)
+	provider, err := toolspkg.NewNativeProvider(builtintools.Source(), nativeTools...)
+	if err != nil {
+		return nil, err
+	}
+	provider.SetProjectionAvailabilityChecks(adapter.projectionChecks, []toolspkg.NativeAvailabilityFunc{
+		adapter.goalControlAvailability, adapter.goalGetAvailability, adapter.goalReportAvailability,
+		adapter.submitRunReviewAvailability,
+	})
+	return provider, nil
 }
 
 func (n *daemonNativeTools) nativeEffectiveScope(

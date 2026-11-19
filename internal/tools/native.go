@@ -19,9 +19,11 @@ type NativeTool struct {
 
 // NativeProvider serves daemon-compiled native_go tools.
 type NativeProvider struct {
-	source SourceRef
-	tools  map[ToolID]*NativeTool
-	ids    []ToolID
+	source             SourceRef
+	tools              map[ToolID]*NativeTool
+	ids                []ToolID
+	sharedAvailability []NativeAvailabilityFunc
+	scopedAvailability []NativeAvailabilityFunc
 }
 
 var _ Provider = (*NativeProvider)(nil)
@@ -56,9 +58,18 @@ func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProv
 		}
 		provider.tools[id] = cloneNativeTool(nativeTool)
 		provider.ids = append(provider.ids, id)
+		if nativeTool.Availability != nil {
+			provider.scopedAvailability = append(provider.scopedAvailability, nativeTool.Availability)
+		}
 	}
 	slices.Sort(provider.ids)
 	return provider, nil
+}
+
+// SetProjectionAvailabilityChecks registers equivalent shared probes before publishing the provider.
+func (p *NativeProvider) SetProjectionAvailabilityChecks(shared, scoped []NativeAvailabilityFunc) {
+	p.sharedAvailability = slices.Clone(shared)
+	p.scopedAvailability = slices.Clone(scoped)
 }
 
 // ID returns the provider provenance.

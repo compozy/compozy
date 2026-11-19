@@ -96,7 +96,7 @@ func (r *RuntimeRegistry) projectionAvailabilities(
 // PolicyProjection projects an already resolved scope without reentering its policy resolver.
 func (r *RuntimeRegistry) PolicyProjection(ctx context.Context, scope Scope, inputs PolicyInputs) ([]ToolView, error) {
 	if listings, ok := ctx.Value(projectionListingsKey{}).(*ProjectionListings); ok &&
-		IsHostedCatalogRead(ctx) && !scope.Operator && inputs.CheckIn == nil {
+		cachedMCPProjection(ctx) && !scope.Operator && inputs.CheckIn == nil {
 		return listings.loadPolicy(ctx, r, scope, inputs)
 	}
 	return r.policyProjection(ctx, scope, inputs)

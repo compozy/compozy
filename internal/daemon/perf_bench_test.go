@@ -21,6 +21,41 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+func BenchmarkSessionMCPSummaryIdleTick(b *testing.B) {
+	const toolsPerServer = 403
+	executor := &sessionMCPExecutorStub{descriptors: make([]toolspkg.MCPToolDescriptor, toolsPerServer)}
+	for i := range executor.descriptors {
+		executor.descriptors[i] = toolspkg.MCPToolDescriptor{
+			RawName: fmt.Sprintf("tool_%03d", i), ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`),
+		}
+	}
+	model, manager, _, _ := newSessionMCPReadFixtureWithExecutor(b, executor, 2*toolsPerServer)
+	now := time.Now()
+	inventory := newTestRuntimeMCPInventory(b)
+	inventory.now = func() time.Time { return now }
+	root := b.TempDir()
+	benchmarkManager := &inventorySessionMCPManager{
+		sessionMCPManagerStub: manager, inventory: inventory, root: root,
+	}
+	for i := range 22 {
+		manager.boundIDs = append(manager.boundIDs, fmt.Sprintf("sess-%d", i))
+	}
+	model.state.sessions, model.state.runtimeMCPInventory = benchmarkManager, inventory
+	for range 2 {
+		if err := model.refresh(b.Context()); err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		now = now.Add(model.summaryIdleTTL())
+		inventory.Poll()
+		if err := model.refresh(b.Context()); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkResourceCatalogSnapshotAgentRecords(b *testing.B) {
 	b.ReportAllocs()
 

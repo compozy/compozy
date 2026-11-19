@@ -120,6 +120,21 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 	return resolver, nil
 }
 
+// ProjectionPolicyIdentity reads session-local policy inputs before resolving the catalog.
+func (r *nativeToolPolicyResolver) ProjectionPolicyIdentity(_ context.Context, scope toolspkg.Scope) (any, bool) {
+	manager, ok := r.sessions.(*session.Manager)
+	if !ok || r.readFence == nil {
+		return nil, false
+	}
+	identity, ok := manager.MCPPolicyIdentity(scope.SessionID)
+	fence := r.readFence()
+	return struct {
+		session                             session.MCPPolicyIdentity
+		auth, workspace, heartbeatAuthority uint64
+		catalog                             int64
+	}{identity, fence.auth, fence.workspace, fence.heartbeatAuthority, fence.catalog}, ok
+}
+
 func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.Scope) (toolspkg.PolicyInputs, error) {
 	if r == nil || r.cfg == nil {
 		return toolspkg.PolicyInputs{}, errors.New("daemon: native tool policy resolver is not configured")

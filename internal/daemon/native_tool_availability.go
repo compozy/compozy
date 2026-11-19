@@ -144,7 +144,7 @@ func (n *daemonNativeTools) applySessionNativeToolAvailability(availability *nat
 }
 
 func (n *daemonNativeTools) worktreeAvailability() toolspkg.NativeAvailabilityFunc {
-	return func(ctx context.Context, _ toolspkg.Scope) toolspkg.Availability {
+	return n.observeNativeService(func(ctx context.Context, _ toolspkg.Scope) toolspkg.Availability {
 		if n == nil || n.deps == nil || n.deps.Worktrees == nil || n.deps.Workspaces == nil {
 			return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
 		}
@@ -163,7 +163,7 @@ func (n *daemonNativeTools) worktreeAvailability() toolspkg.NativeAvailabilityFu
 		default:
 			return toolspkg.Unavailable(toolspkg.ReasonWorktreeGitUnavailable)
 		}
-	}
+	})
 }
 
 func (n *daemonNativeTools) applyTaskNativeToolAvailability(availability *nativeToolAvailabilitySet) {

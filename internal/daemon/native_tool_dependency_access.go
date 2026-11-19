@@ -9,21 +9,29 @@ import (
 )
 
 func (n *daemonNativeTools) registryAvailability() toolspkg.NativeAvailabilityFunc {
-	return func(context.Context, toolspkg.Scope) toolspkg.Availability {
+	return n.observeNativeService(func(context.Context, toolspkg.Scope) toolspkg.Availability {
 		if n.registry() == nil {
 			return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
 		}
 		return toolspkg.Available()
-	}
+	})
 }
 
 func (n *daemonNativeTools) dependencyAvailability(ready func() bool) toolspkg.NativeAvailabilityFunc {
-	return func(context.Context, toolspkg.Scope) toolspkg.Availability {
+	return n.observeNativeService(func(context.Context, toolspkg.Scope) toolspkg.Availability {
 		if ready == nil || !ready() {
 			return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
 		}
 		return toolspkg.Available()
-	}
+	})
+}
+
+// Service probes are registered once per shared dependency when the native bindings are built.
+func (n *daemonNativeTools) observeNativeService(
+	check toolspkg.NativeAvailabilityFunc,
+) toolspkg.NativeAvailabilityFunc {
+	n.projectionChecks = append(n.projectionChecks, check)
+	return check
 }
 
 func (n *daemonNativeTools) registry() toolspkg.Registry {

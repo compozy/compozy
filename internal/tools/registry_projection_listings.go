@@ -30,10 +30,12 @@ func WithProjectionValidationCacheCapacity(capacity int) RegistryOption {
 // ProjectionListings shares validated provider listings among projection passes attached to it.
 // It never expires entries: its owner bounds freshness by replacing the instance.
 type ProjectionListings struct {
-	mu          sync.Mutex
-	entries     map[projectionListingKey]*projectionListing
-	policies    projectionMemo[projectionPolicyKey, []ToolView]
-	authorities projectionMemo[hostedSessionPolicyKey, SessionToolPolicy]
+	mu                   sync.Mutex
+	entries              map[projectionListingKey]*projectionListing
+	policies             projectionMemo[projectionPolicyKey, []ToolView]
+	authorities          projectionMemo[hostedSessionPolicyKey, SessionToolPolicy]
+	nativeObservations   projectionMemo[*RuntimeRegistry, string]
+	externalObservations projectionMemo[projectionObservationKey, [sha256.Size]byte]
 }
 
 type hostedSessionPolicyKey struct {
