@@ -1,0 +1,489 @@
+/*
+ * MCP OAuth callback page, in the boot window's grammar (`desktop-boot`, brand manual): ink
+ * ground, the gradient symbol, points on one 8 px pitch, display type for the one headline, one
+ * mono status line. The handshake row is the only illustration; Atmosphere (`converge` when
+ * connected, `horizon` otherwise) stays dark-only, at the bottom, never behind text.
+ *
+ * The production page is standalone HTML the daemon serves from the loopback callback, so this is
+ * plain CSS over an alias block: porting replaces the aliases with literal token values.
+ * Only `opacity` and `transform` animate, once, on load; reduced motion shows the final frame.
+ */
+
+.cb-stage {
+  display: grid;
+  place-items: center;
+  min-block-size: 100dvh;
+  padding: 32px;
+  background: var(--color-canvas);
+}
+
+/* Draft-only chrome: a browser window with the callback URL, so the page reads in context. */
+.cb-browser {
+  display: grid;
+  grid-template-rows: 40px minmax(0, 1fr);
+  inline-size: 1120px;
+  max-inline-size: 100%;
+  block-size: 720px;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px var(--color-line-strong),
+    var(--shadow-overlay);
+}
+.cb-browser__bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-inline: 14px;
+  background: var(--color-surface-2);
+  box-shadow: inset 0 -1px 0 var(--color-line);
+}
+.cb-browser__lights {
+  display: flex;
+  gap: 8px;
+}
+.cb-browser__lights span {
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 50%;
+  background: var(--color-line-strong);
+}
+.cb-browser__url {
+  overflow: hidden;
+  min-inline-size: 0;
+  color: var(--color-muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cb-browser__url b {
+  color: var(--color-fg);
+  font-weight: 450;
+}
+
+.cb {
+  --c-ink: var(--color-rail);
+  --c-surface: var(--color-surface-2);
+  --c-line: var(--color-line);
+  --c-line-strong: var(--color-line-strong);
+  --c-fg: var(--color-fg);
+  --c-strong: var(--color-fg-strong);
+  --c-muted: var(--color-muted-foreground);
+  --c-point: var(--color-line-strong);
+  --c-primary: var(--color-primary);
+  --c-primary-hover: var(--color-primary-hover);
+  --c-primary-ink: var(--color-primary-foreground);
+  --c-live: var(--color-brand-cyan);
+  --c-success: var(--color-success);
+  --c-warning: var(--color-warning);
+  --c-danger: var(--color-destructive);
+  --c-focus: var(--shadow-focus-ring);
+  --c-sans: var(--font-sans);
+  --c-mono: var(--font-mono);
+  --c-display: var(--font-display);
+  --c-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --c-step: 45ms;
+
+  --tone: var(--c-success);
+
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: 40px;
+  block-size: 100%;
+  padding: 56px 32px 24px;
+  overflow: hidden auto;
+  background: var(--c-ink);
+  color: var(--c-fg);
+  font-family: var(--c-sans);
+  font-size: 13.5px;
+  font-weight: 450;
+  line-height: 20px;
+  letter-spacing: -0.006em;
+  text-align: center;
+}
+:root:not(.dark) .cb {
+  --c-live: var(--color-brand);
+}
+.cb[data-tone="warning"] {
+  --tone: var(--c-warning);
+}
+.cb[data-tone="danger"] {
+  --tone: var(--c-danger);
+}
+
+.cb__atmosphere {
+  display: none;
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  inline-size: 100%;
+  block-size: 42%;
+  object-fit: cover;
+  opacity: 0.22;
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(transparent, #000 45%);
+  mask-image: linear-gradient(transparent, #000 45%);
+  pointer-events: none;
+}
+.dark .cb__atmosphere {
+  display: block;
+}
+
+.cb__column {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-self: center;
+  align-items: center;
+  inline-size: 100%;
+  max-inline-size: 480px;
+}
+
+/* ── Handshake: symbol · points · mark · points · server ────────────────────────────────── */
+
+.cb__bridge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-block-end: 36px;
+}
+/* Connected only: the brand's converge visual feeds the handshake, scattered points ordering
+   themselves into the row that reaches the symbol. Dark only, behind no text. */
+.cb__stream {
+  display: none;
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: calc(100% - 30px);
+  inline-size: 620px;
+  block-size: 349px;
+  object-fit: cover;
+  object-position: 100% 50%;
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 35%, #000 88%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 35%, #000 88%, transparent);
+  pointer-events: none;
+  transform: translateY(-50%);
+  animation: cb-stream 900ms var(--c-ease) both;
+}
+.dark .cb__stream {
+  display: block;
+}
+.cb__node {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 56px;
+  block-size: 56px;
+  animation: cb-enter 320ms var(--c-ease) both;
+}
+.cb__symbol {
+  inline-size: 56px;
+  block-size: 56px;
+}
+.cb__node--server {
+  border-radius: 16px;
+  background: var(--c-surface);
+  box-shadow: inset 0 0 0 1px var(--c-line-strong);
+  color: var(--c-strong);
+  font-family: var(--c-display);
+  font-size: 26px;
+  line-height: 1;
+  animation-delay: 80ms;
+}
+.cb__node--server[data-unknown] {
+  background: transparent;
+  box-shadow: none;
+  outline: 1px dashed var(--c-line-strong);
+  outline-offset: -1px;
+  color: var(--c-muted);
+  font-family: var(--c-mono);
+  font-size: 18px;
+}
+.cb__span {
+  display: flex;
+}
+.cb__point {
+  position: relative;
+  inline-size: 8px;
+  block-size: 8px;
+}
+.cb__point::before,
+.cb__point::after {
+  content: "";
+  position: absolute;
+  inset: 2.5px;
+  border-radius: 50%;
+}
+.cb__point::before {
+  background: var(--c-point);
+}
+.cb__point::after {
+  background: var(--c-live);
+  opacity: 0;
+}
+/* Lit points light up in order once, from CompozyOS toward the server. */
+.cb__point[data-on="lit"]::after {
+  opacity: 1;
+  animation: cb-light 420ms var(--c-ease) both;
+  animation-delay: calc(240ms + var(--i) * var(--c-step));
+}
+.cb[data-outcome="connected"] .cb__span[data-side="server"] .cb__point::after {
+  background: var(--tone);
+}
+.cb__mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--tone) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tone) 45%, transparent);
+  color: var(--tone);
+  animation: cb-pop 360ms var(--c-ease) both;
+  animation-delay: calc(240ms + var(--i) * var(--c-step));
+}
+.cb__mark svg {
+  inline-size: 16px;
+  block-size: 16px;
+}
+
+/* ── Message ─────────────────────────────────────────────────────────────────────────────── */
+
+.cb__eyebrow {
+  margin: 0;
+  color: var(--c-muted);
+  font-family: var(--c-mono);
+  font-size: 11.5px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+.cb__title {
+  margin: 10px 0 0;
+  color: var(--c-strong);
+  font-family: var(--c-display);
+  font-size: 34px;
+  font-weight: 400;
+  line-height: 40px;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.cb__detail {
+  max-inline-size: 44ch;
+  margin: 12px 0 0;
+  color: var(--c-muted);
+  font-size: 14px;
+  line-height: 21px;
+  text-wrap: pretty;
+}
+.cb__code {
+  margin: 12px 0 0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--c-surface);
+  color: var(--c-muted);
+  font-family: var(--c-mono);
+  font-size: 11.5px;
+  line-height: 18px;
+}
+
+/* ── Connected facts ─────────────────────────────────────────────────────────────────────── */
+
+.cb__facts {
+  display: grid;
+  inline-size: 100%;
+  margin: 28px 0 0;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--c-surface) 70%, transparent);
+  box-shadow: inset 0 0 0 1px var(--c-line);
+  text-align: start;
+}
+.cb__facts > div {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 16px;
+  padding: 11px 16px;
+}
+.cb__facts > div + div {
+  box-shadow: inset 0 1px 0 var(--c-line);
+}
+.cb__facts dt {
+  color: var(--c-muted);
+  font-size: 12.5px;
+}
+.cb__facts dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-inline-size: 0;
+  margin: 0;
+  color: var(--c-fg);
+  font-size: 13px;
+}
+.cb__fact-strong {
+  color: var(--c-strong);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.cb__fact-mono {
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--c-muted);
+  font-family: var(--c-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cb__scopes {
+  gap: 6px !important;
+}
+.cb__scope {
+  padding: 1px 7px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--c-line-strong);
+  color: var(--c-fg);
+  font-family: var(--c-mono);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.cb__diagnostic {
+  inline-size: 100%;
+  margin-block-start: 20px;
+  text-align: start;
+}
+.cb__diagnostic summary {
+  inline-size: max-content;
+  margin-inline: auto;
+  color: var(--c-muted);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.cb__diagnostic pre {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--c-surface);
+  box-shadow: inset 0 0 0 1px var(--c-line);
+  color: var(--c-fg);
+  font-family: var(--c-mono);
+  font-size: 11.5px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── Actions and status line ─────────────────────────────────────────────────────────────── */
+
+.cb__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-block-start: 28px;
+}
+.cb__btn {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 34px;
+  border: 0;
+  border-radius: 999px;
+  padding-inline: 16px;
+  background: var(--c-surface);
+  color: var(--c-fg);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 120ms var(--c-ease);
+}
+.cb__btn {
+  box-shadow: inset 0 0 0 1px var(--c-line);
+}
+.cb__btn:hover {
+  box-shadow: inset 0 0 0 1px var(--c-line-strong);
+}
+.cb__btn[data-variant="primary"] {
+  box-shadow: none;
+  background: var(--c-primary);
+  color: var(--c-primary-ink);
+}
+.cb__btn[data-variant="primary"]:hover {
+  background: var(--c-primary-hover);
+  box-shadow: none;
+}
+.cb__btn:focus-visible,
+.cb__diagnostic summary:focus-visible {
+  outline: none;
+  box-shadow: var(--c-focus);
+}
+
+.cb__status {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--c-muted);
+  font-family: var(--c-mono);
+  font-size: 11.5px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.cb__status-mark {
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+.cb__status-word {
+  color: var(--c-fg);
+}
+.cb__status-hint::before {
+  content: "·";
+  margin-inline-end: 8px;
+}
+
+@keyframes cb-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes cb-light {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+@keyframes cb-stream {
+  from {
+    opacity: 0;
+    transform: translate(-24px, -50%);
+  }
+}
+@keyframes cb-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb *,
+  .cb *::before,
+  .cb *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

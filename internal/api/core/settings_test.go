@@ -865,13 +865,17 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		if contentType := callback.Header().Get("Content-Type"); contentType != "text/html; charset=utf-8" {
 			t.Fatalf("callback Content-Type = %q, want HTML", contentType)
 		}
+		policy := callback.Header().Get("Content-Security-Policy")
+		if !strings.HasPrefix(policy, "default-src 'none'") {
+			t.Fatalf("callback Content-Security-Policy = %q, want locked-down policy", policy)
+		}
 		for _, expected := range []string{
-			"<title>Authorization complete</title>",
-			"<h1>Authorization complete</h1>",
-			"You can close this tab and return to Compozy.",
+			"<title>linear is connected · CompozyOS</title>",
+			`<h1 class="cb__title">linear is connected</h1>`,
+			"You can close this tab.",
 		} {
 			if !strings.Contains(callback.Body.String(), expected) {
-				t.Fatalf("callback success body missing %q: %s", expected, callback.Body.String())
+				t.Fatalf("callback success body missing %q", expected)
 			}
 		}
 		service.CompleteMCPAuthFn = func(context.Context, string) (mcpauth.Status, error) {
@@ -897,12 +901,159 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 			t.Fatalf("callback failure reflected secret or internal error: %s", failedCallback.Body.String())
 		}
 		for _, expected := range []string{
-			"<title>Authorization failed</title>",
-			"<h1>Authorization failed</h1>",
-			"Return to Compozy and try again, or use manual authorization.",
+			"<title>Sign-in didn’t finish · CompozyOS</title>",
+			"reason: unclassified",
+			"The full error is in the CompozyOS daemon log.",
 		} {
 			if !strings.Contains(failedCallback.Body.String(), expected) {
-				t.Fatalf("callback failure body missing %q: %s", expected, failedCallback.Body.String())
+				t.Fatalf("callback failure body missing %q", expected)
+			}
+		}
+	})
+}
+
+func TestSettingsMCPAuthCallbackRendersOutcomePages(t *testing.T) {
+	t.Parallel()
+
+	linearTarget := mcpauth.Target{ServerName: "linear", Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a"}
+	afterTarget := func(err error) error {
+		return &settingspkg.MCPAuthCallbackError{Target: linearTarget, Err: err}
+	}
+	tests := []struct {
+		name       string
+		query      string
+		err        error
+		wantStatus int
+		want       []string
+		absent     []string
+	}{
+		{
+			name:       "Should name the server when the provider declined access",
+			query:      "error=access_denied&state=public-state",
+			err:        afterTarget(errors.New("mcp auth: OAuth callback reported an error")),
+			wantStatus: http.StatusBadRequest,
+			want:       []string{"linear didn’t grant access", `<p class="cb__code">access_denied</p>`},
+			absent:     []string{"Technical details"},
+		},
+		{
+			name:       "Should not reflect a provider error outside the OAuth code alphabet",
+			query:      "error=%3Cscript%3Ealert(1)%3C/script%3E&state=public-state",
+			err:        errors.New("mcp auth: OAuth callback reported an error"),
+			wantStatus: http.StatusBadRequest,
+			want:       []string{"Access wasn’t granted", `<p class="cb__code">provider_error</p>`},
+			absent:     []string{"alert(1)"},
+		},
+		{
+			name:       "Should explain an expired sign-in link",
+			query:      "code=sensitive-callback-code&state=public-state",
+			err:        fmt.Errorf("%w: %w", settingspkg.ErrValidation, mcpauth.ErrLoginSessionExpired),
+			wantStatus: http.StatusBadRequest,
+			want: []string{
+				"This sign-in link has expired",
+				"Sign-in links last 5 minutes",
+				"login_session_expired",
+			},
+		},
+		{
+			name:       "Should treat an already used sign-in link as expired",
+			query:      "code=sensitive-callback-code&state=public-state",
+			err:        fmt.Errorf("%w: %w", settingspkg.ErrValidation, mcpauth.ErrLoginSessionNotFound),
+			wantStatus: http.StatusBadRequest,
+			want:       []string{"This sign-in link has expired", "login_session_not_found"},
+		},
+		{
+			name:       "Should explain a server definition that changed during sign-in",
+			query:      "code=sensitive-callback-code&state=public-state",
+			err:        afterTarget(fmt.Errorf("%w: %w", settingspkg.ErrValidation, mcpauth.ErrLoginSessionStale)),
+			wantStatus: http.StatusBadRequest,
+			want:       []string{"linear changed while you signed in", "login_session_stale"},
+		},
+		{
+			name:       "Should report an unavailable runtime with HTTP 503",
+			query:      "code=sensitive-callback-code&state=public-state",
+			err:        fmt.Errorf("%w: MCP auth runtime is unavailable", settingspkg.ErrUnavailable),
+			wantStatus: http.StatusServiceUnavailable,
+			want:       []string{"CompozyOS couldn’t finish signing in", "settings_unavailable"},
+		},
+		{
+			name:       "Should summarize an unclassified failure without its error text",
+			query:      "code=sensitive-callback-code&state=public-state",
+			err:        afterTarget(errors.New("token endpoint echoed sensitive-callback-code")),
+			wantStatus: http.StatusBadRequest,
+			want: []string{
+				"Sign-in didn’t finish",
+				"Technical details",
+				"reason: unclassified\nserver: linear\nhttp_status: 400",
+				"Copy details",
+			},
+			absent: []string{"token endpoint echoed"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &stubSettingsService{
+				CompleteMCPAuthFn: func(context.Context, string) (mcpauth.Status, error) {
+					return mcpauth.Status{}, tt.err
+				},
+			}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			response := performRequest(t, fixture.Engine, http.MethodGet, "/api/mcp/oauth/callback?"+tt.query, nil)
+			if response.Code != tt.wantStatus {
+				t.Fatalf("callback status = %d, want %d", response.Code, tt.wantStatus)
+			}
+			if policy := response.Header().
+				Get("Content-Security-Policy"); !strings.Contains(
+				policy,
+				"script-src 'sha256-",
+			) {
+				t.Fatalf("callback Content-Security-Policy = %q, want hashed script source", policy)
+			}
+			body := response.Body.String()
+			for _, expected := range tt.want {
+				if !strings.Contains(body, expected) {
+					t.Fatalf("callback body missing %q", expected)
+				}
+			}
+			for _, unexpected := range append(tt.absent, "sensitive-callback-code", "public-state") {
+				if strings.Contains(body, unexpected) {
+					t.Fatalf("callback body reflected %q", unexpected)
+				}
+			}
+		})
+	}
+
+	t.Run("Should describe where a connected server applies and how it renews", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{
+			CompleteMCPAuthFn: func(context.Context, string) (mcpauth.Status, error) {
+				return mcpauth.Status{
+					ServerName:   "linear",
+					Scope:        mcpauth.ScopeUser,
+					RemoteURL:    "https://mcp.linear.app/sse",
+					Status:       mcpauth.StatusAuthenticated,
+					TokenPresent: true,
+					Refreshable:  true,
+					Scopes:       []string{"read", "issues:create"},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/api/mcp/oauth/callback?code=c&state=s", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("callback status = %d, want %d", response.Code, http.StatusOK)
+		}
+		for _, expected := range []string{
+			`<span class="cb__fact-mono">mcp.linear.app</span>`,
+			"<dd>All projects</dd>",
+			`<span class="cb__scope">issues:create</span>`,
+			"<dd>Renews on its own</dd>",
+			`href="compozyos://open/settings/mcp"`,
+		} {
+			if !strings.Contains(response.Body.String(), expected) {
+				t.Fatalf("connected body missing %q", expected)
 			}
 		}
 	})

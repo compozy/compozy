@@ -66,3 +66,10 @@ count) only on `authenticated && token_present`. Begin failure reads "Sign-in di
 "Nothing changed: <server> keeps its previous sign-in." and Try again; extra scopes show "<server> asks
 for more access" with Not now / Continue before any begin. Verify: a popup blocker never blocks the
 tab, a failed begin closes the reserved tab, closing the panel cancels the attempt.
+
+QA impact 2026-11-19 (MCP OAuth callback page): the browser tab the provider redirects to now renders
+the branded CompozyOS page instead of a bare "Authorization complete". Verify the connected page names
+the server, where it applies, granted scopes and renewal, and offers Open CompozyOS
+(`compozyos://open/settings/mcp`); declining on the provider shows "<server> didn’t grant access"
+with the provider's error code; a reused or stale link shows "This sign-in link has expired". The
+page follows the system light/dark theme and loads with no CSP console errors.

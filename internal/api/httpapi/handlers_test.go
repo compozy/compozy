@@ -1502,8 +1502,8 @@ func TestMCPAuthCallbackHonorsLoopbackBindAndReturnsStaticPages(t *testing.T) {
 				response.Body.String(),
 			)
 		}
-		if !strings.Contains(response.Body.String(), "Authorization complete") {
-			t.Fatalf("callback body = %q, want static completion page", response.Body.String())
+		if !strings.Contains(response.Body.String(), "The server is connected") {
+			t.Fatal("callback body missing the connected page")
 		}
 		if strings.Contains(response.Body.String(), "sensitive-code") ||
 			strings.Contains(response.Body.String(), "public-state") {

@@ -127,3 +127,10 @@ QA impact 2026-11-18 (#1829, #1830, #1831), using only local OAuth and MCP fixtu
   cannot use the old bearer and send no more renewal traffic.
 
 The OAuth adapter and executor suites cover these fixture walks.
+
+QA impact 2026-11-19 (MCP OAuth callback page): `GET /api/mcp/oauth/callback` keeps its status codes
+(200 connected; 400 declined, expired, changed or failed; 503 unavailable runtime or unusable
+redirect URI) and now classifies the failure in the HTML page. Every response carries a
+`default-src 'none'` CSP with hashed inline style and script, `Cache-Control: no-store` and no
+referrer. Verify no response echoes the inbound `code`, `state` or raw error text; unclassified
+failures show only a reason/server/status/time summary.
