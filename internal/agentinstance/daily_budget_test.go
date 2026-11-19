@@ -78,7 +78,9 @@ func TestEvaluateDailyBudget(t *testing.T) {
 		t.Parallel()
 		usdCap := 2.0
 		tokenCap := int64(100)
-		got := mustEvaluateDailyBudget(t, DailyBudgetLimits{Tokens: &tokenCap, USD: &usdCap}, DailyBudgetUsage{Tokens: 110}, false)
+		got := mustEvaluateDailyBudget(
+			t, DailyBudgetLimits{Tokens: &tokenCap, USD: &usdCap}, DailyBudgetUsage{Tokens: 110}, false,
+		)
 		if !got.TokensExhausted || got.USDExhausted {
 			t.Fatalf("unknown USD with exhausted tokens = %+v", got)
 		}
@@ -126,8 +128,10 @@ func TestEvaluateDailyBudget(t *testing.T) {
 
 	t.Run("Should not exhaust a tiny USD cap before its real boundary", func(t *testing.T) {
 		t.Parallel()
-		cap := 1e-9
-		got := mustEvaluateDailyBudget(t, DailyBudgetLimits{USD: &cap}, DailyBudgetUsage{USD: big.NewRat(51, 100_000_000_000)}, false)
+		usdLimit := 1e-9
+		got := mustEvaluateDailyBudget(
+			t, DailyBudgetLimits{USD: &usdLimit}, DailyBudgetUsage{USD: big.NewRat(51, 100_000_000_000)}, false,
+		)
 		if got.Warn || got.Exhausted {
 			t.Fatalf("below-threshold fraction = %+v, want eligible without warning", got)
 		}
@@ -144,8 +148,8 @@ func TestEvaluateDailyBudget(t *testing.T) {
 
 	t.Run("Should reject negative restored usage before admission", func(t *testing.T) {
 		t.Parallel()
-		cap := int64(100)
-		_, err := EvaluateDailyBudget(DailyBudgetLimits{Tokens: &cap}, DailyBudgetUsage{Tokens: -1}, false)
+		tokenLimit := int64(100)
+		_, err := EvaluateDailyBudget(DailyBudgetLimits{Tokens: &tokenLimit}, DailyBudgetUsage{Tokens: -1}, false)
 		if err == nil {
 			t.Fatal("EvaluateDailyBudget() accepted negative restored usage")
 		}
@@ -208,8 +212,8 @@ func TestDailyBudgetUsageAddReceipt(t *testing.T) {
 				t.Fatalf("AddReceipt() error = %v", err)
 			}
 		}
-		cap := 9e9
-		assessment := mustEvaluateDailyBudget(t, DailyBudgetLimits{USD: &cap}, usage, false)
+		usdLimit := 9e9
+		assessment := mustEvaluateDailyBudget(t, DailyBudgetLimits{USD: &usdLimit}, usage, false)
 		if !assessment.USDExhausted {
 			t.Fatalf("lost tiny cost receipts: usage=%+v assessment=%+v", usage, assessment)
 		}
@@ -262,7 +266,9 @@ func TestDailyBudgetUsageAddReceipt(t *testing.T) {
 	})
 }
 
-func mustEvaluateDailyBudget(t *testing.T, limits DailyBudgetLimits, usage DailyBudgetUsage, warned bool) DailyBudgetAssessment {
+func mustEvaluateDailyBudget(
+	t *testing.T, limits DailyBudgetLimits, usage DailyBudgetUsage, warned bool,
+) DailyBudgetAssessment {
 	t.Helper()
 	assessment, err := EvaluateDailyBudget(limits, usage, warned)
 	if err != nil {

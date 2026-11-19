@@ -111,6 +111,19 @@ type AgentInstanceCheckToolCall struct {
 	UpdatedAt    string         `json:"updated_at"`
 }
 
+type AgentInstanceDailyBudgetLimit struct {
+	InstanceID string         `json:"instance_id"`
+	TokenCap   sql.NullInt64  `json:"token_cap"`
+	UsdCap     sql.NullString `json:"usd_cap"`
+	UpdatedAt  string         `json:"updated_at"`
+}
+
+type AgentInstanceDailyBudgetNotice struct {
+	InstanceID string `json:"instance_id"`
+	Day        string `json:"day"`
+	IssuedAt   string `json:"issued_at"`
+}
+
 type AgentInstanceEvent struct {
 	ID           string         `json:"id"`
 	InstanceID   string         `json:"instance_id"`

@@ -104,19 +104,19 @@ func EvaluateDailyBudget(
 	}
 	var assessment DailyBudgetAssessment
 	if limits.Tokens != nil {
-		cap := *limits.Tokens
-		assessment.TokensExhausted = used.Tokens >= cap
-		if cap > 0 && used.Tokens >= cap-cap/5 {
+		tokenLimit := *limits.Tokens
+		assessment.TokensExhausted = used.Tokens >= tokenLimit
+		if tokenLimit > 0 && used.Tokens >= tokenLimit-tokenLimit/5 {
 			assessment.Warn = true
 		}
 	}
 	if limits.USD != nil {
-		cap := *limits.USD
-		if cap == 0 {
+		usdLimit := *limits.USD
+		if usdLimit == 0 {
 			// An explicit zero-dollar cap disables admission regardless of pricing.
 			assessment.USDExhausted = true
 		} else if used.USD != nil {
-			capUSD := decimalUSD(cap)
+			capUSD := decimalUSD(usdLimit)
 			assessment.USDExhausted = used.USD.Cmp(capUSD) >= 0
 			warningUSD := new(big.Rat).Mul(capUSD, big.NewRat(4, 5))
 			if used.USD.Cmp(warningUSD) >= 0 {
