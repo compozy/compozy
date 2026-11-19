@@ -215,6 +215,11 @@ CREATE TABLE token_usage_receipts (
 CREATE INDEX idx_token_usage_receipts_instance_day
     ON token_usage_receipts(profile_id, instance_id, day);
 
+-- Cursor-backed daily admissions must not re-sort a whole day's receipts
+-- under the global writer lock as the ledger grows.
+CREATE INDEX idx_token_usage_receipts_budget_cursor
+    ON token_usage_receipts(profile_id, instance_id, day, session_id, turn_id);
+
 CREATE TABLE session_derivations (
 		workspace_id TEXT NOT NULL,
 		idempotency_key TEXT NOT NULL,

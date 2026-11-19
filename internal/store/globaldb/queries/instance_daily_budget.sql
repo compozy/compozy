@@ -19,3 +19,13 @@ ON CONFLICT(instance_id, day) DO NOTHING;
 SELECT day, issued_at FROM agent_instance_daily_budget_notices
 WHERE instance_id = sqlc.arg(instance_id)
 ORDER BY day DESC;
+
+-- name: ListInstanceDailyBudgetReceiptPage :many
+SELECT session_id, turn_id, total_tokens, usd_amount
+FROM token_usage_receipts
+WHERE profile_id = sqlc.arg(profile_id)
+  AND instance_id = sqlc.arg(instance_id)
+  AND day = sqlc.arg(day)
+  AND (session_id, turn_id) > (sqlc.arg(after_session_id), sqlc.arg(after_turn_id))
+ORDER BY session_id, turn_id
+LIMIT sqlc.arg(page_size);

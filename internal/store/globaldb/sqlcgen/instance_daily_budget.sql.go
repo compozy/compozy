@@ -61,6 +61,68 @@ func (q *Queries) GetAgentInstanceDailyBudgetNotices(ctx context.Context, instan
 	return items, nil
 }
 
+const listInstanceDailyBudgetReceiptPage = `-- name: ListInstanceDailyBudgetReceiptPage :many
+SELECT session_id, turn_id, total_tokens, usd_amount
+FROM token_usage_receipts
+WHERE profile_id = ?1
+  AND instance_id = ?2
+  AND day = ?3
+  AND (session_id, turn_id) > (?4, ?5)
+ORDER BY session_id, turn_id
+LIMIT ?6
+`
+
+type ListInstanceDailyBudgetReceiptPageParams struct {
+	ProfileID      string `json:"profile_id"`
+	InstanceID     string `json:"instance_id"`
+	Day            string `json:"day"`
+	AfterSessionID string `json:"after_session_id"`
+	AfterTurnID    string `json:"after_turn_id"`
+	PageSize       int64  `json:"page_size"`
+}
+
+type ListInstanceDailyBudgetReceiptPageRow struct {
+	SessionID   string         `json:"session_id"`
+	TurnID      string         `json:"turn_id"`
+	TotalTokens int64          `json:"total_tokens"`
+	UsdAmount   sql.NullString `json:"usd_amount"`
+}
+
+func (q *Queries) ListInstanceDailyBudgetReceiptPage(ctx context.Context, arg ListInstanceDailyBudgetReceiptPageParams) ([]ListInstanceDailyBudgetReceiptPageRow, error) {
+	rows, err := q.db.QueryContext(ctx, listInstanceDailyBudgetReceiptPage,
+		arg.ProfileID,
+		arg.InstanceID,
+		arg.Day,
+		arg.AfterSessionID,
+		arg.AfterTurnID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListInstanceDailyBudgetReceiptPageRow{}
+	for rows.Next() {
+		var i ListInstanceDailyBudgetReceiptPageRow
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.TurnID,
+			&i.TotalTokens,
+			&i.UsdAmount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const reserveAgentInstanceDailyBudgetNotice = `-- name: ReserveAgentInstanceDailyBudgetNotice :execrows
 INSERT INTO agent_instance_daily_budget_notices (instance_id, day, issued_at)
 VALUES (?1, ?2, ?3)
