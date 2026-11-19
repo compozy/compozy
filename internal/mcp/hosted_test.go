@@ -1278,7 +1278,11 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			t.Parallel()
 			remote := newTestMCPHTTPServer(newFakeSDKServer(nil))
 			t.Cleanup(remote.Close)
-			auth := &fakeAuthService{status: mcpauth.Status{Status: mcpauth.StatusAuthenticated, TokenPresent: true}}
+			auth := &fakeAuthService{
+				status:                mcpauth.Status{Status: mcpauth.StatusAuthenticated, TokenPresent: true},
+				authorizationToken:    mcpauth.TokenRecord{AccessToken: "fixture-access", TokenType: "Bearer"},
+				hasAuthorizationToken: true,
+			}
 			executor := newTestMCPExecutor(t, authEnabledServer("echo", "http", remote.URL), withAuthService(auth))
 			source := tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo", Scope: "user"}
 			provider, err := tools.NewMCPProvider(

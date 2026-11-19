@@ -15,6 +15,13 @@ import (
 
 const executorBearerValue = "Bearer"
 
+func (e *CallExecutor) prepareAuthorization(ctx context.Context, resolved *ResolvedServer) (string, error) {
+	if err := e.ensureAuthorized(ctx, resolved); err != nil {
+		return "", err
+	}
+	return e.authorizationHeader(ctx, resolved)
+}
+
 func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved *ResolvedServer) error {
 	server := resolved.Server
 	if !mcpauth.OAuthCapable(server) {
@@ -30,6 +37,9 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved *ResolvedS
 			return nil
 		}
 		return toolspkg.MCPAuthRequiredError("", server.Name)
+	case mcpauth.StatusInvalid:
+		return toolspkg.NewToolError(toolspkg.ErrorCodeUnavailable, "", status.Diagnostic,
+			toolspkg.ErrToolUnavailable, toolspkg.ReasonMCPAuthInvalid)
 	case mcpauth.StatusAuthenticated:
 		if !status.RenewalDue() {
 			return nil
@@ -42,15 +52,8 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved *ResolvedS
 		return e.ensureRenewedAuthorization(ctx, resolved)
 	default:
 		reason, ok := toolspkg.MCPAuthStatusReason(redactedAuthStatus(status))
-		if !ok {
-			reason = toolspkg.ReasonMCPAuthRequired
-		}
-		if reason == toolspkg.ReasonMCPAuthUnconfigured {
-			reason = toolspkg.ReasonMCPAuthRequired
-		}
-		reason = e.authorizationFailureReason(ctx, resolved, reason)
-		if reason == toolspkg.ReasonMCPAuthRequired {
-			return toolspkg.MCPAuthRequiredError("", server.Name)
+		if !ok || reason == toolspkg.ReasonMCPAuthRequired || reason == toolspkg.ReasonMCPAuthUnconfigured {
+			return e.authorizationRequired(ctx, resolved)
 		}
 		return unavailableAuthError(reason)
 	}
@@ -85,27 +88,19 @@ func (e *CallExecutor) ensureRenewedAuthorization(ctx context.Context, resolved 
 	return unavailableAuthError(reason)
 }
 
-func (e *CallExecutor) authorizationFailureReason(
-	ctx context.Context,
-	resolved *ResolvedServer,
-	fallback toolspkg.ReasonCode,
-) toolspkg.ReasonCode {
-	if e == nil || e.auth == nil || fallback != toolspkg.ReasonMCPAuthRequired {
-		return fallback
+func (e *CallExecutor) authorizationRequired(ctx context.Context, resolved *ResolvedServer) error {
+	if e.auth == nil {
+		return toolspkg.MCPAuthRequiredError("", resolved.Server.Name)
 	}
 	cfg, err := e.serverAuthConfig(ctx, resolved, nil)
 	if err != nil {
-		return fallback
+		return authorizationConfigError(err)
 	}
 	_, err = e.auth.AuthorizationToken(ctx, cfg)
-	switch {
-	case errors.Is(err, mcpauth.ErrTokenBindingInvalid):
-		return toolspkg.ReasonMCPAuthInvalid
-	case errors.Is(err, mcpauth.ErrTokenExpired):
-		return toolspkg.ReasonMCPAuthExpired
-	default:
-		return fallback
+	if err != nil && !errors.Is(err, mcpauth.ErrTokenNotFound) {
+		return authorizationLookupError(err)
 	}
+	return toolspkg.MCPAuthRequiredError("", resolved.Server.Name)
 }
 
 func (e *CallExecutor) authStatus(
@@ -127,7 +122,7 @@ func (e *CallExecutor) readAuthStatus(ctx context.Context, resolved *ResolvedSer
 		if server.IsDisabled() {
 			return unconfigured, nil
 		}
-		return mcpauth.Status{}, fmt.Errorf("mcp: build auth config: %w", err)
+		return mcpauth.Status{}, authorizationConfigError(err)
 	}
 	if !mcpauth.OAuthCapable(server) || (e.auth == nil && (server.Auth.IsZero() || server.IsDisabled())) {
 		return unconfigured, nil
@@ -141,10 +136,10 @@ func (e *CallExecutor) readAuthStatus(ctx context.Context, resolved *ResolvedSer
 	}
 	status, err := e.auth.Status(ctx, cfg)
 	if err != nil {
-		if cfg.Implicit || server.IsDisabled() {
+		if server.IsDisabled() || (cfg.Implicit && canProbeWithoutStoredCredential(err)) {
 			return unconfigured, nil
 		}
-		return mcpauth.Status{}, fmt.Errorf("mcp: read auth status: %w", err)
+		return mcpauth.Status{}, authorizationLookupError(err)
 	}
 	return status, nil
 }
@@ -167,34 +162,106 @@ func (e *CallExecutor) refreshAuth(
 	return e.auth.Refresh(ctx, cfg)
 }
 
-func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved *ResolvedServer) string {
-	if e == nil || e.auth == nil {
-		return ""
+func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved *ResolvedServer) (string, error) {
+	if e == nil || e.auth == nil || !mcpauth.OAuthCapable(resolved.Server) {
+		return "", nil
 	}
 	cfg, err := e.serverAuthConfig(ctx, resolved, nil)
 	if err != nil {
-		return ""
+		return "", authorizationConfigError(err)
 	}
-	token, err := e.auth.AuthorizationToken(ctx, cfg)
-	if err != nil || strings.TrimSpace(token.AccessToken) == "" {
-		return ""
+	token, revision, err := e.authGeneration.ReadAtRevision(ctx, cfg.Target, func() (mcpauth.TokenRecord, error) {
+		return e.auth.AuthorizationToken(ctx, cfg)
+	})
+	switch {
+	case cfg.Implicit && errors.Is(err, mcpauth.ErrTokenDefinitionChanged):
+		return "", nil
+	case err != nil && cfg.Implicit && canProbeWithoutStoredCredential(err):
+		return "", nil
+	case errors.Is(err, mcpauth.ErrTokenNotFound):
+		return "", toolspkg.MCPAuthRequiredError("", resolved.Server.Name)
+	case err != nil:
+		return "", authorizationLookupError(err)
 	}
+	access := strings.TrimSpace(token.AccessToken)
 	tokenType := strings.TrimSpace(token.TokenType)
-	if tokenType == "" {
-		tokenType = executorBearerValue
+	if access == "" || (tokenType != "" && !strings.EqualFold(tokenType, executorBearerValue)) {
+		return "", authorizationLookupError(mcpauth.ErrTokenBindingInvalid)
 	}
-	if !strings.EqualFold(tokenType, executorBearerValue) {
-		return ""
+	resolved.authRevision = revision
+	registerMCPRequestSecret(ctx, access)
+	registerMCPRequestSecret(ctx, token.RefreshToken)
+	return "Bearer " + access, nil
+}
+
+func canProbeWithoutStoredCredential(err error) bool {
+	return !errors.Is(err, mcpauth.ErrTokenResolution) && !errors.Is(err, mcpauth.ErrTokenBindingInvalid) &&
+		!errors.Is(err, mcpauth.ErrTokenRejected) && !errors.Is(err, mcpauth.ErrTokenExpired) &&
+		!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)
+}
+
+func authorizationConfigError(err error) error {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return normalizeMCPError("", err)
 	}
-	registerMCPRequestSecret(ctx, token.AccessToken)
-	return "Bearer " + strings.TrimSpace(token.AccessToken)
+	return toolspkg.NewToolError(toolspkg.ErrorCodeUnavailable, "",
+		"mcp: could not resolve OAuth configuration; check the configured credential references",
+		toolspkg.ErrToolUnavailable, toolspkg.ReasonMCPAuthInvalid)
+}
+
+func authorizationLookupError(err error) error {
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return normalizeMCPError("", err)
+	case errors.Is(err, mcpauth.ErrTokenRejected):
+		return rejectedBearerError("")
+	case errors.Is(err, mcpauth.ErrTokenExpired):
+		return unavailableAuthError(toolspkg.ReasonMCPAuthExpired)
+	case errors.Is(err, mcpauth.ErrTokenBindingInvalid):
+		return unavailableAuthError(toolspkg.ReasonMCPAuthInvalid)
+	case errors.Is(err, mcpauth.ErrTokenResolution):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			"",
+			"mcp: stored token could not be resolved; check the credential store",
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonMCPAuthInvalid,
+		)
+	default:
+		return toolspkg.NewToolError(toolspkg.ErrorCodeUnavailable, "",
+			"mcp: token store unavailable; check the credential store",
+			toolspkg.ErrToolUnavailable, toolspkg.ReasonMCPAuthInvalid)
+	}
+}
+
+func rejectedBearerError(id toolspkg.ToolID) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeUnavailable,
+		id,
+		mcpauth.ErrTokenRejected.Error()+"; check auth status",
+		mcpauth.ErrTokenRejected,
+		toolspkg.ReasonMCPAuthRequired,
+	)
+}
+
+func (e *CallExecutor) recordBearerRejection(ctx context.Context, resolved *ResolvedServer, err error) {
+	if e.authGeneration == nil || !errors.Is(err, mcpauth.ErrTokenRejected) {
+		return
+	}
+	if err := e.authGeneration.RejectIfCurrent(resolved.Target, resolved.authRevision); err != nil {
+		slog.WarnContext(ctx, "mcp.auth.record_rejection_failed", "server", resolved.Target.ServerName)
+	}
 }
 
 func unavailableAuthError(reason toolspkg.ReasonCode) error {
+	message := "mcp authentication is unavailable"
+	if reason == toolspkg.ReasonMCPAuthInvalid {
+		message = "mcp: stored token does not match the server definition; sign in again"
+	}
 	return toolspkg.NewToolError(
 		toolspkg.ErrorCodeUnavailable,
 		"",
-		"mcp authentication is unavailable",
+		message,
 		toolspkg.ErrToolUnavailable,
 		reason,
 	)

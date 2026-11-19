@@ -758,6 +758,58 @@ func TestManagerExchangeSupportsRFC9207Issuer(t *testing.T) {
 
 func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 	t.Parallel()
+	// Invariant: a callback persists individual grants and older comma-joined grants still bind.
+	// Owner: OAuth token exchange and binding; canonical suite: TestPreRegisteredAuthorizationBindsResource.
+	t.Run("Should bind comma and space delimited grants to the configured scope list", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{
+				TokenResponseScope: "tools.read,tools.write extra.read",
+			},
+		)
+		store := &adapterTestStore{}
+		service, err := NewService(store, withHTTPClientForTest(fixture.Server.Client()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := ServerConfig{
+			Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+			RemoteURL: fixture.Endpoints.MCPURL, ClientID: "registered-client", Registration: RegistrationPreRegistered,
+			Scopes: []string{"tools.read", "tools.write"},
+		}
+		state, err := service.BeginLogin(t.Context(), cfg, "http://127.0.0.1:2123/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Exchange(
+			t.Context(),
+			&state,
+			oauthCallbackURL(t, state.RedirectURL, state.State, ""),
+		); err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"tools.read", "tools.write", "extra.read"}
+		token, err := store.GetMCPAuthToken(t.Context(), cfg.Target)
+		if err != nil || !slices.Equal(token.Scopes, want) {
+			t.Fatalf("stored scopes = %v, err = %v, want %v", token.Scopes, err, want)
+		}
+		if _, err := service.AuthorizationToken(t.Context(), cfg); err != nil {
+			t.Fatalf("new token binding: %v", err)
+		}
+		token.Scopes = []string{"tools.read,tools.write,extra.read"}
+		if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+			t.Fatal(err)
+		}
+		for _, required := range [][]string{cfg.Scopes, {"tools.read,tools.write"}} {
+			cfg.Scopes = required
+			if _, err := service.AuthorizationToken(t.Context(), cfg); err != nil {
+				t.Fatalf("stored comma-joined token binding: %v", err)
+			}
+		}
+	})
+
 	t.Run("Should discover a separate issuer for pre-registered credentials", func(t *testing.T) {
 		t.Parallel()
 
@@ -1645,6 +1697,41 @@ func TestManagerStepUpPreservesApprovedScopes(t *testing.T) {
 
 func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 	t.Parallel()
+	// Invariant: interrupted credential reads propagate to the caller without classifying the token as invalid.
+	// Owner: OAuth status and binding; canonical suite: TestAuthorizationTokenRequiresBaselineScopes.
+	for _, test := range []struct {
+		name    string
+		stored  bool
+		wantErr error
+	}{
+		{"Should propagate cancellation during token resolution", false, context.Canceled},
+		{"Should propagate a token resolution deadline", false, context.DeadlineExceeded},
+		{"Should propagate cancellation during registration lookup", true, context.Canceled},
+		{"Should propagate a registration lookup deadline", true, context.DeadlineExceeded},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := ServerConfig{
+				Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+				Transport: "http", RemoteURL: "https://mcp.example.test", Registration: RegistrationAuto,
+			}
+			store := &adapterTestStore{}
+			if test.stored {
+				store.token = managerBoundToken(t, cfg, "fixture-access")
+				store.registrationErr = test.wantErr
+			} else {
+				store.tokenErr = errors.Join(ErrTokenResolution, test.wantErr)
+			}
+			service, err := NewService(store, WithRegistrationStore(store))
+			if err != nil {
+				t.Fatal(err)
+			}
+			status, err := service.Status(t.Context(), cfg)
+			if !errors.Is(err, test.wantErr) || status.Status != "" {
+				t.Fatalf("interrupted status = %+v, %v, want no observation and %v", status, err, test.wantErr)
+			}
+		})
+	}
 	t.Run("Should probe an implicit remote when its old credential no longer matches", func(t *testing.T) {
 		t.Parallel()
 		store := &adapterTestStore{}
@@ -1675,6 +1762,8 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 		}
 	})
 
+	// Invariant: a configured client with missing grants still reports needs_login and cannot send the bearer.
+	// Owner: OAuth token binding and status; canonical suite: TestAuthorizationTokenRequiresBaselineScopes.
 	t.Run("Should accept step-up scopes and reject a missing baseline scope", func(t *testing.T) {
 		t.Parallel()
 		store := &adapterTestStore{}
@@ -1711,6 +1800,10 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 			ErrTokenBindingInvalid,
 		) {
 			t.Fatalf("AuthorizationToken(missing baseline) error = %v, want invalid binding", err)
+		}
+		status, err := service.Status(t.Context(), cfg)
+		if err != nil || status.Status != StatusNeedsLogin || status.TokenPresent {
+			t.Fatalf("Status(missing baseline) = %#v, %v", status, err)
 		}
 	})
 }
@@ -2561,6 +2654,8 @@ type adapterTestStore struct {
 	secrets                   RegistrationSecrets
 	authorizationStateDeleted bool
 	token                     TokenRecord
+	tokenErr                  error
+	registrationErr           error
 }
 
 func (s *adapterTestStore) SaveMCPAuthToken(_ context.Context, token TokenRecord) error {
@@ -2572,6 +2667,9 @@ func (s *adapterTestStore) SaveMCPAuthToken(_ context.Context, token TokenRecord
 func (s *adapterTestStore) GetMCPAuthToken(context.Context, Target) (TokenRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.tokenErr != nil {
+		return TokenRecord{}, s.tokenErr
+	}
 	if s.token.AccessToken == "" {
 		return TokenRecord{}, ErrTokenNotFound
 	}
@@ -2607,6 +2705,9 @@ func (s *adapterTestStore) GetMCPAuthRegistration(
 ) (ClientRegistration, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.registrationErr != nil {
+		return ClientRegistration{}, s.registrationErr
+	}
 	if s.registration.ClientID == "" {
 		return ClientRegistration{}, ErrRegistrationNotFound
 	}

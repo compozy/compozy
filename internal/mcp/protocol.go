@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	protocolInitializeMethod      = "initialize"
-	protocolVersionModern         = "2026-07-28"
-	protocolVersionLegacy         = "2025-11-25"
-	protocolVersionProviderLegacy = "2025-06-18"
+	protocolInitializeMethod = "initialize"
+	protocolVersionModern    = "2026-07-28"
+	protocolVersionLegacy    = "2025-11-25"
+	protocolVersionJune2025  = "2025-06-18"
 )
 
 // UnsupportedProtocolVersionError reports a peer that negotiated outside Compozy's MCP contract.
@@ -26,9 +26,9 @@ func supportedProtocolVersion(version string) bool {
 }
 
 // supportedHostedProviderProtocolVersion keeps the daemon's private provider bridge compatible
-// with managed agent runtimes. It does not widen the public MCP client or server contract.
+// with managed agent runtimes. The public MCP server keeps its own protocol allowlist.
 func supportedHostedProviderProtocolVersion(version string) bool {
-	return supportedProtocolVersion(version) || version == protocolVersionProviderLegacy
+	return supportedProtocolVersion(version) || version == protocolVersionJune2025
 }
 
 type protocolRestrictedTransport struct{ mcpgo.Transport }

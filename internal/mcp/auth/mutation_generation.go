@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,6 +31,7 @@ type targetMutationGeneration struct {
 	refreshAttempts          int
 	refreshRetryAt           time.Time
 	refreshCanUseAccessToken bool
+	remoteRejected           bool
 }
 
 // NewMutationGeneration constructs a process-wide token mutation coordinator.
@@ -58,6 +61,65 @@ func (g *MutationGeneration) Revision(target Target) (uint64, error) {
 	return generation.revision, nil
 }
 
+// ReadAtRevision retries a credential observation if the target changes during the read.
+func (g *MutationGeneration) ReadAtRevision[T any](
+	ctx context.Context,
+	target Target,
+	read func() (T, error),
+) (T, uint64, error) {
+	if g == nil {
+		value, err := read()
+		return value, 0, err
+	}
+	var zero T
+	for {
+		if err := ctx.Err(); err != nil {
+			return zero, 0, err
+		}
+		before, err := g.Revision(target)
+		if err != nil {
+			return zero, 0, err
+		}
+		value, readErr := read()
+		if errors.Is(readErr, context.Canceled) || errors.Is(readErr, context.DeadlineExceeded) {
+			return zero, 0, readErr
+		}
+		after, err := g.Revision(target)
+		if err != nil {
+			return zero, 0, err
+		}
+		if before == after {
+			return value, before, readErr
+		}
+	}
+}
+
+// RejectIfCurrent records a 401 for the observed credential without affecting a replacement login.
+func (g *MutationGeneration) RejectIfCurrent(target Target, revision uint64) error {
+	generation, err := g.forTarget(target)
+	if err != nil {
+		return err
+	}
+	generation.mu.Lock()
+	defer generation.mu.Unlock()
+	if generation.revision == revision && !generation.remoteRejected {
+		generation.remoteRejected = true
+		generation.revision++
+		g.revision.Add(1)
+	}
+	return nil
+}
+
+func (g *MutationGeneration) remotelyRejected(target Target) (bool, error) {
+	generation, err := g.forTarget(target)
+	if err != nil {
+		return false, err
+	}
+	generation.mu.Lock()
+	defer generation.mu.Unlock()
+	return generation.remoteRejected, nil
+}
+
 // Advance supersedes every mutation that started in an earlier generation.
 func (g *MutationGeneration) Advance(target Target) (uint64, error) {
 	generation, err := g.forTarget(target)
@@ -72,10 +134,10 @@ func (g *MutationGeneration) Advance(target Target) (uint64, error) {
 	return generation.value, nil
 }
 
-// CommitIfCurrent runs commit atomically with respect to generation changes.
-func (g *MutationGeneration) CommitIfCurrent(
+func (g *MutationGeneration) commitIfCurrent(
 	target Target,
 	expected uint64,
+	replacesAccess bool,
 	commit func() error,
 ) (bool, error) {
 	generation, err := g.forTarget(target)
@@ -89,6 +151,9 @@ func (g *MutationGeneration) CommitIfCurrent(
 	}
 	if err := commit(); err != nil {
 		return false, err
+	}
+	if replacesAccess {
+		generation.remoteRejected = false
 	}
 	generation.revision++
 	g.revision.Add(1)
@@ -114,6 +179,7 @@ func (g *MutationGeneration) CommitAndAdvanceIfCurrent(
 	if err := commit(); err != nil {
 		return false, err
 	}
+	generation.remoteRejected = false
 	generation.value++
 	generation.revision++
 	g.revision.Add(1)

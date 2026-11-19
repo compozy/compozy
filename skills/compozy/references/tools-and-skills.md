@@ -203,6 +203,12 @@ profile layer, `--scope workspace --workspace <id>` for a workspace layer, and c
 `authenticated` with `token_present=true`. `--timeout` bounds the whole attempt, including manual
 input and exchange, and the active PKCE session expiry may shorten it.
 
+Configure pre-registered OAuth scopes as individual `auth.scopes` entries. Token responses can
+return space-separated or comma-separated grants. After `compozy mcp check <name>` observes a 401
+for the stored bearer credential, auth status reports `expired` when the credential can refresh or
+`needs_login` when it requires sign-in. Run another check to trigger an available refresh. A
+connection or protocol failure gives a redacted cause in the check diagnostic when available.
+
 OAuth credentials belong to the scope that declares the effective server definition. Resolution
 order, narrowest first: workspace-profile, workspace, profile, user. A workspace or profile that
 only inherits a server declared at a broader scope uses that scope's credential at runtime. Status
