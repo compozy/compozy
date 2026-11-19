@@ -53,7 +53,7 @@ func (s *service) loadMCPSources(
 	if err := s.loadGlobalMCPSources(sources, workspaceID, profileName); err != nil {
 		return nil, err
 	}
-	if scope == ScopeProfile {
+	if scope == ScopeProfile && profileName != mcpAuthDefaultProfileName {
 		if err := s.loadProfileMCPSources(sources, workspaceID, workspaceRoot, profileName); err != nil {
 			return nil, err
 		}
@@ -208,6 +208,26 @@ func loadMCPServersFromConfigFile(
 		cfg.MCPServers,
 		func(server compozyconfig.MCPServer) bool { return server.DefinitionSource != path },
 	), nil
+}
+
+// A complete Settings edit preserves the preference declared in this file.
+func (s *service) declaredMCPDisabled(
+	name string, kind WriteTargetKind, sources map[string][]mcpSourceEntry,
+) (*bool, error) {
+	previous, ok := mcpSourceForTarget(name, kind, sources)
+	if !ok || previous.Server.Disabled == nil || isMCPDefinitionSidecarTarget(kind) {
+		return previous.Server.Disabled, nil
+	}
+	authored, err := loadMCPServersFromConfigFile(previous.Server.DefinitionSource, s.homePaths)
+	if err != nil {
+		return nil, err
+	}
+	for _, server := range authored {
+		if server.Name == name {
+			return server.Disabled, nil
+		}
+	}
+	return nil, nil
 }
 
 func (s *service) resolveMCPPutTarget(

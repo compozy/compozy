@@ -2232,8 +2232,8 @@ func TestDaemonMCPCloneInputs(t *testing.T) {
 	})
 }
 
-// Invariant (UT-110/037): no OAuth/probe network call precedes digest-bound consent;
-// passive status remains readable. Owner: daemon Settings auth boundary; canonical suite: settings.
+// Invariant: off servers retain consent and contribute no tools or network traffic.
+// Owner: daemon Settings and discovery boundary; canonical suite: settings.
 func TestSettingsMCPDisabled(t *testing.T) {
 	t.Parallel()
 	t.Run("Should keep approval and never contact the off server through discovery or check", func(t *testing.T) {
@@ -2326,8 +2326,94 @@ func TestSettingsMCPDisabled(t *testing.T) {
 			t.Fatalf("re-enabled discovery: descriptors=%d err=%v", len(tools), err)
 		}
 	})
+	t.Run("Should write only the selected default-profile sidecar", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		state, req := newMCPConsentFixtureForHome(t, home)
+		parentPath := req.Server.DefinitionSource
+		profilePath := filepath.Join(filepath.Dir(parentPath), "profiles", "default", compozyconfig.MCPJSONName)
+		writeMCPDeclarationFile(t, parentPath, `{"mcpServers":{"sentry":{"command":"project"}}}`)
+		writeMCPDeclarationFile(t, profilePath, `{"mcpServers":{"sentry":{"command":"profile"}}}`)
+		db := state.registry.(settingspkg.ApplyRecordDBSource)
+		svc, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			WorkspaceResolver:       state.workspaceResolver,
+			ProfileResolver:         state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPConsent:              settingsMCPConsent{state: state},
+			ApplyRecords: settingspkg.NewConfigApplyRecordRepository(
+				db.DB(),
+				time.Now,
+				settingspkg.WithConfigApplyReadDB(db.ReadDB()),
+			),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		writer := svc.(interface {
+			SetMCPServerEnabled(context.Context, settingspkg.MCPAuthTargetRequest, bool) (settingspkg.MCPServerItem, error)
+		})
+		target := settingspkg.MCPAuthTargetRequest{
+			Scope:            settingspkg.ScopeProfile,
+			ProfileName:      "default",
+			WorkspaceID:      req.WorkspaceID,
+			Name:             req.Server.Name,
+			DefinitionSource: profilePath,
+		}
+		item, err := writer.SetMCPServerEnabled(t.Context(), target, false)
+		if err != nil || !item.Disabled || item.Command != "profile" || item.DefinitionSource != profilePath {
+			t.Fatalf("disable workspace profile: %+v, %v", item, err)
+		}
+		servers, err := compozyconfig.LoadMCPServersJSONFile(parentPath)
+		if err != nil || len(servers) != 1 || servers[0].Command != "project" || servers[0].Disabled != nil {
+			t.Fatalf("workspace declaration changed: %+v, %v", servers, err)
+		}
+	})
+	t.Run("Should persist a published switch across declaration revisions", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		state, req := newMCPConsentFixtureForHome(t, home)
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: req.WorkspaceID}
+		record := resources.Record[compozyconfig.MCPServer]{
+			ID: "agent-resource-revision-1", Scope: scope, Spec: req.Server, Source: agentSkillSyncActor().Source,
+		}
+		record.Spec.DefinitionSource = filepath.Join(filepath.Dir(req.Server.DefinitionSource), "agents", "agent.md")
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{record})
+		svc, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			WorkspaceResolver: state.workspaceResolver, ProfileResolver: state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPConsent:              settingsMCPConsent{state: state},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		enabled := svc.(interface {
+			SetMCPServerEnabled(context.Context, settingspkg.MCPAuthTargetRequest, bool) (settingspkg.MCPServerItem, error)
+		})
+		target := settingspkg.MCPAuthTargetRequest{
+			Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID, Name: req.Server.Name,
+			DefinitionSource: record.Spec.DefinitionSource,
+		}
+		for _, want := range []bool{false, true} {
+			item, err := enabled.SetMCPServerEnabled(t.Context(), target, want)
+			if err != nil || item.Disabled == want || item.Command != record.Spec.Command {
+				t.Fatalf("set enabled=%t: %+v, %v", want, item, err)
+			}
+			record.ID += "-new"
+			state.mcpServerCatalog.Replace(
+				state.mcpServerCatalog.Revision()+1,
+				[]resources.Record[compozyconfig.MCPServer]{record},
+			)
+			source := toolspkg.SourceRef{ResourceID: record.ID, WorkspaceID: req.WorkspaceID}
+			projected, err := resolveDaemonMCPResource(t.Context(), state, source, req.Server.Name, "manual")
+			if err != nil || projected.Server.IsDisabled() == want {
+				t.Fatalf("republished enabled=%t: %+v, %v", want, projected.Server, err)
+			}
+		}
+	})
 }
 
+// Invariant (UT-110/037): no OAuth/probe network call precedes digest-bound consent;
+// passive status remains readable. Owner: daemon Settings auth boundary; canonical suite: settings.
 func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 	t.Parallel()
 	state, req := newMCPConsentFixture(t)

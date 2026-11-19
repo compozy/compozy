@@ -80229,6 +80229,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Declaring file from the Settings MCP row. Selects one same-name definition in the requested scope.",
+            "in": "query",
+            "name": "definition_source",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -80282,6 +80290,16 @@
               }
             },
             "description": "MCP server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server definition is ambiguous or cannot be edited"
           },
           "500": {
             "content": {

@@ -16,6 +16,7 @@ import type {
   RuntimeMCPImportRequest,
   SettingsMCPApprovalRequest,
   SettingsMCPAuthFilter,
+  SettingsMCPEnablementFilter,
   SettingsMCPServerCollection,
   SettingsMCPServerEntry,
 } from "../types";
@@ -60,8 +61,15 @@ interface CheckParams {
 export function useSetMCPServerEnabled() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ entry, filter, enabled }: CheckParams & { enabled: boolean }) =>
-      setSettingsMCPServerEnabled(entry.name, filter, enabled),
+    mutationFn: ({
+      entry,
+      filter,
+      enabled,
+    }: {
+      entry: SettingsMCPServerEntry;
+      filter: SettingsMCPEnablementFilter;
+      enabled: boolean;
+    }) => setSettingsMCPServerEnabled(entry.name, filter, enabled),
     onSettled: () => invalidateMCPAndApply(queryClient),
   });
 }

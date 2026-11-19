@@ -321,9 +321,10 @@ sessions; the single-session payload has the same `mcp_summary`.
 
 **Turn one configured server off or on** in Settings → MCP servers or with
 `compozy mcp disable <name>` / `compozy mcp enable <name>`. Use the exact `--scope`, `--workspace`,
-`--profile`, and `--owner extension:<installed-name>` selectors for the declaration. HTTP and UDS
-use `PUT /api/settings/mcp-servers/{name}/enabled` with the same query selectors as authentication
-and `{"enabled": false}` or `{"enabled": true}`. Manual `config.toml` and `mcp.json` definitions
+`--profile`, and `--owner extension:<installed-name>` selectors for the declaration. When names
+repeat in one scope, pass the declaring path as `--definition-source`. HTTP and UDS use
+`PUT /api/settings/mcp-servers/{name}/enabled` with the same query selectors as authentication,
+the optional `definition_source` selector, and `{"enabled": false}` or `{"enabled": true}`. Manual `config.toml` and `mcp.json` definitions
 accept `disabled`; definitions that omit it are on by default. Turning a server off keeps its
 definition, credentials and approval. CompozyOS skips connection, discovery, checks and renewal for
 that server. `compozy__mcp_list` exposes `disabled`, `compozy__mcp_status` reports `state: "off"`,

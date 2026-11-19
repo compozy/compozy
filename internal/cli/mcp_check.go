@@ -22,7 +22,7 @@ func (c *daemonClient) CheckSettingsMCPServer(
 }
 
 func newMCPCheckCommand(deps commandDeps) *cobra.Command {
-	opts := mcpAuthCommandOptions{scope: string(contract.SettingsLayeredScopeUser)}
+	opts := mcpAuthCommandOptions{scope: string(contract.SettingsLayeredScopeUser), workspaceDefaultProfile: true}
 	cmd := &cobra.Command{
 		Use:     "check <name>",
 		Short:   "Check one configured MCP server again",

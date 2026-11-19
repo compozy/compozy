@@ -11,8 +11,9 @@ import (
 
 // MCPPublishedDefinition exposes agent and skill sidecars absent from config layers.
 type MCPPublishedDefinition struct {
-	Target mcpauth.Target
-	Server config.MCPServer
+	Target           mcpauth.Target
+	ManagementTarget mcpauth.Target
+	Server           config.MCPServer
 }
 
 type MCPPublishedDefinitionProvider interface {
@@ -52,21 +53,30 @@ func (s *service) appendPublishedMCPItems(
 		if found {
 			continue
 		}
-		entry := mcpSourceEntry{
-			Server:     definition.Server,
-			AuthTarget: &definition.Target,
-			Source: SourceRef{
-				Kind:        SourceKindWorkspaceAgentFile,
-				Scope:       req.Scope,
-				WorkspaceID: req.WorkspaceID,
-				ProfileName: req.ProfileName,
-			},
-		}
-		item := baseMCPServerItem(entry, []mcpSourceEntry{entry}, req.Scope, req.WorkspaceID, req.ProfileName)
-		item.SourceMetadata.AvailableTargets = []WriteTargetKind{}
-		items = append(items, mcpCollectionItem{item: item, entry: entry})
+		items = append(items, publishedMCPCollectionItem(definition, req))
 	}
 	return items, nil
+}
+
+func publishedMCPCollectionItem(definition MCPPublishedDefinition, req MCPAuthTargetRequest) mcpCollectionItem {
+	target := definition.ManagementTarget
+	if target.Scope == "" {
+		target = definition.Target
+	}
+	source := mcpAuthTargetRequest(target)
+	kind := SourceKindGlobalAgentFile
+	if source.WorkspaceID != "" {
+		kind = SourceKindWorkspaceAgentFile
+	}
+	entry := mcpSourceEntry{
+		Server: definition.Server, AuthTarget: &definition.Target,
+		Source: SourceRef{
+			Kind: kind, Scope: source.Scope, WorkspaceID: source.WorkspaceID, ProfileName: source.ProfileName,
+		},
+	}
+	item := baseMCPServerItem(entry, []mcpSourceEntry{entry}, req.Scope, req.WorkspaceID, req.ProfileName)
+	item.SourceMetadata.AvailableTargets = []WriteTargetKind{}
+	return mcpCollectionItem{item: item, entry: entry}
 }
 
 func (s *service) resolvePublishedMCPDefinition(

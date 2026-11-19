@@ -38,6 +38,10 @@ func (s *service) populateMCPServerStatuses(
 		item.CallableInSessions = decision.Admitted && !item.Disabled
 		skipRuntimeStatus = skipRuntimeStatus || !decision.Admitted
 	}
+	if item.Disabled {
+		setMCPRuntimeObservation(item, entry.Server, OffMCPServerRuntimeStatus())
+		return nil
+	}
 	name := entry.Server.Name
 	if s.mcpAuth != nil && mcpauth.OAuthCapable(entry.Server) && entry.Server.Validate("mcp_server") == nil {
 		status, statusErr := s.mcpAuth.MCPAuthStatus(ctx, target, entry.Server)
@@ -45,10 +49,6 @@ func (s *service) populateMCPServerStatuses(
 			return fmt.Errorf("settings: load MCP auth status for %q: %w", name, statusErr)
 		}
 		item.AuthStatus = &status
-	}
-	if item.Disabled {
-		setMCPRuntimeObservation(item, entry.Server, OffMCPServerRuntimeStatus())
-		return nil
 	}
 	if s.mcpRuntime != nil && !skipRuntimeStatus {
 		var status MCPServerRuntimeStatus

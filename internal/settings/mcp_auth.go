@@ -15,11 +15,12 @@ const mcpAuthDefaultProfileName = "default"
 
 // MCPAuthTargetRequest selects one exact user, profile, or workspace MCP definition.
 type MCPAuthTargetRequest struct {
-	Scope       ScopeKind
-	WorkspaceID string
-	ProfileName string
-	Name        string
-	Owner       string
+	Scope            ScopeKind
+	WorkspaceID      string
+	ProfileName      string
+	Name             string
+	Owner            string
+	DefinitionSource string
 }
 
 // MCPAuthBeginRequest starts one daemon-owned OAuth session.

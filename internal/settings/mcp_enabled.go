@@ -4,11 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/extensionmcp"
 )
+
+type mcpPublishedEnablement interface {
+	SetPublishedMCPEnabled(context.Context, MCPAuthTargetRequest, bool) (MCPPublishedDefinition, bool, error)
+}
 
 type mcpExtensionEnablement interface {
 	SetMCPExtensionEnabled(context.Context, MCPAuthTargetRequest, bool) (MCPExtensionDefinition, error)
@@ -19,11 +24,16 @@ func (s *service) SetMCPServerEnabled(
 ) (MCPServerItem, error) {
 	s.applyMu.Lock()
 	defer s.applyMu.Unlock()
+	s.mcpProbeMu.Lock()
+	defer func() {
+		s.mcpProbeGeneration++
+		s.mcpProbeMu.Unlock()
+	}()
 	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
 	if err != nil {
 		return MCPServerItem{}, err
 	}
-	profileName, err := normalizeSettingsProfileName(scope, req.ProfileName)
+	profileName, err := normalizeMCPSettingsProfileName(scope, workspaceID, req.ProfileName)
 	if err != nil {
 		return MCPServerItem{}, err
 	}
@@ -33,6 +43,9 @@ func (s *service) SetMCPServerEnabled(
 		return MCPServerItem{}, err
 	}
 	if req.Owner != "" && req.Owner != mcpManualOwner {
+		if item, found, err := s.setPublishedMCPServerEnabled(ctx, req, enabled); found || err != nil {
+			return item, err
+		}
 		return s.setExtensionMCPServerEnabled(ctx, req, enabled)
 	}
 	return s.setManualMCPServerEnabled(ctx, req, enabled)
@@ -47,14 +60,12 @@ func (s *service) setManualMCPServerEnabled(
 	if err != nil {
 		return MCPServerItem{}, err
 	}
-	kind, ok := preferredMCPAuthTarget(req, req.Name, sources)
+	entry, ok := mcpEnablementConfigSource(req, sources)
+	kind := entry.Target
 	if !ok {
-		return MCPServerItem{}, notFoundError(
-			fmt.Errorf("settings: MCP server %q has no declaration in this scope", req.Name),
-		)
-	}
-	entry, ok := mcpSourceForTarget(req.Name, kind, sources)
-	if !ok {
+		if item, found, err := s.setPublishedMCPServerEnabled(ctx, req, enabled); found || err != nil {
+			return item, err
+		}
 		return MCPServerItem{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no declaration in this file", req.Name),
 		)
@@ -101,9 +112,53 @@ func (s *service) setManualMCPServerEnabled(
 	if _, err := s.finalizeCommittedCollectionMutation(ctx, result, nil, "replace", false); err != nil {
 		return MCPServerItem{}, err
 	}
-	item := baseMCPServerItem(entry, []mcpSourceEntry{entry}, req.Scope, req.WorkspaceID, req.ProfileName)
+	entries := sources[req.Name]
+	index := slices.IndexFunc(entries, func(source mcpSourceEntry) bool { return source.Target == kind })
+	item := baseMCPServerItem(entry, entries[:index+1], req.Scope, req.WorkspaceID, req.ProfileName)
 	err = s.populateMCPServerStatuses(ctx, &item, entry, true, false)
 	return item, err
+}
+
+func mcpEnablementConfigSource(
+	req MCPAuthTargetRequest, sources map[string][]mcpSourceEntry,
+) (mcpSourceEntry, bool) {
+	if req.DefinitionSource == "" {
+		kind, ok := preferredMCPAuthTarget(req, req.Name, sources)
+		if !ok {
+			return mcpSourceEntry{}, false
+		}
+		return mcpSourceForTarget(req.Name, kind, sources)
+	}
+	for _, candidate := range sources[req.Name] {
+		if candidate.Server.DefinitionSource == req.DefinitionSource && candidate.Source.Scope == req.Scope &&
+			candidate.Source.WorkspaceID == req.WorkspaceID && candidate.Source.ProfileName == req.ProfileName {
+			return candidate, true
+		}
+	}
+	return mcpSourceEntry{}, false
+}
+
+func (s *service) setPublishedMCPServerEnabled(
+	ctx context.Context, req MCPAuthTargetRequest, enabled bool,
+) (MCPServerItem, bool, error) {
+	management, ok := s.mcpConsent.(mcpPublishedEnablement)
+	if !ok {
+		return MCPServerItem{}, false, nil
+	}
+	definition, found, err := management.SetPublishedMCPEnabled(ctx, req, enabled)
+	if err != nil || !found {
+		return MCPServerItem{}, found, err
+	}
+	var item mcpCollectionItem
+	if req.Owner == "" || req.Owner == mcpManualOwner {
+		item = publishedMCPCollectionItem(definition, req)
+	} else {
+		item = extensionMCPCollectionItem(MCPExtensionDefinition{
+			Target: definition.Target, Server: definition.Server,
+		})
+	}
+	err = s.populateMCPServerStatuses(ctx, &item.item, item.entry, true, false)
+	return item.item, true, err
 }
 
 func (s *service) setExtensionMCPServerEnabled(

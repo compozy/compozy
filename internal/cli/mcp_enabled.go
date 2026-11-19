@@ -26,7 +26,11 @@ func (c *daemonClient) SetSettingsMCPServerEnabled(
 	var result contract.SettingsMCPServerResponse
 	path := "/api/settings/mcp-servers/" + url.PathEscape(strings.TrimSpace(target.Name)) + "/enabled"
 	body := contract.SettingsMCPServerEnabledRequest{Enabled: enabled}
-	err := c.doJSON(ctx, http.MethodPut, path, settingsMCPAuthQuery(target), body, &result)
+	query := settingsMCPAuthQuery(target)
+	if target.DefinitionSource != "" {
+		query.Set("definition_source", target.DefinitionSource)
+	}
+	err := c.doJSON(ctx, http.MethodPut, path, query, body, &result)
 	return result, err
 }
 
@@ -35,7 +39,8 @@ func newMCPEnabledCommand(deps commandDeps, enabled bool) *cobra.Command {
 	if enabled {
 		verb, state = "enable", "on"
 	}
-	opts := mcpAuthCommandOptions{scope: string(contract.SettingsLayeredScopeUser)}
+	opts := mcpAuthCommandOptions{scope: string(contract.SettingsLayeredScopeUser), workspaceDefaultProfile: true}
+	var definitionSource string
 	cmd := &cobra.Command{
 		Use:   verb + " <name>",
 		Short: "Turn a configured MCP server " + state,
@@ -57,6 +62,7 @@ func newMCPEnabledCommand(deps commandDeps, enabled bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			target.DefinitionSource = definitionSource
 			result, err := writer.SetSettingsMCPServerEnabled(cmd.Context(), target, enabled)
 			if err != nil {
 				return err
@@ -67,6 +73,7 @@ func newMCPEnabledCommand(deps commandDeps, enabled bool) *cobra.Command {
 			})
 		},
 	}
+	cmd.Flags().StringVar(&definitionSource, "definition-source", "", "Declaring file for a same-name MCP server")
 	addMCPAuthTargetFlags(cmd, &opts)
 	return cmd
 }

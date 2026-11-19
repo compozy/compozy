@@ -30,6 +30,44 @@ func TestMCPJSONServerDisabled(t *testing.T) {
 			t.Fatalf("off state lost after save: %+v %v", roundTrip, err)
 		}
 	})
+	// Invariant: enablement follows sidecar precedence and preserves the launch definition.
+	// Owner: config persistence; canonical suite: MCP JSON.
+	t.Run("Should toggle the winning definition when both key styles declare the same name", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace := t.TempDir()
+		target, err := ResolveMCPEnabledWriteTarget(home, workspace, WriteScopeProfile, "default", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspaceTarget, err := ResolveMCPSidecarWriteTarget(home, workspace, WriteScopeWorkspace, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, workspaceTarget.Path(), `{"mcpServers":{"demo":{"command":"project"}}}`)
+		writeFile(t, target.Path(), `{
+   "mcpServers":{"demo":{"command":"shadowed"},"other":{"command":"other"}},
+   "mcp_servers":{"demo":{"command":"winning","env":{"MODE":"test"}}}
+  }`)
+		for _, disabled := range []bool{true, false} {
+			cfg, err := SetMCPSidecarServerDisabled(home, workspace, target, "demo", disabled)
+			if err != nil {
+				t.Fatal(err)
+			}
+			servers := cfg.MCPServers
+			if len(servers) != 2 || servers[0].Command != "winning" || servers[0].Env["MODE"] != "test" ||
+				servers[0].IsDisabled() != disabled || servers[1].IsDisabled() {
+				t.Fatalf("unexpected effective MCP servers after disabled=%t: %+v", disabled, servers)
+			}
+		}
+		base, err := LoadMCPServersJSONFile(workspaceTarget.Path())
+		if err != nil || len(base) != 1 || base[0].Command != "project" || base[0].Disabled != nil {
+			t.Fatalf("workspace layer changed: %+v, %v", base, err)
+		}
+	})
 }
 
 func TestParseMCPServersJSONAcceptsBothKeyStyles(t *testing.T) {

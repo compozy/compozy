@@ -25,6 +25,7 @@ func (h *BaseHandlers) SetSettingsMCPServerEnabled(c *gin.Context) {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
+	target.DefinitionSource = c.Query("definition_source")
 	var body struct {
 		Enabled *bool `json:"enabled"`
 	}

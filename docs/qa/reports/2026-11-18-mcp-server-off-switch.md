@@ -18,3 +18,8 @@ that an approved server remains approved and receives zero requests when off.
 
 The PR carries the inspected Settings and session screenshots and the CLI transcript capture.
 The lab daemon, fixture process, and Web server were stopped after the walk.
+
+Focused regressions exercised the follow-up changes for inline and repeated TOML declarations,
+JSON precedence, the workspace's default-profile sidecar, a republished agent definition, and
+a queued probe that must stay idle after an off switch. The screenshots cover the same UI states
+in the initial lab walk.

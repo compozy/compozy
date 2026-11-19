@@ -36,7 +36,8 @@ func (s settingsMCPExtensionDefinitions) ResolveMCPExtensionDefinition(
 			continue
 		}
 		name := strings.TrimSpace(req.Name)
-		if name != record.Spec.Name {
+		if name != record.Spec.Name ||
+			(req.DefinitionSource != "" && req.DefinitionSource != record.Spec.DefinitionSource) {
 			continue
 		}
 		target, err := mcpAuthTargetForResource(ctx, s.state, record.Scope, record.Spec.Name, owner)

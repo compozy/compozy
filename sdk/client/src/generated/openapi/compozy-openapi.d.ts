@@ -42662,6 +42662,8 @@ export interface operations {
         profile?: string;
         /** @description Definition owner: manual or extension:<name>; omitted owner selects manual */
         owner?: string;
+        /** @description Declaring file from the Settings MCP row. Selects one same-name definition in the requested scope. */
+        definition_source?: string;
       };
       header?: never;
       path: {
@@ -42706,6 +42708,15 @@ export interface operations {
       };
       /** @description MCP server or workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server definition is ambiguous or cannot be edited */
+      409: {
         headers: {
           [name: string]: unknown;
         };

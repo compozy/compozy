@@ -62,11 +62,16 @@ compozy mcp enable example --scope workspace --workspace my-project
 ```
 
 Use `--scope user` for Personal, `--scope profile --profile <profile>` for a named profile, and
-add `--workspace <project>` to that profile selector for a project profile. For an extension server,
-pass `--owner extension:<installed-name>` and the server's logical name. The HTTP and UDS operation
-is `PUT /api/settings/mcp-servers/{name}/enabled` with the same scope selectors and a JSON body such
-as `{"enabled":false}`. You can also set `disabled = true` in a `[[mcp_servers]]` declaration in
-`config.toml`, or `"disabled": true` in an `mcp.json` server object. An omitted field defaults to on.
+add `--workspace <project>` to that profile selector for a project profile, including `default`.
+For an extension server, pass `--owner extension:<installed-name>` and the server's logical name.
+If two declarations have the same name in the selected scope, use `--definition-source <path>`
+with the declaring file shown by Settings. Agent and skill declarations keep the switch in local
+daemon state. For workspace config and sidecar declarations, the switch edits the declaring file.
+The HTTP and UDS operation is `PUT /api/settings/mcp-servers/{name}/enabled`. It takes the same
+scope selectors, an optional `definition_source` query parameter, and a body such as
+`{"enabled":false}`. You can also set `disabled = true` in a `[[mcp_servers]]` declaration in
+`config.toml`, or `"disabled": true` in an `mcp.json` server object. With no configured value,
+the server defaults to on.
 
 ## Check what a session can use
 

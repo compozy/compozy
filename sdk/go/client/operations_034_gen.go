@@ -284,11 +284,12 @@ func (c *Client) SetSessionRuntime(ctx context.Context, params SetSessionRuntime
 
 // SetSettingsMCPServerEnabledParams carries the path, query, and header parameters.
 type SetSettingsMCPServerEnabledParams struct {
-	Name        string  `url:"name"`
-	Scope       string  `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
+	Name             string  `url:"name"`
+	Scope            string  `url:"scope"`
+	WorkspaceID      *string `url:"workspace_id"`
+	Profile          *string `url:"profile"`
+	Owner            *string `url:"owner"`
+	DefinitionSource *string `url:"definition_source"`
 }
 
 // SetSettingsMCPServerEnabled Turn one scoped MCP server on or off
@@ -305,6 +306,9 @@ func (c *Client) SetSettingsMCPServerEnabled(ctx context.Context, params SetSett
 	}
 	if params.Owner != nil {
 		query.Set("owner", *params.Owner)
+	}
+	if params.DefinitionSource != nil {
+		query.Set("definition_source", *params.DefinitionSource)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

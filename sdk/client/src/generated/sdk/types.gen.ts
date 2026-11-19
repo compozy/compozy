@@ -28913,6 +28913,10 @@ export type SetSettingsMCPServerEnabledData = {
      * Definition owner: manual or extension:<name>; omitted owner selects manual
      */
     owner?: string;
+    /**
+     * Declaring file from the Settings MCP row. Selects one same-name definition in the requested scope.
+     */
+    definition_source?: string;
   };
   url: "/api/settings/mcp-servers/{name}/enabled";
 };
@@ -28930,6 +28934,10 @@ export type SetSettingsMCPServerEnabledErrors = {
    * MCP server or workspace not found
    */
   404: ErrorPayload;
+  /**
+   * MCP server definition is ambiguous or cannot be edited
+   */
+  409: ErrorPayload;
   /**
    * Internal server error
    */

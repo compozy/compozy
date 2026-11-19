@@ -15,6 +15,8 @@ type MCPRuntimeChecker interface {
 }
 
 func (s *service) CheckMCPServer(ctx context.Context, req MCPAuthTargetRequest) (MCPServerItem, error) {
+	s.mcpProbeMu.RLock()
+	defer s.mcpProbeMu.RUnlock()
 	checker, ok := s.mcpRuntime.(MCPRuntimeChecker)
 	if !ok {
 		return MCPServerItem{}, unavailableError(errors.New("settings: MCP check runtime is unavailable"))

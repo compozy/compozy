@@ -248,7 +248,7 @@ function CompozyGroup({
     );
   }
   if (visibleServers.length === 0) return null;
-  const waiting = servers.filter(isMCPApprovalWaiting).length;
+  const waiting = servers.filter(server => !server.disabled && isMCPApprovalWaiting(server)).length;
   return (
     <MCPServersTable
       {...table}

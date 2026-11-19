@@ -171,6 +171,10 @@ func sessionMCPRow(
 	if row.Scope == "" {
 		row.Scope, row.WorkspaceID, row.Profile = string(item.Scope), item.WorkspaceID, item.ProfileName
 	}
+	if item.Disabled {
+		row.State, row.Reason = string(settingspkg.MCPServerRuntimeStateOff), "Turned off in CompozyOS"
+		return row
+	}
 	if item.Approval.State == mcpApprovalWaiting {
 		row.Approval = &session.MCPServerApproval{
 			Reason:           item.Approval.Reason,
@@ -182,10 +186,6 @@ func sessionMCPRow(
 	name := item.RuntimeName
 	if name == "" {
 		name = item.Name
-	}
-	if item.Disabled {
-		row.State, row.Reason = string(settingspkg.MCPServerRuntimeStateOff), "Turned off in CompozyOS"
-		return row
 	}
 	row.ToolCount = sessionMCPToolCount(diagnostics, name)
 	row.CallableCount = sessionMCPToolCount(callable, name)

@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/compozy/compozy/internal/resources"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -13,7 +13,7 @@ func (s settingsMCPConsent) PublishedMCPDefinitions(
 	ctx context.Context,
 	req settingspkg.MCPAuthTargetRequest,
 ) ([]settingspkg.MCPPublishedDefinition, error) {
-	if s.state.mcpServerCatalog == nil || req.WorkspaceID == "" {
+	if s.state.mcpServerCatalog == nil {
 		return nil, nil
 	}
 	profileID, err := s.profileID(ctx, req.ProfileName)
@@ -25,15 +25,19 @@ func (s settingsMCPConsent) PublishedMCPDefinitions(
 		if record.Owner.Kind == extensionResourceOwnerKind {
 			continue
 		}
-		workspaceID, profile, scopeErr := mcpResourceProjectionWorkspace(record.Scope)
-		if scopeErr != nil || workspaceID != req.WorkspaceID {
-			continue
+		target, err := mcpAuthTargetForResource(ctx, s.state, record.Scope, record.Spec.Name, record.Owner)
+		if err != nil {
+			return nil, err
 		}
-		requestedProfile := req.ProfileName
-		if requestedProfile == "" {
-			requestedProfile = daemonDefaultProfileName
+		managementTarget := publishedMCPManagementTarget(record.Scope, target)
+		lens := req
+		if managementTarget.Scope == mcpauth.ScopeWorkspaceProfile && req.Scope == settingspkg.ScopeWorkspace {
+			lens.Scope, lens.ProfileName = settingspkg.ScopeProfile, daemonDefaultProfileName
 		}
-		if record.Scope.Kind == resources.ResourceScopeKindWorkspaceProfile && profile != requestedProfile {
+		workspaceSource := managementTarget.Scope == mcpauth.ScopeWorkspace &&
+			managementTarget.WorkspaceID == req.WorkspaceID
+		userSource := managementTarget.Scope == mcpauth.ScopeUser
+		if !workspaceSource && !userSource && !settingsMCPExtensionTargetVisible(lens, managementTarget) {
 			continue
 		}
 		// Config declarations are read freshly by Settings, including definitions not published yet.
@@ -47,7 +51,7 @@ func (s settingsMCPConsent) PublishedMCPDefinitions(
 				Kind:        toolspkg.SourceMCP,
 				ResourceID:  record.ID,
 				ProfileID:   profileID,
-				WorkspaceID: workspaceID,
+				WorkspaceID: req.WorkspaceID,
 			},
 			strings.TrimSpace(record.Spec.Name),
 			"manual",
@@ -57,7 +61,9 @@ func (s settingsMCPConsent) PublishedMCPDefinitions(
 		}
 		definitions = append(
 			definitions,
-			settingspkg.MCPPublishedDefinition{Target: resolved.Target, Server: resolved.Server},
+			settingspkg.MCPPublishedDefinition{
+				Target: resolved.Target, ManagementTarget: managementTarget, Server: resolved.Server,
+			},
 		)
 	}
 	return definitions, nil

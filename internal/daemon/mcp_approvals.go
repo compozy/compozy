@@ -212,6 +212,9 @@ func mcpSourceConsent(
 		if err != nil {
 			return ConsentDecision{}, err
 		}
+		if err := applyPublishedMCPEnablement(ctx, state, record, &server); err != nil {
+			return ConsentDecision{}, err
+		}
 		decision, err := mcpDefinitionConsent(ctx, state, scope, record, server)
 		decision.Disabled = server.IsDisabled()
 		return decision, err

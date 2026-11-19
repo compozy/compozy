@@ -13,6 +13,7 @@ import type {
   SettingsMCPApprovalRequest,
   SettingsMCPApprovalResult,
   SettingsMCPAuthFilter,
+  SettingsMCPEnablementFilter,
   SettingsMCPServerEntry,
 } from "../types";
 import { normalizeOptionalText, SettingsApiError } from "./settings-api-error";
@@ -125,7 +126,7 @@ export async function checkSettingsMCPServer(
 
 export async function setSettingsMCPServerEnabled(
   name: string,
-  filter: SettingsMCPAuthFilter,
+  filter: SettingsMCPEnablementFilter,
   enabled: boolean
 ): Promise<SettingsMCPServerEntry> {
   const { data, error, response } = await apiClient.PUT(
@@ -136,6 +137,7 @@ export async function setSettingsMCPServerEnabled(
         query: {
           ...normalizeSettingsLayerFilter(filter),
           owner: normalizeOptionalText(filter.owner),
+          definition_source: filter.definition_source,
         },
       },
       body: { enabled },

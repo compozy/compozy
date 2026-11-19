@@ -26,13 +26,14 @@ func PutMCPSidecarServer(
 	if err := normalized.Validate("mcp_server"); err != nil {
 		return Config{}, fmt.Errorf("config: validate MCP sidecar write: %w", err)
 	}
-	return editMCPSidecarServer(homePaths, workspaceRoot, target, func(doc *editableMCPJSONDocument) error {
+	return editMCPSidecarServer(homePaths, workspaceRoot, target, false, func(doc *editableMCPJSONDocument) error {
 		return doc.Put(normalized)
 	})
 }
 
 func editMCPSidecarServer(
-	homePaths HomePaths, workspaceRoot string, target WriteTarget, edit func(*editableMCPJSONDocument) error,
+	homePaths HomePaths, workspaceRoot string, target WriteTarget, allowShadowing bool,
+	edit func(*editableMCPJSONDocument) error,
 ) (cfg Config, err error) {
 	if !target.isMCPSidecarTarget() {
 		return Config{}, fmt.Errorf("config: write target %q is not an MCP sidecar", target.Kind())
@@ -46,7 +47,7 @@ func editMCPSidecarServer(
 			err = errors.Join(err, fmt.Errorf("config: close MCP sidecar parent %q: %w", target.path, closeErr))
 		}
 	}()
-	return editMCPSidecarServerInDirectory(homePaths, workspaceRoot, target, directory, name, edit)
+	return editMCPSidecarServerInDirectory(homePaths, workspaceRoot, target, directory, name, allowShadowing, edit)
 }
 
 func putMCPSidecarServerInDirectory(
@@ -63,6 +64,7 @@ func putMCPSidecarServerInDirectory(
 		target,
 		directory,
 		name,
+		false,
 		func(doc *editableMCPJSONDocument) error {
 			return doc.Put(server)
 		},
@@ -71,6 +73,7 @@ func putMCPSidecarServerInDirectory(
 
 func editMCPSidecarServerInDirectory(
 	homePaths HomePaths, workspaceRoot string, target WriteTarget, directory *fileutil.Directory, name string,
+	allowShadowing bool,
 	edit func(*editableMCPJSONDocument) error,
 ) (Config, error) {
 	contents, existed, err := readOptionalRegularFileFromDirectory(directory, name, target.path, "MCP sidecar")
@@ -78,7 +81,7 @@ func editMCPSidecarServerInDirectory(
 		return Config{}, err
 	}
 
-	document, err := loadEditableMCPJSONDocument(contents, target.path)
+	document, err := loadEditableMCPJSONDocumentWithShadowing(contents, target.path, allowShadowing)
 	if err != nil {
 		return Config{}, err
 	}
@@ -201,6 +204,12 @@ type mcpJSONCollection struct {
 }
 
 func loadEditableMCPJSONDocument(content []byte, source string) (*editableMCPJSONDocument, error) {
+	return loadEditableMCPJSONDocumentWithShadowing(content, source, false)
+}
+
+func loadEditableMCPJSONDocumentWithShadowing(
+	content []byte, source string, allowShadowing bool,
+) (*editableMCPJSONDocument, error) {
 	trimmedSource := cmp.Or(strings.TrimSpace(source), MCPJSONName)
 
 	document := &editableMCPJSONDocument{
@@ -229,6 +238,9 @@ func loadEditableMCPJSONDocument(content []byte, source string) (*editableMCPJSO
 	document.camel, err = loadMCPJSONCollection(root, "mcpServers", trimmedSource, existingNames)
 	if err != nil {
 		return nil, err
+	}
+	if allowShadowing {
+		clear(existingNames)
 	}
 	document.snake, err = loadMCPJSONCollection(root, "mcp_servers", trimmedSource, existingNames)
 	if err != nil {

@@ -1,5 +1,5 @@
 import type {
-  SettingsMCPAuthFilter,
+  SettingsMCPEnablementFilter,
   SettingsMCPServerEntry,
   SettingsMCPServerTarget,
 } from "../types";
@@ -83,17 +83,29 @@ export function mcpManagementScopeLabel(server: SettingsMCPServerEntry): string 
 
 export function deriveMCPEnablementFilter(
   server: SettingsMCPServerEntry
-): SettingsMCPAuthFilter | null {
+): SettingsMCPEnablementFilter | null {
   const source = server.source_metadata?.effective_source;
+  const definitionSource = server.definition_source;
+  const declaringFile = definitionSource ? { definition_source: definitionSource } : {};
   if (
     source?.kind === "workspace-profile-config" ||
-    source?.kind === "workspace-profile-mcp-sidecar"
+    source?.kind === "workspace-profile-mcp-sidecar" ||
+    source?.kind === "workspace-agent-file" ||
+    source?.kind === "global-agent-file"
   ) {
+    if (source.scope === "user") return { scope: "user", ...declaringFile };
     const profile = source.profile?.trim();
     const workspaceId = source.workspace_id?.trim();
-    return profile && workspaceId ? { scope: "profile", profile, workspace_id: workspaceId } : null;
+    if (source.scope === "workspace" && workspaceId) {
+      return { scope: "workspace", workspace_id: workspaceId, ...declaringFile };
+    }
+    if (source.scope === "profile" && profile) {
+      return { scope: "profile", profile, workspace_id: workspaceId, ...declaringFile };
+    }
+    return null;
   }
-  return deriveMCPManagementFilter(server);
+  const filter = deriveMCPManagementFilter(server);
+  return filter ? { ...filter, ...declaringFile } : null;
 }
 
 /** Full definition identity for selection and React keys; names may repeat across owners and scopes. */
@@ -102,6 +114,7 @@ export function mcpDefinitionKey(server: SettingsMCPServerEntry): string {
   return JSON.stringify([
     server.owner ?? "manual",
     server.name,
+    server.definition_source ?? "",
     filter?.scope ?? server.scope,
     filter && "profile" in filter ? filter.profile : (server.profile ?? ""),
     filter && "workspace_id" in filter ? (filter.workspace_id ?? "") : (server.workspace_id ?? ""),
