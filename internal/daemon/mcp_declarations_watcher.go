@@ -117,7 +117,7 @@ func runMCPDeclarationWatcher(
 	delay := interval
 	refresh := func() {
 		if state.runtimeMCPInventory != nil {
-			state.runtimeMCPInventory.Poll()
+			state.runtimeMCPInventory.Poll(ctx)
 		}
 		if err := watcher.poll(ctx); err != nil && ctx.Err() == nil && state.logger != nil {
 			// Parsing errors can contain config values; keep the warning secret-free.

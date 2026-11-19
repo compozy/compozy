@@ -6838,6 +6838,6 @@ Owner: `perf/mcp-poll-churn`.
   provider scopes and share tool views by effective visibility. Runtime inventory dependencies
   identify the exact accepted runtime context and its observed file revision. Instance and
   approval identities read committed rows under the original profile and workspace rules. Cold
-  builds use the SQLite commit version to refuse reuse when authority changes during the build.
+  builds check that the instance, check-in binding, and approval inputs they consumed match the observation.
 - **Official skill, Web, docs and QA.** The MCP settings, summary events, hosted tool notifications,
   and existing operator journeys use the same timing and contracts.

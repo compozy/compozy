@@ -719,6 +719,10 @@ func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t
 					t.Fatalf("artifacts.HeartbeatBody = %q, want %q", got, want)
 				}
 
+				observed := dependency.projectionHeartbeat("marketer", agentCatalogLensFor(resolved))
+				if want := artifacts.HeartbeatSourcePath + "\x00" + artifacts.HeartbeatBody; observed != want {
+					t.Fatalf("observed heartbeat does not match the heartbeat resolved for %s", resolved.ProfileName)
+				}
 				policy, ok, err := dependency.ResolveHeartbeatPolicy(t.Context(), heartbeat.AuthoringTarget{
 					CheckInLimits: &heartbeat.CheckInLimits{MaxToolCalls: 50, MaxWriteCalls: 10},
 					AgentName:     "marketer",

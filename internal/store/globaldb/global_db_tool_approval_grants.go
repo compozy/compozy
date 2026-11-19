@@ -239,6 +239,8 @@ func (g *ApprovalGrantRepo) ListApprovalGrants(
 	return grants, nil
 }
 
+const checkInApprovalProjectionLimit = 128
+
 // CheckInApprovalProjection observes remembered tool decisions in the original grant scope.
 func (g *ApprovalGrantRepo) CheckInApprovalProjection(ctx context.Context, scope toolspkg.Scope) (string, error) {
 	if err := g.checkReady(ctx, "observe check-in approvals"); err != nil {
@@ -247,18 +249,17 @@ func (g *ApprovalGrantRepo) CheckInApprovalProjection(ctx context.Context, scope
 	rows, err := g.mcpProjectionQueries(ctx).
 		ReadCheckInApprovalDecisions(ctx, sqlcgen.ReadCheckInApprovalDecisionsParams{
 			ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID, AgentName: scope.AgentName,
+			MaxRows: checkInApprovalProjectionLimit + 1,
 		})
 	if err != nil {
 		return "", err
 	}
-	if len(rows) > 128 {
-		return "", errors.New("store: check-in approval observation exceeds 128 rows")
+	if len(rows) > checkInApprovalProjectionLimit {
+		return "", fmt.Errorf("store: check-in approval observation exceeds %d rows", checkInApprovalProjectionLimit)
 	}
 	decisions := make([][4]string, 0, len(rows))
 	for _, row := range rows {
-		if row.AccessScope == "" {
-			decisions = append(decisions, [4]string{row.AgentName, row.ToolID, row.InputDigest, row.Decision})
-		}
+		decisions = append(decisions, [4]string{row.AgentName, row.ToolID, row.InputDigest, row.Decision})
 	}
 	if len(decisions) == 0 {
 		return "", nil

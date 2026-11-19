@@ -108,7 +108,7 @@ func (i MCPPolicyIdentity) MatchesPolicyInfo(info *Info) bool {
 		reflect.DeepEqual(store.NormalizeSessionLineage(info.ID, i.lineage), info.Lineage)
 }
 
-func (m *Manager) MCPPolicyIdentity(id string) (MCPPolicyIdentity, bool) {
+func (m *Manager) MCPPolicyIdentity(ctx context.Context, id string) (MCPPolicyIdentity, bool) {
 	s, ok := m.Get(id)
 	if ok {
 		s.mu.RLock()
@@ -117,6 +117,9 @@ func (m *Manager) MCPPolicyIdentity(id string) (MCPPolicyIdentity, bool) {
 	}
 	target, err := normalizeStoredSessionID(id)
 	if err != nil {
+		return MCPPolicyIdentity{}, false
+	}
+	if ctx.Err() != nil {
 		return MCPPolicyIdentity{}, false
 	}
 	path := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))

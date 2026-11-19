@@ -123,7 +123,7 @@ func (s *HostedService) streamProjection(
 	listingCtx, builtAt := s.withProjectionListings(projectionCtx, fence.epoch)
 	observation, known := runtime.ObserveProjection(listingCtx, record.scope())
 	if !known {
-		return s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+		return s.streamProjectionWithoutObservation(ctx, projectionCtx, runtime, record)
 	}
 	cached := s.projectionCache.unversionedEntry(record.bindID)
 	response := cached.response
@@ -131,8 +131,7 @@ func (s *HostedService) streamProjection(
 		!now.Before(cached.builtAt) && s.projectionFence() == fence
 	if !reused {
 		var err error
-		buildCtx, stable := runtime.BeginProjectionBuild(ctx, record.scope(), observation.Policy)
-		defer stable()
+		buildCtx, stable := runtime.BeginProjectionBuild(ctx, record.scope(), observation)
 		buildCtx = runtime.FreshReadContext(context.WithValue(buildCtx, hostedProjectionObservationKey{}, true))
 		response, err = s.projectionForGeneration(buildCtx, record, registry, s.boundedUnversionedProjection)
 		if err != nil {
@@ -161,6 +160,19 @@ func (s *HostedService) streamProjection(
 		return s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
 	}
 	return response, nil
+}
+
+func (s *HostedService) streamProjectionWithoutObservation(
+	ctx, projectionCtx context.Context, registry *tools.RuntimeRegistry, record *hostedBindRecord,
+) (HostedProjectionResponse, error) {
+	if !registry.HasProjectionPolicyObserver() {
+		return s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+	}
+	buildCtx := registry.FreshReadContext(projectionCtx)
+	if tools.IsHostedCatalogRead(buildCtx) {
+		return catalogProjectionWithRedactionCheck(buildCtx, registry, record, buildHostedProjection)
+	}
+	return projectionWithRedactionCheck(buildCtx, registry, record, buildHostedProjection)
 }
 
 func (s *HostedService) storeObservedProjection(

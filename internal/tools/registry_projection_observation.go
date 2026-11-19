@@ -4,14 +4,22 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"iter"
+	"slices"
 	"strings"
+	"sync"
 )
 
 // ProjectionObservation records the bounded changes a stream must check in addition to its epoch.
 type ProjectionObservation struct {
 	Policy any
-	Shared [sha256.Size]byte
+	Shared projectionSharedObservation
 	Scoped string
+}
+
+type projectionSharedObservation struct {
+	digest [sha256.Size]byte
+	native string
 }
 
 type projectionPolicyObserver interface {
@@ -19,18 +27,99 @@ type projectionPolicyObserver interface {
 	ProjectionPolicyIdentity(context.Context, Scope) (any, bool)
 }
 
-// BeginProjectionBuild captures a policy fence used only when populating the cache.
+type nativeProjectionBuildKey struct{}
+
+type nativeProjectionBuild struct {
+	mu       sync.Mutex
+	inputs   map[nativeProjectionInput]Availability
+	mismatch bool
+}
+
+type nativeProjectionInput struct {
+	group *NativeAvailabilityGroup
+	scope Scope
+}
+
+func (b *nativeProjectionBuild) record(group *NativeAvailabilityGroup, scope Scope, value Availability) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if group.Shared {
+		scope = Scope{}
+	}
+	key := nativeProjectionInput{group, scope}
+	if previous, exists := b.inputs[key]; exists {
+		b.mismatch = b.mismatch || !sameProjectionAvailability(previous, value)
+		return
+	}
+	if b.inputs == nil {
+		b.inputs = make(map[nativeProjectionInput]Availability)
+	}
+	value.ReasonCodes = slices.Clone(value.ReasonCodes)
+	b.inputs[key] = value
+}
+
+func (b *nativeProjectionBuild) stable(r *RuntimeRegistry, scope Scope, observed ProjectionObservation) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.mismatch || len(b.inputs) == 0 {
+		return !b.mismatch
+	}
+	// The grouped observations use the registry's fixed provider and group order.
+	expected := make(map[nativeProjectionInput]string, len(b.inputs))
+	r.readNativeProjectionStamps(expected, Scope{}, observed.Shared.native, true)
+	r.readNativeProjectionStamps(expected, scope, observed.Scoped, false)
+	for input, consumed := range b.inputs {
+		var stamp strings.Builder
+		appendProjectionAvailability(&stamp, consumed)
+		if expected[input] != strings.TrimSuffix(stamp.String(), ";") {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *RuntimeRegistry) readNativeProjectionStamps(
+	stamps map[nativeProjectionInput]string, scope Scope, remaining string, shared bool,
+) {
+	for group := range r.nativeAvailabilityGroups(shared) {
+		stamp, rest, found := strings.Cut(remaining, ";")
+		if !found {
+			return
+		}
+		stamps[nativeProjectionInput{group, scope}] = stamp
+		remaining = rest
+	}
+}
+
+func sameProjectionAvailability(a, b Availability) bool {
+	return a.Registered == b.Registered && a.Enabled == b.Enabled && a.Available == b.Available &&
+		a.Authorized == b.Authorized && a.Executable == b.Executable && a.Conflicted == b.Conflicted &&
+		slices.Equal(a.ReasonCodes, b.ReasonCodes)
+}
+
+// BeginProjectionBuild captures inputs consumed when populating the cache.
 func (r *RuntimeRegistry) BeginProjectionBuild(
 	ctx context.Context,
 	scope Scope,
-	observed any,
+	observed ProjectionObservation,
 ) (context.Context, func() bool) {
+	native := new(nativeProjectionBuild)
+	build := context.WithValue(ctx, nativeProjectionBuildKey{}, native)
+	policyStable := func() bool { return true }
 	if policy, ok := r.policyResolver.(interface {
 		BeginProjectionBuild(context.Context, Scope, any) (context.Context, func() bool)
 	}); ok {
-		return policy.BeginProjectionBuild(ctx, scope, observed)
+		build, policyStable = policy.BeginProjectionBuild(build, scope, observed.Policy)
 	}
-	return ctx, func() bool { return true }
+	return build, func() bool {
+		return policyStable() && native.stable(r, scope, observed)
+	}
+}
+
+// HasProjectionPolicyObserver reports whether an unknown policy observation must decline reuse.
+func (r *RuntimeRegistry) HasProjectionPolicyObserver() bool {
+	_, ok := r.policyResolver.(projectionPolicyObserver)
+	return ok
 }
 
 // ObserveProjection reads the mutable inputs separately from policy resolution or projection.
@@ -60,17 +149,20 @@ func (r *RuntimeRegistry) ObserveProjection(ctx context.Context, scope Scope) (P
 		}
 	}
 	key := projectionObservationKey{r, r.ExternalProjectionScopeKey(scope)}
-	shared, err := listings.externalObservations.load(ctx, key, func() ([sha256.Size]byte, bool, error) {
+	shared, err := listings.externalObservations.load(ctx, key, func() (projectionSharedObservation, bool, error) {
 		global, err := listings.nativeObservations.load(ctx, r, func() (string, bool, error) {
 			return r.nativeProjectionObservations(ctx, Scope{}, true), true, ctx.Err()
 		})
 		if err != nil {
-			return [sha256.Size]byte{}, false, err
+			return projectionSharedObservation{}, false, err
 		}
 		external, err := r.ExternalProjectionFingerprint(ctx, scope)
 		var stamp strings.Builder
 		appendProjectionGenerationPart(&stamp, global, external)
-		return sha256.Sum256([]byte(stamp.String())), err == nil, err
+		return projectionSharedObservation{
+			digest: sha256.Sum256([]byte(stamp.String())),
+			native: global,
+		}, err == nil, err
 	})
 	if err != nil {
 		return ProjectionObservation{}, false
@@ -86,20 +178,30 @@ type projectionObservationKey struct {
 
 func (r *RuntimeRegistry) nativeProjectionObservations(ctx context.Context, scope Scope, global bool) string {
 	var stamp strings.Builder
-	for _, provider := range r.providers {
-		native, ok := provider.(*NativeProvider)
-		if !ok {
-			continue
-		}
-		checks := native.scopedAvailability
-		if global {
-			checks = native.sharedAvailability
-		}
-		for _, check := range checks {
-			appendProjectionAvailability(&stamp, check(ctx, scope))
-		}
+	for group := range r.nativeAvailabilityGroups(global) {
+		appendProjectionAvailability(&stamp, group.Check(ctx, scope))
 	}
 	return stamp.String()
+}
+
+func (r *RuntimeRegistry) nativeAvailabilityGroups(shared bool) iter.Seq[*NativeAvailabilityGroup] {
+	return func(yield func(*NativeAvailabilityGroup) bool) {
+		for _, provider := range r.providers {
+			native, ok := provider.(*NativeProvider)
+			if !ok {
+				continue
+			}
+			groups := native.scopedAvailability
+			if shared {
+				groups = native.sharedAvailability
+			}
+			for _, group := range groups {
+				if !yield(group) {
+					return
+				}
+			}
+		}
+	}
 }
 
 func appendProjectionAvailability(stamp *strings.Builder, availability Availability) {

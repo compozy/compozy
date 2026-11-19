@@ -1232,12 +1232,17 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		calls := make(map[string]int)
 		restrictions := make(map[string]bool)
 		available := true
+		failDuringBuild, failNextCheck := false, false
 		const id tools.ToolID = "compozy__observed_tool"
 		native := hostedRuntimeNativeTool(id, tools.RiskRead, true)
 		native.Availability = &tools.NativeAvailabilityGroup{
 			Check: func(_ context.Context, scope tools.Scope) tools.Availability {
-				if !available && scope.SessionID == "affected" {
-					return tools.Unavailable(tools.ReasonDependencyMissing)
+				if scope.SessionID == "affected" {
+					fail := failNextCheck || !available
+					failNextCheck = false
+					if fail {
+						return tools.Unavailable(tools.ReasonDependencyMissing)
+					}
 				}
 				return tools.Available()
 			},
@@ -1249,6 +1254,10 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		resolver := hostedObservationPolicyResolver{
 			resolve: func(_ context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
 				calls[scope.SessionID]++
+				if failDuringBuild && scope.SessionID == "affected" {
+					failNextCheck = true
+					failDuringBuild = false
+				}
 				inputs := tools.DefaultPolicyInputs()
 				inputs.Session.Enforced = true
 				if !restrictions[scope.SessionID] {
@@ -1264,7 +1273,8 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			t.Fatal(err)
 		}
 		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
-		service.projectionEpoch = NewProjectionEpoch().Current
+		epoch := NewProjectionEpoch()
+		service.projectionEpoch = epoch.Current
 		peer := hostedTestPeer(executable)
 		binds := map[string]string{}
 		digests := map[string]string{}
@@ -1314,13 +1324,28 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		}
 
 		available = true
-		restrictions["affected"] = true
 		now = now.Add(service.StreamRefreshInterval())
-		read("affected", 0, false)
+		read("affected", 1, true)
 		read("sibling", 0, false)
-		if calls["sibling"] != 0 {
-			t.Fatalf("restriction rebuilt a sibling: %v", calls)
+
+		restrictions["affected"] = true
+		clear(calls)
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 0, true)
+		read("sibling", 0, false)
+		if calls["affected"] == 0 || calls["sibling"] != 0 {
+			t.Fatalf("restriction should rebuild only the affected bind: %v", calls)
 		}
+
+		// Invariant: a transient native failure consumed during a build must not survive as a cached result.
+		restrictions["affected"] = false
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 1, true)
+		epoch.Advance()
+		failDuringBuild = true
+		read("affected", 0, true)
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 1, true)
 	})
 	// Invariant: secret changes preserve safe hosted reads without caching a projection built across revisions.
 	// Owner: hosted projection; canonical suite: hosted projection generations.

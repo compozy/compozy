@@ -13,7 +13,6 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/managedsidecar"
 	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -58,9 +57,8 @@ func (r *nativeToolPolicyResolver) cachedAuthorityPolicy(
 	}
 	key := authorityPolicyKey{profile: info.ProfileID, dir: dir, digest: sha256.Sum256(data)}
 	if catalog, ok := r.agentResolver.(*resourceAgentCatalog); ok {
-		key.published = catalog.projectionHeartbeat(tools.Scope{
-			ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, AgentName: agent.Name,
-		})
+		lens := agentCatalogLensForIdentity(target.WorkspaceID, target.ProfileID, target.ProfileName)
+		key.published = catalog.projectionHeartbeat(target.AgentName, lens)
 	}
 	r.authorityMu.Lock()
 	defer r.authorityMu.Unlock()
@@ -99,15 +97,16 @@ func toolPolicyAuthorityTarget(
 	workspace *workspacepkg.ResolvedAgentConfig,
 	cfg *compozyconfig.Config,
 ) heartbeat.AuthoringTarget {
-	root := ""
+	var root, profileName string
 	if workspace != nil {
-		root = workspace.RootDir
+		root, profileName = workspace.RootDir, workspace.ProfileName
 	}
 	return heartbeat.AuthoringTarget{
 		AgentPath:     agent.SourcePath,
 		WorkspaceRoot: root,
 		AgentName:     info.AgentName,
 		ProfileID:     info.ProfileID,
+		ProfileName:   profileName,
 		WorkspaceID:   info.WorkspaceID,
 		Config:        cfg.Agents.Heartbeat,
 		CheckInLimits: &heartbeat.CheckInLimits{

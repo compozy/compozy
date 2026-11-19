@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -25,11 +24,19 @@ const runtimeMCPCacheLimit = 128
 
 type runtimeMCPCacheEntry struct {
 	revision    uint64
+	publication uint64
 	readContext string
 	inventory   runtimemcp.Inventory
 	paths       []string
 	stamps      map[string]filesnap.Snapshot
 	expires     time.Time
+}
+
+type runtimeMCPPollEntry struct {
+	key         string
+	publication uint64
+	paths       []string
+	stamps      map[string]filesnap.Snapshot
 }
 
 type runtimeMCPObservation struct {
@@ -41,11 +48,12 @@ type runtimeMCPObservation struct {
 type runtimeMCPObservationKey struct{}
 
 type runtimeMCPInventory struct {
-	reader   runtimemcp.Reader
-	revision uint64
-	mu       sync.Mutex
-	cache    map[string]runtimeMCPCacheEntry
-	now      func() time.Time
+	reader      runtimemcp.Reader
+	revision    uint64
+	publication uint64
+	mu          sync.Mutex
+	cache       map[string]runtimeMCPCacheEntry
+	now         func() time.Time
 }
 
 var _ settingspkg.RuntimeMCPInventory = (*runtimeMCPInventory)(nil)
@@ -73,68 +81,15 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 	}
 	hash := sha256.Sum256(data)
 	key := hex.EncodeToString(hash[:])
-	s.mu.Lock()
-	cached, ok := s.cache[key]
-	s.mu.Unlock()
-	before := captureRuntimeMCPFiles(cached.paths)
-	if !ok || !s.now().Before(cached.expires) || !sameRuntimeMCPStamps(cached.stamps, before) {
-		inventory, paths, err := s.reader.List(ctx, req)
-		if err != nil {
-			return runtimemcp.Inventory{}, err
-		}
-		after := captureRuntimeMCPFiles(paths)
-		if !ok || !slices.Equal(paths, cached.paths) {
-			before = after
-			inventory, paths, err = s.reader.List(ctx, req)
-			if err != nil {
-				return runtimemcp.Inventory{}, err
-			}
-			after = captureRuntimeMCPFiles(paths)
-		}
-		for i := range inventory.Runtimes {
-			current := &inventory.Runtimes[i]
-			if current.ReadState != "unreadable" {
-				continue
-			}
-			for _, old := range cached.inventory.Runtimes {
-				if old.Runtime == current.Runtime {
-					current.ActivationDigest = old.ActivationDigest
-				}
-			}
-		}
-		contextData, err := json.Marshal(req.Context, json.Deterministic(true))
-		if err != nil {
-			return runtimemcp.Inventory{}, err
-		}
-		changed := !ok || !sameRuntimeMCPStamps(cached.stamps, after) || !slices.Equal(cached.paths, paths)
-		cached = runtimeMCPCacheEntry{
-			revision: cached.revision, readContext: string(contextData), inventory: inventory, paths: paths,
-			stamps: after, expires: s.now().Add(runtimeMCPCacheTTL),
-		}
-		if !sameRuntimeMCPStamps(before, after) {
-			cached.expires = time.Time{}
-		}
-		s.mu.Lock()
-		current, exists := s.cache[key]
-		switch {
-		case exists != ok || exists && current.revision != cached.revision:
-			// Another read or poll advanced this context while we read its files.
-			// This result can answer the read but cannot fence a cached summary.
-			cached.revision = 0
-		default:
-			if !exists {
-				s.evict()
-			}
-			if changed {
-				s.revision++
-				cached.revision = s.revision
-			}
-			s.cache[key] = cached
-		}
-		s.mu.Unlock()
+	cached, err := s.readInventory(ctx, req, key)
+	if err != nil {
+		return runtimemcp.Inventory{}, err
 	}
 	result := cloneRuntimeMCPInventory(cached.inventory)
 	result.GeneratedAt = s.now().UTC()
+	if err := ctx.Err(); err != nil {
+		return runtimemcp.Inventory{}, err
+	}
 	if observed, ok := ctx.Value(runtimeMCPObservationKey{}).(*runtimeMCPObservation); ok {
 		switch {
 		case observed.key == "":
@@ -144,6 +99,103 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 		}
 	}
 	return result, nil
+}
+
+func (s *runtimeMCPInventory) readInventory(
+	ctx context.Context, req runtimemcp.Request, key string,
+) (runtimeMCPCacheEntry, error) {
+	s.mu.Lock()
+	cached, found := s.cache[key]
+	s.mu.Unlock()
+	before, err := captureRuntimeMCPFiles(ctx, cached.paths)
+	if err != nil {
+		return runtimeMCPCacheEntry{}, err
+	}
+	if found && s.now().Before(cached.expires) && sameRuntimeMCPStamps(cached.stamps, before) {
+		return cached, nil
+	}
+	inventory, paths, err := s.reader.List(ctx, req)
+	if err != nil {
+		return runtimeMCPCacheEntry{}, err
+	}
+	after, err := captureRuntimeMCPFiles(ctx, paths)
+	if err != nil {
+		return runtimeMCPCacheEntry{}, err
+	}
+	if !found || !slices.Equal(paths, cached.paths) {
+		before = after
+		inventory, paths, err = s.reader.List(ctx, req)
+		if err != nil {
+			return runtimeMCPCacheEntry{}, err
+		}
+		after, err = captureRuntimeMCPFiles(ctx, paths)
+		if err != nil {
+			return runtimeMCPCacheEntry{}, err
+		}
+	}
+	retainRuntimeMCPActivationDigests(&inventory, cached.inventory)
+	contextData, err := json.Marshal(req.Context, json.Deterministic(true))
+	if err != nil {
+		return runtimeMCPCacheEntry{}, err
+	}
+	changed := !found || !sameRuntimeMCPStamps(cached.stamps, after) || !slices.Equal(cached.paths, paths)
+	entry := runtimeMCPCacheEntry{
+		revision:    cached.revision,
+		publication: cached.publication,
+		readContext: string(contextData),
+		inventory:   inventory,
+		paths:       paths,
+		stamps:      after,
+		expires:     s.now().Add(runtimeMCPCacheTTL),
+	}
+	if !sameRuntimeMCPStamps(before, after) {
+		entry.expires = time.Time{}
+	}
+	if err := s.storeInventory(ctx, key, &entry, found, changed); err != nil {
+		return runtimeMCPCacheEntry{}, err
+	}
+	return entry, nil
+}
+
+func retainRuntimeMCPActivationDigests(inventory *runtimemcp.Inventory, previous runtimemcp.Inventory) {
+	for i := range inventory.Runtimes {
+		current := &inventory.Runtimes[i]
+		if current.ReadState != "unreadable" {
+			continue
+		}
+		for _, old := range previous.Runtimes {
+			if old.Runtime == current.Runtime {
+				current.ActivationDigest = old.ActivationDigest
+			}
+		}
+	}
+}
+
+func (s *runtimeMCPInventory) storeInventory(
+	ctx context.Context, key string, entry *runtimeMCPCacheEntry, found, changed bool,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	current, exists := s.cache[key]
+	if exists != found || exists && current.publication != entry.publication {
+		// Another read or poll advanced this context. Its revision cannot fence this result.
+		entry.revision = 0
+		return nil
+	}
+	if !exists {
+		s.evict()
+	}
+	if changed {
+		s.revision++
+		entry.revision = s.revision
+		s.publication++
+		entry.publication = s.publication
+	}
+	s.cache[key] = *entry
+	return nil
 }
 
 func (s *runtimeMCPInventory) evict() {
@@ -162,34 +214,50 @@ func (s *runtimeMCPInventory) evict() {
 	delete(s.cache, oldest)
 }
 
-func (s *runtimeMCPInventory) Poll() {
+func (s *runtimeMCPInventory) Poll(ctx context.Context) {
 	s.mu.Lock()
-	entries := maps.Clone(s.cache)
+	entries := make([]runtimeMCPPollEntry, 0, len(s.cache))
+	for key, entry := range s.cache {
+		entries = append(entries, runtimeMCPPollEntry{key, entry.publication, entry.paths, entry.stamps})
+	}
 	s.mu.Unlock()
 	files := make(map[string]filesnap.Snapshot)
 	observed := make(map[string]bool)
-	for key, entry := range entries {
-		if runtimeMCPFilesUnchanged(entry, files, observed) {
+	for _, entry := range entries {
+		unchanged, err := runtimeMCPFilesUnchanged(ctx, entry, files, observed)
+		if err != nil {
+			return
+		}
+		if unchanged {
 			continue
 		}
 		s.mu.Lock()
-		if current, ok := s.cache[key]; ok && current.revision == entry.revision {
+		if ctx.Err() != nil {
+			s.mu.Unlock()
+			return
+		}
+		if current, ok := s.cache[entry.key]; ok && current.publication == entry.publication {
 			// Retain the last activation identity if the next read is transiently unreadable.
 			if !current.expires.IsZero() {
 				s.revision++
 				current.revision = s.revision
 			}
 			current.expires = time.Time{}
-			s.cache[key] = current
+			s.publication++
+			current.publication = s.publication
+			s.cache[entry.key] = current
 		}
 		s.mu.Unlock()
 	}
 }
 
 func runtimeMCPFilesUnchanged(
-	entry runtimeMCPCacheEntry, files map[string]filesnap.Snapshot, observed map[string]bool,
-) bool {
+	ctx context.Context, entry runtimeMCPPollEntry, files map[string]filesnap.Snapshot, observed map[string]bool,
+) (bool, error) {
 	for _, path := range entry.paths {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
 		if !observed[path] {
 			if snapshot, found := captureRuntimeMCPFile(path); found {
 				files[path] = snapshot
@@ -199,10 +267,10 @@ func runtimeMCPFilesUnchanged(
 		current, present := files[path]
 		expected, existed := entry.stamps[path]
 		if present != existed || present && !expected.Equal(current) {
-			return false
+			return false, ctx.Err()
 		}
 	}
-	return true
+	return true, ctx.Err()
 }
 
 func (s *runtimeMCPInventory) matches(observation runtimeMCPObservation) bool {
@@ -218,14 +286,17 @@ func (s *runtimeMCPInventory) matches(observation runtimeMCPObservation) bool {
 	return found && entry.revision == observation.revision && !entry.expires.IsZero()
 }
 
-func captureRuntimeMCPFiles(paths []string) map[string]filesnap.Snapshot {
+func captureRuntimeMCPFiles(ctx context.Context, paths []string) (map[string]filesnap.Snapshot, error) {
 	result := make(map[string]filesnap.Snapshot, len(paths))
 	for _, path := range paths {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if snapshot, present := captureRuntimeMCPFile(path); present {
 			result[path] = snapshot
 		}
 	}
-	return result
+	return result, ctx.Err()
 }
 
 func captureRuntimeMCPFile(path string) (filesnap.Snapshot, bool) {

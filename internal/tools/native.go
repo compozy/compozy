@@ -27,7 +27,7 @@ type NativeTool struct {
 type nativeToolEntry struct {
 	Descriptor   Descriptor
 	Call         NativeToolFunc
-	Availability NativeAvailabilityFunc
+	Availability *NativeAvailabilityGroup
 }
 
 // NativeProvider serves daemon-compiled native_go tools.
@@ -35,8 +35,8 @@ type NativeProvider struct {
 	source             SourceRef
 	tools              map[ToolID]*nativeToolEntry
 	ids                []ToolID
-	sharedAvailability []NativeAvailabilityFunc
-	scopedAvailability []NativeAvailabilityFunc
+	sharedAvailability []*NativeAvailabilityGroup
+	scopedAvailability []*NativeAvailabilityGroup
 }
 
 var _ Provider = (*NativeProvider)(nil)
@@ -51,7 +51,7 @@ func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProv
 		tools:  make(map[ToolID]*nativeToolEntry, len(nativeTools)),
 		ids:    make([]ToolID, 0, len(nativeTools)),
 	}
-	groups := make(map[*NativeAvailabilityGroup]bool)
+	groups := make(map[*NativeAvailabilityGroup]*NativeAvailabilityGroup)
 	for i := range nativeTools {
 		nativeTool := &nativeTools[i]
 		descriptor, err := DescriptorWithSchemaDigests(nativeTool.Descriptor)
@@ -73,15 +73,17 @@ func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProv
 		entry := &nativeToolEntry{Descriptor: cloneDescriptor(descriptor), Call: nativeTool.Call}
 		group := nativeTool.Availability
 		if group != nil && group.Check != nil {
-			entry.Availability = group.Check
-			if !groups[group] {
-				groups[group] = true
-				if group.Shared {
-					provider.sharedAvailability = append(provider.sharedAvailability, group.Check)
+			bound, found := groups[group]
+			if !found {
+				bound = new(*group)
+				groups[group] = bound
+				if bound.Shared {
+					provider.sharedAvailability = append(provider.sharedAvailability, bound)
 				} else {
-					provider.scopedAvailability = append(provider.scopedAvailability, group.Check)
+					provider.scopedAvailability = append(provider.scopedAvailability, bound)
 				}
 			}
+			entry.Availability = bound
 		}
 		provider.tools[id] = entry
 		provider.ids = append(provider.ids, id)
@@ -130,7 +132,7 @@ func (p *NativeProvider) Resolve(_ context.Context, scope Scope, id ToolID) (Han
 type nativeHandle struct {
 	descriptor   Descriptor
 	call         NativeToolFunc
-	availability NativeAvailabilityFunc
+	availability *NativeAvailabilityGroup
 	scope        Scope
 }
 
@@ -151,7 +153,11 @@ func (h *nativeHandle) Availability(ctx context.Context, scope Scope) Availabili
 		}
 	}
 	if h.availability != nil {
-		return h.availability(ctx, scope)
+		result := h.availability.Check(ctx, scope)
+		if build, ok := ctx.Value(nativeProjectionBuildKey{}).(*nativeProjectionBuild); ok {
+			build.record(h.availability, scope, result)
+		}
+		return result
 	}
 	return Available()
 }

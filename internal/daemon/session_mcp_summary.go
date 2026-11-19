@@ -45,6 +45,7 @@ type boundMCPSummaryIdentity struct {
 
 type sessionMCPSummaryBatch struct {
 	id    uint64
+	fence sessionMCPReadFence
 	views map[string]sessionMCPToolViews
 }
 
@@ -56,13 +57,7 @@ type sessionMCPReadFence struct {
 
 func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) (*session.MCPSummary, error) {
 	fence := r.state.sessionMCPReadFence()
-	ctx = tools.WithCachedMCPProjection(ctx)
-	// A sibling status read may have already memoized policy from before this fence.
-	if read, ok := ctx.Value(toolPolicyReadKey{}).(*toolPolicyRead); ok && read.fence != fence {
-		ctx = r.registry.FreshReadContext(ctx)
-	} else {
-		ctx = r.registry.ReadContext(tools.EnsureProjectionListings(ctx))
-	}
+	ctx = r.summaryReadContext(ctx, fence)
 	scope, local, err := r.summaryIdentity(ctx, id, fence)
 	if err != nil {
 		if errors.Is(err, session.ErrSessionNotFound) {
@@ -87,7 +82,7 @@ func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) 
 	bound, boundVersioned := local.(boundMCPSummaryIdentity)
 	fenceChanged := cached.fence.redaction != fence.redaction ||
 		cached.fence != fence &&
-			(!boundVersioned || inputs.policy == "" || bound.policy.session.Kind == session.SessionTypeTriage)
+			(!boundVersioned || inputs.policy == "" || bound.policy.isCheckIn())
 	if !found || local == nil || fenceChanged || cached.identity != local || cached.scopeKey != inputs.fingerprint ||
 		!r.state.runtimeMCPInventory.matches(cached.inventory) {
 		cached, err = r.buildSessionMCPSummary(ctx, scope, inputs, fence, local)
@@ -101,6 +96,19 @@ func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) 
 	return &cached.summary, nil
 }
 
+func (r *sessionMCPReadModel) summaryReadContext(ctx context.Context, fence sessionMCPReadFence) context.Context {
+	ctx = tools.WithCachedMCPProjection(ctx)
+	// A sibling read may have warmed this batch or memo before the fence moved.
+	if batch, ok := ctx.Value(sessionMCPSummaryBatchKey{}).(*sessionMCPSummaryBatch); ok && batch.fence != fence {
+		ctx = context.WithValue(ctx, sessionMCPSummaryBatchKey{}, &sessionMCPSummaryBatch{id: batch.id, fence: fence})
+		return r.registry.FreshReadContext(ctx)
+	}
+	if read, ok := ctx.Value(toolPolicyReadKey{}).(*toolPolicyRead); ok && read.fence != fence {
+		return r.registry.FreshReadContext(ctx)
+	}
+	return r.registry.ReadContext(tools.EnsureProjectionListings(ctx))
+}
+
 func (r *sessionMCPReadModel) buildSessionMCPSummary(
 	ctx context.Context, scope tools.Scope, inputs sessionMCPScopeSnapshot, fence sessionMCPReadFence, local any,
 ) (sessionMCPSummarySnapshot, error) {
@@ -108,7 +116,6 @@ func (r *sessionMCPReadModel) buildSessionMCPSummary(
 	if bound, ok := local.(boundMCPSummaryIdentity); ok {
 		if resolver, native := r.authority.(*nativeToolPolicyResolver); native {
 			ctx, stable = resolver.beginProjectionPolicyBuild(ctx, scope, &bound.policy)
-			defer stable()
 			ctx = r.registry.FreshReadContext(ctx)
 		}
 	}
@@ -144,11 +151,9 @@ func (r *sessionMCPReadModel) buildSessionMCPSummary(
 	// Re-read live fences, not the request-local policy/listing snapshots.
 	afterFence := r.state.sessionMCPReadFence()
 	currentScope, after, err := r.summaryIdentity(ctx, info.ID, afterFence)
-	if err != nil {
-		return sessionMCPSummarySnapshot{}, err
-	}
 	afterFence.inventory = 0
-	if local != nil && local == after && scope == currentScope && fence == afterFence &&
+	if err == nil && inputs.fingerprint != "" && local != nil && local == after &&
+		scope == currentScope && fence == afterFence &&
 		r.state.runtimeMCPInventory.matches(inventory) && stable() {
 		r.mu.Lock()
 		if r.snapshots == nil {
@@ -180,11 +185,9 @@ func (r *sessionMCPReadModel) summaryScopeInputs(
 		(batch == 0 && now.Before(cached.expiresAt) || batch != 0 && batch == cached.batch) {
 		return cached, nil
 	}
-	external, err := r.registry.ExternalProjectionFingerprint(ctx, scope)
-	if err != nil {
-		return sessionMCPScopeSnapshot{}, err
-	}
-	if !found || cached.external != external || cached.fence != fence || !r.summaryCollectionVersioned(cached, now) {
+	external, observationErr := r.registry.ExternalProjectionFingerprint(ctx, scope)
+	if observationErr != nil || !found || cached.external != external || cached.fence != fence ||
+		!r.summaryCollectionVersioned(cached, now) {
 		collection, err := r.sessionMCPCollection(
 			ctx,
 			&session.Info{ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID},
@@ -192,14 +195,18 @@ func (r *sessionMCPReadModel) summaryScopeInputs(
 		if err != nil {
 			return sessionMCPScopeSnapshot{}, err
 		}
+		fallback := sessionMCPScopeSnapshot{collection: collection}
+		if observationErr != nil {
+			return fallback, nil
+		}
 		data, err := json.Marshal(collection.MCPServers, json.Deterministic(true))
 		if err != nil {
-			return sessionMCPScopeSnapshot{}, err
+			return fallback, nil
 		}
 		digest := sha256.Sum256(data)
 		policy, err := r.summaryScopedPolicy(ctx, scope)
 		if err != nil {
-			return sessionMCPScopeSnapshot{}, err
+			return fallback, nil
 		}
 		cached = sessionMCPScopeSnapshot{fence: fence, external: external, policy: policy,
 			fingerprint: hex.EncodeToString(digest[:]) + policy + external, collection: collection}
@@ -316,9 +323,12 @@ func (r *sessionMCPReadModel) summaryIdentity(
 	scope := tools.Scope{
 		ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, SessionID: info.ID, AgentName: info.AgentName,
 	}
+	if resolver, ok := r.authority.(*nativeToolPolicyResolver); ok && !resolver.canObserveProjectionApprovals() {
+		return scope, nil, nil
+	}
 	local, err := r.summaryLocalInputs(info)
 	if local == "" || err != nil {
-		return scope, nil, err
+		return scope, nil, nil
 	}
 	if info.Type == session.SessionTypeTriage || info.InstanceID != "" {
 		return scope, r.summaryBoundPolicy(ctx, scope, local, fence), nil
@@ -378,7 +388,7 @@ func (r *sessionMCPReadModel) refresh(ctx context.Context) error {
 		if current := r.state.sessionMCPReadFence(); readCtx == nil || fence != current {
 			fence = current
 			readCtx = r.registry.FreshReadContext(tools.WithCachedMCPProjection(
-				context.WithValue(ctx, sessionMCPSummaryBatchKey{}, &sessionMCPSummaryBatch{id: r.batch}),
+				context.WithValue(ctx, sessionMCPSummaryBatchKey{}, &sessionMCPSummaryBatch{id: r.batch, fence: fence}),
 			))
 		}
 		summary, err := r.SessionMCPSummary(readCtx, id)

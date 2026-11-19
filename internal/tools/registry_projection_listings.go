@@ -35,7 +35,7 @@ type ProjectionListings struct {
 	policies             projectionMemo[projectionPolicyKey, []ToolView]
 	authorities          projectionMemo[hostedSessionPolicyKey, SessionToolPolicy]
 	nativeObservations   projectionMemo[*RuntimeRegistry, string]
-	externalObservations projectionMemo[projectionObservationKey, [sha256.Size]byte]
+	externalObservations projectionMemo[projectionObservationKey, projectionSharedObservation]
 }
 
 type hostedSessionPolicyKey struct {

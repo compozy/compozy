@@ -66,8 +66,9 @@ FROM (
   WHERE profile_id = sqlc.arg(profile_id)
     AND workspace_id = sqlc.arg(workspace_id)
     AND agent_name IN ('', sqlc.arg(agent_name))
+    AND access_scope = ''
   ORDER BY agent_name, tool_id, input_digest
-  LIMIT 129
+  LIMIT sqlc.arg(max_rows)
 )
 ORDER BY agent_name, tool_id, input_digest;
 

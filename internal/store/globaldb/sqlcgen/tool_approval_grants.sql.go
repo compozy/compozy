@@ -265,8 +265,9 @@ FROM (
   WHERE profile_id = ?1
     AND workspace_id = ?2
     AND agent_name IN ('', ?3)
+    AND access_scope = ''
   ORDER BY agent_name, tool_id, input_digest
-  LIMIT 129
+  LIMIT ?4
 )
 ORDER BY agent_name, tool_id, input_digest
 `
@@ -275,6 +276,7 @@ type ReadCheckInApprovalDecisionsParams struct {
 	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
+	MaxRows     int64  `json:"max_rows"`
 }
 
 type ReadCheckInApprovalDecisionsRow struct {
@@ -286,7 +288,12 @@ type ReadCheckInApprovalDecisionsRow struct {
 }
 
 func (q *Queries) ReadCheckInApprovalDecisions(ctx context.Context, arg ReadCheckInApprovalDecisionsParams) ([]ReadCheckInApprovalDecisionsRow, error) {
-	rows, err := q.db.QueryContext(ctx, readCheckInApprovalDecisions, arg.ProfileID, arg.WorkspaceID, arg.AgentName)
+	rows, err := q.db.QueryContext(ctx, readCheckInApprovalDecisions,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.MaxRows,
+	)
 	if err != nil {
 		return nil, err
 	}

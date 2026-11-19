@@ -94,7 +94,7 @@ func (p *MCPProvider) mcpSourceAvailabilityGeneration(
 func (p *MCPProvider) cachedProjectionObservation(ctx context.Context, scope Scope) (string, error) {
 	sources, err := p.sources.ListMCPSources(ctx)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("tools: enumerate MCP projection sources: %w", err)
 	}
 	sources = MCPSourcesForScope(sources, scope)
 	slices.SortFunc(sources, func(left, right SourceRef) int {
@@ -106,7 +106,7 @@ func (p *MCPProvider) cachedProjectionObservation(ctx context.Context, scope Sco
 		if p.consent != nil {
 			allowed, err := p.consent(ctx, source, scope.ProfileID)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("tools: observe MCP source consent for %q: %w", sourceKey(source), err)
 			}
 			if !allowed {
 				continue
@@ -126,5 +126,8 @@ func (p *MCPProvider) cachedProjectionObservation(ctx context.Context, scope Sco
 		appendProjectionGenerationPart(&stamp, sourceKey(source), source.ResourceVersion)
 		appendProjectionAvailability(&stamp, handle.Availability(ctx, scope))
 	}
-	return stamp.String(), ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("tools: observe MCP projection sources: %w", err)
+	}
+	return stamp.String(), nil
 }

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"errors"
-	"sync"
+	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
@@ -14,12 +14,13 @@ import (
 
 type InstanceRepo struct {
 	*repoBase
-	mcpProjectionRead *sync.Mutex
+	mcpProjectionTimeout time.Duration
 }
 
 func (g *GlobalDB) Instances() *InstanceRepo {
 	return &InstanceRepo{
-		repoBase: newRepoBase(g.db, g.readDB, g.now, &g.closed), mcpProjectionRead: &g.mcpProjectionRead,
+		repoBase:             newRepoBase(g.db, g.readDB, g.now, &g.closed),
+		mcpProjectionTimeout: defaultMCPProjectionTimeout,
 	}
 }
 

@@ -72,7 +72,7 @@ func BenchmarkSessionMCPSummaryIdleTick(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		now = now.Add(model.summaryIdleTTL())
-		inventory.Poll()
+		inventory.Poll(b.Context())
 		if err := model.refresh(b.Context()); err != nil {
 			b.Fatal(err)
 		}
@@ -782,11 +782,14 @@ func (f *projectionFixtureAuth) Status(context.Context, toolspkg.SourceRef, stri
 type projectionFixturePolicy struct {
 	*nativeToolPolicyResolver
 	reads         map[string]int
+	readsMu       sync.Mutex
 	aroundResolve func(toolspkg.Scope) func()
 }
 
 func (p *projectionFixturePolicy) Resolve(ctx context.Context, scope toolspkg.Scope) (toolspkg.PolicyInputs, error) {
+	p.readsMu.Lock()
 	p.reads[scope.SessionID]++
+	p.readsMu.Unlock()
 	if p.aroundResolve != nil {
 		after := p.aroundResolve(scope)
 		if after != nil {
@@ -906,5 +909,120 @@ func BenchmarkInstanceMCPIdleTick(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// Invariant: a concurrent epoch replacement converges even while unrelated
+// commits land. Owner: daemon-composed hosted projections; canonical perf suite.
+func TestHostedMCPProjectionConvergence(t *testing.T) {
+	for _, scenario := range []struct {
+		name  string
+		write bool
+	}{
+		{"Should converge after an epoch advance", false},
+		{"Should converge under unrelated writes", true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newInstanceMCPProjectionFixture(t, 22, 5, 806, false)
+			fixture.warmProjections(t)
+			fixture.model.state.toolProjectionEpoch.Advance()
+			var write func() error
+			if scenario.write {
+				write = fixture.convergenceWriter(t)
+			}
+			const limit = 2
+			var misses []int
+			for range limit + 1 {
+				misses = append(misses, fixture.projectionWave(t, write))
+				if misses[len(misses)-1] == 0 {
+					t.Logf("converged after %d refresh windows (rebuilds %v)", len(misses)-1, misses)
+					return
+				}
+			}
+			t.Fatalf("still cold after %d refresh windows (rebuilds %v)", limit, misses)
+		})
+	}
+}
+
+func (f *instanceMCPProjectionFixture) projectionWave(t *testing.T, write func() error) int {
+	t.Helper()
+	f.now = f.now.Add(f.hosted.StreamRefreshInterval())
+	clear(f.policyReads)
+	release := make(chan struct{})
+	ready := make(chan struct{}, len(f.binds))
+	results := make(chan error, len(f.binds))
+	entered := make(map[string]*sync.Once, len(f.ids))
+	for _, id := range f.ids {
+		entered[id] = new(sync.Once)
+	}
+	f.policy.aroundResolve = func(scope toolspkg.Scope) func() {
+		if marker, ok := entered[scope.SessionID]; ok {
+			marker.Do(func() { ready <- struct{}{} })
+			<-release
+		}
+		return nil
+	}
+	for i, bind := range f.binds {
+		go func() {
+			_, err := f.hosted.StreamProjection(t.Context(), bind, f.peer, f.digests[i])
+			entered[f.ids[i]].Do(func() { ready <- struct{}{} })
+			results <- err
+		}()
+	}
+	for range f.binds {
+		<-ready
+	}
+	f.policy.readsMu.Lock()
+	misses := len(f.policyReads)
+	f.policy.readsMu.Unlock()
+	var writeErr error
+	if misses > 0 && write != nil {
+		writeErr = write()
+	}
+	close(release)
+	for range f.binds {
+		if err := <-results; err != nil {
+			t.Error(err)
+		}
+	}
+	f.policy.aroundResolve = nil
+	if writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	return misses
+}
+
+func (f *instanceMCPProjectionFixture) convergenceWriter(t *testing.T) func() error {
+	t.Helper()
+	request := make(chan chan error)
+	finished := make(chan struct{})
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(func() {
+		cancel()
+		<-finished
+	})
+	go func() {
+		defer close(finished)
+		// One commit during each cold wave, paced at 10/s to model roughly
+		// one event every two seconds per active session on a 22-bind daemon.
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		repo := f.db.Instances()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case result := <-request:
+				<-ticker.C
+				_, err := repo.MarkSeen(ctx, f.instanceIDs[0], agentinstance.LocalOperator, time.Now())
+				result <- err
+			}
+		}
+	}()
+	return func() error {
+		result := make(chan error, 1)
+		request <- result
+		return <-result
 	}
 }

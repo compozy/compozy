@@ -66,13 +66,17 @@ func (s *toolApprovalGrantService) CheckInApprovalProjection(
 	}
 	scope = normalizeToolPolicyScope(scope)
 	if err := (store.ReadScope{ProfileID: scope.ProfileID}).Validate(); err != nil {
-		return "", err
+		return "", fmt.Errorf("daemon: validate check-in approval observation scope: %w", err)
 	}
 	if scope.WorkspaceID == "" {
 		// A global check-in cannot use workspace grants.
 		return "", nil
 	}
-	return s.projectionStore.CheckInApprovalProjection(ctx, scope)
+	projection, err := s.projectionStore.CheckInApprovalProjection(ctx, scope)
+	if err != nil {
+		return "", fmt.Errorf("daemon: observe check-in approval grants: %w", err)
+	}
+	return projection, nil
 }
 
 func (s *toolApprovalGrantService) CheckInApprovalDecision(
@@ -83,9 +87,13 @@ func (s *toolApprovalGrantService) CheckInApprovalDecision(
 		return false, errors.New("daemon: check-in approval observation is unavailable")
 	}
 	if err := (store.ReadScope{ProfileID: key.ProfileID}).Validate(); err != nil {
-		return false, err
+		return false, fmt.Errorf("daemon: validate check-in approval decision scope: %w", err)
 	}
-	return s.projectionStore.CheckInApprovalDecision(ctx, key)
+	allowed, err := s.projectionStore.CheckInApprovalDecision(ctx, key)
+	if err != nil {
+		return false, fmt.Errorf("daemon: read check-in approval grant decision: %w", err)
+	}
+	return allowed, nil
 }
 
 func (s *toolApprovalGrantService) PutApprovalGrant(

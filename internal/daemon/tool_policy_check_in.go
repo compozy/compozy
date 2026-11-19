@@ -42,6 +42,7 @@ func (r *nativeToolPolicyResolver) resolveCheckInPolicy(
 	if !ok {
 		return nil
 	}
+	build, capturing := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild)
 	instanceID, occurrence, err := repo.CheckInSessionBinding(ctx, info.ID)
 	if err != nil {
 		return err
@@ -52,6 +53,10 @@ func (r *nativeToolPolicyResolver) resolveCheckInPolicy(
 			return err
 		}
 		instanceID = caller.InstanceID
+	}
+	if capturing && (info.ID != build.id || instanceID != build.policy.instance.InstanceID ||
+		occurrence != build.policy.instance.OccurrenceID) {
+		build.mismatch.Store(true)
 	}
 	if instanceID == "" {
 		return nil
@@ -64,6 +69,9 @@ func (r *nativeToolPolicyResolver) resolveCheckInPolicy(
 	}
 	if err := r.applyCheckInAuthority(ctx, policy, info, workspace, cfg, repo); err != nil {
 		return err
+	}
+	if capturing && instance.MainSessionID != build.mainID {
+		build.mismatch.Store(true)
 	}
 	return r.bindMainCheckInCeiling(ctx, policy, instance.MainSessionID, scope)
 }
@@ -93,6 +101,9 @@ func (r *nativeToolPolicyResolver) applyCheckInAuthority(
 			build.mismatch.Store(true)
 		}
 		return nil
+	}
+	if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok {
+		build.checkApprovedAuthority(info, dir, approved)
 	}
 	if digest != "" && approved == digest {
 		policy.AuthorityApproved = true
@@ -247,10 +258,11 @@ func (r *nativeToolPolicyResolver) checkInApprovalAllows(
 	}
 	if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok && r.approvalProjection != nil {
 		allowed, err := r.approvalProjection.CheckInApprovalDecision(ctx, key)
-		if err != nil {
-			build.mismatch.Store(true)
+		if err == nil {
+			build.checkApprovalDecision(key, allowed)
+			return allowed
 		}
-		return err == nil && allowed
+		build.mismatch.Store(true)
 	}
 	grant, found, err := r.approvalGrants.LookupApprovalGrant(ctx, key)
 	return err == nil && found && grant.Decision == toolspkg.ApprovalGrantAllow

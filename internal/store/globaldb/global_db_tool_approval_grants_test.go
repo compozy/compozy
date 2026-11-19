@@ -2,7 +2,9 @@ package globaldb
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +15,44 @@ import (
 
 func TestGlobalDBToolApprovalGrants(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: only grants addressable by the check-in decision lookup count toward completeness.
+	// Owner: global approval repository; canonical suite: durable approval grants.
+	t.Run("Should exclude access-scoped grants from the check-in projection limit", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "approval-projection", t.TempDir())
+		key := approvalGrantTestKey(workspace, "codex", approvalGrantDigest("exact"))
+		put := func(key toolspkg.ApprovalGrantKey) {
+			t.Helper()
+			if _, err := db.PutApprovalGrant(ctx, toolspkg.ApprovalGrant{
+				ApprovalGrantKey: key, Decision: toolspkg.ApprovalGrantAllow,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		put(key)
+		for i := range checkInApprovalProjectionLimit {
+			access := key
+			access.AccessScope = fmt.Sprintf("workspace:access-%d", i)
+			access.InputDigest = approvalGrantDigest(access.AccessScope)
+			put(access)
+		}
+		scope := toolspkg.Scope{ProfileID: key.ProfileID, WorkspaceID: key.WorkspaceID, AgentName: key.AgentName}
+		projection, err := db.CheckInApprovalProjection(ctx, scope)
+		if err != nil || strings.Count(projection, key.InputDigest) != 1 {
+			t.Fatalf("check-in projection = %q, %v", projection, err)
+		}
+		for i := range checkInApprovalProjectionLimit {
+			decision := key
+			decision.InputDigest = approvalGrantDigest(fmt.Sprintf("also-applicable-%d", i))
+			put(decision)
+		}
+		if _, err := db.CheckInApprovalProjection(ctx, scope); err == nil {
+			t.Fatal("incomplete check-in projection was accepted")
+		}
+	})
 
 	t.Run("Should upsert exact grants and touch the most-specific match", func(t *testing.T) {
 		t.Parallel()

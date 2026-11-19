@@ -460,7 +460,7 @@ func (r *nativeToolPolicyResolver) applyInstanceToolPolicy(
 	info *session.Info,
 ) error {
 	if info != nil && r.instanceCallers != nil {
-		caller, err := r.instanceCallers.InstanceCaller(ctx, info.ID)
+		caller, err := r.projectionInstanceCaller(ctx, info.ID)
 		if err != nil {
 			return err
 		}
