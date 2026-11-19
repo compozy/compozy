@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -56,6 +57,12 @@ func (m *Manager) rebindProfileMoveSubagents(
 	}
 	for i := range children {
 		child := &children[i]
+		if err := m.requireSessionUnarchived(ctx, child.WorkspaceID, child.ID); err != nil {
+			if errors.Is(err, ErrSessionArchived) {
+				continue
+			}
+			return rebound, err
+		}
 		meta, err := m.readMetaWithContext(ctx, child.ID)
 		if err != nil {
 			return rebound, err

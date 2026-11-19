@@ -23,7 +23,8 @@ var ErrSessionTreeContainsCaller = errors.New("session: session tree contains th
 
 // ArchiveTreeOptions shapes one tree archive.
 type ArchiveTreeOptions struct {
-	// Stop stops live members first; without it a live member refuses the archive.
+	// Stop stops live members first. Without it, live side descendants may still
+	// stop automatically; other live members refuse the archive.
 	Stop bool
 	// RefuseMember fails the archive, before anything stops, when this session
 	// is in the tree at the moment the tree is fenced against adoption.
@@ -47,11 +48,19 @@ func (m *Manager) Descendants(ctx context.Context, workspaceID string, sessionID
 	if err != nil {
 		return nil, err
 	}
-	visible := rows[:0]
-	hidden := map[string]bool{sessionID: false}
-	if meta, err := m.readSessionMetaReadOnly(ctx, sessionID); err == nil {
-		hidden[sessionID] = m.sideFamilyMember(ctx, meta.Lineage)
+	root, err := m.durableSessionInfoForLifecycleTransition(ctx, sessionID)
+	if err != nil {
+		return nil, err
 	}
+	if root.WorkspaceID != strings.TrimSpace(workspaceID) {
+		return nil, ErrSessionNotFound
+	}
+	rootHidden, err := m.sideFamilyMembership(ctx, root.Lineage)
+	if err != nil {
+		return nil, err
+	}
+	visible := rows[:0]
+	hidden := map[string]bool{sessionID: rootHidden}
 	for i := range rows {
 		row := &rows[i]
 		parent := store.HierarchyParentSessionID(row.Lineage)
@@ -67,8 +76,8 @@ func (m *Manager) Descendants(ctx context.Context, workspaceID string, sessionID
 
 // ArchiveWithChildren archives a session with its hierarchy descendants in one
 // transaction. With stop, live members stop through the normal user stop path
-// first and a failed stop archives nothing; without it a live member refuses
-// the whole archive as Archive does for a single session.
+// first and a failed stop archives nothing. Without stop, live side descendants
+// may still stop automatically; other live members refuse the whole archive.
 func (m *Manager) ArchiveWithChildren(
 	ctx context.Context,
 	workspaceID string,
@@ -134,15 +143,22 @@ func (m *Manager) archiveTreeWithResumeGuard(
 			return store.SessionTreeArchive{}, err
 		}
 	}
+	if refuseMember != "" {
+		if sessionID == refuseMember {
+			return store.SessionTreeArchive{}, ErrSessionTreeContainsCaller
+		}
+		for i := range descendants {
+			if descendants[i].ID == refuseMember {
+				return store.SessionTreeArchive{}, ErrSessionTreeContainsCaller
+			}
+		}
+	}
 	m.resumeLifecycle.mu.Lock()
 	defer m.resumeLifecycle.mu.Unlock()
 	if m.resumeLifecycle.runs[sessionID] != nil {
 		return store.SessionTreeArchive{}, newArchiveRequiresStoppedError(sessionID, nil)
 	}
 	for i := range descendants {
-		if refuseMember != "" && descendants[i].ID == refuseMember {
-			return store.SessionTreeArchive{}, ErrSessionTreeContainsCaller
-		}
 		if m.resumeLifecycle.runs[descendants[i].ID] != nil {
 			return store.SessionTreeArchive{}, &archiveRequiresStoppedError{
 				sessionID: sessionID,

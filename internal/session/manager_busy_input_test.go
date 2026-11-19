@@ -8138,7 +8138,13 @@ func TestSideHumanPromptIngress(t *testing.T) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		unblock := sync.OnceFunc(func() { close(release) })
 		producerDone := make(chan struct{})
-		defer func() { unblock(); awaitSideTestSignal(t, "busy source producer stopped", producerDone) }()
+		var producerStarted atomic.Bool
+		defer func() {
+			unblock()
+			if producerStarted.Load() {
+				awaitSideTestSignal(t, "busy source producer stopped", producerDone)
+			}
+		}()
 		h.driver.promptHook = func(proc *fakeProcess, request acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 			events := make(chan acp.AgentEvent, 3)
 			if request.Message != "keep source busy" {
@@ -8146,6 +8152,7 @@ func TestSideHumanPromptIngress(t *testing.T) {
 				close(events)
 				return events, nil
 			}
+			producerStarted.Store(true)
 			go func() {
 				defer close(producerDone)
 				defer close(events)

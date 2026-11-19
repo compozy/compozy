@@ -1396,6 +1396,41 @@ func TestSideLifecycle(t *testing.T) {
 			}
 		}
 	})
+	// Invariant: the caller fence precedes retryable resume refusals and prevents all archive side effects.
+	// Owner: tree archive admission; canonical suite: TestSideLifecycle.
+	t.Run("Should refuse the complete tree before stopping a resuming side", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "resume-before-caller")
+		waitForDeriveConsumption(t, h, side.ID)
+		if err := h.manager.Stop(t.Context(), side.ID); err != nil {
+			t.Fatal(err)
+		}
+		caller, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{ParentSessionID: source.ID}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Enter the real resume admission owner without starting a provider.
+		run, owner, err := h.manager.beginSessionResume(side.ID)
+		if err != nil || !owner {
+			t.Fatalf("begin resume = %t, %v", owner, err)
+		}
+		defer h.manager.finishSessionResume(side.ID, run, nil, nil)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		_, err = h.manager.ArchiveWithChildren(ctx, h.workspaceID, source.ID,
+			ArchiveTreeOptions{RefuseMember: caller.ID})
+		if !errors.Is(err, ErrSessionTreeContainsCaller) {
+			t.Fatalf("archive caller fence = %v", err)
+		}
+		current, err := h.manager.Status(t.Context(), source.ID)
+		if err != nil || current.State != StateActive || current.ArchivedAt != nil {
+			t.Fatalf("refused archive changed source = %+v, %v", current, err)
+		}
+	})
+
 	// Invariant B-004: only descendants receive implicit stop; a named live root requires stop consent.
 	t.Run("Should refuse a live side archive unless stop is explicit", func(t *testing.T) {
 		t.Parallel()

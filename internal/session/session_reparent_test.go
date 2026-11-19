@@ -1222,36 +1222,42 @@ func TestSideOperationRefusals(t *testing.T) {
 					}
 				})
 			}
-			// UT-091
-			other := h.newDeriveSource(t)
-			if _, err := h.manager.AdoptSession(
-				t.Context(),
-				h.workspaceID,
-				other.ID,
-				side.ID,
-			); !errors.Is(
-				err,
-				ErrSideFixedParent,
-			) {
-				t.Fatalf("adopt under side=%v", err)
-			}
-			if other.Info().Lineage.ParentSessionID != "" {
-				t.Fatal("failed adoption changed source lineage")
-			}
-			page, err := h.manager.ListPage(
-				t.Context(),
-				ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID},
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			listed := false
-			for _, info := range page.Sessions {
-				listed = listed || info.ID == other.ID
-			}
-			if !listed {
-				t.Fatal("failed adoption removed the ordinary session from the list")
-			}
 		},
 	)
+	t.Run("Should refuse adoption under a side", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "adoption-refusal")
+		// UT-091
+		other := h.newDeriveSource(t)
+		if _, err := h.manager.AdoptSession(
+			t.Context(),
+			h.workspaceID,
+			other.ID,
+			side.ID,
+		); !errors.Is(
+			err,
+			ErrSideFixedParent,
+		) {
+			t.Fatalf("adopt under side=%v", err)
+		}
+		if other.Info().Lineage.ParentSessionID != "" {
+			t.Fatal("failed adoption changed source lineage")
+		}
+		page, err := h.manager.ListPage(
+			t.Context(),
+			ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed := false
+		for _, info := range page.Sessions {
+			listed = listed || info.ID == other.ID
+		}
+		if !listed {
+			t.Fatal("failed adoption removed the ordinary session from the list")
+		}
+	})
 }

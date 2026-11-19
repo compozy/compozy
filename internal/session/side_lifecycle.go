@@ -14,7 +14,7 @@ func (m *Manager) stopSideSessions(ctx context.Context, sourceID string, wait bo
 	if !ok {
 		return nil
 	}
-	info, err := m.Status(ctx, sourceID)
+	info, err := m.durableSessionInfoForLifecycleTransition(ctx, sourceID)
 	if errors.Is(err, ErrSessionNotFound) {
 		return nil
 	}

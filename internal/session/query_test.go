@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -6117,6 +6118,97 @@ func TestManagerStatusSummary(t *testing.T) {
 
 func TestSideVisibilityAndNotifications(t *testing.T) {
 	t.Parallel()
+	// Invariant: fork provenance does not make a live fork depend on its deleted source's metadata.
+	// Owner: catalog visibility; canonical suite: TestSideVisibilityAndNotifications.
+	t.Run("Should keep a live fork visible after deleting its source", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		fork, err := h.manager.ForkSession(t.Context(), h.forkOpts(source, "visible-orphan-fork"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Delete(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		page, err := h.manager.ListPage(t.Context(), ListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+		})
+		if err != nil || len(page.Sessions) != 1 || page.Sessions[0].ID != fork.ChildSessionID {
+			t.Fatalf("fork catalog after source deletion = %+v, %v", page.Sessions, err)
+		}
+		workspace, err := h.manager.ListForWorkspace(t.Context(), h.workspaceID)
+		if err != nil || len(workspace) != 1 || workspace[0].ID != fork.ChildSessionID {
+			t.Fatalf("fork workspace after source deletion = %+v, %v", workspace, err)
+		}
+	})
+	// Invariant: the root's durable, scoped lineage controls descendant visibility when metadata is unreadable.
+	// Owner: public hierarchy reads; canonical suite: TestSideVisibilityAndNotifications.
+	t.Run("Should classify unreadable descendant roots from the scoped catalog", func(t *testing.T) {
+		t.Parallel()
+		var unreadable atomic.Bool
+		metadataFailure := errors.New("root metadata unavailable")
+		h := newDeriveHarness(t, func(*globaldb.GlobalDB) Option {
+			return func(m *Manager) {
+				m.readSessionMeta = func(path string) (store.SessionMeta, error) {
+					if unreadable.Load() {
+						return store.SessionMeta{}, metadataFailure
+					}
+					return store.ReadSessionMeta(path)
+				}
+			}
+		})
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "hidden-root")
+		waitForDeriveConsumption(t, h, side.ID)
+		ordinary, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{ParentSessionID: source.ID}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacy, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacy.mu.Lock()
+		legacy.Lineage = &store.SessionLineage{Kind: store.LineageKindProvenance, ParentSessionID: side.ID,
+			RootSessionID: source.ID, SpawnDepth: 2}
+		legacy.mu.Unlock()
+		if err := h.manager.persistSessionMetadataOnly(legacy); err != nil {
+			t.Fatal(err)
+		}
+		row := sessionCatalogInfoFromRuntime(legacy.Info())
+		if err := h.db.RegisterSession(t.Context(), &row); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.AwaitStopped(t.Context(), side.ID); err != nil {
+			t.Fatal(err)
+		}
+		unreadable.Store(true)
+		defer unreadable.Store(false)
+		hidden, err := h.manager.Descendants(t.Context(), h.workspaceID, side.ID)
+		if err != nil || len(hidden) != 0 {
+			t.Fatalf("side root descendants = %+v, %v", hidden, err)
+		}
+		visible, err := h.manager.Descendants(t.Context(), h.workspaceID, source.ID)
+		if err != nil || len(visible) != 1 || visible[0].ID != ordinary.ID {
+			t.Fatalf("public root descendants = %+v, %v", visible, err)
+		}
+		if _, err := h.manager.Descendants(
+			t.Context(),
+			"wrong-workspace",
+			side.ID,
+		); !errors.Is(
+			err,
+			ErrSessionNotFound,
+		) {
+			t.Fatalf("foreign-scope descendants = %v", err)
+		}
+	})
+
 	// Invariant: unreadable side ancestry cannot expose a live legacy descendant.
 	// Owner: catalog read model; canonical suite: TestSideVisibilityAndNotifications.
 	t.Run("Should exclude unreadable live ancestry from catalog and fail workspace hydration", func(t *testing.T) {
@@ -6280,6 +6372,12 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 			target.mu.Unlock()
 			current := sessionCatalogInfoFromRuntime(target.Info())
 			if err := h.db.RegisterSession(t.Context(), &current); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.db.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{
+				InteractionID: "visibility-" + id, SessionID: id, Kind: store.PendingInteractionKindPermission,
+				ProviderRequestID: "permission-" + id, TurnID: "visibility-turn", CreatedAt: time.Now().UTC(),
+			}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -6467,7 +6565,9 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 		after := side.Info()
 		after.PendingPermissionCount = 1
 		after.AttentionRevision++
-		h.manager.publishAttentionEdge(t.Context(), before, after)
+		eventCtx, cancelEvent := context.WithCancel(t.Context())
+		cancelEvent()
+		h.manager.publishAttentionEdge(eventCtx, before, after)
 		// UT-080
 		for _, subscriber := range []<-chan CatalogEvent{first, second} {
 			count := 0

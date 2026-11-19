@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -22,13 +21,13 @@ func (m *Manager) sideFamilyMember(ctx context.Context, lineage *store.SessionLi
 func (m *Manager) sideFamilyMembership(ctx context.Context, lineage *store.SessionLineage) (bool, error) {
 	seen := map[string]bool{}
 	for lineage != nil {
-		if err := ctx.Err(); err != nil {
-			return false, err
-		}
 		if isSideLineage(lineage) {
 			return true, nil
 		}
-		parent := strings.TrimSpace(lineage.ParentSessionID)
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		parent := store.HierarchyParentSessionID(lineage)
 		if parent == "" || seen[parent] {
 			return false, nil
 		}

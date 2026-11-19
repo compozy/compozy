@@ -2254,11 +2254,15 @@ func TestSideSpawnRefusals(t *testing.T) {
 			t.Fatalf("side delegate=%v", err)
 		}
 		helperHarness := newHostedMCPHarness(t)
+		main := createSpawnParent(t, helperHarness, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{})
+		cleanupSessionStop(t, helperHarness, main.ID)
 		parent := createSpawnParent(t, helperHarness, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{})
 		parent.mu.Lock()
 		parent.Type = SessionTypeUser
-		parent.Lineage.Kind = store.LineageKindSide
-		parent.Lineage.SpawnBudget = store.SessionSpawnBudget{}
+		parent.Lineage = &store.SessionLineage{
+			Kind: store.LineageKindSide, ParentSessionID: main.ID, RootSessionID: main.ID,
+			SpawnDepth: 1, OriginAgentName: main.AgentName,
+		}
 		parent.mu.Unlock()
 		helper, err := helperHarness.manager.Spawn(t.Context(), &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", SpawnRole: SpawnRoleAutoTitle, TTL: time.Minute,

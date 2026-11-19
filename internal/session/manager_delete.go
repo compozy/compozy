@@ -206,7 +206,13 @@ func (m *Manager) requireArchivedDelete(
 	target string,
 	archived store.ArchivedSessionDelete,
 ) error {
-	info, err := m.Status(ctx, target)
+	var info *Info
+	var err error
+	if m.sessionCatalog != nil {
+		info, err = m.durableSessionInfoForLifecycleTransition(ctx, target)
+	} else {
+		info, err = m.Status(ctx, target)
+	}
 	if err != nil {
 		return err
 	}

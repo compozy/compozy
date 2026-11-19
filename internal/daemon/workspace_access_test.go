@@ -167,6 +167,17 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 						descriptor.InputSchema = json.RawMessage(
 							`{"type":"object","properties":{"session_id":{"type":"string"}}}`,
 						)
+						if id == toolspkg.ToolIDSessionSideOpen || id == toolspkg.ToolIDSessionSideList {
+							for _, actual := range builtintools.NativeDescriptors() {
+								if actual.ID == id {
+									descriptor = actual
+									break
+								}
+							}
+							if descriptor.Backend.NativeName == "test" {
+								t.Fatalf("missing production descriptor %s", id)
+							}
+						}
 						scope := actorScope
 						scope.Operator = tc.operator
 						binder := newNativeWorkspaceInputBinder(

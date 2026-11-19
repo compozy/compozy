@@ -2973,7 +2973,13 @@ func TestOpenSideContext(t *testing.T) {
 				entered, release := make(chan struct{}), make(chan struct{})
 				unblock := sync.OnceFunc(func() { close(release) })
 				producerDone := make(chan struct{})
-				defer func() { unblock(); awaitSideTestSignal(t, "open source producer stopped", producerDone) }()
+				var producerStarted atomic.Bool
+				defer func() {
+					unblock()
+					if producerStarted.Load() {
+						awaitSideTestSignal(t, "open source producer stopped", producerDone)
+					}
+				}()
 				h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 					events := make(chan acp.AgentEvent, 5)
 					if req.Message != "open source turn" {
@@ -2981,13 +2987,14 @@ func TestOpenSideContext(t *testing.T) {
 						close(events)
 						return events, nil
 					}
+					producerStarted.Store(true)
 					go func() {
 						defer close(producerDone)
 						defer close(events)
 						if req.Message == "open source turn" {
 							events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: req.TurnID, Text: "Inspecting the permissions", Timestamp: time.Now().UTC()}
 							events <- (acp.AgentEvent{Type: acp.EventTypeToolCall, TurnID: req.TurnID, ToolCallID: "side-cut-read", Timestamp: time.Now().UTC()}).WithTool("Read", json.RawMessage(`{"path":"README.md"}`), false)
-							events <- (acp.AgentEvent{Type: acp.EventTypeToolResult, TurnID: req.TurnID, ToolCallID: "side-cut-read", Text: "Repository is compozy", Timestamp: time.Now().UTC()}).WithTool("Read", nil, false)
+							events <- (acp.AgentEvent{Type: acp.EventTypeToolResult, TurnID: req.TurnID, ToolCallID: "side-cut-read", Raw: json.RawMessage(`{"status":"completed","rawOutput":"Repository is compozy"}`), Timestamp: time.Now().UTC()}).WithTool("Read", nil, false)
 							close(entered)
 							<-release
 						}
@@ -3111,7 +3118,13 @@ func TestOpenSideContext(t *testing.T) {
 		entered, releasePrompt := make(chan struct{}), make(chan struct{})
 		unblockPrompt := sync.OnceFunc(func() { close(releasePrompt) })
 		producerDone := make(chan struct{})
-		defer func() { unblockPrompt(); awaitSideTestSignal(t, "mid-snapshot producer stopped", producerDone) }()
+		var producerStarted atomic.Bool
+		defer func() {
+			unblockPrompt()
+			if producerStarted.Load() {
+				awaitSideTestSignal(t, "mid-snapshot producer stopped", producerDone)
+			}
+		}()
 		h.driver.promptHook = func(proc *fakeProcess, request acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 			events := make(chan acp.AgentEvent, 3)
 			if request.Message != "start during snapshot" {
@@ -3119,6 +3132,7 @@ func TestOpenSideContext(t *testing.T) {
 				close(events)
 				return events, nil
 			}
+			producerStarted.Store(true)
 			go func() {
 				defer close(producerDone)
 				defer close(events)

@@ -6181,8 +6181,15 @@ func TestSessionSideCommands(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if len(requests) != 2 || requests[0].IdempotencyKey == "" ||
-			requests[0].IdempotencyKey == requests[1].IdempotencyKey ||
+		if len(requests) != 2 {
+			t.Fatalf("side requests=%+v", requests)
+		}
+		for _, request := range requests {
+			if request.IdempotencyKey == "" || request.MessageID == "" {
+				t.Fatalf("empty side identity=%+v", request)
+			}
+		}
+		if requests[0].IdempotencyKey == requests[1].IdempotencyKey ||
 			requests[0].MessageID == requests[1].MessageID {
 			t.Fatalf("side identities=%+v", requests)
 		}

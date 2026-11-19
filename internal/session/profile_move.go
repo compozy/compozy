@@ -311,7 +311,7 @@ func (m *Manager) refuseProfileMoveDescendants(ctx context.Context, meta *store.
 	return nil
 }
 
-// profileMoveArchiveFamily follows only subagent links, matching the archive transaction.
+// profileMoveArchiveFamily follows subagents, sides and their internal helpers, matching archive membership.
 func profileMoveArchiveFamily(rootID string, children []store.SessionInfo) map[string]bool {
 	parents := make(map[string]string, len(children))
 	for i := range children {
