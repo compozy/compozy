@@ -99,3 +99,31 @@ or new registration. Verify that an omitted `scope` on refresh preserves the gra
 status, and that changing the configured CIMD redirect URI disables renewal until reauthorization.
 The isolated SQLite and HTTP path is covered by
 `TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback`.
+
+QA impact 2026-11-18 (#1829, #1830, #1831), using only local OAuth and MCP fixtures:
+
+- Advertise `offline_access` at the issuer and authorize a refresh-capable client with a resource
+  scope. Verify both scopes and the issuer's existing consent parameters in the authorization
+  request. Repeat without issuer support and with a response that grants access without a refresh
+  token. On a bare remote, verify the Bearer challenge's scopes take precedence over protected
+  resource metadata. With neither source available, verify the request leaves the issuer's
+  defaults in effect.
+  Reuse a registration that did not register offline access and confirm it keeps its original
+  scopes. When the issuer declines a required resource scope at registration, expect an error
+  before browser handoff and retention of the existing registration. Auth status shows the
+  result through the existing redacted fields.
+- Expire the persisted registration's client secret. Observe `refreshable=false`, an instruction to
+  sign in again, and a retained token. Repeat discovery across the retry interval and confirm
+  there is no OAuth traffic. Repair the registration and confirm discovery renews with the same
+  grant. Inspect status and logs for absence of credentials and Vault references.
+- Advance a fixture clock into the final 10% of the access token lifetime, up to 30 seconds before
+  expiry. Passive auth status still reports `authenticated` with the original expiry. Discovery
+  starts one renewal. On a transient failure, discovery still uses the existing bearer until
+  expiry and respects backoff. For an access-only response, discovery works through the same
+  window without attempting renewal.
+- Before expiry, have an automatic registration discover a replacement issuer. Expect the valid
+  bearer to remain bound to the original resource and the refresh grant to be withdrawn.
+  The new issuer must receive no token request. After expiry, further status or discovery checks
+  cannot use the old bearer and send no more renewal traffic.
+
+The OAuth adapter and executor suites cover these fixture walks.

@@ -119,6 +119,12 @@ the auth method. The server keeps its tools and does not offer **Sign in** solel
 expiry. A runtime `auth_refresh_failed` result continues to offer **Reauthorize**.
 Follow the refresh steps in [ET-api-mcp-oauth-endpoints](ET-api-mcp-oauth-endpoints.md).
 
+QA impact 2026-11-18 (#1830, #1831): with a local fixture, probe during the early renewal window
+and return a transient refresh failure. Expect **Ready** while the bound access token still works.
+With an expired access token and an unusable persisted registration, expect **Sign-in expired**
+and **Reauthorize**. Discovery should not contact the OAuth issuer again until the local
+credentials allow renewal. These cases reuse the existing status and repair controls.
+
 QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
 
 With one slow fixture, verify the session MCP control shows its discovery reason while other rows
