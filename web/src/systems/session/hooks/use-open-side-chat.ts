@@ -73,17 +73,17 @@ export function useOpenSideChat({
     },
   });
 
-  /** `panelDraft` is the panel composer's text when the question was typed there (B-010). */
+  /** `fromPanel`: the question is the panel's "New side chat" draft (a refusal returns to it). */
   const open = async (
     message: string,
-    { key = newSideChatKey(), panelDraft }: { key?: string; panelDraft?: string } = {}
+    { key = newSideChatKey(), fromPanel }: { key?: string; fromPanel?: boolean } = {}
   ): Promise<SideChatOpenOutcome> => {
     const view = store.getSnapshot().context.side.view;
     // A second press of the same submission while it is on its way is the same request (EC-4).
     if (view?.kind === "opening" && view.error === null && view.message === message) {
       return "opened";
     }
-    store.trigger.sideRequested({ message, key, panelDraft });
+    store.trigger.sideRequested({ message, key, fromPanel });
     try {
       const result = await mutation.mutateAsync({ message, key });
       store.trigger.sideSettled({ key, id: sideSessionId(result) });
@@ -103,7 +103,7 @@ export function useOpenSideChat({
   const retry = () => {
     const view = store.getSnapshot().context.side.view;
     if (view?.kind !== "opening" || view.error === null) return;
-    void open(view.message, { key: view.key, panelDraft: view.panelDraft });
+    void open(view.message, { key: view.key, fromPanel: view.fromPanel });
   };
 
   return { open, retry, pending: mutation.isPending };

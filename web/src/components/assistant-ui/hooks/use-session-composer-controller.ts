@@ -85,6 +85,7 @@ export function useSessionComposerController({
   placeholder,
   attachments = true,
   backdrop = true,
+  autoFocus = false,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
   const edit = use(SessionMessageEditContext);
   const {
@@ -252,6 +253,7 @@ export function useSessionComposerController({
     meta: {
       allowBusyInput,
       attachments,
+      autoFocus,
       backdrop,
       placeholder,
       busyInputSteerDelivery,

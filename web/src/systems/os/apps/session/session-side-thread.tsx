@@ -65,6 +65,8 @@ function SessionSideThreadContent({
       onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
       onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
       messageTrail={false}
+      // Opening the panel, a question settling into its thread, or a switch lands in this composer.
+      autoFocus
       // The side chat's own runtime: a change applies to this side chat only (B-011).
       runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
       commandCatalog={commands.catalog}

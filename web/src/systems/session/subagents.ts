@@ -1,4 +1,5 @@
 export { SubagentDrawerContext } from "./contexts/subagent-drawer-context";
+export { SessionComposerSubagents } from "./components/session-composer-subagents";
 export {
   sessionWindowDrawerKind,
   sessionWindowDrawerLogic,

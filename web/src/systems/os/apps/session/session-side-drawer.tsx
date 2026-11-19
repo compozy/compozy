@@ -5,6 +5,7 @@ import { useRef, useState, type ReactNode } from "react";
 
 import { SessionThreadSkeleton } from "@/components/assistant-ui/session-thread-skeleton";
 import {
+  findSessionFocusTarget,
   nextSideChatId,
   SessionSideCloseDialog,
   SessionSideHeader,
@@ -17,9 +18,6 @@ import {
 } from "@/systems/session";
 import { SessionSideThread } from "./session-side-thread";
 import type { SessionWindowSideChat } from "./use-session-window-side-chat";
-
-const MAIN_COMPOSER = '[data-testid="composer-input"]';
-const MAIN_PERMISSION = '[data-testid="permission-allow-once"]';
 
 /** The body for an existing side chat: its thread once its session reads, Retry when it can't. */
 function useSideThreadBody(workspaceId: string, sideId: string | null): SessionSidePanelBodyState {
@@ -51,6 +49,7 @@ export function SessionSideDrawer({
   children: ReactNode;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const width = useSelector(chat.store, snapshot => snapshot.context.width);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const close = useCloseSideChat({
@@ -64,13 +63,18 @@ export function SessionSideDrawer({
   const current = list.sides.find(side => side.id === currentId) ?? null;
   const threadBody = useSideThreadBody(workspaceId, currentId);
 
-  const mainComposer = () => hostRef.current?.querySelector<HTMLElement>(MAIN_COMPOSER) ?? null;
+  const mainComposer = () => findSessionFocusTarget(hostRef.current, "composer");
   const focusMain = () => {
     const permission =
       chat.mainStatus?.kind === "needs-approval"
-        ? hostRef.current?.querySelector<HTMLElement>(MAIN_PERMISSION)
+        ? findSessionFocusTarget(hostRef.current, "permissionAllowOnce")
         : null;
     (permission ?? mainComposer())?.focus();
+  };
+  /** Focus is in this panel: the drawer's popup holds the panel body. */
+  const panelHasFocus = () => {
+    const popup = panelRef.current?.closest<HTMLElement>('[data-slot="resizable-drawer"]');
+    return Boolean(popup?.contains(popup.ownerDocument.activeElement));
   };
 
   const closeSide = (id: string) => {
@@ -100,14 +104,14 @@ export function SessionSideDrawer({
         : { kind: "thread", thread: <SessionThreadSkeleton /> };
     }
     if (view === null || view.kind === "new") {
-      const draft = view?.draft ?? "";
+      const { draft } = panel;
       return {
         kind: "new",
         draft,
         onDraftChange: next => store.trigger.sideDraftChanged({ draft: next }),
         onSend: () => {
           const message = draft.trim();
-          if (message) void opener.open(message, { panelDraft: draft });
+          if (message) void opener.open(message, { fromPanel: true });
         },
       };
     }
@@ -128,8 +132,11 @@ export function SessionSideDrawer({
   return (
     <ResizableDrawer
       open={panel.open}
-      onOpenChange={open => {
-        if (!open) store.trigger.sideHidden();
+      onOpenChange={(open, details) => {
+        if (open) return;
+        // Non-modal: Escape reaches every open drawer, so only one holding focus hides (`_uiux.md`).
+        if (details.reason === "escape-key" && !panelHasFocus()) return;
+        store.trigger.sideHidden();
       }}
       modal={false}
       width={width}
@@ -144,7 +151,7 @@ export function SessionSideDrawer({
           onClose={current ? requestClose : undefined}
           onHide={() => store.trigger.sideHidden()}
           onMainStatusActivate={focusMain}
-          onNew={() => chat.show({ kind: "new", draft: "" })}
+          onNew={() => chat.show({ kind: "new" })}
           onSelect={id => chat.show({ kind: "side", id })}
           pendingTitle={view?.kind === "opening" ? view.message : undefined}
           sides={list.sides}
@@ -152,7 +159,9 @@ export function SessionSideDrawer({
       }
       content={
         <>
-          <SessionSidePanelBody state={body} />
+          <div className="contents" ref={panelRef}>
+            <SessionSidePanelBody state={body} />
+          </div>
           <SessionSideCloseDialog
             closing={close.isPending}
             onConfirm={() => {

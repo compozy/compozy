@@ -1,6 +1,6 @@
 import { toast } from "@compozy/ui";
 import { useSelector, useStore } from "@xstate/store-react";
-import { useEffect, useEffectEvent } from "react";
+import { use, useEffect, useEffectEvent, useSyncExternalStore } from "react";
 
 import type { SessionComposerSubmitInterceptor } from "@/components/assistant-ui/session-composer";
 import {
@@ -20,6 +20,37 @@ import {
   useSessionSides,
   useSessionTransportState,
 } from "@/systems/session";
+
+import { OsShellContext } from "../../contexts/os-shell-context";
+import { shortcutActionLabel } from "../../lib/window-manager-shortcuts";
+
+const noSubscription = () => () => undefined;
+const noShortcut = () => null;
+
+/**
+ * The effective `session.side.toggle` chord for the toggle's tooltip, from the keymap; null
+ * outside the OS shell (a standalone route, a test).
+ */
+function useSideToggleShortcut(): string | null {
+  const projection = use(OsShellContext)?.projection;
+  return useSyncExternalStore(
+    projection
+      ? onChange => {
+          const subscription = projection.subscribe(onChange);
+          return () => subscription.unsubscribe();
+        }
+      : noSubscription,
+    projection
+      ? () =>
+          shortcutActionLabel(
+            projection.get().windowManagerConfig?.effectiveShortcuts,
+            "session.side.toggle",
+            typeof navigator === "undefined" ? "" : navigator.platform
+          )
+      : noShortcut,
+    noShortcut
+  );
+}
 
 /**
  * One session window's side chats (`_uiux.md` Component plan): the window's single drawer store
@@ -46,6 +77,7 @@ export function useSessionWindowSideChat({
     onRefused: message => toast.error(message),
   });
   const transport = useSessionTransportState();
+  const shortcut = useSideToggleShortcut();
   // Truthful UI: while the main stream reconnects the chip shows nothing, never a stale state.
   const mainStatus = sideMainStatus(
     session,
@@ -62,7 +94,7 @@ export function useSessionWindowSideChat({
     if (!list.loaded) return view && view.kind !== "side" ? view : { kind: "pending" };
     if (view && (view.kind !== "side" || list.sides.some(side => side.id === view.id))) return view;
     const id = defaultSideChatId(list.sides, lastViewedId);
-    return id ? { kind: "side", id } : { kind: "new", draft: "" };
+    return id ? { kind: "side", id } : { kind: "new" };
   };
   const show = (view?: SessionSideView) => {
     store.trigger.sideShown({ view: view ?? restoredView() });
@@ -103,7 +135,7 @@ export function useSessionWindowSideChat({
       }
       // A bare `/side` opens a new, empty side chat and sends nothing (US-001.AC-4).
       if (command.message === "") {
-        show({ kind: "new", draft: "" });
+        show({ kind: "new" });
         return true;
       }
       return (await opener.open(command.message)) !== "refused";
@@ -113,7 +145,7 @@ export function useSessionWindowSideChat({
   /** The `/side` chip picked from the command menu: a new, empty side chat. */
   const onCommandAction = (token: string): boolean => {
     if (token !== "/side" || !supported) return false;
-    show({ kind: "new", draft: "" });
+    show({ kind: "new" });
     return true;
   };
 
@@ -134,6 +166,7 @@ export function useSessionWindowSideChat({
         count={list.sides.length}
         onToggle={toggle}
         open={panel.open}
+        shortcut={shortcut ?? undefined}
       />
     ) : undefined,
   };

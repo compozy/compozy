@@ -17,6 +17,7 @@ import {
   type SessionSteerDelivery,
   type UnconfirmedSend,
 } from "@/systems/session";
+import { SESSION_FOCUS_TARGET } from "@/systems/session/lib/session-focus-target";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import { commandItemPresentation } from "./session-command-menu-model";
 import { SessionComposerDirectiveChip } from "./session-composer-chip";
@@ -129,6 +130,8 @@ export interface SessionComposerProps {
   attachments?: boolean;
   /** `false` drops the pane fill around the composer, for hosts that sit on the desk wallpaper. */
   backdrop?: boolean;
+  /** Focuses the editor when the composer mounts, for hosts that open onto it (the side chat panel). */
+  autoFocus?: boolean;
 }
 
 export type { SessionComposerCommandCatalog } from "./session-composer-command-menu";
@@ -281,9 +284,10 @@ function SessionComposerInput() {
   const mentionsAvailable = useMentionWorkspaceId() !== "";
   return (
     <LexicalComposerInput
-      autoFocus={Boolean(edit?.active)}
+      autoFocus={Boolean(edit?.active) || meta.autoFocus}
       aria-label="Session prompt"
       data-testid="composer-input"
+      data-focus-target={SESSION_FOCUS_TARGET.composer}
       inert={!meta.canPrompt}
       placeholder={
         meta.canPrompt

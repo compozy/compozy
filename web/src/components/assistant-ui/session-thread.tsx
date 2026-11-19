@@ -154,6 +154,7 @@ export function SessionThread({
   messageTrail = true,
   subagentNavigation = null,
   subagentOrigin = null,
+  autoFocus = false,
 }: SessionThreadProps) {
   const thread = useSessionThreadState({
     acpSessionId,
@@ -294,6 +295,7 @@ export function SessionThread({
                       onCommandCatalogOpen={onCommandCatalogOpen}
                       onCommandAction={onCommandAction}
                       submitInterceptor={submitInterceptor}
+                      autoFocus={autoFocus}
                       promptImageCapability={promptImageCapability}
                       promptEmbeddedContextCapability={promptEmbeddedContextCapability}
                     />

@@ -485,7 +485,6 @@ export * from "./hooks";
 // Context surface — context meter, usage turns, and activity (./context).
 export * from "./context";
 
-export { SessionComposerSubagents } from "./components/session-composer-subagents";
 export { SessionComposerMonitors } from "./components/session-composer-monitors";
 export { SessionComposerMCP } from "./components/session-composer-mcp";
 

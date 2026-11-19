@@ -51,6 +51,12 @@ export {
   sideMainStatusOf,
 } from "./lib/session-side";
 export { isSessionSidesQuery, sessionSidesOptions } from "./lib/session-side-query-options";
+// The panel's focus handoff to the main session's composer or pending permission.
+export {
+  findSessionFocusTarget,
+  SESSION_FOCUS_TARGET,
+  type SessionFocusTarget,
+} from "./lib/session-focus-target";
 export {
   requestSessionSideToggle,
   subscribeSessionSideToggle,

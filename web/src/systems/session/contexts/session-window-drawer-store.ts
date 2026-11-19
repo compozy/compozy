@@ -10,15 +10,15 @@ import type { SubagentView } from "../components/subagents/types";
  */
 export type SessionSideView =
   | { kind: "pending" }
-  | { kind: "new"; draft: string }
+  | { kind: "new" }
   | { kind: "side"; id: string }
   | {
       kind: "opening";
       message: string;
       key: string;
       error: string | null;
-      /** Set when the question was typed in the panel: a refusal puts it back there. */
-      panelDraft?: string;
+      /** The question was typed in the panel: a refusal puts the panel back on its draft. */
+      fromPanel?: boolean;
     };
 
 export interface SessionSidePanelState {
@@ -26,6 +26,8 @@ export interface SessionSidePanelState {
   /** Kept while hidden, so the toggle or ⌘⌥S brings back the same side chat (US-007.AC-2). */
   view: SessionSideView | null;
   lastViewedId: string | null;
+  /** The unsent "New side chat" question: kept across hide and switching until it is sent. */
+  draft: string;
 }
 
 /**
@@ -36,7 +38,7 @@ export interface SessionSidePanelState {
 export const sessionWindowDrawerLogic = createStoreLogic({
   context: {
     selected: null as { subagent: SubagentView; workspaceId: string } | null,
-    side: { open: false, view: null, lastViewedId: null } as SessionSidePanelState,
+    side: { open: false, view: null, lastViewedId: null, draft: "" } as SessionSidePanelState,
     width: 480,
     returnFocus: null as HTMLElement | null,
   },
@@ -57,11 +59,12 @@ export const sessionWindowDrawerLogic = createStoreLogic({
     }),
     /** Shows the side panel on `view`, or on the view it kept while hidden. */
     sideShown: (context, event: { view?: SessionSideView }) => {
-      const view = event.view ?? context.side.view ?? { kind: "new", draft: "" };
+      const view = event.view ?? context.side.view ?? { kind: "new" };
       return {
         ...context,
         selected: null,
         side: {
+          ...context.side,
           open: true,
           view,
           lastViewedId: view.kind === "side" ? view.id : context.side.lastViewedId,
@@ -76,19 +79,19 @@ export const sessionWindowDrawerLogic = createStoreLogic({
         ...context,
         side:
           event.nextId === null
-            ? { open: false, view: null, lastViewedId: null }
+            ? { ...context.side, open: false, view: null, lastViewedId: null }
             : {
-                open: context.side.open,
+                ...context.side,
                 view: { kind: "side", id: event.nextId },
                 lastViewedId: event.nextId,
               },
       };
     },
-    sideDraftChanged: (context, event: { draft: string }) =>
-      context.side.view?.kind === "new"
-        ? { ...context, side: { ...context.side, view: { kind: "new", draft: event.draft } } }
-        : context,
-    sideRequested: (context, event: { message: string; key: string; panelDraft?: string }) => ({
+    sideDraftChanged: (context, event: { draft: string }) => ({
+      ...context,
+      side: { ...context.side, draft: event.draft },
+    }),
+    sideRequested: (context, event: { message: string; key: string; fromPanel?: boolean }) => ({
       ...context,
       selected: null,
       side: {
@@ -99,17 +102,24 @@ export const sessionWindowDrawerLogic = createStoreLogic({
           message: event.message,
           key: event.key,
           error: null,
-          panelDraft: event.panelDraft,
+          fromPanel: event.fromPanel,
         },
       },
     }),
-    sideSettled: (context, event: { key: string; id: string }) =>
-      openingView(context.side.view, event.key)
-        ? {
-            ...context,
-            side: { ...context.side, view: { kind: "side", id: event.id }, lastViewedId: event.id },
-          }
-        : context,
+    /** The side chat exists: a question sent from the panel's draft leaves that draft empty. */
+    sideSettled: (context, event: { key: string; id: string }) => {
+      const view = context.side.view;
+      if (!openingView(view, event.key)) return context;
+      return {
+        ...context,
+        side: {
+          ...context.side,
+          view: { kind: "side", id: event.id },
+          lastViewedId: event.id,
+          draft: view.fromPanel ? "" : context.side.draft,
+        },
+      };
+    },
     sideFailed: (context, event: { key: string; error: string }) => {
       const view = context.side.view;
       if (!openingView(view, event.key)) return context;
@@ -122,13 +132,11 @@ export const sessionWindowDrawerLogic = createStoreLogic({
     sideRefused: (context, event: { key: string }) => {
       const view = context.side.view;
       if (!openingView(view, event.key)) return context;
-      const { lastViewedId } = context.side;
       return {
         ...context,
-        side:
-          view.panelDraft === undefined
-            ? { open: false, view: null, lastViewedId }
-            : { open: true, view: { kind: "new", draft: view.panelDraft }, lastViewedId },
+        side: view.fromPanel
+          ? { ...context.side, open: true, view: { kind: "new" } }
+          : { ...context.side, open: false, view: null },
       };
     },
     /**
@@ -141,7 +149,7 @@ export const sessionWindowDrawerLogic = createStoreLogic({
       const { view, lastViewedId } = context.side;
       if (view?.kind === "pending") {
         const id = lastViewedId && event.ids.includes(lastViewedId) ? lastViewedId : event.ids[0];
-        const next: SessionSideView = id ? { kind: "side", id } : { kind: "new", draft: "" };
+        const next: SessionSideView = id ? { kind: "side", id } : { kind: "new" };
         return {
           ...context,
           side: { ...context.side, view: next, lastViewedId: id ?? lastViewedId },
@@ -153,8 +161,8 @@ export const sessionWindowDrawerLogic = createStoreLogic({
         ...context,
         side:
           nextId === null
-            ? { open: false, view: null, lastViewedId: null }
-            : { open: context.side.open, view: { kind: "side", id: nextId }, lastViewedId: nextId },
+            ? { ...context.side, open: false, view: null, lastViewedId: null }
+            : { ...context.side, view: { kind: "side", id: nextId }, lastViewedId: nextId },
       };
     },
   },
