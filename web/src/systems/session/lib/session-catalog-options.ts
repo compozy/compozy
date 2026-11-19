@@ -11,14 +11,16 @@ export interface SessionCatalogCursor {
   previous: (string | undefined)[];
 }
 
-export function sessionCatalogOptions(filters: SessionListFilters = {}) {
+export function sessionCatalogOptions(
+  filters: SessionListFilters = {},
+  family: "catalog" | "launch-preview" = "catalog"
+) {
   const normalized = normalizeSessionListFilters({ ...filters, skip_total: true });
   return infiniteQueryOptions({
-    queryKey: [
-      ...sessionKeys.workspaceLists(normalized.workspace_id ?? ""),
-      "page",
-      normalized,
-    ] as const,
+    queryKey:
+      family === "launch-preview"
+        ? sessionKeys.launchPreview(normalized)
+        : sessionKeys.catalogPage(normalized),
     queryFn: ({ pageParam, signal }) =>
       fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal),
     initialPageParam: { previous: [] } as SessionCatalogCursor,

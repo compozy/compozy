@@ -24,7 +24,7 @@ import { OsDockTabBar } from "../os-dock-tab-bar";
 import { OsDockAppMenu } from "../os-dock-app-menu";
 import { useDesktopDock } from "../../hooks/use-desktop-dock";
 import { pickLastCreatedSession } from "../../lib/last-created-session";
-import { sessionKeys, type SessionPayload } from "@/systems/session";
+import { sessionKeys, type SessionListFilters, type SessionPayload } from "@/systems/session";
 
 const dockShell = vi.hoisted(() => ({
   state: null as unknown,
@@ -56,7 +56,7 @@ const catalogInputs = vi.hoisted(() => ({
   workspace: { runtimeWorkspaceId: null as string | null, pending: false },
   catalog: {
     sessions: [] as SessionPayload[],
-    filters: [] as Array<Record<string, unknown>>,
+    filters: [] as SessionListFilters[],
   },
 }));
 
@@ -65,21 +65,25 @@ vi.mock("@/systems/workspace", async importOriginal => ({
   useActiveWorkspace: () => catalogInputs.workspace,
 }));
 
-vi.mock("@/systems/session", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/session")>()),
-  sessionCatalogOptions: (filters: Record<string, unknown>) => {
-    catalogInputs.catalog.filters.push(filters);
-    return {
-      queryKey: ["sessions", "list", filters.workspace_id ?? "", "page", filters],
-      queryFn: async () => ({
-        sessions: catalogInputs.catalog.sessions,
-        page: { has_more: false },
-      }),
-      initialPageParam: null,
-      getNextPageParam: () => undefined,
-    };
-  },
-}));
+vi.mock("@/systems/session", async importOriginal => {
+  const session = await importOriginal<typeof import("@/systems/session")>();
+  return {
+    ...session,
+    sessionCatalogOptions: (
+      filters: SessionListFilters | undefined,
+      family?: Parameters<typeof session.sessionCatalogOptions>[1]
+    ) => {
+      if (filters) catalogInputs.catalog.filters.push(filters);
+      return {
+        ...session.sessionCatalogOptions(filters, family),
+        queryFn: async () => ({
+          sessions: catalogInputs.catalog.sessions,
+          page: { has_more: false },
+        }),
+      };
+    },
+  };
+});
 
 vi.mock("@/systems/profiles", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/profiles")>()),

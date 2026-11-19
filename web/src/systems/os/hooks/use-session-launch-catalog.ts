@@ -23,18 +23,19 @@ export function useSessionLaunchCatalog(): SessionLaunchCatalog {
   const { runtimeWorkspaceId, pending } = useActiveWorkspace();
   const workspaceId = runtimeWorkspaceId?.trim() || null;
   const { params } = useProfileReadScope();
-  const options = sessionCatalogOptions({
-    workspace_id: workspaceId ?? undefined,
-    limit: 1,
-    sort: "created",
-    archive: "exclude",
-    exclude_automation: true,
-    ...params,
-  });
   const { data, isLoading, refetch } = useInfiniteQuery({
-    ...options,
     // The idle read is a preload hint; clicks fetch the latest row independently of catalog wakes.
-    queryKey: ["session-launch-preview", ...options.queryKey],
+    ...sessionCatalogOptions(
+      {
+        workspace_id: workspaceId ?? undefined,
+        limit: 1,
+        sort: "created",
+        archive: "exclude",
+        exclude_automation: true,
+        ...params,
+      },
+      "launch-preview"
+    ),
     enabled: !pending,
   });
   return {
