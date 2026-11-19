@@ -136,7 +136,6 @@ func queryPinnedSessionCatalogRows(
 		" GROUP BY pin_root, pin_root_position ORDER BY pin_root_position ASC, pin_root ASC LIMIT ?"
 	rootArgs = append(rootArgs, query.Limit)
 
-	// #nosec G202 -- the source, filters and clauses are constants; values are parameters.
 	selectQuery := strings.TrimSuffix(sessionInfoSelectQuery, "FROM sessions") +
 		", pin_root, pin_root_position FROM " + pinned
 	pageWhere := append(append([]string(nil), where...), "pin_root IN ("+rootQuery+")")
@@ -144,6 +143,7 @@ func queryPinnedSessionCatalogRows(
 	pageArgs := append(append(append([]any(nil), sourceArgs...), args...), rootArgs...)
 
 	// dynamic-sql: filters, the root cursor and the root limit alter the pinned page structure.
+	// #nosec G202 -- the source, filters and clauses are constants; values are parameters.
 	rows, err := tx.QueryContext(ctx, sqlQuery, pageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query pinned session catalog page: %w", err)

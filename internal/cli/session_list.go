@@ -89,7 +89,10 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&flags.later, "later", false, "Show only sessions parked in Later")
 	cmd.Flags().BoolVar(&flags.includeLater, "include-later", false, "Include sessions parked in Later")
 	cmd.Flags().
-		StringVar(&flags.pinned, "pinned", "", "Pinned sessions and the subtrees they carry: only, exclude, or include (default)")
+		StringVar(
+			&flags.pinned, "pinned", "",
+			"Pinned sessions and the subtrees they carry: only, exclude, or include (default)",
+		)
 	cmd.Flags().
 		BoolVar(&flags.includeHealth, "include-health", false, "Include metadata-only health for returned sessions")
 	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Sessions per page (1-100)")

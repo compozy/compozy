@@ -1317,6 +1317,44 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			t.Fatalf("SessionPinScopes() = %#v, %v, want the subtree under the conductor", scopes, err)
 		}
 
+		// A page counts pins, not rows: with a limit of one, the first page holds the conductor's
+		// whole subtree and the next holds the other pin, with no row on both.
+		if _, err := db.PinSession(ctx, workspace, "other"); err != nil {
+			t.Fatal(err)
+		}
+		pageQuery := store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspace,
+			Pinned:      store.SessionPinnedOnly,
+			Sort:        sessionCatalogSortPinned,
+			Limit:       1,
+		}
+		firstPage, err := db.PageSessions(ctx, pageQuery)
+		if got := sessionIDsForWorkspaceStateIndexTest(firstPage.Sessions); err != nil || firstPage.Total != 2 ||
+			!slices.Equal(got, []string{"other"}) {
+			t.Fatalf("pinned first page = %#v total=%d, %v, want the newest pin alone", got, firstPage.Total, err)
+		}
+		last := firstPage.Sessions[len(firstPage.Sessions)-1]
+		pageQuery.After = &store.SessionCatalogPosition{
+			PinPosition:   new(last.PinScope.Position),
+			PinRootID:     last.PinScope.RootID,
+			AttentionRank: store.SessionCatalogAttentionRankNone,
+			PrimaryAt:     last.UpdatedAt,
+			SecondaryAt:   last.UpdatedAt,
+			CreatedAt:     last.CreatedAt,
+			ID:            last.ID,
+		}
+		secondPage, err := db.PageSessions(ctx, pageQuery)
+		second := sessionIDsForWorkspaceStateIndexTest(secondPage.Sessions)
+		if err != nil || secondPage.Total != 2 || len(second) != len(carried) || second[0] != "conductor" ||
+			slices.Contains(second, "other") {
+			t.Fatalf("pinned second page = %#v total=%d, %v, want the conductor's whole subtree", second,
+				secondPage.Total, err)
+		}
+		if _, _, err := db.UnpinSession(ctx, workspace, "other"); err != nil {
+			t.Fatal(err)
+		}
+
 		// A child spawned into another project stays in that project's list: a pin carries only
 		// within its own workspace, where Pinned can show it above the child.
 		remoteWorkspace := registerWorkspaceForGlobalTests(
