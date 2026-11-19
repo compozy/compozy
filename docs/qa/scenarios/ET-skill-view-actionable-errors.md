@@ -1,13 +1,13 @@
 ---
 id: ET-skill-view-actionable-errors
 area: ET
-title: Recover from a skill resource or definition error
+title: Recover from a skill, resource or definition error
 persona: Ada
 journey: J-load-skill-in-managed-session
-expected: A native skill_view failure distinguishes a missing resource from a malformed skill definition, preserves the operator-safe path and YAML location across hosted MCP, and gives the agent a specific recovery step while keeping the primary public message stable and safe
+expected: A native skill_view failure identifies an absent skill by name, distinguishes a missing resource from a malformed skill definition, and preserves safe diagnostics and recovery guidance across hosted MCP
 entry_points: managed session prompt; compozy__skill_view; hosted MCP tools/call; POST /api/tools/invoke
 qa_status: pass
-bug_ids: [678, 1440]
+bug_ids: [678, 1440, 1864]
 fix_status: fixed
 retest_status: pass
 fix_commits:
@@ -81,3 +81,9 @@ second failing agent-name lookup while collecting definition diagnostics: the re
 other diagnostic failures remain visible. No exposure reconciliation or resource read runs for
 a missing target. This is covered by the real-registry native test
 `Should_keep_missing_skills_distinct_from_catalog_backend_failures`.
+
+Hosted MCP regression (issue #1864): in one managed session, search for `compozy__skill_view`
+and confirm its decision is callable. Read the installed `compozy` skill and check the returned
+body. Then request an absent skill by name. Expect MCP `isError` with code `tool_not_found` and
+a message naming the missing skill. The response must omit `tool_unknown`, which identifies an
+unknown tool ID. `TestHostedMCPSkillView` exercises the hosted proxy and UDS call handler in process.

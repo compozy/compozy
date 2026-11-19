@@ -17,6 +17,13 @@ func NativeToolError(id toolspkg.ToolID, err error) error {
 	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
+	if errors.Is(err, ErrSkillNotFound) {
+		message := sanitizeNativeToolMessage(err.Error())
+		mapped := toolspkg.NewToolError(toolspkg.ErrorCodeNotFound, id, message,
+			fmt.Errorf("%w: %w", toolspkg.ErrToolNotFound, err))
+		mapped.PublicMessage = message
+		return mapped
+	}
 	cause := err
 	mapped := toolspkg.NewToolError(toolspkg.ErrorCodeBackendFailed, id, "",
 		fmt.Errorf("%w: %w", toolspkg.ErrToolBackendFailed, err), toolspkg.ReasonBackendUnhealthy)
