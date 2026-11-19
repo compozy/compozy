@@ -354,7 +354,7 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
 // side-chat: E2E-001 (`/side` while the main turn runs), E2E-002 (the head toggle, then the
 // shortcut), E2E-003 (an idle `/side` adds nothing to the main thread). The acpmock fixture is the
 // backend slice's `browser_side_chat_fixture.json`: agent `side-web-agent` answers "hello side",
-// holds "take a while" for a few seconds before "main finished the work", and answers side first
+// holds "keep working until stopped" open until the turn is cancelled, and answers side first
 // prompts containing "what now?", "what is this repo?" and "quick side question".
 const sideFixturePath = path.join(acpmockTestdata, "browser_side_chat_fixture.json");
 const sideAgent = "side-web-agent";
@@ -398,9 +398,12 @@ test.describe("side chat", () => {
   }) => {
     const { workspace, source, win, mainComposer } = await openSideSource(runtime, appPage);
     await mainComposer.click();
-    await mainComposer.pressSequentially("take a while");
+    // The fixture holds this turn until it is stopped, so no timer races the side chat (N-004).
+    await mainComposer.pressSequentially("keep working until stopped");
     await mainComposer.press("Enter");
-    await expect(win.getByTestId("composer-stop-button").first()).toBeVisible();
+    // The side panel mounts its own composer after the main one: the main stop control is first.
+    const mainStop = win.getByTestId("composer-stop-button").first();
+    await expect(mainStop).toBeVisible();
 
     await mainComposer.pressSequentially("/side what now?");
     await mainComposer.press("Enter");
@@ -413,8 +416,10 @@ test.describe("side chat", () => {
     await expect(appPage.getByTestId("side-chat-main-status")).toHaveText("Main working");
     await browserArtifacts.captureScreenshot("side-chat-while-main-works", appPage);
 
-    await expect(win).toContainText("main finished the work");
+    // Releasing the held main turn: the chip follows the main session, the side chat stays.
+    await mainStop.click();
     await expect(appPage.getByTestId("side-chat-main-status")).toHaveText("Main finished");
+    await expect(panel).toContainText("side: main is still working");
 
     const [side] = await sideChats(runtime, workspace.id, source.id);
     expect(side).toBeDefined();
