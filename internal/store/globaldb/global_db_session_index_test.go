@@ -1255,7 +1255,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			}
 			if _, err := db.db.ExecContext(
 				ctx,
-				`UPDATE sessions SET parent_session_id=?, lineage_kind=?,
+				`UPDATE sessions SET parent_session_id=?, lineage_kind=?, root_session_id='conductor', spawn_depth=1,
  origin_agent_name=CASE WHEN ? IN ('fork','continue') THEN 'coder' ELSE '' END WHERE id=?`,
 				relation[0], relation[1], relation[1], id,
 			); err != nil {
@@ -1396,7 +1396,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := db.db.ExecContext(ctx, `UPDATE sessions SET parent_session_id='conductor',
- lineage_kind='spawn' WHERE id='remote-helper'`); err != nil {
+ root_session_id='conductor', spawn_depth=1, lineage_kind='spawn' WHERE id='remote-helper'`); err != nil {
 			t.Fatal(err)
 		}
 		remote, err := db.PageSessions(ctx, store.SessionCatalogPageQuery{
@@ -4223,7 +4223,7 @@ func TestSessionCatalogBoard(t *testing.T) {
 			}
 			if _, err := db.db.ExecContext(
 				ctx,
-				`UPDATE sessions SET parent_session_id=?, lineage_kind=?,
+				`UPDATE sessions SET parent_session_id=?, lineage_kind=?, root_session_id='conductor', spawn_depth=1,
  origin_agent_name=CASE WHEN ? IN ('fork','continue') THEN 'coder' ELSE '' END WHERE id=?`,
 				relation[0], relation[1], relation[1], id,
 			); err != nil {
