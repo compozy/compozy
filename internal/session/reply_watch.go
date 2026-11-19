@@ -246,6 +246,9 @@ func (s *replyWatchService) OnSteerResolved(ctx context.Context, sessionID, mess
 	s.reconcileTarget(ctx, sessionID, messageID)
 }
 func (s *replyWatchService) OnSendResult(ctx context.Context, id string, sendErr error) {
+	if errors.Is(sendErr, store.ErrDailyBudgetTurnBlocked) || errors.Is(sendErr, store.ErrDailyBudgetRecoveryPending) {
+		return // the reserved send can still finish after the budget hold clears
+	}
 	if sendErr != nil && !errors.Is(sendErr, store.ErrSessionPromptDispatchIndeterminate) {
 		s.logError(ctx, s.abandon(ctx, id, "send_failed"))
 		return

@@ -117,6 +117,11 @@ func (l *loopGoalManagedInputLifecycle) BeginSubmission(
 		}
 	}
 	claimed, err := l.claimPreparedPrompt(ctx, &operation, decision, base)
+	if errors.Is(err, store.ErrDailyBudgetTurnBlocked) {
+		// The store committed the daily instance pause, but deliberately left
+		// the prepared Goal ticket unclaimed for an operator-authorized retry.
+		return session.ManagedInputSubmission{}, err
+	}
 	if managedGoalInstancePaused(err) {
 		// The instance paused after selection: the ticket was never submitted, so it is deferred like an
 		// external wait rather than recorded as a failed attempt; resume re-admits it.

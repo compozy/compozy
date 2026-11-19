@@ -2,10 +2,8 @@ package session
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -107,11 +105,7 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 	if err := m.admitManagedInstancePrompt(ctx, req.target); err != nil {
 		return nil, err
 	}
-	if runID, ok := ctx.Value(instanceManagedRunKey{}).(string); ok && runID != "" {
-		req.commitDispatch = func(commitCtx context.Context) error {
-			return m.admitManagedInstancePrompt(WithManagedRun(commitCtx, runID), req.target)
-		}
-	}
+	m.attachDaemonLocalBudgetAdmission(ctx, &req)
 	// Daemon-local callers (automations, wakes, judges, extensions) are never human ingress, but their
 	// mentions still resolve against the target session like every other admission path.
 	if req.delivery != PromptDeliveryMaintenance {
@@ -119,6 +113,82 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 	}
 
 	return m.submitPromptRequest(ctx, req)
+}
+
+// attachDaemonLocalBudgetAdmission is shared by regular daemon-local prompts
+// and native maintenance compaction, both of which can invoke the provider.
+func (m *Manager) attachDaemonLocalBudgetAdmission(ctx context.Context, req *promptRequest) {
+	// Daemon-local turns have no persisted external prompt admission. Check the
+	// spend fence at their existing last-before-driver commit callback, after
+	// runtime preparation but before any provider effect. A recovered already-
+	// started turn never goes through this new-turn gate.
+	runID, _ := ctx.Value(instanceManagedRunKey{}).(string)
+	req.commitDispatch = func(commitCtx context.Context) error {
+		var trip *store.InstancePauseTrip
+		err := m.withDailyBudgetAdmission(commitCtx, req.target, func(lockedCtx context.Context) error {
+			if runID != "" {
+				if err := m.admitManagedInstancePrompt(WithManagedRun(lockedCtx, runID), req.target); err != nil {
+					return err
+				}
+			}
+			guard, ok := m.promptAdmissionStore.(interface {
+				AdmitDailyBudgetTurn(context.Context, string) (bool, *store.InstancePauseTrip, error)
+			})
+			if !ok {
+				return nil
+			}
+			allowed, paused, err := guard.AdmitDailyBudgetTurn(lockedCtx, req.target)
+			trip = paused
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				return &store.DailyBudgetTurnBlockedError{PausedInstance: trip}
+			}
+			return nil
+		})
+		if trip != nil && m.instancePaused != nil {
+			if effectErr := m.instancePaused(m.fallbackLifecycleContext(), *trip); effectErr != nil {
+				m.logger.ErrorContext(commitCtx, "session: apply daemon-local daily budget pause effects",
+					"instance_id", trip.InstanceID, "error", effectErr)
+			}
+		}
+		return err
+	}
+}
+
+// ensureDailyBudgetObserverReady forwards a failed live usage write into the
+// session's provider-admission boundary. The optional notifier capability is
+// inactive for legacy managers without instance-budget support.
+func (m *Manager) ensureDailyBudgetObserverReady(ctx context.Context, sessionID string) error {
+	if m == nil || m.notifier == nil {
+		return nil
+	}
+	if observer, ok := m.notifier.(interface {
+		EnsureDailyBudgetReady(context.Context, string) error
+	}); ok {
+		return observer.EnsureDailyBudgetReady(ctx, sessionID)
+	}
+	return nil
+}
+
+// withDailyBudgetAdmission holds the observer's receipt/admission fence through
+// the *durable* claim or dispatch commit. The earlier preflight remains useful
+// for fast failures, but is never the final correctness boundary.
+func (m *Manager) withDailyBudgetAdmission(
+	ctx context.Context, sessionID string, commit func(context.Context) error,
+) error {
+	if m != nil && m.notifier != nil {
+		if observer, ok := m.notifier.(interface {
+			WithDailyBudgetAdmission(context.Context, string, func(context.Context) error) error
+		}); ok {
+			return observer.WithDailyBudgetAdmission(ctx, sessionID, commit)
+		}
+	}
+	if err := m.ensureDailyBudgetObserverReady(ctx, sessionID); err != nil {
+		return fmt.Errorf("%w: %w", store.ErrDailyBudgetRecoveryPending, err)
+	}
+	return commit(ctx)
 }
 
 // RequestPermission asks an active session's permission path for a tool-call decision.

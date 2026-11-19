@@ -124,6 +124,7 @@ func (s *Service) mutate(
 		skillInvocations: append([]commandpkg.Invocation(nil), spec.skillInvocations...),
 		mentions:         cloneMentions(spec.admission.Mentions),
 		humanIngress:     spec.admission.HumanIngress,
+		appIngress:       spec.admission.AppIngress,
 		attachments:      attachments,
 	})
 	if err != nil {
@@ -252,6 +253,7 @@ func (s *Service) prepareAdmittedEntry(
 	spec.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
 	spec.mentionsJSON = admission.MentionsJSON
 	spec.humanIngress = admission.HumanIngress
+	spec.appIngress = admission.AppIngress
 	spec.attachments = append([]store.SessionInputAttachment(nil), admission.Attachments...)
 	insert, err := s.newInsert(spec)
 	if err != nil {

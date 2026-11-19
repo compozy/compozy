@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -71,6 +72,58 @@ func newHooksNotifier(logger *slog.Logger, now func() time.Time) *hooksNotifier 
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	return &hooksNotifier{logger: logger, now: now}
+}
+
+// Forward the budget recovery fence through the session manager's existing
+// notifier, whose implementation is installed before the daemon serves work.
+func (n *hooksNotifier) EnsureDailyBudgetReady(ctx context.Context, sessionID string) error {
+	n.mu.RLock()
+	observer := n.agentEventNotify
+	n.mu.RUnlock()
+	if ready, ok := observer.(interface {
+		EnsureDailyBudgetReady(context.Context, string) error
+	}); ok {
+		return ready.EnsureDailyBudgetReady(ctx, sessionID)
+	}
+	return nil
+}
+
+func (n *hooksNotifier) CommitDurableTurnUsage(
+	ctx context.Context, target *session.Session, event acp.AgentEvent, commit func(context.Context) error,
+) error {
+	_, observer := n.runtime()
+	if writer, ok := observer.(interface {
+		CommitDurableTurnUsage(context.Context, *session.Session, acp.AgentEvent, func(context.Context) error) error
+	}); ok {
+		return writer.CommitDurableTurnUsage(ctx, target, event, commit)
+	}
+	return commit(ctx)
+}
+
+func (n *hooksNotifier) WithDailyBudgetAdmission(
+	ctx context.Context, sessionID string, commit func(context.Context) error,
+) error {
+	n.mu.RLock()
+	observer := n.agentEventNotify
+	n.mu.RUnlock()
+	if fence, ok := observer.(interface {
+		WithDailyBudgetAdmission(context.Context, string, func(context.Context) error) error
+	}); ok {
+		return fence.WithDailyBudgetAdmission(ctx, sessionID, commit)
+	}
+	return commit(ctx)
+}
+
+func (n *hooksNotifier) ReconcileBudgetSessionBeforeDeletion(ctx context.Context, sessionID string) error {
+	n.mu.RLock()
+	observer := n.agentEventNotify
+	n.mu.RUnlock()
+	if ready, ok := observer.(interface {
+		ReconcileBudgetSessionBeforeDeletion(context.Context, string) error
+	}); ok {
+		return ready.ReconcileBudgetSessionBeforeDeletion(ctx, sessionID)
+	}
+	return nil
 }
 
 func (n *hooksNotifier) setRuntime(

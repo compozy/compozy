@@ -31,6 +31,7 @@ type queuedInput struct {
 	skillInvocations  []commandpkg.Invocation
 	mentions          []mention.Mention
 	humanIngress      bool
+	appIngress        bool
 	attachments       []AttachmentMeta
 	sessionGeneration int64
 	// batch holds the consecutive agent and reply entries claimed to run in this entry's turn.
@@ -54,6 +55,7 @@ func queuedInputFromEntry(entry *store.SessionInputQueueEntry) queuedInput {
 		skillInvocations:  append([]commandpkg.Invocation(nil), entry.SkillInvocations...),
 		mentions:          storedMentions(entry.MentionsJSON),
 		humanIngress:      entry.HumanIngress,
+		appIngress:        entry.AppIngress,
 		attachments:       attachmentMetaFromStore(entry.Attachments),
 		sessionGeneration: entry.SessionGeneration,
 	}
@@ -117,25 +119,58 @@ func (m *Manager) tryStartNextQueuedInputPrompt(sessionID string, attempt int) b
 	if !ok {
 		return false
 	}
+	// The claim is the durable admission boundary for queued turns. A failed
+	// live Done projection must be repaired *before* that transaction reads
+	// totals; submitPromptRequest's later check is too late to unclaim a row.
+	if !selected.HumanIngress || selected.AppIngress {
+		if err := m.ensureDailyBudgetObserverReady(m.fallbackLifecycleContext(), target); err != nil {
+			m.sessionLogger(session).Warn("session: budget receipt recovery deferred queued claim",
+				"entry_id", selected.ID, "error", err)
+			// Keep the queued row untouched and retry with bounded backoff.
+			return true
+		}
+	}
 	if selected.OwnerKind == managedInputOwnerGoal {
 		m.startManagedInputPrompt(session, managedInputFromQueueEntry(&selected))
 		return false
 	}
 	dispatchCtx, unlock := m.lockSubagentInputDispatch(m.fallbackLifecycleContext(), &selected)
 	defer unlock()
-	entry, ok, err := m.inputQueue.ClaimNext(m.fallbackLifecycleContext(), target)
+	var entry store.SessionInputQueueEntry
+	var claimed bool
+	claimCtx := m.fallbackLifecycleContext()
+	claim := func(ctx context.Context) error {
+		var err error
+		entry, claimed, err = m.inputQueue.ClaimSelected(ctx, target, selected.ID)
+		return err
+	}
+	var err error
+	if selected.HumanIngress && !selected.AppIngress {
+		err = claim(claimCtx)
+	} else {
+		err = m.withDailyBudgetAdmission(claimCtx, target, claim)
+	}
 	if err != nil {
 		m.sessionLogger(session).Warn("session: claim queued input failed", "error", err)
-		return false
+		return errors.Is(err, store.ErrSessionInputSelectionChanged) ||
+			errors.Is(err, store.ErrDailyBudgetRecoveryPending)
 	}
-	if !ok {
-		return false
-	}
+	ok = claimed
 	if entry.PausedInstance != nil && m.instancePaused != nil {
 		if pauseErr := m.instancePaused(m.fallbackLifecycleContext(), *entry.PausedInstance); pauseErr != nil {
 			m.sessionLogger(session).
 				Error("session: apply instance pause effects", "instance_id", entry.PausedInstance.InstanceID, "error", pauseErr)
 		}
+	}
+	if !ok {
+		// A newly committed budget pause changes the eligible queue head: the
+		// agent-authored input stays held, but operator ingress may now pass.
+		// Re-select within the existing bounded loop.
+		if entry.PausedInstance != nil {
+			return true
+		}
+		next, found, peekErr := m.inputQueue.PeekNext(m.fallbackLifecycleContext(), target)
+		return peekErr == nil && found && next.ID != selected.ID
 	}
 	if entry.ID != selected.ID {
 		if releaseErr := m.inputQueue.Release(m.fallbackLifecycleContext(), target, entry.ID); releaseErr != nil {
@@ -274,6 +309,7 @@ func (m *Manager) newQueuedInputPromptRequest(
 		skillInvocations: append([]commandpkg.Invocation(nil), entry.skillInvocations...),
 		mentions:         cloneMentions(entry.mentions),
 		humanIngress:     entry.humanIngress,
+		appIngress:       entry.appIngress,
 		attachments:      cloneAttachmentMeta(entry.attachments),
 		batch:            entry.batch,
 	}
@@ -324,11 +360,12 @@ func (m *Manager) handleQueuedInputDispatchError(
 	// fails on its own is retried as the next head and settled there.
 	m.releaseQueuedInputBatch(session, target, entry.batch)
 	if errors.Is(cause, ErrPromptInProgress) || errors.Is(cause, ErrSessionNotActive) ||
+		errors.Is(cause, store.ErrDailyBudgetRecoveryPending) ||
 		errors.Is(cause, errSpawnWakeLookup) {
 		if err := m.inputQueue.Release(m.fallbackLifecycleContext(), target, entry.id); err != nil {
 			m.sessionLogger(session).Warn("session: release queued input failed", "entry_id", entry.id, "error", err)
 		}
-		if errors.Is(cause, errSpawnWakeLookup) {
+		if errors.Is(cause, errSpawnWakeLookup) || errors.Is(cause, store.ErrDailyBudgetRecoveryPending) {
 			m.sessionLogger(session).Warn("session: retry child wake lookup", "entry_id", entry.id, "error", cause)
 			m.scheduleQueuedInputReselect(target)
 		}

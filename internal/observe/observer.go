@@ -78,6 +78,7 @@ type observedSession struct {
 	provider             string
 	model                string
 	authMode             compozyconfig.ProviderAuthMode
+	suppressCostEstimate bool
 	workspaceID          string
 	permissionMode       string
 	runtimeRevision      int64
@@ -114,6 +115,14 @@ type taskDashboardConfig struct {
 // Observer implements session.Notifier and exposes query/health helpers for global observability.
 type Observer struct {
 	mu sync.RWMutex
+	// Serializes a completed-turn receipt attempt (and its failure marker)
+	// with the last durable autonomous admission decision. An admission that
+	// wins this fence is already in flight when a later Done is observed.
+	budgetAdmissionMu sync.RWMutex
+	// A failed live receipt write must be reconciled before the next covered
+	// provider turn, even when the daemon stays alive. Guarded by mu.
+	dailyBudgetDirtyGeneration      uint64
+	dailyBudgetReconciledGeneration uint64
 
 	registry            Registry
 	homePaths           compozyconfig.HomePaths

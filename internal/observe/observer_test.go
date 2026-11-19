@@ -1652,10 +1652,13 @@ func (h *harness) recordEvent(t *testing.T, sessionID string, eventType string, 
 
 func (h *harness) recordUsage(t *testing.T, sessionID string, usage *acp.TokenUsage) {
 	t.Helper()
-
+	turnID := "turn-" + sessionID
+	if usage != nil && usage.TurnID != "" {
+		turnID = usage.TurnID
+	}
 	h.observer.OnAgentEvent(testutil.Context(t), sessionID, acp.AgentEvent{
 		Type:      "done",
-		TurnID:    "turn-" + sessionID,
+		TurnID:    turnID,
 		Timestamp: h.now.Add(time.Minute),
 		Usage:     usage,
 	})

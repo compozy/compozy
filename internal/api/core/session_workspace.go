@@ -281,6 +281,7 @@ func statusForSessionConflictError(err error) (int, bool) {
 		errors.Is(err, workspacepkg.ErrWorkspacePathTaken),
 		errors.Is(err, store.ErrSessionSuperseded),
 		errors.Is(err, store.ErrSessionPromptAdmissionInProgress),
+		errors.Is(err, store.ErrDailyBudgetTurnBlocked),
 		errors.Is(err, store.ErrSessionPromptIdempotencyConflict),
 		errors.Is(err, store.ErrSessionPromptMessageConflict),
 		errors.Is(err, store.ErrSessionPromptDispatchIndeterminate):
@@ -292,6 +293,8 @@ func statusForSessionConflictError(err error) (int, bool) {
 
 func statusForSessionAvailabilityError(err error) (int, bool) {
 	switch {
+	case errors.Is(err, store.ErrDailyBudgetRecoveryPending):
+		return http.StatusServiceUnavailable, true
 	case errors.Is(err, store.ErrSessionInputQueueFull):
 		return http.StatusConflict, true
 	case errors.Is(err, transcript.ErrProjectionIncompatible):

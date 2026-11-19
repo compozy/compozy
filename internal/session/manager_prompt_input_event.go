@@ -40,6 +40,7 @@ type promptRequest struct {
 	// humanIngress records that the human operator authored the prompt at admission; it persists on the
 	// admission and queue rows, and unknown authorship stays false so session references fail closed.
 	humanIngress     bool
+	appIngress       bool
 	attachments      []AttachmentMeta
 	notifyOnComplete bool
 	// supersede replaces the same sender's older undispatched message to this target.

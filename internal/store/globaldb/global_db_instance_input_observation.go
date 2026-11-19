@@ -11,13 +11,19 @@ import (
 
 // Observe only committed rows. Claim eligibility remains entirely in the queue transaction.
 func (g *SessionRepo) observeHeldInstanceInput(ctx context.Context, entry *store.SessionInputQueueEntry) {
-	if entry.OriginClass == store.SessionInputOriginClassHuman {
-		return
-	}
 	hold, err := g.readQueries.GetSessionInputHold(ctx, entry.SessionID)
-	if err == nil {
+	if err == nil && queueEntryHeldByPause(entry, hold.PauseReason) {
 		slog.InfoContext(ctx, "input.held", "instance_id", hold.ID, "reason", hold.PauseReason,
 			"session_id", entry.SessionID, "input_id", entry.ID)
+	}
+}
+
+func queueEntryHeldByPause(entry *store.SessionInputQueueEntry, reason string) bool {
+	switch reason {
+	case "daily_budget", "daily_budget_recovery":
+		return !entry.HumanIngress || entry.AppIngress
+	default:
+		return !store.IsHumanSessionInputOriginClass(entry.OriginClass)
 	}
 }
 

@@ -77,6 +77,8 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	}
 	if !usage.IsZero() {
 		doneEvent.Usage = &usage
+	} else {
+		doneEvent.ProviderUsageMissing = true
 	}
 	proc.emitPromptEvent(AgentEvent{Type: EventTypePromptDelivery, SessionID: proc.SessionID,
 		TurnID: req.TurnID, Timestamp: timeNowUTC()}.WithDelivery(&manifest))

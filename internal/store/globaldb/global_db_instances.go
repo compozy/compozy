@@ -17,6 +17,15 @@ func (g *GlobalDB) Instances() *InstanceRepo {
 	return &InstanceRepo{repoBase: newRepoBase(g.db, g.readDB, g.now, &g.closed)}
 }
 
+// AdmitDailyBudgetTurn exposes the same transactional instance fence to the
+// session manager's daemon-local PromptWithOpts path. Its other store entry
+// points check the budget inside their own durable claim transactions.
+func (g *GlobalDB) AdmitDailyBudgetTurn(
+	ctx context.Context, sessionID string,
+) (bool, *store.InstancePauseTrip, error) {
+	return g.Instances().AdmitDailyBudgetTurn(ctx, sessionID)
+}
+
 func (r *InstanceRepo) Get(ctx context.Context, id string) (agentinstance.Instance, error) {
 	if err := r.checkReady(ctx, "get instance"); err != nil {
 		return agentinstance.Instance{}, err

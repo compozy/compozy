@@ -35,22 +35,24 @@ type AgentEvent struct {
 	SessionID string
 	TurnID    string
 	store.EventCorrelation
-	Timestamp        time.Time
-	Text             string
-	Title            string
-	ToolCallID       string
-	payload          *agentEventPayload
-	StopReason       string
-	PromptStopReason PromptStopReason
-	Action           string
-	Resource         string
-	Decision         string
-	Error            string
-	Failure          *store.SessionFailure
-	ProviderError    *ProviderErrorDiagnostic
-	Synthetic        *PromptSyntheticMeta
-	Usage            *TokenUsage
-	Compaction       *CompactionObservation
-	Runtime          *RuntimeActivity
-	Raw              json.RawMessage
+	Timestamp                time.Time
+	Text                     string
+	Title                    string
+	ToolCallID               string
+	payload                  *agentEventPayload
+	StopReason               string
+	PromptStopReason         PromptStopReason
+	Action                   string
+	Resource                 string
+	Decision                 string
+	Error                    string
+	Failure                  *store.SessionFailure
+	ProviderError            *ProviderErrorDiagnostic
+	Synthetic                *PromptSyntheticMeta
+	Usage                    *TokenUsage
+	CanonicalUsageProjection bool `json:"-"`
+	ProviderUsageMissing     bool `json:"-"`
+	Compaction               *CompactionObservation
+	Runtime                  *RuntimeActivity
+	Raw                      json.RawMessage
 }

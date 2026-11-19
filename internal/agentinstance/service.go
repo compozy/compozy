@@ -61,6 +61,7 @@ type MainSessionStarter interface {
 
 type Service struct {
 	stateEffects func(context.Context, Instance) error
+	withResume   func(context.Context, string, func(context.Context) error) error
 	reconcileMu  sync.Mutex
 	rotator      MainSessionRotator
 	changed      func(Instance)
@@ -76,6 +77,11 @@ type Option func(*Service)
 
 func WithStore(store InstanceStore) Option     { return func(s *Service) { s.store = store } }
 func WithAdmission(admission Admission) Option { return func(s *Service) { s.admission = admission } }
+
+// WithResumeCommit lets the daemon serialize the durable resume with receipt recovery.
+func WithResumeCommit(commit func(context.Context, string, func(context.Context) error) error) Option {
+	return func(s *Service) { s.withResume = commit }
+}
 func WithMainSessions(starter MainSessionStarter) Option {
 	return func(s *Service) { s.starter = starter }
 }
@@ -150,7 +156,20 @@ func (s *Service) Resume(ctx context.Context, id string, actor workspaceaccess.A
 	if err := s.admission.ValidateResume(ctx, instance); err != nil {
 		return Instance{}, err
 	}
-	resumed, err := s.store.Resume(ctx, id, s.limit, actor.Operator)
+	if instance.State == "paused" && !actor.Operator && OperatorOnlyResume(instance.PauseReason) {
+		return Instance{}, ErrForbidden
+	}
+	var resumed Instance
+	commit := func(ctx context.Context) error {
+		var err error
+		resumed, err = s.store.Resume(ctx, id, s.limit, actor.Operator)
+		return err
+	}
+	if s.withResume == nil {
+		err = commit(ctx)
+	} else {
+		err = s.withResume(ctx, id, commit)
+	}
 	if err == nil && instance.State != resumed.State {
 		s.notifyLifecycle(ctx, hooks.HookAgentInstanceResumed, resumed)
 	}

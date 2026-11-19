@@ -40,6 +40,24 @@ CREATE TABLE agent_instance_daily_budget_notices (
     PRIMARY KEY (instance_id, day)
 );
 
+-- Catalog-only deletion of an unreadable unbudgeted history must not break
+-- ordinary cleanup, but a limit enabled later that day cannot claim the old
+-- receipts are complete. This durable tombstone rejects retroactive caps.
+CREATE TABLE agent_instance_daily_budget_uncertain_days (
+    instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
+    day TEXT NOT NULL CHECK (length(day) = 10),
+    source_session_id TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    PRIMARY KEY (instance_id, day)
+);
+
+CREATE TABLE agent_instance_daily_budget_recovery (
+    instance_id TEXT PRIMARY KEY REFERENCES agent_instances(id) ON DELETE CASCADE,
+    generation INTEGER NOT NULL CHECK (generation > 0),
+    pending INTEGER NOT NULL CHECK (pending IN (0, 1)),
+    latched INTEGER NOT NULL DEFAULT 0 CHECK (latched IN (0, 1))
+);
+
 -- The sum advances atomically with each accepted immutable receipt.
 CREATE TABLE agent_instance_daily_budget_usage (
     instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,

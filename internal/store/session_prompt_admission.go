@@ -77,6 +77,7 @@ type SessionPromptAdmission struct {
 	MentionsJSON string
 	// HumanIngress records that the human operator authored this input; unknown or agent authorship is false.
 	HumanIngress        bool
+	AppIngress          bool
 	Origin              json.RawMessage
 	Attachments         []SessionInputAttachment
 	TurnID              string
@@ -115,6 +116,7 @@ type SessionPromptAdmissionRequest struct {
 	MentionsJSON string
 	// HumanIngress records that the human operator authored this input; unknown or agent authorship is false.
 	HumanIngress bool
+	AppIngress   bool
 	Origin       json.RawMessage
 	Attachments  []SessionInputAttachment
 	TurnID       string

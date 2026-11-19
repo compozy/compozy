@@ -10,8 +10,8 @@ import (
 // DailyBudgetLimits holds optional operator caps. A nil cap leaves its dimension
 // unrestricted, including when an observed provider has no USD pricing.
 type DailyBudgetLimits struct {
-	Tokens *int64
-	USD    *float64
+	Tokens *int64   `json:"tokens,omitempty"`
+	USD    *float64 `json:"usd,omitempty"`
 }
 
 // Validate rejects caps that cannot be enforced with monotonic usage totals.

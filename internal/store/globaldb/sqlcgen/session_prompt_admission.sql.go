@@ -200,7 +200,7 @@ func (q *Queries) GetQueuedSessionPromptAdmissionState(ctx context.Context, arg 
 }
 
 const getSessionPromptAdmissionByIdempotencyKey = `-- name: GetSessionPromptAdmissionByIdempotencyKey :one
-SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at, mentions_json, human_ingress FROM session_prompt_admissions
+SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at, mentions_json, human_ingress, app_ingress FROM session_prompt_admissions
 WHERE workspace_id = ?1
   AND session_id = ?2
   AND idempotency_key = ?3
@@ -245,12 +245,13 @@ func (q *Queries) GetSessionPromptAdmissionByIdempotencyKey(ctx context.Context,
 		&i.UpdatedAt,
 		&i.MentionsJson,
 		&i.HumanIngress,
+		&i.AppIngress,
 	)
 	return i, err
 }
 
 const getSessionPromptAdmissionByMessageID = `-- name: GetSessionPromptAdmissionByMessageID :one
-SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at, mentions_json, human_ingress FROM session_prompt_admissions
+SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at, mentions_json, human_ingress, app_ingress FROM session_prompt_admissions
 WHERE workspace_id = ?1
   AND session_id = ?2
   AND message_id = ?3
@@ -295,6 +296,7 @@ func (q *Queries) GetSessionPromptAdmissionByMessageID(ctx context.Context, arg 
 		&i.UpdatedAt,
 		&i.MentionsJson,
 		&i.HumanIngress,
+		&i.AppIngress,
 	)
 	return i, err
 }
@@ -305,7 +307,7 @@ INSERT INTO session_prompt_admissions (
   fingerprint_version, request_fingerprint, state, mode, authored_text,
 	 skill_invocations_json, mentions_json, attachments_json, origin_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json,
-  turn_id, event_id, created_at, updated_at, human_ingress
+  turn_id, event_id, created_at, updated_at, human_ingress, app_ingress
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
@@ -313,7 +315,7 @@ INSERT INTO session_prompt_admissions (
 	 ?12, ?13, ?14, ?15,
   ?16, ?17, ?18,
   ?19, ?20, ?21, ?22,
-  ?23, ?24, ?25
+  ?23, ?24, ?25, ?26
 )
 `
 
@@ -343,6 +345,7 @@ type InsertSessionPromptAdmissionParams struct {
 	CreatedAt              string         `json:"created_at"`
 	UpdatedAt              string         `json:"updated_at"`
 	HumanIngress           int64          `json:"human_ingress"`
+	AppIngress             int64          `json:"app_ingress"`
 }
 
 func (q *Queries) InsertSessionPromptAdmission(ctx context.Context, arg InsertSessionPromptAdmissionParams) error {
@@ -372,6 +375,7 @@ func (q *Queries) InsertSessionPromptAdmission(ctx context.Context, arg InsertSe
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.HumanIngress,
+		arg.AppIngress,
 	)
 	return err
 }

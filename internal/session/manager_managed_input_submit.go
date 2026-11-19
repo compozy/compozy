@@ -165,6 +165,11 @@ func (m *Manager) prepareManagedInputPrompt(
 	session *Session,
 	entry managedInput,
 ) *managedInputPromptSetup {
+	if err := m.ensureDailyBudgetObserverReady(m.fallbackLifecycleContext(), session.ID); err != nil {
+		m.sessionLogger(session).Error("session: hold managed input until budget receipts recover", "error", err)
+		m.scheduleQueuedInputReselect(session.ID)
+		return nil
+	}
 	lifecycle := m.currentManagedInputLifecycle()
 	if lifecycle == nil {
 		m.sessionLogger(session).Error(
@@ -211,11 +216,26 @@ func (m *Manager) prepareManagedInputPrompt(
 			session.finishPromptSetup()
 		}
 	}()
-	submission, err := lifecycle.BeginSubmission(leaseCtx, ManagedInputClaim{
-		Owner:       owner,
-		RequestedAt: m.now().UTC(),
+	var submission ManagedInputSubmission
+	err = m.withDailyBudgetAdmission(leaseCtx, session.ID, func(ctx context.Context) error {
+		var beginErr error
+		submission, beginErr = lifecycle.BeginSubmission(ctx, ManagedInputClaim{
+			Owner:       owner,
+			RequestedAt: m.now().UTC(),
+		})
+		return beginErr
 	})
 	if err != nil {
+		if blocked, ok := errors.AsType[*store.DailyBudgetTurnBlockedError](err); ok &&
+			blocked.PausedInstance != nil && m.instancePaused != nil {
+			if effectErr := m.instancePaused(m.fallbackLifecycleContext(), *blocked.PausedInstance); effectErr != nil {
+				m.sessionLogger(session).Error("session: apply Goal daily budget pause effects",
+					"instance_id", blocked.PausedInstance.InstanceID, "error", effectErr)
+			}
+		}
+		if errors.Is(err, store.ErrDailyBudgetRecoveryPending) {
+			m.scheduleQueuedInputReselect(session.ID)
+		}
 		m.handleManagedInputBeginError(leaseCtx, lifecycle, owner, err)
 		m.releaseManagedInputLease(owner)
 		return nil

@@ -21,6 +21,46 @@ WHERE id = sqlc.arg(id) AND archived_at IS NULL
 AND (state = 'active' OR (state = 'paused' AND sqlc.arg(pause_reason) = 'manual'
  AND pause_reason IN ('definition_missing', 'definition_not_always_on')));
 
+-- name: QuarantineAgentInstanceDailyBudget :execrows
+UPDATE agent_instances SET state='paused', pause_reason='daily_budget_recovery', updated_at=sqlc.arg(updated_at)
+WHERE id=sqlc.arg(id) AND archived_at IS NULL AND state = 'active';
+
+-- name: RecordAgentInstanceDailyBudgetRecovery :exec
+INSERT INTO agent_instance_daily_budget_recovery(instance_id, generation, pending)
+VALUES (sqlc.arg(instance_id), 1, 1)
+ON CONFLICT(instance_id) DO UPDATE SET generation = generation + 1, pending = 1;
+
+-- name: GetAgentInstanceDailyBudgetRecovery :one
+SELECT generation FROM agent_instance_daily_budget_recovery WHERE instance_id = sqlc.arg(instance_id) AND pending = 1;
+
+-- name: ClearAgentInstanceDailyBudgetRecovery :execrows
+UPDATE agent_instance_daily_budget_recovery SET pending = 0
+WHERE instance_id = sqlc.arg(instance_id) AND generation = sqlc.arg(generation) AND pending = 1;
+
+-- name: RestoreAgentInstanceAfterDailyBudgetRecovery :exec
+UPDATE agent_instances SET pause_reason = 'daily_budget', updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id) AND state = 'paused' AND pause_reason = 'daily_budget_recovery' AND archived_at IS NULL;
+
+-- name: LatchAgentInstanceDailyBudgetPause :exec
+INSERT INTO agent_instance_daily_budget_recovery(instance_id, generation, pending, latched)
+VALUES (sqlc.arg(instance_id), 1, 0, 1)
+ON CONFLICT(instance_id) DO UPDATE SET latched = 1;
+
+-- name: CountLatchedAgentInstanceBudgetPauses :one
+SELECT count(*) FROM agent_instance_daily_budget_recovery WHERE instance_id = sqlc.arg(instance_id) AND latched = 1;
+
+-- name: ClearLatchedAgentInstanceBudgetPause :exec
+UPDATE agent_instance_daily_budget_recovery SET latched = 0 WHERE instance_id = sqlc.arg(instance_id) AND latched = 1;
+
+-- name: CountUncertainDailyBudgetDays :one
+SELECT COUNT(*) FROM agent_instance_daily_budget_uncertain_days
+WHERE instance_id=sqlc.arg(instance_id) AND day=sqlc.arg(day);
+
+-- name: MarkUncertainDailyBudgetDay :exec
+INSERT INTO agent_instance_daily_budget_uncertain_days(instance_id, day, source_session_id, recorded_at)
+VALUES (sqlc.arg(instance_id), sqlc.arg(day), sqlc.arg(source_session_id), sqlc.arg(recorded_at))
+ON CONFLICT(instance_id, day) DO NOTHING;
+
 -- name: ResumeAgentInstance :execrows
 UPDATE agent_instances SET state = 'active', pause_reason = '', updated_at = ?
 WHERE id = ? AND state = 'paused' AND archived_at IS NULL;
@@ -187,26 +227,102 @@ WHERE id = sqlc.arg(id) AND archived_at IS NULL
 AND (state = 'active' OR (state = 'paused' AND pause_reason IN ('definition_missing', 'definition_not_always_on')));
 
 -- name: GetSessionInputHold :one
-SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
- ELSE instance.pause_reason END AS TEXT) AS pause_reason FROM sessions target
-JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-JOIN agent_instances instance ON instance.id = root.instance_id
-WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
-  AND (target.instance_id = instance.id
-    OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'));
+WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind, profile_id) AS (
+  SELECT seed.id, seed.instance_id, seed.parent_session_id, seed.lineage_kind, seed.profile_id
+  FROM sessions seed WHERE seed.id = sqlc.arg(session_id)
+  UNION
+  SELECT COALESCE(parent.id, deleted.id),
+    CASE WHEN parent.id IS NOT NULL THEN parent.instance_id ELSE deleted.instance_id END,
+    CASE WHEN parent.id IS NOT NULL THEN parent.parent_session_id ELSE deleted.parent_session_id END,
+    COALESCE(parent.lineage_kind, deleted.lineage_kind), COALESCE(parent.profile_id, deleted.profile_id)
+  FROM budget_ancestry a
+  LEFT JOIN sessions parent ON parent.id = a.parent_session_id
+  LEFT JOIN deleted_session_budget_lineage deleted ON parent.id IS NULL AND deleted.id = a.parent_session_id
+  WHERE COALESCE(a.instance_id, '') = '' AND COALESCE(parent.profile_id, deleted.profile_id) = a.profile_id
+    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+), budget_owner AS (
+  SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
+), budget_pause AS (
+  SELECT instance.id,
+    CAST(CASE WHEN instance.pause_reason = 'daily_budget_recovery'
+      THEN 'daily_budget_recovery' ELSE 'daily_budget' END AS TEXT) AS pause_reason
+  FROM budget_owner owner JOIN agent_instances instance ON instance.id = owner.instance_id
+  LEFT JOIN agent_instance_daily_budget_recovery guard ON guard.instance_id = instance.id
+  WHERE instance.archived_at IS NULL AND
+    ((instance.state = 'paused' AND instance.pause_reason IN ('daily_budget', 'daily_budget_recovery'))
+      OR guard.latched = 1)
+), legacy_pause AS (
+  SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+    ELSE instance.pause_reason END AS TEXT) AS pause_reason
+  FROM sessions target
+  JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+  JOIN agent_instances instance ON instance.id = root.instance_id
+  WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
+    AND (instance.archived_at IS NOT NULL OR (
+      instance.pause_reason NOT IN ('daily_budget', 'daily_budget_recovery')
+      AND (target.instance_id = instance.id
+        OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+    ))
+), holds AS (
+  SELECT b.id, b.pause_reason, 1 AS budget FROM budget_pause b
+  UNION ALL
+  SELECT l.id, l.pause_reason, 0 AS budget FROM legacy_pause l
+)
+
+SELECT h.id, h.pause_reason FROM holds h ORDER BY h.budget DESC LIMIT 1;
 
 -- name: GetHeldSessionInput :one
-SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
- ELSE instance.pause_reason END AS TEXT) AS pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
-FROM sessions target
-JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-JOIN agent_instances instance ON instance.id = root.instance_id
+WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind, profile_id) AS (
+  SELECT seed.id, seed.instance_id, seed.parent_session_id, seed.lineage_kind, seed.profile_id
+  FROM sessions seed WHERE seed.id = sqlc.arg(session_id)
+  UNION
+  SELECT COALESCE(parent.id, deleted.id),
+    CASE WHEN parent.id IS NOT NULL THEN parent.instance_id ELSE deleted.instance_id END,
+    CASE WHEN parent.id IS NOT NULL THEN parent.parent_session_id ELSE deleted.parent_session_id END,
+    COALESCE(parent.lineage_kind, deleted.lineage_kind), COALESCE(parent.profile_id, deleted.profile_id)
+  FROM budget_ancestry a
+  LEFT JOIN sessions parent ON parent.id = a.parent_session_id
+  LEFT JOIN deleted_session_budget_lineage deleted ON parent.id IS NULL AND deleted.id = a.parent_session_id
+  WHERE COALESCE(a.instance_id, '') = '' AND COALESCE(parent.profile_id, deleted.profile_id) = a.profile_id
+    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+), budget_owner AS (
+  SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
+), budget_pause AS (
+  SELECT instance.id,
+    CAST(CASE WHEN instance.pause_reason = 'daily_budget_recovery'
+      THEN 'daily_budget_recovery' ELSE 'daily_budget' END AS TEXT) AS pause_reason
+  FROM budget_owner owner JOIN agent_instances instance ON instance.id = owner.instance_id
+  LEFT JOIN agent_instance_daily_budget_recovery guard ON guard.instance_id = instance.id
+  WHERE instance.archived_at IS NULL AND
+    ((instance.state = 'paused' AND instance.pause_reason IN ('daily_budget', 'daily_budget_recovery'))
+      OR guard.latched = 1)
+), legacy_pause AS (
+  SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+    ELSE instance.pause_reason END AS TEXT) AS pause_reason
+  FROM sessions target
+  JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+  JOIN agent_instances instance ON instance.id = root.instance_id
+  WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
+    AND (instance.archived_at IS NOT NULL OR (
+      instance.pause_reason NOT IN ('daily_budget', 'daily_budget_recovery')
+      AND (target.instance_id = instance.id
+        OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+    ))
+), holds AS (
+  SELECT b.id, b.pause_reason, 1 AS budget FROM budget_pause b
+  UNION ALL
+  SELECT l.id, l.pause_reason, 0 AS budget FROM legacy_pause l
+)
+
+SELECT hold.id, hold.pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
+FROM holds hold
+JOIN sessions target ON target.id = sqlc.arg(session_id)
 JOIN session_input_queue q ON q.session_id = target.id AND q.session_generation = target.input_generation
-WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
-  AND (target.instance_id = instance.id
-    OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-  AND q.status = 'queued' AND q.origin_class <> 'human'
-GROUP BY instance.id, instance.pause_reason;
+WHERE q.status = 'queued' AND (
+  (hold.budget = 1 AND NOT (q.human_ingress = 1 AND q.app_ingress = 0))
+  OR (hold.budget = 0 AND q.origin_class <> 'human')
+)
+GROUP BY hold.id, hold.pause_reason, hold.budget ORDER BY hold.budget DESC LIMIT 1;
 
 -- name: CountCheckInProposalStates :one
 SELECT

@@ -61,6 +61,27 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		// Everything below runs in the serving phase: the read model is reachable, and only now may
 		// recovery start providers, whose hosted MCP proxies need the listeners.
 		{name: "enterServingPhase", run: func() error { return d.enterServingPhase(ctx, state, bootStarted) }},
+		{name: "reconcileBootDailyBudgetReceipts", run: func() error {
+			// Resource reconciliation must precede observer indexing; that is the
+			// existing boot contract. Index once, before any recovered turn can run.
+			if state.resourceReconcile != nil {
+				if err := state.resourceReconcile.RunBoot(ctx); err != nil {
+					return fmt.Errorf("daemon: boot resource reconcile: %w", err)
+				}
+			}
+			result, err := state.observer.Reconcile(ctx)
+			if err != nil {
+				return fmt.Errorf("daemon: reconcile sessions before budget recovery: %w", err)
+			}
+			state.logger.Info("daemon: boot reconciliation complete",
+				"indexed_sessions", len(result.Indexed), "orphaned_sessions", len(result.Orphaned))
+			if recovery, ok := state.observer.(interface{ ReconcileDailyBudgetReceipts(context.Context) error }); ok {
+				if err := recovery.ReconcileDailyBudgetReceipts(ctx); err != nil {
+					return fmt.Errorf("daemon: recover daily budget receipts: %w", err)
+				}
+			}
+			return nil
+		}},
 		{name: "reconcileBootInstances", run: func() error { return reconcileBootInstances(ctx, state) }},
 		{name: "recoverBootDelegatedSessions", run: func() error { return recoverBootDelegatedSessions(ctx, state) }},
 		{name: "resumeBootInterruptedSessions",

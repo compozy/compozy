@@ -144,6 +144,20 @@ const (
 	pauseReasonDefinitionNotAlwaysOn = "definition_not_always_on"
 )
 
+type budgetResumeAppKey struct{}
+
+// WithAppBudgetResume marks application credentials while preserving existing
+// lifecycle authority for pauses unrelated to the daily budget.
+func WithAppBudgetResume(ctx context.Context) context.Context {
+	return context.WithValue(ctx, budgetResumeAppKey{}, true)
+}
+
+// HasDailyBudgetResumeAuthority reserves budget resume for an operator without app credentials.
+func HasDailyBudgetResumeAuthority(ctx context.Context, operator bool) bool {
+	app, _ := ctx.Value(budgetResumeAppKey{}).(bool)
+	return operator && !app
+}
+
 // OperatorOnlyResume keeps safety and unknown pauses under operator control.
 func OperatorOnlyResume(reason string) bool {
 	return reason != pauseReasonDefinitionMissing && reason != pauseReasonDefinitionNotAlwaysOn

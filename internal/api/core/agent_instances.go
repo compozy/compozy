@@ -172,7 +172,15 @@ func (h *BaseHandlers) mutateAgentInstance(c *gin.Context, verb string) {
 		if !ok {
 			return
 		}
-		instance, err = h.AgentInstances.Service.Resume(c.Request.Context(), instance.ID, actor)
+		ctx := c.Request.Context()
+		if _, app := AppTokenFromContext(ctx); app {
+			if instance.PauseReason == "daily_budget" || instance.PauseReason == "daily_budget_recovery" {
+				h.instanceError(c, agentinstance.ErrForbidden)
+				return
+			}
+			ctx = agentinstance.WithAppBudgetResume(ctx)
+		}
+		instance, err = h.AgentInstances.Service.Resume(ctx, instance.ID, actor)
 	case "ensure_main":
 		instance, err = h.AgentInstances.Service.EnsureMain(c.Request.Context(), instance.ID)
 	case "archive":
@@ -366,6 +374,7 @@ func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
 		{agentinstance.ErrSessionNotRoot, http.StatusUnprocessableEntity},
 		{agentinstance.ErrScopeMismatch, http.StatusUnprocessableEntity},
 		{agentinstance.ErrPaused, http.StatusConflict},
+		{agentinstance.ErrBudgetHistoryUncertain, http.StatusConflict},
 		{agentinstance.ErrDepth, http.StatusForbidden},
 		{agentinstance.ErrNotFound, http.StatusNotFound},
 		{agentinstance.ErrDefinitionMissing, http.StatusNotFound},

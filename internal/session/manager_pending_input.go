@@ -70,6 +70,7 @@ func (m *Manager) ReplacePendingInput(
 		}
 	}
 	request.humanIngress = humanPromptCaller(opts.Caller)
+	request.appIngress = opts.Caller.AppIngress
 	m.prepareMentions(ctx, &request)
 	entry, _, err := m.inputQueue.Replace(
 		ctx,
@@ -79,7 +80,9 @@ func (m *Manager) ReplacePendingInput(
 		opts.MessageID,
 		opts.IdempotencyKey,
 		request.skillInvocations,
-		inputqueue.MentionAdmission{Mentions: request.mentions, HumanIngress: request.humanIngress},
+		inputqueue.MentionAdmission{
+			Mentions: request.mentions, HumanIngress: request.humanIngress, AppIngress: request.appIngress,
+		},
 	)
 	if err != nil {
 		return PendingInput{}, err
@@ -115,6 +118,7 @@ func (m *Manager) PromotePendingInputToSteer(
 		}
 	}
 	request.humanIngress = humanPromptCaller(opts.Caller)
+	request.appIngress = opts.Caller.AppIngress
 	m.prepareMentions(ctx, &request)
 	replayed, found, err := m.inputQueue.ReplayPromotion(
 		ctx,
@@ -157,7 +161,9 @@ func (m *Manager) PromotePendingInputToSteer(
 		opts.MessageID,
 		opts.IdempotencyKey,
 		request.skillInvocations,
-		inputqueue.MentionAdmission{Mentions: request.mentions, HumanIngress: request.humanIngress},
+		inputqueue.MentionAdmission{
+			Mentions: request.mentions, HumanIngress: request.humanIngress, AppIngress: request.appIngress,
+		},
 	)
 	if errors.Is(err, inputqueue.ErrInputTextRequired) {
 		return SendPromptResult{}, fmt.Errorf("%w: %w", ErrValidation, err)

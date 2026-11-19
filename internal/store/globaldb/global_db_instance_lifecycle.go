@@ -149,10 +149,21 @@ func (r *InstanceRepo) Resume(
 			if !operator && row.State == goalStatusPaused && agentinstance.OperatorOnlyResume(row.PauseReason) {
 				return agentinstance.ErrForbidden
 			}
+			latched, err := q.CountLatchedAgentInstanceBudgetPauses(ctx, id)
+			if err != nil {
+				return err
+			}
+			budgetPaused := latched > 0 || row.PauseReason == dailyBudgetPauseReason ||
+				row.PauseReason == dailyBudgetRecoveryPauseReason
+			if budgetPaused && !agentinstance.HasDailyBudgetResumeAuthority(ctx, operator) {
+				return agentinstance.ErrForbidden
+			}
 			if row.State == "starting" {
 				return agentinstance.ErrStarting
 			}
-			if row.State == goalStatusPaused && row.PauseReason == dailyBudgetPauseReason {
+
+			// Use the receipt fence for every pause reason on the same transaction.
+			if row.State == goalStatusPaused {
 				if err := checkDailyBudgetResume(ctx, q, row, r.now()); err != nil {
 					return err
 				}
@@ -170,6 +181,11 @@ func (r *InstanceRepo) Resume(
 					sqlcgen.ResumeAgentInstanceParams{ID: id, UpdatedAt: store.FormatTimestamp(r.now())},
 				); err != nil {
 					return err
+				}
+				if latched > 0 {
+					if err := q.ClearLatchedAgentInstanceBudgetPause(ctx, id); err != nil {
+						return err
+					}
 				}
 				if err := q.ResetInstanceUnattended(ctx, sqlcgen.ResetInstanceUnattendedParams{
 					InstanceID: id, Now: store.FormatTimestamp(r.now()),
@@ -193,16 +209,30 @@ func (r *InstanceRepo) Resume(
 func checkDailyBudgetResume(
 	ctx context.Context, q *sqlcgen.Queries, row sqlcgen.AgentInstance, now time.Time,
 ) error {
-	budgetRow, err := q.GetAgentInstanceDailyBudgetLimits(ctx, row.ID)
+	configured, err := q.GetAgentInstanceDailyBudgetLimits(ctx, row.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("store: read budget on resume: %w", err)
 	}
-	limits, err := decodeInstanceDailyBudgetLimits(budgetRow)
+	limits, err := decodeInstanceDailyBudgetLimits(configured)
 	if err != nil || (limits.Tokens == nil && limits.USD == nil) {
 		return err
+	}
+	generation, err := dailyBudgetRecoveryGeneration(ctx, q, row.ID)
+	if err != nil {
+		return err
+	}
+	if generation != 0 || row.PauseReason == dailyBudgetRecoveryPauseReason {
+		return fmt.Errorf("%w: instance daily budget ledger recovery is incomplete", agentinstance.ErrPaused)
+	}
+	uncertain, err := countUncertainBudgetDay(ctx, q, row.ID, now)
+	if err != nil {
+		return err
+	}
+	if uncertain {
+		return fmt.Errorf("%w: %w", agentinstance.ErrPaused, agentinstance.ErrBudgetHistoryUncertain)
 	}
 	usage, err := readDailyBudgetUsage(ctx, q, row.ProfileID, row.ID, store.LocalDay(now))
 	if err != nil {

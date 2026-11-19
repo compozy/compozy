@@ -18,7 +18,7 @@ import (
 
 const dailyBudgetReceiptPageSize = 128
 
-var errDailyBudgetTotalsInvalid = errors.New("store: cannot establish an accurate daily budget total")
+var errDailyBudgetTotalsInvalid = agentinstance.ErrDailyBudgetUsageUnavailable
 
 // ReadDailyBudgetUsage reads a stable snapshot of canonical receipts for one
 // instance's local day. Historical rollups are deliberately not added because
@@ -53,6 +53,13 @@ func (r *InstanceRepo) ReadDailyBudgetUsage(
 	}
 	if instance.ArchivedAt.Valid {
 		return usage, agentinstance.ErrNotFound
+	}
+	uncertain, err := countUncertainBudgetDay(ctx, q, instanceID, at)
+	if err != nil {
+		return usage, err
+	}
+	if uncertain {
+		return usage, agentinstance.ErrDailyBudgetUsageUnavailable
 	}
 	return readDailyBudgetUsage(ctx, q, instance.ProfileID, instanceID, store.LocalDay(at))
 }

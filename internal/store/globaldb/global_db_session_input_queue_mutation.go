@@ -104,7 +104,7 @@ func (g *SessionRepo) ListPendingSessionInputs(
 		}
 		for i := range entries {
 			if hold.ID != "" && entries[i].Status == store.SessionInputQueueStatusQueued &&
-				!store.IsHumanSessionInputOriginClass(entries[i].OriginClass) {
+				queueEntryHeldByPause(&entries[i], hold.PauseReason) {
 				entries[i].Held = true
 				entries[i].HeldReason = hold.PauseReason
 				entries[i].HeldInstanceID = hold.ID

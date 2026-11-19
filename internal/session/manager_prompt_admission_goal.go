@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -12,13 +13,28 @@ func (m *Manager) submitAdmittedGoalPrompt(
 	preparation sendPromptPreparation,
 	opts SendPromptOpts,
 	admissionReq store.SessionPromptAdmissionRequest,
-) (SendPromptResult, error) {
+) (result SendPromptResult, dispatchErr error) {
+	command, matched, parseErr := ParseGoalCommand(preparation.request.authoredMessage)
+	if matched && (parseErr != nil || command.Verb != GoalCommandVerbDraft) {
+		ctx = store.WithPromptControlOnly(ctx)
+	}
 	admission, replayed, err := m.claimPromptAdmission(ctx, admissionReq)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
 	if replayed != nil {
 		return *replayed, nil
+	}
+	committed := false
+	defer func() {
+		if dispatchErr != nil && !committed {
+			dispatchErr = errors.Join(dispatchErr, m.releaseUndispatchedReports(ctx, admission))
+		}
+	}()
+	if store.PromptControlOnly(ctx) {
+		if err := m.releaseUndispatchedReports(ctx, admission); err != nil {
+			return SendPromptResult{}, err
+		}
 	}
 	preparation.request, err = bindPromptAdmissionRequest(preparation.request, admission)
 	if err != nil {
@@ -37,6 +53,7 @@ func (m *Manager) submitAdmittedGoalPrompt(
 	if err := m.commitPromptAdmissionDispatch(ctx, admission); err != nil {
 		return SendPromptResult{}, err
 	}
+	committed = true
 	rejectIfBusy, goalResult, err := m.applyGoalCommand(ctx, &preparation.request, opts)
 	if err != nil {
 		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
@@ -46,6 +63,10 @@ func (m *Manager) submitAdmittedGoalPrompt(
 		goalResult.MessageID = admission.MessageID
 		goalResult.IdempotencyKey = admission.IdempotencyKey
 		return m.completePromptAdmission(ctx, admission, *goalResult)
+	}
+	if store.PromptControlOnly(ctx) {
+		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission,
+			errors.New("session: control-only Goal command requested provider dispatch"))
 	}
 	// Control-only Goal commands must not implicitly resume a stopped session.
 	// Only a command that dispatches a prompt (Draft) needs a live runtime.
@@ -60,7 +81,7 @@ func (m *Manager) submitAdmittedGoalPrompt(
 		}
 	}
 	preparation.rejectIfBusy = rejectIfBusy
-	result, err := m.submitPreparedPrompt(ctx, session, preparation)
+	result, err = m.submitPreparedPrompt(ctx, session, preparation)
 	if err != nil {
 		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
 	}
@@ -73,11 +94,24 @@ func (m *Manager) commitPromptAdmissionDispatch(
 	ctx context.Context,
 	admission store.SessionPromptAdmission,
 ) error {
-	return m.promptAdmissionStore.CommitSessionPromptDispatch(
-		ctx,
-		admission.WorkspaceID,
-		admission.SessionID,
-		admission.IdempotencyKey,
-		m.now(),
-	)
+	commit := func(commitCtx context.Context) error {
+		return m.promptAdmissionStore.CommitSessionPromptDispatch(
+			commitCtx, admission.WorkspaceID, admission.SessionID,
+			admission.IdempotencyKey, m.now(),
+		)
+	}
+	var err error
+	if store.PromptControlOnly(ctx) || (admission.HumanIngress && !admission.AppIngress) {
+		err = commit(ctx)
+	} else {
+		err = m.withDailyBudgetAdmission(ctx, admission.SessionID, commit)
+	}
+	if blocked, ok := errors.AsType[*store.DailyBudgetTurnBlockedError](err); ok &&
+		blocked.PausedInstance != nil && m.instancePaused != nil {
+		if pauseErr := m.instancePaused(m.fallbackLifecycleContext(), *blocked.PausedInstance); pauseErr != nil {
+			m.sessionLogger(nil).ErrorContext(ctx, "session: apply daily budget pause effects",
+				"instance_id", blocked.PausedInstance.InstanceID, "error", pauseErr)
+		}
+	}
+	return err
 }

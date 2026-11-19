@@ -89,6 +89,9 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 func (m *Manager) deletePreparedSession(
 	ctx context.Context, target string, info *Info, archived *store.ArchivedSessionDelete,
 ) error {
+	if err := m.reconcileBudgetSessionBeforeDeletion(ctx, target); err != nil {
+		return err
+	}
 	if err := m.lifecycleMu.LockContext(ctx); err != nil {
 		return fmt.Errorf("session: await delete lifecycle lock: %w", err)
 	}
@@ -127,6 +130,17 @@ func (m *Manager) deletePreparedSession(
 	return nil
 }
 
+func (m *Manager) reconcileBudgetSessionBeforeDeletion(ctx context.Context, target string) error {
+	if ready, ok := m.notifier.(interface {
+		ReconcileBudgetSessionBeforeDeletion(context.Context, string) error
+	}); ok {
+		if err := ready.ReconcileBudgetSessionBeforeDeletion(ctx, target); err != nil {
+			return fmt.Errorf("session: budget ledger is not safe to delete: %w", err)
+		}
+	}
+	return nil
+}
+
 func (m *Manager) deleteMissingSession(
 	ctx context.Context, target string, archived *store.ArchivedSessionDelete,
 ) (bool, func(bool), error) {
@@ -156,6 +170,12 @@ func (m *Manager) deleteMissingSession(
 		if err := validateArchivedDelete(info, *archived); err != nil {
 			return true, finishSubagent, err
 		}
+	}
+	// The metadata and ledger may both have disappeared. This catalog-only
+	// delete must still refuse to erase a budgeted, unreconciled session;
+	// otherwise the next restart could silently clear the recovery pause.
+	if err := m.reconcileBudgetSessionBeforeDeletion(ctx, target); err != nil {
+		return true, finishSubagent, err
 	}
 	stopInfo := *info
 	stopInfo.StopCause = CauseUserRequested

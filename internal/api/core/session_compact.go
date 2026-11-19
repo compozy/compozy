@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,7 +35,15 @@ func (h *BaseHandlers) CompactSession(c *gin.Context) {
 	} else if strings.HasPrefix(c.GetHeader("X-Compozy-Client-ID"), "web-") {
 		source = operatorViaWeb
 	}
-	result, _, err := manager.RequestCompaction(session.WithCompactionRequestedBy(c.Request.Context(), source), id)
+	requestCtx := session.WithCompactionRequestedBy(c.Request.Context(), source)
+	// Audit labels such as User-Agent and X-Compozy-Client-ID are spoofable.
+	// Only the authenticated operator principal can exempt maintenance from
+	// the autonomous daily spend admission gate.
+	if !hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) &&
+		requestOperatorOrigin(c).Kind == workspaceaccess.ActorHuman {
+		requestCtx = session.WithOperatorCompaction(requestCtx)
+	}
+	result, _, err := manager.RequestCompaction(requestCtx, id)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return

@@ -126,6 +126,15 @@ func (m *Manager) recordEventWithWriter(
 	write func(context.Context, EventRecorder, store.SessionEvent) (store.SessionEvent, error),
 ) error {
 	event = m.enrichRecordedAgentEvent(session, event)
+	// A missing receipt proves missing aggregate writes only after cutover.
+	event.CanonicalUsageProjection = event.Type == acp.EventTypeDone && event.Usage != nil && !event.Usage.IsZero()
+	hasUsageEvidence := event.CanonicalUsageProjection || event.ProviderUsageMissing
+	if runtime := event.PromptRuntimeSnapshot(); hasUsageEvidence && runtime != nil {
+		session.mu.RLock()
+		runtime.MeteringAuthMode = string(session.effectiveProviderAuthMode)
+		session.mu.RUnlock()
+		event = event.WithPromptRuntime(runtime)
+	}
 	if event.Type == acp.EventTypeCompaction || event.Type == acp.EventTypeSystem {
 		event = transcript.RedactAgentEvent(event)
 	}
@@ -158,14 +167,26 @@ func (m *Manager) recordEventWithWriter(
 
 	m.dispatchEventPreRecord(ctx, session, event, payload)
 
-	persisted, err := write(ctx, recorder, store.SessionEvent{
-		ID:        strings.TrimSpace(event.EventIDValue()),
-		TurnID:    event.TurnID,
-		Type:      event.Type,
-		AgentName: session.Info().AgentName,
-		Content:   payload,
-		Timestamp: event.Timestamp,
-	})
+	var persisted store.SessionEvent
+	commit := func(writeCtx context.Context) error {
+		var writeErr error
+		persisted, writeErr = write(writeCtx, recorder, store.SessionEvent{
+			ID:        strings.TrimSpace(event.EventIDValue()),
+			TurnID:    event.TurnID,
+			Type:      event.Type,
+			AgentName: session.Info().AgentName,
+			Content:   payload,
+			Timestamp: event.Timestamp,
+		})
+		return writeErr
+	}
+	if usage, ok := m.notifier.(interface {
+		CommitDurableTurnUsage(context.Context, *Session, acp.AgentEvent, func(context.Context) error) error
+	}); ok && hasUsageEvidence {
+		err = usage.CommitDurableTurnUsage(ctx, session, event, commit)
+	} else {
+		err = commit(ctx)
+	}
 	if errors.Is(err, errIdentifiedEventRecorded) {
 		return nil
 	}

@@ -82,6 +82,33 @@ func (q *Queries) CancelInstanceLineageInputs(ctx context.Context, arg CancelIns
 	return err
 }
 
+const clearAgentInstanceDailyBudgetRecovery = `-- name: ClearAgentInstanceDailyBudgetRecovery :execrows
+UPDATE agent_instance_daily_budget_recovery SET pending = 0
+WHERE instance_id = ?1 AND generation = ?2 AND pending = 1
+`
+
+type ClearAgentInstanceDailyBudgetRecoveryParams struct {
+	InstanceID string `json:"instance_id"`
+	Generation int64  `json:"generation"`
+}
+
+func (q *Queries) ClearAgentInstanceDailyBudgetRecovery(ctx context.Context, arg ClearAgentInstanceDailyBudgetRecoveryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, clearAgentInstanceDailyBudgetRecovery, arg.InstanceID, arg.Generation)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const clearLatchedAgentInstanceBudgetPause = `-- name: ClearLatchedAgentInstanceBudgetPause :exec
+UPDATE agent_instance_daily_budget_recovery SET latched = 0 WHERE instance_id = ?1 AND latched = 1
+`
+
+func (q *Queries) ClearLatchedAgentInstanceBudgetPause(ctx context.Context, instanceID string) error {
+	_, err := q.db.ExecContext(ctx, clearLatchedAgentInstanceBudgetPause, instanceID)
+	return err
+}
+
 const countActiveAgentInstances = `-- name: CountActiveAgentInstances :one
 SELECT count(*) FROM agent_instances WHERE profile_id = ? AND archived_at IS NULL AND state IN ('starting', 'active')
 `
@@ -184,6 +211,17 @@ func (q *Queries) CountInstancePausesByReason(ctx context.Context, arg CountInst
 		return nil, err
 	}
 	return items, nil
+}
+
+const countLatchedAgentInstanceBudgetPauses = `-- name: CountLatchedAgentInstanceBudgetPauses :one
+SELECT count(*) FROM agent_instance_daily_budget_recovery WHERE instance_id = ?1 AND latched = 1
+`
+
+func (q *Queries) CountLatchedAgentInstanceBudgetPauses(ctx context.Context, instanceID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLatchedAgentInstanceBudgetPauses, instanceID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countScopedCheckInCalls = `-- name: CountScopedCheckInCalls :many
@@ -298,6 +336,23 @@ func (q *Queries) CountScopedInstancePicks(ctx context.Context, arg CountScopedI
 	return items, nil
 }
 
+const countUncertainDailyBudgetDays = `-- name: CountUncertainDailyBudgetDays :one
+SELECT COUNT(*) FROM agent_instance_daily_budget_uncertain_days
+WHERE instance_id=?1 AND day=?2
+`
+
+type CountUncertainDailyBudgetDaysParams struct {
+	InstanceID string `json:"instance_id"`
+	Day        string `json:"day"`
+}
+
+func (q *Queries) CountUncertainDailyBudgetDays(ctx context.Context, arg CountUncertainDailyBudgetDaysParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUncertainDailyBudgetDays, arg.InstanceID, arg.Day)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteUnstartedAgentInstance = `-- name: DeleteUnstartedAgentInstance :execrows
 DELETE FROM agent_instances WHERE agent_instances.id = ? AND state = 'starting' AND main_session_id IS NULL
 AND NOT EXISTS (SELECT 1 FROM sessions WHERE instance_id = agent_instances.id)
@@ -385,18 +440,69 @@ func (q *Queries) GetAgentInstance(ctx context.Context, id string) (AgentInstanc
 	return i, err
 }
 
+const getAgentInstanceDailyBudgetRecovery = `-- name: GetAgentInstanceDailyBudgetRecovery :one
+SELECT generation FROM agent_instance_daily_budget_recovery WHERE instance_id = ?1 AND pending = 1
+`
+
+func (q *Queries) GetAgentInstanceDailyBudgetRecovery(ctx context.Context, instanceID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getAgentInstanceDailyBudgetRecovery, instanceID)
+	var generation int64
+	err := row.Scan(&generation)
+	return generation, err
+}
+
 const getHeldSessionInput = `-- name: GetHeldSessionInput :one
-SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
- ELSE instance.pause_reason END AS TEXT) AS pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
-FROM sessions target
-JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-JOIN agent_instances instance ON instance.id = root.instance_id
+WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind, profile_id) AS (
+  SELECT seed.id, seed.instance_id, seed.parent_session_id, seed.lineage_kind, seed.profile_id
+  FROM sessions seed WHERE seed.id = ?1
+  UNION
+  SELECT COALESCE(parent.id, deleted.id),
+    CASE WHEN parent.id IS NOT NULL THEN parent.instance_id ELSE deleted.instance_id END,
+    CASE WHEN parent.id IS NOT NULL THEN parent.parent_session_id ELSE deleted.parent_session_id END,
+    COALESCE(parent.lineage_kind, deleted.lineage_kind), COALESCE(parent.profile_id, deleted.profile_id)
+  FROM budget_ancestry a
+  LEFT JOIN sessions parent ON parent.id = a.parent_session_id
+  LEFT JOIN deleted_session_budget_lineage deleted ON parent.id IS NULL AND deleted.id = a.parent_session_id
+  WHERE COALESCE(a.instance_id, '') = '' AND COALESCE(parent.profile_id, deleted.profile_id) = a.profile_id
+    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+), budget_owner AS (
+  SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
+), budget_pause AS (
+  SELECT instance.id,
+    CAST(CASE WHEN instance.pause_reason = 'daily_budget_recovery'
+      THEN 'daily_budget_recovery' ELSE 'daily_budget' END AS TEXT) AS pause_reason
+  FROM budget_owner owner JOIN agent_instances instance ON instance.id = owner.instance_id
+  LEFT JOIN agent_instance_daily_budget_recovery guard ON guard.instance_id = instance.id
+  WHERE instance.archived_at IS NULL AND
+    ((instance.state = 'paused' AND instance.pause_reason IN ('daily_budget', 'daily_budget_recovery'))
+      OR guard.latched = 1)
+), legacy_pause AS (
+  SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+    ELSE instance.pause_reason END AS TEXT) AS pause_reason
+  FROM sessions target
+  JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+  JOIN agent_instances instance ON instance.id = root.instance_id
+  WHERE target.id = ?1 AND instance.state = 'paused'
+    AND (instance.archived_at IS NOT NULL OR (
+      instance.pause_reason NOT IN ('daily_budget', 'daily_budget_recovery')
+      AND (target.instance_id = instance.id
+        OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+    ))
+), holds AS (
+  SELECT b.id, b.pause_reason, 1 AS budget FROM budget_pause b
+  UNION ALL
+  SELECT l.id, l.pause_reason, 0 AS budget FROM legacy_pause l
+)
+
+SELECT hold.id, hold.pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
+FROM holds hold
+JOIN sessions target ON target.id = ?1
 JOIN session_input_queue q ON q.session_id = target.id AND q.session_generation = target.input_generation
-WHERE target.id = ?1 AND instance.state = 'paused'
-  AND (target.instance_id = instance.id
-    OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-  AND q.status = 'queued' AND q.origin_class <> 'human'
-GROUP BY instance.id, instance.pause_reason
+WHERE q.status = 'queued' AND (
+  (hold.budget = 1 AND NOT (q.human_ingress = 1 AND q.app_ingress = 0))
+  OR (hold.budget = 0 AND q.origin_class <> 'human')
+)
+GROUP BY hold.id, hold.pause_reason, hold.budget ORDER BY hold.budget DESC LIMIT 1
 `
 
 type GetHeldSessionInputRow struct {
@@ -466,13 +572,49 @@ func (q *Queries) GetInstanceMainAttempt(ctx context.Context, instanceID sql.Nul
 }
 
 const getSessionInputHold = `-- name: GetSessionInputHold :one
-SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
- ELSE instance.pause_reason END AS TEXT) AS pause_reason FROM sessions target
-JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-JOIN agent_instances instance ON instance.id = root.instance_id
-WHERE target.id = ?1 AND instance.state = 'paused'
-  AND (target.instance_id = instance.id
-    OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind, profile_id) AS (
+  SELECT seed.id, seed.instance_id, seed.parent_session_id, seed.lineage_kind, seed.profile_id
+  FROM sessions seed WHERE seed.id = ?1
+  UNION
+  SELECT COALESCE(parent.id, deleted.id),
+    CASE WHEN parent.id IS NOT NULL THEN parent.instance_id ELSE deleted.instance_id END,
+    CASE WHEN parent.id IS NOT NULL THEN parent.parent_session_id ELSE deleted.parent_session_id END,
+    COALESCE(parent.lineage_kind, deleted.lineage_kind), COALESCE(parent.profile_id, deleted.profile_id)
+  FROM budget_ancestry a
+  LEFT JOIN sessions parent ON parent.id = a.parent_session_id
+  LEFT JOIN deleted_session_budget_lineage deleted ON parent.id IS NULL AND deleted.id = a.parent_session_id
+  WHERE COALESCE(a.instance_id, '') = '' AND COALESCE(parent.profile_id, deleted.profile_id) = a.profile_id
+    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+), budget_owner AS (
+  SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
+), budget_pause AS (
+  SELECT instance.id,
+    CAST(CASE WHEN instance.pause_reason = 'daily_budget_recovery'
+      THEN 'daily_budget_recovery' ELSE 'daily_budget' END AS TEXT) AS pause_reason
+  FROM budget_owner owner JOIN agent_instances instance ON instance.id = owner.instance_id
+  LEFT JOIN agent_instance_daily_budget_recovery guard ON guard.instance_id = instance.id
+  WHERE instance.archived_at IS NULL AND
+    ((instance.state = 'paused' AND instance.pause_reason IN ('daily_budget', 'daily_budget_recovery'))
+      OR guard.latched = 1)
+), legacy_pause AS (
+  SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+    ELSE instance.pause_reason END AS TEXT) AS pause_reason
+  FROM sessions target
+  JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+  JOIN agent_instances instance ON instance.id = root.instance_id
+  WHERE target.id = ?1 AND instance.state = 'paused'
+    AND (instance.archived_at IS NOT NULL OR (
+      instance.pause_reason NOT IN ('daily_budget', 'daily_budget_recovery')
+      AND (target.instance_id = instance.id
+        OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+    ))
+), holds AS (
+  SELECT b.id, b.pause_reason, 1 AS budget FROM budget_pause b
+  UNION ALL
+  SELECT l.id, l.pause_reason, 0 AS budget FROM legacy_pause l
+)
+
+SELECT h.id, h.pause_reason FROM holds h ORDER BY h.budget DESC LIMIT 1
 `
 
 type GetSessionInputHoldRow struct {
@@ -594,6 +736,17 @@ func (q *Queries) IsSupersededInstanceSession(ctx context.Context, sessionID str
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const latchAgentInstanceDailyBudgetPause = `-- name: LatchAgentInstanceDailyBudgetPause :exec
+INSERT INTO agent_instance_daily_budget_recovery(instance_id, generation, pending, latched)
+VALUES (?1, 1, 0, 1)
+ON CONFLICT(instance_id) DO UPDATE SET latched = 1
+`
+
+func (q *Queries) LatchAgentInstanceDailyBudgetPause(ctx context.Context, instanceID string) error {
+	_, err := q.db.ExecContext(ctx, latchAgentInstanceDailyBudgetPause, instanceID)
+	return err
 }
 
 const listAgentInstances = `-- name: ListAgentInstances :many
@@ -763,6 +916,29 @@ func (q *Queries) ListInstancesForReconciliation(ctx context.Context, arg ListIn
 	return items, nil
 }
 
+const markUncertainDailyBudgetDay = `-- name: MarkUncertainDailyBudgetDay :exec
+INSERT INTO agent_instance_daily_budget_uncertain_days(instance_id, day, source_session_id, recorded_at)
+VALUES (?1, ?2, ?3, ?4)
+ON CONFLICT(instance_id, day) DO NOTHING
+`
+
+type MarkUncertainDailyBudgetDayParams struct {
+	InstanceID      string `json:"instance_id"`
+	Day             string `json:"day"`
+	SourceSessionID string `json:"source_session_id"`
+	RecordedAt      string `json:"recorded_at"`
+}
+
+func (q *Queries) MarkUncertainDailyBudgetDay(ctx context.Context, arg MarkUncertainDailyBudgetDayParams) error {
+	_, err := q.db.ExecContext(ctx, markUncertainDailyBudgetDay,
+		arg.InstanceID,
+		arg.Day,
+		arg.SourceSessionID,
+		arg.RecordedAt,
+	)
+	return err
+}
+
 const pauseAgentInstance = `-- name: PauseAgentInstance :execrows
 UPDATE agent_instances SET state = 'paused', pause_reason = ?1, updated_at = ?2
 WHERE id = ?3 AND archived_at IS NULL
@@ -801,6 +977,50 @@ func (q *Queries) PublishMissingInstanceMain(ctx context.Context, arg PublishMis
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const quarantineAgentInstanceDailyBudget = `-- name: QuarantineAgentInstanceDailyBudget :execrows
+UPDATE agent_instances SET state='paused', pause_reason='daily_budget_recovery', updated_at=?1
+WHERE id=?2 AND archived_at IS NULL AND state = 'active'
+`
+
+type QuarantineAgentInstanceDailyBudgetParams struct {
+	UpdatedAt string `json:"updated_at"`
+	ID        string `json:"id"`
+}
+
+func (q *Queries) QuarantineAgentInstanceDailyBudget(ctx context.Context, arg QuarantineAgentInstanceDailyBudgetParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, quarantineAgentInstanceDailyBudget, arg.UpdatedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const recordAgentInstanceDailyBudgetRecovery = `-- name: RecordAgentInstanceDailyBudgetRecovery :exec
+INSERT INTO agent_instance_daily_budget_recovery(instance_id, generation, pending)
+VALUES (?1, 1, 1)
+ON CONFLICT(instance_id) DO UPDATE SET generation = generation + 1, pending = 1
+`
+
+func (q *Queries) RecordAgentInstanceDailyBudgetRecovery(ctx context.Context, instanceID string) error {
+	_, err := q.db.ExecContext(ctx, recordAgentInstanceDailyBudgetRecovery, instanceID)
+	return err
+}
+
+const restoreAgentInstanceAfterDailyBudgetRecovery = `-- name: RestoreAgentInstanceAfterDailyBudgetRecovery :exec
+UPDATE agent_instances SET pause_reason = 'daily_budget', updated_at = ?1
+WHERE id = ?2 AND state = 'paused' AND pause_reason = 'daily_budget_recovery' AND archived_at IS NULL
+`
+
+type RestoreAgentInstanceAfterDailyBudgetRecoveryParams struct {
+	UpdatedAt string `json:"updated_at"`
+	ID        string `json:"id"`
+}
+
+func (q *Queries) RestoreAgentInstanceAfterDailyBudgetRecovery(ctx context.Context, arg RestoreAgentInstanceAfterDailyBudgetRecoveryParams) error {
+	_, err := q.db.ExecContext(ctx, restoreAgentInstanceAfterDailyBudgetRecovery, arg.UpdatedAt, arg.ID)
+	return err
 }
 
 const resumeAgentInstance = `-- name: ResumeAgentInstance :execrows

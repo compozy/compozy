@@ -63,6 +63,10 @@ func TestTokenUsageReceiptPreservesOwnedDescendantAfterPlainDelete(t *testing.T)
 		if err != nil {
 			t.Fatal(err)
 		}
+		candidates, err := db.ListDailyBudgetReconcileSessions(ctx, instance.ID)
+		if err != nil || len(candidates) != 2 || candidates[0].ID != leaf || candidates[1].ID != main {
+			t.Fatalf("restart recovery candidates = %+v, err=%v; want the owned leaf and main", candidates, err)
+		}
 		for _, sessionID := range []string{leaf, "budget-lineage-fork"} {
 			stats := store.TokenStatsUpdate{SessionID: sessionID, TurnID: "pending-completion",
 				AgentName: "writer", TotalTokens: new(int64(7)), CostStatus: "unknown",

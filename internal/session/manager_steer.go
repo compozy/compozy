@@ -364,6 +364,7 @@ func (m *Manager) injectedSteerInputRequest(
 		runtime: runtimeSelectionFromStore(entry.Runtime), skillInvocations: entry.SkillInvocations,
 		mentions:        storedMentions(entry.MentionsJSON),
 		humanIngress:    entry.HumanIngress,
+		appIngress:      entry.AppIngress,
 		inputIdempotent: true, attachments: attachmentMetaFromStore(entry.Attachments),
 	}, nil
 }

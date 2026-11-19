@@ -13,6 +13,11 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
+const (
+	dailyBudgetPauseReason         = "daily_budget"
+	dailyBudgetRecoveryPauseReason = "daily_budget_recovery"
+)
+
 // AdmitDailyBudgetTurn serializes a *covered, fresh* turn's budget decision
 // with receipt writes and operator resume. The caller must exclude human-origin
 // and recovery work; this is not a generic session-pause admission gate.
@@ -33,7 +38,8 @@ func (r *InstanceRepo) AdmitDailyBudgetTurn(
 	err = store.ExecuteWriteOperation(ctx, r.db, "admit daily budget turn", func(
 		ctx context.Context, tx *store.WriteTx,
 	) error {
-		allowed, trip, err = admitDailyBudgetTurnTx(ctx, sqlcgen.New(tx), sessionID, r.now)
+		allowed, trip = false, nil // retries must discard results from a rolled-back attempt
+		allowed, trip, err = admitDailyBudgetTurnTx(ctx, sqlcgen.New(tx), sessionID, r.now())
 		return err
 	})
 	if err != nil {
@@ -42,13 +48,12 @@ func (r *InstanceRepo) AdmitDailyBudgetTurn(
 	return allowed, trip, nil
 }
 
-const dailyBudgetPauseReason = "daily_budget"
-
+// admitDailyBudgetTurnTx is the shared transactional admission fence. Queue
+// claims and durable prompt commits call it BEFORE mutating their dispatch
+// state, so a denied turn never consumes a lease or idempotency receipt.
 func admitDailyBudgetTurnTx(
-	ctx context.Context, q *sqlcgen.Queries, sessionID string, clock func() time.Time,
-) (bool, *store.InstancePauseTrip, error) {
-	// A profile without any applicable guardrail keeps its ordinary dispatch
-	// behavior even when an older session has an incomplete ownership edge.
+	ctx context.Context, q *sqlcgen.Queries, sessionID string, now time.Time,
+) (allowed bool, trip *store.InstancePauseTrip, err error) {
 	requiresEnforcement, err := q.HasDailyBudgetEnforcementForSession(ctx, sessionID)
 	if err != nil {
 		return false, nil, fmt.Errorf("store: check daily budget enforcement: %w", err)
@@ -60,19 +65,41 @@ func admitDailyBudgetTurnTx(
 	if err != nil {
 		return false, nil, fmt.Errorf("store: resolve daily budget turn owner: %w", err)
 	}
+	if owner.OwnershipUnresolved != 0 {
+		if err := checkUnresolvedSessionBudgetPolicy(ctx, q, sessionID); err != nil {
+			return false, nil, err
+		}
+	}
 	if owner.InstanceID == "" {
 		return true, nil, nil
 	}
+	return admitOwnedDailyBudgetTurn(ctx, q, owner, now)
+}
+
+func admitOwnedDailyBudgetTurn(
+	ctx context.Context, q *sqlcgen.Queries, owner sqlcgen.GetTokenUsageReceiptSessionOwnerRow, now time.Time,
+) (bool, *store.InstancePauseTrip, error) {
 	row, err := q.GetAgentInstance(ctx, owner.InstanceID)
 	if err != nil {
 		return false, nil, fmt.Errorf("store: resolve daily budget instance: %w", err)
 	}
-	if row.ProfileID != owner.ProfileID || row.ArchivedAt.Valid {
+	if row.ProfileID != owner.ProfileID {
 		return false, nil, agentinstance.ErrScopeMismatch
 	}
+	if row.ArchivedAt.Valid {
+		// Legacy human-priority inputs remain governed by the existing
+		// archived-session selector, not an inactive instance budget.
+		return true, nil, nil
+	}
+
 	// A budget pause is operator-owned even when its caps are later removed.
-	if row.State == goalStatusPaused && row.PauseReason == dailyBudgetPauseReason {
+	if row.State == goalStatusPaused &&
+		(row.PauseReason == dailyBudgetPauseReason || row.PauseReason == dailyBudgetRecoveryPauseReason) {
 		return false, nil, nil
+	}
+	latched, err := q.CountLatchedAgentInstanceBudgetPauses(ctx, owner.InstanceID)
+	if err != nil || latched > 0 {
+		return false, nil, err
 	}
 	limitsRow, err := q.GetAgentInstanceDailyBudgetLimits(ctx, owner.InstanceID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -88,11 +115,38 @@ func admitDailyBudgetTurnTx(
 	if limits.Tokens == nil && limits.USD == nil {
 		return true, nil, nil
 	}
-	if row.State != "active" {
+	return admitConfiguredDailyBudgetTurn(ctx, q, row, limits, now)
+}
+
+func admitConfiguredDailyBudgetTurn(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	row sqlcgen.AgentInstance,
+	limits agentinstance.DailyBudgetLimits,
+	now time.Time,
+) (bool, *store.InstancePauseTrip, error) {
+	generation, err := dailyBudgetRecoveryGeneration(ctx, q, row.ID)
+	if err != nil {
+		return false, nil, err
+	}
+	if generation != 0 {
+		if row.State == "active" {
+			return pauseDailyBudgetTurn(ctx, q, row.ID, dailyBudgetRecoveryPauseReason, now)
+		}
+		if row.State == goalStatusPaused {
+			return false, nil, q.LatchAgentInstanceDailyBudgetPause(ctx, row.ID)
+		}
 		return false, nil, nil
 	}
-	now := clock()
-	usage, err := readDailyBudgetUsage(ctx, q, owner.ProfileID, owner.InstanceID, store.LocalDay(now))
+	uncertain, err := countUncertainBudgetDay(ctx, q, row.ID, now)
+	if err != nil {
+		return false, nil, err
+	}
+	if uncertain {
+		return holdDailyBudgetTurn(ctx, q, row, now)
+	}
+
+	usage, err := readDailyBudgetUsage(ctx, q, row.ProfileID, row.ID, store.LocalDay(now))
 	if err != nil {
 		return false, nil, err
 	}
@@ -103,27 +157,39 @@ func admitDailyBudgetTurnTx(
 	if !assessment.Exhausted {
 		return true, nil, nil
 	}
-	return pauseForDailyBudgetLimit(ctx, q, owner.InstanceID, now)
+	return holdDailyBudgetTurn(ctx, q, row, now)
 }
 
-func pauseForDailyBudgetLimit(
-	ctx context.Context, q *sqlcgen.Queries, instanceID string, now time.Time,
+func holdDailyBudgetTurn(
+	ctx context.Context, q *sqlcgen.Queries, row sqlcgen.AgentInstance, now time.Time,
+) (bool, *store.InstancePauseTrip, error) {
+	// Definition-paused descendants have a narrow, pre-existing dispatch
+	// exemption. When their budget is exhausted, the budget pause must also
+	// latch durably; otherwise that exemption dispatches again after midnight
+	// without the required operator action.
+	if row.State != "active" && row.State != goalStatusPaused {
+		return false, nil, nil
+	}
+	if row.State == goalStatusPaused {
+		// The original pause owns its reason and effects. Require operator
+		// resume even after the spend window rolls over.
+		return false, nil, q.LatchAgentInstanceDailyBudgetPause(ctx, row.ID)
+	}
+	return pauseDailyBudgetTurn(ctx, q, row.ID, dailyBudgetPauseReason, now)
+}
+
+func pauseDailyBudgetTurn(
+	ctx context.Context, q *sqlcgen.Queries, instanceID, reason string, now time.Time,
 ) (bool, *store.InstancePauseTrip, error) {
 	stamp := store.FormatTimestamp(now)
 	changed, err := q.PauseAgentInstance(ctx, sqlcgen.PauseAgentInstanceParams{
-		ID: instanceID, PauseReason: dailyBudgetPauseReason, UpdatedAt: stamp,
+		ID: instanceID, PauseReason: reason, UpdatedAt: stamp,
 	})
 	if err != nil {
 		return false, nil, err
 	}
 	if changed != 1 {
-		return false, nil, errors.New("store: daily budget pause lost active instance ownership")
-	}
-	if err := q.CancelInstanceAutoPicks(ctx, sqlcgen.CancelInstanceAutoPicksParams{
-		CanceledAt: sql.NullString{String: stamp, Valid: true},
-		UpdatedAt:  stamp, InstanceID: instanceID,
-	}); err != nil {
-		return false, nil, err
+		return false, nil, errors.New("store: daily budget pause lost instance ownership")
 	}
 	if err := q.CancelInstanceWake(ctx, instanceID); err != nil {
 		return false, nil, err

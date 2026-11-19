@@ -83,6 +83,11 @@ func shouldAggregateUsage(event acp.AgentEvent) bool {
 	return strings.TrimSpace(event.Type) == acp.EventTypeDone && event.Usage != nil && !event.Usage.IsZero()
 }
 
+func hasBudgetUsageEvidence(event acp.AgentEvent) bool {
+	return shouldAggregateUsage(event) ||
+		(strings.TrimSpace(event.Type) == acp.EventTypeDone && event.ProviderUsageMissing)
+}
+
 func stringPointer(value string) *string {
 	if strings.TrimSpace(value) == "" {
 		return nil

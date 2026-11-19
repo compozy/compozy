@@ -51,7 +51,24 @@ func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
 	admission := instanceServiceAdmission(definitions, repo, manager, state)
 	mainSessions := instanceMainSessions{sessions: manager, attempts: repo, workAdmission: &d.admission}
 	service, err := agentinstance.NewService(
-		agentinstance.WithStore(repo), agentinstance.WithAdmission(admission),
+		agentinstance.WithStore(repo),
+		agentinstance.WithAdmission(admission),
+		agentinstance.WithResumeCommit(
+			func(ctx context.Context, instanceID string, commit func(context.Context) error) error {
+				resume := func(ctx context.Context) error {
+					if err := reconcileInstanceBudgetBeforeResume(ctx, instanceID, repo, state.observer); err != nil {
+						return err
+					}
+					return commit(ctx)
+				}
+				if fenced, ok := state.observer.(interface {
+					WithDailyBudgetMutation(context.Context, func(context.Context) error) error
+				}); ok {
+					return fenced.WithDailyBudgetMutation(ctx, resume)
+				}
+				return resume(ctx)
+			},
+		),
 		agentinstance.WithMainSessionRotator(&instanceMainRotator{
 			sessions:   manager,
 			store:      repo,
@@ -100,6 +117,31 @@ func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
 	d.bindInstanceSkillReviews(state, provider, definitions)
 	state.deps.AgentInstances = state.agentInstances
 	return nil
+}
+
+// Resume must not turn an opt-in safety feature into a requirement for old
+// unbudgeted sessions to have readable history. Only configured limits need
+// their current-day Done events recovered before the operator's state change.
+func reconcileInstanceBudgetBeforeResume(
+	ctx context.Context, instanceID string,
+	reader interface {
+		DailyBudgetLimits(context.Context, string) (agentinstance.DailyBudgetLimits, error)
+	},
+	observer any,
+) error {
+	limits, err := reader.DailyBudgetLimits(ctx, instanceID)
+	if err != nil {
+		return fmt.Errorf("daemon: read limits before instance resume: %w", err)
+	}
+	if limits.Tokens == nil && limits.USD == nil {
+		return nil
+	}
+	if reconciler, ok := observer.(interface {
+		ReconcileDailyBudgetInstance(context.Context, string) error
+	}); ok {
+		return reconciler.ReconcileDailyBudgetInstance(ctx, instanceID)
+	}
+	return errors.New("daemon: instance budget resume recovery unavailable")
 }
 
 func reconcileBootInstances(ctx context.Context, state *bootState) error {

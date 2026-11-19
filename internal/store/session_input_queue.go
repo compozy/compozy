@@ -82,6 +82,24 @@ type InstancePauseTrip struct {
 	CreatedAt, PausedAt                                                  time.Time
 }
 
+// ErrDailyBudgetTurnBlocked denotes an autonomous turn rejected before its
+// durable dispatch claim. A human operator may resume the paused instance
+// only after its current daily budget becomes eligible again.
+var ErrDailyBudgetTurnBlocked = errors.New("store: daily instance budget blocks the next autonomous turn")
+
+// ErrDailyBudgetRecoveryPending asks a dispatcher to retry before claiming work.
+var ErrDailyBudgetRecoveryPending = errors.New("store: daily budget usage reconciliation pending")
+
+// DailyBudgetTurnBlockedError preserves the just-committed pause trip so the
+// daemon can apply normal pause side effects after the SQLite transaction.
+type DailyBudgetTurnBlockedError struct {
+	PausedInstance *InstancePauseTrip
+}
+
+func (e *DailyBudgetTurnBlockedError) Error() string { return ErrDailyBudgetTurnBlocked.Error() }
+
+func (e *DailyBudgetTurnBlockedError) Unwrap() error { return ErrDailyBudgetTurnBlocked }
+
 // SessionInputHold summarizes queued input blocked by an instance pause.
 type SessionInputHold struct {
 	InstanceID, Reason string
@@ -117,6 +135,7 @@ type SessionInputQueueEntry struct {
 	MentionsJSON string
 	// HumanIngress records that the human operator authored this input; unknown or agent authorship is false.
 	HumanIngress             bool
+	AppIngress               bool
 	Origin                   json.RawMessage
 	OriginClass              string
 	OriginSessionID          string
@@ -200,6 +219,7 @@ type SessionInputQueueInsert struct {
 	Supersede bool
 	// HumanIngress records that the human operator authored this input; unknown or agent authorship is false.
 	HumanIngress      bool
+	AppIngress        bool
 	HumanSpawnOrigin  bool
 	Attachments       []SessionInputAttachment
 	SessionGeneration int64

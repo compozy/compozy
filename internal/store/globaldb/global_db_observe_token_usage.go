@@ -203,12 +203,11 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 	daily store.TokenUsageDailyUpdate,
 ) (bool, error) {
 	queries := sqlcgen.New(tx)
-	var receiptOwner string
 	receiptOwner, err := queries.GetTokenUsageReceiptProfile(ctx, sqlcgen.GetTokenUsageReceiptProfileParams{
 		SessionID: stats.SessionID, TurnID: stats.TurnID,
 	})
 	if err == nil {
-		if receiptOwner != daily.ProfileID {
+		if receiptOwner.ProfileID != daily.ProfileID {
 			return false, fmt.Errorf(
 				"store: replayed token receipt for session %q has a different profile",
 				stats.SessionID,
@@ -261,11 +260,20 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 		ProfileID: sessionOwner.ProfileID, SessionID: stats.SessionID, TurnID: stats.TurnID,
 		InstanceID: sessionOwner.InstanceID, Day: daily.Day, TotalTokens: tokens,
 		UsdAmount: amount, CostStatus: stats.CostStatus,
-		CreatedAt: store.FormatTimestamp(daily.UpdatedAt),
+		CreatedAt: store.FormatTimestamp(daily.UpdatedAt), OwnershipUnresolved: sessionOwner.OwnershipUnresolved,
 	}
 	rows, err := queries.InsertTokenUsageReceipt(ctx, receipt)
 	if err != nil {
 		return false, fmt.Errorf("store: insert token receipt for session %q: %w", stats.SessionID, err)
+	}
+	if rows == 1 && receipt.OwnershipUnresolved != 0 {
+		if err := markUnresolvedBudgetReceipt(ctx, queries, receipt.SessionID, daily.UpdatedAt); err != nil {
+			return false, fmt.Errorf(
+				"store: preserve uncertain budget receipt for session %q: %w",
+				stats.SessionID,
+				err,
+			)
+		}
 	}
 	if rows == 1 && receipt.InstanceID != "" {
 		if err := projectDailyBudgetReceipt(ctx, queries, receipt); err != nil {

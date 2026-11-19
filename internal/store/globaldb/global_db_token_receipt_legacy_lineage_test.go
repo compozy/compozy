@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/telemetrydb"
 )
@@ -86,35 +85,12 @@ func TestTokenUsageReceiptSurvivesPreLineageMigrationOrdinaryDelete(t *testing.T
 			Scan(&usage); err != nil || usage != 9 {
 			t.Fatalf("standalone aggregate tokens=%d err=%v", usage, err)
 		}
-		const instanceID = "unrelated-instance"
-		if _, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances (
-			id, profile_id, agent_name, workspace_id, state, created_by_kind, created_by_id, created_at, updated_at
-		) VALUES (?, ?, 'unrelated', '', 'active', 'human', 'operator', ?, ?)`,
-			instanceID, store.DefaultProfileID, stamp, stamp); err != nil {
-			t.Fatal(err)
-		}
-		allowed, trip, err = db.Instances().AdmitDailyBudgetTurn(ctx, child)
-		if err != nil || !allowed || trip != nil {
-			t.Fatalf("opt-out admission allowed=%t trip=%+v err=%v", allowed, trip, err)
-		}
-		if err := db.Instances().SetDailyBudgetLimits(ctx, instanceID,
-			agentinstance.DailyBudgetLimits{Tokens: new(int64(0))}); err != nil {
-			t.Fatal(err)
-		}
-		allowed, trip, err = db.Instances().AdmitDailyBudgetTurn(ctx, child)
-		if err == nil || allowed || trip != nil {
-			t.Fatalf("ambiguous capped admission allowed=%t trip=%+v err=%v", allowed, trip, err)
-		}
-		if err := db.Instances().SetDailyBudgetLimits(ctx, instanceID, agentinstance.DailyBudgetLimits{}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.DB().ExecContext(ctx,
-			"UPDATE agent_instances SET state='paused', pause_reason='daily_budget' WHERE id=?", instanceID); err != nil {
-			t.Fatal(err)
-		}
-		allowed, trip, err = db.Instances().AdmitDailyBudgetTurn(ctx, child)
-		if err == nil || allowed || trip != nil {
-			t.Fatalf("ambiguous budget-paused admission allowed=%t trip=%+v err=%v", allowed, trip, err)
+		if owner, err := db.DailyBudgetSessionOwner(
+			ctx,
+			child,
+		); err != nil || owner.InstanceID != "" ||
+			owner.Unresolved {
+			t.Fatalf("standalone owner=%+v err=%v", owner, err)
 		}
 	})
 }

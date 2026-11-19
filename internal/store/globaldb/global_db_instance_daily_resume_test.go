@@ -54,6 +54,14 @@ func TestInstanceDailyBudgetResumeEligibility(t *testing.T) {
 			t.Fatalf("persisted pause = %+v, error = %v", paused, err)
 		}
 		current = current.AddDate(0, 0, 1)
+		appCtx := agentinstance.WithAppBudgetResume(ctx)
+		if _, err := db.Instances().
+			Resume(appCtx, "budget-resume", 10, true); !errors.Is(
+			err,
+			agentinstance.ErrForbidden,
+		) {
+			t.Fatalf("app resume after rollover error = %v, want forbidden", err)
+		}
 		resumed, err := db.Instances().Resume(ctx, "budget-resume", 10, true)
 		if err != nil || resumed.State != "active" || resumed.PauseReason != "" {
 			t.Fatalf("eligible next-day resume = %+v, error = %v", resumed, err)

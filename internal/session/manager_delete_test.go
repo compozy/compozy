@@ -34,6 +34,19 @@ type signalingAttachmentScopeLease struct {
 	deleted              bool
 }
 
+type budgetDeleteSafetyNotifier struct {
+	*fakeNotifier
+	denied error
+	called atomic.Bool
+}
+
+func (n *budgetDeleteSafetyNotifier) ReconcileBudgetSessionBeforeDeletion(
+	_ context.Context, _ string,
+) error {
+	n.called.Store(true)
+	return n.denied
+}
+
 func newSignalingAttachmentScopeLease() *signalingAttachmentScopeLease {
 	lease := &signalingAttachmentScopeLease{
 		permits:              make(chan struct{}, 1),
@@ -528,6 +541,34 @@ func TestManagerDelete(t *testing.T) {
 			})
 		}
 	}
+
+	t.Run("Should retain catalog-only history when the budget ledger is unreconciled", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		sess := createSession(t, h.harness)
+		if err := h.manager.Stop(t.Context(), sess.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.RemoveAll(sess.SessionDir()); err != nil {
+			t.Fatal(err)
+		}
+		ledgerLost := errors.New("budgeted Done ledger is missing")
+		notifier := &budgetDeleteSafetyNotifier{fakeNotifier: h.notifier, denied: ledgerLost}
+		h.manager.notifier = notifier
+		if err := h.manager.Delete(t.Context(), sess.ID); !errors.Is(err, ledgerLost) {
+			t.Fatalf("catalog-only Delete error=%v, want unreconciled ledger refusal", err)
+		}
+		if !notifier.called.Load() {
+			t.Fatal("catalog-only deletion skipped the receipt reconciliation guard")
+		}
+		rows, err := h.db.ListSessions(t.Context(), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, ID: sess.ID,
+			Archive: store.SessionArchiveInclude, Limit: 1,
+		})
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("unreconciled catalog row=%+v err=%v, want preserved", rows, err)
+		}
+	})
 
 	t.Run("Should keep a catalog row when cleanup cannot prove its metadata identity", func(t *testing.T) {
 		t.Parallel()

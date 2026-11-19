@@ -1,6 +1,17 @@
 -- name: GetTokenUsageReceiptProfile :one
-SELECT profile_id FROM token_usage_receipts
+SELECT profile_id, ownership_unresolved, day FROM token_usage_receipts
 WHERE session_id = sqlc.arg(session_id) AND turn_id = sqlc.arg(turn_id);
+
+-- name: ReadDailyBudgetRecoveryCursor :one
+SELECT after_sequence FROM daily_budget_recovery_cursors
+WHERE session_id = sqlc.arg(session_id);
+
+-- name: AdvanceDailyBudgetRecoveryCursor :exec
+INSERT INTO daily_budget_recovery_cursors(session_id, after_sequence, updated_at)
+VALUES (sqlc.arg(session_id), sqlc.arg(after_sequence), sqlc.arg(updated_at))
+ON CONFLICT(session_id) DO UPDATE SET
+    after_sequence=MAX(daily_budget_recovery_cursors.after_sequence, excluded.after_sequence),
+    updated_at=excluded.updated_at;
 
 -- name: GetTokenUsageReceiptSessionOwner :one
 WITH RECURSIVE ancestry(id, parent_session_id, instance_id, profile_id, lineage_kind, nearest_instance_id) AS (
@@ -27,23 +38,23 @@ SELECT owner.profile_id,
         WHERE a.lineage_kind IN ('continue', 'fork', 'provenance')
            OR a.parent_session_id IS NULL OR a.parent_session_id = ''
         LIMIT 1
-    ), '') AS TEXT) AS instance_id
+    ), '') AS TEXT) AS instance_id,
+    CAST(NOT EXISTS (SELECT 1 FROM ancestry a
+        WHERE a.lineage_kind IN ('continue', 'fork', 'provenance')
+           OR a.parent_session_id IS NULL OR a.parent_session_id = '') AND EXISTS (
+        SELECT 1 FROM agent_instances i WHERE i.profile_id = owner.profile_id
+    ) AS INTEGER) AS ownership_unresolved
 FROM sessions owner
 WHERE owner.id = sqlc.arg(session_id)
   AND (
       EXISTS (SELECT 1 FROM ancestry a
           WHERE a.lineage_kind IN ('continue', 'fork', 'provenance')
              OR a.parent_session_id IS NULL OR a.parent_session_id = '')
-      OR (
-          -- Older ordinary deletes kept spawned children but no parent edge.
-          -- A known standalone profile can retain unowned usage safely.
-          owner.root_session_id IS NOT NULL AND owner.root_session_id != ''
-          AND NOT EXISTS (SELECT 1 FROM agent_instances i WHERE i.profile_id = owner.profile_id)
-          AND EXISTS (SELECT 1 FROM ancestry a WHERE a.lineage_kind = 'spawn'
+      OR (owner.root_session_id IS NOT NULL AND owner.root_session_id != ''
+          AND EXISTS (SELECT 1 FROM ancestry a WHERE a.lineage_kind IN ('spawn', 'recovery')
               AND a.parent_session_id IS NOT NULL AND a.parent_session_id != ''
               AND NOT EXISTS (SELECT 1 FROM sessions parent WHERE parent.id = a.parent_session_id)
-              AND NOT EXISTS (SELECT 1 FROM deleted_session_budget_lineage parent WHERE parent.id = a.parent_session_id))
-      )
+              AND NOT EXISTS (SELECT 1 FROM deleted_session_budget_lineage parent WHERE parent.id = a.parent_session_id)))
   )
   AND NOT EXISTS (
       SELECT 1 FROM ancestry a WHERE a.profile_id != owner.profile_id
@@ -55,9 +66,104 @@ WHERE owner.id = sqlc.arg(session_id)
 -- name: InsertTokenUsageReceipt :execrows
 INSERT INTO token_usage_receipts (
     profile_id, session_id, turn_id, instance_id, day,
-    total_tokens, usd_amount, cost_status, created_at
+    total_tokens, usd_amount, cost_status, created_at, ownership_unresolved
 ) VALUES (
     sqlc.arg(profile_id), sqlc.arg(session_id), sqlc.arg(turn_id),
     sqlc.arg(instance_id), sqlc.arg(day), sqlc.arg(total_tokens),
-    sqlc.narg(usd_amount), sqlc.arg(cost_status), sqlc.arg(created_at)
+    sqlc.narg(usd_amount), sqlc.arg(cost_status), sqlc.arg(created_at), sqlc.arg(ownership_unresolved)
 ) ON CONFLICT(session_id, turn_id) DO NOTHING;
+
+-- name: CountDailyBudgetSessionCatalogEntry :one
+SELECT count(*) FROM sessions WHERE id = sqlc.arg(session_id);
+
+-- name: ListUnresolvedSessionBudgetOwners :many
+SELECT owner.id AS instance_id, owner.created_at AS instance_created_at,
+    CAST(owner.archived_at IS NULL AND (limits.token_cap IS NOT NULL OR limits.usd_cap IS NOT NULL
+         OR COALESCE(recovery.latched, 0) = 1
+         OR (owner.state = 'paused' AND owner.pause_reason IN ('daily_budget', 'daily_budget_recovery')))
+         AS INTEGER) AS enforce_budget
+FROM sessions leaf
+JOIN agent_instances owner ON owner.profile_id = leaf.profile_id
+LEFT JOIN agent_instance_daily_budget_limits limits ON limits.instance_id = owner.id
+LEFT JOIN agent_instance_daily_budget_recovery recovery ON recovery.instance_id = owner.id
+LEFT JOIN sessions root ON root.id = leaf.root_session_id
+LEFT JOIN deleted_session_budget_lineage deleted ON deleted.id = leaf.root_session_id AND root.id IS NULL
+WHERE leaf.id = sqlc.arg(session_id)
+  AND leaf.lineage_kind IN ('spawn', 'recovery')
+  AND leaf.root_session_id IS NOT NULL AND leaf.root_session_id != ''
+  AND COALESCE(NULLIF(leaf.instance_id, ''), owner.id) = owner.id
+  AND (leaf.instance_id = owner.id
+      OR (root.id IS NOT NULL AND root.profile_id = leaf.profile_id AND root.instance_id = owner.id)
+      OR (deleted.id IS NOT NULL AND deleted.profile_id = leaf.profile_id AND deleted.instance_id = owner.id)
+      OR (root.id IS NULL AND deleted.id IS NULL))
+ORDER BY owner.id;
+
+-- name: ListDailyBudgetReconcileSessions :many
+WITH RECURSIVE eligible_owners AS (
+    SELECT owner.id, owner.profile_id, owner.created_at FROM agent_instances owner
+    LEFT JOIN agent_instance_daily_budget_limits limits ON limits.instance_id = owner.id
+    WHERE (sqlc.arg(target_instance_id) != '' AND owner.id = sqlc.arg(target_instance_id))
+       OR (sqlc.arg(target_instance_id) = '' AND (limits.token_cap IS NOT NULL OR limits.usd_cap IS NOT NULL))
+), owned_sessions(id, profile_id, instance_id) AS (
+    SELECT s.id, s.profile_id, s.instance_id FROM sessions s
+    JOIN eligible_owners owner ON owner.id = s.instance_id AND owner.profile_id = s.profile_id
+    UNION
+    SELECT d.id, d.profile_id, d.instance_id FROM deleted_session_budget_lineage d
+    JOIN eligible_owners owner ON owner.id = d.instance_id AND owner.profile_id = d.profile_id
+    WHERE NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = d.id)
+    UNION
+    SELECT child.id, child.profile_id, parent.instance_id
+    FROM owned_sessions parent JOIN sessions child ON child.parent_session_id = parent.id
+    WHERE child.profile_id = parent.profile_id
+      AND COALESCE(NULLIF(child.instance_id, ''), parent.instance_id) = parent.instance_id
+      AND child.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+    UNION
+    SELECT child.id, child.profile_id, parent.instance_id
+    FROM owned_sessions parent JOIN deleted_session_budget_lineage child ON child.parent_session_id = parent.id
+    WHERE child.profile_id = parent.profile_id
+      AND COALESCE(NULLIF(child.instance_id, ''), parent.instance_id) = parent.instance_id
+      AND child.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+      AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = child.id)
+), owned_roots AS (
+    SELECT root.id, root.profile_id, owner.id AS instance_id
+    FROM eligible_owners owner
+    JOIN sessions root ON root.instance_id = owner.id AND root.profile_id = owner.profile_id
+    UNION ALL
+    SELECT root.id, root.profile_id, owner.id
+    FROM eligible_owners owner
+    JOIN deleted_session_budget_lineage root ON root.instance_id = owner.id AND root.profile_id = owner.profile_id
+    WHERE NOT EXISTS (SELECT 1 FROM sessions live WHERE live.id = root.id)
+), candidates AS (
+    SELECT owned.id, owned.profile_id, owned.instance_id, 0 AS ancestry_gap FROM owned_sessions owned
+    UNION ALL
+    SELECT child.id, child.profile_id, root.instance_id, 1
+    FROM owned_roots root
+    JOIN sessions child ON child.root_session_id = root.id AND child.profile_id = root.profile_id
+    WHERE child.lineage_kind IN ('spawn', 'recovery')
+      AND COALESCE(NULLIF(child.instance_id, ''), root.instance_id) = root.instance_id
+      AND NOT EXISTS (SELECT 1 FROM owned_sessions known WHERE known.id = child.id)
+    UNION ALL
+    -- A deleted historical root with no retained edge is ambiguous within its
+    -- profile. Spawn can cross workspace boundaries when authorized.
+    SELECT child.id, child.profile_id, owner.id, 1
+    FROM eligible_owners owner
+    JOIN sessions child ON child.profile_id = owner.profile_id
+    WHERE child.lineage_kind IN ('spawn', 'recovery')
+      AND child.root_session_id IS NOT NULL AND child.root_session_id != ''
+      AND COALESCE(NULLIF(child.instance_id, ''), owner.id) = owner.id
+      AND NOT EXISTS (SELECT 1 FROM sessions root WHERE root.id = child.root_session_id)
+      AND NOT EXISTS (SELECT 1 FROM deleted_session_budget_lineage root WHERE root.id = child.root_session_id)
+      AND NOT EXISTS (SELECT 1 FROM owned_sessions known WHERE known.id = child.id)
+)
+SELECT s.id, s.profile_id,
+    CAST(COALESCE(s.workspace_id, '') AS TEXT) AS workspace_id,
+    s.agent_name,
+    CAST(COALESCE(s.provider, '') AS TEXT) AS provider,
+    CAST(COALESCE(s.model, '') AS TEXT) AS model,
+    CAST(candidate.instance_id AS TEXT) AS instance_id,
+    CAST(candidate.ancestry_gap AS INTEGER) AS ancestry_gap,
+    owner.created_at AS instance_created_at
+FROM sessions s
+JOIN candidates candidate ON candidate.id = s.id AND candidate.profile_id = s.profile_id
+JOIN eligible_owners owner ON owner.id = candidate.instance_id
+ORDER BY s.id;

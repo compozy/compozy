@@ -33,6 +33,7 @@ func (r *InstanceRepo) SetDailyBudgetLimits(
 	return store.ExecuteWriteOperation(ctx, r.db, "set instance daily budget limits", func(
 		ctx context.Context, tx *store.WriteTx,
 	) error {
+		at := r.now()
 		q := sqlcgen.New(tx)
 		row, err := q.GetAgentInstance(ctx, instanceID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -44,6 +45,15 @@ func (r *InstanceRepo) SetDailyBudgetLimits(
 		if row.ArchivedAt.Valid {
 			return agentinstance.ErrNotFound
 		}
+		if limits.Tokens != nil || limits.USD != nil {
+			uncertain, err := countUncertainBudgetDay(ctx, q, instanceID, at)
+			if err != nil {
+				return fmt.Errorf("store: inspect uncertain spend history: %w", err)
+			}
+			if uncertain {
+				return agentinstance.ErrBudgetHistoryUncertain
+			}
+		}
 		var tokens sql.NullInt64
 		if limits.Tokens != nil {
 			tokens = sql.NullInt64{Int64: *limits.Tokens, Valid: true}
@@ -52,10 +62,19 @@ func (r *InstanceRepo) SetDailyBudgetLimits(
 		if limits.USD != nil {
 			usd = sql.NullString{String: strconv.FormatFloat(*limits.USD, 'f', -1, 64), Valid: true}
 		}
-		return q.UpsertAgentInstanceDailyBudgetLimits(ctx, sqlcgen.UpsertAgentInstanceDailyBudgetLimitsParams{
+		if err := q.UpsertAgentInstanceDailyBudgetLimits(ctx, sqlcgen.UpsertAgentInstanceDailyBudgetLimitsParams{
 			InstanceID: instanceID, TokenCap: tokens, UsdCap: usd,
-			UpdatedAt: store.FormatTimestamp(r.now()),
-		})
+			UpdatedAt: store.FormatTimestamp(at),
+		}); err != nil {
+			return err
+		}
+		// When a cap is enabled mid-day, existing receipts may have already
+		// crossed 80%. Reserve the bell in the same transaction as the new
+		// limits, without waiting for another provider turn.
+		if (limits.Tokens != nil || limits.USD != nil) && row.MainSessionID.Valid {
+			return warnForInstanceDailyBudgetUsage(ctx, q, row, at)
+		}
+		return nil
 	})
 }
 

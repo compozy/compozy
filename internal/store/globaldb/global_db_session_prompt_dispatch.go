@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
@@ -128,4 +129,76 @@ func queuedPromptAdmissionCASFailure(
 	default:
 		return store.ErrSessionPromptAdmissionInProgress
 	}
+}
+
+// CommitSessionPromptDispatch crosses the at-most-once boundary before any non-idempotent effect.
+func (g *SessionRepo) CommitSessionPromptDispatch(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	idempotencyKey string,
+	now time.Time,
+) error {
+	if err := g.checkReady(ctx, "commit session prompt dispatch"); err != nil {
+		return err
+	}
+	workspaceID, sessionID, idempotencyKey, now, err := normalizePromptAdmissionScope(
+		workspaceID,
+		sessionID,
+		idempotencyKey,
+		now,
+	)
+	if err != nil {
+		return err
+	}
+	var budgetBlocked bool
+	var pauseTrip *store.InstancePauseTrip
+	err = g.withImmediateTransaction(ctx, "commit session prompt dispatch", func(exec globalSQLExecutor) error {
+		budgetBlocked, pauseTrip = false, nil
+		queries := sqlcgen.New(exec)
+		admission, lookupErr := queries.GetSessionPromptAdmissionByIdempotencyKey(ctx,
+			sqlcgen.GetSessionPromptAdmissionByIdempotencyKeyParams{
+				WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,
+			})
+		if lookupErr != nil && !errors.Is(lookupErr, sql.ErrNoRows) {
+			return lookupErr
+		}
+		// Human-origin input is deliberately outside the autonomous budget. An
+		// already-committed/replayed turn must never be admitted a second time.
+		if lookupErr == nil && admission.State == store.SessionPromptAdmissionReserved &&
+			admission.Operation == store.SessionPromptOperationPrompt && !store.PromptControlOnly(ctx) &&
+			(admission.HumanIngress == 0 || admission.AppIngress != 0) {
+			allowed, trip, admissionErr := admitDailyBudgetTurnTx(ctx, queries, sessionID, now)
+			if admissionErr != nil {
+				return admissionErr
+			}
+			if !allowed {
+				budgetBlocked, pauseTrip = true, trip
+				return nil
+			}
+		}
+		affected, commitErr := queries.CommitSessionPromptDispatch(
+			ctx,
+			sqlcgen.CommitSessionPromptDispatchParams{
+				DispatchCommittedState: store.SessionPromptAdmissionDispatchCommitted,
+				DispatchCommittedAt:    nullableSessionTime(now), UpdatedAt: store.FormatTimestamp(now),
+				WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,
+				ReservedState: store.SessionPromptAdmissionReserved,
+			},
+		)
+		if commitErr != nil {
+			return fmt.Errorf("store: commit session prompt dispatch: %w", commitErr)
+		}
+		if affected != 1 {
+			return promptAdmissionCASFailure(ctx, exec, workspaceID, sessionID, idempotencyKey)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if budgetBlocked {
+		return &store.DailyBudgetTurnBlockedError{PausedInstance: pauseTrip}
+	}
+	return nil
 }
