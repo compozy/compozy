@@ -666,3 +666,15 @@ func TestDeriveRewindBaselineRebuildsStaleState(t *testing.T) {
 		}
 	})
 }
+
+func TestSideReplayFraming(t *testing.T) {
+	t.Parallel()
+	t.Run("Should replace the continuation header with side context framing", func(t *testing.T) {
+		t.Parallel()
+		// UT-078
+		header := importedContextHeader(store.SessionImportedContext{Kind: store.LineageKindSide, SourceSessionID: "source", OriginAgentName: "coder"})
+		if !strings.Contains(header, "This side chat was opened on source") || strings.Contains(header, "Continue this session") {
+			t.Fatalf("side header=%q", header)
+		}
+	})
+}

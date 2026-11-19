@@ -100,3 +100,14 @@ func (g *GlobalDB) HasOtherActiveWorktreeSession(
 	}
 	return found, nil
 }
+
+func (g *GlobalDB) SideSessionWorktreeBinding(
+	ctx context.Context, workspaceID, worktreeID string, activeOnly bool,
+) (string, string, error) {
+	var id, parent string
+	err := g.Worktrees.readDB.QueryRowContext(ctx, `SELECT id,parent_session_id FROM sessions WHERE workspace_id=? AND worktree_id=? AND lineage_kind='side' AND ((? AND state IN ('starting','active','stopping')) OR (NOT ? AND archived_at IS NULL)) ORDER BY id LIMIT 1`, workspaceID, worktreeID, activeOnly, activeOnly).Scan(&id, &parent)
+	if err == sql.ErrNoRows {
+		return "", "", nil
+	}
+	return id, parent, err
+}

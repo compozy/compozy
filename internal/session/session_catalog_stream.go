@@ -66,6 +66,7 @@ func (s CatalogScope) matches(event CatalogEvent) bool {
 type CatalogEventName string
 
 const (
+	CatalogEventNameSide                 CatalogEventName = "session_side_changed"
 	CatalogEventNameChanged              CatalogEventName = "session_catalog_changed"
 	CatalogEventNameAttention            CatalogEventName = "session_attention_changed"
 	CatalogEventNameOperatorNotification CatalogEventName = "operator_notification"
@@ -103,6 +104,7 @@ type CatalogEvent struct {
 	ProfileName              string
 	WorkspaceID              string
 	SessionID                string
+	SideSessionID            string
 	Attention                *AttentionEvent
 	OperatorNotification     *OperatorNotification
 }
@@ -265,6 +267,12 @@ func (m *Manager) PublishSessionCatalogChanged(ctx context.Context, sessionID st
 }
 
 func sessionCatalogEventFromInfo(kind CatalogEventKind, info *Info) CatalogEvent {
+	if info != nil && isSideLineage(info.Lineage) {
+		return CatalogEvent{
+			Name: CatalogEventNameSide, Kind: kind, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID,
+			SessionID: info.Lineage.ParentSessionID, SideSessionID: info.ID,
+		}
+	}
 	if !isPublicSessionCatalogInfo(info) {
 		return CatalogEvent{}
 	}

@@ -21,13 +21,15 @@ type PayloadBase struct {
 
 // SessionContext carries the common session-scoped hook attributes.
 type SessionContext struct {
-	ProfileID   string `json:"profile_id,omitempty"`
-	SessionID   string `json:"session_id,omitempty"`
-	SessionName string `json:"session_name,omitempty"`
-	SessionType string `json:"session_type,omitempty"`
-	AgentName   string `json:"agent_name,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	Workspace   string `json:"workspace,omitempty"`
+	LineageKind     string `json:"lineage_kind,omitempty"`
+	ParentSessionID string `json:"parent_session_id,omitempty"`
+	ProfileID       string `json:"profile_id,omitempty"`
+	SessionID       string `json:"session_id,omitempty"`
+	SessionName     string `json:"session_name,omitempty"`
+	SessionType     string `json:"session_type,omitempty"`
+	AgentName       string `json:"agent_name,omitempty"`
+	WorkspaceID     string `json:"workspace_id,omitempty"`
+	Workspace       string `json:"workspace,omitempty"`
 	*SessionRuntimeContext
 	State string `json:"state,omitempty"`
 	*SessionSoulContext
@@ -160,16 +162,15 @@ type SessionMessagePersistedPayload struct {
 	PayloadBase
 	SessionContext
 	TurnContext
-	MessageID       string          `json:"message_id,omitempty"`
-	MessageSeq      int64           `json:"message_seq,omitempty"`
-	Role            string          `json:"role,omitempty"`
-	Text            string          `json:"text,omitempty"`
-	Raw             json.RawMessage `json:"raw,omitempty"`
-	Persisted       json.RawMessage `json:"persisted,omitempty"`
-	RootSessionID   string          `json:"root_session_id,omitempty"`
-	ParentSessionID string          `json:"parent_session_id,omitempty"`
-	ActorKind       string          `json:"actor_kind,omitempty"`
-	ActorID         string          `json:"actor_id,omitempty"`
+	MessageID     string          `json:"message_id,omitempty"`
+	MessageSeq    int64           `json:"message_seq,omitempty"`
+	Role          string          `json:"role,omitempty"`
+	Text          string          `json:"text,omitempty"`
+	Raw           json.RawMessage `json:"raw,omitempty"`
+	Persisted     json.RawMessage `json:"persisted,omitempty"`
+	RootSessionID string          `json:"root_session_id,omitempty"`
+	ActorKind     string          `json:"actor_kind,omitempty"`
+	ActorID       string          `json:"actor_id,omitempty"`
 }
 
 // SessionRuntimeRecoveryPayload reports one automatic runtime recovery lifecycle event.

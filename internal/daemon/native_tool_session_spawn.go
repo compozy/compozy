@@ -37,6 +37,9 @@ func (n *daemonNativeTools) sessionSpawn(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if parent.Lineage != nil && parent.Lineage.Kind == store.LineageKindSide {
+		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, session.ErrSideSpawnUnsupported)
+	}
 	spawner, ok := n.deps.Sessions.(nativeSessionSpawner)
 	if !ok {
 		return toolspkg.ToolResult{}, nativeUnavailableError(req.ToolID, "session spawn service is unavailable")

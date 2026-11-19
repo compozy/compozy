@@ -4,6 +4,44 @@ package client
 
 import "time"
 
+// SettingsExtensionsConfigPayload is a daemon API value.
+type SettingsExtensionsConfigPayload struct {
+	Trust     SettingsExtensionTrustPayload     `json:"trust"`
+	Sources   SettingsExtensionSourcesPayload   `json:"sources"`
+	Dev       SettingsExtensionDevPayload       `json:"dev"`
+	Resources SettingsExtensionResourcesPayload `json:"resources"`
+}
+
+// SettingsGeneralActionsPayload is a daemon API value.
+type SettingsGeneralActionsPayload struct {
+	Restart SettingsActionMetadataPayload `json:"restart"`
+}
+
+// SettingsGeneralConfigPayload is a daemon API value.
+type SettingsGeneralConfigPayload struct {
+	BusyInput        *SettingsBusyInputPayload  `json:"busy_input,omitzero"`
+	Limits           SettingsLimitsPayload      `json:"limits"`
+	Permissions      SettingsPermissionsPayload `json:"permissions"`
+	SessionTimeout   string                     `json:"session_timeout"`
+	IdleReleaseAfter string                     `json:"idle_release_after,omitempty"`
+	HTTP             SettingsHTTPPayload        `json:"http"`
+	Daemon           SettingsDaemonPayload      `json:"daemon"`
+	Redact           SettingsRedactPayload      `json:"redact"`
+	Terminal         SettingsTerminalPayload    `json:"terminal"`
+	Desktop          *SettingsDesktopPayload    `json:"desktop,omitzero"`
+}
+
+// SettingsGeneralResponse is a daemon API value.
+type SettingsGeneralResponse struct {
+	Section         SettingsSectionName           `json:"section"`
+	Scope           SettingsUserScopeKind         `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind       `json:"available_scopes"`
+	ConfigPaths     SettingsConfigPathsPayload    `json:"config_paths"`
+	Config          SettingsGeneralConfigPayload  `json:"config"`
+	Runtime         SettingsDaemonRuntimePayload  `json:"runtime"`
+	Actions         SettingsGeneralActionsPayload `json:"actions"`
+}
+
 // SettingsGlobalShortcutPayload is a daemon API value.
 type SettingsGlobalShortcutPayload struct {
 	CommandID     string                       `json:"command_id"`
@@ -405,36 +443,4 @@ type SettingsProviderAuthStatusPayload struct {
 	StatusCmd   string                         `json:"status_command,omitempty"`
 	Login       ProviderLoginDescriptorPayload `json:"login"`
 	LastProbeAt *time.Time                     `json:"last_probe_at,omitempty"`
-}
-
-// SettingsProviderCredentialSlotPayload is a daemon API value.
-type SettingsProviderCredentialSlotPayload struct {
-	Name      string `json:"name"`
-	TargetEnv string `json:"target_env"`
-	SecretRef string `json:"secret_ref"`
-	Kind      string `json:"kind,omitempty"`
-	Required  bool   `json:"required"`
-}
-
-// SettingsProviderCredentialStatusPayload is a daemon API value.
-type SettingsProviderCredentialStatusPayload struct {
-	Name      string `json:"name"`
-	TargetEnv string `json:"target_env"`
-	SecretRef string `json:"secret_ref"`
-	Kind      string `json:"kind,omitempty"`
-	Required  bool   `json:"required"`
-	Present   bool   `json:"present"`
-	Source    string `json:"source,omitempty"`
-}
-
-// SettingsProviderEnabledResponse is a daemon API value.
-type SettingsProviderEnabledResponse struct {
-	Provider SettingsProviderItemPayload `json:"provider"`
-	Apply    SettingsApplyResponse       `json:"apply"`
-}
-
-// SettingsProviderFallbackPayload is a daemon API value.
-type SettingsProviderFallbackPayload struct {
-	Source   SettingsSourceRefPayload        `json:"source"`
-	Settings SettingsProviderSettingsPayload `json:"settings"`
 }

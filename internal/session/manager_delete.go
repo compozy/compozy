@@ -60,6 +60,14 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 	if err := m.guardInstanceMain(ctx, target); err != nil {
 		return err
 	}
+	if archived != nil {
+		if err := m.requireArchivedDelete(ctx, target, *archived); err != nil {
+			return err
+		}
+	}
+	if err := m.deleteSideSessions(ctx, target); err != nil {
+		return err
+	}
 	if handled, finish, deleteErr := m.deleteMissingSession(ctx, target, archived); handled {
 		finishSubagent = finish
 		return deleteErr

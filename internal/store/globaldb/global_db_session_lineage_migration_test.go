@@ -1,6 +1,10 @@
 package globaldb
 
 import (
+	"bytes"
+	"context"
+	"database/sql"
+	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
@@ -151,4 +155,100 @@ func assertMigratedLineageKinds(t *testing.T, db *GlobalDB, want map[string]stor
 			t.Fatalf("session %q lineage = %#v, want kind %q", info.ID, info.Lineage, want[info.ID])
 		}
 	}
+}
+
+func TestSideLineageMigration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve existing sessions and receipts while admitting only the new side kind", func(t *testing.T) {
+		t.Parallel()
+		// IT-005
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00210_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := globalMigrationTestContext(t)
+		at := store.FormatTimestamp(time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC))
+		if _, err := db.ExecContext(ctx, "INSERT INTO workspaces(id,root_dir,add_dirs,name,created_at,updated_at) VALUES('ws-side-upgrade',?,'[]','Side upgrade',?,?)", t.TempDir(), at, at); err != nil {
+			t.Fatal(err)
+		}
+		for _, kind := range []string{"fork", "continue", "recovery"} {
+			if _, err := db.ExecContext(ctx, `INSERT INTO sessions(id,profile_id,agent_name,workspace_id,session_type,state,lineage_kind,parent_session_id,root_session_id,spawn_depth,origin_agent_name,name,created_at,updated_at) VALUES(?,?,'coder','ws-side-upgrade','user','stopped',?,'source','source',1,'coder',?, ?,?)`, kind, store.DefaultProfileID, kind, "Preserve "+kind, at, at); err != nil {
+				t.Fatal(err)
+			}
+			if kind != "recovery" {
+				if _, err := db.ExecContext(ctx, `INSERT INTO session_derivations(workspace_id,idempotency_key,profile_id,request_fingerprint,source_session_id,child_session_id,kind,outcome_json,created_at) VALUES('ws-side-upgrade',?,?,?,'source',?,?,?,?)`, kind, store.DefaultProfileID, "fingerprint-"+kind, kind, kind, `{"seed":"replay","first_prompt":"staged","through_turn_id":"turn-1"}`, at); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		beforeSessions := sideMigrationRows(t, db, "sessions")
+		beforeReceipts := sideMigrationRows(t, db, "session_derivations")
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		if !bytes.Equal(beforeSessions, sideMigrationRows(t, upgraded.db, "sessions")) || !bytes.Equal(beforeReceipts, sideMigrationRows(t, upgraded.db, "session_derivations")) {
+			t.Fatal("migration changed persisted session or receipt bytes")
+		}
+		insertSession := `INSERT INTO sessions(id,profile_id,agent_name,workspace_id,session_type,state,lineage_kind,parent_session_id,root_session_id,spawn_depth,origin_agent_name,created_at,updated_at) VALUES(?,?,'coder','ws-side-upgrade','user','stopped',?,'source','source',1,'coder',?,?)`
+		if _, err := upgraded.db.ExecContext(ctx, insertSession, "side", store.DefaultProfileID, "side", at, at); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := upgraded.db.ExecContext(ctx, insertSession, "unknown", store.DefaultProfileID, "unknown", at, at); err == nil {
+			t.Fatal("unknown lineage kind accepted")
+		}
+		insertReceipt := `INSERT INTO session_derivations(workspace_id,idempotency_key,profile_id,request_fingerprint,source_session_id,child_session_id,kind,outcome_json,created_at) VALUES('ws-side-upgrade',?,?,'side-fingerprint','source','side',?,'{}',?)`
+		if _, err := upgraded.db.ExecContext(ctx, insertReceipt, "side", store.DefaultProfileID, "side", at); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := upgraded.db.ExecContext(ctx, insertReceipt, "unknown", store.DefaultProfileID, "unknown", at); err == nil {
+			t.Fatal("unknown receipt kind accepted")
+		}
+	})
+}
+
+func sideMigrationRows(t *testing.T, db *sql.DB, table string) []byte {
+	t.Helper()
+	rows, err := db.QueryContext(t.Context(), "SELECT * FROM "+table+" ORDER BY 1,2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	columns, err := rows.Columns()
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := [][]any{}
+	for rows.Next() {
+		values := make([]any, len(columns))
+		dest := make([]any, len(columns))
+		for i := range dest {
+			dest[i] = &values[i]
+		}
+		if err := rows.Scan(dest...); err != nil {
+			t.Fatal(err)
+		}
+		all = append(all, values)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return encoded
 }

@@ -31,6 +31,12 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 			m.refreshReplyWatchResult(ctx, &result)
 		}
 	}()
+	if result, err := m.sidePromptIngress(ctx, id, opts); result != nil || err != nil {
+		if result != nil {
+			return *result, err
+		}
+		return SendPromptResult{}, err
+	}
 	preparation, goalResult, err := m.prepareSendPrompt(ctx, id, opts)
 	if err != nil {
 		return SendPromptResult{}, err

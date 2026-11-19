@@ -9,29 +9,31 @@ type AgentSpawnedPatch struct {
 }
 
 type AgentSpawnedPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	Command        string    `json:"command,omitempty"`
-	Args           []string  `json:"args,omitempty"`
-	Cwd            string    `json:"cwd,omitempty"`
-	PID            int       `json:"pid,omitempty"`
-	Provider       string    `json:"provider,omitempty"`
-	Model          string    `json:"model,omitempty"`
-	Error          string    `json:"error,omitempty"`
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	LineageKind     string    `json:"lineage_kind,omitempty"`
+	ParentSessionID string    `json:"parent_session_id,omitempty"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	SessionName     string    `json:"session_name,omitempty"`
+	SessionType     string    `json:"session_type,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	Workspace       string    `json:"workspace,omitempty"`
+	WorktreeID      string    `json:"worktree_id,omitempty"`
+	ACPSessionID    string    `json:"acp_session_id,omitempty"`
+	State           string    `json:"state,omitempty"`
+	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest      string    `json:"soul_digest,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	Command         string    `json:"command,omitempty"`
+	Args            []string  `json:"args,omitempty"`
+	Cwd             string    `json:"cwd,omitempty"`
+	PID             int       `json:"pid,omitempty"`
+	Provider        string    `json:"provider,omitempty"`
+	Model           string    `json:"model,omitempty"`
+	Error           string    `json:"error,omitempty"`
 }
 
 type AgentStartPatch struct {
@@ -47,29 +49,31 @@ type AgentStoppedPatch struct {
 }
 
 type AgentStoppedPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	Command        string    `json:"command,omitempty"`
-	Args           []string  `json:"args,omitempty"`
-	Cwd            string    `json:"cwd,omitempty"`
-	PID            int       `json:"pid,omitempty"`
-	Provider       string    `json:"provider,omitempty"`
-	Model          string    `json:"model,omitempty"`
-	Error          string    `json:"error,omitempty"`
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	LineageKind     string    `json:"lineage_kind,omitempty"`
+	ParentSessionID string    `json:"parent_session_id,omitempty"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	SessionName     string    `json:"session_name,omitempty"`
+	SessionType     string    `json:"session_type,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	Workspace       string    `json:"workspace,omitempty"`
+	WorktreeID      string    `json:"worktree_id,omitempty"`
+	ACPSessionID    string    `json:"acp_session_id,omitempty"`
+	State           string    `json:"state,omitempty"`
+	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest      string    `json:"soul_digest,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	Command         string    `json:"command,omitempty"`
+	Args            []string  `json:"args,omitempty"`
+	Cwd             string    `json:"cwd,omitempty"`
+	PID             int       `json:"pid,omitempty"`
+	Provider        string    `json:"provider,omitempty"`
+	Model           string    `json:"model,omitempty"`
+	Error           string    `json:"error,omitempty"`
 }
 
 type ApprovalPolicy string

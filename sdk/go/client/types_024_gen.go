@@ -4,6 +4,35 @@ package client
 
 import "time"
 
+// SettingsStreamTransport is a daemon API value.
+type SettingsStreamTransport string
+
+// SettingsTerminalPayload is a daemon API value.
+type SettingsTerminalPayload struct {
+	DefaultShell           string `json:"default_shell"`
+	ShellIntegration       bool   `json:"shell_integration"`
+	ScrollbackBytes        int    `json:"scrollback_bytes"`
+	DetachedTTL            string `json:"detached_ttl"`
+	ExitRetention          string `json:"exit_retention"`
+	Recording              bool   `json:"recording"`
+	RecordingRetentionDays int    `json:"recording_retention_days"`
+	MaxPerWorkspace        int    `json:"max_per_workspace"`
+	MaxPerDaemon           int    `json:"max_per_daemon"`
+	MaxSubscribers         int    `json:"max_subscribers"`
+}
+
+// SettingsTransportParityPayload is a daemon API value.
+type SettingsTransportParityPayload struct {
+	Known          bool `json:"known"`
+	SettingsHTTP   bool `json:"settings_http"`
+	SettingsUDS    bool `json:"settings_uds"`
+	ExtensionsHTTP bool `json:"extensions_http"`
+	ExtensionsUDS  bool `json:"extensions_uds"`
+}
+
+// SettingsUpdateActor is a daemon API value.
+type SettingsUpdateActor string
+
 // SettingsUpdateAppPayload is a daemon API value.
 type SettingsUpdateAppPayload struct {
 	Status         SettingsUpdateStatusKind `json:"status"`
@@ -411,36 +440,4 @@ type SnapConfig struct {
 	CornerReach  float64   `json:"corner_reach"`
 	ExitSlack    float64   `json:"exit_slack"`
 	RepeatRatios []float64 `json:"repeat_ratios"`
-}
-
-// Snapshot is a daemon API value.
-type Snapshot struct {
-	Runtime     string                `json:"runtime"`
-	DisplayName string                `json:"display_name"`
-	Installed   bool                  `json:"installed"`
-	RuntimeMCP  RuntimemcpRuntimeMode `json:"runtime_mcp"`
-	ReadState   string                `json:"read_state"`
-	ReadError   string                `json:"read_error,omitempty"`
-	ConfigFiles []string              `json:"config_files"`
-	Notes       []string              `json:"notes,omitempty"`
-	Servers     []Server              `json:"servers"`
-}
-
-// SourceErrorCode is a daemon API value.
-type SourceErrorCode string
-
-// SourceHealth is a daemon API value.
-type SourceHealth string
-
-// SourceKind is a daemon API value.
-type SourceKind string
-
-// SourceOutcome is a daemon API value.
-type SourceOutcome struct {
-	ID         string `json:"id"`
-	Result     string `json:"result"`
-	Items      int    `json:"items"`
-	More       bool   `json:"more"`
-	DurationMS int64  `json:"duration_ms"`
-	Error      *Error `json:"error,omitempty"`
 }

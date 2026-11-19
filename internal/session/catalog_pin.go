@@ -220,6 +220,9 @@ func (m *Manager) setPinned(ctx context.Context, workspaceID string, sessionID s
 	if sessionID == "" {
 		return nil, errors.New("session: pin session id is required")
 	}
+	if err := m.refuseSideOperation(ctx, sessionID, ErrSideFixedParent); err != nil {
+		return nil, err
+	}
 	pinStore, err := m.pinStore()
 	if err != nil {
 		return nil, err

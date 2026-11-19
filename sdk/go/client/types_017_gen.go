@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// RosterPage is a daemon API value.
+type RosterPage struct {
+	RunID         RunID          `json:"run_id"`
+	LoopName      string         `json:"loop_name"`
+	RunStatus     Status         `json:"run_status"`
+	Nodes         []RosterNode   `json:"nodes"`
+	FanoutRollups []FanoutRollup `json:"fanout_rollups"`
+	NextCursor    string         `json:"next_cursor,omitempty"`
+}
+
+// RouteIntent is a daemon API value.
+// RouteIntent preserves its custom JSON wire representation.
+type RouteIntent = json.RawMessage
+
+// RouteSpec is a daemon API value.
+type RouteSpec struct {
+	When string `json:"when"`
+	To   NodeID `json:"to"`
+}
+
 // Row is a daemon API value.
 type Row struct {
 	ID          string            `json:"id"`
@@ -426,19 +446,3 @@ type SchedulerStatusPayload struct {
 	NeedsAttentionRunCount int                       `json:"needs_attention_run_count"`
 	AsOf                   time.Time                 `json:"as_of"`
 }
-
-// SchedulerStatusResponse is a daemon API value.
-type SchedulerStatusResponse struct {
-	Scheduler SchedulerStatusPayload `json:"scheduler"`
-}
-
-// SchemaStreamStatus is a daemon API value.
-type SchemaStreamStatus struct {
-	Stream       string `json:"stream"`
-	Version      int64  `json:"version"`
-	AppliedCount int    `json:"applied_count"`
-	SumDigest    string `json:"sum_digest"`
-}
-
-// Scope is a daemon API value.
-type Scope string

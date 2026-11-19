@@ -24,7 +24,13 @@ var (
 // Archive removes a stopped session from the default catalog without deleting
 // its history or attachments, which remain readable after unarchive.
 func (m *Manager) Archive(ctx context.Context, workspaceID string, sessionID string) (*Info, error) {
-	return m.setArchived(ctx, workspaceID, sessionID, true)
+	var info *Info
+	err := m.archiveStoppingSideMembers(ctx, func() error {
+		var err error
+		info, err = m.setArchived(ctx, workspaceID, sessionID, true)
+		return err
+	})
+	return info, err
 }
 
 // archiveRequiresStoppedError keeps the public refusal text while naming the
@@ -133,6 +139,11 @@ func (m *Manager) setArchived(
 	if sessionID == "" {
 		return nil, errors.New("session: archive workspace and session ids are required")
 	}
+	if !archived {
+		if err := m.requireSideParentUnarchived(ctx, workspaceID, sessionID); err != nil {
+			return nil, err
+		}
+	}
 	archiveStore, ok := m.sessionCatalog.(store.SessionArchiveStore)
 	if !ok || archiveStore == nil {
 		return nil, ErrSessionArchiveUnavailable
@@ -154,6 +165,7 @@ func (m *Manager) setArchived(
 	}
 	info := sessionInfoFromCatalog(&stored)
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
+	m.publishSideFamily(ctx, workspaceID, sessionID)
 	return info, nil
 }
 

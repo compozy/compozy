@@ -178,7 +178,7 @@ WITH RECURSIVE family(id,state) AS (
  SELECT sessions.id,sessions.state FROM sessions WHERE sessions.workspace_id = sqlc.arg(workspace_id) AND sessions.id = sqlc.arg(session_id)
  UNION
  SELECT child.id,child.state FROM sessions child JOIN family parent ON child.parent_session_id = parent.id
- WHERE child.workspace_id = sqlc.arg(workspace_id) AND child.spawn_role = 'subagent'
+ WHERE child.workspace_id = sqlc.arg(workspace_id) AND (child.spawn_role = 'subagent' OR child.lineage_kind = 'side')
 )
 SELECT id,state FROM family ORDER BY id;
 

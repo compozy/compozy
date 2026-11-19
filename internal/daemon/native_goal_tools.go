@@ -62,6 +62,10 @@ func (n *daemonNativeTools) goalControl(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if err := n.requireNativeGoalSupported(ctx, targetSessionID); err != nil {
+		return toolspkg.ToolResult{}, nativeHTTPStatusToolError(req.ToolID, err, core.StatusForSessionError(err))
+	}
+
 	service := n.loopService()
 	goalService, ok := service.(core.GoalCommandService)
 	if !ok || goalService == nil {
@@ -394,4 +398,18 @@ type nativeLoopTurnsInput struct {
 	ItemIndex   *int   `json:"item,omitzero"`
 	AfterSeq    int64  `json:"after_seq,omitzero"`
 	Limit       int    `json:"limit,omitzero"`
+}
+
+func (n *daemonNativeTools) requireNativeGoalSupported(ctx context.Context, id string) error {
+	target, err := n.deps.Sessions.Status(ctx, id)
+	if errors.Is(err, session.ErrSessionNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if target != nil && target.Lineage != nil && target.Lineage.Kind == "side" {
+		return session.ErrSideGoalUnsupported
+	}
+	return nil
 }

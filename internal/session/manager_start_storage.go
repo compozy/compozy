@@ -197,7 +197,7 @@ func (m *Manager) prepareProvenanceLineage(
 	if parentID == "" {
 		return lineage, nil
 	}
-	if err := validateProvenanceLineageShape(lineage); err != nil {
+	if err := validateUserParentLineageShape(lineage); err != nil {
 		return nil, err
 	}
 	// The parent is read through the non-repairing reader: creating a child never
@@ -215,6 +215,17 @@ func (m *Manager) prepareProvenanceLineage(
 		)
 	}
 	parentLineage := store.NormalizeSessionLineage(parent.ID, parent.Lineage)
+	if lineage.Kind != store.LineageKindSide && parentLineage.Kind == store.LineageKindSide {
+		return nil, ErrSideFixedParent
+	}
+	if lineage.Kind == store.LineageKindSide {
+		if parentLineage.Kind == store.LineageKindSide {
+			return nil, ErrSideNested
+		}
+		if normalizeSessionType(Type(parent.SessionType)) != SessionTypeUser || parentLineage.Kind == store.LineageKindSpawn {
+			return nil, ErrSideUnsupported
+		}
+	}
 	rootID := strings.TrimSpace(parentLineage.RootSessionID)
 	if rootID == "" {
 		rootID = parent.ID

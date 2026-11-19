@@ -593,3 +593,20 @@ func TestMessageDeltaAsyncHooksDoNotBlockPromptStreaming(t *testing.T) {
 	}
 	releaseHook()
 }
+
+// Companion to the hook JSON contract: the owning lifecycle builder populates side ancestry.
+func TestSideHookContextBuilder(t *testing.T) {
+	t.Parallel()
+	t.Run("Should attach side ancestry to lifecycle hook context and omit it for roots", func(t *testing.T) {
+		t.Parallel()
+		side := &Session{ID: "side", Type: SessionTypeUser, Lineage: &store.SessionLineage{Kind: store.LineageKindSide, ParentSessionID: "main"}}
+		payload := hookSessionLifecyclePayload(side, hookspkg.HookSessionPostCreate, time.Now().UTC())
+		if payload.LineageKind != "side" || payload.ParentSessionID != "main" || payload.SessionID != "side" {
+			t.Fatalf("side hook=%+v", payload)
+		}
+		root := hookSessionContext(&Session{ID: "main", Type: SessionTypeUser})
+		if root.LineageKind != "" || root.ParentSessionID != "" {
+			t.Fatalf("root hook=%+v", root)
+		}
+	})
+}

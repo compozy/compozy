@@ -86,29 +86,30 @@ type ReplyWatchRefPayload struct {
 }
 
 type SendPromptResultPayload struct {
-	HeldReason            string                  `json:"held_reason,omitempty"`
-	HeldInstanceID        string                  `json:"held_instance_id,omitempty"`
-	TargetSessionID       string                  `json:"target_session_id,omitempty"`
-	ReplyWatch            *ReplyWatchRefPayload   `json:"reply_watch,omitempty"`
-	TargetWorkspaceID     string                  `json:"target_workspace_id,omitempty"`
-	Disposition           session.Disposition     `json:"disposition,omitempty"`
-	SteerDelivery         store.SteerDeliveryMode `json:"steer_delivery,omitempty"`
-	TurnID                string                  `json:"turn_id,omitempty"`
-	EntryID               string                  `json:"entry_id,omitempty"`
-	Status                string                  `json:"status"`
-	Mode                  PromptMode              `json:"mode,omitempty"`
-	Delivery              PromptDelivery          `json:"delivery"`
-	MessageID             string                  `json:"message_id"`
-	IdempotencyKey        string                  `json:"idempotency_key"`
-	Replayed              bool                    `json:"replayed"`
-	QueueEntryID          string                  `json:"queue_entry_id,omitempty"`
-	QueuePosition         int                     `json:"queue_position"`
-	QueueGeneration       int64                   `json:"queue_generation,omitzero"`
-	EstimatedSendAt       *time.Time              `json:"estimated_send_at,omitempty"`
-	PreviousTurnID        string                  `json:"previous_turn_id,omitempty"`
-	NewTurnID             string                  `json:"new_turn_id,omitempty"`
-	CanceledQueuedEntries int                     `json:"canceled_queued_entries,omitzero"`
-	Goal                  *GoalCommandResult      `json:"goal,omitzero"`
+	HeldReason            string                    `json:"held_reason,omitempty"`
+	HeldInstanceID        string                    `json:"held_instance_id,omitempty"`
+	TargetSessionID       string                    `json:"target_session_id,omitempty"`
+	ReplyWatch            *ReplyWatchRefPayload     `json:"reply_watch,omitempty"`
+	TargetWorkspaceID     string                    `json:"target_workspace_id,omitempty"`
+	Disposition           session.Disposition       `json:"disposition,omitempty"`
+	SteerDelivery         store.SteerDeliveryMode   `json:"steer_delivery,omitempty"`
+	TurnID                string                    `json:"turn_id,omitempty"`
+	EntryID               string                    `json:"entry_id,omitempty"`
+	Status                string                    `json:"status"`
+	Mode                  PromptMode                `json:"mode,omitempty"`
+	Delivery              PromptDelivery            `json:"delivery"`
+	MessageID             string                    `json:"message_id"`
+	IdempotencyKey        string                    `json:"idempotency_key"`
+	Replayed              bool                      `json:"replayed"`
+	QueueEntryID          string                    `json:"queue_entry_id,omitempty"`
+	QueuePosition         int                       `json:"queue_position"`
+	QueueGeneration       int64                     `json:"queue_generation,omitzero"`
+	EstimatedSendAt       *time.Time                `json:"estimated_send_at,omitempty"`
+	PreviousTurnID        string                    `json:"previous_turn_id,omitempty"`
+	NewTurnID             string                    `json:"new_turn_id,omitempty"`
+	CanceledQueuedEntries int                       `json:"canceled_queued_entries,omitzero"`
+	Side                  *SessionSideCommandResult `json:"side,omitzero"`
+	Goal                  *GoalCommandResult        `json:"goal,omitzero"`
 }
 
 // SessionInputPayload is one durable operator input waiting for session dispatch.

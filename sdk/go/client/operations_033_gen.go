@@ -9,6 +9,69 @@ import (
 	"strings"
 )
 
+// ResumeLoopNode Resume one Loop node
+func (c *Client) ResumeLoopNode(ctx context.Context, params ResumeLoopNodeParams, body LoopNodeResumeRequest) (*LoopMutationResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/resume"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopMutationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ResumeLoopRunParams carries the path, query, and header parameters.
+type ResumeLoopRunParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ResumeLoopRun Resume one Loop run
+func (c *Client) ResumeLoopRun(ctx context.Context, params ResumeLoopRunParams, body map[string]any) (*map[string]bool, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/resume"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out map[string]bool
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ResumeScheduler Resume scheduler dispatch and task-run claims
+func (c *Client) ResumeScheduler(ctx context.Context, body SchedulerResumeRequest) (*SchedulerStatusResponse, error) {
+	path := "/api/scheduler/resume"
+	var out SchedulerStatusResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ResumeSessionFromLaterParams carries the path, query, and header parameters.
+type ResumeSessionFromLaterParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
 // ResumeSessionFromLater Return a parked session, and optionally its parked children, to the normal flow
 func (c *Client) ResumeSessionFromLater(ctx context.Context, params ResumeSessionFromLaterParams, body ResumeSessionFromLaterRequest) (*SessionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/resume-later"
@@ -382,57 +445,4 @@ type SearchFileContentsParams struct {
 	Exclude       *[]string `url:"exclude"`
 	Profile       *string   `url:"profile"`
 	AllProfiles   *bool     `url:"all_profiles"`
-}
-
-// SearchFileContents Search project file contents
-func (c *Client) SearchFileContents(ctx context.Context, params SearchFileContentsParams) (*FileSearchResponse, error) {
-	path := "/api/workspaces/{workspace_id}/files/search"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.WorktreeID != nil {
-		query.Set("worktree_id", *params.WorktreeID)
-	}
-	query.Set("q", params.Q)
-	if params.Regex != nil {
-		query.Set("regex", strconv.FormatBool(*params.Regex))
-	}
-	if params.CaseSensitive != nil {
-		query.Set("case_sensitive", strconv.FormatBool(*params.CaseSensitive))
-	}
-	if params.WholeWord != nil {
-		query.Set("whole_word", strconv.FormatBool(*params.WholeWord))
-	}
-	if params.Include != nil {
-		for _, value := range *params.Include {
-			query.Add("include", value)
-		}
-	}
-	if params.Exclude != nil {
-		for _, value := range *params.Exclude {
-			query.Add("exclude", value)
-		}
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FileSearchResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SearchGlobalSessionTranscriptParams carries the path, query, and header parameters.
-type SearchGlobalSessionTranscriptParams struct {
-	SessionID   string  `url:"session_id"`
-	Q           string  `url:"q"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

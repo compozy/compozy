@@ -74,21 +74,22 @@ func (m *Manager) dispatchSessionMessagePersisted(
 	}
 	ctx = hookDispatchContext(ctx, m, session)
 	rootSessionID, parentSessionID, actorKind, actorID := messagePersistedLineage(session)
+	sessionContext := hookSessionContext(session)
+	sessionContext.ParentSessionID = parentSessionID
 	_, err := m.hooks.conversation().DispatchSessionMessagePersisted(ctx, hookspkg.SessionMessagePersistedPayload{
-		Event:           hookspkg.HookSessionMessagePersisted,
-		Timestamp:       hookTimestamp(m.now(), event.Timestamp),
-		SessionContext:  hookSessionContext(session),
-		TurnID:          strings.TrimSpace(event.TurnID),
-		MessageID:       strings.TrimSpace(persisted.ID),
-		MessageSeq:      persisted.Sequence,
-		Role:            hookMessageRoleAssistant,
-		Text:            event.Text,
-		Raw:             cloneSessionRawMessage(event.Raw),
-		Persisted:       json.RawMessage(content),
-		RootSessionID:   rootSessionID,
-		ParentSessionID: parentSessionID,
-		ActorKind:       actorKind,
-		ActorID:         actorID,
+		Event:          hookspkg.HookSessionMessagePersisted,
+		Timestamp:      hookTimestamp(m.now(), event.Timestamp),
+		SessionContext: sessionContext,
+		TurnID:         strings.TrimSpace(event.TurnID),
+		MessageID:      strings.TrimSpace(persisted.ID),
+		MessageSeq:     persisted.Sequence,
+		Role:           hookMessageRoleAssistant,
+		Text:           event.Text,
+		Raw:            cloneSessionRawMessage(event.Raw),
+		Persisted:      json.RawMessage(content),
+		RootSessionID:  rootSessionID,
+		ActorKind:      actorKind,
+		ActorID:        actorID,
 	})
 	if err != nil {
 		m.warnHookDispatch(ctx, session, hookspkg.HookSessionMessagePersisted, err)

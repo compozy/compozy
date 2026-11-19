@@ -33,7 +33,13 @@ func (g *SessionRepo) AggregateSessionsByAgent(
 	if err != nil {
 		return nil, err
 	}
-	where = append(where, "trim(agent_name) != ''")
+	visible := where[:0]
+	for _, clause := range where {
+		if clause != sessionSideVisible {
+			visible = append(visible, clause)
+		}
+	}
+	where = append(visible, "trim(agent_name) != ''")
 	runtimeEnd := "CASE WHEN state = 'active' THEN ? ELSE updated_at END"
 	runtimeSeconds := "MAX(0, CAST(strftime('%s', " + runtimeEnd + ") AS INTEGER) - " +
 		"CAST(strftime('%s', created_at) AS INTEGER))"

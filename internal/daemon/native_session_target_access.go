@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -123,7 +124,7 @@ func (b *nativeWorkspaceInputBinder) bindNativeSessionTargetWorkspace(
 	}
 	// Lookup failures keep the caller's workspace; the authorizer reports them without
 	// revealing whether the session exists.
-	target, lookupErr := b.resolveNativeSessionTarget(ctx, sessionID)
+	target, lookupErr := b.resolveNativeSessionTargetForTool(ctx, id, sessionID)
 	if lookupErr == nil && target.info != nil &&
 		strings.TrimSpace(target.info.WorkspaceID) != strings.TrimSpace(scope.WorkspaceID) &&
 		b.nativeSessionOwnerBindable(ctx, id, target.workspaceSelector()) {
@@ -198,7 +199,7 @@ func (b *nativeWorkspaceInputBinder) authorizeNativeSessionTarget(
 			return nativeReplyWorkspace(reply), nil
 		}
 	}
-	target, err := b.resolveNativeSessionTarget(ctx, sessionID)
+	target, err := b.resolveNativeSessionTargetForTool(ctx, descriptor.ID, sessionID)
 	if err != nil {
 		return "", errors.Join(nativeWorkspaceAccessDeniedError(descriptor.ID), err)
 	}
@@ -210,6 +211,9 @@ func (b *nativeWorkspaceInputBinder) authorizeNativeSessionTarget(
 		// The explicit foreign workspace is authorized on its own, and daemon actors never cross;
 		// a missing session is then reported by the handler.
 		return "", nil
+	}
+	if descriptor.ID == toolspkg.ToolIDSessionSideOpen {
+		descriptor.ReadOnly = true
 	}
 	allowed, err := b.authorizeAccessTarget(ctx, scope, descriptor, call, actor, nativeAccessTarget{
 		ref:   target.ref(),
@@ -256,4 +260,28 @@ func (b *nativeWorkspaceInputBinder) authorizeSessionMonitorInput(
 		}
 	}
 	return nil
+}
+
+func (b *nativeWorkspaceInputBinder) resolveNativeSessionTargetForTool(
+	ctx context.Context, id toolspkg.ToolID, sessionID string,
+) (nativeSessionTarget, error) {
+	if id != toolspkg.ToolIDSessionSideOpen {
+		return b.resolveNativeSessionTarget(ctx, sessionID)
+	}
+	reader, ok := b.sessions.(interface {
+		SessionOwner(context.Context, string) (store.SessionOwner, error)
+	})
+	if !ok {
+		return nativeSessionTarget{}, errors.New("daemon: side source owner reader is unavailable")
+	}
+	owner, err := reader.SessionOwner(ctx, sessionID)
+	target := nativeSessionTarget{sessionID: sessionID}
+	if errors.Is(err, session.ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotFound) {
+		return target, nil
+	}
+	if err != nil {
+		return target, err
+	}
+	target.info = &session.Info{ID: owner.SessionID, ProfileID: owner.ProfileID, WorkspaceID: owner.WorkspaceID, Type: session.SessionTypeUser}
+	return target, nil
 }

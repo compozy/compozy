@@ -89,6 +89,8 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionContinue,
 			availability: n.sessionContinueAvailability(),
 		},
+		toolspkg.ToolIDSessionSideOpen: {call: n.sessionSideOpen, availability: n.sessionContinueAvailability()},
+		toolspkg.ToolIDSessionSideList: {call: n.sessionSideList, availability: n.sessionContinueAvailability()},
 		toolspkg.ToolIDSessionFork: {
 			call:         n.sessionFork,
 			availability: n.sessionContinueAvailability(),

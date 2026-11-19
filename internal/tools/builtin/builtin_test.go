@@ -1348,6 +1348,8 @@ type nativeDescriptorExpectation struct {
 
 func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 	return []nativeDescriptorExpectation{
+		{id: toolspkg.ToolIDSessionSideOpen, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDSessionSideList, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDMCPList, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDMCPImport, risk: toolspkg.RiskMutating},
 		{id: toolspkg.ToolIDSessionChanges, risk: toolspkg.RiskRead, readOnly: true},
@@ -3816,7 +3818,7 @@ func TestBuiltinEditLevelAutoApprovals(t *testing.T) {
 			"compozy__session_mark_seen", "compozy__session_move", "compozy__session_prompt",
 			"compozy__session_prompt_cancel",
 			"compozy__session_rename", "compozy__session_reorder", "compozy__session_resume_later",
-			"compozy__session_runtime_clear", "compozy__session_runtime_set", "compozy__session_spawn",
+			"compozy__session_runtime_clear", "compozy__session_runtime_set", "compozy__session_side_open", "compozy__session_spawn",
 			"compozy__session_unarchive", "compozy__session_unlink", "compozy__session_worktree_bind",
 			"compozy__session_worktree_unbind", "compozy__subagent_cancel", "compozy__subagent_delegate",
 			"compozy__subagent_status", "compozy__task_block", "compozy__task_child_create", "compozy__task_create",
@@ -4027,6 +4029,7 @@ func TestCheckInWritableInventory(t *testing.T) {
 			"compozy__session_folder_rename":          false,
 			"compozy__session_folder_reorder":         false,
 			"compozy__session_fork":                   false,
+			"compozy__session_side_open":              false,
 			"compozy__session_input_cancel":           false,
 			"compozy__session_input_promote":          false,
 			"compozy__session_input_replace":          false,

@@ -1865,3 +1865,48 @@ func TestManagerRecoverProfileMoves(t *testing.T) {
 		}
 	})
 }
+
+func TestSideProfileMoveLifecycle(t *testing.T) {
+	t.Parallel()
+	t.Run("Should leave running and closed sides with the archived original", func(t *testing.T) {
+		t.Parallel()
+		h := newProfileMoveHarness(t)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		open, err := h.manager.OpenSide(t.Context(), OpenSideOpts{SourceSessionID: source.ID, WorkspaceID: h.workspaceID, Message: "Why move profiles?", IdempotencyKey: "profile-side-open"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		closed, err := h.manager.OpenSide(t.Context(), OpenSideOpts{SourceSessionID: source.ID, WorkspaceID: h.workspaceID, Message: "Closed question", IdempotencyKey: "profile-side-closed"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.ArchiveWithStop(t.Context(), h.workspaceID, closed.ChildSessionID); err != nil {
+			t.Fatal(err)
+		}
+		// UT-084
+		moved, err := h.move(t.Context(), source.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sides, err := h.manager.ListSides(t.Context(), h.workspaceID, moved.Copy.ID, true)
+		if err != nil || len(sides) != 0 {
+			t.Fatalf("moved copy carried sides=%+v %v", sides, err)
+		}
+		originalSides, err := h.manager.ListSides(t.Context(), h.workspaceID, source.ID, true)
+		if err != nil || len(originalSides) != 2 {
+			t.Fatalf("original sides=%+v %v", originalSides, err)
+		}
+		for _, side := range originalSides {
+			if side.ArchivedAt == nil || side.State != StateStopped {
+				t.Fatalf("side after profile move=%+v", side)
+			}
+		}
+		if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err != nil {
+			t.Fatal(err)
+		}
+		restored, err := h.manager.ListSides(t.Context(), h.workspaceID, source.ID, false)
+		if err != nil || len(restored) != 1 || restored[0].ID != open.ChildSessionID {
+			t.Fatalf("profile restored sides=%+v %v", restored, err)
+		}
+	})
+}

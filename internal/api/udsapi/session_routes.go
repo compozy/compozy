@@ -55,6 +55,8 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceSessions.POST("/:session_id/rewind", handlers.RewindSessionConversation)
 		workspaceSessions.POST("/:session_id/continue", handlers.ContinueSession)
 		workspaceSessions.POST("/:session_id/fork", handlers.ForkSession)
+		workspaceSessions.POST("/:session_id/sides", handlers.OpenSessionSide)
+		workspaceSessions.GET("/:session_id/sides", handlers.ListSessionSides)
 		workspaceSessions.GET("/:session_id/derive/preview", handlers.PreviewSessionDerive)
 		workspaceSessions.PUT("/:session_id/runtime", handlers.SetSessionRuntime)
 		workspaceSessions.DELETE("/:session_id/runtime", handlers.ClearSessionRuntime)

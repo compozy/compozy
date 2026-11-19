@@ -7,6 +7,44 @@ import (
 	"time"
 )
 
+// WindowManagerLayoutValidationResponse is a daemon API value.
+type WindowManagerLayoutValidationResponse struct {
+	Document    *WindowManagerLayoutDocument `json:"document,omitzero"`
+	WorkspaceID WindowmanagerWorkspaceID     `json:"workspace_id"`
+	Valid       bool                         `json:"valid"`
+	Diagnostics []Diagnostic                 `json:"diagnostics,omitempty"`
+}
+
+// WindowManagerMigrationRequest is a daemon API value.
+type WindowManagerMigrationRequest struct {
+	Action  string `json:"action"`
+	Replace bool   `json:"replace,omitempty"`
+}
+
+// WindowManagerPaletteContext is a daemon API value.
+type WindowManagerPaletteContext struct {
+	WindowFocused       bool         `json:"window_focused"`
+	WindowFloating      bool         `json:"window_floating"`
+	WindowInSplit       bool         `json:"window_in_split"`
+	WindowStacked       bool         `json:"window_stacked"`
+	DesktopWindowCount  int          `json:"desktop_window_count"`
+	ScopeGlobal         bool         `json:"scope_global"`
+	ShellDesktop        bool         `json:"shell_desktop"`
+	FocusedSessionState string       `json:"focused_session_state,omitempty"`
+	WorkspaceTrusted    bool         `json:"workspace_trusted"`
+	DestinationIntent   *RouteIntent `json:"destination_intent,omitzero"`
+}
+
+// WindowManagerPreview is a daemon API value.
+type WindowManagerPreview struct {
+	Deprecations []Deprecation            `json:"deprecations"`
+	Snapshot     WindowManagerSnapshot    `json:"snapshot"`
+	Changed      bool                     `json:"changed"`
+	Changes      ChangeSet                `json:"changes"`
+	Diagnostics  []Diagnostic             `json:"diagnostics,omitempty"`
+	Client       *WindowManagerClientView `json:"client,omitzero"`
+}
+
 // WindowManagerRebaseGuard is a daemon API value.
 type WindowManagerRebaseGuard struct {
 	TabID         *TabID               `json:"tab_id,omitzero"`
@@ -403,44 +441,4 @@ type WorktreePayload struct {
 type WorktreePolicy struct {
 	Mode        WorktreeMode `json:"mode"`
 	WorktreeRef string       `json:"worktree_ref,omitempty"`
-}
-
-// WorktreeRemovalResult is a daemon API value.
-type WorktreeRemovalResult struct {
-	Target     WorktreeRemovalTarget         `json:"target"`
-	WorktreeID string                        `json:"worktree_id,omitempty"`
-	State      string                        `json:"state"`
-	Risk       *WorktreeRemovalRiskPayload   `json:"risk,omitempty"`
-	Code       string                        `json:"code,omitempty"`
-	Error      string                        `json:"error,omitempty"`
-	Branch     *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
-}
-
-// WorktreeRemovalRiskPayload is a daemon API value.
-type WorktreeRemovalRiskPayload struct {
-	ChangedFiles    int  `json:"changed_files"`
-	Insertions      int  `json:"insertions"`
-	Deletions       int  `json:"deletions"`
-	UnpushedCommits int  `json:"unpushed_commits"`
-	ExistsOnRemote  bool `json:"exists_on_remote"`
-	LeftoverFiles   int  `json:"leftover_files"`
-}
-
-// WorktreeRemovalTarget is a daemon API value.
-type WorktreeRemovalTarget struct {
-	Ref         string `json:"ref,omitempty"`
-	Path        string `json:"path,omitempty"`
-	ExpectStale bool   `json:"expect_stale,omitempty"`
-}
-
-// WorktreeRepoPayload is a daemon API value.
-type WorktreeRepoPayload struct {
-	GitBacked    bool   `json:"git_backed"`
-	GitAvailable bool   `json:"git_available"`
-	Diagnostic   string `json:"diagnostic,omitempty"`
-}
-
-// WorktreeResponse is a daemon API value.
-type WorktreeResponse struct {
-	Worktree WorktreePayload `json:"worktree"`
 }

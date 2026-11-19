@@ -6114,3 +6114,150 @@ func TestManagerStatusSummary(t *testing.T) {
 		}
 	})
 }
+
+func TestSideVisibilityAndNotifications(t *testing.T) {
+	t.Parallel()
+	t.Run("Should hide sides from every catalog population while counting their agent usage", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		one := h.openSide(t, source, "hidden-one")
+		two := h.openSide(t, source, "hidden-two")
+		ordinary, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Lineage: &store.SessionLineage{ParentSessionID: source.ID}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		subagent, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSpawned, Lineage: &store.SessionLineage{ParentSessionID: source.ID, RootSessionID: source.ID, SpawnDepth: 1, Kind: store.LineageKindSpawn, SpawnRole: store.SubagentSpawnRole}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacy, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Simulate a descendant retained by an older/internal writer; authored creation now refuses it.
+		live, _ := h.manager.Get(legacy.ID)
+		live.mu.Lock()
+		live.Lineage = &store.SessionLineage{ParentSessionID: one.ID, RootSessionID: source.ID, SpawnDepth: 2, Kind: store.LineageKindProvenance}
+		live.mu.Unlock()
+		if err := h.manager.persistSessionMetadataOnly(live); err != nil {
+			t.Fatal(err)
+		}
+		row := sessionCatalogInfoFromRuntime(live.Info())
+		if err := h.db.RegisterSession(t.Context(), &row); err != nil {
+			t.Fatal(err)
+		}
+		_ = ordinary
+		_ = subagent
+		query := ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID}
+		// UT-023
+		for _, read := range []struct {
+			name  string
+			query ListQuery
+		}{{"catalog", query}, {"search", func() ListQuery { q := query; q.Search = "Migration"; return q }()}, {"palette", func() ListQuery { q := query; q.Sort = ListSortRecent; return q }()}, {"attention", func() ListQuery { q := query; q.AttentionOnly = true; return q }()}, {"board", func() ListQuery { q := query; q.Columns = []string{"done"}; return q }()}} {
+			page, err := h.manager.ListPage(t.Context(), read.query)
+			if err != nil {
+				t.Fatalf("%s: %v", read.name, err)
+			}
+			for _, info := range page.Sessions {
+				if info.ID == one.ID || info.ID == two.ID || info.ID == legacy.ID {
+					t.Fatalf("%s leaked side %s", read.name, info.ID)
+				}
+			}
+		}
+		relations, err := h.db.SessionCatalogRelations(t.Context(), store.SessionCatalogRelationsQuery{ReadScope: query.ReadScope, WorkspaceID: h.workspaceID, SessionIDs: []string{source.ID}})
+		if err != nil || relations.Children[source.ID].Total() != 2 {
+			t.Fatalf("side child counts=%+v %v", relations, err)
+		}
+		descendants, err := h.manager.Descendants(t.Context(), h.workspaceID, source.ID)
+		if err != nil || len(descendants) != 2 {
+			t.Fatalf("listed children=%+v %v", descendants, err)
+		}
+		workspace, err := h.manager.ListForWorkspace(t.Context(), h.workspaceID)
+		if err != nil || len(workspace) != 3 {
+			t.Fatalf("workspace population=%+v %v", workspace, err)
+		}
+		facets, err := h.manager.CatalogFacets(t.Context(), query)
+		if err != nil || facets.Facets.All != 3 {
+			t.Fatalf("facets=%+v %v", facets, err)
+		}
+		// UT-024
+		metrics, err := h.manager.AggregateSessionsByAgent(t.Context(), query.ReadScope, h.workspaceID)
+		if err != nil || metrics["coder"].Total != 6 {
+			t.Fatalf("agent usage omitted side: %+v %v", metrics, err)
+		}
+	})
+	t.Run("Should list the complete parent-owned side population in update order", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		first := h.openSide(t, source, "order-first")
+		second := h.openSide(t, source, "order-second")
+		newer := time.Date(2030, 1, 1, 1, 0, 0, 0, time.UTC)
+		if _, err := h.db.DB().ExecContext(t.Context(), "UPDATE sessions SET updated_at=? WHERE id=?", store.FormatTimestamp(newer), first.ID); err != nil {
+			t.Fatal(err)
+		}
+		// UT-058
+		sides, err := h.manager.ListSides(t.Context(), h.workspaceID, source.ID, false)
+		if err != nil || len(sides) != 2 || sides[0].ID != first.ID {
+			t.Fatalf("side order=%+v %v", sides, err)
+		}
+		if _, err := h.manager.ArchiveWithStop(t.Context(), h.workspaceID, second.ID); err != nil {
+			t.Fatal(err)
+		}
+		open, err := h.manager.ListSides(t.Context(), h.workspaceID, source.ID, false)
+		all, allErr := h.manager.ListSides(t.Context(), h.workspaceID, source.ID, true)
+		if err != nil || allErr != nil || len(open) != 1 || len(all) != 2 {
+			t.Fatalf("side archives=%d/%d %v/%v", len(open), len(all), err, allErr)
+		}
+	})
+	t.Run("Should notify both subscribers only through the side event", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		scope := CatalogScope{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID}
+		first, cancel, err := h.manager.SubscribeSessionCatalogEvents(t.Context(), scope)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		second, cancelSecond, err := h.manager.SubscribeSessionCatalogEvents(t.Context(), scope)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancelSecond()
+		side := h.openSide(t, source, "notify")
+		// UT-079
+		for _, subscriber := range []<-chan CatalogEvent{first, second} {
+			found, draining := false, true
+			for draining {
+				select {
+				case event := <-subscriber:
+					if event.Name != CatalogEventNameSide || event.SessionID != source.ID || event.SideSessionID != side.ID {
+						t.Fatalf("side leaked a catalog/attention event: %+v", event)
+					}
+					found = true
+				default:
+					draining = false
+				}
+			}
+			if !found {
+				t.Fatal("subscriber missed side creation")
+			}
+		}
+		before := side.Info()
+		after := side.Info()
+		after.PendingPermissionCount = 1
+		after.AttentionRevision++
+		h.manager.publishAttentionEdge(t.Context(), before, after)
+		// UT-080
+		select {
+		case event := <-first:
+			if event.Name != CatalogEventNameSide || event.SideSessionID != side.ID {
+				t.Fatalf("permission event=%+v", event)
+			}
+		default:
+			t.Fatal("permission change missed side event")
+		}
+	})
+}

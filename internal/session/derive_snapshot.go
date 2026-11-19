@@ -16,6 +16,7 @@ import (
 
 // deriveSnapshot is one immutable read view of a derive source.
 type deriveSnapshot struct {
+	includeOpen bool
 	meta        store.SessionMeta
 	epoch       int64
 	generation  int64
@@ -77,6 +78,7 @@ func (m *Manager) readDeriveSnapshot(
 	ctx context.Context,
 	sourceID string,
 	messageID string,
+	includeOpen ...bool,
 ) (_ deriveSnapshot, _ func(), retErr error) {
 	_, unlockConversation, err := m.lockConversationOperation(ctx, sourceID)
 	if err != nil {
@@ -92,7 +94,10 @@ func (m *Manager) readDeriveSnapshot(
 	if err != nil {
 		return deriveSnapshot{}, nil, err
 	}
-	snapshot := deriveSnapshot{meta: meta}
+	snapshot := deriveSnapshot{meta: meta, includeOpen: len(includeOpen) > 0 && includeOpen[0]}
+	if snapshot.includeOpen {
+		m.snapshotSideRuntime(&snapshot)
+	}
 	if live, ok := m.Get(meta.ID); ok {
 		snapshot.sourceActive = true
 		snapshot.epoch = live.Info().TranscriptEpoch
@@ -146,7 +151,19 @@ func (m *Manager) readDeriveSnapshotEvents(
 		}
 		snapshot.cut, snapshot.cutErr = cut, cutErr
 	}
-	snapshot.messages, err = assembleDeriveMessages(baseline, events, coveredThrough, snapshot.cut.ThroughSequence)
+	if snapshot.includeOpen {
+		own := make([]store.SessionEvent, 0, len(events))
+		for _, event := range events {
+			if event.Sequence > coveredThrough {
+				own = append(own, event)
+			}
+		}
+		var messages []transcript.Message
+		messages, err = transcript.Assemble(own)
+		snapshot.messages = transcript.Prune(append(baseline, messages...), transcript.PruneOptions{Dedup: true})
+	} else {
+		snapshot.messages, err = assembleDeriveMessages(baseline, events, coveredThrough, snapshot.cut.ThroughSequence)
+	}
 	if err != nil {
 		return fmt.Errorf("session: assemble derive source transcript of %q: %w", snapshot.meta.ID, err)
 	}

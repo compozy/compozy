@@ -33,6 +33,7 @@ func (s *Session) infoLocked() *Info {
 	}
 
 	return &Info{
+		Prompting:     s.isPromptingLocked(),
 		InstanceID:    s.InstanceID,
 		InitiatorKind: s.InitiatorKind, InitiatorID: s.InitiatorID,
 		LeaderKernelToken:        leaderKernelToken,

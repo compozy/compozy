@@ -159,20 +159,21 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Sequence:       2,
 		Content:        sampleRaw,
 	})
+	messageSession := sampleSession
+	messageSession.ParentSessionID = "parent-session"
 	assertJSONRoundTrip(t, "SessionMessagePersistedPayload", SessionMessagePersistedPayload{
-		PayloadBase:     samplePayloadBase(HookSessionMessagePersisted),
-		SessionContext:  sampleSession,
-		TurnContext:     sampleTurn,
-		MessageID:       "msg-1",
-		MessageSeq:      3,
-		Role:            role,
-		Text:            "assistant reply",
-		Raw:             sampleRaw,
-		Persisted:       sampleRaw,
-		RootSessionID:   "root-session",
-		ParentSessionID: "parent-session",
-		ActorKind:       "agent_subagent",
-		ActorID:         "child-session",
+		PayloadBase:    samplePayloadBase(HookSessionMessagePersisted),
+		SessionContext: messageSession,
+		TurnContext:    sampleTurn,
+		MessageID:      "msg-1",
+		MessageSeq:     3,
+		Role:           role,
+		Text:           "assistant reply",
+		Raw:            sampleRaw,
+		Persisted:      sampleRaw,
+		RootSessionID:  "root-session",
+		ActorKind:      "agent_subagent",
+		ActorID:        "child-session",
 	})
 	assertJSONRoundTrip(t, "EventPreRecordPatch", EventPreRecordPatch{
 		Labels: map[string]string{"stage": "pre"},
@@ -819,4 +820,40 @@ func TestToolResultViewPayloads(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSideSessionContextFields(t *testing.T) {
+	t.Parallel()
+	t.Run("Should identify side lineage on lifecycle and input hook payloads and omit it on roots", func(t *testing.T) {
+		t.Parallel()
+		// UT-081
+		side := SessionContext{SessionID: "side", SessionType: "user", LineageKind: "side", ParentSessionID: "source"}
+		for _, payload := range []any{SessionLifecyclePayload{SessionContext: side}, InputPreSubmitPayload{SessionContext: side}} {
+			encoded, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var value map[string]any
+			if err := json.Unmarshal(encoded, &value); err != nil {
+				t.Fatal(err)
+			}
+			if value["lineage_kind"] != "side" || value["parent_session_id"] != "source" {
+				t.Fatalf("side hook=%s", encoded)
+			}
+		}
+		root, err := json.Marshal(SessionContext{SessionID: "root"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var value map[string]any
+		if err := json.Unmarshal(root, &value); err != nil {
+			t.Fatal(err)
+		}
+		if _, exists := value["lineage_kind"]; exists {
+			t.Fatalf("root lineage serialized=%s", root)
+		}
+		if _, exists := value["parent_session_id"]; exists {
+			t.Fatalf("root parent serialized=%s", root)
+		}
+	})
 }

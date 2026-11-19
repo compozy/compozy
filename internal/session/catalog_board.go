@@ -148,6 +148,13 @@ func (m *Manager) activeCatalogSnapshots(query ListQuery) ([]*Info, []string) {
 		}
 		info := target.infoLocked()
 		target.mu.RUnlock()
+		ctx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+		hidden := m.sideFamilyMember(ctx, info.Lineage)
+		cancel()
+		if hidden {
+			excludedIDs = append(excludedIDs, info.ID)
+			continue
+		}
 		m.projectPendingSessionStart(info)
 		infos = append(infos, info)
 	}

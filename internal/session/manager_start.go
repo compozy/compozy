@@ -173,6 +173,10 @@ func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.S
 		),
 		CreatedAt: s.createdAt,
 	}
+	if s.lineage != nil {
+		ctx.LineageKind = string(s.lineage.Kind)
+		ctx.ParentSessionID = s.lineage.ParentSessionID
+	}
 	if s.includePromptUpdatedAt {
 		ctx.UpdatedAt = updatedAt
 	}

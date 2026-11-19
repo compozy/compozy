@@ -91,6 +91,7 @@ func BuildCatalog(builtins []BuiltinSpec, agents []AgentSpec, skills []SkillSpec
 // DefaultBuiltins returns the complete reserved daemon command set.
 func DefaultBuiltins() []BuiltinSpec {
 	return []BuiltinSpec{
+		{Name: "side", Description: "Ask a side question without interrupting this session.", InputHint: "question", Available: true},
 		{
 			Name:        goalCommandName,
 			Description: "Set, inspect, pause, resume, replace, or clear the session Goal.",
@@ -283,4 +284,16 @@ func SetBuiltinAvailability(catalog Catalog, name string, available bool, reason
 
 func slashToken(name string) string {
 	return "/" + name
+}
+
+func WithoutBuiltin(catalog Catalog, name string) Catalog {
+	commands := make([]Descriptor, 0, len(catalog.Commands))
+	for _, d := range catalog.Commands {
+		if d.Lane != LaneBuiltin || d.CanonicalToken != "/"+name {
+			commands = append(commands, d)
+		}
+	}
+	catalog.Commands = commands
+	catalog.Revision = catalogRevision(commands)
+	return catalog
 }

@@ -112,6 +112,9 @@ func (m *Manager) MoveToLater(
 	if err != nil {
 		return nil, err
 	}
+	if isSideLineage(root.Lineage) {
+		return nil, ErrSideLaterUnsupported
+	}
 	if root.Lineage != nil && root.Lineage.SpawnRole == store.SubagentSpawnRole {
 		return nil, ErrSubagentLaterFollowsParent
 	}
@@ -217,6 +220,9 @@ func (m *Manager) ResumeFromLater(
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return nil, errors.New("session: later session id is required")
+	}
+	if err := m.refuseSideOperation(ctx, sessionID, ErrSideLaterUnsupported); err != nil {
+		return nil, err
 	}
 	laterStore, err := m.laterStore()
 	if err != nil {

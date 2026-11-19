@@ -76,6 +76,15 @@ func (g *SessionRepo) SetSessionArchived(
 		if e != nil {
 			return e
 		}
+		if !archived && current.Lineage != nil && current.Lineage.Kind == store.LineageKindSide {
+			parent, e := sessionInWorkspace(ctx, exec, workspaceID, current.Lineage.ParentSessionID)
+			if e != nil {
+				return e
+			}
+			if parent.ArchivedAt != nil {
+				return store.ErrSessionSideParentArchived
+			}
+		}
 		if current.Lineage != nil && current.Lineage.SpawnRole == store.SubagentSpawnRole {
 			return store.ErrSubagentArchiveFollowsParent
 		}
@@ -96,6 +105,16 @@ func (g *SessionRepo) SetSessionArchived(
 		for _, member := range family {
 			if archived && member.State != globalDBSessionStateStopped {
 				return &store.SessionArchiveLiveMemberError{SessionID: member.ID}
+			}
+			if !archived && member.ID != current.ID {
+				child, e := sessionInWorkspace(ctx, exec, workspaceID, member.ID)
+				if e != nil {
+					return e
+				}
+				if child.Lineage != nil && child.Lineage.Kind == store.LineageKindSide &&
+					(child.ArchivedAt == nil || current.ArchivedAt == nil || !child.ArchivedAt.Equal(*current.ArchivedAt)) {
+					continue
+				}
 			}
 			ids = append(ids, member.ID)
 		}

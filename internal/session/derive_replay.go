@@ -287,6 +287,10 @@ func truncateReplayUTF8(value string, maxBytes int) string {
 func importedContextHeader(ic store.SessionImportedContext) string {
 	var line string
 	switch {
+	case ic.Kind == store.LineageKindSide:
+		return contextRebuiltMarkerSummary + "\n" +
+			fmt.Sprintf("This side chat was opened on %s (agent: %s).", ic.SourceSessionID, ic.OriginAgentName) +
+			" " + deriveWorkspaceLine
 	case ic.Kind == store.LineageKindFork && strings.TrimSpace(ic.OriginMessageID) != "":
 		line = fmt.Sprintf(deriveForkLine, ic.SourceSessionID, ic.OriginMessageID, ic.OriginAgentName)
 	case ic.Kind == store.LineageKindFork:

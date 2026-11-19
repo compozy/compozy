@@ -60,6 +60,9 @@ func (m *Manager) dispatchGoalCommand(
 	if !matched {
 		return GoalDispatchDecision{}, false, nil
 	}
+	if err := m.RequireGoalSupported(ctx, req.target); err != nil {
+		return GoalDispatchDecision{}, true, err
+	}
 	ctx, unlockConversation, err := m.lockConversationOperation(ctx, req.target)
 	if err != nil {
 		return GoalDispatchDecision{}, true, err

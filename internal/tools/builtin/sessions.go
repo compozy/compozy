@@ -51,6 +51,8 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionRewindDescriptor(),
 	sessionContinueDescriptor(),
 	sessionForkDescriptor(),
+	sessionSideOpenDescriptor(),
+	sessionSideListDescriptor(),
 	sessionRuntimeSetDescriptor(),
 	sessionWorktreeBindingDescriptor(true),
 	sessionWorktreeBindingDescriptor(false),

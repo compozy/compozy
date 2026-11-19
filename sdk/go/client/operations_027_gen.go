@@ -4,11 +4,43 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
 )
+
+// MintTerminalAttachTicket Mint a single-use terminal attach ticket
+func (c *Client) MintTerminalAttachTicket(ctx context.Context, params MintTerminalAttachTicketParams, body TerminalAttachTicketRequest) (*TerminalAttachTicketResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}/attach-ticket"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	headers := http.Header{}
+	if params.XCompozyClientToken != nil {
+		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
+	}
+	if params.XCompozyClientWorkspace != nil {
+		headers.Set("X-Compozy-Client-Workspace", *params.XCompozyClientWorkspace)
+	}
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalAttachTicketResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MoveSessionParams carries the path, query, and header parameters.
+type MoveSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
 
 // MoveSession Move a session into a folder or back to the workspace root
 func (c *Client) MoveSession(ctx context.Context, params MoveSessionParams, body MoveSessionRequest) (*SessionFoldersResponse, error) {
@@ -170,6 +202,32 @@ func (c *Client) OpenCmdPaletteViewSession(ctx context.Context, params OpenCmdPa
 	}
 	var out CmdPaletteViewSessionOpenResponse
 	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// OpenSessionSideParams carries the path, query, and header parameters.
+type OpenSessionSideParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// OpenSessionSide Open a side chat without changing its source session
+func (c *Client) OpenSessionSide(ctx context.Context, params OpenSessionSideParams, body OpenSessionSideRequest) (*SessionDeriveResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/sides"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionDeriveResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -386,53 +444,6 @@ func (c *Client) PinSession(ctx context.Context, params PinSessionParams) (*Sess
 	}
 	var out SessionResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PlanSessionHistoryCleanupParams carries the path, query, and header parameters.
-type PlanSessionHistoryCleanupParams struct {
-	Profile *string `url:"profile"`
-}
-
-// PlanSessionHistoryCleanupFrame preserves each response payload; select its variant using the event name or HTTP status.
-type PlanSessionHistoryCleanupFrame struct {
-	Raw        json.RawMessage
-	StatusCode int `json:"-"`
-}
-
-var _ json.Unmarshaler = (*PlanSessionHistoryCleanupFrame)(nil)
-
-var _ json.Marshaler = PlanSessionHistoryCleanupFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *PlanSessionHistoryCleanupFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f PlanSessionHistoryCleanupFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-func (f *PlanSessionHistoryCleanupFrame) setResponseStatus(status int) {
-	f.StatusCode = status
-}
-
-// AsSessionHistoryCleanupPreviewResponse decodes this payload as SessionHistoryCleanupPreviewResponse.
-func (f PlanSessionHistoryCleanupFrame) AsSessionHistoryCleanupPreviewResponse() (*SessionHistoryCleanupPreviewResponse, error) {
-	var out SessionHistoryCleanupPreviewResponse
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionHistoryCleanupStartResponse decodes this payload as SessionHistoryCleanupStartResponse.
-func (f PlanSessionHistoryCleanupFrame) AsSessionHistoryCleanupStartResponse() (*SessionHistoryCleanupStartResponse, error) {
-	var out SessionHistoryCleanupStartResponse
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

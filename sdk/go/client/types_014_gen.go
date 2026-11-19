@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// OutlineEntry is a daemon API value.
+type OutlineEntry struct {
+	Sequence     int64     `json:"sequence"`
+	TurnID       string    `json:"turn_id"`
+	Preview      string    `json:"preview"`
+	ReplyPreview string    `json:"reply_preview"`
+	At           time.Time `json:"at"`
+}
+
 // OutlineResult is a daemon API value.
 type OutlineResult struct {
 	Entries []OutlineEntry `json:"entries"`
@@ -431,17 +440,4 @@ type ProviderAuthProbeResult struct {
 	Stdout     string `json:"stdout,omitempty"`
 	Stderr     string `json:"stderr,omitempty"`
 	DurationMs int64  `json:"duration_ms"`
-}
-
-// ProviderAuthStatusPayload is a daemon API value.
-type ProviderAuthStatusPayload struct {
-	Mode        string                         `json:"mode"`
-	EnvPolicy   string                         `json:"env_policy"`
-	HomePolicy  string                         `json:"home_policy"`
-	State       string                         `json:"state"`
-	Code        string                         `json:"code,omitempty"`
-	Message     string                         `json:"message,omitempty"`
-	StatusCmd   string                         `json:"status_command,omitempty"`
-	Login       ProviderLoginDescriptorPayload `json:"login"`
-	LastProbeAt *time.Time                     `json:"last_probe_at,omitempty"`
 }

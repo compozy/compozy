@@ -146,7 +146,7 @@ func (b *nativeWorkspaceInputBinder) authorizeAccessTarget(
 	decision, err := b.workspaceAccess.Authorize(ctx, workspaceaccess.Request{
 		Actor:    actor,
 		Target:   target.ref,
-		ReadOnly: descriptor.ReadOnly,
+		ReadOnly: descriptor.ReadOnly || descriptor.ID == toolspkg.ToolIDSessionSideOpen,
 		Seam:     workspaceaccess.SeamTool,
 	})
 	if err != nil {

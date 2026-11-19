@@ -43,6 +43,10 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if origin.Lineage != nil && origin.Lineage.Kind == store.LineageKindSide {
+		h.respondError(c, http.StatusConflict, session.ErrSideNotDerivable)
+		return
+	}
 	promptState, ok := h.Sessions.(sessionPromptStateReader)
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session prompt state is unavailable"))

@@ -3247,6 +3247,32 @@
     "single_result_reason": "content"
   },
   {
+    "tool_id": "compozy__session_side_list",
+    "native_name": "session_side_list",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "27ab2ed8480e055ab17e63fb4b629e76d2d57a901760c137be4bf1b4fa3efd8d",
+    "output_schema_digest": "8c8500c0bc8f29bb7910418190688f2c53ef62f0c2f9c2b1fe900ceef0508b4d"
+  },
+  {
+    "tool_id": "compozy__session_side_open",
+    "native_name": "session_side_open",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "da872a7b9602e14bf9c121d7a696ca87bd62778b90f0cec3ad1e6161e06837da",
+    "output_schema_digest": "aaf113b12e63c2f8e5fecf5e121c56b374067e21eec3f7251777f44a72bb94c4"
+  },
+  {
     "tool_id": "compozy__session_spawn",
     "native_name": "session_spawn",
     "toolsets": [

@@ -47,7 +47,16 @@ func (m *Manager) Descendants(ctx context.Context, workspaceID string, sessionID
 	if err != nil {
 		return nil, err
 	}
-	infos := sessionInfosFromCatalog(rows)
+	visible := rows[:0]
+	hidden := map[string]bool{sessionID: false}
+	for _, row := range rows {
+		parent := store.HierarchyParentSessionID(row.Lineage)
+		hidden[row.ID] = isSideLineage(row.Lineage) || hidden[parent]
+		if !hidden[row.ID] {
+			visible = append(visible, row)
+		}
+	}
+	infos := sessionInfosFromCatalog(visible)
 	m.decorateMCPAuthorities(ctx, infos, nil)
 	return infos, nil
 }
@@ -70,7 +79,11 @@ func (m *Manager) ArchiveWithChildren(
 	var archived store.SessionTreeArchive
 	attempt := func() error {
 		var archiveErr error
-		archived, archiveErr = m.archiveTreeWithResumeGuard(ctx, treeStore, workspaceID, sessionID, opts.RefuseMember)
+		archiveErr = m.archiveStoppingSideMembers(ctx, func() error {
+			var err error
+			archived, err = m.archiveTreeWithResumeGuard(ctx, treeStore, workspaceID, sessionID, opts.RefuseMember)
+			return err
+		})
 		return archiveErr
 	}
 	if opts.Stop {

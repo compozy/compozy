@@ -22,6 +22,9 @@ func (m *Manager) ChangeWorktreeBinding(ctx context.Context, id, ref string, exp
 	if ctx == nil {
 		return nil, fmt.Errorf("%w: worktree binding context is required", ErrValidation)
 	}
+	if err := m.refuseSideOperation(ctx, id, ErrSideWorktreeFixed); err != nil {
+		return nil, err
+	}
 	if _, held := m.restartInputsHeld.Load(id); held || m.sessionStartRun(id) != nil {
 		return nil, ErrPromptInProgress
 	}

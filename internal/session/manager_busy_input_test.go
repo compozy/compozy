@@ -8021,3 +8021,68 @@ type maxSequenceHookRecorder struct {
 func (r *maxSequenceHookRecorder) MaxEventSequence(ctx context.Context) (int64, error) {
 	return r.read(ctx)
 }
+
+func TestSideHumanPromptIngress(t *testing.T) {
+	t.Parallel()
+	t.Run("Should replay human side commands by their source-scoped prompt identity", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		opts := SendPromptOpts{Message: "/side why?", MessageID: "msg-side", IdempotencyKey: "k1", AllowCommands: true, Caller: PromptCaller{Kind: "human"}, Mode: BusyInputModeInterrupt}
+		before := len(readStoredEvents(t, source))
+		first, err := h.manager.SendPrompt(t.Context(), source.ID, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// UT-021
+		replay, err := h.manager.SendPrompt(t.Context(), source.ID, opts)
+		if err != nil || first.Side == nil || replay.Side == nil || first.Side.SessionID != replay.Side.SessionID || !replay.Replayed || first.Status != "side_opened" || len(readStoredEvents(t, source)) != before {
+			t.Fatalf("first=%+v replay=%+v err=%v", first, replay, err)
+		}
+		other := h.newDeriveSource(t)
+		// UT-074
+		distinct, err := h.manager.SendPrompt(t.Context(), other.ID, opts)
+		if err != nil || distinct.Side == nil || distinct.Side.SessionID == first.Side.SessionID {
+			t.Fatalf("source namespace=%+v err=%v", distinct, err)
+		}
+	})
+	t.Run("Should deliver an agent's slash text verbatim", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		// UT-073
+		result, err := h.manager.SendPrompt(t.Context(), source.ID, SendPromptOpts{Message: "/side literal", MessageID: "agent-msg", IdempotencyKey: "agent-side", Caller: PromptCaller{Kind: LinkProvenanceAgent, ID: "caller"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Events != nil {
+			collectEvents(t, result.Events)
+		}
+		sides, err := h.manager.ListSides(t.Context(), h.workspaceID, source.ID, true)
+		if err != nil || len(sides) != 0 || result.Side != nil {
+			t.Fatalf("agent command opened side: %+v %v", result, err)
+		}
+		prompts := h.promptMessages()
+		if prompts[len(prompts)-1] != "/side literal" {
+			t.Fatalf("literal prompt=%q", prompts[len(prompts)-1])
+		}
+	})
+	t.Run("Should refuse attachments and Goals before recording side input", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		before := len(readStoredEvents(t, source))
+		// UT-076
+		_, err := h.manager.SendPrompt(t.Context(), source.ID, SendPromptOpts{Message: "/side question", MessageID: "file-msg", IdempotencyKey: "file-key", AllowCommands: true, Caller: PromptCaller{Kind: "human"}, Attachments: []AttachmentMeta{{ID: "attachment"}}})
+		if !errors.Is(err, ErrSideAttachmentsUnsupported) || len(readStoredEvents(t, source)) != before {
+			t.Fatalf("attachment refusal=%v", err)
+		}
+		side := h.openSide(t, source, "goal-target")
+		before = len(readStoredEvents(t, side))
+		// UT-070
+		_, err = h.manager.SendPrompt(t.Context(), side.ID, SendPromptOpts{Message: "/goal ship it", MessageID: "goal-msg", IdempotencyKey: "goal-key", AllowCommands: true, Caller: PromptCaller{Kind: "human"}})
+		if !errors.Is(err, ErrSideGoalUnsupported) || len(readStoredEvents(t, side)) != before {
+			t.Fatalf("Goal refusal=%v", err)
+		}
+	})
+}

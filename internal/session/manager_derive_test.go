@@ -2890,3 +2890,376 @@ func TestForkAccountInheritance(t *testing.T) {
 		}
 	})
 }
+
+func (h *deriveHarness) sideOpts(source *Session, key string) OpenSideOpts {
+	return OpenSideOpts{SourceSessionID: source.ID, WorkspaceID: h.workspaceID, Message: "Why is this approach safe?", IdempotencyKey: key}
+}
+
+func (h *deriveHarness) openSide(t *testing.T, source *Session, key string) *Session {
+	t.Helper()
+	result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, key))
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, ok := h.manager.Get(result.ChildSessionID)
+	if !ok {
+		t.Fatal("side runtime missing")
+	}
+	waitForCondition(t, "side first turn settled", func() bool { return !child.IsPrompting() })
+	return child
+}
+
+func TestOpenSideContext(t *testing.T) {
+	t.Parallel()
+	// Invariant: a side carries a frozen open-turn snapshot without changing the source; owner: derive.
+	for _, settled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should snapshot the open turn with settled history %t without acquiring its prompt slot", settled), func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID}}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			source, _ := h.manager.Get(created.ID)
+			extraPrompts := 0
+			if settled {
+				h.promptSource(t, source.ID, "settled source history")
+				extraPrompts = 1
+			}
+			entered, release := make(chan struct{}), make(chan struct{})
+			h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent)
+				go func() {
+					defer close(events)
+					if req.Message == "open source turn" {
+						events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: req.TurnID, Text: "Inspecting the permissions", Timestamp: time.Now().UTC()}
+						events <- (acp.AgentEvent{Type: acp.EventTypeToolCall, TurnID: req.TurnID, ToolCallID: "side-cut-read", Timestamp: time.Now().UTC()}).WithTool("Read", json.RawMessage(`{"path":"README.md"}`), false)
+						events <- (acp.AgentEvent{Type: acp.EventTypeToolResult, TurnID: req.TurnID, ToolCallID: "side-cut-read", Text: "Repository is compozy", Timestamp: time.Now().UTC()}).WithTool("Read", nil, false)
+						close(entered)
+						<-release
+					}
+					emitDonePromptEvents(events, proc.handle.SessionID, req.TurnID)
+				}()
+				return events, nil
+			}
+			events, err := h.manager.Prompt(t.Context(), source.ID, "open source turn")
+			if err != nil {
+				t.Fatal(err)
+			}
+			<-entered
+			waitForCondition(t, "source partial text persisted", func() bool {
+				for _, event := range readStoredEvents(t, source) {
+					if strings.Contains(event.Content, "Repository is compozy") {
+						return true
+					}
+				}
+				return false
+			})
+			before := len(readStoredEvents(t, source))
+			beforeRevision := source.Info().AttentionRevision
+			queueBefore, err := h.manager.InputQueueSummary(t.Context(), source.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, openErr := h.manager.OpenSide(t.Context(), h.sideOpts(source, "first-open"))
+			stillPrompting := source.IsPrompting()
+			sourceEvents := readStoredEvents(t, source)
+			duringRevision := source.Info().AttentionRevision
+			queueDuring, queueErr := h.manager.InputQueueSummary(t.Context(), source.ID)
+			close(release)
+			collectEvents(t, events)
+			if openErr != nil {
+				t.Fatal(openErr)
+			}
+			// UT-001
+			if (result.ThroughTurnID != "") != settled || !result.SourceTurnInProgress {
+				t.Fatalf("first-turn snapshot = %+v", result)
+			}
+			// UT-010
+			if !stillPrompting || result.Seed != DeriveSeedReplay || h.driver.forkCallCount() != 0 {
+				t.Fatalf("busy side = %+v, prompting=%t", result, stillPrompting)
+			}
+			// UT-020
+			if queueErr != nil || len(sourceEvents) != before || queueBefore != queueDuring || beforeRevision != duringRevision {
+				t.Fatalf("source changed during open: events=%d/%d queues=%+v/%+v revisions=%d/%d err=%v", len(sourceEvents), before, queueBefore, queueDuring, beforeRevision, duringRevision, queueErr)
+			}
+			imported := h.childMeta(t, result.ChildSessionID).ImportedContext
+			// UT-002
+			if imported == nil || !strings.Contains(imported.MessagesJSON, "Inspecting the permissions") || !strings.Contains(imported.MessagesJSON, "README.md") || !strings.Contains(imported.MessagesJSON, "Repository is compozy") || !strings.Contains(imported.MessagesJSON, "compozy_turn_in_progress") || strings.Contains(imported.MessagesJSON, "compozy_turn_aborted") {
+				t.Fatalf("side context = %+v", imported)
+			}
+			// UT-003
+			frozen := imported.MessagesJSON
+			h.promptSource(t, source.ID, "later source progress")
+			if h.childMeta(t, result.ChildSessionID).ImportedContext.MessagesJSON != frozen {
+				t.Fatal("side context changed with its source")
+			}
+			// UT-004
+			prompts := h.waitForPromptCount(t, 3+extraPrompts)
+			found := false
+			for _, prompt := range prompts {
+				replay, boundary, question := strings.Index(prompt, "This side chat was opened on"), strings.Index(prompt, "<compozy_side_chat>"), strings.Index(prompt, "Why is this approach safe?")
+				found = found || (replay >= 0 && boundary > replay && question > boundary)
+			}
+			if !found {
+				t.Fatalf("no replay-boundary-question prompt in %q", prompts)
+			}
+		})
+	}
+	for _, native := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should inherit the idle seed with native support %t", native), func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			h.driver.advertiseFork = native
+			source := h.newDeriveSource(t)
+			before := len(readStoredEvents(t, source))
+			result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "idle"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			// UT-011
+			want := DeriveSeedReplay
+			if native {
+				want = DeriveSeedNativeFork
+			}
+			if result.Seed != want || result.ReplayMessageCount != 4 || len(readStoredEvents(t, source)) != before {
+				t.Fatalf("idle side = %+v", result)
+			}
+		})
+	}
+	t.Run("Should send the boundary without replay after a native clone loads", func(t *testing.T) {
+		t.Parallel()
+		h, source := newNativeForkHarness(t)
+		before := len(h.promptMessages())
+		result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "native-boundary"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompt := h.waitForPromptCount(t, before+1)[before]
+		// UT-005
+		if strings.Contains(prompt, resumeReplayOpenTag) || !strings.HasPrefix(prompt, "<compozy_side_chat>") || !strings.HasSuffix(prompt, "Why is this approach safe?") {
+			t.Fatalf("native first prompt = %q", prompt)
+		}
+		meta := h.childMeta(t, result.ChildSessionID)
+		if meta.CreationProfile == nil || !strings.Contains(meta.CreationProfile.PromptOverlay, "compozy_side_chat") {
+			t.Fatal("restart overlay missing")
+		}
+	})
+	t.Run("Should compose replay after a clone load refusal", func(t *testing.T) {
+		t.Parallel()
+		h, source := newNativeForkHarness(t)
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.ResumeSessionID != "" {
+				return nil, fmt.Errorf("%w: refused", acp.ErrLoadSessionFailed)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-side-%d", sequence)), nil
+		}
+		before := len(h.promptMessages())
+		result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "load-refused"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompt := h.waitForPromptCount(t, before+1)[before]
+		// UT-077
+		if !strings.Contains(prompt, resumeReplayOpenTag) || !strings.Contains(prompt, "<compozy_side_chat>") {
+			t.Fatalf("fallback prompt = %q result=%+v", prompt, result)
+		}
+	})
+}
+
+func TestOpenSideIdentityAndGuards(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve runtime permissions and immutable side lineage", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		source.mu.Lock()
+		source.EffectivePermissions = "approve-reads"
+		source.Lineage.PermissionPolicy.WorkspacePaths = []string{h.workspace}
+		source.mu.Unlock()
+		side := h.openSide(t, source, "copy-permissions")
+		// UT-012
+		info, original := side.Info(), source.Info()
+		if info.AgentName != original.AgentName || info.Provider != original.Provider || info.Model != original.Model || info.WorktreeID != original.WorktreeID || info.EffectivePermissions != original.EffectivePermissions ||
+			info.Lineage.Kind != store.LineageKindSide || info.Lineage.ParentSessionID != source.ID || info.Lineage.RootSessionID != original.Lineage.RootSessionID || info.Lineage.SpawnDepth != original.Lineage.SpawnDepth+1 || info.Lineage.AutoStopOnParent || info.Lineage.NotifyCreator || len(info.Lineage.PermissionPolicy.WorkspacePaths) != 1 {
+			t.Fatalf("side=%+v lineage=%+v source=%+v", info, info.Lineage, original)
+		}
+		// UT-065
+		if _, err := h.manager.normalizeCreateLineage(t.Context(), "side-policy", SessionTypeUser, h.workspaceID, info.Lineage, ""); err != nil {
+			t.Fatal(err)
+		}
+		provenance := store.CloneSessionLineage(info.Lineage)
+		provenance.Kind = store.LineageKindProvenance
+		provenance.OriginAgentName = ""
+		if _, err := h.manager.normalizeCreateLineage(t.Context(), "provenance-policy", SessionTypeUser, h.workspaceID, provenance, ""); !errors.Is(err, ErrValidation) {
+			t.Fatalf("provenance accepted side permission shape: %v", err)
+		}
+	})
+	t.Run("Should refuse an empty source", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// UT-013
+		_, err = h.manager.OpenSide(t.Context(), OpenSideOpts{SourceSessionID: created.ID, WorkspaceID: h.workspaceID, Message: "why?", IdempotencyKey: "empty"})
+		if !errors.Is(err, ErrSideSourceEmpty) {
+			t.Fatalf("empty source = %v", err)
+		}
+	})
+	t.Run("Should refuse an archived source", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, source.ID); err != nil {
+			t.Fatal(err)
+		}
+		// UT-014
+		if _, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "archived")); !errors.Is(err, ErrSessionArchived) {
+			t.Fatalf("archived source = %v", err)
+		}
+	})
+	t.Run("Should open on a stopped source and replay the same request", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(source.MetaPath())
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "stopped"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// UT-015
+		after, err := os.ReadFile(source.MetaPath())
+		if err != nil || !bytes.Equal(before, after) || result.Seed != DeriveSeedReplay {
+			t.Fatalf("stopped source changed, seed=%s err=%v", result.Seed, err)
+		}
+		// UT-016
+		replay, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "stopped"))
+		if err != nil || !replay.Replayed || replay.ChildSessionID != result.ChildSessionID {
+			t.Fatalf("replay=%+v err=%v", replay, err)
+		}
+		changed := h.sideOpts(source, "stopped")
+		changed.Message = "different"
+		if _, err := h.manager.OpenSide(t.Context(), changed); !errors.Is(err, ErrDeriveIdempotencyConflict) {
+			t.Fatalf("different question = %v", err)
+		}
+	})
+	t.Run("Should reject spawned and nested sources", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "nested-source")
+		// UT-018
+		if _, err := h.manager.OpenSide(t.Context(), h.sideOpts(side, "nested")); !errors.Is(err, ErrSideNested) {
+			t.Fatalf("nested source = %v", err)
+		}
+		source.mu.Lock()
+		source.Type = SessionTypeSpawned
+		source.Lineage.Kind = store.LineageKindSpawn
+		source.mu.Unlock()
+		// UT-017
+		if _, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "spawned")); !errors.Is(err, ErrSideUnsupported) {
+			t.Fatalf("spawned source = %v", err)
+		}
+	})
+	t.Run("Should preserve an unnamed side and an explicit title independently of the source title", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		first := h.openSide(t, source, "unnamed-one")
+		second := h.openSide(t, source, "unnamed-two")
+		opts := h.sideOpts(source, "named")
+		opts.Name = "Permission question"
+		named, err := h.manager.OpenSide(t.Context(), opts)
+		// UT-082
+		if err != nil || first.Info().Name != "" || second.Info().Name != "" || named.Child.Name != opts.Name {
+			t.Fatalf("side names=%q/%q named=%+v err=%v", first.Info().Name, second.Info().Name, named, err)
+		}
+	})
+}
+
+func TestSideCommitRecoveryAndRaces(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reconcile a side receipt after its derive event was lost", func(t *testing.T) {
+		t.Parallel()
+		ledger := &deriveLedgerFault{}
+		h := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option { ledger.GlobalDB = db; return WithEventLedger(ledger) })
+		source := h.newDeriveSource(t)
+		ledger.dropDerived.Store(true)
+		result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "reconcile-side"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ledger.dropDerived.Store(false)
+		// UT-064
+		receipt, found, err := h.db.SessionDerivationReceipt(t.Context(), h.workspaceID, "reconcile-side", store.DefaultProfileID)
+		if err != nil || !found || receipt.Validate() != nil || receipt.Kind != store.LineageKindSide || result.Child.Derivation.Kind != store.LineageKindSide {
+			t.Fatalf("side receipt=%+v %v", receipt, err)
+		}
+		emitted, err := h.manager.ReconcileDerivedSessionEvents(t.Context(), []*Info{result.Child})
+		if err != nil || emitted != 1 || len(h.derivedLedgerRows(t, result.ChildSessionID)) != 1 {
+			t.Fatalf("side reconciliation=%d %v", emitted, err)
+		}
+	})
+	t.Run("Should refuse a side that loses the archive race at registration", func(t *testing.T) {
+		t.Parallel()
+		fault := &deriveFaultStore{}
+		h := newDeriveHarness(t, fault.option)
+		source := h.newDeriveSource(t)
+		fault.before = func(_ *store.SessionInfo, _ store.SessionCreationIdentity, _ store.SessionDerivationReceipt) error {
+			_, err := h.manager.ArchiveWithChildren(t.Context(), h.workspaceID, source.ID, ArchiveTreeOptions{Stop: true})
+			return err
+		}
+		// UT-086
+		_, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "archive-race"))
+		if !errors.Is(err, ErrSessionArchived) {
+			t.Fatalf("open vs archive=%v", err)
+		}
+		sides, err := h.manager.ListSides(t.Context(), h.workspaceID, source.ID, true)
+		if err != nil || len(sides) != 0 {
+			t.Fatalf("unarchived orphan side=%+v %v", sides, err)
+		}
+	})
+	t.Run("Should serialize source deletion with the side snapshot and commit", func(t *testing.T) {
+		t.Parallel()
+		fault := &deriveFaultStore{}
+		h := newDeriveHarness(t, fault.option)
+		source := h.newDeriveSource(t)
+		entered, release := make(chan struct{}), make(chan struct{})
+		fault.before = func(_ *store.SessionInfo, _ store.SessionCreationIdentity, _ store.SessionDerivationReceipt) error {
+			close(entered)
+			<-release
+			return nil
+		}
+		opened := make(chan DeriveResult, 1)
+		openErrors := make(chan error, 1)
+		go func() {
+			result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "delete-race"))
+			opened <- result
+			openErrors <- err
+		}()
+		<-entered
+		deleted := make(chan error, 1)
+		go func() { deleted <- h.manager.Delete(t.Context(), source.ID) }()
+		close(release)
+		result, openErr := <-opened, <-openErrors
+		// UT-093
+		if err := <-deleted; err != nil {
+			t.Fatal(err)
+		}
+		rows, err := h.db.ListSessionSides(t.Context(), h.workspaceID, source.ID, true)
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("orphan side after delete: %+v %v open=%+v/%v", rows, err, result, openErr)
+		}
+	})
+}

@@ -179,7 +179,7 @@ CREATE TABLE sessions (
 				CHECK (creation_digest IS NULL OR length(trim(creation_digest)) > 0), policy_spec_digest TEXT
 				CHECK (policy_spec_digest IS NULL OR length(trim(policy_spec_digest)) > 0), creation_profile_ref TEXT
 				CHECK (creation_profile_ref IS NULL OR length(trim(creation_profile_ref)) > 0), lineage_kind TEXT NOT NULL DEFAULT ''
-				CHECK (lineage_kind IN ('', 'provenance', 'spawn', 'continue', 'fork', 'recovery')), origin_message_id TEXT, origin_agent_name TEXT NOT NULL DEFAULT '',
+				CHECK (lineage_kind IN ('', 'provenance', 'spawn', 'continue', 'fork', 'recovery', 'side')), origin_message_id TEXT, origin_agent_name TEXT NOT NULL DEFAULT '',
 		effective_workspace_access TEXT NOT NULL DEFAULT '',
 		branch TEXT NOT NULL DEFAULT '',
 		ended_early_turn_id TEXT NOT NULL DEFAULT '',
@@ -207,7 +207,7 @@ CREATE TABLE session_derivations (
 		request_fingerprint TEXT NOT NULL,
 		source_session_id TEXT NOT NULL,
 		child_session_id TEXT NOT NULL,
-		kind TEXT NOT NULL CHECK (kind IN ('continue', 'fork')),
+		kind TEXT NOT NULL CHECK (kind IN ('continue', 'fork', 'side')),
 		outcome_json TEXT NOT NULL CHECK (json_valid(outcome_json)),
 		created_at TEXT NOT NULL,
 		child_deleted_at TEXT

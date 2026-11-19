@@ -48,6 +48,9 @@ func (g *SessionRepo) RegisterDerivedSession(
 		normalized.UpdatedAt = normalized.CreatedAt
 	}
 	return g.withImmediateTransaction(ctx, "register derived session", func(exec globalSQLExecutor) error {
+		if err := guardSideSource(ctx, exec, receipt); err != nil {
+			return err
+		}
 		affected, err := sqlcgen.New(exec).InsertSessionDerivation(ctx, params)
 		if err != nil {
 			return fmt.Errorf("store: insert session derivation %q: %w", params.IdempotencyKey, err)

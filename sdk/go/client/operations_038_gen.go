@@ -8,6 +8,43 @@ import (
 	"strings"
 )
 
+// UnarchiveWorkspace unarchive a workspace without removing its data
+func (c *Client) UnarchiveWorkspace(ctx context.Context, params UnarchiveWorkspaceParams) (*WorkspaceResponse, error) {
+	path := "/api/workspaces/{id}/unarchive"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out WorkspaceResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UnbindGatewayIngressParams carries the path, query, and header parameters.
+type UnbindGatewayIngressParams struct {
+	SubjectKind string `url:"subject_kind"`
+	SubjectID   string `url:"subject_id"`
+}
+
+// UnbindGatewayIngress Remove one public ingress confirmation
+func (c *Client) UnbindGatewayIngress(ctx context.Context, params UnbindGatewayIngressParams) (*GatewayIngressUnbindResponse, error) {
+	path := "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}"
+	path = strings.ReplaceAll(path, "{subject_kind}", url.PathEscape(params.SubjectKind))
+	path = strings.ReplaceAll(path, "{subject_id}", url.PathEscape(params.SubjectID))
+	var out GatewayIngressUnbindResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UnbindSessionWorktreeParams carries the path, query, and header parameters.
+type UnbindSessionWorktreeParams struct {
+	WorkspaceID        string  `url:"workspace_id"`
+	SessionID          string  `url:"session_id"`
+	Profile            *string `url:"profile"`
+	ExpectedWorktreeID *string `url:"expected_worktree_id"`
+}
+
 // UnbindSessionWorktree Return an idle session to the workspace root in place
 func (c *Client) UnbindSessionWorktree(ctx context.Context, params UnbindSessionWorktreeParams) (*SessionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree"
@@ -399,47 +436,4 @@ type UpdateSettingsCmdPaletteParams struct {
 	Scope       *string `url:"scope"`
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// UpdateSettingsCmdPalette Update command-palette settings
-func (c *Client) UpdateSettingsCmdPalette(ctx context.Context, params UpdateSettingsCmdPaletteParams, body UpdateSettingsCmdPaletteRequest) (*SettingsCmdPaletteResponse, error) {
-	path := "/api/settings/cmd-palette"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsCmdPaletteResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsGeneral Update the general settings section
-func (c *Client) UpdateSettingsGeneral(ctx context.Context, body UpdateSettingsGeneralRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/general"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsHooksExtensions Update the hooks and extensions settings section
-func (c *Client) UpdateSettingsHooksExtensions(ctx context.Context, body UpdateSettingsHooksExtensionsRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/hooks-extensions"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -1040,6 +1040,9 @@ import type {
   ListSessionProcessesResponses,
   ListSessionsData,
   ListSessionsErrors,
+  ListSessionSidesData,
+  ListSessionSidesErrors,
+  ListSessionSidesResponses,
   ListSessionsResponses,
   ListSessionSubagentsData,
   ListSessionSubagentsErrors,
@@ -1158,6 +1161,9 @@ import type {
   OpenCmdPaletteViewSessionData,
   OpenCmdPaletteViewSessionErrors,
   OpenCmdPaletteViewSessionResponses,
+  OpenSessionSideData,
+  OpenSessionSideErrors,
+  OpenSessionSideResponses,
   PatchLoopData,
   PatchLoopErrors,
   PatchLoopResponses,
@@ -9975,6 +9981,46 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List all side chats attached to a session, newest updated first
+   */
+  public listSessionSides<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionSidesData, ThrowOnError>
+  ): RequestResult<ListSessionSidesResponses, ListSessionSidesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListSessionSidesResponses,
+      ListSessionSidesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/sides",
+      ...options,
+    });
+  }
+
+  /**
+   * Open a side chat without changing its source session
+   */
+  public openSessionSide<ThrowOnError extends boolean = true>(
+    options: Options<OpenSessionSideData, ThrowOnError>
+  ): RequestResult<OpenSessionSideResponses, OpenSessionSideErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      OpenSessionSideResponses,
+      OpenSessionSideErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/sides",
       ...options,
       headers: {
         "Content-Type": "application/json",

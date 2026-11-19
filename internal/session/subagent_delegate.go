@@ -64,6 +64,13 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 	if err != nil {
 		return Subagent{}, err
 	}
+	parent, err := s.runtime.Snapshot(ctx, req.Caller.SessionID)
+	if err != nil {
+		return Subagent{}, err
+	}
+	if isSideLineage(parent.Info.Lineage) {
+		return Subagent{}, ErrSideSpawnUnsupported
+	}
 	snap, err := s.caller(ctx, req.Caller)
 	if err != nil {
 		return Subagent{}, err

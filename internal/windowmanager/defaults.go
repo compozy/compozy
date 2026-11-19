@@ -3,6 +3,7 @@ package windowmanager
 var defaultKeymap = map[string]ShortcutBinding{
 	shortcutPaletteOpenAction:            {shortcutPaletteOpenChord, "meta+shift+KeyP"},
 	shortcutPaletteViewSessionsAction:    {"meta+KeyE"},
+	shortcutSessionSideToggleAction:      {"meta+alt+KeyS", "control+alt+KeyS"},
 	shortcutSessionNewAction:             {"meta+KeyN"},
 	shortcutScopeGlobalToggleAction:      {"meta+shift+KeyG"},
 	shortcutWindowNavBackAction:          {"meta+BracketLeft"},

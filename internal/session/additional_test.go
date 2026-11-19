@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -1370,4 +1371,247 @@ func TestInstanceMainPromptResume(t *testing.T) {
 			},
 		)
 	}
+}
+
+func TestSideLifecycle(t *testing.T) {
+	t.Parallel()
+	// Invariant: side lifecycle follows source transitions, while independently closed sides remain closed.
+	t.Run("Should stop live sides with a user-requested source stop", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		h.driver.promptHook = func(proc *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent)
+			go func() { <-proc.done; close(events) }()
+			return events, nil
+		}
+		result, err := h.manager.OpenSide(t.Context(), h.sideOpts(source, "running-stop"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// UT-025
+		if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		info, err := h.manager.Status(t.Context(), result.ChildSessionID)
+		if err != nil || info.State != StateStopped {
+			t.Fatalf("side after source stop=%+v %v", info, err)
+		}
+		if _, err := h.manager.TranscriptPage(t.Context(), info.ID, transcript.PageQuery{Limit: 10}); err != nil {
+			t.Fatalf("side history lost: %v", err)
+		}
+	})
+	t.Run("Should cascade archive timestamps and restore only cascade-closed sides", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		closed := h.openSide(t, source, "closed-earlier")
+		if err := h.manager.Stop(t.Context(), closed.ID); err != nil {
+			t.Fatal(err)
+		}
+		closedAt := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		if _, err := h.db.DB().ExecContext(t.Context(), "UPDATE sessions SET archived_at=? WHERE id=?", store.FormatTimestamp(closedAt), closed.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		open := h.openSide(t, source, "open-on-stopped")
+		// UT-026
+		tree, err := h.manager.ArchiveWithChildren(t.Context(), h.workspaceID, source.ID, ArchiveTreeOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		current, err := h.manager.Status(t.Context(), open.ID)
+		if err != nil || current.State != StateStopped || current.ArchivedAt == nil || !current.ArchivedAt.Equal(*tree.Root.ArchivedAt) {
+			t.Fatalf("cascade=%+v %v", current, err)
+		}
+		// UT-069
+		if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, open.ID); !errors.Is(err, ErrSideParentArchived) {
+			t.Fatalf("unarchive under archived source=%v", err)
+		}
+		if _, err := h.manager.SendPrompt(t.Context(), open.ID, SendPromptOpts{Message: "follow up"}); !errors.Is(err, ErrSideParentArchived) {
+			t.Fatalf("prompt under archived source=%v", err)
+		}
+		if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err != nil {
+			t.Fatal(err)
+		}
+		restored, err := h.manager.ListSides(t.Context(), h.workspaceID, source.ID, false)
+		if err != nil || len(restored) != 1 || restored[0].ID != open.ID {
+			t.Fatalf("restored sides=%+v %v", restored, err)
+		}
+		stillClosed, err := h.manager.Status(t.Context(), closed.ID)
+		if err != nil || stillClosed.ArchivedAt == nil || !stillClosed.ArchivedAt.Equal(closedAt) {
+			t.Fatalf("independently closed side restored: %+v %v", stillClosed, err)
+		}
+	})
+	for _, recursive := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should preserve plain-operation reach with recursive=%t", recursive), func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			source := h.newDeriveSource(t)
+			child, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Lineage: &store.SessionLineage{ParentSessionID: source.ID}}}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			side := h.openSide(t, source, "mixed-side")
+			if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+				t.Fatal(err)
+			}
+			if recursive {
+				if err := h.manager.Stop(t.Context(), child.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// UT-067
+			if !recursive {
+				if _, err := h.manager.Archive(t.Context(), h.workspaceID, source.ID); err != nil {
+					t.Fatal(err)
+				}
+				ordinary, err := h.manager.Status(t.Context(), child.ID)
+				if err != nil || ordinary.ArchivedAt != nil {
+					t.Fatalf("plain archive reached ordinary child: %+v %v", ordinary, err)
+				}
+			}
+			// UT-068
+			if recursive {
+				_, err = h.manager.DeleteWithChildren(t.Context(), h.workspaceID, source.ID)
+			} else {
+				err = h.manager.Delete(t.Context(), source.ID)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.manager.Status(t.Context(), side.ID); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("side survived delete: %v", err)
+			}
+			_, err = h.manager.Status(t.Context(), child.ID)
+			if recursive != errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("ordinary child after recursive=%t: %v", recursive, err)
+			}
+		})
+	}
+	t.Run("Should keep sides independent of shutdown and idle runtime release", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "independent")
+		// UT-066
+		source.mu.RLock()
+		progress := source.supervisionProgressAt
+		source.mu.RUnlock()
+		if err := h.manager.releaseIdleRuntime(t.Context(), source, progress); err != nil {
+			t.Fatal(err)
+		}
+		if source.Info().RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatal("source runtime was not released")
+		}
+		if side.Info().State != StateActive {
+			t.Fatal("idle source release stopped side")
+		}
+		if err := h.manager.StopWithCause(t.Context(), source.ID, CauseShutdown, ""); err != nil {
+			t.Fatal(err)
+		}
+		if side.Info().State != StateActive {
+			t.Fatal("source shutdown transition stopped side")
+		}
+	})
+	t.Run("Should exclude sides from Later families and refuse parking them", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "later")
+		// UT-083
+		family, err := h.manager.laterFamily(t.Context(), h.workspaceID, source.ID, false)
+		if err != nil || len(family) != 1 || family[0].ID != source.ID {
+			t.Fatalf("Later family=%+v %v", family, err)
+		}
+		if _, err := h.manager.MoveToLater(t.Context(), h.workspaceID, side.ID, LaterRequest{}); !errors.Is(err, ErrSideLaterUnsupported) {
+			t.Fatalf("side Later=%v", err)
+		}
+	})
+	t.Run("Should delete side history with an archived cleanup source", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		one := h.openSide(t, source, "cleanup-one")
+		two := h.openSide(t, source, "cleanup-two")
+		if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, source.ID); err != nil {
+			t.Fatal(err)
+		}
+		// UT-092
+		rows, err := h.db.ListSessionHistoryCleanupRows(t.Context(), store.SessionHistoryCleanupQuery{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range rows {
+			if row.ID == one.ID || row.ID == two.ID {
+				t.Fatal("side is selectable by history cleanup")
+			}
+		}
+		if err := h.manager.DeleteArchived(t.Context(), store.ArchivedSessionDelete{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, SessionID: source.ID}); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{source.ID, one.ID, two.ID} {
+			if _, err := h.manager.Status(t.Context(), id); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("cleanup left %s: %v", id, err)
+			}
+		}
+	})
+}
+
+type sideDeleteFaultCatalog struct {
+	*globaldb.GlobalDB
+	failID  string
+	deleted []string
+}
+
+func (c *sideDeleteFaultCatalog) DeleteSession(ctx context.Context, id string) error {
+	if id == c.failID {
+		return errors.New("injected side delete failure")
+	}
+	if err := c.GlobalDB.DeleteSession(ctx, id); err != nil {
+		return err
+	}
+	c.deleted = append(c.deleted, id)
+	return nil
+}
+
+func TestSideDeleteRetry(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep the source reachable after a partial side deletion and finish on retry", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		first := h.openSide(t, source, "delete-first")
+		second := h.openSide(t, source, "delete-second")
+		rows, listErr := h.db.ListSessionSides(t.Context(), h.workspaceID, source.ID, true)
+		if listErr != nil || len(rows) != 2 {
+			t.Fatalf("delete fixture=%+v %v", rows, listErr)
+		}
+		failID := rows[1].ID
+		fault := &sideDeleteFaultCatalog{GlobalDB: h.db, failID: failID}
+		h.manager.sessionCatalog = fault
+		// UT-027
+		if err := h.manager.Delete(t.Context(), source.ID); err == nil {
+			t.Fatal("injected side deletion succeeded")
+		}
+		if _, err := h.manager.Status(t.Context(), source.ID); err != nil {
+			t.Fatalf("source lost before child failure: %v", err)
+		}
+		if _, err := h.manager.Status(t.Context(), failID); err != nil {
+			t.Fatalf("failed child unreachable: %v", err)
+		}
+		fault.failID = ""
+		if err := h.manager.Delete(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		_ = second
+		if len(fault.deleted) != 3 || fault.deleted[len(fault.deleted)-1] != source.ID {
+			t.Fatalf("delete order=%v first=%s", fault.deleted, first.ID)
+		}
+	})
 }

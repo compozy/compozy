@@ -323,3 +323,15 @@ func (r daemonWorktreeWorkspaceResolver) ListWorktreeTrashRoots(ctx context.Cont
 	}
 	return result, resolveErr
 }
+
+func (g daemonWorktreeSessionGuard) SideSessionWorktreeBinding(
+	ctx context.Context, workspaceID, worktreeID string, activeOnly bool,
+) (string, string, error) {
+	reader, ok := g.registry.(interface {
+		SideSessionWorktreeBinding(context.Context, string, string, bool) (string, string, error)
+	})
+	if !ok {
+		return "", "", nil
+	}
+	return reader.SideSessionWorktreeBinding(ctx, workspaceID, worktreeID, activeOnly)
+}

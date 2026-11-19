@@ -52,7 +52,7 @@ func (m *Manager) reconcileDerivedSessionEvent(
 	derivations store.SessionDerivationStore,
 	info *Info,
 ) (bool, error) {
-	if info == nil || info.Derivation == nil || !info.Derivation.Kind.Derived() {
+	if info == nil || info.Derivation == nil || !info.Derivation.Kind.Derivation() {
 		return false, nil
 	}
 	key := strings.TrimSpace(info.Derivation.IdempotencyKey)

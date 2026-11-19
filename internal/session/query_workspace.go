@@ -52,7 +52,9 @@ func (m *Manager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*
 	}
 	return slices.DeleteFunc(
 		infos,
-		func(info *Info) bool { return info.Type == SessionTypeTriage || info.WorkspaceID != workspaceID },
+		func(info *Info) bool {
+			return !isPublicSessionCatalogInfo(info) || m.sideFamilyMember(ctx, info.Lineage) || info.WorkspaceID != workspaceID
+		},
 	), nil
 }
 

@@ -749,3 +749,44 @@ func (r *autoTitleEventRecorder) next(t *testing.T) store.EventSummary {
 		return store.EventSummary{}
 	}
 }
+
+func TestSideAutomaticTitle(t *testing.T) {
+	t.Parallel()
+	t.Run("Should title a side from its own first question", func(t *testing.T) {
+		t.Parallel()
+		// UT-090
+		generator := &autoTitleGeneratorStub{generate: func(_ context.Context, req autoTitleRequest) (string, error) {
+			if req.UserMessage != "Why is this safe?" {
+				return "", errors.New("title inherited the main question")
+			}
+			return "Why this is safe", nil
+		}}
+		sessions := &autoTitleSessionsStub{events: map[string][]store.SessionEvent{"side-title": {autoTitleUserEvent(t, "side-title", "side-turn", "Why is this safe?")}}}
+		runtime := newAutoTitleRuntime(sessions, generator, time.Second, slog.Default())
+		if err := runtime.Start(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		payload := autoTitleHookPayload("side-title", "side-turn", "It preserves the permission boundary.")
+		payload.LineageKind = "side"
+		payload.ParentSessionID = "source"
+		if err := runtime.HandleSessionMessagePersisted(t.Context(), payload); err != nil {
+			t.Fatal(err)
+		}
+		deadline := time.NewTimer(time.Second)
+		defer deadline.Stop()
+		for len(sessions.appliedSnapshot()) == 0 {
+			select {
+			case <-deadline.C:
+				t.Fatal("side title was not applied")
+			default:
+				time.Sleep(time.Millisecond)
+			}
+		}
+		if err := runtime.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if got := sessions.appliedSnapshot(); len(got) != 1 || got[0].title != "Why this is safe" {
+			t.Fatalf("side title=%+v", got)
+		}
+	})
+}

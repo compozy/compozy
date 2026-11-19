@@ -6080,3 +6080,46 @@ func TestSessionChanges(t *testing.T) {
 		}
 	})
 }
+
+func TestSessionSideCommands(t *testing.T) {
+	t.Parallel()
+	t.Run("Should print a useful empty side list and an empty JSON array", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, &stubClient{listSessionSidesFn: func(_ context.Context, id string, archived bool) (contract.SessionSidesResponse, error) {
+			if id != "sess-source" || archived {
+				t.Fatalf("side list args=%s/%t", id, archived)
+			}
+			return contract.SessionSidesResponse{Sides: []contract.SessionSideItemPayload{}}, nil
+		}})
+		// UT-036
+		output, _, err := executeRootCommand(t, deps, "session", "side", "list", "sess-source")
+		if err != nil || !strings.Contains(output, "No side chats on sess-source.") {
+			t.Fatalf("empty side list=%q %v", output, err)
+		}
+		output, _, err = executeRootCommand(t, deps, "session", "side", "list", "sess-source", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload contract.SessionSidesResponse
+		if err := json.Unmarshal([]byte(output), &payload); err != nil || payload.Sides == nil || len(payload.Sides) != 0 {
+			t.Fatalf("empty JSON=%q %v", output, err)
+		}
+	})
+	t.Run("Should generate fresh prompt identities for independent human side submissions", func(t *testing.T) {
+		t.Parallel()
+		requests := []SessionPromptRequest{}
+		deps := newWorkspaceTestDeps(t, &stubClient{sendSessionPromptFn: func(_ context.Context, _ string, req SessionPromptRequest) (SessionPromptRecord, error) {
+			requests = append(requests, req)
+			return SessionPromptRecord{Prompt: SessionPromptResultRecord{Status: "side_opened", Delivery: contract.PromptDeliveryNone, Side: &contract.SessionSideCommandResult{SessionID: fmt.Sprintf("side-%d", len(requests)), Seed: "replay"}}}, nil
+		}})
+		// UT-075
+		for range 2 {
+			if _, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-source", "/side q"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if len(requests) != 2 || requests[0].IdempotencyKey == "" || requests[0].IdempotencyKey == requests[1].IdempotencyKey || requests[0].MessageID == requests[1].MessageID {
+			t.Fatalf("side identities=%+v", requests)
+		}
+	})
+}
