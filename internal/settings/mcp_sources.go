@@ -248,13 +248,14 @@ func (s *service) resolveManualMCPAuthDefinition(
 		if err != nil {
 			return mcpAuthDefinition{}, err
 		}
+		target = target.Normalize()
 		scope := target.Scope
 		if entry.Target == WriteTargetWorkspaceProfileConfig || entry.Target == WriteTargetWorkspaceProfileMCPSidecar {
 			scope = mcpauth.ScopeWorkspaceProfile
 		}
 		configDefinition = mcpAuthDefinition{
 			target: target, server: entry.Server, source: entry.Source,
-			inherited: !mcpAuthTargetCovers(requested, target.Normalize()), precedence: publishedMCPScopeRank(scope),
+			inherited: !mcpAuthTargetCovers(requested, target), precedence: publishedMCPScopeRank(scope),
 		}
 		if exact {
 			return configDefinition, nil
