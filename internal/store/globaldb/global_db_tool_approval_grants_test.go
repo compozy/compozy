@@ -37,6 +37,18 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 		}
 
 		current = current.Add(time.Minute)
+		// Projection reads observe the same grant without updating its usage receipt.
+		allowed, err := globalDB.CheckInApprovalDecision(ctx, key)
+		if err != nil || !allowed {
+			t.Fatalf("projection approval = %v, %v", allowed, err)
+		}
+		beforeLookup, err := globalDB.ListApprovalGrants(
+			ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, workspaceID,
+		)
+		if err != nil || len(beforeLookup) != 1 || !beforeLookup[0].LastUsedAt.Equal(created.LastUsedAt) {
+			t.Fatalf("projection changed the last-used receipt: %+v, %v", beforeLookup, err)
+		}
+
 		found, ok, err := globalDB.LookupApprovalGrant(ctx, key)
 		if err != nil {
 			t.Fatalf("LookupApprovalGrant() error = %v", err)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/filesnap"
@@ -22,10 +23,13 @@ type mcpProjectionSessionReader interface {
 type mcpProjectionInstanceReader interface {
 	MCPProjectionState(context.Context, string, string) (agentinstance.ProjectionState, error)
 	ApprovedAuthority(context.Context, string, string) (string, error)
+	BeginMCPProjectionRead(context.Context) func() bool
+	MCPProjectionObservation(context.Context) (context.Context, func(), error)
 }
 
 type mcpProjectionGrantReader interface {
 	CheckInApprovalProjection(context.Context, tools.Scope) (string, error)
+	CheckInApprovalDecision(context.Context, tools.ApprovalGrantKey) (bool, error)
 }
 
 type sessionProjectionPolicyIdentity struct {
@@ -51,6 +55,12 @@ type projectionDefinition struct {
 	path, published    string
 }
 
+type hostedPolicyIdentity struct {
+	policy          sessionProjectionPolicyIdentity
+	auth, workspace uint64
+	catalog         int64
+}
+
 // ProjectionPolicyIdentity observes inputs to a hosted policy without compiling it.
 func (r *nativeToolPolicyResolver) ProjectionPolicyIdentity(ctx context.Context, scope tools.Scope) (any, bool) {
 	if r.readFence == nil {
@@ -58,11 +68,59 @@ func (r *nativeToolPolicyResolver) ProjectionPolicyIdentity(ctx context.Context,
 	}
 	fence := r.readFence()
 	policy, known := r.sessionProjectionPolicy(ctx, scope, fence)
-	return struct {
-		policy          sessionProjectionPolicyIdentity
-		auth, workspace uint64
-		catalog         int64
-	}{policy, fence.auth, fence.workspace, fence.catalog}, known
+	return hostedPolicyIdentity{policy, fence.auth, fence.workspace, fence.catalog}, known
+}
+
+type projectionPolicyBuildKey struct{}
+
+type projectionPolicyBuild struct {
+	id, mainID string
+	policy     sessionProjectionPolicyIdentity
+	mismatch   atomic.Bool
+}
+
+func (r *nativeToolPolicyResolver) BeginProjectionBuild(
+	ctx context.Context, scope tools.Scope, observed any,
+) (context.Context, func() bool) {
+	identity, ok := observed.(hostedPolicyIdentity)
+	if !ok {
+		return ctx, func() bool { return false }
+	}
+	return r.beginProjectionPolicyBuild(ctx, scope, &identity.policy)
+}
+
+func (r *nativeToolPolicyResolver) beginProjectionPolicyBuild(
+	ctx context.Context, scope tools.Scope, observed *sessionProjectionPolicyIdentity,
+) (context.Context, func() bool) {
+	build := &projectionPolicyBuild{id: scope.SessionID, mainID: observed.instance.MainSessionID, policy: *observed}
+	var finish func() bool
+	if repo, ok := r.instanceCallers.(mcpProjectionInstanceReader); ok {
+		finish = repo.BeginMCPProjectionRead(ctx)
+	}
+	var heartbeatRevision int64
+	if r.heartbeatCatalogRevision != nil {
+		heartbeatRevision = r.heartbeatCatalogRevision()
+	}
+	return context.WithValue(ctx, projectionPolicyBuildKey{}, build), func() bool {
+		if finish == nil && r.instanceCallers != nil || finish != nil && !finish() {
+			return false
+		}
+		return !build.mismatch.Load() &&
+			(r.heartbeatCatalogRevision == nil || heartbeatRevision == r.heartbeatCatalogRevision())
+	}
+}
+
+func (b *projectionPolicyBuild) checkSession(id string, info *session.Info) {
+	switch id {
+	case b.id:
+		if !b.policy.session.MatchesPolicyInfo(info) {
+			b.mismatch.Store(true)
+		}
+	case b.mainID:
+		if !b.policy.main.MatchesPolicyInfo(info) {
+			b.mismatch.Store(true)
+		}
+	}
 }
 
 func (r *nativeToolPolicyResolver) sessionProjectionPolicy(
@@ -81,7 +139,11 @@ func (r *nativeToolPolicyResolver) sessionProjectionPolicy(
 	if !ok {
 		return result, r.instanceCallers == nil && identity.Kind != session.SessionTypeTriage
 	}
-	var err error
+	ctx, release, err := repo.MCPProjectionObservation(ctx)
+	if err != nil {
+		return sessionProjectionPolicyIdentity{}, false
+	}
+	defer release()
 	result.instance, err = repo.MCPProjectionState(ctx, scope.SessionID, string(identity.Kind))
 	if err != nil {
 		return sessionProjectionPolicyIdentity{}, false
@@ -115,20 +177,6 @@ func projectionAuthorityScope(identity session.MCPPolicyIdentity, state agentins
 	})
 }
 
-// projectionHeartbeat selects the same package-owned artifact as ResolveHeartbeatPolicy.
-func (c *resourceAgentCatalog) projectionHeartbeat(scope tools.Scope) string {
-	workspace := &workspacepkg.ResolvedWorkspace{ProfileID: scope.ProfileID, ID: scope.WorkspaceID}
-	record, found := c.lookupAgentRecord(scope.AgentName, agentCatalogLensFor(workspace))
-	if !found || record.Owner.Kind.Normalize() != extensionResourceOwnerKind {
-		return ""
-	}
-	resource, found := c.lookupHeartbeatForAgent(record)
-	if !found {
-		return ""
-	}
-	return resource.SourcePath + "\x00" + resource.Body
-}
-
 func (r *nativeToolPolicyResolver) observeCheckInMainPolicy(
 	ctx context.Context, reader mcpProjectionSessionReader, repo mcpProjectionInstanceReader, scope tools.Scope,
 	fence sessionMCPReadFence, result *sessionProjectionPolicyIdentity,
@@ -149,11 +197,10 @@ func (r *nativeToolPolicyResolver) observeCheckInMainPolicy(
 		return false
 	}
 	if r.approvalGrants != nil {
-		grants, ok := r.approvalGrants.(mcpProjectionGrantReader)
-		if !ok {
+		if r.approvalProjection == nil {
 			return false
 		}
-		result.grants, err = grants.CheckInApprovalProjection(ctx, scope)
+		result.grants, err = r.approvalProjection.CheckInApprovalProjection(ctx, scope)
 	}
 	return err == nil
 }

@@ -23,8 +23,10 @@ func BenchmarkHostedStreamProjectionIdleTick(b *testing.B) {
 			true,
 		)
 	}
-	nativeTools[0].Availability = func(context.Context, tools.Scope) tools.Availability {
-		return tools.Available()
+	nativeTools[0].Availability = &tools.NativeAvailabilityGroup{
+		Check: func(context.Context, tools.Scope) tools.Availability {
+			return tools.Available()
+		},
 	}
 	native, err := tools.NewNativeProvider(tools.BuiltinSource(), nativeTools...)
 	if err != nil {

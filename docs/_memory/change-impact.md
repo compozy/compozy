@@ -6833,10 +6833,11 @@ Owner: `perf/mcp-poll-churn`.
   approval, and tool-call paths supply the projection inputs. External provider health and native
   availability retain their bounded rechecks. Native availability dependencies come from the
   bindings. Check-in authority includes the authored definition, committed approval, and main
-  session ceiling.
+  session ceiling. A check-in summary also honors changes to the workspace configuration fence.
 - **Workspace and profile isolation.** Read batches share external inputs by their declared
   provider scopes and share tool views by effective visibility. Runtime inventory dependencies
   identify the exact accepted runtime context and its observed file revision. Instance and
-  approval identities read committed rows under the original profile and workspace rules.
+  approval identities read committed rows under the original profile and workspace rules. Cold
+  builds use the SQLite commit version to refuse reuse when authority changes during the build.
 - **Official skill, Web, docs and QA.** The MCP settings, summary events, hosted tool notifications,
   and existing operator journeys use the same timing and contracts.

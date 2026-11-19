@@ -94,7 +94,7 @@ func (m *Manager) commitSessionLaunchIdentity(
 	if err := context.Cause(ctx); err != nil {
 		return err
 	}
-	session.setEffectivePermissions(string(permissions))
+	session.SetEffectivePermissions(string(permissions))
 	if err := finalizeStartCreationIdentityIfEnabled(spec, session); err != nil {
 		return startupFailure("session creation identity changed", err)
 	}

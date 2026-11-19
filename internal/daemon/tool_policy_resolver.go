@@ -19,16 +19,17 @@ import (
 )
 
 type nativeToolPolicyResolverDeps struct {
-	ApprovalGrants    toolspkg.ApprovalGrantStore
-	Config            *compozyconfig.Config
-	Sessions          nativeToolPolicySessionReader
-	WorkspaceResolver nativeToolPolicyWorkspaceResolver
-	ProfileNames      session.ProfileNameResolver
-	AgentResolver     nativeToolPolicyAgentResolver
-	ExtensionRegistry *extensionpkg.Registry
-	ApprovalAvailable bool
-	MCPSourceGrants   nativeToolPolicyMCPSourceGrants
-	MCPResourceNames  func() map[string]string
+	ApprovalGrants     toolspkg.ApprovalGrantStore
+	ApprovalProjection mcpProjectionGrantReader
+	Config             *compozyconfig.Config
+	Sessions           nativeToolPolicySessionReader
+	WorkspaceResolver  nativeToolPolicyWorkspaceResolver
+	ProfileNames       session.ProfileNameResolver
+	AgentResolver      nativeToolPolicyAgentResolver
+	ExtensionRegistry  *extensionpkg.Registry
+	ApprovalAvailable  bool
+	MCPSourceGrants    nativeToolPolicyMCPSourceGrants
+	MCPResourceNames   func() map[string]string
 }
 
 // nativeToolPolicyMCPSourceGrants lists MCP sources the operator authorized for one resolved scope.
@@ -58,6 +59,7 @@ type nativeToolPolicyResolver struct {
 	projectionDefinitions    map[projectionDefinitionKey]projectionDefinition
 	heartbeatCatalogRevision func() int64
 	approvalGrants           toolspkg.ApprovalGrantStore
+	approvalProjection       mcpProjectionGrantReader
 	instanceCallers          agentinstance.CallerReader
 	cfg                      *compozyconfig.Config
 	sessions                 nativeToolPolicySessionReader
@@ -77,16 +79,17 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 		return nil, errors.New("daemon: native tool policy config is required")
 	}
 	return &nativeToolPolicyResolver{
-		cfg:               deps.Config,
-		approvalGrants:    deps.ApprovalGrants,
-		sessions:          deps.Sessions,
-		workspaceResolver: deps.WorkspaceResolver,
-		profileNames:      deps.ProfileNames,
-		agentResolver:     deps.AgentResolver,
-		extensionRegistry: deps.ExtensionRegistry,
-		approvalAvailable: deps.ApprovalAvailable,
-		mcpSourceGrants:   deps.MCPSourceGrants,
-		mcpResourceNames:  deps.MCPResourceNames,
+		cfg:                deps.Config,
+		approvalGrants:     deps.ApprovalGrants,
+		approvalProjection: deps.ApprovalProjection,
+		sessions:           deps.Sessions,
+		workspaceResolver:  deps.WorkspaceResolver,
+		profileNames:       deps.ProfileNames,
+		agentResolver:      deps.AgentResolver,
+		extensionRegistry:  deps.ExtensionRegistry,
+		approvalAvailable:  deps.ApprovalAvailable,
+		mcpSourceGrants:    deps.MCPSourceGrants,
+		mcpResourceNames:   deps.MCPResourceNames,
 	}, nil
 }
 
@@ -96,11 +99,12 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 		workspaceResolver = state.workspaceResolver
 	}
 	resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
-		Config:            &state.cfg,
-		ApprovalGrants:    state.deps.ApprovalGrants,
-		Sessions:          state.sessions,
-		WorkspaceResolver: workspaceResolver,
-		ProfileNames:      state.profiles,
+		Config:             &state.cfg,
+		ApprovalGrants:     state.deps.ApprovalGrants,
+		ApprovalProjection: state.approvalProjection,
+		Sessions:           state.sessions,
+		WorkspaceResolver:  workspaceResolver,
+		ProfileNames:       state.profiles,
 		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,
@@ -312,6 +316,9 @@ func (r *nativeToolPolicyResolver) sessionInfo(
 		info, err = r.sessions.Status(ctx, sessionID)
 	}
 	if err == nil {
+		if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok {
+			build.checkSession(sessionID, info)
+		}
 		return info, nil
 	}
 	if errors.Is(err, session.ErrSessionNotFound) {

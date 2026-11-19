@@ -37,4 +37,12 @@ INSERT INTO heartbeat_authority_approvals(profile_id,definition_dir,sha256,appro
 ON CONFLICT(profile_id,definition_dir) DO UPDATE SET notified_sha256=excluded.notified_sha256 WHERE heartbeat_authority_approvals.notified_sha256<>excluded.notified_sha256;
 
 -- name: GetCheckInSessionBinding :one
-SELECT instance_id,occurrence_id FROM agent_instance_wake_state WHERE triage_session_id=? AND occurrence_id<>'';
+SELECT w.instance_id, w.occurrence_id
+FROM sessions AS s
+JOIN agent_instance_wake_state AS w ON w.instance_id = s.instance_id
+WHERE s.id = sqlc.arg(session_id) AND w.triage_session_id = s.id AND w.occurrence_id <> ''
+UNION ALL
+SELECT w.instance_id, w.occurrence_id
+FROM agent_instance_wake_state AS w
+WHERE w.triage_session_id = sqlc.arg(session_id) AND w.occurrence_id <> ''
+LIMIT 1;

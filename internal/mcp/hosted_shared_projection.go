@@ -126,7 +126,8 @@ func (s *HostedService) checkedSharedProjection(
 	}
 	s.mu.Lock()
 	owned := s.ownsBindRecord(record)
-	if owned && s.projectionEpoch != nil && s.projectionFence() == fence {
+	if owned && s.projectionEpoch != nil && s.projectionFence() == fence &&
+		ctx.Value(hostedProjectionObservationKey{}) == nil {
 		s.projectionCache.storeUnversioned(record.bindID, hostedUnversionedProjection{
 			fence: fence, builtAt: builtAt, response: response,
 		})

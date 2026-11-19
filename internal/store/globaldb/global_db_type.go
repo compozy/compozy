@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"database/sql"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -43,14 +44,15 @@ type GlobalDB struct {
 	*CmdPaletteRepo
 	Worktrees *WorktreeRepo
 
-	db           *sql.DB
-	readDB       *sql.DB
-	background   *store.BackgroundWriter
-	checkpoint   *store.PassiveCheckpointer
-	telemetry    *telemetrydb.Store
-	healthBuffer *sessionHealthBuffer
-	summaryRetry *eventSummaryRetry
-	path         string
-	now          func() time.Time
-	closed       atomic.Int32
+	db                *sql.DB
+	readDB            *sql.DB
+	background        *store.BackgroundWriter
+	checkpoint        *store.PassiveCheckpointer
+	telemetry         *telemetrydb.Store
+	healthBuffer      *sessionHealthBuffer
+	summaryRetry      *eventSummaryRetry
+	path              string
+	now               func() time.Time
+	closed            atomic.Int32
+	mcpProjectionRead sync.Mutex
 }

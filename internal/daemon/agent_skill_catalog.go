@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -344,4 +345,18 @@ func sidecarRecordMatchesAgent(
 	return strings.TrimSpace(agentResourceID) == strings.TrimSpace(agent.ID) &&
 		scope.Normalize() == agent.Scope.Normalize() &&
 		owner.Normalize() == agent.Owner.Normalize()
+}
+
+// projectionHeartbeat selects the same package-owned artifact as ResolveHeartbeatPolicy.
+func (c *resourceAgentCatalog) projectionHeartbeat(scope tools.Scope) string {
+	workspace := &workspacepkg.ResolvedWorkspace{ProfileID: scope.ProfileID, ID: scope.WorkspaceID}
+	record, found := c.lookupAgentRecord(scope.AgentName, agentCatalogLensFor(workspace))
+	if !found || record.Owner.Kind.Normalize() != extensionResourceOwnerKind {
+		return ""
+	}
+	resource, found := c.lookupHeartbeatForAgent(record)
+	if !found {
+		return ""
+	}
+	return resource.SourcePath + "\x00" + resource.Body
 }

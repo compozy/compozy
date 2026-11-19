@@ -19,16 +19,21 @@ type NativeAvailabilityGroup struct {
 
 // NativeTool binds one descriptor to an in-process daemon handler.
 type NativeTool struct {
-	Descriptor        Descriptor
-	Call              NativeToolFunc
-	Availability      NativeAvailabilityFunc
-	AvailabilityGroup *NativeAvailabilityGroup
+	Descriptor   Descriptor
+	Call         NativeToolFunc
+	Availability *NativeAvailabilityGroup
+}
+
+type nativeToolEntry struct {
+	Descriptor   Descriptor
+	Call         NativeToolFunc
+	Availability NativeAvailabilityFunc
 }
 
 // NativeProvider serves daemon-compiled native_go tools.
 type NativeProvider struct {
 	source             SourceRef
-	tools              map[ToolID]*NativeTool
+	tools              map[ToolID]*nativeToolEntry
 	ids                []ToolID
 	sharedAvailability []NativeAvailabilityFunc
 	scopedAvailability []NativeAvailabilityFunc
@@ -43,7 +48,7 @@ func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProv
 	}
 	provider := &NativeProvider{
 		source: source,
-		tools:  make(map[ToolID]*NativeTool, len(nativeTools)),
+		tools:  make(map[ToolID]*nativeToolEntry, len(nativeTools)),
 		ids:    make([]ToolID, 0, len(nativeTools)),
 	}
 	groups := make(map[*NativeAvailabilityGroup]bool)
@@ -65,23 +70,21 @@ func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProv
 				fmt.Sprintf("duplicate native tool %q", id),
 			)
 		}
-		group := nativeTool.AvailabilityGroup
-		if group != nil {
-			nativeTool.Availability = group.Check
+		entry := &nativeToolEntry{Descriptor: cloneDescriptor(descriptor), Call: nativeTool.Call}
+		group := nativeTool.Availability
+		if group != nil && group.Check != nil {
+			entry.Availability = group.Check
+			if !groups[group] {
+				groups[group] = true
+				if group.Shared {
+					provider.sharedAvailability = append(provider.sharedAvailability, group.Check)
+				} else {
+					provider.scopedAvailability = append(provider.scopedAvailability, group.Check)
+				}
+			}
 		}
-		provider.tools[id] = cloneNativeTool(nativeTool)
+		provider.tools[id] = entry
 		provider.ids = append(provider.ids, id)
-		if nativeTool.Availability == nil || groups[group] {
-			continue
-		}
-		if group != nil {
-			groups[group] = true
-		}
-		if group != nil && group.Shared {
-			provider.sharedAvailability = append(provider.sharedAvailability, group.Check)
-		} else {
-			provider.scopedAvailability = append(provider.scopedAvailability, nativeTool.Availability)
-		}
 	}
 	slices.Sort(provider.ids)
 	return provider, nil
@@ -232,15 +235,4 @@ func validateNativeTool(source SourceRef, nativeTool *NativeTool) error {
 		return NewValidationError("descriptor.backend.native_name", ReasonHandlerMissing, "native_name is required")
 	}
 	return nil
-}
-
-func cloneNativeTool(src *NativeTool) *NativeTool {
-	if src == nil {
-		return nil
-	}
-	return &NativeTool{
-		Descriptor:   cloneDescriptor(src.Descriptor),
-		Call:         src.Call,
-		Availability: src.Availability,
-	}
 }

@@ -84,9 +84,10 @@ func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) 
 		r.snapshots[id] = cached
 	}
 	r.mu.Unlock()
-	_, boundVersioned := local.(boundMCPSummaryIdentity)
+	bound, boundVersioned := local.(boundMCPSummaryIdentity)
 	fenceChanged := cached.fence.redaction != fence.redaction ||
-		cached.fence != fence && (!boundVersioned || inputs.policy == "")
+		cached.fence != fence &&
+			(!boundVersioned || inputs.policy == "" || bound.policy.session.Kind == session.SessionTypeTriage)
 	if !found || local == nil || fenceChanged || cached.identity != local || cached.scopeKey != inputs.fingerprint ||
 		!r.state.runtimeMCPInventory.matches(cached.inventory) {
 		cached, err = r.buildSessionMCPSummary(ctx, scope, inputs, fence, local)
@@ -103,9 +104,20 @@ func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) 
 func (r *sessionMCPReadModel) buildSessionMCPSummary(
 	ctx context.Context, scope tools.Scope, inputs sessionMCPScopeSnapshot, fence sessionMCPReadFence, local any,
 ) (sessionMCPSummarySnapshot, error) {
+	stable := func() bool { return true }
+	if bound, ok := local.(boundMCPSummaryIdentity); ok {
+		if resolver, native := r.authority.(*nativeToolPolicyResolver); native {
+			ctx, stable = resolver.beginProjectionPolicyBuild(ctx, scope, &bound.policy)
+			defer stable()
+			ctx = r.registry.FreshReadContext(ctx)
+		}
+	}
 	info, err := storedSessionStatus(ctx, r.state.sessions, scope.SessionID)
 	if err != nil {
 		return sessionMCPSummarySnapshot{}, err
+	}
+	if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok {
+		build.checkSession(scope.SessionID, info)
 	}
 	collection := inputs.collection
 	if info.ProfileID != scope.ProfileID || info.WorkspaceID != scope.WorkspaceID {
@@ -137,7 +149,7 @@ func (r *sessionMCPReadModel) buildSessionMCPSummary(
 	}
 	afterFence.inventory = 0
 	if local != nil && local == after && scope == currentScope && fence == afterFence &&
-		r.state.runtimeMCPInventory.matches(inventory) {
+		r.state.runtimeMCPInventory.matches(inventory) && stable() {
 		r.mu.Lock()
 		if r.snapshots == nil {
 			r.snapshots = make(map[string]sessionMCPSummarySnapshot)

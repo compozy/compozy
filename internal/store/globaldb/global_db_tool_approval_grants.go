@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strings"
@@ -243,9 +244,49 @@ func (g *ApprovalGrantRepo) CheckInApprovalProjection(ctx context.Context, scope
 	if err := g.checkReady(ctx, "observe check-in approvals"); err != nil {
 		return "", err
 	}
-	return g.readQueries.ReadCheckInApprovalDecisions(ctx, sqlcgen.ReadCheckInApprovalDecisionsParams{
-		ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID, AgentName: scope.AgentName,
+	rows, err := g.mcpProjectionQueries(ctx).
+		ReadCheckInApprovalDecisions(ctx, sqlcgen.ReadCheckInApprovalDecisionsParams{
+			ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID, AgentName: scope.AgentName,
+		})
+	if err != nil {
+		return "", err
+	}
+	if len(rows) > 128 {
+		return "", errors.New("store: check-in approval observation exceeds 128 rows")
+	}
+	decisions := make([][4]string, 0, len(rows))
+	for _, row := range rows {
+		if row.AccessScope == "" {
+			decisions = append(decisions, [4]string{row.AgentName, row.ToolID, row.InputDigest, row.Decision})
+		}
+	}
+	if len(decisions) == 0 {
+		return "", nil
+	}
+	data, err := json.Marshal(decisions)
+	return string(data), err
+}
+
+// CheckInApprovalDecision reads the same decision as LookupApprovalGrant without recording a call.
+func (g *ApprovalGrantRepo) CheckInApprovalDecision(ctx context.Context, key toolspkg.ApprovalGrantKey) (bool, error) {
+	if err := g.checkReady(ctx, "read check-in approval decision"); err != nil {
+		return false, err
+	}
+	key = key.Normalize()
+	if err := key.Validate(); err != nil {
+		return false, err
+	}
+	if key.AccessScope != "" {
+		return false, toolspkg.ErrApprovalGrantInvalid
+	}
+	decision, err := g.readQueries.ReadCheckInApprovalDecision(ctx, sqlcgen.ReadCheckInApprovalDecisionParams{
+		ProfileID: key.ProfileID, WorkspaceID: key.WorkspaceID, AgentName: key.AgentName,
+		ToolID: key.ToolID.String(), InputDigest: key.InputDigest,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return decision == string(toolspkg.ApprovalGrantAllow), err
 }
 
 // RevokeApprovalGrant removes one profile/workspace-scoped remembered decision.

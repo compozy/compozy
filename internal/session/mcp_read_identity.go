@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/filesnap"
@@ -68,6 +69,15 @@ func (m *Manager) SessionMCPSummary(ctx context.Context, id string) (*MCPSummary
 	return &result.MCPSummary, nil
 }
 
+// SetMCPPermissionPolicy replaces the live lineage ceiling under the session lock.
+func (s *Session) SetMCPPermissionPolicy(policy store.SessionPermissionPolicy) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	lineage := store.NormalizeSessionLineage(s.ID, s.Lineage)
+	lineage.PermissionPolicy = store.NormalizeSessionPermissionPolicy(policy)
+	s.Lineage = lineage
+}
+
 // MCPPolicyIdentity identifies the active session inputs read by native tool policy.
 // Session lineage updates replace the immutable lineage pointer under the session lock.
 type MCPPolicyIdentity struct {
@@ -84,6 +94,18 @@ type MCPPolicyIdentity struct {
 // Scope returns the policy owner captured from a live session, or the zero scope for stored metadata.
 func (i MCPPolicyIdentity) Scope() tools.Scope {
 	return tools.Scope{ProfileID: i.profile, WorkspaceID: i.workspace, AgentName: i.agent}
+}
+
+// MatchesPolicyInfo compares a live observation with the policy inputs a build consumed.
+func (i MCPPolicyIdentity) MatchesPolicyInfo(info *Info) bool {
+	if i.session == nil {
+		// The before and after file observations fence inactive metadata.
+		return true
+	}
+	return info != nil && i.profile == info.ProfileID && i.workspace == info.WorkspaceID &&
+		i.agent == info.AgentName && i.permissions == info.EffectivePermissions &&
+		i.access == info.EffectiveWorkspaceAccess && normalizeSessionType(i.Kind) == info.Type &&
+		reflect.DeepEqual(store.NormalizeSessionLineage(info.ID, i.lineage), info.Lineage)
 }
 
 func (m *Manager) MCPPolicyIdentity(id string) (MCPPolicyIdentity, bool) {

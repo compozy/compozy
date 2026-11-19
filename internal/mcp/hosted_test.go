@@ -1234,11 +1234,13 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		available := true
 		const id tools.ToolID = "compozy__observed_tool"
 		native := hostedRuntimeNativeTool(id, tools.RiskRead, true)
-		native.Availability = func(_ context.Context, scope tools.Scope) tools.Availability {
-			if !available && scope.SessionID == "affected" {
-				return tools.Unavailable(tools.ReasonDependencyMissing)
-			}
-			return tools.Available()
+		native.Availability = &tools.NativeAvailabilityGroup{
+			Check: func(_ context.Context, scope tools.Scope) tools.Availability {
+				if !available && scope.SessionID == "affected" {
+					return tools.Unavailable(tools.ReasonDependencyMissing)
+				}
+				return tools.Available()
+			},
 		}
 		provider, err := tools.NewNativeProvider(tools.BuiltinSource(), native)
 		if err != nil {
@@ -1720,11 +1722,13 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		executable := hostedTestExecutable(t, "compozy")
 		alpha := hostedRuntimeNativeTool("compozy__alpha", tools.RiskRead, true)
 		beta := hostedRuntimeNativeTool("compozy__beta", tools.RiskRead, true)
-		beta.Availability = func(_ context.Context, scope tools.Scope) tools.Availability {
-			if scope.SessionID == "sess-unavailable" {
-				return tools.Unavailable(tools.ReasonDependencyMissing)
-			}
-			return tools.Available()
+		beta.Availability = &tools.NativeAvailabilityGroup{
+			Check: func(_ context.Context, scope tools.Scope) tools.Availability {
+				if scope.SessionID == "sess-unavailable" {
+					return tools.Unavailable(tools.ReasonDependencyMissing)
+				}
+				return tools.Available()
+			},
 		}
 		native, err := tools.NewNativeProvider(tools.BuiltinSource(), alpha, beta)
 		if err != nil {

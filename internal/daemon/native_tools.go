@@ -105,9 +105,9 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 			}
 		}
 		nativeTools = append(nativeTools, toolspkg.NativeTool{
-			Descriptor:        descriptor,
-			Call:              binding.call,
-			AvailabilityGroup: binding.availability,
+			Descriptor:   descriptor,
+			Call:         binding.call,
+			Availability: binding.availability,
 		})
 	}
 	return toolspkg.NewNativeProvider(builtintools.Source(), nativeTools...)

@@ -1300,9 +1300,7 @@ func TestSessionMCPReadModel(t *testing.T) {
 	t.Run("Should refresh only the bound instance policy that changed", func(t *testing.T) {
 		t.Parallel()
 		fixture := newInstanceMCPProjectionFixture(t, 4, 3, 2, false)
-		if err := fixture.model.refresh(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		fixture.warmProjections(t)
 		tick := func(want ...string) {
 			t.Helper()
 			clear(fixture.policyReads)
@@ -1414,18 +1412,118 @@ func TestSessionMCPReadModel(t *testing.T) {
 		assertWritable(false)
 		tick()
 	})
+	// Invariant: resolved check-in configuration invalidates only its durable summary.
+	// Owner: daemon MCP read model; canonical suite: session MCP reads.
+	t.Run("Should publish triage summary changes when check-in configuration changes", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		fixture, approve, _ := newCheckInProjectionAuthorityFixture(t)
+		triage := fixture.ids[2]
+		if _, known := fixture.policy.ProjectionPolicyIdentity(ctx, toolspkg.Scope{SessionID: triage}); !known {
+			t.Fatal("boot approval service did not produce a known triage identity")
+		}
+		approve()
+		query := store.EventQuery{Type: session.EventTypeMCPChanged, Limit: 20}
+		refresh := func(want int) {
+			t.Helper()
+			for range 2 {
+				if err := fixture.model.refresh(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, id := range fixture.ids {
+				events, err := fixture.sessions.Events(ctx, id, query)
+				expected := 1
+				if id == triage {
+					expected = want
+				}
+				if err != nil || len(events) != expected {
+					t.Fatalf("session %s summary event count = %d, want %d, err=%v", id, len(events), expected, err)
+				}
+			}
+		}
+		invalidate := func() { fixture.model.state.workspaceResolver.Invalidate("ws-instance-perf") }
+		refresh(1)
+		fixture.config.Agents.AlwaysOn.CheckInTools = "disabled"
+		invalidate()
+		refresh(2)
+		fixture.config.Agents.AlwaysOn.CheckInTools = "enabled"
+		invalidate()
+		refresh(3)
+		fixture.config.Agents.Heartbeat.MaxBodyBytes = 1024
+		fixture.config.Agents.Heartbeat.ContextProjectionBytes = 512
+		invalidate()
+		refresh(4)
+	})
+
+	// Invariant: a build which consumes a temporary committed approval cannot publish a reusable entry.
+	// Owner: daemon MCP read model and hosted projection policy; canonical suite: session MCP reads.
+	t.Run("Should discard both snapshots after approval changes during a build", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		fixture, approve, revoke := newCheckInProjectionAuthorityFixture(t)
+		triage := fixture.ids[2]
+		arm := func() {
+			ran := false
+			fixture.policy.aroundResolve = func(scope toolspkg.Scope) func() {
+				if ran || scope.SessionID != triage {
+					return nil
+				}
+				ran = true
+				approve()
+				return revoke
+			}
+		}
+		arm()
+		if err := fixture.model.refresh(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, cached := fixture.model.snapshots[triage]; cached {
+			t.Fatal("summary cached a build that consumed intermediate approval")
+		}
+		fixture.policy.aroundResolve = nil
+		if err := fixture.model.refresh(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if got := fixture.model.snapshots[triage].summary.Usable; got != 0 {
+			t.Fatalf("revoked triage summary lists %d usable servers", got)
+		}
+
+		arm()
+		fixture.now = fixture.now.Add(fixture.hosted.StreamRefreshInterval())
+		first, err := fixture.hosted.StreamSnapshot(ctx, fixture.binds[2], fixture.peer)
+		if err != nil || len(first.Tools) != 1 {
+			t.Fatalf("first build should consume the temporary approval: %d tools, %v", len(first.Tools), err)
+		}
+		fixture.policy.aroundResolve = nil
+		fixture.now = fixture.now.Add(fixture.hosted.StreamRefreshInterval())
+		next, err := fixture.hosted.StreamSnapshot(ctx, fixture.binds[2], fixture.peer)
+		if err != nil || len(next.Tools) != 0 {
+			t.Fatalf("revoked build retained intermediate approval: %d tools, %v", len(next.Tools), err)
+		}
+	})
+
 	// Invariant: durable adoption and archive invalidate warm hosted binds for
 	// the adopted root and its descendants. Owner: daemon MCP policy projection.
 	t.Run("Should observe instance adoption and archive across an open lineage", func(t *testing.T) {
 		t.Parallel()
 		fixture := newInstanceMCPProjectionFixture(t, 3, 0, 2, true)
 		root, descendant, unrelated := fixture.ids[0], fixture.ids[1], fixture.ids[2]
+		fixture.warmProjections(t)
 		info, err := fixture.sessions.StoredStatus(t.Context(), root)
 		if err != nil {
 			t.Fatal(err)
 		}
 		wake := func(want bool) {
 			t.Helper()
+			clear(fixture.sessions.reads)
+			if err := fixture.model.refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if (fixture.sessions.reads[root] != 0) != want || (fixture.sessions.reads[descendant] != 0) != want ||
+				fixture.sessions.reads[unrelated] != 0 {
+				t.Fatalf("want changed lineage=%v, summary reads=%v", want, fixture.sessions.reads)
+			}
 			clear(fixture.policyReads)
 			fixture.now = fixture.now.Add(fixture.hosted.StreamRefreshInterval())
 			for i, bind := range fixture.binds {
@@ -1553,19 +1651,19 @@ func TestSessionMCPReadModel(t *testing.T) {
 		writePolicy("")
 		publish("agent policy restored")
 
-		permissions := active.EffectivePermissions
-		active.EffectivePermissions = string(compozyconfig.PermissionModeDenyAll)
+		permissions := info.EffectivePermissions
+		active.SetEffectivePermissions(string(compozyconfig.PermissionModeDenyAll))
 		publish("permission mode")
-		active.EffectivePermissions = permissions
+		active.SetEffectivePermissions(permissions)
 		publish("permission mode restored")
 
-		lineage := active.Lineage
+		lineage := info.Lineage
 		limited := store.CloneSessionLineage(store.NormalizeSessionLineage(id, lineage))
 		limited.PermissionPolicy.MCPServersMode = store.PermissionList
 		limited.PermissionPolicy.MCPServers = nil
-		active.Lineage = limited
+		active.SetMCPPermissionPolicy(limited.PermissionPolicy)
 		publish("lineage ceiling")
-		active.Lineage = lineage
+		active.SetMCPPermissionPolicy(lineage.PermissionPolicy)
 		publish("lineage restored")
 
 		target := mcpauth.Target{ServerName: "fixture", Owner: "manual", Scope: mcpauth.ScopeUser}
@@ -2477,4 +2575,43 @@ func newTestRuntimeMCPInventory(t testing.TB) *runtimeMCPInventory {
 		t.Fatal(err)
 	}
 	return inventory
+}
+
+func newCheckInProjectionAuthorityFixture(t *testing.T) (*instanceMCPProjectionFixture, func(), func()) {
+	t.Helper()
+	fixture := newInstanceMCPProjectionFixture(t, 4, 3, 1, false)
+	const writable = "mcp__fixture__tool_000"
+	dir := filepath.Join(fixture.agentRoot, "fixture-0")
+	body := "---\nversion: 1\ncheck_ins:\n  allow_writes: [" + writable + "]\n---\n" +
+		strings.Repeat("Check the workspace. ", 80)
+	if err := os.WriteFile(filepath.Join(dir, "HEARTBEAT.md"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest, err := heartbeat.AuthorityDigest(heartbeat.CheckInsPolicy{AllowWrites: []string{writable}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := fixture.db.Instances()
+	return fixture, func() {
+			t.Helper()
+			if err := repo.ApproveAuthority(
+				t.Context(),
+				store.DefaultProfileID,
+				dir,
+				digest,
+				"http",
+				fixture.now,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}, func() {
+			t.Helper()
+			if err := repo.RevokeAuthority(t.Context(), store.DefaultProfileID, dir); err != nil {
+				t.Fatal(err)
+			}
+		}
 }

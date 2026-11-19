@@ -32,12 +32,10 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func BenchmarkSessionMCPSummaryIdleTick(b *testing.B) {
+func BenchmarkBoundSessionMCPSummaryIdleTick(b *testing.B) {
 	fixture := newInstanceMCPProjectionFixture(b, 22, 0, 806, false)
 	fixture.model.state.sessions = fixture.sessions.Manager
-	if err := fixture.model.refresh(b.Context()); err != nil {
-		b.Fatal(err)
-	}
+	fixture.warmProjections(b)
 	b.ReportAllocs()
 	for b.Loop() {
 		if err := fixture.model.refresh(b.Context()); err != nil {
@@ -46,7 +44,7 @@ func BenchmarkSessionMCPSummaryIdleTick(b *testing.B) {
 	}
 }
 
-func BenchmarkSessionMCPInventoryIdleTick(b *testing.B) {
+func BenchmarkSessionMCPSummaryIdleTick(b *testing.B) {
 	const toolsPerServer = 403
 	executor := &sessionMCPExecutorStub{descriptors: make([]toolspkg.MCPToolDescriptor, toolsPerServer)}
 	for i := range executor.descriptors {
@@ -493,6 +491,8 @@ func BenchmarkSchedulerTaskReadProjection(b *testing.B) {
 // hosted read paths, with a fake ACP process and a deterministic upstream catalog.
 type instanceMCPProjectionFixture struct {
 	model                            *sessionMCPReadModel
+	config                           *compozyconfig.Config
+	policy                           *projectionFixturePolicy
 	hosted                           *mcppkg.HostedService
 	db                               *globaldb.GlobalDB
 	sessions                         *projectionFixtureSessions
@@ -568,19 +568,24 @@ func newInstanceMCPProjectionFixture(
 		}
 	})
 	fixture := &instanceMCPProjectionFixture{
-		db: db, sessions: &projectionFixtureSessions{Manager: manager, reads: make(map[string]int)},
+		db: db, config: &cfg, sessions: &projectionFixtureSessions{Manager: manager, reads: make(map[string]int)},
 		now: time.Now(), policyReads: make(map[string]int), agentRoot: agents.root,
 	}
-	state := &bootState{cfg: cfg, registry: db, sessions: fixture.sessions, workspaceResolver: resolver,
+	state := &bootState{cfg: cfg, registry: db, sessions: manager, workspaceResolver: resolver,
 		toolProjectionEpoch: mcppkg.NewProjectionEpoch(), mcpAuthGeneration: mcpauth.NewMutationGeneration()}
-	policy, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
-		Config: &cfg, Sessions: manager, WorkspaceResolver: resolver, AgentResolver: agents,
-		ApprovalGrants: db.ApprovalGrantRepo, ApprovalAvailable: adoption,
-	})
+	if _, _, err := (&Daemon{}).bootToolApprovalServices(state); err != nil {
+		t.Fatal(err)
+	}
+	policy, err := newNativeToolPolicyResolverForBoot(state)
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy.readFence, policy.instanceCallers = state.sessionMCPReadFence, db.Instances()
+	// Substitute fixture configuration and the agent/catalog sources. The approval
+	// service, instance repository and policy observer retain their boot wiring.
+	policy.cfg, policy.agentResolver, policy.approvalAvailable = &cfg, agents, adoption
+	policy.extensionRegistry, policy.mcpSourceGrants, policy.mcpResourceNames = nil, nil, nil
+	policy.profileNames = nil
+	state.sessions = fixture.sessions
 
 	manager.SetMCPAuthorityResolver(policy)
 	for i := range count {
@@ -689,12 +694,9 @@ func newInstanceMCPProjectionFixture(
 		providers = append(providers, coordination)
 		toolCount += len(native)
 	}
+	fixture.policy = &projectionFixturePolicy{nativeToolPolicyResolver: policy, reads: fixture.policyReads}
 	registry, err := toolspkg.NewRegistry(toolspkg.WithProviders(providers...), toolspkg.WithPolicyInputResolver(
-		&projectionFixturePolicy{
-			nativeToolPolicyResolver: policy,
-			reads:                    fixture.policyReads,
-		},
-		toolspkg.ToolsetCatalog{},
+		fixture.policy, toolspkg.ToolsetCatalog{},
 	))
 	if err != nil {
 		t.Fatal(err)
@@ -753,6 +755,24 @@ func newInstanceMCPProjectionFixture(
 	return fixture
 }
 
+// warmProjections fills both caches after asynchronous startup publication.
+func (f *instanceMCPProjectionFixture) warmProjections(t testing.TB) {
+	t.Helper()
+	for range 3 {
+		if err := f.model.refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		f.now = f.now.Add(f.hosted.StreamRefreshInterval())
+		for i, bind := range f.binds {
+			result, err := f.hosted.StreamProjection(t.Context(), bind, f.peer, f.digests[i])
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.digests[i] = result.Digest
+		}
+	}
+}
+
 type projectionFixtureAuth struct{ status string }
 
 func (f *projectionFixtureAuth) Status(context.Context, toolspkg.SourceRef, string) (toolspkg.MCPAuthStatus, error) {
@@ -761,11 +781,18 @@ func (f *projectionFixtureAuth) Status(context.Context, toolspkg.SourceRef, stri
 
 type projectionFixturePolicy struct {
 	*nativeToolPolicyResolver
-	reads map[string]int
+	reads         map[string]int
+	aroundResolve func(toolspkg.Scope) func()
 }
 
 func (p *projectionFixturePolicy) Resolve(ctx context.Context, scope toolspkg.Scope) (toolspkg.PolicyInputs, error) {
 	p.reads[scope.SessionID]++
+	if p.aroundResolve != nil {
+		after := p.aroundResolve(scope)
+		if after != nil {
+			defer after()
+		}
+	}
 	return p.nativeToolPolicyResolver.Resolve(ctx, scope)
 }
 
@@ -856,9 +883,7 @@ func BenchmarkInstanceMCPIdleTick(b *testing.B) {
 		b.Run(path, func(b *testing.B) {
 			fixture := newInstanceMCPProjectionFixture(b, 22, 5, 806, false)
 			fixture.model.state.sessions = fixture.sessions.Manager
-			if err := fixture.model.refresh(b.Context()); err != nil {
-				b.Fatal(err)
-			}
+			fixture.warmProjections(b)
 			b.ReportAllocs()
 			for b.Loop() {
 				fixture.now = fixture.now.Add(fixture.hosted.StreamRefreshInterval())

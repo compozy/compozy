@@ -54,7 +54,10 @@ func (i *boundToolApprovalIssuer) CreateToolApproval(
 func (d *Daemon) bootToolApprovalServices(
 	state *bootState,
 ) (*toolspkg.ApprovalTokenStore, *toolApprovalBridge, error) {
-	grantStore, ok := state.registry.(toolspkg.ApprovalGrantStore)
+	grantStore, ok := state.registry.(interface {
+		toolspkg.ApprovalGrantStore
+		mcpProjectionGrantReader
+	})
 	if !ok {
 		return nil, nil, errors.New("daemon: global registry does not support durable tool approval grants")
 	}
@@ -64,7 +67,9 @@ func (d *Daemon) bootToolApprovalServices(
 		state.logger,
 		d.now,
 	)
+	approvalGrants.projectionStore = grantStore
 	state.deps.ApprovalGrants = approvalGrants
+	state.approvalProjection = approvalGrants
 	approvalTokens := toolspkg.NewApprovalTokenStore(state.cfg.Tools.Policy.ApprovalTimeout())
 	return approvalTokens, newBootToolApprovalBridge(state, approvalTokens, approvalGrants), nil
 }

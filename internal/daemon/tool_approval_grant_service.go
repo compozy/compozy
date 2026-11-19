@@ -23,10 +23,11 @@ type approvalGrantEventContent struct {
 }
 
 type toolApprovalGrantService struct {
-	store  toolspkg.ApprovalGrantStore
-	events store.EventSummaryStore
-	logger *slog.Logger
-	now    func() time.Time
+	store           toolspkg.ApprovalGrantStore
+	projectionStore mcpProjectionGrantReader
+	events          store.EventSummaryStore
+	logger          *slog.Logger
+	now             func() time.Time
 }
 
 var _ toolspkg.ApprovalGrantStore = (*toolApprovalGrantService)(nil)
@@ -54,6 +55,37 @@ func (s *toolApprovalGrantService) LookupApprovalGrant(
 		return toolspkg.ApprovalGrant{}, false, errors.New("daemon: tool approval grant store is unavailable")
 	}
 	return s.store.LookupApprovalGrant(ctx, key)
+}
+
+func (s *toolApprovalGrantService) CheckInApprovalProjection(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) (string, error) {
+	if s == nil || s.projectionStore == nil {
+		return "", errors.New("daemon: check-in approval observation is unavailable")
+	}
+	scope = normalizeToolPolicyScope(scope)
+	if err := (store.ReadScope{ProfileID: scope.ProfileID}).Validate(); err != nil {
+		return "", err
+	}
+	if scope.WorkspaceID == "" {
+		// A global check-in cannot use workspace grants.
+		return "", nil
+	}
+	return s.projectionStore.CheckInApprovalProjection(ctx, scope)
+}
+
+func (s *toolApprovalGrantService) CheckInApprovalDecision(
+	ctx context.Context,
+	key toolspkg.ApprovalGrantKey,
+) (bool, error) {
+	if s == nil || s.projectionStore == nil {
+		return false, errors.New("daemon: check-in approval observation is unavailable")
+	}
+	if err := (store.ReadScope{ProfileID: key.ProfileID}).Validate(); err != nil {
+		return false, err
+	}
+	return s.projectionStore.CheckInApprovalDecision(ctx, key)
 }
 
 func (s *toolApprovalGrantService) PutApprovalGrant(

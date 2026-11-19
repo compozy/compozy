@@ -19,6 +19,20 @@ type projectionPolicyObserver interface {
 	ProjectionPolicyIdentity(context.Context, Scope) (any, bool)
 }
 
+// BeginProjectionBuild captures a policy fence used only when populating the cache.
+func (r *RuntimeRegistry) BeginProjectionBuild(
+	ctx context.Context,
+	scope Scope,
+	observed any,
+) (context.Context, func() bool) {
+	if policy, ok := r.policyResolver.(interface {
+		BeginProjectionBuild(context.Context, Scope, any) (context.Context, func() bool)
+	}); ok {
+		return policy.BeginProjectionBuild(ctx, scope, observed)
+	}
+	return ctx, func() bool { return true }
+}
+
 // ObserveProjection reads the mutable inputs separately from policy resolution or projection.
 // The caller rotates listings at its refresh interval and on epoch changes.
 func (r *RuntimeRegistry) ObserveProjection(ctx context.Context, scope Scope) (ProjectionObservation, bool) {

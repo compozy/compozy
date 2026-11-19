@@ -131,13 +131,15 @@ func (s *HostedService) streamProjection(
 		!now.Before(cached.builtAt) && s.projectionFence() == fence
 	if !reused {
 		var err error
-		ctx = context.WithValue(ctx, hostedProjectionObservationKey{}, true)
-		response, err = s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+		buildCtx, stable := runtime.BeginProjectionBuild(ctx, record.scope(), observation.Policy)
+		defer stable()
+		buildCtx = runtime.FreshReadContext(context.WithValue(buildCtx, hostedProjectionObservationKey{}, true))
+		response, err = s.projectionForGeneration(buildCtx, record, registry, s.boundedUnversionedProjection)
 		if err != nil {
 			return HostedProjectionResponse{}, err
 		}
 		after, known := runtime.ObserveProjection(listingCtx, record.scope())
-		if !known || after != observation {
+		if !known || after != observation || !stable() {
 			return response, nil
 		}
 	}
@@ -223,7 +225,7 @@ func (s *HostedService) boundedUnversionedProjection(
 		fence = after
 	}
 	s.mu.Lock()
-	if s.ownsBindRecord(record) {
+	if s.ownsBindRecord(record) && ctx.Value(hostedProjectionObservationKey{}) == nil {
 		s.projectionCache.storeUnversioned(record.bindID, hostedUnversionedProjection{
 			fence: fence, builtAt: builtAt, response: response,
 		})

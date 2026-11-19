@@ -59,12 +59,12 @@ func (r *InstanceRepo) MCPProjectionState(
 		return agentinstance.ProjectionState{}, err
 	}
 	if sessionType != "" && sessionType != "triage" {
-		ancestry, err := r.readQueries.SessionMayHaveInstanceAncestry(ctx, sessionID)
+		ancestry, err := r.mcpProjectionQueries(ctx).SessionMayHaveInstanceAncestry(ctx, sessionID)
 		if err != nil || ancestry.Valid && !ancestry.Bool {
 			return agentinstance.ProjectionState{}, err
 		}
 	}
-	row, err := r.readQueries.GetInstanceCaller(ctx, sessionID)
+	row, err := r.mcpProjectionQueries(ctx).GetInstanceCaller(ctx, sessionID)
 	if err != nil {
 		return agentinstance.ProjectionState{}, err
 	}
@@ -80,7 +80,7 @@ func (r *InstanceRepo) MCPProjectionState(
 	}
 	if sessionType == "" {
 		sessionType = row.SessionType
-		state.WorkspaceID, err = r.readQueries.GetSessionWorkspaceID(ctx, sessionID)
+		state.WorkspaceID, err = r.mcpProjectionQueries(ctx).GetSessionWorkspaceID(ctx, sessionID)
 		if err != nil {
 			return agentinstance.ProjectionState{}, err
 		}
@@ -97,7 +97,7 @@ func (r *InstanceRepo) MCPProjectionState(
 	if state.InstanceID == "" {
 		return state, nil
 	}
-	instance, err := r.readQueries.GetAgentInstance(ctx, state.InstanceID)
+	instance, err := r.mcpProjectionQueries(ctx).GetAgentInstance(ctx, state.InstanceID)
 	if err != nil {
 		return agentinstance.ProjectionState{}, err
 	}

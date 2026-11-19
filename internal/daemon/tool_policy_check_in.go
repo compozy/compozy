@@ -82,10 +82,16 @@ func (r *nativeToolPolicyResolver) applyCheckInAuthority(
 	}
 	authored, digest, dir, err := r.cachedAuthorityPolicy(ctx, agent, info, workspace, cfg)
 	if err != nil {
+		if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok {
+			build.mismatch.Store(true)
+		}
 		return nil
 	}
 	approved, err := repo.ApprovedAuthority(ctx, info.ProfileID, dir)
 	if err != nil {
+		if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok {
+			build.mismatch.Store(true)
+		}
 		return nil
 	}
 	if digest != "" && approved == digest {
@@ -238,6 +244,13 @@ func (r *nativeToolPolicyResolver) checkInApprovalAllows(
 	}, descriptor.ID)
 	if err != nil {
 		return false
+	}
+	if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok && r.approvalProjection != nil {
+		allowed, err := r.approvalProjection.CheckInApprovalDecision(ctx, key)
+		if err != nil {
+			build.mismatch.Store(true)
+		}
+		return err == nil && allowed
 	}
 	grant, found, err := r.approvalGrants.LookupApprovalGrant(ctx, key)
 	return err == nil && found && grant.Decision == toolspkg.ApprovalGrantAllow
