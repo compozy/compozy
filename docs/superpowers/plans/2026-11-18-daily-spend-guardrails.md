@@ -2,6 +2,15 @@
 
 This plan records the first implementation slice of [issue #1848](https://github.com/compozy/compozy/issues/1848). The first slice covers always-on instances. Automation, session and profile enforcement will need separate attribution and admission coverage before the issue can close.
 
+## Execution continuity after the 2026-11-19 executor loss
+
+The first implementation was unavailable in the replacement workspace. The
+checked PR branch still pointed at the plan-only commit `69e4c805`; no pushed
+implementation checkpoint was found. Record and apply [L-042](../../_memory/lessons/L-042-push-reviewed-checkpoints-before-heavy-validation.md):
+review and push small, focused commits **before** memory-intensive test runs,
+serialize heavy Go compilations, keep the PR in draft throughout, and never
+confuse checkpoint publication with successful completion or CI validation.
+
 ## Trace the current runtime
 
 1. Start with `internal/store/globaldb/global_db_observe_token_usage.go`, `internal/store/sessiondb/session_token_usage.go` and `internal/store/token_stats_cost.go`. Identify the authoritative usage receipt, when it is committed and whether it can be tied to an always-on instance after restart, replay or session replacement.
