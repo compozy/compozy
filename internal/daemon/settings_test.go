@@ -2630,6 +2630,14 @@ func TestSettingsMCPDisabled(t *testing.T) {
 		}
 		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{record, alias, inherited})
 		consent := settingsMCPConsent{state: state}
+		definitions, err := consent.PublishedMCPDefinitions(t.Context(), settingspkg.MCPAuthTargetRequest{
+			Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID,
+		})
+		if err != nil || len(definitions) != 1 ||
+			definitions[0].ManagementTarget.Scope != mcpauth.ScopeWorkspaceProfile ||
+			definitions[0].Target.Scope != mcpauth.ScopeWorkspace {
+			t.Fatalf("workspace projection of the shared file: %+v, %v", definitions, err)
+		}
 		svc, err := settingspkg.NewService(home, settingspkg.Dependencies{
 			ProfileResolver: state.profiles, MCPConsent: consent,
 			WorkspaceResolver:       state.workspaceResolver,
