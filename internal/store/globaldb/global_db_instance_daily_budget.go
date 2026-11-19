@@ -157,6 +157,12 @@ func (r *InstanceRepo) DailyBudgetLimits(
 	if err != nil {
 		return agentinstance.DailyBudgetLimits{}, fmt.Errorf("store: read instance daily budget limits: %w", err)
 	}
+	return decodeInstanceDailyBudgetLimits(row)
+}
+
+func decodeInstanceDailyBudgetLimits(
+	row sqlcgen.GetAgentInstanceDailyBudgetLimitsRow,
+) (agentinstance.DailyBudgetLimits, error) {
 	limits := agentinstance.DailyBudgetLimits{}
 	if row.TokenCap.Valid {
 		limits.Tokens = &row.TokenCap.Int64

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
@@ -149,6 +150,31 @@ func (r *InstanceRepo) Resume(
 			}
 			if row.State == "starting" {
 				return agentinstance.ErrStarting
+			}
+			if row.State == "paused" && row.PauseReason == "daily_budget" {
+				budgetRow, budgetErr := q.GetAgentInstanceDailyBudgetLimits(ctx, id)
+				if budgetErr != nil && !errors.Is(budgetErr, sql.ErrNoRows) {
+					return fmt.Errorf("store: read budget on resume: %w", budgetErr)
+				}
+				if budgetErr == nil {
+					limits, err := decodeInstanceDailyBudgetLimits(budgetRow)
+					if err != nil {
+						return err
+					}
+					if limits.Tokens != nil || limits.USD != nil {
+						usage, err := readDailyBudgetUsage(ctx, q, row.ProfileID, id, store.LocalDay(r.now()))
+						if err != nil {
+							return err
+						}
+						assessment, err := agentinstance.EvaluateDailyBudget(limits, usage, false)
+						if err != nil {
+							return err
+						}
+						if assessment.Exhausted {
+							return fmt.Errorf("%w: daily budget remains exhausted", agentinstance.ErrPaused)
+						}
+					}
+				}
 			}
 			if row.State == "paused" {
 				count, err := q.CountActiveAgentInstances(ctx, row.ProfileID)
