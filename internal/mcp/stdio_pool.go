@@ -275,42 +275,6 @@ func (p *StdioSessionPool) knownProtocol(spec mcpStdioSpec) (string, bool) {
 	return slot.protocol, true
 }
 
-func (p *StdioSessionPool) catalogRevision(spec mcpStdioSpec) uint64 {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if slot := p.slots[spec.slot]; slot != nil {
-		return slot.catalogRevision
-	}
-	return 0
-}
-
-// retainCatalog keeps notification-capable children alive while a consented reader needs them.
-func (p *StdioSessionPool) retainCatalog(active map[stdioCatalogBinding]struct{}) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	for binding := range p.catalogSlots {
-		if _, retained := active[binding]; retained {
-			continue
-		}
-		if slot := p.slots[binding.slot]; slot != nil && slot.current != nil &&
-			slot.current.catalogPush && slot.current.digest == binding.digest {
-			p.retireLocked(slot.current)
-		}
-	}
-	p.catalogSlots = active
-}
-
-type stdioCatalogBinding struct{ slot, digest string }
-
-func (p *StdioSessionPool) catalogSubscribed(spec mcpStdioSpec) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	slot := p.slots[spec.slot]
-	_, retained := p.catalogSlots[stdioCatalogBinding{spec.slot, spec.digest}]
-	return retained && slot != nil && slot.current != nil &&
-		slot.current.digest == spec.digest && slot.current.catalogPush
-}
-
 // StderrTail returns the redacted stderr tail of the target's current or last stdio child.
 func (p *StdioSessionPool) StderrTail(target mcpauth.Target) string {
 	if p == nil {

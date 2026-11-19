@@ -129,6 +129,10 @@ func (e *CallExecutor) invalidateToolListing(key string) {
 	}
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
+	e.dropToolListingLocked(key)
+}
+
+func (e *CallExecutor) dropToolListingLocked(key string) {
 	delete(e.toolCache.entries, key)
 	maps.DeleteFunc(e.toolCache.projectionStates, func(_ string, state mcpToolProjectionState) bool {
 		return state.listingKey == key
@@ -186,7 +190,7 @@ func (e *CallExecutor) cacheTools(
 				oldest, expiresAt = candidate, entry.expiresAt
 			}
 		}
-		delete(e.toolCache.entries, oldest)
+		e.dropToolListingLocked(oldest)
 		delete(e.toolCache.normalizations, oldest)
 	}
 	e.toolCache.entries[key] = mcpToolListCacheEntry{
@@ -208,7 +212,7 @@ func (e *CallExecutor) RetainCatalogSources(sources []toolspkg.SourceRef) {
 	for key, normalization := range e.toolCache.normalizations {
 		if !active[toolspkg.MCPDeclarationSource(normalization.source)] {
 			delete(e.toolCache.normalizations, key)
-			delete(e.toolCache.entries, key)
+			e.dropToolListingLocked(key)
 		}
 	}
 }

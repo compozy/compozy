@@ -185,8 +185,6 @@ func (e *CallExecutor) RetainCatalogSubscriptions(ctx context.Context, sources m
 	if e.catalogHTTP == nil {
 		return nil
 	}
-	ctx, release := withMCPRequestRedactions(ctx)
-	defer release()
 	active := make(map[string]bool, len(sources))
 	stdio := make(map[stdioCatalogBinding]struct{}, len(sources))
 	for source := range sources {
