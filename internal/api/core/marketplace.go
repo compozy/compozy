@@ -107,6 +107,12 @@ func (h *BaseHandlers) respondMarketplaceError(c *gin.Context, err error) {
 		h.respondExtensionError(c, http.StatusConflict, err)
 		return
 	}
+	switch classifyExtensionError(err) {
+	case extensionErrorAgentPluginNotManifest, extensionErrorAgentPluginSchemaUnsupported,
+		extensionErrorAgentPluginManifestInvalid:
+		h.respondExtensionError(c, http.StatusUnprocessableEntity, err)
+		return
+	}
 	if errors.Is(err, ErrMarketplaceCursorStale) {
 		c.JSON(
 			http.StatusConflict,

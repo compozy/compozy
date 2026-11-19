@@ -418,6 +418,38 @@ describe("useSessionListView", () => {
     expect(facetReads.every(query => query?.later === undefined)).toBe(true);
   });
 
+  // Invariant (#1827): the active list reads its pinned sessions apart (`pinned=only`, pin order)
+  // and leaves them out of its own page and group counts, while the footer totals and the Later
+  // count keep the whole scope; the archive and Later read in place with no Pinned read.
+  it("Should read pinned sessions apart and leave them out of the list's own reads", async () => {
+    const pinnedRow = { id: "pinned", pinned_at: "2026-11-18T09:00:00Z" };
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(
+      async query =>
+        (query?.pinned === "only"
+          ? { sessions: [pinnedRow], page: { has_more: false, limit: 100 } }
+          : { sessions: [], page: { has_more: false, limit: 100 } }) as never
+    );
+    const { result } = renderHook(() => useSessionListView(), { wrapper });
+
+    await waitFor(() => expect(result.current.pinned?.sessions).toEqual([pinnedRow]));
+    expect(result.current.groupFilters).toMatchObject({ pinned: "exclude" });
+    const pages = vi.mocked(fetchSessionCatalogPage).mock.calls.map(([query]) => query);
+    expect(pages).toContainEqual(expect.objectContaining({ pinned: "only", sort: "pinned" }));
+    expect(pages.filter(query => query?.pinned !== "only")).not.toHaveLength(0);
+    expect(
+      pages.filter(query => query?.pinned !== "only").every(query => query?.pinned === "exclude")
+    ).toBe(true);
+    const facets = vi.mocked(fetchSessionFacets).mock.calls.map(([query]) => query);
+    expect(facets.length).toBeGreaterThan(0);
+    expect(facets.every(query => query?.pinned === undefined)).toBe(true);
+
+    act(() => result.current.setShelf("archive"));
+    expect(result.current.pinned).toBeUndefined();
+    expect(result.current.groupFilters).not.toHaveProperty("pinned");
+    // The shelf is the window's (#1706): put it back for the next case.
+    act(() => result.current.setShelf("active"));
+  });
+
   it("W-11: Should render a stored project grouping flat inside one project without rewriting it", async () => {
     shell.group_by = "project";
     const { result } = renderHook(() => useSessionListView(), { wrapper });

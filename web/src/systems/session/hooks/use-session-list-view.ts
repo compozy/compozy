@@ -12,6 +12,7 @@ import {
 import type { SessionListGroupSpec } from "../lib/session-list-groups";
 import { sessionListPair } from "../lib/session-list-groups";
 import { sessionListShelfFilters, type SessionListShelf } from "../lib/session-list-shelf";
+import { sessionListPinnedExclusion, sessionListPinnedFilters } from "../lib/session-list-pinned";
 import type { ProjectGroupTree } from "../lib/workspace-folders";
 import {
   availableSessionListGroupBys,
@@ -133,6 +134,20 @@ export interface SessionListViewModel {
   selectionKey: string;
   /** Exact live-state totals of the list's whole scope, from facets; absent in the archive. */
   totals?: SessionListTotals;
+  /** The Pinned section's read, above every group and folder; absent off the active shelf. */
+  pinned?: SessionListPinnedRead;
+}
+
+/** The pinned sessions of the list's scope and filters, oldest pin first. */
+export interface SessionListPinnedRead {
+  sessions: readonly SessionPayload[];
+  loading: boolean;
+  failed: boolean;
+  /** More pins than one page of the read holds. */
+  more: boolean;
+  retry: () => void;
+  /** The read's own paging (oldest pin first), independent of the list's pages. */
+  catalog?: ReturnType<typeof useSessionCatalog>;
 }
 
 /**
@@ -212,8 +227,11 @@ export function useSessionListView(
     showAutomation,
     search: remoteSearch,
     worktreeId: options.worktreeId,
+    pinned: groupFilters.pinned,
     enabled,
   });
+  const pending = options.pending === true;
+  const pinned = useSessionListPinnedRead({ scope, groupFilters, enabled, shelf, pending });
   const arranged = useProjectFolderGroups({
     groups: grouping.groups,
     groupBy,
@@ -253,7 +271,7 @@ export function useSessionListView(
   const awaiting = awaitingReads(
     flat ? settledSearchCatalog(catalog, searchSettled) : undefined,
     grouping.loading,
-    options.pending === true
+    pending
   );
   const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
   const groupFolds = useSessionGroupFolds(scope, groupBy);
@@ -316,6 +334,39 @@ export function useSessionListView(
     badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
     selectionKey,
     totals,
+    pinned,
+  };
+}
+
+/**
+ * The Pinned section's read: the list's own filters over pinned sessions, oldest pin first.
+ * Absent where the list has no Pinned section (the archive and Later shelves).
+ */
+function useSessionListPinnedRead({
+  scope,
+  groupFilters,
+  enabled,
+  shelf,
+  pending,
+}: {
+  scope: DataScope | null;
+  groupFilters: SessionListFilters;
+  enabled: boolean;
+  shelf: SessionListShelf;
+  pending: boolean;
+}): SessionListPinnedRead | undefined {
+  // Only the active shelf has a Pinned section.
+  const shown = enabled && shelf === "active";
+  const read = useSessionCatalog(scope, sessionListPinnedFilters(groupFilters), shown);
+  if (!shown) return undefined;
+  // While what the list reads under is unresolved, its pins read as loading, never as rows.
+  return {
+    sessions: pending ? [] : read.sessions,
+    loading: read.loading || pending,
+    failed: read.failed,
+    more: read.next || read.previous,
+    retry: read.retry,
+    catalog: read,
   };
 }
 
@@ -351,6 +402,7 @@ function sessionListGroupFiltersFor(
     subagents: sessionListSubagentsParam(search),
     worktree: worktreeId,
     ...sessionListShelfFilters(shelf, showAutomation),
+    ...sessionListPinnedExclusion(shelf),
   };
 }
 

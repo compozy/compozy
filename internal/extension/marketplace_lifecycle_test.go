@@ -35,7 +35,7 @@ func TestPluginMarketplaceAcquisitionLifecycle(t *testing.T) {
 	t.Parallel()
 	t.Run("Should update a renamed origin by digest and retain rollback and consent", testPluginMarketplaceUpdate)
 	t.Run(
-		"Should install approved cached bytes offline and retain unverified origin across a source rename",
+		"Should install approved cached Claude Code bytes offline and retain unverified origin across a source rename",
 		func(t *testing.T) {
 			t.Parallel()
 			env := newRegistryTestEnv(t)
@@ -58,6 +58,9 @@ func TestPluginMarketplaceAcquisitionLifecycle(t *testing.T) {
 			info, err := InstallMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if info.Name != "open-design" {
+				t.Fatalf("installed name = %q, want the Claude Code manifest name", info.Name)
 			}
 			record := req.Plugin.Record
 			if info.Provenance.SourceName != "team" || info.Provenance.SourceRef != record.SourceRef ||
@@ -267,6 +270,15 @@ func pluginAcquisitionRequest(t *testing.T) (MarketplaceInstallRequest, *plugins
 	); err != nil {
 		t.Fatal(err)
 	}
+	writeFile(t, filepath.Join(root, "tool", ".claude-plugin", "plugin.json"), `{
+	"$schema":"https://json.schemastore.org/claude-code-plugin-manifest.json",
+	"name":"open-design","version":"1.0.0","mcpServers":"./.mcp.json"
+}`)
+	codex := filepath.Join(root, "tool", ".codex-plugin")
+	if err := os.Mkdir(codex, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(codex, "plugin.json"), `{"name":"codex-sibling","version":"2.0.0"}`)
 	writeFile(t, filepath.Join(root, "marketplace.json"), `{"plugins":[{"name":"tool","source":"./tool"}]}`)
 	resolver := &pluginsource.Resolver{
 		Cache:   &pluginsource.PackageCache{Root: t.TempDir()},

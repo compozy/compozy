@@ -115,6 +115,33 @@ visibility, not the runtime state, and preserves the complete session record.
 Sessions in Later are omitted by default too. Use `--later` to return only sessions in Later, or
 `--include-later` to include them.
 
+Pinned sessions are included by default. Use `--pinned only` or `--pinned exclude` to split them
+out, and `--sort pinned` with `--pinned only` to list them in pin order.
+
+## Pinned sessions
+
+Pin a session to keep it at the top of the session list. Use **Pin to top** on the row (the pin
+button beside its `…`, or the row menu) and the session moves on its own into **Pinned**, above
+every project group and folder; in All projects, Pinned holds every project's pins. Its parent,
+children, folder, and project group stay where they are. A project whose only session you pinned
+leaves the list until you unpin it. **Unpin** returns the session to its group and folder at the
+position it held. The oldest pin comes first and a new pin lands at the bottom.
+
+```bash
+compozy session pin sess-123
+compozy session unpin sess-123
+compozy session list --pinned only --sort pinned   # what is pinned, in pin order
+compozy session list --pinned exclude              # everything else
+```
+
+- A pin survives stop, archive, Later, and a daemon restart. Archived and parked sessions show a pin
+  mark in those views and return to Pinned when you restore them.
+- Subagent sessions follow their parent and cannot be pinned; neither can an always-on agent's main
+  session.
+- The Kanban board ignores pins.
+
+HTTP clients use `POST` and `DELETE /api/workspaces/{workspace_id}/sessions/{session_id}/pin`.
+
 ## Later
 
 Move a session to Later when you want to come back to it without archiving it. Later stops

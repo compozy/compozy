@@ -178,6 +178,7 @@ const sessionCompactRecordSchema = `{
     "null"
    ]
   },
+  "pinned_at": {"type":"string"},
   "pending_interactions": {
    "type": [
     "array",

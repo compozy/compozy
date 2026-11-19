@@ -285,8 +285,13 @@ const sessionListInputSchema = `{
 			"enum":["exclude","only","include"],
 			"description":"Visibility of sessions parked in Later; excluded by default."
 		},
+		"pinned":{
+			"type":"string",
+			"enum":["exclude","only","include"],
+			"description":"Visibility of sessions pinned above the session list; included by default. Sort pinned requires only."
+		},
 		"include_health":{"type":"boolean"},
-		"sort":{"type":"string","enum":["recent","created","name","last_activity","attention","navigator","manual"]},
+		"sort":{"type":"string","enum":["recent","created","name","last_activity","attention","navigator","manual","pinned"]},
 		"cursor":{"type":"string"},
 		"limit":{"type":"integer","minimum":1,"maximum":100}
 	},

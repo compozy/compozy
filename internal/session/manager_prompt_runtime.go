@@ -268,7 +268,11 @@ func (m *Manager) replacePromptRuntime(
 	}
 	candidate, err := m.launchPromptRuntimeCandidate(ctx, session, plan, &runtime, native)
 	if err != nil {
-		return nil, m.restorePromptRuntime(session, snapshot, err)
+		restoreErr := m.restorePromptRuntimeSnapshot(session, snapshot, err)
+		if _, hosted := errors.AsType[*HostedMCPReadinessError](err); snapshot.process == nil && hosted {
+			err = &MCPReloadError{Provider: plan.selection.Provider, Cause: err}
+		}
+		return nil, errors.Join(err, restoreErr)
 	}
 
 	previous := session.completeRuntimeTransition(candidate, plan.selection, strategy, m.now())
@@ -313,11 +317,18 @@ func (m *Manager) restorePromptRuntime(
 	snapshot *runtimeBindingSnapshot,
 	cause error,
 ) error {
+	return errors.Join(cause, m.restorePromptRuntimeSnapshot(session, snapshot, cause))
+}
+
+func (m *Manager) restorePromptRuntimeSnapshot(
+	session *Session,
+	snapshot *runtimeBindingSnapshot,
+	cause error,
+) error {
 	session.restoreRuntimeBinding(snapshot, cause.Error(), m.now())
 	cleanupCtx, cancel := m.lifecycleCleanupContext()
 	defer cancel()
-	persistErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
-	return errors.Join(cause, persistErr)
+	return m.persistSessionLifecycleState(cleanupCtx, session, false)
 }
 
 func runtimeConfigForSelection(selection RuntimeSelection, transportModel string) acp.RuntimeConfig {

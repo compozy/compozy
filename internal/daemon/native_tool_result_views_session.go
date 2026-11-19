@@ -30,6 +30,7 @@ type compactSessionRecord struct {
 	TranscriptEpoch        int64                                `json:"transcript_epoch,omitzero"`
 	PendingInteractions    []contract.PendingInteractionPayload `json:"pending_interactions"`
 	ArchivedAt             *time.Time                           `json:"archived_at"`
+	PinnedAt               *time.Time                           `json:"pinned_at,omitempty"`
 	Later                  *contract.SessionLaterPayload        `json:"later,omitempty"`
 	StopReason             store.StopReason                     `json:"stop_reason,omitempty"`
 	StopCause              string                               `json:"stop_cause,omitempty"`
@@ -82,6 +83,7 @@ func compactSession(p *contract.SessionPayload) compactSessionRecord {
 		TranscriptEpoch:        p.TranscriptEpoch,
 		PendingInteractions:    p.PendingInteractions,
 		ArchivedAt:             p.ArchivedAt,
+		PinnedAt:               p.PinnedAt,
 		Later:                  p.Later,
 		StopReason:             p.StopReason,
 		StopCause:              p.StopCause,

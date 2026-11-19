@@ -36,7 +36,7 @@ func (s *HostedService) ActivationCatalog(
 ) (tools.AdvertisedCatalog, string, error) {
 	s.mu.Lock()
 	launch := s.launches[sessionID]
-	if launch == nil {
+	if launch == nil || launch.nonceHash == "" {
 		s.mu.Unlock()
 		return tools.AdvertisedCatalog{}, "", ErrHostedBindNotFound
 	}

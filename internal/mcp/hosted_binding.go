@@ -21,8 +21,9 @@ func (s *HostedService) Bind(
 ) (response HostedBindResponse, err error) {
 	startedAt := time.Now()
 	sessionID := strings.TrimSpace(req.SessionID)
+	projectionFailureClass := ""
 	defer func() {
-		s.logBindOutcome(sessionID, peer, len(response.Tools), time.Since(startedAt), err)
+		s.logBindOutcome(sessionID, peer, len(response.Tools), time.Since(startedAt), err, projectionFailureClass)
 	}()
 
 	if err := ctxErr(ctx); err != nil {
@@ -51,6 +52,7 @@ func (s *HostedService) Bind(
 	}
 	projection, err := s.bootstrapProjection(ctx, record)
 	if err != nil {
+		projectionFailureClass = HostedProjectionFailureClass(err)
 		if record.eagerTools {
 			s.failHostedProjection(record)
 		}
@@ -85,6 +87,7 @@ func (s *HostedService) logBindOutcome(
 	toolCount int,
 	duration time.Duration,
 	err error,
+	projectionFailureClass string,
 ) {
 	if s == nil || s.logger == nil {
 		return
@@ -95,7 +98,11 @@ func (s *HostedService) logBindOutcome(
 		"duration_ms", duration.Milliseconds(),
 	}
 	if err != nil {
-		attributes = append(attributes, "reason", hostedBindFailureReason(err))
+		if projectionFailureClass != "" {
+			attributes = append(attributes, "reason", "projection_failed", "cause_class", projectionFailureClass)
+		} else {
+			attributes = append(attributes, "reason", hostedBindFailureReason(err))
+		}
 		s.logger.Warn("mcp: hosted MCP bind failed", attributes...)
 		return
 	}

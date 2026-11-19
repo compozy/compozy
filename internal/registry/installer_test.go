@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -140,6 +141,7 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 		}{
 			{"Should accept an omitted client schema", "", false},
 			{"Should accept the supported client schema", fmt.Sprintf(`"$schema":%q,`, agentplugin.PluginSchemaID), false},
+			{"Should recognize the official Claude Code schema only in its layout", `"$schema":"https://json.schemastore.org/claude-code-plugin-manifest.json",`, layout != installerClaudePluginDirectory},
 			{"Should reject an unsupported client schema", `"$schema":"https://agent-plugins.org/schemas/2.0.0/plugin.schema.json",`, true},
 			{"Should reject an unrelated client schema", `"$schema":"https://example.invalid/other.json",`, true},
 			{"Should reject a null client schema", `"$schema":null,`, true},
@@ -178,6 +180,24 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 			})
 		}
 	}
+	t.Run("Should preserve the JSON cause when rejecting malformed client manifest metadata", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		layout := filepath.Join(root, installerClaudePluginDirectory)
+		if err := os.Mkdir(layout, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		writeTestFile(t, filepath.Join(layout, installerAgentPluginManifestName), fmt.Sprintf(
+			`{"$schema":%q,"name":"client-only","version":123}`, claudeCodePluginSchemaID,
+		))
+		err := ValidateInstallPackageRoot(t.Context(), root)
+		manifestErr, manifestInvalid := errors.AsType[*agentplugin.ManifestError](err)
+		decoderErr, decoderFailed := errors.AsType[*json.UnmarshalTypeError](err)
+		if !errors.Is(err, agentplugin.ErrManifestInvalid) || !manifestInvalid ||
+			manifestErr.ManifestPath != ".claude-plugin/plugin.json" || !decoderFailed || decoderErr.Field != "version" {
+			t.Fatalf("ValidateInstallPackageRoot() error = %v, want the manifest path and version decoder cause", err)
+		}
+	})
 	t.Run("Should preserve a client-only package root during extraction", func(t *testing.T) {
 		t.Parallel()
 		archive := mustTarGz(t, []tarEntry{
@@ -1184,7 +1204,7 @@ func TestManifestPathAtRootRejectsSymlinkedManifest(t *testing.T) {
 			t.Fatalf("Rename(stage) error = %v", err)
 		}
 
-		packageRoot, metadata, err := loadInstalledPackageMetadata(parentRoot, "stage", extractRoot)
+		packageRoot, metadata, err := loadInstalledPackageMetadata(t.Context(), parentRoot, "stage", extractRoot)
 		if err != nil {
 			t.Fatalf("loadInstalledPackageMetadata() error = %v", err)
 		}

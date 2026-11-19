@@ -26,6 +26,8 @@ const (
 	ListSortLastActivity = "last_activity"
 	ListSortAttention    = "attention"
 	ListSortManual       = "manual"
+	// ListSortPinned lists pinned sessions in pin order; it requires PinnedOnly.
+	ListSortPinned = "pinned"
 
 	ArchiveExclude = store.SessionArchiveExclude
 	ArchiveOnly    = store.SessionArchiveOnly
@@ -34,6 +36,10 @@ const (
 	LaterExclude = store.SessionLaterExclude
 	LaterOnly    = store.SessionLaterOnly
 	LaterInclude = store.SessionLaterInclude
+
+	PinnedExclude = store.SessionPinnedExclude
+	PinnedOnly    = store.SessionPinnedOnly
+	PinnedInclude = store.SessionPinnedInclude
 
 	sessionListCursorVersion = 2
 	sessionListCursorKind    = "sessions"
@@ -80,10 +86,12 @@ type ListQuery struct {
 	Badges               []Badge
 	Archive              store.SessionArchiveFilter
 	Later                store.SessionLaterFilter
-	Sort                 string
-	Cursor               string
-	Limit                int
-	SkipTotal            bool
+	// Pinned narrows the read to pinned sessions or leaves them out; empty includes them.
+	Pinned    store.SessionPinnedFilter
+	Sort      string
+	Cursor    string
+	Limit     int
+	SkipTotal bool
 }
 
 // ListPage contains one bounded public session catalog result.
@@ -121,7 +129,9 @@ type sessionListFingerprint struct {
 	Archive         store.SessionArchiveFilter `json:"archive"`
 	// Later stays empty for the default exclusion so pre-Later cursors remain valid.
 	Later store.SessionLaterFilter `json:"later,omitempty"`
-	Sort  string                   `json:"sort"`
+	// Pinned stays empty for the default inclusion so pre-pin cursors remain valid.
+	Pinned store.SessionPinnedFilter `json:"pinned,omitempty"`
+	Sort   string                    `json:"sort"`
 	// ExcludeInstanceMain binds the population, not the current main IDs, so a
 	// rotation between pages keeps the cursor valid.
 	ExcludeInstanceMain bool `json:"exclude_instance_main,omitempty"`
@@ -273,6 +283,7 @@ func sessionCatalogPageQuery(
 		Resumable:            normalized.Resumable,
 		Archive:              normalized.Archive,
 		Later:                normalized.Later,
+		Pinned:               normalized.Pinned,
 		Sort:                 normalized.Sort,
 		Limit:                normalized.Limit + 1,
 		After:                after,
@@ -347,6 +358,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		Badges:          append([]Badge(nil), query.Badges...),
 		Archive:         query.Archive,
 		Later:           laterFingerprint(query.Later),
+		Pinned:          query.Pinned,
 		Sort:            query.Sort,
 
 		ExcludeInstanceMain:       query.ExcludeInstanceMain,

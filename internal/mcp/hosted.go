@@ -322,7 +322,7 @@ func (s *HostedService) ArmLaunch(ctx context.Context, sessionID string) (err er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	record := s.launches[sessionID]
-	if record == nil || record != target {
+	if record == nil || record != target || record.nonceHash == "" {
 		return ErrHostedNonceInvalid
 	}
 	if record.armed {

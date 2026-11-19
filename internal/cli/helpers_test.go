@@ -161,6 +161,7 @@ type stubClient struct {
 	) (contract.SessionHistoryCleanupStartResponse, error)
 	resumeSessionFromLaterFn         func(context.Context, string, bool) (SessionRecord, error)
 	markSessionSeenFn                func(context.Context, string) (SessionRecord, error)
+	setSessionPinnedFn               func(context.Context, string, bool) (SessionRecord, error)
 	renameSessionFn                  func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	setSessionParentFn               func(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
 	clearSessionParentFn             func(context.Context, string) (SessionRecord, error)
@@ -1400,6 +1401,13 @@ func (s *stubClient) ResumeSessionFromLater(ctx context.Context, id string, with
 		return s.resumeSessionFromLaterFn(ctx, id, withChildren)
 	}
 	return SessionRecord{}, errors.New("unexpected ResumeSessionFromLater call")
+}
+
+func (s *stubClient) SetSessionPinned(ctx context.Context, id string, pinned bool) (SessionRecord, error) {
+	if s.setSessionPinnedFn != nil {
+		return s.setSessionPinnedFn(ctx, id, pinned)
+	}
+	return SessionRecord{}, errors.New("unexpected SetSessionPinned call")
 }
 
 func (s *stubClient) MarkSessionSeen(ctx context.Context, id string) (SessionRecord, error) {

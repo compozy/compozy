@@ -67,6 +67,9 @@ export interface SessionMenuActions {
   onBackFromLater?: SessionVerb;
   /** Make top-level and Take over both detach the session from its parent. */
   onMakeTopLevel?: SessionVerb;
+  /** Pin to top and Unpin; absent where the host shows no Pinned section. */
+  onPin?: SessionVerb;
+  onUnpin?: SessionVerb;
 }
 
 export interface SessionMenuProfileTarget {
@@ -350,6 +353,20 @@ function lifecycleNodes(input: SessionMenuInput): MenuTreeNode[] {
   return nodes;
 }
 
+/**
+ * Pin to top or Unpin. A subagent follows its parent and is never its own row, so it has neither;
+ * Unpin stays on an archived or parked session, whose pin waits for its return.
+ */
+function pinNodes(input: SessionMenuInput): MenuTreeNode[] {
+  const { session, actions } = input;
+  const { onPin, onUnpin } = actions;
+  if (isSubagentSession(session)) return [];
+  if (session.pinned_at) return onUnpin ? [verbNode(input, "unpin", () => onUnpin(session))] : [];
+  return onPin && session.archived_at === null && !sessionIsInLater(session)
+    ? [verbNode(input, "pin", () => onPin(session))]
+    : [];
+}
+
 /** One session's menu: the same tree on a list row and a board card, `…` or right-click. */
 export function sessionMenuTree(input: SessionMenuInput): MenuTreeNode[] {
   const { session, actions, clear, linkedWork } = input;
@@ -368,6 +385,7 @@ export function sessionMenuTree(input: SessionMenuInput): MenuTreeNode[] {
     deriveNode(input),
     ...(linked ? [linked] : []),
     separator("organize"),
+    ...pinNodes(input),
     moveNode(input),
     ...(onMarkSeen && sessionBatchAction("mark-seen").eligible(session)
       ? [verbNode(input, "mark-seen", () => onMarkSeen(session))]
