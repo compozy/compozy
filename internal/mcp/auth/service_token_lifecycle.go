@@ -77,9 +77,6 @@ func (s *Service) persistTokenAtGeneration(
 }
 
 func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenRecord) (Status, error) {
-	if err := cfg.Validate(); err != nil {
-		return Status{}, err
-	}
 	generation, err := s.generation.Snapshot(cfg.Target)
 	if err != nil {
 		return Status{}, err
