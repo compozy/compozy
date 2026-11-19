@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,21 +17,40 @@ import (
 // PutMCPSidecarServer upserts one MCP server definition in the selected sidecar
 // target and returns the merged effective config after validation.
 func PutMCPSidecarServer(
+	ctx context.Context,
 	homePaths HomePaths,
 	workspaceRoot string,
 	target WriteTarget,
 	server MCPServer,
-) (cfg Config, err error) {
-	if !target.isMCPSidecarTarget() {
-		return Config{}, fmt.Errorf("config: write target %q is not an MCP sidecar", target.Kind())
-	}
-
+) (Config, error) {
 	normalized := cloneMCPServer(server)
 	normalized.Name = normalizeMCPServerName(normalized.Name)
 	if err := normalized.Validate("mcp_server"); err != nil {
 		return Config{}, fmt.Errorf("config: validate MCP sidecar write: %w", err)
 	}
+	return editMCPSidecarServer(
+		ctx,
+		homePaths,
+		workspaceRoot,
+		target,
+		false,
+		func(doc *editableMCPJSONDocument) error {
+			return doc.Put(normalized)
+		},
+	)
+}
 
+func editMCPSidecarServer(
+	ctx context.Context,
+	homePaths HomePaths, workspaceRoot string, target WriteTarget, allowShadowing bool,
+	edit func(*editableMCPJSONDocument) error,
+) (cfg Config, err error) {
+	if err := ctx.Err(); err != nil {
+		return Config{}, err
+	}
+	if !target.isMCPSidecarTarget() {
+		return Config{}, fmt.Errorf("config: write target %q is not an MCP sidecar", target.Kind())
+	}
 	directory, name, err := fileutil.OpenOrCreateParentDirectory(target.path, privateDirMode)
 	if err != nil {
 		return Config{}, fmt.Errorf("config: open MCP sidecar parent %q: %w", target.path, err)
@@ -40,27 +60,30 @@ func PutMCPSidecarServer(
 			err = errors.Join(err, fmt.Errorf("config: close MCP sidecar parent %q: %w", target.path, closeErr))
 		}
 	}()
-	return putMCPSidecarServerInDirectory(homePaths, workspaceRoot, target, normalized, directory, name)
+	return editMCPSidecarServerInDirectory(ctx, homePaths, workspaceRoot, target, directory, name, allowShadowing, edit)
 }
 
-func putMCPSidecarServerInDirectory(
-	homePaths HomePaths,
-	workspaceRoot string,
-	target WriteTarget,
-	server MCPServer,
-	directory *fileutil.Directory,
-	name string,
+func editMCPSidecarServerInDirectory(
+	ctx context.Context,
+	homePaths HomePaths, workspaceRoot string, target WriteTarget, directory *fileutil.Directory, name string,
+	allowShadowing bool,
+	edit func(*editableMCPJSONDocument) error,
 ) (Config, error) {
-	contents, _, err := readOptionalRegularFileFromDirectory(directory, name, target.path, "MCP sidecar")
+	configOverlayWriteMu.Lock()
+	defer configOverlayWriteMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return Config{}, err
+	}
+	contents, existed, err := readOptionalRegularFileFromDirectory(directory, name, target.path, "MCP sidecar")
 	if err != nil {
 		return Config{}, err
 	}
 
-	document, err := loadEditableMCPJSONDocument(contents, target.path)
+	document, err := loadEditableMCPJSONDocumentWithShadowing(contents, target.path, allowShadowing)
 	if err != nil {
 		return Config{}, err
 	}
-	if err := document.Put(server); err != nil {
+	if err := edit(document); err != nil {
 		return Config{}, err
 	}
 
@@ -69,8 +92,17 @@ func putMCPSidecarServerInDirectory(
 		return Config{}, err
 	}
 
-	finalCfg, err := validateEffectiveConfigWrite(homePaths, workspaceRoot, target, rendered)
+	if err := ctx.Err(); err != nil {
+		return Config{}, err
+	}
+	finalCfg, err := validateEffectiveConfigWriteLocked(homePaths, workspaceRoot, target, rendered)
 	if err != nil {
+		return Config{}, err
+	}
+	if err := requireOverlayContents(directory, name, target.path, contents, existed); err != nil {
+		return Config{}, err
+	}
+	if err := ctx.Err(); err != nil {
 		return Config{}, err
 	}
 	if err := writePersistedFileInDirectory(directory, name, target.path, rendered, true); err != nil {
@@ -83,11 +115,20 @@ func putMCPSidecarServerInDirectory(
 // sidecar target when present and returns the merged effective config after
 // validation.
 func DeleteMCPSidecarServer(
+	ctx context.Context,
 	homePaths HomePaths,
 	workspaceRoot string,
 	target WriteTarget,
 	name string,
 ) (cfg Config, deleted bool, err error) {
+	if err := ctx.Err(); err != nil {
+		return Config{}, false, err
+	}
+	configOverlayWriteMu.Lock()
+	defer configOverlayWriteMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return Config{}, false, err
+	}
 	if !target.isMCPSidecarTarget() {
 		return Config{}, false, fmt.Errorf("config: write target %q is not an MCP sidecar", target.Kind())
 	}
@@ -100,7 +141,7 @@ func DeleteMCPSidecarServer(
 	directory, fileName, err := fileutil.OpenParentDirectory(target.path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return deleteMCPSidecarServerFromContents(homePaths, workspaceRoot, target, trimmedName, nil, "", nil)
+			return deleteMCPSidecarServerFromContents(ctx, homePaths, workspaceRoot, target, trimmedName, nil, "", nil)
 		}
 		return Config{}, false, fmt.Errorf("config: open MCP sidecar parent %q: %w", target.path, err)
 	}
@@ -114,6 +155,7 @@ func DeleteMCPSidecarServer(
 		return Config{}, false, err
 	}
 	return deleteMCPSidecarServerFromContents(
+		ctx,
 		homePaths,
 		workspaceRoot,
 		target,
@@ -125,6 +167,7 @@ func DeleteMCPSidecarServer(
 }
 
 func deleteMCPSidecarServerFromContents(
+	ctx context.Context,
 	homePaths HomePaths,
 	workspaceRoot string,
 	target WriteTarget,
@@ -133,13 +176,16 @@ func deleteMCPSidecarServerFromContents(
 	fileName string,
 	contents []byte,
 ) (Config, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return Config{}, false, err
+	}
 	document, err := loadEditableMCPJSONDocument(contents, target.path)
 	if err != nil {
 		return Config{}, false, err
 	}
 	deleted := document.Delete(name)
 	if !deleted {
-		cfg, err := validateEffectiveConfigWrite(homePaths, workspaceRoot, target, contents)
+		cfg, err := validateEffectiveConfigWriteLocked(homePaths, workspaceRoot, target, contents)
 		return cfg, false, err
 	}
 
@@ -148,12 +194,15 @@ func deleteMCPSidecarServerFromContents(
 		return Config{}, false, err
 	}
 
-	finalCfg, err := validateEffectiveConfigWrite(homePaths, workspaceRoot, target, rendered)
+	finalCfg, err := validateEffectiveConfigWriteLocked(homePaths, workspaceRoot, target, rendered)
 	if err != nil {
 		return Config{}, false, err
 	}
 	if directory == nil {
 		return Config{}, false, fmt.Errorf("config: MCP sidecar %q disappeared before deletion", target.path)
+	}
+	if err := ctx.Err(); err != nil {
+		return Config{}, false, err
 	}
 	if err := writePersistedFileInDirectory(directory, fileName, target.path, rendered, true); err != nil {
 		return Config{}, false, err
@@ -176,6 +225,12 @@ type mcpJSONCollection struct {
 }
 
 func loadEditableMCPJSONDocument(content []byte, source string) (*editableMCPJSONDocument, error) {
+	return loadEditableMCPJSONDocumentWithShadowing(content, source, false)
+}
+
+func loadEditableMCPJSONDocumentWithShadowing(
+	content []byte, source string, allowShadowing bool,
+) (*editableMCPJSONDocument, error) {
 	trimmedSource := cmp.Or(strings.TrimSpace(source), MCPJSONName)
 
 	document := &editableMCPJSONDocument{
@@ -204,6 +259,9 @@ func loadEditableMCPJSONDocument(content []byte, source string) (*editableMCPJSO
 	document.camel, err = loadMCPJSONCollection(root, "mcpServers", trimmedSource, existingNames)
 	if err != nil {
 		return nil, err
+	}
+	if allowShadowing {
+		clear(existingNames)
 	}
 	document.snake, err = loadMCPJSONCollection(root, "mcp_servers", trimmedSource, existingNames)
 	if err != nil {
@@ -369,6 +427,7 @@ func (c *mcpJSONCollection) delete(name string) bool {
 
 func marshalMCPJSONServer(server MCPServer) (json.RawMessage, error) {
 	type writableMCPJSONServer struct {
+		Disabled       *bool              `json:"disabled,omitempty"`
 		ReadOnlyTools  []string           `json:"read_only_tools,omitempty"`
 		Reference      bool               `json:"reference,omitempty"`
 		SecretHeaders  map[string]string  `json:"secret_headers,omitempty"`
@@ -388,6 +447,7 @@ func marshalMCPJSONServer(server MCPServer) (json.RawMessage, error) {
 		auth = &normalizedAuth
 	}
 	payload, err := json.Marshal(writableMCPJSONServer{
+		Disabled:       server.Disabled,
 		ReadOnlyTools:  append([]string(nil), server.ReadOnlyTools...),
 		Reference:      server.Reference,
 		SecretHeaders:  mergeStringMaps(nil, server.SecretHeaders),

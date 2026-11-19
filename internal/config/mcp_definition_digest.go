@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/definitiondigest"
 )
 
-// MCPDefinitionDigest fingerprints definitions with a keyed digest before any Vault value is resolved.
+// MCPDefinitionDigest fingerprints unresolved definitions independently of their on/off state.
 func MCPDefinitionDigest(server MCPServer, key []byte) (string, error) {
 	server = normalizeMCPServerResourceSpec(server)
 	definition := struct {

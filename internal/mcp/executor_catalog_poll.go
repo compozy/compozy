@@ -74,3 +74,54 @@ func (e *CallExecutor) retainCatalogPolls(active map[string]bool) {
 		return !active[key]
 	})
 }
+
+func (e *CallExecutor) markToolListingSubscribed(key string, live func() bool) {
+	e.toolCache.publicationMu.Lock()
+	defer e.toolCache.publicationMu.Unlock()
+	if !live() {
+		return
+	}
+	e.toolCache.mu.Lock()
+	defer e.toolCache.mu.Unlock()
+	entry, ok := e.toolCache.entries[key]
+	if !ok || toolListExpired(entry.expiresAt, time.Now()) {
+		return
+	}
+	entry.expiresAt = time.Time{}
+	e.toolCache.entries[key] = entry
+	if poll, ok := e.toolCache.polls[key]; ok && poll.listingKey == key {
+		poll.expiresAt = time.Time{}
+		e.toolCache.polls[key] = poll
+	}
+	for source, state := range e.toolCache.projectionStates {
+		if state.listingKey == key {
+			state.expiresAt = time.Time{}
+			e.toolCache.projectionStates[source] = state
+		}
+	}
+}
+
+// expireSubscribedToolListing falls back to a bounded refresh without waking another reconnect.
+func (e *CallExecutor) expireSubscribedToolListing(key string) {
+	e.toolCache.publicationMu.Lock()
+	defer e.toolCache.publicationMu.Unlock()
+	e.toolCache.mu.Lock()
+	defer e.toolCache.mu.Unlock()
+	now := time.Now()
+	expiry := now.Add(defaultMCPToolListTTL)
+	if poll, ok := e.toolCache.polls[key]; ok && poll.expiresAt.IsZero() {
+		expiry = now.Add(poll.interval)
+		poll.expiresAt = expiry
+		e.toolCache.polls[key] = poll
+	}
+	if entry, ok := e.toolCache.entries[key]; ok && entry.expiresAt.IsZero() {
+		entry.expiresAt = expiry
+		e.toolCache.entries[key] = entry
+	}
+	for source, state := range e.toolCache.projectionStates {
+		if state.listingKey == key && state.expiresAt.IsZero() {
+			state.expiresAt = expiry
+			e.toolCache.projectionStates[source] = state
+		}
+	}
+}

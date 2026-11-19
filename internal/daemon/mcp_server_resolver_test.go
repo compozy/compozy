@@ -245,6 +245,7 @@ command = "profile-server"
 					authTarget,
 					before,
 					extensionmcp.Override{URL: "https://example.com/changed"},
+					true,
 				)
 				if (err == nil) != (phase == "success") {
 					t.Fatalf("wrong mutation outcome for %s: %v", phase, err)

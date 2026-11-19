@@ -93,6 +93,24 @@ func TestStdioSessionPool(t *testing.T) {
 		})
 	})
 
+	t.Run("Should keep an off server from starting for discovery or invocation", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStdioPoolFixture(t, StdioPoolConfig{}, nil)
+		disabled := fixture.server
+		disabled.Disabled = new(true)
+		executor := fixture.executorFor(t, disabled)
+
+		_, err := executor.DiscoverTools(testContext(t), fixture.source())
+		requireReason(t, err, toolspkg.ReasonSourceDisabled)
+		_, err = executor.CallTool(testContext(t), fixture.source(), toolspkg.MCPToolCallRequest{
+			ToolID: "mcp__pooled__echo", RawToolName: "echo", Input: json.RawMessage(`{"message":"ignored"}`),
+		})
+		requireReason(t, err, toolspkg.ReasonSourceDisabled)
+		if launches := fixture.launches(); launches != 0 {
+			t.Fatalf("off stdio server started %d times", launches)
+		}
+	})
+
 	t.Run("Should reuse one stdio child for discovery and concurrent tool calls", func(t *testing.T) {
 		t.Parallel()
 

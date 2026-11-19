@@ -36,6 +36,9 @@ func (o Override) Apply(server compozyconfig.MCPServer) (compozyconfig.MCPServer
 		return compozyconfig.MCPServer{}, err
 	}
 	server.Env, server.Headers = maps.Clone(server.Env), maps.Clone(server.Headers)
+	if o.Disabled {
+		server.Disabled = new(true)
+	}
 	if len(o.Env) > 0 {
 		if server.Env == nil {
 			server.Env = make(map[string]string)

@@ -15,7 +15,7 @@ type mcpCollectionItem struct {
 func (s *service) populateMCPCollectionStatuses(
 	ctx context.Context,
 	items []mcpCollectionItem,
-	skipRuntimeStatus, cachedRuntimeStatus bool,
+	skipRuntimeStatus, cachedRuntimeStatus bool, generation uint64,
 ) error {
 	if len(items) == 0 {
 		return nil
@@ -37,11 +37,8 @@ func (s *service) populateMCPCollectionStatuses(
 					if !ok {
 						return
 					}
-					if err := s.populateMCPServerStatuses(
-						probeCtx,
-						&items[index].item,
-						items[index].entry,
-						skipRuntimeStatus, cachedRuntimeStatus,
+					if err := s.populateMCPCollectionItem(
+						probeCtx, &items[index], skipRuntimeStatus, cachedRuntimeStatus, generation,
 					); err != nil {
 						select {
 						case errs <- err:
@@ -67,6 +64,27 @@ func (s *service) populateMCPCollectionStatuses(
 	close(jobs)
 	workers.Wait()
 	return mcpCollectionProbeError(probeCtx, errs)
+}
+
+// Pin live probes to the enablement generation used to collect their definitions.
+func (s *service) mcpProbeSnapshot(passive bool) uint64 {
+	if passive {
+		return 0
+	}
+	s.mcpProbeMu.RLock()
+	defer s.mcpProbeMu.RUnlock()
+	return s.mcpProbeGeneration
+}
+
+func (s *service) populateMCPCollectionItem(
+	ctx context.Context, item *mcpCollectionItem, skip, cached bool, generation uint64,
+) error {
+	if !skip && !cached {
+		s.mcpProbeMu.RLock()
+		defer s.mcpProbeMu.RUnlock()
+		skip = s.mcpProbeGeneration != generation
+	}
+	return s.populateMCPServerStatuses(ctx, &item.item, item.entry, skip, cached)
 }
 
 func mcpCollectionProbeError(ctx context.Context, errs <-chan error) error {

@@ -8,6 +8,9 @@ import (
 
 func mcpServerMap(server compozyconfig.MCPServer) map[string]any {
 	values := map[string]any{}
+	if server.Disabled != nil {
+		values["disabled"] = *server.Disabled
+	}
 	if server.Transport != "" {
 		values["transport"] = string(server.Transport)
 	}

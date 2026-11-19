@@ -66,6 +66,8 @@ func mcpServerStatusPayload(server *settingspkg.MCPServerItem) contract.MCPServe
 
 func mcpRuntimeStatus(state settingspkg.MCPServerRuntimeState) string {
 	switch state {
+	case settingspkg.MCPServerRuntimeStateOff:
+		return string(state)
 	case settingspkg.MCPServerRuntimeStateReady:
 		return statusStateRunning
 	case settingspkg.MCPServerRuntimeStateAuthRequired,
@@ -86,7 +88,9 @@ func mcpRuntimeStatus(state settingspkg.MCPServerRuntimeState) string {
 func mcpServerDiagnosticItem(status contract.MCPServerStatusPayload) contract.DiagnosticItem {
 	severity, code := mcpServerDiagnosticSeverityAndCode(status)
 	title := "MCP server is ready"
-	if severity != contract.SeverityOK {
+	if status.State == string(settingspkg.MCPServerRuntimeStateOff) {
+		title = "MCP server is off"
+	} else if severity != contract.SeverityOK {
 		title = "MCP server needs attention"
 	}
 	message := fmt.Sprintf("MCP server %q runtime status is %q.", status.Name, status.RuntimeStatus)

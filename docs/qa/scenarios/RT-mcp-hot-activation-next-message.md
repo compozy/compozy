@@ -65,3 +65,9 @@ sessions idle and check that the fixture gets one shared refresh per interval of
 Use a longer `ttlMs` and verify that the refresh waits at least that long. An unchanged listing
 keeps the existing tool projection. Release the last authorized bind and verify that periodic
 refresh stops. An explicit check still contacts the fixture immediately.
+
+For #1850, open one session with two ready fixtures and send a message. Turn one server off,
+keep that session open, and send the next message. The off fixture contributes zero tools and the
+other fixture remains usable. Turn the same server on and send another message in that session.
+Its tools return using the same definition and approval, with no delete or re-import.
+See the [off-switch walk](../reports/2026-11-18-mcp-server-off-switch.md).

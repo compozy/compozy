@@ -78,7 +78,7 @@ func (d *Daemon) newDaemonMCPToolProvider(
 				toolspkg.Scope{ProfileID: profileID, WorkspaceID: source.WorkspaceID},
 				source,
 			)
-			return decision.Admitted, err
+			return decision.Admitted && !decision.Disabled, err
 		}),
 		toolspkg.WithMCPDiscoveryBudget(
 			min(state.cfg.MCP.StatusProbeTimeout, state.cfg.Tools.HostedMCP.BindNonceTTL()/2),

@@ -61,6 +61,9 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved *ResolvedS
 
 func (e *CallExecutor) ensureRenewedAuthorization(ctx context.Context, resolved *ResolvedServer) error {
 	refreshed, err := e.refreshAuth(ctx, resolved)
+	if errors.Is(err, mcpauth.ErrServerDisabled) {
+		return mcpServerDisabledError(resolved.Server.Name)
+	}
 	if err != nil && (!refreshed.TokenPresent || !errors.Is(err, mcpauth.ErrTokenBindingInvalid)) {
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeUnavailable,
@@ -110,15 +113,18 @@ func (e *CallExecutor) authStatus(
 
 func (e *CallExecutor) readAuthStatus(ctx context.Context, resolved *ResolvedServer) (mcpauth.Status, error) {
 	server := resolved.Server
-	cfg, err := e.serverAuthConfig(ctx, resolved, e.resolveSecretRef)
-	if err != nil {
-		return mcpauth.Status{}, authorizationConfigError(err)
-	}
 	unconfigured := mcpauth.Status{
 		Owner: resolved.Target.Owner, ServerName: server.Name, Scope: resolved.Target.Scope,
 		WorkspaceID: resolved.Target.WorkspaceID, Status: mcpauth.StatusUnconfigured, RemoteURL: server.URL,
 	}
-	if !mcpauth.OAuthCapable(server) || (server.Auth.IsZero() && e.auth == nil) {
+	cfg, err := e.serverAuthConfig(ctx, resolved, e.resolveSecretRef)
+	if err != nil {
+		if server.IsDisabled() {
+			return unconfigured, nil
+		}
+		return mcpauth.Status{}, authorizationConfigError(err)
+	}
+	if !mcpauth.OAuthCapable(server) || (e.auth == nil && (server.Auth.IsZero() || server.IsDisabled())) {
 		return unconfigured, nil
 	}
 	if e.auth == nil {
@@ -130,7 +136,7 @@ func (e *CallExecutor) readAuthStatus(ctx context.Context, resolved *ResolvedSer
 	}
 	status, err := e.auth.Status(ctx, cfg)
 	if err != nil {
-		if cfg.Implicit && canProbeWithoutStoredCredential(err) {
+		if server.IsDisabled() || (cfg.Implicit && canProbeWithoutStoredCredential(err)) {
 			return unconfigured, nil
 		}
 		return mcpauth.Status{}, authorizationLookupError(err)

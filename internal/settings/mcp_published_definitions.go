@@ -11,8 +11,9 @@ import (
 
 // MCPPublishedDefinition exposes agent and skill sidecars absent from config layers.
 type MCPPublishedDefinition struct {
-	Target mcpauth.Target
-	Server config.MCPServer
+	Target           mcpauth.Target
+	ManagementTarget mcpauth.Target
+	Server           config.MCPServer
 }
 
 type MCPPublishedDefinitionProvider interface {
@@ -52,46 +53,90 @@ func (s *service) appendPublishedMCPItems(
 		if found {
 			continue
 		}
-		entry := mcpSourceEntry{
-			Server:     definition.Server,
-			AuthTarget: &definition.Target,
-			Source: SourceRef{
-				Kind:        SourceKindWorkspaceAgentFile,
-				Scope:       req.Scope,
-				WorkspaceID: req.WorkspaceID,
-				ProfileName: req.ProfileName,
-			},
-		}
-		item := baseMCPServerItem(entry, []mcpSourceEntry{entry}, req.Scope, req.WorkspaceID, req.ProfileName)
-		item.SourceMetadata.AvailableTargets = []WriteTargetKind{}
-		items = append(items, mcpCollectionItem{item: item, entry: entry})
+		items = append(items, publishedMCPCollectionItem(definition, req))
 	}
 	return items, nil
 }
 
+func publishedMCPCollectionItem(definition MCPPublishedDefinition, req MCPAuthTargetRequest) mcpCollectionItem {
+	target := definition.ManagementTarget
+	if target.Scope == "" {
+		target = definition.Target
+	}
+	source := mcpAuthTargetRequest(target)
+	kind := SourceKindGlobalAgentFile
+	if source.WorkspaceID != "" {
+		kind = SourceKindWorkspaceAgentFile
+	}
+	entry := mcpSourceEntry{
+		Server: definition.Server, AuthTarget: &definition.Target,
+		Source: SourceRef{
+			Kind: kind, Scope: source.Scope, WorkspaceID: source.WorkspaceID, ProfileName: source.ProfileName,
+		},
+	}
+	item := baseMCPServerItem(entry, []mcpSourceEntry{entry}, req.Scope, req.WorkspaceID, req.ProfileName)
+	item.SourceMetadata.AvailableTargets = []WriteTargetKind{}
+	return mcpCollectionItem{item: item, entry: entry}
+}
+
 func (s *service) resolvePublishedMCPDefinition(
-	ctx context.Context,
-	req MCPAuthTargetRequest,
+	ctx context.Context, req MCPAuthTargetRequest, requested mcpauth.Target,
 ) (mcpAuthDefinition, bool, error) {
 	definitions, err := s.publishedMCPDefinitions(ctx, req)
 	if err != nil {
 		return mcpAuthDefinition{}, false, err
 	}
 	var result mcpAuthDefinition
-	found := false
+	bestRank, matches := -1, 0
 	for _, definition := range definitions {
-		if definition.Server.Name != req.Name {
+		if definition.Server.Name != req.Name ||
+			(req.DefinitionSource != "" && definition.Server.DefinitionSource != req.DefinitionSource) {
 			continue
 		}
-		if found {
-			return result, false, conflictError(
-				fmt.Errorf("MCP server %q has multiple published definitions", req.Name),
-			)
+		rank := definition.ScopePrecedence()
+		if rank < bestRank {
+			continue
 		}
-		result = mcpAuthDefinition{target: definition.Target, server: definition.Server}
-		found = true
+		if rank > bestRank {
+			result = publishedMCPAuthDefinition(definition, requested)
+			bestRank, matches = rank, 0
+		}
+		matches++
 	}
-	return result, found, nil
+	if matches > 1 {
+		return result, false, conflictError(fmt.Errorf("MCP server %q has multiple published definitions", req.Name))
+	}
+	return result, matches == 1, nil
+}
+
+// ScopePrecedence ranks the visible publication independently of its OAuth owner.
+func (d *MCPPublishedDefinition) ScopePrecedence() int {
+	scope := d.ManagementTarget.Scope
+	if scope == "" {
+		scope = d.Target.Scope
+	}
+	return publishedMCPScopeRank(scope)
+}
+
+func publishedMCPScopeRank(scope mcpauth.Scope) int {
+	switch scope {
+	case mcpauth.ScopeWorkspaceProfile:
+		return 3
+	case mcpauth.ScopeWorkspace:
+		return 2
+	case mcpauth.ScopeProfile:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func publishedMCPAuthDefinition(definition MCPPublishedDefinition, requested mcpauth.Target) mcpAuthDefinition {
+	return mcpAuthDefinition{
+		target: definition.Target, server: definition.Server,
+		inherited:  !mcpAuthTargetCovers(requested, definition.Target.Normalize()),
+		precedence: definition.ScopePrecedence(),
+	}
 }
 
 func mcpApprovalNotFound(name string, err error) error {
@@ -110,10 +155,14 @@ func (s *service) mcpApprovalDefinitions(ctx context.Context, req MCPAuthTargetR
 	if err != nil {
 		return nil, err
 	}
+	requested, err := normalizeMCPAuthTarget(req)
+	if err != nil {
+		return nil, err
+	}
 	var definitions []mcpAuthDefinition
 	for _, definition := range published {
 		if definition.Server.Name == req.Name {
-			definitions = append(definitions, mcpAuthDefinition{target: definition.Target, server: definition.Server})
+			definitions = append(definitions, publishedMCPAuthDefinition(definition, requested))
 		}
 	}
 	resolved, err := s.resolveMCPAuthDefinition(ctx, req)
@@ -122,8 +171,8 @@ func (s *service) mcpApprovalDefinitions(ctx context.Context, req MCPAuthTargetR
 	}
 	if err == nil {
 		found := false
-		for _, definition := range definitions {
-			if definition.server.DefinitionSource == resolved.server.DefinitionSource {
+		for i := range definitions {
+			if definitions[i].server.DefinitionSource == resolved.server.DefinitionSource {
 				found = true
 				break
 			}
@@ -148,7 +197,8 @@ func (s *service) selectMCPApprovalDefinition(
 	}
 	var selected mcpAuthDefinition
 	matches := 0
-	for _, definition := range definitions {
+	for i := range definitions {
+		definition := &definitions[i]
 		req := consentRequestForTarget(definition.target, definition.server)
 		req.ProfileName = profile
 		decision, err := s.mcpConsent.MCPConsent(ctx, req)
@@ -156,7 +206,7 @@ func (s *service) selectMCPApprovalDefinition(
 			return selected, err
 		}
 		if decision.DefinitionDigest == digest {
-			selected = definition
+			selected = *definition
 			matches++
 		}
 	}

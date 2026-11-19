@@ -130,3 +130,9 @@ QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
 With one slow fixture, verify the session MCP control shows its discovery reason while other rows
 remain ready. Use Check again in Settings and confirm the targeted runtime diagnostic reports the
 latest attempt.
+
+For #1850, turn one fixture server off using its Settings switch. Reload Settings and verify
+the row and its definition are still present, the switch is unchecked, and the neutral **Off**
+status replaces Ready. The settings payload reports `off` with `probe: "skipped"`. Re-enable it
+and verify discovery resumes while the second fixture's state stays unchanged.
+See the [off-switch walk](../reports/2026-11-18-mcp-server-off-switch.md).

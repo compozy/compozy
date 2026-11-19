@@ -547,6 +547,14 @@ describe("useSessionSidebarState", () => {
       expect(result.current.folderFolds.has("sfold-a")).toBe(false);
       expect(result.current.folderFolds.has("unseen")).toBe(false);
       expect(result.current.openThreadIds).toEqual([]);
+      // #1846: Expand groups opens folders and groups like Expand all and restarts exceptions too.
+      act(() => {
+        result.current.toggleFolder("sfold-b");
+        result.current.setFoldAll("groups");
+      });
+      expect(result.current).toMatchObject({ foldAll: "groups", collapsedFolderIds: [] });
+      expect(result.current.folderFolds.has("sfold-b")).toBe(false);
+      expect(result.current.groupFolds.has("unseen")).toBe(false);
     });
 
     it("Should keep the choice per window across a reload without touching column folds", async () => {
@@ -559,12 +567,12 @@ describe("useSessionSidebarState", () => {
           columnId: "done",
           collapsed: true,
         });
-        one.current.setFoldAll("collapsed");
+        one.current.setFoldAll("groups");
       });
       expect(two.current.foldAll).toBeNull();
 
       const reloaded = renderInScope(await loadFreshSidebarState(), WINDOW_ONE);
-      expect(reloaded.current.foldAll).toBe("collapsed");
+      expect(reloaded.current.foldAll).toBe("groups");
       const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "{}");
       expect(stored.context.byScope[WINDOW_ONE].collapsedBoardColumns).toEqual({ done: true });
     });

@@ -30,6 +30,7 @@ export const MCP_AUTH_STATUSES = [
 export type MCPAuthStatus = (typeof MCP_AUTH_STATUSES)[number];
 
 export const MCP_RUNTIME_STATES = [
+  "off",
   "ready",
   "config_error",
   "auth_required",
@@ -115,7 +116,7 @@ function canRenewExpiredOAuth(server: SettingsMCPServerEntry): boolean {
 }
 
 export function isOAuthRepairable(server: SettingsMCPServerEntry): boolean {
-  if (!isOAuthCapable(server)) return false;
+  if (server.disabled || !isOAuthCapable(server)) return false;
   const state = server.runtime_status?.state;
   if (
     state === "auth_required" ||
@@ -230,6 +231,7 @@ const SUMMARY_DANGER_LABEL: Record<string, string> = {
  * never turns green unless the daemon reports the runtime ready; unknown values stay neutral.
  */
 export function summarizeMCPStatus(server: SettingsMCPServerEntry): MCPStatusCell {
+  if (server.disabled) return { label: "Off", tone: "neutral" };
   const runtime = server.runtime_status;
   const auth = server.auth_status?.status;
   const dangerLabel = runtime ? SUMMARY_DANGER_LABEL[runtime.state] : undefined;

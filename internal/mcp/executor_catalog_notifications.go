@@ -202,7 +202,7 @@ func (e *CallExecutor) RetainCatalogSubscriptions(ctx context.Context, sources m
 		if err != nil {
 			continue
 		}
-		if e.consent != nil && e.consent(ctx, source, resolved) != nil {
+		if e.authorizeServer(ctx, source, &resolved) != nil {
 			continue
 		}
 		header, err := e.authorizationHeader(ctx, &resolved)

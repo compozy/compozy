@@ -1167,13 +1167,15 @@ func TestMCPCallExecutor(t *testing.T) {
 	// Invariant: discovery uses the bound token through real expiry and renews once within the bounded window.
 	// Owner: MCP executor discovery and authorization; canonical suite: TestMCPCallExecutor.
 	for _, tc := range []struct {
-		name       string
-		lifetime   time.Duration
-		window     time.Duration
-		retryAfter time.Duration
-		windowCap  time.Duration
-		noRefresh  bool
-		rejected   bool
+		name                 string
+		lifetime             time.Duration
+		window               time.Duration
+		retryAfter           time.Duration
+		windowCap            time.Duration
+		noRefresh            bool
+		rejected             bool
+		disabled             bool
+		disableDuringBackoff bool
 	}{
 		{name: "Should renew within the maximum window", lifetime: time.Hour, window: 30 * time.Second},
 		{name: "Should scale the window to short lifetimes", lifetime: 20 * time.Second, window: 2 * time.Second},
@@ -1186,14 +1188,22 @@ func TestMCPCallExecutor(t *testing.T) {
 			name:     "Should withhold a bearer that expires during renewal backoff",
 			lifetime: time.Minute, window: 6 * time.Second, retryAfter: 10 * time.Second,
 		},
+		{
+			name:     "Should stop before connecting when backoff returns a still-valid bearer",
+			lifetime: time.Minute, window: 6 * time.Second, retryAfter: 2 * time.Second,
+			disableDuringBackoff: true,
+		},
 		{name: "Should allow an access-only grant until expiry", lifetime: time.Minute, window: 6 * time.Second, noRefresh: true},
+		{name: "Should stop before connecting when renewal observes the switch off", lifetime: time.Minute,
+			window: 6 * time.Second, disabled: true},
 		{name: "Should withdraw a definitively rejected grant before expiry", lifetime: time.Minute, window: 6 * time.Second, rejected: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var renewals atomic.Int32
 			var mcpRequests atomic.Int32
-			var failRefresh atomic.Bool
+			var failRefresh, off atomic.Bool
+			off.Store(tc.disabled)
 			failRefresh.Store(tc.retryAfter > 0)
 			handler := newTestMCPHandler(newFakeSDKServer(nil))
 			remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1265,7 +1275,14 @@ func TestMCPCallExecutor(t *testing.T) {
 			}
 			service, err := mcpauth.NewService(store, mcpauth.WithNow(func() time.Time { return now }),
 				mcpauth.WithRefreshBackoff(tc.retryAfter, tc.retryAfter), mcpauth.WithEarlyRenewalWindow(tc.windowCap),
-				mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))))
+				mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))),
+				mcpauth.WithNetworkAuthorization(func(context.Context, mcpauth.ServerConfig) error {
+					if off.Load() {
+						return mcpauth.ErrServerDisabled
+					}
+					return nil
+				}),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1286,6 +1303,17 @@ func TestMCPCallExecutor(t *testing.T) {
 				status.ExpiresAt == nil || !status.ExpiresAt.Equal(expiresAt) || renewals.Load() != 0 {
 				t.Fatalf("passive status before expiry = %+v, err = %v", status, err)
 			}
+			if tc.disabled {
+				before := mcpRequests.Load()
+				_, err := executor.ListTools(t.Context(), source)
+				requireReason(t, err, toolspkg.ReasonSourceDisabled)
+				stored, err := store.GetMCPAuthToken(t.Context(), target)
+				if mcpRequests.Load() != before || renewals.Load() != 0 || err != nil ||
+					stored.AccessToken != token.AccessToken {
+					t.Fatal("disabled renewal contacted the server or changed persisted authorization")
+				}
+				return
+			}
 			if tc.rejected {
 				_, err := executor.ListTools(t.Context(), source)
 				requireReason(t, err, toolspkg.ReasonMCPAuthRequired)
@@ -1301,6 +1329,16 @@ func TestMCPCallExecutor(t *testing.T) {
 				requireReason(t, err, toolspkg.ReasonMCPAuthExpired)
 				if renewals.Load() != 0 {
 					t.Fatal("access-only grant attempted renewal")
+				}
+				return
+			}
+			if tc.disableDuringBackoff {
+				off.Store(true)
+				before := mcpRequests.Load()
+				_, err := executor.ListTools(t.Context(), source)
+				requireReason(t, err, toolspkg.ReasonSourceDisabled)
+				if mcpRequests.Load() != before || renewals.Load() != 1 {
+					t.Fatal("discovery started while off during renewal backoff")
 				}
 				return
 			}
@@ -1996,6 +2034,61 @@ func recordTestToolProjection(
 // Owning layer: internal/mcp unit cache.
 // Canonical suite: internal/mcp/executor_test.go.
 func TestMCPToolListCache(t *testing.T) {
+	// Invariant: a failed poll is shared by callers of the same binding, with a fresh operator check still allowed.
+	// Owner: MCP executor fallback discovery; canonical suite: TestMCPToolListCache.
+	t.Run("Should share failed fallback attempts without delaying an explicit check", func(t *testing.T) {
+		t.Parallel()
+		var lists atomic.Int32
+		upstream := newFakeSDKServer(nil)
+		upstream.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				if method != mcpToolsListMethod {
+					return next(ctx, method, request)
+				}
+				if lists.Add(1) == 1 {
+					return nil, errors.New("fixture unavailable")
+				}
+				return &mcpsdk.ListToolsResult{Tools: syntheticMCPTools(1)}, nil
+			}
+		})
+		server := newTestMCPHTTPServer(upstream)
+		t.Cleanup(server.Close)
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{Name: "fixture", URL: server.URL})
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", ProfileID: "first"}
+		ctx := testContext(t)
+		if _, err := executor.listResolvedTools(ctx, source, true); err == nil {
+			t.Fatal("expected the first background list to fail")
+		}
+		peer := source
+		peer.ProfileID = "second"
+		_, err := executor.listResolvedTools(ctx, peer, true)
+		if _, deferred := errors.AsType[*toolspkg.MCPCatalogPollDeferred](err); !deferred || lists.Load() != 1 {
+			t.Fatalf(
+				"same-binding poll error = %v, upstream lists = %d, want deferral after one list",
+				err,
+				lists.Load(),
+			)
+		}
+		discovery, err := executor.DiscoverTools(toolspkg.WithFreshMCPDiscovery(ctx), source)
+		if err != nil || len(discovery.Descriptors) != 1 || lists.Load() != 2 {
+			t.Fatalf(
+				"explicit check = %d tools, %v, upstream lists = %d",
+				len(discovery.Descriptors),
+				err,
+				lists.Load(),
+			)
+		}
+		discovery, err = executor.listResolvedTools(ctx, peer, true)
+		if err != nil || len(discovery.Descriptors) != 1 || lists.Load() != 2 {
+			t.Fatalf(
+				"shared recovery = %d tools, %v, upstream lists = %d",
+				len(discovery.Descriptors),
+				err,
+				lists.Load(),
+			)
+		}
+	})
+
 	// Invariant: retries share a server binding and honor the previous TTL through a failure.
 	// Owner: MCP executor fallback discovery; canonical suite: TestMCPToolListCache.
 	t.Run("Should retain the fallback interval across child replacement and failed polls", func(t *testing.T) {
@@ -2236,6 +2329,13 @@ func TestMCPToolListCache(t *testing.T) {
 		if initial != size*2 {
 			t.Fatalf("schema encodes = %d, want one fingerprint and one normalization pass", initial)
 		}
+		raw = slices.Clone(raw)
+		slices.Reverse(raw)
+		read()
+		if got := encodes - initial; got != size {
+			t.Fatalf("schema encodes after an unchanged, reordered listing = %d, want one fingerprint pass", got)
+		}
+		encodes = 0
 		stableCleanup := redact.RegisterRequiredSecret(stable)
 		defer stableCleanup()
 		lateCleanup := redact.RegisterRequiredSecret(late)
@@ -2245,7 +2345,7 @@ func TestMCPToolListCache(t *testing.T) {
 				t.Fatal("late credential appears in cached descriptor")
 			}
 		}
-		if got := encodes - initial; got != initial {
+		if got := encodes; got != initial {
 			t.Fatalf("schema encodes after a new credential = %d, want one new pass", got)
 		}
 	})
@@ -4182,6 +4282,22 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		}, "extension:bundle")
 		if err != nil || status.Owner != "extension:bundle" || status.ServerName != "github" {
 			t.Fatalf("diagnostic status = %#v, error = %v", status, err)
+		}
+	})
+	// Invariant: the native status reader can report an off server with an unavailable OAuth secret.
+	// Owner: MCP executor status; canonical suite: TestMCPCallExecutor.
+	t.Run("Should report off when the OAuth client secret is unavailable", func(t *testing.T) {
+		t.Parallel()
+		server := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, "https://mcp.example.test/mcp")
+		server.Disabled = new(true)
+		server.Auth.ClientSecretRef = "env:MCP_CLIENT_SECRET"
+		executor := newTestMCPExecutor(t, server, withAuthService(&fakeAuthService{}),
+			WithSecretLookup(func(string) string { return "" }))
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+		status, err := executor.Status(t.Context(), source, "")
+		if err != nil || !status.Disabled || status.ServerName != server.Name ||
+			status.Scope != string(mcpauth.ScopeUser) {
+			t.Fatalf("disabled status = %+v, err = %v", status, err)
 		}
 	})
 	t.Run("Should Return Redacted Status And Use Secret Lookup Internally", func(t *testing.T) {
