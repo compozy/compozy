@@ -124,7 +124,7 @@ export interface SessionViewOptionsMenuProps {
 
 /**
  * How a window shows its sessions, in one menu: order, grouping and filters (the folds have
- * their own toolbar button, `SessionFoldAllButton`). The List and the
+ * their own toolbar control: `SessionFoldMenu` in the List, `SessionFoldAllButton` on the board). The List and the
  * Kanban render the same menu over the same window state.
  */
 export function SessionViewOptionsMenu({
