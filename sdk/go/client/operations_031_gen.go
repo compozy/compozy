@@ -414,7 +414,7 @@ type ReorderSessionsParams struct {
 	Profile     *string `url:"profile"`
 }
 
-// ReorderSessions Set the manual session order in a folder or the workspace root
+// ReorderSessions Set the manual session order in a folder, the workspace root, or Pinned
 func (c *Client) ReorderSessions(ctx context.Context, params ReorderSessionsParams, body ReorderSessionsRequest) (*SessionFoldersResponse, error) {
 	path := "/api/workspaces/{workspace_id}/session-order/sessions"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))

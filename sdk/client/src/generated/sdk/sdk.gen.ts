@@ -8712,7 +8712,7 @@ export class sessions extends HeyApiClient {
   }
 
   /**
-   * Set the manual session order in a folder or the workspace root
+   * Set the manual session order in a folder, the workspace root, or Pinned
    */
   public reorderSessions<ThrowOnError extends boolean = true>(
     options: Options<ReorderSessionsData, ThrowOnError>

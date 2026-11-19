@@ -22,7 +22,7 @@ func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.Sessi
 	if sortKey == ListSortCreated {
 		position.PrimaryAt = info.CreatedAt.UTC()
 	}
-	if sortKey == ListSortLastActivity {
+	if sortKey == ListSortLastActivity || sortKey == ListSortPinned {
 		position.SecondaryAt = info.UpdatedAt.UTC()
 		if info.Liveness != nil && info.Liveness.LastUpdateAt != nil && !info.Liveness.LastUpdateAt.IsZero() {
 			position.PrimaryAt = info.Liveness.LastUpdateAt.UTC()
@@ -36,8 +36,9 @@ func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.Sessi
 		}
 		position.SecondaryAt = info.UpdatedAt.UTC()
 	}
-	if sortKey == ListSortPinned && info.PinnedAt != nil {
-		position.PinnedAt = new(info.PinnedAt.UTC())
+	if sortKey == ListSortPinned && info.PinScope != nil {
+		position.PinPosition = new(info.PinScope.Position)
+		position.PinRootID = strings.TrimSpace(info.PinScope.RootID)
 	}
 	if sortKey == ListSortNavigator {
 		band := 3
@@ -78,7 +79,7 @@ func compareSessionCatalogKeyedPosition(left, right store.SessionCatalogPosition
 		left.ManualPosition != nil && right.ManualPosition != nil {
 		return compareSessionCatalogManualPosition(left, right), true
 	}
-	if left.PinnedAt != nil && right.PinnedAt != nil {
+	if left.PinPosition != nil && right.PinPosition != nil {
 		return compareSessionCatalogPinnedPosition(left, right), true
 	}
 	return 0, false

@@ -10,6 +10,49 @@ import (
 	"database/sql"
 )
 
+const listLayoutPinPositions = `-- name: ListLayoutPinPositions :many
+SELECT id, CAST(COALESCE(pin_position, 0) AS INTEGER) AS pin_position
+FROM sessions
+WHERE pinned_at IS NOT NULL
+  AND workspace_id = ?1
+  AND profile_id = ?2
+  AND id IN (SELECT CAST(value AS TEXT) FROM json_each(?3))
+`
+
+type ListLayoutPinPositionsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
+	SessionIds  any    `json:"session_ids"`
+}
+
+type ListLayoutPinPositionsRow struct {
+	ID          string `json:"id"`
+	PinPosition int64  `json:"pin_position"`
+}
+
+func (q *Queries) ListLayoutPinPositions(ctx context.Context, arg ListLayoutPinPositionsParams) ([]ListLayoutPinPositionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLayoutPinPositions, arg.WorkspaceID, arg.ProfileID, arg.SessionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLayoutPinPositionsRow{}
+	for rows.Next() {
+		var i ListLayoutPinPositionsRow
+		if err := rows.Scan(&i.ID, &i.PinPosition); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSessionPinnedAt = `-- name: ListSessionPinnedAt :many
 SELECT id, CAST(pinned_at AS TEXT) AS pinned_at
 FROM sessions
@@ -48,8 +91,16 @@ func (q *Queries) ListSessionPinnedAt(ctx context.Context, sessionIds any) ([]Li
 const pinSession = `-- name: PinSession :execrows
 
 UPDATE sessions
-SET pinned_at = COALESCE(pinned_at, ?1)
-WHERE workspace_id = ?2 AND id = ?3
+SET pin_position = CASE
+        WHEN pinned_at IS NULL OR pin_position IS NULL THEN (
+            SELECT COALESCE(MIN(pinned.pin_position), 0) - 1
+            FROM sessions AS pinned
+            WHERE pinned.pinned_at IS NOT NULL AND pinned.pin_position IS NOT NULL
+        )
+        ELSE pin_position
+    END,
+    pinned_at = COALESCE(pinned_at, ?1)
+WHERE sessions.workspace_id = ?2 AND sessions.id = ?3
 `
 
 type PinSessionParams struct {
@@ -60,6 +111,8 @@ type PinSessionParams struct {
 
 // A pin is organization only: it never touches updated_at or last_update_at,
 // so the session keeps its place in every other ordering.
+// A new pin takes the top of the Pinned order; pinning a pinned session keeps
+// its pin time and position.
 func (q *Queries) PinSession(ctx context.Context, arg PinSessionParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, pinSession, arg.PinnedAt, arg.WorkspaceID, arg.ID)
 	if err != nil {
@@ -68,9 +121,29 @@ func (q *Queries) PinSession(ctx context.Context, arg PinSessionParams) (int64, 
 	return result.RowsAffected()
 }
 
+const setSessionPinPosition = `-- name: SetSessionPinPosition :execrows
+UPDATE sessions
+SET pin_position = ?1
+WHERE workspace_id = ?2 AND id = ?3 AND pinned_at IS NOT NULL
+`
+
+type SetSessionPinPositionParams struct {
+	PinPosition sql.NullInt64 `json:"pin_position"`
+	WorkspaceID string        `json:"workspace_id"`
+	ID          string        `json:"id"`
+}
+
+func (q *Queries) SetSessionPinPosition(ctx context.Context, arg SetSessionPinPositionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setSessionPinPosition, arg.PinPosition, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const unpinSession = `-- name: UnpinSession :execrows
 UPDATE sessions
-SET pinned_at = NULL
+SET pinned_at = NULL, pin_position = NULL
 WHERE workspace_id = ?1 AND id = ?2 AND pinned_at IS NOT NULL
 `
 

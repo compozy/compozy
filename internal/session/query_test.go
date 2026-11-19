@@ -379,7 +379,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		})
 	}
 
-	t.Run("Should split live and stopped pinned sessions out of the page in pin order", func(t *testing.T) {
+	t.Run("Should split live and stopped pinned sessions out of the page in Pinned order", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
 		h, _ := newMentionHarness(t)
@@ -407,13 +407,24 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			Limit:       1,
 		}
 		first, err := h.manager.ListPage(ctx, pinnedQuery)
-		if err != nil || len(first.Sessions) != 1 || first.Sessions[0].ID != stopped.ID || !first.HasMore {
-			t.Fatalf("ListPage(pinned first) = %#v, %v, want the older pin and more", first, err)
+		if err != nil || len(first.Sessions) != 1 || first.Sessions[0].ID != live.ID || !first.HasMore ||
+			first.Total != 2 {
+			t.Fatalf("ListPage(pinned first) = %#v, %v, want the newest pin on top and more", first, err)
 		}
 		pinnedQuery.Cursor = first.NextCursor
 		second, err := h.manager.ListPage(ctx, pinnedQuery)
-		if err != nil || len(second.Sessions) != 1 || second.Sessions[0].ID != live.ID || second.HasMore {
-			t.Fatalf("ListPage(pinned second) = %#v, %v, want the live pin last", second, err)
+		if err != nil || len(second.Sessions) != 1 || second.Sessions[0].ID != stopped.ID || second.HasMore {
+			t.Fatalf("ListPage(pinned second) = %#v, %v, want the older pin last", second, err)
+		}
+		layoutScope := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID}
+		if err := h.manager.ReorderPinnedSessions(ctx, layoutScope, []string{stopped.ID, live.ID}); err != nil {
+			t.Fatalf("ReorderPinnedSessions() error = %v", err)
+		}
+		pinnedQuery.Cursor, pinnedQuery.Limit = "", 10
+		reordered, err := h.manager.ListPage(ctx, pinnedQuery)
+		if err != nil || len(reordered.Sessions) != 2 || reordered.Sessions[0].ID != stopped.ID ||
+			reordered.Sessions[1].ID != live.ID {
+			t.Fatalf("ListPage(pinned reordered) = %#v, %v, want the operator's order", reordered.Sessions, err)
 		}
 		rest := ListQuery{
 			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},

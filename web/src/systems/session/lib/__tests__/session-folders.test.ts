@@ -19,6 +19,7 @@ import {
   applyFolderRemoval,
   applySessionMove,
   applySessionOrder,
+  applySessionSlotOrder,
   applySessionsMovedFirst,
   buildSessionListSections,
   placeId,
@@ -172,6 +173,25 @@ describe("layout order helpers", () => {
     expect(next.find(item => item.id === "b")?.folder_id).toBe("f");
     const root = applySessionOrder(next, null, ["a"]);
     expect(root.find(item => item.id === "a")?.folder_id).toBeUndefined();
+  });
+
+  it("Should trade pins' slots and keep the rows they carry nested under them", () => {
+    const page = [
+      session("p1"),
+      session("c1", undefined, "p1"),
+      session("p2"),
+      session("c2", "f", "p2"),
+    ];
+    const next = applySessionSlotOrder(page, ["p2", "p1"]);
+    expect(next.map(item => item.id)).toEqual(["p2", "c1", "p1", "c2"]);
+    expect(next.find(item => item.id === "c2")?.folder_id).toBe("f");
+    const threads = buildSessionListThreads(next, "");
+    expect(threads.map(thread => [thread.session.id, thread.childSessions.map(c => c.id)])).toEqual(
+      [
+        ["p2", ["c2"]],
+        ["p1", ["c1"]],
+      ]
+    );
   });
 
   it("Should move a session to the end of its new folder and clear a deleted folder", () => {

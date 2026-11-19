@@ -2316,11 +2316,12 @@ describe("SessionList Pinned", () => {
     ).toBeVisible();
     expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
 
-    // The count names pins, not threads: a pinned child nests under its pinned parent.
+    // A pin carries its subtree: the child nests under its pin and the count names pins only.
     const pinnedChild: SessionPayload = {
       ...pinned,
       id: "pinned-child",
       name: "Launch copy",
+      pinned_at: null,
       lineage: {
         spawn_role: "worker",
         parent_session_id: pinned.id,
@@ -2333,7 +2334,12 @@ describe("SessionList Pinned", () => {
       },
     };
     update([], { ...view, pinned: pinnedRead([pinned, pinnedChild]) });
-    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned2");
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned1");
+    expect(
+      within(screen.getByTestId("session-sidebar-pinned")).getByTestId(
+        "session-sidebar-session-pinned-child"
+      )
+    ).toBeVisible();
 
     // While the pins are still being read, the list below is not declared empty yet.
     const settled = { ...view, catalog: sessionListCatalogFixture() };
@@ -2367,6 +2373,74 @@ describe("SessionList Pinned", () => {
       path: `/api/workspaces/${pinned.workspace_id}/sessions/pinned/pin?profile=${pinned.profile_name}`,
     });
     await waitFor(() => expect(screen.getByText("Unpinned Launch plan.")).toBeInTheDocument());
+  });
+
+  // Invariant (#1859): pins reorder by Move up and Move down where the list reads one pair; the
+  // rows a pin carries take no order verbs, and a search turns the verbs off.
+  it("Should reorder pins from the row menu and leave carried rows unordered", async () => {
+    const user = userEvent.setup();
+    const reorder = vi.fn();
+    const second: SessionPayload = { ...pinned, id: "pinned-2", name: "Release notes" };
+    const carried: SessionPayload = {
+      ...pinned,
+      id: "carried",
+      name: "Notes draft",
+      pinned_at: null,
+      lineage: {
+        spawn_role: "worker",
+        parent_session_id: second.id,
+        root_session_id: second.id,
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      },
+    };
+    // A carried row whose pin is outside this read (archived, filtered) stands as a root but is
+    // no pin, so it never joins the order the section sends.
+    const orphan: SessionPayload = {
+      ...carried,
+      id: "orphan",
+      name: "Stray worker",
+      lineage: { ...carried.lineage!, parent_session_id: "gone", root_session_id: "gone" },
+    };
+    const { update } = renderList({
+      sessions: [],
+      view: { ...view, pinned: { ...pinnedRead([pinned, second, carried, orphan]), reorder } },
+    });
+
+    await user.click(screen.getByTestId("session-row-actions-pinned-2"));
+    await openSubmenu(user, await screen.findByTestId("session-row-move-pinned-2"));
+    await chooseItem(user, await screen.findByTestId("session-row-up-pinned-2"));
+    expect(reorder).toHaveBeenCalledExactlyOnceWith(["pinned-2", "pinned"]);
+
+    // Dragging a pin past another reorders them; a carried row is no drag source.
+    reorder.mockClear();
+    const row = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`).parentElement!;
+    for (const id of ["carried", "orphan"]) {
+      fireEvent.dragStart(row(id));
+      fireEvent.dragOver(row("pinned"));
+      fireEvent.drop(row("pinned"));
+    }
+    expect(reorder).not.toHaveBeenCalled();
+    fireEvent.dragStart(row("pinned"));
+    fireEvent.dragOver(row("pinned-2"));
+    fireEvent.drop(row("pinned-2"));
+    expect(reorder).toHaveBeenCalledExactlyOnceWith(["pinned-2", "pinned"]);
+
+    // A search can list a carried row as a root, so the section stops reordering meanwhile.
+    reorder.mockClear();
+    update([], {
+      ...view,
+      search: "notes",
+      setSearch: vi.fn(),
+      pinned: { ...pinnedRead([pinned, second]), reorder },
+    });
+    fireEvent.dragStart(row("pinned"));
+    fireEvent.dragOver(row("pinned-2"));
+    fireEvent.drop(row("pinned-2"));
+    expect(reorder).not.toHaveBeenCalled();
   });
 
   it("Should offer no pin verb on a subagent row", async () => {

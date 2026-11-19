@@ -116,28 +116,40 @@ Sessions in Later are omitted by default too. Use `--later` to return only sessi
 `--include-later` to include them.
 
 Pinned sessions are included by default. Use `--pinned only` or `--pinned exclude` to split them
-out, and `--sort pinned` with `--pinned only` to list them in pin order.
+out, together with the sessions their pins carry, and `--sort pinned` with `--pinned only` to list
+them in your Pinned order.
 
 ## Pinned sessions
 
 Pin a session to keep it at the top of the session list. Use **Pin to top** on the row (the pin
-button beside its `…`, or the row menu) and the session moves on its own into **Pinned**, above
-every project group and folder; in All projects, Pinned holds every project's pins. Its parent,
-children, folder, and project group stay where they are. A project whose only session you pinned
-leaves the list until you unpin it. **Unpin** returns the session to its group and folder at the
-position it held. The oldest pin comes first and a new pin lands at the bottom.
+button beside its `…`, or the row menu) and the session moves into **Pinned**, above every project
+group and folder, with its child sessions nested under it at every depth; in All projects, Pinned
+holds every project's pins. The children leave their group and folder while the pin lasts, so
+nothing shows twice and group and folder counts leave them out. A fork, or a continuation of the
+pinned session itself, is new top-level work, so it stays where it is, and so does a child started
+in another project. A pin that is archived or in Later stays pinned but carries nothing until it is
+back. A project whose only sessions you pinned leaves the list until you unpin.
+**Unpin** returns the session and its children to their group and folder at the positions they
+held; pinning never changes a session's parent, folder, or manual position.
+
+A new pin goes on top. Drag a pin up or down inside Pinned, or use **Move up** and **Move down** in
+its **Move** menu, to set your own order; it stays the same after a reload and in every window.
+Reordering works where the list shows one project and profile, and is off while you search.
 
 ```bash
 compozy session pin sess-123
 compozy session unpin sess-123
-compozy session list --pinned only --sort pinned   # what is pinned, in pin order
-compozy session list --pinned exclude              # everything else
+compozy session reorder sess-456 sess-123 --pinned  # put sess-456 above sess-123 in Pinned
+compozy session list --pinned only --sort pinned    # what is pinned, in your Pinned order
+compozy session list --pinned exclude               # everything else
 ```
 
 - A pin survives stop, archive, Later, and a daemon restart. Archived and parked sessions show a pin
   mark in those views and return to Pinned when you restore them.
 - Subagent sessions follow their parent and cannot be pinned; neither can an always-on agent's main
-  session.
+  session. Pinning a session carries its subagents along with it.
+- Pinning a session inside a pinned session's subtree keeps it under the outer pin; it gets its own
+  place in Pinned when you unpin the outer one.
 - The Kanban board ignores pins.
 
 HTTP clients use `POST` and `DELETE /api/workspaces/{workspace_id}/sessions/{session_id}/pin`.

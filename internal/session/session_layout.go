@@ -134,6 +134,24 @@ func (m *Manager) ReorderSessions(
 	return nil
 }
 
+// ReorderPinnedSessions orders the Pinned section: the listed pins of one layout scope take the
+// Pinned slots they hold now, in the listed order, and other pins keep theirs.
+func (m *Manager) ReorderPinnedSessions(
+	ctx context.Context,
+	scope store.SessionLayoutScope,
+	sessionIDs []string,
+) error {
+	pinStore, err := m.pinStore()
+	if err != nil {
+		return err
+	}
+	if err := pinStore.ReorderPinnedSessions(ctx, scope, sessionIDs); err != nil {
+		return err
+	}
+	m.publishSessionLayoutChanged(scope)
+	return nil
+}
+
 func (m *Manager) sessionLayoutStore() (store.SessionLayoutStore, error) {
 	if m == nil {
 		return nil, errors.New("session: manager is required")

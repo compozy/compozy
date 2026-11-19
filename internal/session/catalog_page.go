@@ -141,6 +141,27 @@ type sessionListFingerprint struct {
 	ExcludeAutomation bool `json:"exclude_automation,omitempty"`
 }
 
+// cutSessionCatalogPage keeps one page of the merged candidates with its total and whether more
+// follow. A pinned page counts and cuts pins; the rows each pin carries list with it.
+func cutSessionCatalogPage(
+	candidates []store.SessionInfo,
+	normalized ListQuery,
+	durable store.SessionCatalogPage,
+	activeMatches []store.SessionInfo,
+	position func(*store.SessionInfo) store.SessionCatalogPosition,
+) (page []store.SessionInfo, total int, hasMore bool) {
+	if normalized.Sort == ListSortPinned {
+		total = sessionCatalogPinnedTotal(durable.PinnedRootIDs, activeMatches)
+		page, hasMore = cutSessionCatalogPinnedPage(candidates, normalized.Limit, position)
+		return page, total, hasMore
+	}
+	total = durable.Total + len(activeMatches)
+	if len(candidates) > normalized.Limit {
+		return candidates[:normalized.Limit], total, true
+	}
+	return candidates, total, false
+}
+
 // ListPage returns a stable, bounded union of durable and active sessions.
 // Active snapshots replace their durable rows before filtering, counting, and cutting.
 func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, error) {
@@ -191,14 +212,10 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 
 	candidates := mergeSessionCatalogCandidates(durable.Sessions, activeMatches, after, position)
 
-	page := ListPage{
-		Total: durable.Total + len(activeMatches),
-		Limit: normalized.Limit,
-	}
-	if len(candidates) > normalized.Limit {
-		page.HasMore = true
-		candidates = candidates[:normalized.Limit]
-	}
+	page := ListPage{Limit: normalized.Limit}
+	candidates, page.Total, page.HasMore = cutSessionCatalogPage(
+		candidates, normalized, durable, activeMatches, position,
+	)
 	page.Sessions = projectSessionCatalogPage(candidates, activeByID)
 	m.decorateMCPAuthorities(ctx, page.Sessions, nil)
 	if err := m.populateCatalogRelations(
@@ -241,7 +258,7 @@ func mergeSessionCatalogCandidates(
 	for index := range activeMatches {
 		info := &activeMatches[index]
 		key := position(info)
-		if after == nil || compareSessionCatalogPosition(key, *after) > 0 {
+		if after == nil || sessionCatalogAfter(key, *after) {
 			candidates = append(candidates, candidate{info: info, position: key})
 		}
 	}

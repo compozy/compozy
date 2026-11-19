@@ -6631,6 +6631,7 @@ export type ReorderSessionFoldersRequest = {
 
 export type ReorderSessionsRequest = {
   folder_id?: string;
+  pinned?: boolean;
   session_ids: Array<string>;
 };
 
@@ -26524,11 +26525,11 @@ export type ListSessionsData = {
      */
     later?: "exclude" | "only" | "include";
     /**
-     * Visibility of pinned sessions; included by default
+     * Visibility of pinned sessions and the subtrees their pins carry; included by default
      */
     pinned?: "exclude" | "only" | "include";
     /**
-     * Stable session ordering; pinned (pin order, oldest first) requires pinned=only
+     * Stable session ordering; pinned (the operator's Pinned order, pages by pin with each pin's subtree) requires pinned=only
      */
     sort?:
       | "recent"
@@ -26754,7 +26755,7 @@ export type ListSessionFacetsData = {
      */
     later?: "exclude" | "only" | "include";
     /**
-     * Visibility of pinned sessions; included by default
+     * Visibility of pinned sessions and the subtrees their pins carry; included by default
      */
     pinned?: "exclude" | "only" | "include";
     /**
@@ -38609,11 +38610,11 @@ export type ListWorkspaceSessionsData = {
      */
     later?: "exclude" | "only" | "include";
     /**
-     * Visibility of pinned sessions; included by default
+     * Visibility of pinned sessions and the subtrees their pins carry; included by default
      */
     pinned?: "exclude" | "only" | "include";
     /**
-     * Stable session ordering; pinned (pin order, oldest first) requires pinned=only
+     * Stable session ordering; pinned (the operator's Pinned order, pages by pin with each pin's subtree) requires pinned=only
      */
     sort?:
       | "recent"

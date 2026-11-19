@@ -288,7 +288,7 @@ const sessionListInputSchema = `{
 		"pinned":{
 			"type":"string",
 			"enum":["exclude","only","include"],
-			"description":"Visibility of sessions pinned above the session list; included by default. Sort pinned requires only."
+			"description":"Pinned sessions and their carried subtrees; included by default. Sort pinned requires only."
 		},
 		"include_health":{"type":"boolean"},
 		"sort":{"type":"string","enum":["recent","created","name","last_activity","attention","navigator","manual","pinned"]},
