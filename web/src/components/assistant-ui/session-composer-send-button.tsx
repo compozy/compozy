@@ -46,14 +46,13 @@ export function SessionComposerSendButton({
     promptEmbeddedContextCapability,
     promptImageCapability,
   });
-  const hasReadyAttachment = attachments.some(
-    attachment => sessionAttachmentTileState(attachment) === "ready"
-  );
-  const quoteOnly = hasStagedQuote && text.trim().length === 0 && !hasReadyAttachment;
-  const disabled =
-    !canPrompt ||
-    Boolean(blocker) ||
-    (text.trim().length === 0 && !hasReadyAttachment && !hasStagedQuote);
+  const { disabled, quoteOnly } = sessionComposerSendState({
+    attachments,
+    blocker,
+    canPrompt,
+    hasStagedQuote,
+    text,
+  });
 
   if (edit?.active) {
     return (
@@ -133,4 +132,28 @@ export function SessionComposerSendButton({
       <ArrowUp strokeWidth={2} />
     </ComposerPrimitive.Send>
   );
+}
+
+/** Whether the send button is disabled, and whether a press sends only the staged terminal quote. */
+function sessionComposerSendState({
+  attachments,
+  blocker,
+  canPrompt,
+  hasStagedQuote,
+  text,
+}: {
+  attachments: readonly Parameters<typeof sessionAttachmentTileState>[0][];
+  blocker: string | null | undefined;
+  canPrompt: boolean;
+  hasStagedQuote: boolean;
+  text: string;
+}): { disabled: boolean; quoteOnly: boolean } {
+  const hasReadyAttachment = attachments.some(
+    attachment => sessionAttachmentTileState(attachment) === "ready"
+  );
+  const empty = text.trim().length === 0 && !hasReadyAttachment;
+  return {
+    disabled: !canPrompt || Boolean(blocker) || (empty && !hasStagedQuote),
+    quoteOnly: hasStagedQuote && empty,
+  };
 }
