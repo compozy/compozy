@@ -112,10 +112,13 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 	)
 	defer hostedServerToolFingerprints.Delete(mcpServer)
 	catalog := &hostedProxyCatalog{threshold: opts.ToolListThreshold}
-	mcpServer.AddReceivingMiddleware(catalog.middleware(mcpServer, client, bind.BindID))
+	mcpServer.AddReceivingMiddleware(catalog.middleware(client, bind.BindID))
 	mcpServer.AddReceivingMiddleware(privateToolListCacheMiddleware())
 	mcpServer.AddReceivingMiddleware(hostedProviderProtocolVersionMiddleware())
 	catalog.apply(mcpServer, client, bind.BindID, HostedProjectionResponse{Tools: bind.Tools, Catalog: bind.Catalog})
+	if opts.ToolListThreshold > 0 {
+		stdout = hostedListOutput{Writer: stdout, catalog: catalog}
+	}
 
 	proxyCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -125,10 +128,10 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 	err = mcpServer.Run(
 		proxyCtx,
 		hostedProviderProtocolTransport{
-			Transport: hostedIdentityTransport{Transport: &sdkmcp.IOTransport{
-				Reader: io.NopCloser(stdin),
-				Writer: nopWriteCloser{Writer: stdout},
-			}},
+			Transport: hostedIdentityTransport{
+				Transport:  &sdkmcp.IOTransport{Reader: io.NopCloser(stdin), Writer: nopWriteCloser{Writer: stdout}},
+				trackLists: opts.ToolListThreshold > 0,
+			},
 		},
 	)
 	cancel()
@@ -222,13 +225,12 @@ func reconcileHostedListing(
 		view := &listing.views[i]
 		id := view.Descriptor.ID
 		tool := hostedMCPTool(view.Descriptor)
-		if _, activated := listing.activated[id]; activated {
-			tool.Meta["anthropic/alwaysLoad"] = true
-		}
 		if id == tools.ToolIDToolSearch {
 			tool.Description += listing.directory
 		}
-		next[tool.Name] = registerHostedTool(registry, client, bindID, view.Descriptor, &tool, previous[tool.Name])
+		next[tool.Name] = registerHostedTool(
+			registry, client, bindID, view.Descriptor, &tool, previous[tool.Name], listing.discover,
+		)
 	}
 	stale := make([]string, 0, len(previous))
 	for name := range previous {
@@ -244,7 +246,7 @@ func reconcileHostedListing(
 
 func registerHostedTool(
 	registry hostedToolRegistry, client HostedProxyClient, bindID string,
-	descriptor tools.Descriptor, tool *sdkmcp.Tool, previousFingerprint string,
+	descriptor tools.Descriptor, tool *sdkmcp.Tool, previousFingerprint string, discover hostedDiscovery,
 ) string {
 	requiresStructured := len(descriptor.OutputSchema) > 0
 	if contracts := descriptor.ResultViews(); contracts != nil {
@@ -253,7 +255,7 @@ func registerHostedTool(
 	fingerprint := hostedToolFingerprint(tool, requiresStructured)
 	if fingerprint == "" || fingerprint != previousFingerprint {
 		registry.AddTool(tool, func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
-			return callHostedTool(ctx, client, bindID, requiresStructured, req)
+			return callHostedTool(ctx, client, bindID, requiresStructured, req, discover)
 		})
 	}
 	return fingerprint
@@ -305,6 +307,7 @@ func callHostedTool(
 	bindID string,
 	requiresStructured bool,
 	req *sdkmcp.CallToolRequest,
+	discover hostedDiscovery,
 ) (*sdkmcp.CallToolResult, error) {
 	rawInput, err := rawArguments(req.Params.Arguments)
 	if err != nil {
@@ -315,12 +318,14 @@ func callHostedTool(
 	}
 	progress := startHostedToolProgress(ctx, req)
 	defer progress()
+	discoverTools := discover != nil && tools.IsCatalogDiscoveryTool(tools.ToolID(req.Params.Name))
 	response, err := client.CallHostedMCP(ctx, HostedCallRequest{
 		BindID:        bindID,
 		ToolName:      req.Params.Name,
 		ToolCallID:    hostedToolCallID(req),
 		CorrelationID: hostedRequestIdentity(req),
 		Input:         rawInput,
+		DiscoverTools: discoverTools,
 	})
 	if err != nil {
 		if partial, ok, partialErr := hostedToolPartialErrorResult(err); ok {
@@ -342,10 +347,20 @@ func callHostedTool(
 			IsError:           true,
 		}, nil
 	}
+	render := hostedToolResult
 	if requiresStructured {
-		return hostedDeclaredToolResult(response.Result)
+		render = hostedDeclaredToolResult
 	}
-	return hostedToolResult(response.Result)
+	result, err := render(response.Result)
+	if discoverTools && err == nil && !result.IsError {
+		if pending := discover(ctx, response.DiscoveredToolIDs); pending > 0 {
+			result.Content = append([]sdkmcp.Content{&sdkmcp.TextContent{Text: fmt.Sprintf(
+				"The hosted MCP tool list is still refreshing for %d returned tools. "+
+					"If a new name is unavailable, retry discovery after the list refreshes.", pending,
+			)}}, result.Content...)
+		}
+	}
+	return result, err
 }
 
 func hostedToolDescription(descriptor tools.Descriptor) string {

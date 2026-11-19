@@ -170,15 +170,8 @@ func (m *Manager) prepareHostedMCPStartup(
 func (m *Manager) hostedMCPBudgetedServers(
 	harness compozyconfig.ProviderHarness, opts acp.StartOpts,
 ) []compozyconfig.MCPServer {
-	if harness == compozyconfig.ProviderHarnessPiACP || !providerexec.IsClaudeAgentBridge(opts.Command) {
-		return opts.MCPServers
-	}
-	configured, ok := m.hostedMCP.(interface{ HostedToolListThreshold() int })
-	if !ok {
-		return opts.MCPServers
-	}
-	threshold := configured.HostedToolListThreshold()
-	if threshold <= 0 {
+	if m.hostedMCPToolListThreshold <= 0 || m.hostedMCP == nil ||
+		harness == compozyconfig.ProviderHarnessPiACP || !providerexec.IsClaudeAgentBridge(opts.Command) {
 		return opts.MCPServers
 	}
 	index := slices.IndexFunc(opts.MCPServers, func(server compozyconfig.MCPServer) bool {
@@ -189,7 +182,7 @@ func (m *Manager) hostedMCPBudgetedServers(
 	}
 	servers := slices.Clone(opts.MCPServers)
 	servers[index].Args = append(slices.Clone(servers[index].Args),
-		"--"+toolmeta.HostedToolListThresholdFlag, strconv.Itoa(threshold))
+		toolmeta.HostedToolListThresholdFlag, strconv.Itoa(m.hostedMCPToolListThreshold))
 	return servers
 }
 

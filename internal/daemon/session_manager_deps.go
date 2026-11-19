@@ -52,6 +52,7 @@ type SessionManagerDeps struct {
 	ProcessRegistry         *toolruntime.Registry
 	Terminals               acp.TerminalHost
 	HostedMCP               session.HostedMCPLauncher
+	HostedMCPListThreshold  int
 	RuntimeMCPInventory     session.RuntimeMCPInventory
 	ProviderSecrets         session.ProviderSecretResolver
 	ProfileNames            session.ProfileNameResolver
@@ -119,7 +120,8 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		EventLedger:             sessionEventLedgerDependency(state.registry),
 		ProcessRegistry:         state.processRegistry,
 		Terminals:               state.terminals,
-		HostedMCP:               hostedMCPLauncher(state.hostedMCP, state.cfg.Tools.HostedMCP.ToolListThreshold),
+		HostedMCP:               hostedMCPLauncher(state.hostedMCP),
+		HostedMCPListThreshold:  state.cfg.Tools.HostedMCP.ToolListThreshold,
 		RuntimeMCPInventory:     state.runtimeMCPInventory,
 		ProviderSecrets:         sessionProviderVaultDependency(state.providerVault),
 		ProfileNames:            state.profiles,

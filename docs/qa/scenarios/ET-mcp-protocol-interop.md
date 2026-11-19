@@ -31,11 +31,16 @@ projection snapshots across fallback refreshes and require no additional change 
 Keep the provider connected and preserve session/workspace policy filtering.
 
 Budgeted variant (#1869): on the Claude provider's negotiated stdio protocol, capture the initial
-and refreshed `tools/list` payloads around search and info calls. Verify each newly registered tool
-triggers `notifications/tools/list_changed` and retains its real name, schema, and annotations.
-Confirm the provider's next model request in the same turn includes the activated tool and its call
-reaches the upstream server. With the threshold set to zero, compare the list bytes with the
-full-list baseline.
+and refreshed `tools/list` payloads around search, list, and info calls. Verify each newly registered
+tool triggers `notifications/tools/list_changed` and retains its real name, schema, and annotations.
+Confirm Claude can load the selected schema with its ToolSearch after the refresh and call the tool
+against the upstream server in the same turn. With the threshold set to zero, compare the list bytes
+with the full-list baseline.
+
+Repeat with a discovery result retained as an artifact and with a discovery ahead of the next
+projection. Confirm the callable names become usable once the refreshed list is delivered. Delay
+the last page of a refresh past the discovery wait and confirm the result reports that the catalog
+is refreshing. Complete the page sequence and call the tool by its real name.
 
 Targeted verification 2026-11-01: the existing hosted proxy suite exercises real MCP protocol pipes,
 checks notification delivery and refreshed discovery for modern and provider legacy clients, and

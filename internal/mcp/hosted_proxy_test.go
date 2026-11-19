@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -1903,7 +1904,7 @@ func TestHostedProxyServedCatalogReceipt(t *testing.T) {
 		client.servedErr = errors.New("retired bind")
 		server := newHostedProxyTestServer()
 		catalog := new(hostedProxyCatalog)
-		server.AddReceivingMiddleware(catalog.middleware(server, client, "bind-revision"))
+		server.AddReceivingMiddleware(catalog.middleware(client, "bind-revision"))
 		view := hostedToolView("mcp__echo__ping")
 		view.Descriptor.Source = tools.SourceRef{
 			Kind:          tools.SourceMCP,
@@ -1935,7 +1936,7 @@ func TestHostedProxyServedCatalogReceipt(t *testing.T) {
 		client := newHostedProxyClientStub(HostedBindResponse{})
 		server := newHostedProxyTestServer()
 		catalog := new(hostedProxyCatalog)
-		server.AddReceivingMiddleware(catalog.middleware(server, client, "bind-revision"))
+		server.AddReceivingMiddleware(catalog.middleware(client, "bind-revision"))
 		view := hostedToolView("mcp__echo__ping")
 		view.Descriptor.Source = tools.SourceRef{
 			Kind:          tools.SourceMCP,
@@ -1987,23 +1988,24 @@ func TestHostedProxyBudgetedToolList(t *testing.T) {
 	t.Run("Should preserve the complete default list payload", func(t *testing.T) {
 		t.Parallel()
 		views := []tools.ToolView{
-			hostedToolView(tools.ToolIDToolSearch),
-			hostedBudgetTestView("large", "alpha"),
-			hostedBudgetTestView("large", "beta"),
+			hostedToolView(tools.ToolIDToolSearch), hostedToolView(tools.ToolIDToolInfo),
+			hostedToolView("compozy__hosted_echo"),
+			hostedBudgetTestView("large", "alpha"), hostedBudgetTestView("large", "beta"),
 		}
-		baseline := newHostedProxyTestServer()
-		applyHostedTools(baseline, &hostedProxyClientStub{}, "bind-full", views)
-		baseline.AddReceivingMiddleware(privateToolListCacheMiddleware())
+		want, err := os.ReadFile("testdata/hosted_tools_list_09565e71d.json")
+		if err != nil {
+			t.Fatal(err)
+		}
 		server := newHostedProxyTestServer()
 		proxy := &hostedProxyClientStub{}
 		catalog := new(hostedProxyCatalog)
 		catalog.apply(server, proxy, "bind-default", HostedProjectionResponse{Tools: views})
 		server.AddReceivingMiddleware(
-			catalog.middleware(server, proxy, "bind-default"),
+			catalog.middleware(proxy, "bind-default"),
 			privateToolListCacheMiddleware(),
 		)
-		want, got := hostedListBytes(t, baseline), hostedListBytes(t, server)
-		if !bytes.Equal(got, want) {
+		got := hostedListBytes(t, server)
+		if !bytes.Equal(got, bytes.TrimSuffix(want, []byte("\n"))) {
 			t.Fatalf("default tools/list payload changed\ngot: %s\nwant: %s", got, want)
 		}
 	})
@@ -2045,92 +2047,49 @@ func TestHostedProxyBudgetedDiscovery(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
-		search, info := tools.ToolIDToolSearch.String(), tools.ToolIDToolInfo.String()
+		search, info, listName := tools.ToolIDToolSearch.String(), tools.ToolIDToolInfo.String(), tools.ToolIDToolList.String()
 		initial := []tools.ToolView{
 			hostedToolView(tools.ToolIDToolSearch), hostedToolView(tools.ToolIDToolInfo),
+			hostedToolView(tools.ToolIDToolList),
 			hostedBudgetTestView("small", "alpha"), hostedBudgetTestView("small", "beta"),
 		}
 		large := []tools.ToolView{
 			hostedBudgetTestView("large", "search_match"),
 			hostedBudgetTestView("large", "info_match"),
+			hostedBudgetTestView("large", "list_match"),
 			hostedBudgetTestView("large", "denied"),
 		}
 		full := append(slices.Clone(initial), large...)
-		first, second, denied := large[0].Descriptor.ID.String(), large[1].Descriptor.ID.String(), large[2].Descriptor.ID.String()
+		first, second := large[0].Descriptor.ID, large[1].Descriptor.ID
+		third, denied := large[2].Descriptor.ID, large[3].Descriptor.ID
 		const outside = "mcp__outside__echo"
 		proxy := newHostedProxyClientStub(HostedBindResponse{BindID: "bind-budget", Tools: full, Digest: "initial"})
 		proxy.block = func(req HostedCallRequest) (HostedCallResponse, error) {
 			switch req.ToolName {
 			case search:
-				return HostedCallResponse{Result: tools.ToolResult{Structured: fmt.Appendf(nil,
-					`{"tools":[{"descriptor":{"id":%q},"decision":{"callable":true}},`+
-						`{"descriptor":{"id":%q},"decision":{"callable":false}},`+
-						`{"descriptor":{"id":%q},"decision":{"callable":true}}]}`, first, denied, outside)}}, nil
+				return HostedCallResponse{DiscoveredToolIDs: []tools.ToolID{first, outside}}, nil
 			case info:
-				return HostedCallResponse{Result: tools.ToolResult{Structured: fmt.Appendf(nil,
-					`{"tool":{"descriptor":{"id":%q},"decision":{"callable":true}}}`, second)}}, nil
+				return HostedCallResponse{DiscoveredToolIDs: []tools.ToolID{second}}, nil
+			case listName:
+				return HostedCallResponse{DiscoveredToolIDs: []tools.ToolID{third}}, nil
 			default:
 				return HostedCallResponse{Result: tools.ToolResult{Content: []tools.ToolContent{
 					{Type: "text", Text: req.ToolName},
 				}}}, nil
 			}
 		}
-		serverReader, clientWriter := io.Pipe()
-		clientReader, serverWriter := io.Pipe()
-		exited := make(chan error, 1)
-		go func() {
-			exited <- RunHostedProxy(ctx, proxy, HostedProxyOptions{
-				SessionID: "sess-budget", Nonce: "nonce-budget", Stdin: serverReader, Stdout: serverWriter,
-				ToolListThreshold: 2,
-			})
-		}()
-		t.Cleanup(func() {
-			if err := clientWriter.Close(); err != nil {
-				t.Error(err)
-			}
-			if err := clientReader.Close(); err != nil {
-				t.Error(err)
-			}
-			select {
-			case <-exited:
-			case <-time.After(2 * time.Second):
-				t.Error("hosted proxy did not exit")
-			}
-		})
-		type refreshedList struct {
-			result *sdkmcp.ListToolsResult
-			err    error
-		}
-		updates := make(chan refreshedList, 8)
-		client := sdkmcp.NewClient(
-			&sdkmcp.Implementation{Name: "budget-client", Version: "test"},
-			&sdkmcp.ClientOptions{
-				Capabilities: &sdkmcp.ClientCapabilities{},
-				ToolListChangedHandler: func(ctx context.Context, req *sdkmcp.ToolListChangedRequest) {
-					result, err := req.Session.ListTools(ctx, nil)
-					updates <- refreshedList{result: result, err: err}
-				},
-			},
-		)
-		session, err := client.Connect(ctx, &sdkmcp.IOTransport{Reader: clientReader, Writer: clientWriter}, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := session.Close(); err != nil {
-				t.Error(err)
-			}
-		})
+		updates, options := hostedListUpdates()
+		session := startHostedBudgetProxy(t, proxy, 2, options)
 		list, err := session.ListTools(ctx, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		wantNames := []string{info, search, "mcp__small__alpha", "mcp__small__beta"}
+		wantNames := []string{info, listName, search, "mcp__small__alpha", "mcp__small__beta"}
 		if got := sdkToolNames(list.Tools); !slices.Equal(got, wantNames) {
 			t.Fatalf("initial list = %v, want %v", got, wantNames)
 		}
 		if !slices.ContainsFunc(list.Tools, func(tool *sdkmcp.Tool) bool {
-			return tool.Name == search && strings.Contains(tool.Description, `"large" (3 tools)`)
+			return tool.Name == search && strings.Contains(tool.Description, `"large" (4 tools)`)
 		}) {
 			t.Fatal("the search tool did not advertise the large server")
 		}
@@ -2149,44 +2108,49 @@ func TestHostedProxyBudgetedDiscovery(t *testing.T) {
 				if update.err != nil {
 					t.Fatal(update.err)
 				}
-				if got := sdkToolNames(update.result.Tools); !slices.Equal(got, want) {
+				if got := sdkToolNames(update.result.Tools); !slices.Equal(got, slices.Sorted(slices.Values(want))) {
 					t.Fatalf("notified list = %v, want %v", got, want)
 				}
 				if activated != "" && !slices.ContainsFunc(update.result.Tools, func(tool *sdkmcp.Tool) bool {
-					return tool.Name == activated && tool.Meta["anthropic/alwaysLoad"] == true
+					_, alwaysLoad := tool.Meta["anthropic/alwaysLoad"]
+					return tool.Name == activated && !alwaysLoad
 				}) {
-					t.Fatalf("activated tool %s was not marked for immediate visibility", activated)
+					t.Fatalf("activated tool %s did not preserve normal schema deferral", activated)
 				}
 			case <-ctx.Done():
 				t.Fatal("no tools/list_changed notification")
 			}
 		}
 		call(search)
-		withFirst := append(slices.Clone(wantNames[:2]), first, wantNames[2], wantNames[3])
-		requireUpdate(withFirst, first)
-		call(first)
-		if got := proxy.lastCall(t).ToolName; got != first {
+		withFirst := append(slices.Clone(wantNames), first.String())
+		requireUpdate(withFirst, first.String())
+		call(first.String())
+		if got := proxy.lastCall(t).ToolName; got != first.String() {
 			t.Fatalf("forwarded name = %q, want %q", got, first)
 		}
-		for _, name := range []string{denied, outside} {
+		for _, name := range []string{denied.String(), outside} {
 			result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{Name: name})
 			if err == nil && result != nil && !result.IsError {
 				t.Fatalf("unexpectedly called %s", name)
 			}
-			if got := proxy.lastCall(t).ToolName; got != first {
+			if got := proxy.lastCall(t).ToolName; got != first.String() {
 				t.Fatalf("unlisted %s reached the daemon", name)
 			}
 		}
 
 		call(info)
-		withBoth := append(slices.Clone(withFirst[:2]), second, first, wantNames[2], wantNames[3])
-		requireUpdate(withBoth, second)
-		call(second)
+		withBoth := append(slices.Clone(withFirst), second.String())
+		requireUpdate(withBoth, second.String())
+		call(second.String())
+		call(listName)
+		withAll := append(slices.Clone(withBoth), third.String())
+		requireUpdate(withAll, third.String())
+		call(third.String())
 		requireHostedBudgetReceipt(t, proxy, full)
 
 		refreshed := append(slices.Clone(full[:len(full)-1]), hostedBudgetTestView("large", "replacement"))
 		proxy.emitProjection(t, HostedProjectionResponse{Tools: refreshed, Digest: "hidden-tool-changed"})
-		requireUpdate(withBoth, first)
+		requireUpdate(withAll, first.String())
 		requireHostedBudgetReceipt(t, proxy, refreshed)
 
 		proxy.emitProjection(t, HostedProjectionResponse{Tools: initial, Digest: "large-server-removed"})
@@ -2203,6 +2167,7 @@ func hostedBudgetTestView(server, name string) tools.ToolView {
 		RawServerName: server,
 		RawToolName:   name,
 	}
+	view.Descriptor.Backend = tools.BackendRef{Kind: tools.BackendMCP, MCPServer: server, MCPTool: name}
 	view.Decision = tools.EffectiveToolDecision{Callable: true, VisibleToSession: true}
 	return view
 }
@@ -2228,4 +2193,225 @@ func requireHostedBudgetReceipt(t *testing.T, client *hostedProxyClientStub, vie
 	if len(client.served) == 0 || client.served[len(client.served)-1].Digest != want {
 		t.Fatalf("served receipts = %+v, want latest digest %s", client.served, want)
 	}
+}
+
+type hostedListUpdate struct {
+	result *sdkmcp.ListToolsResult
+	err    error
+}
+
+func hostedListUpdates() (<-chan hostedListUpdate, *sdkmcp.ClientOptions) {
+	updates := make(chan hostedListUpdate, 8)
+	return updates, &sdkmcp.ClientOptions{
+		Capabilities: &sdkmcp.ClientCapabilities{},
+		ToolListChangedHandler: func(ctx context.Context, req *sdkmcp.ToolListChangedRequest) {
+			result, err := req.Session.ListTools(ctx, nil)
+			updates <- hostedListUpdate{result: result, err: err}
+		},
+	}
+}
+
+func startHostedBudgetProxy(
+	t *testing.T, proxy *hostedProxyClientStub, threshold int, options *sdkmcp.ClientOptions,
+) *sdkmcp.ClientSession {
+	t.Helper()
+	input, toProxy := io.Pipe()
+	fromProxy, output := io.Pipe()
+	ctx, cancel := context.WithCancel(t.Context())
+	exited := make(chan error, 1)
+	go func() {
+		exited <- RunHostedProxy(ctx, proxy, HostedProxyOptions{
+			SessionID: "sess-budget", Nonce: "nonce-budget", Stdin: input, Stdout: output,
+			ToolListThreshold: threshold,
+		})
+	}()
+	t.Cleanup(func() {
+		cancel()
+		if err := toProxy.Close(); err != nil {
+			t.Error(err)
+		}
+		if err := fromProxy.Close(); err != nil {
+			t.Error(err)
+		}
+		select {
+		case <-exited:
+		case <-time.After(2 * time.Second):
+			t.Error("hosted proxy did not exit")
+		}
+	})
+	return connectHostedBudgetTransport(t, fromProxy, toProxy, options)
+}
+
+func connectHostedBudgetTransport(
+	t *testing.T, reader io.ReadCloser, writer io.WriteCloser, options *sdkmcp.ClientOptions,
+) *sdkmcp.ClientSession {
+	t.Helper()
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "budget-client", Version: "test"}, options)
+	session, err := client.Connect(t.Context(), &sdkmcp.IOTransport{Reader: reader, Writer: writer}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := session.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return session
+}
+
+// An early discovery survives until the same bind installs the matching projection.
+func TestHostedProxyBudgetedPendingDiscovery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should activate a discovered name when its projection arrives later", func(t *testing.T) {
+		t.Parallel()
+		search := tools.ToolIDToolSearch.String()
+		late := hostedBudgetTestView("large", "late")
+		lateID := late.Descriptor.ID
+		views := []tools.ToolView{
+			hostedToolView(tools.ToolIDToolSearch),
+			hostedBudgetTestView("large", "alpha"), hostedBudgetTestView("large", "beta"),
+		}
+		proxy := newHostedProxyClientStub(HostedBindResponse{BindID: "bind-late", Tools: views, Digest: "initial"})
+		proxy.block = func(req HostedCallRequest) (HostedCallResponse, error) {
+			if req.ToolName == search {
+				return HostedCallResponse{DiscoveredToolIDs: []tools.ToolID{lateID}}, nil
+			}
+			return HostedCallResponse{}, nil
+		}
+		updates, opts := hostedListUpdates()
+		session := startHostedBudgetProxy(t, proxy, 1, opts)
+		result, err := session.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: search})
+		if err != nil || !hostedHasPendingDiscovery(result) {
+			t.Fatalf("discovery before projection = %#v, %v, want pending notice", result, err)
+		}
+		proxy.emitProjection(t, HostedProjectionResponse{Tools: append(views, late), Digest: "late"})
+		select {
+		case update := <-updates:
+			if update.err != nil || !slices.Contains(sdkToolNames(update.result.Tools), lateID.String()) {
+				t.Fatalf("updated list = %#v, %v, want %s", update.result, update.err, lateID)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("late activation did not notify the client")
+		}
+		called, err := session.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: lateID.String()})
+		if err != nil || called.IsError || proxy.lastCall(t).ToolName != lateID.String() {
+			t.Fatalf("call after projection = %#v, %v", called, err)
+		}
+	})
+
+	t.Run("Should expire queued discoveries and bound the number retained", func(t *testing.T) {
+		t.Parallel()
+		catalog := &hostedProxyCatalog{}
+		now := time.Unix(1, 0)
+		for i := range hostedPendingDiscoveryLimit + 1 {
+			catalog.queuePending(tools.ToolID(fmt.Sprintf("mcp__large__tool_%d", i)), now)
+		}
+		if len(catalog.pending) != hostedPendingDiscoveryLimit {
+			t.Fatalf("pending size = %d, want %d", len(catalog.pending), hostedPendingDiscoveryLimit)
+		}
+		catalog.prunePending(now.Add(hostedPendingDiscoveryTTL))
+		if len(catalog.pending) != 0 {
+			t.Fatalf("pending size after expiration = %d", len(catalog.pending))
+		}
+	})
+}
+
+func hostedHasPendingDiscovery(result *sdkmcp.CallToolResult) bool {
+	if result == nil || len(result.Content) == 0 {
+		return false
+	}
+	text, ok := result.Content[0].(*sdkmcp.TextContent)
+	return ok && strings.Contains(text.Text, "hosted MCP tool list is still refreshing")
+}
+
+// Serving a first page cannot acknowledge a refresh, and a timed-out discovery remains actionable.
+func TestHostedProxyBudgetedListDelivery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report a delayed final page and allow the call after refresh", func(t *testing.T) {
+		t.Parallel()
+		search := tools.ToolIDToolSearch.String()
+		echo := hostedBudgetTestView("large", "echo")
+		echoID := echo.Descriptor.ID
+		proxy := &hostedProxyClientStub{block: func(req HostedCallRequest) (HostedCallResponse, error) {
+			if req.ToolName == search {
+				return HostedCallResponse{DiscoveredToolIDs: []tools.ToolID{echoID}}, nil
+			}
+			return HostedCallResponse{}, nil
+		}}
+		catalog := &hostedProxyCatalog{threshold: 1}
+		server := sdkmcp.NewServer(
+			&sdkmcp.Implementation{Name: HostedServerName, Version: "test"},
+			&sdkmcp.ServerOptions{
+				PageSize:     1,
+				Capabilities: &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{ListChanged: true}},
+			},
+		)
+		server.AddReceivingMiddleware(catalog.middleware(proxy, "bind-pages"))
+		catalog.apply(server, proxy, "bind-pages", HostedProjectionResponse{Tools: []tools.ToolView{
+			hostedToolView(tools.ToolIDToolSearch), echo, hostedBudgetTestView("large", "other"),
+		}})
+		input, toProxy := io.Pipe()
+		fromProxy, output := io.Pipe()
+		transport := hostedIdentityTransport{
+			Transport: &sdkmcp.IOTransport{
+				Reader: input, Writer: nopWriteCloser{Writer: hostedListOutput{Writer: output, catalog: catalog}},
+			},
+			trackLists: true,
+		}
+		host, err := server.Connect(t.Context(), transport, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := host.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		notices := make(chan struct{}, 4)
+		session := connectHostedBudgetTransport(t, fromProxy, toProxy, &sdkmcp.ClientOptions{
+			Capabilities:           &sdkmcp.ClientCapabilities{},
+			ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) { notices <- struct{}{} },
+		})
+		if initial, err := session.ListTools(t.Context(), nil); err != nil || initial.NextCursor != "" {
+			t.Fatalf("initial list = %+v, %v, want one page", initial, err)
+		}
+		type callOutcome struct {
+			result *sdkmcp.CallToolResult
+			err    error
+		}
+		discovery := make(chan callOutcome, 1)
+		go func() {
+			result, err := session.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: search})
+			discovery <- callOutcome{result: result, err: err}
+		}()
+		select {
+		case <-notices:
+		case <-time.After(2 * time.Second):
+			t.Fatal("expected activation notification")
+		}
+		first, err := session.ListTools(t.Context(), nil)
+		if err != nil || first.NextCursor == "" || slices.Contains(sdkToolNames(first.Tools), echoID.String()) {
+			t.Fatalf("first refreshed page = %+v, %v", first, err)
+		}
+		select {
+		case outcome := <-discovery:
+			if outcome.err != nil || !hostedHasPendingDiscovery(outcome.result) {
+				t.Fatalf("discovery with missing last page = %#v, %v, want timeout notice", outcome.result, outcome.err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("discovery did not return when refresh took too long")
+		}
+		last, err := session.ListTools(t.Context(), &sdkmcp.ListToolsParams{Cursor: first.NextCursor})
+		if err != nil || last.NextCursor != "" || !slices.Contains(sdkToolNames(last.Tools), echoID.String()) {
+			t.Fatalf("last refreshed page = %+v, %v", last, err)
+		}
+		result, err := session.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: search})
+		if err != nil || hostedHasPendingDiscovery(result) {
+			t.Fatalf("discovery after completed refresh = %#v, %v", result, err)
+		}
+		result, err = session.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: echoID.String()})
+		if err != nil || result.IsError || proxy.lastCall(t).ToolName != echoID.String() {
+			t.Fatalf("activated real-name call = %#v, %v", result, err)
+		}
+	})
 }

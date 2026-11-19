@@ -10,13 +10,18 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+const hostedDiscoveryRefreshTimeout = 250 * time.Millisecond
+
 type hostedProxyCatalog struct {
-	mu           sync.Mutex
-	catalog      tools.AdvertisedCatalog
-	threshold    int
-	deferred     map[tools.ToolID]*tools.ToolView
-	activated    map[tools.ToolID]struct{}
-	awaitingList chan struct{}
+	mu        sync.Mutex
+	catalog   tools.AdvertisedCatalog
+	threshold int
+	search    *tools.Descriptor
+	listed    map[string]string
+	deferred  map[tools.ToolID]*tools.ToolView
+	pending   map[tools.ToolID]time.Time
+	changed   chan struct{}
+	delivery  hostedListDelivery
 }
 
 func (c *hostedProxyCatalog) apply(
@@ -33,18 +38,11 @@ func (c *hostedProxyCatalog) apply(
 	c.catalog = full
 }
 
-func (c *hostedProxyCatalog) middleware(
-	server *sdkmcp.Server, client HostedProxyClient, bindID string,
-) sdkmcp.Middleware {
+func (c *hostedProxyCatalog) middleware(client HostedProxyClient, bindID string) sdkmcp.Middleware {
 	return func(next sdkmcp.MethodHandler) sdkmcp.MethodHandler {
 		return func(ctx context.Context, method string, req sdkmcp.Request) (sdkmcp.Result, error) {
-			if method != "tools/list" {
-				result, err := next(ctx, method, req)
-				call, ok := req.(*sdkmcp.CallToolRequest)
-				if c.threshold > 0 && err == nil && method == "tools/call" && ok && call.Params != nil {
-					c.activateDiscovered(ctx, server, client, bindID, call, result)
-				}
-				return result, err
+			if method != mcpToolsListMethod {
+				return next(ctx, method, req)
 			}
 			c.mu.Lock()
 			defer c.mu.Unlock()
@@ -58,33 +56,48 @@ func (c *hostedProxyCatalog) middleware(
 			); err != nil {
 				slog.WarnContext(ctx, "mcp.hosted.served_receipt_failed", "bind_id", bindID, "error", err)
 			}
-			if c.awaitingList != nil {
-				close(c.awaitingList)
-				c.awaitingList = nil
+			if c.threshold > 0 {
+				c.delivery.record(req, result)
 			}
 			return result, nil
 		}
 	}
 }
 
-func (c *hostedProxyCatalog) activateDiscovered(
-	ctx context.Context, server *sdkmcp.Server, client HostedProxyClient, bindID string,
-	call *sdkmcp.CallToolRequest, result sdkmcp.Result,
-) {
-	ids := hostedDiscoveryIDs(tools.ToolID(call.Params.Name), result)
-	if len(ids) == 0 {
-		return
+func (c *hostedProxyCatalog) signal() {
+	if c.changed != nil {
+		close(c.changed)
 	}
-	updated := c.activate(server, client, bindID, ids)
-	if updated == nil {
-		return
+	c.changed = make(chan struct{})
+}
+
+func (c *hostedProxyCatalog) unready(ids []tools.ToolID) (int, <-chan struct{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	count := 0
+	for _, id := range ids {
+		if _, listed := c.listed[id.String()]; !listed || c.delivery.delivered != c.delivery.revision {
+			count++
+		}
 	}
-	// The SDK debounces list_changed. Give the client time to refresh before it advances the turn.
-	wait := time.NewTimer(250 * time.Millisecond)
-	defer wait.Stop()
-	select {
-	case <-updated:
-	case <-wait.C:
-	case <-ctx.Done():
+	return count, c.changed
+}
+
+func (c *hostedProxyCatalog) awaitDiscovery(ctx context.Context, ids []tools.ToolID) int {
+	delay := time.NewTimer(hostedDiscoveryRefreshTimeout)
+	defer delay.Stop()
+	for {
+		count, changed := c.unready(ids)
+		if count == 0 {
+			return 0
+		}
+		select {
+		case <-changed:
+		case <-delay.C:
+			count, _ = c.unready(ids)
+			return count
+		case <-ctx.Done():
+			return count
+		}
 	}
 }

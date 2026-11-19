@@ -38,9 +38,11 @@ Hosted MCP lists the availability-gated callable catalog for a bare managed sess
 Agent definitions and session lineage can narrow the projection. If the operator enables
 `tools.hosted_mcp.tool_list_threshold`, the Claude ACP bridge defers external MCP servers above the
 threshold. Look for its bounded server directory in `compozy__tool_search`. Search with a server
-name and an action, or inspect a known ID with `compozy__tool_info`. Callable deferred matches are
-added to the current bind under their real names. The bridge keeps them listed while they remain
-in the projection.
+name and an action, page `compozy__tool_list`, or inspect a known ID with `compozy__tool_info`.
+Callable deferred matches are added to the current bind under their real names and use Claude's
+normal schema loading. If Claude still defers a schema, load it by name with its ToolSearch.
+After idle release, crash recovery, or restart, a new bind starts with its initial budget.
+Rediscover deferred tools even if the transcript contains earlier calls to them.
 
 Use the same discovery tools for denied diagnostics. Page `compozy__tool_list` with
 `offset`/`next_offset` for compact summaries of the currently callable set, then read a complete

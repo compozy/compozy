@@ -438,8 +438,8 @@ profile config only (workspace layers are rejected), applies live, and defaults 
 
 `[tools.hosted_mcp].tool_list_threshold` is experimental and read at daemon startup. The default
 `0` keeps the full MCP listing. Set a positive count to defer tools from external servers above
-that count in Claude ACP sessions that have `compozy__tool_search`. Search or inspect a callable
-match to add the tool under its real name. Other providers keep the full listing.
+that count in Claude ACP sessions that have `compozy__tool_search`. Search, list, or inspect a
+callable match to register it under its real name. Other providers keep the full listing.
 
 `[providers.<id>] runtime_mcp` decides whether a runtime CLI loads its own MCP servers (the ones in
 its own files, listed read-only by `compozy mcp list`) in CompozyOS sessions. Default `"load"`.

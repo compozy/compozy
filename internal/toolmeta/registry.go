@@ -14,7 +14,7 @@ const HostedServerName = "compozy-hosted-tools"
 const HostedBindNonceFlag = "--bind-nonce"
 
 // HostedToolListThresholdFlag carries the daemon-selected listing budget to the private proxy command.
-const HostedToolListThresholdFlag = "tool-list-threshold"
+const HostedToolListThresholdFlag = "--tool-list-threshold"
 
 // NativeEntry returns curated progress metadata for Compozy's native tool namespace.
 func NativeEntry(toolID string) (Entry, bool) {

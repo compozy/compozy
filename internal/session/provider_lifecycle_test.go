@@ -940,12 +940,9 @@ func TestRuntimeChangeAdmission(t *testing.T) {
 // activationHostedLauncher exercises the production advertised-catalog seam at the launcher I/O boundary.
 type activationHostedLauncher struct {
 	*recordingHostedMCPLauncher
-	catalog   tools.AdvertisedCatalog
-	served    string
-	threshold int
+	catalog tools.AdvertisedCatalog
+	served  string
 }
-
-func (l *activationHostedLauncher) HostedToolListThreshold() int { return l.threshold }
 
 func (l *activationHostedLauncher) ActivationCatalog(context.Context, string) (tools.AdvertisedCatalog, string, error) {
 	l.mu.Lock()
@@ -1019,11 +1016,13 @@ func TestHostedMCPToolListProviderGate(t *testing.T) {
 				{Name: toolmeta.HostedServerName, Args: []string{"unrelated"}},
 				{Name: toolmeta.HostedServerName, Args: slices.Clone(hostedArgs)},
 			}
-			manager := Manager{hostedMCP: &activationHostedLauncher{threshold: tc.threshold}}
+			manager := Manager{
+				hostedMCP: &activationHostedLauncher{}, hostedMCPToolListThreshold: tc.threshold,
+			}
 			got := manager.hostedMCPBudgetedServers(tc.harness, acp.StartOpts{Command: tc.command, MCPServers: servers})
 			want := slices.Clone(hostedArgs)
 			if tc.budgeted {
-				want = append(want, "--"+toolmeta.HostedToolListThresholdFlag, "20")
+				want = append(want, toolmeta.HostedToolListThresholdFlag, "20")
 			}
 			if !slices.Equal(got[0].Args, []string{"unrelated"}) || !slices.Equal(got[1].Args, want) ||
 				!slices.Equal(servers[1].Args, hostedArgs) {

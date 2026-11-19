@@ -77,3 +77,7 @@ threshold. Search for a deferred tool and call it in that same prompt. Refresh t
 catalog and verify the activated tool stays listed. Turn the large fixture off and verify its tools
 are removed before the next call. Turn it back on and verify search can activate its tools again.
 The full projected catalog drives Ready and pending status throughout the walk.
+
+Release the idle provider and resume the same logical session. Its transcript should still show
+the earlier tool call. The replacement bind starts with the initial budget and can rediscover
+and call the deferred tool in the resumed turn.

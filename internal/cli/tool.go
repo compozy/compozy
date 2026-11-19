@@ -78,7 +78,7 @@ func newToolMCPCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&sessionID, "session", "", "Session id to bind")
 	cmd.Flags().StringVar(&bindNonce, "bind-nonce", "", "Hosted MCP bind nonce")
-	cmd.Flags().
-		IntVar(&toolListThreshold, toolmeta.HostedToolListThresholdFlag, 0, "MCP tools listed per server before deferral")
+	flagName := strings.TrimPrefix(toolmeta.HostedToolListThresholdFlag, "--")
+	cmd.Flags().IntVar(&toolListThreshold, flagName, 0, "MCP tools listed per server before deferral")
 	return cmd
 }
