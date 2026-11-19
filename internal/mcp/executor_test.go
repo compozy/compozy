@@ -2296,7 +2296,7 @@ func TestMCPToolListCache(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		establishTestCatalogSubscription(t, ctx, executor, sources[0])
+		establishTestCatalogSubscription(ctx, t, executor, sources[0])
 		for range readers {
 			for _, source := range sources {
 				got, err := executor.ListTools(ctx, source)
@@ -2909,7 +2909,7 @@ func TestMCPToolListCache(t *testing.T) {
 		})
 		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
 		ctx := testContext(t)
-		key := establishTestCatalogSubscription(t, ctx, executor, source)
+		key := establishTestCatalogSubscription(ctx, t, executor, source)
 		if _, err := executor.ListTools(ctx, source); err != nil {
 			t.Fatal(err)
 		}
@@ -2941,7 +2941,12 @@ func TestMCPToolListCache(t *testing.T) {
 			InputSchema:  json.RawMessage(`{"type":"object"}`),
 			OutputSchema: json.RawMessage(`{"type":"string"}`),
 		}}
-		executor.cacheTools("fixture", ToolDiscovery{Descriptors: descriptors}, nil, 1_000, now)
+		executor.cacheTools(
+			"fixture",
+			mcpToolListCacheEntry{discovery: ToolDiscovery{Descriptors: descriptors}},
+			1_000,
+			now,
+		)
 		descriptors[0].InputSchema[0] = '['
 
 		first, ok := executor.cachedTools("fixture", now)
@@ -2968,7 +2973,7 @@ func TestMCPToolListCache(t *testing.T) {
 		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{})
 		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "removed"}
 		now := time.Now()
-		executor.cacheTools("removed", ToolDiscovery{source: source}, nil, mcpSubscribedListTTL, now)
+		executor.cacheTools("removed", mcpToolListCacheEntry{source: source}, mcpSubscribedListTTL, now)
 		executor.recordToolProjectionState("removed-projection", "removed", [sha256.Size]byte{}, 0, now)
 		executor.RetainCatalogSources(nil)
 		if _, found := executor.cachedToolListing("removed", now); found {
@@ -2984,8 +2989,8 @@ func TestMCPToolListCache(t *testing.T) {
 
 		now := time.Now()
 		executor := &CallExecutor{toolCache: mcpToolListCache{entries: make(map[string]mcpToolListCacheEntry)}}
-		executor.cacheTools("expired-binding", ToolDiscovery{}, nil, 1, now)
-		executor.cacheTools("current-binding", ToolDiscovery{}, nil, 1_000, now.Add(mcpToolListFloor))
+		executor.cacheTools("expired-binding", mcpToolListCacheEntry{}, 1, now)
+		executor.cacheTools("current-binding", mcpToolListCacheEntry{}, 1_000, now.Add(mcpToolListFloor))
 
 		executor.toolCache.mu.Lock()
 		_, retainedExpired := executor.toolCache.entries["expired-binding"]
@@ -3299,8 +3304,8 @@ func TestMCPToolListCache(t *testing.T) {
 }
 
 func establishTestCatalogSubscription(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	executor *CallExecutor,
 	source toolspkg.SourceRef,
 ) string {

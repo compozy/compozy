@@ -71,7 +71,7 @@ func (e *CallExecutor) finishToolList(key string) {
 }
 
 func (e *CallExecutor) publishToolList(key, pollKey string, attempt mcpListAttempt, fresh bool,
-	discovery ToolDiscovery, raw []*mcpsdk.Tool, ttlMs int,
+	listing mcpToolListCacheEntry, ttlMs int,
 	projectionKey string, stdio, background bool, subscribed func() bool,
 ) {
 	e.toolCache.publicationMu.Lock()
@@ -92,8 +92,8 @@ func (e *CallExecutor) publishToolList(key, pollKey string, attempt mcpListAttem
 	if stdio {
 		e.pruneStdioCatalogRevisions(key)
 	}
-	e.cacheTools(key, discovery, raw, ttlMs, now)
-	e.recordToolProjectionState(projectionKey, key, discovery.content, e.effectiveToolListTTL(ttlMs), now)
+	e.cacheTools(key, listing, ttlMs, now)
+	e.recordToolProjectionState(projectionKey, key, listing.discovery.content, e.effectiveToolListTTL(ttlMs), now)
 	if background || e.catalogHTTP != nil || e.catalogPoll(pollKey).interval != 0 {
 		e.recordCatalogListing(key, pollKey, fallbackTTL, ttlMs != mcpSubscribedListTTL, now)
 	}
@@ -160,6 +160,7 @@ func (e *CallExecutor) dropToolListingLocked(key string) {
 }
 
 type mcpToolListCacheEntry struct {
+	source    toolspkg.SourceRef
 	discovery ToolDiscovery
 	raw       []*mcpsdk.Tool
 	expiresAt time.Time
@@ -191,7 +192,7 @@ func (e *CallExecutor) cachedToolListing(key string, now time.Time) (mcpToolList
 }
 
 func (e *CallExecutor) cacheTools(
-	key string, discovery ToolDiscovery, raw []*mcpsdk.Tool, ttlMs int, now time.Time,
+	key string, listing mcpToolListCacheEntry, ttlMs int, now time.Time,
 ) {
 	ttl := e.effectiveToolListTTL(ttlMs)
 	e.toolCache.mu.Lock()
@@ -214,12 +215,10 @@ func (e *CallExecutor) cacheTools(
 		e.dropToolListingLocked(oldest)
 		delete(e.toolCache.normalizations, oldest)
 	}
-	e.toolCache.entries[key] = mcpToolListCacheEntry{
-		discovery: discovery.clone(),
-		raw:       raw,
-		expiresAt: toolListExpiry(now, ttl),
-		listedAt:  now,
-	}
+	listing.discovery = listing.discovery.clone()
+	listing.expiresAt = toolListExpiry(now, ttl)
+	listing.listedAt = now
+	e.toolCache.entries[key] = listing
 	e.toolCache.mu.Unlock()
 }
 
@@ -245,7 +244,7 @@ func (e *CallExecutor) RetainCatalogSources(sources []toolspkg.SourceRef) {
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
 	for key, entry := range e.toolCache.entries {
-		if !active[entry.discovery.source] {
+		if !active[entry.source] {
 			e.dropToolListingLocked(key)
 		}
 	}

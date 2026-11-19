@@ -24,7 +24,6 @@ type ToolDiscovery struct {
 	ProtocolVersion string
 	Diagnostic      string
 	content         [sha256.Size]byte
-	source          toolspkg.SourceRef
 }
 
 func (d ToolDiscovery) clone() ToolDiscovery {

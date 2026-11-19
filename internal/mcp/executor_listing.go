@@ -129,7 +129,6 @@ func (e *CallExecutor) normalizeToolListingAt(
 	if err != nil {
 		return ToolDiscovery{}, err
 	}
-	discovery.source = source
 	discovery.content, err = tools.FingerprintMCPToolDescriptors(discovery.Descriptors)
 	if err != nil {
 		return ToolDiscovery{}, err
@@ -408,8 +407,7 @@ func (e *CallExecutor) listToolsFromClient(
 		pollKey,
 		attempt,
 		fresh,
-		discovery,
-		raw,
+		mcpToolListCacheEntry{source: tools.MCPDeclarationSource(source), discovery: discovery, raw: raw},
 		ttlMs,
 		mcpProjectionSourceKey(source, authorizationHeader, resolved.listingBinding),
 		stdio,

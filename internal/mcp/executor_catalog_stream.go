@@ -59,7 +59,7 @@ func (s *catalogNotificationStream) signalEstablished() {
 
 func (s *catalogNotificationStream) RoundTrip(req *http.Request) (*http.Response, error) {
 	if retirement := s.retirement.Load(); req.Method == http.MethodDelete && retirement != nil {
-		return s.deleteSession(req, retirement.ctx)
+		return s.deleteSession(retirement.ctx, req)
 	}
 	if !isCatalogListenRequest(req) {
 		return s.next.RoundTrip(req)
@@ -107,8 +107,8 @@ func (s *catalogNotificationStream) RoundTrip(req *http.Request) (*http.Response
 }
 
 func (s *catalogNotificationStream) deleteSession(
-	req *http.Request,
 	retirement context.Context,
+	req *http.Request,
 ) (*http.Response, error) {
 	if err := retirement.Err(); err != nil {
 		return nil, err
