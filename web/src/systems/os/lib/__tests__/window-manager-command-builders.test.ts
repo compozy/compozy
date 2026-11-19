@@ -50,6 +50,16 @@ describe("openWindowCommand", () => {
     expect(
       openWindowCommand({ app: "tasks", placement: "split" }, "w", "desktop:a").payload
     ).toMatchObject({ window: { insert_tiled: true } });
+    expect(
+      openWindowCommand(
+        { app: "new-tab", placement: "split", splitEdge: "bottom" },
+        "w",
+        "desktop:a"
+      ).payload
+    ).toMatchObject({ window: { insert_tiled: true, insert_edge: "bottom" } });
+    expect(
+      openWindowCommand({ app: "tasks", splitEdge: "bottom" }, "w", "desktop:a").payload
+    ).not.toHaveProperty("window.insert_edge");
   });
 });
 

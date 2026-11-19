@@ -172,6 +172,20 @@ function LayoutsSkeleton() {
   );
 }
 
+function ShortcutsSkeleton() {
+  return (
+    <SettingsPageSkeleton subhead={2} testId={pageTestId("shortcuts")} width="wide">
+      <SettingsGroup
+        action={<Skeleton className="h-button-sm w-14 rounded-pill" />}
+        bare
+        title={<SkeletonText className="w-24" />}
+      >
+        <Skeleton className="h-137 w-full rounded-lg" />
+      </SettingsGroup>
+    </SettingsPageSkeleton>
+  );
+}
+
 function ProfilesSkeleton() {
   return (
     <SettingsPageSkeleton testId={pageTestId("profiles")}>
@@ -439,6 +453,7 @@ const SECTION_SKELETONS: Record<SettingsSectionSlug, ComponentType> = {
   terminal: TerminalSkeleton,
   appearance: AppearanceSkeleton,
   layouts: LayoutsSkeleton,
+  shortcuts: ShortcutsSkeleton,
   palette: PaletteSkeleton,
   profiles: ProfilesSkeleton,
   providers: ProvidersSkeleton,

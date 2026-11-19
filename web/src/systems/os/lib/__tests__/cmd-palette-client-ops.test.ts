@@ -70,6 +70,15 @@ describe("cmd-palette client-op table — tabs", () => {
     expect(context.shell.openNewTab).toHaveBeenCalledExactlyOnceWith(null);
   });
 
+  it("Should split right and down through the shell, with or without a focused window", () => {
+    for (const focusedId of ["w-1", null]) {
+      const context = opContext(tabBarFixture({ activeWindowId: "w-1" }), focusedId);
+      void run("window.split.right", context);
+      void run("window.split.down", context);
+      expect(vi.mocked(context.shell.openSplit).mock.calls).toEqual([["right"], ["bottom"]]);
+    }
+  });
+
   it("Should dispatch reopen without requiring a focused window [UT-052]", () => {
     const context = opContext(null, null);
     void run("window.tab.reopen", context);

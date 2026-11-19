@@ -1,78 +1,24 @@
 import { HelpTip, Slider } from "@compozy/ui";
 
-import type { WindowManagerSettingsApply, WindowManagerSettingsSection } from "@/systems/os";
-
-import type { AliasEditorModel } from "../hooks/use-window-manager-alias-editor";
-import type { GlobalShortcutRecorderModel } from "../hooks/use-global-shortcut-recorder";
 import type { WindowManagerConfigEditorModel } from "../hooks/use-window-manager-config-editor";
-import type { ShortcutRecorderModel } from "../hooks/use-window-manager-shortcut-recorder";
 import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-config-ranges";
 import { SettingsAdvancedFold, SettingsProvChip } from "./settings-advanced-fold";
 import { SettingsGroup } from "./settings-group";
-import { SettingsLiveChip } from "./settings-live-chip";
 import { SettingsTile, SettingsTiles } from "./settings-tiles";
 import { SettingRow } from "./setting-row";
 import { WindowManagerBehaviorPicks } from "./layouts/window-manager-behavior-picks";
 import { WindowManagerGapEditor } from "./layouts/window-manager-gap-editor";
-import { WindowManagerGlobalHotkeys } from "./layouts/window-manager-global-hotkeys";
-import { WindowManagerShortcutTable } from "./layouts/window-manager-shortcut-table";
-import { ShortcutPresetCard } from "./layouts/shortcut-preset-card";
-
-interface WindowManagerConfigEditorProps {
-  editor: WindowManagerConfigEditorModel;
-  bindingApply?: WindowManagerSettingsApply | null;
-  /** Daemon truth for the keyboard surface; not part of the draft. */
-  section: WindowManagerSettingsSection;
-  recorder: ShortcutRecorderModel;
-  globalRecorder: GlobalShortcutRecorderModel;
-  aliases: AliasEditorModel;
-  focusCommandId?: string;
-}
 
 /**
  * Global window-manager defaults. One save bar for the whole page lives on the
- * route; this composes the sections and nothing else.
- *
- * Shortcuts and aliases are deliberately outside that save bar: a rebind has to
- * take effect the moment it is recorded, and the daemon has to arbitrate it, so
- * the keyboard surface writes straight through instead of collecting a draft.
+ * route; this composes the sections and nothing else. Shortcuts live on their
+ * own page because they apply live instead of joining this draft.
  */
-export function WindowManagerConfigEditor({
-  aliases,
-  bindingApply,
-  editor,
-  focusCommandId,
-  globalRecorder,
-  recorder,
-  section,
-}: WindowManagerConfigEditorProps) {
+export function WindowManagerConfigEditor({ editor }: { editor: WindowManagerConfigEditorModel }) {
   return (
     <>
       <SettingsGroup description="Takes effect as soon as you save." title="Window behavior">
         <WindowManagerBehaviorPicks draft={editor.draft} setDraft={editor.setDraft} />
-      </SettingsGroup>
-
-      <SettingsGroup
-        action={<SettingsLiveChip />}
-        bare
-        help="Click a shortcut to change it. Changes apply as you make them; only the ones you change are stored."
-        title="Shortcuts"
-      >
-        <ShortcutPresetCard
-          defaults={section.config.shortcutDefaults}
-          overrides={section.config.shortcuts}
-          onChange={recorder.applyShortcuts}
-        />
-        <div className="overflow-hidden rounded-lg bg-card shadow-card">
-          <WindowManagerShortcutTable
-            aliases={aliases}
-            apply={bindingApply}
-            focusCommandId={focusCommandId}
-            recorder={recorder}
-            section={section}
-          />
-          <WindowManagerGlobalHotkeys recorder={globalRecorder} section={section} />
-        </div>
       </SettingsGroup>
 
       <SettingsAdvancedFold data-testid="settings-page-layouts-advanced" padded>
@@ -118,15 +64,7 @@ export function WindowManagerConfigEditor({
           />
           <SettingsTiles className="p-4">
             <SettingsTile label="Config section" mono value="[window_manager]" />
-            <SettingsTile
-              detail={
-                section.scope === "workspace" ? "Shortcuts are saved for this project" : undefined
-              }
-              label="Scope"
-              value={
-                section.availableScopes.length > 1 ? "Everywhere and per project" : "Everywhere"
-              }
-            />
+            <SettingsTile label="Scope" value="Everywhere" />
             <SettingsTile detail="No restart needed" label="Lifecycle" value="Live" />
           </SettingsTiles>
         </SettingsGroup>

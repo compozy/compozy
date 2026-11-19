@@ -23,6 +23,7 @@ func withSettingsWindowManagerSchemaEnumValues(
 		settingsWindowDesktopTransitionValues()
 	values[reflect.TypeFor[contract.SettingsWindowBindingAction]()] =
 		settingsWindowBindingActionValues()
+	values[reflect.TypeFor[contract.WindowManagerInsertEdge]()] = contract.WindowManagerInsertEdges()
 	return values
 }
 

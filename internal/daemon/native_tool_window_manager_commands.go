@@ -95,6 +95,7 @@ func (payload windowManagerWindowOpenPayload) command() windowmanager.Command {
 			DesktopID:           windowmanager.DesktopID(strings.TrimSpace(payload.DesktopID)),
 			FloatingRect:        rect,
 			InsertTiled:         payload.InsertTiled,
+			InsertEdge:          windowmanager.DropPlacement(strings.TrimSpace(payload.InsertEdge)),
 			Floating:            payload.Floating,
 			StackTargetWindowID: windowManagerOptionalString[windowmanager.WindowID](payload.StackTargetWindowID),
 		},

@@ -49765,6 +49765,15 @@
           "id": {
             "type": "string"
           },
+          "insert_edge": {
+            "enum": [
+              "left",
+              "right",
+              "top",
+              "bottom"
+            ],
+            "type": "string"
+          },
           "insert_tiled": {
             "type": "boolean"
           },

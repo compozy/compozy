@@ -67,6 +67,8 @@ export interface TerminalWindowAppProps {
   resolvedInputRequests?: readonly TerminalResolvedInputRequest[];
   /** Terminal id → title, for stacked questions that must name their origin. */
   inputRequestTitles?: ReadonlyMap<string, string>;
+  /** The host runs this keystroke from the terminal, so the grid releases it. */
+  isHostShortcut?: (event: KeyboardEvent) => boolean;
   /** The per-project cap, from `[terminal].max_per_workspace`. Absent until loaded. */
   limit?: number;
   /** `[terminal].exit_retention` in milliseconds. Omit when unknown. */
@@ -120,6 +122,7 @@ export function TerminalWindowApp({
   inputRequests,
   resolvedInputRequests = EMPTY_RESOLVED,
   inputRequestTitles,
+  isHostShortcut,
   limit,
   exitRetentionMs,
   detachedTtl,
@@ -205,6 +208,7 @@ export function TerminalWindowApp({
             hostChrome={hostChrome}
             inputRequestTitles={inputRequestTitles}
             inputRequests={inputRequests.filter(request => request.terminal_id === active.id)}
+            isHostShortcut={isHostShortcut}
             resolvedInputRequests={resolvedInputRequests.filter(
               request => request.terminal_id === active.id
             )}

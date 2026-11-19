@@ -10,8 +10,6 @@ flowchart TD
     B --> C{Edit behavior or layout}
     C -->|behavior or shortcut arrays/ranges| D[Validate the complete effective config]
     C -->|layout| E[Preview and validate the complete layout]
-    C -->|Terminal preset| P[Preview displaced bindings and platform hazards]
-    P --> F
     D --> F{Valid?}
     E --> F
     F -->|no| G[Show exact diagnostics and retain known-good runtime]
@@ -73,7 +71,7 @@ design_reference:
   locked_root: "docs/design/opendesign/herdr-parity/"
   visual_contracts:
     - "task_05 VC-01..VC-06 — herdr-parity-settings-shortcuts.html"
-  judgment_rule: "Judge the shortcut table, diagnostics, and Terminal preset against the locked board; the daemon effective keymap owns every rendered chord."
+  judgment_rule: "Judge the shortcut table and diagnostics against the locked board; the daemon effective keymap owns every rendered chord."
 
 qa-impact: 2026-11-13 window-tabs-split S10. Snapping, edge bindings, raise-on-focus, drag-away,
 group-move and floating placement were retired with tabs and splits; step 2 now edits new-window
@@ -82,3 +80,9 @@ the Project layout, and imports of version 4/5 files go through the daemon's `la
 preview. Retired `[window_manager]` keys load with a warning (MS-window-manager-retired-config-keys)
 and retired shortcut bindings show as retired rows (MS-window-shortcut-retired-binding). Walk the
 journey with ET-layout-editor-import-legacy-document and MS-configure-window-manager.
+
+qa-impact: 2026-11-18 keyboard-first navigation (#1826). The Terminal shortcut preset was removed:
+the shipped defaults carry its main chords, and stored overrides stay as they are. Shortcuts moved from
+Settings › Layouts to their own Settings › Shortcuts page (shortcut table, aliases, conflicts and
+global hotkeys); Layouts keeps the Project layout, Saved layouts, Window behavior and the Advanced
+fold. An old `/settings/layouts?command=<id>` link opens Settings › Shortcuts on that command.

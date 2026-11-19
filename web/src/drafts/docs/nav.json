@@ -1034,7 +1034,7 @@
                         {
                             "t": "Keyboard shortcuts",
                             "s": "configuration/shortcuts",
-                            "d": "Configure the live CompozyOS keymap, inspect effective bindings, and apply the Terminal preset."
+                            "d": "Configure the live CompozyOS keymap and inspect effective bindings."
                         },
                         {
                             "t": "Config Lifecycle Matrix",

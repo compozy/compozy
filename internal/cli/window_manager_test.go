@@ -564,6 +564,16 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 			expectedRoute: &windowmanager.RouteIntent{Pathname: "/tasks", Search: windowmanager.RouteSearch{}},
 		},
 		{
+			name:            "Should open a tiled window below its anchor",
+			commandID:       contract.WindowManagerCommandWindowOpen,
+			expectedPayload: `{"window":{"app":"new-tab","route":{"pathname":"/new-tab","search":{}},"desktop_id":"","insert_tiled":true,"insert_edge":"bottom"}}`,
+			args: []string{
+				"window", "open", "--workspace", "w1", "--revision", "7", "--app", "new-tab",
+				"--pathname", "/new-tab", "--search-json", "{}", "--tiled", "--edge", "bottom",
+			},
+			expectedRoute: &windowmanager.RouteIntent{Pathname: "/new-tab", Search: windowmanager.RouteSearch{}},
+		},
+		{
 			name:            "Should open an explicit floating window",
 			commandID:       contract.WindowManagerCommandWindowOpen,
 			expectedPayload: `{"window":{"app":"tasks","route":{"pathname":"/tasks","search":{}},"desktop_id":"","floating":true}}`,
@@ -1744,6 +1754,35 @@ func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
 			name: "Should reject an explicit false tiled flag during restore",
 			args: []string{
 				"window", "open", "--workspace", "w1", "--revision", "1", "--restore", "win-1", "--tiled=false",
+			},
+			wantKind:  windowManagerCLIValidationConflicting,
+			wantField: "restore",
+			wantError: "--restore cannot be combined with new-window flags",
+		},
+		{
+			name: "Should reject an edge without a tiled insert",
+			args: []string{
+				"window", "open", "--workspace", "w1", "--revision", "1", "--app", "tasks",
+				"--pathname", "/tasks", "--search-json", "{}", "--edge", "bottom",
+			},
+			wantKind:  windowManagerCLIValidationRequired,
+			wantField: "tiled",
+			wantError: "--edge requires --tiled",
+		},
+		{
+			name: "Should reject an unknown edge",
+			args: []string{
+				"window", "open", "--workspace", "w1", "--revision", "1", "--app", "tasks",
+				"--pathname", "/tasks", "--search-json", "{}", "--tiled", "--edge", "center",
+			},
+			wantKind:  windowManagerCLIValidationInvalidValue,
+			wantField: "edge",
+			wantError: "--edge must be left, right, top or bottom",
+		},
+		{
+			name: "Should reject an edge during restore",
+			args: []string{
+				"window", "open", "--workspace", "w1", "--revision", "1", "--restore", "win-1", "--edge", "right",
 			},
 			wantKind:  windowManagerCLIValidationConflicting,
 			wantField: "restore",

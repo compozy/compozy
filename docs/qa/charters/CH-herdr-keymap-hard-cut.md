@@ -1,9 +1,9 @@
-# CH-herdr-keymap-hard-cut: Rebind and preset the daemon-owned effective keymap atomically
+# CH-herdr-keymap-hard-cut: Rebind the daemon-owned effective keymap atomically
 
 ```yaml
 charter:
   id: CH-herdr-keymap-hard-cut
-  mission: "As Bruno, edit arrays and numbered ranges, apply and revert the Terminal preset, and prove every accepted or rejected change has one daemon-owned effective result."
+  mission: "As Bruno, edit arrays and numbered ranges in Settings › Shortcuts, and prove every accepted or rejected change has one daemon-owned effective result."
   mode: charter-with-tour
   cycle_tier: targeted
   cycle_role: primary
@@ -13,7 +13,7 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-administer-window-manager
-  scenarios: [ET-layout-editor-shortcut-recorder, MS-configure-window-manager, MS-terminal-shortcut-preset, MS-window-shortcut-arrays-ranges]
+  scenarios: [ET-layout-editor-shortcut-recorder, MS-configure-window-manager, MS-window-shortcut-arrays-ranges]
   tour: Multi-Tab Tour
   time_box_minutes: 60
   adrs: [ADR-004, ADR-006]
@@ -24,7 +24,7 @@ charter:
       - "Read defaults, overrides, and effective bindings through Settings, config CLI, HTTP, and UDS before changing anything."
       - "Persist alternates, scalar and array ranges, one explicit disable, and a partial range override; name the exact member in blocked and shadowed conflicts."
       - "Race two Settings tabs with a rejected full-map conflict and prove the last known-good keymap remains active everywhere."
-      - "Preview, apply twice, and revert the Terminal preset; displaced defaults, platform hazards, idempotence, and exact pre-preset restoration must agree with the daemon."
+      - "Open an old `/settings/layouts?command=<id>` link and confirm Settings › Shortcuts opens on that command's row."
     must_avoid:
       - "Do not use TypeScript literals or the prototype as a chord authority, and do not accept a partial config write."
 ```

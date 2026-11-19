@@ -35,6 +35,8 @@ export interface TerminalWindowBodyProps {
   inputRequests: readonly TerminalInputRequest[];
   resolvedInputRequests?: readonly TerminalResolvedInputRequest[];
   inputRequestTitles?: ReadonlyMap<string, string>;
+  /** The host runs this keystroke from the terminal, so the grid releases it. */
+  isHostShortcut?: (event: KeyboardEvent) => boolean;
   exitRetentionMs?: number;
   recording: TerminalRecordingState | null;
   pipeOutput?: { lines: readonly string[]; firstLineNumber: number };
@@ -76,6 +78,7 @@ function TerminalInteractiveWindowBody({
   inputRequests,
   resolvedInputRequests = EMPTY_RESOLVED,
   inputRequestTitles,
+  isHostShortcut,
   exitRetentionMs,
   recording,
   actions,
@@ -153,6 +156,7 @@ function TerminalInteractiveWindowBody({
         exitRetentionMs={exitRetentionMs}
         handleRef={handleRef}
         instanceId={terminalInstanceKey(workspaceId, profile, terminal.id)}
+        isHostShortcut={isHostShortcut}
         readOnly={readOnly}
         onReconnect={connection.reconnect}
         onViewJournal={onViewJournal}

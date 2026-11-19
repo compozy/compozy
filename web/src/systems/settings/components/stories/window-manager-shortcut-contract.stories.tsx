@@ -1,20 +1,16 @@
-import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 
 import {
   parseSettingsWindowManagerSection,
-  type ShortcutMap,
   type WindowManagerSettingsSection,
   type WindowManagerSettingsWire,
 } from "@/systems/os";
 import { CenteredSurface } from "@/storybook/story-layout";
-import { cmdPaletteStoryShortcuts } from "@/systems/os/mocks";
 
 import type { AliasEditorModel } from "../../hooks/use-window-manager-alias-editor";
 import type { ShortcutRecorderModel } from "../../hooks/use-window-manager-shortcut-recorder";
 import { settingsWindowManagerSectionFixture } from "../../mocks/window-manager-fixtures";
-import { ShortcutPresetCard } from "../layouts/shortcut-preset-card";
 import { WindowManagerShortcutTable } from "../layouts/window-manager-shortcut-table";
 
 /**
@@ -70,7 +66,6 @@ function recorderStub(overrides: Partial<ShortcutRecorderModel> = {}): ShortcutR
     dismissConflict: () => {},
     reset: () => {},
     resetAll: () => {},
-    applyShortcuts: () => {},
     ...overrides,
   };
 }
@@ -100,19 +95,6 @@ function TableFixture({
   return (
     <div className="max-h-190 w-240 overflow-y-auto rounded-lg bg-card shadow-card">
       <WindowManagerShortcutTable aliases={aliases} recorder={recorder} section={section} />
-    </div>
-  );
-}
-
-function PresetFixture({ initial }: { initial: ShortcutMap }) {
-  const [overrides, setOverrides] = useState(initial);
-  return (
-    <div className="w-240 overflow-hidden rounded-lg bg-card shadow-card">
-      <ShortcutPresetCard
-        defaults={cmdPaletteStoryShortcuts}
-        overrides={overrides}
-        onChange={setOverrides}
-      />
     </div>
   );
 }
@@ -182,20 +164,4 @@ export const DormantExtensionDefault: Story = {
 
 export const Recording: Story = {
   args: { recorder: recorderStub({ recording: "session.new", recordingMode: "replace" }) },
-};
-
-export const PresetPreview: Story = {
-  render: () => <PresetFixture initial={{}} />,
-  play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole("button", { name: "Preview" }));
-  },
-};
-
-export const PresetApplied: Story = {
-  render: () => <PresetFixture initial={{}} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Preview" }));
-    await userEvent.click(canvas.getByRole("button", { name: "Apply preset" }));
-  },
 };

@@ -9,6 +9,7 @@ import {
   terminalMetricsEqual,
   type TerminalTypeMetrics,
 } from "./terminal-metrics";
+import { isApplePlatform, terminalReleasesKey } from "./terminal-key-policy";
 import {
   addTerminalInstanceListener,
   attachTerminalInstance,
@@ -29,6 +30,7 @@ export interface UseTerminalInstanceOptions {
   engineLoader: TerminalEngineLoader;
   onData: (data: string) => void;
   onSelectionChange: (selection: string) => void;
+  isHostShortcut: (event: KeyboardEvent) => boolean;
   onProposeDimensions: (dimensions: TerminalDimensions) => void;
   onRendererChange: (renderer: TerminalRendererKind) => void;
   onAttached: (instance: TerminalInstance) => void;
@@ -70,6 +72,7 @@ export function useTerminalInstance(options: UseTerminalInstanceOptions): {
   const emitSelectionChange = useEffectEvent((selection: string) => {
     options.onSelectionChange(selection);
   });
+  const readHostShortcut = useEffectEvent((event: KeyboardEvent) => options.isHostShortcut(event));
   const emitRendererChange = useEffectEvent((renderer: TerminalRendererKind) => {
     options.onRendererChange(renderer);
   });
@@ -116,6 +119,7 @@ export function useTerminalInstance(options: UseTerminalInstanceOptions): {
       const unsubscribe = addTerminalInstanceListener(instance, {
         onData: emitData,
         onSelectionChange: emitSelectionChange,
+        isHostShortcut: readHostShortcut,
         onRendererChange: emitRendererChange,
         // A new face changes the cell size under an unchanged container, so
         // the resize observer stays silent; the daemon still needs the new fit.
@@ -272,8 +276,17 @@ function createInstance(
  * reattached buffer wired to the pane on screen.
  */
 function bindInstanceEvents(instance: TerminalInstance): void {
+  const apple = isApplePlatform(typeof navigator === "undefined" ? "" : navigator.platform);
+  // Returning false makes the emulator skip the key; it then bubbles to the
+  // host's document listener, which runs the bound command.
   instance.terminal.attachCustomKeyEventHandler(
-    event => !isHostAccelerator(event, instance.terminal.getSelection() !== "")
+    event =>
+      !terminalReleasesKey(event, {
+        hasSelection: instance.terminal.getSelection() !== "",
+        apple,
+        isHostShortcut: candidate =>
+          Array.from(instance.listeners).some(listener => listener.isHostShortcut(candidate)),
+      })
   );
   const data = instance.terminal.onData(payload => {
     notifyTerminalInstance(instance, listener => listener.onData(payload));
@@ -288,24 +301,6 @@ function bindInstanceEvents(instance: TerminalInstance): void {
     () => selection.dispose(),
     theme
   );
-}
-
-/** Lets product shortcuts reach the host without stealing an unselected terminal interrupt. */
-function isHostAccelerator(event: KeyboardEvent, hasSelection: boolean): boolean {
-  if ((!event.metaKey && !event.ctrlKey) || event.altKey) return false;
-  switch (event.key.toLowerCase()) {
-    case "+":
-    case "=":
-    case "-":
-    case "0":
-    case "k":
-    case "v":
-      return true;
-    case "c":
-      return hasSelection;
-    default:
-      return false;
-  }
 }
 
 /**

@@ -25,6 +25,8 @@ const (
 	shortcutWindowFocusLastAction        = "window.focus.last"
 	shortcutWindowTileTopAction          = "window.tile.top"
 	shortcutWindowTileBottomAction       = "window.tile.bottom"
+	shortcutWindowSplitRightAction       = "window.split.right"
+	shortcutWindowSplitDownAction        = "window.split.down"
 	shortcutCheatsheetAction             = "shortcuts.cheatsheet"
 	shortcutWindowTabNewAction           = "window.tab.new"
 	shortcutWindowTabReopenAction        = "window.tab.reopen"
@@ -122,7 +124,7 @@ func CanonicalShortcutsV2(
 	if err := validateBindableShortcutIDs(canonical, bindableIDs); err != nil {
 		return nil, err
 	}
-	if _, err := effectiveKeymap(canonical, touchedFamilies); err != nil {
+	if _, err := effectiveKeymap(canonical, touchedFamilies, nil); err != nil {
 		return nil, err
 	}
 	return canonical, nil
@@ -159,10 +161,11 @@ func EffectiveKeymap(
 	if err := validateBindableShortcutIDs(canonical, bindableIDs); err != nil {
 		return nil, err
 	}
-	return effectiveKeymap(canonical, touchedFamilies)
+	return effectiveKeymap(canonical, touchedFamilies, nil)
 }
 
 // EffectiveStoredKeymap resolves a trusted stored map without catalog membership checks.
+// Stored overrides win over a default that later shipped on one of their chords.
 func EffectiveStoredKeymap(
 	overrides map[string]ShortcutBinding,
 ) (map[string]ShortcutBinding, error) {
@@ -170,7 +173,7 @@ func EffectiveStoredKeymap(
 	if err != nil {
 		return nil, err
 	}
-	return effectiveKeymap(canonical, touchedFamilies)
+	return effectiveKeymap(canonical, touchedFamilies, overridesDisplaceDefaults)
 }
 
 func canonicalStoredShortcutOverrides(
@@ -322,40 +325,6 @@ func parseShortcutRange(value string) (prefix string, start int, end int, ok boo
 		return "", 0, 0, false
 	}
 	return prefix, int(left[startIndex] - '0'), int(right[0] - '0'), true
-}
-
-func effectiveKeymap(
-	canonical map[string]ShortcutBinding,
-	touchedFamilies map[string]struct{},
-) (map[string]ShortcutBinding, error) {
-	effective := DefaultKeymap()
-	for familyAction := range touchedFamilies {
-		family, _ := shortcutFamily(familyAction)
-		for index := 1; index <= family.max; index++ {
-			delete(effective, family.action+"."+strconv.Itoa(index))
-		}
-	}
-	for action, binding := range canonical {
-		if RetiredShortcut(action) {
-			continue
-		}
-		resolved, alias := CommandAlias(action)
-		if alias {
-			if _, exists := canonical[resolved]; exists {
-				return nil, fmt.Errorf(
-					"shortcut aliases %q and %q both configured: %w",
-					action,
-					resolved,
-					ErrInvalidCommand,
-				)
-			}
-		}
-		effective[resolved] = append(ShortcutBinding(nil), binding...)
-	}
-	if err := validateShortcutConflicts(effective); err != nil {
-		return nil, err
-	}
-	return effective, nil
 }
 
 func validateShortcutConflicts(shortcuts map[string]ShortcutBinding) error {

@@ -34,6 +34,8 @@ export interface TerminalRecordingPlayerProps {
   /** Replaces the emulator. Tests and playback harnesses only. */
   engineLoader?: TerminalEngineLoader;
   autoPlay?: boolean;
+  /** The host runs this keystroke from the replay, so the screen releases it. */
+  isHostShortcut?: (event: KeyboardEvent) => boolean;
 }
 
 /**
@@ -53,6 +55,7 @@ export function TerminalRecordingPlayer({
   schedule,
   engineLoader,
   autoPlay = false,
+  isHostShortcut,
 }: TerminalRecordingPlayerProps) {
   const playback = useTerminalRecordingPlayback({ source, schedule, autoPlay });
   const instanceId = `recording ${recordingId}`;
@@ -109,6 +112,7 @@ export function TerminalRecordingPlayer({
           {...(engineLoader ? { engineLoader } : {})}
           handleRef={playback.handleRef}
           instanceId={instanceId}
+          {...(isHostShortcut ? { isHostShortcut } : {})}
           readOnly
           screenReaderMode
         />

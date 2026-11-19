@@ -5,7 +5,7 @@ title: Rebind shortcuts with arrays and numbered ranges
 persona: Bruno
 journey: J-administer-window-manager
 expected: Settings and config set persist ordered alternates, expand numbered ranges, name the exact conflicting member, and keep the prior effective keymap after a rejected save; a stored array or range bound to a retired action ID loads, does nothing, never counts as a conflict, and shows as a retired row in Settings.
-entry_points: Settings › Layouts › Shortcuts; compozy config get/set window_manager.shortcuts; GET/PATCH /api/settings/window-manager over HTTP and UDS
+entry_points: Settings › Shortcuts; compozy config get/set window_manager.shortcuts; GET/PATCH /api/settings/window-manager over HTTP and UDS
 qa_status: untested
 bug_ids:
 fix_status:
@@ -31,3 +31,7 @@ Layouts › Shortcuts: the jump family expands to eight rows with their chords; 
 both chords with the "retired" flag. 3) Bind `alt+KeyY` to "Move to new tab": accepted, no conflict
 named. 4) Bind `control+alt+Digit3` to another action: blocked, naming `window.tab.jump.3`. 5) Repeat
 the original array, disable and shadow checks. Reset for the current build.
+
+qa-impact: 2026-11-18 keyboard-first navigation (#1826). The Terminal shortcut preset was removed;
+its main chords are the shipped defaults and stored overrides keep winning. Shortcuts moved to their own
+Settings › Shortcuts page; walk the steps above there.

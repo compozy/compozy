@@ -58,6 +58,7 @@ describe("useSettingsPage", () => {
       "mcp",
       "automation",
       "gateway",
+      "shortcuts",
       "palette",
       "attention",
       "observability",

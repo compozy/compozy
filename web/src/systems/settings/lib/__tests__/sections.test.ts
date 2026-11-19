@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { retiredSettingsSectionReplacement } from "../section-paths";
+import {
+  retiredSettingsSectionReplacement,
+  settingsRouteWithMovedShortcutCommand,
+} from "../section-paths";
 import {
   filterSettingsSections,
   findSettingsSection,
@@ -25,6 +28,7 @@ describe("settings sections metadata", () => {
       "mcp",
       "automation",
       "gateway",
+      "shortcuts",
       "palette",
       "attention",
       "observability",
@@ -35,12 +39,12 @@ describe("settings sections metadata", () => {
   });
 
   it("groups operator-facing sections together", () => {
-    // Palette, Attention and Observability are about how the operator works, not
-    // how the workspace or the runtime is configured.
+    // Shortcuts, Palette, Attention and Observability are about how the operator
+    // works, not how the workspace or the runtime is configured.
     const operator = SETTINGS_SECTIONS.filter(section => section.group === "operator").map(
       section => section.slug
     );
-    expect(operator).toEqual(["palette", "attention", "observability"]);
+    expect(operator).toEqual(["shortcuts", "palette", "attention", "observability"]);
   });
 
   it("provides nested paths rooted under the settings shell", () => {
@@ -92,5 +96,30 @@ describe("settings sections metadata", () => {
     expect(settingsSectionSlugFromPathname("/settings")).toBe("general");
     expect(settingsSectionSlugFromPathname("/settings/not-a-section")).toBe("general");
     expect(settingsSectionSlugFromPathname("/settings/constructor")).toBe("general");
+  });
+
+  it("Should move a Layouts route that names a command to Shortcuts and keep plain Layouts", () => {
+    // Invariant: the shortcut table moved; old command links land on it, Layouts stays Layouts.
+    expect(
+      settingsRouteWithMovedShortcutCommand({
+        pathname: "/settings/layouts",
+        search: { command: "palette.open", extra: 1 },
+      })
+    ).toEqual({ pathname: "/settings/shortcuts", search: { command: "palette.open", extra: 1 } });
+    expect(
+      settingsRouteWithMovedShortcutCommand({ pathname: "/settings/layouts", search: {} })
+    ).toBeNull();
+    expect(
+      settingsRouteWithMovedShortcutCommand({
+        pathname: "/settings/layouts",
+        search: { command: " " },
+      })
+    ).toBeNull();
+    expect(
+      settingsRouteWithMovedShortcutCommand({
+        pathname: "/settings/shortcuts",
+        search: { command: "palette.open" },
+      })
+    ).toBeNull();
   });
 });

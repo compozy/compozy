@@ -31,6 +31,17 @@ type WindowManagerDeleteDesktopPayload struct {
 	DestinationID *windowmanager.DesktopID `json:"destination_id,omitzero"`
 }
 
+// WindowManagerInsertEdge is the side of its anchor a tiled window.open lands on.
+type WindowManagerInsertEdge string
+
+// WindowManagerInsertEdges lists every accepted insert edge.
+func WindowManagerInsertEdges() []string {
+	return []string{
+		string(windowmanager.DropLeft), string(windowmanager.DropRight),
+		string(windowmanager.DropTop), string(windowmanager.DropBottom),
+	}
+}
+
 type WindowManagerWindowSpecPayload struct {
 	ID                  windowmanager.WindowID       `json:"id,omitempty"`
 	App                 string                       `json:"app"`
@@ -39,6 +50,7 @@ type WindowManagerWindowSpecPayload struct {
 	DesktopID           windowmanager.DesktopID      `json:"desktop_id"`
 	FloatingRect        windowmanager.NormalizedRect `json:"floating_rect,omitzero"          deprecated:"true"`
 	InsertTiled         bool                         `json:"insert_tiled,omitempty"`
+	InsertEdge          WindowManagerInsertEdge      `json:"insert_edge,omitempty"`
 	Floating            bool                         `json:"floating,omitzero"               deprecated:"true"`
 	StackTargetWindowID *windowmanager.WindowID      `json:"stack_target_window_id,omitzero"`
 }
@@ -210,7 +222,8 @@ func decodeOpenWindowPayload(raw json.RawMessage) (windowmanager.Command, error)
 		ID: payload.Window.ID, App: payload.Window.App, InstanceKey: payload.Window.InstanceKey,
 		Route: payload.Window.Route, DesktopID: payload.Window.DesktopID,
 		FloatingRect: payload.Window.FloatingRect, InsertTiled: payload.Window.InsertTiled,
-		Floating: payload.Window.Floating, StackTargetWindowID: payload.Window.StackTargetWindowID,
+		InsertEdge: windowmanager.DropPlacement(payload.Window.InsertEdge),
+		Floating:   payload.Window.Floating, StackTargetWindowID: payload.Window.StackTargetWindowID,
 	}
 	return windowmanager.OpenWindowCommand{Window: spec, RestoreWindowID: payload.RestoreWindowID}, nil
 }

@@ -800,7 +800,7 @@ describe("TerminalView", () => {
     await waitFor(() => expect(engine.lastTerminal().options.screenReaderMode).toBe(true));
   });
 
-  it("Should pass host shortcuts without stealing an unselected terminal interrupt", async () => {
+  it("Should keep the primary clipboard, zoom and palette keys off the shell on Linux and Windows", async () => {
     const engine = createFakeEngine();
     render(
       <TerminalView
@@ -811,14 +811,66 @@ describe("TerminalView", () => {
     );
     await waitFor(() => expect(engine.terminals).toHaveLength(1));
     const terminal = engine.lastTerminal();
-    const key = (value: string) => new KeyboardEvent("keydown", { key: value, ctrlKey: true });
+    const key = (value: string, code: string) =>
+      new KeyboardEvent("keydown", { key: value, code, ctrlKey: true });
 
-    expect(terminal.acceptKeyEvent(key("v"))).toBe(false);
-    expect(terminal.acceptKeyEvent(key("k"))).toBe(false);
-    expect(terminal.acceptKeyEvent(key("c"))).toBe(true);
+    expect(terminal.acceptKeyEvent(key("v", "KeyV"))).toBe(false);
+    expect(terminal.acceptKeyEvent(key("k", "KeyK"))).toBe(false);
+    expect(terminal.acceptKeyEvent(key("0", "Digit0"))).toBe(false);
+    expect(terminal.acceptKeyEvent(key("c", "KeyC"))).toBe(true);
+    // An unbound Ctrl chord is the shell's: ⌃W deletes a word.
+    expect(terminal.acceptKeyEvent(key("w", "KeyW"))).toBe(true);
 
     terminal.emitSelectionChange("selected output");
-    expect(terminal.acceptKeyEvent(key("c"))).toBe(false);
+    expect(terminal.acceptKeyEvent(key("c", "KeyC"))).toBe(false);
+  });
+
+  it("Should hand only host-bound chords to the host and send Ctrl chords to the shell on macOS", async () => {
+    const platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    try {
+      const engine = createFakeEngine();
+      const bindsOnly = (chord: string) => (event: KeyboardEvent) =>
+        `${event.altKey ? "alt+" : ""}${event.code}` === chord;
+      const instanceId = nextInstanceId();
+      const engineLoader = loaderFor(engine);
+      const view = (predicate: (event: KeyboardEvent) => boolean) => (
+        <TerminalView
+          aria-label="Terminal output"
+          engineLoader={engineLoader}
+          instanceId={instanceId}
+          isHostShortcut={predicate}
+        />
+      );
+      const { rerender } = render(view(bindsOnly("alt+KeyH")));
+      await waitFor(() => expect(engine.terminals).toHaveLength(1));
+      const terminal = engine.lastTerminal();
+      const press = (init: KeyboardEventInit) =>
+        terminal.acceptKeyEvent(new KeyboardEvent("keydown", init));
+
+      expect(press({ key: "˙", code: "KeyH", altKey: true })).toBe(false);
+      expect(press({ key: "∆", code: "KeyJ", altKey: true })).toBe(true);
+      expect(press({ key: "?", code: "Slash", shiftKey: true })).toBe(true);
+      expect(press({ key: "A", code: "KeyA", shiftKey: true })).toBe(true);
+      expect(press({ key: "v", code: "KeyV", metaKey: true })).toBe(false);
+      expect(press({ key: "c", code: "KeyC", metaKey: true })).toBe(true);
+      for (const [value, code] of [
+        ["k", "KeyK"],
+        ["v", "KeyV"],
+        ["0", "Digit0"],
+      ] as const) {
+        expect(press({ key: value, code, ctrlKey: true })).toBe(true);
+      }
+      terminal.emitSelectionChange("selected output");
+      expect(press({ key: "c", code: "KeyC", metaKey: true })).toBe(false);
+
+      // A rebind reaches the live emulator without recreating it.
+      rerender(view(bindsOnly("alt+KeyJ")));
+      expect(press({ key: "˙", code: "KeyH", altKey: true })).toBe(true);
+      expect(press({ key: "∆", code: "KeyJ", altKey: true })).toBe(false);
+      expect(engine.terminals).toHaveLength(1);
+    } finally {
+      platform.mockRestore();
+    }
   });
 
   it("Should gate the first paint on a missing font stack and clear the glyph atlas once it lands", async () => {

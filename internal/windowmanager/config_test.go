@@ -239,6 +239,82 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
+	t.Run("Should ship the keyboard-first defaults without a conflict", func(t *testing.T) {
+		t.Parallel()
+		defaults := DefaultKeymap()
+		for action, want := range map[string]ShortcutBinding{
+			"window.focus.left":      {"alt+KeyH", "control+ArrowLeft"},
+			"window.focus.down":      {"alt+KeyJ", "control+ArrowDown"},
+			"window.focus.up":        {"alt+KeyK", "control+ArrowUp"},
+			"window.focus.right":     {"alt+KeyL", "control+ArrowRight"},
+			"window.focus.last":      {"alt+KeyO", "control+alt+KeyO"},
+			"session.cycle.previous": {"control+alt+ArrowUp", "control+alt+KeyK", "control+shift+ArrowUp"},
+			"session.cycle.next":     {"control+alt+ArrowDown", "control+alt+KeyJ", "control+shift+ArrowDown"},
+			"window.tab.new":         {"meta+KeyT", "alt+KeyT"},
+			"window.close":           {"meta+KeyW", "alt+KeyW"},
+			"window.split.right":     {"alt+Semicolon"},
+			"window.split.down":      {"alt+shift+Semicolon"},
+			"window.tab.previous":    {"control+shift+Tab", "control+alt+KeyH"},
+			"window.tab.next":        {"control+Tab", "control+alt+KeyL"},
+			"window.tile.top":        {},
+			"window.tile.bottom":     {},
+			"window.tile.left":       {"control+alt+ArrowLeft"},
+			"window.tile.right":      {"control+alt+ArrowRight"},
+		} {
+			if got, listed := defaults[action]; !listed || !slices.Equal(got, want) {
+				t.Fatalf("DefaultKeymap()[%q] = %v (listed %v), want %v", action, got, listed, want)
+			}
+		}
+		if err := validateShortcutConflicts(defaults); err != nil {
+			t.Fatalf("DefaultKeymap() conflicts: %v", err)
+		}
+		for chord := range shortcutOwners(defaults) {
+			if canonical, err := canonicalShortcutChord(chord); err != nil || canonical != chord {
+				t.Fatalf("default chord %q is not canonical: %q, %v", chord, canonical, err)
+			}
+		}
+	})
+
+	t.Run("Should let a stored override win over a newer default on the same chord", func(t *testing.T) {
+		t.Parallel()
+		stored := map[string]ShortcutBinding{"window.close": {"meta+KeyW", "alt+KeyH"}}
+		effective, diagnostics, err := TolerantEffectiveKeymap(stored, DefaultBindableIDs())
+		if err != nil || len(diagnostics) != 0 {
+			t.Fatalf("TolerantEffectiveKeymap() = diagnostics %v, err %v", diagnostics, err)
+		}
+		if !slices.Equal(effective["window.close"], stored["window.close"]) {
+			t.Fatalf("window.close = %v, want the stored override", effective["window.close"])
+		}
+		if !slices.Equal(effective["window.focus.left"], ShortcutBinding{"control+ArrowLeft"}) {
+			t.Fatalf("window.focus.left = %v, want the default minus the claimed chord", effective["window.focus.left"])
+		}
+		if bound, err := EffectiveStoredKeymap(
+			stored,
+		); err != nil ||
+			!slices.Equal(bound["window.close"], stored["window.close"]) {
+			t.Fatalf("EffectiveStoredKeymap() window.close = %v, err %v", bound["window.close"], err)
+		}
+		// Two overrides on one chord are still the operator's conflict to resolve.
+		clash := map[string]ShortcutBinding{"window.close": {"alt+KeyQ"}, "layout.balance": {"alt+KeyQ"}}
+		if _, _, err := TolerantEffectiveKeymap(clash, DefaultBindableIDs()); !errors.Is(err, ErrInvalidCommand) {
+			t.Fatalf("TolerantEffectiveKeymap(override clash) error = %v", err)
+		}
+		// Recording a chord onto another action's default is still a conflict at write time.
+		if _, err := CanonicalShortcutsV2Retaining(
+			stored,
+			nil,
+			DefaultBindableIDs(),
+		); !errors.Is(
+			err,
+			ErrInvalidCommand,
+		) {
+			t.Fatalf("CanonicalShortcutsV2Retaining(new collision) error = %v", err)
+		}
+		if _, err := CanonicalShortcutsV2Retaining(stored, stored, DefaultBindableIDs()); err != nil {
+			t.Fatalf("CanonicalShortcutsV2Retaining(retained collision) error = %v", err)
+		}
+	})
+
 	t.Run("Should reject unknown actions and allow explicit disables", func(t *testing.T) {
 		t.Parallel()
 		if _, err := CanonicalShortcutsV2(map[string]ShortcutBinding{
@@ -680,10 +756,10 @@ func TestRetiredShortcutResolution(t *testing.T) {
 			"window.minimize":       {"alt+KeyM"},
 			"window.merge_all":      {"alt+KeyM"},
 			"window.tab.detach":     {"alt+KeyM"},
-			"window.tile.left":      {"alt+KeyH"},
+			"window.tile.left":      {"alt+KeyY"},
 			"window.unsplit":        {"alt+KeyU"},
-			"window.tab.move_left":  {"alt+KeyJ"},
-			"window.tab.move_right": {"alt+KeyL"},
+			"window.tab.move_left":  {"alt+KeyG"},
+			"window.tab.move_right": {"alt+KeyP"},
 		}
 		stored, err := CanonicalShortcutsV2(bindings, DefaultBindableIDs())
 		if err != nil {
@@ -704,7 +780,7 @@ func TestRetiredShortcutResolution(t *testing.T) {
 				t.Fatalf("retired shortcut %s has a default", id)
 			}
 		}
-		if !slices.Equal(effective["window.tile.left"], ShortcutBinding{"alt+KeyH"}) {
+		if !slices.Equal(effective["window.tile.left"], ShortcutBinding{"alt+KeyY"}) {
 			t.Fatalf("root-edge binding=%v", effective)
 		}
 		for _, id := range []string{"window.unsplit", "window.tab.move_left", "window.tab.move_right"} {

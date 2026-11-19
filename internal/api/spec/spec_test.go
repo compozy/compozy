@@ -4390,6 +4390,33 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		body["properties"].(map[string]any)["approve_authority_sha256"] = map[string]any{"type": "string"}
 	}
 	addAlwaysOnAdditiveSchemas(baseline)
+	// #1826: optional additive `insert_edge` on window.open; existing fields stay unchanged.
+	if addWindowOpenInsertEdge(baseline) == 0 {
+		t.Fatal("approved insert_edge addition: no historical window spec schemas found")
+	}
+}
+
+func addWindowOpenInsertEdge(value any) int {
+	added := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			added += addWindowOpenInsertEdge(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			added += addWindowOpenInsertEdge(child)
+		}
+		props, ok := node["properties"].(map[string]any)
+		if ok && props["insert_tiled"] != nil && props["stack_target_window_id"] != nil {
+			props["insert_edge"] = map[string]any{
+				"type": "string",
+				"enum": []any{"left", "right", "top", "bottom"},
+			}
+			added++
+		}
+	}
+	return added
 }
 
 // Match historical generic error fields, including payloads that embed them.

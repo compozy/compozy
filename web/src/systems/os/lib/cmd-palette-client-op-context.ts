@@ -1,4 +1,4 @@
-import type { OsDesktopRuntimeStore, WindowManagerController } from "./os-types";
+import type { OsDesktopRuntimeStore, OsSplitEdge, WindowManagerController } from "./os-types";
 import type { FocusDirection } from "./window-manager-types";
 import type { WindowManagerClientCommandReply } from "./window-manager-client-command-frames";
 
@@ -29,6 +29,8 @@ export interface PaletteShellHandlers {
   focusAttention(): void;
   /** Opens a fresh tab (after this window's tab when given) and hands the palette its destination. */
   openNewTab(afterWindowId: string | null): void;
+  /** Splits the focused window with a fresh New tab pane on `edge` and hands the palette its destination. */
+  openSplit(edge: OsSplitEdge): void;
   /** Tab and window activation owns exactly one URL write (US-020). */
   activateWindow(windowId: string): void;
   /** Directional focus; the keyboard follows it into the window it lands on (#1655). */

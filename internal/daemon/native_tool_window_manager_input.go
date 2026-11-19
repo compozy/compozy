@@ -97,6 +97,7 @@ type windowManagerWindowOpenPayload struct {
 	Route               *windowmanager.RouteIntent    `json:"route,omitzero"`
 	FloatingRect        *windowmanager.NormalizedRect `json:"floating_rect,omitzero"`
 	InsertTiled         bool                          `json:"insert_tiled,omitzero"`
+	InsertEdge          string                        `json:"insert_edge,omitempty"`
 	Floating            bool                          `json:"floating,omitzero"`
 	StackTargetWindowID string                        `json:"stack_target_window_id,omitempty"`
 	RestoreWindowID     string                        `json:"restore_window_id,omitempty"`

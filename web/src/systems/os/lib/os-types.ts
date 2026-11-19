@@ -101,11 +101,16 @@ export interface OsOpenTarget {
    * policy (a tab after the active tab by default); `split` opens beside the focused window.
    */
   placement?: "split";
+  /** Side of the focused window a `split` open lands on; the daemon defaults to the right. */
+  splitEdge?: OsSplitEdge;
   /** Open onto this desktop instead of the client's active one. */
   desktopId?: string;
   /** Classified navigation intent when the target resolves to a live window (ADR-011). */
   navigateMode?: OsNavigateMode;
 }
+
+/** Where `window.split.right` and `window.split.down` place the new pane. */
+export type OsSplitEdge = "right" | "bottom";
 
 /** Navigation intent, classified where it is known rather than inferred (ADR-011). */
 export type OsNavigateMode = "replace" | "push" | "pop";

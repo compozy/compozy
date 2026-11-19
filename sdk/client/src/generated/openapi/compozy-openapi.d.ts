@@ -22715,6 +22715,8 @@ export interface components {
       floating?: boolean;
       floating_rect?: components["schemas"]["NormalizedRect"];
       id?: string;
+      /** @enum {string} */
+      insert_edge?: "left" | "right" | "top" | "bottom";
       insert_tiled?: boolean;
       instance_key?: string | null;
       route: components["schemas"]["RouteIntent"];

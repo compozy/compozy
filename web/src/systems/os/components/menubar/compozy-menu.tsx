@@ -35,11 +35,17 @@ export function CompozyMenu({ trigger, open, onOpenChange, onRun, onAbout }: Com
             },
             {
               id: "settings",
-              content: ["settings.general", "settings.appearance", "settings.layouts"].some(has) ? (
+              content: [
+                "settings.general",
+                "settings.appearance",
+                "settings.layouts",
+                "settings.shortcuts",
+              ].some(has) ? (
                 <>
                   <MenubarCommandItem commandId="settings.general" onRun={onRun} />
                   <MenubarCommandItem commandId="settings.appearance" onRun={onRun} />
                   <MenubarCommandItem commandId="settings.layouts" onRun={onRun} />
+                  <MenubarCommandItem commandId="settings.shortcuts" onRun={onRun} />
                 </>
               ) : null,
             },

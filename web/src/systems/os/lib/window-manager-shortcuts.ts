@@ -91,7 +91,9 @@ const MODIFIER_ORDER = ["meta", "control", "alt", "shift"] as const;
 const MODIFIER_KEYS = new Set(["Meta", "Control", "Alt", "Shift"]);
 const KEY_CODE_PATTERN =
   /^(?:Key[A-Z]|Digit[0-9]|Arrow(?:Left|Right|Up|Down)|Bracket(?:Left|Right)|Comma|Period|Slash|Semicolon|Quote|Backquote|Minus|Equal|Backslash|Enter|Space|Tab|Escape|Backspace|Delete|Home|End|PageUp|PageDown|F(?:[1-9]|1[0-2]))$/;
-const SURFACE_LOCAL_CHORDS = new Map([["meta+KeyB", { label: "Bold", surface: "composer" }]]);
+export const SURFACE_LOCAL_CHORDS = new Map([
+  ["meta+KeyB", { label: "Bold", surface: "composer" }],
+]);
 
 /** Punctuation codes print as the character they type, in labels and in `aria-keyshortcuts`. */
 const PUNCTUATION_KEYS: Readonly<Record<string, string>> = {
@@ -257,7 +259,9 @@ export function shortcutBindingProblem(actionId: string, binding: ShortcutBindin
   return null;
 }
 
-function parseShortcutRange(value: string): { prefix: string; start: number; end: number } | null {
+export function parseShortcutRange(
+  value: string
+): { prefix: string; start: number; end: number } | null {
   const match = value.trim().match(/^(.*Digit)([1-9])\.\.([1-9])$/);
   if (!match) return null;
   const [, prefix = "", startRaw = "", endRaw = ""] = match;
@@ -266,44 +270,7 @@ function parseShortcutRange(value: string): { prefix: string; start: number; end
   return { prefix: probe.canonical.slice(0, -1), start: Number(startRaw), end: Number(endRaw) };
 }
 
-export function expandShortcutOverrides(overrides: ShortcutMap): Record<string, ShortcutBinding> {
-  const expanded: Record<string, ShortcutBinding> = {};
-  for (const [actionId, binding] of Object.entries(overrides)) {
-    const family = SHORTCUT_RANGE_FAMILIES.find(candidate => candidate.action === actionId);
-    if (!family) {
-      expanded[actionId] = binding.flatMap(member => {
-        const parsed = parseShortcutChord(member);
-        return parsed ? [parsed.canonical] : [];
-      });
-      continue;
-    }
-    for (const raw of binding) {
-      const range = parseShortcutRange(raw);
-      if (!range) continue;
-      for (let slot = range.start; slot <= range.end && slot <= family.max; slot += 1) {
-        const memberId = `${family.action}.${slot}`;
-        expanded[memberId] = [...(expanded[memberId] ?? []), `${range.prefix}${slot}`];
-      }
-    }
-  }
-  return expanded;
-}
-
-export function effectiveShortcutMap(base: ShortcutMap, overrides: ShortcutMap): ShortcutMap {
-  const effective: Record<string, ShortcutBinding> = Object.fromEntries(
-    Object.entries(base).map(([actionId, binding]) => [actionId, [...binding]])
-  );
-  for (const family of SHORTCUT_RANGE_FAMILIES) {
-    if (!(family.action in overrides)) continue;
-    for (let slot = 1; slot <= family.max; slot += 1) delete effective[`${family.action}.${slot}`];
-  }
-  for (const [actionId, binding] of Object.entries(expandShortcutOverrides(overrides))) {
-    effective[actionId] = [...binding];
-  }
-  return effective;
-}
-
-function parseEffectiveChords(bindings: ShortcutBinding): ParsedShortcutChord[] {
+export function parseEffectiveChords(bindings: ShortcutBinding): ParsedShortcutChord[] {
   return bindings.flatMap(raw => {
     const parsed = parseShortcutChord(raw);
     return parsed ? [parsed] : [];
@@ -425,35 +392,6 @@ function compactIndexedBindings(
     }
   }
   return compact;
-}
-
-/**
- * Two commands claiming one chord, or a chord a focused surface wins locally.
- *
- * Candidates come from the effective keymap itself rather than a catalog: only
- * a bound id can conflict, and an override naming an id the registry has not
- * hydrated yet still has to be reported rather than silently ignored.
- */
-export function findShortcutConflicts(
-  overrides: ShortcutMap,
-  defaults: ShortcutMap
-): readonly ShortcutConflict[] {
-  const effective = effectiveShortcutMap(defaults, overrides);
-  const byChord = new Map<string, string[]>();
-  for (const [actionId, bindings] of Object.entries(effective)) {
-    for (const chord of parseEffectiveChords(bindings)) {
-      const holders = byChord.get(chord.canonical);
-      if (holders) holders.push(actionId);
-      else byChord.set(chord.canonical, [actionId]);
-    }
-  }
-  const conflicts: ShortcutConflict[] = [];
-  for (const [chord, actionIds] of byChord) {
-    if (actionIds.length > 1) conflicts.push({ chord, kind: "blocked", actionIds });
-    const winner = SURFACE_LOCAL_CHORDS.get(chord);
-    if (winner) conflicts.push({ chord, kind: "shadowed", actionIds, winner });
-  }
-  return conflicts;
 }
 
 export function chordFromKeyboardEvent(event: KeyboardEvent): string | null {
