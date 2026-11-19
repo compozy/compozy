@@ -25,9 +25,6 @@ func (p *MCPProvider) listProjection(ctx context.Context, scope Scope) ([]Descri
 	}
 	p.retainDiscoveredSources(sources)
 	sources = MCPSourcesForScope(sources, scope)
-	if p.catalog != nil && IsHostedCatalogRead(ctx) {
-		p.catalog.observe(p.ProjectionScope(scope))
-	}
 	if p.reliability != nil {
 		p.reliability.retainActiveSources(scope, sources)
 	}

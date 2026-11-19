@@ -25,10 +25,10 @@ func (s *HostedService) Bind(
 	sessionID := strings.TrimSpace(req.SessionID)
 	projectionFailureClass := ""
 	phase := "peer_validation"
-	var projectionDuration time.Duration
+	var validationDuration, projectionDuration time.Duration
 	defer func() {
 		s.logBindOutcome(sessionID, peer, len(response.Tools), time.Since(startedAt), err, projectionFailureClass,
-			phase, projectionDuration)
+			phase, validationDuration, projectionDuration)
 	}()
 
 	if err := ctxErr(ctx); err != nil {
@@ -58,6 +58,7 @@ func (s *HostedService) Bind(
 	}
 	phase = "projection"
 	projectionStarted := time.Now()
+	validationDuration = projectionStarted.Sub(startedAt)
 	projection, err := s.bootstrapProjection(ctx, record)
 	projectionDuration = time.Since(projectionStarted)
 	if err != nil {
@@ -99,6 +100,7 @@ func (s *HostedService) logBindOutcome(
 	err error,
 	projectionFailureClass string,
 	phase string,
+	validationDuration time.Duration,
 	projectionDuration time.Duration,
 ) {
 	if s == nil || s.logger == nil {
@@ -110,10 +112,23 @@ func (s *HostedService) logBindOutcome(
 		"duration_ms", duration.Milliseconds(),
 	}
 	if err != nil || duration >= hostedSlowBindThreshold {
-		if err == nil && projectionDuration >= duration-projectionDuration {
-			phase = "projection"
+		if phase == "peer_validation" || phase == "launch_validation" {
+			validationDuration = duration
 		}
-		attributes = append(attributes, "phase", phase, "projection_ms", projectionDuration.Milliseconds())
+		var publishDuration time.Duration
+		if phase == "publish" {
+			publishDuration = duration - validationDuration - projectionDuration
+		}
+		if err == nil {
+			switch max(validationDuration, projectionDuration, publishDuration) {
+			case validationDuration:
+				phase = "validation"
+			case projectionDuration:
+				phase = "projection"
+			}
+		}
+		attributes = append(attributes, "phase", phase, "validation_ms", validationDuration.Milliseconds(),
+			"projection_ms", projectionDuration.Milliseconds(), "publish_ms", publishDuration.Milliseconds())
 	}
 	if err != nil {
 		if projectionFailureClass != "" {

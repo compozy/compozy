@@ -37,7 +37,18 @@ func (p *MCPProvider) discoverSource(
 	}
 	discoveryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	discoveryCtx = context.WithValue(discoveryCtx, mcpDiscoveryResponseBudgetKey{}, timeout/2)
 	return p.exec.ListTools(discoveryCtx, source)
+}
+
+type mcpDiscoveryResponseBudgetKey struct{}
+
+// MCPDiscoveryResponseBudget reserves server response time inside the daemon's discovery budget.
+func MCPDiscoveryResponseBudget(ctx context.Context) time.Duration {
+	if budget, ok := ctx.Value(mcpDiscoveryResponseBudgetKey{}).(time.Duration); ok {
+		return budget
+	}
+	return 0
 }
 
 func (p *MCPProvider) cachedSourceDescriptors(source SourceRef) []Descriptor {
@@ -53,6 +64,7 @@ func (p *MCPProvider) cachedSourceDescriptors(source SourceRef) []Descriptor {
 }
 
 type mcpDiscoverySnapshot struct {
+	source      SourceRef
 	raw         []MCPToolDescriptor
 	descriptors []Descriptor
 
@@ -71,21 +83,34 @@ func (s *mcpDiscoverySnapshot) currentDescriptors() []Descriptor {
 		return s.safe
 	}
 	safe := make([]Descriptor, 0, len(s.descriptors))
-	for _, descriptor := range s.descriptors {
-		raw, err := json.Marshal(descriptor)
+	for i, descriptor := range s.descriptors {
+		if safeMCPDescriptor(snapshot, descriptor) {
+			safe = append(safe, descriptor)
+			continue
+		}
+		redacted, err := RedactMCPToolDescriptor(s.raw[i], snapshot)
 		if err != nil {
 			continue
 		}
-		unsafe, err := snapshot.NeedsBinaryJSONRedaction(raw)
-		if err == nil && !unsafe {
+		descriptor, err = mcpRegistryDescriptor(s.source, redacted)
+		if err == nil && safeMCPDescriptor(snapshot, descriptor) {
 			safe = append(safe, descriptor)
 		}
 	}
-	if snapshot != redact.RegisteredSecretSnapshot() {
+	if revision != redact.RegisteredSecretSnapshot().MaterialFingerprint() {
 		return nil
 	}
 	s.safeRevision, s.safe, s.hasSafeView = revision, safe, true
 	return safe
+}
+
+func safeMCPDescriptor(snapshot *redact.SecretSnapshot, descriptor Descriptor) bool {
+	raw, err := json.Marshal(descriptor)
+	if err != nil {
+		return false
+	}
+	unsafe, err := snapshot.NeedsBinaryJSONRedaction(raw)
+	return err == nil && !unsafe
 }
 
 func (p *MCPProvider) normalizeDiscovery(source SourceRef, discovered []MCPToolDescriptor) ([]Descriptor, error) {
@@ -93,7 +118,7 @@ func (p *MCPProvider) normalizeDiscovery(source SourceRef, discovered []MCPToolD
 		if cached, ok := value.(*mcpDiscoverySnapshot); ok {
 			// Exact equality reuses schema digests without dropping internal read-authority metadata.
 			if reflect.DeepEqual(cached.raw, discovered) {
-				return cloneDescriptors(cached.descriptors), nil
+				return cloneDescriptors(cached.currentDescriptors()), nil
 			}
 		}
 	}
@@ -109,8 +134,9 @@ func (p *MCPProvider) normalizeDiscovery(source SourceRef, discovered []MCPToolD
 		raw[i].InputSchema = cloneRawMessage(raw[i].InputSchema)
 		raw[i].OutputSchema = cloneRawMessage(raw[i].OutputSchema)
 	}
-	p.discovered.Store(source, &mcpDiscoverySnapshot{raw: raw, descriptors: cloneDescriptors(descriptors)})
-	return descriptors, nil
+	snapshot := &mcpDiscoverySnapshot{source: source, raw: raw, descriptors: descriptors}
+	p.discovered.Store(source, snapshot)
+	return cloneDescriptors(snapshot.currentDescriptors()), nil
 }
 
 func cloneDescriptors(descriptors []Descriptor) []Descriptor {

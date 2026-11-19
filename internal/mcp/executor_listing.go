@@ -66,8 +66,23 @@ func (e *CallExecutor) normalizeToolListing(
 	source = tools.MCPDeclarationSource(source)
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
+	for range 2 {
+		snapshot := redact.RegisteredSecretSnapshot()
+		discovery, err := e.normalizeToolListingAt(key, source, resolved, protocolVersion, raw, snapshot)
+		if err != nil || snapshot.MaterialFingerprint() == redact.RegisteredSecretSnapshot().MaterialFingerprint() {
+			return discovery, err
+		}
+	}
+	return ToolDiscovery{}, tools.NewValidationError(
+		"listing", tools.ReasonSecretMetadata, "mcp tool metadata changed during redaction",
+	)
+}
+
+func (e *CallExecutor) normalizeToolListingAt(
+	key string, source tools.SourceRef, resolved *ResolvedServer, protocolVersion string, raw []*mcpsdk.Tool,
+	snapshot *redact.SecretSnapshot,
+) (ToolDiscovery, error) {
 	cached, exists := e.toolCache.normalizations[key]
-	snapshot := redact.RegisteredSecretSnapshot()
 	revision := snapshot.MaterialFingerprint()
 	if exists && cached.matches(source, resolved, protocolVersion, raw, revision) {
 		return cached.discovery.clone(), nil
@@ -179,21 +194,45 @@ func (e *CallExecutor) listResolvedTools(
 		servedFromCache = true
 		return cached, nil
 	}
-	client, err := e.openToolListingClient(ctx, source, &resolved, authorizationHeader)
+	discovery, runtimeHealthErr, err = e.listToolsWithCatalogClient(ctx, source, &resolved, authorizationHeader)
+	return discovery, err
+}
+
+func (e *CallExecutor) listToolsWithCatalogClient(
+	ctx context.Context, source tools.SourceRef, resolved *ResolvedServer, authorizationHeader string,
+) (discovery ToolDiscovery, healthErr error, err error) {
+	client, err := e.openToolListingClient(ctx, resolved, authorizationHeader)
+	if err != nil && ctx.Err() == nil && e.catalogHTTP != nil &&
+		resolved.Server.EffectiveTransport() == compozyconfig.MCPServerTransportHTTP {
+		client, err = e.openRenderedClient(ctx, resolved, authorizationHeader)
+	}
 	if err != nil {
-		runtimeHealthErr = err
-		return ToolDiscovery{}, normalizeMCPErrorWithContext(ctx, "", err, true)
+		return ToolDiscovery{}, err, normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
 	defer func() {
 		err = joinMCPClientCleanup(err, client)
 	}()
-	discovery, runtimeHealthErr, err = e.listToolsFromClient(
-		ctx, client, source, &resolved, negotiatedProtocolVersion(client.session), authorizationHeader,
+	discovery, healthErr, err = e.listToolsFromClient(
+		ctx, client, source, resolved, negotiatedProtocolVersion(client.session), authorizationHeader,
 	)
-	if err != nil {
-		return ToolDiscovery{}, err
+	if client.borrowed && healthErr != nil && ctx.Err() == nil {
+		retireErr := e.catalogHTTP.forget(client.session)
+		replacement, openErr := e.openRenderedClient(ctx, resolved, authorizationHeader)
+		if openErr != nil {
+			return ToolDiscovery{}, openErr, errors.Join(
+				normalizeMCPErrorWithContext(ctx, "", openErr, true),
+				retireErr,
+			)
+		}
+		client = replacement
+		discovery, healthErr, err = e.listToolsFromClient(
+			ctx, client, source, resolved, negotiatedProtocolVersion(client.session), authorizationHeader,
+		)
+		if err != nil {
+			err = errors.Join(err, retireErr)
+		}
 	}
-	return discovery, nil
+	return discovery, healthErr, err
 }
 
 // listToolsFromClient answers discovery over an open client, preferring a cached projection. The
@@ -233,14 +272,15 @@ func (e *CallExecutor) listToolsFromClient(
 	raw, ttlMs, err := listMCPTools(exchangeCtx, client.session)
 	client.observeExchange(exchangeCtx, err)
 	if err != nil {
-		if client.borrowed && errors.Is(err, mcpsdk.ErrConnectionClosed) {
-			err = errors.Join(err, e.catalogHTTP.forget(client.session))
-		}
 		return ToolDiscovery{}, err, normalizeMCPErrorWithContext(exchangeCtx, "", err, true)
 	}
 	discovery, err := e.normalizeToolListing(cacheKey, source, resolved, protocolVersion, raw)
 	if err != nil {
 		return ToolDiscovery{}, err, err
+	}
+	stdio := e.stdioPool != nil && resolved.listingSpec != nil
+	if client.borrowed || (stdio && e.stdioPool.catalogSubscribed(*resolved.listingSpec)) {
+		ttlMs = mcpSubscribedListTTL
 	}
 	if err := e.publishToolList(
 		cacheKey,
@@ -250,6 +290,7 @@ func (e *CallExecutor) listToolsFromClient(
 		raw,
 		ttlMs,
 		mcpProjectionSourceKey(source, authorizationHeader, resolved.listingBinding),
+		stdio,
 	); err != nil {
 		return ToolDiscovery{}, nil, err
 	}

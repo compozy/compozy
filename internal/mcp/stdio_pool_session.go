@@ -82,6 +82,7 @@ func (p *StdioSessionPool) finishConnect(session *stdioSession, client *mcpsdk.C
 		return
 	}
 	session.session = client
+	session.catalogPush = supportsToolListChanges(client)
 	session.lastUsed = p.cfg.now()
 	slot.protocolDigest = session.digest
 	slot.protocol = negotiatedProtocolVersion(client)
@@ -98,6 +99,9 @@ func (p *StdioSessionPool) finishSession(session *stdioSession, exitErr error, c
 	session.terminated = true
 	if slot.current == session {
 		slot.current = nil
+		if session.catalogPush {
+			slot.catalogRevision++
+		}
 	}
 	slot.lastStderr = session.stderr
 	if cleanupErr != nil {
@@ -168,7 +172,9 @@ func (p *StdioSessionPool) reapIdleOnce() {
 		current := slot.current
 		if current != nil && current.session != nil && current.inFlight == 0 &&
 			now.Sub(current.lastUsed) >= p.cfg.IdleTimeout {
-			p.retireLocked(current)
+			if _, retained := p.catalogSlots[stdioCatalogBinding{key, current.digest}]; !retained || !current.catalogPush {
+				p.retireLocked(current)
+			}
 		}
 		if slot.current == nil && !now.Before(slot.retryAt) && now.Sub(slot.lastSeen) >= retention {
 			slot.releaseSecretProtection()

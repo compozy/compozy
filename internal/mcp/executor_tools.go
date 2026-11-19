@@ -128,11 +128,34 @@ func mcpDiagnosticToolName(name string) string {
 	return fmt.Sprintf("%.128q", redactMCPDiagnosticString(name))
 }
 
+type toolListTTLKey struct{}
+
+// executorToolListCache delegates list freshness to the executor so explicit checks always send an RPC.
+func executorToolListCache(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+	return func(ctx context.Context, method string, req mcpsdk.Request) (mcpsdk.Result, error) {
+		result, err := next(ctx, method, req)
+		if err != nil || method != mcpToolsListMethod {
+			return result, err
+		}
+		list, ok := result.(*mcpsdk.ListToolsResult)
+		if !ok || list == nil || list.TTLMs <= 0 {
+			return result, nil
+		}
+		if ttl, ok := ctx.Value(toolListTTLKey{}).(*int); ok && (*ttl == 0 || list.TTLMs < *ttl) {
+			*ttl = list.TTLMs
+		}
+		uncached := *list
+		uncached.TTLMs = 0
+		return &uncached, nil
+	}
+}
+
 func listMCPTools(ctx context.Context, client *mcpsdk.ClientSession) ([]*mcpsdk.Tool, int, error) {
 	tools := make([]*mcpsdk.Tool, 0)
 	cursor := ""
 	seen := map[string]struct{}{}
 	ttlMs := 0
+	ctx = context.WithValue(ctx, toolListTTLKey{}, &ttlMs)
 	for range maxMCPToolListPages {
 		result, err := client.ListTools(ctx, &mcpsdk.ListToolsParams{Cursor: cursor})
 		if err != nil {

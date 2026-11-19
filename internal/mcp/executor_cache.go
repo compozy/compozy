@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,7 @@ import (
 const (
 	mcpToolListFloor      = 3 * time.Second
 	defaultMCPToolListTTL = 2 * time.Minute
+	mcpSubscribedListTTL  = -1
 )
 
 type mcpToolListCache struct {
@@ -70,7 +72,7 @@ func (e *CallExecutor) finishToolList(key string) {
 
 func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh bool,
 	discovery ToolDiscovery, raw []*mcpsdk.Tool, ttlMs int,
-	projectionKey string,
+	projectionKey string, stdio bool,
 ) error {
 	e.toolCache.publicationMu.Lock()
 	defer e.toolCache.publicationMu.Unlock()
@@ -83,8 +85,39 @@ func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh
 		e.toolCache.attempts[key] = current
 	}
 	now := time.Now()
+	if stdio {
+		e.pruneStdioCatalogRevisions(key)
+	}
 	e.cacheTools(key, discovery, raw, ttlMs, now)
 	return e.recordToolProjection(projectionKey, key, discovery.Descriptors, e.effectiveToolListTTL(ttlMs), now)
+}
+
+func (e *CallExecutor) pruneStdioCatalogRevisions(key string) {
+	end := strings.LastIndexByte(key, ':') + 1
+	if end == 0 {
+		return
+	}
+	prefix := key[:end]
+	revision, err := strconv.ParseUint(key[end:], 10, 64)
+	if err != nil {
+		return
+	}
+	e.toolCache.mu.Lock()
+	defer e.toolCache.mu.Unlock()
+	older := func(candidate string) bool {
+		if !strings.HasPrefix(candidate, prefix) {
+			return false
+		}
+		previous, err := strconv.ParseUint(candidate[end:], 10, 64)
+		return err == nil && previous < revision
+	}
+	maps.DeleteFunc(e.toolCache.entries, func(candidate string, _ mcpToolListCacheEntry) bool { return older(candidate) })
+	maps.DeleteFunc(e.toolCache.normalizations, func(candidate string, _ mcpToolNormalization) bool {
+		return older(candidate)
+	})
+	maps.DeleteFunc(e.toolCache.projectionStates, func(_ string, state mcpToolProjectionState) bool {
+		return older(state.listingKey)
+	})
 }
 
 func (e *CallExecutor) invalidateToolListing(key string) {
@@ -125,7 +158,7 @@ func (e *CallExecutor) cachedToolListing(key string, now time.Time) (mcpToolList
 	defer e.toolCache.mu.Unlock()
 	e.pruneToolProjectionStatesLocked(now)
 	entry, ok := e.toolCache.entries[key]
-	if !ok || !now.Before(entry.expiresAt) {
+	if !ok || toolListExpired(entry.expiresAt, now) {
 		delete(e.toolCache.entries, key)
 		return mcpToolListCacheEntry{}, false
 	}
@@ -142,7 +175,7 @@ func (e *CallExecutor) cacheTools(
 	}
 	e.pruneToolProjectionStatesLocked(now)
 	maps.DeleteFunc(e.toolCache.entries, func(_ string, entry mcpToolListCacheEntry) bool {
-		return !now.Before(entry.expiresAt)
+		return toolListExpired(entry.expiresAt, now)
 	})
 	if _, exists := e.toolCache.entries[key]; !exists &&
 		len(e.toolCache.entries) >= defaultToolNormalizationCacheCapacity {
@@ -159,7 +192,7 @@ func (e *CallExecutor) cacheTools(
 	e.toolCache.entries[key] = mcpToolListCacheEntry{
 		discovery: discovery.clone(),
 		raw:       raw,
-		expiresAt: now.Add(ttl),
+		expiresAt: toolListExpiry(now, ttl),
 	}
 	e.toolCache.mu.Unlock()
 }
@@ -181,6 +214,9 @@ func (e *CallExecutor) RetainCatalogSources(sources []toolspkg.SourceRef) {
 }
 
 func (e *CallExecutor) effectiveToolListTTL(ttlMs int) time.Duration {
+	if ttlMs == mcpSubscribedListTTL {
+		return 0
+	}
 	floor := e.toolListFloor
 	if floor <= 0 {
 		if ttlMs <= 0 {
@@ -189,6 +225,17 @@ func (e *CallExecutor) effectiveToolListTTL(ttlMs int) time.Duration {
 		floor = mcpToolListFloor
 	}
 	return max(floor, time.Duration(ttlMs)*time.Millisecond)
+}
+
+func toolListExpiry(now time.Time, ttl time.Duration) time.Time {
+	if ttl == 0 {
+		return time.Time{}
+	}
+	return now.Add(ttl)
+}
+
+func toolListExpired(expiresAt, now time.Time) bool {
+	return !expiresAt.IsZero() && !now.Before(expiresAt)
 }
 
 func cloneMCPToolDescriptors(descriptors []toolspkg.MCPToolDescriptor) []toolspkg.MCPToolDescriptor {
@@ -254,7 +301,7 @@ func (e *CallExecutor) recordToolProjection(
 		state.generation = 1
 	}
 	state.fingerprint = fingerprint
-	state.expiresAt = now.Add(ttl)
+	state.expiresAt = toolListExpiry(now, ttl)
 	e.toolCache.projectionStates[key] = state
 	e.toolCache.mu.Unlock()
 	return nil
@@ -303,11 +350,12 @@ func (e *CallExecutor) projectionSourceKey(
 
 func (e *CallExecutor) pruneToolProjectionStatesLocked(now time.Time) {
 	maps.DeleteFunc(e.toolCache.projectionStates, func(_ string, state mcpToolProjectionState) bool {
-		return !now.Before(state.expiresAt)
+		return toolListExpired(state.expiresAt, now)
 	})
 }
 
 func mcpProjectionSourceKey(source toolspkg.SourceRef, authorizationHeader, binding string) string {
+	source = toolspkg.MCPDeclarationSource(source)
 	authBinding := sha256.Sum256([]byte(authorizationHeader))
 	parts := []string{
 		string(source.Kind),

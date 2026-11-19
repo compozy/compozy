@@ -351,9 +351,9 @@ message.
 available. Session MCP rows report pending discovery, timeout, and unreachable-server reasons.
 A successful refresh publishes the changed catalog to bound proxies. HTTP subscriptions and
 stdio notifications invalidate the affected server's listing. The discovery worker checks expiry
-every three seconds. A server without a cache hint is refreshed after two minutes. A server's
-shorter advertised expiry is subject to the three-second discovery floor. Stdio backoff is
-visible in a runtime check's diagnostic.
+every three seconds for servers without a live subscription. Without a cache hint, the fallback
+expiry is two minutes. A shorter advertised expiry is subject to the three-second discovery floor.
+Stdio backoff is visible in a runtime check's diagnostic.
 
 Use `compozy session mcp check <id> <name> [--owner extension:<name>]` to retry one server.
 The session POST route is `/api/workspaces/{ws}/sessions/{id}/mcp/servers/{name}/check`;

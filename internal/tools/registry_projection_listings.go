@@ -30,10 +30,57 @@ func WithProjectionValidationCacheCapacity(capacity int) RegistryOption {
 // ProjectionListings shares validated provider listings among projection passes attached to it.
 // It never expires entries: its owner bounds freshness by replacing the instance.
 type ProjectionListings struct {
-	mu       sync.Mutex
-	entries  map[projectionListingKey]*projectionListing
-	policyMu sync.Mutex
-	policies map[projectionPolicyKey][]ToolView
+	mu          sync.Mutex
+	entries     map[projectionListingKey]*projectionListing
+	policyMu    sync.Mutex
+	policies    map[projectionPolicyKey][]ToolView
+	authorityMu sync.Mutex
+	authorities map[hostedSessionPolicyKey]SessionToolPolicy
+}
+
+type hostedSessionPolicyKey struct {
+	scope     Scope
+	policy    [sha256.Size]byte
+	ceiling   string
+	redaction [sha256.Size]byte
+}
+
+// CachedHostedSessionPolicy shares materialized authority for equal hosted visibility inputs.
+func CachedHostedSessionPolicy(
+	ctx context.Context, scope Scope, inputs PolicyInputs, ceiling string,
+	materialize func() (SessionToolPolicy, error),
+) (SessionToolPolicy, error) {
+	listings, ok := ctx.Value(projectionListingsKey{}).(*ProjectionListings)
+	if !ok || !IsHostedCatalogRead(ctx) {
+		return materialize()
+	}
+	data, err := json.Marshal(projectionPolicy(inputs))
+	if err != nil {
+		return SessionToolPolicy{}, fmt.Errorf("tools: encode hosted authority inputs: %w", err)
+	}
+	key := hostedSessionPolicyKey{scope, sha256.Sum256(data), ceiling, redact.SecretFingerprint()}
+	listings.authorityMu.Lock()
+	defer listings.authorityMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return SessionToolPolicy{}, err
+	}
+	if policy, found := listings.authorities[key]; found {
+		return policy, nil
+	}
+	policy, err := materialize()
+	if err != nil || key.redaction != redact.SecretFingerprint() {
+		return policy, err
+	}
+	encoded, err := json.Marshal(policy)
+	if err != nil {
+		return SessionToolPolicy{}, fmt.Errorf("tools: encode hosted authority: %w", err)
+	}
+	policy.projectionDigest = sha256.Sum256(encoded)
+	if len(listings.authorities) >= defaultProjectionValidationCacheCapacity || listings.authorities == nil {
+		listings.authorities = make(map[hostedSessionPolicyKey]SessionToolPolicy)
+	}
+	listings.authorities[key] = policy
+	return policy, nil
 }
 
 type projectionPolicyKey struct {

@@ -3,7 +3,7 @@ package mcp
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -14,35 +14,31 @@ import (
 )
 
 type mcpCatalogHTTP struct {
-	mu       sync.Mutex
-	sessions map[string]mcpCatalogHTTPEntry
-	changes  chan struct{}
-	closed   bool
+	mu         sync.Mutex
+	workers    sync.WaitGroup
+	sessions   map[string]mcpCatalogHTTPEntry
+	changes    chan struct{}
+	closed     bool
+	invalidate func(string)
 }
 
 type mcpCatalogHTTPEntry struct {
-	key     string
-	source  toolspkg.SourceRef
 	session *mcpsdk.ClientSession
 	usedAt  time.Time
 }
 
 func (e *CallExecutor) openToolListingClient(
-	ctx context.Context, source toolspkg.SourceRef, resolved *ResolvedServer, authorizationHeader string,
+	ctx context.Context, resolved *ResolvedServer, authorizationHeader string,
 ) (*managedMCPClient, error) {
 	catalog := e.catalogHTTP
 	if catalog == nil || resolved.Server.EffectiveTransport() != compozyconfig.MCPServerTransportHTTP {
 		return e.openRenderedClient(ctx, resolved, authorizationHeader)
 	}
-	slot, err := resolved.Target.Key()
-	if err != nil {
-		return nil, fmt.Errorf("mcp: identify HTTP catalog subscription: %w", err)
-	}
 	key, err := e.toolCacheKey(ctx, resolved, "", authorizationHeader)
 	if err != nil {
 		return nil, err
 	}
-	if session := catalog.load(slot, key); session != nil {
+	if session := catalog.load(key); session != nil {
 		return &managedMCPClient{session: session, borrowed: true}, nil
 	}
 	httpClient, err := e.httpClientWithAuthorization(ctx, resolved, authorizationHeader)
@@ -53,56 +49,67 @@ func (e *CallExecutor) openToolListingClient(
 	// retained. The SDK owns the notification stream until the session is closed.
 	httpClient.Timeout = 0
 	session, err := connectMCPClientWithCatalogChanges(ctx, &mcpsdk.StreamableClientTransport{
-		Endpoint: strings.TrimSpace(resolved.Server.URL), HTTPClient: httpClient,
+		Endpoint: strings.TrimSpace(resolved.Server.URL), HTTPClient: httpClient, MaxRetries: -1,
 	}, func(context.Context, *mcpsdk.ToolListChangedRequest) {
-		e.invalidateToolListing(key)
-		select {
-		case catalog.changes <- struct{}{}:
-		default:
-		}
+		catalog.notify(key)
 	})
 	if err != nil {
 		return nil, err
 	}
-	capabilities := session.InitializeResult().Capabilities
-	if capabilities == nil || capabilities.Tools == nil || !capabilities.Tools.ListChanged {
+	if !supportsToolListChanges(session) {
 		return &managedMCPClient{session: session}, nil
 	}
-	kept, retired := catalog.store(slot, mcpCatalogHTTPEntry{
-		key: key, source: source, session: session, usedAt: time.Now(),
+	kept, retired := catalog.store(key, mcpCatalogHTTPEntry{
+		session: session, usedAt: time.Now(),
 	})
-	if err := closeMCPClient(retired); err != nil {
-		return nil, fmt.Errorf("mcp: retire HTTP catalog subscription: %w", err)
+	retireErr := closeMCPClient(retired)
+	if kept == nil {
+		return nil, errors.Join(mcpsdk.ErrConnectionClosed, retireErr)
+	}
+	if retireErr != nil {
+		slog.DebugContext(ctx, "mcp: close superseded HTTP catalog subscription failed")
 	}
 	return &managedMCPClient{session: kept, borrowed: true}, nil
 }
 
-func (c *mcpCatalogHTTP) load(slot, key string) *mcpsdk.ClientSession {
+func supportsToolListChanges(session *mcpsdk.ClientSession) bool {
+	result := session.InitializeResult()
+	return result != nil && result.Capabilities != nil && result.Capabilities.Tools != nil &&
+		result.Capabilities.Tools.ListChanged
+}
+
+func (c *mcpCatalogHTTP) notify(key string) {
+	c.invalidate(key)
+	select {
+	case c.changes <- struct{}{}:
+	default:
+	}
+}
+
+func (c *mcpCatalogHTTP) load(key string) *mcpsdk.ClientSession {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	entry, found := c.sessions[slot]
-	if !found || entry.key != key {
+	entry, found := c.sessions[key]
+	if !found {
 		return nil
 	}
 	entry.usedAt = time.Now()
-	c.sessions[slot] = entry
+	c.sessions[key] = entry
 	return entry.session
 }
 
 func (c *mcpCatalogHTTP) store(
-	slot string, entry mcpCatalogHTTPEntry,
+	key string, entry mcpCatalogHTTPEntry,
 ) (kept *mcpsdk.ClientSession, retired *managedMCPClient) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
-		return entry.session, &managedMCPClient{session: entry.session}
+		return nil, &managedMCPClient{session: entry.session}
 	}
-	if current, found := c.sessions[slot]; found {
-		if current.key == entry.key {
-			return current.session, &managedMCPClient{session: entry.session}
-		}
-		retired = &managedMCPClient{session: current.session}
-	} else if len(c.sessions) >= defaultToolNormalizationCacheCapacity {
+	if current, found := c.sessions[key]; found {
+		return current.session, &managedMCPClient{session: entry.session}
+	}
+	if len(c.sessions) >= defaultToolNormalizationCacheCapacity {
 		var oldest string
 		usedAt := entry.usedAt
 		for candidate, previous := range c.sessions {
@@ -112,26 +119,36 @@ func (c *mcpCatalogHTTP) store(
 		}
 		retired = &managedMCPClient{session: c.sessions[oldest].session}
 		delete(c.sessions, oldest)
+		c.notify(oldest)
 	}
-	c.sessions[slot] = entry
+	c.sessions[key] = entry
+	c.workers.Go(func() {
+		if err := entry.session.Wait(); err != nil && !errors.Is(err, mcpsdk.ErrConnectionClosed) {
+			slog.Debug("mcp: HTTP catalog connection ended")
+		}
+		if err := c.forget(entry.session); err != nil {
+			slog.Debug("mcp: close expired HTTP catalog connection failed")
+		}
+	})
 	return entry.session, retired
 }
 
 func (c *mcpCatalogHTTP) forget(session *mcpsdk.ClientSession) error {
-	return c.retire(func(entry mcpCatalogHTTPEntry) bool { return entry.session == session }, false)
+	return c.retire(func(_ string, entry mcpCatalogHTTPEntry) bool { return entry.session == session }, false)
 }
 
-func (c *mcpCatalogHTTP) retire(match func(mcpCatalogHTTPEntry) bool, closeAll bool) error {
+func (c *mcpCatalogHTTP) retire(match func(string, mcpCatalogHTTPEntry) bool, closeAll bool) error {
 	if c == nil {
 		return nil
 	}
 	c.mu.Lock()
 	c.closed = c.closed || closeAll
 	var retired []*mcpsdk.ClientSession
-	for slot, entry := range c.sessions {
-		if closeAll || match(entry) {
+	for key, entry := range c.sessions {
+		if closeAll || match(key, entry) {
 			retired = append(retired, entry.session)
-			delete(c.sessions, slot)
+			delete(c.sessions, key)
+			c.notify(key)
 		}
 	}
 	c.mu.Unlock()
@@ -144,7 +161,15 @@ func (c *mcpCatalogHTTP) retire(match func(mcpCatalogHTTPEntry) bool, closeAll b
 
 // CloseCatalogConnections retires every HTTP discovery subscription at daemon shutdown.
 func (e *CallExecutor) CloseCatalogConnections() error {
-	return e.catalogHTTP.retire(nil, true)
+	if e.catalogHTTP == nil {
+		return nil
+	}
+	if e.stdioPool != nil {
+		e.stdioPool.retainCatalog(nil)
+	}
+	err := e.catalogHTTP.retire(nil, true)
+	e.catalogHTTP.workers.Wait()
+	return err
 }
 
 // CatalogChanges signals that at least one HTTP subscription invalidated its listing.
@@ -156,12 +181,37 @@ func (e *CallExecutor) CatalogChanges() <-chan struct{} {
 }
 
 // RetainCatalogSubscriptions closes notification streams outside the active consented scopes.
-func (e *CallExecutor) RetainCatalogSubscriptions(sources map[toolspkg.SourceRef]struct{}) error {
-	active := make(map[toolspkg.SourceRef]bool, len(sources))
-	for source := range sources {
-		active[toolspkg.MCPDeclarationSource(source)] = true
+func (e *CallExecutor) RetainCatalogSubscriptions(ctx context.Context, sources map[toolspkg.SourceRef]struct{}) error {
+	if e.catalogHTTP == nil {
+		return nil
 	}
-	return e.catalogHTTP.retire(func(entry mcpCatalogHTTPEntry) bool {
-		return !active[toolspkg.MCPDeclarationSource(entry.source)]
+	ctx, release := withMCPRequestRedactions(ctx)
+	defer release()
+	active := make(map[string]bool, len(sources))
+	stdio := make(map[stdioCatalogBinding]struct{}, len(sources))
+	for source := range sources {
+		resolved, err := e.resolveServer(ctx, source, "")
+		if err != nil {
+			continue
+		}
+		if e.consent != nil && e.consent(ctx, source, resolved) != nil {
+			continue
+		}
+		if err := e.prepareToolListing(ctx, &resolved); err != nil {
+			continue
+		}
+		if spec := resolved.listingSpec; spec != nil {
+			stdio[stdioCatalogBinding{spec.slot, spec.digest}] = struct{}{}
+			continue
+		}
+		if key, err := e.toolCacheKey(ctx, &resolved, "", e.authorizationHeader(ctx, &resolved)); err == nil {
+			active[key] = true
+		}
+	}
+	if e.stdioPool != nil {
+		e.stdioPool.retainCatalog(stdio)
+	}
+	return e.catalogHTTP.retire(func(key string, _ mcpCatalogHTTPEntry) bool {
+		return !active[key]
 	}, false)
 }

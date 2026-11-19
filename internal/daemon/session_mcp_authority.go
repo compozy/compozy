@@ -55,16 +55,31 @@ func (r *nativeToolPolicyResolver) EffectiveMCPAuthority(
 func (r *nativeToolPolicyResolver) resolveEffectiveMCPAuthority(
 	ctx context.Context, id string,
 ) (store.SessionPermissionPolicy, error) {
+	plan, err := r.planMCPAuthority(ctx, id)
+	if err != nil {
+		return store.SessionPermissionPolicy{}, err
+	}
+	return r.materializeMCPAuthority(ctx, plan)
+}
+
+type mcpAuthorityPlan struct {
+	scope  toolspkg.Scope
+	inputs toolspkg.PolicyInputs
+	policy store.SessionPermissionPolicy
+	root   bool
+}
+
+func (r *nativeToolPolicyResolver) planMCPAuthority(ctx context.Context, id string) (mcpAuthorityPlan, error) {
 	info := session.MCPAuthoritySession(ctx, id)
 	if info == nil {
 		var err error
 		info, err = r.sessionInfo(ctx, id)
 		if err != nil {
-			return store.SessionPermissionPolicy{}, err
+			return mcpAuthorityPlan{}, err
 		}
 	}
 	if info == nil {
-		return store.SessionPermissionPolicy{}, fmt.Errorf("%w: %s", session.ErrSessionNotFound, id)
+		return mcpAuthorityPlan{}, fmt.Errorf("%w: %s", session.ErrSessionNotFound, id)
 	}
 	scope := toolspkg.Scope{
 		SessionID:   id,
@@ -74,30 +89,32 @@ func (r *nativeToolPolicyResolver) resolveEffectiveMCPAuthority(
 	}
 	base, err := r.resolveMCPAuthorityScope(ctx, scope)
 	if err != nil {
-		return store.SessionPermissionPolicy{}, err
+		return mcpAuthorityPlan{}, err
 	}
 	inputs := base.inputs
 	if scope.AgentName != "" && !mcpAuthorityRead(ctx) {
 		if err := r.applyAgentToolPolicy(ctx, &inputs, scope.AgentName, base.workspace, base.cfg); err != nil {
 			// Existing delegated sessions retain their stored ceiling if the agent was removed.
 			if info.Lineage == nil || !errors.Is(err, workspace.ErrAgentNotAvailable) {
-				return store.SessionPermissionPolicy{}, err
+				return mcpAuthorityPlan{}, err
 			}
 		}
 	}
 	lineage := store.NormalizeSessionLineage(id, info.Lineage)
 	policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
 	policy.MCPServers = store.BoundMCPServers(policy, base.names)
+	root := lineage.Kind != store.LineageKindSpawn &&
+		info.Type != session.SessionTypeSpawned && info.Type != session.SessionTypeCoordinator
+	return mcpAuthorityPlan{scope: scope, inputs: inputs, policy: policy, root: root}, nil
+}
+
+func (r *nativeToolPolicyResolver) materializeMCPAuthority(
+	ctx context.Context, plan mcpAuthorityPlan,
+) (store.SessionPermissionPolicy, error) {
+	policy := plan.policy
 	if r.scopeTools != nil && !mcpAuthorityRead(ctx) {
-		policy.Tools, err = r.effectiveScopeTools(
-			ctx,
-			scope,
-			inputs,
-			policy,
-			// Only governed sessions retain a recorded native-tool ceiling.
-			lineage.Kind != store.LineageKindSpawn &&
-				info.Type != session.SessionTypeSpawned && info.Type != session.SessionTypeCoordinator,
-		)
+		var err error
+		policy.Tools, err = r.effectiveScopeTools(ctx, plan.scope, plan.inputs, policy, plan.root)
 		if err != nil {
 			return store.SessionPermissionPolicy{}, err
 		}

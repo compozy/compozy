@@ -83,11 +83,16 @@ type visibilityPolicy struct {
 	AgentEnforced bool
 	AgentAllow    []string
 	AgentDeny     []string
+	SessionDigest [sha256.Size]byte
 }
 
 func projectionPolicy(inputs PolicyInputs) visibilityPolicy {
+	digest := inputs.Session.projectionDigest
+	if digest != [sha256.Size]byte{} {
+		inputs.Session.Tools = nil
+	}
 	return visibilityPolicy{inputs, projectionPatterns(inputs.AllowTools), projectionPatterns(inputs.DenyTools),
-		inputs.Agent.Enforced, projectionPatterns(inputs.Agent.Tools), projectionPatterns(inputs.Agent.DenyTools)}
+		inputs.Agent.Enforced, projectionPatterns(inputs.Agent.Tools), projectionPatterns(inputs.Agent.DenyTools), digest}
 }
 
 func projectionPatterns(patterns []ToolPattern) []string {

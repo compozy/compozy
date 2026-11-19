@@ -2413,21 +2413,27 @@ func TestMCPToolListCache(t *testing.T) {
 		)
 	}
 
-	t.Run("Should drop the cached list when a fresh check answers without a TTL", func(t *testing.T) {
+	// Invariant: an explicit refresh must perform upstream I/O even on a live subscription within its TTL.
+	// Owner: executor discovery cache; canonical suite: TestMCPToolListCache.
+	t.Run("Should bypass an HTTP subscription cache and retry a rejected listing", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
-		sdkServer := newFakeSDKServer(nil)
+		sdkServer := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "fixture"}, &mcpsdk.ServerOptions{
+			Capabilities: &mcpsdk.ServerCapabilities{Tools: &mcpsdk.ToolCapabilities{ListChanged: true}},
+		})
 		sdkServer.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
 			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
 				if method != mcpToolsListMethod {
 					return next(ctx, method, request)
 				}
-				// The first listing is cacheable; every later answer is fresh and uncacheable.
-				if calls.Add(1) == 1 {
+				switch calls.Add(1) {
+				case 1:
 					return &mcpsdk.ListToolsResult{
 						Tools: []*mcpsdk.Tool{{Name: "old", InputSchema: map[string]any{"type": "object"}}},
 						TTLMs: 60_000,
 					}, nil
+				case 2:
+					return nil, errors.New("fixture rejected the borrowed listing")
 				}
 				return &mcpsdk.ListToolsResult{
 					Tools: []*mcpsdk.Tool{{Name: "fresh", InputSchema: map[string]any{"type": "object"}}},
@@ -2440,6 +2446,11 @@ func TestMCPToolListCache(t *testing.T) {
 			Name:      "fixture",
 			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       server.URL,
+		}, WithToolCatalogNotifications())
+		t.Cleanup(func() {
+			if err := executor.CloseCatalogConnections(); err != nil {
+				t.Error(err)
+			}
 		})
 		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
 		ctx := t.Context()
@@ -2451,8 +2462,13 @@ func TestMCPToolListCache(t *testing.T) {
 			t.Fatal(err)
 		}
 		listed, err := executor.ListTools(ctx, source)
-		if err != nil || len(listed) != 1 || listed[0].RawName != "fresh" {
-			t.Fatalf("listed=%+v err=%v, want the fresh check's tools", listed, err)
+		if err != nil || len(listed) != 1 || listed[0].RawName != "fresh" || calls.Load() != 3 {
+			t.Fatalf(
+				"listed=%+v upstream calls=%d err=%v, want the fresh check's tools and 3 calls",
+				listed,
+				calls.Load(),
+				err,
+			)
 		}
 	})
 
@@ -3142,7 +3158,7 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 
 				descriptor := safeMCPDescriptorForRedactionTest()
 				test.mutate(&descriptor)
-				_, redactErr := redactMCPToolDescriptor(descriptor, redact.RegisteredSecretSnapshot())
+				_, redactErr := toolspkg.RedactMCPToolDescriptor(descriptor, redact.RegisteredSecretSnapshot())
 				requireReason(t, redactErr, toolspkg.ReasonSecretMetadata)
 				requireSecretAbsentFromReversibleString(t, "descriptor identity error", redactErr.Error(), secret)
 			})
@@ -3157,8 +3173,8 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 		}
 		descriptor := safeMCPDescriptorForRedactionTest()
 		descriptor.InputSchema = collisionSchema
-		if _, err := redactMCPToolDescriptor(descriptor, redact.RegisteredSecretSnapshot()); err == nil {
-			t.Fatal("redactMCPToolDescriptor(collision schema) error = nil, want fail-closed collision")
+		if _, err := toolspkg.RedactMCPToolDescriptor(descriptor, redact.RegisteredSecretSnapshot()); err == nil {
+			t.Fatal("RedactMCPToolDescriptor(collision schema) error = nil, want fail-closed collision")
 		}
 	})
 }

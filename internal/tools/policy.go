@@ -100,6 +100,7 @@ type AgentToolPolicy struct {
 
 // SessionToolPolicy captures concrete resolved lineage atoms.
 type SessionToolPolicy struct {
+	projectionDigest  [32]byte
 	Enforced          bool     `json:"enforced"`
 	Tools             []ToolID `json:"tools,omitempty"`
 	MCPServers        []string `json:"mcp_servers,omitempty"`

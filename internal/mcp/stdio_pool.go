@@ -57,10 +57,11 @@ type StdioSessionPool struct {
 	cancelConnect context.CancelFunc
 	stopReaper    chan struct{}
 
-	mu     sync.Mutex
-	slots  map[string]*stdioSlot
-	closed bool
-	wg     sync.WaitGroup
+	mu           sync.Mutex
+	slots        map[string]*stdioSlot
+	catalogSlots map[stdioCatalogBinding]struct{}
+	closed       bool
+	wg           sync.WaitGroup
 }
 
 // stdioSlot is the restart history of one target; it outlives the children it launches.
@@ -93,13 +94,14 @@ type stdioSession struct {
 	session *mcpsdk.ClientSession
 
 	// Guarded by StdioSessionPool.mu.
-	inFlight   int
-	lastUsed   time.Time
-	startedAt  time.Time
-	timeouts   int
-	retiring   bool
-	terminated bool
-	closing    bool
+	inFlight    int
+	lastUsed    time.Time
+	startedAt   time.Time
+	timeouts    int
+	retiring    bool
+	terminated  bool
+	closing     bool
+	catalogPush bool
 }
 
 // NewStdioSessionPool constructs a pool and starts its idle reaper. Close releases every child.
@@ -282,6 +284,33 @@ func (p *StdioSessionPool) catalogRevision(spec mcpStdioSpec) uint64 {
 	return 0
 }
 
+// retainCatalog keeps notification-capable children alive while a consented reader needs them.
+func (p *StdioSessionPool) retainCatalog(active map[stdioCatalogBinding]struct{}) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for binding := range p.catalogSlots {
+		if _, retained := active[binding]; retained {
+			continue
+		}
+		if slot := p.slots[binding.slot]; slot != nil && slot.current != nil &&
+			slot.current.catalogPush && slot.current.digest == binding.digest {
+			p.retireLocked(slot.current)
+		}
+	}
+	p.catalogSlots = active
+}
+
+type stdioCatalogBinding struct{ slot, digest string }
+
+func (p *StdioSessionPool) catalogSubscribed(spec mcpStdioSpec) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	slot := p.slots[spec.slot]
+	_, retained := p.catalogSlots[stdioCatalogBinding{spec.slot, spec.digest}]
+	return retained && slot != nil && slot.current != nil &&
+		slot.current.digest == spec.digest && slot.current.catalogPush
+}
+
 // StderrTail returns the redacted stderr tail of the target's current or last stdio child.
 func (p *StdioSessionPool) StderrTail(target mcpauth.Target) string {
 	if p == nil {
@@ -395,6 +424,9 @@ func (p *StdioSessionPool) retireLocked(session *stdioSession) {
 	if session.slot.current == session {
 		session.slot.current = nil
 		session.slot.lastStderr = session.stderr
+		if session.catalogPush {
+			session.slot.catalogRevision++
+		}
 	}
 	session.retiring = true
 	if session.inFlight == 0 {

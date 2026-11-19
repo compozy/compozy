@@ -45,7 +45,11 @@ func (e *CallExecutor) exchangeContext(
 	if client.release == nil || !ok || ctx.Err() != nil {
 		return ctx, func() {}
 	}
-	return context.WithTimeoutCause(parent, e.timeout, errStdioResponseDeadline)
+	timeout := e.timeout
+	if discoveryBudget := toolspkg.MCPDiscoveryResponseBudget(ctx); discoveryBudget > 0 {
+		timeout = min(timeout, discoveryBudget)
+	}
+	return context.WithTimeoutCause(parent, timeout, errStdioResponseDeadline)
 }
 
 func (c *managedMCPClient) observeExchange(ctx context.Context, err error) {
@@ -165,6 +169,7 @@ func connectMCPClientWithCatalogChanges(
 			ToolListChangedHandler: onChange,
 		},
 	)
+	client.AddSendingMiddleware(executorToolListCache)
 	session, err := client.Connect(ctx, transport, nil)
 	if err != nil {
 		return nil, normalizeMCPError("", err)

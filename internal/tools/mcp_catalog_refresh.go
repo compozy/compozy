@@ -42,14 +42,25 @@ func IsHostedCatalogRead(ctx context.Context) bool {
 	return ctx.Value(hostedMCPProjectionKey{}) != nil
 }
 
-// HostedProjectionContext keeps upstream requests out of hosted binds and stream reads.
-func (r *RuntimeRegistry) HostedProjectionContext(ctx context.Context) (context.Context, bool) {
+// HostedProjectionContext keeps discovery active even when a hosted read hits the shared cache.
+func (r *RuntimeRegistry) HostedProjectionContext(ctx context.Context, scope Scope) (context.Context, bool) {
 	for _, provider := range r.providers {
 		if mcp, ok := provider.(*MCPProvider); ok && mcp.catalog != nil {
+			mcp.catalog.observe(mcp.ProjectionScope(scope))
 			return context.WithValue(WithCachedMCPProjection(ctx), hostedMCPProjectionKey{}, true), true
 		}
 	}
 	return ctx, false
+}
+
+// HostedCatalogEpochCoversProviders reports whether other providers need periodic revalidation.
+func (r *RuntimeRegistry) HostedCatalogEpochCoversProviders() bool {
+	for _, provider := range r.providers {
+		if _, mcp := provider.(*MCPProvider); !mcp && provider.ID().Kind != SourceBuiltin {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *mcpCatalogRefresh) observe(scope Scope) {
@@ -146,9 +157,9 @@ func (p *MCPProvider) refreshCatalog(ctx context.Context) {
 		}
 	}
 	if retainer, ok := p.exec.(interface {
-		RetainCatalogSubscriptions(map[SourceRef]struct{}) error
+		RetainCatalogSubscriptions(context.Context, map[SourceRef]struct{}) error
 	}); ok {
-		p.catalog.logSubscriptionError(ctx, retainer.RetainCatalogSubscriptions(selected))
+		p.catalog.logSubscriptionError(ctx, retainer.RetainCatalogSubscriptions(ctx, selected))
 	}
 
 	var workers sync.WaitGroup
@@ -187,7 +198,7 @@ func (p *MCPProvider) refreshCatalogSource(ctx context.Context, source SourceRef
 	}
 	if _, _, err := p.listSourceDescriptors(ctx, source, source.ProfileID, p.discoveryBudget); err != nil &&
 		ctx.Err() == nil {
-		p.catalog.sourceChanged(ctx, source, err)
+		p.recordDiscoveryFailure(ctx, source, err)
 	}
 }
 

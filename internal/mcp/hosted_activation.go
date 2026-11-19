@@ -62,7 +62,7 @@ func (s *HostedService) ActivationCatalog(
 	var response HostedProjectionResponse
 	var err error
 	if runtime, ok := registry.(*tools.RuntimeRegistry); ok {
-		if hostedCtx, cached := runtime.HostedProjectionContext(ctx); cached {
+		if hostedCtx, cached := runtime.HostedProjectionContext(ctx, record.scope()); cached {
 			// A launch that never bound has no cache ownership to fence.
 			if record.bindID == "" {
 				response, err = catalogProjectionWithRedactionCheck(hostedCtx, registry, record, buildHostedProjection)

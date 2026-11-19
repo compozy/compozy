@@ -1211,7 +1211,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		cleanup := redact.RegisterRequiredSecret(lateSecret)
 		defer cleanup()
 		projection, err := service.Projection(t.Context(), first.BindID, peer)
-		if err != nil || len(projection.Tools) != catalogSize || listCalls.Load() != 1 {
+		if err != nil || len(projection.Tools) != catalogSize+1 || listCalls.Load() != 1 {
 			t.Fatalf("late credential projection has %d tools, %d total upstream lists, error %v",
 				len(projection.Tools), listCalls.Load(), err)
 		}

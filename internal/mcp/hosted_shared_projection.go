@@ -54,9 +54,8 @@ func (s *HostedService) sharedStreamProjection(
 			// Class and build share one availability snapshot; the epoch fences all versioned inputs.
 			matchCtx = listingCtx
 		}
-		cached, flight, leader := s.sharedProjections.begin(
-			key, s.now(), s.StreamRefreshInterval(), tools.IsHostedCatalogRead(ctx),
-		)
+		epochBacked := tools.IsHostedCatalogRead(ctx) && registry.HostedCatalogEpochCoversProviders()
+		cached, flight, leader := s.sharedProjections.begin(key, s.now(), s.StreamRefreshInterval(), epochBacked)
 		if cached != nil {
 			if !s.sharedProjectionMatches(matchCtx, record, key) {
 				continue

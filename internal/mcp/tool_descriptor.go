@@ -86,7 +86,7 @@ func (e *CallExecutor) descriptorFromTool(
 		ReadOnlyOverrideOrigin: overrideOrigin,
 		Destructive:            destructive,
 	}
-	return redactMCPToolDescriptor(descriptor, snapshot)
+	return toolspkg.RedactMCPToolDescriptor(descriptor, snapshot)
 }
 
 func mcpToolTitle(tool mcpsdk.Tool) string {

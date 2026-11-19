@@ -1643,6 +1643,43 @@ func (c *mcpReliabilityTestClock) Advance(delta time.Duration) {
 
 func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 	t.Parallel()
+	// Invariant: cache-only hosted reads keep the scope eligible for discovery.
+	// Owner: MCP provider discovery; canonical suite: bounded MCP projection discovery.
+	t.Run("Should keep discovery active while hosted reads reuse existing projections", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			source := SourceRef{
+				Kind: SourceMCP, Owner: "workspace-server", Scope: mcpSourceScopeWorkspace, WorkspaceID: "ws-a",
+			}
+			executor := newFakeMCPExecutor(nil)
+			provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return []SourceRef{source}, nil
+			}), executor, nil, WithMCPBackgroundDiscovery(nil, nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			registry := newMCPRegistry(t, provider)
+			scope := Scope{WorkspaceID: "ws-a"}
+			ctx, cached := registry.HostedProjectionContext(t.Context(), scope)
+			if !cached {
+				t.Fatal("expected a cache-only hosted read")
+			}
+			if _, err := provider.List(ctx, scope); err != nil {
+				t.Fatal(err)
+			}
+			for range 3 {
+				time.Sleep(mcpCatalogScopeLifetime / 2)
+				if _, cached := registry.HostedProjectionContext(t.Context(), scope); !cached {
+					t.Fatal("expected a cache-only hosted read")
+				}
+			}
+			provider.refreshCatalog(t.Context())
+			if got := len(executor.listedSources); got != 1 {
+				t.Fatalf("upstream listings = %d, want 1 from background discovery", got)
+			}
+		})
+	})
+
 	t.Run("Should omit a stalled source within budget and still discover healthy sources", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
