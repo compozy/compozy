@@ -51,7 +51,8 @@ export function SessionSideDrawer({
   const hostRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const width = useSelector(chat.store, snapshot => snapshot.context.width);
-  const [confirmingClose, setConfirmingClose] = useState(false);
+  /** The side chat the close confirmation is for: confirming acts on it, not the current one. */
+  const [closingId, setClosingId] = useState<string | null>(null);
   const close = useCloseSideChat({
     workspaceId,
     parentSessionId: session.id,
@@ -61,6 +62,8 @@ export function SessionSideDrawer({
   const view = panel.view;
   const currentId = view?.kind === "side" ? view.id : null;
   const current = list.sides.find(side => side.id === currentId) ?? null;
+  // A confirmation whose side chat left the list (closed elsewhere) dismisses itself.
+  const closeTarget = list.sides.find(side => side.id === closingId) ?? null;
   const threadBody = useSideThreadBody(workspaceId, currentId);
 
   const mainComposer = () => findSessionFocusTarget(hostRef.current, "composer");
@@ -82,7 +85,7 @@ export function SessionSideDrawer({
       { sideId: id },
       {
         onSuccess: () => {
-          setConfirmingClose(false);
+          setClosingId(null);
           store.trigger.sideClosed({ id, nextId: nextSideChatId(list.sides, id) });
         },
         onError: () => toast.error(SIDE_CHAT_COPY.closeFailed),
@@ -92,7 +95,7 @@ export function SessionSideDrawer({
   // Closing a side chat that is still answering stops it: confirm first (US-008.AC-2).
   const requestClose = () => {
     if (!current) return;
-    if (current.prompting) setConfirmingClose(true);
+    if (current.prompting) setClosingId(current.id);
     else closeSide(current.id);
   };
 
@@ -165,10 +168,12 @@ export function SessionSideDrawer({
           <SessionSideCloseDialog
             closing={close.isPending}
             onConfirm={() => {
-              if (current) closeSide(current.id);
+              if (closeTarget) closeSide(closeTarget.id);
             }}
-            onOpenChange={setConfirmingClose}
-            open={confirmingClose}
+            onOpenChange={open => {
+              if (!open) setClosingId(null);
+            }}
+            open={closeTarget !== null}
           />
         </>
       }

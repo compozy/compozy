@@ -126,8 +126,9 @@ export const sessionWindowDrawerLogic = createStoreLogic({
       return { ...context, side: { ...context.side, view: { ...view, error: event.error } } };
     },
     /**
-     * A refusal created nothing. A question typed in the panel goes back to its draft there; one
-     * typed in the main composer stays in that composer, so the panel lets go of it.
+     * A refusal created nothing. A question typed in the panel goes back to its draft there,
+     * leaving the panel as shown or hidden as it is now (a subagent or a hide may have come since);
+     * one typed in the main composer stays in that composer, so the panel lets go of it.
      */
     sideRefused: (context, event: { key: string }) => {
       const view = context.side.view;
@@ -135,7 +136,7 @@ export const sessionWindowDrawerLogic = createStoreLogic({
       return {
         ...context,
         side: view.fromPanel
-          ? { ...context.side, open: true, view: { kind: "new" } }
+          ? { ...context.side, view: { kind: "new" } }
           : { ...context.side, open: false, view: null },
       };
     },

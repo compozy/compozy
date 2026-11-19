@@ -562,6 +562,37 @@ describe("Side chat drawer store", () => {
     expect(store.getSnapshot().context.side.view).toEqual({ kind: "new" });
     expect(store.getSnapshot().context.side.draft).toBe("kept");
   });
+
+  // N-005: a refusal that lands after a subagent or a hide restores the draft view but leaves
+  // the panel hidden, so the window never shows both drawers.
+  it.each([
+    ["a subagent opened", "subagent"],
+    ["the panel hidden", "none"],
+  ] as const)(
+    "Should restore the draft on a delayed refusal without reopening the panel after %s",
+    (_label, kind) => {
+      const store = sessionWindowDrawerLogic.createStore();
+      const subagent = { id: "sub-1", parent_session_id: "sess-parent" } as Parameters<
+        typeof store.trigger.opened
+      >[0]["subagent"];
+      store.trigger.sideShown({ view: { kind: "new" } });
+      store.trigger.sideDraftChanged({ draft: "a question" });
+      store.trigger.sideRequested({ message: "a question", key: "k-1", fromPanel: true });
+
+      if (kind === "subagent") {
+        store.trigger.opened({ subagent, workspaceId: WORKSPACE_ID, trigger: null });
+      } else store.trigger.sideHidden();
+      store.trigger.sideRefused({ key: "k-1" });
+
+      const context = store.getSnapshot().context;
+      expect(sessionWindowDrawerKind(context)).toBe(kind);
+      expect(context.side).toMatchObject({
+        open: false,
+        view: { kind: "new" },
+        draft: "a question",
+      });
+    }
+  );
 });
 
 describe("Side chat main status", () => {
@@ -638,6 +669,36 @@ describe("Side chat close", () => {
         sideChatIdleFixture.id
       )
     );
+  });
+
+  // B-017: the confirmation stays bound to the side chat it opened for.
+  it("Should dismiss the close confirmation when its side chat closes elsewhere, archiving nothing", async () => {
+    const { queryClient } = renderWindow({
+      sides: [sideChatAnsweringFixture, sideChatIdleFixture],
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("session-side-toggle-count")).toHaveTextContent("2")
+    );
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    await screen.findByTestId("side-thread-stub");
+    fireEvent.click(screen.getByTestId("side-chat-close"));
+    expect(await screen.findByTestId("side-chat-close-dialog")).toBeVisible();
+
+    mocks.fetchSessionSides.mockResolvedValue({ sides: [sideChatIdleFixture] });
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("side-thread-stub")).toHaveAttribute(
+        "data-session",
+        sideChatIdleFixture.id
+      )
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId("side-chat-close-dialog")).not.toBeInTheDocument()
+    );
+    expect(mocks.archiveSession).not.toHaveBeenCalled();
   });
 
   it("Should close an idle side chat without asking", async () => {
