@@ -724,6 +724,21 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 				runtime.callbackServer,
 			)
 		}
+
+		// Invariant: a callback that fails after its state resolved names the server and keeps
+		// the classified cause, so the browser page can say which server and why.
+		runtime.callbackErr = mcpauth.ErrLoginSessionStale
+		_, err = service.CompleteMCPAuthCallback(
+			ctx,
+			"http://127.0.0.1:2123/api/mcp/oauth/callback?code=opaque&state=public",
+		)
+		callbackErr, ok := errors.AsType[*MCPAuthCallbackError](err)
+		if !ok || callbackErr.Target.ServerName != "linear" {
+			t.Fatalf("failed callback error = %v, want MCPAuthCallbackError for linear", err)
+		}
+		if !errors.Is(err, ErrValidation) || !errors.Is(err, mcpauth.ErrLoginSessionStale) {
+			t.Fatalf("failed callback error = %v, want validation-classified stale session", err)
+		}
 	})
 
 	t.Run("Should resolve the exact workspace-profile sidecar target", func(t *testing.T) {
@@ -1085,6 +1100,7 @@ type recordingMCPAuthRuntime struct {
 	callbackTarget  mcpauth.Target
 	callbackServer  compozyconfig.MCPServer
 	callbackURL     string
+	callbackErr     error
 	operations      []recordingMCPAuthOperation
 	invalidateCalls int
 	deleteCalls     int
@@ -1170,6 +1186,9 @@ func (r *recordingMCPAuthRuntime) MCPAuthCompleteCallback(
 	r.callbackTarget = target
 	r.callbackServer = server
 	r.callbackURL = callbackURL
+	if r.callbackErr != nil {
+		return mcpauth.Status{}, r.callbackErr
+	}
 	return confirmedMCPAuthRuntimeStatus(target), nil
 }
 

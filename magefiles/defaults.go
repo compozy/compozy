@@ -34,6 +34,7 @@ const (
 	fontSizeSyncScriptPath    = "scripts/sync-font-size-classes.mjs"
 	lucideIconsSyncScriptPath = "scripts/sync-lucide-icons.mjs"
 	emojibaseSyncScriptPath   = "scripts/sync-emojibase.mjs"
+	oauthPageSyncScriptPath   = "scripts/sync-mcp-oauth-page-assets.mjs"
 )
 
 type mageStep struct {

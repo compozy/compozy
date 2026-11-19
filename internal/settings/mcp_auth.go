@@ -185,15 +185,33 @@ func (s *service) CompleteMCPAuthCallback(ctx context.Context, callbackURL strin
 	}
 	resolvedTarget, server, err := s.resolveMCPAuthTarget(ctx, mcpAuthTargetRequest(target))
 	if err != nil {
-		return mcpauth.Status{}, err
+		return mcpauth.Status{}, &MCPAuthCallbackError{Target: target, Err: err}
 	}
 	status, err := s.mcpAuth.MCPAuthCompleteCallback(ctx, resolvedTarget, server, trimmedCallbackURL)
 	if err != nil {
-		return mcpauth.Status{}, classifyMCPAuthExchangeError(
-			fmt.Errorf("settings: complete MCP auth callback: %w", err),
-		)
+		return mcpauth.Status{}, &MCPAuthCallbackError{
+			Target: resolvedTarget,
+			Err: classifyMCPAuthExchangeError(
+				fmt.Errorf("settings: complete MCP auth callback: %w", err),
+			),
+		}
 	}
 	return status, nil
+}
+
+// MCPAuthCallbackError reports a callback that failed after its OAuth state resolved to a server,
+// so the browser page can name the server the sign-in was for. It unwraps to the classified error.
+type MCPAuthCallbackError struct {
+	Target mcpauth.Target
+	Err    error
+}
+
+func (e *MCPAuthCallbackError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *MCPAuthCallbackError) Unwrap() error {
+	return e.Err
 }
 
 func classifyMCPAuthExchangeError(err error) error {
