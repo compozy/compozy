@@ -1282,7 +1282,12 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			}
 			got := sessionIDsForWorkspaceStateIndexTest(page.Sessions)
 			if sort != sessionCatalogSortPinned && facets.Facets.All != len(got) {
-				t.Fatalf("SessionCatalogFacets(%s) all = %d, want the %d listed rows", pinned, facets.Facets.All, len(got))
+				t.Fatalf(
+					"SessionCatalogFacets(%s) all = %d, want the %d listed rows",
+					pinned,
+					facets.Facets.All,
+					len(got),
+				)
 			}
 			return got, page.Total
 		}

@@ -108,7 +108,8 @@ func (g *SessionRepo) PageSessions(
 		} else {
 			countQuery := store.AppendWhere("SELECT COUNT(1) FROM "+source, where)
 			// dynamic-sql: page filters and exclusion slices alter the count query structure.
-			if err := tx.QueryRowContext(ctx, countQuery, append(sourceArgs, args...)...).Scan(&page.Total); err != nil {
+			if err := tx.QueryRowContext(ctx, countQuery, append(sourceArgs, args...)...).
+				Scan(&page.Total); err != nil {
 				return store.SessionCatalogPage{}, fmt.Errorf("store: count session catalog page: %w", err)
 			}
 		}

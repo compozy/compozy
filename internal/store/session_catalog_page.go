@@ -151,7 +151,8 @@ func (q SessionCatalogPageQuery) Validate() error {
 func (q SessionCatalogPageQuery) validateCursor() error {
 	// The cursor clause dispatches on the trimmed key, so the guards read the same key.
 	sort := strings.TrimSpace(q.Sort)
-	if q.After != nil && sort == "pinned" && (q.After.PinPosition == nil || strings.TrimSpace(q.After.PinRootID) == "") {
+	if q.After != nil && sort == "pinned" &&
+		(q.After.PinPosition == nil || strings.TrimSpace(q.After.PinRootID) == "") {
 		return fmt.Errorf("store: session catalog pinned cursor key is required")
 	}
 	if q.After != nil && sort == "name" && q.After.Name == nil {
