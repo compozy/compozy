@@ -28,7 +28,10 @@ type TokenStats struct {
 
 // TokenStatsUpdate adds one or more turns of usage into a session aggregate.
 type TokenStatsUpdate struct {
-	SessionID        string
+	SessionID string
+	// TurnID identifies a canonical completed turn. Replays must not increase
+	// either the session aggregate or the daily rollup.
+	TurnID           string
 	AgentName        string
 	CacheReadTokens  *int64
 	CacheWriteTokens *int64

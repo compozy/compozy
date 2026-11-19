@@ -2346,6 +2346,18 @@ type TokenUsageDaily struct {
 	UpdatedAt    string          `json:"updated_at"`
 }
 
+type TokenUsageReceipt struct {
+	ProfileID   string         `json:"profile_id"`
+	SessionID   string         `json:"session_id"`
+	TurnID      string         `json:"turn_id"`
+	InstanceID  string         `json:"instance_id"`
+	Day         string         `json:"day"`
+	TotalTokens int64          `json:"total_tokens"`
+	UsdAmount   sql.NullString `json:"usd_amount"`
+	CostStatus  string         `json:"cost_status"`
+	CreatedAt   string         `json:"created_at"`
+}
+
 type ToolApprovalGrant struct {
 	ID          string `json:"id"`
 	ProfileID   string `json:"profile_id"`

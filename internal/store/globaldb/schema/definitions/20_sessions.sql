@@ -196,6 +196,25 @@ CREATE TABLE sessions (
 		CHECK ((scope = 'workspace') = (workspace_id <> '')),
 		UNIQUE (workspace_id, id));
 
+-- Immutable usage receipts are intentionally independent of the sessions FK:
+-- quiet instance triage deletes its session after a completed turn, but must
+-- never refund the instance or permit the same turn to be counted again.
+CREATE TABLE token_usage_receipts (
+    profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL CHECK (length(trim(turn_id)) > 0),
+    instance_id TEXT NOT NULL DEFAULT '',
+    day TEXT NOT NULL,
+    total_tokens INTEGER NOT NULL DEFAULT 0 CHECK (total_tokens >= 0),
+    usd_amount TEXT,
+    cost_status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (session_id, turn_id)
+);
+
+CREATE INDEX idx_token_usage_receipts_instance_day
+    ON token_usage_receipts(profile_id, instance_id, day);
+
 CREATE TABLE session_derivations (
 		workspace_id TEXT NOT NULL,
 		idempotency_key TEXT NOT NULL,
