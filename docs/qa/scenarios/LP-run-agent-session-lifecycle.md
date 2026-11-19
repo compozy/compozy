@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: compozy/compozy#1851
 fix_status: fixed
 retest_status: pending
-fix_commits:
+fix_commits: 6ea6dbd4b
 evidence: docs/qa/reports/2026-08-20-run-agent-session-lifecycle.md; docs/qa/reports/2026-08-20-run-agent-terminal-cleanup.md
 last_report: docs/qa/reports/2026-08-20-run-agent-terminal-cleanup.md
 overlaps: LP-run-agent-output-ownership; RT-loop-goal-origin-session-lineage; LP-crash-death-resume
@@ -28,5 +28,6 @@ it with `compozy__loop_run` from an always-on main and repeat from an on-demand 
 that main. In both runs, the node must complete and persist its output. The worker is a distinct
 system session in the same workspace and profile, with the calling session as its parent and the
 main as its root. Give the selected worker agent a tool outside the instance ceiling and confirm
-the worker cannot use it. The managed Loop binding integration suite covers creation and binding
-reuse for both origins. The live-provider walk remains pending.
+the worker cannot use it. The managed Loop runtime integration suite executes `run-agent` with a
+real cell binding and checks creation and binding reuse for both origins. The live-provider walk
+remains pending.

@@ -65,9 +65,7 @@ func (b *loopActionSessionBinder) resolvePinnedCreationProfile(
 		}
 	}
 	opts := createOptionsFromProfile(req, profile)
-	if !allowRuntimeOverride {
-		opts.ProvenanceParentSessionID = strings.TrimSpace(req.ProvenanceParentSessionID)
-	}
+	opts.ProvenanceParentSessionID = strings.TrimSpace(req.ProvenanceParentSessionID)
 	if len(req.AllowedTools) > 0 {
 		opts.AllowedToolsOverride = slices.Clone(req.AllowedTools)
 	}
@@ -103,9 +101,7 @@ func (b *loopActionSessionBinder) validateLoopCreationProfile(
 	opts := *optsInput
 
 	profile := profileFromPolicyResolution(&(opts), resolution)
-	if resolver, ok := b.sessions.(interface {
-		ResolveCreationProfile(context.Context, *session.CreateOpts) (store.SessionCreationProfile, error)
-	}); ok && opts.ProvenanceParentSessionID != "" {
+	if resolver, ok := b.sessions.(loopManagedSessionManager); ok && opts.ProvenanceParentSessionID != "" {
 		effective, err := resolver.ResolveCreationProfile(ctx, &opts)
 		if err != nil {
 			return store.SessionCreationProfile{}, session.CreateOpts{}, nil,

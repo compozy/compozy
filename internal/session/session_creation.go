@@ -71,11 +71,11 @@ func (m *Manager) ResolveCreationProfile(
 ) (store.SessionCreationProfile, error) {
 	spec, err := m.resolveCreateStartSpec(ctx, opts)
 	if err != nil {
-		return store.SessionCreationProfile{}, err
+		return store.SessionCreationProfile{}, fmt.Errorf("session: resolve creation profile start spec: %w", err)
 	}
 	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, true)
 	if err != nil {
-		return store.SessionCreationProfile{}, err
+		return store.SessionCreationProfile{}, fmt.Errorf("session: resolve creation profile runtime: %w", err)
 	}
 	return creationProfileFromStart(&spec, runtime.agent), nil
 }
