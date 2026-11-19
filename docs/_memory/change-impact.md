@@ -1,5 +1,24 @@
 # Compozy Change Impact
 
+## Composer reply answers a pending clarification (GH-1821)
+
+- **Native tools and CLI/HTTP/UDS.** Routes, DTOs and tool schemas keep their shapes. One answer
+  rule tightens: a provider select question (ACP `elicitation/create` `oneOf` field) without a
+  `<key>_custom` text companion now refuses a text answer with `ErrClarifyInvalid` (HTTP 400; the
+  native answer tool's existing invalid-answer error), leaving the question answerable. Before,
+  the text was accepted, then declined to the provider and lost. `compozy__clarify` questions still accept text.
+- **Extensibility, hooks and config.** No hook, SDK, extension or config key changes;
+  `tools.clarify.timeout` keeps its meaning for unanswered questions.
+- **Workspace and profile isolation.** The composer answer uses the dock's answer endpoint and
+  scope.
+- **Web, docs and official skill.** While a clarification is pending, a steer or queue send from
+  the main composer answers it as free text. A question that settled first passes the text to the
+  next pending question, or to the original send when none waits; a send with files or a refused
+  choice-only answer keeps its draft with the reason; a lost acknowledgment is reconciled against
+  the live pending list and never re-sent as a prompt. Stopping sessions and interrupt keep their
+  behavior. The composer placeholder states the routing. The official skill's clarification note
+  documents the choice-only rule. `RT-session-clarification-roundtrip` records the walk.
+
 ## Gateway manual 6-digit pairing and device removal — 2026-11-18
 
 Owner: branch `run/gateway-manual-6-digit-pairing-device-removal-backend-a87a1177`.

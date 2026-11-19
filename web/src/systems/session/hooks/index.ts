@@ -50,6 +50,10 @@ export {
   useSessionClarifications,
   type AnswerClarificationVariables,
 } from "./use-session-clarifications";
+export {
+  useClarificationComposerAnswer,
+  type UseClarificationComposerAnswerOptions,
+} from "./use-clarification-composer-answer";
 export { useSessionRuntimeRenderContext } from "./use-session-runtime-render-context";
 export { useSessionExpiredInteractions } from "./use-session-expired-interactions";
 export { useSessionResolvedInteractions } from "./use-session-resolved-interactions";
