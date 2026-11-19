@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -331,6 +332,383 @@ func TestTokenUsageReceiptCapturesInstanceAndNormalizedUSD(t *testing.T) {
 		}
 		if instanceID != "instance-receipt" || usd != "1.25" {
 			t.Fatalf("receipt instance=%q usd=%q, want instance-receipt and 1.25", instanceID, usd)
+		}
+	})
+}
+
+func TestTokenUsageReceiptAttributesDescendantToOriginatingInstance(t *testing.T) {
+	t.Run("Should charge a descendant turn to its owning always-on instance", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		stamp := store.FormatTimestamp(now)
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO agent_instances (
+			id, profile_id, agent_name, workspace_id, state, created_by_kind, created_by_id, created_at, updated_at
+		) VALUES ('instance-lineage', ?, 'writer', '', 'active', 'human', 'operator', ?, ?)`,
+			store.DefaultProfileID, stamp, stamp,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO sessions (
+			id, profile_id, scope, agent_name, workspace_id, session_type, state, instance_id,
+			created_at, updated_at
+		) VALUES ('sess-lineage-root', ?, 'global', 'writer', '', 'user', 'active', 'instance-lineage', ?, ?)`,
+			store.DefaultProfileID, stamp, stamp,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO sessions (
+			id, profile_id, scope, agent_name, workspace_id, session_type, state, parent_session_id,
+			created_at, updated_at
+		) VALUES ('sess-lineage-child', ?, 'global', 'reviewer', '', 'agent', 'stopped', 'sess-lineage-root', ?, ?)`,
+			store.DefaultProfileID, stamp, stamp,
+		); err != nil {
+			t.Fatal(err)
+		}
+		stats := store.TokenStatsUpdate{
+			SessionID: "sess-lineage-child", TurnID: "turn-lineage-child", AgentName: "reviewer",
+			TotalTokens: new(int64(87)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		daily := store.TokenUsageDailyUpdate{
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "reviewer",
+			TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		if accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily); err != nil || !accepted {
+			t.Fatalf("descendant receipt accepted=%v error=%v", accepted, err)
+		}
+		var instanceID string
+		if err := db.db.QueryRowContext(ctx,
+			`SELECT instance_id FROM token_usage_receipts WHERE session_id = 'sess-lineage-child'`,
+		).Scan(&instanceID); err != nil {
+			t.Fatal(err)
+		}
+		if instanceID != "instance-lineage" {
+			t.Fatalf("descendant charged to %q, want instance-lineage", instanceID)
+		}
+	})
+
+	t.Run("Should prefer a directly bound instance over a different ancestor instance", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		stamp := store.FormatTimestamp(now)
+		for _, instance := range []struct{ id, agent string }{
+			{id: "instance-parent", agent: "writer"},
+			{id: "instance-child", agent: "reviewer"},
+		} {
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO agent_instances (
+				id, profile_id, agent_name, workspace_id, state, created_by_kind, created_by_id, created_at, updated_at
+			) VALUES (?, ?, ?, '', 'active', 'human', 'operator', ?, ?)`,
+				instance.id, store.DefaultProfileID, instance.agent, stamp, stamp,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, session := range []struct {
+			id, parent, instance, agent string
+		}{
+			{id: "sess-parent-owned", instance: "instance-parent", agent: "writer"},
+			{id: "sess-child-owned", parent: "sess-parent-owned", instance: "instance-child", agent: "reviewer"},
+		} {
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO sessions (
+				id, profile_id, scope, agent_name, workspace_id, session_type, state,
+				parent_session_id, instance_id, created_at, updated_at
+			) VALUES (?, ?, 'global', ?, '', 'agent', 'stopped', ?, ?, ?, ?)`,
+				session.id, store.DefaultProfileID, session.agent,
+				nullString(session.parent), nullString(session.instance), stamp, stamp,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		stats := store.TokenStatsUpdate{
+			SessionID: "sess-child-owned", TurnID: "turn-direct-instance", AgentName: "reviewer",
+			TotalTokens: new(int64(27)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		daily := store.TokenUsageDailyUpdate{
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "reviewer",
+			TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		if accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily); err != nil || !accepted {
+			t.Fatalf("directly bound receipt accepted=%v error=%v", accepted, err)
+		}
+		var instanceID string
+		if err := db.db.QueryRowContext(ctx,
+			`SELECT instance_id FROM token_usage_receipts WHERE session_id='sess-child-owned'`,
+		).Scan(&instanceID); err != nil {
+			t.Fatal(err)
+		}
+		if instanceID != "instance-child" {
+			t.Fatalf("directly bound receipt attributed to %q, want instance-child", instanceID)
+		}
+	})
+
+	t.Run("Should reject a cross-profile parent before attributing the child's usage", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		stamp := store.FormatTimestamp(now)
+		const otherProfile = "00000000000000000000000001"
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'other-receipt-owner', '#E8572A', 'circle', 'active', ?)`, otherProfile, stamp,
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, session := range []struct {
+			id, profileID, parent, kind string
+		}{
+			{id: "sess-other-root", profileID: otherProfile},
+			{id: "sess-default-child", profileID: store.DefaultProfileID, parent: "sess-other-root", kind: "spawn"},
+		} {
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO sessions (
+				id, profile_id, scope, agent_name, workspace_id, session_type, state,
+				parent_session_id, lineage_kind, created_at, updated_at
+			) VALUES (?, ?, 'global', 'writer', '', 'agent', 'stopped', ?, ?, ?, ?)`,
+				session.id, session.profileID, nullString(session.parent), session.kind, stamp, stamp,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		stats := store.TokenStatsUpdate{
+			SessionID: "sess-default-child", TurnID: "turn-cross-profile", AgentName: "writer",
+			TotalTokens: new(int64(5)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		daily := store.TokenUsageDailyUpdate{
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
+			TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		if _, err := db.RecordTokenUsageOnce(ctx, stats, daily); err == nil {
+			t.Fatal("cross-profile ancestry was accepted for canonical usage")
+		}
+	})
+
+	t.Run("Should treat a cross-profile fork parent as provenance and keep its own budget", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		stamp := store.FormatTimestamp(now)
+		const sourceProfile = "00000000000000000000000001"
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'source-fork-profile', '#E8572A', 'circle', 'active', ?)`, sourceProfile, stamp,
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, session := range []struct {
+			id, profile, parent, kind string
+		}{
+			{id: "sess-fork-source", profile: sourceProfile},
+			{id: "sess-fork-copy", profile: store.DefaultProfileID, parent: "sess-fork-source", kind: "fork"},
+		} {
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO sessions (
+				id, profile_id, scope, agent_name, workspace_id, session_type, state,
+				parent_session_id, lineage_kind, created_at, updated_at
+			) VALUES (?, ?, 'global', 'writer', '', 'user', 'stopped', ?, ?, ?, ?)`,
+				session.id, session.profile, nullString(session.parent), session.kind, stamp, stamp,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		stats := store.TokenStatsUpdate{
+			SessionID: "sess-fork-copy", TurnID: "turn-fork-copy", AgentName: "writer",
+			TotalTokens: new(int64(12)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		daily := store.TokenUsageDailyUpdate{
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
+			TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily)
+		if err != nil || !accepted {
+			t.Fatalf("legitimate cross-profile fork receipt accepted=%v error=%v", accepted, err)
+		}
+		var instanceID string
+		if err := db.db.QueryRowContext(ctx,
+			`SELECT instance_id FROM token_usage_receipts WHERE session_id = 'sess-fork-copy'`,
+		).Scan(&instanceID); err != nil {
+			t.Fatal(err)
+		}
+		if instanceID != "" {
+			t.Fatalf("provenance fork inherited originating instance %q", instanceID)
+		}
+	})
+}
+
+func TestTokenUsageReceiptRejectsBrokenAncestry(t *testing.T) {
+	for _, tc := range []struct {
+		name, parentID, instanceID string
+	}{
+		{name: "Should reject a missing ancestor", parentID: "sess-deleted-parent"},
+		{name: "Should reject a dangling instance binding", instanceID: "instance-deleted"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			ctx := testutil.Context(t)
+			now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+			stamp := store.FormatTimestamp(now)
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO sessions (
+				id, profile_id, scope, agent_name, workspace_id, session_type, state,
+				parent_session_id, instance_id, created_at, updated_at
+			) VALUES ('sess-broken-child', ?, 'global', 'writer', '', 'agent', 'stopped', ?, ?, ?, ?)`,
+				store.DefaultProfileID, nullString(tc.parentID), nullString(tc.instanceID), stamp, stamp,
+			); err != nil {
+				t.Fatal(err)
+			}
+			stats := store.TokenStatsUpdate{
+				SessionID: "sess-broken-child", TurnID: "turn-broken-child", AgentName: "writer",
+				TotalTokens: new(int64(11)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+			}
+			daily := store.TokenUsageDailyUpdate{
+				ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
+				TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+			}
+			if accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily); err == nil || accepted {
+				t.Fatalf("broken owner accepted=%v error=%v", accepted, err)
+			}
+		})
+	}
+
+	t.Run("Should stop at an empty parent sentinel even if a corrupt empty-id session exists", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		stamp := store.FormatTimestamp(now)
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO agent_instances (
+			id, profile_id, agent_name, workspace_id, state, created_by_kind, created_by_id, created_at, updated_at
+		) VALUES ('instance-empty-sentinel', ?, 'writer', '', 'active', 'human', 'operator', ?, ?)`,
+			store.DefaultProfileID, stamp, stamp,
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, session := range []struct {
+			id, instanceID string
+		}{
+			{id: "", instanceID: "instance-empty-sentinel"},
+			{id: "sess-sentinel-root"},
+		} {
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO sessions (
+				id, profile_id, scope, agent_name, workspace_id, session_type, state,
+				parent_session_id, instance_id, created_at, updated_at
+			) VALUES (?, ?, 'global', 'writer', '', 'user', 'stopped', '', ?, ?, ?)`,
+				session.id, store.DefaultProfileID, nullString(session.instanceID), stamp, stamp,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.db.ExecContext(ctx, `PRAGMA reverse_unordered_selects = ON`); err != nil {
+			t.Fatal(err)
+		}
+		stats := store.TokenStatsUpdate{
+			SessionID: "sess-sentinel-root", TurnID: "turn-sentinel", AgentName: "writer",
+			TotalTokens: new(int64(4)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		daily := store.TokenUsageDailyUpdate{
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
+			TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		if accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily); err != nil || !accepted {
+			t.Fatalf("sentinel receipt accepted=%v error=%v", accepted, err)
+		}
+		var instanceID string
+		if err := db.db.QueryRowContext(ctx,
+			`SELECT instance_id FROM token_usage_receipts WHERE session_id='sess-sentinel-root'`,
+		).Scan(&instanceID); err != nil {
+			t.Fatal(err)
+		}
+		if instanceID != "" {
+			t.Fatalf("empty parent sentinel inherited corrupt instance %q", instanceID)
+		}
+	})
+
+	t.Run("Should reject an ownership cycle without looping indefinitely", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		stamp := store.FormatTimestamp(now)
+		for _, session := range []struct{ id, parent string }{
+			{id: "sess-cycle-a", parent: "sess-cycle-b"},
+			{id: "sess-cycle-b", parent: "sess-cycle-a"},
+		} {
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO sessions (
+				id, profile_id, scope, agent_name, workspace_id, session_type, state,
+				parent_session_id, lineage_kind, created_at, updated_at
+			) VALUES (?, ?, 'global', 'writer', '', 'agent', 'stopped', ?, 'spawn', ?, ?)`,
+				session.id, store.DefaultProfileID, session.parent, stamp, stamp,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		stats := store.TokenStatsUpdate{
+			SessionID: "sess-cycle-a", TurnID: "turn-cycle", AgentName: "writer",
+			TotalTokens: new(int64(1)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		daily := store.TokenUsageDailyUpdate{
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
+			TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		if accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily); err == nil || accepted {
+			t.Fatalf("cyclic owner accepted=%v error=%v", accepted, err)
+		}
+	})
+}
+
+func TestTokenUsageReceiptAcceptsDeepValidAncestry(t *testing.T) {
+	t.Run("Should attribute a valid chain deeper than 64 levels without truncation", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		stamp := store.FormatTimestamp(now)
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO agent_instances (
+			id, profile_id, agent_name, workspace_id, state, created_by_kind, created_by_id, created_at, updated_at
+		) VALUES ('instance-deep', ?, 'writer', '', 'active', 'human', 'operator', ?, ?)`,
+			store.DefaultProfileID, stamp, stamp,
+		); err != nil {
+			t.Fatal(err)
+		}
+		parent := ""
+		for index := range 75 {
+			id := fmt.Sprintf("sess-deep-%03d", index)
+			instanceID := ""
+			kind := "spawn"
+			if index == 0 {
+				instanceID = "instance-deep"
+				kind = ""
+			}
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO sessions (
+				id, profile_id, scope, agent_name, workspace_id, session_type, state,
+				parent_session_id, instance_id, lineage_kind, created_at, updated_at
+			) VALUES (?, ?, 'global', 'writer', '', 'agent', 'stopped', ?, ?, ?, ?, ?)`,
+				id, store.DefaultProfileID, nullString(parent), nullString(instanceID),
+				kind, stamp, stamp,
+			); err != nil {
+				t.Fatal(err)
+			}
+			parent = id
+		}
+		stats := store.TokenStatsUpdate{
+			SessionID: parent, TurnID: "turn-deep", AgentName: "writer",
+			TotalTokens: new(int64(7)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		daily := store.TokenUsageDailyUpdate{
+			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
+			TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
+		}
+		if accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily); err != nil || !accepted {
+			t.Fatalf("deep receipt accepted=%v error=%v", accepted, err)
+		}
+		var instanceID string
+		if err := db.db.QueryRowContext(ctx,
+			`SELECT instance_id FROM token_usage_receipts WHERE session_id = ?`, parent,
+		).Scan(&instanceID); err != nil {
+			t.Fatal(err)
+		}
+		if instanceID != "instance-deep" {
+			t.Fatalf("deep receipt owner=%q, want instance-deep", instanceID)
 		}
 	})
 }
