@@ -174,7 +174,7 @@ function sessionListPinnedLayout(
 ): ((session: SessionPayload) => SessionThreadRootLayout | undefined) | undefined {
   if (!reorder) return undefined;
   // A carried row whose pin is outside this read stands as a root here; only pins reorder.
-  const ids = threads.filter(thread => thread.session.pinned_at).map(thread => thread.session.id);
+  const ids = threads.flatMap(thread => (thread.session.pinned_at ? [thread.session.id] : []));
   const container = { folderId: null, ids };
   const pins = new Set(ids);
   return session => {
