@@ -533,6 +533,40 @@ func TestTokenUsageReceiptAttributesDescendantToOriginatingInstance(t *testing.T
 			t.Fatalf("provenance fork inherited originating instance %q", instanceID)
 		}
 	})
+
+	t.Run("Should keep a deleted-parent system provenance session independently billable", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		stamp := store.FormatTimestamp(now)
+		if _, err := db.DB().ExecContext(ctx, `INSERT INTO sessions (
+			id, profile_id, scope, agent_name, workspace_id, session_type, state,
+			parent_session_id, lineage_kind, created_at, updated_at
+		) VALUES ('sess-provenance-orphan', ?, 'global', 'writer', '', 'system', 'stopped',
+			'sess-deleted-provenance', 'provenance', ?, ?)`, store.DefaultProfileID, stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		allowed, trip, err := db.Instances().AdmitDailyBudgetTurn(ctx, "sess-provenance-orphan")
+		if err != nil || !allowed || trip != nil {
+			t.Fatalf("standalone provenance admission allowed=%t trip=%+v err=%v", allowed, trip, err)
+		}
+		stats := store.TokenStatsUpdate{SessionID: "sess-provenance-orphan", TurnID: "turn-orphan",
+			AgentName: "writer", TotalTokens: new(int64(11)), CostStatus: "unknown",
+			CostSource: "none", UpdatedAt: now}
+		daily := store.TokenUsageDailyUpdate{ProfileID: store.DefaultProfileID, Day: store.LocalDay(now),
+			AgentName: "writer", TotalTokens: stats.TotalTokens, CostStatus: "unknown",
+			CostSource: "none", UpdatedAt: now}
+		accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily)
+		if err != nil || !accepted {
+			t.Fatalf("orphan provenance receipt accepted=%v err=%v", accepted, err)
+		}
+		var owner string
+		if err := db.DB().QueryRowContext(ctx, `SELECT instance_id FROM token_usage_receipts
+			WHERE session_id='sess-provenance-orphan'`).Scan(&owner); err != nil || owner != "" {
+			t.Fatalf("orphan provenance budget owner=%q err=%v, want standalone", owner, err)
+		}
+	})
 }
 
 func TestTokenUsageReceiptRejectsBrokenAncestry(t *testing.T) {

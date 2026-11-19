@@ -37,24 +37,24 @@ WITH RECURSIVE ancestry(id, parent_session_id, instance_id, profile_id, lineage_
         CASE WHEN a.nearest_instance_id != '' THEN a.nearest_instance_id
              ELSE COALESCE(NULLIF(s.instance_id, ''), '') END
     FROM sessions s JOIN ancestry a ON s.id = a.parent_session_id
-    WHERE a.lineage_kind NOT IN ('continue', 'fork')
+    WHERE a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
       AND a.parent_session_id IS NOT NULL AND a.parent_session_id != ''
 )
 SELECT owner.profile_id,
     CAST(COALESCE((
         SELECT a.nearest_instance_id FROM ancestry a
-        WHERE a.lineage_kind IN ('continue', 'fork')
+        WHERE a.lineage_kind IN ('continue', 'fork', 'provenance')
            OR a.parent_session_id IS NULL OR a.parent_session_id = ''
         LIMIT 1
     ), '') AS TEXT) AS instance_id
 FROM sessions owner
 WHERE owner.id = ?1
   AND EXISTS (SELECT 1 FROM ancestry a
-      WHERE a.lineage_kind IN ('continue', 'fork')
+      WHERE a.lineage_kind IN ('continue', 'fork', 'provenance')
          OR a.parent_session_id IS NULL OR a.parent_session_id = '')
   AND NOT EXISTS (
       SELECT 1 FROM ancestry a WHERE a.profile_id != owner.profile_id
-      OR (a.lineage_kind NOT IN ('continue', 'fork')
+      OR (a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
           AND a.parent_session_id IS NOT NULL AND a.parent_session_id != ''
           AND NOT EXISTS (SELECT 1 FROM sessions parent WHERE parent.id = a.parent_session_id))
       OR (a.instance_id IS NOT NULL AND a.instance_id != ''
