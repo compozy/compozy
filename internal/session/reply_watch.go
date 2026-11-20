@@ -237,7 +237,7 @@ func (s *replyWatchService) reconcileConsumedTurn(
 			condition: replyTerminalUnreadable, turnID: turn, terminalID: result.terminalID,
 		}, err)
 	}
-	if target.State == StateStopped || target.ArchivedAt != nil {
+	if target.ArchivedAt != nil || (target.State == StateStopped && target.StopReason != store.StopShutdown) {
 		return s.fireTurnReply(ctx, w, turn, result, "")
 	}
 	waiting, err := s.replyContinuationWork(ctx, w)

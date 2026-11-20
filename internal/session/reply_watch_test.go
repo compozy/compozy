@@ -2340,6 +2340,66 @@ func TestReplyWatchFollowUp(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should keep the reply interim when a child registers a monitor after supervision", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, w := replyWatchFixture(t)
+		child, err := h.manager.Create(t.Context(), &CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{
+				Kind: store.LineageKindProvenance, ParentSessionID: target.ID, NotifyCreator: true,
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		monitor := openReplyTestMonitor(h, child)
+		monitor.Store(false)
+		noWork := SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) { return nil, nil })
+		h.manager.SetWorkSignalSources(
+			WorkSignalSource{Kind: WorkSignalAwaitingReply, Source: noWork},
+			WorkSignalSource{Kind: WorkSignalScheduledWait, Source: noWork},
+			WorkSignalSource{Kind: WorkSignalActiveChild, Source: SignalSourceFunc(
+				func(_ context.Context, id string) ([]WorkSignal, error) {
+					if id != target.ID {
+						return nil, nil
+					}
+					now := h.manager.now()
+					return []WorkSignal{{
+						Kind: WorkSignalActiveChild, Ref: child.ID, Since: now, ValidUntil: now.Add(time.Hour),
+					}}, nil
+				},
+			)},
+		)
+		if err := h.manager.Supervise(t.Context(), h.manager.now()); err != nil {
+			t.Fatal(err)
+		}
+		monitor.Store(true)
+		recordReplyEvent(t, h, target,
+			acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "watched"}.WithMessageID(w.MessageID))
+		recordReplyCompletion(t, h, target, "watched", "initial answer", acp.EventTypeDone)
+		service.OnTurnSettled(t.Context(), target.ID, "watched")
+		interim := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchArmed)
+		if !strings.Contains(interim.Text, "subagents or child sessions") {
+			t.Fatalf("interim reply = %q", interim.Text)
+		}
+
+		monitor.Store(false)
+		recordReplyCompletion(t, h, target, "continued", "child work completed", acp.EventTypeDone)
+		unreadable := SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) {
+			return nil, errors.New("child reply work unavailable")
+		})
+		for _, source := range []SignalSource{nil, unreadable} {
+			h.manager.SetWorkSignalSources(WorkSignalSource{Kind: WorkSignalAwaitingReply, Source: source})
+			service.OnTurnSettled(t.Context(), target.ID, "continued")
+			requireReplyWatchState(t, db, w.ID, store.ReplyWatchArmed)
+		}
+		h.manager.SetWorkSignalSources(WorkSignalSource{Kind: WorkSignalAwaitingReply, Source: noWork})
+		service.OnTurnSettled(t.Context(), target.ID, "continued")
+		final := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchDelivered)
+		if final.MessageID != interim.MessageID+":follow-up" || !strings.Contains(final.Text, "child work completed") {
+			t.Fatalf("follow-up = %+v", final)
+		}
+	})
 	t.Run("Should drop the old follow-up when the same sender sends a newer watched message", func(t *testing.T) {
 		t.Parallel()
 		h, db, service, sender, target, older, open := replyFollowUpFixture(t)
@@ -3044,6 +3104,35 @@ func pauseReplyTestTarget(t *testing.T, h *harness, db *globaldb.GlobalDB, targe
 	if _, err := db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// Invariant: a shutdown-stopped target with restored work still owes a follow-up to its consumed answer.
+func TestReplyWatchShutdownConsumedAnswer(t *testing.T) {
+	t.Run("Should recover an interim reply while a shutdown-stopped target still has work", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, w := replyWatchFixture(t)
+		recordReplyEvent(t, h, target,
+			acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "watched"}.WithMessageID(w.MessageID))
+		recordReplyCompletion(t, h, target, "watched", "initial answer before shutdown", acp.EventTypeDone)
+		if err := h.manager.StopWithCause(t.Context(), target.ID, CauseShutdown, "daemon restart"); err != nil {
+			t.Fatal(err)
+		}
+		openReplyTestMonitor(h, target)
+		if err := service.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		interim := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchArmed)
+		if !strings.Contains(interim.Text, "initial answer before shutdown") ||
+			!strings.Contains(interim.Text, "waiting on monitors") {
+			t.Fatalf("interim reply = %q", interim.Text)
+		}
+		if err := service.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if got := requireReplyWatchState(t, db, w.ID, store.ReplyWatchArmed); got.DeliveredInputID != interim.ID {
+			t.Fatalf("recovery changed interim delivery: %+v", got)
+		}
+	})
 }
 
 // Invariant: archiving preserves a consumed answer available in the target ledger.

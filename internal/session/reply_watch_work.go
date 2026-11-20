@@ -64,15 +64,16 @@ func (s *replyWatchService) replyChildWillWake(ctx context.Context, id string) b
 	if info.State != StateActive || info.Prompting {
 		return true
 	}
-	if info.Supervision != nil {
-		for _, signal := range info.Supervision.WorkSignals {
-			switch signal.Kind {
-			case WorkSignalActiveMonitor, WorkSignalScheduledWait, WorkSignalAwaitingReply, WorkSignalActiveChild:
-				if !signal.ValidUntil.Before(s.manager.now()) {
-					return true
-				}
-			}
-		}
+	wakeKinds := []WorkSignalKind{
+		WorkSignalActiveMonitor, WorkSignalScheduledWait, WorkSignalAwaitingReply, WorkSignalActiveChild,
+	}
+	work := s.manager.workSignals.Inspect(ctx, id, s.manager.now())
+	if slices.ContainsFunc(work.WorkSignals, func(signal WorkSignal) bool {
+		return slices.Contains(wakeKinds, signal.Kind)
+	}) || slices.ContainsFunc(work.Sources, func(source SignalSourceState) bool {
+		return source.State == signalSourceUnknown && slices.Contains(wakeKinds, source.Kind)
+	}) {
+		return true
 	}
 	queue, err := s.manager.InputQueueSummary(ctx, id)
 	return err != nil || queue.PendingInputs > 0
