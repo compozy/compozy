@@ -287,8 +287,8 @@ func (m preparedMigration) rebuildInTransaction(
 	}
 	for violation, count := range after {
 		if count > before[violation] {
-			return fmt.Errorf("%s migration %s introduced a foreign key violation in %q referencing %q (constraint %d)",
-				direction, m.path, violation.table, violation.parent, violation.constraint)
+			return fmt.Errorf("%s migration %s increased foreign key violations in %q referencing %q from %d to %d",
+				direction, m.path, violation.table, violation.parent, before[violation], count)
 		}
 	}
 	if direction == migrationSQLUp {
@@ -305,16 +305,14 @@ func (m preparedMigration) rebuildInTransaction(
 	return nil
 }
 
-type migrationForeignKeyViolation struct {
+type migrationForeignKeyRelation struct {
 	table, parent string
-	rowID         sql.NullInt64
-	constraint    int
 }
 
 func migrationForeignKeyViolations(
 	ctx context.Context,
 	conn *sql.Conn,
-) (_ map[migrationForeignKeyViolation]int, retErr error) {
+) (_ map[migrationForeignKeyRelation]int, retErr error) {
 	rows, err := conn.QueryContext(ctx, "PRAGMA foreign_key_check")
 	if err != nil {
 		return nil, err
@@ -322,13 +320,16 @@ func migrationForeignKeyViolations(
 	defer func() {
 		retErr = errors.Join(retErr, rows.Close())
 	}()
-	violations := make(map[migrationForeignKeyViolation]int)
+	// Rebuilds can renumber rowids and constraints even when their rows and references survive.
+	violations := make(map[migrationForeignKeyRelation]int)
 	for rows.Next() {
-		var violation migrationForeignKeyViolation
-		if err := rows.Scan(&violation.table, &violation.rowID, &violation.parent, &violation.constraint); err != nil {
+		var relation migrationForeignKeyRelation
+		var rowID sql.NullInt64
+		var constraint int
+		if err := rows.Scan(&relation.table, &rowID, &relation.parent, &constraint); err != nil {
 			return nil, err
 		}
-		violations[violation]++
+		violations[relation]++
 	}
 	return violations, rows.Err()
 }

@@ -152,6 +152,11 @@ func rebuildMigrationStatements(statements []string) ([]string, error) {
 }
 
 func normalizeMigrationDirective(statement string) string {
+	statement = strings.TrimSpace(statement)
+	for strings.HasPrefix(statement, "/*") {
+		_, rest, _ := strings.Cut(statement, "*/")
+		statement = strings.TrimSpace(rest)
+	}
 	var directive strings.Builder
 	for line := range strings.SplitSeq(statement, "\n") {
 		code, _, _ := strings.Cut(line, "--")

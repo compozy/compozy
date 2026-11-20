@@ -155,7 +155,7 @@ func TestApplyMigrationStream(t *testing.T) {
 				name: "Should apply a generated rebuild with line comments in the pragma",
 				before: `-- +goose Up
 -- disable enforcement during the rebuild
-PRAGMA -- connection-scoped setting
+/* connection-scoped setting */ PRAGMA -- temporarily disable enforcement
   foreign_keys = OFF; -- rebuild follows
 `,
 			},
@@ -176,14 +176,14 @@ PRAGMA foreign_key_check;
 				ctx := testutil.Context(t)
 				db := openMigrationRebuildTestDB(t)
 				seedMigrationOrphan(t, db)
-				body := rebuild.before + `CREATE TABLE parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
-CREATE TABLE children (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parents(id) ON DELETE CASCADE);
-INSERT INTO parents (id, value) VALUES (1, 'before');
-INSERT INTO children (id, parent_id) VALUES (1, 1);
-CREATE TABLE new_parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1);
+				body := rebuild.before + `CREATE TABLE new_parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
 INSERT INTO new_parents (id, value) SELECT id, value FROM parents;
 DROP TABLE parents;
 ALTER TABLE new_parents RENAME TO parents;
+CREATE TABLE new_children (id TEXT PRIMARY KEY, parent_id INTEGER REFERENCES parents(id) ON DELETE CASCADE);
+INSERT INTO new_children (id, parent_id) SELECT id, parent_id FROM children ORDER BY rowid;
+DROP TABLE children;
+ALTER TABLE new_children RENAME TO children;
 ` + rebuild.after + "PRAGMA foreign_keys = ON;\n"
 				stream := MigrationStream{
 					Name:         "historical-foreign-key-rebuild",
@@ -194,13 +194,21 @@ ALTER TABLE new_parents RENAME TO parents;
 				if err := Apply(ctx, db, stream); err != nil {
 					t.Fatalf("Apply() error = %v", err)
 				}
-				var childParentID, orphanParentID int
-				if err := db.QueryRowContext(ctx, `SELECT children.parent_id, legacy_children.parent_id
-FROM children CROSS JOIN legacy_children WHERE children.id = 1`).Scan(&childParentID, &orphanParentID); err != nil {
+				var childParentID, orphanParentID, orphanRowID int
+				if err := db.QueryRowContext(ctx, `SELECT child.parent_id, orphan.parent_id, orphan.rowid
+FROM children AS child CROSS JOIN children AS orphan WHERE child.id = 'child' AND orphan.id = 'orphan'`).
+					Scan(&childParentID, &orphanParentID, &orphanRowID); err != nil {
 					t.Fatalf("read preserved rows: %v", err)
 				}
 				if childParentID != 1 || orphanParentID != 99 {
-					t.Fatalf("preserved child and orphan parent IDs = (%d, %d), want (1, 99)", childParentID, orphanParentID)
+					t.Fatalf(
+						"preserved child and orphan parent IDs = (%d, %d), want (1, 99)",
+						childParentID,
+						orphanParentID,
+					)
+				}
+				if orphanRowID != 2 {
+					t.Fatalf("orphan rowid = %d, want 2 after copying the row from rowid 3", orphanRowID)
 				}
 				status, err := Status(ctx, db, stream)
 				if err != nil || status.Version != 1 || status.AppliedCount != 1 {
@@ -377,9 +385,11 @@ func seedMigrationOrphan(t *testing.T, db *sql.DB) {
 		}
 	}()
 	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF;
-CREATE TABLE legacy_parents (id INTEGER PRIMARY KEY);
-CREATE TABLE legacy_children (parent_id INTEGER REFERENCES legacy_parents(id));
-INSERT INTO legacy_children (parent_id) VALUES (99);
+CREATE TABLE parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE children (id TEXT PRIMARY KEY, parent_id INTEGER REFERENCES parents(id) ON DELETE CASCADE);
+INSERT INTO parents (id, value) VALUES (1, 'before');
+INSERT INTO children (id, parent_id) VALUES ('deleted', 1), ('child', 1), ('orphan', 99);
+DELETE FROM children WHERE id = 'deleted';
 PRAGMA foreign_keys = ON;`); err != nil {
 		t.Fatalf("seed a foreign key violation from before the migration: %v", err)
 	}
