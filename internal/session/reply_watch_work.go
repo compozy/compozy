@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -10,6 +11,20 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
+
+const replyWaitUninspected = "remaining work could not be inspected"
+
+func (s *replyWatchService) initialReplyWait(ctx context.Context, w store.ReplyWatch, after int64) string {
+	waiting, err := s.replyContinuationWork(ctx, w)
+	if waiting == "" && err == nil {
+		waiting, err = s.manager.replyWakeAfter(ctx, w, after)
+	}
+	if err != nil {
+		s.logWatchError(ctx, w, err)
+		return replyWaitUninspected
+	}
+	return waiting
+}
 
 func (s *replyWatchService) replyContinuationWork(ctx context.Context, w store.ReplyWatch) (string, error) {
 	var waiting []string
@@ -96,7 +111,7 @@ func (m *Manager) inspectAdmittedReplyWakes(ctx context.Context, w store.ReplyWa
 	if m.inputQueueStore != nil {
 		inputs, err := m.inputQueueStore.ListPendingSessionInputs(ctx, w.TargetSessionID)
 		if err != nil {
-			return err
+			return fmt.Errorf("session: read pending inputs for reply wakes: %w", err)
 		}
 		for i := range inputs {
 			entry := &inputs[i]
@@ -126,11 +141,37 @@ func (m *Manager) inspectAdmittedReplyWakes(ctx context.Context, w store.ReplyWa
 	for _, stored := range events {
 		event, err := transcript.UnmarshalAgentEvent(stored.Content)
 		if err != nil {
-			return err
+			return fmt.Errorf("session: decode active turn reply wake: %w", err)
 		}
 		add(replyWakeLabel(event.Synthetic, w.SenderSessionID))
 	}
 	return nil
+}
+
+// A dispatched wake is recorded before its queue entry is marked sent.
+func (m *Manager) replyWakeAfter(ctx context.Context, w store.ReplyWatch, after int64) (string, error) {
+	query := store.EventQuery{
+		Type: acp.EventTypeSyntheticReentry, TopLevelOnly: true, Forward: true, AfterSequence: after, Limit: 200,
+	}
+	for {
+		events, err := m.Events(ctx, w.TargetSessionID, query)
+		if err != nil {
+			return "", fmt.Errorf("session: read reply wakes after the consuming turn: %w", err)
+		}
+		for _, stored := range events {
+			event, err := transcript.UnmarshalAgentEvent(stored.Content)
+			if err != nil {
+				return "", fmt.Errorf("session: decode reply wake after the consuming turn: %w", err)
+			}
+			if label := replyWakeLabel(event.Synthetic, w.SenderSessionID); label != "" {
+				return label, nil
+			}
+		}
+		if len(events) < query.Limit {
+			return "", nil
+		}
+		query.AfterSequence = events[len(events)-1].Sequence
+	}
 }
 
 func replyWakeLabel(meta *acp.PromptSyntheticMeta, sender string) string {

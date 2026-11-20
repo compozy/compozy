@@ -156,6 +156,9 @@ func replySummary(w store.ReplyWatch) string {
 }
 
 func replyInterimNotice(waiting string) string {
-	return "This is an interim reply. The target is waiting on " + waiting +
-		". A follow-up reply will arrive when the target settles."
+	status := "The target is waiting on " + waiting + "."
+	if waiting == replyWaitUninspected {
+		status = "The remaining work could not be inspected."
+	}
+	return "This is an interim reply. " + status + " A follow-up reply will arrive when the target settles."
 }

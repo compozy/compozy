@@ -119,6 +119,9 @@ func (s *replyWatchService) reconcileArmed(ctx context.Context, w store.ReplyWat
 	if err != nil {
 		return err
 	}
+	if pass == replyWatchEvent && s.replyWatchExpired(w, s.manager.now()) {
+		return s.expire(ctx, w)
+	}
 	// A deleted target has no recoverable admission or transcript. Preserve the
 	// sender's watch as an explicit uncertain reply instead of failing daemon boot.
 	target, err := s.manager.StoredStatus(ctx, w.TargetSessionID)
@@ -127,9 +130,6 @@ func (s *replyWatchService) reconcileArmed(ctx context.Context, w store.ReplyWat
 	}
 	if err != nil {
 		return err
-	}
-	if pass == replyWatchEvent && s.replyWatchExpired(w, s.manager.now()) {
-		return s.expire(ctx, w)
 	}
 	if pass == replyWatchPeriodic && (target.State == StateStarting || target.State == StateStopping) {
 		s.settleGrace.Delete(w.ID)
@@ -161,6 +161,7 @@ func (s *replyWatchService) reconcileInitial(
 	admission, inputs, err := s.store.ReplyWatchEvidence(ctx, w)
 	if err != nil {
 		if w.TurnID != "" {
+			s.logWatchError(ctx, w, err)
 			return s.reconcileConsumedTurn(ctx, w, target, w.TurnID, w.QueueEntryID, pass)
 		}
 		return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{condition: replyAdmissionUnreadable}, err)
@@ -187,12 +188,13 @@ func (s *replyWatchService) reconcileInitial(
 		if err := s.store.BindReplyWatch(ctx, w.ID, "", queueID); err != nil {
 			return err
 		}
+		w.QueueEntryID = queueID
 	}
-	return s.reconcileUnconsumed(ctx, w, admission, inputs, pass)
+	return s.reconcileUnconsumed(ctx, w, target, admission, inputs, pass)
 }
 
 func (s *replyWatchService) reconcileUnconsumed(
-	ctx context.Context, w store.ReplyWatch, admission store.SessionPromptAdmission,
+	ctx context.Context, w store.ReplyWatch, target *Info, admission store.SessionPromptAdmission,
 	inputs []store.SessionInputQueueEntry, pass replyWatchPass,
 ) error {
 	if replyQueuedForConsumption(inputs) {
@@ -211,6 +213,13 @@ func (s *replyWatchService) reconcileUnconsumed(
 		settled, err := s.manager.replyTargetSettledSince(ctx, w.TargetSessionID, replyDispatchTime(admission, inputs))
 		if err != nil || !settled {
 			return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{condition: replyUncertainDispatch}, err)
+		}
+		turn, err := s.manager.replyMessageTurn(ctx, w, admission, inputs, pass == replyWatchPeriodic)
+		if err != nil {
+			return err
+		}
+		if turn != "" {
+			return s.reconcileConsumedTurn(ctx, w, target, turn, w.QueueEntryID, pass)
 		}
 	}
 	return s.fire(ctx, w, outcome, "")
@@ -240,10 +249,7 @@ func (s *replyWatchService) reconcileConsumedTurn(
 	if target.ArchivedAt != nil || (target.State == StateStopped && target.StopReason != store.StopShutdown) {
 		return s.fireTurnReply(ctx, w, turn, result, "")
 	}
-	waiting, err := s.replyContinuationWork(ctx, w)
-	if err != nil {
-		return err
-	}
+	waiting := s.initialReplyWait(ctx, w, result.Sequence)
 	return s.fireTurnReply(ctx, w, turn, result, waiting)
 }
 

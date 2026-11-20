@@ -200,8 +200,11 @@ pre-dispatch failure re-arms the same watch. The sender can then finish its turn
 CompozyOS delivers a synthetic reply wake after the turn that consumed the message settles.
 When the receiver still has a monitor, a subagent or awaited child, a scheduled wait, or a reply from
 a session other than the sender pending, the wake identifies the answer as interim and names the work.
-Queued, dispatching, and running wakes for that work also count. The watch stays outstanding under
-its original TTL. Once no awaited work is left, the follow-up carries the target's latest top-level
+Queued, dispatching, and running wakes for that work also count. A wake that ran after the consuming
+turn can still produce a follow-up if it finished before the first reply was sent. If the daemon
+cannot inspect the remaining work, it sends the readable answer as interim and retries the check.
+The watch stays outstanding under its original TTL. Once no awaited work is left, the follow-up
+carries the target's latest top-level
 answer after the interim reply. If no later turn settled, the interim reply stands. The receiver
 stopping, failing, or being deleted also triggers a follow-up. Once the daemon accepts a newer
 watched message from the same sender to the same target, it supersedes the pending follow-up.

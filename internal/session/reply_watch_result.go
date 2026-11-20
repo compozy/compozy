@@ -67,6 +67,9 @@ func (m *Manager) replyTurnResult(ctx context.Context, sessionID, turnID string,
 			break
 		}
 	}
+	if ledger.fullWindow && ledger.terminalID != "" && result.Outcome != "" && result.Text == "" {
+		return m.replyTurnResult(ctx, sessionID, turnID, true)
+	}
 	return result, nil
 }
 
@@ -113,6 +116,7 @@ type replyTurnLedger struct {
 	events     []store.SessionEvent
 	terminalID string
 	decodeErr  error
+	fullWindow bool
 }
 
 func (m *Manager) replyTurnEvents(
@@ -139,7 +143,11 @@ func (m *Manager) replyTurnEvents(
 			}
 			ledger.events = append(ledger.events, event)
 		}
-		if !allEvents || len(page) < query.Limit {
+		if !allEvents {
+			ledger.fullWindow = len(page) == query.Limit
+			return ledger, nil
+		}
+		if len(page) < query.Limit {
 			return ledger, nil
 		}
 		query.AfterSequence = page[len(page)-1].Sequence
