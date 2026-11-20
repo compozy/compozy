@@ -52,10 +52,7 @@ export const sessionWindowTestIds = {
   composerQueuedAttachmentWell: "composer-queued-attachment-well",
   composerEnterHint: "composer-enter-hint",
   composerFeedbackNote: "composer-feedback-note",
-  composerInterruptButton: "composer-interrupt-button",
-  composerQueueButton: "composer-queue-button",
   composerSendButton: "composer-send-button",
-  composerSteerButton: "composer-steer-button",
   composerStopButton: "composer-stop-button",
   permissionAllowAlways: "permission-allow-always",
   permissionAllowOnce: "permission-allow-once",
@@ -86,11 +83,8 @@ export interface SessionWindowSelectors {
   composerDropOverlay: Locator;
   composerEnterHint: Locator;
   composerFeedbackNote: Locator;
-  composerInterruptButton: Locator;
-  composerQueueButton: Locator;
   composerQueuedAttachmentWell: Locator;
   composerSendButton: Locator;
-  composerSteerButton: Locator;
   composerStopButton: Locator;
   composerTextarea: Locator;
   permissionAllowAlways: Locator;
@@ -703,13 +697,10 @@ export function sessionWindowSelectors(
     composerDropOverlay: win.getByTestId(sessionWindowTestIds.composerDropOverlay),
     composerEnterHint: win.getByTestId(sessionWindowTestIds.composerEnterHint),
     composerFeedbackNote: win.getByTestId(sessionWindowTestIds.composerFeedbackNote),
-    composerInterruptButton: win.getByTestId(sessionWindowTestIds.composerInterruptButton),
-    composerQueueButton: win.getByTestId(sessionWindowTestIds.composerQueueButton),
     composerQueuedAttachmentWell: win.getByTestId(
       sessionWindowTestIds.composerQueuedAttachmentWell
     ),
     composerSendButton: win.getByRole("button", { name: "Send message" }),
-    composerSteerButton: win.getByTestId(sessionWindowTestIds.composerSteerButton),
     composerStopButton: win.getByTestId(sessionWindowTestIds.composerStopButton),
     composerTextarea: win.getByRole("textbox", { name: "Session prompt" }),
     permissionAllowAlways: win.getByTestId(sessionWindowTestIds.permissionAllowAlways),

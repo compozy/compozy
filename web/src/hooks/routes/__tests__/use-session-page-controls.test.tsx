@@ -832,7 +832,7 @@ describe("useSessionPageControls", () => {
     );
   });
 
-  it("Should expose the daemon follow-up default and steer delivery from the session resource", () => {
+  it("Should expose the daemon follow-up default from the session resource", () => {
     const { result } = renderControls({
       ...makeSession("active", "turn-live"),
       busy_input: {
@@ -843,11 +843,9 @@ describe("useSessionPageControls", () => {
     });
 
     expect(result.current.busyInputDefaultMode).toBe("queue");
-    expect(result.current.busyInputSteerDelivery).toBe("interrupt_fallback");
-    // No report yet: the shipped daemon default (steer) and an unknown delivery.
+    // No report yet: the shipped daemon default (steer).
     const { result: bare } = renderControls(makeSession("active", "turn-live"));
     expect(bare.current.busyInputDefaultMode).toBe("steer");
-    expect(bare.current.busyInputSteerDelivery).toBeNull();
   });
 
   it("Should reject gated busy sends with their reason instead of a silent no-op", async () => {
@@ -886,7 +884,7 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledOnce();
   });
 
-  it("Should fence direct steer and interrupt with the active turn", async () => {
+  it("Should fence a direct steer with the active turn, carrying its attachments", async () => {
     routeHookMocks.sendPromptMutation.mutateAsync.mockResolvedValue({
       delivery: "direct",
       idempotency_key: "idk",
@@ -896,59 +894,38 @@ describe("useSessionPageControls", () => {
       status: "steering",
     });
     const { result } = renderControls(makeSession("active", "turn-live", "system"));
+    const attachment = {
+      bytes: 4,
+      height: 10,
+      id: `att_${"a".repeat(64)}`,
+      kind: "image",
+      mime_type: "image/png",
+      name: "steer.png",
+      sha256: "a".repeat(64),
+      width: 10,
+    } as const;
 
     await act(async () => {
-      await result.current.handleSteerPrompt({ message: "new constraint", attachments: [] });
-      await result.current.handleInterruptPrompt({
-        message: "replace the work",
-        attachments: [
-          {
-            bytes: 4,
-            height: 10,
-            id: `att_${"a".repeat(64)}`,
-            kind: "image",
-            mime_type: "image/png",
-            name: "interrupt.png",
-            sha256: "a".repeat(64),
-            width: 10,
-          },
-        ],
+      await result.current.handleSteerPrompt({
+        message: "new constraint",
+        attachments: [attachment],
       });
     });
 
-    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledWith({
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith({
       expectedTurnId: "turn-live",
       id: "sess-1",
       idempotencyKey: expect.any(String),
       message: "new constraint",
       messageId: expect.any(String),
       mode: "steer",
-    });
-    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledWith({
-      expectedTurnId: "turn-live",
-      id: "sess-1",
-      idempotencyKey: expect.any(String),
-      message: "replace the work",
-      messageId: expect.any(String),
-      mode: "interrupt",
-      attachments: [
-        {
-          bytes: 4,
-          height: 10,
-          id: `att_${"a".repeat(64)}`,
-          kind: "image",
-          mime_type: "image/png",
-          name: "interrupt.png",
-          sha256: "a".repeat(64),
-          width: 10,
-        },
-      ],
+      attachments: [attachment],
     });
   });
 
   it("Should let the daemon resolve the fence when no active turn id is known yet", async () => {
     // Invariant 6: an omitted fence resolves the live turn at admission; the
-    // browser no longer blocks steer and interrupt behind its own poll.
+    // browser no longer blocks a steer behind its own poll.
     routeHookMocks.auiState.thread.isRunning = true;
     routeHookMocks.sendPromptMutation.mutateAsync.mockResolvedValue({
       delivery: "direct",
@@ -962,22 +939,14 @@ describe("useSessionPageControls", () => {
 
     await act(async () => {
       await result.current.handleSteerPrompt({ message: "new constraint", attachments: [] });
-      await result.current.handleInterruptPrompt({ message: "replace the work", attachments: [] });
     });
 
-    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenNthCalledWith(1, {
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith({
       id: "sess-1",
       idempotencyKey: expect.any(String),
       message: "new constraint",
       messageId: expect.any(String),
       mode: "steer",
-    });
-    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenNthCalledWith(2, {
-      id: "sess-1",
-      idempotencyKey: expect.any(String),
-      message: "replace the work",
-      messageId: expect.any(String),
-      mode: "interrupt",
     });
   });
 
