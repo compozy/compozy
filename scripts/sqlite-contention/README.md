@@ -1,10 +1,12 @@
 # SQLite contention acceptance experiment
 
 This harness owns issue #1227's reproducible store-level measurements. The
-`SQLite contention acceptance` workflow runs the heavy experiment in CI.
+manual `SQLite paired load` workflow runs the heavy experiment in CI.
 It builds the **same harness source** against baseline
-`d35c63c9a9f70806583d8595f0279f78c5dff84f` and the PR head, then runs them sequentially
-on one Linux runner. It never reads an operator runtime home.
+`d35c63c9a9f70806583d8595f0279f78c5dff84f` and the dispatched head, then runs them sequentially
+on one Linux runner. It never reads an operator runtime home. The experiment is
+not a pull-request check: shared-runner noise failed it on unrelated changes
+(#1433), so dispatch it for a change to the store, session or telemetry write path.
 
 `seed` uses the production stores to create 30 sessions with 1,000 completed
 turns each. `data.py` grows the baseline's retained summary ledger to at least
@@ -250,7 +252,7 @@ into `docs/qa/reports/2026-11-03-sqlite-contention.md`. These measurements are
 synthetic store workload evidence; the separate isolated daemon exercise owns
 public HTTP/SSE/UDS/CLI behavior. Neither is a live-model latency claim.
 
-The workflow's second job builds the daemon and the existing ACP fixture driver.
+The `SQLite contention acceptance` pull-request workflow builds the daemon and the existing ACP fixture driver.
 `qa.py` provisions one canonical `eng-qa-bootstrap` targeted lab, then runs the
 opt-in `TestSQLiteContentionDaemonLoad` suite (`contentionload` build tag). Thirty
 scripted ACP peers stream for at least 30 seconds while HTTP transcript/catalog
