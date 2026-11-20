@@ -516,6 +516,7 @@ func TestObserverDailyBudgetMissingHistoricalAuthCannotInventEstimatedUSD(t *tes
 		currency := "USD"
 		for index, usage := range []*acp.TokenUsage{
 			{TurnID: "unpriced-historical", InputTokens: new(int64(85)), Timestamp: clock},
+			{TurnID: "replay-unpriced-historical", InputTokens: new(int64(9)), Timestamp: clock},
 			{TurnID: "actual-historical", InputTokens: new(int64(1)), CostAmount: &reported,
 				CostCurrency: &currency, Timestamp: clock},
 		} {
@@ -523,6 +524,13 @@ func TestObserverDailyBudgetMissingHistoricalAuthCannotInventEstimatedUSD(t *tes
 				Usage: usage, Timestamp: clock}).WithPromptRuntime(&acp.PromptRuntime{
 				Provider: "claude", Model: "historical-native-cli",
 			})
+			if index == 0 {
+				h.observer.OnAgentEvent(ctx, sess.ID, event)
+				used, err := h.registry.Instances().ReadDailyBudgetUsage(ctx, instance.ID, clock)
+				if err != nil || used.Tokens != 85 || !used.HasUnpricedUsage {
+					t.Fatalf("live historical usage=%+v err=%v, want 85 unpriced tokens", used, err)
+				}
+			}
 			content, err := transcript.MarshalAgentEvent(event)
 			if err != nil {
 				t.Fatal(err)
@@ -548,7 +556,7 @@ func TestObserverDailyBudgetMissingHistoricalAuthCannotInventEstimatedUSD(t *tes
 			t.Fatal(err)
 		}
 		used, err := h.registry.Instances().ReadDailyBudgetUsage(ctx, instance.ID, clock)
-		if err != nil || used.Tokens != 86 || !used.HasUnpricedUsage ||
+		if err != nil || used.Tokens != 95 || !used.HasUnpricedUsage ||
 			used.USD == nil || used.USD.FloatString(6) != "0.010000" {
 			t.Fatalf("historical receipt usage=%+v err=%v; USD must include actual only", used, err)
 		}
@@ -580,6 +588,7 @@ func TestObserverLiveDailyBudgetUsesRecordedPromptRuntimePricing(t *testing.T) {
 		event := (acp.AgentEvent{Type: acp.EventTypeDone, TurnID: usage.TurnID,
 			Usage: usage, Timestamp: h.now}).WithPromptRuntime(&acp.PromptRuntime{
 			Provider: "claude", Model: "old-priced",
+			MeteringAuthMode: string(compozyconfig.ProviderAuthModeBoundSecret),
 		})
 		h.observer.OnAgentEvent(testutil.Context(t), sess.ID, event)
 		stat := h.singleTokenStat(t, sess.ID)

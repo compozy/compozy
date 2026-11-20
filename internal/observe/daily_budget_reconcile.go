@@ -9,7 +9,6 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -438,9 +437,8 @@ func (o *Observer) backfillBudgetDone(
 	ctx context.Context, recovery dailyBudgetReceiptRecovery, sess *store.DailyBudgetReconcileSession,
 	snapshot observedSession, row store.SessionEvent, event acp.AgentEvent,
 ) error {
-	eventSnapshot := o.usageSnapshotForDone(ctx, sess.ID, snapshot, event)
-	runtime := event.PromptRuntimeSnapshot()
-	if runtime == nil || !knownMeteringAuthMode(compozyconfig.ProviderAuthMode(runtime.MeteringAuthMode)) {
+	eventSnapshot := usageSnapshotForDone(snapshot, event)
+	if event.PromptRuntimeSnapshot() == nil {
 		// The provider's current auth mode cannot establish how an earlier turn was metered.
 		eventSnapshot.suppressCostEstimate = true
 	}

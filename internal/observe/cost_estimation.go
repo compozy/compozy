@@ -44,40 +44,20 @@ func WithProviderAuthModeResolver(resolver ProviderAuthModeResolver) Option {
 // usageSnapshotForDone keeps live delivery and ledger replay on the same
 // immutable provider/model recorded when that particular prompt began. A
 // session's current runtime can change before a delayed Done is observed.
-func (o *Observer) usageSnapshotForDone(
-	ctx context.Context, sessionID string, snapshot observedSession, event acp.AgentEvent,
-) observedSession {
+func usageSnapshotForDone(snapshot observedSession, event acp.AgentEvent) observedSession {
 	runtime := event.PromptRuntimeSnapshot()
 	if runtime == nil {
 		return snapshot
 	}
-	oldProvider, oldModel := snapshot.provider, snapshot.model
 	snapshot.provider, snapshot.model = strings.TrimSpace(runtime.Provider), strings.TrimSpace(runtime.Model)
 	if mode := compozyconfig.ProviderAuthMode(runtime.MeteringAuthMode); knownMeteringAuthMode(mode) {
 		snapshot.authMode = mode
 		snapshot.suppressCostEstimate = false
 		return snapshot
 	}
-	if o.resolveProviderAuth == nil {
-		if snapshot.provider != oldProvider || snapshot.model != oldModel {
-			// A stale auth mode from another runtime cannot prove a metered
-			// price (nor that the turn was covered by an included CLI plan).
-			snapshot.authMode = ""
-			snapshot.suppressCostEstimate = true
-		}
-		return snapshot
-	}
-	authMode, err := o.resolveProviderAuth(ctx, snapshot.agentName,
-		snapshot.provider, snapshot.model, snapshot.workspaceID)
-	if err != nil {
-		o.logger.WarnContext(ctx, "observe: completed turn provider auth unavailable",
-			"session_id", sessionID, "turn_id", event.TurnID, "error", err)
-		snapshot.authMode = ""
-		snapshot.suppressCostEstimate = true
-	} else {
-		snapshot.authMode = authMode
-		snapshot.suppressCostEstimate = false
-	}
+	// Current provider configuration cannot establish historical metering.
+	snapshot.authMode = ""
+	snapshot.suppressCostEstimate = true
 	return snapshot
 }
 
@@ -171,7 +151,7 @@ func (o *Observer) aggregateObservedUsage(
 	if !hasBudgetUsageEvidence(event) {
 		return nil
 	}
-	snapshot = o.usageSnapshotForDone(ctx, sessionID, snapshot, event)
+	snapshot = usageSnapshotForDone(snapshot, event)
 	stats, daily := o.observedUsageUpdates(ctx, sessionID, snapshot, event, timestamp)
 	if !shouldAggregateUsage(event) {
 		// A real provider call without telemetry can still incur USD. Its
