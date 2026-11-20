@@ -337,7 +337,7 @@ func TestACPIntegrationNPXColdCache(t *testing.T) {
 		defer stopProcess(t, driver, proc)
 		t.Logf("recovered adapter launch after interrupted install in %s", time.Since(started))
 		started = time.Now()
-		if err := driver.initializeConnection(t.Context(), proc, "cold-cache"); err != nil {
+		if err := driver.initializeConnection(t.Context(), proc, "cold-cache", nil); err != nil {
 			t.Fatal(err)
 		}
 		t.Logf("real ACP initialize completed in %s", time.Since(started))
