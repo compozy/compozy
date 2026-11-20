@@ -546,3 +546,55 @@ func BenchmarkManagerProcessDemand(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkManagerStoredStatusSettledChild measures the per-child read one supervision
+// pass repeats for a stopped child whose metadata carries a realistic command catalog.
+func BenchmarkManagerStoredStatusSettledChild(b *testing.B) {
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(b.TempDir())
+	if err != nil {
+		b.Fatal(err)
+	}
+	commands := make([]store.SessionAdvertisedCommand, 0, 800)
+	for index := range 800 {
+		commands = append(commands, store.SessionAdvertisedCommand{
+			Name:        fmt.Sprintf("plugin:command-%03d", index),
+			Description: "Runs a bundled workflow step with the arguments the operator provides to it",
+		})
+	}
+	const id = "sess-settled-child"
+	if err := store.WriteSessionMeta(store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, id)), &store.SessionMeta{
+		ID: id, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-bench", AgentName: "coder", Provider: "claude",
+		State: string(StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
+		SessionAdvertisedCommandState: &store.SessionAdvertisedCommandState{AdvertisedCommands: commands},
+		CreatedAt:                     benchmarkSessionTime, UpdatedAt: benchmarkSessionTime,
+	}); err != nil {
+		b.Fatal(err)
+	}
+	manager, err := NewManager(WithHomePaths(homePaths), WithLogger(slog.New(slog.DiscardHandler)))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() {
+		if err := manager.Shutdown(context.Background()); err != nil {
+			b.Error(err)
+		}
+	})
+	b.Run("StoredStatus", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			info, err := manager.StoredStatus(b.Context(), id)
+			if err != nil || info.State != StateStopped {
+				b.Fatalf("info=%+v error=%v", info, err)
+			}
+		}
+	})
+	b.Run("UnlessSettled", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			info, settled, err := manager.StoredStatusUnlessSettled(b.Context(), id)
+			if err != nil || (!settled && info.State != StateStopped) {
+				b.Fatalf("info=%+v settled=%v error=%v", info, settled, err)
+			}
+		}
+	})
+}
