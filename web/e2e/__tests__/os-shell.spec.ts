@@ -688,9 +688,9 @@ test("Herdr E2E-016: ⌘E lands on a session while the shared chords keep their 
   await palette.getByTestId(`os-palette-session-view-${target.id}`).click();
   await expect(sessionWindow(appPage, target.id)).toBeVisible();
 
-  // Activating the session from the palette puts the caret in its composer (#1876), where ⌘B is
-  // the composer's Bold by design (`meta+KeyB` is shadowed there). Leave the editable so the
-  // shell chord is the one under test.
+  // Activating the session from the palette puts the caret in its composer (#1876). Inside a text
+  // control the shell keymap leaves ⌘B to the editor as Bold (`isNativeTextChord` in
+  // shortcut-eligibility.ts), so leave the editable to put the shell chord under test.
   const composer = sessionWindow(appPage, target.id).getByRole("textbox", {
     name: "Session prompt",
   });
