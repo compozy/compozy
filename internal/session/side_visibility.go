@@ -42,7 +42,7 @@ func (m *Manager) sideFamilyMembership(
 		seen[parent] = true
 		meta, err := m.readSessionMetaReadOnly(ctx, parent)
 		if errors.Is(err, ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotFound) {
-			m.warnMissingAncestor(child, parent, err)
+			m.warnMissingAncestor(ctx, child, parent, err)
 			return false, nil
 		}
 		if err != nil {
@@ -55,14 +55,15 @@ func (m *Manager) sideFamilyMembership(
 }
 
 // warnMissingAncestor logs each dangling child-to-parent edge once per manager.
-func (m *Manager) warnMissingAncestor(child, parent string, err error) {
+func (m *Manager) warnMissingAncestor(ctx context.Context, child, parent string, err error) {
 	if m.logger == nil {
 		return
 	}
 	if _, warned := m.missingAncestorWarned.LoadOrStore(child+"\x00"+parent, struct{}{}); warned {
 		return
 	}
-	m.logger.Warn(
+	m.logger.WarnContext(
+		ctx,
 		"session: side ancestry parent is missing; treating the edge as absent",
 		"session_id", child, "parent_session_id", parent, "error", err,
 	)
