@@ -90,8 +90,8 @@ func (r SessionDerivationReceipt) Validate() error {
 			return err
 		}
 	}
-	if !r.Kind.Derived() {
-		return fmt.Errorf("store: session derivation kind must be continue or fork, got %q", r.Kind)
+	if !r.Kind.Derivation() {
+		return fmt.Errorf("store: session derivation kind must be continue, fork, or side, got %q", r.Kind)
 	}
 	if strings.TrimSpace(r.SourceSessionID) == strings.TrimSpace(r.ChildSessionID) {
 		return errors.New("store: session derivation child cannot be its own source")

@@ -3294,6 +3294,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		// #1867: side is appended to the existing lineage/derivation vocabulary.
+		if addSideChatLineageKind(baseline) == 0 {
+			t.Fatal("approved side lineage addition: no historical lineage schemas found")
+		}
 		if addMCPReloadErrorFields(baseline) == 0 {
 			t.Fatal("approved MCP reload error fields: no historical error schemas found")
 		}
@@ -3318,6 +3322,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
 		addAlwaysOnHardeningSchemas(t, baseline)
+		addPermanentExtensionRemoveParameter(t, baseline)
 		// #1195: instance payloads label their owner profile.
 		if addAgentInstanceProfileName(baseline) == 0 {
 			t.Fatal("approved instance profile_name addition: no historical instance schemas found")
@@ -6980,6 +6985,34 @@ func addNativeResultViewSchemas(value any) int {
 	return count
 }
 
+// addPermanentExtensionRemoveParameter inserts the optional boolean `permanent` query flag into the
+// historical DELETE /api/extensions/{name} operation, directly after `workspace` as the spec declares
+// it. The flag is additive; the path and existing query parameters keep their relative order.
+func addPermanentExtensionRemoveParameter(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	operation := paths["/api/extensions/{name}"].(map[string]any)["delete"].(map[string]any)
+	parameters := operation["parameters"].([]any)
+	workspaceIndex := -1
+	for index, raw := range parameters {
+		parameter := raw.(map[string]any)
+		if parameter["name"] == "permanent" {
+			t.Fatal("historical removeExtension already defines the permanent parameter")
+		}
+		if parameter["in"] == "query" && parameter["name"] == "workspace" {
+			workspaceIndex = index
+		}
+	}
+	if workspaceIndex < 0 {
+		t.Fatal("historical removeExtension has no workspace query parameter")
+	}
+	operation["parameters"] = slices.Insert(parameters, workspaceIndex+1, any(map[string]any{
+		"in":     "query",
+		"name":   "permanent",
+		"schema": map[string]any{"type": "boolean"},
+	}))
+}
+
 func addManualJobWaitParameters(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	paths := baseline["paths"].(map[string]any)
@@ -7168,4 +7201,37 @@ func addMCPHotActivationSchemas(t *testing.T, baseline, current map[string]any) 
 		}
 		baselineComponents[name] = components[name]
 	}
+}
+
+// addSideChatLineageKind appends only the approved member, retaining historical enum order.
+func addSideChatLineageKind(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSideChatLineageKind(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSideChatLineageKind(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			return count
+		}
+		// Both public lineage and derivation carry a kind and a root/source identity.
+		if properties["root_session_id"] == nil && properties["source_session_id"] == nil {
+			return count
+		}
+		kind, ok := properties["kind"].(map[string]any)
+		if !ok {
+			return count
+		}
+		legacy := []any{"", "provenance", "spawn", "continue", "fork", "recovery"}
+		if reflect.DeepEqual(kind["enum"], legacy) {
+			kind["enum"] = append(legacy, "side")
+			count++
+		}
+	}
+	return count
 }

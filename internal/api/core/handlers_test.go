@@ -201,10 +201,10 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(commands) error = %v", err)
 		}
-		if payload.Revision != catalog.Revision || len(payload.Commands) != 4 ||
-			payload.Commands[1].CanonicalToken != "/worktree" || payload.Commands[1].Available ||
-			payload.Commands[1].UnavailableReason != "Wait for the current turn to finish." ||
-			payload.Commands[3].CanonicalToken != "/review" || payload.Commands[3].Source.Key != "" {
+		if payload.Revision != catalog.Revision || len(payload.Commands) != 5 ||
+			payload.Commands[2].CanonicalToken != "/worktree" || payload.Commands[2].Available ||
+			payload.Commands[2].UnavailableReason != "Wait for the current turn to finish." ||
+			payload.Commands[4].CanonicalToken != "/review" || payload.Commands[4].Source.Key != "" {
 			t.Fatalf("commands payload = %#v, want unified path-free catalog", payload)
 		}
 

@@ -11,7 +11,7 @@ WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind,
   LEFT JOIN sessions parent ON parent.id = a.parent_session_id
   LEFT JOIN deleted_session_budget_lineage deleted ON parent.id IS NULL AND deleted.id = a.parent_session_id
   WHERE COALESCE(a.instance_id, '') = '' AND COALESCE(parent.profile_id, deleted.profile_id) = a.profile_id
-    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
 ), budget_owner AS (
   SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
 ), prepared_goal AS (
@@ -85,7 +85,7 @@ WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind,
   LEFT JOIN sessions parent ON parent.id = a.parent_session_id
   LEFT JOIN deleted_session_budget_lineage deleted ON parent.id IS NULL AND deleted.id = a.parent_session_id
   WHERE COALESCE(a.instance_id, '') = '' AND COALESCE(parent.profile_id, deleted.profile_id) = a.profile_id
-    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
 ), budget_owner AS (
   SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
 ), prepared_goal AS (
@@ -153,7 +153,7 @@ WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind,
   LEFT JOIN sessions parent ON parent.id = a.parent_session_id
   LEFT JOIN deleted_session_budget_lineage deleted ON parent.id IS NULL AND deleted.id = a.parent_session_id
   WHERE COALESCE(a.instance_id, '') = '' AND COALESCE(parent.profile_id, deleted.profile_id) = a.profile_id
-    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
 ), budget_owner AS (
   SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
 ), prepared_goal AS (

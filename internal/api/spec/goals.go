@@ -102,8 +102,12 @@ func promptGoalErrorResponse(status int, description string) ResponseSpec {
 		Status:      status,
 		Description: description,
 		Bodies: responseBodiesOf(
-			responseBodyOf[contract.ErrorPayload](),
+			responseBodyOf[contract.SessionDeriveErrorPayload](),
 			responseBodyOf[contract.SendPromptResultResponse](),
 		),
 	}
+}
+
+func promptDeriveErrorResponse(status int, description string) ResponseSpec {
+	return ResponseSpec{Status: status, Description: description, Body: contract.SessionDeriveErrorPayload{}}
 }

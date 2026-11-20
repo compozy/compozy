@@ -132,9 +132,31 @@ type ExtensionRemoveResponse struct {
 	Extension ManagedExtensionRemovePayload `json:"extension"`
 }
 
+// ExtensionRemovedBuiltinPayload is a daemon API value.
+type ExtensionRemovedBuiltinPayload struct {
+	Name      string `json:"name"`
+	RemovedAt string `json:"removed_at"`
+	RemovedBy string `json:"removed_by"`
+}
+
+// ExtensionRemovedBuiltinsResponse is a daemon API value.
+type ExtensionRemovedBuiltinsResponse struct {
+	Removed []ExtensionRemovedBuiltinPayload `json:"removed"`
+}
+
 // ExtensionResponse is a daemon API value.
 type ExtensionResponse struct {
 	Extension ExtensionPayload `json:"extension"`
+}
+
+// ExtensionRestorePayload is a daemon API value.
+type ExtensionRestorePayload struct {
+	Name    string `json:"name"`
+	Status  string `json:"status"`
+	Source  string `json:"source"`
+	Version string `json:"version"`
+	Enabled bool   `json:"enabled"`
+	Path    string `json:"path"`
 }
 
 // ExtensionSecretBindingInput is a daemon API value.
@@ -416,32 +438,4 @@ type FormBody struct {
 	Fields   []FormField `json:"fields"`
 	Submit   *RowAction  `json:"submit,omitempty"`
 	OnSubmit string      `json:"on_submit,omitempty"`
-}
-
-// FormField is a daemon API value.
-type FormField struct {
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	Label       string            `json:"label"`
-	Placeholder string            `json:"placeholder,omitempty"`
-	Required    bool              `json:"required,omitempty"`
-	Options     []string          `json:"options,omitempty"`
-	Directories bool              `json:"directories,omitempty"`
-	Default     any               `json:"default,omitempty"`
-	Error       string            `json:"error,omitempty"`
-	EmptyHint   string            `json:"empty_hint,omitempty"`
-	OnChange    string            `json:"on_change,omitempty"`
-	OnBlur      string            `json:"on_blur,omitempty"`
-	EventCount  int64             `json:"event_count,omitempty"`
-	Requires    map[string]string `json:"requires,omitempty"`
-	Fallback    string            `json:"fallback,omitempty"`
-}
-
-// GapsConfig is a daemon API value.
-type GapsConfig struct {
-	Inner  float64 `json:"inner"`
-	Top    float64 `json:"top"`
-	Right  float64 `json:"right"`
-	Bottom float64 `json:"bottom"`
-	Left   float64 `json:"left"`
 }

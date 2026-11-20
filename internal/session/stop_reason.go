@@ -79,10 +79,22 @@ func classifyUserRequestedStopReason(detail string) store.StopReason {
 
 // RequestStopWithCause persists stopping and starts the shared escalation operation.
 func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
+	if cause == CauseNone {
+		cause = CauseUserRequested
+	}
 	_, err := m.requestSessionStop(ctx, id, cause, detail)
-	if err == nil && cause != CauseShutdown && cause != CauseProcessExited {
+	if err != nil {
+		return err
+	}
+	if cause == CauseUserRequested {
+		if sideErr := m.stopSideSessions(ctx, id, false); sideErr != nil {
+			m.logger.ErrorContext(ctx, "session.side.stop_cascade", "session_id", id, "error", sideErr)
+			err = errors.Join(err, sideErr)
+		}
+	}
+	if cause != CauseShutdown && cause != CauseProcessExited {
 		if service := m.subagentService(); service != nil {
-			err = service.OnParentStopped(ctx, id)
+			err = errors.Join(err, service.OnParentStopped(ctx, id))
 		}
 	}
 	return err
@@ -101,6 +113,9 @@ func (m *Manager) stopWithCauseReceipt(ctx context.Context, id string, cause Sto
 func (m *Manager) guardedStopWithCauseReceipt(
 	ctx context.Context, id string, cause StopCause, detail string, guard stopGuard, onCommitted func(),
 ) (bool, error) {
+	if cause == CauseNone {
+		cause = CauseUserRequested
+	}
 	var coverageErr error
 	if cause == CauseClearConversation || cause == CauseConversationRewind {
 		notify := onCommitted
@@ -116,6 +131,13 @@ func (m *Manager) guardedStopWithCauseReceipt(
 	if err != nil || run == nil {
 		return false, err
 	}
+	var sideErr error
+	if cause == CauseUserRequested {
+		sideErr = m.stopSideSessions(ctx, id, false)
+		if sideErr != nil {
+			m.logger.ErrorContext(ctx, "session.side.stop_cascade", "session_id", id, "error", sideErr)
+		}
+	}
 	if service := m.subagentService(); service != nil && cause != CauseShutdown && cause != CauseProcessExited {
 		if cascadeErr := service.OnParentStopped(ctx, id); cascadeErr != nil {
 			m.logger.ErrorContext(ctx, "subagent.stop_cascade", "session_id", id, "error", cascadeErr)
@@ -130,7 +152,10 @@ func (m *Manager) guardedStopWithCauseReceipt(
 			err = service.OnChildSettled(ctx, id)
 		}
 	}
-	return true, errors.Join(err, coverageErr)
+	if cause == CauseUserRequested {
+		sideErr = errors.Join(sideErr, m.stopSideSessions(ctx, id, true))
+	}
+	return true, errors.Join(err, coverageErr, sideErr)
 }
 
 func (m *Manager) finalizedStopRun(id string) *sessionStopRun {

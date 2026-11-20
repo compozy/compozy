@@ -16,38 +16,122 @@ import (
 var _ agentinstance.CallerReader = (*InstanceRepo)(nil)
 
 func (r *InstanceRepo) InstanceCaller(ctx context.Context, sessionID string) (agentinstance.Caller, error) {
+	caller, _, err := r.MCPProjectionCaller(ctx, sessionID)
+	return caller, err
+}
+
+// MCPProjectionCaller returns the policy and the row it was decoded from.
+func (r *InstanceRepo) MCPProjectionCaller(
+	ctx context.Context, sessionID string,
+) (agentinstance.Caller, agentinstance.ProjectionState, error) {
 	if err := r.checkReady(ctx, "resolve instance caller"); err != nil {
-		return agentinstance.Caller{}, err
+		return agentinstance.Caller{}, agentinstance.ProjectionState{}, err
 	}
 	row, err := r.readQueries.GetInstanceCaller(ctx, sessionID)
 	if err != nil {
-		return agentinstance.Caller{}, err
+		return agentinstance.Caller{}, agentinstance.ProjectionState{}, fmt.Errorf(
+			"store: read instance caller %q: %w",
+			sessionID,
+			err,
+		)
 	}
-	instanceID, ok := row.OriginatingInstanceID.(string)
-	if !ok {
-		return agentinstance.Caller{}, errors.New("store: invalid originating instance")
-	}
-	depth, ok := row.InstanceDepth.(int64)
-	if !ok {
-		return agentinstance.Caller{}, errors.New("store: invalid instance depth")
-	}
-	result := agentinstance.Caller{
-		SessionID:     row.ID,
-		AgentName:     row.AgentName,
-		ProfileID:     row.ProfileID,
-		InstanceID:    instanceID,
-		InstanceDepth: int(depth),
-		Grant:         row.EffectiveWorkspaceAccess,
+	state, err := instanceCallerProjectionState(row)
+	if err != nil {
+		return agentinstance.Caller{}, agentinstance.ProjectionState{}, fmt.Errorf(
+			"store: decode instance caller %q: %w",
+			sessionID,
+			err,
+		)
 	}
 	var policy store.SessionPermissionPolicy
-	if err := json.Unmarshal([]byte(row.PermissionPolicyJson), &policy); err != nil {
-		return agentinstance.Caller{}, err
+	if err := json.Unmarshal([]byte(state.Policy), &policy); err != nil {
+		return agentinstance.Caller{}, agentinstance.ProjectionState{}, fmt.Errorf(
+			"store: decode instance caller ceiling for %q: %w",
+			sessionID,
+			err,
+		)
 	}
-	if depth > 0 {
-		policy = store.DecodeInstanceCeilingIntent(policy, int(depth))
+	if state.Depth > 0 {
+		policy = store.DecodeInstanceCeilingIntent(policy, int(state.Depth))
 	}
-	result.PermissionPolicy = store.DecodeIntent(policy, store.LineageKind(row.LineageKind), row.SessionType)
-	return result, nil
+	return agentinstance.Caller{
+		SessionID: row.ID, AgentName: state.AgentName, ProfileID: state.ProfileID,
+		InstanceID: state.CallerInstanceID, InstanceDepth: int(state.Depth), Grant: state.Grant,
+		PermissionPolicy: store.DecodeIntent(policy, store.LineageKind(state.LineageKind), state.SessionType),
+	}, state, nil
+}
+
+func instanceCallerProjectionState(row sqlcgen.GetInstanceCallerRow) (agentinstance.ProjectionState, error) {
+	id, idOK := row.OriginatingInstanceID.(string)
+	depth, depthOK := row.InstanceDepth.(int64)
+	if !idOK || !depthOK {
+		return agentinstance.ProjectionState{}, errors.New("store: invalid instance caller lineage")
+	}
+	return agentinstance.ProjectionState{
+		CallerInstanceID: id, InstanceID: id, Depth: depth, Policy: row.PermissionPolicyJson,
+		Grant: row.EffectiveWorkspaceAccess, LineageKind: row.LineageKind, SessionType: row.SessionType,
+		ProfileID: row.ProfileID, AgentName: row.AgentName,
+	}, nil
+}
+
+// MCPProjectionState reads the caller ceiling and current instance binding using the same
+// repository queries as policy resolution, without decoding tool IDs or occurrence history.
+func (r *InstanceRepo) MCPProjectionState(
+	ctx context.Context, sessionID, sessionType string,
+) (agentinstance.ProjectionState, error) {
+	if err := r.checkReady(ctx, "observe instance policy"); err != nil {
+		return agentinstance.ProjectionState{}, err
+	}
+	if sessionType != "" && sessionType != "triage" {
+		ancestry, err := r.mcpProjectionQueries(ctx).SessionMayHaveInstanceAncestry(ctx, sessionID)
+		if err != nil {
+			return agentinstance.ProjectionState{}, fmt.Errorf("store: read MCP caller ancestry: %w", err)
+		}
+		if ancestry.Valid && !ancestry.Bool {
+			return agentinstance.ProjectionState{}, nil
+		}
+	}
+	row, err := r.mcpProjectionQueries(ctx).GetInstanceCaller(ctx, sessionID)
+	if err != nil {
+		return agentinstance.ProjectionState{}, fmt.Errorf("store: read MCP caller: %w", err)
+	}
+	state, err := instanceCallerProjectionState(row)
+	if err != nil {
+		return agentinstance.ProjectionState{}, fmt.Errorf("store: decode MCP caller: %w", err)
+	}
+	direct, err := r.mcpProjectionQueries(ctx).GetSessionInstanceID(ctx, sessionID)
+	if err != nil {
+		return agentinstance.ProjectionState{}, fmt.Errorf("store: read direct MCP instance binding: %w", err)
+	}
+	state.DirectInstanceID = direct.String
+	if sessionType == "" {
+		sessionType = row.SessionType
+		state.WorkspaceID, err = r.mcpProjectionQueries(ctx).GetSessionWorkspaceID(ctx, sessionID)
+		if err != nil {
+			return agentinstance.ProjectionState{}, fmt.Errorf("store: read MCP workspace: %w", err)
+		}
+	}
+	if sessionType == "triage" {
+		binding, occurrence, err := r.CheckInSessionBinding(ctx, sessionID)
+		if err != nil {
+			return agentinstance.ProjectionState{}, fmt.Errorf("store: read MCP check-in binding: %w", err)
+		}
+		if binding != "" {
+			state.InstanceID, state.OccurrenceID = binding, occurrence
+		}
+	}
+	if state.InstanceID == "" {
+		return state, nil
+	}
+	instance, err := r.mcpProjectionQueries(ctx).GetAgentInstance(ctx, state.InstanceID)
+	if err != nil {
+		return agentinstance.ProjectionState{}, fmt.Errorf("store: read MCP agent instance: %w", err)
+	}
+	state.MainSessionID = instance.MainSessionID.String
+	state.State, state.PauseReason = instance.State, instance.PauseReason
+	state.PermissionCeiling, state.ChecksEnabled, state.Archived = instance.PermissionCeiling,
+		instance.ChecksEnabled, instance.ArchivedAt.Valid
+	return state, nil
 }
 
 func (r *SessionRepo) CheckSessionSuperseded(ctx context.Context, sessionID string) error {

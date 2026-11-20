@@ -62,6 +62,8 @@ func sessionDeriveOperations() []OperationSpec {
 		continueSessionOperationSpec(),
 		forkSessionOperationSpec(),
 		previewSessionDeriveOperationSpec(),
+		openSessionSideOperationSpec(),
+		listSessionSidesOperationSpec(),
 	}
 }
 

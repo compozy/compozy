@@ -197,6 +197,8 @@ type ToolLocation struct {
 type ToolPostCallPayload struct {
 	Event            HookEvent       `json:"event"`
 	Timestamp        time.Time       `json:"timestamp"`
+	LineageKind      string          `json:"lineage_kind,omitempty"`
+	ParentSessionID  string          `json:"parent_session_id,omitempty"`
 	ProfileID        string          `json:"profile_id,omitempty"`
 	SessionID        string          `json:"session_id,omitempty"`
 	SessionName      string          `json:"session_name,omitempty"`
@@ -234,6 +236,8 @@ type ToolPostErrorPatch struct {
 type ToolPostErrorPayload struct {
 	Event            HookEvent       `json:"event"`
 	Timestamp        time.Time       `json:"timestamp"`
+	LineageKind      string          `json:"lineage_kind,omitempty"`
+	ParentSessionID  string          `json:"parent_session_id,omitempty"`
 	ProfileID        string          `json:"profile_id,omitempty"`
 	SessionID        string          `json:"session_id,omitempty"`
 	SessionName      string          `json:"session_name,omitempty"`
@@ -262,6 +266,8 @@ type ToolPostErrorPayload struct {
 type ToolPreCallPayload struct {
 	Event            HookEvent       `json:"event"`
 	Timestamp        time.Time       `json:"timestamp"`
+	LineageKind      string          `json:"lineage_kind,omitempty"`
+	ParentSessionID  string          `json:"parent_session_id,omitempty"`
 	ProfileID        string          `json:"profile_id,omitempty"`
 	SessionID        string          `json:"session_id,omitempty"`
 	SessionName      string          `json:"session_name,omitempty"`

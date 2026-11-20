@@ -43,6 +43,9 @@ func sameExecutablePath(expected string, actual string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	if expected == actual {
+		return true, nil
+	}
 	actualPath, err := normalizeExecutablePath(actual)
 	if err != nil {
 		return false, err

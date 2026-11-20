@@ -356,7 +356,7 @@ func (r *InstanceRepo) HeldWakes(ctx context.Context, instanceID string) (int64,
 	if err := r.checkReady(ctx, "count held instance wakes"); err != nil {
 		return 0, err
 	}
-	return r.readQueries.CountInstanceHeldWakes(ctx, instanceID)
+	return r.readQueries.CountHeldInstanceInputs(ctx, sqlcgen.CountHeldInstanceInputsParams{InstanceID: instanceID})
 }
 
 func (r *InstanceRepo) NeedsAttention(ctx context.Context, instanceID string) (bool, error) {

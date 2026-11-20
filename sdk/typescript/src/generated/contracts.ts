@@ -201,6 +201,8 @@ export type HookEvent =
 export interface AgentCrashedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -293,6 +295,8 @@ export interface AgentHeartbeatValidateParams {
 export interface AgentHeartbeatWakeAfterPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -320,6 +324,8 @@ export interface AgentHeartbeatWakeAfterPayload {
 export interface AgentHeartbeatWakeBeforePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -372,6 +378,8 @@ export interface AgentInstancePayload {
   proposal_index?: number;
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -398,6 +406,8 @@ export interface AgentLifecyclePatch {
 export interface AgentLifecyclePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -424,6 +434,8 @@ export interface AgentLifecyclePayload {
 export interface AgentPreStartPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -673,6 +685,8 @@ export interface AgentSpawnedPatch {
 export interface AgentSpawnedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -711,6 +725,8 @@ export interface AgentStoppedPatch {
 export interface AgentStoppedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -1275,6 +1291,8 @@ export interface ContextCompactionPatch {
 export interface ContextCompactionPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -1304,6 +1322,8 @@ export interface ContextPostCompactPatch {
 export interface ContextPostCompactPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -1333,6 +1353,8 @@ export interface ContextPreCompactPatch {
 export interface ContextPreCompactPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -1629,6 +1651,8 @@ export interface EventPostRecordPatch {
 export interface EventPostRecordPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -1656,6 +1680,8 @@ export interface EventPreRecordPatch {
 export interface EventPreRecordPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -1683,6 +1709,8 @@ export interface EventRecordPatch {
 export interface EventRecordPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -2452,6 +2480,8 @@ export interface InputMentionMetadata {
 export interface InputPreSubmitPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -2778,6 +2808,8 @@ export interface MessageDeltaPatch {
 export interface MessageDeltaPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -2811,6 +2843,8 @@ export interface MessageEndPatch {
 export interface MessageEndPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -2844,6 +2878,8 @@ export interface MessagePatch {
 export interface MessagePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -2877,6 +2913,8 @@ export interface MessageStartPatch {
 export interface MessageStartPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3171,6 +3209,8 @@ export interface PermissionToolCall {
 export interface PermissionDeniedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3212,6 +3252,8 @@ export interface PermissionRequestPatch {
 export interface PermissionRequestPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3240,6 +3282,8 @@ export interface PermissionRequestPayload {
 export interface PermissionResolutionPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3269,6 +3313,8 @@ export type PermissionResolvedPatch = Record<string, never>;
 export interface PermissionResolvedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3310,6 +3356,8 @@ export interface PromptPatch {
 export interface PromptPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3508,6 +3556,8 @@ export interface Run {
 export interface SessionAttentionChangedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3531,6 +3581,8 @@ export interface SessionAttentionChangedPayload {
 export type SessionAttentionObservationPatch = Record<string, never>;
 
 export interface SessionContext {
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3590,6 +3642,8 @@ export interface SessionHealthResponse {
 export interface SessionHealthUpdateAfterPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3708,6 +3762,8 @@ export interface SessionInspectResponse {
 export interface SessionLifecyclePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3727,6 +3783,8 @@ export interface SessionLifecyclePayload {
 export interface SessionMessagePersistedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3749,7 +3807,6 @@ export interface SessionMessagePersistedPayload {
   raw?: JSONValue;
   persisted?: JSONValue;
   root_session_id?: string;
-  parent_session_id?: string;
   actor_kind?: string;
   actor_id?: string;
 }
@@ -3767,6 +3824,8 @@ export interface SessionPostCreatePatch {
 export interface SessionPostCreatePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3796,6 +3855,8 @@ export interface SessionPostResumePatch {
 export interface SessionPostResumePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3825,6 +3886,8 @@ export interface SessionPostStopPatch {
 export interface SessionPostStopPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3844,6 +3907,8 @@ export interface SessionPostStopPayload {
 export interface SessionPreCreatePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3873,6 +3938,8 @@ export interface SessionPreResumePatch {
 export interface SessionPreResumePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3902,6 +3969,8 @@ export interface SessionPreStopPatch {
 export interface SessionPreStopPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3948,6 +4017,8 @@ export interface SessionRuntimeClearParams {
 export interface SessionRuntimeRecoveryExhaustedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -3974,6 +4045,8 @@ export interface SessionRuntimeRecoveryExhaustedPayload {
 export interface SessionRuntimeRecoveryStartedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -4000,6 +4073,8 @@ export interface SessionRuntimeRecoveryStartedPayload {
 export interface SessionRuntimeRecoverySucceededPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -6146,6 +6221,8 @@ export interface ToolCallRef {
 export interface ToolPostCallPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -6183,6 +6260,8 @@ export interface ToolPostErrorPatch {
 export interface ToolPostErrorPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -6211,6 +6290,8 @@ export interface ToolPostErrorPayload {
 export interface ToolPreCallPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -6260,6 +6341,8 @@ export interface TurnEndPatch {
 export interface TurnEndPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -6288,6 +6371,8 @@ export interface TurnPatch {
 export interface TurnPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;
@@ -6316,6 +6401,8 @@ export interface TurnStartPatch {
 export interface TurnStartPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  lineage_kind?: string;
+  parent_session_id?: string;
   profile_id?: string;
   session_id?: string;
   session_name?: string;

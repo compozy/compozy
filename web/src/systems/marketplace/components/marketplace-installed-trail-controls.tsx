@@ -119,7 +119,12 @@ function MarketplaceInstalledTrailControls({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <RemoveExtensionDialog extension={extension} onOpenChange={setRemoving} open={removing} />
+      <RemoveExtensionDialog
+        canRemovePermanently
+        extension={extension}
+        onOpenChange={setRemoving}
+        open={removing}
+      />
     </>
   );
 }

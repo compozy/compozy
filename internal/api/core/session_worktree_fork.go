@@ -43,6 +43,10 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if origin.Lineage != nil && origin.Lineage.Kind == store.LineageKindSide {
+		h.respondError(c, http.StatusConflict, session.ErrSideNotDerivable)
+		return
+	}
 	promptState, ok := h.Sessions.(sessionPromptStateReader)
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session prompt state is unavailable"))
@@ -78,16 +82,7 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 	created, err := forkAcceptance.CreateWorktreeForkAccepted(
 		c.Request.Context(),
 		origin.ID,
-		new(session.CreateAcceptedOpts{
-			Session: session.CreateOpts{
-				ProfileID: origin.ProfileID,
-				AgentName: origin.AgentName,
-				Workspace: scope.SessionWorkspaceID(),
-				Worktree:  worktreeTarget.ID,
-				Type:      session.SessionTypeUser,
-				Lineage:   &store.SessionLineage{ParentSessionID: origin.ID},
-			},
-		}),
+		sessionWorktreeForkOptions(origin, scope.SessionWorkspaceID(), worktreeTarget.ID),
 	)
 	if err != nil {
 		if errors.Is(err, session.ErrPromptInProgress) {
@@ -164,4 +159,12 @@ func (h *BaseHandlers) resolveWorktreeForkTarget(
 		return materializedSessionWorktree{}, err
 	}
 	return materializedSessionWorktree{ID: created.ID, WorkspaceID: workspaceID, Created: true}, nil
+}
+
+func sessionWorktreeForkOptions(origin *session.Info, workspaceID, worktreeID string) *session.CreateAcceptedOpts {
+	return &session.CreateAcceptedOpts{Session: session.CreateOpts{
+		ProfileID: origin.ProfileID, AgentName: origin.AgentName, Workspace: workspaceID,
+		Worktree: worktreeID, Type: session.SessionTypeUser,
+		Lineage: &store.SessionLineage{ParentSessionID: origin.ID},
+	}}
 }

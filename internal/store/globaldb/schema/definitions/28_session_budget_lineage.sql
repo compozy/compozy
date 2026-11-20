@@ -16,12 +16,12 @@ BEFORE DELETE ON sessions
 WHEN EXISTS (
     SELECT 1 FROM sessions child WHERE child.parent_session_id = OLD.id
       AND child.profile_id = OLD.profile_id
-      AND child.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+      AND child.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
 )
 OR EXISTS (
     SELECT 1 FROM deleted_session_budget_lineage child WHERE child.parent_session_id = OLD.id
       AND child.profile_id = OLD.profile_id
-      AND child.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+      AND child.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
 )
 BEGIN
     INSERT INTO deleted_session_budget_lineage(id, profile_id, parent_session_id, instance_id, lineage_kind)

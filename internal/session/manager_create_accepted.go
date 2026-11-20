@@ -70,7 +70,7 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 	accepted.runtime = runtime
 	accepted.session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
 	accepted.session.updateSoulSnapshot(accepted.spec.soulSnapshot, accepted.spec.parentSoulDigest, m.now())
-	accepted.session.setEffectivePermissions(string(m.startPermissions(
+	accepted.session.SetEffectivePermissions(string(m.startPermissions(
 		startSpecPermissions(accepted.spec, runtime.agent.Permissions),
 	)))
 	if err := prepareStartCreationIdentityIfEnabled(accepted.spec, runtime.agent); err != nil {

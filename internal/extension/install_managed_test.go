@@ -9,10 +9,12 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 var _ LifecycleRegistry = (*recordingManagedInstallRegistry)(nil)
@@ -1824,4 +1826,130 @@ func (r *recordingManagedInstallRegistry) Install(
 		return r.installErr
 	}
 	return nil
+}
+
+// Invariant: bundled enrollment never enrolls a tombstoned built-in. A tombstoned name gets no row,
+// no staged or installed files, and keeps its tombstone; a non-bundled row under the same name is
+// left as it is. A non-tombstoned built-in still enrolls as bundled and enabled.
+// Owner: extension bundled enrollment gate (InstallBundledExtension).
+// Canonical suite: managed install tests.
+func TestInstallBundledExtensionSkipsTombstonedName(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	const name = "spec-cycle"
+	bundledFS := fstest.MapFS{
+		manifestTOMLFileName: {Data: []byte(registryManifestTOML(name, registryManifestOptions{}))},
+	}
+	newHome := func(t *testing.T) compozyconfig.HomePaths {
+		t.Helper()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		return homePaths
+	}
+
+	t.Run("Should skip a tombstoned built-in without a row, files, or a cleared tombstone", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		homePaths := newHome(t)
+		ctx := testutil.Context(t)
+		if _, err := env.registry.Tombstone(ctx, name, "operator"); err != nil {
+			t.Fatalf("Tombstone() error = %v", err)
+		}
+
+		if err := InstallBundledExtension(
+			homePaths,
+			env.registry,
+			BundledInstallSpec{Name: name, FS: bundledFS},
+		); err != nil {
+			t.Fatalf("InstallBundledExtension(tombstoned) error = %v, want nil", err)
+		}
+		if _, err := env.registry.Get(name); !errors.Is(err, ErrExtensionNotFound) {
+			t.Fatalf("Get(tombstoned) error = %v, want ErrExtensionNotFound", err)
+		}
+		if _, err := os.Stat(ManagedInstallPath(homePaths, name)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("managed install dir stat error = %v, want not exist", err)
+		}
+		entries, err := os.ReadDir(ManagedInstallRoot(homePaths))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("ReadDir(managed install root) error = %v", err)
+		}
+		if len(entries) != 0 {
+			t.Fatalf("managed install root entries = %d, want none (no staging residue)", len(entries))
+		}
+		tombstoned, err := env.registry.Tombstoned(ctx, name)
+		if err != nil || !tombstoned {
+			t.Fatalf("Tombstoned() = %v, %v; want true, nil: the gate must not clear the tombstone", tombstoned, err)
+		}
+	})
+
+	// Positive controls: a gate that blocked every built-in would fail these.
+	for _, control := range []struct {
+		title      string
+		tombstones []string
+	}{
+		{title: "Should enroll a built-in when no tombstone exists"},
+		{title: "Should enroll a built-in when only another built-in is tombstoned", tombstones: []string{"open-design"}},
+	} {
+		t.Run(control.title, func(t *testing.T) {
+			env := newRegistryTestEnv(t)
+			homePaths := newHome(t)
+			ctx := testutil.Context(t)
+			for _, tombstoned := range control.tombstones {
+				if _, err := env.registry.Tombstone(ctx, tombstoned, "operator"); err != nil {
+					t.Fatalf("Tombstone(%q) error = %v", tombstoned, err)
+				}
+			}
+
+			if err := InstallBundledExtension(
+				homePaths,
+				env.registry,
+				BundledInstallSpec{Name: name, FS: bundledFS},
+			); err != nil {
+				t.Fatalf("InstallBundledExtension() error = %v, want nil", err)
+			}
+			info, err := env.registry.Get(name)
+			if err != nil {
+				t.Fatalf("Get() error = %v", err)
+			}
+			if info.Source != SourceBundled || !info.Enabled {
+				t.Fatalf("Get() source = %q enabled = %v, want bundled and enabled", info.Source, info.Enabled)
+			}
+			if _, err := os.Stat(ManagedInstallPath(homePaths, name)); err != nil {
+				t.Fatalf("managed install dir stat error = %v, want present", err)
+			}
+		})
+	}
+
+	t.Run("Should leave a non-bundled row under a tombstoned name untouched", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		homePaths := newHome(t)
+		ctx := testutil.Context(t)
+		if _, err := env.registry.Tombstone(ctx, name, "operator"); err != nil {
+			t.Fatalf("Tombstone() error = %v", err)
+		}
+		operatorDir, operatorManifest, operatorChecksum := createRegistryTestExtension(
+			t,
+			name,
+			registryManifestOptions{},
+		)
+		if err := env.registry.Install(operatorManifest, operatorDir, operatorChecksum); err != nil {
+			t.Fatalf("Install(operator row) error = %v", err)
+		}
+
+		if err := InstallBundledExtension(
+			homePaths,
+			env.registry,
+			BundledInstallSpec{Name: name, FS: bundledFS},
+		); err != nil {
+			t.Fatalf("InstallBundledExtension(over operator row) error = %v, want nil", err)
+		}
+		info, err := env.registry.Get(name)
+		if err != nil {
+			t.Fatalf("Get() error = %v", err)
+		}
+		if info.Source == SourceBundled || info.Checksum != operatorChecksum {
+			t.Fatalf("Get() source = %q checksum = %q, want the operator row unchanged", info.Source, info.Checksum)
+		}
+	})
 }

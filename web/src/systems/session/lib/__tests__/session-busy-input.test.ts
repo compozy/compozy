@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SessionApiError } from "../../adapters/session-api-errors";
-import {
-  oppositeSessionBusyInputMode,
-  sessionBusyInputDefaultMode,
-  sessionSteerDelivery,
-} from "../session-busy-input";
+import { oppositeSessionBusyInputMode, sessionBusyInputDefaultMode } from "../session-busy-input";
 import {
   classifySessionBusyInputFailure,
   describeSessionBusyInputRefusal,
@@ -38,28 +34,8 @@ describe("session busy-input read models", () => {
     expect(oppositeSessionBusyInputMode("queue")).toBe("steer");
   });
 
-  it("Should predict the steer delivery from the resolved capability before any send", () => {
-    // A fresh session has a capability but no delivery record yet (US-002.AC-3).
-    expect(
-      sessionSteerDelivery({ busy_input: { default_mode: "steer", steer_capability: "steer_ext" } })
-    ).toBe("injected");
-    expect(
-      sessionSteerDelivery({
-        busy_input: { default_mode: "steer", steer_capability: "concurrent_prompt" },
-      })
-    ).toBe("pending_injection");
-    expect(
-      sessionSteerDelivery({ busy_input: { default_mode: "steer", steer_capability: "none" } })
-    ).toBe("interrupt_fallback");
-  });
-
-  it("Should retain boundary and after-turn receipts in the composer read model", () => {
+  it("Should retain boundary and after-turn receipts in the send outcome", () => {
     for (const delivery of ["pending_boundary", "after_turn"] as const) {
-      expect(
-        sessionSteerDelivery({
-          busy_input: { default_mode: "steer", steer_capability: "none", steer_delivery: delivery },
-        })
-      ).toBe(delivery);
       expect(
         sessionSendOutcomeFromResult({
           status: "steering",
@@ -73,32 +49,6 @@ describe("session busy-input read models", () => {
         })?.steerDelivery
       ).toBe(delivery);
     }
-  });
-
-  it("Should let the current capability win over the last send's delivery", () => {
-    // The provider changed since the last steer: the record is stale, the capability is not.
-    expect(
-      sessionSteerDelivery({
-        busy_input: {
-          default_mode: "steer",
-          steer_capability: "steer_ext",
-          steer_delivery: "interrupt_fallback",
-        },
-      })
-    ).toBe("injected");
-    expect(
-      sessionSteerDelivery({
-        busy_input: { default_mode: "steer", steer_capability: "none", steer_delivery: "injected" },
-      })
-    ).toBe("interrupt_fallback");
-  });
-
-  it("Should answer null when the session resource carries no busy-input block", () => {
-    // Without a capability there is nothing honest to predict — never a guess
-    // from history. The contract's capability enum is closed, so an absent
-    // block is the only unknown the client can see.
-    expect(sessionSteerDelivery({ busy_input: undefined })).toBeNull();
-    expect(sessionSteerDelivery({ busy_input: null })).toBeNull();
   });
 
   it("Should flatten the disposition envelope, falling back to the legacy status", () => {

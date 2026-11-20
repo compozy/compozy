@@ -216,7 +216,7 @@ func (m *Manager) laterFamily(
 }
 
 func laterFamilyChild(child *store.SessionInfo, parentID string) bool {
-	if child.ArchivedAt != nil || child.Lineage == nil {
+	if child.ArchivedAt != nil || child.Lineage == nil || isSideLineage(child.Lineage) {
 		return false
 	}
 	if store.HierarchyParentSessionID(child.Lineage) != parentID {

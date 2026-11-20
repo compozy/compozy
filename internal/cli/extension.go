@@ -73,6 +73,8 @@ func newExtensionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newExtensionListCommand(deps))
 	cmd.AddCommand(newExtensionInstallCommand(deps))
 	cmd.AddCommand(newExtensionRemoveCommand(deps))
+	cmd.AddCommand(newExtensionRestoreCommand(deps))
+	cmd.AddCommand(newExtensionRemovedCommand(deps))
 	cmd.AddCommand(newExtensionUpdateCommand(deps))
 	cmd.AddCommand(newExtensionEnableCommand(deps))
 	cmd.AddCommand(newExtensionDisableCommand(deps))
@@ -238,14 +240,27 @@ func runExtensionInstall(
 func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	var global bool
+	var permanent bool
 	command := &cobra.Command{
 		Use:   cliRemoveNameUse,
 		Short: "Remove an installed extension from disk and the registry",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateExtensionPermanentRemoveFlags(permanent, workspaceRef); err != nil {
+				return err
+			}
 			baseClient, err := requireExtensionDaemonClient(cmd.Context(), deps)
 			if err != nil {
 				return err
+			}
+			if permanent {
+				// Permanent removal targets the global built-in. A profile selection must not reach its request,
+				// which the daemon answers with 400, so this branch returns before the profile is prepared.
+				item, removeErr := removeExtensionPermanently(cmd.Context(), baseClient, args[0])
+				if removeErr != nil {
+					return removeErr
+				}
+				return writeCommandOutput(cmd, extensionRemoveBundle(item))
 			}
 			if err := prepareExtensionProfileRead(cmd, deps, baseClient); err != nil {
 				return err
@@ -272,6 +287,12 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 	}
 	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
 	command.Flags().BoolVar(&global, "global", false, "Remove the published global installation")
+	command.Flags().BoolVar(
+		&permanent,
+		extensionPermanentQueryKey,
+		false,
+		"Remove a bundled built-in permanently; it will not return until restored (global only)",
+	)
 	return command
 }
 

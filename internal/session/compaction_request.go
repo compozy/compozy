@@ -98,11 +98,11 @@ func (m *Manager) recordCompactionRequest(ctx context.Context, session *Session,
 		source = ""
 	}
 	switch source {
-	case "cli", "http", "tool", "goal", "web":
+	case "cli", "http", "tool", managedInputOwnerGoal, "web":
 	default:
 		source = "http"
 		if req.meta.Synthetic != nil && req.meta.Synthetic.Goal != nil {
-			source = "goal"
+			source = managedInputOwnerGoal
 		}
 		if actingSessionID(ctx) != "" {
 			source = "tool"

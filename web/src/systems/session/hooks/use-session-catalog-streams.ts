@@ -12,6 +12,7 @@ import {
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import { useProfileReadScope, useProfileReadScopeParams } from "@/systems/profiles";
+import { USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 import { sessionKeys } from "../lib/query-keys";
 import {
@@ -19,6 +20,7 @@ import {
   sessionCatalogStreamURL,
 } from "../lib/session-catalog-stream-coverage";
 import { invalidateSessionMonitorsQueries } from "../lib/session-query-invalidation";
+import { isSessionSidesQuery } from "../lib/session-side-query-options";
 import {
   createCatalogReconciler,
   createSessionReadReconciler,
@@ -43,6 +45,14 @@ const AGENT_INSTANCE_UPDATED_EVENT = "agent_instance.updated";
 const SESSION_ATTENTION_CHANGED_EVENT = "session_attention_changed";
 /** Sanitized agent-sent notifications riding the same stream. */
 const OPERATOR_NOTIFICATION_EVENT = "operator_notification";
+/** A side chat of `session_id` was created, changed, closed or deleted (`_dx.md`). */
+const SESSION_SIDE_CHANGED_EVENT = "session_side_changed";
+
+interface SessionSideChangedPayload {
+  session_id: string;
+  workspace_id: string;
+  side_session_id: string;
+}
 
 export interface SessionCatalogEventSource {
   addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => void;
@@ -206,6 +216,8 @@ function openSessionCatalogStream(
     void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLayouts() });
     // A cleanup's progress and its end can fall outside the replay window too.
     void queryClient.invalidateQueries({ queryKey: sessionKeys.historyCleanup() });
+    // So can a side chat change: every side list rereads.
+    void queryClient.invalidateQueries({ predicate: query => isSessionSidesQuery(query.queryKey) });
     // A location-change event can fall outside the bounded replay window.
     const files = {
       predicate: ({ queryKey: key }: { queryKey: QueryKey }) =>
@@ -294,12 +306,31 @@ function openSessionCatalogStream(
     markLive();
     handlers.onOperatorNotification?.(payload);
   };
+  const handleSideChange: EventListener = event => {
+    const payload = parseNamedEvent<SessionSideChangedPayload>(event, [
+      "session_id",
+      "side_session_id",
+    ]);
+    // A User-scope side carries an empty workspace id: its reads use the User selector.
+    if (!payload || typeof payload.workspace_id !== "string") return;
+    markLive();
+    const sideWorkspaceId = payload.workspace_id.trim() || USER_SCOPE_SELECTOR;
+    // Every window showing the parent rereads the same list (US-006); the side's own read follows.
+    void queryClient.invalidateQueries({
+      predicate: query => isSessionSidesQuery(query.queryKey, payload.session_id),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: sessionKeys.detail(sideWorkspaceId, payload.side_session_id),
+      exact: true,
+    });
+  };
   const listeners: Array<[string, EventListener]> = [
     ["open", reconcileWorkspaces],
     ["error", handleStreamError],
     [SESSION_CATALOG_CHANGED_EVENT, handleCatalogChange],
     [SESSION_ATTENTION_CHANGED_EVENT, handleAttentionEdge],
     [OPERATOR_NOTIFICATION_EVENT, handleOperatorNotification],
+    [SESSION_SIDE_CHANGED_EVENT, handleSideChange],
     [AGENT_INSTANCE_UPDATED_EVENT, handleInstanceUpdate],
   ];
   const source = eventSourceFactory(url);

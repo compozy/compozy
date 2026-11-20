@@ -18,6 +18,9 @@ func (m *Manager) CreateWorktreeForkAccepted(
 	if m == nil {
 		return nil, errors.New("session: manager is required")
 	}
+	if err := m.refuseSideOperation(ctx, originSessionID, ErrSideNotDerivable); err != nil {
+		return nil, err
+	}
 	origin, ok := m.Get(originSessionID)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, originSessionID)

@@ -248,7 +248,7 @@ func workspaceLayoutResult(
 }
 
 func (n *daemonNativeTools) workspaceLayoutToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	calls := map[toolspkg.ToolID]workspaceLayoutCall{
 		toolspkg.ToolIDWorkspaceFolderList:    workspaceFolderList,

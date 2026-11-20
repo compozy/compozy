@@ -64,7 +64,7 @@ type nativeGatewayActionRequest struct {
 }
 
 func (n *daemonNativeTools) gatewayToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDGateway: {

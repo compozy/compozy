@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -20,7 +21,8 @@ type BundledInstallSpec struct {
 }
 
 // InstallBundledExtension enrolls or refreshes a first-party managed extension without
-// replacing an operator-owned extension with the same name.
+// replacing an operator-owned extension with the same name. A permanently removed
+// (tombstoned) name is skipped before anything is staged, and the tombstone is left in place.
 func InstallBundledExtension(
 	homePaths compozyconfig.HomePaths,
 	registry *Registry,
@@ -35,6 +37,15 @@ func InstallBundledExtension(
 	}
 	if registry == nil {
 		return fmt.Errorf("%s: extension registry is required", name)
+	}
+
+	tombstoned, err := registry.Tombstoned(context.Background(), name)
+	if err != nil {
+		return fmt.Errorf("%s: read built-in tombstone: %w", name, err)
+	}
+	if tombstoned {
+		slog.Info("extension.builtin.enrollment_skipped", "name", name, "reason", "tombstoned")
+		return nil
 	}
 
 	stagingDir, err := MaterializeBundledExtension(homePaths, name, spec.FS)

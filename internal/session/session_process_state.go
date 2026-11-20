@@ -132,7 +132,8 @@ func currentACPModel(options []acp.SessionConfigOption) string {
 	return ""
 }
 
-func (s *Session) setEffectivePermissions(value string) {
+// SetEffectivePermissions updates the mode read by session policy.
+func (s *Session) SetEffectivePermissions(value string) {
 	if s == nil {
 		return
 	}

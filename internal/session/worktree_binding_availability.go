@@ -21,6 +21,9 @@ func (m *Manager) WorktreeBindingAvailability(ctx context.Context, id string) Wo
 }
 
 func (m *Manager) worktreeBindingAvailabilityError(ctx context.Context, id string) error {
+	if err := m.refuseSideOperation(ctx, id, ErrSideWorktreeFixed); err != nil {
+		return err
+	}
 	if _, held := m.restartInputsHeld.Load(id); held || m.sessionStartRun(id) != nil {
 		return ErrPromptInProgress
 	}

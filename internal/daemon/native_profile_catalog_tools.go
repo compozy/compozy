@@ -34,7 +34,7 @@ type nativeProfileCurrentResult struct {
 }
 
 func (n *daemonNativeTools) profileToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDProfileList:    {call: n.profileList, availability: availability},
@@ -156,25 +156,31 @@ func (n *daemonNativeTools) nativeCurrentProfileIdentity(
 		if info == nil {
 			return "", "", "", errors.New("daemon: session profile lookup returned no session")
 		}
-		sessionProfileID := strings.TrimSpace(info.ProfileID)
-		if sessionProfileID == "" {
-			return "", "", "", errors.New("daemon: session has no bound profile")
-		}
-		reachesProfiles := scope.ProfileSwitchAuthorized ||
-			info.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted
-		if requestedProfileID != "" && requestedProfileID != store.DefaultProfileID &&
-			!reachesProfiles && requestedProfileID != sessionProfileID {
-			return "", "", "", &profilepkg.Error{
-				Code: "profile_session_conflict", Message: "session is bound to another profile",
-				Action: "drop the acting profile override; the session decides", Cause: profilepkg.ErrSessionConflict,
-			}
-		}
-		profileID, source, workspaceID = sessionProfileID, nativeToolsSessionKey, strings.TrimSpace(info.WorkspaceID)
-		if requestedProfileID != "" && reachesProfiles {
-			profileID = requestedProfileID
-		}
+		return nativeSessionProfileIdentity(scope, info.ProfileID, info.WorkspaceID, info.EffectiveWorkspaceAccess)
 	}
 	return profileID, source, workspaceID, nil
+}
+
+func nativeSessionProfileIdentity(
+	scope toolspkg.Scope, sessionProfileID, workspaceID string, access string,
+) (string, string, string, error) {
+	requestedProfileID := strings.TrimSpace(scope.ProfileID)
+	sessionProfileID = strings.TrimSpace(sessionProfileID)
+	if sessionProfileID == "" {
+		return "", "", "", errors.New("daemon: session has no bound profile")
+	}
+	reachesProfiles := scope.ProfileSwitchAuthorized || access == workspaceaccess.Unrestricted
+	if requestedProfileID != "" && requestedProfileID != store.DefaultProfileID &&
+		!reachesProfiles && requestedProfileID != sessionProfileID {
+		return "", "", "", &profilepkg.Error{
+			Code: "profile_session_conflict", Message: "session is bound to another profile",
+			Action: "drop the acting profile override; the session decides", Cause: profilepkg.ErrSessionConflict,
+		}
+	}
+	if requestedProfileID != "" && reachesProfiles {
+		sessionProfileID = requestedProfileID
+	}
+	return sessionProfileID, nativeToolsSessionKey, strings.TrimSpace(workspaceID), nil
 }
 
 func (n *daemonNativeTools) nativeProfileReadScope(

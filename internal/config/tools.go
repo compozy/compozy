@@ -67,9 +67,10 @@ type ToolsConfig struct {
 	Policy                ToolsPolicyConfig    `toml:"policy"`
 }
 
-// ToolsHostedMCPConfig controls Compozy-hosted MCP launch binding values.
+// ToolsHostedMCPConfig controls Compozy-hosted MCP launch and listing.
 type ToolsHostedMCPConfig struct {
 	BindNonceTTLSeconds int `toml:"bind_nonce_ttl_seconds"`
+	ToolListThreshold   int `toml:"tool_list_threshold"`
 }
 
 // ToolsClarifyConfig controls the boot-scoped human clarification broker.
@@ -150,6 +151,9 @@ func (c ToolsHostedMCPConfig) Validate() error {
 			MaxHostedMCPBindNonceTTLSeconds,
 			c.BindNonceTTLSeconds,
 		)
+	}
+	if c.ToolListThreshold < 0 {
+		return fmt.Errorf("tools.hosted_mcp.tool_list_threshold must be non-negative: %d", c.ToolListThreshold)
 	}
 	return nil
 }

@@ -2,7 +2,9 @@ package globaldb
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +15,53 @@ import (
 
 func TestGlobalDBToolApprovalGrants(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: only grants addressable by the check-in decision lookup count toward completeness.
+	// Owner: global approval repository; canonical suite: durable approval grants.
+	t.Run("Should exclude access-scoped grants from the check-in projection limit", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "approval-projection", t.TempDir())
+		key := approvalGrantTestKey(workspace, "codex", approvalGrantDigest("exact"))
+		put := func(key toolspkg.ApprovalGrantKey) {
+			t.Helper()
+			if _, err := db.PutApprovalGrant(ctx, toolspkg.ApprovalGrant{
+				ApprovalGrantKey: key, Decision: toolspkg.ApprovalGrantAllow,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		put(key)
+		for i := range checkInApprovalProjectionLimit {
+			access := key
+			access.AccessScope = fmt.Sprintf("workspace:access-%d", i)
+			access.InputDigest = approvalGrantDigest(access.AccessScope)
+			put(access)
+		}
+		scope := toolspkg.Scope{ProfileID: key.ProfileID, WorkspaceID: key.WorkspaceID, AgentName: key.AgentName}
+		projection, err := db.CheckInApprovalProjection(ctx, scope)
+		if err != nil || strings.Count(projection, key.InputDigest) != 1 {
+			t.Fatalf("check-in projection = %q, %v", projection, err)
+		}
+		narrow := db.WithCheckInApprovalProjectionLimit(1)
+		if _, err := narrow.CheckInApprovalProjection(ctx, scope); err != nil {
+			t.Fatalf("single applicable grant exceeds custom limit: %v", err)
+		}
+		for i := range checkInApprovalProjectionLimit {
+			decision := key
+			decision.InputDigest = approvalGrantDigest(fmt.Sprintf("also-applicable-%d", i))
+			put(decision)
+		}
+		if _, err := db.CheckInApprovalProjection(ctx, scope); err == nil ||
+			!strings.Contains(err.Error(), "check-in approval observation exceeds 128 rows") {
+			t.Fatalf("overflow observation = %v", err)
+		}
+		if _, err := narrow.CheckInApprovalProjection(ctx, scope); err == nil ||
+			!strings.Contains(err.Error(), "check-in approval observation exceeds 1 rows") {
+			t.Fatalf("custom-limit overflow observation = %v", err)
+		}
+	})
 
 	t.Run("Should upsert exact grants and touch the most-specific match", func(t *testing.T) {
 		t.Parallel()
@@ -37,6 +86,18 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 		}
 
 		current = current.Add(time.Minute)
+		// Projection reads observe the same grant without updating its usage receipt.
+		allowed, err := globalDB.CheckInApprovalDecision(ctx, key)
+		if err != nil || !allowed {
+			t.Fatalf("projection approval = %v, %v", allowed, err)
+		}
+		beforeLookup, err := globalDB.ListApprovalGrants(
+			ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, workspaceID,
+		)
+		if err != nil || len(beforeLookup) != 1 || !beforeLookup[0].LastUsedAt.Equal(created.LastUsedAt) {
+			t.Fatalf("projection changed the last-used receipt: %+v, %v", beforeLookup, err)
+		}
+
 		found, ok, err := globalDB.LookupApprovalGrant(ctx, key)
 		if err != nil {
 			t.Fatalf("LookupApprovalGrant() error = %v", err)

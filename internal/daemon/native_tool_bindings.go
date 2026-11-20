@@ -75,6 +75,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.automationToolBindings(availability.automation))
 	addNativeToolBindings(bindings, n.marketplaceToolBindings(availability.marketplace))
 	addNativeToolBindings(bindings, n.extensionToolBindings(availability.extensions))
+	addNativeToolBindings(bindings, n.extensionBuiltinToolBindings(availability.extensions))
 	addNativeToolBindings(bindings, n.resourceToolBindings(availability.resources))
 	addNativeToolBindings(bindings, n.terminalToolBindings(availability.terminal))
 	addNativeToolBindings(bindings, n.windowManagerToolBindings(availability.windowManager))

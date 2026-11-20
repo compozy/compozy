@@ -127,7 +127,11 @@ func (g *SessionRepo) PromoteQueuedAgentSessionInputToSteer(
 		if len(existing.SkillInvocations) > 0 {
 			return nil
 		}
-		affected, updateErr := sqlcgen.New(exec).PromoteQueuedAgentSessionInputToSteer(
+		queries := sqlcgen.New(exec)
+		if held, err := sessionInputHeldInTransaction(ctx, queries, &existing); err != nil || held {
+			return err
+		}
+		affected, updateErr := queries.PromoteQueuedAgentSessionInputToSteer(
 			ctx,
 			sqlcgen.PromoteQueuedAgentSessionInputToSteerParams{
 				TargetTurnID: targetTurnID, Now: store.FormatTimestamp(now.UTC()), SessionID: target, ID: entryID,

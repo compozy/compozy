@@ -22,9 +22,10 @@ func (m *Manager) ChangeWorktreeBinding(ctx context.Context, id, ref string, exp
 	if ctx == nil {
 		return nil, fmt.Errorf("%w: worktree binding context is required", ErrValidation)
 	}
-	if _, held := m.restartInputsHeld.Load(id); held || m.sessionStartRun(id) != nil {
-		return nil, ErrPromptInProgress
+	if err := m.validateWorktreeBindingAdmission(ctx, id); err != nil {
+		return nil, err
 	}
+
 	var changed *Info
 	var previous string
 	// Registered first: publish only after every session/checkout reservation releases.
@@ -237,5 +238,15 @@ func (m *Manager) recoverActiveWorktreeBinding(ctx context.Context, target *Sess
 	defer target.mu.Unlock()
 	target.WorktreeID, target.CWD = meta.WorktreeIDValue(), meta.CWDValue()
 	target.worktreeTransition = store.CloneSessionWorktreeTransition(meta.WorktreeTransition)
+	return nil
+}
+
+func (m *Manager) validateWorktreeBindingAdmission(ctx context.Context, id string) error {
+	if err := m.refuseSideOperation(ctx, id, ErrSideWorktreeFixed); err != nil {
+		return err
+	}
+	if _, held := m.restartInputsHeld.Load(id); held || m.sessionStartRun(id) != nil {
+		return ErrPromptInProgress
+	}
 	return nil
 }

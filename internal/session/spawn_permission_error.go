@@ -78,7 +78,7 @@ func (e *SpawnPermissionError) Recovery() string {
 
 func (e *SpawnPermissionError) allowedSummary() string {
 	if len(e.Allowed) == 0 {
-		return "none"
+		return string(ChecksNone)
 	}
 	if len(e.Allowed) <= spawnPermissionAllowedPreview {
 		return "[" + strings.Join(e.Allowed, ", ") + "]"

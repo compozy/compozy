@@ -448,6 +448,8 @@ max_age = "720h"
 # Non-secret launch correlation nonce lifetime before UDS peer binding,
 # and the post-release window for one replacement proxy bind.
 bind_nonce_ttl_seconds = 30
+# Experimental. A positive value enables budgeted listing on the Claude ACP bridge.
+tool_list_threshold = 0
 
 [tools.clarify]
 # Omitted entirely: no automatic expiration (the default).
@@ -1721,6 +1723,14 @@ snapshots these settings at boot; config changes require a restart.
 | Field                    | Type    | Default | Valid values               | Description                                                                                                                                    |
 | ------------------------ | ------- | ------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bind_nonce_ttl_seconds` | integer | `30`    | `1` through `300` seconds. | Lifetime for the non-secret hosted MCP bind nonce before UDS peer binding, and the post-release window that admits one replacement proxy bind. |
+| `tool_list_threshold`    | integer | `0`     | `0` or a positive integer. | Experimental per-server tool count for budgeted listing. Zero keeps the full listing.                                                          |
+
+The daemon reads the experimental threshold at startup. The Claude ACP bridge lists each external
+MCP server at or below the threshold in full. For larger servers, the description of
+`compozy__tool_search` shows a directory of up to 16 servers with their tool counts. Search, list,
+or inspect a callable match to add its real name to the current bridge connection. A replacement
+connection starts with the initial budget. Other provider bridges and sessions without access to
+tool search receive the full list.
 
 ## `[tools.clarify]`
 

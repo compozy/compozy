@@ -40,6 +40,8 @@ const (
 	specAPIExtensionsNameProvenancePath = specAPIExtensionsNamePath + "/provenance"
 	specAPIExtensionsDevPath            = specAPIExtensionsPath + "/dev"
 	specAPIExtensionsNameReloadPath     = specAPIExtensionsNamePath + "/reload"
+	specAPIExtensionsNameRestorePath    = specAPIExtensionsNamePath + "/restore"
+	specAPIExtensionsRemovedPath        = specAPIExtensionsPath + "/removed-builtins"
 	specAPIExtensionsNameLogsPath       = specAPIExtensionsNamePath + "/logs"
 	specAPIExtensionsNameInventoryPath  = specAPIExtensionsNamePath + "/inventory"
 	specAPIExtensionsNameSecretsPath    = specAPIExtensionsNamePath + "/secrets"

@@ -14,9 +14,9 @@ import {
   type QueuedPrompt,
   type SessionBusyInputMode,
   type SessionSendOutcome,
-  type SessionSteerDelivery,
   type UnconfirmedSend,
 } from "@/systems/session";
+import { SESSION_FOCUS_TARGET } from "@/systems/session/lib/session-focus-target";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import { commandItemPresentation } from "./session-command-menu-model";
 import { SessionComposerDirectiveChip } from "./session-composer-chip";
@@ -58,28 +58,37 @@ export type { SessionBusyInputHandler } from "./hooks/use-session-busy-input-act
  */
 export type SessionComposerStopPhase = "idle" | "stopping";
 
+/**
+ * Claims a submission before it reaches this session (`/side <question>`, `_uiux.md` S1): idle
+ * Enter, the busy verbs, and the Send control all ask it first, so a claimed text never becomes a
+ * message in this session's thread.
+ */
+export interface SessionComposerSubmitInterceptor {
+  claims: (text: string) => boolean;
+  /** Resolves whether the composer clears; `false` keeps the text where it was typed. */
+  submit: (submission: { text: string; attachmentCount: number }) => boolean | Promise<boolean>;
+}
+
 export interface SessionComposerProps {
   commandCatalog?: SessionComposerCommandCatalog;
   commandCatalogStatus?: "loading" | "ready";
   onCommandCatalogOpen?: () => void;
   onCommandAction?: (token: string) => boolean;
+  submitInterceptor?: SessionComposerSubmitInterceptor;
   canPrompt: boolean;
   onCancelPrompt: () => void;
   onQueuePrompt?: SessionBusyInputHandler;
-  onInterruptPrompt?: SessionBusyInputHandler;
   onSteerPrompt?: SessionBusyInputHandler;
   isBusyInputPending?: boolean;
   isSessionRunning?: boolean;
   /**
    * While `stopping`, the primary control reads "Stopping…" and drops a second
-   * activation; steer and interrupt cannot be honored, queue still can.
+   * activation; a steer cannot be honored, a queued follow-up still can.
    */
   stopPhase?: SessionComposerStopPhase;
   allowBusyInput?: boolean;
   /** The daemon-owned follow-up default Enter performs during a turn (ADR-002). */
   busyInputDefaultMode?: SessionBusyInputMode;
-  /** How a steer lands on this agent, from the session resource; `null` when unknown. */
-  busyInputSteerDelivery?: SessionSteerDelivery | null;
   queuedPrompts?: QueuedPrompt[];
   onRemoveQueuedPrompt?: (id: string) => void;
   onReplaceQueuedPrompt?: (prompt: QueuedPrompt, message: string) => Promise<unknown>;
@@ -117,6 +126,8 @@ export interface SessionComposerProps {
   attachments?: boolean;
   /** `false` drops the pane fill around the composer, for hosts that sit on the desk wallpaper. */
   backdrop?: boolean;
+  /** Focuses the editor when the composer mounts, for hosts that open onto it (the side chat panel). */
+  autoFocus?: boolean;
 }
 
 export type { SessionComposerCommandCatalog } from "./session-composer-command-menu";
@@ -269,9 +280,10 @@ function SessionComposerInput() {
   const mentionsAvailable = useMentionWorkspaceId() !== "";
   return (
     <LexicalComposerInput
-      autoFocus={Boolean(edit?.active)}
+      autoFocus={Boolean(edit?.active) || meta.autoFocus}
       aria-label="Session prompt"
       data-testid="composer-input"
+      data-focus-target={SESSION_FOCUS_TARGET.composer}
       inert={!meta.canPrompt}
       placeholder={
         meta.canPrompt
@@ -299,7 +311,7 @@ function SessionComposerInput() {
     >
       <SessionComposerHandleBridge onHandle={actions.setComposerInputElement} />
       <SessionBusyEnterPlugin
-        active={Boolean(edit?.active) || state.busyEnterActive}
+        active={Boolean(edit?.active) || state.busyEnterActive || state.intercepting}
         blocker={state.sendBlocker}
         onBlocked={reason => notifyUser({ message: reason, tone: "warning" })}
         onEnter={
@@ -338,11 +350,9 @@ function SessionComposerControls() {
           ? {
               kind: "busy",
               stopping: state.stopping,
-              submission: state.canSubmitBusyInput ? "enabled" : "disabled",
             }
           : { kind: "send" },
       }}
-      busyInputSteerDelivery={meta.busyInputSteerDelivery}
       environmentControl={meta.environmentControl}
       contextControl={meta.contextControl}
       mcpControl={meta.mcpControl}
@@ -352,15 +362,8 @@ function SessionComposerControls() {
       handleDisconnectedSend={
         state.transportDisconnected ? actions.handleDisconnectedSend : undefined
       }
-      handleInterruptAction={actions.handleInterruptAction}
-      handleQueueAction={actions.handleQueueAction}
-      handleSteerAction={actions.handleSteerAction}
+      handleInterceptedSend={state.intercepting ? actions.submitIntercepted : undefined}
       onCancelPrompt={meta.onCancelPrompt}
-      onInterruptPrompt={
-        meta.allowBusyInput && !state.stopping ? meta.onInterruptPrompt : undefined
-      }
-      onQueuePrompt={meta.allowBusyInput && !state.queueFull ? meta.onQueuePrompt : undefined}
-      onSteerPrompt={meta.allowBusyInput && !state.stopping ? meta.onSteerPrompt : undefined}
       promptEmbeddedContextCapability={meta.promptEmbeddedContextCapability}
       promptImageCapability={meta.promptImageCapability}
       runtimeControl={meta.runtimeControl}

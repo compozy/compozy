@@ -78,6 +78,12 @@ type ExtensionUpdateRecord = contract.ManagedExtensionUpdatePayload
 // ManagedExtensionRemoveRecord is one daemon-owned extension removal result.
 type ManagedExtensionRemoveRecord = contract.ManagedExtensionRemovePayload
 
+// ExtensionRestoreRecord is the result of restoring one permanently removed built-in.
+type ExtensionRestoreRecord = contract.ExtensionRestorePayload
+
+// ExtensionRemovedBuiltinRecord is one permanently removed built-in listed by `extension removed`.
+type ExtensionRemovedBuiltinRecord = contract.ExtensionRemovedBuiltinPayload
+
 // IdentityRecord is the local agent identity exposed by `compozy whoami`.
 type IdentityRecord struct {
 	SessionID string `json:"session_id,omitempty"`

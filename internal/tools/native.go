@@ -10,18 +10,33 @@ import (
 // NativeAvailabilityFunc computes runtime availability for one daemon-compiled tool.
 type NativeAvailabilityFunc func(ctx context.Context, scope Scope) Availability
 
+// NativeAvailabilityGroup allows bindings with the same service check to share its
+// projection observation. Scoped checks retain the session's scope.
+type NativeAvailabilityGroup struct {
+	Check  NativeAvailabilityFunc
+	Shared bool
+}
+
 // NativeTool binds one descriptor to an in-process daemon handler.
 type NativeTool struct {
 	Descriptor   Descriptor
 	Call         NativeToolFunc
-	Availability NativeAvailabilityFunc
+	Availability *NativeAvailabilityGroup
+}
+
+type nativeToolEntry struct {
+	Descriptor   Descriptor
+	Call         NativeToolFunc
+	Availability *NativeAvailabilityGroup
 }
 
 // NativeProvider serves daemon-compiled native_go tools.
 type NativeProvider struct {
-	source SourceRef
-	tools  map[ToolID]*NativeTool
-	ids    []ToolID
+	source             SourceRef
+	tools              map[ToolID]*nativeToolEntry
+	ids                []ToolID
+	sharedAvailability []*NativeAvailabilityGroup
+	scopedAvailability []*NativeAvailabilityGroup
 }
 
 var _ Provider = (*NativeProvider)(nil)
@@ -33,9 +48,10 @@ func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProv
 	}
 	provider := &NativeProvider{
 		source: source,
-		tools:  make(map[ToolID]*NativeTool, len(nativeTools)),
+		tools:  make(map[ToolID]*nativeToolEntry, len(nativeTools)),
 		ids:    make([]ToolID, 0, len(nativeTools)),
 	}
+	groups := make(map[*NativeAvailabilityGroup]*NativeAvailabilityGroup)
 	for i := range nativeTools {
 		nativeTool := &nativeTools[i]
 		descriptor, err := DescriptorWithSchemaDigests(nativeTool.Descriptor)
@@ -54,7 +70,22 @@ func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProv
 				fmt.Sprintf("duplicate native tool %q", id),
 			)
 		}
-		provider.tools[id] = cloneNativeTool(nativeTool)
+		entry := &nativeToolEntry{Descriptor: cloneDescriptor(descriptor), Call: nativeTool.Call}
+		group := nativeTool.Availability
+		if group != nil && group.Check != nil {
+			bound, found := groups[group]
+			if !found {
+				bound = new(*group)
+				groups[group] = bound
+				if bound.Shared {
+					provider.sharedAvailability = append(provider.sharedAvailability, bound)
+				} else {
+					provider.scopedAvailability = append(provider.scopedAvailability, bound)
+				}
+			}
+			entry.Availability = bound
+		}
+		provider.tools[id] = entry
 		provider.ids = append(provider.ids, id)
 	}
 	slices.Sort(provider.ids)
@@ -101,7 +132,7 @@ func (p *NativeProvider) Resolve(_ context.Context, scope Scope, id ToolID) (Han
 type nativeHandle struct {
 	descriptor   Descriptor
 	call         NativeToolFunc
-	availability NativeAvailabilityFunc
+	availability *NativeAvailabilityGroup
 	scope        Scope
 }
 
@@ -122,7 +153,11 @@ func (h *nativeHandle) Availability(ctx context.Context, scope Scope) Availabili
 		}
 	}
 	if h.availability != nil {
-		return h.availability(ctx, scope)
+		result := h.availability.Check(ctx, scope)
+		if build, ok := ctx.Value(nativeProjectionBuildKey{}).(*nativeProjectionBuild); ok {
+			build.record(h.availability, scope, result)
+		}
+		return result
 	}
 	return Available()
 }
@@ -206,15 +241,4 @@ func validateNativeTool(source SourceRef, nativeTool *NativeTool) error {
 		return NewValidationError("descriptor.backend.native_name", ReasonHandlerMissing, "native_name is required")
 	}
 	return nil
-}
-
-func cloneNativeTool(src *NativeTool) *NativeTool {
-	if src == nil {
-		return nil
-	}
-	return &NativeTool{
-		Descriptor:   cloneDescriptor(src.Descriptor),
-		Call:         src.Call,
-		Availability: src.Availability,
-	}
 }

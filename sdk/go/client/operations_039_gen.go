@@ -9,6 +9,49 @@ import (
 	"strings"
 )
 
+// UpdateSettingsCmdPalette Update command-palette settings
+func (c *Client) UpdateSettingsCmdPalette(ctx context.Context, params UpdateSettingsCmdPaletteParams, body UpdateSettingsCmdPaletteRequest) (*SettingsCmdPaletteResponse, error) {
+	path := "/api/settings/cmd-palette"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsCmdPaletteResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateSettingsGeneral Update the general settings section
+func (c *Client) UpdateSettingsGeneral(ctx context.Context, body UpdateSettingsGeneralRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/general"
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateSettingsHooksExtensions Update the hooks and extensions settings section
+func (c *Client) UpdateSettingsHooksExtensions(ctx context.Context, body UpdateSettingsHooksExtensionsRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/hooks-extensions"
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UpdateSettingsMarketplace Apply global marketplace catalog URL, TTL, and timeout
 func (c *Client) UpdateSettingsMarketplace(ctx context.Context, body UpdateSettingsMarketplaceRequest) (*SettingsApplyResponse, error) {
 	path := "/api/settings/marketplace"
@@ -402,37 +445,4 @@ func (c *Client) ValidateWindowManagerLayout(ctx context.Context, params Validat
 		return nil, err
 	}
 	return &out, nil
-}
-
-// WaitForSessionParams carries the path, query, and header parameters.
-type WaitForSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// WaitForSession Wait for a session state
-func (c *Client) WaitForSession(ctx context.Context, params WaitForSessionParams, body SessionWaitRequest) (*SessionWaitResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/wait"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionWaitResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// WaitTerminalParams carries the path, query, and header parameters.
-type WaitTerminalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
 }

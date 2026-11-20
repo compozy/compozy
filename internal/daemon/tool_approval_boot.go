@@ -64,6 +64,11 @@ func (d *Daemon) bootToolApprovalServices(
 		state.logger,
 		d.now,
 	)
+	state.approvalProjection = nil
+	if observation, ok := state.registry.(mcpProjectionGrantReader); ok {
+		approvalGrants.projectionStore = observation
+		state.approvalProjection = approvalGrants
+	}
 	state.deps.ApprovalGrants = approvalGrants
 	approvalTokens := toolspkg.NewApprovalTokenStore(state.cfg.Tools.Policy.ApprovalTimeout())
 	return approvalTokens, newBootToolApprovalBridge(state, approvalTokens, approvalGrants), nil

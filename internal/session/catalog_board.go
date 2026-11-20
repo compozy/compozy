@@ -26,7 +26,7 @@ func (m *Manager) activeBoardSessionCatalogRows(
 	ctx context.Context,
 	query ListQuery,
 ) (map[string]*Info, []string, []store.SessionInfo, error) {
-	infos, excludedIDs := m.activeCatalogSnapshots(query)
+	infos, excludedIDs := m.activeCatalogSnapshots(ctx, query)
 	if err := m.overlayPinnedAt(ctx, infos); err != nil {
 		return nil, nil, nil, err
 	}
@@ -134,20 +134,42 @@ func automationRunCandidate(info *store.SessionInfo) (store.SessionAutomationRun
 	return candidate, true
 }
 
-func (m *Manager) activeCatalogSnapshots(query ListQuery) ([]*Info, []string) {
+func (m *Manager) activeCatalogSnapshots(ctx context.Context, query ListQuery) ([]*Info, []string) {
+	return m.activeCatalogSnapshotsWithSides(ctx, query, false)
+}
+
+// Usage includes side chats while sharing the catalog's scope and live projection.
+func (m *Manager) activeCatalogSnapshotsWithSides(
+	ctx context.Context,
+	query ListQuery,
+	includeSides bool,
+) ([]*Info, []string) {
 	sessions := m.activeSessions()
 	infos := make([]*Info, 0, len(sessions))
 	excludedIDs := make([]string, 0)
 	for _, target := range sessions {
 		target.mu.RLock()
 		identity := Info{ProfileID: target.ProfileID, WorkspaceID: target.WorkspaceID, Lineage: target.Lineage}
-		if !catalogRelationVisible(&identity, query) {
+		if !catalogRelationScopeMatches(&identity, query) || target.Type == SessionTypeTriage ||
+			(identity.Lineage != nil && IsInternalSpawnRole(identity.Lineage.SpawnRole)) ||
+			(!includeSides && isSideLineage(identity.Lineage)) {
 			excludedIDs = append(excludedIDs, target.ID)
 			target.mu.RUnlock()
 			continue
 		}
 		info := target.infoLocked()
 		target.mu.RUnlock()
+		readCtx, cancel := context.WithTimeout(ctx, defaultLifecycleTimeout)
+		var hidden bool
+		var ancestryErr error
+		if !includeSides {
+			hidden, ancestryErr = m.sideFamilyMembership(readCtx, info.Lineage)
+		}
+		cancel()
+		if hidden || ancestryErr != nil {
+			excludedIDs = append(excludedIDs, info.ID)
+			continue
+		}
 		m.projectPendingSessionStart(info)
 		infos = append(infos, info)
 	}

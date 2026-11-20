@@ -133,6 +133,11 @@ export const sessionKeys = {
   /** Short pages of the same list for a session row's subagent branch; parent invalidation reaches it. */
   subagentBranch: (workspace: string, id: string) =>
     [...sessionKeys.subagents(workspace, id), "branch"] as const,
+  /** A session's side chats; `session_side_changed` for this parent rereads every variant. */
+  sides: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "sides"] as const,
+  sidesList: (workspace: string, id: string, archived: boolean) =>
+    [...sessionKeys.sides(workspace, id), archived ? "archived" : "open"] as const,
   /** The session's daemon-owned monitors (composer monitor popover). */
   monitors: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "monitors"] as const,

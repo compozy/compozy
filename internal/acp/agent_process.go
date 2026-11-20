@@ -201,6 +201,13 @@ func (p *AgentProcess) CapsSnapshot() Caps {
 	return caps
 }
 
+// PermissionModeDegraded reads the permission capability without cloning ACP options.
+func (p *AgentProcess) PermissionModeDegraded() bool {
+	p.capsMu.RLock()
+	defer p.capsMu.RUnlock()
+	return p.permissionModeDegraded(p.caps)
+}
+
 // notifyConfigChangedLocked wakes every configuration waiter after a revision bump.
 // Callers hold capsMu.
 func (p *AgentProcess) notifyConfigChangedLocked() {

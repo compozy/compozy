@@ -2283,6 +2283,13 @@
             "resource": "providers",
             "app_access": "denied"
         },
+        "listRemovedBuiltinExtensions": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.extensions.listRemovedBuiltinExtensions();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListRemovedBuiltinExtensions(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "extensions",
+            "app_access": "denied"
+        },
         "listResources": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.resources.listResources();",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListResources(ctx, client.ListResourcesParams{})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2398,6 +2405,13 @@
         "listSessionProcesses": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listSessionProcesses({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListSessionProcesses(ctx, client.ListSessionProcessesParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
+        "listSessionSides": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listSessionSides({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListSessionSides(ctx, client.ListSessionSidesParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"
@@ -2681,6 +2695,13 @@
             "kind": "json",
             "resource": "cmdPalette",
             "app_access": "denied"
+        },
+        "openSessionSide": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.openSessionSide({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.OpenSessionSide(ctx, client.OpenSessionSideParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.OpenSessionSideRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
         },
         "patchLoop": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.patchLoop({ path: { \"workspace_id\": \"workspace_id\", \"name\": \"name\" }, body: { /* request fields */ } });",
@@ -3346,6 +3367,13 @@
             "kind": "json",
             "resource": "loops",
             "app_access": "allowed"
+        },
+        "restoreExtension": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.extensions.restoreExtension({ path: { \"name\": \"name\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RestoreExtension(ctx, client.RestoreExtensionParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "extensions",
+            "app_access": "denied"
         },
         "resumeAgentInstance": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.resumeAgentInstance({ path: { \"id\": \"id\" } });",

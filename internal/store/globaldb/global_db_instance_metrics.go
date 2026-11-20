@@ -21,9 +21,9 @@ func (r *InstanceRepo) Metrics(ctx context.Context, profileID, workspaceID strin
 	for _, row := range rows {
 		result.PauseCounts[row.PauseReason] = row.Count
 	}
-	result.HeldInputCount, err = r.readQueries.CountScopedInstanceHeldInputs(
+	result.HeldInputCount, err = r.readQueries.CountHeldInstanceInputs(
 		ctx,
-		sqlcgen.CountScopedInstanceHeldInputsParams{
+		sqlcgen.CountHeldInstanceInputsParams{
 			ProfileID: profileID, WorkspaceID: workspaceID,
 		},
 	)

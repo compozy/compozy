@@ -3,10 +3,10 @@ package daemon
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
 func (n *daemonNativeTools) sessionOrchestrationToolBindings(
-	sessionAvailability toolspkg.NativeAvailabilityFunc,
-	waitAvailability toolspkg.NativeAvailabilityFunc,
-	spawnAvailability toolspkg.NativeAvailabilityFunc,
-	clarifyAvailability toolspkg.NativeAvailabilityFunc,
+	sessionAvailability *toolspkg.NativeAvailabilityGroup,
+	waitAvailability *toolspkg.NativeAvailabilityGroup,
+	spawnAvailability *toolspkg.NativeAvailabilityGroup,
+	clarifyAvailability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDSessionWait: {

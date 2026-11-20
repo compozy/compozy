@@ -191,7 +191,7 @@ func querySessionCatalogRows(
 }
 
 func appendSessionCatalogVisibilityFilters(where []string, query store.SessionCatalogPageQuery) []string {
-	where = append(where, "session_type <> 'triage'")
+	where = append(where, "session_type <> 'triage'", sessionSideVisible)
 	if query.ExcludeVerdictOnly {
 		where = append(where, "NOT "+sessionCatalogVerdictOnlyExpression)
 	}

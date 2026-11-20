@@ -146,29 +146,67 @@ func (q *Queries) CountCheckInProposalStates(ctx context.Context, arg CountCheck
 	return i, err
 }
 
-const countInstanceHeldWakes = `-- name: CountInstanceHeldWakes :one
-WITH RECURSIVE instance_sessions(id, profile_id) AS (
- SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
- WHERE i.id = ?1 AND s.profile_id = i.profile_id
- AND i.state = 'paused' AND i.archived_at IS NULL
+const countHeldInstanceInputs = `-- name: CountHeldInstanceInputs :one
+WITH RECURSIVE scoped_instances AS (
+ SELECT i.id, i.profile_id, i.state, i.pause_reason, COALESCE(recovery.latched, 0) AS latched
+ FROM agent_instances i
+ LEFT JOIN agent_instance_daily_budget_recovery recovery ON recovery.instance_id = i.id
+ WHERE i.archived_at IS NULL AND (i.state = 'paused' OR recovery.latched = 1)
+ AND ((COALESCE(CAST(?1 AS TEXT), '') != '' AND i.id = ?1)
+   OR (COALESCE(CAST(?1 AS TEXT), '') = ''
+     AND i.profile_id = ?2 AND i.workspace_id = ?3))
+), paused_instances(id, profile_id, budget_hold) AS (
+ SELECT id, profile_id, 0 AS budget_hold FROM scoped_instances
+ WHERE state = 'paused' AND pause_reason NOT IN ('daily_budget', 'daily_budget_recovery')
+ UNION ALL
+ SELECT id, profile_id, 1 AS budget_hold FROM scoped_instances
+ WHERE latched = 1 OR (state = 'paused' AND pause_reason IN ('daily_budget', 'daily_budget_recovery'))
+), instance_sessions(id, profile_id, instance_id, budget_hold) AS (
+ SELECT s.id, s.profile_id, i.id AS instance_id, i.budget_hold
+ FROM paused_instances i JOIN sessions s ON s.instance_id = i.id AND s.profile_id = i.profile_id
  UNION
- SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
- WHERE s.profile_id = parent.profile_id
+ SELECT d.id, d.profile_id, i.id, i.budget_hold
+ FROM paused_instances i JOIN deleted_session_budget_lineage d ON d.instance_id = i.id AND d.profile_id = i.profile_id
+ WHERE i.budget_hold = 1 AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = d.id)
+ UNION
+ SELECT s.id, s.profile_id, parent.instance_id, parent.budget_hold
+ FROM instance_sessions parent JOIN sessions s ON s.parent_session_id = parent.id AND s.profile_id = parent.profile_id
+ WHERE parent.budget_hold = 0 OR (
+   COALESCE(NULLIF(s.instance_id, ''), parent.instance_id) = parent.instance_id
+   AND s.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
+ )
+ UNION
+ SELECT d.id, d.profile_id, parent.instance_id, parent.budget_hold
+ FROM instance_sessions parent
+ JOIN deleted_session_budget_lineage d ON d.parent_session_id = parent.id AND d.profile_id = parent.profile_id
+ WHERE parent.budget_hold = 1 AND COALESCE(NULLIF(d.instance_id, ''), parent.instance_id) = parent.instance_id
+ AND d.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
+ AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = d.id)
+), held_rows AS (
+ SELECT DISTINCT q.id, q.synthetic_prompt_json FROM instance_sessions owned
+ JOIN session_input_queue q ON q.session_id = owned.id
+ JOIN sessions current ON current.id = owned.id
+ WHERE q.status = 'queued' AND q.session_generation = current.input_generation AND (
+   (owned.budget_hold = 1 AND (q.human_ingress = 0 OR q.app_ingress = 1))
+   OR (owned.budget_hold = 0 AND q.origin_class <> 'human' AND EXISTS (
+     SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
+     WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
+     AND (current.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+   ))
+ )
 )
-SELECT CAST(COALESCE(SUM(1 + COALESCE(json_array_length(q.synthetic_prompt_json, '$.coalesced_message_ids'), 0)), 0) AS INTEGER)
-FROM session_input_queue q JOIN instance_sessions s ON s.id = q.session_id
-JOIN sessions current ON current.id = s.id
-WHERE q.status = 'queued' AND q.origin_class <> 'human'
-AND q.session_generation = current.input_generation
-AND EXISTS (
- SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
- WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
- AND (current.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-)
+SELECT CAST(COALESCE(SUM(1 + COALESCE(json_array_length(synthetic_prompt_json, '$.coalesced_message_ids'), 0)), 0) AS INTEGER)
+FROM held_rows
 `
 
-func (q *Queries) CountInstanceHeldWakes(ctx context.Context, instanceID string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countInstanceHeldWakes, instanceID)
+type CountHeldInstanceInputsParams struct {
+	InstanceID  string `json:"instance_id"`
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) CountHeldInstanceInputs(ctx context.Context, arg CountHeldInstanceInputsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countHeldInstanceInputs, arg.InstanceID, arg.ProfileID, arg.WorkspaceID)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -262,39 +300,6 @@ func (q *Queries) CountScopedCheckInCalls(ctx context.Context, arg CountScopedCh
 		return nil, err
 	}
 	return items, nil
-}
-
-const countScopedInstanceHeldInputs = `-- name: CountScopedInstanceHeldInputs :one
-WITH RECURSIVE instance_sessions(id, profile_id) AS (
- SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
- WHERE i.profile_id = ?1 AND i.workspace_id = ?2
- AND s.profile_id = i.profile_id AND i.state = 'paused' AND i.archived_at IS NULL
- UNION
- SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
- WHERE s.profile_id = parent.profile_id
-)
-SELECT CAST(COALESCE(SUM(1 + COALESCE(json_array_length(q.synthetic_prompt_json, '$.coalesced_message_ids'), 0)), 0) AS INTEGER)
-FROM session_input_queue q JOIN instance_sessions s ON s.id = q.session_id
-JOIN sessions current ON current.id = s.id
-WHERE q.status = 'queued' AND q.origin_class <> 'human'
-AND q.session_generation = current.input_generation
-AND EXISTS (
- SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
- WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
- AND (current.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-)
-`
-
-type CountScopedInstanceHeldInputsParams struct {
-	ProfileID   string `json:"profile_id"`
-	WorkspaceID string `json:"workspace_id"`
-}
-
-func (q *Queries) CountScopedInstanceHeldInputs(ctx context.Context, arg CountScopedInstanceHeldInputsParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countScopedInstanceHeldInputs, arg.ProfileID, arg.WorkspaceID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
 }
 
 const countScopedInstancePicks = `-- name: CountScopedInstancePicks :many
@@ -464,7 +469,7 @@ WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind,
   LEFT JOIN sessions parent ON parent.id = a.parent_session_id
   LEFT JOIN deleted_session_budget_lineage deleted ON parent.id IS NULL AND deleted.id = a.parent_session_id
   WHERE COALESCE(a.instance_id, '') = '' AND COALESCE(parent.profile_id, deleted.profile_id) = a.profile_id
-    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
 ), budget_owner AS (
   SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
 ), budget_pause AS (
@@ -584,7 +589,7 @@ WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind,
   LEFT JOIN sessions parent ON parent.id = a.parent_session_id
   LEFT JOIN deleted_session_budget_lineage deleted ON parent.id IS NULL AND deleted.id = a.parent_session_id
   WHERE COALESCE(a.instance_id, '') = '' AND COALESCE(parent.profile_id, deleted.profile_id) = a.profile_id
-    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+    AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
 ), budget_owner AS (
   SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
 ), budget_pause AS (
@@ -818,19 +823,41 @@ func (q *Queries) ListAgentInstances(ctx context.Context, arg ListAgentInstances
 }
 
 const listInstanceQueuedSessions = `-- name: ListInstanceQueuedSessions :many
-WITH RECURSIVE instance_sessions(id, profile_id) AS (
- SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
- WHERE i.id = ?2 AND s.profile_id = i.profile_id AND (i.state = 'active' OR (i.state = 'paused' AND i.pause_reason IN ('definition_missing', 'definition_not_always_on'))) AND i.archived_at IS NULL
+WITH RECURSIVE active_instance(id, profile_id) AS (
+ SELECT id, profile_id FROM agent_instances WHERE id = ?2 AND archived_at IS NULL
+ AND (state = 'active' OR (state = 'paused' AND pause_reason IN ('definition_missing', 'definition_not_always_on')))
+), instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM active_instance i JOIN sessions s ON s.instance_id = i.id AND s.profile_id = i.profile_id
  UNION
  SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
  WHERE s.profile_id = parent.profile_id
+), budget_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM active_instance i JOIN sessions s ON s.instance_id = i.id AND s.profile_id = i.profile_id
+ UNION
+ SELECT d.id, d.profile_id FROM active_instance i
+ JOIN deleted_session_budget_lineage d ON d.instance_id = i.id AND d.profile_id = i.profile_id
+ WHERE NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = d.id)
+ UNION
+ SELECT s.id, s.profile_id FROM budget_sessions parent
+ JOIN sessions s ON s.parent_session_id = parent.id AND s.profile_id = parent.profile_id
+ WHERE COALESCE(NULLIF(s.instance_id, ''), ?2) = ?2
+ AND s.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
+ UNION
+ SELECT d.id, d.profile_id FROM budget_sessions parent
+ JOIN deleted_session_budget_lineage d ON d.parent_session_id = parent.id AND d.profile_id = parent.profile_id
+ WHERE COALESCE(NULLIF(d.instance_id, ''), ?2) = ?2
+ AND d.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
+ AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = d.id)
 )
-SELECT s.id FROM sessions s JOIN instance_sessions lineage ON lineage.id = s.id
+SELECT s.id FROM sessions s
 WHERE s.id > ?1 AND s.archived_at IS NULL
+AND (s.id IN (SELECT id FROM instance_sessions) OR s.id IN (SELECT id FROM budget_sessions))
 AND NOT EXISTS (
  SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
  WHERE root.id = COALESCE(NULLIF(s.root_session_id, ''), s.id) AND i.state = 'paused'
  AND (s.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+ AND (i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('daily_budget', 'daily_budget_recovery')
+   OR s.id NOT IN (SELECT id FROM budget_sessions))
 )
 AND (s.state <> 'stopped' OR s.id = (SELECT agent_instances.main_session_id FROM agent_instances WHERE agent_instances.id = ?2))
 AND EXISTS (SELECT 1 FROM session_input_queue q WHERE q.session_id = s.id
@@ -1039,6 +1066,18 @@ func (q *Queries) ResumeAgentInstance(ctx context.Context, arg ResumeAgentInstan
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const sessionMayHaveInstanceAncestry = `-- name: SessionMayHaveInstanceAncestry :one
+SELECT COALESCE(instance_id, '') <> '' OR COALESCE(parent_session_id, '') <> ''
+FROM sessions WHERE id = ?1
+`
+
+func (q *Queries) SessionMayHaveInstanceAncestry(ctx context.Context, id string) (sql.NullBool, error) {
+	row := q.db.QueryRowContext(ctx, sessionMayHaveInstanceAncestry, id)
+	var column_1 sql.NullBool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const stampInstanceMainSession = `-- name: StampInstanceMainSession :execrows

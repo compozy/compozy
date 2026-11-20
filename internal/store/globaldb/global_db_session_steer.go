@@ -29,8 +29,12 @@ func (g *SessionRepo) ReserveSessionSteer(
 		if entry.Mode != store.SessionInputQueueModeSteer {
 			return errors.New("store: only steer inputs can be reserved for live delivery")
 		}
+		queries := sqlcgen.New(exec)
+		if held, err := sessionInputHeldInTransaction(ctx, queries, &entry); err != nil || held {
+			return err
+		}
 		nowRaw := store.FormatTimestamp(now)
-		affected, err := sqlcgen.New(exec).ReserveSessionSteer(ctx, sqlcgen.ReserveSessionSteerParams{
+		affected, err := queries.ReserveSessionSteer(ctx, sqlcgen.ReserveSessionSteerParams{
 			SessionID: sessionID, ID: entryID, Now: nullableSessionTime(now),
 		})
 		if err != nil || affected == 0 {

@@ -7,6 +7,43 @@ import (
 	"time"
 )
 
+// SessionConsumerDegradedPayload is a daemon API value.
+type SessionConsumerDegradedPayload struct {
+	SessionID       string `json:"session_id"`
+	AfterSequence   int64  `json:"after_sequence"`
+	ThroughSequence int64  `json:"through_sequence"`
+	Refresh         bool   `json:"refresh"`
+}
+
+// SessionContextClearedByPayload is a daemon API value.
+type SessionContextClearedByPayload struct {
+	CompactionID string `json:"compaction_id"`
+	Sequence     int64  `json:"sequence"`
+}
+
+// SessionContextInjectedPayload is a daemon API value.
+type SessionContextInjectedPayload struct {
+	Estimate string                     `json:"estimate"`
+	Tokens   int64                      `json:"tokens"`
+	Stale    bool                       `json:"stale"`
+	Rows     []SessionContextRowPayload `json:"rows"`
+}
+
+// SessionContextPayload is a daemon API value.
+type SessionContextPayload struct {
+	ClearedBy      *SessionContextClearedByPayload `json:"cleared_by,omitzero"`
+	State          SessionContextState             `json:"state"`
+	Used           *int64                          `json:"used,omitzero"`
+	Size           *int64                          `json:"size,omitzero"`
+	Ratio          *float64                        `json:"ratio,omitzero"`
+	SizeSource     string                          `json:"size_source,omitempty"`
+	Stale          *bool                           `json:"stale,omitzero"`
+	Sequence       *int64                          `json:"sequence,omitzero"`
+	ReportedTurnID string                          `json:"reported_turn_id,omitempty"`
+	ReportedAt     *time.Time                      `json:"reported_at,omitempty"`
+	Injected       *SessionContextInjectedPayload  `json:"injected,omitzero"`
+}
+
 // SessionContextRowPayload is a daemon API value.
 type SessionContextRowPayload struct {
 	Key              string    `json:"key"`
@@ -409,38 +446,3 @@ type SessionInputMentionPayload struct {
 	Start  int                `json:"start"`
 	End    int                `json:"end"`
 }
-
-// SessionInputPayload is a daemon API value.
-type SessionInputPayload struct {
-	HeldReason       string                          `json:"held_reason,omitempty"`
-	HeldInstanceID   string                          `json:"held_instance_id,omitempty"`
-	Held             bool                            `json:"held"`
-	Origin           *PromptOriginMeta               `json:"origin,omitzero"`
-	ID               string                          `json:"id"`
-	SessionID        string                          `json:"session_id"`
-	OwnerKind        string                          `json:"owner_kind,omitempty"`
-	OwnerID          string                          `json:"owner_id,omitempty"`
-	MessageID        string                          `json:"message_id,omitempty"`
-	IdempotencyKey   string                          `json:"idempotency_key,omitempty"`
-	TargetTurnID     string                          `json:"target_turn_id,omitempty"`
-	Status           SessionInputStatus              `json:"status"`
-	Mode             PromptMode                      `json:"mode"`
-	Delivery         PromptDelivery                  `json:"delivery"`
-	SteerDelivery    SteerDeliveryMode               `json:"steer_delivery,omitempty"`
-	Text             string                          `json:"text"`
-	QueueGeneration  int64                           `json:"queue_generation"`
-	EnqueuedAt       time.Time                       `json:"enqueued_at"`
-	Runtime          *PromptRuntimeSelectionPayload  `json:"runtime,omitzero"`
-	SkillInvocations []SessionSkillInvocationPayload `json:"skill_invocations,omitempty"`
-	Mentions         []SessionInputMentionPayload    `json:"mentions,omitempty"`
-	Attachments      []PromptAttachmentRef           `json:"attachments,omitempty"`
-	CoalescedWakes   int                             `json:"coalesced_wakes,omitempty"`
-}
-
-// SessionInputResponse is a daemon API value.
-type SessionInputResponse struct {
-	Input SessionInputPayload `json:"input"`
-}
-
-// SessionInputStatus is a daemon API value.
-type SessionInputStatus string

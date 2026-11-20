@@ -231,7 +231,7 @@ func nativeDeriveFencesComplete(epoch, generation, maxSequence *int64) error {
 	return nil
 }
 
-func (n *daemonNativeTools) sessionContinueAvailability() toolspkg.NativeAvailabilityFunc {
+func (n *daemonNativeTools) sessionContinueAvailability() *toolspkg.NativeAvailabilityGroup {
 	return n.dependencyAvailability(func() bool {
 		if n == nil || n.deps == nil {
 			return false

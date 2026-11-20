@@ -5,6 +5,7 @@ import {
   getExtensionProvenance,
   listExtensionLogs,
   listExtensions,
+  listRemovedBuiltinExtensions,
 } from "../adapters/extensions-api";
 import type { ExtensionInstanceScope } from "../types";
 import { normalizeExtensionLogSnapshot } from "./extension-log-stream";
@@ -16,6 +17,15 @@ export const extensionsListOptions = (scope: ExtensionInstanceScope = {}, enable
   queryOptions({
     queryKey: extensionKeys.list(scope.workspaceId, scope.profileName),
     queryFn: ({ signal }) => listExtensions(scope, signal),
+    staleTime: INVENTORY_STALE_TIME,
+    enabled,
+  });
+
+/** Permanently removed built-ins. Callers pass `enabled` from their restore permission, so a viewer who cannot restore never requests the list. */
+export const removedBuiltinsOptions = (enabled = true) =>
+  queryOptions({
+    queryKey: extensionKeys.removedBuiltins(),
+    queryFn: ({ signal }) => listRemovedBuiltinExtensions(signal),
     staleTime: INVENTORY_STALE_TIME,
     enabled,
   });

@@ -212,6 +212,12 @@ func (r *Registry) List() (extensions []ExtensionInfo, err error) {
 
 // Get returns one installed extension by name.
 func (r *Registry) Get(name string) (*ExtensionInfo, error) {
+	return r.GetContext(registryContext(), name)
+}
+
+// GetContext returns one installed extension by name under the caller's context. Callers that run on a bounded
+// budget, such as rollback read-backs, use it so a slow read cannot outlive their deadline.
+func (r *Registry) GetContext(ctx context.Context, name string) (*ExtensionInfo, error) {
 	if err := r.checkReady("get extension"); err != nil {
 		return nil, err
 	}
@@ -221,7 +227,7 @@ func (r *Registry) Get(name string) (*ExtensionInfo, error) {
 		return nil, err
 	}
 
-	row := r.readDB.QueryRowContext(registryContext(), `
+	row := r.readDB.QueryRowContext(ctx, `
 `+registrySelectColumns+`
 		FROM extensions
 		WHERE name = ?

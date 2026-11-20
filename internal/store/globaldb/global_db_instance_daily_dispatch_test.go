@@ -72,6 +72,42 @@ func TestDailyBudgetQueueClaimKeepsAutonomousInputQueued(t *testing.T) {
 			t.Fatalf("durable pause: instance=%+v, err=%v", instance, err)
 		}
 	})
+	t.Run("Should release a directly bound queue independently of its paused root", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		at := time.Date(2026, 11, 19, 12, 0, 0, 0, time.Local)
+		db.now = func() time.Time { return at }
+		parent := budgetBoundSession(t, db, at)
+		if allowed, _, err := db.Instances().AdmitDailyBudgetTurn(ctx, parent); err != nil || allowed {
+			t.Fatalf("parent at cap = %t, %v; want blocked", allowed, err)
+		}
+		stamp := store.FormatTimestamp(at)
+		if _, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances (
+			id, profile_id, agent_name, workspace_id, state, created_by_kind, created_by_id, created_at, updated_at
+		) VALUES ('independent-instance', ?, 'reviewer', '', 'active', 'human', 'operator', ?, ?)`,
+			store.DefaultProfileID, stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		const child = "independent-session"
+		if _, err := db.DB().ExecContext(ctx, `INSERT INTO sessions (
+			id, profile_id, scope, agent_name, workspace_id, session_type, state,
+			parent_session_id, root_session_id, instance_id, lineage_kind, created_at, updated_at
+		) VALUES (?, ?, 'global', 'reviewer', '', 'user', 'active', ?, ?, 'independent-instance', 'spawn', ?, ?)`,
+			child, store.DefaultProfileID, parent, parent, stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "independent-input", SessionID: child, Text: "resume work",
+			OriginClass: store.SessionInputOriginClassSynthetic, QueueCap: 2, Now: at,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if ids, err := db.Instances().QueuedSessions(ctx, "independent-instance", ""); err != nil ||
+			len(ids) != 1 || ids[0] != child {
+			t.Fatalf("independent resumed queues = %v, %v; want %s", ids, err, child)
+		}
+	})
 }
 
 func TestDailyBudgetDirectDispatchKeepsAdmissionReserved(t *testing.T) {

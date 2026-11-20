@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 // Observe only committed rows. Claim eligibility remains entirely in the queue transaction.
@@ -25,6 +26,19 @@ func queueEntryHeldByPause(entry *store.SessionInputQueueEntry, reason string) b
 	default:
 		return !store.IsHumanSessionInputOriginClass(entry.OriginClass)
 	}
+}
+
+func sessionInputHeldInTransaction(
+	ctx context.Context, queries *sqlcgen.Queries, entry *store.SessionInputQueueEntry,
+) (bool, error) {
+	if store.IsHumanSessionInputOriginClass(entry.OriginClass) && entry.HumanIngress && !entry.AppIngress {
+		return false, nil
+	}
+	hold, err := queries.GetSessionInputHold(ctx, entry.SessionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil && queueEntryHeldByPause(entry, hold.PauseReason), err
 }
 
 func observeReleasedInstanceInput(ctx context.Context, entry *store.SessionInputQueueEntry) {

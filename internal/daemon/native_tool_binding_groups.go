@@ -7,7 +7,7 @@ import (
 )
 
 func (n *daemonNativeTools) registryToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDToolList: {
@@ -26,7 +26,7 @@ func (n *daemonNativeTools) registryToolBindings(
 }
 
 func (n *daemonNativeTools) skillToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDSkillList: {
@@ -45,9 +45,9 @@ func (n *daemonNativeTools) skillToolBindings(
 }
 
 func (n *daemonNativeTools) sessionToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
-	catalogAvailability toolspkg.NativeAvailabilityFunc,
-	runtimeAvailability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
+	catalogAvailability *toolspkg.NativeAvailabilityGroup,
+	runtimeAvailability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDSessionList: {
@@ -89,6 +89,8 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionContinue,
 			availability: n.sessionContinueAvailability(),
 		},
+		toolspkg.ToolIDSessionSideOpen: {call: n.sessionSideOpen, availability: n.sessionContinueAvailability()},
+		toolspkg.ToolIDSessionSideList: {call: n.sessionSideList, availability: n.sessionContinueAvailability()},
 		toolspkg.ToolIDSessionFork: {
 			call:         n.sessionFork,
 			availability: n.sessionContinueAvailability(),
@@ -122,9 +124,9 @@ func (n *daemonNativeTools) sessionToolBindings(
 }
 
 func (n *daemonNativeTools) authoredContextToolBindings(
-	healthAvailability toolspkg.NativeAvailabilityFunc,
-	statusAvailability toolspkg.NativeAvailabilityFunc,
-	wakeAvailability toolspkg.NativeAvailabilityFunc,
+	healthAvailability *toolspkg.NativeAvailabilityGroup,
+	statusAvailability *toolspkg.NativeAvailabilityGroup,
+	wakeAvailability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDSessionHealth: {
@@ -149,7 +151,7 @@ func (n *daemonNativeTools) authoredContextToolBindings(
 }
 
 func (n *daemonNativeTools) worktreeToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDWorktreeList: {
@@ -168,7 +170,7 @@ func (n *daemonNativeTools) worktreeToolBindings(
 }
 
 func (n *daemonNativeTools) observeToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDListLogs: {
@@ -187,7 +189,7 @@ func (n *daemonNativeTools) observeToolBindings(
 }
 
 func (n *daemonNativeTools) taskToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	bindings := map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDTaskList: {
@@ -260,7 +262,7 @@ func mergeNativeToolBindings(
 }
 
 func (n *daemonNativeTools) taskFanOutToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDTaskFanOutRuns: {
@@ -271,7 +273,7 @@ func (n *daemonNativeTools) taskFanOutToolBindings(
 }
 
 func (n *daemonNativeTools) autonomyToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDTaskRunClaimNext: {
@@ -296,13 +298,13 @@ func (n *daemonNativeTools) autonomyToolBindings(
 		},
 		toolspkg.ToolIDTaskRunReviewSubmit: {
 			call:         n.submitRunReview,
-			availability: n.submitRunReviewAvailability,
+			availability: &toolspkg.NativeAvailabilityGroup{Check: n.submitRunReviewAvailability},
 		},
 	}
 }
 
 func (n *daemonNativeTools) configToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDConfigShow: {
@@ -337,8 +339,8 @@ func (n *daemonNativeTools) configToolBindings(
 }
 
 func (n *daemonNativeTools) hookToolBindings(
-	readAvailability toolspkg.NativeAvailabilityFunc,
-	mutationAvailability toolspkg.NativeAvailabilityFunc,
+	readAvailability *toolspkg.NativeAvailabilityGroup,
+	mutationAvailability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDHooksList: {
@@ -381,7 +383,7 @@ func (n *daemonNativeTools) hookToolBindings(
 }
 
 func (n *daemonNativeTools) sessionLayoutToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDSessionFolderList: {

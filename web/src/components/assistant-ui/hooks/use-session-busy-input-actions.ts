@@ -28,7 +28,6 @@ interface UseSessionBusyInputActionsOptions {
   consumeSubmittedDraft: (submission: SessionComposerSubmission) => string;
   /** The raw composer text and attachment ids a send would take right now. */
   submission: SessionComposerSubmission;
-  onInterruptPrompt?: SessionBusyInputHandler;
   onQueuePrompt?: SessionBusyInputHandler;
   onRemoveQueuedPrompt?: (id: string) => void;
   onReplaceQueuedPrompt?: (prompt: QueuedPrompt, message: string) => Promise<unknown>;
@@ -39,7 +38,7 @@ interface UseSessionBusyInputActionsOptions {
   transportDisconnected: boolean;
   unconfirmedSends: UnconfirmedSend[];
   draft: SessionBusyInputDraft;
-  /** Fires after a queued, steered, or interrupt draft is accepted. */
+  /** Fires after a queued or steered draft is accepted. */
   onDraftConsumed?: () => void;
 }
 
@@ -61,7 +60,6 @@ export function useSessionBusyInputActions({
   canSubmitBusyInput,
   consumeSubmittedDraft,
   submission,
-  onInterruptPrompt,
   onQueuePrompt,
   onRemoveQueuedPrompt,
   onReplaceQueuedPrompt,
@@ -76,17 +74,6 @@ export function useSessionBusyInputActions({
   const aui = useAui();
   const store = useStore(sessionBusyInputLogic);
   const feedback = useSelector(store, snapshot => snapshot.context.feedback);
-
-  const handlerFor = (action: SessionBusyInputAction): SessionBusyInputHandler | undefined => {
-    switch (action) {
-      case "queue":
-        return onQueuePrompt;
-      case "steer":
-        return onSteerPrompt;
-      case "interrupt":
-        return onInterruptPrompt;
-    }
-  };
 
   /**
    * Sending while disconnected fails now and keeps the draft (US-018.AC-3):
@@ -136,12 +123,6 @@ export function useSessionBusyInputActions({
       },
     });
   };
-
-  const submitVerb = (action: SessionBusyInputAction) => {
-    handleBusyInputAction(action, handlerFor(action));
-  };
-
-  const handleQueueAction = () => submitVerb("queue");
 
   /**
    * Saves an in-row edit as one atomic replacement (US-005.AC-3). The editor
@@ -202,9 +183,6 @@ export function useSessionBusyInputActions({
     });
   };
 
-  const handleSteerAction = () => submitVerb("steer");
-  const handleInterruptAction = () => submitVerb("interrupt");
-
   /**
    * Enter follows the daemon default; the modifier performs the opposite for
    * exactly one send (US-003.AC-3).
@@ -214,11 +192,7 @@ export function useSessionBusyInputActions({
       variant === "default"
         ? busyInputDefaultMode
         : oppositeSessionBusyInputMode(busyInputDefaultMode);
-    if (mode === "queue") {
-      handleQueueAction();
-      return;
-    }
-    handleSteerAction();
+    handleBusyInputAction(mode, mode === "queue" ? onQueuePrompt : onSteerPrompt);
   };
 
   const handleRemoveQueuedPrompt = (id: string) => {
@@ -232,15 +206,11 @@ export function useSessionBusyInputActions({
   return {
     dismissFeedback,
     feedback,
-    handleBusyInputAction,
     /** The idle Send control's answer while disconnected: the same note, the draft untouched. */
     handleDisconnectedSend: () => refuseDisconnectedSend("steer"),
     handleEnterAction,
-    handleInterruptAction,
-    handleQueueAction,
     handleRemoveQueuedPrompt,
     handleRetryUnconfirmedSend,
     handleSaveQueuedPromptEdit,
-    handleSteerAction,
   };
 }

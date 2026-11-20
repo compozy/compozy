@@ -11,11 +11,12 @@ const mocks = vi.hoisted(() => ({
     isLoading: false,
   },
   remove: vi.fn(),
+  removeError: null as Error | null,
 }));
 
 vi.mock("../../hooks/use-extension-actions", () => ({
   useRemoveExtension: () => ({
-    error: null,
+    error: mocks.removeError,
     isPending: false,
     mutateAsync: mocks.remove,
   }),
@@ -35,9 +36,167 @@ import {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.remove.mockResolvedValue(undefined);
+  mocks.removeError = null;
   mocks.provenance.data = null;
   mocks.provenance.error = null;
   mocks.provenance.isLoading = false;
+});
+
+/** A bundled built-in row at the global instance: the only row the permanent option applies to. */
+const bundledRow = { ...extensionFixtures[0]!, dev: false, source: "bundled" };
+
+describe("RemoveExtensionDialog permanent removal", () => {
+  it("Should offer permanent removal for a bundled row with its consequence, defaulting to non-permanent", () => {
+    render(
+      <RemoveExtensionDialog
+        canRemovePermanently
+        extension={bundledRow}
+        onOpenChange={vi.fn()}
+        open
+      />
+    );
+
+    const permanent = screen.getByTestId("remove-extension-choice-permanent");
+    expect(permanent).toHaveTextContent("Remove permanently");
+    expect(permanent).toHaveTextContent("The built-in will not return on restart or update.");
+    expect(screen.getByTestId("remove-extension-choice-remove")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(permanent).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByTestId("remove-extension-confirm")).toHaveTextContent("Remove extension");
+  });
+
+  it("Should send the request without permanent unless the permanent choice is confirmed", async () => {
+    const user = userEvent.setup();
+    render(
+      <RemoveExtensionDialog
+        canRemovePermanently
+        extension={bundledRow}
+        onOpenChange={vi.fn()}
+        open
+      />
+    );
+
+    await user.type(screen.getByLabelText("Type to confirm"), "otel-bridge");
+    await user.click(screen.getByTestId("remove-extension-confirm"));
+
+    await waitFor(() =>
+      expect(mocks.remove).toHaveBeenCalledWith({
+        dev: false,
+        name: "otel-bridge",
+        profileName: "default",
+      })
+    );
+    expect(mocks.remove.mock.calls[0]![0]).not.toHaveProperty("permanent");
+  });
+
+  it("Should send permanent=true without an instance scope when the permanent choice is confirmed", async () => {
+    const user = userEvent.setup();
+    const onRemoved = vi.fn();
+    render(
+      <RemoveExtensionDialog
+        canRemovePermanently
+        extension={bundledRow}
+        onOpenChange={vi.fn()}
+        onRemoved={onRemoved}
+        open
+      />
+    );
+
+    await user.click(screen.getByTestId("remove-extension-choice-permanent"));
+    expect(screen.getByTestId("remove-extension-choice-permanent")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByTestId("remove-extension-confirm")).toHaveTextContent("Remove permanently");
+    await user.type(screen.getByLabelText("Type to confirm"), "otel-bridge");
+    await user.click(screen.getByTestId("remove-extension-confirm"));
+
+    await waitFor(() =>
+      expect(mocks.remove).toHaveBeenCalledWith({
+        dev: false,
+        name: "otel-bridge",
+        permanent: true,
+      })
+    );
+    expect(mocks.remove.mock.calls[0]![0]).not.toHaveProperty("profileName");
+    expect(onRemoved).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["marketplace row", { ...extensionFixtures[0]!, source: "marketplace" }, true],
+    ["local row", { ...extensionFixtures[0]!, source: "user" }, true],
+    ["bundled row for an actor without write permission", bundledRow, false],
+    ["bundled dev overlay", { ...bundledRow, dev: true }, true],
+    ["bundled row attached to a workspace", { ...bundledRow, workspace_id: "ws_northstar" }, true],
+  ])("Should hide the permanent option for a %s", (_label, extension, canRemovePermanently) => {
+    render(
+      <RemoveExtensionDialog
+        canRemovePermanently={canRemovePermanently}
+        extension={extension}
+        onOpenChange={vi.fn()}
+        open
+      />
+    );
+
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("remove-extension-choice-permanent")).not.toBeInTheDocument();
+  });
+
+  it("Should show a server refusal inline in the dialog", () => {
+    mocks.removeError = new Error(
+      'otel-bridge has source "bundled" but the request was refused: permanent removal is not available'
+    );
+    render(
+      <RemoveExtensionDialog
+        canRemovePermanently
+        extension={bundledRow}
+        onOpenChange={vi.fn()}
+        open
+      />
+    );
+
+    expect(screen.getByText(/permanent removal is not available/)).toBeInTheDocument();
+  });
+
+  it("Should start a reopened dialog from the non-permanent default", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <RemoveExtensionDialog
+        canRemovePermanently
+        extension={bundledRow}
+        onOpenChange={onOpenChange}
+        open
+      />
+    );
+
+    await user.click(screen.getByTestId("remove-extension-choice-permanent"));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+
+    rerender(
+      <RemoveExtensionDialog
+        canRemovePermanently
+        extension={bundledRow}
+        onOpenChange={onOpenChange}
+        open={false}
+      />
+    );
+    rerender(
+      <RemoveExtensionDialog
+        canRemovePermanently
+        extension={bundledRow}
+        onOpenChange={onOpenChange}
+        open
+      />
+    );
+    expect(screen.getByTestId("remove-extension-choice-remove")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+  });
 });
 
 describe("RemoveExtensionDialog", () => {

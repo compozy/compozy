@@ -272,6 +272,18 @@ Linked work is the set of pull requests, branches and worktrees that belong to a
 - `handoff`: reserved for Network; never a label for continue or fork. The API's `next_action: "handoff"` is a wire value — the UI says "Continue this session with another agent or route."
 - Never in this feature's copy: `branch` (git, worktrees, Loops), `chat`, "Handoff from X", a "Badge".
 
+### Side Chat Terms
+
+A side chat is a hidden session that answers a side question about a session while that session keeps working. It is listed only under its source session. The glossary entry **Session** (derived kind `side`) is authoritative. Product term: "side chat"; wire term: `side`.
+
+- Labels: the head toggle "Side chats" (with the count of open side chats and the attention dot when one needs you); switcher row "New side chat"; header actions "Close side chat" and "Hide side chats"; the shortcut row "Toggle side chats" (⌘⌥S, Ctrl+Alt+S off macOS). An untitled side chat reads "Side chat".
+- Opening: typing `/side <question>` in the composer opens a side chat with that question; a bare `/side` opens an empty side chat whose composer reads "Ask a side question. The session keeps working." Nothing is added to the main thread. While it starts: "Opening the side chat…"; a failure reads "Couldn't open the side chat." with "Retry", which sends the same question once.
+- Main status chip, in the side panel header: "Main working" (only while the main session is prompting), "Main needs approval", "Main needs input", "Main finished", "Main failed", "Main stopped". While the main session's state is unknown the chip shows nothing.
+- Close: closing a side chat that is still answering asks "Stop this side chat and close it?", body "It's still answering. Closing stops it and removes it from the side chats.", action "Stop and close". A failed close reads "Couldn't close the side chat." A stopped side chat reads "This side chat stopped. Sending a message resumes it."
+- Delete confirmation: a session with side chats (closed ones included) adds "Also deletes its side chats."
+- Refusals (server-owned, shown where the question was typed): "Send a message first, then open a side chat.", "Unarchive this session first.", "Side chats can't open side chats.", "Side chats are available on your own sessions.", "Side chat questions can't include files yet. Send the question alone."
+- Never in this feature's copy: "fork", "branch", "thread", or "subagent" for a side chat. A side chat is not a fork: it never shows in the session list, and nothing flows back into its source except what the operator copies.
+
 ### Session Compaction Terms
 
 The agent compacts its own context window. CompozyOS observes that compaction when the agent supports it and asks for it only through the command the agent advertises. The surfaces are experimental while the upstream ACP contract is unstable. The glossary entry **Compaction** is authoritative.
@@ -498,6 +510,17 @@ Browse is grouped by **category**, never by source. Category labels are owned by
 - Row action (one per row, accessible name includes the entry name, e.g. "Add Notion"): **Add** → **Adding…** while it runs, then the toast "{name} added". After adding, the row reads **Set up** (a required value is missing or a server waits for sign-in), **Ready** (quiet check, no button), or **Turn on** (installed but off). When an installed server reports a failure, the row reads **Unavailable** with the daemon's reason as its description. When turning on fails after install, the row reads **Couldn't turn on** with **Retry** (accessible name "Retry turning on {name}") and the toast reads "Added {name} but couldn't turn it on". Use "Add" and "turn on", never "Install and enable" or "Activate", in this flow; the install review dialog's primary button also reads **Add**.
 - Live region (polite, one announcement per transition): "Adding {name}…" while Add runs; "{name} added · Ready", or "{name} added · Set up to finish" when a server waits for sign-in; "Added {name} but couldn't turn it on: {cause}" when the enable fails after install; "{name} turned on" after a Retry or Turn on succeeds. A failed Retry announces the daemon's message, which also becomes the Retry button's description ("Added but couldn't turn on: {cause}").
 - Catalog failure (nothing to show, with **Retry**): when the daemon reports its sources unreachable, "The marketplace is unreachable" / "No sources responded. Retry, or come back in a moment."; when the read itself fails (a daemon error), "Couldn't load the marketplace" / "Something went wrong while loading the catalog. Retry, or come back in a moment." Never call a daemon error unreachable.
+
+### Removed Built-in Terms
+
+A **built-in** is an extension CompozyOS ships. Removing one permanently keeps it from returning on restart or update until someone restores it. Use "built-in" in copy, never the bundled code term.
+
+- Section label on the installed list: **Removed built-ins**. It appears only while at least one built-in is permanently removed, and is hidden otherwise.
+- Row: the name, then "Removed {time}" with the absolute removal time. Rows keep the daemon's order.
+- Row action: **Restore** (accessible name "Restore {name}"); **Restoring…** while it runs. Only one restore runs at a time, and the action is absent, not disabled, for a viewer who cannot restore.
+- Success toast: "{name} restored". The built-in then appears in the installed list as enabled, with no reload.
+- Conflict, inline on its row: "{name} is already installed. Remove the installed copy first." The row stays listed. Any other refusal shows the daemon's message on the same row.
+- Load failure, with **Retry**: "Couldn't load removed built-ins", then the daemon's message. Never an empty list in its place.
 
 ### Burned-Out Marketing Phrases
 

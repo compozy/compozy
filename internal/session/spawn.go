@@ -163,6 +163,9 @@ func (m *Manager) prepareSpawn(
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
+	if isSideLineage(parent.Lineage) && !IsInternalSpawnRole(normalized.SpawnRole) {
+		return SpawnOpts{}, nil, nil, ErrSideSpawnUnsupported
+	}
 	if parent.Type == SessionTypeTriage {
 		return SpawnOpts{}, nil, nil, acp.ErrPermissionDenied
 	}

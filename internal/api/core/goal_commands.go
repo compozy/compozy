@@ -27,11 +27,15 @@ func (h *BaseHandlers) requireGoalCommandService(c *gin.Context) (GoalCommandSer
 
 // MutateSessionGoal executes one authenticated typed Goal operation for the route session.
 func (h *BaseHandlers) MutateSessionGoal(c *gin.Context) {
-	service, ok := h.requireGoalCommandService(c)
+	scope, sessionID, info, ok := h.routeSessionInWorkspace(c)
 	if !ok {
 		return
 	}
-	scope, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if info.Lineage != nil && info.Lineage.Kind == "side" {
+		h.respondError(c, http.StatusConflict, session.ErrSideGoalUnsupported)
+		return
+	}
+	service, ok := h.requireGoalCommandService(c)
 	if !ok {
 		return
 	}

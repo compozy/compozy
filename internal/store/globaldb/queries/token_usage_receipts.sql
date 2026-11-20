@@ -28,19 +28,19 @@ WITH RECURSIVE ancestry(id, parent_session_id, instance_id, profile_id, lineage_
     FROM ancestry a
     LEFT JOIN sessions s ON s.id = a.parent_session_id
     LEFT JOIN deleted_session_budget_lineage deleted ON s.id IS NULL AND deleted.id = a.parent_session_id
-    WHERE a.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+    WHERE a.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
       AND a.parent_session_id IS NOT NULL AND a.parent_session_id != ''
       AND (s.id IS NOT NULL OR deleted.id IS NOT NULL)
 )
 SELECT owner.profile_id,
     CAST(COALESCE((
         SELECT a.nearest_instance_id FROM ancestry a
-        WHERE a.lineage_kind IN ('continue', 'fork', 'provenance')
+        WHERE a.lineage_kind IN ('continue', 'fork', 'provenance', 'side')
            OR a.parent_session_id IS NULL OR a.parent_session_id = ''
         LIMIT 1
     ), '') AS TEXT) AS instance_id,
     CAST(NOT EXISTS (SELECT 1 FROM ancestry a
-        WHERE a.lineage_kind IN ('continue', 'fork', 'provenance')
+        WHERE a.lineage_kind IN ('continue', 'fork', 'provenance', 'side')
            OR a.parent_session_id IS NULL OR a.parent_session_id = '') AND EXISTS (
         SELECT 1 FROM agent_instances i WHERE i.profile_id = owner.profile_id
     ) AS INTEGER) AS ownership_unresolved
@@ -48,7 +48,7 @@ FROM sessions owner
 WHERE owner.id = sqlc.arg(session_id)
   AND (
       EXISTS (SELECT 1 FROM ancestry a
-          WHERE a.lineage_kind IN ('continue', 'fork', 'provenance')
+          WHERE a.lineage_kind IN ('continue', 'fork', 'provenance', 'side')
              OR a.parent_session_id IS NULL OR a.parent_session_id = '')
       OR (owner.root_session_id IS NOT NULL AND owner.root_session_id != ''
           AND EXISTS (SELECT 1 FROM ancestry a WHERE a.lineage_kind IN ('spawn', 'recovery')
@@ -116,13 +116,13 @@ WITH RECURSIVE eligible_owners AS (
     FROM owned_sessions parent JOIN sessions child ON child.parent_session_id = parent.id
     WHERE child.profile_id = parent.profile_id
       AND COALESCE(NULLIF(child.instance_id, ''), parent.instance_id) = parent.instance_id
-      AND child.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+      AND child.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
     UNION
     SELECT child.id, child.profile_id, parent.instance_id
     FROM owned_sessions parent JOIN deleted_session_budget_lineage child ON child.parent_session_id = parent.id
     WHERE child.profile_id = parent.profile_id
       AND COALESCE(NULLIF(child.instance_id, ''), parent.instance_id) = parent.instance_id
-      AND child.lineage_kind NOT IN ('continue', 'fork', 'provenance')
+      AND child.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
       AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = child.id)
 ), owned_roots AS (
     SELECT root.id, root.profile_id, owner.id AS instance_id

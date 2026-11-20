@@ -22,6 +22,7 @@ export function SessionComposerSendButton({
   canPrompt,
   hasStagedQuote = false,
   onDisconnectedSend,
+  onInterceptedSend,
   sessionId,
   promptEmbeddedContextCapability,
   promptImageCapability,
@@ -30,6 +31,8 @@ export function SessionComposerSendButton({
   hasStagedQuote?: boolean;
   /** While the live stream is down the press answers with the guard note; nothing leaves. */
   onDisconnectedSend?: () => void;
+  /** The composer's interceptor claims the text (`/side`): the press goes there, not to this session. */
+  onInterceptedSend?: () => void;
   sessionId: string;
   promptEmbeddedContextCapability: SessionPromptCapability;
   promptImageCapability: SessionPromptCapability;
@@ -43,14 +46,13 @@ export function SessionComposerSendButton({
     promptEmbeddedContextCapability,
     promptImageCapability,
   });
-  const hasReadyAttachment = attachments.some(
-    attachment => sessionAttachmentTileState(attachment) === "ready"
-  );
-  const quoteOnly = hasStagedQuote && text.trim().length === 0 && !hasReadyAttachment;
-  const disabled =
-    !canPrompt ||
-    Boolean(blocker) ||
-    (text.trim().length === 0 && !hasReadyAttachment && !hasStagedQuote);
+  const { disabled, quoteOnly } = sessionComposerSendState({
+    attachments,
+    blocker,
+    canPrompt,
+    hasStagedQuote,
+    text,
+  });
 
   if (edit?.active) {
     return (
@@ -61,6 +63,21 @@ export function SessionComposerSendButton({
         onClick={() => {
           void edit.submit();
         }}
+        size="send"
+        title={blocker ?? undefined}
+      >
+        <ArrowUp strokeWidth={2} />
+      </InputGroupButton>
+    );
+  }
+
+  if (onInterceptedSend) {
+    return (
+      <InputGroupButton
+        aria-label="Send message"
+        data-testid="composer-send-button"
+        disabled={disabled}
+        onClick={onInterceptedSend}
         size="send"
         title={blocker ?? undefined}
       >
@@ -115,4 +132,28 @@ export function SessionComposerSendButton({
       <ArrowUp strokeWidth={2} />
     </ComposerPrimitive.Send>
   );
+}
+
+/** Whether the send button is disabled, and whether a press sends only the staged terminal quote. */
+function sessionComposerSendState({
+  attachments,
+  blocker,
+  canPrompt,
+  hasStagedQuote,
+  text,
+}: {
+  attachments: readonly Parameters<typeof sessionAttachmentTileState>[0][];
+  blocker: string | null | undefined;
+  canPrompt: boolean;
+  hasStagedQuote: boolean;
+  text: string;
+}): { disabled: boolean; quoteOnly: boolean } {
+  const hasReadyAttachment = attachments.some(
+    attachment => sessionAttachmentTileState(attachment) === "ready"
+  );
+  const empty = text.trim().length === 0 && !hasReadyAttachment;
+  return {
+    disabled: !canPrompt || Boolean(blocker) || (empty && !hasStagedQuote),
+    quoteOnly: hasStagedQuote && empty,
+  };
 }

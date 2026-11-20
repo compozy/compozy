@@ -330,12 +330,18 @@ func (s *daemonExtensionService) Remove(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
-	return s.removeInstalledExtension(ctx, name, actor, "")
+	return s.removeInstalledExtension(ctx, name, actor, "", false)
 }
 
 // Credential before-images remain available until package removal and allocation retirement commit.
+// A permanent removal writes the built-in tombstone inside the row-delete transaction of the coordinator.
 func (s *daemonExtensionService) removeManagedExtensionLocked(
-	ctx context.Context, name string, actor taskpkg.ActorContext, key extensionpkg.InstanceKey, orphan bool,
+	ctx context.Context,
+	name string,
+	actor taskpkg.ActorContext,
+	key extensionpkg.InstanceKey,
+	orphan bool,
+	permanent bool,
 ) (contract.ManagedExtensionRemovePayload, error) {
 	retire := s.retireExtensionSecretBindings
 	if orphan {
@@ -345,26 +351,21 @@ func (s *daemonExtensionService) removeManagedExtensionLocked(
 	if retireErr != nil {
 		return contract.ManagedExtensionRemovePayload{}, retireErr
 	}
-	removed, removeErr := extensionpkg.RemoveManagedExtension(
-		ctx,
-		s.homePaths,
-		s.registry,
-		name,
-		func(reloadCtx context.Context) error {
-			// A restored registry row means the domain coordinator is compensating the removal.
-			// Restore credentials before consumers resolve the reinstalled declaration.
-			if _, err := s.registry.Get(name); err == nil {
-				if err := retirement.rollback(reloadCtx, s); err != nil {
-					return err
-				}
-				retirement = nil
-			} else if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+	reload := func(reloadCtx context.Context) error {
+		// A restored registry row means the domain coordinator is compensating the removal.
+		// Restore credentials before consumers resolve the reinstalled declaration.
+		if _, err := s.registry.Get(name); err == nil {
+			if err := retirement.rollback(reloadCtx, s); err != nil {
 				return err
 			}
-			return s.reloadExtensions(reloadCtx, name)
-		},
-		func(ctx context.Context) error { return s.deleteRemovedExtensionMCPAllocations(ctx, name, key, orphan) },
-	)
+			retirement = nil
+		} else if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			return err
+		}
+		return s.reloadExtensions(reloadCtx, name)
+	}
+	commit := func(ctx context.Context) error { return s.deleteRemovedExtensionMCPAllocations(ctx, name, key, orphan) }
+	removed, removeErr := s.removeExtensionPackage(ctx, name, actor, permanent, reload, commit)
 	if removeErr != nil {
 		return contract.ManagedExtensionRemovePayload{}, errors.Join(removeErr, retirement.rollback(ctx, s))
 	}
@@ -377,6 +378,7 @@ func (s *daemonExtensionService) removeManagedExtensionLocked(
 		Status:         removed.Status,
 		Warnings:       append([]contract.DiagnosticItem(nil), removed.Warnings...),
 	}
+	applyBuiltinTombstone(&item, removed.Tombstone)
 	return item, s.recordExtensionRemoveEvent(ctx, actor, item)
 }
 

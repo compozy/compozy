@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"sync"
@@ -61,6 +62,16 @@ type daemonExtensionService struct {
 	mcpRuntimeHealth    *mcppkg.RuntimeHealthRegistry
 	paletteNotifier     *extensionPaletteNotifier
 	profiles            *profilepkg.Manager
+	// builtinEnrollments overrides the shared bundledEnrollments table for restore; nil uses the table.
+	builtinEnrollments []bundledEnrollment
+	// restoreRollbackTimeout overrides the restore rollback budget for tests; zero uses builtinRestoreRollbackTimeout.
+	restoreRollbackTimeout time.Duration
+	// partialRowRemoval overrides the removal of a partially enrolled built-in row during restore rollback for tests;
+	// nil uses extensionpkg.RemoveManagedExtension.
+	partialRowRemoval func(ctx context.Context, name string) error
+	// partialRowLookup overrides the read-back that decides whether a partial row remains for tests; nil reads the
+	// registry.
+	partialRowLookup func(ctx context.Context, name string) error
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)

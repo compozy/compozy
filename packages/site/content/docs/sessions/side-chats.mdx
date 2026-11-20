@@ -1,0 +1,73 @@
+---
+title: Side Chats
+description: Ask a question about a session without interrupting its work.
+---
+
+A side chat is a separate conversation attached to your session. It starts from a frozen copy of
+that session's context, including the current turn when it is still running. The main session keeps
+working. Questions and answers in the side chat stay in its own transcript.
+
+## Ask a side question
+
+Send `/side what is it doing right now?` in the main session, or open **Side chats** and write your
+question in the panel. The shortcut is **Command+Option+S** on macOS and **Control+Alt+S** on other
+platforms. Opening an empty panel creates no session; sending its first question creates the side chat.
+Use the switcher to revisit another side chat attached to the same session.
+
+The side inherits the main session's agent, effective runtime, permission mode, working directory,
+and worktree. An idle source can use a native provider clone; a busy or stopped source uses bounded
+context replay. Inherited messages provide context and do not appear as messages in the side's
+transcript. Later progress in the main session does not change that initial copy.
+
+A side is instructed to answer questions and inspect without continuing inherited plans. Ask explicitly
+inside the side chat if you need a small change. Its inherited permissions still apply. Use the main
+session to start subagents, change worktrees, set a Goal, or organize the session.
+
+## Hide, close, and retain history
+
+Hiding the panel keeps the conversation and draft. **Close side chat** stops and archives that side;
+closing a running side asks for confirmation. An explicit stop on the main session also stops its sides.
+Archiving the main session stops and archives its open sides. Restoring the main session restores sides
+archived by that operation; sides closed earlier remain closed. Deleting the main session also deletes
+all its side chats, including archived ones.
+
+Moving the main session to another profile leaves its sides with the archived original. The new copy
+starts without sides. Parking the main session in Later does not park its side chats. Side chats are
+absent from session catalogs, boards, subagent lists, attention summaries, and history-cleanup selection;
+their usage still counts in agent metrics.
+
+## CLI and API
+
+```bash
+compozy session side open sess_1234 "Why did it choose this approach?" \
+  --idempotency-key side_question_1 --json
+compozy session side list sess_1234 --json
+compozy session side list sess_1234 --archived --json
+```
+
+HTTP and UDS share these routes:
+
+| Method | Route                                                                      | Result                                                  |
+| ------ | -------------------------------------------------------------------------- | ------------------------------------------------------- |
+| POST   | `/api/workspaces/{workspace_id}/sessions/{session_id}/sides`               | `SessionDeriveResponse`; 201 on creation, 200 on replay |
+| GET    | `/api/workspaces/{workspace_id}/sessions/{session_id}/sides?archived=true` | `{ "sides": [...] }`                                    |
+
+POST requires `message` and `idempotency_key`; `name` is optional. Retry the same request with the same
+key to receive the same child. A different question with that key returns `idempotency_conflict`.
+The response's `derived` includes `child_session_id`, `source_session_id`, `seed`,
+`source_turn_in_progress`, and `replayed`, alongside the existing derivation metadata.
+A failure after creation includes `child_session_id` so the committed side can still be opened.
+
+Each list item has `id`, `name`, `state`, `prompting`, `pending_permission_count`,
+`pending_clarify_count`, nullable `archived_at`, `created_at`, and `updated_at`. The list is complete
+and ordered by most recently updated first. The catalog stream emits `session_side_changed` with
+the main `session_id` and changed `side_session_id`; reread this parent-owned list after the event.
+
+Native tools are `compozy__session_side_open` and `compozy__session_side_list`. A human prompt
+containing `/side <question>` returns `prompt.status: "side_opened"`, `delivery: "none"`, and
+`side: { session_id, seed, source_turn_in_progress }`. Agent-authored `/side` text stays literal.
+Files cannot accompany a side question yet. An empty source, spawned session, archived source, or
+another side cannot open a new side chat.
+
+Session hook context includes optional `lineage_kind: "side"` and `parent_session_id` for a side.
+Root sessions omit both fields. See [Hooks](/docs/hooks) for hook delivery.

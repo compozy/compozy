@@ -1,9 +1,11 @@
 package mcp
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -311,5 +313,106 @@ func requireHostedArtifactContinuation(
 	}
 	if !equalJSON(t, canonical.Structured, want) {
 		t.Fatalf("retained structured result = %s, want original %s", canonical.Structured, want)
+	}
+}
+
+// Discovery activation uses authorized IDs retained before the result is offloaded.
+func TestHostedToolOffloadedDiscovery(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		id   tools.ToolID
+	}{
+		{name: "Should activate matches from offloaded full search", id: tools.ToolIDToolSearch},
+		{name: "Should activate the tool from offloaded info", id: tools.ToolIDToolInfo},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			scope := tools.Scope{WorkspaceID: "ws-offload", SessionID: "sess-offload"}
+			artifactStore, err := tools.OpenFilesystemToolArtifactStore(ctx, t.TempDir(),
+				tools.ToolArtifactRetention{MaxCount: 10, MaxBytes: 1 << 20, MaxAge: time.Hour})
+			if err != nil {
+				t.Fatal(err)
+			}
+			echo, denied := hostedBudgetTestView("large", "echo"), hostedBudgetTestView("large", "denied")
+			toolID := echo.Descriptor.ID
+			descriptor := hostedRuntimeNativeTool(tc.id, tools.RiskRead, true)
+			natives := builtin.NativeDescriptors()
+			for i := range natives {
+				if natives[i].ID == tc.id {
+					descriptor.Descriptor = natives[i]
+					break
+				}
+			}
+			row := fmt.Sprintf(
+				`{"descriptor":{"id":%q,"input_schema":{"description":%q}},"decision":{"callable":true}}`,
+				toolID,
+				strings.Repeat("fixture schema ", 1024),
+			)
+			body := `{"tool":` + row + `}`
+			args := map[string]any{"tool_id": toolID.String()}
+			if tc.id == tools.ToolIDToolSearch {
+				body = fmt.Sprintf(`{"tools":[%s,{"descriptor":{"id":%q},"decision":{"callable":false}}]}`,
+					row, denied.Descriptor.ID)
+				args = map[string]any{"query": "large echo", "limit": 100, "result_view": "full"}
+			}
+			descriptor.Call = func(_ context.Context, _ tools.Scope, req tools.CallRequest) (tools.ToolResult, error) {
+				if tc.id == tools.ToolIDToolSearch && req.View != tools.ResultViewFull {
+					return tools.ToolResult{}, fmt.Errorf("search view = %s, want full", req.View)
+				}
+				return tools.ToolResult{Structured: json.RawMessage(body), Preview: "fixture catalog"}, nil
+			}
+			provider, err := tools.NewNativeProvider(tools.BuiltinSource(), descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registry, err := tools.NewRegistry(tools.WithProviders(provider),
+				tools.WithResultProcessor(tools.NewResultProcessor(4<<10, artifactStore)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			service := &HostedService{registry: func() tools.Registry { return registry }}
+			record := &hostedBindRecord{sessionID: scope.SessionID, workspaceID: scope.WorkspaceID}
+			views := []tools.ToolView{hostedToolView(tools.ToolIDToolSearch), echo, denied}
+			if tc.id != tools.ToolIDToolSearch {
+				views = append(views, hostedToolView(tc.id))
+			}
+			proxy := newHostedProxyClientStub(
+				HostedBindResponse{BindID: "bind-offload", Tools: views, Digest: "initial"},
+			)
+			proxy.block = func(req HostedCallRequest) (HostedCallResponse, error) {
+				if req.ToolName == tc.id.String() {
+					return service.callRecord(ctx, record, req)
+				}
+				return HostedCallResponse{}, nil
+			}
+			updates, opts := hostedListUpdates()
+			client := startHostedBudgetProxy(t, proxy, HostedProxyOptions{ToolListThreshold: 1}, opts)
+			result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: tc.id.String(), Arguments: args})
+			if err != nil || result.IsError || hostedHasPendingDiscovery(result) {
+				t.Fatalf("offloaded discovery = %#v, %v", result, err)
+			}
+			envelope, ok := result.StructuredContent.(map[string]any)
+			if !ok || envelope["truncated"] != true || envelope["read_tool"] != tools.ToolIDToolArtifactRead.String() {
+				t.Fatalf("discovery result = %#v, want artifact continuation", result.StructuredContent)
+			}
+			select {
+			case update := <-updates:
+				if update.err != nil {
+					t.Fatal(update.err)
+				}
+				names := sdkToolNames(update.result.Tools)
+				if !slices.Contains(names, toolID.String()) || slices.Contains(names, denied.Descriptor.ID.String()) {
+					t.Fatalf("updated names = %v, want only the authorized match promoted", names)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("missing activation announcement")
+			}
+			called, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: toolID.String()})
+			if err != nil || called.IsError || proxy.lastCall(t).ToolName != toolID.String() {
+				t.Fatalf("activated real-name call = %#v, %v", called, err)
+			}
+		})
 	}
 }

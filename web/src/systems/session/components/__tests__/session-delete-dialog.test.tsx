@@ -23,6 +23,33 @@ describe("SessionDeleteDialog", () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  // UT-062 (S5, US-010.AC-3): deleting the source deletes its side chats, closed ones included,
+  // so the confirmation says so whenever any exist, and only then.
+  it("Should say the delete also removes the session's side chats only when it has any", () => {
+    const { rerender } = render(
+      <SessionDeleteDialog
+        open
+        onOpenChange={vi.fn()}
+        session={primarySessionFixture}
+        isDeleting={false}
+        sideChats
+        onConfirm={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("delete-dialog")).toHaveTextContent("Also deletes its side chats.");
+
+    rerender(
+      <SessionDeleteDialog
+        open
+        onOpenChange={vi.fn()}
+        session={primarySessionFixture}
+        isDeleting={false}
+        onConfirm={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("delete-dialog")).not.toHaveTextContent("side chats");
+  });
+
   it("Should allow normal dismissal before deletion starts", () => {
     const onOpenChange = vi.fn();
     render(

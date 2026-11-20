@@ -4315,10 +4315,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := json.Unmarshal(result.Structured, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(command_list) error = %v", err)
 		}
-		if payload.Revision != catalog.Revision || len(payload.Commands) != 3 ||
-			payload.Commands[1].CanonicalToken != "/worktree" || payload.Commands[1].Available ||
-			payload.Commands[1].UnavailableReason != "Wait for the current turn to finish." ||
-			payload.Commands[2].CanonicalToken != "/review" {
+		if payload.Revision != catalog.Revision || len(payload.Commands) != 4 ||
+			payload.Commands[2].CanonicalToken != "/worktree" || payload.Commands[2].Available ||
+			payload.Commands[2].UnavailableReason != "Wait for the current turn to finish." ||
+			payload.Commands[3].CanonicalToken != "/review" {
 			t.Fatalf("command_list payload = %#v", payload)
 		}
 	})
@@ -11733,6 +11733,34 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: an expired projection observation does not poison another reader's workspace policy.
+	// Owner: daemon policy read memo; canonical suite: native runtime policy resolver.
+	t.Run("Should retry workspace policy after an observation deadline", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config: &cfg,
+			WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(func(
+				ctx context.Context, _, _ string,
+			) (workspacepkg.ResolvedAgentConfig, error) {
+				return workspacepkg.ResolvedAgentConfig{Config: cfg}, ctx.Err()
+			}),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		tick := resolver.PolicyReadContext(t.Context(), false)
+		observation, cancel := context.WithDeadline(tick, time.Time{})
+		defer cancel()
+		scope := toolspkg.Scope{WorkspaceID: "ws-policy"}
+		if _, _, err := resolver.resolveWorkspaceConfig(observation, scope); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("expired workspace observation = %v, want deadline exceeded", err)
+		}
+		if _, resolved, err := resolver.resolveWorkspaceConfig(tick, scope); err != nil || resolved == nil {
+			t.Fatalf("same-tick workspace read returned %v", err)
+		}
+	})
+
 	// Invariant: pending rows with the same ID retain their own authority in one read.
 	// Owner: daemon authority; canonical suite: native runtime policy resolver.
 	t.Run("Should isolate successive candidate ceilings for the same session ID", func(t *testing.T) {
@@ -13290,7 +13318,7 @@ func TestValidateNativeToolBindings(t *testing.T) {
 		return toolspkg.ToolResult{}, nil
 	}
 	descriptor := toolspkg.Descriptor{ID: toolspkg.ToolID("compozy__test")}
-	validBinding := nativeToolBinding{call: call, availability: available}
+	validBinding := nativeToolBinding{call: call, availability: &toolspkg.NativeAvailabilityGroup{Check: available}}
 
 	t.Run("Should accept an exact executable binding set", func(t *testing.T) {
 		t.Parallel()
@@ -17847,6 +17875,53 @@ func TestNativeSessionMissingWorkspace(t *testing.T) {
 
 func TestNativeArchiveRefusals(t *testing.T) {
 	t.Parallel()
+	// B-005: implicit archive stops cannot reach the side executing the native call.
+	t.Run("Should refuse source archive before implicitly stopping its caller side", func(t *testing.T) {
+		t.Parallel()
+		for _, stop := range []bool{false, true} {
+			mutated := false
+			manager := &apitest.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					info := &session.Info{
+						ID:          id,
+						WorkspaceID: "registry-a",
+						ProfileID:   store.DefaultProfileID,
+						State:       session.StateStopped,
+						Type:        session.SessionTypeUser,
+					}
+					if id == "caller-side" {
+						info.State = session.StateActive
+						info.Lineage = &store.SessionLineage{ParentSessionID: "source", Kind: store.LineageKindSide}
+					}
+					return info, nil
+				},
+				ArchiveFn: func(context.Context, string, string) (*session.Info, error) {
+					mutated = true
+					return nil, errors.New("unexpected archive")
+				},
+				ArchiveWithStopFn: func(context.Context, string, string) (*session.Info, error) {
+					mutated = true
+					return nil, errors.New("unexpected stop")
+				},
+			}
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{Sessions: manager, Workspaces: nativeWorktreeWorkspaceService()},
+				nativeApproveAllPolicyInputs(),
+			)
+			input, _ := json.Marshal(map[string]any{"workspace": "ws-a", "session_id": "source", "stop": stop})
+			_, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "caller-side", WorkspaceID: "registry-a", ProfileID: store.DefaultProfileID},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionArchive, Input: input},
+			)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+			if mutated {
+				t.Fatal("archive mutated before refusing its caller")
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name    string
 		cause   error
@@ -19698,6 +19773,186 @@ func (p *nativePolicyCountingProvider) ProjectionScope(toolspkg.Scope) toolspkg.
 	return toolspkg.Scope{}
 }
 
+// UT-016: restore and removed-list are registered under their plural IDs with argument schemas and with
+// operator and agent policy assignments, and no tool ID for permanent removal exists.
+// Owner: native tool catalog. Canonical suite: TestDaemonNativeExtensionBuiltinTools.
+func TestDaemonNativeExtensionBuiltinTools(t *testing.T) {
+	t.Parallel()
+
+	descriptorsByID := make(map[toolspkg.ToolID]toolspkg.Descriptor)
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		descriptorsByID[descriptor.ID] = descriptor
+	}
+	restoreID := toolspkg.ToolID("compozy__extensions_restore")
+	removedListID := toolspkg.ToolID("compozy__extensions_removed_list")
+
+	t.Run("Should register restore and removed-list with their argument schemas", func(t *testing.T) {
+		t.Parallel()
+
+		restore, ok := descriptorsByID[restoreID]
+		if !ok {
+			t.Fatalf("%s is not registered", restoreID)
+		}
+		var restoreSchema struct {
+			Required             []string                   `json:"required"`
+			Properties           map[string]json.RawMessage `json:"properties"`
+			AdditionalProperties *bool                      `json:"additionalProperties"`
+		}
+		if err := json.Unmarshal(restore.InputSchema, &restoreSchema); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(restoreSchema.Required, []string{"name"}) || len(restoreSchema.Properties) != 1 ||
+			restoreSchema.Properties["name"] == nil ||
+			restoreSchema.AdditionalProperties == nil || *restoreSchema.AdditionalProperties {
+			t.Fatalf("restore input schema = %s, want exactly {name} required", restore.InputSchema)
+		}
+		if restore.Risk != toolspkg.RiskMutating || restore.ReadOnly {
+			t.Fatalf("restore risk = %q read_only=%v, want mutating write", restore.Risk, restore.ReadOnly)
+		}
+
+		removedList, ok := descriptorsByID[removedListID]
+		if !ok {
+			t.Fatalf("%s is not registered", removedListID)
+		}
+		var listSchema struct {
+			Properties           map[string]json.RawMessage `json:"properties"`
+			AdditionalProperties *bool                      `json:"additionalProperties"`
+		}
+		if err := json.Unmarshal(removedList.InputSchema, &listSchema); err != nil {
+			t.Fatal(err)
+		}
+		if len(listSchema.Properties) != 0 || listSchema.AdditionalProperties == nil ||
+			*listSchema.AdditionalProperties {
+			t.Fatalf("removed-list input schema = %s, want no arguments", removedList.InputSchema)
+		}
+		if removedList.Risk != toolspkg.RiskRead || !removedList.ReadOnly {
+			t.Fatalf("removed-list risk = %q read_only=%v, want read-only", removedList.Risk, removedList.ReadOnly)
+		}
+		for _, retired := range []toolspkg.ToolID{
+			"compozy__extension_restore", "compozy__extension_removed_list", "compozy__extensions_removed",
+		} {
+			if _, ok := descriptorsByID[retired]; ok {
+				t.Fatalf("retired spelling %s is registered; Q6 a registers no alias", retired)
+			}
+		}
+	})
+
+	t.Run("Should assign the same callable decision to the operator and agent scopes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, id := range []toolspkg.ToolID{restoreID, removedListID} {
+			descriptor := descriptorsByID[id]
+			evaluator, err := toolspkg.NewEffectivePolicyEvaluator(
+				nativeApproveAllPolicyInputs(),
+				toolspkg.ToolsetCatalog{},
+				[]toolspkg.ToolID{id},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			operator, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{Operator: true}, descriptor)
+			if err != nil || !operator.Callable || !operator.VisibleToOperator {
+				t.Fatalf("%s operator decision = %+v, %v; want callable", id, operator, err)
+			}
+			agent, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{
+				SessionID: "session-agent", WorkspaceID: "ws-builtin", ProfileID: "profile-builtin",
+			}, descriptor)
+			if err != nil || !agent.Callable || !agent.VisibleToSession {
+				t.Fatalf("%s agent decision = %+v, %v; want callable", id, agent, err)
+			}
+		}
+	})
+
+	t.Run("Should return the removed listing as the CLI payload and list tombstones after removal", func(t *testing.T) {
+		t.Parallel()
+
+		deps, extRegistry, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+
+		empty, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{ToolID: removedListID, Input: json.RawMessage(`{}`)},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_removed_list) error = %v", err)
+		}
+		if string(empty.Structured) != `{"removed":[]}` {
+			t.Fatalf("empty removed-list structured = %s, want {\"removed\":[]}", empty.Structured)
+		}
+
+		if _, err := extRegistry.Tombstone(t.Context(), "spec-cycle", "operator"); err != nil {
+			t.Fatalf("Tombstone() error = %v", err)
+		}
+		listed, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{ToolID: removedListID, Input: json.RawMessage(`{}`)},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_removed_list) after removal error = %v", err)
+		}
+		var payload contract.ExtensionRemovedBuiltinsResponse
+		if err := json.Unmarshal(listed.Structured, &payload); err != nil {
+			t.Fatalf("removed-list structured = %s: %v", listed.Structured, err)
+		}
+		if len(payload.Removed) != 1 || payload.Removed[0].Name != "spec-cycle" ||
+			payload.Removed[0].RemovedBy != "operator" || payload.Removed[0].RemovedAt == "" {
+			t.Fatalf("removed-list payload = %#v, want the spec-cycle tombstone", payload)
+		}
+	})
+
+	t.Run("Should map restore refusals to their domain errors and reject a missing name", func(t *testing.T) {
+		t.Parallel()
+
+		deps, _, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		call := func(input string) error {
+			_, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: restoreID, Input: json.RawMessage(input)},
+			)
+			return err
+		}
+
+		if err := call(`{"name":"spec-cycle"}`); !errors.Is(err, extensionpkg.ErrExtensionBuiltinNotRemoved) {
+			t.Fatalf("restore of a live built-in error = %v, want ErrExtensionBuiltinNotRemoved", err)
+		}
+		if err := call(`{"name":"no-such-builtin"}`); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("restore of an unknown name error = %v, want ErrExtensionNotFound", err)
+		}
+		blankErr := call(`{"name":"   "}`)
+		if !errors.Is(blankErr, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("restore with a blank name error = %v, want ErrToolInvalidInput", blankErr)
+		}
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](blankErr)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+			toolErr.Err == nil || !strings.Contains(toolErr.Err.Error(), "name is required") {
+			t.Fatalf("restore with a blank name tool error = %#v, want invalid input for name is required", toolErr)
+		}
+	})
+
+	t.Run("Should publish no tool ID or argument for permanent removal", func(t *testing.T) {
+		t.Parallel()
+
+		for id, descriptor := range descriptorsByID {
+			if strings.Contains(id.String(), "permanent") ||
+				strings.Contains(descriptor.Backend.NativeName, "permanent") {
+				t.Fatalf("permanent-removal tool %s is registered; Q5 a keeps it off the agent surface", id)
+			}
+			if slices.Contains(descriptor.Toolsets, toolspkg.ToolsetIDExtensions) &&
+				strings.Contains(string(descriptor.InputSchema), `"permanent"`) {
+				t.Fatalf("%s input schema exposes a permanent flag: %s", id, descriptor.InputSchema)
+			}
+		}
+		remove := descriptorsByID["compozy__extensions_remove"]
+		if strings.Contains(string(remove.InputSchema), `"permanent"`) {
+			t.Fatalf("compozy__extensions_remove exposes permanent: %s", remove.InputSchema)
+		}
+	})
+}
+
 // Run serially because the materialization key includes the process-wide redaction revision.
 func TestDaemonHostedMCPAuthoritySharing(t *testing.T) {
 	// Invariant: sessions with equal authority enumerate one catalog; a narrower lineage keeps its ceiling.
@@ -19751,6 +20006,119 @@ func TestDaemonHostedMCPAuthoritySharing(t *testing.T) {
 		}
 		if enumerations != 2 {
 			t.Fatalf("authority enumerations = %d, want one per distinct ceiling", enumerations)
+		}
+	})
+}
+
+func TestNativeSessionSideTools(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose side open and complete list results with their source scope", func(t *testing.T) {
+		t.Parallel()
+		manager := &apitest.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID:          id,
+					WorkspaceID: "ws-side",
+					ProfileID:   store.DefaultProfileID,
+					Type:        session.SessionTypeUser,
+				}, nil
+			},
+			OpenSideFn: func(_ context.Context, opts session.OpenSideOpts) (session.DeriveResult, error) {
+				if opts.SourceSessionID != "source" || opts.Message != "what now?" || opts.WorkspaceID != "ws-side" {
+					t.Fatalf("native side opts=%+v", opts)
+				}
+				return session.DeriveResult{
+					Kind:                 store.LineageKindSide,
+					ChildSessionID:       "side",
+					SourceSessionID:      "source",
+					Seed:                 session.DeriveSeedReplay,
+					SourceTurnInProgress: true,
+				}, nil
+			},
+			ListSidesFn: func(_ context.Context, workspaceID, id string, archived bool) ([]*session.Info, error) {
+				if workspaceID != "ws-side" || id != "source" || archived {
+					t.Fatalf("native side list scope=%s/%s/%t", workspaceID, id, archived)
+				}
+				return []*session.Info{
+					{ID: "side", Name: "Current work", State: session.StateActive, PendingClarifyCount: 1},
+				}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{Sessions: manager, Workspaces: nativeTestWorkspaceServiceWithRoot(t, t.TempDir())},
+			nativeApproveAllPolicyInputs(),
+		)
+		// UT-035
+		opened, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-side", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionSideOpen,
+				Input: json.RawMessage(
+					`{"workspace":"ws-side","session_id":"source","message":"what now?","idempotency_key":"side-native"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, opened, []byte(`"side_session_id":"side"`))
+		requireNativeStructuredContains(t, opened, []byte(`"source_turn_in_progress":true`))
+		listed, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-side", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionSideList,
+				Input:  json.RawMessage(`{"workspace":"ws-side","session_id":"source"}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, listed, []byte(`"pending_clarify_count":1`))
+	})
+	t.Run("Should refuse Goal control before invoking its service on a side", func(t *testing.T) {
+		t.Parallel()
+		manager := &apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID:          id,
+				WorkspaceID: "ws-side",
+				ProfileID:   store.DefaultProfileID,
+				Type:        session.SessionTypeUser,
+				Lineage:     &store.SessionLineage{Kind: store.LineageKindSide, ParentSessionID: "source"},
+			}, nil
+		}}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{Sessions: manager}}
+		// UT-072
+		_, err := native.goalControl(
+			t.Context(),
+			toolspkg.Scope{SessionID: "caller", WorkspaceID: "ws-side", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDGoalControl,
+				Input:  json.RawMessage(`{"session_id":"side","operation":"set","objective":"ship it"}`),
+			},
+		)
+		if !errors.Is(err, session.ErrSideGoalUnsupported) {
+			t.Fatalf("side Goal control=%v", err)
+		}
+		payload, marshalErr := json.Marshal(core.ToolErrorResponseForError(err, core.StatusForToolError(err), false))
+		if marshalErr != nil || !bytes.Contains(payload, []byte("session_side_goal_unsupported")) {
+			t.Fatalf("serialized Goal refusal=%s %v", payload, marshalErr)
+		}
+		native.deps.Workspaces = nativeTestWorkspaceServiceWithRoot(t, t.TempDir())
+		_, err = native.sessionSpawn(
+			t.Context(),
+			toolspkg.Scope{SessionID: "side", WorkspaceID: "ws-side", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionSpawn,
+				Input:  json.RawMessage(`{"agent_name":"coder","ttl_seconds":60}`),
+			},
+		)
+		payload, marshalErr = json.Marshal(core.ToolErrorResponseForError(err, core.StatusForToolError(err), false))
+		if !errors.Is(err, session.ErrSideSpawnUnsupported) || marshalErr != nil ||
+			!bytes.Contains(payload, []byte("session_side_spawn_unsupported")) {
+			t.Fatalf("serialized spawn refusal=%s %v / %v", payload, marshalErr, err)
 		}
 	})
 }

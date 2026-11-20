@@ -15,7 +15,7 @@ func TestTokenUsageReceiptSurvivesPreLineageMigrationOrdinaryDelete(t *testing.T
 	t.Run("Should retain standalone usage and admission after upgrading an old parent deletion", func(t *testing.T) {
 		ctx := globalMigrationTestContext(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00212_schema.sql"))
+		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00215_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

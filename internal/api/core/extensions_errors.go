@@ -32,6 +32,12 @@ const (
 	extensionErrorInputsRequired
 	extensionErrorInputInvalid
 	extensionErrorNotFound
+	extensionErrorNotBuiltin
+	extensionErrorBuiltinNotRemoved
+	extensionErrorExists
+	extensionErrorRestoreFailed
+	extensionErrorRemovalCompensationFailed
+	extensionErrorBuiltinRemovalCompensationFailed
 	extensionErrorConflict
 	extensionErrorUnprocessable
 	extensionErrorBadRequest
@@ -58,9 +64,11 @@ func ExtensionStatusCode(err error) int {
 	case extensionErrorConflict,
 		extensionErrorGatewayConfirmationRequired,
 		extensionErrorAgentConflict,
+		extensionErrorBuiltinNotRemoved,
+		extensionErrorExists,
 		extensionErrorSourceChanged, extensionErrorNameConflict:
 		return http.StatusConflict
-	case extensionErrorUnprocessable, extensionErrorMCPNameTaken,
+	case extensionErrorUnprocessable, extensionErrorMCPNameTaken, extensionErrorNotBuiltin,
 		extensionErrorInputsRequired, extensionErrorInputInvalid,
 		extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported,
@@ -79,10 +87,12 @@ func ExtensionStatusCode(err error) int {
 }
 
 func classifyExtensionError(err error) extensionErrorKind {
-	if kind := classifyExtensionAcquisitionError(err); kind != extensionErrorUnknown {
+	if kind := classifyExtensionPrecedenceError(err); kind != extensionErrorUnknown {
 		return kind
 	}
 	switch {
+	case errors.Is(err, extensionpkg.ErrExtensionBuiltinNotRemoved):
+		return extensionErrorBuiltinNotRemoved
 	case errors.Is(err, extensionpkg.ErrAgentPluginNotManifest):
 		return extensionErrorAgentPluginNotManifest
 	case errors.Is(err, agentplugin.ErrSchemaUnsupported):
@@ -103,7 +113,11 @@ func classifyExtensionError(err error) extensionErrorKind {
 		errors.Is(err, marketplacepkg.ErrEntryNotFound),
 		errors.Is(err, registrypkg.ErrPackageNotFound):
 		return extensionErrorNotFound
-	case errors.Is(err, extensionpkg.ErrExtensionExists),
+	case errors.Is(err, extensionpkg.ErrExtensionNotBuiltin):
+		return extensionErrorNotBuiltin
+	case errors.Is(err, extensionpkg.ErrExtensionExists):
+		return extensionErrorExists
+	case errors.Is(err, extensionpkg.ErrExtensionBuiltinAttached),
 		errors.Is(err, extensionpkg.ErrExtensionNotDevLinked),
 		errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing):
 		return extensionErrorConflict
@@ -132,6 +146,22 @@ func classifyExtensionError(err error) extensionErrorKind {
 		return extensionErrorUnavailable
 	default:
 		return extensionErrorUnknown
+	}
+}
+
+// classifyExtensionPrecedenceError matches the kinds whose errors wrap a cause of any other kind, so they must win
+// over the cause-typed kinds, in order: removal compensation failures, restore failures, then acquisition failures.
+// A restore failure can wrap an acquisition cause such as missing inputs, and it must still answer 500.
+func classifyExtensionPrecedenceError(err error) extensionErrorKind {
+	switch {
+	case errors.Is(err, extensionpkg.ErrExtensionBuiltinRemovalCompensationFailed):
+		return extensionErrorBuiltinRemovalCompensationFailed
+	case errors.Is(err, extensionpkg.ErrExtensionRemovalCompensationFailed):
+		return extensionErrorRemovalCompensationFailed
+	case errors.Is(err, extensionpkg.ErrExtensionRestoreFailed):
+		return extensionErrorRestoreFailed
+	default:
+		return classifyExtensionAcquisitionError(err)
 	}
 }
 

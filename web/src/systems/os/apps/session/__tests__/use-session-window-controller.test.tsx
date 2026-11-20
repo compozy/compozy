@@ -46,7 +46,6 @@ vi.mock("@/hooks/routes/use-session-page-controls", () => ({
   useSessionPageControls: () => ({
     canClear: true,
     handleClear: vi.fn(),
-    handleInterruptPrompt: vi.fn(),
     handleQueuePrompt: vi.fn(),
     handleRemoveQueuedPrompt: vi.fn(),
     handleReplaceQueuedPrompt: vi.fn(),

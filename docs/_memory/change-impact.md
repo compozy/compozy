@@ -1,5 +1,28 @@
 # Compozy Change Impact
 
+## Budgeted hosted MCP tool listing (GH-1869) — 2026-11-19
+
+- **Native tools.** `compozy__tool_search` accepts multi-word queries and ranks results by where
+  the words match; every query that matched before still matches. With a positive threshold on the
+  Claude ACP bridge, the callable deferred tools returned by `compozy__tool_search`,
+  `compozy__tool_list` and `compozy__tool_info` are registered under their real names. Public
+  result shapes are unchanged. No new tool id.
+- **CLI/HTTP/UDS.** No public verb, route or DTO change. The hidden `compozy tool mcp` bridge
+  receives the threshold from the daemon through a private flag, and the private bridge call
+  response carries up to 100 discovered tool ids (additive, omitted when empty).
+- **Extensibility, hooks and config.** New experimental key `tools.hosted_mcp.tool_list_threshold`
+  (default `0`, the full listing as before). Hooks see the same tool calls and results. Providers
+  other than the Claude ACP bridge keep the full listing.
+- **State and isolation.** No persisted state. Activation lives in one bridge process and is
+  limited to tools in that bind's own callable projection; policy, approvals and revocation are
+  still enforced per call. The served receipt still carries the digest of the full projected
+  catalog. A replacement bind starts from the initial budget.
+- **Web, official skill, docs and QA.** Web unchanged. The site config reference,
+  `configuration.md`, `native-tools.md` and `tools-and-skills.md` describe the directory, schema
+  loading, the refresh-delay message and rediscovery after a relaunch. ET-048,
+  ET-compozy-native-tool-invocation, ET-mcp-protocol-interop and
+  RT-mcp-hot-activation-next-message carry the budgeted variant.
+
 ## Pinned sessions carry their subtree and keep a manual order (GH-1859)
 
 - **Native tools.** `compozy__session_list` `pinned` now includes or leaves out every session a pin
@@ -20,6 +43,58 @@
   and reorders pins by drag or Move up/Move down where the list reads one pair. The native tool
   reference, sessions guide, generated CLI docs, release note, and ET-web-session-list-pinned
   describe the new rule.
+
+## Built-in extension permanent removal and restore — 2026-11-18
+
+- **Native tools.** `compozy__extensions_restore` (mutating, `{"name"}`, write authority; result is the
+  `extension restore -o json` payload) and `compozy__extensions_removed_list` (read-only, `{}`; result is
+  the `extension removed -o json` payload) are registered with policy and result views. No tool removes
+  a built-in permanently: `compozy__extensions_remove` gains no `permanent` input, and permanent removal
+  requires operator scope, so agent sessions are denied.
+- **Extensibility, hooks and config.** Public surfaces are additive: `extension remove --permanent`,
+  `extension restore` and `extension removed`; `DELETE /api/extensions/{name}?permanent=true`,
+  `POST /api/extensions/{name}/restore` and `GET /api/extensions/removed-builtins` over HTTP and UDS; the
+  remove response gains `permanent` and `tombstoned_at`. Built-in manifests, hooks, extension SDK contracts
+  and extension APIs are unchanged. Generated OpenAPI and TypeScript types co-ship through codegen. No
+  config key is added, removed or changed: the tombstone is registry state.
+- **State and isolation.** New table `extension_builtin_tombstones` (migration `00209`, additive, keyed by
+  name, no foreign key to `extensions`). It is global to the daemon home, as bundled rows are global, not
+  per profile or workspace. Permanent removal commits the row delete and the tombstone in one transaction.
+  Restore clears the tombstone under the package mutation lock and writes it back when enrollment fails,
+  unless a partially enrolled row cannot be removed: then the row stays, no tombstone is written, and the
+  error is `extension_restore_failed`, so a row and a tombstone never coexist for one name. The rollback runs
+  detached from the caller's cancellation with a 15-second budget, so a canceled restore still writes the
+  tombstone back.
+  Boot and restore never touch a non-bundled row under the same name. An explicit install keeps the
+  tombstone in place (Q2 a). Input and secret values follow plain `remove` (Q1 a). Tool-policy trust follows
+  row presence, so a tombstoned built-in grants none. Extension MCP overrides (`extension_mcp_overrides`) are
+  kept by permanent removal and restore (Q1 b): neither path deletes them, which matches keeping user data by
+  default and plain `remove`.
+- **Errors and compensation.** New code `extension_removal_compensation_failed` (HTTP 500, category
+  `extension`, additive in `diagnosticcontract`). It answers a removal whose compensation failed after the
+  row delete: `ErrExtensionRemovalCompensationFailed` is the generic sentinel from `RemoveManagedExtension`,
+  and `ErrExtensionBuiltinRemovalCompensationFailed` wraps it for every permanent-removal compensation failure.
+  A failed compensation first returns the built-in to its removed state (no row, no install directory, tombstone
+  recorded), so the built-in sentinel's diagnostic suggests `compozy extension restore <name>`; the
+  generic one suggests `compozy doctor`. Decision (review round 01, F1, option a): the removal and its
+  tombstone stay committed after a failed compensation, and the code reports it, rather than rolling back
+  silently. Safety Invariant 1 in the spec records this. Install conflicts (`install`, local install,
+  marketplace install, and restore) now also carry the code `extension_exists` and the operation payload
+  with its diagnostic, and stay 409. This is intentional and additive.
+- **Web.** The extension remove dialog offers "Remove permanently" for bundled rows only, with the default
+  non-permanent. A "Removed built-ins" section lists tombstones with a restore action, and a successful
+  restore refreshes the installed list. Visual design belongs to the designer lane; E2E-004 covers the
+  browser journey.
+- **Official skill.** `skills/compozy/references/extensions.md` adds a Built-in Permanent Removal section,
+  routes built-in recovery to restore instead of reinstall, and notes that `--permanent` is not a dev-overlay
+  option. `native-tools.md` lists the two new tools and states that no tool removes a built-in permanently.
+- **Docs.** `packages/site/content/docs/cli/extension/{remove,restore,removed}.mdx` match the Cobra help, and
+  `make cli-docs-check` is clean. `extensions/install.mdx` documents operator-only permanent removal and the
+  restore and removed-list tool rows. The glossary entry "Built-in extension" awaits the operator's decision.
+- **QA.** `docs/qa/scenarios/ET-builtin-extension-permanent-removal.md` is the operator journey.
+  `ET-bundled-extension-trust.md` restart reconciliation mentions tombstones.
+- **Compatibility.** SD-013 regime 1 (one additive table) and regime 2 (additive surfaces; non-permanent
+  `remove` unchanged). No shim, deletion or ADR; the decisions live in the spec.
 
 ## Turn off a configured MCP server (GH-1850, requirement 10)
 
@@ -6841,3 +6916,24 @@ Owner [#1848](https://github.com/compozy/compozy/issues/1848).
   expose limits and current usage. Existing attention surfaces carry the
   warning and pause. The official heartbeat guide and
   `RT-always-on-daily-spend` record the operator workflow and validation.
+
+## Idle MCP projection refresh
+
+Owner: `perf/mcp-poll-churn`.
+
+- **Native tools and CLI/HTTP/UDS.** Session summaries and hosted streams retain their existing
+  refresh intervals, event payloads, and call-time authorization. A hosted bind can reuse its
+  immutable catalog when the observed inputs and projection epoch agree. Instance adoption,
+  ancestry changes, and check-in authority are observed at the existing refresh cadence.
+- **Hooks, config and extensibility.** The same catalog discovery, authored config watcher,
+  approval, and tool-call paths supply the projection inputs. External provider health and native
+  availability retain their bounded rechecks. Native availability dependencies come from the
+  bindings. Check-in authority includes the authored definition, committed approval, and main
+  session ceiling. A check-in summary also honors changes to the workspace configuration fence.
+- **Workspace and profile isolation.** Read batches share external inputs by their declared
+  provider scopes and share tool views by effective visibility. Runtime inventory dependencies
+  identify the exact accepted runtime context and its observed file revision. Instance and
+  approval identities read committed rows under the original profile and workspace rules. Cold
+  builds check that the instance, check-in binding, and approval inputs they consumed match the observation.
+- **Official skill, Web, docs and QA.** The MCP settings, summary events, hosted tool notifications,
+  and existing operator journeys use the same timing and contracts.

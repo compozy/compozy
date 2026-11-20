@@ -36,13 +36,17 @@ type signalingAttachmentScopeLease struct {
 
 type budgetDeleteSafetyNotifier struct {
 	*fakeNotifier
-	denied error
-	called atomic.Bool
+	denied    error
+	sessionID string
+	called    atomic.Bool
 }
 
 func (n *budgetDeleteSafetyNotifier) ReconcileBudgetSessionBeforeDeletion(
-	_ context.Context, _ string,
+	_ context.Context, sessionID string,
 ) error {
+	if n.sessionID != "" && sessionID != n.sessionID {
+		return nil
+	}
 	n.called.Store(true)
 	return n.denied
 }

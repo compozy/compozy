@@ -114,41 +114,44 @@ type stubClient struct {
 		SettingsMCPAuthTarget,
 		SettingsMCPAuthBeginRequest,
 	) (SettingsMCPAuthBeginRecord, error)
-	exchangeSettingsMCPAuthFn func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
-	logoutSettingsMCPAuthFn   func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
-	installExtensionFn        func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
-	previewExtensionInstallFn func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error)
-	updateExtensionFn         func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
-	updateExtensionsFn        func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
-	removeExtensionFn         func(context.Context, string) (ManagedExtensionRemoveRecord, error)
-	enableExtensionFn         func(context.Context, string, EnableExtensionRequest) (ExtensionEnableRecord, error)
-	disableExtensionFn        func(context.Context, string) (ExtensionRecord, error)
-	extensionStatusFn         func(context.Context, string) (ExtensionRecord, error)
-	extensionStatusScopedFn   func(context.Context, string, string) (ExtensionRecord, error)
-	extensionProvenanceFn     func(context.Context, string) (ExtensionProvenanceRecord, error)
-	extensionInventoryFn      func(context.Context, string) (ExtensionInventoryRecord, error)
-	previewExtensionEnableFn  func(context.Context, string) (ExtensionEnablePreviewRecord, error)
-	devExtensionFn            func(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
-	reloadDevExtensionFn      func(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
-	extensionLogsFn           func(context.Context, string, string, int64, string) (ExtensionLogsRecord, error)
-	streamExtensionLogsFn     func(context.Context, string, string, int64, string, SSEHandler) error
-	removeDevExtensionFn      func(context.Context, string, string) (ManagedExtensionRemoveRecord, error)
-	listProfilesFn            func(context.Context) ([]contract.Profile, error)
-	listProfileSelectionsFn   func(context.Context) ([]contract.ProfileSelection, error)
-	listSessionsFn            func(context.Context, SessionListQuery) ([]SessionRecord, error)
-	listSessionPageFn         func(context.Context, SessionListQuery) (SessionListPage, error)
-	mutateSessionGoalFn       func(context.Context, string, contract.SessionGoalCommandRequest) (contract.GoalCommandResult, error)
-	sessionChangesFn          func(context.Context, string, sessionChangesOptions) (sessionChangesRecord, error)
-	listSessionCommandsFn     func(context.Context, string) (SessionCommandsRecord, error)
-	createSessionFn           func(context.Context, CreateSessionRequest) (SessionRecord, error)
-	getSessionFn              func(context.Context, string) (SessionRecord, error)
-	getSessionHealthFn        func(context.Context, string) (SessionHealthRecord, error)
-	getSessionStatusFn        func(context.Context, string) (SessionStatusRecord, error)
-	getSessionUsageFn         func(context.Context, string) (SessionUsageRecord, error)
-	inspectSessionFn          func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
-	refreshSessionSoulFn      func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
-	stopSessionFn             func(context.Context, string, bool, contract.SessionProcessPolicy) (SessionStopRecord, error)
-	archiveSessionFn          func(
+	exchangeSettingsMCPAuthFn  func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
+	logoutSettingsMCPAuthFn    func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
+	installExtensionFn         func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
+	previewExtensionInstallFn  func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error)
+	updateExtensionFn          func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
+	updateExtensionsFn         func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
+	removeExtensionFn          func(context.Context, string) (ManagedExtensionRemoveRecord, error)
+	removePermanentExtensionFn func(context.Context, string) (ManagedExtensionRemoveRecord, error)
+	restoreExtensionBuiltinFn  func(context.Context, string) (ExtensionRestoreRecord, error)
+	listRemovedBuiltinsFn      func(context.Context) ([]ExtensionRemovedBuiltinRecord, error)
+	enableExtensionFn          func(context.Context, string, EnableExtensionRequest) (ExtensionEnableRecord, error)
+	disableExtensionFn         func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusFn          func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusScopedFn    func(context.Context, string, string) (ExtensionRecord, error)
+	extensionProvenanceFn      func(context.Context, string) (ExtensionProvenanceRecord, error)
+	extensionInventoryFn       func(context.Context, string) (ExtensionInventoryRecord, error)
+	previewExtensionEnableFn   func(context.Context, string) (ExtensionEnablePreviewRecord, error)
+	devExtensionFn             func(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
+	reloadDevExtensionFn       func(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
+	extensionLogsFn            func(context.Context, string, string, int64, string) (ExtensionLogsRecord, error)
+	streamExtensionLogsFn      func(context.Context, string, string, int64, string, SSEHandler) error
+	removeDevExtensionFn       func(context.Context, string, string) (ManagedExtensionRemoveRecord, error)
+	listProfilesFn             func(context.Context) ([]contract.Profile, error)
+	listProfileSelectionsFn    func(context.Context) ([]contract.ProfileSelection, error)
+	listSessionsFn             func(context.Context, SessionListQuery) ([]SessionRecord, error)
+	listSessionPageFn          func(context.Context, SessionListQuery) (SessionListPage, error)
+	mutateSessionGoalFn        func(context.Context, string, contract.SessionGoalCommandRequest) (contract.GoalCommandResult, error)
+	sessionChangesFn           func(context.Context, string, sessionChangesOptions) (sessionChangesRecord, error)
+	listSessionCommandsFn      func(context.Context, string) (SessionCommandsRecord, error)
+	createSessionFn            func(context.Context, CreateSessionRequest) (SessionRecord, error)
+	getSessionFn               func(context.Context, string) (SessionRecord, error)
+	getSessionHealthFn         func(context.Context, string) (SessionHealthRecord, error)
+	getSessionStatusFn         func(context.Context, string) (SessionStatusRecord, error)
+	getSessionUsageFn          func(context.Context, string) (SessionUsageRecord, error)
+	inspectSessionFn           func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
+	refreshSessionSoulFn       func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
+	stopSessionFn              func(context.Context, string, bool, contract.SessionProcessPolicy) (SessionStopRecord, error)
+	archiveSessionFn           func(
 		context.Context, string, bool, bool, contract.SessionProcessPolicy,
 	) (SessionRecord, error)
 	unarchiveSessionFn             func(context.Context, string) (SessionRecord, error)
@@ -179,6 +182,8 @@ type stubClient struct {
 	rewindSessionFn                  func(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
 	continueSessionFn                func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error)
 	forkSessionFn                    func(context.Context, SessionDeriveTarget, SessionForkRequest) (SessionDeriveRecord, error)
+	openSessionSideFn                func(context.Context, SessionDeriveTarget, contract.OpenSessionSideRequest) (SessionDeriveRecord, error)
+	listSessionSidesFn               func(context.Context, string, bool) (contract.SessionSidesResponse, error)
 	approveSessionFn                 func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	listSessionClarificationsFn      func(context.Context, string) (ClarificationsRecord, error)
 	listSessionPendingInteractionsFn func(context.Context, string, bool) (SessionInteractionsRecord, error)
@@ -1043,6 +1048,33 @@ func (s *stubClient) RemoveExtension(
 		return s.removeExtensionFn(ctx, name)
 	}
 	return ManagedExtensionRemoveRecord{}, errors.New("unexpected RemoveExtension call")
+}
+
+func (s *stubClient) RemovePermanentExtension(
+	ctx context.Context,
+	name string,
+) (ManagedExtensionRemoveRecord, error) {
+	if s.removePermanentExtensionFn != nil {
+		return s.removePermanentExtensionFn(ctx, name)
+	}
+	return ManagedExtensionRemoveRecord{}, errors.New("unexpected RemovePermanentExtension call")
+}
+
+func (s *stubClient) RestoreExtensionBuiltin(
+	ctx context.Context,
+	name string,
+) (ExtensionRestoreRecord, error) {
+	if s.restoreExtensionBuiltinFn != nil {
+		return s.restoreExtensionBuiltinFn(ctx, name)
+	}
+	return ExtensionRestoreRecord{}, errors.New("unexpected RestoreExtensionBuiltin call")
+}
+
+func (s *stubClient) ListRemovedExtensionBuiltins(ctx context.Context) ([]ExtensionRemovedBuiltinRecord, error) {
+	if s.listRemovedBuiltinsFn != nil {
+		return s.listRemovedBuiltinsFn(ctx)
+	}
+	return nil, errors.New("unexpected ListRemovedExtensionBuiltins call")
 }
 
 func (s *stubClient) EnableExtension(
@@ -3901,4 +3933,26 @@ func (s *stubClient) RemoveWorktrees(
 		return s.removeWorktreesFn(ctx, workspace, request)
 	}
 	return contract.RemoveWorktreesResponse{}, errors.New("unexpected RemoveWorktrees call")
+}
+
+func (s *stubClient) OpenSessionSide(
+	ctx context.Context,
+	target SessionDeriveTarget,
+	request contract.OpenSessionSideRequest,
+) (SessionDeriveRecord, error) {
+	if s.openSessionSideFn != nil {
+		return s.openSessionSideFn(ctx, target, request)
+	}
+	return SessionDeriveRecord{}, errors.New("unexpected OpenSessionSide call")
+}
+
+func (s *stubClient) ListSessionSides(
+	ctx context.Context,
+	id string,
+	archived bool,
+) (contract.SessionSidesResponse, error) {
+	if s.listSessionSidesFn != nil {
+		return s.listSessionSidesFn(ctx, id, archived)
+	}
+	return contract.SessionSidesResponse{}, errors.New("unexpected ListSessionSides call")
 }

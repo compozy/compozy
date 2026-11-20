@@ -484,7 +484,7 @@ func (m *Manager) prepareReservedPromptInput(
 		replayBlock = m.pendingResumeReplay(session.ID)
 		input.message = session.worktreeBindingNotice(input.message)
 	}
-	return promptWithResumeReplay(replayBlock, input.message), replayBlock, nil
+	return sideDispatchMessage(session, req, replayBlock, input.message), replayBlock, nil
 }
 
 func (m *Manager) consumeReservedPromptContext(session *Session, req promptRequest, replayBlock string) {

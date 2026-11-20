@@ -490,9 +490,11 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		t.Parallel()
 		descriptor := validDescriptor()
 		native, err := NewNativeProvider(descriptor.Source, NativeTool{
-			Descriptor:   descriptor,
-			Call:         func(context.Context, Scope, CallRequest) (ToolResult, error) { return ToolResult{}, nil },
-			Availability: func(context.Context, Scope) Availability { return Available() },
+			Descriptor: descriptor,
+			Call:       func(context.Context, Scope, CallRequest) (ToolResult, error) { return ToolResult{}, nil },
+			Availability: &NativeAvailabilityGroup{
+				Check: func(context.Context, Scope) Availability { return Available() },
+			},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -542,13 +544,13 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
 			Descriptor: descriptor,
 			Call:       func(context.Context, Scope, CallRequest) (ToolResult, error) { return ToolResult{}, nil },
-			Availability: func(context.Context, Scope) Availability {
+			Availability: &NativeAvailabilityGroup{Check: func(context.Context, Scope) Availability {
 				calls++
 				if calls == 1 {
 					return Available()
 				}
 				return Unavailable(ReasonDependencyMissing)
-			},
+			}},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -994,10 +996,10 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		probes := 0
 		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
 			Descriptor: descriptor,
-			Availability: func(context.Context, Scope) Availability {
+			Availability: &NativeAvailabilityGroup{Check: func(context.Context, Scope) Availability {
 				probes++
 				return Unavailable(ReasonBackendUnhealthy)
-			},
+			}},
 			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
 				return ToolResult{}, nil
 			},
@@ -1413,6 +1415,42 @@ func TestRuntimeRegistrySearchGetAndCustomEvaluator(t *testing.T) {
 		}
 		_, err = registry.DiagnosticGet(ctx, Scope{}, "compozy__missing")
 		requireReason(t, err, ReasonToolUnknown)
+	})
+
+	t.Run("Should rank multi-word identity matches before legacy description matches", func(t *testing.T) {
+		t.Parallel()
+		legacy := validDescriptor()
+		legacy.ID = "compozy__a_legacy"
+		legacy.Description = "Docs for Slack send workflows."
+		send := mcpDescriptor("mcp__slack__send_message", "slack", "send_message")
+		read := mcpDescriptor("mcp__slack__read_message", "slack", "read_message")
+		registry, err := NewRegistry(
+			WithProviders(
+				providerWithDescriptors(legacy.Source, legacy),
+				providerWithDescriptors(send.Source, read, send),
+			),
+			WithPolicyEvaluator(staticPolicyEvaluator{decision: EffectiveToolDecision{
+				VisibleToOperator: true, VisibleToSession: true, Callable: true,
+			}}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, search := range []func(context.Context, Scope, SearchQuery) ([]ToolView, error){
+			registry.Search, registry.DiagnosticSearch,
+		} {
+			results, err := search(t.Context(), Scope{}, SearchQuery{Query: " SlaCK  send "})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(results) != 2 || results[0].Descriptor.ID != send.ID || results[1].Descriptor.ID != legacy.ID {
+				t.Fatalf("ranked matches = %+v, want %s then %s", results, send.ID, legacy.ID)
+			}
+			results, err = search(t.Context(), Scope{}, SearchQuery{Query: "Slack send", Limit: 1})
+			if err != nil || len(results) != 1 || results[0].Descriptor.ID != send.ID {
+				t.Fatalf("ranked and limited matches = %+v, error = %v", results, err)
+			}
+		}
 	})
 }
 

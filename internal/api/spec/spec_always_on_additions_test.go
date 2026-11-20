@@ -35,6 +35,10 @@ var alwaysOnHardeningAdditions = []struct {
 	{"#/components/schemas/AgentInstanceReportSource", []string{"source_id", "source_ref", "item_key", "url"}},
 	// Every session payload: the mode a session runs at, and whether the reviewer fell back.
 	{"#/", []string{"effective_permissions", "permission_mode_degraded"}},
+	// Side chat receipts and catalog wake identities are optional additions to these exact contracts.
+	{"#/components/schemas/SendPromptResultPayload", []string{"side"}},
+	{"#/components/schemas/SessionDeriveErrorPayload", []string{"child_session_id"}},
+	{"#/components/schemas/SessionCatalogEventPayload", []string{"name", "side_session_id"}},
 	// Held diagnostics are optional additions to these three exact contracts.
 	{"#/components/schemas/SendPromptResultPayload", []string{"held_reason", "held_instance_id"}},
 	{"#/components/schemas/SessionInputPayload", []string{"held_reason", "held_instance_id"}},
@@ -55,6 +59,8 @@ var alwaysOnHardeningAdditions = []struct {
 	{"#/", []string{"reviewer_mode"}},
 	// Agent definitions and reachable peers: the input forms an always-on agent declares.
 	{"#/", []string{"accepts"}},
+	// Extension removal reports whether a built-in was removed permanently and its tombstone time (`_dx.md`).
+	{"#/components/schemas/ManagedExtensionRemovePayload", []string{"permanent", "tombstoned_at"}},
 	// Agent memory add: note (default) or operator rule.
 	{"#/components/schemas/AgentMemoryAddRequest", []string{"kind"}},
 	{"#/paths/~1api~1agents~1{name}~1memory~1entries", []string{"kind"}},

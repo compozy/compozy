@@ -57,7 +57,8 @@ type SessionArchiveStore interface {
 
 // SessionTreeStore owns the session list hierarchy below one session: children
 // recursively, within the root's workspace and profile. Continued and forked
-// sessions and daemon-internal children are never members.
+// sessions are never members. Internal descendants of side chats remain lifecycle members;
+// public readers apply their visibility filter separately.
 type SessionTreeStore interface {
 	ListSessionDescendants(ctx context.Context, workspaceID string, sessionID string) ([]SessionInfo, error)
 	ArchiveSessionTree(ctx context.Context, workspaceID string, sessionID string) (SessionTreeArchive, error)

@@ -2193,3 +2193,39 @@ artifact atomically; `-o json` reports its kind and path, not the binary payload
 Child attention wakes reuse their durable event identity as the input message ID. Replaying an
 already admitted revision after restart does not start another turn; a new attention revision
 remains a new wake. Admission-read failures are reported instead of silently suppressing a wake.
+
+### Side chats
+
+A human `/side <question>` opens a separate user session with `lineage.kind: "side"` and
+`parent_session_id` pointing to its main session. The source must be a nonempty, nonarchived user
+session, including a stopped one; spawned sessions and sides cannot be sources. Opening does not
+write to the source transcript, queue, attention, or runtime. Agent-authored `/side` stays literal.
+
+Use `compozy session side open <id> "question" --idempotency-key <key> --json` or
+`compozy__session_side_open`; list with `session side list <id> [--archived] --json` or
+`compozy__session_side_list`. HTTP/UDS use POST/GET
+`/api/workspaces/{workspace_id}/sessions/{session_id}/sides`; POST requires `message` and
+`idempotency_key` and accepts `name`. Creation returns 201 `SessionDeriveResponse`, and retry returns
+200 with the same child and `derived.replayed: true`. A committed failure carries `child_session_id`.
+A human prompt `/side q` instead returns `prompt.status: "side_opened"`, `delivery: "none"`,
+and `side: {session_id, seed, source_turn_in_progress}`. Attachments are refused.
+
+Context is frozen at open time, including durable open-turn messages. A busy source uses replay
+and a `compozy_turn_in_progress` note; an idle source may use a native fork with replay fallback.
+The first dispatched prompt carries a `compozy_side_chat` boundary after inherited context, and
+the creation overlay retains the side-chat instructions. The side inherits effective runtime,
+permission mode/policy, cwd, and worktree. It starts unnamed unless `name` is supplied.
+
+Sides and their descendants are hidden from catalog/board/subagent/attention/history-cleanup
+populations; their usage remains in agent metrics. GET sides returns a complete newest-updated-first
+list with state, prompting, permission/clarify counts, and timestamps. Observe
+`session_side_changed` on the catalog stream (`session_id` is the main, `side_session_id` is the side)
+and reread the parent-owned list. Hook context adds optional `lineage_kind` and `parent_session_id`.
+
+A user-requested source stop stops its sides; idle release and shutdown do not cascade a source stop.
+Archive stops and archives open sides with the same timestamp, and restore reopens only those sides.
+Delete and archived cleanup delete sides before the source, including already archived sides. Profile
+move leaves sides with the archived original; the new copy has none. Later excludes sides. A side
+cannot fork/continue, open another side, spawn/delegate/adopt, change its parent/profile/worktree,
+set a Goal, be pinned/filed/reordered, or enter Later. Daemon auto-title helpers remain supported.
+The Web keymap action `session.side.toggle` defaults to `meta+alt+KeyS` and `control+alt+KeyS`.

@@ -224,6 +224,103 @@ func (q *Queries) PutApprovalGrant(ctx context.Context, arg PutApprovalGrantPara
 	return i, err
 }
 
+const readCheckInApprovalDecision = `-- name: ReadCheckInApprovalDecision :one
+SELECT decision
+FROM tool_approval_grants
+WHERE profile_id = ?1
+  AND workspace_id = ?2
+  AND tool_id = ?3
+  AND agent_name IN ('', ?4)
+  AND input_digest IN ('', ?5)
+  AND access_scope = ''
+ORDER BY agent_name DESC, input_digest DESC LIMIT 1
+`
+
+type ReadCheckInApprovalDecisionParams struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+	ToolID      string `json:"tool_id"`
+	AgentName   string `json:"agent_name"`
+	InputDigest string `json:"input_digest"`
+}
+
+func (q *Queries) ReadCheckInApprovalDecision(ctx context.Context, arg ReadCheckInApprovalDecisionParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, readCheckInApprovalDecision,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.ToolID,
+		arg.AgentName,
+		arg.InputDigest,
+	)
+	var decision string
+	err := row.Scan(&decision)
+	return decision, err
+}
+
+const readCheckInApprovalDecisions = `-- name: ReadCheckInApprovalDecisions :many
+SELECT agent_name, tool_id, input_digest, decision, access_scope
+FROM (
+  SELECT agent_name, tool_id, input_digest, decision, access_scope
+  FROM tool_approval_grants
+  WHERE profile_id = ?1
+    AND workspace_id = ?2
+    AND agent_name IN ('', ?3)
+    AND access_scope = ''
+  ORDER BY agent_name, tool_id, input_digest
+  LIMIT ?4
+)
+ORDER BY agent_name, tool_id, input_digest
+`
+
+type ReadCheckInApprovalDecisionsParams struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	MaxRows     int64  `json:"max_rows"`
+}
+
+type ReadCheckInApprovalDecisionsRow struct {
+	AgentName   string `json:"agent_name"`
+	ToolID      string `json:"tool_id"`
+	InputDigest string `json:"input_digest"`
+	Decision    string `json:"decision"`
+	AccessScope string `json:"access_scope"`
+}
+
+func (q *Queries) ReadCheckInApprovalDecisions(ctx context.Context, arg ReadCheckInApprovalDecisionsParams) ([]ReadCheckInApprovalDecisionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, readCheckInApprovalDecisions,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReadCheckInApprovalDecisionsRow{}
+	for rows.Next() {
+		var i ReadCheckInApprovalDecisionsRow
+		if err := rows.Scan(
+			&i.AgentName,
+			&i.ToolID,
+			&i.InputDigest,
+			&i.Decision,
+			&i.AccessScope,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokeApprovalGrant = `-- name: RevokeApprovalGrant :execrows
 DELETE FROM tool_approval_grants
 WHERE profile_id = ?1

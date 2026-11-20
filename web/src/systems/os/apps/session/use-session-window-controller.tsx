@@ -60,6 +60,8 @@ export function useSessionWindowController(input: {
   /** Origin chrome published into the window topbar. */
   origin?: SessionOriginView | null;
   onOpenOriginSource?: (sessionId: string) => void;
+  /** The side chats head toggle, owned by the window's side chat host. */
+  sideChatsControl?: React.ReactNode;
 }) {
   const {
     windowId,
@@ -71,6 +73,7 @@ export function useSessionWindowController(input: {
     onResolveMissingWorktree,
     origin,
     onOpenOriginSource,
+    sideChatsControl,
   } = input;
   const promptRuntime = useSessionPromptRuntimeContext();
   const promptRuntimeSnapshot = useSelector(
@@ -167,6 +170,7 @@ export function useSessionWindowController(input: {
     inspectorOpen: inspector.open,
     reviewOpen: review.open,
     onReviewToggle: review.toggle,
+    sideChatsControl,
     sidebarOpen: sidebar.open,
     onSidebarToggle: sidebar.toggle,
     transportChip: <SessionTransportChip windowLive={liveDataEnabled} />,

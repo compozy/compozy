@@ -144,3 +144,21 @@ func TestGoalObjectiveParserShouldKeepClausesTextual(t *testing.T) {
 		}
 	})
 }
+
+func TestSideCommandParser(t *testing.T) {
+	t.Parallel()
+	// UT-022
+	for _, tc := range []struct {
+		input, question string
+		matched, empty  bool
+	}{{"/side why?", "why?", true, false}, {"/sidecar x", "", false, false}, {"/side", "", true, true}, {"  /side\tq", "q", true, false}} {
+		t.Run("Should parse "+tc.input, func(t *testing.T) {
+			t.Parallel()
+			question, matched, err := ParseSideCommand(tc.input)
+			if question != tc.question || matched != tc.matched || errors.Is(err, ErrSideMessageRequired) != tc.empty ||
+				(!tc.empty && err != nil) {
+				t.Fatalf("parse=%q %t %v", question, matched, err)
+			}
+		})
+	}
+}

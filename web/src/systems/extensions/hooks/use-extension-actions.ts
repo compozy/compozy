@@ -8,6 +8,7 @@ import {
 
 import {
   removeExtension,
+  restoreBuiltinExtension,
   setExtensionEnablement,
   updateExtension,
 } from "../adapters/extensions-api";
@@ -17,6 +18,7 @@ import type {
   ExtensionEnablement,
   ExtensionEntry,
   ExtensionInstanceScope,
+  ExtensionRestoreResult,
   ExtensionUpdateRequest,
 } from "../types";
 import { useExtensionInstanceScope } from "./use-extensions";
@@ -39,6 +41,8 @@ export interface UpdateExtensionVariables extends ExtensionInstanceScope {
 export interface RemoveExtensionVariables extends ExtensionInstanceScope {
   dev: boolean;
   name: string;
+  /** Permanent removal of a bundled built-in. It is global, so the scope is not sent with it. */
+  permanent?: boolean;
 }
 
 /**
@@ -147,11 +151,30 @@ export function useUpdateExtension() {
 export function useRemoveExtension() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, workspaceId, profileName }: RemoveExtensionVariables) =>
-      removeExtension(name, { workspaceId, profileName }),
-    onSuccess: (_data, { dev, name }) =>
-      toast.success(dev ? `${name} local copy unlinked` : `${name} removed`),
+    mutationFn: ({ name, workspaceId, profileName, permanent }: RemoveExtensionVariables) =>
+      removeExtension(name, permanent ? { permanent: true } : { workspaceId, profileName }),
+    onSuccess: (_data, { dev, name, permanent }) => {
+      if (dev) toast.success(`${name} local copy unlinked`);
+      else if (permanent) toast.success(`${name} removed permanently`);
+      else toast.success(`${name} removed`);
+    },
     onError: (error: Error) => toast.error(error.message),
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
+  });
+}
+
+/**
+ * Restores one removed built-in at its bundled version, enabled. A success reconciles the installed
+ * and removed lists through the caches a removal reconciles, so the built-in appears in the installed
+ * list without a reload. A failure is not toasted: the row that asked shows the daemon's reason.
+ */
+export function useRestoreBuiltinExtension() {
+  const queryClient = useQueryClient();
+  return useMutation<ExtensionRestoreResult, Error, string>({
+    mutationFn: name => restoreBuiltinExtension(name),
+    onSuccess: async result => {
+      await reconcileInstalledExtensionCaches(queryClient);
+      toast.success(`${result.name} restored`);
+    },
   });
 }

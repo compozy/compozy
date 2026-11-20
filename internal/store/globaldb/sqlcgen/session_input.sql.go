@@ -1177,14 +1177,6 @@ UPDATE session_input_queue
 SET mode = 'steer', delivery = 'interrupt_then_prompt', steer_delivery = NULL, dispatchable = 0,
     target_turn_id = ?1, updated_at = ?2
 WHERE session_input_queue.session_id = ?3 AND session_input_queue.id = ?4
-  AND (session_input_queue.origin_class = 'human' OR NOT EXISTS (
-    SELECT 1 FROM sessions AS target
-    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-    JOIN agent_instances AS instance ON instance.id = root.instance_id
-    WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
-      AND (target.instance_id = instance.id
-        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-  ))
   AND session_input_queue.status = 'queued' AND session_input_queue.mode = 'queue'
   AND ((session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL)
     OR (session_input_queue.owner_kind = 'synthetic'
@@ -1306,14 +1298,6 @@ const reserveSessionSteer = `-- name: ReserveSessionSteer :execrows
 UPDATE session_input_queue
 SET status = 'dispatching', dispatch_started_at = ?1, updated_at = ?1
 WHERE session_input_queue.session_id = ?2 AND session_input_queue.id = ?3
-  AND (session_input_queue.origin_class = 'human' OR NOT EXISTS (
-    SELECT 1 FROM sessions AS target
-    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-    JOIN agent_instances AS instance ON instance.id = root.instance_id
-    WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
-      AND (target.instance_id = instance.id
-        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-  ))
   AND mode = 'steer' AND status = 'queued' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?2)
 `

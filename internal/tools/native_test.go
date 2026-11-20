@@ -235,9 +235,9 @@ func TestNativeProviderDispatch(t *testing.T) {
 		called := false
 		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
 			Descriptor: descriptor,
-			Availability: func(context.Context, Scope) Availability {
+			Availability: &NativeAvailabilityGroup{Check: func(context.Context, Scope) Availability {
 				return Unavailable(ReasonDependencyMissing)
-			},
+			}},
 			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
 				called = true
 				return ToolResult{}, nil
@@ -274,12 +274,12 @@ func TestNativeProviderProjectionGeneration(t *testing.T) {
 			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
 				return ToolResult{}, nil
 			},
-			Availability: func(context.Context, Scope) Availability {
+			Availability: &NativeAvailabilityGroup{Check: func(context.Context, Scope) Availability {
 				if available {
 					return Available()
 				}
 				return Unavailable(ReasonDependencyMissing)
-			},
+			}},
 		})
 		if err != nil {
 			t.Fatalf("NewNativeProvider() error = %v", err)

@@ -222,9 +222,14 @@ func nativeInteractiveExtensionDescriptor(
 }
 
 func extensionDescriptors() []toolspkg.Descriptor {
-	items := make([]toolspkg.Descriptor, 0, len(extensionTools)+len(extensionDistributionTools))
+	items := make(
+		[]toolspkg.Descriptor,
+		0,
+		len(extensionTools)+len(extensionDistributionTools)+len(extensionBuiltinTools),
+	)
 	items = append(items, extensionTools...)
 	items = append(items, extensionDistributionTools...)
+	items = append(items, extensionBuiltinTools...)
 	return items
 }
 

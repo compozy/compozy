@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -15,6 +16,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
@@ -628,6 +630,63 @@ func TestResourceAgentCatalogResolveAgentValidation(t *testing.T) {
 
 // TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy verifies extension-agent resources and Heartbeat policy retain their owning Profile context.
 func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t *testing.T) {
+	// Invariant: a published authority cache entry is derived from the exact artifact named by its key.
+	// Owner: daemon heartbeat authority; canonical suite: extension-owned heartbeat policies.
+	t.Run("Should resolve cached authority from the captured published heartbeat", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		agent := compozyconfig.AgentDef{Name: "fixture", SourcePath: filepath.Join(root, "AGENT.md")}
+		owner := resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "fixture-kit"}
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
+		agents := newResourceCatalog(cloneAgentDef)
+		agents.Replace(1, []resources.Record[compozyconfig.AgentDef]{
+			{ID: "agt-fixture", Scope: scope, Owner: owner, Spec: agent},
+		})
+		policies := newResourceCatalog(cloneHeartbeatResourceSpec)
+		publish := func(revision int64, calls int) {
+			policies.Replace(revision, []resources.Record[heartbeat.ResourceSpec]{{
+				ID: "hbt-fixture", Scope: scope, Owner: owner,
+				Spec: heartbeat.ResourceSpec{AgentName: agent.Name, AgentResourceID: "agt-fixture",
+					SourcePath: filepath.Join(root, heartbeat.FileName),
+					Body:       fmt.Sprintf("---\ncheck_ins:\n  max_tool_calls: %d\n---\nCheck for work.", calls)},
+			}})
+		}
+		publish(1, 2)
+		cfg := testConfig(t, testHomePaths(t))
+		catalog := agentCatalogDependency(agents, agentSidecarCatalogs{heartbeat: policies})
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg, AgentResolver: catalog})
+		if err != nil {
+			t.Fatal(err)
+		}
+		info := &session.Info{AgentName: agent.Name, ProfileID: store.DefaultProfileID}
+		workspace := new(workspacepkg.ResolvedAgentConfig)
+		workspace.RootDir = root
+		lens := agentCatalogLensForIdentity(info.WorkspaceID, info.ProfileID, workspace.ProfileName)
+		stamp := catalog.projectionHeartbeat(agent.Name, lens)
+		if stamp == "" {
+			t.Fatal("fixture did not publish heartbeat A")
+		}
+		ctx := &heartbeatLoadContext{Context: t.Context(), onCheck: func() { publish(2, 3) }}
+		first, _, _, err := resolver.cachedAuthorityPolicy(ctx, agent, info, workspace, &cfg)
+		if got := first.Frontmatter.CheckIns.MaxToolCalls; err != nil || got == nil || *got != 2 {
+			t.Fatalf("first heartbeat A returned %+v, %v", first.Frontmatter.CheckIns, err)
+		}
+		if len(resolver.authorityCache) != 1 {
+			t.Fatalf("expected one cached authority for heartbeat A, got %d", len(resolver.authorityCache))
+		}
+		for key, entry := range resolver.authorityCache {
+			got := entry.policy.Frontmatter.CheckIns.MaxToolCalls
+			if key.published != stamp || entry.err != nil || got == nil || *got != 2 {
+				t.Fatalf("cached authority for heartbeat A = %+v, %v", entry.policy.Frontmatter.CheckIns, entry.err)
+			}
+		}
+		publish(3, 2)
+		last, _, _, err := resolver.cachedAuthorityPolicy(t.Context(), agent, info, workspace, &cfg)
+		if got := last.Frontmatter.CheckIns.MaxToolCalls; err != nil || got == nil || *got != 2 {
+			t.Fatalf("republished heartbeat A returned %+v, %v", last.Frontmatter.CheckIns, err)
+		}
+	})
+
 	for _, scope := range []resources.ResourceScope{
 		{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
 		{Kind: resources.ResourceScopeKindProfile, ID: "profile-marketing"},
@@ -719,6 +778,10 @@ func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t
 					t.Fatalf("artifacts.HeartbeatBody = %q, want %q", got, want)
 				}
 
+				observed := dependency.projectionHeartbeat("marketer", agentCatalogLensFor(resolved))
+				if want := artifacts.HeartbeatSourcePath + "\x00" + artifacts.HeartbeatBody; observed != want {
+					t.Fatalf("observed heartbeat does not match the heartbeat resolved for %s", resolved.ProfileName)
+				}
 				policy, ok, err := dependency.ResolveHeartbeatPolicy(t.Context(), heartbeat.AuthoringTarget{
 					CheckInLimits: &heartbeat.CheckInLimits{MaxToolCalls: 50, MaxWriteCalls: 10},
 					AgentName:     "marketer",
@@ -1499,4 +1562,17 @@ func assertAgentSkillStoreCounts(
 			wantMCP,
 		)
 	}
+}
+
+type heartbeatLoadContext struct {
+	context.Context
+	onCheck func()
+}
+
+func (c *heartbeatLoadContext) Err() error {
+	if check := c.onCheck; check != nil {
+		c.onCheck = nil
+		check()
+	}
+	return c.Context.Err()
 }

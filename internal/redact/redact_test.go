@@ -237,6 +237,70 @@ func TestStringUsesDynamicSecretsAndRemainsIdempotent(t *testing.T) {
 		}
 	})
 
+	// Invariant: after a read races a registration, keep only values safe under the
+	// snapshot current at the end of validation. Owner and canonical suite: dynamic redaction.
+	for _, scenario := range []struct {
+		name       string
+		churn      bool
+		want       []int
+		lockStates []bool
+	}{
+		{"Should validate a single registration without holding the registry lock", false, []int{0, 2}, []bool{false}},
+		{"Should retain only safe metadata when registrations change during validation", true, []int{0}, []bool{false, true}},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			const firstSecret = "round-six-secret-first"
+			const laterSecret = "round-six-secret-later"
+			registry := newDynamicSecretRegistry()
+			beforeRead := registry.snapshot.Load()
+			views := [][]byte{
+				[]byte(`{"description":"safe tool"}`),
+				fmt.Appendf(nil, `{"description":%q}`, firstSecret),
+				fmt.Appendf(nil, `{"description":%q}`, laterSecret),
+			}
+			registry.register(firstSecret)
+			if beforeRead.fingerprint == registry.snapshot.Load().fingerprint {
+				t.Fatal("the registration during the read did not change the fingerprint")
+			}
+
+			var kept []int
+			var lockStates []bool
+			registry.withCurrentSnapshot(func(snapshot *SecretSnapshot) {
+				unlocked := registry.mu.TryLock()
+				if unlocked {
+					registry.mu.Unlock()
+				}
+				lockStates = append(lockStates, !unlocked)
+				kept = kept[:0]
+				for i, view := range views {
+					unsafe, err := snapshot.NeedsBinaryJSONRedaction(view)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !unsafe {
+						kept = append(kept, i)
+					}
+				}
+				if scenario.churn && len(lockStates) == 1 {
+					if !unlocked {
+						t.Fatal("the first scan blocked registrations")
+					}
+					registered := make(chan struct{})
+					go func() {
+						registry.register(laterSecret)
+						close(registered)
+					}()
+					<-registered
+				}
+			})
+			if !slices.Equal(lockStates, scenario.lockStates) || !slices.Equal(kept, scenario.want) {
+				t.Fatalf("locked scans = %v and kept views = %v, want %v and %v",
+					lockStates, kept, scenario.lockStates, scenario.want)
+			}
+		})
+	}
+
 	t.Run("Should redact registered dynamic secrets until cleanup", func(t *testing.T) {
 		secret := "runtime-secret-material-123456"
 		cleanup := RegisterDynamicSecret(secret)

@@ -216,6 +216,17 @@ export function createGoalAwareFetch({
       });
     }
 
+    // `/side <question>` that reached the prompt route (the composer normally routes it first):
+    // the daemon opened a side chat and this session received nothing, so the turn ends empty.
+    if (prompt && response.ok && prompt.status === "side_opened") {
+      sequence += 1;
+      return new Response(completionBody(`side-opened-${sequence}`), {
+        status: response.status,
+        statusText: response.statusText,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }
+
     if (!result) {
       return response;
     }

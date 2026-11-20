@@ -1,5 +1,5 @@
 import { useAuiState } from "@assistant-ui/react";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 
 import {
   attachmentsFromPromptMessageParts,
@@ -46,14 +46,12 @@ export function useSessionComposerController({
   canPrompt,
   onCancelPrompt,
   onQueuePrompt,
-  onInterruptPrompt,
   onSteerPrompt,
   isBusyInputPending = false,
   isSessionRunning = false,
   stopPhase = "idle",
   allowBusyInput = true,
   busyInputDefaultMode = DEFAULT_SESSION_BUSY_INPUT_MODE,
-  busyInputSteerDelivery = null,
   queuedPrompts = EMPTY_QUEUED_PROMPTS,
   onRemoveQueuedPrompt,
   onReplaceQueuedPrompt,
@@ -77,6 +75,7 @@ export function useSessionComposerController({
   commandCatalogStatus,
   onCommandCatalogOpen,
   onCommandAction,
+  submitInterceptor,
   promptImageCapability = "unknown",
   promptEmbeddedContextCapability = "unknown",
   sessionId,
@@ -84,6 +83,7 @@ export function useSessionComposerController({
   placeholder,
   attachments = true,
   backdrop = true,
+  autoFocus = false,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
   const edit = use(SessionMessageEditContext);
   const {
@@ -157,7 +157,6 @@ export function useSessionComposerController({
       attachmentIds: composerAttachments.map(attachment => attachment.id),
       composerText,
     },
-    onInterruptPrompt: isStopping ? undefined : onInterruptPrompt,
     onQueuePrompt,
     onRemoveQueuedPrompt,
     onReplaceQueuedPrompt,
@@ -184,6 +183,34 @@ export function useSessionComposerController({
     return () => window.clearTimeout(timer);
   }, [dismissFeedback, visibleFeedback]);
 
+  // A claimed submission (`/side …`) leaves through the interceptor on every submit path, idle or
+  // busy, so it never lands in this session's thread. It clears the field only once it was taken.
+  // One submission at a time: a second press (Enter, ⌘Enter, Send) before the first settles is
+  // swallowed, since each submission opens its own side chat.
+  const interceptInFlight = useRef(false);
+  const intercepting = !edit?.active && submitInterceptor?.claims(composerText) === true;
+  const submitIntercepted = (): boolean => {
+    if (!submitInterceptor || edit?.active || !submitInterceptor.claims(composerText)) return false;
+    if (interceptInFlight.current) return true;
+    interceptInFlight.current = true;
+    const submitted = composerText;
+    void Promise.resolve(
+      submitInterceptor.submit({ text: submitted, attachmentCount: composerAttachments.length })
+    )
+      .then(clear => {
+        if (clear) consumeSubmittedDraft({ composerText: submitted, attachmentIds: [] });
+      })
+      .finally(() => {
+        interceptInFlight.current = false;
+      });
+    return true;
+  };
+  const intercepted =
+    <T extends unknown[]>(action: (...args: T) => void) =>
+    (...args: T) => {
+      if (!submitIntercepted()) action(...args);
+    };
+
   const enterHint = composerEnterHint(busyEnterActive, isStopping, busyInputDefaultMode, queueFull);
 
   return {
@@ -191,6 +218,7 @@ export function useSessionComposerController({
       busyEnterActive,
       canSubmitBusyInput,
       commandFormatter,
+      intercepting,
       commandScope,
       composerAttachmentCount: composerAttachments.length,
       composerText,
@@ -210,8 +238,12 @@ export function useSessionComposerController({
     actions: {
       ...busyActions,
       // The modifier has no opposite to perform while stopping: both variants queue.
-      handleEnterAction: (variant: "default" | "opposite") =>
-        busyActions.handleEnterAction(isStopping ? "default" : variant),
+      handleEnterAction: intercepted((variant: "default" | "opposite") =>
+        busyActions.handleEnterAction(isStopping ? "default" : variant)
+      ),
+      submitIntercepted: () => {
+        submitIntercepted();
+      },
       recordPendingCommandAction: (token: string, beforeSelection: string) => {
         pendingCommandActionRef.current = { beforeSelection, token };
       },
@@ -222,11 +254,10 @@ export function useSessionComposerController({
       setComposerInputElement,
     },
     meta: {
-      allowBusyInput,
       attachments,
+      autoFocus,
       backdrop,
       placeholder,
-      busyInputSteerDelivery,
       canPrompt,
       commandCatalog,
       commandCatalogStatus,
@@ -246,11 +277,8 @@ export function useSessionComposerController({
       onCommandAction,
       onCommandCatalogOpen,
       onDiscardUnconfirmedSend,
-      onInterruptPrompt,
-      onQueuePrompt,
       onReplaceQueuedPrompt,
       onRetryUnconfirmedSend,
-      onSteerPrompt,
       onSteerQueuedPrompt,
       promptEmbeddedContextCapability,
       promptImageCapability,
@@ -289,7 +317,7 @@ interface ComposerBusyInput {
 /**
  * The busy-turn read model the composer renders from. While a stop is landing
  * the turn is ending: guidance can't be honored, but queued work survives a
- * stop (ADR-003), so Enter queues and only Queue stays.
+ * stop (ADR-003), so both Enter variants queue.
  */
 function deriveComposerBusyState(input: ComposerBusyInput) {
   const runtimeRunning = input.isRunning || input.isSessionRunning;

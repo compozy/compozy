@@ -42,3 +42,10 @@ Source-owned hooks (extension manifests, skill metadata, native daemon hooks) st
 immutable through agent tools. Mutating tools require approval and reject secret-bearing
 executor environments with deterministic codes such as `HOOK_SOURCE_IMMUTABLE`,
 `HOOK_SECRET_INPUT_FORBIDDEN`, `HOOK_VALIDATION_FAILED`, and `HOOK_APPROVAL_REQUIRED`.
+
+## Session lineage context
+
+Session-scoped hook payloads include optional `lineage_kind` and `parent_session_id` in their
+shared session context. A side chat sends `lineage_kind: "side"` and the main session's id;
+root sessions omit both fields. Use these fields to associate a side's hooks with its source while
+keeping the side's `session_id` as the event owner.

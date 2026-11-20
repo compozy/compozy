@@ -37,11 +37,15 @@ func (m *Manager) AggregateSessionsByAgent(
 		return nil, errors.New("session: grouped agent session metrics reader is required")
 	}
 
-	_, activeIDs, activeMatches := m.activeSessionCatalogRows(ListQuery{
-		ReadScope:   readScope,
-		WorkspaceID: workspaceID,
-		Archive:     ArchiveExclude,
-	})
+	query := ListQuery{ReadScope: readScope, WorkspaceID: workspaceID}
+	infos, activeIDs := m.activeCatalogSnapshotsWithSides(ctx, query, true)
+	activeMatches := make([]store.SessionInfo, 0, len(infos))
+	for _, info := range infos {
+		activeIDs = append(activeIDs, info.ID)
+		info = normalizeExpiredSessionAttach(info, m.now())
+		activeMatches = append(activeMatches, sessionCatalogInfoFromRuntime(info))
+	}
+
 	durable, err := reader.AggregateSessionsByAgent(ctx, store.SessionAgentMetricsQuery{
 		ReadScope:         readScope,
 		WorkspaceID:       workspaceID,

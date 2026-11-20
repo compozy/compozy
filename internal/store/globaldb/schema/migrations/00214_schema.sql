@@ -1,0 +1,3 @@
+-- +goose Up
+-- create "agent_instance_daily_budget_usage" table
+CREATE TABLE `agent_instance_daily_budget_usage` (`instance_id` text NOT NULL, `profile_id` text NOT NULL, `day` text NOT NULL, `total_tokens` integer NOT NULL, `usd_total` text NULL, `has_unpriced_usage` integer NOT NULL, `invalid` integer NOT NULL, PRIMARY KEY (`instance_id`, `profile_id`, `day`), CONSTRAINT `0` FOREIGN KEY (`profile_id`) REFERENCES `profiles` (`id`) ON UPDATE NO ACTION ON DELETE CASCADE, CONSTRAINT `1` FOREIGN KEY (`instance_id`) REFERENCES `agent_instances` (`id`) ON UPDATE NO ACTION ON DELETE CASCADE, CHECK (length(day) = 10), CHECK (total_tokens >= 0), CHECK (has_unpriced_usage IN (0, 1)), CHECK (invalid IN (0, 1)));

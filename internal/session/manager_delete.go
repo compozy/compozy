@@ -60,6 +60,11 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 	if err := m.guardInstanceMain(ctx, target); err != nil {
 		return err
 	}
+	if archived != nil {
+		if err := m.requireArchivedDelete(ctx, target, *archived); err != nil {
+			return err
+		}
+	}
 	if handled, finish, deleteErr := m.deleteMissingSession(ctx, target, archived); handled {
 		finishSubagent = finish
 		return deleteErr
@@ -82,6 +87,14 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 	if err != nil {
 		return err
 	}
+	// Source admission must succeed before any side history is removed.
+	// Side deletes acquire their own lifecycle locks before source staging does.
+	if err := m.reconcileBudgetSessionBeforeDeletion(ctx, target); err != nil {
+		return err
+	}
+	if err := m.deleteSideSessions(ctx, target); err != nil {
+		return err
+	}
 
 	return m.deletePreparedSession(ctx, target, info, archived)
 }
@@ -89,9 +102,6 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 func (m *Manager) deletePreparedSession(
 	ctx context.Context, target string, info *Info, archived *store.ArchivedSessionDelete,
 ) error {
-	if err := m.reconcileBudgetSessionBeforeDeletion(ctx, target); err != nil {
-		return err
-	}
 	if err := m.lifecycleMu.LockContext(ctx); err != nil {
 		return fmt.Errorf("session: await delete lifecycle lock: %w", err)
 	}
@@ -186,6 +196,11 @@ func (m *Manager) deleteMissingSession(
 	if err != nil {
 		return true, finishSubagent, err
 	}
+	// Missing history still requires a stopped, eligible source before the cascade.
+	// Keep the cascade outside lifecycleMu, as in the live-history path.
+	if err := m.deleteSideSessions(ctx, target); err != nil {
+		return true, finishSubagent, err
+	}
 	if _, err := os.Lstat(store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))); err == nil {
 		return true, finishSubagent, m.deletePreparedSession(ctx, target, info, archived)
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -218,7 +233,13 @@ func (m *Manager) requireArchivedDelete(
 	target string,
 	archived store.ArchivedSessionDelete,
 ) error {
-	info, err := m.Status(ctx, target)
+	var info *Info
+	var err error
+	if m.sessionCatalog != nil {
+		info, err = m.durableSessionInfoForLifecycleTransition(ctx, target)
+	} else {
+		info, err = m.Status(ctx, target)
+	}
 	if err != nil {
 		return err
 	}

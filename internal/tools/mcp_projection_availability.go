@@ -36,6 +36,19 @@ func (p *MCPProvider) projectionAvailability(
 	descriptors []Descriptor,
 ) map[ToolID]Availability {
 	result := make(map[ToolID]Availability, len(descriptors))
+	if pinned, found := p.pinnedProjectionInputs(ctx, scope); found {
+		for i := range descriptors {
+			source := descriptors[i].Source
+			source.RawToolName = ""
+			value, known := pinned.availability[source]
+			if !known {
+				value = Unavailable(ReasonBackendNotExecutable)
+			}
+			value.ReasonCodes = slices.Clone(value.ReasonCodes)
+			result[descriptors[i].ID] = value
+		}
+		return result
+	}
 	sources := make(map[string]Availability)
 	for idx := range descriptors {
 		descriptor := &descriptors[idx]

@@ -14,7 +14,7 @@ func sessionChangesDescriptor() toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{"sessions", "changes"},
+		[]string{sessionsSessionsKey, "changes"},
 		[]string{"session changes", "git diff"},
 	)
 }

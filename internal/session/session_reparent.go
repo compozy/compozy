@@ -230,6 +230,9 @@ func (m *Manager) sessionLineageStore() (store.SessionLineageStore, error) {
 }
 
 func validateAdoptSource(node *reparentNode) error {
+	if isSideLineage(&node.lineage) {
+		return ErrSideFixedParent
+	}
 	if node.sessionType != SessionTypeUser || node.lineage.SpawnRole != "" {
 		return reparentRefusal(ReparentRefusalSourceNotUser, node.id, "only user sessions can be adopted")
 	}
@@ -253,6 +256,9 @@ func validateAdoptSource(node *reparentNode) error {
 }
 
 func validateAdoptParent(source *reparentNode, parent *reparentNode) error {
+	if isSideLineage(&parent.lineage) {
+		return ErrSideFixedParent
+	}
 	if parent.profileID != source.profileID {
 		return fmt.Errorf("%w: parent session %s is not in this profile", ErrSessionNotFound, parent.id)
 	}
@@ -266,6 +272,9 @@ func validateAdoptParent(source *reparentNode, parent *reparentNode) error {
 
 // validateDetachSource reports whether detaching node takes over a spawned worker.
 func validateDetachSource(node *reparentNode) (bool, error) {
+	if isSideLineage(&node.lineage) {
+		return false, ErrSideFixedParent
+	}
 	if node.sessionType == SessionTypeSpawned {
 		return true, validateTakeOverSource(node)
 	}

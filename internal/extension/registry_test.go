@@ -13,8 +13,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
@@ -674,6 +676,82 @@ func TestRegistryEnabledBundledNamesCache(t *testing.T) {
 	})
 }
 
+// Invariant: EnabledBundledNames, the source of bundled tool trust, excludes a tombstoned built-in
+// even when a bundled row still exists, and the cache follows tombstone writes and clears.
+// Owner: extension bundled enrollment and tool trust.
+// Canonical suite: registry bundled cache tests in registry_test.go.
+func TestRegistryEnabledBundledNamesExcludesTombstonedBuiltin(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	t.Run("Should exclude a tombstoned name that has no row", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		ctx := testutil.Context(t)
+		if _, err := env.registry.Tombstone(ctx, "spec-cycle", "operator"); err != nil {
+			t.Fatalf("Tombstone() error = %v", err)
+		}
+
+		names, err := env.registry.EnabledBundledNames()
+		if err != nil {
+			t.Fatalf("EnabledBundledNames() error = %v", err)
+		}
+		if len(names) != 0 {
+			t.Fatalf("EnabledBundledNames() = %#v, want no tombstoned name", names)
+		}
+	})
+
+	t.Run(
+		"Should drop a tombstoned bundled row from the cache and restore it once the tombstone clears",
+		func(t *testing.T) {
+			env := newRegistryTestEnv(t)
+			ctx := testutil.Context(t)
+			bundledDir, bundledManifest, bundledChecksum := createRegistryTestExtension(
+				t,
+				"spec-cycle",
+				registryManifestOptions{},
+			)
+			if err := env.registry.Install(
+				bundledManifest,
+				bundledDir,
+				bundledChecksum,
+				WithInstallSource(SourceBundled),
+			); err != nil {
+				t.Fatalf("Install(bundled) error = %v", err)
+			}
+
+			before, err := env.registry.EnabledBundledNames()
+			if err != nil {
+				t.Fatalf("EnabledBundledNames(before) error = %v", err)
+			}
+			if !slices.Equal(before, []string{"spec-cycle"}) {
+				t.Fatalf("EnabledBundledNames(before) = %#v, want spec-cycle", before)
+			}
+
+			if _, err := env.registry.Tombstone(ctx, "spec-cycle", "operator"); err != nil {
+				t.Fatalf("Tombstone() error = %v", err)
+			}
+			afterTombstone, err := env.registry.EnabledBundledNames()
+			if err != nil {
+				t.Fatalf("EnabledBundledNames(tombstoned) error = %v", err)
+			}
+			if len(afterTombstone) != 0 {
+				t.Fatalf("EnabledBundledNames(tombstoned) = %#v, want the cache to drop spec-cycle", afterTombstone)
+			}
+
+			cleared, err := env.registry.Clear(ctx, "spec-cycle")
+			if err != nil || !cleared {
+				t.Fatalf("Clear() = %v, %v; want true, nil", cleared, err)
+			}
+			restored, err := env.registry.EnabledBundledNames()
+			if err != nil {
+				t.Fatalf("EnabledBundledNames(cleared) error = %v", err)
+			}
+			if !slices.Equal(restored, []string{"spec-cycle"}) {
+				t.Fatalf("EnabledBundledNames(cleared) = %#v, want spec-cycle", restored)
+			}
+		},
+	)
+}
+
 func TestRegistryEnableAndDisable(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
@@ -1003,6 +1081,108 @@ func TestRegistryUninstallMissingReturnsNotFound(t *testing.T) {
 	if !errors.Is(err, ErrExtensionNotFound) {
 		t.Fatalf("Uninstall(missing) error = %v, want ErrExtensionNotFound", err)
 	}
+}
+
+// TestRegistryBuiltinTombstoneRoundTrip covers UT-005. Invariant: a tombstone stores the trimmed name,
+// lists in name order with removed_at and removed_by, and rejects blank names and blank actors.
+func TestRegistryBuiltinTombstoneRoundTrip(t *testing.T) {
+	removedAt := time.Date(2026, 11, 17, 14, 2, 11, 0, time.UTC)
+	newTombstoneEnv := func(t *testing.T) registryTestEnv {
+		t.Helper()
+		env := newRegistryTestEnv(t)
+		env.registry.now = func() time.Time { return removedAt }
+		return env
+	}
+
+	t.Run("Should store the trimmed name, return the record, and refuse a second tombstone", func(t *testing.T) {
+		env := newTombstoneEnv(t)
+		ctx := testutil.Context(t)
+
+		got, err := env.registry.Tombstone(ctx, "  spec-cycle  ", "operator")
+		if err != nil {
+			t.Fatalf("Tombstone() error = %v", err)
+		}
+		if got.Name != "spec-cycle" || got.RemovedBy != "operator" || !got.RemovedAt.Equal(removedAt) {
+			t.Fatalf("Tombstone() = %#v, want name spec-cycle, removed_by operator, removed_at %s", got, removedAt)
+		}
+		tombstoned, err := env.registry.Tombstoned(ctx, "spec-cycle")
+		if err != nil || !tombstoned {
+			t.Fatalf("Tombstoned(trimmed) = %v, %v; want true, nil", tombstoned, err)
+		}
+		if _, err := env.registry.Tombstone(ctx, "spec-cycle", "operator"); err == nil {
+			t.Fatal("second Tombstone() error = nil, want a duplicate-key refusal")
+		}
+	})
+
+	t.Run("Should list tombstones in name order with removed_at and removed_by", func(t *testing.T) {
+		env := newTombstoneEnv(t)
+		ctx := testutil.Context(t)
+		for _, name := range []string{"spec-cycle", "open-design"} {
+			if _, err := env.registry.Tombstone(ctx, name, "operator"); err != nil {
+				t.Fatalf("Tombstone(%q) error = %v", name, err)
+			}
+		}
+
+		got, err := env.registry.ListTombstones(ctx)
+		if err != nil {
+			t.Fatalf("ListTombstones() error = %v", err)
+		}
+		want := []BuiltinTombstone{
+			{Name: "open-design", RemovedAt: removedAt, RemovedBy: "operator"},
+			{Name: "spec-cycle", RemovedAt: removedAt, RemovedBy: "operator"},
+		}
+		if len(got) != len(want) {
+			t.Fatalf("ListTombstones() = %#v, want %#v", got, want)
+		}
+		for i := range want {
+			if got[i].Name != want[i].Name || got[i].RemovedBy != want[i].RemovedBy ||
+				!got[i].RemovedAt.Equal(want[i].RemovedAt) {
+				t.Fatalf("ListTombstones()[%d] = %#v, want %#v", i, got[i], want[i])
+			}
+		}
+	})
+
+	t.Run("Should reject blank names and a blank actor without writing", func(t *testing.T) {
+		env := newTombstoneEnv(t)
+		ctx := testutil.Context(t)
+
+		for _, name := range []string{"", "   "} {
+			if _, err := env.registry.Tombstone(ctx, name, "operator"); err == nil {
+				t.Fatalf("Tombstone(%q) error = nil, want rejection", name)
+			}
+			if _, err := env.registry.Tombstoned(ctx, name); err == nil {
+				t.Fatalf("Tombstoned(%q) error = nil, want rejection", name)
+			}
+		}
+		if _, err := env.registry.Tombstone(ctx, "spec-cycle", "  "); err == nil {
+			t.Fatal("Tombstone(blank removed_by) error = nil, want rejection")
+		}
+		got, err := env.registry.ListTombstones(ctx)
+		if err != nil || len(got) != 0 {
+			t.Fatalf("ListTombstones() after rejected writes = %#v, %v; want empty", got, err)
+		}
+	})
+
+	t.Run("Should clear a tombstone once and report whether it existed", func(t *testing.T) {
+		env := newTombstoneEnv(t)
+		ctx := testutil.Context(t)
+		if _, err := env.registry.Tombstone(ctx, "spec-cycle", "operator"); err != nil {
+			t.Fatalf("Tombstone() error = %v", err)
+		}
+
+		cleared, err := env.registry.Clear(ctx, " spec-cycle ")
+		if err != nil || !cleared {
+			t.Fatalf("Clear(existing) = %v, %v; want true, nil", cleared, err)
+		}
+		cleared, err = env.registry.Clear(ctx, "spec-cycle")
+		if err != nil || cleared {
+			t.Fatalf("Clear(missing) = %v, %v; want false, nil", cleared, err)
+		}
+		tombstoned, err := env.registry.Tombstoned(ctx, "spec-cycle")
+		if err != nil || tombstoned {
+			t.Fatalf("Tombstoned(after clear) = %v, %v; want false, nil", tombstoned, err)
+		}
+	})
 }
 
 func TestRegistryInstallConcurrentDuplicateReturnsSingleExistsError(t *testing.T) {
@@ -2297,6 +2477,136 @@ func TestRegistrySupersededBundledRetention(t *testing.T) {
 		}
 		if _, err := os.Stat(filepath.Join(oldDir, manifestTOMLFileName)); err != nil {
 			t.Fatalf("predecessor files lost: %v", err)
+		}
+	})
+}
+
+// builtinPermanentTestName is a bundled built-in that the permanent-removal tests enroll.
+const builtinPermanentTestName = "spec-cycle"
+
+// seedBundledRegistryRow enrolls the test built-in through the same path boot uses.
+func seedBundledRegistryRow(t *testing.T, env registryTestEnv) compozyconfig.HomePaths {
+	t.Helper()
+	withDaemonVersion(t, "0.6.0")
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	bundledFS := fstest.MapFS{
+		manifestTOMLFileName: {Data: []byte(registryManifestTOML(builtinPermanentTestName, registryManifestOptions{}))},
+	}
+	if err := InstallBundledExtension(
+		homePaths,
+		env.registry,
+		BundledInstallSpec{Name: builtinPermanentTestName, FS: bundledFS},
+	); err != nil {
+		t.Fatalf("InstallBundledExtension() error = %v", err)
+	}
+	return homePaths
+}
+
+// seedMarketplaceRegistryRow installs a non-bundled row with a real package directory and returns that directory.
+func seedMarketplaceRegistryRow(t *testing.T, env registryTestEnv, name string) string {
+	t.Helper()
+	dir := t.TempDir()
+	manifestData := []byte(registryManifestTOML(name, registryManifestOptions{}))
+	if err := os.WriteFile(filepath.Join(dir, manifestTOMLFileName), manifestData, 0o600); err != nil {
+		t.Fatalf("WriteFile(manifest) error = %v", err)
+	}
+	manifest, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest() error = %v", err)
+	}
+	checksum, err := ComputeDirectoryChecksum(dir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
+	}
+	if err := env.registry.Install(manifest, dir, checksum, WithInstallSource(SourceMarketplace)); err != nil {
+		t.Fatalf("Install(marketplace) error = %v", err)
+	}
+	return dir
+}
+
+func TestRegistryUninstallBuiltinTombstonedIsAtomic(t *testing.T) {
+	t.Run("Should delete the bundled row and insert its tombstone in one transaction", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		seedBundledRegistryRow(t, env)
+
+		got, err := env.registry.uninstallBuiltinTombstoned(builtinPermanentTestName, " operator ")
+		if err != nil {
+			t.Fatalf("uninstallBuiltinTombstoned() error = %v", err)
+		}
+		if got.Name != builtinPermanentTestName || got.RemovedBy != "operator" {
+			t.Fatalf(
+				"uninstallBuiltinTombstoned() = %#v, want name %q removed_by operator",
+				got,
+				builtinPermanentTestName,
+			)
+		}
+		if _, err := env.registry.Get(builtinPermanentTestName); !errors.Is(err, ErrExtensionNotFound) {
+			t.Fatalf("Get(after permanent removal) error = %v, want ErrExtensionNotFound", err)
+		}
+		tombstoned, err := env.registry.Tombstoned(t.Context(), builtinPermanentTestName)
+		if err != nil || !tombstoned {
+			t.Fatalf("Tombstoned() = %v, %v; want true, nil", tombstoned, err)
+		}
+	})
+
+	t.Run("Should roll back the row delete when the tombstone insert conflicts", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		seedBundledRegistryRow(t, env)
+		// A tombstone that already exists makes the in-transaction insert fail after the row delete.
+		if _, err := env.registry.Tombstone(t.Context(), builtinPermanentTestName, "seed"); err != nil {
+			t.Fatalf("seed Tombstone() error = %v", err)
+		}
+
+		if _, err := env.registry.uninstallBuiltinTombstoned(builtinPermanentTestName, "operator"); err == nil {
+			t.Fatal("uninstallBuiltinTombstoned(conflicting tombstone) error = nil, want a refusal")
+		}
+		info, err := env.registry.Get(builtinPermanentTestName)
+		if err != nil {
+			t.Fatalf("Get(after failed permanent removal) error = %v, want the row kept", err)
+		}
+		if info.Source != SourceBundled {
+			t.Fatalf("Source after failed permanent removal = %v, want bundled", info.Source)
+		}
+		tombstones, err := env.registry.ListTombstones(t.Context())
+		if err != nil {
+			t.Fatalf("ListTombstones() error = %v", err)
+		}
+		if len(tombstones) != 1 || tombstones[0].RemovedBy != "seed" {
+			t.Fatalf("ListTombstones() = %#v, want only the seeded tombstone", tombstones)
+		}
+	})
+
+	t.Run("Should refuse a non-bundled row without changing it or writing a tombstone", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		seedMarketplaceRegistryRow(t, env, "dev-cycle")
+
+		_, err := env.registry.uninstallBuiltinTombstoned("dev-cycle", "operator")
+		if !errors.Is(err, ErrExtensionNotBuiltin) {
+			t.Fatalf("uninstallBuiltinTombstoned(marketplace) error = %v, want ErrExtensionNotBuiltin", err)
+		}
+		info, err := env.registry.Get("dev-cycle")
+		if err != nil || info.Source != SourceMarketplace {
+			t.Fatalf("Get(dev-cycle) = %#v, %v; want the marketplace row unchanged", info, err)
+		}
+		tombstoned, err := env.registry.Tombstoned(t.Context(), "dev-cycle")
+		if err != nil || tombstoned {
+			t.Fatalf("Tombstoned(dev-cycle) = %v, %v; want false, nil", tombstoned, err)
+		}
+	})
+
+	t.Run("Should refuse an unknown name without writing a tombstone", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+
+		_, err := env.registry.uninstallBuiltinTombstoned("missing-ext", "operator")
+		if !errors.Is(err, ErrExtensionNotFound) {
+			t.Fatalf("uninstallBuiltinTombstoned(unknown) error = %v, want ErrExtensionNotFound", err)
+		}
+		tombstoned, err := env.registry.Tombstoned(t.Context(), "missing-ext")
+		if err != nil || tombstoned {
+			t.Fatalf("Tombstoned(missing-ext) = %v, %v; want false, nil", tombstoned, err)
 		}
 	})
 }

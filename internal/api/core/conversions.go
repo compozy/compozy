@@ -274,7 +274,7 @@ func visibleSessionInfosInternal(infos []*session.Info) []*session.Info {
 
 func isInternalSessionInfo(lineage *store.SessionLineage) bool {
 	normalized := store.NormalizeSessionLineage("", lineage)
-	return session.IsInternalSpawnRole(normalized.SpawnRole)
+	return normalized.Kind == store.LineageKindSide || session.IsInternalSpawnRole(normalized.SpawnRole)
 }
 
 func stringPointerValue(value *string) string {

@@ -4,6 +4,44 @@ package client
 
 import "time"
 
+// SchedulerBacklogRunPayload is a daemon API value.
+type SchedulerBacklogRunPayload struct {
+	Task TaskSummaryPayload `json:"task"`
+	Run  TaskRunPayload     `json:"run"`
+}
+
+// SchedulerCatchUpPolicy is a daemon API value.
+type SchedulerCatchUpPolicy string
+
+// SchedulerCountersPayload is a daemon API value.
+type SchedulerCountersPayload struct {
+	Cycles              int        `json:"cycles"`
+	WakeAttempts        int        `json:"wake_attempts"`
+	WakeSkipped         int        `json:"wake_skipped"`
+	WakeSucceeded       int        `json:"wake_succeeded"`
+	WakeFailed          int        `json:"wake_failed"`
+	CapacityWaitingRuns int        `json:"capacity_waiting_runs"`
+	SpawnRequested      int        `json:"spawn_requested"`
+	NeedsAttention      int        `json:"needs_attention"`
+	LastCycleAt         *time.Time `json:"last_cycle_at,omitempty"`
+}
+
+// SchedulerDrainRequest is a daemon API value.
+type SchedulerDrainRequest struct {
+	Reason         string `json:"reason,omitempty"`
+	TimeoutSeconds *int64 `json:"timeout_seconds,omitzero"`
+}
+
+// SchedulerDrainResponse is a daemon API value.
+type SchedulerDrainResponse struct {
+	Scheduler       SchedulerStatusPayload `json:"scheduler"`
+	Completed       bool                   `json:"completed"`
+	TimedOut        bool                   `json:"timed_out,omitzero"`
+	RemainingClaims int                    `json:"remaining_claims"`
+	StartedAt       time.Time              `json:"started_at"`
+	CompletedAt     time.Time              `json:"completed_at"`
+}
+
 // SchedulerPauseRequest is a daemon API value.
 type SchedulerPauseRequest struct {
 	Reason string `json:"reason,omitempty"`
@@ -79,29 +117,30 @@ type Selection struct {
 
 // SendPromptResultPayload is a daemon API value.
 type SendPromptResultPayload struct {
-	HeldReason            string                `json:"held_reason,omitempty"`
-	HeldInstanceID        string                `json:"held_instance_id,omitempty"`
-	TargetSessionID       string                `json:"target_session_id,omitempty"`
-	ReplyWatch            *ReplyWatchRefPayload `json:"reply_watch,omitempty"`
-	TargetWorkspaceID     string                `json:"target_workspace_id,omitempty"`
-	Disposition           Disposition           `json:"disposition,omitempty"`
-	SteerDelivery         SteerDeliveryMode     `json:"steer_delivery,omitempty"`
-	TurnID                string                `json:"turn_id,omitempty"`
-	EntryID               string                `json:"entry_id,omitempty"`
-	Status                string                `json:"status"`
-	Mode                  PromptMode            `json:"mode,omitempty"`
-	Delivery              PromptDelivery        `json:"delivery"`
-	MessageID             string                `json:"message_id"`
-	IdempotencyKey        string                `json:"idempotency_key"`
-	Replayed              bool                  `json:"replayed"`
-	QueueEntryID          string                `json:"queue_entry_id,omitempty"`
-	QueuePosition         int                   `json:"queue_position"`
-	QueueGeneration       int64                 `json:"queue_generation,omitzero"`
-	EstimatedSendAt       *time.Time            `json:"estimated_send_at,omitempty"`
-	PreviousTurnID        string                `json:"previous_turn_id,omitempty"`
-	NewTurnID             string                `json:"new_turn_id,omitempty"`
-	CanceledQueuedEntries int                   `json:"canceled_queued_entries,omitzero"`
-	Goal                  *GoalCommandResult    `json:"goal,omitzero"`
+	HeldReason            string                    `json:"held_reason,omitempty"`
+	HeldInstanceID        string                    `json:"held_instance_id,omitempty"`
+	TargetSessionID       string                    `json:"target_session_id,omitempty"`
+	ReplyWatch            *ReplyWatchRefPayload     `json:"reply_watch,omitempty"`
+	TargetWorkspaceID     string                    `json:"target_workspace_id,omitempty"`
+	Disposition           Disposition               `json:"disposition,omitempty"`
+	SteerDelivery         SteerDeliveryMode         `json:"steer_delivery,omitempty"`
+	TurnID                string                    `json:"turn_id,omitempty"`
+	EntryID               string                    `json:"entry_id,omitempty"`
+	Status                string                    `json:"status"`
+	Mode                  PromptMode                `json:"mode,omitempty"`
+	Delivery              PromptDelivery            `json:"delivery"`
+	MessageID             string                    `json:"message_id"`
+	IdempotencyKey        string                    `json:"idempotency_key"`
+	Replayed              bool                      `json:"replayed"`
+	QueueEntryID          string                    `json:"queue_entry_id,omitempty"`
+	QueuePosition         int                       `json:"queue_position"`
+	QueueGeneration       int64                     `json:"queue_generation,omitzero"`
+	EstimatedSendAt       *time.Time                `json:"estimated_send_at,omitempty"`
+	PreviousTurnID        string                    `json:"previous_turn_id,omitempty"`
+	NewTurnID             string                    `json:"new_turn_id,omitempty"`
+	CanceledQueuedEntries int                       `json:"canceled_queued_entries,omitzero"`
+	Side                  *SessionSideCommandResult `json:"side,omitzero"`
+	Goal                  *GoalCommandResult        `json:"goal,omitzero"`
 }
 
 // SendPromptResultResponse is a daemon API value.
@@ -232,12 +271,14 @@ type SessionBoardCountsPayload struct {
 
 // SessionCatalogEventPayload is a daemon API value.
 type SessionCatalogEventPayload struct {
+	Name                     string `json:"name,omitempty"`
 	ExecutionLocationChanged bool   `json:"execution_location_changed,omitempty"`
 	Kind                     string `json:"kind"`
 	ProfileID                string `json:"profile_id"`
 	ProfileName              string `json:"profile_name"`
 	WorkspaceID              string `json:"workspace_id"`
 	SessionID                string `json:"session_id"`
+	SideSessionID            string `json:"side_session_id,omitempty"`
 }
 
 // SessionCatalogFacetsPayload is a daemon API value.
@@ -406,41 +447,4 @@ type SessionConfigOptionValuePayload struct {
 	Description string `json:"description,omitempty"`
 	GroupID     string `json:"group_id,omitempty"`
 	GroupLabel  string `json:"group_label,omitempty"`
-}
-
-// SessionConsumerDegradedPayload is a daemon API value.
-type SessionConsumerDegradedPayload struct {
-	SessionID       string `json:"session_id"`
-	AfterSequence   int64  `json:"after_sequence"`
-	ThroughSequence int64  `json:"through_sequence"`
-	Refresh         bool   `json:"refresh"`
-}
-
-// SessionContextClearedByPayload is a daemon API value.
-type SessionContextClearedByPayload struct {
-	CompactionID string `json:"compaction_id"`
-	Sequence     int64  `json:"sequence"`
-}
-
-// SessionContextInjectedPayload is a daemon API value.
-type SessionContextInjectedPayload struct {
-	Estimate string                     `json:"estimate"`
-	Tokens   int64                      `json:"tokens"`
-	Stale    bool                       `json:"stale"`
-	Rows     []SessionContextRowPayload `json:"rows"`
-}
-
-// SessionContextPayload is a daemon API value.
-type SessionContextPayload struct {
-	ClearedBy      *SessionContextClearedByPayload `json:"cleared_by,omitzero"`
-	State          SessionContextState             `json:"state"`
-	Used           *int64                          `json:"used,omitzero"`
-	Size           *int64                          `json:"size,omitzero"`
-	Ratio          *float64                        `json:"ratio,omitzero"`
-	SizeSource     string                          `json:"size_source,omitempty"`
-	Stale          *bool                           `json:"stale,omitzero"`
-	Sequence       *int64                          `json:"sequence,omitzero"`
-	ReportedTurnID string                          `json:"reported_turn_id,omitempty"`
-	ReportedAt     *time.Time                      `json:"reported_at,omitempty"`
-	Injected       *SessionContextInjectedPayload  `json:"injected,omitzero"`
 }
