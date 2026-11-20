@@ -284,6 +284,7 @@ type Manager struct {
 	worktreeResolver             WorktreeResolver
 	workspaceAccess              workspaceaccess.Policy
 	readSessionMeta              sessionMetaReader
+	settledStatus                settledStoredStatus
 	openStore                    StoreOpener
 	openQueryStore               QueryStoreOpener
 	queryStoreExplicit           bool

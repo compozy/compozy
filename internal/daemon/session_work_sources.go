@@ -66,9 +66,13 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		if row.Lineage.Kind == store.LineageKindSide || session.IsInternalSpawnRole(row.Lineage.SpawnRole) {
 			continue
 		}
-		info, err := storedSessionStatus(ctx, s.manager, row.ID)
+		// A stopped child whose metadata is unchanged since the last pass keeps no work.
+		info, settled, err := s.manager.StoredStatusUnlessSettled(ctx, row.ID)
 		if err != nil {
 			return nil, err
+		}
+		if settled {
+			continue
 		}
 		until := s.now().Add(2 * toolruntime.SweepInterval)
 		switch info.State {

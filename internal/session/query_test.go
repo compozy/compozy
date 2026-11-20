@@ -2456,6 +2456,67 @@ func TestManagerStatusReadsDoNotRepublishSettledSessions(t *testing.T) {
 	})
 }
 
+func TestManagerStoredStatusUnlessSettled(t *testing.T) {
+	t.Parallel()
+	// Invariant: supervision skips re-reading unchanged stopped metadata, and any replaced
+	// metadata or live session goes back through the full stored read. Owner: session queries.
+	t.Run("Should reuse a stopped proof until the metadata file is replaced", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		var reads atomic.Int32
+		h.manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			reads.Add(1)
+			return store.ReadSessionMeta(path)
+		}
+
+		info, settled, err := h.manager.StoredStatusUnlessSettled(t.Context(), session.ID)
+		if err != nil || settled || info == nil || info.State != StateStopped || reads.Load() != 1 {
+			t.Fatalf("first read info=%+v settled=%v reads=%d err=%v", info, settled, reads.Load(), err)
+		}
+		info, settled, err = h.manager.StoredStatusUnlessSettled(t.Context(), session.ID)
+		if err != nil || !settled || info != nil || reads.Load() != 1 {
+			t.Fatalf("unchanged read info=%+v settled=%v reads=%d err=%v", info, settled, reads.Load(), err)
+		}
+
+		metaPath := store.SessionMetaFile(filepath.Join(h.manager.homePaths.SessionsDir, session.ID))
+		meta, err := store.ReadSessionMeta(metaPath)
+		if err != nil {
+			t.Fatalf("ReadSessionMeta() error = %v", err)
+		}
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
+		info, settled, err = h.manager.StoredStatusUnlessSettled(t.Context(), session.ID)
+		if err != nil || settled || info == nil || info.State != StateStopped || reads.Load() != 2 {
+			t.Fatalf("replaced read info=%+v settled=%v reads=%d err=%v", info, settled, reads.Load(), err)
+		}
+	})
+
+	t.Run("Should always read a live session", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		for range 2 {
+			info, settled, err := h.manager.StoredStatusUnlessSettled(t.Context(), session.ID)
+			if err != nil || settled || info == nil || info.State != StateActive {
+				t.Fatalf("live read info=%+v settled=%v err=%v", info, settled, err)
+			}
+		}
+	})
+
+	t.Run("Should report a missing session like StoredStatus", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		if _, _, err := h.manager.StoredStatusUnlessSettled(t.Context(), "missing"); !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("missing error = %v, want ErrSessionNotFound", err)
+		}
+	})
+}
+
 // exitedProcessLiveness restores the identity of a process that verifiably
 // exited, so an interrupted start is classified from exit proof rather than
 // left as an unverifiable process.
