@@ -196,7 +196,8 @@ func TestSessionWorkSourcesChildrenSettledMetadata(t *testing.T) {
 		}
 		writeMeta("sess-child", session.StateActive, &lineage)
 		work, err = sources.children(ctx, "sess-parent")
-		if err != nil || len(work) != 1 || work[0].Ref != "sess-child" || work[0].Kind != session.WorkSignalActiveChild {
+		if err != nil || len(work) != 1 || work[0].Ref != "sess-child" ||
+			work[0].Kind != session.WorkSignalActiveChild {
 			t.Fatalf("children() after activation = %#v, %v; want the active child", work, err)
 		}
 	})

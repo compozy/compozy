@@ -562,7 +562,8 @@ func BenchmarkManagerStoredStatusSettledChild(b *testing.B) {
 		})
 	}
 	const id = "sess-settled-child"
-	if err := store.WriteSessionMeta(store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, id)), &store.SessionMeta{
+	metaPath := store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, id))
+	if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
 		ID: id, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-bench", AgentName: "coder", Provider: "claude",
 		State: string(StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
 		SessionAdvertisedCommandState: &store.SessionAdvertisedCommandState{AdvertisedCommands: commands},

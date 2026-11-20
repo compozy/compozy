@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"sync"
 )
 
-// readStatementCacheLimit bounds the distinct dynamic read shapes kept prepared.
+// defaultReadStatementCacheLimit bounds the distinct dynamic read shapes kept prepared.
 // Catalog builders emit placeholders only, so the shape count stays small.
-const readStatementCacheLimit = 64
+const defaultReadStatementCacheLimit = 64
 
 // readStatementCache reuses prepared read-pool statements for structural dynamic SQL.
 // database/sql re-prepares a cached statement lazily on each pooled connection, so
@@ -50,7 +51,7 @@ func (c *readStatementCache) statement(ctx context.Context, query string) (*sql.
 	// Prepare outside the lock so one slow parse does not serialize unrelated shapes.
 	prepared, err := c.db.PrepareContext(ctx, query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: prepare cached read statement: %w", err)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -61,7 +62,10 @@ func (c *readStatementCache) statement(ctx context.Context, query string) (*sql.
 	}
 	if c.closed || len(c.stmts) >= c.limit {
 		// A nil statement sends the caller to the unprepared fallback.
-		return nil, prepared.Close()
+		if err := prepared.Close(); err != nil {
+			return nil, fmt.Errorf("store: release uncached read statement: %w", err)
+		}
+		return nil, nil
 	}
 	c.stmts[query] = prepared
 	return prepared, nil
@@ -80,7 +84,9 @@ func (c *readStatementCache) close() error {
 	c.closed = true
 	var err error
 	for query, stmt := range c.stmts {
-		err = errors.Join(err, stmt.Close())
+		if closeErr := stmt.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close cached read statement: %w", closeErr))
+		}
 		delete(c.stmts, query)
 	}
 	return err

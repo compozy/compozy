@@ -2505,6 +2505,39 @@ func TestManagerStoredStatusUnlessSettled(t *testing.T) {
 		}
 	})
 
+	t.Run("Should re-read metadata replaced during the full read", func(t *testing.T) {
+		t.Parallel()
+		// The identity is observed before the read, so a replacement that lands mid-read
+		// can never pair the new file with the stopped result read from the old one.
+		h := newHarness(t)
+		session := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		var reads atomic.Int32
+		h.manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			meta, err := store.ReadSessionMeta(path)
+			if err != nil || reads.Add(1) != 1 {
+				return meta, err
+			}
+			active := meta
+			active.State = string(StateActive)
+			if err := store.WriteSessionMeta(path, &active); err != nil {
+				return store.SessionMeta{}, err
+			}
+			return meta, nil
+		}
+
+		info, settled, err := h.manager.StoredStatusUnlessSettled(t.Context(), session.ID)
+		if err != nil || settled || info == nil || info.State != StateStopped {
+			t.Fatalf("racing read info=%+v settled=%v err=%v", info, settled, err)
+		}
+		info, settled, err = h.manager.StoredStatusUnlessSettled(t.Context(), session.ID)
+		if err != nil || settled || info == nil || info.State != StateActive || reads.Load() != 2 {
+			t.Fatalf("next read info=%+v settled=%v reads=%d err=%v", info, settled, reads.Load(), err)
+		}
+	})
+
 	t.Run("Should drop a settled proof on every committed delete path", func(t *testing.T) {
 		t.Parallel()
 		// Workspace removal commits staged deletes without deleteSession; both share this hook.
@@ -2534,7 +2567,8 @@ func TestManagerStoredStatusUnlessSettled(t *testing.T) {
 	t.Run("Should report a missing session like StoredStatus", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		if _, _, err := h.manager.StoredStatusUnlessSettled(t.Context(), "missing"); !errors.Is(err, ErrSessionNotFound) {
+		_, _, err := h.manager.StoredStatusUnlessSettled(t.Context(), "missing")
+		if !errors.Is(err, ErrSessionNotFound) {
 			t.Fatalf("missing error = %v, want ErrSessionNotFound", err)
 		}
 	})

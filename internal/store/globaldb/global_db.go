@@ -50,7 +50,7 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 	globalDB := &GlobalDB{
 		db:             db,
 		readDB:         readDB,
-		readStatements: newReadStatementCache(readDB, readStatementCacheLimit),
+		readStatements: newReadStatementCache(readDB, config.readStatementCacheLimit),
 		background:     store.NewBackgroundWriter(db),
 		checkpoint:     checkpoint,
 		telemetry:      telemetry,
@@ -153,7 +153,9 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 	}
 	var statementErr error
 	if g.readStatements != nil {
-		statementErr = g.readStatements.close()
+		if err := g.readStatements.close(); err != nil {
+			statementErr = fmt.Errorf("store: close cached read statements: %w", err)
+		}
 	}
 	readCloseErr := g.readDB.Close()
 	telemetryErr := g.telemetry.Close(ctx)

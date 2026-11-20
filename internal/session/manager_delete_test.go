@@ -1681,6 +1681,15 @@ func TestManagerDelete(t *testing.T) {
 				if err := h.manager.Stop(ctx, session.ID); err != nil {
 					t.Fatalf("Stop() error = %v", err)
 				}
+				// Supervision proves the stopped session settled before its workspace goes.
+				for range 2 {
+					if _, _, err := h.manager.StoredStatusUnlessSettled(ctx, session.ID); err != nil {
+						t.Fatalf("StoredStatusUnlessSettled() error = %v", err)
+					}
+				}
+				if _, settled, err := h.manager.StoredStatusUnlessSettled(ctx, session.ID); err != nil || !settled {
+					t.Fatalf("settled proof before workspace removal = %v, %v", settled, err)
+				}
 				if _, err := db.DB().ExecContext(
 					ctx,
 					`INSERT INTO permission_log (
@@ -1749,6 +1758,12 @@ func TestManagerDelete(t *testing.T) {
 				}
 				if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
 					t.Fatalf("Stat(session dir after prune) error = %v, want os.ErrNotExist", err)
+				}
+				h.manager.settledStatus.mu.Lock()
+				_, keptProof := h.manager.settledStatus.entries[session.ID]
+				h.manager.settledStatus.mu.Unlock()
+				if keptProof {
+					t.Fatal("workspace removal kept the deleted session's settled proof")
 				}
 				for _, path := range []string{attachmentPath, orphanPath} {
 					if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {

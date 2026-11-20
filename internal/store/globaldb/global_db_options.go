@@ -12,6 +12,7 @@ type OpenOption func(*openConfig)
 
 type openConfig struct {
 	healthFlushInterval      time.Duration
+	readStatementCacheLimit  int
 	openSessionEventMetadata store.SessionEventMetadataOpener
 	operatorHomeDir          string
 	migrationProgress        MigrationProgressFunc
@@ -48,6 +49,15 @@ func WithHealthFlushInterval(interval time.Duration) OpenOption {
 	}
 }
 
+// WithReadStatementCacheLimit bounds the dynamic read shapes kept prepared; zero disables reuse.
+func WithReadStatementCacheLimit(limit int) OpenOption {
+	return func(config *openConfig) {
+		if limit >= 0 {
+			config.readStatementCacheLimit = limit
+		}
+	}
+}
+
 // WithClock replaces the wall clock repositories stamp records with. Fixture writers such as
 // the demo seed use it to place records on a reproducible timeline; the daemon keeps the default.
 func WithClock(now func() time.Time) OpenOption {
@@ -57,7 +67,10 @@ func WithClock(now func() time.Time) OpenOption {
 }
 
 func newOpenConfig(options []OpenOption) openConfig {
-	config := openConfig{healthFlushInterval: 500 * time.Millisecond}
+	config := openConfig{
+		healthFlushInterval:     500 * time.Millisecond,
+		readStatementCacheLimit: defaultReadStatementCacheLimit,
+	}
 	for _, option := range options {
 		if option != nil {
 			option(&config)
