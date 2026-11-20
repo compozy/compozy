@@ -1,4 +1,6 @@
-import { SESSION_EMPTY_PATH } from "./app-catalog";
+import { requestSessionComposerFocus } from "@/systems/session";
+
+import { resolveAppDescriptorForPath, SESSION_EMPTY_PATH } from "./app-catalog";
 import { createdSessionHostWindow, landCreatedSession } from "./created-session-window";
 import type { OsOpenTarget, OsWindowRoute, WindowManagerOpenOutcome } from "./os-types";
 import { mruWindowInstance } from "./window-instance-lookup";
@@ -16,6 +18,14 @@ import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
 
 export type { OsRouterPort } from "./routing-coordinator-contract";
+
+/**
+ * Opening, retargeting to, or navigating to a session is an explicit activation: the caret
+ * follows it into that session's composer (#1868), which claims the request when it can.
+ */
+function requestActivatedComposer(app: string, instanceKey: string | null | undefined): void {
+  if (app === "session" && instanceKey) requestSessionComposerFocus(instanceKey);
+}
 
 /**
  * The routing coordinator is the ONLY URL↔WM bridge (Safety Invariant 13).
@@ -97,7 +107,16 @@ export class RoutingCoordinator {
     if (isDesktopDefaultViewIntent(route)) this.desktopDefaultViewIntentPending = true;
     // The coordinator sets `currentRoute` before its own pushes and replaces, so
     // a report that differs is external intent: a link, back/forward, a deep link.
-    if (!sameOsWindowRoute(route, this.currentRoute)) this.nextUserIntentToken += 1;
+    if (!sameOsWindowRoute(route, this.currentRoute)) {
+      this.nextUserIntentToken += 1;
+      // A link or deep link to another session opens it; a search-only change (an inspector or
+      // drawer toggle) does not.
+      const resolved =
+        route.pathname === this.currentRoute?.pathname
+          ? null
+          : resolveAppDescriptorForPath(route.pathname);
+      if (resolved) requestActivatedComposer(resolved.app.id, resolved.instanceKey);
+    }
     this.currentRoute = route;
     if (this.phase === "hydrating") {
       this.initialIntent = route;
@@ -243,6 +262,12 @@ export class RoutingCoordinator {
    * (#1655). A newer navigation that arrives meanwhile owns the URL; this open then writes nothing.
    */
   async userOpen(target: OsOpenTarget): Promise<string | null> {
+    requestActivatedComposer(target.app, target.instanceKey);
+    return this.openWindow(target);
+  }
+
+  /** The open itself; recoveries reuse it without renewing the activation's composer request. */
+  private async openWindow(target: OsOpenTarget): Promise<string | null> {
     const intentToken = ++this.nextUserIntentToken;
     const keyboardSince = this.keyboardFocus.begin();
     const before = this.manager.getState();
@@ -274,8 +299,15 @@ export class RoutingCoordinator {
   async userOpenCreatedSession(
     target: OsOpenTarget & { instanceKey: string; route: OsWindowRoute }
   ): Promise<string | null> {
+    requestActivatedComposer(target.app, target.instanceKey);
+    return this.landCreatedSessionOpen(target);
+  }
+
+  private async landCreatedSessionOpen(
+    target: OsOpenTarget & { instanceKey: string; route: OsWindowRoute }
+  ): Promise<string | null> {
     const host = createdSessionHostWindow(this.manager.getState(), target);
-    if (host === null) return this.userOpen(target);
+    if (host === null) return this.openWindow(target);
     const intentToken = ++this.nextUserIntentToken;
     const keyboardSince = this.keyboardFocus.begin();
     const isCurrent = () => intentToken === this.nextUserIntentToken;
@@ -290,8 +322,8 @@ export class RoutingCoordinator {
     // Unless a newer gesture owns focus: a host another client closed means choose again (a new
     // window when none is left); a surviving host that refused the landing opens it the usual way.
     if (!isCurrent()) return null;
-    if (!this.manager.getState().windows[host.id]) return this.userOpenCreatedSession(target);
-    return this.userOpen(target);
+    if (!this.manager.getState().windows[host.id]) return this.landCreatedSessionOpen(target);
+    return this.openWindow(target);
   }
 
   /**
@@ -324,6 +356,7 @@ export class RoutingCoordinator {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win) return false;
+    requestActivatedComposer(win.app, win.instanceKey);
     this.nextUserIntentToken += 1;
     return this.activate(windowId, true);
   }
@@ -364,6 +397,10 @@ export class RoutingCoordinator {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win) return false;
+    // Another session, or another page of it; a search-only change (the board drawer) is not.
+    if (win.instanceKey !== target.instanceKey || win.route.pathname !== target.route.pathname) {
+      requestActivatedComposer(target.app, target.instanceKey);
+    }
     const retargetToken = ++this.nextUserRetargetToken;
     const existing = mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
       app: target.app,

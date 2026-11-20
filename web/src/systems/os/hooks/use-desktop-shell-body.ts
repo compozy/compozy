@@ -11,6 +11,7 @@ import {
   sessionThreadFolds,
   useWorkspaceWorkingSessions,
   walkSessionList,
+  withoutSessionComposerFocus,
   type SessionPayload,
 } from "@/systems/session";
 import { useSwitchProfile } from "@/systems/profiles";
@@ -281,11 +282,14 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
         direction
       );
       if (target) {
-        jumpToSession({
-          sessionId: target.id,
-          agentName: target.agent_name,
-          workspaceId: target.workspace_id ?? "",
-        });
+        // Previous/Next session walks the list: the keyboard does not move into the composer.
+        withoutSessionComposerFocus(() =>
+          jumpToSession({
+            sessionId: target.id,
+            agentName: target.agent_name,
+            workspaceId: target.workspace_id ?? "",
+          })
+        );
       } else {
         notifyUser({ message: "No other visible session.", tone: "info" });
       }

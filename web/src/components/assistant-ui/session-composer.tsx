@@ -29,6 +29,7 @@ import {
 import {
   SessionBusyEnterPlugin,
   SessionCommandScopePlugin,
+  SessionComposerFocusClaimPlugin,
   SessionComposerHandleBridge,
   SessionComposerPastePlugin,
   SessionDirectiveBoundaryPlugin,
@@ -310,6 +311,10 @@ function SessionComposerInput() {
       )}
     >
       <SessionComposerHandleBridge onHandle={actions.setComposerInputElement} />
+      <SessionComposerFocusClaimPlugin
+        sessionId={meta.sessionId}
+        enabled={meta.canPrompt && !edit?.active}
+      />
       <SessionBusyEnterPlugin
         active={Boolean(edit?.active) || state.busyEnterActive || state.intercepting}
         blocker={state.sendBlocker}
