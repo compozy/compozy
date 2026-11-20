@@ -18,7 +18,7 @@ type extensionRestoreToolInput struct {
 // extensionBuiltinToolBindings binds the restore and removed-list tools. Permanent removal is intentionally
 // not bound: it has no tool ID, so an agent cannot delete a built-in permanently (Q5 a).
 func (n *daemonNativeTools) extensionBuiltinToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDExtensionsRestore: {
