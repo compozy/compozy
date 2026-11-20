@@ -2477,6 +2477,15 @@ describe("RoutingCoordinator composer focus requests", () => {
     expect(requested()).toBe("sess-c");
 
     settle();
+    const other = windowFixture("session", "/agents/coder/sessions/sess-d", "sess-d");
+    const activated = createCoordinator([current, other]);
+    activated.coordinator.completeHydration();
+    settle();
+    // Palette "Go to tab" on a session window activates that session.
+    await activated.coordinator.userActivateWindow(other.id);
+    expect(requested()).toBe("sess-d");
+
+    settle();
     await coordinator.userOpen({ app: "settings", route: route("/settings/layouts") });
     expect(requested()).toBeUndefined();
   });

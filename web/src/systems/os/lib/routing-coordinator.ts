@@ -356,6 +356,7 @@ export class RoutingCoordinator {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win) return false;
+    requestActivatedComposer(win.app, win.instanceKey);
     this.nextUserIntentToken += 1;
     return this.activate(windowId, true);
   }
