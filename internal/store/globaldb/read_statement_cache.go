@@ -77,7 +77,21 @@ func (c *readStatementCache) len() int {
 	return len(c.stmts)
 }
 
-// close releases every cached statement; it must run before the read pool closes.
+// closeReadPool closes the pool before its cached statements. Closing the pool fails reads
+// still queued for a connection, and those hold the statement close lock, so releasing the
+// statements afterwards never waits for a connection to free up during shutdown.
+func closeReadPool(db *sql.DB, cache *readStatementCache) error {
+	err := db.Close()
+	if cache == nil {
+		return err
+	}
+	if closeErr := cache.close(); closeErr != nil {
+		err = errors.Join(err, fmt.Errorf("store: close cached read statements: %w", closeErr))
+	}
+	return err
+}
+
+// close releases every cached statement; later reads use the unprepared fallback.
 func (c *readStatementCache) close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

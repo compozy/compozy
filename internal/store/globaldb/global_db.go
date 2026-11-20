@@ -151,17 +151,10 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 	if g.background != nil {
 		backgroundErr = g.background.Close(ctx)
 	}
-	var statementErr error
-	if g.readStatements != nil {
-		if err := g.readStatements.close(); err != nil {
-			statementErr = fmt.Errorf("store: close cached read statements: %w", err)
-		}
-	}
-	readCloseErr := g.readDB.Close()
+	readCloseErr := closeReadPool(g.readDB, g.readStatements)
 	telemetryErr := g.telemetry.Close(ctx)
 	closeErr := store.CloseCheckpointedDatabase(ctx, g.db, g.checkpoint)
-	return errors.Join(healthErr, summaryErr, backgroundErr, statementErr, readCloseErr, telemetryErr,
-		closeErr)
+	return errors.Join(healthErr, summaryErr, backgroundErr, readCloseErr, telemetryErr, closeErr)
 }
 
 func openGlobalSQLite(

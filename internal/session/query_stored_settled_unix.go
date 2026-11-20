@@ -17,6 +17,6 @@ func platformFileIDOf(info os.FileInfo) platformFileID {
 	if !ok {
 		return platformFileID{}
 	}
-	// Dev and Ino widths vary by platform, so the conversions are not redundant everywhere.
-	return platformFileID{device: uint64(stat.Dev), inode: uint64(stat.Ino)} //nolint:unconvert
+	device, inode := uint64(stat.Dev), uint64(stat.Ino) //nolint:unconvert // Widths vary by platform.
+	return platformFileID{device: device, inode: inode}
 }

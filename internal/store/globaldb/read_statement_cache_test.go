@@ -2,11 +2,14 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -117,8 +120,14 @@ func TestSessionListReadStatementReuse(t *testing.T) {
 		if err := cache.close(); err != nil {
 			t.Fatalf("close cache: %v", err)
 		}
-		if _, err := retained.QueryContext(t.Context()); err == nil {
-			t.Fatal("retained statement still executes after cache close")
+		closedRows, err := retained.QueryContext(t.Context())
+		if closedRows != nil {
+			if closeErr := closedRows.Close(); closeErr != nil {
+				t.Fatalf("close rows of closed statement: %v", closeErr)
+			}
+		}
+		if err == nil || !strings.Contains(err.Error(), "sql: statement is closed") {
+			t.Fatalf("retained statement after cache close error = %v, want statement is closed", err)
 		}
 		rows, err = cache.query(t.Context(), "SELECT 1")
 		if err != nil {
@@ -129,6 +138,53 @@ func TestSessionListReadStatementReuse(t *testing.T) {
 		}
 		if got := cache.len(); got != 0 {
 			t.Fatalf("cached statements after close = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should close the pool without waiting for a read queued on a cached statement", func(t *testing.T) {
+		t.Parallel()
+
+		db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "queued-read.db"))
+		if err != nil {
+			t.Fatalf("open pool: %v", err)
+		}
+		db.SetMaxOpenConns(1)
+		cache := newReadStatementCache(db, 4)
+		rows, err := cache.query(t.Context(), "SELECT 1")
+		if err != nil {
+			t.Fatalf("prime cached statement: %v", err)
+		}
+		if err := rows.Close(); err != nil {
+			t.Fatalf("close primed rows: %v", err)
+		}
+		held, err := db.Conn(t.Context())
+		if err != nil {
+			t.Fatalf("hold the only connection: %v", err)
+		}
+		t.Cleanup(func() { _ = held.Close() })
+		queued := make(chan error, 1)
+		go func() {
+			rows, err := cache.query(context.WithoutCancel(t.Context()), "SELECT 1")
+			if rows != nil {
+				_ = rows.Close()
+			}
+			queued <- err
+		}()
+		for db.Stats().WaitCount == 0 {
+			time.Sleep(time.Millisecond)
+		}
+		closed := make(chan error, 1)
+		go func() { closed <- closeReadPool(db, cache) }()
+		select {
+		case err := <-closed:
+			if err != nil {
+				t.Fatalf("closeReadPool error = %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("closeReadPool waited for the held connection")
+		}
+		if err := <-queued; err == nil {
+			t.Fatal("queued cached read succeeded after the pool closed")
 		}
 	})
 
