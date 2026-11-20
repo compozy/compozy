@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/compozy/compozy/internal/fileutil"
@@ -59,13 +58,7 @@ func WriteSessionMeta(path string, meta *SessionMeta) (err error) {
 	}
 	payload = append(payload, '\n')
 
-	directory, name, err := fileutil.OpenParentDirectory(cleanPath)
-	if errors.Is(err, os.ErrNotExist) {
-		if err := os.MkdirAll(filepath.Dir(cleanPath), 0o755); err != nil {
-			return fmt.Errorf("store: create session meta directory for %q: %w", cleanPath, err)
-		}
-		directory, name, err = fileutil.OpenParentDirectory(cleanPath)
-	}
+	directory, name, err := fileutil.OpenOrCreateParentDirectory(cleanPath, 0o755)
 	if err != nil {
 		return fmt.Errorf("store: open session meta directory for %q: %w", cleanPath, err)
 	}
