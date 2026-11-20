@@ -45,11 +45,12 @@ Load a skill when the user names it or its procedure resolves a task-specific ne
 
 ## Verification and Delivery
 
-Use the cheapest check that can expose the changed behavior. CI owns the delivery gates.
+CI is the only verifier of agent work. Agent sessions share one machine with the operator and with each other, and local checks saturate it.
 
-- `make gate`, `make gate-full`, repository-wide lint, full test or `-race` suites, and E2E run only in CI, unless the operator asks for that local run; concurrent local runs saturate the machine. Before commit/push, run focused tests and focused lint for what you changed, with zero warnings/errors.
-- PR delivery requires the CI checks named in `eng-delivery` green for the current head. Diagnose finished failures while other jobs run. A draft PR with pending/red checks remains in progress. Local full/E2E runs share a machine lock, so do not kill a queued run.
-- Frontend validation runs through Turborepo from the repo root, with affected-package filters during iteration. Package-local test/typecheck runs are not delivery evidence.
+- Agents run no check locally: no tests (focused, `-race` or full), lint, vet, typecheck, build check, `make gate`, `make gate-full`, `make codegen-check` or E2E. Commit, push, and read each check on the pushed head; open a draft PR early so CI runs. The only exception is a specific local run the operator asks for, and it covers that run only.
+- Formatters and generators still run locally: the edit-time and pre-commit hooks format files, and `make codegen` regenerates what you changed. The pre-push hook skips itself in agent sessions.
+- PR delivery requires the CI checks named in `eng-delivery` green for the current head. Diagnose finished failures while other jobs run. A draft PR with pending/red checks remains in progress.
+- The commands in subtree instructions are the ones CI runs through Turborepo from the repo root. Package-local test/typecheck runs are not delivery evidence.
 - Commits: `<type>: <description>` with `feat|fix|refactor|perf|docs|test|build|ci`, no scopes. A failed pre-commit hook is repaired in a new commit, not an amend.
 
 ## Compozy Cross-Surface Impact Audit
