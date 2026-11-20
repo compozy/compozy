@@ -757,6 +757,66 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retry an older live failure immediately after verified login", func(t *testing.T) {
+		t.Parallel()
+
+		probe := &fakeACPModelProbe{err: errors.New("ACP session/new failed: sign-in required")}
+		source := newLiveSourceForTest(t, liveSourcesAgyKey, compozyconfig.BuiltinProviders()[liveSourcesAgyKey],
+			&LiveProviderSourcesConfig{BaseEnv: []string{"PATH=/bin"}, ACPProbe: probe})
+		service := newTestService(t, newMemoryStore(), []Source{source})
+		opts := RefreshOptions{ProviderID: liveSourcesAgyKey, SourceID: source.ID(), Now: testTime(0)}
+		statuses, err := service.Refresh(t.Context(), opts)
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("Refresh(signed out) error = %v, want failed discovery", err)
+		}
+		failed := requireStatus(t, statuses, source.ID())
+		opts.Now = failed.LastRefresh.Add(time.Second)
+		if !failed.NextRefresh.After(opts.Now) {
+			t.Fatalf("failed status = %#v, want active backoff", failed)
+		}
+		probe.err = nil
+		probe.options = []acp.SessionConfigOption{{
+			ID: "model", Category: "model", Kind: acp.SessionConfigOptionKindSelect,
+			CurrentValueID: "gemini-fixture", Values: []acp.SessionConfigOptionValue{{Value: "gemini-fixture"}},
+		}}
+		if statuses, err := service.Refresh(t.Context(), opts); err != nil ||
+			requireStatus(t, statuses, source.ID()).RefreshState != RefreshStateFailed {
+			t.Fatalf("Refresh(during backoff) = %#v, %v, want prior failure", statuses, err)
+		}
+		opts.RetryFailedBefore = opts.Now
+		statuses, err = service.Refresh(t.Context(), opts)
+		if err != nil {
+			t.Fatalf("Refresh(after login) error = %v", err)
+		}
+		if status := requireStatus(t, statuses, source.ID()); status.RefreshState != RefreshStateSucceeded ||
+			status.RowCount != 1 {
+			t.Fatalf("status after login = %#v, want successful discovery with one live model", status)
+		}
+		probe.err = errors.New("discovery should keep the successful snapshot")
+		if _, err := service.Refresh(t.Context(), opts); err != nil {
+			t.Fatalf("repeated login notification reran healthy discovery: %v", err)
+		}
+	})
+
+	t.Run("Should name the provider in the ACP discovery sign-in hint", func(t *testing.T) {
+		t.Parallel()
+		binary, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		probe := SessionACPModelProbe{}
+		_, err = probe.InspectModels(t.Context(), ACPModelProbeRequest{
+			ProviderID: liveSourcesAgyKey,
+			Command:    shellquote.Join(binary, "-test.run=^TestLiveDiscoveryHelperProcess$"),
+			Cwd:        t.TempDir(),
+			Env:        append(os.Environ(), "COMPOZY_LIVE_DISCOVERY_HELPER=auth-required"),
+		})
+		if err == nil || !strings.Contains(err.Error(), "compozy provider auth login agy") ||
+			strings.Contains(err.Error(), "compozy-model-catalog") {
+			t.Fatalf("InspectModels() error = %v, want real provider in its login hint", err)
+		}
+	})
+
 	t.Run("Should keep a missing command failure identical between preflight and real execution", func(t *testing.T) {
 		t.Parallel()
 		provider := compozyconfig.ProviderConfig{}
@@ -2879,6 +2939,42 @@ func TestLiveDiscoverySupportTypes(t *testing.T) {
 }
 
 func TestLiveDiscoveryHelperProcess(t *testing.T) {
+	t.Run("Should refuse session creation when signed out", func(t *testing.T) {
+		if os.Getenv("COMPOZY_LIVE_DISCOVERY_HELPER") != "auth-required" {
+			return
+		}
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			var request struct {
+				ID     json.RawMessage
+				Method string
+			}
+			if err := json.Unmarshal(scanner.Bytes(), &request); err != nil {
+				t.Fatal(err)
+			}
+			var payload string
+			switch request.Method {
+			case "initialize":
+				payload = `"result":{"protocolVersion":1,"agentCapabilities":{},"authMethods":[]}`
+			case "session/new":
+				payload = `"error":{"code":-32000,"message":"Authentication required"}`
+			default:
+				continue
+			}
+			if _, err := fmt.Fprintf(
+				os.Stdout,
+				"{\"jsonrpc\":\"2.0\",\"id\":%s,%s}\n",
+				request.ID,
+				payload,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			t.Fatal(err)
+		}
+		os.Exit(0)
+	})
 	t.Run("Should emit the subprocess discovery fixture", func(t *testing.T) {
 		mode := os.Getenv("COMPOZY_LIVE_DISCOVERY_HELPER")
 		if mode != "large" {

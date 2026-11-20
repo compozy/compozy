@@ -52,7 +52,7 @@ type ReplyBody = { kind: "fixed"; text: string } | { kind: "answer"; text: strin
 
 function replyBody(outcome: SessionReplyOutcome, text: string): ReplyBody {
   const fixed = FIXED_BODY[outcome];
-  if (fixed) return { kind: "fixed", text: fixed };
+  if (fixed) return { kind: "fixed", text: outcome === "unknown" ? text.trim() || fixed : fixed };
   if (text.trim() === "") return { kind: "fixed", text: NO_REPLY_TEXT };
   return { kind: "answer", text };
 }

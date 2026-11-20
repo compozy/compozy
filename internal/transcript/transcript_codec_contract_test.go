@@ -2,6 +2,7 @@ package transcript
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"slices"
 	"strings"
@@ -829,6 +830,55 @@ func TestPromptOriginCodec(t *testing.T) {
 			secret.TitleAtSend,
 		) {
 			t.Fatal("origin title bypasses display redaction")
+		}
+	})
+}
+
+// Invariant: daemon event payloads can use different field types without breaking the stored ACP codec.
+func TestUnmarshalAgentEventDaemonPayload(t *testing.T) {
+	for _, tc := range []struct {
+		name, payload, wantText string
+	}{
+		{
+			name:    "Should accept the persisted MCP reload payload",
+			payload: `{"outcome":"applied","added":["server"],"removed":[],"reason":"","runtime":"Codex"}`,
+		},
+		{
+			name:     "Should preserve compatible fields alongside colliding daemon fields",
+			payload:  `{"type":"session.example","text":"preserved","usage":"none","timestamp":10,"synthetic":true}`,
+			wantText: "preserved",
+		},
+		{
+			name:     "Should prefer the exact field spelling during fallback",
+			payload:  `{"timestamp":10,"text":"exact","Text":"variant","TEXT":"other"}`,
+			wantText: "exact",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			event, err := UnmarshalAgentEvent(tc.payload)
+			if err != nil || event.Text != tc.wantText || event.Runtime != nil {
+				t.Fatalf("decode = %+v, %v", event, err)
+			}
+		})
+	}
+	t.Run("Should preserve the canonical runtime type error", func(t *testing.T) {
+		t.Parallel()
+		_, err := UnmarshalAgentEvent(`{"schema":"compozy.session.event.v1","type":"done","runtime":"Codex"}`)
+		typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err)
+		if !ok || typeErr.Field != "runtime" {
+			t.Fatalf("decode error = %T %v; want runtime type error", err, err)
+		}
+	})
+	t.Run("Should preserve a canonical timestamp error before a case-insensitive schema key", func(t *testing.T) {
+		t.Parallel()
+		const payload = `{"timestamp":10,"Schema":"compozy.session.event.v1","type":"done"}`
+		var canonical canonicalEventPayload
+		want := json.Unmarshal([]byte(payload), &canonical)
+		_, err := UnmarshalAgentEvent(payload)
+		if got := errors.Unwrap(err); want == nil || got == nil ||
+			reflect.TypeOf(got) != reflect.TypeOf(want) || got.Error() != want.Error() {
+			t.Fatalf("decode error = %T %v; want canonical decode error %T %v", got, got, want, want)
 		}
 	})
 }

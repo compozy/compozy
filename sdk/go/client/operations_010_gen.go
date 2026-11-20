@@ -402,18 +402,26 @@ func (c *Client) GetGlobalSessionHistory(ctx context.Context, params GetGlobalSe
 	return &out, nil
 }
 
-// GetGlobalSessionStatusParams carries the path, query, and header parameters.
-type GetGlobalSessionStatusParams struct {
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
+// GetGlobalSessionInheritedTranscriptParams carries the path, query, and header parameters.
+type GetGlobalSessionInheritedTranscriptParams struct {
+	SessionID      string  `url:"session_id"`
+	Limit          *int    `url:"limit"`
+	BeforeSequence *int64  `url:"before_sequence"`
+	Profile        *string `url:"profile"`
+	AllProfiles    *bool   `url:"all_profiles"`
 }
 
-// GetGlobalSessionStatus Read compact session status and wake eligibility for a Global session
-func (c *Client) GetGlobalSessionStatus(ctx context.Context, params GetGlobalSessionStatusParams) (*SessionStatusResponse, error) {
-	path := "/api/sessions/{session_id}/status"
+// GetGlobalSessionInheritedTranscript Get a bounded page of a derived session's source transcript through the derive cut for a Global session
+func (c *Client) GetGlobalSessionInheritedTranscript(ctx context.Context, params GetGlobalSessionInheritedTranscriptParams) (*SessionTranscriptResponse, error) {
+	path := "/api/sessions/{session_id}/transcript/inherited"
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	query := url.Values{}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.BeforeSequence != nil {
+		query.Set("before_sequence", strconv.FormatInt(*params.BeforeSequence, 10))
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
@@ -423,18 +431,16 @@ func (c *Client) GetGlobalSessionStatus(ctx context.Context, params GetGlobalSes
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out SessionStatusResponse
+	var out SessionTranscriptResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// GetGlobalSessionTranscriptParams carries the path, query, and header parameters.
-type GetGlobalSessionTranscriptParams struct {
-	SessionID      string  `url:"session_id"`
-	Limit          *int    `url:"limit"`
-	BeforeSequence *int64  `url:"before_sequence"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
+// GetGlobalSessionStatusParams carries the path, query, and header parameters.
+type GetGlobalSessionStatusParams struct {
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }

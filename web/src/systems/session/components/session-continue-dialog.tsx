@@ -50,8 +50,9 @@ export function SessionContinueDialog({
     placement,
   });
 
+  // Leaving while a submit runs stops waiting on it; the dialog never traps the operator.
   const handleOpenChange = (nextOpen: boolean) => {
-    if (model.isSubmitting && !nextOpen) return;
+    if (model.isSubmitting && !nextOpen) model.cancel();
     onOpenChange(nextOpen);
   };
 
@@ -73,7 +74,7 @@ export function SessionContinueDialog({
           description="Start a new session for another agent with this conversation carried over. This session stays unchanged."
           eyebrow="Operate · Session"
           icon={ArrowRightLeft}
-          onClose={model.isSubmitting ? undefined : () => handleOpenChange(false)}
+          onClose={() => handleOpenChange(false)}
           title="Continue with another agent"
         />
 
@@ -81,7 +82,7 @@ export function SessionContinueDialog({
           <EntityDialogBody className="flex flex-col gap-4">
             <SessionContinueFields model={model} runtimeOptions={model.runtimeOptions} />
 
-            <SessionDerivePreviewLine view={model.previewView} />
+            <SessionDerivePreviewLine onRetry={model.retryPreview} view={model.previewView} />
 
             {model.canChoosePlacement ? (
               <SessionDerivePlacementField
@@ -111,7 +112,6 @@ export function SessionContinueDialog({
           </EntityDialogBody>
 
           <EntityDialogFooter
-            cancelDisabled={model.isSubmitting}
             hint={
               <span className="truncate" data-testid="session-continue-source-note">
                 From <b className="font-medium text-fg">{getSessionDisplayTitle(source)}</b> ·{" "}

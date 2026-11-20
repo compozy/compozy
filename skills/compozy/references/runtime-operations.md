@@ -619,9 +619,12 @@ later turn is excluded with a note), bounded by `[session.derive] max_replay_byt
 `max_message_bytes`; omissions are reported as `truncated` and `omitted_count`. It is stored on the new
 session and prepended once whenever that session's history is rebuilt (first prompt, provider
 replacement, recovery without a native id, rewind restart). `--message` admits the first prompt
-(`first_prompt: admitted`); without it the context waits for the first prompt (`staged`). Preview the
+(`first_prompt: admitted`) before the new session binds its runtime; without it the context waits for
+the first prompt (`staged`). Preview the
 numbers first with `GET /api/workspaces/<ws>/sessions/<id>/derive/preview` (`message_count`,
-`replay_bytes`, `native_fork_possible`, and `cut.turn_id` when `message_id` is given); it never writes.
+`replay_bytes`, `native_fork_possible`, `native_fork_refusal_reason` when ineligible, and `cut.turn_id`
+when `message_id` is given); it never writes. If the source's conversation is held, preview and
+derive return `409 derive_source_busy` with `retryable: true` after a bounded wait.
 The new session reads `lineage.kind = "continue"` plus `lineage.origin_agent_name` and a `derivation`
 object, and is a new top-level session: `lineage.parent_session_id` names the source as provenance, not
 as a parent, so it is not the source's child and keeps top-level governance. Session lists still show
@@ -641,10 +644,13 @@ the new session's first bind; if it was removed or its command changed, that bin
 `route_not_found` and the session stays unbound. Errors carry a stable `code`: `invalid_request`,
 `session_not_found`, `session_not_derivable`, `session_archived`, `agent_not_found`,
 `message_not_found`, `route_not_found`, `session_turn_in_progress`, `session_fence_conflict`,
-`idempotency_conflict`, `new_work_admission_unavailable`. A failure after the new session was created
+`idempotency_conflict`, `derive_source_busy`, `derive_first_prompt_failed`,
+`new_work_admission_unavailable`. A failure after the new session was created
 (for example a `422` when its first message cannot be admitted) also carries `child_session_id`; open
 that session or retry the same key. A provider or model refusal's diagnostic code is also the error
-`code` (for example `model_unavailable`). A retry replays its recorded outcome even after the source was
+`code` (for example `model_unavailable`). A runtime bind that failed after admission is visible in
+the child's `runtime.failure`; the same key returns `422 derive_first_prompt_failed` and the child ID.
+A retry replays its recorded outcome even after the source was
 deleted or can no longer be read; the CLI resolves the source only through read-only lookups.
 
 When a user session's turn fails as `rate_limited` or `not_authenticated`, the error event's
@@ -666,6 +672,17 @@ first prompt loads the clone under the same provider identity and the session re
 `derivation.native_state` `loaded`, or `failed` with `native_fork_error` when the clone could not load
 and the carried context was sent instead. A failed clone request yields `seed: replay` with
 `native_fork_error`. The source never receives the clone's traffic.
+
+The HTTP and UDS inherited transcript read is
+`GET /api/workspaces/{workspace_id}/sessions/{session_id}/transcript/inherited` (or
+`GET /api/sessions/{session_id}/transcript/inherited` for Global), where `session_id` is the derived
+session. Pages use `limit` and `before_sequence`, ordered by `start_sequence` and starting at the tail
+of the cut. The read resolves the immediate source in the child's own workspace and profile.
+`404 inherited_transcript_unavailable` means that scope or the source range is no longer available.
+The child's `derivation.inherited_message_count` measures visible source entries at the cut. Its
+`replay_message_count` and `replay_omitted_count` describe bounded replay, including the fallback for a
+native fork. CLI history, `compozy__session_history`, and the child's transcript stream still read
+the child's own history.
 
 ### Session attention and pending interactions
 
@@ -1532,10 +1549,10 @@ When a session behaves unexpectedly:
 Do not treat stale UI state or chat messages as runtime authority.
 
 For the `agy` built-in, authentication is protocol-owned: sign in explicitly with
-`compozy provider auth login agy`, verify with `compozy provider auth status agy --remote`,
+`compozy provider auth login agy`, verify with `compozy provider list`,
 and retry the failed session without a daemon restart. `needs_login` means run the explicit
 login; `missing_cli` means install `agy_acp_server` for the OS — never substitute the
-interactive `agy` CLI and never collect a secret. A successful remote probe clears a cached
+interactive `agy` CLI and never collect a secret. A successful daemon probe clears a cached
 startup failure; failed or canceled probes change nothing. Agy models come only from live
 `provider_live:agy` discovery: select an exact currently advertised ID, use `view=all` before
 concluding a new model is absent, and treat a missing-login diagnostic as a prompt to run the explicit operator sign-in, not a
@@ -1715,9 +1732,12 @@ active children, reconciled Loop runs, future task leases, future scheduled wait
 monitors until their deadline, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
 watch not yet delivered) prevent inactivity termination; an armed watch stops counting once it expires
-(`session.messaging.reply_watch_ttl`, default `24h`). A reply wakes an idle sender once, binding its
-released runtime if needed; it resumes a sender CompozyOS stopped (inactivity of a hung turn, timeout,
-shutdown, crash) and wakes it once; an operator-stopped sender waits for resume. Reads, subscriptions, provider waiting and runtime progress projections
+(`session.messaging.reply_watch_ttl`, default `24h`). A reply wake arrives when the consuming turn
+settles. A target that still expects a daemon wake sends an interim reply, and its outstanding watch
+continues to count as `awaiting_reply` until the follow-up is delivered or the watch expires. Pair
+with `compozy__monitor_create kind="session"` for an independent lifecycle or timeout wake.
+Delivery binds an idle sender's released runtime if needed. It resumes a sender CompozyOS stopped
+for inactivity of a hung turn, timeout, shutdown, or crash. An operator-stopped sender waits for resume. Reads, subscriptions, provider waiting and runtime progress projections
 do not renew evidence. Source errors report unknown + attention and suspend automatic silence stops.
 
 `quiet_after`/`stop_grace` are a hung-turn watchdog: silence accrues only while a turn is in flight

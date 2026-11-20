@@ -617,6 +617,22 @@ func TestContinueSessionHandler(t *testing.T) {
 func TestPreviewSessionDeriveHandler(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should report a busy source as a retryable conflict", func(t *testing.T) {
+		t.Parallel()
+		manager := continueTestManager(t, "ws-workspace", nil)
+		manager.DerivePreviewFn = func(context.Context, string, string, string) (session.DerivePreview, error) {
+			return session.DerivePreview{}, session.ErrDeriveSourceBusy
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodGet,
+			"/api/workspaces/ws-workspace/sessions/sess-123/derive/preview", nil)
+		var payload contract.ErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if recorder.Code != http.StatusConflict || payload.Code != "derive_source_busy" || !payload.Retryable {
+			t.Fatalf("status = %d body = %+v, want retryable derive_source_busy", recorder.Code, payload)
+		}
+	})
+
 	t.Run("Should report the cut for a message and omit it for the whole session", func(t *testing.T) {
 		t.Parallel()
 

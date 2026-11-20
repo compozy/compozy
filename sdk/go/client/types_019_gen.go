@@ -72,12 +72,15 @@ type SessionConversationRewindResponse struct {
 
 // SessionDerivationPayload is a daemon API value.
 type SessionDerivationPayload struct {
-	Kind            LineageKind `json:"kind"`
-	SourceSessionID string      `json:"source_session_id"`
-	Seed            string      `json:"seed"`
-	NativeState     string      `json:"native_state,omitempty"`
-	NativeForkError string      `json:"native_fork_error,omitempty"`
-	FirstPrompt     string      `json:"first_prompt"`
+	Kind                  LineageKind `json:"kind"`
+	SourceSessionID       string      `json:"source_session_id"`
+	Seed                  string      `json:"seed"`
+	NativeState           string      `json:"native_state,omitempty"`
+	NativeForkError       string      `json:"native_fork_error,omitempty"`
+	FirstPrompt           string      `json:"first_prompt"`
+	InheritedMessageCount *int        `json:"inherited_message_count,omitzero"`
+	ReplayMessageCount    *int        `json:"replay_message_count,omitzero"`
+	ReplayOmittedCount    *int        `json:"replay_omitted_count,omitzero"`
 }
 
 // SessionDeriveCutPayload is a daemon API value.
@@ -89,15 +92,16 @@ type SessionDeriveCutPayload struct {
 
 // SessionDerivePreviewResponse is a daemon API value.
 type SessionDerivePreviewResponse struct {
-	MessageCount         int                      `json:"message_count"`
-	SourceMessageCount   int                      `json:"source_message_count"`
-	ReplayBytes          int                      `json:"replay_bytes"`
-	Truncated            bool                     `json:"truncated"`
-	OmittedCount         int                      `json:"omitted_count"`
-	SourceTurnInProgress bool                     `json:"source_turn_in_progress"`
-	NativeForkPossible   bool                     `json:"native_fork_possible"`
-	Cut                  *SessionDeriveCutPayload `json:"cut,omitzero"`
-	Transcript           SessionTranscriptFences  `json:"transcript"`
+	MessageCount            int                      `json:"message_count"`
+	SourceMessageCount      int                      `json:"source_message_count"`
+	ReplayBytes             int                      `json:"replay_bytes"`
+	Truncated               bool                     `json:"truncated"`
+	OmittedCount            int                      `json:"omitted_count"`
+	SourceTurnInProgress    bool                     `json:"source_turn_in_progress"`
+	NativeForkPossible      bool                     `json:"native_fork_possible"`
+	NativeForkRefusalReason string                   `json:"native_fork_refusal_reason,omitempty"`
+	Cut                     *SessionDeriveCutPayload `json:"cut,omitzero"`
+	Transcript              SessionTranscriptFences  `json:"transcript"`
 }
 
 // SessionDeriveResponse is a daemon API value.

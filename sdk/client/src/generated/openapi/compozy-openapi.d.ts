@@ -3464,6 +3464,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/{session_id}/transcript/inherited": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a bounded page of a derived session's source transcript through the derive cut for a Global session */
+    get: operations["getGlobalSessionInheritedTranscript"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{session_id}/transcript/outline": {
     parameters: {
       query?: never;
@@ -7473,6 +7490,23 @@ export interface paths {
     };
     /** Get a bounded materialized transcript page */
     get: operations["getSessionTranscript"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/inherited": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a bounded page of a derived session's source transcript through the derive cut */
+    get: operations["getSessionInheritedTranscript"];
     put?: never;
     post?: never;
     delete?: never;
@@ -16216,10 +16250,13 @@ export interface components {
     };
     SessionDerivationPayload: {
       first_prompt: string;
+      inherited_message_count?: number | null;
       /** @enum {string} */
       kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery" | "side";
       native_fork_error?: string;
       native_state?: string;
+      replay_message_count?: number | null;
+      replay_omitted_count?: number | null;
       seed: string;
       source_session_id: string;
     };
@@ -16248,6 +16285,7 @@ export interface components {
       cut?: components["schemas"]["SessionDeriveCutPayload"] | null;
       message_count: number;
       native_fork_possible: boolean;
+      native_fork_refusal_reason?: string;
       omitted_count: number;
       replay_bytes: number;
       source_message_count: number;
@@ -41034,6 +41072,74 @@ export interface operations {
       };
     };
   };
+  getGlobalSessionInheritedTranscript: {
+    parameters: {
+      query?: {
+        /** @description Maximum page size; defaults to the newest 200 entries and is capped at 1000 */
+        limit?: number;
+        /** @description Return inherited entries whose stable start sequence is before this cursor */
+        before_sequence?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Derived child session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionTranscriptResponse"];
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found or source transcript unavailable (inherited_transcript_unavailable) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Transcript projection is incompatible */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   getGlobalSessionTranscriptOutline: {
     parameters: {
       query?: {
@@ -57196,7 +57302,7 @@ export interface operations {
           "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
-      /** @description Session cannot be continued */
+      /** @description Session cannot be continued or the source is busy */
       409: {
         headers: {
           [name: string]: unknown;
@@ -57205,7 +57311,7 @@ export interface operations {
           "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
-      /** @description Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it */
+      /** @description Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id */
       422: {
         headers: {
           [name: string]: unknown;
@@ -57282,7 +57388,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Session is archived */
+      /** @description Session is archived or the source is busy */
       409: {
         headers: {
           [name: string]: unknown;
@@ -58009,7 +58115,7 @@ export interface operations {
           "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
-      /** @description Session cannot be forked */
+      /** @description Session cannot be forked or the source is busy */
       409: {
         headers: {
           [name: string]: unknown;
@@ -58018,7 +58124,7 @@ export interface operations {
           "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
-      /** @description Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it */
+      /** @description Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id */
       422: {
         headers: {
           [name: string]: unknown;
@@ -61049,7 +61155,7 @@ export interface operations {
           "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
-      /** @description Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it */
+      /** @description Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id */
       422: {
         headers: {
           [name: string]: unknown;
@@ -61703,6 +61809,76 @@ export interface operations {
         };
       };
       /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Transcript projection is incompatible */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSessionInheritedTranscript: {
+    parameters: {
+      query?: {
+        /** @description Maximum page size; defaults to the newest 200 entries and is capped at 1000 */
+        limit?: number;
+        /** @description Return inherited entries whose stable start sequence is before this cursor */
+        before_sequence?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Derived child session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionTranscriptResponse"];
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found or source transcript unavailable (inherited_transcript_unavailable) */
       404: {
         headers: {
           [name: string]: unknown;

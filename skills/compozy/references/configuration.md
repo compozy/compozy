@@ -507,8 +507,9 @@ waits for tools and `after_turn` queues; native injection keeps its existing del
   1s–24h): the per sender→target budget, counted from durable admissions. A send past it returns
   `message_rate_limited` (HTTP 429) with `limit`, `window`, and `retry_after_seconds`; only that send
   is refused.
-- `reply_watch_ttl` (default `24h`, 1m–720h; `0s` never expires): an unanswered `notify_on_complete`
-  watch wakes its sender once with the `expired` outcome and stops keeping the sender awake.
+- `reply_watch_ttl` (default `24h`, 1m–720h; `0s` never expires): an outstanding `notify_on_complete`
+  watch, including one awaiting a follow-up, wakes its sender with the `expired` outcome at the
+  original deadline and stops counting as work.
 - `queue_promote_after` (default `2m`, 10s–24h; `0s` disables): a queued agent message or coalesced
   monitor wake waiting on a target in one turn this long is injected as steer when the provider supports injection and no
   operator input waits. A failed injection returns to after-turn queue delivery; it never interrupts.

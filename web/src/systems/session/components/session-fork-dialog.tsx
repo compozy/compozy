@@ -55,8 +55,9 @@ export function SessionForkDialog({
     placement,
   });
 
+  // Leaving while a submit runs stops waiting on it; the dialog never traps the operator.
   const handleOpenChange = (nextOpen: boolean) => {
-    if (model.isSubmitting && !nextOpen) return;
+    if (model.isSubmitting && !nextOpen) model.cancel();
     onOpenChange(nextOpen);
   };
 
@@ -78,7 +79,7 @@ export function SessionForkDialog({
           description="Start a second session with the same agent and this conversation. This session stays unchanged."
           eyebrow="Operate · Session"
           icon={GitFork}
-          onClose={model.isSubmitting ? undefined : () => handleOpenChange(false)}
+          onClose={() => handleOpenChange(false)}
           title="Fork session"
         />
 
@@ -88,6 +89,7 @@ export function SessionForkDialog({
 
             <SessionDerivePreviewLine
               nativeClone={model.nativeClone}
+              onRetry={model.retryPreview}
               refusal={model.previewRefusal}
               view={model.previewView}
             />
@@ -112,7 +114,6 @@ export function SessionForkDialog({
           </EntityDialogBody>
 
           <EntityDialogFooter
-            cancelDisabled={model.isSubmitting}
             cancelTestId="session-fork-cancel"
             // After a fence conflict nothing here can succeed; the way on is to reopen.
             cancelLabel={model.fenceConflict ? "Close" : "Cancel"}

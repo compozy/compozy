@@ -46,6 +46,7 @@ func (s *outboxSignalSet) load() outboxSignalKind {
 type outboxSignalExecutor struct {
 	globalSQLExecutor
 	outboxSignalSet
+	supersededReplyWatches []string
 }
 
 // outboxSignalHub owns the post-commit wake callbacks shared by all repositories.

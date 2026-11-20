@@ -20,6 +20,7 @@ charter:
       - "OpenCode source idle and bound: `runtime.acp_caps.supports_fork_session: true`, preview `native_fork_possible: true`, `session fork` → `native_fork` pending → loaded at the child's first prompt, which answers with the source context."
       - "Claude and Codex sources: `session fork` returns `seed: replay`; `--message-id` through a middle message carries that turn and nothing after it."
       - "Source invariants after every derive: same `max_sequence`, `epoch`, `generation`, runtime, and no event mentioning a clone id."
+      - "Seed a large source and record the phase timings for preview and derive. From the derived session, page the inherited source up to the cut before and after a later append."
     must_avoid:
       - "Spending provider quota on long prompts — one or two short turns per source are enough."
       - "Treating an acpmock pass as proof of the real-adapter native path; acpmock is only the fallback for the load-failure leg."

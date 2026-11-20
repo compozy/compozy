@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -16,15 +16,20 @@ import (
 
 // deriveSnapshot is one immutable read view of a derive source.
 type deriveSnapshot struct {
+	timing      *deriveTiming
 	includeOpen bool
 	meta        store.SessionMeta
 	epoch       int64
 	generation  int64
 	maxSequence int64
 	messages    []transcript.Message
+	bodyStart   int
+	budget      replayBudget
+	imported    *store.SessionImportedContext
 	// wholeMessageCount counts the source's own messages through its last settled turn
 	// (or the cut, when later), independent of the fork cut: the preview's total.
 	wholeMessageCount    int
+	visibleMessageCount  int
 	cut                  DeriveCut
 	sourceTurnInProgress bool
 	sourceActive         bool
@@ -69,47 +74,142 @@ func (m *Manager) readSessionMetaReadOnly(ctx context.Context, id string) (store
 	return meta, nil
 }
 
-// readDeriveSnapshot reads one immutable view of the source under its conversation
-// operation lock (rewind, clear, and delete wait on it). The returned release must be
-// called: previews release immediately, derives keep the lock until the child commits.
-// The events are read in one query, and the fences are computed from that same read, so
-// concurrent appends cannot tear the view.
+// readDeriveSnapshot reads at a fixed high-water mark and rechecks its generation under the commit lock.
 func (m *Manager) readDeriveSnapshot(
 	ctx context.Context,
-	sourceID string,
-	messageID string,
-	includeOpen ...bool,
+	spec deriveSpec,
+	timing *deriveTiming,
 ) (_ deriveSnapshot, _ func(), retErr error) {
-	_, unlockConversation, err := m.lockConversationOperation(ctx, sourceID)
+	release, err := m.acquireDeriveSnapshotLock(ctx, spec.sourceID, timing)
 	if err != nil {
 		return deriveSnapshot{}, nil, err
 	}
-	unlock := sync.OnceFunc(unlockConversation)
+	started := time.Now()
+	initialLockWait := timing.lock
 	defer func() {
 		if retErr != nil {
-			unlock()
+			release()
 		}
+		timing.read = time.Since(started) - (timing.lock - initialLockWait) - timing.bound
 	}()
-	meta, err := m.readSessionMetaReadOnly(ctx, sourceID)
+	snapshot, err := m.prepareDeriveSnapshot(ctx, spec, timing)
 	if err != nil {
 		return deriveSnapshot{}, nil, err
 	}
-	snapshot := deriveSnapshot{meta: meta, includeOpen: len(includeOpen) > 0 && includeOpen[0]}
 	if snapshot.includeOpen {
-		m.snapshotSideRuntime(&snapshot)
+		err = m.readDeriveSnapshotEvents(ctx, &snapshot, spec.messageID)
+		return snapshot, release, err
 	}
-	if live, ok := m.Get(meta.ID); ok {
-		snapshot.sourceActive = true
-		snapshot.epoch = live.Info().TranscriptEpoch
-	} else if m.transcriptEpochStore != nil {
-		if snapshot.epoch, err = m.transcriptEpochStore.SessionTranscriptEpoch(ctx, meta.ID); err != nil {
-			return deriveSnapshot{}, nil, fmt.Errorf("session: read transcript epoch of %q: %w", meta.ID, err)
-		}
-	}
-	if err := m.readDeriveSnapshotEvents(ctx, &snapshot, strings.TrimSpace(messageID)); err != nil {
+	if err := m.readDeriveHead(ctx, &snapshot); err != nil {
 		return deriveSnapshot{}, nil, err
 	}
-	return snapshot, unlock, nil
+	release()
+	readErr := m.readDeriveSnapshotEvents(ctx, &snapshot, spec.messageID)
+	if readErr == nil {
+		snapshot.imported, readErr = m.buildImportedContext(ctx, &snapshot, spec, snapshot.budget)
+	}
+	commitRelease, err := m.acquireDeriveSnapshotLock(ctx, spec.sourceID, timing)
+	if err != nil {
+		return deriveSnapshot{}, nil, err
+	}
+	release = commitRelease
+	if err := m.recheckDeriveSnapshot(ctx, &snapshot); err != nil {
+		return deriveSnapshot{}, nil, err
+	}
+	if readErr != nil {
+		return deriveSnapshot{}, nil, readErr
+	}
+	return snapshot, release, nil
+}
+
+func (m *Manager) acquireDeriveSnapshotLock(ctx context.Context, id string, timing *deriveTiming) (func(), error) {
+	started := time.Now()
+	release, err := m.lockDeriveConversation(ctx, id)
+	timing.lock += time.Since(started)
+	if err != nil {
+		return nil, err
+	}
+	return sync.OnceFunc(release), nil
+}
+
+func (m *Manager) prepareDeriveSnapshot(
+	ctx context.Context,
+	spec deriveSpec,
+	timing *deriveTiming,
+) (deriveSnapshot, error) {
+	meta, err := m.readSessionMetaReadOnly(ctx, spec.sourceID)
+	if err != nil {
+		return deriveSnapshot{}, err
+	}
+	if meta.WorkspaceID != spec.workspaceID || (spec.sourceProfileID != "" && meta.ProfileID != spec.sourceProfileID) {
+		return deriveSnapshot{}, ErrSessionNotFound
+	}
+	snapshot := deriveSnapshot{meta: meta, includeOpen: spec.kind == store.LineageKindSide, timing: timing}
+	if snapshot.includeOpen {
+		m.snapshotSideRuntime(&snapshot)
+	} else {
+		workspace, err := m.resolveResumeWorkspace(ctx, deriveResolutionMeta(spec, &meta))
+		if err != nil {
+			return deriveSnapshot{}, err
+		}
+		snapshot.budget = m.deriveBudget(&workspace)
+	}
+	snapshot.epoch, snapshot.sourceActive, err = m.deriveTranscriptEpoch(ctx, meta.ID)
+	return snapshot, err
+}
+
+func (m *Manager) deriveTranscriptEpoch(ctx context.Context, id string) (int64, bool, error) {
+	if live, ok := m.Get(id); ok {
+		return live.Info().TranscriptEpoch, true, nil
+	}
+	if m.transcriptEpochStore == nil {
+		return 0, false, nil
+	}
+	epoch, err := m.transcriptEpochStore.SessionTranscriptEpoch(ctx, id)
+	if err != nil {
+		return 0, false, fmt.Errorf("session: read transcript epoch of %q: %w", id, err)
+	}
+	return epoch, false, nil
+}
+
+func (m *Manager) readDeriveHead(ctx context.Context, snapshot *deriveSnapshot) (retErr error) {
+	recorder, cleanup, err := m.openDeriveQueryRecorder(ctx, snapshot)
+	if err != nil {
+		return err
+	}
+	defer func() { retErr = errors.Join(retErr, cleanup()) }()
+	if reader, ok := recorder.(transcript.Reader); ok {
+		head, err := reader.TranscriptPage(ctx, transcript.PageQuery{MetadataOnly: true})
+		if err != nil {
+			return fmt.Errorf("session: read derive source transcript fences: %w", err)
+		}
+		snapshot.generation, snapshot.maxSequence = head.Generation, head.MaxSequence
+		return nil
+	}
+	rows, err := recorder.QueryEventMetadata(ctx, store.EventQuery{Limit: 1, Archive: store.EventArchiveUnarchived})
+	if err == nil && len(rows) > 0 {
+		snapshot.maxSequence = rows[0].Sequence
+	}
+	return err
+}
+
+func (m *Manager) recheckDeriveSnapshot(ctx context.Context, snapshot *deriveSnapshot) error {
+	current := deriveSnapshot{meta: snapshot.meta}
+	var err error
+	current.epoch, current.sourceActive, err = m.deriveTranscriptEpoch(ctx, snapshot.meta.ID)
+	if err != nil {
+		return err
+	}
+	if current.epoch != snapshot.epoch {
+		return ErrDeriveFenceConflict
+	}
+	if err := m.readDeriveHead(ctx, &current); err != nil {
+		return err
+	}
+	if current.generation != snapshot.generation {
+		return ErrDeriveFenceConflict
+	}
+	return nil
 }
 
 func (m *Manager) readDeriveSnapshotEvents(
@@ -122,19 +222,23 @@ func (m *Manager) readDeriveSnapshotEvents(
 		return err
 	}
 	defer func() { retErr = errors.Join(retErr, cleanup()) }()
-	events, err := recorder.Query(ctx, store.EventQuery{Archive: store.EventArchiveUnarchived})
+	query := store.EventQuery{
+		Archive: store.EventArchiveUnarchived, ReplayShape: !snapshot.includeOpen,
+	}
+	if !snapshot.includeOpen {
+		query.BeforeSequence = snapshot.maxSequence + 1
+	}
+	events, err := recorder.Query(ctx, query)
 	if err != nil {
 		return fmt.Errorf("session: query derive source events of %q: %w", snapshot.meta.ID, err)
 	}
-	for _, event := range events {
-		snapshot.maxSequence = max(snapshot.maxSequence, event.Sequence)
-	}
-	if reader, ok := recorder.(transcript.Reader); ok {
-		page, pageErr := reader.TranscriptPage(ctx, transcript.PageQuery{Limit: 1})
-		if pageErr != nil {
-			return fmt.Errorf("session: read derive source generation of %q: %w", snapshot.meta.ID, pageErr)
+	if snapshot.includeOpen {
+		if err := m.readDeriveHead(ctx, snapshot); err != nil {
+			return err
 		}
-		snapshot.generation = page.Generation
+		if len(events) > 0 {
+			snapshot.maxSequence = events[len(events)-1].Sequence
+		}
 	}
 	baseline, coveredThrough, err := deriveRewindBaseline(ctx, recorder)
 	if err != nil {
@@ -153,20 +257,7 @@ func (m *Manager) readDeriveSnapshotEvents(
 		}
 		snapshot.cut, snapshot.cutErr = cut, cutErr
 	}
-	if snapshot.includeOpen {
-		own := make([]store.SessionEvent, 0, len(events))
-		for _, event := range events {
-			if event.Sequence > coveredThrough {
-				own = append(own, event)
-			}
-		}
-		var messages []transcript.Message
-		messages, err = transcript.Assemble(own)
-		snapshot.messages = transcript.Prune(append(baseline, messages...), transcript.PruneOptions{Dedup: true})
-	} else {
-		snapshot.messages, err = assembleDeriveMessages(baseline, events, coveredThrough, snapshot.cut.ThroughSequence)
-	}
-	if err != nil {
+	if err := snapshot.assembleReplay(ctx, recorder, events, baseline, coveredThrough); err != nil {
 		return fmt.Errorf("session: assemble derive source transcript of %q: %w", snapshot.meta.ID, err)
 	}
 	snapshot.wholeMessageCount = len(snapshot.messages)
@@ -180,6 +271,34 @@ func (m *Manager) readDeriveSnapshotEvents(
 			snapshot.wholeMessageCount = len(whole)
 		}
 	}
+	return snapshot.countVisibleMessages(ctx, recorder)
+}
+
+func (snapshot *deriveSnapshot) assembleReplay(
+	ctx context.Context, recorder EventReadCloser, events []store.SessionEvent,
+	baseline []transcript.Message, coveredThrough int64,
+) (err error) {
+	if snapshot.includeOpen {
+		var messages []transcript.Message
+		messages, err = transcript.Assemble(eventsAfter(events, coveredThrough))
+		snapshot.messages = transcript.Prune(append(baseline, messages...), transcript.PruneOptions{Dedup: true})
+		return err
+	}
+	snapshot.messages, snapshot.bodyStart, err = readDeriveReplayWindow(ctx, recorder, baseline, events, coveredThrough,
+		snapshot.cut.ThroughSequence, snapshot.budget.MaxBytes)
+	return err
+}
+
+func (snapshot *deriveSnapshot) countVisibleMessages(ctx context.Context, recorder EventReadCloser) error {
+	counter, ok := recorder.(transcript.RangeCounter)
+	if !ok || snapshot.includeOpen {
+		return nil
+	}
+	count, err := counter.TranscriptCountThrough(ctx, snapshot.cut.ThroughSequence)
+	if err != nil {
+		return fmt.Errorf("session: count visible derive source messages: %w", err)
+	}
+	snapshot.visibleMessageCount = count
 	return nil
 }
 
@@ -192,7 +311,7 @@ func (m *Manager) deriveSourceMoved(ctx context.Context, snapshot *deriveSnapsho
 		return false, err
 	}
 	defer func() { retErr = errors.Join(retErr, cleanup()) }()
-	later, err := recorder.Query(ctx, store.EventQuery{
+	later, err := recorder.QueryEventMetadata(ctx, store.EventQuery{
 		Forward: true, AfterSequence: snapshot.maxSequence, Limit: 1, Archive: store.EventArchiveUnarchived,
 	})
 	if err != nil {

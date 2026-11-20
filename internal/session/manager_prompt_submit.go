@@ -98,6 +98,7 @@ func (m *Manager) submitProfiledPromptRequest(
 			clearPromptState(session, req.turnID)
 		}
 	}()
+	acknowledgeDeriveFirstPrompt(ctx, session.ID, req.idempotencyKey)
 	proc, err = m.prepareReservedPromptSlot(promptExecutionCtx, session, req.runtime, proc)
 	if err != nil {
 		return nil, err
@@ -453,7 +454,7 @@ func (m *Manager) promptDispatchMessage(
 	augmented, err := m.augmentPromptMessage(ctx, session, message)
 	collected := sections()
 	return preparedPromptInput{
-		message:  promptOriginMessageAfter(session.CurrentPromptMeta().Origin, augmented, collected),
+		message:  m.attributeProviderPrompt(ctx, session, augmented, collected),
 		sections: collected,
 	}, err
 }

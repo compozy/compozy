@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -10,6 +11,39 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 	"github.com/gin-gonic/gin"
 )
+
+type inheritedTranscriptReader interface {
+	InheritedTranscript(context.Context, *session.Info, transcript.PageQuery) (transcript.Page, int64, error)
+}
+
+// SessionInheritedTranscript returns the source range of an authorized derived child.
+func (h *BaseHandlers) SessionInheritedTranscript(c *gin.Context) {
+	query, err := parseSessionTranscriptQuery(c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	childID, child, ok := h.routeSessionRead(c)
+	if !ok {
+		return
+	}
+	reader, ok := h.Sessions.(inheritedTranscriptReader)
+	if !ok {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("inherited transcript reader is unavailable"))
+		return
+	}
+	page, epoch, err := reader.InheritedTranscript(c.Request.Context(), child, query)
+	if errors.Is(err, session.ErrInheritedTranscriptUnavailable) {
+		c.JSON(http.StatusNotFound, contract.ErrorPayload{Error: err.Error(), Code: "inherited_transcript_unavailable"})
+		return
+	}
+	if err != nil {
+		h.logSessionReadError("inherited transcript", childID, err)
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	respondSessionTranscript(c, page, epoch, query.Limit)
+}
 
 // SessionTranscript returns one bounded materialized transcript page.
 func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
@@ -29,14 +63,18 @@ func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
 		return
 	}
 
+	respondSessionTranscript(c, page, transcriptEpoch(info), query.Limit)
+}
+
+func respondSessionTranscript(c *gin.Context, page transcript.Page, epoch int64, limit int) {
 	c.JSON(http.StatusOK, contract.SessionTranscriptResponse{
 		Entries:            transcript.CloneEntries(page.Entries),
-		Epoch:              transcriptEpoch(info),
+		Epoch:              epoch,
 		Generation:         page.Generation,
 		MaxSequence:        page.MaxSequence,
 		HasOlder:           page.HasOlder,
 		NextBeforeSequence: page.NextBeforeSequence,
-		Limit:              query.Limit,
+		Limit:              limit,
 	})
 }
 

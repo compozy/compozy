@@ -184,10 +184,16 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 		}
 	})
 
-	t.Run("Should log in through the configured method with stderr progress", func(t *testing.T) {
+	t.Run("Should log in with stderr progress when the daemon is unreachable", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, nil)
+		var daemonUnavailable bool
+		deps := newTestDeps(t, &stubClient{
+			probeProviderAuthFn: func(context.Context, string) (contract.ProviderAuthProbeResponse, error) {
+				daemonUnavailable = true
+				return contract.ProviderAuthProbeResponse{}, errors.New("dial unix: connection refused")
+			},
+		})
 		deps.resolveProviderAuthCommand = agyTestResolver(t)
 		var stderr bytes.Buffer
 		deps.acpLoginStderr = &stderr
@@ -226,6 +232,13 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 		}
 		if got, want := record.State, "authenticated"; got != want {
 			t.Fatalf("State = %q, want %q", got, want)
+		}
+		if !daemonUnavailable || record.ProbeSource != providerProbeSourceLocal {
+			t.Fatalf(
+				"daemon unavailable = %v, probe_source = %q, want local fallback",
+				daemonUnavailable,
+				record.ProbeSource,
+			)
 		}
 		if strings.TrimSpace(stderr.String()) == "" {
 			t.Fatal("stderr empty, want live operator progress")

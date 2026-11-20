@@ -12,6 +12,13 @@ const (
 	sessionEventMetadataColumns = "id, sequence, turn_id, type, agent_name, timestamp"
 )
 
+func sessionEventProjection(query store.EventQuery) string {
+	if query.ReplayShape {
+		return sessionReplayShapeColumns
+	}
+	return sessionEventColumns
+}
+
 // dynamic-sql: selected projection, optional event predicates, cursor bounds, and reverse-limit paging change shape.
 func buildEventQuerySQL(columns string, query store.EventQuery) (string, []any, error) {
 	projection := strings.TrimSpace(columns)
@@ -37,6 +44,16 @@ func buildEventQuerySQL(columns string, query store.EventQuery) (string, []any, 
 		for _, kind := range query.Types {
 			args = append(args, strings.TrimSpace(kind))
 		}
+	}
+	if query.ExcludeTurnID != "" {
+		where = append(where, "turn_id <> ?")
+		args = append(args, query.ExcludeTurnID)
+	}
+	if query.TopLevelOnly {
+		where = append(where, `NOT EXISTS (
+			SELECT 1 FROM json_each(CASE WHEN json_valid(content) THEN content ELSE '{}' END)
+			WHERE key COLLATE NOCASE = 'parent_tool_call_id' AND type = 'text' AND trim(value) <> ''
+		)`)
 	}
 	switch query.Archive {
 	case store.EventArchiveUnarchived:

@@ -55,14 +55,15 @@ authority. Follow the repository's cross-surface audit, docs, and affected QA sc
 
 Before editing tests, identify the invariant, owning layer, and canonical suite. Extend that suite;
 avoid duplicate regressions or assertions that only freeze implementation details. Review the changed
-diff and run the relevant real integration/E2E or app flow. UI fixes need rendered evidence for the
+diff and walk the affected app flow. UI fixes need rendered evidence for the
 reported state and affected viewport/interaction cases. Use isolated homes, ports and sockets for
 runtime QA, and clean up only your own registered lab processes. Do not restart the user's daemon.
 
-Use repository-root frontend/Turborepo conventions when applicable. Never run `make gate`,
-`make gate-full`, repository-wide lint, full test suites or local E2E: CI on the pushed head is the
-gate. Run focused tests and lint for what you changed, including remediation commits. Reuse valid
-unchanged evidence; rerun checks invalidated by fixes. Follow repository commit conventions and hook recovery rules.
+Run no check on this machine: no tests (focused, `-race` or full), lint, vet, typecheck, build
+check, `make gate`, `make gate-full` or E2E. CI on the pushed head is the only verifier, for the
+first push and for every remediation commit. Open the PR as a draft early so CI runs, read each
+check on the current head, and name in your report the check that proves each change. Follow
+repository commit conventions and hook recovery rules.
 
 ## Pull request
 

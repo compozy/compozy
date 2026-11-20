@@ -60,6 +60,7 @@ func isDaemonTestHelperProcess() bool {
 		"COMPOZY_TEST_DAEMON_SESSION_STOP_HELPER",
 		deadEntityMCPHelperEnv,
 		"COMPOZY_TEST_NIGHTLY_COMBINED_HELPER",
+		settingsMCPStdioCrashHelperEnv,
 	} {
 		if os.Getenv(name) == "1" {
 			return true

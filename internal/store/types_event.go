@@ -109,11 +109,15 @@ func (e SessionEvent) Validate() error {
 
 // EventQuery filters per-session events while preserving follow-friendly ordering.
 type EventQuery struct {
+	// ReplayShape selects only the fields needed to count and locate canonical replay messages.
+	ReplayShape bool
 	// Forward selects the next bounded page even when AfterSequence is zero.
 	Forward        bool
 	ID             string
 	Type           string
 	Types          []string // Types selects a union intersected with Type when both are set.
+	TopLevelOnly   bool     // Excludes events attributed to child tool calls.
+	ExcludeTurnID  string
 	AgentName      string
 	TurnID         string
 	Since          time.Time

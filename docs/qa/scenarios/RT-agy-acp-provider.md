@@ -4,29 +4,29 @@ area: RT
 title: Google Antigravity login, prompts, and file tools
 persona: Ada
 journey: J-15
-expected: With only the official agy_acp_server on PATH and no [providers.agy] block, explicit local login authenticates, a remote probe reports readiness, and the first prompt persists under agy with the server-default model. Logged-out or missing-server states give actionable guidance and never trigger automatic login. File tools complete individually during the turn, and edits in Ask before changes wait for operator approval.
-entry_points: compozy provider auth login agy; compozy provider auth status agy --remote; compozy session new --agent agy-example
+expected: With only the official agy_acp_server on PATH and no [providers.agy] block, explicit local login updates the daemon's sign-in verdict, and the first prompt persists under agy with the server-default model. Logged-out or missing-server states give actionable guidance and never trigger automatic login. File tools complete individually during the turn, and edits in Ask before changes wait for operator approval.
+entry_points: compozy provider auth login agy; compozy provider list; compozy provider auth status agy --remote; compozy session new --agent agy-example
 qa_status: pass
-bug_ids:
-fix_status:
-retest_status:
+bug_ids: "#1881"
+fix_status: fixed
+retest_status: pending
 fix_commits:
 evidence: internal/daemon/agy_acp_entry_integration_test.go
 last_report: docs/qa/reports/2026-10-19-agy-reasoning-selector.md
 overlaps: MS-web-provider-auth-gate; RT-provider-full-access-mode; ET-048
 ---
 
-story: As an operator with a Google Antigravity account I sign in once explicitly, verify readiness remotely, and run ordinary sessions without surrendering secrets or re-consenting.
+story: As an operator with a Google Antigravity account I sign in once explicitly, verify readiness in the provider list and picker, and run ordinary sessions without re-consenting.
 
 ## Explicit login to first prompt
 
 1. Install Antigravity's official ACP server for the OS (`agy_acp_server.par` on Linux/macOS, `agy_acp_server.exe` on Windows) on PATH. Do not install or substitute the interactive `agy` CLI. Confirm no `[providers.agy]` block exists.
 2. Run `compozy provider inspect agy -o json`: `source` is `auth_acp_method`, `presence` is `present`, and the executable is the server basename only.
-3. With the provider logged out, run `compozy provider auth status agy -o json`: `state` is `needs_login`. No browser or terminal prompt appears.
+3. With the provider logged out, run `compozy provider auth status agy --remote -o json`: `state` is `needs_login`. No browser or terminal prompt appears. Run `compozy provider models list agy --refresh --all -o json` and confirm that the failed live source names `agy` in its login hint.
 4. Run `compozy provider auth login agy --timeout 5m -o json`: exit 0, `state` is `authenticated`. Repeat the login: no second consent request appears.
-5. Run `compozy provider auth status agy --remote -o json`: `state` is `authenticated`.
+5. Run `compozy provider list -o json` directly after login. Antigravity's `auth_status.state` is `authenticated`. Once its live catalog refresh completes, verify the composer picker shows the advertised models as selectable and Settings shows the provider as ready. This step uses ordinary reads without a remote status probe or a forced model refresh.
 6. Create a session with an `agy-example` agent (`provider: agy`, no model) and send one prompt. Session reads identify provider `agy` and the exact accepted model; the server-default model is used, never a fabricated default.
-7. Remove or rename the server binary and repeat step 3: `state` is `missing_cli` with an `install_cli` recommendation naming only the basename.
+7. Remove or rename the server binary and repeat the status check from step 3. `state` is `missing_cli` with an `install_cli` recommendation naming only the basename.
 
 ## File tool lifecycle and edit approval
 
@@ -37,7 +37,7 @@ story: As an operator with a Google Antigravity account I sign in once explicitl
 ## Repair without restart
 
 1. With the provider logged out, attempt session creation and observe the authentication-required diagnostic.
-2. Complete explicit login, run the remote probe, and immediately retry session creation without restarting the daemon. The session starts; a failed or canceled probe must not clear the failure.
+2. Complete explicit login and immediately retry session creation on the same daemon. The session starts. A failed or canceled probe leaves the cached failure in place.
 
 ## Removed daemon launch directory
 

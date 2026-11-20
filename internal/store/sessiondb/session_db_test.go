@@ -14,6 +14,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -2261,6 +2262,37 @@ func sessionMigrationPrefixBefore(t *testing.T, excludedMigration string) store.
 }
 
 func TestSessionDBTranscriptProjection(t *testing.T) {
+	t.Run("Should preserve an entry at the cut across a late tool update", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		const sessionID = "sess-inherited-late-tool"
+		db := openTestSessionDB(t, sessionID)
+		record := func(event acp.AgentEvent) store.SessionEvent {
+			t.Helper()
+			event.SessionID = sessionID
+			stored, err := db.RecordPersisted(ctx, canonicalStoreEvent(t, event, "coder"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return stored
+		}
+		record(acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "previous", Text: "Start"})
+		record(acp.AgentEvent{Type: acp.EventTypeToolCall, TurnID: "previous", ToolCallID: "late", Title: "Bash"})
+		cut := record(acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "previous"}).Sequence
+		before, err := db.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil || len(before.Entries) != 2 {
+			t.Fatalf("original page = %+v, %v, want the prompt and pending tool", before, err)
+		}
+		record(acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "next", Text: "Follow up"})
+		record(acp.AgentEvent{
+			Type: acp.EventTypeToolResult, TurnID: "previous", ToolCallID: "late",
+			Raw: json.RawMessage(`{"status":"completed","rawOutput":{"stdout":"only after the cut"}}`),
+		})
+		inherited, err := db.TranscriptPage(ctx, transcript.PageQuery{Limit: 10, ThroughSequence: &cut})
+		if err != nil || inherited.MaxSequence != cut || !reflect.DeepEqual(inherited.Entries, before.Entries) {
+			t.Fatalf("inherited page = %+v, %v, want original entries %+v", inherited, err, before.Entries)
+		}
+	})
 	t.Run("Should preserve cancellation between navigation read and commit", func(t *testing.T) {
 		t.Parallel()
 		db := openTestSessionDB(t, "sess-canceled-navigation")

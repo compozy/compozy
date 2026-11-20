@@ -133,6 +133,27 @@ WHERE message_json IS NOT NULL AND start_sequence < sqlc.arg(before_sequence)
 ORDER BY start_sequence DESC
 LIMIT sqlc.arg(row_limit);
 
+-- name: ListTranscriptEntriesThrough :many
+SELECT entry_key, kind, logical_id, turn_id, base_message_id, message_id,
+       message_json, start_sequence, updated_sequence, event_type, marker_json
+FROM transcript_entries
+WHERE message_json IS NOT NULL
+  AND start_sequence <= sqlc.arg(through_start)
+ORDER BY start_sequence DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: ListTranscriptEntryEventsThrough :many
+SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
+FROM events
+WHERE transcript_entry_key = sqlc.arg(entry_key) AND sequence <= sqlc.arg(through_sequence)
+ORDER BY sequence ASC;
+
+-- name: CountTranscriptEntriesThrough :one
+SELECT COUNT(*)
+FROM transcript_entries
+WHERE message_json IS NOT NULL AND start_sequence <= sqlc.arg(through_sequence)
+  AND updated_sequence <= sqlc.arg(through_sequence);
+
 -- name: ListTranscriptChanges :many
 SELECT e.message_json, e.start_sequence, e.updated_sequence, e.event_type, e.marker_json
 FROM transcript_entries AS e

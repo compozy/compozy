@@ -2,7 +2,10 @@
 // Invariant: the dialog forks the same agent (shown read-only), states what travels from the
 // daemon's own preview (including the native-clone decision, never guessed), refuses an
 // unsettled cut and a changed transcript truthfully, posts exactly the fork the operator saw,
-// and lands the child in this window — its own window only for a host without one.
+// and lands the child in this window — its own window only for a host without one. It never
+// traps the operator: measurement and submit are bounded, a failed measurement offers Try again
+// and still lets the fork go, and the dialog closes while a submit runs. The child's window
+// reads open from the cache the fork seeded.
 // Owning layer: SessionForkDialog with its hooks over MSW, plus the shared derive host that
 // opens it. Canonical suite: this file.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,6 +16,7 @@ import { use } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
+import { readProfileScopeParams } from "@/systems/profiles";
 import { createMswFetch } from "@/test/msw-fetch";
 
 import type { ForkSessionRequest } from "../../adapters/session-derive-api";
@@ -20,7 +24,9 @@ import {
   SessionForkContext,
   type SessionForkPoint,
 } from "../../contexts/session-fork-context-value";
+import { SESSION_DERIVE_TIMED_OUT } from "../../hooks/use-session-derive";
 import { useSessionDeriveHost } from "../../hooks/use-session-derive-host";
+import { sessionScopedDetailOptions } from "../../lib/query-options";
 import {
   deriveSourceSessionFixture,
   forkCutPreviewFixture,
@@ -37,6 +43,18 @@ import {
 import type { SessionPayload } from "../../types";
 import { SessionDeriveHost } from "../session-derive-host";
 import { SessionForkDialog } from "../session-fork-dialog";
+
+// The dialog's bounds, shortened per test; the production values stay in force otherwise.
+const deadlines = vi.hoisted(() => ({ preview: 15_000, submit: 60_000 }));
+vi.mock("../../lib/session-derive-deadline", async importOriginal => ({
+  ...(await importOriginal<object>()),
+  get SESSION_DERIVE_PREVIEW_TIMEOUT_MS() {
+    return deadlines.preview;
+  },
+  get SESSION_DERIVE_SUBMIT_TIMEOUT_MS() {
+    return deadlines.submit;
+  },
+}));
 
 const source: SessionPayload = {
   ...deriveSourceSessionFixture,
@@ -65,8 +83,9 @@ function renderDialog(
   const openInNewWindow = vi.fn<(child: SessionPayload) => void>();
   const openInThisWindow = vi.fn<(child: SessionPayload) => void>();
   const onOpenChange = vi.fn();
+  const client = queryClient();
   render(
-    <QueryClientProvider client={queryClient()}>
+    <QueryClientProvider client={client}>
       <UIProvider reducedMotion="never" skipAnimations>
         <SessionForkDialog
           onOpenChange={onOpenChange}
@@ -79,7 +98,7 @@ function renderDialog(
       </UIProvider>
     </QueryClientProvider>
   );
-  return { openInNewWindow, openInThisWindow, onOpenChange };
+  return { openInNewWindow, openInThisWindow, onOpenChange, client };
 }
 
 async function measured() {
@@ -98,6 +117,8 @@ describe("SessionForkDialog", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    deadlines.preview = 15_000;
+    deadlines.submit = 60_000;
   });
 
   // UT-067: whole session — locked agent, preview, no message_id on the wire, child in this window.
@@ -308,6 +329,100 @@ describe("SessionForkDialog", () => {
 
     await waitFor(() => expect(openInThisWindow).toHaveBeenCalledTimes(1));
     expect(openInThisWindow.mock.calls[0]?.[0].id).toBe(child.id);
+  });
+
+  // Invariant: the child's window resolves through the profile-enforced by-id read; the fork
+  // seeds that entry, so the window renders the child without a second round trip.
+  it("Should seed the by-id read the child's window resolves through", async () => {
+    const user = userEvent.setup();
+    const child = forkedSessionFixture(source);
+    const { client, openInThisWindow } = renderDialog({ result: forkResultFixture(child) });
+
+    await measured();
+    await user.click(screen.getByTestId("session-fork-submit"));
+    await waitFor(() => expect(openInThisWindow).toHaveBeenCalledOnce());
+
+    const windowRead = sessionScopedDetailOptions(child.id, readProfileScopeParams(client));
+    expect(client.getQueryData(windowRead.queryKey)).toEqual(child);
+    expect(client.getQueryState(windowRead.queryKey)?.isInvalidated).toBe(false);
+  });
+
+  it("Should let the operator leave while the fork is starting", async () => {
+    const user = userEvent.setup();
+    const { onOpenChange, openInThisWindow } = renderDialog({ result: "pending" });
+
+    await measured();
+    await user.click(screen.getByTestId("session-fork-submit"));
+    expect(await screen.findByTestId("session-fork-pending-status")).toHaveTextContent(
+      "Starting the new session…"
+    );
+    expect(screen.getByTestId("session-fork-cancel")).toBeEnabled();
+    await user.click(screen.getByTestId("session-fork-cancel"));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByTestId("session-fork-pending-status")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-fork-submit-error")).not.toBeInTheDocument();
+    expect(openInThisWindow).not.toHaveBeenCalled();
+  });
+
+  it("Should stop waiting at the deadline and replay the same key on retry", async () => {
+    deadlines.submit = 50;
+    const user = userEvent.setup();
+    const onFork = vi.fn<(request: ForkSessionRequest) => void>();
+    const child = forkedSessionFixture(source);
+    const { openInThisWindow } = renderDialog({
+      onFork,
+      result: ["pending", forkResultFixture(child, { replayed: true })],
+    });
+
+    await measured();
+    await user.click(screen.getByTestId("session-fork-submit"));
+    expect(await screen.findByTestId("session-fork-submit-error")).toHaveTextContent(
+      SESSION_DERIVE_TIMED_OUT
+    );
+    expect(screen.getByTestId("session-fork-submit")).toBeEnabled();
+    await user.click(screen.getByTestId("session-fork-submit"));
+
+    await waitFor(() => expect(openInThisWindow).toHaveBeenCalledExactlyOnceWith(child));
+    expect(onFork).toHaveBeenCalledTimes(2);
+    expect(onFork.mock.calls[1]![0].idempotency_key).toBe(onFork.mock.calls[0]![0].idempotency_key);
+  });
+
+  it("Should offer Try again on a slow measurement and fork without fences meanwhile", async () => {
+    deadlines.preview = 50;
+    const user = userEvent.setup();
+    const onFork = vi.fn<(request: ForkSessionRequest) => void>();
+    renderDialog({ preview: "pending", onFork });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("session-derive-preview")).toHaveAttribute("data-reason", "timeout")
+    );
+    expect(screen.getByTestId("session-derive-preview")).toHaveTextContent(
+      "Measuring this session's context took too long."
+    );
+    expect(screen.getByTestId("session-derive-preview-retry")).toBeEnabled();
+    await user.click(screen.getByTestId("session-fork-submit"));
+
+    await waitFor(() => expect(onFork).toHaveBeenCalledOnce());
+    expect(onFork.mock.calls[0]![0]).not.toHaveProperty("expected_epoch");
+    expect(onFork.mock.calls[0]![0]).not.toHaveProperty("expected_max_sequence");
+  });
+
+  it("Should measure again on Try again after a failed measurement", async () => {
+    const user = userEvent.setup();
+    renderDialog({ preview: "error" });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("session-derive-preview")).toHaveAttribute("data-reason", "failed")
+    );
+    // The daemon answers the next measurement.
+    handlers = sessionDeriveHandlers({});
+    await user.click(screen.getByTestId("session-derive-preview-retry"));
+
+    await measured();
+    expect(screen.getByTestId("session-derive-preview")).toHaveTextContent(
+      "Carries over 42 messages"
+    );
   });
 
   it("Should leave the fences out for a running source", async () => {

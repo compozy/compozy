@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -1897,6 +1898,80 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if got := len(service.refreshes); got != 0 {
 			t.Fatalf("refresh attempts = %d, want none for an unchanged missing executable", got)
 		}
+	})
+
+	t.Run("Should retry live discovery only for the profile verified through ACP", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			now := time.Now().UTC()
+			home := testHomePaths(t)
+			cfg := testConfig(t, home)
+			provider, err := cfg.ResolveProvider("agy")
+			if err != nil {
+				t.Fatal(err)
+			}
+			source, err := modelcatalog.NewLiveProviderSource("agy", provider, &modelcatalog.LiveProviderSourcesConfig{
+				WorkingDir: t.TempDir(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			service := newCatalogReadRefreshService()
+			runtime, err := newModelCatalogRuntime(t.Context(), service, discardLogger(), func() time.Time {
+				return now
+			}, time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"agy": source}
+			profileContext := runtime.catalogExecutionContexts()[0]
+			workspace, err := runtime.resolveCatalogExecutionContext(modelcatalog.CatalogExecutionContext{
+				ProfileID: store.DefaultProfileID, WorkspaceID: "current-workspace",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := runtime.resolveCatalogExecutionContext(modelcatalog.CatalogExecutionContext{
+				ProfileID: "other-profile", WorkspaceID: "other-workspace",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				Config:       cfg,
+				HomePaths:    home,
+				ModelCatalog: runtime,
+				Now:          func() time.Time { return now },
+				ProviderAuthCommandResolver: func(_ context.Context, command string, _ []string, _ string) (string, error) {
+					return filepath.Join("bin", command), nil
+				},
+				ProviderACPProbe: func(context.Context, acp.SessionInspectionRequest) error { return nil },
+			})
+			router := gin.New()
+			router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequestWithContext(
+				t.Context(), http.MethodPost, "/providers/agy/auth/probe", http.NoBody,
+			))
+			var probe contract.ProviderAuthProbeResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &probe); err != nil ||
+				response.Code != http.StatusOK || probe.AuthStatus.State != contract.ProviderAuthStateAuthenticated {
+				t.Fatalf("probe = %d %s, error = %v, want authenticated", response.Code, response.Body.String(), err)
+			}
+
+			synctest.Wait()
+			got := make(map[modelcatalog.CatalogExecutionContext]bool)
+			for range len(service.refreshes) {
+				opts := <-service.refreshes
+				if opts.ProviderID != "agy" || opts.SourceID != source.ID() || !opts.RetryFailedBefore.Equal(now) {
+					t.Errorf("refresh = %#v, want only the agy live source and probe cutoff", opts)
+				}
+				got[opts.ExecutionContext] = true
+			}
+			if len(got) != 2 || !got[profileContext] || !got[workspace] {
+				t.Fatalf("retried scopes = %v, want only the verified profile and its workspace", got)
+			}
+		})
 	})
 
 	t.Run("Should evaluate parked causes separately across execution contexts", func(t *testing.T) {

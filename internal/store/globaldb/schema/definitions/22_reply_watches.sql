@@ -9,7 +9,7 @@ CREATE TABLE session_prompt_reply_watches (
     turn_id TEXT,
     queue_entry_id TEXT,
     delivered_input_id TEXT,
-    abandon_reason TEXT CHECK (abandon_reason IN ('sender_gone', 'send_failed')),
+    abandon_reason TEXT CHECK (abandon_reason IN ('sender_gone', 'send_failed', 'superseded')),
     hop INTEGER NOT NULL,
     state TEXT NOT NULL CHECK (state IN ('armed', 'fired', 'delivered', 'abandoned')),
     outcome TEXT CHECK (outcome IN ('completed', 'failed', 'canceled', 'dropped', 'unknown', 'expired')),
@@ -18,6 +18,8 @@ CREATE TABLE session_prompt_reply_watches (
     created_at TEXT NOT NULL,
     fired_at TEXT,
     delivered_at TEXT,
+    follow_up_after INTEGER NOT NULL DEFAULT 0,
+    interim_wait TEXT,
     UNIQUE (target_session_id, message_id)
 );
 CREATE INDEX idx_reply_watches_sender_state ON session_prompt_reply_watches(sender_session_id, state);

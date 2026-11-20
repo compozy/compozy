@@ -15,6 +15,11 @@ type SessionDerivationPayload struct {
 	NativeState     string            `json:"native_state,omitempty"`
 	NativeForkError string            `json:"native_fork_error,omitempty"`
 	FirstPrompt     string            `json:"first_prompt"`
+	// InheritedMessageCount counts visible entries in the direct source at the derive cut.
+	InheritedMessageCount *int `json:"inherited_message_count,omitzero"`
+	// Replay counts describe the bounded replay, including the fallback for native forks.
+	ReplayMessageCount *int `json:"replay_message_count,omitzero"`
+	ReplayOmittedCount *int `json:"replay_omitted_count,omitzero"`
 }
 
 // SessionLineagePayloadFromStore converts durable session lineage metadata into

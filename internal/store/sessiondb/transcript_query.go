@@ -14,8 +14,10 @@ import (
 )
 
 var (
-	_ transcript.Reader = (*SessionDB)(nil)
-	_ transcript.Reader = (*ReadOnlySessionDB)(nil)
+	_ transcript.Reader       = (*SessionDB)(nil)
+	_ transcript.Reader       = (*ReadOnlySessionDB)(nil)
+	_ transcript.RangeCounter = (*SessionDB)(nil)
+	_ transcript.RangeCounter = (*ReadOnlySessionDB)(nil)
 )
 
 // TranscriptPage returns one bounded materialized transcript window.
@@ -111,6 +113,9 @@ func queryTranscriptPage(
 	if err != nil {
 		return transcript.Page{}, fmt.Errorf("store: query transcript max sequence: %w", err)
 	}
+	if query.ThroughSequence != nil {
+		page.MaxSequence = min(page.MaxSequence, *query.ThroughSequence)
+	}
 
 	entries, err := queryMaterializedTranscriptPage(ctx, tx, query)
 	if err != nil {
@@ -136,7 +141,13 @@ func queryMaterializedTranscriptPage(
 	tx *sql.Tx,
 	query transcript.PageQuery,
 ) ([]transcript.Entry, error) {
+	if query.MetadataOnly {
+		return []transcript.Entry{}, nil
+	}
 	queries := sqlcgen.New(tx)
+	if query.ThroughSequence != nil {
+		return queryInheritedTranscriptEntries(ctx, queries, query)
+	}
 	if query.BeforeSequence == 0 {
 		rows, err := queries.ListLatestTranscriptEntries(ctx, int64(query.Limit+1))
 		if err != nil {

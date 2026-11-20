@@ -9,6 +9,40 @@ import (
 	"strings"
 )
 
+// GetSettingsMCPAuthStatusParams carries the path, query, and header parameters.
+type GetSettingsMCPAuthStatusParams struct {
+	Name        string  `url:"name"`
+	Scope       string  `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Owner       *string `url:"owner"`
+}
+
+// GetSettingsMCPAuthStatus Get redacted daemon-mediated OAuth state for one MCP server
+func (c *Client) GetSettingsMCPAuthStatus(ctx context.Context, params GetSettingsMCPAuthStatusParams) (*SettingsMCPAuthStatusPayload, error) {
+	path := "/api/settings/mcp-servers/{name}/auth/status"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("scope", params.Scope)
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsMCPAuthStatusPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSettingsMCPServerParams carries the path, query, and header parameters.
 type GetSettingsMCPServerParams struct {
 	Name        string  `url:"name"`
@@ -401,18 +435,4 @@ func (c *Client) GetTask(ctx context.Context, params GetTaskParams) (*TaskDetail
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetTaskDashboardParams carries the path, query, and header parameters.
-type GetTaskDashboardParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Scope         *string   `url:"scope"`
-	Workspace     *string   `url:"workspace"`
-	Worktree      *string   `url:"worktree"`
-	OwnerKind     *string   `url:"owner_kind"`
-	OwnerRef      *string   `url:"owner_ref"`
-	OriginKind    *string   `url:"origin_kind"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }

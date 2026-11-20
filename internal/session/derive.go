@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -113,7 +114,9 @@ func (m *Manager) ForkSession(ctx context.Context, opts ForkSessionOpts) (Derive
 	})
 }
 
-func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (DeriveResult, error) {
+func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (_ DeriveResult, retErr error) {
+	timing := deriveTiming{started: time.Now()}
+	defer func() { m.logDeriveTiming(ctx, spec, "derive", &timing, retErr) }()
 	if err := validateDeriveSpec(spec); err != nil {
 		return DeriveResult{}, err
 	}
@@ -129,17 +132,15 @@ func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (DeriveRes
 		return DeriveResult{}, err
 	}
 	spec.fingerprint = fingerprint
-	unlock := m.lockDeriveAdmission(spec.workspaceID, spec.key)
+	unlock, err := m.lockDeriveAdmission(ctx, spec.workspaceID, spec.key)
+	if err != nil {
+		return DeriveResult{}, err
+	}
 	defer unlock()
 	if result, found, err := m.replayDeriveReceipt(ctx, derivations, spec); err != nil || found {
 		return result, err
 	}
-	snapshot, release, err := m.readDeriveSnapshot(
-		ctx,
-		spec.sourceID,
-		spec.messageID,
-		spec.kind == store.LineageKindSide,
-	)
+	snapshot, release, err := m.readDeriveSnapshot(ctx, spec, &timing)
 	if err != nil {
 		return DeriveResult{}, err
 	}
@@ -148,7 +149,12 @@ func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (DeriveRes
 	if err != nil {
 		return DeriveResult{}, err
 	}
+	if err := ctx.Err(); err != nil {
+		return DeriveResult{}, err
+	}
+	commitStarted := time.Now()
 	child, err := m.CreateAccepted(ctx, new(CreateAcceptedOpts{Session: prepared.createOpts}))
+	timing.commit = time.Since(commitStarted)
 	if errors.Is(err, store.ErrSessionDerivationExists) {
 		release()
 		result, found, replayErr := m.replayDeriveReceipt(ctx, derivations, spec)
@@ -167,6 +173,12 @@ func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (DeriveRes
 		return m.committedDeriveFailure(ctx, derivations, spec), err
 	}
 	release()
+	return m.finishDerivedChild(ctx, spec, child, &prepared)
+}
+
+func (m *Manager) finishDerivedChild(
+	ctx context.Context, spec deriveSpec, child *Info, prepared *preparedDerive,
+) (DeriveResult, error) {
 	result := deriveResultFromReceipt(prepared.receipt)
 	result.Child = child
 	result.OriginAgentName = prepared.createOpts.Lineage.OriginAgentName
@@ -288,9 +300,9 @@ func (m *Manager) derivationStore() (store.SessionDerivationStore, error) {
 	return derivations, nil
 }
 
-// lockDeriveAdmission serializes one (workspace, key) like lockPromptAdmission.
-func (m *Manager) lockDeriveAdmission(workspaceID string, key string) func() {
-	return m.lockPromptAdmission(workspaceID, "\x00derive", key)
+func (m *Manager) lockDeriveAdmission(ctx context.Context, workspaceID, key string) (func(), error) {
+	_, release, err := m.lockConversationOperation(ctx, "\x00derive\x00"+workspaceID+"\x00"+key)
+	return release, err
 }
 
 // validateDeriveSource refuses sources that cannot be continued or forked.

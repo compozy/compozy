@@ -25,6 +25,10 @@ var (
 	// ErrDeriveSourceArchived rejects a continue or fork of an archived source; it
 	// matches ErrSessionArchived.
 	ErrDeriveSourceArchived = fmt.Errorf("%w; unarchive it first", ErrSessionArchived)
+	// ErrDeriveSourceBusy reports a conversation-operation lock deadline.
+	ErrDeriveSourceBusy = errors.New("the source session is busy; try again")
+	// ErrDeriveFirstPromptFailed reports a durable failure after first-message admission.
+	ErrDeriveFirstPromptFailed = errors.New("the derived session's first message could not start")
 	// ErrDeriveTurnInProgress reports a cut turn without a terminal event.
 	ErrDeriveTurnInProgress = errors.New("the cut turn has not settled")
 	// ErrDeriveFenceConflict reports client fences that differ from the snapshot.
@@ -117,16 +121,17 @@ type DerivePreview struct {
 	MessageCount int
 	// SourceMessageCount is the whole source transcript's message count (inherited
 	// context plus every settled turn), before any fork cut or budget bounding.
-	SourceMessageCount   int
-	ReplayBytes          int
-	OmittedCount         int
-	Truncated            bool
-	SourceTurnInProgress bool
-	Cut                  *DeriveCut
-	Epoch                int64
-	Generation           int64
-	MaxSequence          int64
-	NativeForkPossible   bool
+	SourceMessageCount      int
+	ReplayBytes             int
+	OmittedCount            int
+	Truncated               bool
+	SourceTurnInProgress    bool
+	Cut                     *DeriveCut
+	Epoch                   int64
+	Generation              int64
+	MaxSequence             int64
+	NativeForkPossible      bool
+	NativeForkRefusalReason string
 }
 
 // DeriveCut is the turn-resolved cut of a fork anchor.

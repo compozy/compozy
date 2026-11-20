@@ -25,8 +25,9 @@ must retain the chosen provider/model/effort/speed. Use an ACP fixture advertisi
 controls to verify effective speed as well.
 
 Give the target agent an unstartable primary command and a working Claude fallback. An explicit
-Codex continuation must return a visible launch error with its committed child ID, leave the child
-unbound with `runtime.failure`, and dispatch no user message on Claude. An ordinary new session
+Codex continuation must return a committed child ID before the bind completes. Inspect the child's
+`runtime.failure`, then retry the same key and verify `derive_first_prompt_failed` names the same
+child. The child stays unbound and dispatches no user message on Claude. An ordinary new session
 for the same agent may still use its declared fallback. See
 [the targeted runtime report](../reports/2026-11-09-issue-1414-continue-runtime.md).
 
@@ -38,7 +39,7 @@ agents (acpmock or real Codex + Claude):
 2. `GET /api/workspaces/<ws>/sessions/<src>/derive/preview` reports `message_count`, `replay_bytes`,
    `truncated: false`, `native_fork_possible`, and the same fences.
 3. `compozy session continue <src> --agent claude-code --message "Carry on; run the tests first."`
-   prints the Golden Path block with `First prompt  admitted`.
+   prints the Golden Path block with `First prompt  admitted` before the runtime bind completes.
 4. The Claude session's first prompt (agent log or acpmock record) starts with `Context rebuilt from
    log.`, names the source and origin agent, contains the Codex conversation inside
    `<compozy_context_replay>`, and ends with `User request:` + the message.

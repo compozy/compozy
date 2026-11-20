@@ -1943,6 +1943,8 @@ type SessionPromptReplyWatch struct {
 	CreatedAt         string         `json:"created_at"`
 	FiredAt           sql.NullString `json:"fired_at"`
 	DeliveredAt       sql.NullString `json:"delivered_at"`
+	FollowUpAfter     int64          `json:"follow_up_after"`
+	InterimWait       sql.NullString `json:"interim_wait"`
 }
 
 type SessionSubagent struct {

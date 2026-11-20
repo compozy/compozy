@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -389,6 +390,21 @@ func localDaemonProviderAuthProbe(
 			return contract.ProviderAuthProbeResponse{}, errors.New("cli: daemon client unavailable")
 		}
 		return client.ProbeProviderAuth(ctx, providerName)
+	}
+}
+
+func probeLocalDaemonAfterLogin(
+	ctx context.Context,
+	deps commandDeps,
+	runtime *runtimeContext,
+	target *providerAuthLoginTargetRecord,
+) {
+	if !authproviders.HasNativeStatusCommand(target.Provider) && !authproviders.UsesACPProbe(target.Provider) {
+		return
+	}
+	// The daemon verifies its own configuration; the local verdict remains the command's result.
+	if _, err := localDaemonProviderAuthProbe(deps, runtime)(ctx, target.ProviderName); err != nil {
+		slog.DebugContext(ctx, "cli.provider_auth.daemon_probe_unavailable", "provider", target.ProviderName)
 	}
 }
 

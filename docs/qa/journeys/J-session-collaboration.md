@@ -1,7 +1,7 @@
 # J-session-collaboration — Send a session message and receive its reply
 
 An agent asks another session for help, keeps the sender attribution through every delivery mode,
-and receives one durable reply from the turn that handled its message.
+and receives the consuming turn reply and a follow-up if the target still has work.
 
 ```mermaid
 flowchart TD
@@ -11,9 +11,13 @@ flowchart TD
     C --> E[Consuming turn settles]
     D --> E
     E --> F{Sender available?}
-    F -->|yes| G[One reply wake]
+    F -->|yes| G[Consuming turn reply]
     F -->|stopped or full queue| H[Persist fired watch and retry]
     H --> G
+    G --> J{Wake-producing work remains?}
+    J -->|yes| K[Interim reply and outstanding watch]
+    K --> L[One follow-up when target settles]
+    J -->|no| M[Reply watch delivered]
     D -->|target deleted or archived| I[Unknown reply]
 ```
 
@@ -21,7 +25,7 @@ flowchart TD
 journey:
   id: J-session-collaboration
   name: "Send a session message and receive its reply"
-  value_statement: "I can ask another agent for help and receive its answer once, with truthful attribution and delivery status."
+  value_statement: "I can ask another agent for help and receive its answer and any follow-up, with truthful attribution and delivery status."
   personas: [Dora]
   entry_points:
     - url: "native compozy__session_prompt"
@@ -39,12 +43,15 @@ journey:
       verb: "Settle the consuming turn"
       expected_observable: "A receives one bounded reply with the consuming turn's outcome and answer."
     - step: 4
+      verb: "End the consuming turn with a monitor pending, then settle on a monitor wake"
+      expected_observable: "A receives an interim reply and one follow-up. The original watch stays outstanding between them."
+    - step: 5
       verb: "Repeat across failed sends, sender resume, and daemon restart"
       expected_observable: "Same-key retries preserve watch identity; deferred delivery and recovery do not duplicate replies."
   goal:
-    observable: "A reads one reply and the target's history retains the attributed input."
+    observable: "A reads the reply and any follow-up. The target's history retains the attributed input."
     side_effects: [prompt-admission, attributed-input, reply-watch, reply-wake]
-  true_end_state: "One reply is visible to A; delivered watches leave waiting status; status and transcript agree on delivery."
+  true_end_state: "The final reply is visible to A and the delivered watch leaves waiting status."
   exit:
     natural: "The requesting agent consumes the reply and continues its task."
   abandonment:

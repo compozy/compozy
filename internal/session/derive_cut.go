@@ -154,8 +154,14 @@ func resolveDeriveCut(anchor store.TranscriptUserAnchor, events []store.SessionE
 
 // carriedEvents keeps the events through the cut, excluding every unsettled turn.
 func carriedEvents(events []store.SessionEvent, afterSequence int64, throughSequence int64) []store.SessionEvent {
+	return carriedTurnEvents(events, deriveTurns(events), afterSequence, throughSequence)
+}
+
+func carriedTurnEvents(
+	events []store.SessionEvent, turns []deriveTurn, afterSequence int64, throughSequence int64,
+) []store.SessionEvent {
 	open := make(map[string]struct{})
-	for _, turn := range deriveTurns(events) {
+	for _, turn := range turns {
 		if !turn.settled {
 			open[turn.id] = struct{}{}
 		}

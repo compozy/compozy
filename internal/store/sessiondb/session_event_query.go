@@ -20,7 +20,7 @@ func (s *SessionDB) Query(ctx context.Context, query store.EventQuery) ([]store.
 	if ctx == nil {
 		return nil, errors.New("store: query events context is required")
 	}
-	sqlQuery, args, err := buildEventQuerySQL(sessionEventColumns, query)
+	sqlQuery, args, err := buildEventQuerySQL(sessionEventProjection(query), query)
 	if err != nil {
 		return nil, err
 	}

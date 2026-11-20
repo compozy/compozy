@@ -160,6 +160,49 @@ func (r *modelCatalogRuntime) refreshDynamicSourcesInBackground() {
 	}()
 }
 
+// RetryProviderLiveFailures rechecks prior catalog failures in the authenticated profile's active scopes.
+func (r *modelCatalogRuntime) RetryProviderLiveFailures(profileID, providerID string, before time.Time) {
+	if r == nil || r.workers == nil {
+		return
+	}
+	target := modelCatalogRefreshTarget{
+		sourceID:   modelcatalog.SourceKindProviderLiveID(providerID),
+		providerID: providerID,
+	}
+	if r.targetPreflighter(target) == nil {
+		return
+	}
+	complete, admitted := r.workers.Begin()
+	if !admitted {
+		return
+	}
+	go func() {
+		defer complete()
+		// Include the profile catalog even if nobody has read it in this daemon process.
+		r.rememberCatalogExecutionContext(modelcatalog.CatalogExecutionContext{
+			Scope:     modelcatalog.ExecutionScopeProfile,
+			ProfileID: profileID,
+		})
+		for _, executionContext := range r.catalogExecutionContexts() {
+			if r.ctx.Err() != nil {
+				return
+			}
+			if executionContext.ProfileID != profileID {
+				continue
+			}
+			if _, err := r.Refresh(r.ctx, modelcatalog.RefreshOptions{
+				ProviderID:        providerID,
+				SourceID:          target.sourceID,
+				ExecutionContext:  executionContext,
+				RetryFailedBefore: before,
+			}); err != nil {
+				// Refresh logs source failures and maintains the resulting retry schedule.
+				continue
+			}
+		}
+	}()
+}
+
 // dueRefreshTargets skips fresh or parked sources unless a process-free preflight detects a change.
 func (r *modelCatalogRuntime) dueRefreshTargets(
 	executionContext modelcatalog.CatalogExecutionContext,

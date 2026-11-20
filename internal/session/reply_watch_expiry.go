@@ -35,7 +35,7 @@ func (s *replyWatchService) expireStale(ctx context.Context) {
 		if !s.replyWatchExpired(w, now) {
 			continue
 		}
-		s.logError(ctx, s.expire(ctx, w))
+		s.logWatchError(ctx, w, s.expire(ctx, w))
 	}
 }
 
@@ -45,6 +45,12 @@ func (s *replyWatchService) expire(ctx context.Context, w store.ReplyWatch) erro
 			"check the target session before resending.",
 		s.replyWatchTTL(),
 	)
+	if w.FollowUpAfter > 0 {
+		text = fmt.Sprintf(
+			"No follow-up arrived within %s, so the reply watch expired. Check the target session.",
+			s.replyWatchTTL(),
+		)
+	}
 	s.manager.logger.InfoContext(ctx, "reply_watch.expired", "id", w.ID, "created_at", w.CreatedAt)
 	return s.fire(ctx, w, store.ReplyOutcomeExpired, text)
 }

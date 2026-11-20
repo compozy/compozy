@@ -1219,6 +1219,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "getGlobalSessionInheritedTranscript": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getGlobalSessionInheritedTranscript({ path: { \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetGlobalSessionInheritedTranscript(ctx, client.GetGlobalSessionInheritedTranscriptParams{SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
         "getGlobalSessionStatus": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getGlobalSessionStatus({ path: { \"session_id\": \"session_id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetGlobalSessionStatus(ctx, client.GetGlobalSessionStatusParams{SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -1533,6 +1540,13 @@
             "kind": "json",
             "resource": "sessions",
             "app_access": "denied"
+        },
+        "getSessionInheritedTranscript": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSessionInheritedTranscript({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSessionInheritedTranscript(ctx, client.GetSessionInheritedTranscriptParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
         },
         "getSessionMCP": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSessionMCP({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",

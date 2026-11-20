@@ -10,9 +10,13 @@
 # Findings block the push. Missing tooling skips its tier with a note, because
 # CI still enforces every check. Skip the whole hook with
 # COMPOZY_SKIP_PRE_PUSH=1 or `git push --no-verify`.
+#
+# CompozyOS agent sessions (COMPOZY_SESSION_ID set) always skip it: agents share
+# one machine, so their checks run in CI on the pushed head.
 set -uo pipefail
 
 [ "${COMPOZY_SKIP_PRE_PUSH:-}" = "1" ] && exit 0
+[ -n "${COMPOZY_SESSION_ID:-}" ] && exit 0
 cd "$(git rev-parse --show-toplevel)" || exit 0
 
 base=$(git merge-base HEAD origin/main 2>/dev/null) || {

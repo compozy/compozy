@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -3726,7 +3727,7 @@ func TestGlobalDBReplyWatchHandoff(t *testing.T) {
 		failures := make(chan error, workers)
 		for range workers {
 			go func() {
-				changed, err := db.DeliverReplyWatch(t.Context(), w.ID, entry)
+				changed, err := db.DeliverReplyWatch(t.Context(), w.ID, entry, false)
 				results <- changed
 				failures <- err
 			}()
@@ -3761,7 +3762,7 @@ func TestGlobalDBReplyWatchHandoff(t *testing.T) {
 			}
 		})
 		entry.ID = "second-input"
-		if changed, err := reopened.DeliverReplyWatch(t.Context(), w.ID, entry); err != nil || changed {
+		if changed, err := reopened.DeliverReplyWatch(t.Context(), w.ID, entry, false); err != nil || changed {
 			t.Fatalf("redelivery = %v, %v", changed, err)
 		}
 		var count int
@@ -3780,7 +3781,7 @@ func TestGlobalDBReplyWatchHandoff(t *testing.T) {
 		if err != nil || current == stale {
 			t.Fatalf("advance = %d, %v; want a new generation", current, err)
 		}
-		if changed, err := db.DeliverReplyWatch(t.Context(), w.ID, entry); err != nil || !changed {
+		if changed, err := db.DeliverReplyWatch(t.Context(), w.ID, entry, false); err != nil || !changed {
 			t.Fatalf("delivery = %v, %v", changed, err)
 		}
 		claimed, ok, err := db.ClaimNextSessionInput(t.Context(), entry.SessionID, entry.Now)
@@ -3804,7 +3805,15 @@ func TestGlobalDBReplyWatchHandoff(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.DeliverReplyWatch(t.Context(), w.ID, entry); !errors.Is(err, store.ErrSessionInputQueueFull) {
+		if _, err := db.DeliverReplyWatch(
+			t.Context(),
+			w.ID,
+			entry,
+			false,
+		); !errors.Is(
+			err,
+			store.ErrSessionInputQueueFull,
+		) {
 			t.Fatalf("full = %v", err)
 		}
 		current, err := db.GetReplyWatch(t.Context(), w.ID)
@@ -3818,7 +3827,7 @@ func TestGlobalDBReplyWatchHandoff(t *testing.T) {
 			ExecContext(t.Context(), "UPDATE sessions SET state='stopped', archived_at=? WHERE id=?", store.FormatTimestamp(entry.Now), entry.SessionID); err != nil {
 			t.Fatal(err)
 		}
-		if changed, err := db.DeliverReplyWatch(t.Context(), w.ID, entry); err != nil || changed {
+		if changed, err := db.DeliverReplyWatch(t.Context(), w.ID, entry, false); err != nil || changed {
 			t.Fatalf("archive delivery = %v, %v", changed, err)
 		}
 		current, err = db.GetReplyWatch(t.Context(), w.ID)
@@ -3828,7 +3837,114 @@ func TestGlobalDBReplyWatchHandoff(t *testing.T) {
 	})
 }
 
-func replyHandoffFixture(t *testing.T) (*GlobalDB, store.ReplyWatch, store.SessionInputQueueInsert) {
+// Invariant: supersession preserves fired answers and fences stale interim deliveries.
+func TestGlobalDBReplyWatchSupersededDelivery(t *testing.T) {
+	t.Run("Should reject a stale interim delivery while the plain reply is still pending", func(t *testing.T) {
+		t.Parallel()
+		db, w, entry := replyHandoffFixture(t, store.ReplyWatchFire{
+			Outcome: store.ReplyOutcomeCompleted, Text: "answer", FollowUpAfter: 7, InterimWait: "monitors",
+		})
+		ctx := t.Context()
+		admitNewerReplyHandoff(t, db, w, entry.Now)
+		if changed, err := db.DeliverReplyWatch(ctx, w.ID, entry, true); err != nil || changed {
+			t.Fatalf("stale delivery = %t, %v", changed, err)
+		}
+		if changed, err := db.DeliverReplyWatch(ctx, w.ID, entry, false); err != nil || !changed {
+			t.Fatalf("plain delivery = %t, %v", changed, err)
+		}
+		got, err := db.GetReplyWatch(ctx, w.ID)
+		if err != nil || got.State != store.ReplyWatchDelivered || got.ReplyText != "answer" || got.FollowUpAfter != 0 {
+			t.Fatalf("watch = %+v, %v", got, err)
+		}
+	})
+	t.Run("Should deliver a fired final follow-up after a newer watch is admitted", func(t *testing.T) {
+		t.Parallel()
+		db, w, entry := replyHandoffFixture(t, store.ReplyWatchFire{
+			Outcome: store.ReplyOutcomeCompleted, Text: "interim answer", FollowUpAfter: 7, InterimWait: "monitors",
+		})
+		ctx := t.Context()
+		if changed, err := db.DeliverReplyWatch(ctx, w.ID, entry, true); err != nil || !changed {
+			t.Fatalf("interim delivery = %t, %v", changed, err)
+		}
+		fire := store.ReplyWatchFire{Outcome: store.ReplyOutcomeCompleted, Text: "final answer", ExpectedAfter: 7}
+		if changed, err := db.FireReplyWatch(ctx, w.ID, fire); err != nil || !changed {
+			t.Fatalf("fire follow-up = %t, %v", changed, err)
+		}
+		admitNewerReplyHandoff(t, db, w, entry.Now)
+		got, err := db.GetReplyWatch(ctx, w.ID)
+		followUpID := entry.MessageID + ":follow-up"
+		if err != nil || got.State != store.ReplyWatchFired || got.AbandonReason != "" ||
+			got.ReplyText != fire.Text || got.WakeMessageID() != followUpID {
+			t.Fatalf("fired final follow-up = %+v, %v", got, err)
+		}
+		entry.ID, entry.MessageID, entry.TurnID = "follow-up-input", followUpID, "follow-up-turn"
+		entry.Text, entry.QueueCap, entry.SyntheticPrompt.RunID = got.ReplyText, 2, followUpID
+		if changed, err := db.DeliverReplyWatch(ctx, w.ID, entry, false); err != nil || !changed {
+			t.Fatalf("deliver follow-up = %t, %v", changed, err)
+		}
+		delivered, err := db.GetReplyWatch(ctx, w.ID)
+		if err != nil || delivered.State != store.ReplyWatchDelivered || delivered.DeliveredInputID != entry.ID {
+			t.Fatalf("delivered final follow-up = %+v, %v", delivered, err)
+		}
+		wake, err := db.GetSessionInputQueueEntry(ctx, w.SenderSessionID, entry.ID)
+		if err != nil || wake.MessageID != followUpID || wake.Text != fire.Text {
+			t.Fatalf("follow-up input = %+v, %v", wake, err)
+		}
+	})
+}
+
+func admitNewerReplyHandoff(t *testing.T, db *GlobalDB, w store.ReplyWatch, now time.Time) {
+	t.Helper()
+	ctx := t.Context()
+	req := promptAdmissionRequest(w.WorkspaceID, w.TargetSessionID, "newer-handoff", now)
+	registration := store.ReplyWatchRegistration{
+		WorkspaceID:       w.WorkspaceID,
+		TargetWorkspaceID: w.TargetWorkspaceID,
+		SenderSessionID:   w.SenderSessionID,
+		TargetSessionID:   w.TargetSessionID,
+		MessageID:         req.MessageID,
+		AdmissionID:       req.ID,
+		Hop:               w.Hop,
+		CreatedAt:         req.Now,
+	}
+	err := db.SessionRepo.withImmediateTransaction(
+		ctx,
+		"admit newer watched message",
+		func(exec globalSQLExecutor) error {
+			if _, _, err := claimSessionPromptAdmission(ctx, exec, req); err != nil {
+				return err
+			}
+			if _, err := db.InsertReplyWatchTx(ctx, exec, registration); err != nil {
+				return err
+			}
+			transaction, ok := exec.(*outboxSignalExecutor)
+			if !ok {
+				return errors.New("expected a post-commit executor")
+			}
+			if len(transaction.supersededReplyWatches) != 0 {
+				return fmt.Errorf("unexpected post-commit abandonment logs: %v", transaction.supersededReplyWatches)
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.CommitSessionPromptDispatch(ctx, req.WorkspaceID, req.SessionID, req.IdempotencyKey, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CompleteSessionPromptAdmission(ctx, req.WorkspaceID, req.SessionID, req.IdempotencyKey,
+		store.SessionPromptAdmissionResult{Status: "accepted"}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SupersedeReplyWatchFollowUps(ctx, store.ReplyWatchID(req.SessionID, req.MessageID)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func replyHandoffFixture(
+	t *testing.T, fire ...store.ReplyWatchFire,
+) (*GlobalDB, store.ReplyWatch, store.SessionInputQueueInsert) {
 	t.Helper()
 	db := openTestGlobalDB(t)
 	sender := registerInputQueueSession(t, db)
@@ -3854,10 +3970,14 @@ func replyHandoffFixture(t *testing.T) (*GlobalDB, store.ReplyWatch, store.Sessi
 	if err != nil {
 		t.Fatal(err)
 	}
+	result := store.ReplyWatchFire{Outcome: "completed", Text: "answer"}
+	if len(fire) > 0 {
+		result = fire[0]
+	}
 	if changed, err := db.FireReplyWatch(
 		t.Context(),
 		w.ID,
-		store.ReplyWatchFire{Outcome: "completed", Text: "answer"},
+		result,
 	); err != nil ||
 		!changed {
 		t.Fatalf("fire = %v, %v", changed, err)
@@ -5410,4 +5530,101 @@ func TestGlobalDBInstanceUnattendedBrake(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: pre-follow-up watches preserve their identity and state through the global DB migration.
+func TestGlobalDBReplyWatchMigration(t *testing.T) {
+	t.Run("Should preserve every existing lifecycle state and its original handoff identity", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixThrough(t, "00212_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prefix.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		old := &GlobalDB{db: prefix, readDB: prefix, path: path, now: func() time.Time { return now }}
+		old.initializeRepositories(openConfig{})
+		sender := registerInputQueueSession(t, old)
+		states := []string{
+			store.ReplyWatchArmed,
+			store.ReplyWatchFired,
+			store.ReplyWatchDelivered,
+			store.ReplyWatchAbandoned,
+		}
+		for i, state := range states {
+			insertPrefixRow(t, prefix, "session_prompt_reply_watches", map[string]any{
+				"id": state, "sender_session_id": sender, "target_session_id": "target",
+				"workspace_id": "ws-input-queue-workspace", "target_workspace_id": "ws-target",
+				"message_id": "message-" + state, "admission_id": "admission-" + state, "turn_id": "original-turn",
+				"created_at": store.FormatTimestamp(now), "hop": 3, "state": state, "reply_text": "legacy text",
+			})
+			if state == store.ReplyWatchDelivered {
+				if _, err := prefix.ExecContext(
+					ctx,
+					"UPDATE session_prompt_reply_watches SET delivered_input_id = ? WHERE id = ?",
+					"legacy-handoff",
+					state,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := prefix.ExecContext(ctx, "UPDATE session_prompt_reply_watches SET rowid = ? WHERE id = ?",
+				10*(i+1), state); err != nil {
+				t.Fatal(err)
+			}
+		}
+		telemetry, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := telemetry.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := bindTelemetryDestination(ctx, prefix, telemetry.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := telemetry.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := prefix.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db := openGlobalDBForTest(t, path)
+		for i, state := range states {
+			var rowID int
+			if err := db.DB().
+				QueryRowContext(ctx, "SELECT rowid FROM session_prompt_reply_watches WHERE id = ?", state).
+				Scan(&rowID); err != nil ||
+				rowID != 10*(i+1) {
+				t.Fatalf("migrated row order for %s = %d, %v", state, rowID, err)
+			}
+			w, err := db.GetReplyWatch(ctx, state)
+			wantDeliveredInputID := ""
+			if state == store.ReplyWatchDelivered {
+				wantDeliveredInputID = "legacy-handoff"
+			}
+			if err != nil || w.State != state || w.FollowUpAfter != 0 || w.InterimWait != "" ||
+				w.DeliveredInputID != wantDeliveredInputID ||
+				w.ReplyText != "legacy text" || w.TurnID != "original-turn" || w.WakeMessageID() != "prompt-reply:"+state {
+				t.Fatalf("migrated %s = %+v, %v", state, w, err)
+			}
+			changed, err := db.FireReplyWatch(ctx, state, store.ReplyWatchFire{Outcome: store.ReplyOutcomeCompleted})
+			if err != nil || changed != (state == store.ReplyWatchArmed) {
+				t.Fatalf("fire migrated %s = %t, %v", state, changed, err)
+			}
+		}
+		status, err := store.Status(ctx, db.DB(), MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
 }

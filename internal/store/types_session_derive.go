@@ -23,23 +23,24 @@ const (
 
 // SessionDerivationOutcome is the immutable answer recorded for one derive request.
 type SessionDerivationOutcome struct {
-	Seed                 string `json:"seed"`
-	NativeState          string `json:"native_state,omitempty"`
-	ACPSessionID         string `json:"acp_session_id,omitempty"`
-	NativeForkError      string `json:"native_fork_error,omitempty"`
-	OriginMessageID      string `json:"origin_message_id,omitempty"`
-	OriginAgentName      string `json:"origin_agent_name,omitempty"`
-	ThroughTurnID        string `json:"through_turn_id"`
-	ReplayMessageCount   int    `json:"replay_message_count"`
-	ReplayBytes          int    `json:"replay_bytes"`
-	Truncated            bool   `json:"truncated"`
-	OmittedCount         int    `json:"omitted_count"`
-	SourceTurnInProgress bool   `json:"source_turn_in_progress"`
-	SourceEpoch          int64  `json:"source_epoch"`
-	SourceGeneration     int64  `json:"source_generation"`
-	SourceMaxSequence    int64  `json:"source_max_sequence"`
-	FirstPrompt          string `json:"first_prompt"`
-	FirstAdmissionKey    string `json:"first_admission_key,omitempty"`
+	Seed                    string `json:"seed"`
+	NativeState             string `json:"native_state,omitempty"`
+	ACPSessionID            string `json:"acp_session_id,omitempty"`
+	NativeForkError         string `json:"native_fork_error,omitempty"`
+	NativeForkRefusalReason string `json:"native_fork_refusal_reason,omitempty"`
+	OriginMessageID         string `json:"origin_message_id,omitempty"`
+	OriginAgentName         string `json:"origin_agent_name,omitempty"`
+	ThroughTurnID           string `json:"through_turn_id"`
+	ReplayMessageCount      int    `json:"replay_message_count"`
+	ReplayBytes             int    `json:"replay_bytes"`
+	Truncated               bool   `json:"truncated"`
+	OmittedCount            int    `json:"omitted_count"`
+	SourceTurnInProgress    bool   `json:"source_turn_in_progress"`
+	SourceEpoch             int64  `json:"source_epoch"`
+	SourceGeneration        int64  `json:"source_generation"`
+	SourceMaxSequence       int64  `json:"source_max_sequence"`
+	FirstPrompt             string `json:"first_prompt"`
+	FirstAdmissionKey       string `json:"first_admission_key,omitempty"`
 }
 
 // Validate checks the outcome enums recorded with a receipt.

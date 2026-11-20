@@ -95,10 +95,9 @@ rename preserves the original admission.
 To answer a specific message, pass its message ID as `in_reply_to` (`--in-reply-to` on the CLI). It is
 carried in the origin, so the receiver's card can link the answer to the original. An explicit answer
 never releases the original sender's reply watch: an early "ack, starting" must not cancel the
-completion wake, so a sender that asked for `notify_on_complete` still gets the final answer when your
-turn ends. An unanswered watch expires after `session.messaging.reply_watch_ttl` (24 hours by
-default) with the `expired` outcome and stops keeping the sender awake; set it to `"0s"` to let a watch
-wait for as long as the target works.
+automatic reply. A watch awaiting the first reply or its follow-up expires after
+`session.messaging.reply_watch_ttl` (24 hours by default) with the `expired` outcome and stops
+counting as work. Set the TTL to `"0s"` to disable expiry.
 
 An operator can cancel an agent-authored queued message or promote it to steer (**Steer** on its queue
 row in the Web UI), but cannot replace its text: that returns HTTP 409 `input_agent_authored`.
@@ -198,9 +197,28 @@ An agent can call `compozy__session_prompt` with `notify_on_complete: true` to r
 existing session. The tool returns `reply_watch: { id, state }`, using its current persisted state
 (`armed`, `fired`, `delivered`, or `abandoned`). Retrying the same message and idempotency key after a
 pre-dispatch failure re-arms the same watch. The sender can then finish its turn;
-CompozyOS delivers one synthetic reply wake after the turn that consumed the message settles.
-Queued messages retain their watches across a target stop. A busy sender receives the wake after its
-current turn.
+CompozyOS delivers a synthetic reply wake after the turn that consumed the message settles.
+When the receiver still has a monitor, a subagent or awaited child, a scheduled wait, or a reply from
+a session other than the sender pending, the wake identifies the answer as interim and names the work.
+Queued, dispatching, and running wakes for that work also count. A wake that ran after the consuming
+turn can still produce a follow-up if it finished before the first reply was sent. If the daemon
+cannot inspect the remaining work, it sends the readable answer as interim and retries the check.
+The watch stays outstanding under its original TTL. Once no awaited work is left, the follow-up
+carries the target's latest top-level
+answer after the interim reply. If no later turn settled, the interim reply stands. The receiver
+stopping, failing, or being deleted also triggers a follow-up. Once the daemon accepts a newer
+watched message from the same sender to the same target, it supersedes the pending follow-up.
+Each consumed message still receives its own first reply.
+
+Intermediate turns do not wake the sender. A long-lived wait, such as a `pull_request` monitor
+that stays armed until the PR merges or the monitor times out, keeps the follow-up pending
+until the wait ends or the reply watch expires. If the interim text answers your request,
+act on it and keep working. End your turn to await the follow-up only when you still need it.
+
+A busy sender receives each wake after its current turn. Use the reply watch to collect the answer.
+Also register `compozy__monitor_create` with `kind="session"` when you need an independent lifecycle
+or timeout wake, such as when watching multiple sessions or detecting a stop with your message
+still queued. Queued messages retain their watches across a target stop.
 
 Waiting is long-running work, not silence. While the asked session is live, the sender's open watch
 counts as an `awaiting_reply` work signal, so inactivity supervision does not stop an orchestrator
@@ -216,11 +234,13 @@ include `reply_watches` while they are `armed` or `fired`. Each item identifies 
 session, message, state, and creation time. The human CLI shows a **Waiting for replies** section.
 Delivered and abandoned watches disappear from this list.
 
-Replies contain the last non-empty assistant message of the consuming turn, bounded to 12000 Unicode
+Replies contain the last non-empty assistant message of the turn they report on, bounded to 12,000 Unicode
 characters. Truncated replies include a pointer to `compozy__session_history`; empty replies use
 `(no reply text)`. Outcomes are `completed`, `failed` (with an error summary), `canceled`, `dropped`
 (removed before execution), `expired` (no reply arrived within `reply_watch_ttl`), or `unknown`
-(delivery was uncertain; inspect the target session).
+(the reply could not be read or the message's delivery was uncertain). The wake states which
+occurred. If a target settles without another answer, the follow-up confirms that the interim
+reply stands.
 
 Archiving or deleting the sender abandons its outstanding watches. Canceling or clearing a reply wake
 from the sender's queue does not send it again. `notify_on_complete` belongs to the agent-facing native

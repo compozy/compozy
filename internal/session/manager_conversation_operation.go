@@ -5,9 +5,25 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 var errConversationOperationReentrant = errors.New("session: conversation operation cannot acquire its own lock")
+
+const deriveConversationLockWait = 500 * time.Millisecond
+
+func (m *Manager) lockDeriveConversation(ctx context.Context, sessionID string) (func(), error) {
+	lockCtx, cancel := context.WithTimeoutCause(ctx, deriveConversationLockWait, ErrDeriveSourceBusy)
+	defer cancel()
+	_, release, err := m.lockConversationOperation(lockCtx, sessionID)
+	if lockCtx.Err() != nil {
+		if release != nil {
+			release()
+		}
+		return nil, context.Cause(lockCtx)
+	}
+	return release, err
+}
 
 type conversationOperationOwners map[string]struct{}
 

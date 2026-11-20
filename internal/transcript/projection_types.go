@@ -26,12 +26,18 @@ var (
 type PageQuery struct {
 	BeforeSequence int64
 	Limit          int
+	MetadataOnly   bool
+	// ThroughSequence reads the entries as they were at the inclusive cut.
+	ThroughSequence *int64
 }
 
 // Normalize validates and applies bounded defaults to a page query.
 func (q PageQuery) Normalize() (PageQuery, error) {
 	if q.BeforeSequence < 0 {
 		return PageQuery{}, errors.New("transcript: before sequence cannot be negative")
+	}
+	if q.ThroughSequence != nil && *q.ThroughSequence < 0 {
+		return PageQuery{}, errors.New("transcript: through sequence cannot be negative")
 	}
 	if q.Limit < 0 || q.Limit > maxPageLimit {
 		return PageQuery{}, fmt.Errorf("transcript: page limit must be between 0 and %d", maxPageLimit)
@@ -85,6 +91,11 @@ type ChangePage struct {
 type Reader interface {
 	TranscriptPage(context.Context, PageQuery) (Page, error)
 	TranscriptChanges(context.Context, ChangeQuery) (ChangePage, error)
+}
+
+// RangeCounter counts visible entries without reading their message bodies.
+type RangeCounter interface {
+	TranscriptCountThrough(context.Context, int64) (int, error)
 }
 
 // ProjectionState is the durable routing state for incremental projection.

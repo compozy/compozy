@@ -89,17 +89,22 @@ func (r *repoBase) withImmediateTransaction(
 		return errors.New("store: repository is required")
 	}
 	var committedSignals outboxSignalKind
+	var supersededReplyWatches []string
 	if err := store.ExecuteWriteOperation(ctx, r.db, action, func(_ context.Context, tx *store.WriteTx) error {
 		transaction := &outboxSignalExecutor{globalSQLExecutor: tx}
 		if err := run(transaction); err != nil {
 			return err
 		}
 		committedSignals = transaction.load()
+		supersededReplyWatches = transaction.supersededReplyWatches
 		return nil
 	}); err != nil {
 		return fmt.Errorf("store: %s transaction: %w", action, err)
 	}
 	r.outboxSignals.fire(committedSignals)
+	for _, id := range supersededReplyWatches {
+		logSupersededReplyWatch(ctx, id)
+	}
 	return nil
 }
 

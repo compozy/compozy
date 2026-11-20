@@ -285,13 +285,14 @@ func SessionDerivedPayloadFromResult(result session.DeriveResult) contract.Sessi
 // SessionDerivePreviewPayload projects a derive preview onto the public payload.
 func SessionDerivePreviewPayload(preview session.DerivePreview) contract.SessionDerivePreviewResponse {
 	payload := contract.SessionDerivePreviewResponse{
-		MessageCount:         preview.MessageCount,
-		SourceMessageCount:   preview.SourceMessageCount,
-		ReplayBytes:          preview.ReplayBytes,
-		Truncated:            preview.Truncated,
-		OmittedCount:         preview.OmittedCount,
-		SourceTurnInProgress: preview.SourceTurnInProgress,
-		NativeForkPossible:   preview.NativeForkPossible,
+		MessageCount:            preview.MessageCount,
+		SourceMessageCount:      preview.SourceMessageCount,
+		ReplayBytes:             preview.ReplayBytes,
+		Truncated:               preview.Truncated,
+		OmittedCount:            preview.OmittedCount,
+		SourceTurnInProgress:    preview.SourceTurnInProgress,
+		NativeForkPossible:      preview.NativeForkPossible,
+		NativeForkRefusalReason: preview.NativeForkRefusalReason,
 		Transcript: contract.SessionTranscriptFences{
 			Epoch: preview.Epoch, Generation: preview.Generation, MaxSequence: preview.MaxSequence,
 		},
@@ -317,6 +318,11 @@ func sessionDerivationPayload(derivation *store.SessionDerivation) *contract.Ses
 	if native := derivation.Native; native != nil {
 		payload.NativeState = strings.TrimSpace(native.State)
 		payload.NativeForkError = strings.TrimSpace(native.Error)
+	}
+	if history := derivation.History; history != nil {
+		payload.InheritedMessageCount = new(history.MessageCount)
+		payload.ReplayMessageCount = new(history.ReplayMessageCount)
+		payload.ReplayOmittedCount = new(history.ReplayOmittedCount)
 	}
 	return payload
 }

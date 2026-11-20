@@ -4315,6 +4315,9 @@ export interface SessionDerivationPayload {
   native_state?: string;
   native_fork_error?: string;
   first_prompt: string;
+  inherited_message_count?: number;
+  replay_message_count?: number;
+  replay_omitted_count?: number;
 }
 
 export interface SessionStatusResponse {

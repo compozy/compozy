@@ -15,10 +15,7 @@ type heartbeatWakeSweeper interface {
 	SweepHeartbeatWakeEvents(context.Context, time.Time, int) (int64, error)
 }
 
-func (d *Daemon) bootSessionSupervision(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
-	if state.sessionWatchGate != nil {
-		defer close(state.sessionWatchGate)
-	}
+func (d *Daemon) prepareBootSessionWorkSources(ctx context.Context, state *bootState) error {
 	manager, ok := state.sessions.(*session.Manager)
 	if !ok {
 		return nil
@@ -62,6 +59,17 @@ func (d *Daemon) bootSessionSupervision(ctx context.Context, state *bootState, c
 			Kind: session.WorkSignalActiveMonitor, Source: session.SignalSourceFunc(sources.monitors),
 		},
 	)
+	return nil
+}
+
+func (d *Daemon) bootSessionSupervision(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	if state.sessionWatchGate != nil {
+		defer close(state.sessionWatchGate)
+	}
+	manager, ok := state.sessions.(*session.Manager)
+	if !ok {
+		return nil
+	}
 	// Session watches read each target's work signals, which exist only after a supervision pass.
 	if err := manager.Supervise(ctx, d.now()); err != nil {
 		state.logger.Error("session supervision failed", "error", err)

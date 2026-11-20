@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/gin-gonic/gin"
@@ -21,6 +22,10 @@ var (
 	errProviderAuthStatusCommandRequired = errors.New("provider auth_status_command is required for remote probe")
 	errProviderNotFound                  = errors.New("provider not found")
 )
+
+type providerLiveAuthRecoverer interface {
+	RetryProviderLiveFailures(profileID, providerID string, before time.Time)
+}
 
 // ListProviders returns the canonical provider inventory and declared auth readiness.
 func (h *BaseHandlers) ListProviders(c *gin.Context) {
@@ -90,7 +95,7 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 	}
 	statusCommand := strings.TrimSpace(provider.AuthStatusCmd)
 	if statusCommand == "" {
-		h.probeProviderAuthWithoutStatusCommand(c, providerName, provider)
+		h.probeProviderAuthWithoutStatusCommand(c, selection.Scope, providerName, provider)
 		return
 	}
 	env, err := h.providerProbeEnv(providerName, provider)
@@ -118,15 +123,13 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 	}
 	h.observeProviderAuthProbe(
 		c.Request.Context(),
+		selection.Scope,
 		providerName,
 		provider,
 		env.CommandEnv,
 		probe.Classification,
 		probe.StartedAt,
 	)
-	if probe.Classification.State == authproviders.ProviderAuthStateAuthenticated {
-		h.recoverProviderAuthSessions(c, providerName, provider)
-	}
 	authStatus, err := providerAuthStatusPayload(
 		c.Request.Context(), provider, probe.Classification, &env, h.nowUTC(),
 	)
@@ -147,11 +150,11 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 }
 
 func (h *BaseHandlers) probeProviderAuthWithoutStatusCommand(
-	c *gin.Context, providerName string, provider compozyconfig.ProviderConfig,
+	c *gin.Context, scope profile.ReadScope, providerName string, provider compozyconfig.ProviderConfig,
 ) {
 	if authproviders.UsesACPProbe(provider) &&
 		provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
-		h.probeProviderACPAuth(c, providerName, provider)
+		h.probeProviderACPAuth(c, scope, providerName, provider)
 		return
 	}
 	respondProviderAuthStatusCommandRequired(c, providerName)
@@ -164,6 +167,7 @@ func (h *BaseHandlers) probeProviderAuthWithoutStatusCommand(
 // outcome leaves the cache untouched.
 func (h *BaseHandlers) probeProviderACPAuth(
 	c *gin.Context,
+	scope profile.ReadScope,
 	providerName string,
 	provider compozyconfig.ProviderConfig,
 ) {
@@ -205,15 +209,13 @@ func (h *BaseHandlers) probeProviderACPAuth(
 	if !errors.Is(probeErr, context.DeadlineExceeded) && !errors.Is(probeErr, context.Canceled) {
 		h.observeProviderAuthProbe(
 			c.Request.Context(),
+			scope,
 			providerName,
 			provider,
 			env.CommandEnv,
 			classification,
 			startedAt,
 		)
-		if classification.State == authproviders.ProviderAuthStateAuthenticated {
-			h.recoverProviderAuthSessions(c, providerName, provider)
-		}
 	}
 	h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
 }
@@ -222,6 +224,7 @@ func (h *BaseHandlers) probeProviderACPAuth(
 // clears cached startup failures after a successful sign-in. Canceled probes change nothing.
 func (h *BaseHandlers) observeProviderAuthProbe(
 	ctx context.Context,
+	scope profile.ReadScope,
 	providerName string,
 	provider compozyconfig.ProviderConfig,
 	env []string,
@@ -232,8 +235,19 @@ func (h *BaseHandlers) observeProviderAuthProbe(
 		return
 	}
 	h.ProviderAuthVerdicts.Record(providerName, provider, env, classification, startedAt)
-	if classification.State == authproviders.ProviderAuthStateAuthenticated && h.OnProviderAuthSuccess != nil {
+	if classification.State != authproviders.ProviderAuthStateAuthenticated {
+		return
+	}
+	if h.OnProviderAuthSuccess != nil {
 		h.OnProviderAuthSuccess()
+	}
+	if scope.AllProfiles {
+		return
+	}
+	h.recoverProviderAuthSessions(scope.ProfileID, providerName, provider)
+	if catalog, ok := h.ModelCatalog.(providerLiveAuthRecoverer); ok &&
+		provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
+		catalog.RetryProviderLiveFailures(scope.ProfileID, providerName, startedAt)
 	}
 }
 
@@ -432,17 +446,13 @@ func providerAuthStatusPayload(
 }
 
 // recoverProviderAuthSessions forwards a successful probe only to its resolved profile and launch route.
-func (h *BaseHandlers) recoverProviderAuthSessions(c *gin.Context, provider string, cfg compozyconfig.ProviderConfig) {
+func (h *BaseHandlers) recoverProviderAuthSessions(profileID, provider string, cfg compozyconfig.ProviderConfig) {
 	recovery, ok := h.Sessions.(ProviderAuthRecoverer)
 	if !ok {
 		return
 	}
-	selection, err := h.resolveProfileReadSelection(c)
-	if err != nil || selection.Scope.AllProfiles {
-		return
-	}
 	recovery.ProviderAuthenticationReady(
-		selection.Scope.ProfileID,
+		profileID,
 		provider,
 		authproviders.AuthenticationRouteFingerprint(provider, cfg),
 	)

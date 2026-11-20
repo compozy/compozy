@@ -156,3 +156,26 @@ func (m *Manager) replyWatchSessionDeleted(ctx context.Context, sessionID string
 		}
 	}
 }
+
+func (s *replyWatchService) OnSendResult(ctx context.Context, id string, sendErr error) {
+	w, err := s.store.GetReplyWatch(ctx, id)
+	if err != nil {
+		w.ID = id
+		s.logWatchError(ctx, w, err)
+	}
+	if sendErr != nil && !errors.Is(sendErr, store.ErrSessionPromptDispatchIndeterminate) {
+		s.logWatchError(ctx, w, s.abandon(ctx, id, "send_failed"))
+		return
+	}
+	if sendErr == nil {
+		s.logWatchError(ctx, w, s.store.SupersedeReplyWatchFollowUps(ctx, id))
+	}
+	if err != nil {
+		return
+	}
+	if sendErr == nil {
+		s.manager.logger.InfoContext(ctx, "reply_watch.registered", "id", id,
+			"turn_id", w.TurnID, "queue_entry_id", w.QueueEntryID)
+	}
+	s.logWatchError(ctx, w, s.Reconcile(ctx, id))
+}

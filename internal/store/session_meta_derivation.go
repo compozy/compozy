@@ -26,6 +26,15 @@ type SessionDerivation struct {
 	PendingRoute    *SessionPendingRoute    `json:"pending_route,omitzero"`
 	FirstPrompt     SessionFirstPrompt      `json:"first_prompt"`
 	CreatedAt       time.Time               `json:"created_at"`
+	History         *SessionDerivedHistory  `json:"history,omitzero"`
+}
+
+// SessionDerivedHistory records the source cut and the two populations shown in the child.
+type SessionDerivedHistory struct {
+	ThroughSequence    int64 `json:"through_sequence"`
+	MessageCount       int   `json:"message_count"`
+	ReplayMessageCount int   `json:"replay_message_count"`
+	ReplayOmittedCount int   `json:"replay_omitted_count"`
 }
 
 // SessionNativeBootstrap pins a native clone id to the provider identity it loads under.
@@ -57,6 +66,7 @@ type SessionFirstPrompt struct {
 	State        string `json:"state"`
 	AdmissionKey string `json:"admission_key,omitempty"`
 	MessageID    string `json:"message_id,omitempty"`
+	Failed       bool   `json:"failed,omitzero"`
 }
 
 // SessionImportedContext is the immutable carried context of a derived child: the
@@ -95,6 +105,9 @@ func CloneSessionDerivation(derivation *SessionDerivation) *SessionDerivation {
 		return nil
 	}
 	cloned := *derivation
+	if derivation.History != nil {
+		cloned.History = new(*derivation.History)
+	}
 	if derivation.Native != nil {
 		native := *derivation.Native
 		if derivation.Native.SettledAt != nil {

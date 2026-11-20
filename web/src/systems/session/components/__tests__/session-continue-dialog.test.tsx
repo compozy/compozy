@@ -1,6 +1,8 @@
 // Suite: Continue dialog (S4)
 // Invariant: the dialog states what travels from the daemon's own preview before anything is
-// created, gates Continue on that measurement, preselects another agent, offers declared routes
+// created, waits for that measurement (a failed or timed-out one offers Try again and lets
+// Continue go without it), stops waiting on a submit at its deadline and replays the same key
+// on retry, preselects another agent, offers declared routes
 // only when the agent has them (route XOR runtime on the wire), and never opens a window for an
 // outcome whose child was deleted.
 // Owning layer: SessionContinueDialog with its hooks over MSW. Canonical suite: this file.
@@ -20,6 +22,7 @@ import type {
 import { createMswFetch } from "@/test/msw-fetch";
 
 import type { ContinueSessionRequest } from "../../adapters/session-derive-api";
+import { SESSION_DERIVE_TIMED_OUT } from "../../hooks/use-session-derive";
 import {
   continuedSessionFixture,
   deriveAgentsFixture,
@@ -36,6 +39,13 @@ import type { SessionPayload } from "../../types";
 import { SessionContinueDialog } from "../session-continue-dialog";
 
 const agents = vi.hoisted(() => ({ data: [] as AgentPayload[] }));
+const deadlines = vi.hoisted(() => ({ submit: 60_000 }));
+vi.mock("../../lib/session-derive-deadline", async importOriginal => ({
+  ...(await importOriginal<object>()),
+  get SESSION_DERIVE_SUBMIT_TIMEOUT_MS() {
+    return deadlines.submit;
+  },
+}));
 const runtimeCatalog = vi.hoisted(() => ({
   providers: [] as RuntimeProviderOption[],
   models: [] as RuntimeModelOption[],
@@ -97,6 +107,7 @@ describe("SessionContinueDialog", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    deadlines.submit = 60_000;
   });
 
   it("Should preselect another agent and enable Continue once the preview is measured", async () => {
@@ -119,15 +130,42 @@ describe("SessionContinueDialog", () => {
     );
   });
 
-  it("Should disable Continue when the preview cannot be measured", async () => {
-    renderDialog({ preview: "error" });
+  it("Should keep Continue available with Try again when the preview cannot be measured", async () => {
+    const user = userEvent.setup();
+    const sent: ContinueSessionRequest[] = [];
+    renderDialog({ preview: "error", onContinue: request => sent.push(request) });
 
+    expect(screen.getByTestId("session-continue-submit")).toBeDisabled();
     await waitFor(() =>
       expect(screen.getByTestId("session-derive-preview")).toHaveTextContent(
-        "Couldn't measure this session's context."
+        "Couldn't measure this session's context.The conversation still carries over."
       )
     );
-    expect(screen.getByTestId("session-continue-submit")).toBeDisabled();
+    expect(screen.getByTestId("session-derive-preview-retry")).toBeEnabled();
+    await user.click(screen.getByTestId("session-continue-submit"));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+  });
+
+  it("Should stop waiting at the deadline and replay the same key on retry", async () => {
+    deadlines.submit = 50;
+    const user = userEvent.setup();
+    const sent: ContinueSessionRequest[] = [];
+    const child = continuedSessionFixture();
+    const { openInNewWindow } = renderDialog({
+      onContinue: request => sent.push(request),
+      result: ["pending", deriveResultFixture(child, { replayed: true })],
+    });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+      SESSION_DERIVE_TIMED_OUT
+    );
+    await user.click(screen.getByTestId("session-continue-submit"));
+
+    await waitFor(() => expect(openInNewWindow).toHaveBeenCalledExactlyOnceWith(child));
+    expect(sent[1]?.idempotency_key).toBe(sent[0]?.idempotency_key);
   });
 
   it("Should state the omitted count and keep Continue enabled for a truncated preview", async () => {

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -51,7 +52,7 @@ func (m *Manager) prepareDerive(
 		}
 		pendingRoute, routeSelection = fork.pending, fork.route
 	}
-	imported, err := m.buildImportedContext(snapshot, spec, m.deriveBudget(&workspace))
+	imported, err := m.preparedImportedContext(ctx, snapshot, spec, &workspace)
 	if err != nil {
 		return preparedDerive{}, err
 	}
@@ -62,14 +63,14 @@ func (m *Manager) prepareDerive(
 	profileID := deriveChildProfileID(spec.childProfileID(), meta)
 	now := m.now().UTC()
 	firstPrompt, outcomePrompt := deriveFirstPrompt(spec)
-	seed := deriveSeedOutcome{seed: store.SessionDerivationSeedReplay}
+	seed := deriveSeedOutcome{seed: store.SessionDerivationSeedReplay, refusalReason: nativeForkReasonContinue}
 	if spec.kind == store.LineageKindFork || spec.kind == store.LineageKindSide {
 		seed = m.deriveForkSeed(ctx, spec, snapshot, agentName, fork.resolved)
 	}
 	derivation := &store.SessionDerivation{
 		Kind: spec.kind, SourceSessionID: meta.ID, IdempotencyKey: spec.key,
 		Seed: seed.seed, Native: seed.native, PendingRoute: pendingRoute,
-		FirstPrompt: firstPrompt, CreatedAt: now,
+		FirstPrompt: firstPrompt, CreatedAt: now, History: deriveHistory(snapshot, imported, spec.kind),
 	}
 	receipt := store.SessionDerivationReceipt{
 		WorkspaceID: spec.workspaceID, ProfileID: profileID, IdempotencyKey: spec.key,
@@ -104,6 +105,29 @@ func (m *Manager) prepareDerive(
 		applySideCreate(&opts, meta, spec.name)
 	}
 	return preparedDerive{createOpts: opts, receipt: receipt}, nil
+}
+
+func (m *Manager) preparedImportedContext(
+	ctx context.Context, snapshot *deriveSnapshot, spec deriveSpec, workspace *workspacepkg.ResolvedWorkspace,
+) (*store.SessionImportedContext, error) {
+	if snapshot.imported != nil {
+		return snapshot.imported, nil
+	}
+	return m.buildImportedContext(ctx, snapshot, spec, m.deriveBudget(workspace))
+}
+
+func deriveHistory(
+	snapshot *deriveSnapshot,
+	imported *store.SessionImportedContext,
+	kind store.LineageKind,
+) *store.SessionDerivedHistory {
+	if kind == store.LineageKindSide {
+		return nil
+	}
+	return &store.SessionDerivedHistory{
+		ThroughSequence: snapshot.cut.ThroughSequence, MessageCount: snapshot.visibleMessageCount,
+		ReplayMessageCount: imported.MessageCount, ReplayOmittedCount: imported.OmittedCount,
+	}
 }
 
 // deriveFirstPrompt returns the child's initial first-prompt record and the receipt's.
@@ -193,12 +217,20 @@ func derivePendingRoute(
 // imported context. A source that is itself derived carries its imported context
 // flattened in front of its own messages (one level, never nested).
 func (m *Manager) buildImportedContext(
+	ctx context.Context,
 	snapshot *deriveSnapshot,
 	spec deriveSpec,
 	budget replayBudget,
 ) (*store.SessionImportedContext, error) {
+	started := time.Now()
 	if snapshot == nil {
 		return nil, errors.New("session: derive snapshot is required")
+	}
+	if snapshot.timing != nil {
+		defer func() { snapshot.timing.bound = time.Since(started) }()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	messages := append([]transcript.Message(nil), snapshot.messages...)
 	inherited, err := decodeImportedMessages(snapshot.meta.ImportedContext)
@@ -207,6 +239,10 @@ func (m *Manager) buildImportedContext(
 	}
 	if len(inherited) > 0 {
 		messages = append(inherited, messages...)
+	}
+	bodyStart := snapshot.bodyStart
+	if bodyStart > 0 {
+		bodyStart += len(inherited)
 	}
 	var aborted *transcript.Message
 	if snapshot.sourceTurnInProgress {
@@ -217,7 +253,7 @@ func (m *Manager) buildImportedContext(
 		aborted = &note
 		budget.MaxBytes -= replayMessageBytes(note) + 1
 	}
-	bounded, stats := boundReplay(messages, budget)
+	bounded, stats := boundReplayFrom(messages, budget, bodyStart)
 	if imported := snapshot.meta.ImportedContext; imported != nil {
 		stats.OmittedCount += imported.OmittedCount
 		stats.Truncated = stats.Truncated || imported.Truncated
@@ -251,7 +287,8 @@ func deriveOutcome(
 ) store.SessionDerivationOutcome {
 	outcome := store.SessionDerivationOutcome{
 		Seed: seed.seed, NativeForkError: seed.nativeError, OriginMessageID: imported.OriginMessageID,
-		OriginAgentName: imported.OriginAgentName, ThroughTurnID: imported.ThroughTurnID,
+		NativeForkRefusalReason: seed.refusalReason,
+		OriginAgentName:         imported.OriginAgentName, ThroughTurnID: imported.ThroughTurnID,
 		ReplayMessageCount: imported.MessageCount,
 		ReplayBytes:        imported.Bytes, Truncated: imported.Truncated, OmittedCount: imported.OmittedCount,
 		SourceTurnInProgress: imported.SourceTurnInProgress, SourceEpoch: imported.SourceEpoch,

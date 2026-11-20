@@ -19,7 +19,7 @@ func (s *CatalogService) freshSelectedSource(
 	opts RefreshOptions,
 	now time.Time,
 ) ([]SourceStatus, bool) {
-	if opts.Force || strings.TrimSpace(opts.SourceID) == "" || len(sources) != 1 {
+	if opts.Force || !opts.RetryFailedBefore.IsZero() || strings.TrimSpace(opts.SourceID) == "" || len(sources) != 1 {
 		return nil, false
 	}
 	executionContext, err := sourceExecutionContext(opts.SourceContexts, sources[0].ID())
@@ -27,6 +27,27 @@ func (s *CatalogService) freshSelectedSource(
 		return nil, false
 	}
 	return freshSourceStatuses(ctx, s.store, sources[0], opts.ProviderID, executionContext, now)
+}
+
+func (s *CatalogService) failedSourceRetryDue(
+	ctx context.Context,
+	sourceID string,
+	providerID string,
+	executionContext CatalogExecutionContext,
+	before time.Time,
+) (bool, error) {
+	statuses, err := s.store.ListSourceStatus(ctx, StatusOptions{
+		ProviderID:       providerID,
+		ExecutionContext: executionContext,
+		SourceContexts:   singleSourceExecutionContext(sourceID, executionContext),
+	})
+	if err != nil {
+		return false, fmt.Errorf("model catalog: list retry status for %q: %w", sourceID, err)
+	}
+	return slices.ContainsFunc(statuses, func(status SourceStatus) bool {
+		return status.SourceID == sourceID && status.RefreshState == RefreshStateFailed &&
+			status.LastRefresh.Before(before)
+	}), nil
 }
 
 // freshSourceStatuses returns the stored statuses of a TTL source when every one of

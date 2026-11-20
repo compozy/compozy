@@ -12,7 +12,7 @@ type SessionMessagingConfig struct {
 	RateLimitMessages int `toml:"rate_limit_messages,omitempty"`
 	// RateLimitWindow is the sliding window the per sender→target budget is counted over.
 	RateLimitWindow time.Duration `toml:"rate_limit_window,omitempty"`
-	// ReplyWatchTTL releases an armed reply watch with an expired outcome when no reply arrives in time,
+	// ReplyWatchTTL releases an armed reply watch with an expired outcome when a first reply or follow-up is late,
 	// so a forgotten watch stops keeping its sender awake. An explicit zero never expires a watch.
 	ReplyWatchTTL time.Duration `toml:"reply_watch_ttl"`
 	// QueuePromoteAfter promotes a queued message from another session into the live turn as injected

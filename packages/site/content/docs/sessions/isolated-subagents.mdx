@@ -211,11 +211,16 @@ What you see:
   "Waiting for reply".
 - **In Billing reviewer:** the question as a left-aligned card, "From Refactor billing", not as one
   of your own messages. The reviewer agent is also told it came from another agent, and that its
-  final answer in that turn goes back automatically.
+  answer in that turn goes back automatically. If it ends the turn with a monitor, delegated work,
+  or another registered wait, CompozyOS also delivers a follow-up when the work settles.
 - **When the reviewer's turn ends:** a "Reply from Billing reviewer" card lands in Refactor billing
   with the answer, the sent card switches to "Replied", and the orchestrator is woken with the answer
-  in a new turn. This is the **reply wake**. If the orchestrator is busy, the reply waits ahead of
-  your queued prompts.
+  in a new turn. If the answer is interim, the wake names the pending work and the watch remains
+  visible in session status until the follow-up. If the orchestrator is busy, the reply joins its
+  queue.
+
+Use a session monitor as well when the orchestrator needs an independent lifecycle or timeout wake,
+for example when it needs to detect that the reviewer stopped before consuming the question.
 
 ```text
 Session "Billing reviewer" (sess-c03f9d61b2e84a07) replied to your message msg-retry-q: completed.
@@ -225,13 +230,13 @@ Per job. `retry_budget` in billing.toml caps total attempts across a job's reque
 
 If the reviewer's turn doesn't produce an answer, the reply still comes, with the reason:
 
-| Outcome     | When                                                       | What the reply says                                                  |
-| ----------- | ---------------------------------------------------------- | -------------------------------------------------------------------- |
-| `completed` | The turn finished.                                         | The last answer of that turn, or "(no reply text)".                  |
-| `failed`    | The turn failed.                                           | The error summary.                                                   |
-| `canceled`  | The turn was canceled or interrupted, including by a stop. | Any answer the turn left.                                            |
-| `dropped`   | The message was removed from the queue before it ran.      | "The message was removed from the queue before it ran."              |
-| `unknown`   | CompozyOS can't tell whether the message was delivered.    | "The message may not have been delivered; check the target session." |
+| Outcome     | When                                                       | What the reply says                                     |
+| ----------- | ---------------------------------------------------------- | ------------------------------------------------------- |
+| `completed` | The turn finished.                                         | The last answer of that turn, or "(no reply text)".     |
+| `failed`    | The turn failed.                                           | The error summary.                                      |
+| `canceled`  | The turn was canceled or interrupted, including by a stop. | Any answer the turn left.                               |
+| `dropped`   | The message was removed from the queue before it ran.      | "The message was removed from the queue before it ran." |
+| `unknown`   | CompozyOS could not read the reply or confirm delivery.    | The reason and a pointer to check the target session.   |
 
 Answers longer than 12,000 characters are cut with a note that points to
 `compozy__session_history`. Replies survive a CompozyOS restart and are delivered exactly once; if the
