@@ -165,6 +165,7 @@ type Manager struct {
 	laterProcesses             LaterProcessReleaser
 	subagents                  SubagentService
 	metadataWarnings           loggerpkg.FailureWarnings
+	missingAncestorWarned      sync.Map
 	supervisionMu              sync.Mutex
 	workSignals                *WorkSignalRegistry
 	mu                         sync.RWMutex
