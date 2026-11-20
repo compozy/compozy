@@ -25,7 +25,7 @@ Operator overrides win. Never substitute a model silently.
 - Give each child a new worktree. Name it from the slice or issue so a retry cannot duplicate it, and keep the root checkout clean.
 - Set provider, model and effort on the first prompt, confirm the effective runtime with `compozy__session_status`, and register a monitor. Do not answer a child's report in the same message chain; read it on the monitor wake.
 - Keep about 4 workers active. Cut slices that can run in parallel and state which slice depends on which.
-- Workers never run repository-wide gates. Say so explicitly in the brief, and name repository-wide lint, full test suites and E2E too.
+- Workers run no tests, lint, typecheck, build checks or gates locally, focused ones included; CI on the pushed head verifies. Say so explicitly in the brief, and have the report name the CI check that proves each change.
 - Prototyped screens and flows follow their prototype.
 - Workers do not co-edit shared files such as `docs/_memory/change-impact.md`. Their impact notes go in the PR body, and the orchestrator consolidates them.
 
@@ -129,7 +129,7 @@ CodeRabbit must meet merge-gate HEARTBEAT.md step 2: two distinct reviewed commi
 A round starts as soon as a reviewer posts findings or a check fails on the current head; do not wait for the rest of CI to finish first, because the fix push restarts CI anyway. Fold in every finding already posted, push once, then inspect CI and satisfy the review criterion on that new head. Collect every page of reviews, inline threads and PR comments, including collapsed sections and the CodeRabbit "Follow-up" and "outside diff" notes that exist only in review bodies, and address every actionable finding at any severity, including human feedback and findings marked outdated or outside changed lines. Green CI on a head without the required CodeRabbit rounds or fallback is not delivered.
 
 1. Validate each finding against the current code and the contract.
-2. Fix every valid, in-scope finding and every failed check locally, with focused tests and lint for what changed, then push once. The `pre-push` hook rejects format and lint failures before they reach CI.
+2. Fix every valid, in-scope finding and every failed check, then push once. Run no tests or lint locally; CI on the new head verifies the fixes.
 3. Reply to each thread with that pushed commit or other evidence, then resolve it. For a false positive, give a concrete rationale.
 4. For a disputed or materially out-of-scope finding, reply with the rationale and escalate it. Resolve the thread once the operator or reviewer settles it; until then delivery stays open, because `merge-gate` and the `main` ruleset both require every thread resolved.
 
