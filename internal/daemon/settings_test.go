@@ -1403,9 +1403,11 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		if got, want := status.State, settingspkg.MCPServerRuntimeStateRuntimeUnavailable; got != want {
 			t.Fatalf("MCPServerRuntimeStatus(crashing).State = %q, want %q", got, want)
 		}
-		if !strings.Contains(status.Diagnostic, "stderr: ") ||
-			!strings.Contains(status.Diagnostic, "settings fixture failed to load its config") {
-			t.Fatalf("MCPServerRuntimeStatus(crashing).Diagnostic = %q, want the stderr tail", status.Diagnostic)
+		// The tail must be the server's own stderr: harness output before it means the helper ran TestMain.
+		if want := "stderr: settings fixture failed to load its config"; !strings.HasSuffix(
+			strings.TrimSpace(status.Diagnostic), want,
+		) {
+			t.Fatalf("MCPServerRuntimeStatus(crashing).Diagnostic = %q, want suffix %q", status.Diagnostic, want)
 		}
 	})
 
