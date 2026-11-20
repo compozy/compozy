@@ -131,7 +131,7 @@ func (d *Driver) startSessionAttempt(ctx context.Context, normalized StartOpts) 
 		return process, WrapFailure(store.FailureStartup, "agent subprocess startup failed", err)
 	}
 	stageStartedAt = time.Now()
-	err = d.initializeConnection(ctx, process, normalized.AgentName)
+	err = d.initializeConnection(ctx, process, normalized.AgentName, normalized.ProviderConfig)
 	d.logStartStage(normalized, process, "initialize", stageOutcome(err, false), stageStartedAt)
 	if err != nil {
 		return process, err

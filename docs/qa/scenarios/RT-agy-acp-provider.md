@@ -1,10 +1,10 @@
 ---
 id: RT-agy-acp-provider
 area: RT
-title: Google Antigravity explicit login, remote probe, and first prompt
+title: Google Antigravity login, prompts, and file tools
 persona: Ada
 journey: J-15
-expected: With only the official agy_acp_server on PATH and no [providers.agy] block, explicit local login updates the daemon's sign-in verdict, and the first prompt persists under agy with the server-default model. Logged-out or missing-server states give actionable guidance and never trigger automatic login.
+expected: With only the official agy_acp_server on PATH and no [providers.agy] block, explicit local login updates the daemon's sign-in verdict, and the first prompt persists under agy with the server-default model. Logged-out or missing-server states give actionable guidance and never trigger automatic login. File tools complete individually during the turn, and edits in Ask before changes wait for operator approval.
 entry_points: compozy provider auth login agy; compozy provider list; compozy provider auth status agy --remote; compozy session new --agent agy-example
 qa_status: pass
 bug_ids: "#1881"
@@ -27,6 +27,12 @@ story: As an operator with a Google Antigravity account I sign in once explicitl
 5. Run `compozy provider list -o json` directly after login. Antigravity's `auth_status.state` is `authenticated`. Once its live catalog refresh completes, verify the composer picker shows the advertised models as selectable and Settings shows the provider as ready. This step uses ordinary reads without a remote status probe or a forced model refresh.
 6. Create a session with an `agy-example` agent (`provider: agy`, no model) and send one prompt. Session reads identify provider `agy` and the exact accepted model; the server-default model is used, never a fabricated default.
 7. Remove or rename the server binary and repeat the status check from step 3. `state` is `missing_cli` with an `install_cli` recommendation naming only the basename.
+
+## File tool lifecycle and edit approval
+
+1. In a throwaway workspace with the official server signed in, prepare two text files with different contents. Start an `agy` session in Full access (`approve-all`, ACP mode `yolo`). Ask it to read and edit both files and create a third using file tools. Ask it to run `printf QA_TERMINAL` with its terminal tool after the file operations.
+2. Capture `compozy session prompt <id> <message> -o jsonl` and read back `compozy session events <id> -o json`. Match each provider-native file `tool_call` to its own successful `tool_result` by tool call ID. Results should arrive during the turn, before subsequent tool activity or the final reply, without a turn-end batch or `client_*` file calls. Confirm the edits and creation on disk. Verify the terminal call returns `QA_TERMINAL` with its own result.
+3. Start a new `agy` session in Ask before changes (`approve-reads`). Ask it to edit one existing file. Confirm a pending edit permission request appears in session events and the file remains unchanged while the request is pending. Approve once with `compozy session approve <id> --request-id <request-id> --decision allow-once`. Confirm the matching edit completes and the file changes only after approval.
 
 ## Repair without restart
 

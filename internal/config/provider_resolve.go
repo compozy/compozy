@@ -328,6 +328,7 @@ func resolvedAgentFromProvider(
 		AuthStatusCmd:         strings.TrimSpace(provider.AuthStatusCmd),
 		AuthLoginCmd:          strings.TrimSpace(provider.AuthLoginCmd),
 		AuthACPMethod:         provider.EffectiveACPMethod(),
+		DisableACPClientFS:    provider.DisableACPClientFS,
 		SessionMCP:            provider.SessionMCPEnabled(),
 		SessionMCPOverHTTP:    provider.SessionMCPOverHTTP(),
 		SessionEnv:            MergeSessionEnv(provider.SessionEnv, agent.SessionEnv),

@@ -25,6 +25,7 @@ func cloneProvider(src ProviderConfig) ProviderConfig {
 		AutoCompactWindow:   cloneAutoCompactWindow(src.AutoCompactWindow),
 		Command:             src.Command,
 		CommandIsBuiltin:    src.CommandIsBuiltin,
+		DisableACPClientFS:  src.DisableACPClientFS,
 		DisplayName:         src.DisplayName,
 		Models:              cloneProviderModelsConfig(src.Models),
 		Harness:             src.Harness,

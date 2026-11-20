@@ -251,13 +251,19 @@ type processRegistryProvider interface {
 	ProcessRegistry() *toolruntime.Registry
 }
 
-func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess, agentName string) error {
+func (d *Driver) initializeConnection(
+	ctx context.Context,
+	process *AgentProcess,
+	agentName string,
+	provider *compozyconfig.ProviderConfig,
+) error {
+	clientFSEnabled := provider == nil || !provider.DisableACPClientFS
 	initRequest := acpsdk.InitializeRequest{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		ClientCapabilities: acpsdk.ClientCapabilities{
 			Fs: acpsdk.FileSystemCapabilities{
-				ReadTextFile:  true,
-				WriteTextFile: true,
+				ReadTextFile:  clientFSEnabled,
+				WriteTextFile: clientFSEnabled,
 			},
 			Terminal: true,
 			// Form elicitation is the only operator question channel this client

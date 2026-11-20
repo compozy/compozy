@@ -34,7 +34,7 @@ func TestAgyACPServerCommand(t *testing.T) {
 }
 
 // Invariant: builtin agy resolves without an overlay and carries native auth,
-// filtered env, operator home, and the personal method with no static model.
+// filtered env, operator home, the personal method, and native file tools with no static model.
 // Owner: config provider registry (UT-001).
 func TestBuiltinAgyProviderIdentity(t *testing.T) {
 	t.Parallel()
@@ -70,6 +70,9 @@ func TestBuiltinAgyProviderIdentity(t *testing.T) {
 		}
 		if got, want := provider.EffectiveACPMethod(), "oauth-personal"; got != want {
 			t.Fatalf("AuthACPMethod = %q, want %q", got, want)
+		}
+		if !provider.DisableACPClientFS {
+			t.Fatal("DisableACPClientFS = false, want true")
 		}
 		if provider.Models.Default != "" || len(provider.Models.Curated) != 0 {
 			t.Fatalf("Models = %#v, want no static model seed", provider.Models)
@@ -111,6 +114,9 @@ func TestBuiltinAgyProviderIdentity(t *testing.T) {
 		}
 		if got, want := provider.EffectiveACPMethod(), "oauth-personal"; got != want {
 			t.Fatalf("AuthACPMethod = %q, want inherited %q", got, want)
+		}
+		if !provider.DisableACPClientFS {
+			t.Fatal("DisableACPClientFS = false, want inherited true")
 		}
 	})
 

@@ -81,6 +81,45 @@ func TestStartInitializeContract(t *testing.T) {
 			t.Fatalf("clientCapabilities._meta.terminal_output = %#v, want absent", value)
 		}
 	})
+
+	for _, providerName := range slices.Sorted(maps.Keys(compozyconfig.BuiltinProviders())) {
+		t.Run(
+			"Should negotiate filesystem and terminal capabilities for "+providerName,
+			func(t *testing.T) {
+				t.Parallel()
+
+				cfg := compozyconfig.Config{}
+				provider, err := cfg.ResolveProvider(providerName)
+				if err != nil {
+					t.Fatalf("ResolveProvider(%q): %v", providerName, err)
+				}
+				driver := New()
+				captureFile := filepath.Join(t.TempDir(), "initialize.jsonl")
+				proc := startHelperProcess(t, driver, "initialize_contract", "", StartOpts{
+					Env:            helperEnvWithCapture("initialize_contract", "", captureFile),
+					ProviderConfig: &provider,
+				})
+				defer stopProcess(t, driver, proc)
+
+				params := captureRequestParams(t, captureFile, acpsdk.AgentMethodInitialize)
+				var capabilities acpsdk.ClientCapabilities
+				if err := json.Unmarshal(params["clientCapabilities"], &capabilities); err != nil {
+					t.Fatalf("decode initialize clientCapabilities: %v", err)
+				}
+				wantFS := providerName != "agy"
+				if capabilities.Fs.ReadTextFile != wantFS || capabilities.Fs.WriteTextFile != wantFS {
+					t.Fatalf(
+						"clientCapabilities.fs = %+v, want readTextFile and writeTextFile both %t",
+						capabilities.Fs,
+						wantFS,
+					)
+				}
+				if !capabilities.Terminal {
+					t.Fatal("clientCapabilities.terminal = false, want true")
+				}
+			},
+		)
+	}
 }
 
 func TestStartCapturesPromptCapabilities(t *testing.T) {
