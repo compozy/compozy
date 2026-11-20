@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2148,4 +2149,307 @@ func TestReplyWatchExplicitReplyKeepsCompletionWake(t *testing.T) {
 			t.Fatalf("watch after completion = %+v, %v; want the completion wake", got, err)
 		}
 	})
+}
+
+// Invariant: a settled target wakes its idle sender through the periodic pass even when no hook runs.
+func TestReplyWatchPeriodicSettlement(t *testing.T) {
+	for _, tc := range []struct {
+		name, outcome, answer string
+		corruptTerminal       bool
+	}{
+		{
+			name:    "Should deliver a readable reply around a reload and an undecodable event",
+			outcome: store.ReplyOutcomeCompleted, answer: "completed after reload",
+		},
+		{
+			name:    "Should deliver unknown after a grace interval when the terminal receipt is unreadable",
+			outcome: store.ReplyOutcomeUnknown, answer: "check the target session", corruptTerminal: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			clock, advance := replyTestClock()
+			h, db, service, sender, target, w := replyWatchFixtureWith(t, []Option{WithNow(clock)})
+			recordReplyEvent(t, h, target,
+				acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "watched"}.WithMessageID(w.MessageID))
+			recordRawReplyEvent(t, h, target, "mcp-reload", EventTypeMCPReloaded,
+				`{"outcome":"applied","added":[],"removed":[],"reason":"","runtime":"Codex"}`)
+			recordRawReplyEvent(t, h, target, "unreadable-event", acp.EventTypeThought,
+				`{"schema":"compozy.session.event.v1","type":"agent_thought","usage":false}`)
+			if tc.corruptTerminal {
+				recordRawReplyEvent(t, h, target, "unreadable-done", acp.EventTypeDone,
+					`{"schema":"compozy.session.event.v1","type":"done","runtime":"Codex"}`)
+			} else {
+				recordReplyEvent(t, h, target,
+					acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "watched", Text: tc.answer})
+				recordReplyEvent(t, h, target, acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "watched"})
+			}
+			replies := service.(*replyWatchService)
+			replies.sweep(t.Context())
+			if tc.corruptTerminal {
+				requireReplyWatchState(t, db, w.ID, store.ReplyWatchArmed)
+				advance(replyWatchSweepInterval)
+				replies.sweep(t.Context())
+			}
+			wake := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchDelivered)
+			if !strings.Contains(wake.Text, tc.answer) || !strings.Contains(wake.Text, tc.outcome) {
+				t.Fatalf("wake = %q", wake.Text)
+			}
+		})
+	}
+}
+
+// Invariant: a watch remains visible and sends exactly one follow-up for the last settled turn.
+func TestReplyWatchFollowUp(t *testing.T) {
+	t.Run(
+		"Should retain the watch across intermediate turns and deliver after restart without a settle hook",
+		func(t *testing.T) {
+			t.Parallel()
+			h, db, service, sender, target, w, open := replyFollowUpFixture(t)
+			interim := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchArmed)
+			if !strings.Contains(interim.Text, "interim reply") || !strings.Contains(interim.Text, "monitors") ||
+				!strings.Contains(
+					interim.Text,
+					"still checking",
+				) || !strings.Contains(interim.Text, "follow-up reply will arrive") {
+				t.Fatalf("interim reply = %q", interim.Text)
+			}
+			rows, err := service.ListForSender(t.Context(), h.workspaceID, sender.ID)
+			if err != nil || len(rows) != 1 || rows[0].ID != w.ID {
+				t.Fatalf("status watches = %+v, %v", rows, err)
+			}
+			if signals := mustAwaitingReplySignals(
+				t,
+				service,
+				sender.ID,
+				h.manager.now().Add(time.Minute),
+			); len(
+				signals,
+			) != 1 {
+				t.Fatalf("awaiting follow-up signals = %+v", signals)
+			}
+			if header := h.manager.replyContinuationHeader(
+				t.Context(),
+				target.ID,
+			); !strings.Contains(
+				header,
+				w.MessageID,
+			) {
+				t.Fatalf("continuation header = %q", header)
+			}
+			recordReplyCompletion(t, h, target, "intermediate", "checking another source", acp.EventTypeDone)
+			service.OnTurnSettled(t.Context(), target.ID, "intermediate")
+			if got := requireReplyWatchState(t, db, w.ID, store.ReplyWatchArmed); got.DeliveredInputID != interim.ID {
+				t.Fatalf("intermediate turn changed the delivery: %+v", got)
+			}
+			recovered, err := NewReplyWatchService(db, h.manager)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := recovered.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			requireReplyWatchState(t, db, w.ID, store.ReplyWatchArmed)
+
+			open.Store(false)
+			recordReplyCompletion(t, h, target, "continued", "checks passed", acp.EventTypeDone)
+			recovered.(*replyWatchService).sweep(t.Context())
+			final := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchDelivered)
+			if final.ID == interim.ID || final.MessageID != interim.MessageID+":follow-up" ||
+				!strings.Contains(final.Text, "checks passed") || strings.Contains(final.Text, "interim reply") {
+				t.Fatalf("follow-up = %+v", final)
+			}
+			recovered.OnTurnSettled(t.Context(), target.ID, "continued")
+			if err := recovered.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if got := requireReplyWatchState(t, db, w.ID, store.ReplyWatchDelivered); got.DeliveredInputID != final.ID {
+				t.Fatalf("follow-up redelivered: %+v", got)
+			}
+			if header := h.manager.replyContinuationHeader(t.Context(), target.ID); header != "" {
+				t.Fatalf("settled watch still adds provider instructions: %q", header)
+			}
+		},
+	)
+	for _, terminal := range []struct{ name, outcome, event string }{
+		{"Should deliver a canceled follow-up when the target stops", store.ReplyOutcomeCanceled, ""},
+		{"Should deliver the last assistant message from a failed continuation", store.ReplyOutcomeFailed, acp.EventTypeError},
+	} {
+		t.Run(terminal.name, func(t *testing.T) {
+			t.Parallel()
+			h, db, service, sender, target, w, open := replyFollowUpFixture(t)
+			interim := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchArmed)
+			if terminal.event == "" {
+				if err := h.manager.Stop(t.Context(), target.ID); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				open.Store(false)
+				recordReplyCompletion(t, h, target, "failed-continuation", "partial result", terminal.event)
+				service.OnTurnSettled(t.Context(), target.ID, "failed-continuation")
+			}
+			final := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchDelivered)
+			if final.ID == interim.ID || !strings.Contains(final.Text, terminal.outcome) ||
+				(terminal.event != "" && !strings.Contains(final.Text, "partial result")) {
+				t.Fatalf("terminal follow-up = %+v", final)
+			}
+		})
+	}
+	t.Run("Should drop the old follow-up when the same sender sends a newer watched message", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, older, open := replyFollowUpFixture(t)
+		requireReplyWake(t, h, db, sender, older.ID, store.ReplyWatchArmed)
+		newer := registerReplyTestWatch(t, h, db, sender, target, "newer")
+		requireReplyWatchState(t, db, older.ID, store.ReplyWatchAbandoned)
+		open.Store(false)
+		recordRawReplyEvent(t, h, target, "newer-input", acp.EventTypeUserMessage,
+			`{"type":"user_message","text":"newer request"}`)
+		recordReplyCompletion(t, h, target, "watched", "newer answer", acp.EventTypeDone)
+		service.OnTurnSettled(t.Context(), target.ID, "watched")
+		wake := requireReplyWake(t, h, db, sender, newer.ID, store.ReplyWatchDelivered)
+		if !strings.Contains(wake.Text, "newer answer") {
+			t.Fatalf("newer reply = %q", wake.Text)
+		}
+		requireReplyWatchState(t, db, older.ID, store.ReplyWatchAbandoned)
+	})
+	t.Run("Should expire pending follow-ups at the original watch deadline", func(t *testing.T) {
+		t.Parallel()
+		clock, advance := replyTestClock()
+		cfg := compozyconfig.DefaultSessionMessagingConfig()
+		cfg.ReplyWatchTTL = time.Minute
+		h, db, service, sender, _, w, _ := replyFollowUpFixture(t, WithNow(clock), WithSessionMessagingConfig(cfg))
+		requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchArmed)
+		advance(time.Minute)
+		service.(*replyWatchService).sweep(t.Context())
+		wake := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchDelivered)
+		if !strings.Contains(wake.Text, "No follow-up arrived") ||
+			!strings.Contains(wake.Text, store.ReplyOutcomeExpired) {
+			t.Fatalf("expired follow-up = %q", wake.Text)
+		}
+	})
+	t.Run("Should resolve mutual reply waits without treating provider work as continuation work", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, w := replyWatchFixture(t)
+		h.manager.SetWorkSignalSources(WorkSignalSource{
+			Kind: WorkSignalToolRunning, Source: SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) {
+				now := h.manager.now()
+				return []WorkSignal{{Kind: WorkSignalToolRunning, Since: now, ValidUntil: now.Add(time.Hour)}}, nil
+			}),
+		})
+		registerReplyTestWatch(t, h, db, target, sender, "reciprocal")
+		recordReplyEvent(t, h, target,
+			acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "watched"}.WithMessageID(w.MessageID))
+		recordReplyCompletion(t, h, target, "watched", "settled", acp.EventTypeDone)
+		service.OnTurnSettled(t.Context(), target.ID, "watched")
+		wake := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchDelivered)
+		if strings.Contains(wake.Text, "interim") {
+			t.Fatalf("mutual wait did not resolve: %q", wake.Text)
+		}
+	})
+}
+
+func replyFollowUpFixture(t *testing.T, opts ...Option) (
+	*harness, *globaldb.GlobalDB, ReplyWatchService, *Session, *Session, store.ReplyWatch, *atomic.Bool,
+) {
+	t.Helper()
+	h, db, service, sender, target, w := replyWatchFixtureWith(t, opts)
+	open := new(atomic.Bool)
+	open.Store(true)
+	h.manager.SetReplyWatchService(service)
+	h.manager.SetWorkSignalSources(WorkSignalSource{
+		Kind: WorkSignalActiveMonitor,
+		Source: SignalSourceFunc(func(_ context.Context, id string) ([]WorkSignal, error) {
+			if id != target.ID || !open.Load() {
+				return nil, nil
+			}
+			now := h.manager.now()
+			return []WorkSignal{{Kind: WorkSignalActiveMonitor, Since: now, ValidUntil: now.Add(time.Hour)}}, nil
+		}),
+	})
+	recordReplyEvent(t, h, target,
+		acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "watched"}.WithMessageID(w.MessageID))
+	recordReplyCompletion(t, h, target, "watched", "still checking", acp.EventTypeDone)
+	service.OnTurnSettled(t.Context(), target.ID, "watched")
+	return h, db, service, sender, target, w, open
+}
+
+func recordReplyCompletion(t *testing.T, h *harness, target *Session, turn, text, terminal string) {
+	t.Helper()
+	recordReplyEvent(t, h, target, acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: turn, Text: text})
+	recordReplyEvent(t, h, target, acp.AgentEvent{Type: terminal, TurnID: turn})
+}
+
+func recordRawReplyEvent(t *testing.T, h *harness, target *Session, id, kind, content string) {
+	t.Helper()
+	if err := target.recorderHandle().Record(t.Context(), store.SessionEvent{
+		ID: id, SessionID: target.ID, AgentName: target.Info().AgentName,
+		TurnID: "watched", Type: kind, Content: content, Timestamp: h.manager.now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func requireReplyWatchState(t *testing.T, db *globaldb.GlobalDB, id, state string) store.ReplyWatch {
+	t.Helper()
+	w, err := db.GetReplyWatch(t.Context(), id)
+	if err != nil || w.State != state {
+		t.Fatalf("watch = %+v, %v; want state %s", w, err, state)
+	}
+	return w
+}
+
+func requireReplyWake(
+	t *testing.T, h *harness, db *globaldb.GlobalDB, sender *Session, id, state string,
+) store.SessionInputQueueEntry {
+	t.Helper()
+	if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	w := requireReplyWatchState(t, db, id, state)
+	entry, err := db.GetSessionInputQueueEntry(t.Context(), sender.ID, w.DeliveredInputID)
+	if err != nil || entry.SyntheticPrompt == nil {
+		t.Fatalf("reply wake = %+v, %v", entry, err)
+	}
+	return entry
+}
+
+func registerReplyTestWatch(
+	t *testing.T,
+	h *harness,
+	db *globaldb.GlobalDB,
+	sender, target *Session,
+	id string,
+) store.ReplyWatch {
+	t.Helper()
+	req := store.SessionPromptAdmissionRequest{
+		ID: id + "-admission", MessageID: id + "-message", EventID: id + "-input", IdempotencyKey: id + "-key",
+		WorkspaceID: h.workspaceID, SessionID: target.ID, TurnID: "watched", RequestFingerprint: id,
+		Operation: store.SessionPromptOperationPrompt, Mode: store.SessionInputQueueModeQueue,
+		FingerprintVersion: "test/v1", AuthoredText: "question", Now: h.manager.now(),
+	}
+	if _, _, err := db.ClaimSessionPromptAdmission(t.Context(), req); err != nil {
+		t.Fatal(err)
+	}
+	w, err := db.InsertReplyWatchTx(t.Context(), db.DB(), store.ReplyWatchRegistration{
+		WorkspaceID: h.workspaceID, SenderSessionID: sender.ID, TargetWorkspaceID: h.workspaceID,
+		TargetSessionID: target.ID, MessageID: req.MessageID, AdmissionID: req.ID, Hop: 1, CreatedAt: req.Now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return w
+}
+
+func replyTestClock() (func() time.Time, func(time.Duration)) {
+	var mu sync.Mutex
+	now := time.Date(2026, 11, 20, 9, 0, 0, 0, time.UTC)
+	return func() time.Time {
+			mu.Lock()
+			defer mu.Unlock()
+			return now
+		}, func(d time.Duration) {
+			mu.Lock()
+			defer mu.Unlock()
+			now = now.Add(d)
+		}
 }

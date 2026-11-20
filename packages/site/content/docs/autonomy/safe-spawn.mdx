@@ -180,7 +180,7 @@ HTTP, UDS, and `compozy__session_spawn` use the presence-aware `notify_creator` 
 keeps the default, while explicit false opts out. There is no `config.toml` key for this default.
 
 While the parent holds an open reply watch on the child, from `--prompt` or a `session_prompt` with
-`notify_on_complete`, the reply wake already carries the child's answer, so the plain completed wake
+`notify_on_complete`, the reply watch carries the child's answer and any follow-up, so the plain completed wake
 is skipped. Wakes for failure, stop, and needs-you states still arrive.
 
 ## Cross-workspace spawn

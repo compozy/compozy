@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -5410,4 +5411,75 @@ func TestGlobalDBInstanceUnattendedBrake(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: pre-follow-up watches preserve their identity and state through the global DB migration.
+func TestGlobalDBReplyWatchMigration(t *testing.T) {
+	t.Run("Should preserve every existing lifecycle state and its original handoff identity", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixThrough(t, "00212_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prefix.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		old := &GlobalDB{db: prefix, readDB: prefix, path: path, now: func() time.Time { return now }}
+		old.initializeRepositories(openConfig{})
+		sender := registerInputQueueSession(t, old)
+		states := []string{
+			store.ReplyWatchArmed,
+			store.ReplyWatchFired,
+			store.ReplyWatchDelivered,
+			store.ReplyWatchAbandoned,
+		}
+		for _, state := range states {
+			insertPrefixRow(t, prefix, "session_prompt_reply_watches", map[string]any{
+				"id": state, "sender_session_id": sender, "target_session_id": "target",
+				"workspace_id": "ws-input-queue-workspace", "target_workspace_id": "ws-target",
+				"message_id": "message-" + state, "admission_id": "admission-" + state, "turn_id": "original-turn",
+				"created_at": store.FormatTimestamp(now), "hop": 3, "state": state, "reply_text": "legacy text",
+			})
+		}
+		telemetry, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := telemetry.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := bindTelemetryDestination(ctx, prefix, telemetry.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := telemetry.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := prefix.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db := openGlobalDBForTest(t, path)
+		for _, state := range states {
+			w, err := db.GetReplyWatch(ctx, state)
+			if err != nil || w.State != state || w.FollowUpAfter != 0 || w.InterimWait != "" ||
+				w.ReplyText != "legacy text" || w.TurnID != "original-turn" || w.WakeMessageID() != "prompt-reply:"+state {
+				t.Fatalf("migrated %s = %+v, %v", state, w, err)
+			}
+			changed, err := db.FireReplyWatch(ctx, state, store.ReplyWatchFire{Outcome: store.ReplyOutcomeCompleted})
+			if err != nil || changed != (state == store.ReplyWatchArmed) {
+				t.Fatalf("fire migrated %s = %t, %v", state, changed, err)
+			}
+		}
+		status, err := store.Status(ctx, db.DB(), MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
 }

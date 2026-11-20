@@ -109,6 +109,26 @@ func (r *WorkSignalRegistry) Inspect(ctx context.Context, id string, now time.Ti
 	return state
 }
 
+func (r *WorkSignalRegistry) inspectKind(
+	ctx context.Context, id string, kind WorkSignalKind, now time.Time,
+) ([]WorkSignal, error) {
+	r.mu.RLock()
+	source := r.sources[kind]
+	r.mu.RUnlock()
+	if source == nil {
+		return nil, nil
+	}
+	inspectionCtx, cancel := context.WithTimeout(ctx, defaultLifecycleTimeout)
+	defer cancel()
+	signals, err := source.Signals(inspectionCtx, id)
+	if err != nil {
+		return nil, fmt.Errorf("session: inspect %s: %w", kind, err)
+	}
+	state := CloneSupervisionState(nil)
+	appendInspectedSignals(state, kind, signals, now)
+	return state.WorkSignals, nil
+}
+
 // appendInspectedSignals validates bounded freshness without suppressing explicit attention reasons.
 func appendInspectedSignals(state *SupervisionState, kind WorkSignalKind, signals []WorkSignal, now time.Time) {
 	status := SignalSourceState{Kind: kind, State: "absent"}

@@ -68,7 +68,9 @@ func promptOriginMessage(origin *acp.PromptOriginMeta, message string) string {
 	}
 	reply := fmt.Sprintf("To reply, call compozy__session_prompt with session_id %q.", origin.SessionID)
 	if origin.NotifyOnComplete {
-		reply = "Your final answer in this turn is sent back to it automatically."
+		reply = "Your final answer in this turn is sent back to it automatically. " +
+			"If you end this turn with a registered wait or delegated work, that reply is interim. " +
+			"CompozyOS also sends your answer from the later turn that settles the work."
 	}
 	identity := origin.SessionID
 	if origin.AgentName != "" {

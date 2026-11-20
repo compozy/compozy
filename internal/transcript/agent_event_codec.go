@@ -159,8 +159,8 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		return acp.AgentEvent{}, nil
 	}
 
-	var decoded canonicalEventPayload
-	if err := json.Unmarshal([]byte(trimmed), &decoded); err != nil {
+	decoded, err := decodeAgentEventPayload([]byte(trimmed))
+	if err != nil {
 		return acp.AgentEvent{}, fmt.Errorf("transcript: unmarshal agent event: %w", err)
 	}
 
@@ -227,6 +227,35 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		event = event.WithAvailableCommands(decoded.AvailableCommands)
 	}
 	return RedactAgentEvent(event), nil
+}
+
+func decodeAgentEventPayload(raw []byte) (canonicalEventPayload, error) {
+	var decoded canonicalEventPayload
+	err := json.Unmarshal(raw, &decoded)
+	if err == nil || decoded.Schema == CanonicalSchema {
+		return decoded, err
+	}
+	// Daemon lifecycle events share the ledger but have independent payload schemas.
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil {
+		return canonicalEventPayload{}, err
+	}
+	var schema string
+	if json.Unmarshal(fields["schema"], &schema) == nil && schema == CanonicalSchema {
+		return canonicalEventPayload{}, err
+	}
+	var compatible canonicalEventPayload
+	for key, value := range fields {
+		field, marshalErr := json.Marshal(map[string]json.RawMessage{key: value})
+		if marshalErr != nil {
+			return canonicalEventPayload{}, marshalErr
+		}
+		candidate := compatible
+		if json.Unmarshal(field, &candidate) == nil {
+			compatible = candidate
+		}
+	}
+	return compatible, nil
 }
 
 func cloneRuntimeActivity(activity *acp.RuntimeActivity) *acp.RuntimeActivity {

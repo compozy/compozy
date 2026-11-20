@@ -292,9 +292,10 @@ operations. Include the received message ID; knowing a session ID alone grants n
 
 Origin survives queue, steer, interrupt and daemon restart. The receiving provider sees a sender
 header before the message. Stored text remains the authored message; queue and event JSON expose
-origin separately. Without `notify_on_complete`, the header tells the recipient to reply with
-`compozy__session_prompt` targeting the sender. `notify_on_complete: true` requests the reply-watch
-flow; it requires an agent session and is part of the admission identity.
+origin separately. For a message without an open reply watch, the header tells the recipient to
+reply with `compozy__session_prompt` targeting the sender. A continuation turn with an outstanding
+follow-up also receives provider-only delivery guidance. `notify_on_complete: true` requests the
+reply watch, requires an agent session, and is part of the admission identity.
 
 A finite batch of queued session messages and reply wakes precedes a prepared Goal prompt at an
 idle turn boundary; later admissions wait until after that Goal prompt. An active turn still runs
@@ -332,12 +333,22 @@ rather than deriving it from the session state.
 
 For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
 `notify_on_complete: true` and keep the returned `reply_watch.id`. Once every remaining step needs
-that answer, end your turn; the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
-history or hold `session_wait` just to collect the answer. `compozy__session_status` in both compact and full views lists outstanding
-`reply_watches` in state `armed` or `fired`; delivered and abandoned watches drop off that list.
-A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
-summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain,
-so inspect the target session. An offline sender receives its pending wake on resume.
+that answer, end your turn. The daemon queues a reply wake when the turn that consumed your message
+settles. If the receiver still has a monitor, subagent or awaited child, scheduled wait, or reply
+from another session pending, the wake says it is interim and names the work. One follow-up wakes
+you when a later turn settles the work or the receiver stops, fails, or disappears. The watch stays
+outstanding across restarts under the original TTL. A newer watched message from you to the same
+target supersedes the pending follow-up.
+
+`compozy__session_status` lists outstanding `reply_watches` in state `armed` or `fired`. Use
+`compozy__monitor_create` with `kind="session"` as well when you need an independent lifecycle or
+timeout wake, for example to observe several sessions together or detect a target that stopped with
+your message still queued. Use the reply watch alone to collect the answer.
+
+A reply carries the last non-empty assistant message (up to 12,000 Unicode characters) or the
+failure summary. `dropped` means the input was removed before it ran. `unknown` means the result or
+delivery could not be confirmed, so inspect the target session. An offline sender receives its
+pending wake on resume.
 Archiving or deleting the sender abandons its watches. Canceling a queued reply wake does not cause
 redelivery. `notify_on_complete` is agent-only, not an HTTP operator prompt field; operator-scoped
 native calls requesting it return `invalid_request` with
@@ -369,7 +380,7 @@ becomes the child's cwd and provider sandbox root, and a worktree created for a 
 removed. Use this instead of `workspace_paths`, which only records a narrowing atom.
 
 `prompt` sends the first prompt from the caller with `notify_on_complete` (message ID
-`spawn-prompt-<child_session_id>`), so the reply wake carries the child's final answer. The result
+`spawn-prompt-<child_session_id>`), so the reply watch carries the child's answer and any follow-up. The result
 returns the child ID, role, depth, TTL expiry, and optional `worktree` and
 `prompt` objects; a failed first prompt returns `prompt.status: "failed"` with `error`, and the
 child stays live for a `session_prompt` retry. Request `result_view: "full"` on

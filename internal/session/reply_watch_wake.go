@@ -8,7 +8,7 @@ import (
 )
 
 // AwaitingReplySignals keeps a sender out of the inactivity stop while its answer can still arrive: an
-// armed watch whose target is live (starting, active or stopping), or a fired watch whose wake is not
+// new watch whose target is live, a pending follow-up, or a fired watch whose wake is not
 // delivered yet. A target that is stopped or gone gives no evidence, so a sender waiting on it can go
 // quiet; the reply then resumes the sender the daemon stopped (replySenderWakeable).
 func (s *replyWatchService) AwaitingReplySignals(
@@ -26,7 +26,7 @@ func (s *replyWatchService) AwaitingReplySignals(
 		if s.replyWatchExpired(w, now) {
 			continue
 		}
-		if w.State == store.ReplyWatchArmed && !s.replyTargetLive(w.TargetSessionID) {
+		if w.State == store.ReplyWatchArmed && w.FollowUpAfter == 0 && !s.replyTargetLive(w.TargetSessionID) {
 			continue
 		}
 		signals = append(signals, WorkSignal{

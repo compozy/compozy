@@ -832,3 +832,34 @@ func TestPromptOriginCodec(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: daemon event payloads can use different field types without breaking the stored ACP codec.
+func TestUnmarshalAgentEventDaemonPayload(t *testing.T) {
+	for _, tc := range []struct {
+		name, payload, wantText string
+		wantError               bool
+	}{
+		{
+			name:    "Should accept the persisted MCP reload payload",
+			payload: `{"outcome":"applied","added":["server"],"removed":[],"reason":"","runtime":"Codex"}`,
+		},
+		{
+			name:     "Should preserve compatible fields alongside colliding daemon fields",
+			payload:  `{"type":"session.example","text":"preserved","usage":"none","timestamp":10,"synthetic":true}`,
+			wantText: "preserved",
+		},
+		{
+			name:      "Should still reject malformed canonical ACP payloads",
+			payload:   `{"schema":"compozy.session.event.v1","type":"done","runtime":"Codex"}`,
+			wantError: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			event, err := UnmarshalAgentEvent(tc.payload)
+			if (err != nil) != tc.wantError || event.Text != tc.wantText || event.Runtime != nil {
+				t.Fatalf("decode = %+v, %v", event, err)
+			}
+		})
+	}
+}

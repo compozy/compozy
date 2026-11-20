@@ -41,9 +41,10 @@ type replyWatchService struct {
 	manager     *Manager
 	// resuming holds senders with a reply-driven resume in flight; wakes joins those resumes on Close.
 	// closed (under lifecycleMu) stops admitting new resumes once shutdown begins.
-	resuming sync.Map
-	wakes    sync.WaitGroup
-	closed   bool
+	resuming    sync.Map
+	wakes       sync.WaitGroup
+	closed      bool
+	settleGrace sync.Map
 }
 
 var _ ReplyWatchService = (*replyWatchService)(nil)
@@ -71,10 +72,18 @@ func (m *Manager) ReplyWatches() ReplyWatchService {
 }
 
 func (s *replyWatchService) Reconcile(ctx context.Context, id string) error {
-	return s.reconcile(ctx, id, false)
+	return s.reconcile(ctx, id, replyWatchEvent)
 }
 
-func (s *replyWatchService) reconcile(ctx context.Context, id string, recovering bool) error {
+type replyWatchPass uint8
+
+const (
+	replyWatchEvent replyWatchPass = iota
+	replyWatchRecovery
+	replyWatchPeriodic
+)
+
+func (s *replyWatchService) reconcile(ctx context.Context, id string, pass replyWatchPass) error {
 	w, err := s.store.GetReplyWatch(ctx, id)
 	if err != nil {
 		return err
@@ -85,7 +94,12 @@ func (s *replyWatchService) reconcile(ctx context.Context, id string, recovering
 	if w.State != store.ReplyWatchArmed {
 		return nil
 	}
-	sender, err := s.manager.Status(ctx, w.SenderSessionID)
+	return s.reconcileArmed(ctx, w, pass)
+}
+
+func (s *replyWatchService) reconcileArmed(ctx context.Context, w store.ReplyWatch, pass replyWatchPass) error {
+	id := w.ID
+	sender, err := s.manager.StoredStatus(ctx, w.SenderSessionID)
 	if errors.Is(err, ErrSessionNotFound) || (err == nil && sender.ArchivedAt != nil) {
 		return s.abandon(ctx, id, "sender_gone")
 	}
@@ -94,58 +108,80 @@ func (s *replyWatchService) reconcile(ctx context.Context, id string, recovering
 	}
 	// A deleted target has no recoverable admission or transcript. Preserve the
 	// sender's watch as an explicit uncertain reply instead of failing daemon boot.
-	target, err := s.manager.Status(ctx, w.TargetSessionID)
+	target, err := s.manager.StoredStatus(ctx, w.TargetSessionID)
 	if errors.Is(err, ErrSessionNotFound) {
 		return s.fire(ctx, w, store.ReplyOutcomeUnknown, "")
 	}
 	if err != nil {
 		return err
 	}
+	if target.ArchivedAt != nil {
+		return s.fire(ctx, w, store.ReplyOutcomeUnknown, "")
+	}
+	if pass == replyWatchPeriodic && (target.State == StateStarting || target.State == StateStopping) {
+		s.settleGrace.Delete(w.ID)
+		return nil
+	}
+	if w.FollowUpAfter > 0 {
+		return s.reconcileFollowUp(ctx, w, target, pass)
+	}
+	return s.reconcileInitial(ctx, w, target, pass)
+}
+
+func (s *replyWatchService) reconcileInitial(
+	ctx context.Context, w store.ReplyWatch, target *Info, pass replyWatchPass,
+) error {
 	admission, inputs, err := s.store.ReplyWatchEvidence(ctx, w)
 	if err != nil {
-		return err
+		return s.unreadableReply(ctx, w, pass, err)
 	}
 	queueID := w.QueueEntryID
 	for i := range inputs {
 		queueID = inputs[i].ID
 	}
-	turn, err := s.manager.replyMessageTurn(ctx, w, admission, inputs, recovering)
+	turn := w.TurnID
+	if turn == "" {
+		recoverInput := pass == replyWatchRecovery || (pass == replyWatchPeriodic && !replyQueuedForConsumption(inputs))
+		turn, err = s.manager.replyMessageTurn(ctx, w, admission, inputs, recoverInput)
+	}
 	if err != nil {
 		return err
 	}
 	if turn != "" {
-		return s.reconcileConsumedTurn(ctx, w, turn, queueID)
+		return s.reconcileConsumedTurn(ctx, w, target, turn, queueID, pass)
 	}
-	if target.ArchivedAt != nil {
-		return s.fire(ctx, w, store.ReplyOutcomeUnknown, "")
+	if queueID != w.QueueEntryID {
+		if err := s.store.BindReplyWatch(ctx, w.ID, "", queueID); err != nil {
+			return err
+		}
 	}
-	if err := s.store.BindReplyWatch(ctx, id, "", queueID); err != nil {
-		return err
-	}
-	return s.reconcileUnconsumed(ctx, w, admission, inputs, recovering)
+	return s.reconcileUnconsumed(ctx, w, admission, inputs, pass)
 }
 
 func (s *replyWatchService) reconcileUnconsumed(
 	ctx context.Context, w store.ReplyWatch, admission store.SessionPromptAdmission,
-	inputs []store.SessionInputQueueEntry, recovering bool,
+	inputs []store.SessionInputQueueEntry, pass replyWatchPass,
 ) error {
 	outcome := replyNonDispatchOutcome(admission, inputs)
 	if outcome == "" {
-		return nil
-	}
-	if outcome == store.ReplyOutcomeUnknown && !recovering {
-		settled, err := s.manager.replyTargetSettledSince(ctx, w.TargetSessionID, replyDispatchTime(admission, inputs))
-		if err != nil {
-			return err
-		}
-		if !settled {
+		if replyQueuedForConsumption(inputs) {
+			s.settleGrace.Delete(w.ID)
 			return nil
+		}
+		return s.unreadableReply(ctx, w, pass, nil)
+	}
+	if outcome == store.ReplyOutcomeUnknown && pass != replyWatchRecovery {
+		settled, err := s.manager.replyTargetSettledSince(ctx, w.TargetSessionID, replyDispatchTime(admission, inputs))
+		if err != nil || !settled {
+			return s.unreadableReply(ctx, w, pass, err)
 		}
 	}
 	return s.fire(ctx, w, outcome, "")
 }
 
-func (s *replyWatchService) reconcileConsumedTurn(ctx context.Context, w store.ReplyWatch, turn, queueID string) error {
+func (s *replyWatchService) reconcileConsumedTurn(
+	ctx context.Context, w store.ReplyWatch, target *Info, turn, queueID string, pass replyWatchPass,
+) error {
 	active, activeErr := s.manager.ActivePromptRun(ctx, w.TargetSessionID)
 	if activeErr != nil && !errors.Is(activeErr, ErrPromptNotActive) {
 		return activeErr
@@ -153,21 +189,53 @@ func (s *replyWatchService) reconcileConsumedTurn(ctx context.Context, w store.R
 	if activeErr == nil && active.TurnID == turn {
 		return nil
 	}
-	if err := s.store.BindReplyWatch(ctx, w.ID, turn, queueID); err != nil {
-		return err
+	if (turn != w.TurnID || queueID != w.QueueEntryID) && w.FollowUpAfter == 0 {
+		if err := s.store.BindReplyWatch(ctx, w.ID, turn, queueID); err != nil {
+			return err
+		}
 	}
-	result, err := s.manager.TurnResult(ctx, w.TargetSessionID, turn)
+	result, err := s.manager.replyTurnResult(ctx, w.TargetSessionID, turn, pass == replyWatchEvent)
+	if err != nil || result.Outcome == "" {
+		return s.unreadableReply(ctx, w, pass, err)
+	}
+	if target.State == StateStopped {
+		return s.fireTurnReply(ctx, w, turn, result, "")
+	}
+	waiting, err := s.replyContinuationWork(ctx, w)
 	if err != nil {
 		return err
 	}
-	if result.Outcome == "" {
+	if w.FollowUpAfter > 0 && waiting != "" {
+		s.settleGrace.Delete(w.ID)
 		return nil
 	}
-	text := result.Text
-	if result.Outcome == store.ReplyOutcomeFailed {
-		text = result.Error
+	return s.fireTurnReply(ctx, w, turn, result, waiting)
+}
+
+func (s *replyWatchService) fireTurnReply(
+	ctx context.Context, w store.ReplyWatch, turn string, result TurnResult, waiting string,
+) error {
+	answer := result.Text
+	if result.Outcome == store.ReplyOutcomeFailed && (answer == "" || w.FollowUpAfter == 0) {
+		answer = result.Error
 	}
-	return s.fire(ctx, w, result.Outcome, text)
+	f := store.ReplyWatchFire{Outcome: result.Outcome, Text: answer, TurnID: turn}
+	if waiting != "" && result.Sequence > 0 {
+		f.FollowUpAfter, f.InterimWait = result.Sequence, waiting
+	}
+	return s.fireResult(ctx, w, f)
+}
+
+func replyQueuedForConsumption(inputs []store.SessionInputQueueEntry) bool {
+	for i := range inputs {
+		input := &inputs[i]
+		if input.Status == store.SessionInputQueueStatusQueued ||
+			input.Status == store.SessionInputQueueStatusDispatching ||
+			(input.Status == store.SessionInputQueueStatusSent && input.SteerDelivery == store.SteerDeliveryPendingInjection) {
+			return true
+		}
+	}
+	return false
 }
 
 func replyNonDispatchOutcome(admission store.SessionPromptAdmission, inputs []store.SessionInputQueueEntry) string {
@@ -199,31 +267,34 @@ func replyNonDispatchOutcome(admission store.SessionPromptAdmission, inputs []st
 }
 
 func (s *replyWatchService) fire(ctx context.Context, w store.ReplyWatch, outcome, text string) error {
-	switch outcome {
+	return s.fireResult(ctx, w, store.ReplyWatchFire{Outcome: outcome, Text: text})
+}
+
+func (s *replyWatchService) fireResult(ctx context.Context, w store.ReplyWatch, result store.ReplyWatchFire) error {
+	switch result.Outcome {
 	case store.ReplyOutcomeDropped:
-		text = "The message was removed from the queue before it ran."
+		result.Text = "The message was removed from the queue before it ran."
 	case store.ReplyOutcomeUnknown:
-		text = "The message may not have been delivered; check the target session."
+		result.Text = "The message may not have been delivered; check the target session."
 	}
-	if strings.TrimSpace(text) == "" {
-		text = replyNoText
+	if strings.TrimSpace(result.Text) == "" {
+		result.Text = replyNoText
 	}
-	runes := []rune(text)
-	truncated := len(runes) > 12000
-	if truncated {
-		text = string(runes[:12000])
+	runes := []rune(result.Text)
+	if len(runes) > 12000 {
+		result.Text, result.Truncated = string(runes[:12000]), true
 	}
-	fired, err := s.store.FireReplyWatch(
-		ctx,
-		w.ID,
-		store.ReplyWatchFire{Outcome: outcome, Text: text, Truncated: truncated},
-	)
+	result.ExpectedAfter = w.FollowUpAfter
+	fired, err := s.store.FireReplyWatch(ctx, w.ID, result)
 	if err != nil {
 		return err
 	}
-	if fired {
-		s.manager.logger.InfoContext(ctx, "reply_watch.fired", "id", w.ID, "outcome", outcome, "truncated", truncated)
+	if !fired {
+		return nil
 	}
+	s.settleGrace.Delete(w.ID)
+	s.manager.logger.InfoContext(ctx, "reply_watch.fired",
+		"id", w.ID, "outcome", result.Outcome, "truncated", result.Truncated)
 	return s.Deliver(ctx, w.ID)
 }
 
@@ -246,35 +317,28 @@ func (s *replyWatchService) OnSteerResolved(ctx context.Context, sessionID, mess
 	s.reconcileTarget(ctx, sessionID, messageID)
 }
 func (s *replyWatchService) OnSendResult(ctx context.Context, id string, sendErr error) {
+	w, err := s.store.GetReplyWatch(ctx, id)
+	if err != nil {
+		s.logWatchError(ctx, store.ReplyWatch{ID: id}, err)
+		return
+	}
 	if sendErr != nil && !errors.Is(sendErr, store.ErrSessionPromptDispatchIndeterminate) {
-		s.logError(ctx, s.abandon(ctx, id, "send_failed"))
+		s.logWatchError(ctx, w, s.abandon(ctx, id, "send_failed"))
 		return
 	}
 	if sendErr == nil {
-		if w, err := s.store.GetReplyWatch(ctx, id); err == nil {
-			s.manager.logger.InfoContext(
-				ctx,
-				"reply_watch.registered",
-				"id",
-				id,
-				"turn_id",
-				w.TurnID,
-				"queue_entry_id",
-				w.QueueEntryID,
-			)
-		}
+		s.manager.logger.InfoContext(ctx, "reply_watch.registered", "id", id,
+			"turn_id", w.TurnID, "queue_entry_id", w.QueueEntryID)
 	}
-	s.logError(ctx, s.Reconcile(ctx, id))
+	s.logWatchError(ctx, w, s.Reconcile(ctx, id))
 }
+
 func (s *replyWatchService) reconcileTarget(ctx context.Context, target, message string) {
-	rows, err := s.store.ListReplyWatches(
-		ctx,
-		store.ReplyWatchFilter{TargetSessionID: target, State: store.ReplyWatchArmed},
-	)
+	rows, err := s.store.ListPendingReplyWatchesByTarget(ctx, target)
 	s.logError(ctx, err)
 	for _, w := range rows {
-		if message == "" || w.MessageID == message {
-			s.logError(ctx, s.Reconcile(ctx, w.ID))
+		if w.State == store.ReplyWatchArmed && (message == "" || w.MessageID == message) {
+			s.logWatchError(ctx, w, s.reconcileArmed(ctx, w, replyWatchEvent))
 		}
 	}
 }
@@ -291,7 +355,7 @@ func (s *replyWatchService) retry(ctx context.Context, sender string) {
 	)
 	s.logError(ctx, err)
 	for _, w := range rows {
-		s.logError(ctx, s.Deliver(ctx, w.ID))
+		s.logWatchError(ctx, w, s.Deliver(ctx, w.ID))
 	}
 }
 func (s *replyWatchService) OnTargetGone(ctx context.Context, target string) {
@@ -328,25 +392,22 @@ func (s *replyWatchService) Recover(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, w := range rows {
-		if err := s.reconcile(ctx, w.ID, true); err != nil {
-			s.manager.logger.ErrorContext(ctx, "reply_watch.recover_failed", "id", w.ID, "error", err)
-		}
-	}
 	s.expireStale(ctx)
+	for _, w := range rows {
+		s.logWatchError(ctx, w, s.reconcile(ctx, w.ID, replyWatchRecovery))
+	}
 	s.manager.logger.InfoContext(ctx, "reply_watch.recovered", "count", len(rows))
 	return nil
 }
 func (s *replyWatchService) run(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(replyWatchSweepInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.expireStale(ctx)
-			s.retry(ctx, "")
+			s.sweep(ctx)
 		}
 	}
 }

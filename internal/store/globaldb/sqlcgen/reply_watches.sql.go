@@ -10,6 +10,27 @@ import (
 	"database/sql"
 )
 
+const abandonFollowUpWithNewerReplyWatch = `-- name: AbandonFollowUpWithNewerReplyWatch :execrows
+UPDATE session_prompt_reply_watches
+SET state = 'abandoned', abandon_reason = NULL
+WHERE session_prompt_reply_watches.id = ?1 AND session_prompt_reply_watches.state = 'armed' AND session_prompt_reply_watches.follow_up_after = 0
+ AND EXISTS (
+  SELECT 1 FROM session_prompt_reply_watches AS newer
+  WHERE newer.rowid > session_prompt_reply_watches.rowid
+   AND newer.sender_session_id = session_prompt_reply_watches.sender_session_id AND newer.target_session_id = session_prompt_reply_watches.target_session_id
+   AND newer.workspace_id = session_prompt_reply_watches.workspace_id AND newer.target_workspace_id = session_prompt_reply_watches.target_workspace_id
+   AND (newer.abandon_reason IS NULL OR newer.abandon_reason != 'send_failed')
+ )
+`
+
+func (q *Queries) AbandonFollowUpWithNewerReplyWatch(ctx context.Context, olderID string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, abandonFollowUpWithNewerReplyWatch, olderID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const abandonReplyWatch = `-- name: AbandonReplyWatch :exec
 UPDATE session_prompt_reply_watches SET state = 'abandoned', abandon_reason = ?
 WHERE id = ? AND state IN ('armed', 'fired')
@@ -22,6 +43,22 @@ type AbandonReplyWatchParams struct {
 
 func (q *Queries) AbandonReplyWatch(ctx context.Context, arg AbandonReplyWatchParams) error {
 	_, err := q.db.ExecContext(ctx, abandonReplyWatch, arg.AbandonReason, arg.ID)
+	return err
+}
+
+const advanceReplyWatchFollowUp = `-- name: AdvanceReplyWatchFollowUp :exec
+UPDATE session_prompt_reply_watches SET follow_up_after = ?1
+WHERE id = ?2 AND state = 'armed'
+ AND follow_up_after > 0 AND follow_up_after < ?1
+`
+
+type AdvanceReplyWatchFollowUpParams struct {
+	Sequence int64  `json:"sequence"`
+	ID       string `json:"id"`
+}
+
+func (q *Queries) AdvanceReplyWatchFollowUp(ctx context.Context, arg AdvanceReplyWatchFollowUpParams) error {
+	_, err := q.db.ExecContext(ctx, advanceReplyWatchFollowUp, arg.Sequence, arg.ID)
 	return err
 }
 
@@ -39,6 +76,26 @@ type BindReplyWatchParams struct {
 func (q *Queries) BindReplyWatch(ctx context.Context, arg BindReplyWatchParams) error {
 	_, err := q.db.ExecContext(ctx, bindReplyWatch, arg.TurnID, arg.QueueEntryID, arg.ID)
 	return err
+}
+
+const deliverInterimReplyWatch = `-- name: DeliverInterimReplyWatch :execrows
+UPDATE session_prompt_reply_watches
+SET state = 'armed', interim_wait = NULL, delivered_input_id = ?, delivered_at = ?
+WHERE id = ? AND state = 'fired' AND interim_wait IS NOT NULL
+`
+
+type DeliverInterimReplyWatchParams struct {
+	DeliveredInputID sql.NullString `json:"delivered_input_id"`
+	DeliveredAt      sql.NullString `json:"delivered_at"`
+	ID               string         `json:"id"`
+}
+
+func (q *Queries) DeliverInterimReplyWatch(ctx context.Context, arg DeliverInterimReplyWatchParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deliverInterimReplyWatch, arg.DeliveredInputID, arg.DeliveredAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deliverReplyWatch = `-- name: DeliverReplyWatch :execrows
@@ -62,8 +119,12 @@ func (q *Queries) DeliverReplyWatch(ctx context.Context, arg DeliverReplyWatchPa
 
 const fireReplyWatch = `-- name: FireReplyWatch :execrows
 UPDATE session_prompt_reply_watches
-SET state = 'fired', outcome = ?, reply_text = ?, reply_truncated = ?, fired_at = ?
-WHERE id = ? AND state = 'armed'
+SET state = 'fired', outcome = ?1, reply_text = ?2,
+ reply_truncated = ?3, fired_at = ?4,
+ turn_id = COALESCE(?5, turn_id),
+ follow_up_after = ?6,
+ interim_wait = ?7
+WHERE id = ?8 AND state = 'armed' AND follow_up_after = ?9
 `
 
 type FireReplyWatchParams struct {
@@ -71,7 +132,11 @@ type FireReplyWatchParams struct {
 	ReplyText      sql.NullString `json:"reply_text"`
 	ReplyTruncated int64          `json:"reply_truncated"`
 	FiredAt        sql.NullString `json:"fired_at"`
+	ResultTurnID   sql.NullString `json:"result_turn_id"`
+	NextAfter      int64          `json:"next_after"`
+	InterimWait    sql.NullString `json:"interim_wait"`
 	ID             string         `json:"id"`
+	ExpectedAfter  int64          `json:"expected_after"`
 }
 
 func (q *Queries) FireReplyWatch(ctx context.Context, arg FireReplyWatchParams) (int64, error) {
@@ -80,7 +145,11 @@ func (q *Queries) FireReplyWatch(ctx context.Context, arg FireReplyWatchParams) 
 		arg.ReplyText,
 		arg.ReplyTruncated,
 		arg.FiredAt,
+		arg.ResultTurnID,
+		arg.NextAfter,
+		arg.InterimWait,
 		arg.ID,
+		arg.ExpectedAfter,
 	)
 	if err != nil {
 		return 0, err
@@ -89,7 +158,7 @@ func (q *Queries) FireReplyWatch(ctx context.Context, arg FireReplyWatchParams) 
 }
 
 const getReplyWatch = `-- name: GetReplyWatch :one
-SELECT id, workspace_id, sender_session_id, target_workspace_id, target_session_id, message_id, admission_id, turn_id, queue_entry_id, delivered_input_id, abandon_reason, hop, state, outcome, reply_text, reply_truncated, created_at, fired_at, delivered_at FROM session_prompt_reply_watches WHERE id = ?
+SELECT id, workspace_id, sender_session_id, target_workspace_id, target_session_id, message_id, admission_id, turn_id, queue_entry_id, delivered_input_id, abandon_reason, hop, state, outcome, reply_text, reply_truncated, created_at, fired_at, delivered_at, follow_up_after, interim_wait FROM session_prompt_reply_watches WHERE id = ?
 `
 
 func (q *Queries) GetReplyWatch(ctx context.Context, id string) (SessionPromptReplyWatch, error) {
@@ -115,12 +184,14 @@ func (q *Queries) GetReplyWatch(ctx context.Context, id string) (SessionPromptRe
 		&i.CreatedAt,
 		&i.FiredAt,
 		&i.DeliveredAt,
+		&i.FollowUpAfter,
+		&i.InterimWait,
 	)
 	return i, err
 }
 
 const getReplyWatchByMessage = `-- name: GetReplyWatchByMessage :one
-SELECT id, workspace_id, sender_session_id, target_workspace_id, target_session_id, message_id, admission_id, turn_id, queue_entry_id, delivered_input_id, abandon_reason, hop, state, outcome, reply_text, reply_truncated, created_at, fired_at, delivered_at FROM session_prompt_reply_watches WHERE target_session_id = ? AND message_id = ?
+SELECT id, workspace_id, sender_session_id, target_workspace_id, target_session_id, message_id, admission_id, turn_id, queue_entry_id, delivered_input_id, abandon_reason, hop, state, outcome, reply_text, reply_truncated, created_at, fired_at, delivered_at, follow_up_after, interim_wait FROM session_prompt_reply_watches WHERE target_session_id = ? AND message_id = ?
 `
 
 type GetReplyWatchByMessageParams struct {
@@ -151,6 +222,8 @@ func (q *Queries) GetReplyWatchByMessage(ctx context.Context, arg GetReplyWatchB
 		&i.CreatedAt,
 		&i.FiredAt,
 		&i.DeliveredAt,
+		&i.FollowUpAfter,
+		&i.InterimWait,
 	)
 	return i, err
 }
@@ -195,7 +268,7 @@ func (q *Queries) InsertReplyWatch(ctx context.Context, arg InsertReplyWatchPara
 }
 
 const listPendingReplyWatchesBySender = `-- name: ListPendingReplyWatchesBySender :many
-SELECT id, workspace_id, sender_session_id, target_workspace_id, target_session_id, message_id, admission_id, turn_id, queue_entry_id, delivered_input_id, abandon_reason, hop, state, outcome, reply_text, reply_truncated, created_at, fired_at, delivered_at FROM session_prompt_reply_watches
+SELECT id, workspace_id, sender_session_id, target_workspace_id, target_session_id, message_id, admission_id, turn_id, queue_entry_id, delivered_input_id, abandon_reason, hop, state, outcome, reply_text, reply_truncated, created_at, fired_at, delivered_at, follow_up_after, interim_wait FROM session_prompt_reply_watches
 WHERE sender_session_id = ? AND state IN ('armed', 'fired')
 ORDER BY created_at, id
 `
@@ -229,6 +302,59 @@ func (q *Queries) ListPendingReplyWatchesBySender(ctx context.Context, senderSes
 			&i.CreatedAt,
 			&i.FiredAt,
 			&i.DeliveredAt,
+			&i.FollowUpAfter,
+			&i.InterimWait,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingReplyWatchesByTarget = `-- name: ListPendingReplyWatchesByTarget :many
+SELECT id, workspace_id, sender_session_id, target_workspace_id, target_session_id, message_id, admission_id, turn_id, queue_entry_id, delivered_input_id, abandon_reason, hop, state, outcome, reply_text, reply_truncated, created_at, fired_at, delivered_at, follow_up_after, interim_wait FROM session_prompt_reply_watches
+WHERE target_session_id = ? AND state IN ('armed', 'fired')
+ORDER BY created_at, id
+`
+
+func (q *Queries) ListPendingReplyWatchesByTarget(ctx context.Context, targetSessionID string) ([]SessionPromptReplyWatch, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingReplyWatchesByTarget, targetSessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SessionPromptReplyWatch{}
+	for rows.Next() {
+		var i SessionPromptReplyWatch
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SenderSessionID,
+			&i.TargetWorkspaceID,
+			&i.TargetSessionID,
+			&i.MessageID,
+			&i.AdmissionID,
+			&i.TurnID,
+			&i.QueueEntryID,
+			&i.DeliveredInputID,
+			&i.AbandonReason,
+			&i.Hop,
+			&i.State,
+			&i.Outcome,
+			&i.ReplyText,
+			&i.ReplyTruncated,
+			&i.CreatedAt,
+			&i.FiredAt,
+			&i.DeliveredAt,
+			&i.FollowUpAfter,
+			&i.InterimWait,
 		); err != nil {
 			return nil, err
 		}
@@ -244,7 +370,7 @@ func (q *Queries) ListPendingReplyWatchesBySender(ctx context.Context, senderSes
 }
 
 const listReplyWatches = `-- name: ListReplyWatches :many
-SELECT id, workspace_id, sender_session_id, target_workspace_id, target_session_id, message_id, admission_id, turn_id, queue_entry_id, delivered_input_id, abandon_reason, hop, state, outcome, reply_text, reply_truncated, created_at, fired_at, delivered_at FROM session_prompt_reply_watches
+SELECT id, workspace_id, sender_session_id, target_workspace_id, target_session_id, message_id, admission_id, turn_id, queue_entry_id, delivered_input_id, abandon_reason, hop, state, outcome, reply_text, reply_truncated, created_at, fired_at, delivered_at, follow_up_after, interim_wait FROM session_prompt_reply_watches
 WHERE state IN ('armed', 'fired')
  AND (?1 = '' OR state = ?1)
  AND (?2 = '' OR workspace_id = ?2)
@@ -294,6 +420,8 @@ func (q *Queries) ListReplyWatches(ctx context.Context, arg ListReplyWatchesPara
 			&i.CreatedAt,
 			&i.FiredAt,
 			&i.DeliveredAt,
+			&i.FollowUpAfter,
+			&i.InterimWait,
 		); err != nil {
 			return nil, err
 		}
@@ -471,4 +599,21 @@ func (q *Queries) ReplyWatchSenderExists(ctx context.Context, arg ReplyWatchSend
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const supersedeReplyWatchFollowUps = `-- name: SupersedeReplyWatchFollowUps :exec
+UPDATE session_prompt_reply_watches
+SET state = 'abandoned', abandon_reason = NULL
+WHERE session_prompt_reply_watches.state IN ('armed', 'fired') AND session_prompt_reply_watches.follow_up_after > 0
+ AND EXISTS (
+  SELECT 1 FROM session_prompt_reply_watches AS newer
+  WHERE newer.id = ?1 AND newer.rowid > session_prompt_reply_watches.rowid
+   AND newer.sender_session_id = session_prompt_reply_watches.sender_session_id AND newer.target_session_id = session_prompt_reply_watches.target_session_id
+   AND newer.workspace_id = session_prompt_reply_watches.workspace_id AND newer.target_workspace_id = session_prompt_reply_watches.target_workspace_id
+ )
+`
+
+func (q *Queries) SupersedeReplyWatchFollowUps(ctx context.Context, newerID string) error {
+	_, err := q.db.ExecContext(ctx, supersedeReplyWatchFollowUps, newerID)
+	return err
 }

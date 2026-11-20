@@ -1715,9 +1715,12 @@ active children, reconciled Loop runs, future task leases, future scheduled wait
 monitors until their deadline, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
 watch not yet delivered) prevent inactivity termination; an armed watch stops counting once it expires
-(`session.messaging.reply_watch_ttl`, default `24h`). A reply wakes an idle sender once, binding its
-released runtime if needed; it resumes a sender CompozyOS stopped (inactivity of a hung turn, timeout,
-shutdown, crash) and wakes it once; an operator-stopped sender waits for resume. Reads, subscriptions, provider waiting and runtime progress projections
+(`session.messaging.reply_watch_ttl`, default `24h`). A reply wake arrives when the consuming turn
+settles. A target that still expects a daemon wake sends an interim reply, and its outstanding watch
+continues to count as `awaiting_reply` until the follow-up is delivered or the watch expires. Pair
+with `compozy__monitor_create kind="session"` for an independent lifecycle or timeout wake.
+Delivery binds an idle sender's released runtime if needed. It resumes a sender CompozyOS stopped
+for inactivity of a hung turn, timeout, shutdown, or crash. An operator-stopped sender waits for resume. Reads, subscriptions, provider waiting and runtime progress projections
 do not renew evidence. Source errors report unknown + attention and suspend automatic silence stops.
 
 `quiet_after`/`stop_grace` are a hung-turn watchdog: silence accrues only while a turn is in flight

@@ -13,22 +13,27 @@ import (
 )
 
 type TurnResult struct {
-	Outcome string
-	Text    string
-	Error   string
+	Outcome  string
+	Text     string
+	Error    string
+	Sequence int64
 }
 
 func (m *Manager) TurnResult(ctx context.Context, sessionID, turnID string) (TurnResult, error) {
+	return m.replyTurnResult(ctx, sessionID, turnID, true)
+}
+
+func (m *Manager) replyTurnResult(ctx context.Context, sessionID, turnID string, allEvents bool) (TurnResult, error) {
 	if strings.TrimSpace(turnID) == "" {
 		return TurnResult{}, errors.New("session: reply turn id is required")
 	}
-	events, err := m.replyTurnEvents(ctx, sessionID, turnID)
+	events, decodeErr, err := m.replyTurnEvents(ctx, sessionID, turnID, allEvents)
 	if err != nil {
 		return TurnResult{}, err
 	}
-	result, err := replyTurnOutcome(events)
-	if err != nil {
-		return result, err
+	result := replyTurnOutcome(events)
+	if result.Outcome == "" && decodeErr != nil {
+		return result, decodeErr
 	}
 
 	if result.Outcome == "" {
@@ -62,12 +67,18 @@ func (m *Manager) TurnResult(ctx context.Context, sessionID, turnID string) (Tur
 	return result, nil
 }
 
-func replyTurnOutcome(events []store.SessionEvent) (TurnResult, error) {
+func replyTurnOutcome(events []store.SessionEvent) TurnResult {
 	var result TurnResult
 	for _, event := range events {
+		result.Sequence = max(result.Sequence, event.Sequence)
+		switch event.Type {
+		case acp.EventTypeDone, acp.EventTypeError, EventTypeSessionStopped:
+		default:
+			continue
+		}
 		decoded, err := transcript.UnmarshalAgentEvent(event.Content)
 		if err != nil {
-			return result, err
+			continue
 		}
 		switch event.Type {
 		case acp.EventTypeError:
@@ -92,28 +103,34 @@ func replyTurnOutcome(events []store.SessionEvent) (TurnResult, error) {
 			}
 		}
 	}
-	return result, nil
+	return result
 }
 
-func (m *Manager) replyTurnEvents(ctx context.Context, sessionID, turnID string) ([]store.SessionEvent, error) {
+func (m *Manager) replyTurnEvents(
+	ctx context.Context, sessionID, turnID string, allEvents bool,
+) (events []store.SessionEvent, decodeErr, readErr error) {
 	query := store.EventQuery{TurnID: turnID, Limit: 200, Forward: true}
-	var events []store.SessionEvent
+	if !allEvents {
+		// Recovery reads one bounded tail of the consuming turn.
+		query.Forward, query.Limit = false, 4096
+	}
 	for {
 		page, err := m.Events(ctx, sessionID, query)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, event := range page {
 			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
 			if err != nil {
-				return nil, err
+				decodeErr = err
+				continue
 			}
 			if decoded.ParentToolCallID() == "" {
 				events = append(events, event)
 			}
 		}
-		if len(page) < query.Limit {
-			return events, nil
+		if !allEvents || len(page) < query.Limit {
+			return events, decodeErr, nil
 		}
 		query.AfterSequence = page[len(page)-1].Sequence
 	}
@@ -167,7 +184,7 @@ func (m *Manager) replyMessageTurn(
 	for _, event := range events {
 		decoded, err := transcript.UnmarshalAgentEvent(event.Content)
 		if err != nil {
-			return "", err
+			continue
 		}
 		if decoded.MessageIDValue() == w.MessageID && decoded.ParentToolCallID() == "" {
 			return event.TurnID, nil

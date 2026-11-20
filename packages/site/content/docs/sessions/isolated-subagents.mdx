@@ -211,11 +211,16 @@ What you see:
   "Waiting for reply".
 - **In Billing reviewer:** the question as a left-aligned card, "From Refactor billing", not as one
   of your own messages. The reviewer agent is also told it came from another agent, and that its
-  final answer in that turn goes back automatically.
+  answer in that turn goes back automatically. If it ends the turn with a monitor, delegated work,
+  or another registered wait, CompozyOS also delivers a follow-up when the work settles.
 - **When the reviewer's turn ends:** a "Reply from Billing reviewer" card lands in Refactor billing
   with the answer, the sent card switches to "Replied", and the orchestrator is woken with the answer
-  in a new turn. This is the **reply wake**. If the orchestrator is busy, the reply waits ahead of
-  your queued prompts.
+  in a new turn. If the answer is interim, the wake names the pending work and the watch remains
+  visible in session status until the follow-up. If the orchestrator is busy, the reply joins its
+  queue.
+
+Use a session monitor as well when the orchestrator needs an independent lifecycle or timeout wake,
+for example when it needs to detect that the reviewer stopped before consuming the question.
 
 ```text
 Session "Billing reviewer" (sess-c03f9d61b2e84a07) replied to your message msg-retry-q: completed.

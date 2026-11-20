@@ -25,18 +25,60 @@ SELECT * FROM session_prompt_reply_watches
 WHERE sender_session_id = ? AND state IN ('armed', 'fired')
 ORDER BY created_at, id;
 
+-- name: ListPendingReplyWatchesByTarget :many
+SELECT * FROM session_prompt_reply_watches
+WHERE target_session_id = ? AND state IN ('armed', 'fired')
+ORDER BY created_at, id;
+
 -- name: BindReplyWatch :exec
 UPDATE session_prompt_reply_watches SET turn_id = ?, queue_entry_id = ?
 WHERE id = ? AND state = 'armed';
 
 -- name: FireReplyWatch :execrows
 UPDATE session_prompt_reply_watches
-SET state = 'fired', outcome = ?, reply_text = ?, reply_truncated = ?, fired_at = ?
-WHERE id = ? AND state = 'armed';
+SET state = 'fired', outcome = sqlc.narg(outcome), reply_text = sqlc.narg(reply_text),
+ reply_truncated = sqlc.arg(reply_truncated), fired_at = sqlc.narg(fired_at),
+ turn_id = COALESCE(sqlc.narg(result_turn_id), turn_id),
+ follow_up_after = sqlc.arg(next_after),
+ interim_wait = sqlc.narg(interim_wait)
+WHERE id = sqlc.arg(id) AND state = 'armed' AND follow_up_after = sqlc.arg(expected_after);
+
+-- name: AdvanceReplyWatchFollowUp :exec
+UPDATE session_prompt_reply_watches SET follow_up_after = sqlc.arg(sequence)
+WHERE id = sqlc.arg(id) AND state = 'armed'
+ AND follow_up_after > 0 AND follow_up_after < sqlc.arg(sequence);
 
 -- name: DeliverReplyWatch :execrows
 UPDATE session_prompt_reply_watches SET state = 'delivered', delivered_input_id = ?, delivered_at = ?
 WHERE id = ? AND state = 'fired';
+
+-- name: DeliverInterimReplyWatch :execrows
+UPDATE session_prompt_reply_watches
+SET state = 'armed', interim_wait = NULL, delivered_input_id = ?, delivered_at = ?
+WHERE id = ? AND state = 'fired' AND interim_wait IS NOT NULL;
+
+-- name: SupersedeReplyWatchFollowUps :exec
+UPDATE session_prompt_reply_watches
+SET state = 'abandoned', abandon_reason = NULL
+WHERE session_prompt_reply_watches.state IN ('armed', 'fired') AND session_prompt_reply_watches.follow_up_after > 0
+ AND EXISTS (
+  SELECT 1 FROM session_prompt_reply_watches AS newer
+  WHERE newer.id = sqlc.arg(newer_id) AND newer.rowid > session_prompt_reply_watches.rowid
+   AND newer.sender_session_id = session_prompt_reply_watches.sender_session_id AND newer.target_session_id = session_prompt_reply_watches.target_session_id
+   AND newer.workspace_id = session_prompt_reply_watches.workspace_id AND newer.target_workspace_id = session_prompt_reply_watches.target_workspace_id
+ );
+
+-- name: AbandonFollowUpWithNewerReplyWatch :execrows
+UPDATE session_prompt_reply_watches
+SET state = 'abandoned', abandon_reason = NULL
+WHERE session_prompt_reply_watches.id = sqlc.arg(older_id) AND session_prompt_reply_watches.state = 'armed' AND session_prompt_reply_watches.follow_up_after = 0
+ AND EXISTS (
+  SELECT 1 FROM session_prompt_reply_watches AS newer
+  WHERE newer.rowid > session_prompt_reply_watches.rowid
+   AND newer.sender_session_id = session_prompt_reply_watches.sender_session_id AND newer.target_session_id = session_prompt_reply_watches.target_session_id
+   AND newer.workspace_id = session_prompt_reply_watches.workspace_id AND newer.target_workspace_id = session_prompt_reply_watches.target_workspace_id
+   AND (newer.abandon_reason IS NULL OR newer.abandon_reason != 'send_failed')
+ );
 
 -- name: AbandonReplyWatch :exec
 UPDATE session_prompt_reply_watches SET state = 'abandoned', abandon_reason = ?

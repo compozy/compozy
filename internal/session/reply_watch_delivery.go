@@ -44,7 +44,7 @@ func (s *replyWatchService) Deliver(ctx context.Context, id string) error {
 		WakeEventID:      id,
 		ChildSessionID:   w.TargetSessionID,
 		Reason:           w.Outcome,
-		Summary:          replySummary(w.ReplyText),
+		Summary:          replySummary(w),
 		Hop:              replyWakeHop(w),
 		ChildWorkspaceID: w.TargetWorkspaceID,
 		ChildAgentName:   agent,
@@ -54,7 +54,7 @@ func (s *replyWatchService) Deliver(ctx context.Context, id string) error {
 		return err
 	}
 	text := replyWakeText(w, title)
-	message := "prompt-reply:" + id
+	message := w.WakeMessageID()
 	delivered, err := s.store.DeliverReplyWatch(ctx, id, store.SessionInputQueueInsert{
 		ID:                inputID,
 		SessionID:         sender.ID,
@@ -108,6 +108,9 @@ func replyWakeText(w store.ReplyWatch, title string) string {
 		w.Outcome,
 		w.ReplyText,
 	)
+	if w.InterimWait != "" {
+		text += "\n\n" + replyInterimNotice(w.InterimWait)
+	}
 	if w.ReplyTruncated {
 		text += fmt.Sprintf(
 			"\n[Reply truncated at 12000 characters. Read compozy__session_history with session_id=%s, "+
@@ -141,9 +144,18 @@ func (s *replyWatchService) replySenderReady(ctx context.Context, w store.ReplyW
 
 // replySummary is the reply body the Web card renders: empty for an empty answer, so the card shows its
 // own empty state instead of the provider-facing placeholder.
-func replySummary(text string) string {
+func replySummary(w store.ReplyWatch) string {
+	text := w.ReplyText
 	if text == replyNoText {
-		return ""
+		text = ""
+	}
+	if w.InterimWait != "" {
+		text = replyInterimNotice(w.InterimWait) + "\n\n" + text
 	}
 	return text
+}
+
+func replyInterimNotice(waiting string) string {
+	return "This is an interim reply. The target is waiting on " + waiting +
+		". A follow-up reply will arrive when the target settles."
 }

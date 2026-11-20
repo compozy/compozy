@@ -18,6 +18,8 @@ CREATE TABLE session_prompt_reply_watches (
     created_at TEXT NOT NULL,
     fired_at TEXT,
     delivered_at TEXT,
+    follow_up_after INTEGER NOT NULL DEFAULT 0,
+    interim_wait TEXT,
     UNIQUE (target_session_id, message_id)
 );
 CREATE INDEX idx_reply_watches_sender_state ON session_prompt_reply_watches(sender_session_id, state);
