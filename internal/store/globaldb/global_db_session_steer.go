@@ -21,6 +21,7 @@ func (g *SessionRepo) ReserveSessionSteer(
 		now = g.now()
 	}
 	err = g.withImmediateTransaction(ctx, "reserve session steer", func(exec globalSQLExecutor) error {
+		reserved = false
 		var err error
 		entry, err = getSessionInputQueueEntry(ctx, exec, sessionID, entryID)
 		if err != nil {
@@ -30,10 +31,22 @@ func (g *SessionRepo) ReserveSessionSteer(
 			return errors.New("store: only steer inputs can be reserved for live delivery")
 		}
 		queries := sqlcgen.New(exec)
-		if held, err := sessionInputHeldInTransaction(ctx, queries, &entry); err != nil || held {
+		if entry.SteerDelivery == store.SteerDeliveryAfterTurn {
+			return nil
+		}
+		reason, err := sessionInputHoldReasonInTransaction(ctx, queries, &entry)
+		if err != nil {
 			return err
 		}
 		nowRaw := store.FormatTimestamp(now)
+		switch reason {
+		case "":
+		case "daily_budget", "daily_budget_recovery":
+			entry, err = deferBudgetHeldSteer(ctx, exec, &entry, now)
+			return err
+		default:
+			return nil
+		}
 		affected, err := queries.ReserveSessionSteer(ctx, sqlcgen.ReserveSessionSteerParams{
 			SessionID: sessionID, ID: entryID, Now: nullableSessionTime(now),
 		})
@@ -48,6 +61,33 @@ func (g *SessionRepo) ReserveSessionSteer(
 		return err
 	})
 	return entry, reserved && err == nil, err
+}
+
+func deferBudgetHeldSteer(
+	ctx context.Context, exec globalSQLExecutor, entry *store.SessionInputQueueEntry, now time.Time,
+) (store.SessionInputQueueEntry, error) {
+	queries := sqlcgen.New(exec)
+	affected, err := queries.DeferBudgetHeldSteer(ctx, sqlcgen.DeferBudgetHeldSteerParams{
+		SessionID: entry.SessionID, ID: entry.ID, Now: store.FormatTimestamp(now),
+	})
+	if err != nil {
+		return store.SessionInputQueueEntry{}, fmt.Errorf("store: defer held steer: %w", err)
+	}
+	if affected == 0 {
+		return *entry, nil
+	}
+	if err := commitQueuedPromptAdmissionDispatch(ctx, exec, entry, store.FormatTimestamp(now)); err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
+	deferred, err := getSessionInputQueueEntry(ctx, exec, entry.SessionID, entry.ID)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
+	if err := resolveSessionSteerAdmission(ctx, queries, &deferred, now); err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
+	deferred.SteerDeferredByBudget = true
+	return deferred, nil
 }
 
 // ResolveSessionSteer atomically records reserved guidance's delivery and completes its admission receipt.
@@ -87,22 +127,31 @@ func (g *SessionRepo) ResolveSessionSteer(
 			return store.ErrSessionInputQueueEntryNotQueued
 		}
 		entry, err = getSessionInputQueueEntry(ctx, exec, sessionID, entryID)
-		if err != nil || entry.PromptAdmissionID == "" {
+		if err != nil {
 			return err
 		}
-		affected, err = queries.ResolveSessionSteerAdmission(ctx, sqlcgen.ResolveSessionSteerAdmissionParams{
-			ID: entry.PromptAdmissionID, SessionID: sessionID, Now: nullableSessionTime(now),
-			SteerDelivery: string(delivery), TargetTurnID: entry.TargetTurnID, Delivery: entry.Delivery,
-		})
-		if err != nil {
-			return fmt.Errorf("store: resolve session steer receipt: %w", err)
-		}
-		if affected != 1 {
-			return store.ErrSessionPromptAdmissionInProgress
-		}
-		return nil
+		return resolveSessionSteerAdmission(ctx, queries, &entry, now)
 	})
 	return entry, err
+}
+
+func resolveSessionSteerAdmission(
+	ctx context.Context, queries *sqlcgen.Queries, entry *store.SessionInputQueueEntry, now time.Time,
+) error {
+	if entry.PromptAdmissionID == "" {
+		return nil
+	}
+	affected, err := queries.ResolveSessionSteerAdmission(ctx, sqlcgen.ResolveSessionSteerAdmissionParams{
+		ID: entry.PromptAdmissionID, SessionID: entry.SessionID, Now: nullableSessionTime(now),
+		SteerDelivery: string(entry.SteerDelivery), TargetTurnID: entry.TargetTurnID, Delivery: entry.Delivery,
+	})
+	if err != nil {
+		return fmt.Errorf("store: resolve session steer receipt: %w", err)
+	}
+	if affected != 1 {
+		return store.ErrSessionPromptAdmissionInProgress
+	}
+	return nil
 }
 
 // SettlePendingSessionSteer records delivery completion without rewriting the

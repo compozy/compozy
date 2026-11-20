@@ -483,3 +483,146 @@ func TestDailyBudgetDefinitionPausedDescendantLatchesUntilOperatorResume(t *test
 		})
 	}
 }
+
+func TestDailyBudgetHoldDoesNotLetPreparedGoalBlockOperator(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		latched bool
+		paused  bool
+	}{
+		{name: "Should let operator input pass a prepared Goal during an active recovery hold", latched: true},
+		{name: "Should let operator input pass a prepared Goal during a budget pause", paused: true},
+		{name: "Should preserve the prepared Goal cutoff when no hold exists"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			at := time.Date(2026, 11, 19, 12, 0, 0, 0, time.Local)
+			main := budgetBoundSession(t, db, at)
+			for index, id := range []string{"goal", "operator-first", "operator-second"} {
+				if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+					ID: id, SessionID: main, Text: id, QueueCap: 5, HumanIngress: id != "goal",
+					Now: at.Add(time.Duration(index) * time.Second),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := db.DB().ExecContext(ctx, `UPDATE session_input_queue
+				SET owner_kind='goal', origin_class='synthetic', dispatchable=0, goal_input_batch_max_rowid=0
+				WHERE id='goal'`); err != nil {
+				t.Fatal(err)
+			}
+			if tc.latched {
+				if _, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instance_daily_budget_recovery
+					(instance_id, generation, pending, latched) VALUES ('daily-dispatch-instance', 1, 0, 1)`); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.paused {
+				if _, err := db.Instances().Pause(ctx, "daily-dispatch-instance", "daily_budget"); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			wantHead := "goal"
+			if tc.latched || tc.paused {
+				wantHead = "operator-first"
+			}
+			peek, ok, err := db.PeekNextSessionInput(ctx, main)
+			if err != nil || !ok || peek.ID != wantHead {
+				t.Fatalf("peek = %s, %t, %v; want %s", peek.ID, ok, err, wantHead)
+			}
+			entry, ok, err := db.ClaimSelectedSessionInput(ctx, main, "operator-first", at)
+			if wantHead == "goal" {
+				if !errors.Is(err, store.ErrSessionInputSelectionChanged) || ok {
+					t.Fatalf("claim through Goal cutoff = %t, %v; want selection changed", ok, err)
+				}
+			} else if err != nil || !ok || entry.ID != wantHead {
+				t.Fatalf("claim of %s = %s, %t, %v", wantHead, entry.ID, ok, err)
+			}
+			batch, err := db.ClaimSessionInputBatch(ctx, main, 2, func(*store.SessionInputQueueEntry) bool {
+				return true
+			}, at)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if wantHead == "goal" {
+				if len(batch) != 0 {
+					t.Fatalf("claimed %d inputs past the Goal cutoff", len(batch))
+				}
+			} else if len(batch) != 1 || batch[0].ID != "operator-second" {
+				t.Fatalf("claimed %+v; want only the second operator input", batch)
+			}
+		})
+	}
+}
+
+func TestDailyBudgetDefersHeldAppSteerUntilResume(t *testing.T) {
+	t.Run("Should dispatch an accepted app steer after resume without restarting", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		at := time.Date(2026, 11, 19, 12, 0, 0, 0, time.Local)
+		db.now = func() time.Time { return at }
+		main := budgetBoundSession(t, db, at)
+		if allowed, _, err := db.Instances().AdmitDailyBudgetTurn(ctx, main); err != nil || allowed {
+			t.Fatalf("admission = %t, %v; want budget hold", allowed, err)
+		}
+		req := promptAdmissionRequest("ws-input-queue-workspace", main, "budget-held-app-steer", at)
+		req.Mode = store.SessionInputQueueModeSteer
+		req.HumanIngress, req.AppIngress = true, true
+		_, staged, _, err := db.StageAdmittedSessionSteer(ctx, req, store.SessionInputQueueInsert{
+			ID: "held-steer", SessionID: main, Text: "keep this guidance",
+			TargetTurnID: "active-turn", Delivery: store.SessionInputDeliveryInterruptThenPrompt,
+			HumanIngress: true, AppIngress: true, QueueCap: 5, Now: at,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for attempt := range 2 {
+			deferred, reserved, err := db.ReserveSessionSteer(ctx, main, staged.ID, at)
+			if err != nil || reserved || deferred.Mode != store.SessionInputQueueModeSteer ||
+				deferred.SteerDelivery != store.SteerDeliveryAfterTurn || deferred.TargetTurnID != "active-turn" ||
+				!deferred.Dispatchable || deferred.SteerDeferredByBudget != (attempt == 0) ||
+				deferred.Status != store.SessionInputQueueStatusQueued || deferred.AttemptCount != 0 {
+				t.Fatalf("reserve held steer = %+v, %t, %v; want durable after-turn input", deferred, reserved, err)
+			}
+		}
+		replay, found, err := db.ReplaySessionPromptAdmission(ctx, req)
+		if err != nil || !found || replay.Result == nil ||
+			replay.Result.SteerDelivery != store.SteerDeliveryAfterTurn || replay.Result.PreviousTurnID != "active-turn" {
+			t.Fatalf("replay of held steer = %+v, %t, %v", replay.Result, found, err)
+		}
+		if entry, ok, err := db.PeekNextSessionInput(ctx, main); err != nil || ok {
+			t.Fatalf("peek while held = %s, %t, %v", entry.ID, ok, err)
+		}
+		replacementReq := promptAdmissionRequest(req.WorkspaceID, main, "replacement-held-app-steer", at)
+		replacementReq.Mode = req.Mode
+		replacementReq.HumanIngress, replacementReq.AppIngress = true, true
+		_, replacement, _, err := db.StageAdmittedSessionSteer(ctx, replacementReq, store.SessionInputQueueInsert{
+			ID: "replacement-steer", SessionID: main, Text: "replace the old guidance",
+			TargetTurnID: "active-turn", Delivery: store.SessionInputDeliveryInterruptThenPrompt,
+			HumanIngress: true, AppIngress: true, QueueCap: 5, Now: at,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, reserved, err := db.ReserveSessionSteer(ctx, main, replacement.ID, at); err != nil || reserved {
+			t.Fatalf("reserve replacement = %t, %v; want deferred", reserved, err)
+		}
+		older, err := db.GetSessionInputQueueEntry(ctx, main, staged.ID)
+		if err != nil || older.Status != store.SessionInputQueueStatusCanceled {
+			t.Fatalf("superseded steer = %s, %v; want canceled", older.Status, err)
+		}
+		at = at.AddDate(0, 0, 1)
+		if _, err := db.Instances().Resume(ctx, "daily-dispatch-instance", 10, true); err != nil {
+			t.Fatal(err)
+		}
+		claimed, ok, err := db.ClaimNextSessionInput(ctx, main, at)
+		if err != nil || !ok || claimed.ID != replacement.ID || claimed.AttemptCount != 1 ||
+			claimed.TurnID == "active-turn" {
+			t.Fatalf("claim after resume = %+v, %t, %v; want one ordinary dispatch", claimed, ok, err)
+		}
+	})
+}

@@ -25,8 +25,13 @@ WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind,
     AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
 ), budget_owner AS (
   SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
+), budget_hold AS (
+  SELECT 1 FROM budget_owner owner JOIN agent_instances i ON i.id = owner.instance_id
+  LEFT JOIN agent_instance_daily_budget_recovery guard ON guard.instance_id = i.id
+  WHERE i.archived_at IS NULL
+    AND ((i.state = 'paused' AND i.pause_reason IN ('daily_budget', 'daily_budget_recovery')) OR guard.latched = 1)
 ), prepared_goal AS (
-  SELECT CASE WHEN EXISTS (
+  SELECT CASE WHEN EXISTS (SELECT 1 FROM budget_hold) OR EXISTS (
     SELECT 1 FROM sessions target
     JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances instance ON instance.id = root.instance_id
@@ -55,12 +60,7 @@ WHERE queued.session_id = ?1
   ))
   -- Priority class is not proof of human ingress: agent self-sends can have
   -- human priority. A daily-budget pause holds them while operator input passes.
-  AND ((queued.human_ingress = 1 AND queued.app_ingress = 0) OR NOT EXISTS (
-    SELECT 1 FROM budget_owner owner JOIN agent_instances i ON i.id = owner.instance_id
-    LEFT JOIN agent_instance_daily_budget_recovery guard ON guard.instance_id = i.id
-    WHERE i.archived_at IS NULL
-      AND ((i.state = 'paused' AND i.pause_reason IN ('daily_budget', 'daily_budget_recovery')) OR guard.latched = 1)
-  ))
+  AND ((queued.human_ingress = 1 AND queued.app_ingress = 0) OR NOT EXISTS (SELECT 1 FROM budget_hold))
   AND queued.status = ?2
   AND queued.dispatchable = 1
   AND (queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic')
@@ -179,8 +179,13 @@ WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind,
     AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
 ), budget_owner AS (
   SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
+), budget_hold AS (
+  SELECT 1 FROM budget_owner owner JOIN agent_instances i ON i.id = owner.instance_id
+  LEFT JOIN agent_instance_daily_budget_recovery guard ON guard.instance_id = i.id
+  WHERE i.archived_at IS NULL
+    AND ((i.state = 'paused' AND i.pause_reason IN ('daily_budget', 'daily_budget_recovery')) OR guard.latched = 1)
 ), prepared_goal AS (
-  SELECT CASE WHEN EXISTS (
+  SELECT CASE WHEN EXISTS (SELECT 1 FROM budget_hold) OR EXISTS (
     SELECT 1 FROM sessions target
     JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances instance ON instance.id = root.instance_id
@@ -209,12 +214,7 @@ WHERE queued.session_id = ?1
   ))
   -- Priority class is not proof of human ingress: agent self-sends can have
   -- human priority. A daily-budget pause holds them while operator input passes.
-  AND ((queued.human_ingress = 1 AND queued.app_ingress = 0) OR NOT EXISTS (
-    SELECT 1 FROM budget_owner owner JOIN agent_instances i ON i.id = owner.instance_id
-    LEFT JOIN agent_instance_daily_budget_recovery guard ON guard.instance_id = i.id
-    WHERE i.archived_at IS NULL
-      AND ((i.state = 'paused' AND i.pause_reason IN ('daily_budget', 'daily_budget_recovery')) OR guard.latched = 1)
-  ))
+  AND ((queued.human_ingress = 1 AND queued.app_ingress = 0) OR NOT EXISTS (SELECT 1 FROM budget_hold))
   AND queued.status = 'queued'
   AND queued.dispatchable = 1
   AND (queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic')
@@ -350,8 +350,13 @@ WITH RECURSIVE budget_ancestry(id, instance_id, parent_session_id, lineage_kind,
     AND a.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
 ), budget_owner AS (
   SELECT a.instance_id FROM budget_ancestry a WHERE a.instance_id IS NOT NULL AND a.instance_id != ''
+), budget_hold AS (
+  SELECT 1 FROM budget_owner owner JOIN agent_instances i ON i.id = owner.instance_id
+  LEFT JOIN agent_instance_daily_budget_recovery guard ON guard.instance_id = i.id
+  WHERE i.archived_at IS NULL
+    AND ((i.state = 'paused' AND i.pause_reason IN ('daily_budget', 'daily_budget_recovery')) OR guard.latched = 1)
 ), prepared_goal AS (
-  SELECT CASE WHEN EXISTS (
+  SELECT CASE WHEN EXISTS (SELECT 1 FROM budget_hold) OR EXISTS (
     SELECT 1 FROM sessions target
     JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances instance ON instance.id = root.instance_id
@@ -378,12 +383,7 @@ WHERE queued.session_id = ?1
           OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
       ))
   ))
-  AND ((queued.human_ingress = 1 AND queued.app_ingress = 0) OR NOT EXISTS (
-    SELECT 1 FROM budget_owner owner JOIN agent_instances i ON i.id = owner.instance_id
-    LEFT JOIN agent_instance_daily_budget_recovery guard ON guard.instance_id = i.id
-    WHERE i.archived_at IS NULL
-      AND ((i.state = 'paused' AND i.pause_reason IN ('daily_budget', 'daily_budget_recovery')) OR guard.latched = 1)
-  ))
+  AND ((queued.human_ingress = 1 AND queued.app_ingress = 0) OR NOT EXISTS (SELECT 1 FROM budget_hold))
   AND queued.status = ?2
   AND queued.terminal_at IS NULL
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?1)

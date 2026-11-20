@@ -112,7 +112,9 @@ type SessionInputQueueEntry struct {
 	HeldInstanceID string
 	Held           bool
 	PausedInstance *InstancePauseTrip
-	Priority       int
+	// SteerDeferredByBudget marks the transaction that converted a live reservation into after-turn delivery.
+	SteerDeferredByBudget bool `json:"-"`
+	Priority              int
 	// SupersededIDs identifies entries canceled by the transaction creating this input.
 	SupersededIDs     []string
 	SupersededBy      string
@@ -176,6 +178,15 @@ type SessionInputQueueEntry struct {
 	TerminalTokensUsed       *int64
 	TerminalAt               *time.Time
 	UpdatedAt                time.Time
+}
+
+// MatchesRequestedDelivery includes a steer that was accepted with after-turn fallback.
+func (entry *SessionInputQueueEntry) MatchesRequestedDelivery(delivery string) bool {
+	return entry.Delivery == delivery ||
+		(entry.Mode == SessionInputQueueModeSteer &&
+			delivery == SessionInputDeliveryInterruptThenPrompt &&
+			entry.Delivery == SessionInputDeliveryAfterTurn &&
+			entry.SteerDelivery == SteerDeliveryAfterTurn)
 }
 
 // SessionInputQueueSummary captures the current generation and pending entries for recap/status reads.

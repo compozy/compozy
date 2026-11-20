@@ -24,12 +24,16 @@ overlaps: MS-always-on-check-in-sources; RT-spawn-budget-context
    (in-flight overshoot) and replay the same Done. No duplicate receipt or bell.
 4. Attempt the next automatic prompt or managed Goal claim. Verify it does not
    reach the driver, the pause reason is `daily_budget`, the queued input survives,
-   and human-origin work is still allowed.
+   and authenticated operator prompts remain claimable even behind a prepared
+   Goal during a budget pause or a latched recovery hold. Submit app-origin
+   steering during the hold and verify that it queues for after-turn delivery.
+   Newer guidance from the same sender replaces the held steer.
 5. Restart the real daemon and repeat admission, then try operator resume on the
    same local day. The pause and exhausted cap remain, and resume is rejected.
 6. Advance the injected clock past local midnight. Confirm it stays paused until
-   an operator resumes, then accepts the next eligible turn. Confirm profile B
-   and an independently bound instance were never charged or held.
+   an operator resumes, then verify the retained steer runs after the active
+   turn without another restart. Confirm profile B and an independently bound
+   instance were never charged or held.
 7. With unknown provider price, verify a positive token limit still trips while
    the USD subtotal marks unpriced usage. Verify optional caps remain absent
    and behavior unchanged when disabled.

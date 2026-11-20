@@ -231,7 +231,7 @@ func sameMutation(
 		(entry.MessageID == strings.TrimSpace(messageID) || len(entry.Origin) > 0) &&
 		entry.IdempotencyKey == strings.TrimSpace(idempotencyKey) &&
 		entry.Mode == mode &&
-		entry.Delivery == delivery &&
+		entry.MatchesRequestedDelivery(delivery) &&
 		(strings.TrimSpace(targetTurnID) == "" || entry.TargetTurnID == strings.TrimSpace(targetTurnID)) &&
 		slices.Equal(entry.SkillInvocations, skillInvocations)
 }

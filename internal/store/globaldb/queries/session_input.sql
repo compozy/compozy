@@ -80,6 +80,14 @@ WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_qu
   AND mode = 'steer' AND status = 'queued' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
 
+-- name: DeferBudgetHeldSteer :execrows
+UPDATE session_input_queue
+SET delivery = 'after_turn', steer_delivery = 'after_turn', dispatchable = 1, updated_at = sqlc.arg(now)
+WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
+  AND status = 'queued' AND mode = 'steer' AND steer_delivery IS NULL AND dispatchable = 0
+  AND (owner_kind IS NULL OR owner_kind = 'synthetic')
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = session_input_queue.session_id);
+
 -- name: ResolveSessionSteer :execrows
 UPDATE session_input_queue
 SET status = sqlc.arg(status), steer_delivery = sqlc.arg(steer_delivery),

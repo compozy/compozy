@@ -52,6 +52,13 @@ func (m *Manager) activateSteeringInputText(
 	*entry = reserved
 	entry.SupersededIDs = superseded
 	if !claimed {
+		if entry.Status == store.SessionInputQueueStatusQueued && entry.SteerDelivery == store.SteerDeliveryAfterTurn {
+			if entry.SteerDeferredByBudget {
+				m.recordSteerMarker(ctx, session, entry)
+				return m.activateSteerFallback(ctx, session, entry)
+			}
+			return nil
+		}
 		if entry.Status == store.SessionInputQueueStatusCanceled && entry.SupersededBy != "" {
 			return nil
 		}
@@ -87,14 +94,18 @@ func (m *Manager) activateSteeringInputText(
 	if entry.SupersededBy != "" {
 		return nil
 	}
-	session.mu.Lock()
-	session.steerDelivery = delivery
-	session.mu.Unlock()
-	m.emitSteerMarker(ctx, session, entry)
+	m.recordSteerMarker(ctx, session, entry)
 	if completion != nil {
 		m.watchSteerCompletion(session, entry.ID, completion, false)
 	}
 	return m.activateSteerFallback(ctx, session, entry)
+}
+
+func (m *Manager) recordSteerMarker(ctx context.Context, session *Session, entry *store.SessionInputQueueEntry) {
+	session.mu.Lock()
+	session.steerDelivery = entry.SteerDelivery
+	session.mu.Unlock()
+	m.emitSteerMarker(ctx, session, entry)
 }
 
 func (m *Manager) injectSteeringInput(

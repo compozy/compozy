@@ -120,6 +120,7 @@ func (g *SessionRepo) PromoteQueuedAgentSessionInputToSteer(
 		now = g.now()
 	}
 	err = g.withImmediateTransaction(ctx, "promote queued agent session input", func(exec globalSQLExecutor) error {
+		entry, promoted = store.SessionInputQueueEntry{}, false
 		existing, getErr := getSessionInputQueueEntry(ctx, exec, target, entryID)
 		if getErr != nil {
 			return getErr
@@ -128,7 +129,7 @@ func (g *SessionRepo) PromoteQueuedAgentSessionInputToSteer(
 			return nil
 		}
 		queries := sqlcgen.New(exec)
-		if held, err := sessionInputHeldInTransaction(ctx, queries, &existing); err != nil || held {
+		if reason, err := sessionInputHoldReasonInTransaction(ctx, queries, &existing); err != nil || reason != "" {
 			return err
 		}
 		affected, updateErr := queries.PromoteQueuedAgentSessionInputToSteer(

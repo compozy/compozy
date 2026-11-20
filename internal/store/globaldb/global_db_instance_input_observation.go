@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/compozy/compozy/internal/store"
@@ -28,17 +29,23 @@ func queueEntryHeldByPause(entry *store.SessionInputQueueEntry, reason string) b
 	}
 }
 
-func sessionInputHeldInTransaction(
+func sessionInputHoldReasonInTransaction(
 	ctx context.Context, queries *sqlcgen.Queries, entry *store.SessionInputQueueEntry,
-) (bool, error) {
+) (string, error) {
 	if store.IsHumanSessionInputOriginClass(entry.OriginClass) && entry.HumanIngress && !entry.AppIngress {
-		return false, nil
+		return "", nil
 	}
 	hold, err := queries.GetSessionInputHold(ctx, entry.SessionID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+		return "", nil
 	}
-	return err == nil && queueEntryHeldByPause(entry, hold.PauseReason), err
+	if err != nil {
+		return "", fmt.Errorf("store: read session input hold for %q: %w", entry.SessionID, err)
+	}
+	if !queueEntryHeldByPause(entry, hold.PauseReason) {
+		return "", nil
+	}
+	return hold.PauseReason, nil
 }
 
 func observeReleasedInstanceInput(ctx context.Context, entry *store.SessionInputQueueEntry) {

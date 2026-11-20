@@ -244,7 +244,7 @@ func sameSessionInputMutation(
 		entry.IdempotencyKey == replacement.IdempotencyKey &&
 		entry.TargetTurnID == replacement.TargetTurnID &&
 		entry.Mode == replacement.Mode &&
-		entry.Delivery == replacement.Delivery &&
+		entry.MatchesRequestedDelivery(replacement.Delivery) &&
 		entry.Text == replacement.Text &&
 		slices.Equal(entry.SkillInvocations, replacement.SkillInvocations) &&
 		slices.Equal(entry.Attachments, replacement.Attachments)

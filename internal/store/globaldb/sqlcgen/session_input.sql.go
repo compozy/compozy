@@ -293,6 +293,29 @@ func (q *Queries) CountPendingSessionInputs(ctx context.Context, arg CountPendin
 	return count, err
 }
 
+const deferBudgetHeldSteer = `-- name: DeferBudgetHeldSteer :execrows
+UPDATE session_input_queue
+SET delivery = 'after_turn', steer_delivery = 'after_turn', dispatchable = 1, updated_at = ?1
+WHERE session_input_queue.session_id = ?2 AND session_input_queue.id = ?3
+  AND status = 'queued' AND mode = 'steer' AND steer_delivery IS NULL AND dispatchable = 0
+  AND (owner_kind IS NULL OR owner_kind = 'synthetic')
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = session_input_queue.session_id)
+`
+
+type DeferBudgetHeldSteerParams struct {
+	Now       string `json:"now"`
+	SessionID string `json:"session_id"`
+	ID        string `json:"id"`
+}
+
+func (q *Queries) DeferBudgetHeldSteer(ctx context.Context, arg DeferBudgetHeldSteerParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deferBudgetHeldSteer, arg.Now, arg.SessionID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const freezePreparedGoalInputBatch = `-- name: FreezePreparedGoalInputBatch :exec
 UPDATE session_input_queue
 SET goal_input_batch_max_rowid = (
