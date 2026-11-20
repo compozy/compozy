@@ -152,10 +152,10 @@ func TestApplyMigrationStream(t *testing.T) {
 			after  string
 		}{
 			{
-				name: "Should apply a generated rebuild with line comments in the pragma",
+				name: "Should apply a generated rebuild with comments in the pragma",
 				before: `-- +goose Up
 -- disable enforcement during the rebuild
-/* connection-scoped setting */ PRAGMA -- temporarily disable enforcement
+/* connection-scoped setting */ PRAGMA /* temporarily disable enforcement */ -- rebuild follows
   foreign_keys = OFF; -- rebuild follows
 `,
 			},

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -64,6 +65,8 @@ const (
 	migrationForeignKeysOff = "PRAGMAFOREIGN_KEYS=OFF"
 	migrationForeignKeysOn  = "PRAGMAFOREIGN_KEYS=ON"
 )
+
+var migrationDirectiveComments = regexp.MustCompile(`(?s:/\*.*?\*/)|--[^\r\n]*`)
 
 type migrationSQLLineAction uint8
 
@@ -152,24 +155,16 @@ func rebuildMigrationStatements(statements []string) ([]string, error) {
 }
 
 func normalizeMigrationDirective(statement string) string {
-	statement = strings.TrimSpace(statement)
-	for strings.HasPrefix(statement, "/*") {
-		_, rest, _ := strings.Cut(statement, "*/")
-		statement = strings.TrimSpace(rest)
-	}
 	var directive strings.Builder
-	for line := range strings.SplitSeq(statement, "\n") {
-		code, _, _ := strings.Cut(line, "--")
-		for word := range strings.FieldsSeq(code) {
-			if directive.Len() == 0 {
-				switch strings.ToUpper(strings.TrimSuffix(word, ";")) {
-				case "PRAGMA", "BEGIN", "COMMIT", "END", "ROLLBACK", "SAVEPOINT", "RELEASE", "VACUUM":
-				default:
-					return ""
-				}
+	for word := range strings.FieldsSeq(migrationDirectiveComments.ReplaceAllString(statement, " ")) {
+		if directive.Len() == 0 {
+			switch strings.ToUpper(strings.TrimSuffix(word, ";")) {
+			case "PRAGMA", "BEGIN", "COMMIT", "END", "ROLLBACK", "SAVEPOINT", "RELEASE", "VACUUM":
+			default:
+				return ""
 			}
-			directive.WriteString(word)
 		}
+		directive.WriteString(word)
 	}
 	return strings.TrimSuffix(strings.ToUpper(directive.String()), ";")
 }
