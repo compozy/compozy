@@ -61,12 +61,17 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		// Everything below runs in the serving phase: the read model is reachable, and only now may
 		// recovery start providers, whose hosted MCP proxies need the listeners.
 		{name: "enterServingPhase", run: func() error { return d.enterServingPhase(ctx, state, bootStarted) }},
+		{
+			name: "prepareBootSessionWorkSources",
+			run:  func() error { return d.prepareBootSessionWorkSources(ctx, state) },
+		},
 		{name: "reconcileBootInstances", run: func() error { return reconcileBootInstances(ctx, state) }},
 		{name: "recoverBootDelegatedSessions", run: func() error { return recoverBootDelegatedSessions(ctx, state) }},
 		{name: "resumeBootInterruptedSessions",
 			run: func() error { return resumeBootInterruptedSessions(ctx, state.sessions) },
 		},
 		{name: "recoverBootMonitors", run: func() error { return recoverBootMonitors(ctx, state) }},
+		{name: "recoverBootReplyWatches", run: func() error { return recoverBootReplyWatches(ctx, state) }},
 		{name: "bootFinalize", run: func() error { return d.bootFinalize(ctx, state) }},
 		{name: "bootTaskRoles", run: func() error { return d.bootTaskRoles(ctx, state) }},
 		{name: "startBootLoopCoordinators", run: func() error { return startBootLoopCoordinators(ctx, state) }},

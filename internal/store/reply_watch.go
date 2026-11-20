@@ -50,6 +50,8 @@ type ReplyWatch struct {
 	CreatedAt         time.Time
 	FiredAt           *time.Time
 	DeliveredAt       *time.Time
+	FollowUpAfter     int64
+	InterimWait       string
 }
 
 type ReplyWatchRegistration struct {
@@ -66,9 +68,22 @@ type ReplyWatchRegistration struct {
 }
 
 type ReplyWatchFire struct {
-	Outcome   string
-	Text      string
-	Truncated bool
+	Outcome       string
+	Text          string
+	Truncated     bool
+	TurnID        string
+	ExpectedAfter int64
+	FollowUpAfter int64
+	InterimWait   string
+}
+
+// WakeMessageID is the queue identity for the watch's currently fired delivery.
+func (w ReplyWatch) WakeMessageID() string {
+	id := "prompt-reply:" + w.ID
+	if w.FollowUpAfter > 0 && w.InterimWait == "" {
+		id += ":follow-up"
+	}
+	return id
 }
 
 type ReplyWatchFilter struct {
@@ -84,10 +99,14 @@ type ReplyWatchStore interface {
 	ListReplyWatches(context.Context, ReplyWatchFilter) ([]ReplyWatch, error)
 	// ListPendingReplyWatchesBySender reads one sender's armed and fired watches through its index.
 	ListPendingReplyWatchesBySender(context.Context, string) ([]ReplyWatch, error)
+	ListPendingReplyWatchesByTarget(context.Context, string) ([]ReplyWatch, error)
 	BindReplyWatch(context.Context, string, string, string) error
 	FireReplyWatch(context.Context, string, ReplyWatchFire) (bool, error)
-	DeliverReplyWatch(context.Context, string, SessionInputQueueInsert) (bool, error)
-	AbandonReplyWatch(context.Context, string, string) error
+	// SupersedeReplyWatchFollowUps applies the newer watch's completed admission. An empty ID
+	// reapplies all completed admissions during recovery.
+	SupersedeReplyWatchFollowUps(context.Context, string) error
+	DeliverReplyWatch(context.Context, string, SessionInputQueueInsert, bool) (bool, error)
+	AbandonReplyWatch(context.Context, string, string) (bool, error)
 	ReplyWatchEvidence(context.Context, ReplyWatch) (SessionPromptAdmission, []SessionInputQueueEntry, error)
 	// ReplyWatchByMessage reads the watch armed for one message admitted into a target session.
 	ReplyWatchByMessage(context.Context, string, string) (ReplyWatch, bool, error)

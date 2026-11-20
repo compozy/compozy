@@ -114,6 +114,8 @@ type EventQuery struct {
 	ID             string
 	Type           string
 	Types          []string // Types selects a union intersected with Type when both are set.
+	TopLevelOnly   bool     // Excludes events attributed to child tool calls.
+	ExcludeTurnID  string
 	AgentName      string
 	TurnID         string
 	Since          time.Time

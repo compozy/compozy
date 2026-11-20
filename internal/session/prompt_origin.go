@@ -61,6 +61,17 @@ func promptOriginMessageAfter(origin *acp.PromptOriginMeta, message string, sect
 	return promptOriginMessage(origin, message)
 }
 
+func (m *Manager) attributeProviderPrompt(
+	ctx context.Context, session *Session, message string, sections []acp.PromptSection,
+) string {
+	origin := m.replyPromptOrigin(ctx, session.CurrentPromptMeta().Origin)
+	message = promptOriginMessageAfter(origin, message, sections)
+	if header := m.replyContinuationHeader(ctx, session.ID); header != "" {
+		message += "\n\n" + header
+	}
+	return message
+}
+
 func promptOriginMessage(origin *acp.PromptOriginMeta, message string) string {
 	origin = acp.ClonePromptOriginMeta(origin)
 	if origin == nil {
@@ -68,7 +79,9 @@ func promptOriginMessage(origin *acp.PromptOriginMeta, message string) string {
 	}
 	reply := fmt.Sprintf("To reply, call compozy__session_prompt with session_id %q.", origin.SessionID)
 	if origin.NotifyOnComplete {
-		reply = "Your final answer in this turn is sent back to it automatically."
+		reply = "Your final answer in this turn is sent back to it automatically. " +
+			"If you end this turn with a registered wait or delegated work, that reply is interim. " +
+			"CompozyOS also sends your answer from the later turn that settles the work."
 	}
 	identity := origin.SessionID
 	if origin.AgentName != "" {

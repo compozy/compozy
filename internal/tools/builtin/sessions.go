@@ -161,9 +161,11 @@ func sessionPromptDescriptor() toolspkg.Descriptor {
 			"target. Agent calls carry an immutable sender origin; "+
 			"self-targeting is rejected. Forwarding depth is limited to 8 hops, but answering the session "+
 			"that started your current turn, or replying with in_reply_to, keeps the hop. Each sender→target "+
-			"pair has a rate budget (message_rate_limited when exceeded). Without notify_on_complete nobody "+
-			"is woken when the receiver finishes; set it to get the receiver's final answer back as a reply "+
-			"wake. To answer a message you received, pass its message id as in_reply_to. notify_on_complete "+
+			"pair has a rate budget (message_rate_limited when exceeded). Set notify_on_complete to wake when "+
+			"the turn that consumes your message settles. If the wake says it is interim, the reply watch "+
+			"stays outstanding and a follow-up wakes you when the target settles. Use monitor_create with "+
+			"kind=session as well when you need an independent lifecycle or timeout wake. To answer a message "+
+			"you received, pass its message id as in_reply_to. notify_on_complete "+
 			"and in_reply_to require an agent session; operator-scoped calls are refused with invalid_request. "+
 			"Outside an instance lineage, a stopped session restarts only when mode is omitted; "+
 			"explicit queue, steer, or interrupt returns session_not_promptable. "+
@@ -320,12 +322,20 @@ const sessionPromptInputSchema = `{
 	`Omitted means session.busy_input.default_mode (steer by default)."},
 		"expected_turn_id":{"type":"string","minLength":1},
 		"notify_on_complete":{"type":"boolean","default":false,
- "description":"Request a reply wake with the receiver's final answer when its turn completes. ` +
-	`When omitted or false, nobody is woken when the receiver finishes. Requires an agent session."},
+ "description":"Wake when the consuming turn settles. If the receiver has a monitor, delegation, ` +
+	`scheduled wait, or reply pending from a session other than yours, including wakes in the queue or in a turn, ` +
+	`the wake is interim. Once no awaited work is left, the follow-up carries the target's latest top-level answer ` +
+	`after the interim reply. Intermediate turns do not wake you. A long-lived pull_request monitor, ` +
+	`for example one that stays armed until merge or timeout, keeps the follow-up pending until the wait ends ` +
+	`or the reply watch expires. If the interim text answers your request, act on it and keep working. ` +
+	`End your turn to await the follow-up only when you still need it. An accepted newer watched message to the ` +
+	`same session supersedes the follow-up. Pair with compozy__monitor_create kind=session for an independent ` +
+	`lifecycle or timeout wake. ` +
+	`Requires an agent session."},
 		"in_reply_to":{"type":"string","minLength":1,"maxLength":200,"pattern":"^\\S+$",
  "description":"Message id this message answers (shown on the received message). ` +
 	`A reply keeps the hop instead of adding one. It never releases the sender's reply watch: ` +
-	`a notify_on_complete wake still fires when your turn completes. Requires an agent session."},
+	`any automatic reply and follow-up still use the reply watch. Requires an agent session."},
 		"supersede":{"type":"boolean","default":false,
  "description":"Cancel your own older messages still queued for the same target, in the same step ` +
 	`that queues this one, so the target receives only the latest. Never touches operator input or other ` +

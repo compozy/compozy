@@ -13,22 +13,30 @@ import (
 )
 
 type TurnResult struct {
-	Outcome string
-	Text    string
-	Error   string
+	Outcome    string
+	Text       string
+	Error      string
+	Sequence   int64
+	terminalID string
 }
 
 func (m *Manager) TurnResult(ctx context.Context, sessionID, turnID string) (TurnResult, error) {
+	return m.replyTurnResult(ctx, sessionID, turnID, true)
+}
+
+func (m *Manager) replyTurnResult(ctx context.Context, sessionID, turnID string, allEvents bool) (TurnResult, error) {
 	if strings.TrimSpace(turnID) == "" {
 		return TurnResult{}, errors.New("session: reply turn id is required")
 	}
-	events, err := m.replyTurnEvents(ctx, sessionID, turnID)
+	ledger, err := m.replyTurnEvents(ctx, sessionID, turnID, allEvents)
 	if err != nil {
-		return TurnResult{}, err
+		return TurnResult{terminalID: ledger.terminalID}, err
 	}
-	result, err := replyTurnOutcome(events)
-	if err != nil {
-		return result, err
+	events := ledger.events
+	result := replyTurnOutcome(events)
+	result.terminalID = ledger.terminalID
+	if result.Outcome == "" && ledger.decodeErr != nil {
+		return result, ledger.decodeErr
 	}
 
 	if result.Outcome == "" {
@@ -59,15 +67,24 @@ func (m *Manager) TurnResult(ctx context.Context, sessionID, turnID string) (Tur
 			break
 		}
 	}
+	if ledger.fullWindow && ledger.terminalID != "" && result.Outcome != "" && result.Text == "" {
+		return m.replyTurnResult(ctx, sessionID, turnID, true)
+	}
 	return result, nil
 }
 
-func replyTurnOutcome(events []store.SessionEvent) (TurnResult, error) {
+func replyTurnOutcome(events []store.SessionEvent) TurnResult {
 	var result TurnResult
 	for _, event := range events {
+		result.Sequence = max(result.Sequence, event.Sequence)
+		switch event.Type {
+		case acp.EventTypeDone, acp.EventTypeError, EventTypeSessionStopped:
+		default:
+			continue
+		}
 		decoded, err := transcript.UnmarshalAgentEvent(event.Content)
 		if err != nil {
-			return result, err
+			continue
 		}
 		switch event.Type {
 		case acp.EventTypeError:
@@ -92,28 +109,46 @@ func replyTurnOutcome(events []store.SessionEvent) (TurnResult, error) {
 			}
 		}
 	}
-	return result, nil
+	return result
 }
 
-func (m *Manager) replyTurnEvents(ctx context.Context, sessionID, turnID string) ([]store.SessionEvent, error) {
-	query := store.EventQuery{TurnID: turnID, Limit: 200, Forward: true}
-	var events []store.SessionEvent
+type replyTurnLedger struct {
+	events     []store.SessionEvent
+	terminalID string
+	decodeErr  error
+	fullWindow bool
+}
+
+func (m *Manager) replyTurnEvents(
+	ctx context.Context, sessionID, turnID string, allEvents bool,
+) (replyTurnLedger, error) {
+	query := store.EventQuery{TurnID: turnID, Limit: 200, Forward: true, TopLevelOnly: true}
+	if !allEvents {
+		query.Forward, query.Limit = false, 4096
+	}
+	var ledger replyTurnLedger
 	for {
 		page, err := m.Events(ctx, sessionID, query)
 		if err != nil {
-			return nil, err
+			return ledger, err
 		}
 		for _, event := range page {
-			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
-			if err != nil {
-				return nil, err
+			switch event.Type {
+			case acp.EventTypeDone, acp.EventTypeError, EventTypeSessionStopped:
+				ledger.terminalID = event.ID
 			}
-			if decoded.ParentToolCallID() == "" {
-				events = append(events, event)
+			if _, err := transcript.UnmarshalAgentEvent(event.Content); err != nil {
+				ledger.decodeErr = err
+				continue
 			}
+			ledger.events = append(ledger.events, event)
+		}
+		if !allEvents {
+			ledger.fullWindow = len(page) == query.Limit
+			return ledger, nil
 		}
 		if len(page) < query.Limit {
-			return events, nil
+			return ledger, nil
 		}
 		query.AfterSequence = page[len(page)-1].Sequence
 	}
@@ -167,7 +202,7 @@ func (m *Manager) replyMessageTurn(
 	for _, event := range events {
 		decoded, err := transcript.UnmarshalAgentEvent(event.Content)
 		if err != nil {
-			return "", err
+			continue
 		}
 		if decoded.MessageIDValue() == w.MessageID && decoded.ParentToolCallID() == "" {
 			return event.TurnID, nil

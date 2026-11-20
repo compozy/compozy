@@ -1,15 +1,15 @@
 ---
 id: RT-session-message-reply
 area: RT
-title: Receive one durable reply to a session message
+title: Receive durable replies to a session message
 persona: Dora
 journey: J-session-collaboration
-expected: The sender receives one reply for the turn that consumed its message, with durable retry and no redelivery after operator cancellation.
+expected: The sender receives the consuming turn reply and one follow-up if work is still pending. Both survive restart without duplicate delivery.
 entry_points: compozy__session_prompt; compozy__session_status; compozy session status; session input queue; session history
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status: pending
 fix_commits:
 evidence:
 last_report: docs/qa/reports/2026-10-31-issue-1102-cross-workspace-reply.md
@@ -43,8 +43,8 @@ overlaps: RT-session-prompt-cancel; RT-session-spawn-wake
    The same watch is re-armed, the result reports its persisted state, and the eventual answer is
    delivered once. Activation refusal returns the send error without a second `dropped` wake.
 10. Recover a broken watch alongside a healthy one. Boot completes, the healthy watch reconciles,
-    and the broken row is logged as `reply_watch.recover_failed`. Armed watches older than 24 hours
-    produce a warning. Unrelated transcript turns do not affect normal reconciliation.
+    and the broken row is logged as `reply_watch.reconcile_failed` with its watch, sender and target IDs.
+    Armed watches older than the configured TTL produce an `expired` wake. Unrelated transcript turns do not affect normal reconciliation.
 11. Long wait: keep B working longer than `session.supervision.quiet_after` + `stop_grace` (shorten
     them for the lab). A, idle with an armed watch, is never stopped for inactivity and shows an
     `awaiting_reply` work signal in `compozy session status A -o json`. Then stop B with the message
@@ -91,6 +91,45 @@ Explicit reply and expiry regression (#760)
     keeps A out of inactivity stop. With `"0s"` an armed watch never expires and keeps A out of
     inactivity stop while B is live.
 
+
+## Interim replies and periodic recovery
+
+14. Have B register a terminal or timer monitor, then end the consuming turn. A receives an interim
+    reply that names the monitor. Check that A's `reply_watches` and `awaiting_reply` still show the
+    original watch. Leave another monitor open in B's next turn and confirm A receives no wake.
+15. On B's last monitor wake, check its provider prompt for the outstanding-reply header. Finish B's
+    work and confirm A receives exactly one follow-up with that turn's last answer and outcome.
+    Repeat after restarting the daemon while the watch is outstanding, and verify the watch stays
+    armed while the recovered monitor is active. Repeat with an operator-started turn that settles
+    with no awaited work left and confirm its answer is the follow-up. Repeat with B stopped or
+    deleted during the wait, and with B's final turn failing.
+16. Repeat with B waiting only for a reply from A. Verify the first reply settles without a
+    follow-up. Send two watched requests from A to B and let B consume them in separate turns
+    while a monitor remains active. Verify A receives both answers and only the newer watch sends
+    a follow-up. Repeat with a one-minute TTL and verify the original deadline expires the
+    outstanding follow-up.
+17. Skip the event-driven settle hook in the service harness. With no active turn, queued message,
+    or wake-producing work, a periodic pass delivers a readable reply. A settled but unreadable
+    result delivers `unknown` after one grace interval. It says the reply could not be read if
+    the message was consumed. A persisted MCP reload must leave the readable answer intact.
+    Repeat with the answer more than 4,096 top-level events before the terminal. The periodic pass
+    must recover the actual answer. If a continuation source fails, A receives the readable answer
+    as interim with "The remaining work could not be inspected." Once the source recovers and B has
+    no awaited work, A receives the follow-up.
+18. Cancel B's monitor before another turn settles. Verify the follow-up says the target settled
+    without a further answer and the interim reply stands.
+19. Have B register a short timer inside the consuming turn and keep that turn active until the
+    timer wake is queued. Verify A receives an interim reply that names the pending monitor wake,
+    then exactly one follow-up with the answer from the timer's turn. Repeat in the service harness
+    with the timer wake's turn already finished before the first reconciliation. A receives the
+    interim answer, then the answer from the wake's turn.
+
+Service-level coverage lives in `TestReplyWatchPeriodicSettlement` and `TestReplyWatchFollowUp`.
+Boot ordering is covered by `TestBootRecoversReplyWatchAfterMonitors`.
+Live QA with Claude Haiku 5.5 (`claude-haiku-5-5`) on `5c0d250ee7a2e9e4047513c79ed8248d58a416aa`
+verified interim and follow-up delivery, timer recovery across daemon restart, cancellation
+without a new target turn, MCP reload in the consuming turn, supersession, and timer wake
+admission during the consuming turn. `session-messages.test.tsx` covers the Web reply card text.
 
 Release integration verification (2026-10-18): the native busy-sender case keeps the operator input
 ahead of the reply wake, waits for dispatch before claiming delivery, and checks one reply with the

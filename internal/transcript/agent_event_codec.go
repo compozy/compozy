@@ -3,6 +3,8 @@ package transcript
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -159,8 +161,8 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		return acp.AgentEvent{}, nil
 	}
 
-	var decoded canonicalEventPayload
-	if err := json.Unmarshal([]byte(trimmed), &decoded); err != nil {
+	decoded, err := decodeAgentEventPayload([]byte(trimmed))
+	if err != nil {
 		return acp.AgentEvent{}, fmt.Errorf("transcript: unmarshal agent event: %w", err)
 	}
 
@@ -227,6 +229,47 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		event = event.WithAvailableCommands(decoded.AvailableCommands)
 	}
 	return RedactAgentEvent(event), nil
+}
+
+func decodeAgentEventPayload(raw []byte) (canonicalEventPayload, error) {
+	var decoded canonicalEventPayload
+	err := json.Unmarshal(raw, &decoded)
+	if err == nil || decoded.Schema == CanonicalSchema {
+		return decoded, err
+	}
+	var envelope struct {
+		Schema json.RawMessage `json:"schema"`
+	}
+	if json.Unmarshal(raw, &envelope) != nil {
+		return canonicalEventPayload{}, err
+	}
+	var schema string
+	if len(envelope.Schema) > 0 && json.Unmarshal(envelope.Schema, &schema) == nil && schema == CanonicalSchema {
+		return canonicalEventPayload{}, err
+	}
+	// Daemon lifecycle events share the ledger but have independent payload schemas.
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil {
+		return canonicalEventPayload{}, err
+	}
+	var compatible canonicalEventPayload
+	for _, key := range slices.Sorted(maps.Keys(fields)) {
+		// The canonical tags are lowercase. Give their exact spelling priority.
+		if lower := strings.ToLower(key); lower != key {
+			if _, exact := fields[lower]; exact {
+				continue
+			}
+		}
+		field, marshalErr := json.Marshal(map[string]json.RawMessage{key: fields[key]})
+		if marshalErr != nil {
+			return canonicalEventPayload{}, marshalErr
+		}
+		candidate := compatible
+		if json.Unmarshal(field, &candidate) == nil {
+			compatible = candidate
+		}
+	}
+	return compatible, nil
 }
 
 func cloneRuntimeActivity(activity *acp.RuntimeActivity) *acp.RuntimeActivity {

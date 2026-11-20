@@ -861,6 +861,11 @@ describe("SessionReplyCard", () => {
     ["dropped", "ignored", "The message was removed from the queue before it ran."],
     ["unknown", "", "The message may not have been delivered; check the target session."],
     [
+      "unknown",
+      "The reply could not be read. Check the target session.",
+      "The reply could not be read. Check the target session.",
+    ],
+    [
       "failed",
       "Provider error: rate limit exceeded (429).",
       "Provider error: rate limit exceeded (429).",

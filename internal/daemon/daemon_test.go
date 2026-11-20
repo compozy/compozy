@@ -48,6 +48,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/procutil"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -63,6 +64,8 @@ import (
 	"github.com/compozy/compozy/internal/subprocess"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -1001,6 +1004,119 @@ func TestBootPublishesOperatingSystemProcessStartTime(t *testing.T) {
 				info.StartedAt,
 				expectedStartedAt,
 			)
+		}
+	})
+}
+
+// Invariant: a live monitor keeps its owner's outstanding follow-up armed across daemon restart.
+// Owner: daemon boot, which restores work sources and monitors before recovering reply watches.
+func TestBootRecoversReplyWatchAfterMonitors(t *testing.T) {
+	t.Run("Should retain a pending follow-up while the restored timer is active", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		home := testHomePaths(t)
+		registration, err := acpmock.Register(home, acpmock.RegisterOptions{
+			FixturePath:  filepath.Join("..", "testutil", "acpmock", "testdata", "local_fixture.json"),
+			FixtureAgent: "local-default",
+			ProviderName: acpmock.ProviderName,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		newDaemon := func() *Daemon {
+			cfg := e2etest.SeedConfig(t, home, e2etest.ConfigSeedOptions{
+				SocketPath: home.DaemonSocket,
+				Providers: map[string]compozyconfig.ProviderConfig{
+					acpmock.ProviderName: acpmock.ProviderConfig(registration.DriverPath),
+				},
+				Mutate: func(cfg *compozyconfig.Config) {
+					cfg.Automation.Enabled = false
+					cfg.Roles.AutoTitle.Enabled = false
+					cfg.ModelCatalog.Sources.ModelsDev.Enabled = new(false)
+					cfg.ProviderUsage.Enabled = false
+				},
+			})
+			return newTestDaemon(t, home, &cfg)
+		}
+		first := newDaemon()
+		if err := first.boot(ctx); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := first.Shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		workspace := resolveDaemonWorkspace(t, first.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
+		manager := first.sessions.(*session.Manager)
+		opts := session.CreateOpts{
+			AgentName: registration.AgentName, Workspace: workspace.ID, Type: session.SessionTypeUser,
+		}
+		sender, err := manager.CreateAccepted(ctx, &session.CreateAcceptedOpts{Session: opts})
+		if err != nil {
+			t.Fatal(err)
+		}
+		target, err := manager.Create(ctx, &opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mon, err := first.sessionMonitors.Create(ctx, monitorpkg.Spec{
+			SessionID: target.ID, ProfileID: target.ProfileID, WorkspaceID: workspace.ID,
+			Kind: monitorpkg.KindTimer, Delay: time.Hour, Description: "Check deferred work",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		db := first.registry.(*globaldb.GlobalDB)
+		admission := store.SessionPromptAdmissionRequest{
+			ID: "watched-admission", WorkspaceID: workspace.ID, SessionID: target.ID,
+			MessageID: "watched-message", IdempotencyKey: "watched-key", EventID: "watched-input",
+			TurnID: "original-turn", Operation: store.SessionPromptOperationPrompt,
+			Mode: store.SessionInputQueueModeQueue, AuthoredText: "Check deferred work",
+			FingerprintVersion: "test/v1", RequestFingerprint: "watched-fingerprint", Now: first.now(),
+		}
+		if _, _, err := db.ClaimSessionPromptAdmission(ctx, admission); err != nil {
+			t.Fatal(err)
+		}
+		watch, err := db.InsertReplyWatchTx(ctx, db.DB(), store.ReplyWatchRegistration{
+			SenderSessionID: sender.ID, WorkspaceID: workspace.ID, TargetSessionID: target.ID,
+			TargetWorkspaceID: workspace.ID, MessageID: admission.MessageID, AdmissionID: admission.ID,
+			TurnID: admission.TurnID, CreatedAt: admission.Now, Hop: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The session already received its interim reply. Seed that durable handoff without
+		// sending a provider prompt, since the behavior under test starts at the restart.
+		if _, err := db.DB().ExecContext(ctx, `
+			UPDATE session_prompt_reply_watches
+			SET follow_up_after = 1, outcome = 'completed', reply_text = 'Still checking',
+				delivered_input_id = 'interim-input', delivered_at = created_at
+			WHERE id = ?`, watch.ID); err != nil {
+			t.Fatal(err)
+		}
+		first.restartRequested = true
+		if err := first.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+
+		restarted := newDaemon()
+		if err := restarted.boot(ctx); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := restarted.Shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		recoveredMonitors := restarted.sessionMonitors.List(target.ID)
+		if len(recoveredMonitors) != 1 || recoveredMonitors[0].ID != mon.ID ||
+			recoveredMonitors[0].Status != monitorpkg.StatusActive {
+			t.Fatalf("recovered timers = %+v, want active %s", recoveredMonitors, mon.ID)
+		}
+		got, err := restarted.registry.(*globaldb.GlobalDB).GetReplyWatch(ctx, watch.ID)
+		if err != nil || got.State != store.ReplyWatchArmed || got.DeliveredInputID != "interim-input" {
+			t.Fatalf("recovered follow-up = %+v, %v; want the original interim handoff", got, err)
 		}
 	})
 }

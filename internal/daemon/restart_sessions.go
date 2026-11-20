@@ -46,13 +46,6 @@ func recoverBootDelegatedSessions(ctx context.Context, state *bootState) error {
 			return fmt.Errorf("daemon: recover subagents: %w", err)
 		}
 	}
-	if manager, ok := state.sessions.(*session.Manager); ok {
-		if service := manager.ReplyWatches(); service != nil {
-			if err := service.Recover(ctx); err != nil {
-				return fmt.Errorf("daemon: recover reply watches: %w", err)
-			}
-		}
-	}
 	return nil
 }
 

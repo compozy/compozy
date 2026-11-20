@@ -453,7 +453,7 @@ func (m *Manager) promptDispatchMessage(
 	augmented, err := m.augmentPromptMessage(ctx, session, message)
 	collected := sections()
 	return preparedPromptInput{
-		message:  promptOriginMessageAfter(session.CurrentPromptMeta().Origin, augmented, collected),
+		message:  m.attributeProviderPrompt(ctx, session, augmented, collected),
 		sections: collected,
 	}, err
 }

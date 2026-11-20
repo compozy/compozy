@@ -42,16 +42,7 @@ func (m *Manager) finalizeStoppedOwned(
 		return nil
 	}
 	defer func() {
-		m.finishFinalization(session.ID, err)
-		if err == nil && session.Info().State == StateStopped {
-			m.retryChildSettleWake(ctx, session.Info())
-			if service := m.ReplyWatches(); service != nil {
-				service.OnTurnSettled(ctx, session.ID, "")
-			}
-			if service := m.subagentService(); service != nil {
-				m.logSubagentError(service.OnChildSettled(ctx, session.ID))
-			}
-		}
+		m.finishStoppedFinalization(ctx, session, err)
 	}()
 	if session.pendingStopState() && session.stopTerminalRecorded {
 		return m.finishStoppedPersistence(ctx, session)
@@ -108,6 +99,25 @@ func (m *Manager) finalizeStoppedOwned(
 	errs = appendLifecycleErr(errs, m.closeSessionRecorder(session))
 	session.stopFinalizationErr = errors.Join(errs...)
 	return m.finishStoppedPersistence(ctx, session)
+}
+
+func (m *Manager) finishStoppedFinalization(ctx context.Context, session *Session, err error) {
+	info := session.Info()
+	if err != nil || info.State != StateStopped {
+		m.finishFinalization(session.ID, err)
+		return
+	}
+	// Keep post-stop work drainable while releasing the barrier its transcript reads need.
+	finishDrain := m.trackPromptDrain()
+	defer finishDrain()
+	m.finishFinalization(session.ID, nil)
+	m.retryChildSettleWake(ctx, info)
+	if service := m.ReplyWatches(); service != nil {
+		service.OnTurnSettled(ctx, session.ID, "")
+	}
+	if service := m.subagentService(); service != nil {
+		m.logSubagentError(service.OnChildSettled(ctx, session.ID))
+	}
 }
 
 // Keep the durable receipt pending while reporting the verified process exit truthfully.

@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"log/slog"
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/store"
@@ -74,6 +75,33 @@ func insertReplyWatchTx(
 	return replyWatchFromSQL(row)
 }
 
+func (g *SessionRepo) SupersedeReplyWatchFollowUps(ctx context.Context, id string) error {
+	return g.withImmediateTransaction(ctx, "supersede reply follow-ups", func(exec globalSQLExecutor) error {
+		superseded, err := sqlcgen.New(exec).SupersedeReplyWatchFollowUps(ctx, id)
+		if err != nil {
+			return err
+		}
+		for _, older := range superseded {
+			if older.State == store.ReplyWatchAbandoned {
+				recordSupersededReplyWatch(ctx, exec, older.ID)
+			}
+		}
+		return nil
+	})
+}
+
+func recordSupersededReplyWatch(ctx context.Context, exec store.DBTX, id string) {
+	if transaction, ok := exec.(*outboxSignalExecutor); ok {
+		transaction.supersededReplyWatches = append(transaction.supersededReplyWatches, id)
+		return
+	}
+	logSupersededReplyWatch(ctx, id)
+}
+
+func logSupersededReplyWatch(ctx context.Context, id string) {
+	slog.InfoContext(ctx, "reply_watch.abandoned", "id", id, "reason", "superseded")
+}
+
 // ReplyWatchByMessage reads the watch armed for one message admitted into a target session.
 func (g *SessionRepo) ReplyWatchByMessage(
 	ctx context.Context,
@@ -102,42 +130,37 @@ func (g *SessionRepo) GetReplyWatch(ctx context.Context, id string) (store.Reply
 }
 
 func (g *SessionRepo) ListReplyWatches(ctx context.Context, f store.ReplyWatchFilter) ([]store.ReplyWatch, error) {
-	rows, err := g.readQueries.ListReplyWatches(
-		ctx,
-		sqlcgen.ListReplyWatchesParams{
-			StateFilter:     f.State,
-			WorkspaceFilter: f.WorkspaceID,
-			SenderFilter:    f.SenderSessionID,
-			TargetFilter:    f.TargetSessionID,
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]store.ReplyWatch, 0, len(rows))
-	for _, row := range rows {
-		w, err := replyWatchFromSQL(row)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, w)
-	}
-	return out, nil
+	rows, err := g.readQueries.ListReplyWatches(ctx, sqlcgen.ListReplyWatchesParams{
+		StateFilter:     f.State,
+		WorkspaceFilter: f.WorkspaceID,
+		SenderFilter:    f.SenderSessionID,
+		TargetFilter:    f.TargetSessionID,
+	})
+	return mapReplyWatches(rows, err)
 }
 
 // ListPendingReplyWatchesBySender reads one sender's armed and fired watches through its index.
 func (g *SessionRepo) ListPendingReplyWatchesBySender(ctx context.Context, sender string) ([]store.ReplyWatch, error) {
 	rows, err := g.readQueries.ListPendingReplyWatchesBySender(ctx, sender)
+	return mapReplyWatches(rows, err)
+}
+
+func (g *SessionRepo) ListPendingReplyWatchesByTarget(ctx context.Context, target string) ([]store.ReplyWatch, error) {
+	rows, err := g.readQueries.ListPendingReplyWatchesByTarget(ctx, target)
+	return mapReplyWatches(rows, err)
+}
+
+func mapReplyWatches(rows []sqlcgen.SessionPromptReplyWatch, err error) ([]store.ReplyWatch, error) {
 	if err != nil {
 		return nil, err
 	}
 	out := make([]store.ReplyWatch, 0, len(rows))
-	for _, row := range rows {
-		w, err := replyWatchFromSQL(row)
+	for i := range rows {
+		watch, err := replyWatchFromSQL(rows[i])
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, w)
+		out = append(out, watch)
 	}
 	return out, nil
 }
@@ -169,63 +192,52 @@ func (g *SessionRepo) FireReplyWatch(ctx context.Context, id string, f store.Rep
 	if utf8.RuneCountInString(f.Text) > 12000 {
 		return false, errors.New("store: reply exceeds 12000 runes")
 	}
-	n, err := executeWriteQueryResult(
-		ctx,
-		g.repoBase,
-		"globaldb.FireReplyWatch",
-		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
-			return queries.FireReplyWatch(
-				ctx,
-				sqlcgen.FireReplyWatchParams{
-					ID:             id,
-					Outcome:        replyNull(f.Outcome),
-					ReplyText:      replyNull(f.Text),
-					ReplyTruncated: subagentBool(f.Truncated),
-					FiredAt:        replyNull(store.FormatTimestamp(g.now())),
-				},
-			)
-		},
-	)
-	return n == 1, err
+	var fired bool
+	err := g.withImmediateTransaction(ctx, "fire reply watch", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		if f.InterimWait != "" {
+			newer, err := q.HasNewerReplyWatch(ctx, id)
+			if err != nil {
+				return err
+			}
+			if newer {
+				f.FollowUpAfter, f.InterimWait = 0, ""
+			}
+		}
+		n, err := q.FireReplyWatch(ctx, sqlcgen.FireReplyWatchParams{
+			ID: id, Outcome: replyNull(f.Outcome), ReplyText: replyNull(f.Text),
+			ReplyTruncated: subagentBool(f.Truncated), FiredAt: replyNull(store.FormatTimestamp(g.now())),
+			ResultTurnID: replyNull(f.TurnID), ExpectedAfter: f.ExpectedAfter,
+			NextAfter: max(f.ExpectedAfter, f.FollowUpAfter), InterimWait: replyNull(f.InterimWait),
+		})
+		fired = n == 1
+		return err
+	})
+	return fired && err == nil, err
 }
 
-func (g *SessionRepo) AbandonReplyWatch(ctx context.Context, id, reason string) error {
-	return g.executeWriteQuery(
-		ctx,
-		"globaldb.AbandonReplyWatch",
-		func(ctx context.Context, queries *sqlcgen.Queries) error {
+func (g *SessionRepo) AbandonReplyWatch(ctx context.Context, id, reason string) (bool, error) {
+	n, err := executeWriteQueryResult(
+		ctx, g.repoBase, "globaldb.AbandonReplyWatch",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
 			return queries.AbandonReplyWatch(
 				ctx,
 				sqlcgen.AbandonReplyWatchParams{ID: id, AbandonReason: replyNull(reason)},
 			)
 		},
 	)
+	return n == 1, err
 }
 
 func (g *SessionRepo) DeliverReplyWatch(
 	ctx context.Context,
 	id string,
 	entry store.SessionInputQueueInsert,
+	interim bool,
 ) (delivered bool, err error) {
 	entry = entry.Normalize()
-	if err := entry.Validate(); err != nil {
+	if err := validateReplyWakeInput(id, entry); err != nil {
 		return false, err
-	}
-	if entry.OwnerKind != store.SessionInputOwnerSynthetic || entry.MessageID != "prompt-reply:"+id ||
-		entry.Priority != 1 {
-		return false, errors.New("store: invalid reply wake input identity")
-	}
-	var meta struct {
-		Kind string `json:"kind"`
-	}
-	if entry.SyntheticPrompt == nil {
-		return false, errors.New("store: reply wake requires synthetic metadata")
-	}
-	if err := json.Unmarshal(entry.SyntheticPrompt.Metadata, &meta); err != nil {
-		return false, err
-	}
-	if meta.Kind != "session_reply" {
-		return false, errors.New("store: reply wake requires session_reply kind")
 	}
 	err = g.withImmediateTransaction(ctx, "deliver reply watch", func(exec globalSQLExecutor) error {
 		q := sqlcgen.New(exec)
@@ -233,7 +245,12 @@ func (g *SessionRepo) DeliverReplyWatch(
 		if err != nil {
 			return err
 		}
-		if w.State != store.ReplyWatchFired {
+		watch, err := replyWatchFromSQL(w)
+		if err != nil {
+			return err
+		}
+		if w.State != store.ReplyWatchFired || entry.MessageID != watch.WakeMessageID() ||
+			(watch.InterimWait != "") != interim {
 			return nil
 		}
 		if w.SenderSessionID != entry.SessionID {
@@ -247,10 +264,11 @@ func (g *SessionRepo) DeliverReplyWatch(
 			return err
 		}
 		if !exists {
-			return q.AbandonReplyWatch(
+			_, err := q.AbandonReplyWatch(
 				ctx,
 				sqlcgen.AbandonReplyWatchParams{ID: id, AbandonReason: replyNull("sender_gone")},
 			)
+			return err
 		}
 		// The wake joins the sender's current queue generation, read inside this transaction: a clear that
 		// advanced it after the caller prepared the entry must not strand a delivered wake in a dead generation.
@@ -262,14 +280,7 @@ func (g *SessionRepo) DeliverReplyWatch(
 		if err := checkSessionInputQueueCap(ctx, exec, entry); err != nil {
 			return err
 		}
-		n, err := q.DeliverReplyWatch(
-			ctx,
-			sqlcgen.DeliverReplyWatchParams{
-				ID:               id,
-				DeliveredInputID: replyNull(entry.ID),
-				DeliveredAt:      replyNull(store.FormatTimestamp(g.now())),
-			},
-		)
+		n, err := g.finishReplyWatchDelivery(ctx, q, watch, entry.ID)
 		if err != nil || n == 0 {
 			return err
 		}
@@ -280,6 +291,44 @@ func (g *SessionRepo) DeliverReplyWatch(
 		return nil
 	})
 	return delivered && err == nil, err
+}
+
+func validateReplyWakeInput(id string, entry store.SessionInputQueueInsert) error {
+	if err := entry.Validate(); err != nil {
+		return err
+	}
+	base := "prompt-reply:" + id
+	if entry.OwnerKind != store.SessionInputOwnerSynthetic || entry.Priority != 1 ||
+		(entry.MessageID != base && entry.MessageID != base+":follow-up") {
+		return errors.New("store: invalid reply wake input identity")
+	}
+	if entry.SyntheticPrompt == nil {
+		return errors.New("store: reply wake requires synthetic metadata")
+	}
+	var meta struct {
+		Kind string `json:"kind"`
+	}
+	if err := json.Unmarshal(entry.SyntheticPrompt.Metadata, &meta); err != nil {
+		return err
+	}
+	if meta.Kind != "session_reply" {
+		return errors.New("store: reply wake requires session_reply kind")
+	}
+	return nil
+}
+
+func (g *SessionRepo) finishReplyWatchDelivery(
+	ctx context.Context, q *sqlcgen.Queries, watch store.ReplyWatch, inputID string,
+) (int64, error) {
+	deliveredAt := replyNull(store.FormatTimestamp(g.now()))
+	if watch.InterimWait != "" {
+		return q.DeliverInterimReplyWatch(ctx, sqlcgen.DeliverInterimReplyWatchParams{
+			ID: watch.ID, DeliveredInputID: replyNull(inputID), DeliveredAt: deliveredAt,
+		})
+	}
+	return q.DeliverReplyWatch(ctx, sqlcgen.DeliverReplyWatchParams{
+		ID: watch.ID, DeliveredInputID: replyNull(inputID), DeliveredAt: deliveredAt,
+	})
 }
 
 func (g *SessionRepo) ReplyWatchEvidence(
@@ -322,6 +371,7 @@ func replyWatchFromSQL(row sqlcgen.SessionPromptReplyWatch) (store.ReplyWatch, e
 		QueueEntryID: row.QueueEntryID.String, DeliveredInputID: row.DeliveredInputID.String,
 		AbandonReason: row.AbandonReason.String, Hop: int(row.Hop), State: row.State,
 		Outcome: row.Outcome.String, ReplyText: row.ReplyText.String, ReplyTruncated: row.ReplyTruncated != 0,
+		FollowUpAfter: row.FollowUpAfter, InterimWait: row.InterimWait.String,
 	}
 	var err error
 	w.CreatedAt, err = store.ParseTimestamp(row.CreatedAt)

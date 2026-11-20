@@ -173,6 +173,7 @@ type bootState struct {
 	deps                  RuntimeDeps
 
 	sessionWindowReconciler session.WindowReconciler
+	replyWatchRecoveryGate  chan struct{}
 }
 
 type daemonMCPToolProvider interface {

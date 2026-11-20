@@ -4979,7 +4979,9 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 				}
 				reply := `To reply, call compozy__session_prompt with session_id "sender".`
 				if origin.NotifyOnComplete {
-					reply = "Your final answer in this turn is sent back to it automatically."
+					reply = "Your final answer in this turn is sent back to it automatically. " +
+						"If you end this turn with a registered wait or delegated work, that reply is interim. " +
+						"CompozyOS also sends your answer from the later turn that settles the work."
 				}
 				want := `[Message from session "Original" (sender, agent coder) via compozy__session_prompt — another agent, not the operator. ` + reply + "]\n\nQ?"
 				if req.Message != want || req.Meta.Origin == nil ||

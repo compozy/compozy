@@ -48,7 +48,11 @@ When a worker should rely on its provider shell, say so in `prompt_overlay` or t
 
 Use `compozy__session_prompt` with `notify_on_complete: true` when you need an answer from an
 existing session. Save `reply_watch.id`, finish the steps that do not need the answer, then end your
-turn and let the reply wake resume your work. The watch follows the message through queued or steered delivery, not an unrelated turn.
+turn and let the reply wake resume your work when the consuming turn settles. If the wake is
+interim, the watch stays outstanding under its original TTL and sends one follow-up when the target
+settles its open work. A newer watched message to the same target supersedes the pending follow-up.
+Pair with `compozy__monitor_create kind="session"` when you need an independent lifecycle or timeout
+wake, such as when waiting for a group of sessions.
 Call `compozy__session_status` with `result_view: "full"` and inspect `reply_watches` when diagnosing outstanding requests. While the target
 is live, your open watch is an `awaiting_reply` work signal, so you are not stopped for inactivity while
 you wait. An unanswered watch expires after `session.messaging.reply_watch_ttl` (24h by default) with
@@ -202,8 +206,8 @@ Governed child sessions have the parallel session-level feedback path. `compozy 
 `compozy__session_spawn` default `notify_creator` to true, then queue one sanitized synthetic turn on
 the parent when the child completes a turn, stops, fails, or enters a needs-you state. A canceled
 child turn sends no completed wake. When the parent holds an open reply watch on the child (a spawn
-`prompt`, or `session_prompt` with `notify_on_complete`), the reply wake carries the child's final
-answer and the bare completed wake is skipped. Otherwise the completed wake points at
+`prompt`, or `session_prompt` with `notify_on_complete`), the reply watch carries the child's answer and any
+follow-up and the bare completed wake is skipped. Otherwise the completed wake points at
 `compozy__session_history` for the answer; pass `type: "agent_message"` and the reply's `turn_id`
 to omit tool payloads. Use CLI
 `--no-notify-creator` or explicit `notify_creator: false` on the API/tool request for a child that
