@@ -233,9 +233,10 @@ process retain their existing result.
 Supervision branch (introduced by sessions-stability task_05 on 2026-09-06; narrowed to in-flight
 turns by #782 on 2026-10-17): configure short `quiet_after`/`stop_grace` intervals in the isolated
 lab. Hold a turn in flight that stops producing work (for example a provider that hangs inside a
-prompt). Exercise fresh progress, verified tool, active child, recent Loop reconciliation, task
-lease, and scheduled wait independently; each must suppress the warning. Provider waiting and an
-open subscriber must not. Observe one quiet warning: no window banner, and the working status line
+prompt). Exercise a verified tool, active child, recent Loop reconciliation, task lease, and
+scheduled wait independently. Each must suspend the watchdog while its work evidence is current.
+Provider waiting and an open subscriber leave the quiet window running. Observe one quiet warning:
+no window banner, and the working status line
 under the transcript reads `Working for … · quiet for …`, also for a turn that hangs before its
 first token (it must not stay on `Thinking`); CLI/HTTP/UDS/resource/native describe
 fields match. Then observe the verified inactivity stop (`session.supervision_stopped`,
