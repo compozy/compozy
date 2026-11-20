@@ -6193,6 +6193,10 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 		if err != nil || len(hidden) != 0 {
 			t.Fatalf("side root descendants = %+v, %v", hidden, err)
 		}
+		padded, err := h.manager.Descendants(t.Context(), h.workspaceID, " "+side.ID+" ")
+		if err != nil || len(padded) != 0 {
+			t.Fatalf("padded side root descendants = %+v, %v", padded, err)
+		}
 		visible, err := h.manager.Descendants(t.Context(), h.workspaceID, source.ID)
 		if err != nil || len(visible) != 1 || visible[0].ID != ordinary.ID {
 			t.Fatalf("public root descendants = %+v, %v", visible, err)

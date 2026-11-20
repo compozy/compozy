@@ -60,7 +60,7 @@ func (m *Manager) Descendants(ctx context.Context, workspaceID string, sessionID
 		return nil, err
 	}
 	visible := rows[:0]
-	hidden := map[string]bool{sessionID: rootHidden}
+	hidden := map[string]bool{root.ID: rootHidden}
 	for i := range rows {
 		row := &rows[i]
 		parent := store.HierarchyParentSessionID(row.Lineage)
