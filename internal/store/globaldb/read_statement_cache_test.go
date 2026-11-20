@@ -170,7 +170,16 @@ func TestSessionListReadStatementReuse(t *testing.T) {
 			}
 			queued <- err
 		}()
+		queueDeadline := time.Now().Add(5 * time.Second)
 		for db.Stats().WaitCount == 0 {
+			select {
+			case err := <-queued:
+				t.Fatalf("cached read finished before queueing behind the held connection: %v", err)
+			default:
+			}
+			if time.Now().After(queueDeadline) {
+				t.Fatal("cached read never queued behind the held connection")
+			}
 			time.Sleep(time.Millisecond)
 		}
 		closed := make(chan error, 1)
@@ -183,8 +192,13 @@ func TestSessionListReadStatementReuse(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("closeReadPool waited for the held connection")
 		}
-		if err := <-queued; err == nil {
-			t.Fatal("queued cached read succeeded after the pool closed")
+		select {
+		case err := <-queued:
+			if err == nil {
+				t.Fatal("queued cached read succeeded after the pool closed")
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("queued cached read did not finish after the pool closed")
 		}
 	})
 
