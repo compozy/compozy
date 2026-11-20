@@ -14,7 +14,7 @@ type batchDispatchStore interface {
 		int,
 		func(*store.SessionInputQueueEntry) bool,
 		time.Time,
-	) ([]store.SessionInputQueueEntry, error)
+	) ([]store.SessionInputQueueEntry, *store.InstancePauseTrip, error)
 	MarkSessionInputSentInTurn(context.Context, string, string, string, time.Time) error
 	PromoteQueuedAgentSessionInputToSteer(
 		context.Context,
@@ -33,10 +33,10 @@ func (s *Service) ClaimBatch(
 	sessionID string,
 	limit int,
 	accept func(*store.SessionInputQueueEntry) bool,
-) ([]store.SessionInputQueueEntry, error) {
+) ([]store.SessionInputQueueEntry, *store.InstancePauseTrip, error) {
 	owner, ok := s.store.(batchDispatchStore)
 	if !ok {
-		return nil, nil
+		return nil, nil, nil
 	}
 	return owner.ClaimSessionInputBatch(ctx, sessionID, limit, accept, s.now())
 }

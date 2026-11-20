@@ -40,21 +40,8 @@ func (m *Manager) replyTurnResult(ctx context.Context, sessionID, turnID string,
 	}
 
 	if result.Outcome == "" {
-		active, activeErr := m.ActivePromptRun(ctx, sessionID)
-		if activeErr != nil && !errors.Is(activeErr, ErrPromptNotActive) {
-			return result, activeErr
-		}
-		if (activeErr != nil || active.TurnID != turnID) && len(events) > 0 {
-			info, err := m.Status(ctx, sessionID)
-			if err != nil {
-				return result, err
-			}
-			if info.State == StateStopped {
-				result.Outcome = store.ReplyOutcomeCanceled
-				if info.Failure != nil && info.Failure.Kind != store.FailureCanceled {
-					result.Outcome, result.Error = store.ReplyOutcomeFailed, info.Failure.Summary
-				}
-			}
+		if err := m.applyStoppedReplyOutcome(ctx, sessionID, turnID, len(events) > 0, &result); err != nil {
+			return result, err
 		}
 	}
 	messages, err := transcript.Assemble(events)
@@ -71,6 +58,28 @@ func (m *Manager) replyTurnResult(ctx context.Context, sessionID, turnID string,
 		return m.replyTurnResult(ctx, sessionID, turnID, true)
 	}
 	return result, nil
+}
+
+func (m *Manager) applyStoppedReplyOutcome(
+	ctx context.Context, sessionID, turnID string, hasEvents bool, result *TurnResult,
+) error {
+	active, activeErr := m.ActivePromptRun(ctx, sessionID)
+	if activeErr != nil && !errors.Is(activeErr, ErrPromptNotActive) {
+		return activeErr
+	}
+	if (activeErr != nil || active.TurnID != turnID) && hasEvents {
+		info, err := m.Status(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		if info.State == StateStopped {
+			result.Outcome = store.ReplyOutcomeCanceled
+			if info.Failure != nil && info.Failure.Kind != store.FailureCanceled {
+				result.Outcome, result.Error = store.ReplyOutcomeFailed, info.Failure.Summary
+			}
+		}
+	}
+	return nil
 }
 
 func replyTurnOutcome(events []store.SessionEvent) TurnResult {

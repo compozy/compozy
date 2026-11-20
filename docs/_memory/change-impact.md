@@ -6907,7 +6907,9 @@ Owner [#1848](https://github.com/compozy/compozy/issues/1848).
 - **Runtime and persisted state.** Canonical Done receipts charge the nearest
   owning instance for the daemon's local day. Replay preserves the original
   receipt and budget warning. The next autonomous turn checks confirmed usage
-  before dispatch. Concurrent in-flight turns can exceed a cap, and one
+  before dispatch, including each autonomous input in a queued batch.
+  Existing queue entries retain their recorded human ingress on upgrade.
+  Concurrent in-flight turns can exceed a cap, and one
   confirmed unpriced receipt holds further autonomous turns under a USD cap.
 - **Isolation and recovery.** Receipts are profile-scoped and provenance-only
   links remain independent. Startup and live recovery reconcile the durable

@@ -24,6 +24,7 @@ func TestAgentInstanceDailyBudgetUpdateSchema(t *testing.T) {
 			{name: "only null", body: map[string]any{"daily_budget": nil}},
 			{name: "negative", body: map[string]any{"daily_budget": map[string]any{"usd": float64(-1)}}},
 			{name: "typo", body: map[string]any{"daily_budget": map[string]any{"token": float64(1)}}},
+			{name: "misplaced cap", body: map[string]any{"daily_budget": map[string]any{}, "usd": float64(1.25)}},
 		} {
 			if err := schema.VisitJSON(tc.body); (err == nil) != tc.valid {
 				t.Errorf("%s error=%v, want valid=%t", tc.name, err, tc.valid)

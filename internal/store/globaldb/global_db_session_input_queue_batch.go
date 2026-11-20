@@ -12,31 +12,31 @@ import (
 )
 
 // ClaimSessionInputBatch leases the consecutive dispatch-ordered entries that follow an already
-// claimed head, stopping at the first one accept refuses. The candidates use the dispatch filter,
-// so a Goal cutoff, a newer generation, or a different owner always ends the batch.
+// claimed head, stopping at the first one rejected by accept or daily budget admission.
+// A new budget pause is returned separately from the successfully claimed entries.
 func (g *SessionRepo) ClaimSessionInputBatch(
 	ctx context.Context,
 	sessionID string,
 	limit int,
 	accept func(*store.SessionInputQueueEntry) bool,
 	now time.Time,
-) (claimed []store.SessionInputQueueEntry, err error) {
+) (claimed []store.SessionInputQueueEntry, trip *store.InstancePauseTrip, err error) {
 	if err := g.checkReady(ctx, "claim session input batch"); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	target := strings.TrimSpace(sessionID)
 	if target == "" {
-		return nil, errors.New("store: session id is required")
+		return nil, nil, errors.New("store: session id is required")
 	}
 	if limit <= 0 || accept == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if now.IsZero() {
 		now = g.now()
 	}
 	now = now.UTC()
 	err = g.withImmediateTransaction(ctx, "claim session input batch", func(exec globalSQLExecutor) error {
-		claimed = nil
+		claimed, trip = nil, nil
 		queries := sqlcgen.New(exec)
 		rows, listErr := queries.ListDispatchableSessionInputs(ctx, sqlcgen.ListDispatchableSessionInputsParams{
 			SessionID: target, RowLimit: int64(limit),
@@ -53,6 +53,16 @@ func (g *SessionRepo) ClaimSessionInputBatch(
 			if !accept(&candidate) {
 				return nil
 			}
+			if !candidate.HumanIngress || candidate.AppIngress {
+				allowed, pause, admissionErr := admitDailyBudgetTurnTx(ctx, queries, target, g.now())
+				if admissionErr != nil {
+					return admissionErr
+				}
+				if !allowed {
+					trip = pause
+					return nil
+				}
+			}
 			entry, claimErr := claimSessionInputInTransaction(ctx, exec, target, &candidate, now, nowRaw)
 			if claimErr != nil {
 				return claimErr
@@ -62,9 +72,9 @@ func (g *SessionRepo) ClaimSessionInputBatch(
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return claimed, nil
+	return claimed, trip, nil
 }
 
 func claimSessionInputInTransaction(

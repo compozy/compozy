@@ -2130,7 +2130,12 @@ func TestReplyWatchTTLExpiry(t *testing.T) {
 		if !strings.Contains(wake.Text, "reply watch expired") {
 			t.Fatalf("reply = %q", wake.Text)
 		}
-		if got := requireReplyWatchState(t, db, w.ID, store.ReplyWatchDelivered); got.Outcome != store.ReplyOutcomeExpired {
+		if got := requireReplyWatchState(
+			t,
+			db,
+			w.ID,
+			store.ReplyWatchDelivered,
+		); got.Outcome != store.ReplyOutcomeExpired {
 			t.Fatalf("watch = %+v", got)
 		}
 	})
@@ -2573,7 +2578,8 @@ func TestReplyWatchFollowUp(t *testing.T) {
 		advance(replyWatchSweepInterval)
 		replies.sweep(t.Context())
 		final := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchDelivered)
-		if final.MessageID != interim.MessageID+":follow-up" || !strings.Contains(final.Text, "The interim reply stands.") {
+		if final.MessageID != interim.MessageID+":follow-up" ||
+			!strings.Contains(final.Text, "The interim reply stands.") {
 			t.Fatalf("follow-up = %q", final.Text)
 		}
 	})

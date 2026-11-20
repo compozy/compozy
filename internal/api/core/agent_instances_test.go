@@ -480,8 +480,10 @@ func TestAgentInstanceDailyBudgetSettings(t *testing.T) {
 	}{
 		{"reject both mutations", `{"checks_enabled":false,"daily_budget":{"tokens":100}}`, 422, nil, nil},
 		{"reject invalid cap", `{"daily_budget":{"tokens":-1}}`, 422, nil, nil},
-		{"reject typo without clearing caps", `{"daily_budget":{"token":100}}`, 422, nil, nil},
 		{"set both caps", `{"daily_budget":{"tokens":100,"usd":1.25}}`, 200, new(int64(100)), new(float64(1.25))},
+		{"reject typo without clearing caps", `{"daily_budget":{"token":100}}`, 422, new(int64(100)), new(float64(1.25))},
+		{"reject misplaced cap without clearing caps", `{"daily_budget":{},"usd":1.25}`, 422,
+			new(int64(100)), new(float64(1.25))},
 		{"clear USD but keep tokens", `{"daily_budget":{"tokens":0}}`, 200, new(int64(0)), nil},
 		{"clear all caps", `{"daily_budget":{}}`, 200, nil, nil},
 	} {
@@ -489,9 +491,6 @@ func TestAgentInstanceDailyBudgetSettings(t *testing.T) {
 			resp := performRequest(t, fixture.Engine, "PATCH", url, []byte(tc.body))
 			if resp.Code != tc.wantStatus {
 				t.Fatalf("PATCH status=%d body=%s", resp.Code, resp.Body.String())
-			}
-			if resp.Code != 200 {
-				return
 			}
 			get := performRequest(t, fixture.Engine, "GET", url, nil)
 			if get.Code != 200 {

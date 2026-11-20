@@ -1487,7 +1487,7 @@ func TestGlobalDBSessionInputQueueOriginPolicy(t *testing.T) {
 			t.Fatalf("head = %q/%v/%v, want a1", head.ID, ok, err)
 		}
 		accept := func(entry *store.SessionInputQueueEntry) bool { return entry.ID != "stop" }
-		batch, err := db.ClaimSessionInputBatch(ctx, sessionID, 7, accept, now.Add(time.Minute))
+		batch, _, err := db.ClaimSessionInputBatch(ctx, sessionID, 7, accept, now.Add(time.Minute))
 		if err != nil || len(batch) != 1 || batch[0].ID != "a2" ||
 			batch[0].Status != store.SessionInputQueueStatusDispatching {
 			t.Fatalf("batch = %#v, %v; want a2 leased and the batch ended at the refused entry", batch, err)
@@ -1508,7 +1508,13 @@ func TestGlobalDBSessionInputQueueOriginPolicy(t *testing.T) {
 		acceptAgents := func(entry *store.SessionInputQueueEntry) bool {
 			return entry.OriginClass == store.SessionInputOriginClassAgent
 		}
-		if batch, err := db.ClaimSessionInputBatch(ctx, sessionID, 7, acceptAgents, now.Add(time.Hour)); err != nil ||
+		if batch, _, err := db.ClaimSessionInputBatch(
+			ctx,
+			sessionID,
+			7,
+			acceptAgents,
+			now.Add(time.Hour),
+		); err != nil ||
 			len(batch) != 0 {
 			t.Fatalf("batch with operator input first = %#v, %v; want none merged past it", batch, err)
 		}
@@ -5210,7 +5216,7 @@ func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 		if err != nil || !found || claimed.ID != "human" {
 			t.Fatalf("claim = %+v, %v, %v", claimed, found, err)
 		}
-		batch, err := db.ClaimSessionInputBatch(
+		batch, _, err := db.ClaimSessionInputBatch(
 			ctx,
 			main,
 			10,
@@ -5277,7 +5283,7 @@ func TestGlobalDBInstanceUnattendedBrake(t *testing.T) {
 		if _, found, err := db.ClaimNextSessionInput(ctx, main, now); err != nil || !found {
 			t.Fatalf("head=%v %v", found, err)
 		}
-		batch, err := db.ClaimSessionInputBatch(
+		batch, _, err := db.ClaimSessionInputBatch(
 			ctx,
 			main,
 			10,

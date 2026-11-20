@@ -13,7 +13,7 @@ func finalizeAgentInstanceBudgetUpdateSchema(schemas openapi3.Schemas) {
 		WithProperty(checksField, openapi3.NewBoolSchema()).
 		WithProperty(budgetField, absent).
 		WithRequired([]string{checksField})
-	budget := openapi3.NewObjectSchema().
+	budget := openapi3.NewObjectSchema().WithoutAdditionalProperties().
 		WithProperty(checksField, absent).
 		WithRequired([]string{budgetField})
 	budget.Properties[budgetField] = caps

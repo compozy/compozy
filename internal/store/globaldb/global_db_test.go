@@ -137,6 +137,71 @@ func reportTestMainError(format string, args ...any) {
 func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve pre-budget operator ingress on upgrade", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00214_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prefix.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		at := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		stamp := store.FormatTimestamp(at)
+		old := &GlobalDB{db: prefix, readDB: prefix, path: path, now: func() time.Time { return at }}
+		old.initializeRepositories(openConfig{})
+		sessionID := registerInputQueueSession(t, old)
+		const workspaceID = "ws-input-queue-workspace"
+		for _, entry := range []struct {
+			id    string
+			human int
+		}{{"operator", 1}, {"autonomous", 0}} {
+			insertPrefixRow(t, prefix, "session_prompt_admissions", map[string]any{
+				"id": entry.id, "workspace_id": workspaceID, "session_id": sessionID,
+				"message_id": entry.id, "idempotency_key": entry.id, "operation": "prompt",
+				"fingerprint_version": "1", "request_fingerprint": "fingerprint", "state": "reserved",
+				"turn_id": entry.id, "event_id": entry.id, "created_at": stamp, "updated_at": stamp,
+				"human_ingress": entry.human,
+			})
+			insertPrefixRow(t, prefix, "session_input_queue", map[string]any{
+				"id": entry.id, "session_id": sessionID, "prompt_admission_id": entry.id,
+				"status": "queued", "mode": "queue", "text": entry.id,
+				"enqueued_at": stamp, "updated_at": stamp, "human_ingress": entry.human,
+			})
+		}
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		bindErr := bindTelemetryDestination(ctx, prefix, target.DB())
+		if err := errors.Join(bindErr, target.Close(ctx), prefix.Close()); err != nil {
+			t.Fatal(err)
+		}
+
+		db := openGlobalDBForTest(t, path)
+		for _, id := range []string{"operator", "autonomous"} {
+			wantHuman := id == "operator"
+			queued, err := db.GetSessionInputQueueEntry(ctx, sessionID, id)
+			if err != nil || queued.Status != store.SessionInputQueueStatusQueued ||
+				queued.HumanIngress != wantHuman || queued.AppIngress == wantHuman {
+				t.Fatalf("migrated %s input = %+v, %v", id, queued, err)
+			}
+			admission, found, err := db.LookupSessionPromptAdmission(ctx, workspaceID, sessionID, id)
+			if err != nil || !found || admission.HumanIngress != wantHuman || admission.AppIngress == wantHuman {
+				t.Fatalf("migrated %s admission = %+v, %t, %v", id, admission, found, err)
+			}
+		}
+		_, err = db.DB().ExecContext(ctx,
+			`INSERT INTO agent_instance_daily_budget_recovery (instance_id, generation, pending) VALUES (NULL, 1, 0)`)
+		if err == nil || !strings.Contains(err.Error(), "NOT NULL constraint failed") {
+			t.Fatalf("recovery row with no instance ID: %v", err)
+		}
+	})
+
 	// Invariant: upgrading repairs only stale deleted-child activity and preserves delegated history on reopen.
 	t.Run("Should repair deleted subagent activity across upgrade and reopen", func(t *testing.T) {
 		t.Parallel()

@@ -72,6 +72,45 @@ func TestDailyBudgetQueueClaimKeepsAutonomousInputQueued(t *testing.T) {
 			t.Fatalf("durable pause: instance=%+v, err=%v", instance, err)
 		}
 	})
+	t.Run("Should keep over-budget followers queued after a human batch head", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		at := time.Date(2026, 11, 19, 12, 0, 0, 0, time.Local)
+		db.now = func() time.Time { return at }
+		sessionID := budgetBoundSession(t, db, at)
+		for index, id := range []string{"head", "allowed-follower", "app-follower", "later-follower"} {
+			if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID: id, SessionID: sessionID, Text: id, QueueCap: 5,
+				HumanIngress: true, AppIngress: id == "app-follower",
+				Now: at.Add(time.Duration(index) * time.Second),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		head, claimed, err := db.ClaimNextSessionInput(ctx, sessionID, at)
+		if err != nil || !claimed || head.ID != "head" || head.PausedInstance != nil {
+			t.Fatalf("human head = %+v, %t, %v", head, claimed, err)
+		}
+		batch, trip, err := db.ClaimSessionInputBatch(ctx, sessionID, 3, func(*store.SessionInputQueueEntry) bool {
+			return true
+		}, at)
+		if err != nil || len(batch) != 1 || batch[0].ID != "allowed-follower" ||
+			trip == nil || trip.Reason != "daily_budget" {
+			t.Fatalf("batch = %+v, pause = %+v, err = %v", batch, trip, err)
+		}
+		for _, id := range []string{"app-follower", "later-follower"} {
+			row, err := db.GetSessionInputQueueEntry(ctx, sessionID, id)
+			if err != nil || row.Status != store.SessionInputQueueStatusQueued || row.AttemptCount != 0 {
+				t.Fatalf("unclaimed follower %s = %+v, %v", id, row, err)
+			}
+		}
+		instance, err := db.Instances().Get(ctx, trip.InstanceID)
+		if err != nil || instance.State != "paused" || instance.PauseReason != trip.Reason {
+			t.Fatalf("durable budget pause = %+v, %v", instance, err)
+		}
+	})
 	t.Run("Should release a directly bound queue independently of its paused root", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -541,7 +580,7 @@ func TestDailyBudgetHoldDoesNotLetPreparedGoalBlockOperator(t *testing.T) {
 			} else if err != nil || !ok || entry.ID != wantHead {
 				t.Fatalf("claim of %s = %s, %t, %v", wantHead, entry.ID, ok, err)
 			}
-			batch, err := db.ClaimSessionInputBatch(ctx, main, 2, func(*store.SessionInputQueueEntry) bool {
+			batch, _, err := db.ClaimSessionInputBatch(ctx, main, 2, func(*store.SessionInputQueueEntry) bool {
 				return true
 			}, at)
 			if err != nil {

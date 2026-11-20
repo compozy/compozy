@@ -36,16 +36,34 @@ func (m *Manager) claimQueuedInputBatch(
 			candidate.SessionGeneration == head.SessionGeneration &&
 			sameSessionInputRuntime(effective(candidate.Runtime), headRuntime)
 	}
-	claimed, err := m.inputQueue.ClaimBatch(m.fallbackLifecycleContext(), target, maxQueuedInputBatch-1, accept)
+	ctx := m.fallbackLifecycleContext()
+	var claimed []store.SessionInputQueueEntry
+	var trip *store.InstancePauseTrip
+	err := m.withDailyBudgetAdmission(ctx, target, func(ctx context.Context) error {
+		var claimErr error
+		claimed, trip, claimErr = m.inputQueue.ClaimBatch(ctx, target, maxQueuedInputBatch-1, accept)
+		return claimErr
+	})
 	if err != nil {
 		m.sessionLogger(session).Warn("session: claim queued input batch failed", "error", err)
 		return nil
 	}
+	m.applyQueuedInputInstancePause(ctx, session, trip)
 	batch := make([]queuedInput, 0, len(claimed))
 	for index := range claimed {
 		batch = append(batch, queuedInputFromEntry(&claimed[index]))
 	}
 	return batch
+}
+
+func (m *Manager) applyQueuedInputInstancePause(ctx context.Context, session *Session, trip *store.InstancePauseTrip) {
+	if trip == nil || m.instancePaused == nil {
+		return
+	}
+	if err := m.instancePaused(ctx, *trip); err != nil {
+		m.sessionLogger(session).ErrorContext(ctx,
+			"session: apply instance pause effects", "instance_id", trip.InstanceID, "error", err)
+	}
 }
 
 // batchableQueuedInput reports an after-turn message from another session or a reply wake without

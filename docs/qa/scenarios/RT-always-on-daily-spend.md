@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: internal/daemon/daemon_daily_budget_integration_test.go (TestDaemonDailyBudgetRealDriverJourney), internal/store/globaldb/global_db_daily_budget_backfill_receipts_test.go, internal/store/globaldb/global_db_daily_budget_backfill_retention_test.go
+evidence: internal/daemon/daemon_daily_budget_integration_test.go (TestDaemonDailyBudgetRealDriverJourney), internal/store/globaldb/global_db_daily_budget_backfill_receipts_test.go, internal/store/globaldb/global_db_daily_budget_backfill_retention_test.go, TestDailyBudgetQueueClaimKeepsAutonomousInputQueued
 last_report:
 overlaps: MS-always-on-check-in-sources; RT-spawn-budget-context
 ---

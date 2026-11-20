@@ -156,12 +156,7 @@ func (m *Manager) tryStartNextQueuedInputPrompt(sessionID string, attempt int) b
 			errors.Is(err, store.ErrDailyBudgetRecoveryPending)
 	}
 	ok = claimed
-	if entry.PausedInstance != nil && m.instancePaused != nil {
-		if pauseErr := m.instancePaused(m.fallbackLifecycleContext(), *entry.PausedInstance); pauseErr != nil {
-			m.sessionLogger(session).
-				Error("session: apply instance pause effects", "instance_id", entry.PausedInstance.InstanceID, "error", pauseErr)
-		}
-	}
+	m.applyQueuedInputInstancePause(claimCtx, session, entry.PausedInstance)
 	if !ok {
 		// A newly committed budget pause changes the eligible queue head: the
 		// agent-authored input stays held, but operator ingress may now pass.
