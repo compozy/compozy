@@ -122,11 +122,11 @@ func (m *Manager) attachDaemonLocalBudgetAdmission(ctx context.Context, req *pro
 	// spend fence at their existing last-before-driver commit callback, after
 	// runtime preparation but before any provider effect. A recovered already-
 	// started turn never goes through this new-turn gate.
-	runID, _ := ctx.Value(instanceManagedRunKey{}).(string)
+	runID, managed := ctx.Value(instanceManagedRunKey{}).(string)
 	req.commitDispatch = func(commitCtx context.Context) error {
 		var trip *store.InstancePauseTrip
 		err := m.withDailyBudgetAdmission(commitCtx, req.target, func(lockedCtx context.Context) error {
-			if runID != "" {
+			if managed && runID != "" {
 				if err := m.admitManagedInstancePrompt(WithManagedRun(lockedCtx, runID), req.target); err != nil {
 					return err
 				}

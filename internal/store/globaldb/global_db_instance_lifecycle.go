@@ -162,40 +162,8 @@ func (r *InstanceRepo) Resume(
 				return agentinstance.ErrStarting
 			}
 
-			// Use the receipt fence for every pause reason on the same transaction.
 			if row.State == goalStatusPaused {
-				if err := checkDailyBudgetResume(ctx, q, row, r.now()); err != nil {
-					return err
-				}
-			}
-			if row.State == goalStatusPaused {
-				count, err := q.CountActiveAgentInstances(ctx, row.ProfileID)
-				if err != nil {
-					return err
-				}
-				if count >= int64(limit) {
-					return agentinstance.ErrLimit
-				}
-				if _, err := q.ResumeAgentInstance(
-					ctx,
-					sqlcgen.ResumeAgentInstanceParams{ID: id, UpdatedAt: store.FormatTimestamp(r.now())},
-				); err != nil {
-					return err
-				}
-				if latched > 0 {
-					if err := q.ClearLatchedAgentInstanceBudgetPause(ctx, id); err != nil {
-						return err
-					}
-				}
-				if err := q.ResetInstanceUnattended(ctx, sqlcgen.ResetInstanceUnattendedParams{
-					InstanceID: id, Now: store.FormatTimestamp(r.now()),
-				}); err != nil {
-					return err
-				}
-				if err := q.ResetInstanceWakeStreaks(ctx, id); err != nil {
-					return err
-				}
-				row, err = q.GetAgentInstance(ctx, id)
+				row, err = resumePausedInstance(ctx, q, row, limit, latched, r.now)
 				if err != nil {
 					return err
 				}
@@ -206,6 +174,42 @@ func (r *InstanceRepo) Resume(
 	)
 	return result, err
 }
+func resumePausedInstance(
+	ctx context.Context, q *sqlcgen.Queries, row sqlcgen.AgentInstance, limit int, latched int64, clock func() time.Time,
+) (sqlcgen.AgentInstance, error) {
+	if err := checkDailyBudgetResume(ctx, q, row, clock()); err != nil {
+		return sqlcgen.AgentInstance{}, err
+	}
+	id := row.ID
+	count, err := q.CountActiveAgentInstances(ctx, row.ProfileID)
+	if err != nil {
+		return sqlcgen.AgentInstance{}, err
+	}
+	if count >= int64(limit) {
+		return sqlcgen.AgentInstance{}, agentinstance.ErrLimit
+	}
+	if _, err := q.ResumeAgentInstance(
+		ctx,
+		sqlcgen.ResumeAgentInstanceParams{ID: id, UpdatedAt: store.FormatTimestamp(clock())},
+	); err != nil {
+		return sqlcgen.AgentInstance{}, err
+	}
+	if latched > 0 {
+		if err := q.ClearLatchedAgentInstanceBudgetPause(ctx, id); err != nil {
+			return sqlcgen.AgentInstance{}, err
+		}
+	}
+	if err := q.ResetInstanceUnattended(ctx, sqlcgen.ResetInstanceUnattendedParams{
+		InstanceID: id, Now: store.FormatTimestamp(clock()),
+	}); err != nil {
+		return sqlcgen.AgentInstance{}, err
+	}
+	if err := q.ResetInstanceWakeStreaks(ctx, id); err != nil {
+		return sqlcgen.AgentInstance{}, err
+	}
+	return q.GetAgentInstance(ctx, id)
+}
+
 func checkDailyBudgetResume(
 	ctx context.Context, q *sqlcgen.Queries, row sqlcgen.AgentInstance, now time.Time,
 ) error {

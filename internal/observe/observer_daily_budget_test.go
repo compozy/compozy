@@ -32,7 +32,7 @@ type blockingFailedReceiptRegistry struct {
 }
 
 func (r *blockingFailedReceiptRegistry) RecordTokenUsageOnce(
-	ctx context.Context, stats store.TokenStatsUpdate, daily store.TokenUsageDailyUpdate,
+	ctx context.Context, _ store.TokenStatsUpdate, _ store.TokenUsageDailyUpdate,
 ) (bool, error) {
 	close(r.entered)
 	select {
@@ -193,14 +193,14 @@ func TestObserverDailyBudgetPreDeletePreservesUnbudgetedSpendForLaterActivation(
 			if err := h.observer.ReconcileBudgetSessionBeforeDeletion(ctx, sess.ID); err != nil {
 				t.Fatalf("opt-out history cleanup: %v", err)
 			}
-			cap := agentinstance.DailyBudgetLimits{Tokens: new(int64(100))}
-			err = h.registry.Instances().SetDailyBudgetLimits(ctx, instance.ID, cap)
+			limit := agentinstance.DailyBudgetLimits{Tokens: new(int64(100))}
+			err = h.registry.Instances().SetDailyBudgetLimits(ctx, instance.ID, limit)
 			if !ledgerPresent {
 				if !errors.Is(err, agentinstance.ErrBudgetHistoryUncertain) {
 					t.Fatalf("retroactive limit after lost history=%v, want conflict", err)
 				}
 				clock = clock.AddDate(0, 0, 1)
-				if err := h.registry.Instances().SetDailyBudgetLimits(ctx, instance.ID, cap); err != nil {
+				if err := h.registry.Instances().SetDailyBudgetLimits(ctx, instance.ID, limit); err != nil {
 					t.Fatalf("future day should be eligible: %v", err)
 				}
 				return
@@ -507,9 +507,9 @@ func TestObserverDailyBudgetMissingHistoricalAuthCannotInventEstimatedUSD(t *tes
 		if _, err := h.registry.Instances().BindMain(ctx, instance.ID, sess.ID); err != nil {
 			t.Fatal(err)
 		}
-		cap := 0.05
+		limit := 0.05
 		if err := h.registry.Instances().SetDailyBudgetLimits(ctx, instance.ID,
-			agentinstance.DailyBudgetLimits{USD: &cap}); err != nil {
+			agentinstance.DailyBudgetLimits{USD: &limit}); err != nil {
 			t.Fatal(err)
 		}
 		reported := 0.01

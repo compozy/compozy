@@ -46,14 +46,6 @@ func (g *SessionRepo) claimNextSessionInput(
 	err = g.withImmediateTransaction(ctx, "claim session input", func(exec globalSQLExecutor) error {
 		entry, ok = store.SessionInputQueueEntry{}, false // discard rolled-back retry results
 		queries := sqlcgen.New(exec)
-		freezeGoalBatch := func() error {
-			if err := queries.FreezePreparedGoalInputBatch(ctx, sqlcgen.FreezePreparedGoalInputBatchParams{
-				SessionID: target, QueuedStatus: store.SessionInputQueueStatusQueued,
-			}); err != nil {
-				return fmt.Errorf("store: freeze prepared Goal input batch: %w", err)
-			}
-			return nil
-		}
 		row, scanErr := queries.GetNextDispatchableSessionInput(
 			ctx,
 			sqlcgen.GetNextDispatchableSessionInputParams{
@@ -64,7 +56,7 @@ func (g *SessionRepo) claimNextSessionInput(
 			if expectedID != "" {
 				return store.ErrSessionInputSelectionChanged
 			}
-			return freezeGoalBatch()
+			return freezeGoalInputBatch(ctx, queries, target)
 		}
 		if scanErr != nil {
 			return scanErr
@@ -88,7 +80,7 @@ func (g *SessionRepo) claimNextSessionInput(
 				return nil
 			}
 		}
-		if err := freezeGoalBatch(); err != nil {
+		if err := freezeGoalInputBatch(ctx, queries, target); err != nil {
 			return err
 		}
 		refreshed, claimErr := claimSessionInputInTransaction(
@@ -113,4 +105,13 @@ func (g *SessionRepo) claimNextSessionInput(
 		observeReleasedInstanceInput(ctx, &entry)
 	}
 	return entry, ok, nil
+}
+
+func freezeGoalInputBatch(ctx context.Context, queries *sqlcgen.Queries, sessionID string) error {
+	if err := queries.FreezePreparedGoalInputBatch(ctx, sqlcgen.FreezePreparedGoalInputBatchParams{
+		SessionID: sessionID, QueuedStatus: store.SessionInputQueueStatusQueued,
+	}); err != nil {
+		return fmt.Errorf("store: freeze prepared Goal input batch: %w", err)
+	}
+	return nil
 }

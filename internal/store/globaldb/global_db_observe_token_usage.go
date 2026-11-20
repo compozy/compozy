@@ -8,6 +8,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
@@ -223,29 +224,9 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 	if daily.UpdatedAt.IsZero() || daily.Day != store.LocalDay(daily.UpdatedAt) {
 		return false, errors.New("store: canonical token receipt day does not match its timestamp")
 	}
-	sessionOwner, err := queries.GetTokenUsageReceiptSessionOwner(ctx, stats.SessionID)
+	sessionOwner, err := tokenReceiptOwner(ctx, queries, stats.SessionID, daily.ProfileID, daily.UpdatedAt)
 	if err != nil {
-		return false, fmt.Errorf("store: resolve token receipt session %q: %w", stats.SessionID, err)
-	}
-	if sessionOwner.ProfileID != daily.ProfileID {
-		return false, fmt.Errorf("store: token receipt session %q profile does not match usage owner", stats.SessionID)
-	}
-	// Adoption stamps an existing standalone session with a new instance ID.
-	// Receipts from before that instance existed remain standalone, including
-	// when the observer first sees them during a later crash recovery. The
-	// immutable receipt fence makes the same decision for live and replay.
-	if sessionOwner.InstanceID != "" {
-		instance, err := queries.GetAgentInstance(ctx, sessionOwner.InstanceID)
-		if err != nil {
-			return false, fmt.Errorf("store: read receipt instance creation: %w", err)
-		}
-		createdAt, err := store.ParseTimestamp(instance.CreatedAt)
-		if err != nil {
-			return false, err
-		}
-		if daily.UpdatedAt.Before(createdAt) {
-			sessionOwner.InstanceID = ""
-		}
+		return false, err
 	}
 	tokens, err := receiptTokenCount(stats)
 	if err != nil {
@@ -281,6 +262,40 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 		}
 	}
 	return rows == 1, nil
+}
+
+func tokenReceiptOwner(
+	ctx context.Context, queries *sqlcgen.Queries, sessionID, profileID string, at time.Time,
+) (sqlcgen.GetTokenUsageReceiptSessionOwnerRow, error) {
+	sessionOwner, err := queries.GetTokenUsageReceiptSessionOwner(ctx, sessionID)
+	if err != nil {
+		return sqlcgen.GetTokenUsageReceiptSessionOwnerRow{}, fmt.Errorf(
+			"store: resolve token receipt session %q: %w", sessionID, err,
+		)
+	}
+	if sessionOwner.ProfileID != profileID {
+		return sqlcgen.GetTokenUsageReceiptSessionOwnerRow{}, fmt.Errorf(
+			"store: token receipt session %q profile does not match usage owner", sessionID,
+		)
+	}
+	// Adoption stamps an existing standalone session with a new instance ID.
+	// Receipts from before that instance existed remain standalone, including
+	// when the observer first sees them during a later crash recovery. The
+	// immutable receipt fence makes the same decision for live and replay.
+	if sessionOwner.InstanceID != "" {
+		instance, err := queries.GetAgentInstance(ctx, sessionOwner.InstanceID)
+		if err != nil {
+			return sqlcgen.GetTokenUsageReceiptSessionOwnerRow{}, fmt.Errorf("store: read receipt instance creation: %w", err)
+		}
+		createdAt, err := store.ParseTimestamp(instance.CreatedAt)
+		if err != nil {
+			return sqlcgen.GetTokenUsageReceiptSessionOwnerRow{}, err
+		}
+		if at.Before(createdAt) {
+			sessionOwner.InstanceID = ""
+		}
+	}
+	return sessionOwner, nil
 }
 
 func receiptTokenCount(stats store.TokenStatsUpdate) (int64, error) {

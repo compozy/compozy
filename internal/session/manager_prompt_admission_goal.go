@@ -68,17 +68,9 @@ func (m *Manager) submitAdmittedGoalPrompt(
 		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission,
 			errors.New("session: control-only Goal command requested provider dispatch"))
 	}
-	// Control-only Goal commands must not implicitly resume a stopped session.
-	// Only a command that dispatches a prompt (Draft) needs a live runtime.
-	if session == nil {
-		session, err = m.lookupPromptRequestSession(ctx, preparation.request)
-		if err != nil {
-			return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
-		}
-		if err := m.preflightAdmittedPromptAttachments(ctx, session,
-			preparation.request.runtime, preparation.request.attachments); err != nil {
-			return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
-		}
+	session, err = m.prepareGoalDispatchSession(ctx, session, preparation.request)
+	if err != nil {
+		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
 	}
 	preparation.rejectIfBusy = rejectIfBusy
 	result, err = m.submitPreparedPrompt(ctx, session, preparation)
@@ -88,6 +80,20 @@ func (m *Manager) submitAdmittedGoalPrompt(
 	result.MessageID = admission.MessageID
 	result.IdempotencyKey = admission.IdempotencyKey
 	return m.completePromptAdmission(ctx, admission, result)
+}
+
+// Only a Goal command that dispatches a prompt needs a live runtime.
+func (m *Manager) prepareGoalDispatchSession(
+	ctx context.Context, session *Session, request promptRequest,
+) (*Session, error) {
+	if session != nil {
+		return session, nil
+	}
+	session, err := m.lookupPromptRequestSession(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	return session, m.preflightAdmittedPromptAttachments(ctx, session, request.runtime, request.attachments)
 }
 
 func (m *Manager) commitPromptAdmissionDispatch(

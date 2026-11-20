@@ -221,7 +221,6 @@ func (o *Observer) observedUsageUpdates(
 	event acp.AgentEvent,
 	timestamp time.Time,
 ) (store.TokenStatsUpdate, store.TokenUsageDailyUpdate) {
-
 	usageTimestamp := timestamp
 	costAmount, costCurrency, costStatus, costSource := o.observedCostFields(ctx, snapshot, event.Usage)
 	usage := event.Usage

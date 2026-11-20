@@ -16,8 +16,8 @@ func WithPromptControlOnly(ctx context.Context) context.Context {
 }
 
 func PromptControlOnly(ctx context.Context) bool {
-	control, _ := ctx.Value(promptControlOnlyKey{}).(bool)
-	return control
+	control, ok := ctx.Value(promptControlOnlyKey{}).(bool)
+	return ok && control
 }
 
 type SessionInputQueueFullError struct {

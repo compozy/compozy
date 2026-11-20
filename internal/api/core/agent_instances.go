@@ -282,30 +282,8 @@ func (api *AgentInstanceAPI) payloadWithOwners(
 		}
 	}
 	payload.ProfileName = owners[i.ProfileID].Name
-	if budget, ok := api.Store.(AgentInstanceDailyBudgetStore); ok && i.ArchivedAt == nil {
-		at := time.Now()
-		if api.Clock != nil {
-			at = api.Clock()
-		}
-		limits, err := budget.DailyBudgetLimits(ctx, i.ID)
-		if err != nil {
-			return payload, err
-		}
-		if limits.Tokens != nil || limits.USD != nil {
-			payload.DailyBudget = &contract.AgentInstanceDailyBudgetLimits{
-				Tokens: limits.Tokens, USD: limits.USD,
-			}
-			usage, usageErr := budget.ReadDailyBudgetUsage(ctx, i.ID, at)
-			if usageErr != nil && !errors.Is(usageErr, agentinstance.ErrDailyBudgetUsageUnavailable) {
-				return payload, usageErr
-			}
-			if usageErr == nil {
-				payload.DailyBudgetUsage = &contract.AgentInstanceDailyBudgetUsage{
-					Day: store.LocalDay(at), Tokens: usage.Tokens,
-					KnownUSD: decimalBudgetUSD(usage.USD), HasUnpricedUsage: usage.HasUnpricedUsage,
-				}
-			}
-		}
+	if err := api.populateDailyBudget(ctx, i, &payload); err != nil {
+		return payload, err
 	}
 	if reader, ok := api.Checks.(interface {
 		SourceStatuses(context.Context, string) ([]heartbeat.HeartbeatSourceStatus, error)
@@ -333,28 +311,65 @@ func (api *AgentInstanceAPI) payloadWithOwners(
 		payload.LastWakeAt, payload.NextWakeAt = state.LastWakeAt, state.NextWakeAt
 		payload.QuietStreak, payload.FailureStreak = state.QuietStreak, state.FailureStreak
 		payload.UnattendedTurns = state.UnattendedTurns
-		if i.ChecksEnabled && i.State == "active" && i.ArchivedAt == nil {
-			checkAt, err := time.Parse(time.RFC3339Nano, state.NextWakeAt)
-			if err == nil {
-				current := payload.NextWake
-				var monitorAt time.Time
-				if current != nil {
-					parsed, parseErr := time.Parse(time.RFC3339Nano, current.At)
-					if parseErr == nil {
-						monitorAt = parsed
-					}
-				}
-				if current == nil || monitorAt.IsZero() || checkAt.Before(monitorAt) {
-					payload.NextWake = &contract.AgentInstanceNextWake{Kind: "check", At: state.NextWakeAt}
-					if state.LastReason == heartbeat.ReasonTriageConfigUnavailable {
-						payload.NextWake.Description = "Last check rejected the heartbeat runtime configuration. " +
-							"Correct it or run agent_instance_check to retry manually."
-					}
+		populateNextCheckWake(i, &payload, state.NextWakeAt, state.LastReason)
+	}
+	return payload, nil
+}
+
+func (api *AgentInstanceAPI) populateDailyBudget(
+	ctx context.Context, i agentinstance.Instance, payload *contract.AgentInstancePayload,
+) error {
+	if budget, ok := api.Store.(AgentInstanceDailyBudgetStore); ok && i.ArchivedAt == nil {
+		at := time.Now()
+		if api.Clock != nil {
+			at = api.Clock()
+		}
+		limits, err := budget.DailyBudgetLimits(ctx, i.ID)
+		if err != nil {
+			return err
+		}
+		if limits.Tokens != nil || limits.USD != nil {
+			payload.DailyBudget = &contract.AgentInstanceDailyBudgetLimits{
+				Tokens: limits.Tokens, USD: limits.USD,
+			}
+			usage, usageErr := budget.ReadDailyBudgetUsage(ctx, i.ID, at)
+			if usageErr != nil && !errors.Is(usageErr, agentinstance.ErrDailyBudgetUsageUnavailable) {
+				return usageErr
+			}
+			if usageErr == nil {
+				payload.DailyBudgetUsage = &contract.AgentInstanceDailyBudgetUsage{
+					Day: store.LocalDay(at), Tokens: usage.Tokens,
+					KnownUSD: decimalBudgetUSD(usage.USD), HasUnpricedUsage: usage.HasUnpricedUsage,
 				}
 			}
 		}
 	}
-	return payload, nil
+	return nil
+}
+
+func populateNextCheckWake(
+	i agentinstance.Instance, payload *contract.AgentInstancePayload, nextWakeAt, lastReason string,
+) {
+	if i.ChecksEnabled && i.State == "active" && i.ArchivedAt == nil {
+		checkAt, err := time.Parse(time.RFC3339Nano, nextWakeAt)
+		if err == nil {
+			current := payload.NextWake
+			var monitorAt time.Time
+			if current != nil {
+				parsed, parseErr := time.Parse(time.RFC3339Nano, current.At)
+				if parseErr == nil {
+					monitorAt = parsed
+				}
+			}
+			if current == nil || monitorAt.IsZero() || checkAt.Before(monitorAt) {
+				payload.NextWake = &contract.AgentInstanceNextWake{Kind: "check", At: nextWakeAt}
+				if lastReason == heartbeat.ReasonTriageConfigUnavailable {
+					payload.NextWake.Description = "Last check rejected the heartbeat runtime configuration. " +
+						"Correct it or run agent_instance_check to retry manually."
+				}
+			}
+		}
+	}
 }
 
 func AgentInstancePayload(i agentinstance.Instance) contract.AgentInstancePayload {

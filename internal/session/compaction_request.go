@@ -80,7 +80,7 @@ func (m *Manager) RequestCompaction(
 		return CompactionRequestResult{}, nil, err
 	}
 	req.resumeStopped = false
-	if operator, _ := ctx.Value(operatorCompactionKey{}).(bool); operator {
+	if operator, ok := ctx.Value(operatorCompactionKey{}).(bool); ok && operator {
 		req.humanIngress = true
 	} else {
 		m.attachDaemonLocalBudgetAdmission(ctx, &req)

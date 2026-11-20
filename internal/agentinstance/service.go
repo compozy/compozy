@@ -156,7 +156,7 @@ func (s *Service) Resume(ctx context.Context, id string, actor workspaceaccess.A
 	if err := s.admission.ValidateResume(ctx, instance); err != nil {
 		return Instance{}, err
 	}
-	if instance.State == "paused" && !actor.Operator && OperatorOnlyResume(instance.PauseReason) {
+	if instance.State == instanceStatePaused && !actor.Operator && OperatorOnlyResume(instance.PauseReason) {
 		return Instance{}, ErrForbidden
 	}
 	var resumed Instance

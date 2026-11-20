@@ -99,8 +99,8 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		Attachments:              event.Attachments(),
 		Delivery:                 event.DeliveryManifest(),
 		Usage:                    event.Usage,
-		CanonicalUsageProjection: event.CanonicalUsageProjection,
-		ProviderUsageMissing:     event.ProviderUsageMissing,
+		CanonicalUsageProjection: event.HasCanonicalUsageProjection(),
+		ProviderUsageMissing:     event.HasProviderUsageMissing(),
 		Runtime:                  cloneRuntimeActivity(event.Runtime),
 		PromptRuntime:            event.PromptRuntimeSnapshot(),
 	}
@@ -167,34 +167,33 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 	}
 
 	event := acp.AgentEvent{
-		Type:                     strings.TrimSpace(decoded.Type),
-		SessionID:                strings.TrimSpace(decoded.SessionID),
-		TurnID:                   strings.TrimSpace(decoded.TurnID),
-		EventCorrelation:         decoded.Normalize(),
-		Timestamp:                decoded.Timestamp,
-		Text:                     decoded.Text,
-		Title:                    firstNonEmpty(decoded.Title, decoded.ToolName),
-		ToolCallID:               strings.TrimSpace(decoded.ToolCallID),
-		StopReason:               strings.TrimSpace(decoded.StopReason),
-		PromptStopReason:         acp.PromptStopReason(strings.TrimSpace(string(decoded.PromptStopReason))),
-		Action:                   strings.TrimSpace(decoded.Action),
-		Resource:                 strings.TrimSpace(decoded.Resource),
-		Decision:                 strings.TrimSpace(decoded.Decision),
-		Error:                    strings.TrimSpace(decoded.Error),
-		Failure:                  store.CloneSessionFailure(decoded.Failure),
-		ProviderError:            acp.CloneProviderErrorDiagnostic(decoded.ProviderError),
-		Synthetic:                clonePromptSyntheticMeta(decoded.Synthetic),
-		Usage:                    decoded.Usage,
-		CanonicalUsageProjection: decoded.CanonicalUsageProjection,
-		ProviderUsageMissing:     decoded.ProviderUsageMissing,
-		Runtime:                  cloneRuntimeActivity(decoded.Runtime),
-		Raw:                      acp.CloneRawMessage(decoded.Raw),
+		Type:             strings.TrimSpace(decoded.Type),
+		SessionID:        strings.TrimSpace(decoded.SessionID),
+		TurnID:           strings.TrimSpace(decoded.TurnID),
+		EventCorrelation: decoded.Normalize(),
+		Timestamp:        decoded.Timestamp,
+		Text:             decoded.Text,
+		Title:            firstNonEmpty(decoded.Title, decoded.ToolName),
+		ToolCallID:       strings.TrimSpace(decoded.ToolCallID),
+		StopReason:       strings.TrimSpace(decoded.StopReason),
+		PromptStopReason: acp.PromptStopReason(strings.TrimSpace(string(decoded.PromptStopReason))),
+		Action:           strings.TrimSpace(decoded.Action),
+		Resource:         strings.TrimSpace(decoded.Resource),
+		Decision:         strings.TrimSpace(decoded.Decision),
+		Error:            strings.TrimSpace(decoded.Error),
+		Failure:          store.CloneSessionFailure(decoded.Failure),
+		ProviderError:    acp.CloneProviderErrorDiagnostic(decoded.ProviderError),
+		Synthetic:        clonePromptSyntheticMeta(decoded.Synthetic),
+		Usage:            decoded.Usage,
+		Runtime:          cloneRuntimeActivity(decoded.Runtime),
+		Raw:              acp.CloneRawMessage(decoded.Raw),
 	}.WithProviderToolMetadata(decoded.ParentToolCallID, decoded.ProviderToolName, decoded.Status).
 		WithGoalPromptMeta(decoded.Goal).
 		WithPromptOrigin(decoded.Origin).
 		WithRequestID(decoded.RequestID).
 		WithResolvedBy(decoded.ResolvedBy).
-		WithDelivery(decoded.Delivery)
+		WithDelivery(decoded.Delivery).
+		WithDailyBudgetUsageEvidence(decoded.CanonicalUsageProjection, decoded.ProviderUsageMissing)
 	if decoded.ProviderToolAsync {
 		event = event.WithProviderToolAsync()
 	}

@@ -207,7 +207,8 @@ func (o *Observer) ReconcileBudgetSessionBeforeDeletion(ctx context.Context, ses
 	if err != nil {
 		return fmt.Errorf("observe: inspect budgeted ledger before delete: %w", err)
 	}
-	for _, sess := range sessions {
+	for index := range sessions {
+		sess := &sessions[index]
 		if sess.ID != sessionID {
 			continue
 		}
@@ -260,7 +261,7 @@ func (o *Observer) preserveUnresolvedSessionBudgetBeforeDeletion(
 	}
 	// Ordinary usage projection belongs to the session, including when the
 	// intact root proves no current instance could own it.
-	sess := store.DailyBudgetReconcileSession{
+	sess := &store.DailyBudgetReconcileSession{
 		SessionInfo: sessions[0], UnresolvedOwner: true, InstanceCreatedAt: earliest,
 	}
 	err = o.reconcileDailyBudgetSession(ctx, recovery, sess)
@@ -299,7 +300,8 @@ func (o *Observer) reconcileDailyBudgetReceipts(ctx context.Context, instanceID 
 	}
 	owners := make(map[string]int64)
 	failedOwners := make(map[string]struct{})
-	for _, sess := range sessions {
+	for index := range sessions {
+		sess := &sessions[index]
 		if _, seen := owners[sess.InstanceID]; !seen {
 			generation, err := recovery.DailyBudgetRecoveryGeneration(ctx, sess.InstanceID)
 			if err != nil {
@@ -337,7 +339,7 @@ func (o *Observer) reconcileDailyBudgetReceipts(ctx context.Context, instanceID 
 func (o *Observer) reconcileDailyBudgetSession(
 	ctx context.Context,
 	recovery dailyBudgetReceiptRecovery,
-	sess store.DailyBudgetReconcileSession,
+	sess *store.DailyBudgetReconcileSession,
 ) (retErr error) {
 	if !validObservedSessionID(sess.ID) {
 		return fmt.Errorf("observe: invalid budget recovery session id %q", sess.ID)
@@ -387,7 +389,7 @@ func (o *Observer) reconcileDailyBudgetSession(
 }
 
 func (o *Observer) recoverBudgetDone(
-	ctx context.Context, recovery dailyBudgetReceiptRecovery, sess store.DailyBudgetReconcileSession,
+	ctx context.Context, recovery dailyBudgetReceiptRecovery, sess *store.DailyBudgetReconcileSession,
 	snapshot observedSession, row store.SessionEvent,
 ) error {
 	event, err := transcript.UnmarshalAgentEvent(row.Content)
@@ -417,7 +419,7 @@ func (o *Observer) recoverBudgetDone(
 		day = store.LocalDay(usageAt)
 	}
 	uncertainToday := sess.UnresolvedOwner && !usageAt.Before(sess.InstanceCreatedAt) && day == store.LocalDay(o.now())
-	if !receipt.Present && (!sess.UnresolvedOwner || event.CanonicalUsageProjection || uncertainToday) {
+	if !receipt.Present && (!sess.UnresolvedOwner || event.HasCanonicalUsageProjection() || uncertainToday) {
 		if err := o.backfillBudgetDone(ctx, recovery, sess, snapshot, row, event); err != nil {
 			return err
 		}
@@ -433,7 +435,7 @@ func (o *Observer) recoverBudgetDone(
 }
 
 func (o *Observer) backfillBudgetDone(
-	ctx context.Context, recovery dailyBudgetReceiptRecovery, sess store.DailyBudgetReconcileSession,
+	ctx context.Context, recovery dailyBudgetReceiptRecovery, sess *store.DailyBudgetReconcileSession,
 	snapshot observedSession, row store.SessionEvent, event acp.AgentEvent,
 ) error {
 	eventSnapshot := o.usageSnapshotForDone(ctx, sess.ID, snapshot, event)
@@ -446,7 +448,7 @@ func (o *Observer) backfillBudgetDone(
 		eventSnapshot.agentName = row.AgentName
 	}
 	stats, daily := o.observedUsageUpdates(ctx, sess.ID, eventSnapshot, event, row.Timestamp)
-	if err := recovery.BackfillDailyBudgetReceipt(ctx, stats, daily, event.CanonicalUsageProjection); err != nil {
+	if err := recovery.BackfillDailyBudgetReceipt(ctx, stats, daily, event.HasCanonicalUsageProjection()); err != nil {
 		return fmt.Errorf("observe: recover daily budget receipt %q/%q: %w", sess.ID, row.TurnID, err)
 	}
 	return nil

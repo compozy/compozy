@@ -111,15 +111,10 @@ func (m *Manager) PromotePendingInputToSteer(
 		return SendPromptResult{}, err
 	}
 	targetTurnID := strings.TrimSpace(opts.ExpectedTurnID)
-	request := promptRequest{target: session.ID, authoredMessage: opts.Text}
-	if opts.AllowCommands {
-		if err := m.preparePromptSkillInvocations(ctx, &request); err != nil {
-			return SendPromptResult{}, err
-		}
+	request, err := m.prepareSteeringPromotion(ctx, session.ID, opts)
+	if err != nil {
+		return SendPromptResult{}, err
 	}
-	request.humanIngress = humanPromptCaller(opts.Caller)
-	request.appIngress = opts.Caller.AppIngress
-	m.prepareMentions(ctx, &request)
 	replayed, found, err := m.inputQueue.ReplayPromotion(
 		ctx,
 		session.ID,
@@ -175,6 +170,20 @@ func (m *Manager) PromotePendingInputToSteer(
 		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
 	}
 	return promotedInputResult(&entry), nil
+}
+
+func (m *Manager) prepareSteeringPromotion(
+	ctx context.Context, sessionID string, opts PromotePendingInputOpts,
+) (promptRequest, error) {
+	request := promptRequest{target: sessionID, authoredMessage: opts.Text,
+		humanIngress: humanPromptCaller(opts.Caller), appIngress: opts.Caller.AppIngress}
+	if opts.AllowCommands {
+		if err := m.preparePromptSkillInvocations(ctx, &request); err != nil {
+			return promptRequest{}, err
+		}
+	}
+	m.prepareMentions(ctx, &request)
+	return request, nil
 }
 
 func promotedInputResult(entry *store.SessionInputQueueEntry) SendPromptResult {

@@ -126,15 +126,7 @@ func (m *Manager) recordEventWithWriter(
 	write func(context.Context, EventRecorder, store.SessionEvent) (store.SessionEvent, error),
 ) error {
 	event = m.enrichRecordedAgentEvent(session, event)
-	// A missing receipt proves missing aggregate writes only after cutover.
-	event.CanonicalUsageProjection = event.Type == acp.EventTypeDone && event.Usage != nil && !event.Usage.IsZero()
-	hasUsageEvidence := event.CanonicalUsageProjection || event.ProviderUsageMissing
-	if runtime := event.PromptRuntimeSnapshot(); hasUsageEvidence && runtime != nil {
-		session.mu.RLock()
-		runtime.MeteringAuthMode = string(session.effectiveProviderAuthMode)
-		session.mu.RUnlock()
-		event = event.WithPromptRuntime(runtime)
-	}
+	event, hasUsageEvidence := prepareRecordedBudgetUsage(session, event)
 	if event.Type == acp.EventTypeCompaction || event.Type == acp.EventTypeSystem {
 		event = transcript.RedactAgentEvent(event)
 	}
@@ -211,6 +203,23 @@ func (m *Manager) recordEventWithWriter(
 	}
 
 	return m.dispatchObservedCompaction(ctx, session, event, compaction)
+}
+
+func prepareRecordedBudgetUsage(session *Session, event acp.AgentEvent) (acp.AgentEvent, bool) {
+	// A missing receipt proves missing aggregate writes only after cutover.
+	canonical := event.Type == acp.EventTypeDone && event.Usage != nil && !event.Usage.IsZero()
+	missing := event.HasProviderUsageMissing()
+	event = event.WithDailyBudgetUsageEvidence(canonical, missing)
+	if !canonical && !missing {
+		return event, false
+	}
+	if runtime := event.PromptRuntimeSnapshot(); runtime != nil {
+		session.mu.RLock()
+		runtime.MeteringAuthMode = string(session.effectiveProviderAuthMode)
+		session.mu.RUnlock()
+		event = event.WithPromptRuntime(runtime)
+	}
+	return event, true
 }
 
 func (m *Manager) handleAttentionTranscriptFailure(

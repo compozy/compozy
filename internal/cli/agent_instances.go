@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const agentInstanceBudgetAction = "budget"
+
 func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 	parent := &cobra.Command{Use: "instance", Short: "Manage always-on agent instances"}
 	for _, action := range []string{
@@ -29,7 +31,7 @@ func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 		agentInstanceAwayAction,
 		agentInstanceMarkSeenAction,
 		agentInstanceCheckInsAction,
-		"budget",
+		agentInstanceBudgetAction,
 	} {
 		parent.AddCommand(newAgentInstanceAction(deps, action))
 	}
@@ -79,7 +81,7 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 	if action == agentInstanceAdoptAction {
 		cmd.Flags().StringVar(&options.sessionID, "session", "", "Root session to adopt")
 	}
-	if action == "budget" {
+	if action == agentInstanceBudgetAction {
 		cmd.Flags().StringVar(&options.budgetTokens, "tokens", "", "Daily token cap; 'off' removes it")
 		cmd.Flags().StringVar(&options.budgetUSD, "usd", "", "Daily estimated USD cap; 'off' removes it")
 		cmd.Flags().BoolVar(&options.clearBudget, "clear", false, "Remove both daily limits")
@@ -269,7 +271,7 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 	if action == agentInstanceCheckAction || action == "on" || action == agentInstanceChecksOff {
 		return options.check(cmd, base, action, id, target)
 	}
-	if action == "budget" {
+	if action == agentInstanceBudgetAction {
 		return options.updateBudget(cmd, base, id)
 	}
 	if action == agentInstanceAwayAction || action == agentInstanceMarkSeenAction ||

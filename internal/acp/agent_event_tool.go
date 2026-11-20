@@ -11,34 +11,36 @@ import (
 )
 
 type agentEventPayload struct {
-	expiresAt          *time.Time
-	parentToolCallID   string
-	providerToolName   string
-	toolStatus         string
-	providerToolAsync  bool
-	subagentCard       json.RawMessage
-	sessionMessageCard json.RawMessage
-	origin             *PromptOriginMeta
-	goal               *GoalPromptMeta
-	delivery           *DeliveryManifest
-	eventID            string
-	messageID          string
-	requestID          string
-	resolvedBy         string
-	toolName           string
-	toolKind           string
-	toolInput          json.RawMessage
-	toolErrorDetail    string
-	toolFailed         bool
-	toolPrechecked     bool
-	toolResultUpdate   bool
-	hasTool            bool
-	promptRuntime      *PromptRuntime
-	availableCommands  *AvailableCommandSet
-	skillInvocations   []commandpkg.Invocation
-	mentions           []mention.Mention
-	attachments        []EventAttachment
-	nativeTask         *NativeTaskObservation
+	expiresAt                *time.Time
+	parentToolCallID         string
+	providerToolName         string
+	toolStatus               string
+	providerToolAsync        bool
+	subagentCard             json.RawMessage
+	sessionMessageCard       json.RawMessage
+	origin                   *PromptOriginMeta
+	goal                     *GoalPromptMeta
+	delivery                 *DeliveryManifest
+	eventID                  string
+	messageID                string
+	requestID                string
+	resolvedBy               string
+	toolName                 string
+	toolKind                 string
+	toolInput                json.RawMessage
+	toolErrorDetail          string
+	toolFailed               bool
+	toolPrechecked           bool
+	toolResultUpdate         bool
+	hasTool                  bool
+	canonicalUsageProjection bool
+	providerUsageMissing     bool
+	promptRuntime            *PromptRuntime
+	availableCommands        *AvailableCommandSet
+	skillInvocations         []commandpkg.Invocation
+	mentions                 []mention.Mention
+	attachments              []EventAttachment
+	nativeTask               *NativeTaskObservation
 }
 
 // EventAttachment is durable attachment metadata carried by an agent event.
@@ -90,7 +92,8 @@ func (payload *agentEventPayload) hasStructuredFacts() bool {
 	return payload.expiresAt != nil || payload.promptRuntime != nil || payload.availableCommands != nil ||
 		payload.delivery != nil ||
 		payload.goal != nil || payload.origin != nil || len(payload.skillInvocations) > 0 ||
-		len(payload.mentions) > 0 || len(payload.attachments) > 0 || payload.nativeTask != nil
+		len(payload.mentions) > 0 || len(payload.attachments) > 0 || payload.nativeTask != nil ||
+		payload.canonicalUsageProjection || payload.providerUsageMissing
 }
 
 func (payload *agentEventPayload) hasProviderToolFacts() bool {

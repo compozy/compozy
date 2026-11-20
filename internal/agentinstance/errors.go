@@ -30,7 +30,8 @@ func ErrorMessage(err error, activeLimit int) string {
 		{ErrDefinitionMissing, "This agent's definition is gone. Reinstall it to resume. Its memory is kept."},
 		{ErrStarting, "This agent is already starting there."},
 		{ErrPaused, "This agent is paused. Dry runs still work."},
-		{ErrBudgetHistoryUncertain, "An earlier session's usage could not be recovered. Wait until the next local day before enabling a budget."},
+		{ErrBudgetHistoryUncertain, "An earlier session's usage could not be recovered. " +
+			"Wait until the next local day before enabling a budget."},
 		{ErrNotFound, "This agent instance was not found."},
 	} {
 		if errors.Is(err, item.domain) {

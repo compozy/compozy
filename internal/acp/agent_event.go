@@ -35,24 +35,44 @@ type AgentEvent struct {
 	SessionID string
 	TurnID    string
 	store.EventCorrelation
-	Timestamp                time.Time
-	Text                     string
-	Title                    string
-	ToolCallID               string
-	payload                  *agentEventPayload
-	StopReason               string
-	PromptStopReason         PromptStopReason
-	Action                   string
-	Resource                 string
-	Decision                 string
-	Error                    string
-	Failure                  *store.SessionFailure
-	ProviderError            *ProviderErrorDiagnostic
-	Synthetic                *PromptSyntheticMeta
-	Usage                    *TokenUsage
-	CanonicalUsageProjection bool `json:"-"`
-	ProviderUsageMissing     bool `json:"-"`
-	Compaction               *CompactionObservation
-	Runtime                  *RuntimeActivity
-	Raw                      json.RawMessage
+	Timestamp        time.Time
+	Text             string
+	Title            string
+	ToolCallID       string
+	payload          *agentEventPayload
+	StopReason       string
+	PromptStopReason PromptStopReason
+	Action           string
+	Resource         string
+	Decision         string
+	Error            string
+	Failure          *store.SessionFailure
+	ProviderError    *ProviderErrorDiagnostic
+	Synthetic        *PromptSyntheticMeta
+	Usage            *TokenUsage
+	Compaction       *CompactionObservation
+	Runtime          *RuntimeActivity
+	Raw              json.RawMessage
+}
+
+// HasCanonicalUsageProjection reports that the terminal row can repair both usage totals on replay.
+func (e AgentEvent) HasCanonicalUsageProjection() bool {
+	return e.payload != nil && e.payload.canonicalUsageProjection
+}
+
+// HasProviderUsageMissing reports a real provider completion without usage telemetry.
+func (e AgentEvent) HasProviderUsageMissing() bool {
+	return e.payload != nil && e.payload.providerUsageMissing
+}
+
+// WithDailyBudgetUsageEvidence preserves the metering provenance of a terminal event.
+func (e AgentEvent) WithDailyBudgetUsageEvidence(canonical, missing bool) AgentEvent {
+	if e.HasCanonicalUsageProjection() == canonical && e.HasProviderUsageMissing() == missing {
+		return e
+	}
+	payload := e.clonePayload()
+	payload.canonicalUsageProjection = canonical
+	payload.providerUsageMissing = missing
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
 }

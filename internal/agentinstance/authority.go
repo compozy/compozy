@@ -154,8 +154,8 @@ func WithAppBudgetResume(ctx context.Context) context.Context {
 
 // HasDailyBudgetResumeAuthority reserves budget resume for an operator without app credentials.
 func HasDailyBudgetResumeAuthority(ctx context.Context, operator bool) bool {
-	app, _ := ctx.Value(budgetResumeAppKey{}).(bool)
-	return operator && !app
+	app, ok := ctx.Value(budgetResumeAppKey{}).(bool)
+	return operator && (!ok || !app)
 }
 
 // OperatorOnlyResume keeps safety and unknown pauses under operator control.

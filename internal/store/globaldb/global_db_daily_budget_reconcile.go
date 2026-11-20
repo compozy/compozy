@@ -161,12 +161,13 @@ func dailyBudgetRecoverySessionFromRow(
 			return store.DailyBudgetReconcileSession{}, err
 		}
 	}
+	info := store.SessionInfo{
+		ID: row.ID, ProfileID: row.ProfileID, WorkspaceID: row.WorkspaceID,
+		AgentName: row.AgentName, Provider: row.Provider, Model: row.Model,
+		InstanceID: row.InstanceID,
+	}
 	return store.DailyBudgetReconcileSession{
-		SessionInfo: store.SessionInfo{
-			ID: row.ID, ProfileID: row.ProfileID, WorkspaceID: row.WorkspaceID,
-			AgentName: row.AgentName, Provider: row.Provider, Model: row.Model,
-			InstanceID: row.InstanceID,
-		},
+		SessionInfo:     info,
 		UnresolvedOwner: unresolved, InstanceCreatedAt: instanceCreatedAt,
 	}, nil
 }

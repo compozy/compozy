@@ -36,11 +36,11 @@ func (options agentInstanceOptions) updateBudget(
 			if strings.EqualFold(value, "off") {
 				input.Tokens = nil
 			} else {
-				cap, err := strconv.ParseInt(value, 10, 64)
-				if err != nil || cap < 0 {
+				limit, err := strconv.ParseInt(value, 10, 64)
+				if err != nil || limit < 0 {
 					return fmt.Errorf("cli: --tokens must be a non-negative integer or 'off'")
 				}
-				input.Tokens = &cap
+				input.Tokens = &limit
 			}
 		}
 		if setUSD {
@@ -48,11 +48,11 @@ func (options agentInstanceOptions) updateBudget(
 			if strings.EqualFold(value, "off") {
 				input.USD = nil
 			} else {
-				cap, err := strconv.ParseFloat(value, 64)
-				if err != nil || cap < 0 || math.IsNaN(cap) || math.IsInf(cap, 0) {
+				limit, err := strconv.ParseFloat(value, 64)
+				if err != nil || limit < 0 || math.IsNaN(limit) || math.IsInf(limit, 0) {
 					return errors.New("cli: invalid USD cap; use a finite non-negative number or 'off'")
 				}
-				input.USD = &cap
+				input.USD = &limit
 			}
 		}
 	}

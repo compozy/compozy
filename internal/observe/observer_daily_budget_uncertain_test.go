@@ -271,7 +271,7 @@ func assertUnresolvedBudgetReceiptSurvivesDeletion(
 	}
 	second := event
 	second.TurnID = "legacy-durable-without-receipt"
-	second.CanonicalUsageProjection = true
+	second = second.WithDailyBudgetUsageEvidence(true, false)
 	second.Usage = &acp.TokenUsage{TurnID: second.TurnID, TotalTokens: new(int64(13)), Timestamp: event.Timestamp}
 	writeBudgetRecoveryTestLedger(t, h, child, h.workspaceID, &second)
 	if _, err := h.registry.DB().ExecContext(ctx, `CREATE TRIGGER fail_uncertain_test_projection
@@ -326,8 +326,8 @@ func TestObserverDailyBudgetReplaysProviderCompletionWithoutUsage(t *testing.T) 
 				agentinstance.DailyBudgetLimits{USD: new(float64(1))}); err != nil {
 				t.Fatal(err)
 			}
-			event := (acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "provider-done", Timestamp: at,
-				ProviderUsageMissing: true}).WithPromptRuntime(&acp.PromptRuntime{
+			event := (acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "provider-done", Timestamp: at}).
+				WithDailyBudgetUsageEvidence(false, true).WithPromptRuntime(&acp.PromptRuntime{
 				Provider: "claude", Model: "coder", MeteringAuthMode: string(tc.mode),
 			})
 			writeBudgetRecoveryTestLedger(t, h, id, h.workspaceID, &event)

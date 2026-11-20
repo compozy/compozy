@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const instanceStatePaused = "paused"
+
 var (
 	ErrWorkspaceAccessDenied       = errors.New("workspace_access_denied")
 	ErrSessionNotRoot              = errors.New("session_not_root")
