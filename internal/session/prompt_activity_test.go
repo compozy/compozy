@@ -156,6 +156,20 @@ func TestSupervisionTracksQuietFromLatestProviderActivity(t *testing.T) {
 		if warning == nil || !warning.QuietSince.Equal(now().Add(-cfg.QuietAfter)) {
 			t.Fatalf("quiet warning = %+v, want warning based on the last provider update", warning)
 		}
+		if warning.StopAt == nil || !warning.StopAt.Equal(now().Add(cfg.StopGrace)) {
+			t.Fatalf("quiet warning = %+v, want inactivity stop after the configured grace", warning)
+		}
+
+		elapsed.Add(int64(cfg.StopGrace / 2))
+		activity.observeEvent(acp.AgentEvent{Type: acp.EventTypeThought, Timestamp: now(), Text: "resumed work"})
+		elapsed.Store(warning.StopAt.Sub(startedAt).Nanoseconds())
+		if err := h.manager.Supervise(t.Context(), now()); err != nil {
+			t.Fatal(err)
+		}
+		if info := target.Info(); info.State != StateActive || info.Supervision.QuietWarning != nil {
+			t.Fatalf("turn at the previous stop time: state = %s, warning = %+v, want active without a warning",
+				info.State, info.Supervision.QuietWarning)
+		}
 	})
 }
 
