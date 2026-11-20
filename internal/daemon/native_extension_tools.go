@@ -80,7 +80,7 @@ type extensionUpdateInput struct {
 }
 
 func (n *daemonNativeTools) extensionToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDExtensionsInit: {

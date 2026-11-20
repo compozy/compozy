@@ -11733,6 +11733,34 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: an expired projection observation does not poison another reader's workspace policy.
+	// Owner: daemon policy read memo; canonical suite: native runtime policy resolver.
+	t.Run("Should retry workspace policy after an observation deadline", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config: &cfg,
+			WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(func(
+				ctx context.Context, _, _ string,
+			) (workspacepkg.ResolvedAgentConfig, error) {
+				return workspacepkg.ResolvedAgentConfig{Config: cfg}, ctx.Err()
+			}),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		tick := resolver.PolicyReadContext(t.Context(), false)
+		observation, cancel := context.WithDeadline(tick, time.Time{})
+		defer cancel()
+		scope := toolspkg.Scope{WorkspaceID: "ws-policy"}
+		if _, _, err := resolver.resolveWorkspaceConfig(observation, scope); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("expired workspace observation = %v, want deadline exceeded", err)
+		}
+		if _, resolved, err := resolver.resolveWorkspaceConfig(tick, scope); err != nil || resolved == nil {
+			t.Fatalf("same-tick workspace read returned %v", err)
+		}
+	})
+
 	// Invariant: pending rows with the same ID retain their own authority in one read.
 	// Owner: daemon authority; canonical suite: native runtime policy resolver.
 	t.Run("Should isolate successive candidate ceilings for the same session ID", func(t *testing.T) {
@@ -13290,7 +13318,7 @@ func TestValidateNativeToolBindings(t *testing.T) {
 		return toolspkg.ToolResult{}, nil
 	}
 	descriptor := toolspkg.Descriptor{ID: toolspkg.ToolID("compozy__test")}
-	validBinding := nativeToolBinding{call: call, availability: available}
+	validBinding := nativeToolBinding{call: call, availability: &toolspkg.NativeAvailabilityGroup{Check: available}}
 
 	t.Run("Should accept an exact executable binding set", func(t *testing.T) {
 		t.Parallel()

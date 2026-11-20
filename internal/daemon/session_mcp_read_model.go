@@ -26,6 +26,7 @@ type sessionMCPReadModel struct {
 	snapshots map[string]sessionMCPSummarySnapshot
 	scopes    map[string]sessionMCPScopeSnapshot
 	refreshMu sync.Mutex
+	batch     uint64
 }
 
 var _ session.MCPReader = (*sessionMCPReadModel)(nil)
@@ -37,11 +38,20 @@ func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (se
 	if err != nil {
 		return session.MCP{}, err
 	}
-	ctx = session.WithMCPAuthoritySession(ctx, info)
 	collection, err := r.sessionMCPCollection(ctx, info)
 	if err != nil {
 		return session.MCP{}, err
 	}
+	return r.listSessionMCP(ctx, info, collection)
+}
+
+func (r *sessionMCPReadModel) listSessionMCP(
+	ctx context.Context, info *session.Info, collection settingspkg.CollectionEnvelope,
+) (session.MCP, error) {
+	id := info.ID
+	ctx = toolspkg.EnsureProjectionListings(toolspkg.WithCachedMCPProjection(ctx))
+	ctx = r.registry.ReadContext(toolspkg.WithImmutableProjection(ctx))
+	ctx = session.WithMCPAuthoritySession(ctx, info)
 	authorityCtx := ctx
 	if reader, ok := r.authority.(interface {
 		MCPAuthorityReadContext(context.Context) context.Context
@@ -58,15 +68,7 @@ func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (se
 		WorkspaceID: info.WorkspaceID,
 		AgentName:   info.AgentName,
 	}
-	callable, err := r.registry.SessionProjection(ctx, scope)
-	if err != nil {
-		return session.MCP{}, err
-	}
-	advertised, err := r.registry.AdvertisedSessionProjection(ctx, scope)
-	if err != nil {
-		return session.MCP{}, err
-	}
-	diagnostics, err := r.registry.DiagnosticProjection(ctx, scope)
+	views, err := r.sessionMCPViews(ctx, scope)
 	if err != nil {
 		return session.MCP{}, err
 	}
@@ -76,11 +78,21 @@ func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (se
 	if !ok {
 		return session.MCP{}, errors.New("daemon: session MCP runtime reader unavailable")
 	}
-	runtime, err := runtimeReader.MCPReadSnapshot(ctx, id, toolspkg.NewAdvertisedCatalog(advertised))
+	runtime, err := runtimeReader.MCPReadSnapshot(ctx, id, views.advertised)
 	if err != nil {
 		return session.MCP{}, err
 	}
-	result := composeSessionMCP(id, collection.MCPServers, authority.MCPServers, callable, diagnostics, runtime)
+	if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok {
+		build.checkRuntimeSnapshot(&runtime)
+	}
+	result := composeSessionMCP(
+		id,
+		collection.MCPServers,
+		authority.MCPServers,
+		views.callable,
+		views.diagnostics,
+		runtime,
+	)
 	if provider, ok := r.state.mcpToolProvider.(*toolspkg.MCPProvider); ok {
 		for i := range result.CompozyServers {
 			row := &result.CompozyServers[i]
@@ -100,6 +112,52 @@ func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (se
 		}
 	}
 	return result, nil
+}
+
+type sessionMCPToolViews struct {
+	callable, diagnostics []toolspkg.ToolView
+	advertised            toolspkg.AdvertisedCatalog
+}
+
+func (r *sessionMCPReadModel) sessionMCPViews(ctx context.Context, scope toolspkg.Scope) (sessionMCPToolViews, error) {
+	batch, share := ctx.Value(sessionMCPSummaryBatchKey{}).(*sessionMCPSummaryBatch)
+	if !share || ctx.Value(projectionPolicyBuildKey{}) != nil {
+		return r.buildSessionMCPViews(ctx, scope)
+	}
+	class, known := r.registry.ProjectionVisibility(ctx, scope)
+	if !known {
+		return r.buildSessionMCPViews(ctx, scope)
+	}
+	if views, ok := batch.views[class]; ok {
+		return views, nil
+	}
+	views, err := r.buildSessionMCPViews(ctx, scope)
+	if err == nil {
+		if batch.views == nil {
+			batch.views = make(map[string]sessionMCPToolViews)
+		}
+		batch.views[class] = views
+	}
+	return views, err
+}
+
+func (r *sessionMCPReadModel) buildSessionMCPViews(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) (sessionMCPToolViews, error) {
+	callable, err := r.registry.SessionProjection(ctx, scope)
+	if err != nil {
+		return sessionMCPToolViews{}, err
+	}
+	advertised, err := r.registry.AdvertisedSessionProjection(ctx, scope)
+	if err != nil {
+		return sessionMCPToolViews{}, err
+	}
+	diagnostics, err := r.registry.DiagnosticProjection(ctx, scope)
+	if err != nil {
+		return sessionMCPToolViews{}, err
+	}
+	return sessionMCPToolViews{callable, diagnostics, toolspkg.NewAdvertisedCatalog(advertised)}, nil
 }
 
 func composeSessionMCP(

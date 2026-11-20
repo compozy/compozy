@@ -101,7 +101,15 @@ func (q *Queries) FinishCheckInToolCall(ctx context.Context, arg FinishCheckInTo
 }
 
 const getCheckInSessionBinding = `-- name: GetCheckInSessionBinding :one
-SELECT instance_id,occurrence_id FROM agent_instance_wake_state WHERE triage_session_id=? AND occurrence_id<>''
+SELECT w.instance_id, w.occurrence_id
+FROM sessions AS s
+JOIN agent_instance_wake_state AS w ON w.instance_id = s.instance_id
+WHERE s.id = ?1 AND w.triage_session_id = s.id AND w.occurrence_id <> ''
+UNION ALL
+SELECT w.instance_id, w.occurrence_id
+FROM agent_instance_wake_state AS w
+WHERE w.triage_session_id = ?1 AND w.occurrence_id <> ''
+LIMIT 1
 `
 
 type GetCheckInSessionBindingRow struct {
@@ -109,8 +117,8 @@ type GetCheckInSessionBindingRow struct {
 	OccurrenceID string `json:"occurrence_id"`
 }
 
-func (q *Queries) GetCheckInSessionBinding(ctx context.Context, triageSessionID string) (GetCheckInSessionBindingRow, error) {
-	row := q.db.QueryRowContext(ctx, getCheckInSessionBinding, triageSessionID)
+func (q *Queries) GetCheckInSessionBinding(ctx context.Context, sessionID string) (GetCheckInSessionBindingRow, error) {
+	row := q.db.QueryRowContext(ctx, getCheckInSessionBinding, sessionID)
 	var i GetCheckInSessionBindingRow
 	err := row.Scan(&i.InstanceID, &i.OccurrenceID)
 	return i, err

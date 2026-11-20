@@ -48,7 +48,7 @@ type nativeLoopNodeResumeInput struct {
 
 func (n *daemonNativeTools) addLoopLifecycleBindings(
 	bindings map[toolspkg.ToolID]nativeToolBinding,
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) {
 	bindings[toolspkg.ToolIDLoopCancel] = nativeToolBinding{call: n.loopCancel, availability: availability}
 	bindings[toolspkg.ToolIDLoopNodes] = nativeToolBinding{call: n.loopNodes, availability: availability}

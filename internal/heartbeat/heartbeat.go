@@ -224,6 +224,17 @@ func (e *DiagnosticError) Unwrap() error {
 
 // Resolve reads and resolves HEARTBEAT.md beside the provided agent path.
 func Resolve(ctx context.Context, req ResolveRequest) (ResolvedPolicy, error) {
+	return resolve(ctx, req, os.ReadFile)
+}
+
+// ResolveFromContent applies the same path, absence and parse rules to a captured file read.
+func ResolveFromContent(
+	ctx context.Context, req ResolveRequest, content []byte, readErr error,
+) (ResolvedPolicy, error) {
+	return resolve(ctx, req, func(string) ([]byte, error) { return content, readErr })
+}
+
+func resolve(ctx context.Context, req ResolveRequest, readFile func(string) ([]byte, error)) (ResolvedPolicy, error) {
 	if err := req.Config.Validate(); err != nil {
 		return ResolvedPolicy{}, err
 	}
@@ -247,7 +258,7 @@ func Resolve(ctx context.Context, req ResolveRequest) (ResolvedPolicy, error) {
 		return resultWithDiagnostics(&result, []Diagnostic{*diagnostic})
 	}
 
-	content, err := os.ReadFile(heartbeatPath)
+	content, err := readFile(heartbeatPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return result, nil

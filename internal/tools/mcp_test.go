@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/deadentity"
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -135,6 +136,55 @@ func TestShouldCanonicalizeMCPToolIDs(t *testing.T) {
 
 func TestMCPProviderProjectionGeneration(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: redaction changes keep safe descriptors and withhold only newly unsafe metadata.
+	// Owner: MCP provider discovery publication; canonical suite: MCP provider projection generations.
+	for _, scenario := range []struct {
+		name    string
+		related bool
+		want    []ToolID
+	}{
+		{"Should keep the catalog across an unrelated redaction change", false, []ToolID{"mcp__linear__safe", "mcp__linear__marked"}},
+		{"Should keep safe descriptors during a related redaction change", true, []ToolID{"mcp__linear__safe"}},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			marker := fmt.Sprintf("catalog-publication-private-fixture-7c34-%t", scenario.related)
+			source := SourceRef{Kind: SourceMCP, Owner: "linear", RawServerName: "linear", Scope: mcpSourceScopeUser}
+			raw := []MCPToolDescriptor{
+				{RawName: "safe", InputSchema: json.RawMessage(`{"type":"object"}`)},
+				{RawName: "marked", Description: marker, InputSchema: json.RawMessage(`{"type":"object"}`)},
+			}
+			catalog := mcpDiscoverySnapshot{source: source, raw: raw}
+			for _, input := range raw {
+				descriptor, err := mcpRegistryDescriptor(source, input)
+				if err != nil {
+					t.Fatal(err)
+				}
+				catalog.descriptors = append(catalog.descriptors, descriptor)
+			}
+			before := redact.RegisteredSecretSnapshot()
+			secret := marker
+			if !scenario.related {
+				secret += "-outside-the-catalog"
+			}
+			t.Cleanup(redact.RegisterRequiredSecret(secret))
+			got := catalog.descriptorsAt(before)
+			ids := make([]ToolID, 0, len(got))
+			for _, descriptor := range got {
+				ids = append(ids, descriptor.ID)
+			}
+			if !slices.Equal(ids, scenario.want) {
+				t.Fatalf("published IDs = %v, want %v", ids, scenario.want)
+			}
+			if scenario.related {
+				next := catalog.currentDescriptors()
+				if len(next) != 2 || strings.Contains(next[1].Description, marker) {
+					t.Fatal("complete catalog was not available with its metadata redacted")
+				}
+			}
+		})
+	}
 
 	t.Run("Should change when source auth availability changes", func(t *testing.T) {
 		t.Parallel()

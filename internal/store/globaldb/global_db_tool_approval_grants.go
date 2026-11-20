@@ -3,8 +3,10 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"uuid"
 
@@ -236,6 +238,72 @@ func (g *ApprovalGrantRepo) ListApprovalGrants(
 		return nil, fmt.Errorf("store: iterate tool approval grants: %w", err)
 	}
 	return grants, nil
+}
+
+const checkInApprovalProjectionLimit = 128
+
+// WithCheckInApprovalProjectionLimit returns a repository with a custom observation row limit.
+func (g *ApprovalGrantRepo) WithCheckInApprovalProjectionLimit(limit int64) *ApprovalGrantRepo {
+	repo := *g
+	if limit > 0 && limit < math.MaxInt64 {
+		repo.checkInProjectionLimit = limit
+	}
+	return &repo
+}
+
+// CheckInApprovalProjection observes remembered tool decisions in the original grant scope.
+func (g *ApprovalGrantRepo) CheckInApprovalProjection(ctx context.Context, scope toolspkg.Scope) (string, error) {
+	if err := g.checkReady(ctx, "observe check-in approvals"); err != nil {
+		return "", err
+	}
+	rows, err := g.mcpProjectionQueries(ctx).
+		ReadCheckInApprovalDecisions(ctx, sqlcgen.ReadCheckInApprovalDecisionsParams{
+			ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID, AgentName: scope.AgentName,
+			MaxRows: g.checkInProjectionLimit + 1,
+		})
+	if err != nil {
+		return "", fmt.Errorf("store: read check-in approval observation: %w", err)
+	}
+	if int64(len(rows)) > g.checkInProjectionLimit {
+		return "", fmt.Errorf("store: check-in approval observation exceeds %d rows", g.checkInProjectionLimit)
+	}
+	decisions := make([][4]string, 0, len(rows))
+	for _, row := range rows {
+		decisions = append(decisions, [4]string{row.AgentName, row.ToolID, row.InputDigest, row.Decision})
+	}
+	if len(decisions) == 0 {
+		return "", nil
+	}
+	data, err := json.Marshal(decisions)
+	if err != nil {
+		return "", fmt.Errorf("store: encode check-in approval observation: %w", err)
+	}
+	return string(data), nil
+}
+
+// CheckInApprovalDecision reads the same decision as LookupApprovalGrant without recording a call.
+func (g *ApprovalGrantRepo) CheckInApprovalDecision(ctx context.Context, key toolspkg.ApprovalGrantKey) (bool, error) {
+	if err := g.checkReady(ctx, "read check-in approval decision"); err != nil {
+		return false, err
+	}
+	key = key.Normalize()
+	if err := key.Validate(); err != nil {
+		return false, err
+	}
+	if key.AccessScope != "" {
+		return false, toolspkg.ErrApprovalGrantInvalid
+	}
+	decision, err := g.readQueries.ReadCheckInApprovalDecision(ctx, sqlcgen.ReadCheckInApprovalDecisionParams{
+		ProfileID: key.ProfileID, WorkspaceID: key.WorkspaceID, AgentName: key.AgentName,
+		ToolID: key.ToolID.String(), InputDigest: key.InputDigest,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("store: query check-in approval decision: %w", err)
+	}
+	return decision == string(toolspkg.ApprovalGrantAllow), nil
 }
 
 // RevokeApprovalGrant removes one profile/workspace-scoped remembered decision.

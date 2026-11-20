@@ -821,6 +821,18 @@ func (q *Queries) ResumeAgentInstance(ctx context.Context, arg ResumeAgentInstan
 	return result.RowsAffected()
 }
 
+const sessionMayHaveInstanceAncestry = `-- name: SessionMayHaveInstanceAncestry :one
+SELECT COALESCE(instance_id, '') <> '' OR COALESCE(parent_session_id, '') <> ''
+FROM sessions WHERE id = ?1
+`
+
+func (q *Queries) SessionMayHaveInstanceAncestry(ctx context.Context, id string) (sql.NullBool, error) {
+	row := q.db.QueryRowContext(ctx, sessionMayHaveInstanceAncestry, id)
+	var column_1 sql.NullBool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const stampInstanceMainSession = `-- name: StampInstanceMainSession :execrows
 UPDATE sessions SET instance_id = ?1
 WHERE sessions.id = ?2 AND archived_at IS NULL

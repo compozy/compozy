@@ -49,7 +49,7 @@ type daemonNativeTools struct {
 
 type nativeToolBinding struct {
 	call         toolspkg.NativeToolFunc
-	availability toolspkg.NativeAvailabilityFunc
+	availability *toolspkg.NativeAvailabilityGroup
 }
 
 const defaultNativeWakeEventLimit = 10

@@ -10,6 +10,80 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
+func BenchmarkHostedStreamProjectionIdleTick(b *testing.B) {
+	executable, err := os.Executable()
+	if err != nil {
+		b.Fatal(err)
+	}
+	nativeTools := make([]tools.NativeTool, 806)
+	for i := range nativeTools {
+		nativeTools[i] = hostedRuntimeNativeTool(
+			tools.ToolID(fmt.Sprintf("compozy__bench_%03d", i)),
+			tools.RiskRead,
+			true,
+		)
+	}
+	nativeTools[0].Availability = &tools.NativeAvailabilityGroup{
+		Check: func(context.Context, tools.Scope) tools.Availability {
+			return tools.Available()
+		},
+	}
+	native, err := tools.NewNativeProvider(tools.BuiltinSource(), nativeTools...)
+	if err != nil {
+		b.Fatal(err)
+	}
+	var registry *tools.RuntimeRegistry
+	registry, err = tools.NewRegistry(
+		tools.WithProviders(native),
+		tools.WithPolicyInputResolver(
+			hostedObservationPolicyResolver{
+				resolve: func(ctx context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
+					inputs := tools.DefaultPolicyInputs()
+					scope.SessionID, scope.AgentName = "", ""
+					views, resolveErr := registry.PolicyProjection(ctx, scope, inputs)
+					for i := range views {
+						inputs.Session.Tools = append(inputs.Session.Tools, views[i].Descriptor.ID)
+					}
+					inputs.Session.Enforced = true
+					return inputs, resolveErr
+				},
+			},
+			tools.ToolsetCatalog{},
+		),
+	)
+	if err != nil {
+		b.Fatal(err)
+	}
+	now := time.Now()
+	peer := hostedTestPeer(executable)
+	service := benchmarkHostedService(registry, &hostedBindRecord{}, nil)
+	service.enabled, service.expectedBinary = true, executable
+	service.now = func() time.Time { return now }
+	service.projectionEpoch = NewProjectionEpoch().Current
+	digests := make(map[string]string, 22)
+	for i := range 22 {
+		id := fmt.Sprintf("bind-%d", i)
+		service.binds[id] = &hostedBindRecord{
+			bindID: id, sessionID: fmt.Sprintf("sess-%d", i), peer: peer, expectedBin: executable,
+		}
+		response, err := service.StreamProjection(b.Context(), id, peer, "")
+		if err != nil || len(response.Tools) != len(nativeTools) {
+			b.Fatalf("initial projection: tools=%d, err=%v", len(response.Tools), err)
+		}
+		digests[id] = response.Digest
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		now = now.Add(service.StreamRefreshInterval())
+		for id, digest := range digests {
+			response, err := service.StreamProjection(b.Context(), id, peer, digest)
+			if err != nil || response.Digest != digest || len(response.Tools) != 0 {
+				b.Fatalf("idle stream wake: digest=%q, tools=%d, err=%v", response.Digest, len(response.Tools), err)
+			}
+		}
+	}
+}
+
 func BenchmarkHostedStreamProjectionUnchanged(b *testing.B) {
 	executable, err := os.Executable()
 	if err != nil {

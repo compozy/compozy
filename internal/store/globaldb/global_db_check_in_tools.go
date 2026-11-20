@@ -106,7 +106,7 @@ func (r *InstanceRepo) FinishToolCall(
 	})
 }
 func (r *InstanceRepo) ApprovedAuthority(ctx context.Context, profile, dir string) (string, error) {
-	value, err := r.readQueries.GetHeartbeatAuthorityApproval(
+	value, err := r.mcpProjectionQueries(ctx).GetHeartbeatAuthorityApproval(
 		ctx,
 		sqlcgen.GetHeartbeatAuthorityApprovalParams{ProfileID: profile, DefinitionDir: dir},
 	)
@@ -260,7 +260,7 @@ func (r *InstanceRepo) MarkAuthorityNotice(ctx context.Context, profile, dir, di
 }
 
 func (r *InstanceRepo) CheckInSessionBinding(ctx context.Context, id string) (string, string, error) {
-	row, err := r.readQueries.GetCheckInSessionBinding(ctx, id)
+	row, err := r.mcpProjectionQueries(ctx).GetCheckInSessionBinding(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", nil
 	}

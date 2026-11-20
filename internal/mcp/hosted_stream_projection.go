@@ -18,12 +18,14 @@ const HostedProjectionFallbackRefresh = 3 * time.Second
 const hostedUnversionedStreamRefresh = HostedProjectionFallbackRefresh
 
 type hostedUnversionedProjection struct {
-	fence    hostedProjectionFence
-	builtAt  time.Time
-	response HostedProjectionResponse
+	fence       hostedProjectionFence
+	builtAt     time.Time
+	response    HostedProjectionResponse
+	observation *tools.ProjectionObservation
 }
 
 type hostedProjectionFence struct {
+	registry  *tools.RuntimeRegistry
 	epoch     uint64
 	redaction [sha256.Size]byte
 }
@@ -66,16 +68,7 @@ func (s *HostedService) StreamSnapshot(
 	if err != nil {
 		return HostedProjectionResponse{}, err
 	}
-	if cached, ok := s.projectionCache.loadUnversioned(
-		record.bindID, s.projectionFence(), s.now(), s.StreamRefreshInterval(),
-	); ok {
-		return cloneHostedProjectionResponse(cached), nil
-	}
-	registry := s.currentRegistry()
-	if registry == nil {
-		return HostedProjectionResponse{}, ErrHostedRegistryRequired
-	}
-	response, err := s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+	response, err := s.streamProjection(ctx, record)
 	if err != nil {
 		return HostedProjectionResponse{}, err
 	}
@@ -98,32 +91,148 @@ func (s *HostedService) StreamProjection(
 	if record.eagerTools && s.acknowledgeHostedBind(record) {
 		return HostedProjectionResponse{Digest: lastDigest}, nil
 	}
-	// A fresh unversioned entry exists only after the generation was unknown; serving it first
-	// skips repeating that lookup inside the refresh window.
-	if cached, ok := s.projectionCache.loadUnversioned(
-		record.bindID, s.projectionFence(), s.now(), s.StreamRefreshInterval(),
-	); ok {
-		s.acknowledgeHostedBind(record)
-		return hostedStreamProjectionAfter(cached, lastDigest), nil
-	}
-	registry := s.currentRegistry()
-	if registry == nil {
-		return HostedProjectionResponse{}, ErrHostedRegistryRequired
-	}
-	unversioned := func(
-		ctx context.Context,
-		registry tools.Registry,
-		record *hostedBindRecord,
-	) (HostedProjectionResponse, error) {
-		return s.boundedUnversionedProjection(ctx, registry, record)
-	}
-	response, err := s.projectionForGeneration(ctx, record, registry, unversioned)
+	response, err := s.streamProjection(ctx, record)
 	if err != nil {
 		s.failHostedProjection(record)
 	} else {
 		s.acknowledgeHostedBind(record)
 	}
 	return hostedStreamProjectionAfter(response, lastDigest), err
+}
+
+func (s *HostedService) streamProjection(
+	ctx context.Context,
+	record *hostedBindRecord,
+) (HostedProjectionResponse, error) {
+	fence := s.projectionFence()
+	now := s.now()
+	if cached, ok := s.projectionCache.loadUnversioned(record.bindID, fence, now, s.StreamRefreshInterval()); ok {
+		return cached, nil
+	}
+	registry := s.currentRegistry()
+	if registry == nil {
+		return HostedProjectionResponse{}, ErrHostedRegistryRequired
+	}
+	runtime, ok := registry.(*tools.RuntimeRegistry)
+	if !ok || s.projectionEpoch == nil {
+		return s.streamProjectionForGeneration(ctx, record, registry)
+	}
+	projectionCtx, _ := runtime.HostedProjectionContext(ctx)
+	listingCtx, builtAt := s.withProjectionListings(projectionCtx, fence.epoch)
+	observation, known := runtime.ObserveProjection(listingCtx, record.scope())
+	if !known {
+		response, err := s.streamProjectionWithoutObservation(ctx, projectionCtx, runtime, record)
+		return s.checkStreamProjectionResult(ctx, record, response, err)
+	}
+	cached := s.projectionCache.unversionedEntry(record.bindID)
+	response := cached.response
+	reused := cached.fence == fence && cached.observation != nil && *cached.observation == observation &&
+		!now.Before(cached.builtAt) && s.projectionFence() == fence
+	if !reused {
+		built, stable, err := s.buildObservedStreamProjection(projectionCtx, listingCtx, runtime, record, observation)
+		if err != nil || !stable {
+			return s.checkStreamProjectionResult(ctx, record, built, err)
+		}
+		response = built
+	}
+	if err := ctx.Err(); err != nil {
+		return HostedProjectionResponse{}, err
+	}
+	current, owned := s.storeObservedProjection(record, hostedUnversionedProjection{
+		fence: fence, builtAt: builtAt, response: response, observation: &observation,
+	})
+	if !owned {
+		return HostedProjectionResponse{}, ErrHostedBindNotFound
+	}
+	if reused && !current {
+		// Redaction or the epoch moved while the cached snapshot was being reused.
+		registry := s.currentRegistry()
+		if registry == nil {
+			return HostedProjectionResponse{}, ErrHostedRegistryRequired
+		}
+		return s.streamProjectionForGeneration(ctx, record, registry)
+	}
+	return response, nil
+}
+
+func (s *HostedService) buildObservedStreamProjection(
+	ctx, listingCtx context.Context, runtime *tools.RuntimeRegistry, record *hostedBindRecord,
+	observation tools.ProjectionObservation,
+) (HostedProjectionResponse, bool, error) {
+	scope := record.scope()
+	buildCtx, stable := runtime.BeginProjectionBuild(ctx, scope, observation)
+	buildCtx = runtime.FreshReadContext(buildCtx)
+	buildCtx, complete, err := runtime.PinProjectionInputs(buildCtx, listingCtx, scope)
+	if err != nil {
+		response, err := s.streamProjectionWithoutObservation(ctx, ctx, runtime, record)
+		return response, false, err
+	}
+	// A bounded response or flight may have been built without observing these inputs.
+	response, err := catalogProjectionWithRedactionCheck(buildCtx, runtime, record, buildHostedProjection)
+	if err != nil || !complete {
+		return response, false, err
+	}
+	external, err := runtime.ExternalProjectionFingerprint(buildCtx, scope)
+	if err != nil || !observation.MatchesExternal(external) {
+		return response, false, nil
+	}
+	after, known := runtime.ObserveProjection(listingCtx, scope)
+	return response, known && after == observation && stable(), nil
+}
+
+func (s *HostedService) streamProjectionWithoutObservation(
+	ctx, projectionCtx context.Context, registry *tools.RuntimeRegistry, record *hostedBindRecord,
+) (HostedProjectionResponse, error) {
+	if !registry.HasProjectionPolicyObserver() {
+		return s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+	}
+	buildCtx := registry.FreshReadContext(projectionCtx)
+	if tools.IsHostedCatalogRead(buildCtx) {
+		return catalogProjectionWithRedactionCheck(buildCtx, registry, record, buildHostedProjection)
+	}
+	return projectionWithRedactionCheck(buildCtx, registry, record, buildHostedProjection)
+}
+
+func (s *HostedService) streamProjectionForGeneration(
+	ctx context.Context, record *hostedBindRecord, registry tools.Registry,
+) (HostedProjectionResponse, error) {
+	response, err := s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+	return s.checkStreamProjectionResult(ctx, record, response, err)
+}
+
+func (s *HostedService) checkStreamProjectionResult(
+	ctx context.Context, record *hostedBindRecord, response HostedProjectionResponse, err error,
+) (HostedProjectionResponse, error) {
+	if err != nil {
+		return HostedProjectionResponse{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return HostedProjectionResponse{}, err
+	}
+	s.mu.Lock()
+	owned := s.ownsBindRecord(record)
+	s.mu.Unlock()
+	if !owned {
+		return HostedProjectionResponse{}, ErrHostedBindNotFound
+	}
+	return response, nil
+}
+
+func (s *HostedService) storeObservedProjection(
+	record *hostedBindRecord, snapshot hostedUnversionedProjection,
+) (current, owned bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.ownsBindRecord(record) {
+		return false, false
+	}
+	if s.projectionFence() != snapshot.fence {
+		return false, true
+	}
+	if previous := s.projectionCache.unversionedEntry(record.bindID); !previous.builtAt.After(snapshot.builtAt) {
+		s.projectionCache.storeUnversioned(record.bindID, snapshot)
+	}
+	return true, true
 }
 
 func hostedStreamProjectionAfter(response HostedProjectionResponse, lastDigest string) HostedProjectionResponse {
@@ -181,7 +290,11 @@ func (s *HostedService) boundedUnversionedProjection(
 }
 
 func (s *HostedService) projectionFence() hostedProjectionFence {
-	fence := hostedProjectionFence{redaction: projectionRedactionRevision(s.currentRegistry())}
+	registry := s.currentRegistry()
+	fence := hostedProjectionFence{redaction: projectionRedactionRevision(registry)}
+	if runtime, ok := registry.(*tools.RuntimeRegistry); ok {
+		fence.registry = runtime
+	}
 	if s.projectionEpoch != nil {
 		fence.epoch = s.projectionEpoch()
 	}
@@ -217,13 +330,18 @@ func (c *hostedProjectionCache) loadUnversioned(
 	now time.Time,
 	refresh time.Duration,
 ) (HostedProjectionResponse, bool) {
-	c.mu.RLock()
-	entry, ok := c.unversioned[bindID]
-	c.mu.RUnlock()
-	if !ok || entry.fence != fence || now.Sub(entry.builtAt) >= refresh || now.Before(entry.builtAt) {
+	entry := c.unversionedEntry(bindID)
+	if entry.builtAt.IsZero() || entry.fence != fence || now.Sub(entry.builtAt) >= refresh ||
+		now.Before(entry.builtAt) {
 		return HostedProjectionResponse{}, false
 	}
 	return entry.response, true
+}
+
+func (c *hostedProjectionCache) unversionedEntry(bindID string) hostedUnversionedProjection {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.unversioned[bindID]
 }
 
 func (c *hostedProjectionCache) storeUnversioned(bindID string, entry hostedUnversionedProjection) {

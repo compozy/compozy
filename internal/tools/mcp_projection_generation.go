@@ -88,3 +88,84 @@ func (p *MCPProvider) mcpSourceAvailabilityGeneration(
 	}
 	return fmt.Sprintf("blocked:%s", reason), true
 }
+
+type mcpProjectionInputs struct {
+	stamp        string
+	sources      []*mcpDiscoverySnapshot
+	availability map[SourceRef]Availability
+}
+
+// readCachedProjectionInputs retains the exact source snapshots named by the observation.
+func (p *MCPProvider) readCachedProjectionInputs(ctx context.Context, scope Scope) (mcpProjectionInputs, error) {
+	sources, err := p.sources.ListMCPSources(ctx)
+	if err != nil {
+		return mcpProjectionInputs{}, fmt.Errorf("tools: enumerate MCP projection sources: %w", err)
+	}
+	sources = MCPSourcesForScope(sources, scope)
+	slices.SortFunc(sources, func(left, right SourceRef) int {
+		return strings.Compare(sourceKey(left), sourceKey(right))
+	})
+	var stamp strings.Builder
+	fmt.Fprintf(&stamp, "%x", redact.SecretFingerprint())
+	var captured mcpProjectionInputs
+	for _, source := range sources {
+		if p.consent != nil {
+			allowed, err := p.consent(ctx, source, scope.ProfileID)
+			if err != nil {
+				return mcpProjectionInputs{}, fmt.Errorf(
+					"tools: observe MCP source consent for %q: %w",
+					sourceKey(source),
+					err,
+				)
+			}
+			if !allowed {
+				continue
+			}
+		}
+		value, found := p.discovered.Load(source)
+		if !found {
+			continue
+		}
+		snapshot, ok := value.(*mcpDiscoverySnapshot)
+		if !ok {
+			panic("invariant: discovered MCP source has an unexpected type")
+		}
+		captured.sources = append(captured.sources, snapshot)
+		fmt.Fprintf(&stamp, "%x", snapshot.content)
+		appendProjectionGenerationPart(&stamp, sourceKey(source), source.ResourceVersion)
+		for _, healthSource := range snapshot.availabilitySources {
+			availability, found := captured.availability[healthSource]
+			if !found {
+				handle := mcpHandle{descriptor: Descriptor{Source: healthSource}, exec: p.exec, auth: p.auth,
+					reliability: p.reliability, provider: p}
+				availability = handle.Availability(ctx, scope)
+				availability.ReasonCodes = slices.Clone(availability.ReasonCodes)
+				if captured.availability == nil {
+					captured.availability = make(map[SourceRef]Availability)
+				}
+				captured.availability[healthSource] = availability
+			}
+			appendProjectionGenerationPart(&stamp, sourceKey(healthSource), "")
+			appendProjectionAvailability(&stamp, availability)
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return mcpProjectionInputs{}, fmt.Errorf("tools: observe MCP projection sources: %w", err)
+	}
+	captured.stamp = stamp.String()
+	return captured, nil
+}
+
+type pinnedMCPProviderInputs struct {
+	provider *MCPProvider
+	scope    Scope
+}
+
+func (p *MCPProvider) pinnedProjectionInputs(ctx context.Context, scope Scope) (mcpProjectionInputs, bool) {
+	pinned, ok := ctx.Value(pinnedProjectionInputsKey{}).(pinnedProjectionInputs)
+	if !ok {
+		return mcpProjectionInputs{}, false
+	}
+	inputs, found := pinned.mcp[pinnedMCPProviderInputs{p, p.ProjectionScope(scope)}]
+	return inputs, found
+}

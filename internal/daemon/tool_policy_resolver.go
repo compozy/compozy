@@ -19,16 +19,17 @@ import (
 )
 
 type nativeToolPolicyResolverDeps struct {
-	ApprovalGrants    toolspkg.ApprovalGrantStore
-	Config            *compozyconfig.Config
-	Sessions          nativeToolPolicySessionReader
-	WorkspaceResolver nativeToolPolicyWorkspaceResolver
-	ProfileNames      session.ProfileNameResolver
-	AgentResolver     nativeToolPolicyAgentResolver
-	ExtensionRegistry *extensionpkg.Registry
-	ApprovalAvailable bool
-	MCPSourceGrants   nativeToolPolicyMCPSourceGrants
-	MCPResourceNames  func() map[string]string
+	ApprovalGrants     toolspkg.ApprovalGrantStore
+	ApprovalProjection mcpProjectionGrantReader
+	Config             *compozyconfig.Config
+	Sessions           nativeToolPolicySessionReader
+	WorkspaceResolver  nativeToolPolicyWorkspaceResolver
+	ProfileNames       session.ProfileNameResolver
+	AgentResolver      nativeToolPolicyAgentResolver
+	ExtensionRegistry  *extensionpkg.Registry
+	ApprovalAvailable  bool
+	MCPSourceGrants    nativeToolPolicyMCPSourceGrants
+	MCPResourceNames   func() map[string]string
 }
 
 // nativeToolPolicyMCPSourceGrants lists MCP sources the operator authorized for one resolved scope.
@@ -51,21 +52,24 @@ type nativeToolPolicyAgentResolver interface {
 }
 
 type nativeToolPolicyResolver struct {
-	scopeTools        func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error)
-	readFence         func() sessionMCPReadFence
-	authorityMu       sync.Mutex
-	authorityCache    map[authorityPolicyKey]authorityPolicyValue
-	approvalGrants    toolspkg.ApprovalGrantStore
-	instanceCallers   agentinstance.CallerReader
-	cfg               *compozyconfig.Config
-	sessions          nativeToolPolicySessionReader
-	workspaceResolver nativeToolPolicyWorkspaceResolver
-	profileNames      session.ProfileNameResolver
-	agentResolver     nativeToolPolicyAgentResolver
-	extensionRegistry *extensionpkg.Registry
-	approvalAvailable bool
-	mcpSourceGrants   nativeToolPolicyMCPSourceGrants
-	mcpResourceNames  func() map[string]string
+	scopeTools               func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error)
+	readFence                func() sessionMCPReadFence
+	authorityMu              sync.Mutex
+	authorityCache           map[authorityPolicyKey]authorityPolicyValue
+	projectionDefinitions    map[projectionDefinitionKey]projectionDefinition
+	heartbeatCatalogRevision func() int64
+	approvalGrants           toolspkg.ApprovalGrantStore
+	approvalProjection       mcpProjectionGrantReader
+	instanceCallers          agentinstance.CallerReader
+	cfg                      *compozyconfig.Config
+	sessions                 nativeToolPolicySessionReader
+	workspaceResolver        nativeToolPolicyWorkspaceResolver
+	profileNames             session.ProfileNameResolver
+	agentResolver            nativeToolPolicyAgentResolver
+	extensionRegistry        *extensionpkg.Registry
+	approvalAvailable        bool
+	mcpSourceGrants          nativeToolPolicyMCPSourceGrants
+	mcpResourceNames         func() map[string]string
 }
 
 var _ toolspkg.PolicyInputResolver = (*nativeToolPolicyResolver)(nil)
@@ -75,16 +79,17 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 		return nil, errors.New("daemon: native tool policy config is required")
 	}
 	return &nativeToolPolicyResolver{
-		cfg:               deps.Config,
-		approvalGrants:    deps.ApprovalGrants,
-		sessions:          deps.Sessions,
-		workspaceResolver: deps.WorkspaceResolver,
-		profileNames:      deps.ProfileNames,
-		agentResolver:     deps.AgentResolver,
-		extensionRegistry: deps.ExtensionRegistry,
-		approvalAvailable: deps.ApprovalAvailable,
-		mcpSourceGrants:   deps.MCPSourceGrants,
-		mcpResourceNames:  deps.MCPResourceNames,
+		cfg:                deps.Config,
+		approvalGrants:     deps.ApprovalGrants,
+		approvalProjection: deps.ApprovalProjection,
+		sessions:           deps.Sessions,
+		workspaceResolver:  deps.WorkspaceResolver,
+		profileNames:       deps.ProfileNames,
+		agentResolver:      deps.AgentResolver,
+		extensionRegistry:  deps.ExtensionRegistry,
+		approvalAvailable:  deps.ApprovalAvailable,
+		mcpSourceGrants:    deps.MCPSourceGrants,
+		mcpResourceNames:   deps.MCPResourceNames,
 	}, nil
 }
 
@@ -94,11 +99,12 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 		workspaceResolver = state.workspaceResolver
 	}
 	resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
-		Config:            &state.cfg,
-		ApprovalGrants:    state.deps.ApprovalGrants,
-		Sessions:          state.sessions,
-		WorkspaceResolver: workspaceResolver,
-		ProfileNames:      state.profiles,
+		Config:             &state.cfg,
+		ApprovalGrants:     state.deps.ApprovalGrants,
+		ApprovalProjection: state.approvalProjection,
+		Sessions:           state.sessions,
+		WorkspaceResolver:  workspaceResolver,
+		ProfileNames:       state.profiles,
 		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,
@@ -114,6 +120,7 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 		return nil, err
 	}
 	resolver.readFence = state.sessionMCPReadFence
+	resolver.heartbeatCatalogRevision = state.heartbeatCatalog.Revision
 	if provider, ok := state.registry.(instanceRepositoryProvider); ok {
 		resolver.instanceCallers = provider.Instances()
 	}
@@ -308,11 +315,11 @@ func (r *nativeToolPolicyResolver) sessionInfo(
 	} else {
 		info, err = r.sessions.Status(ctx, sessionID)
 	}
-	if err == nil {
+	if err == nil || errors.Is(err, session.ErrSessionNotFound) {
+		if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok {
+			build.checkSession(sessionID, info)
+		}
 		return info, nil
-	}
-	if errors.Is(err, session.ErrSessionNotFound) {
-		return nil, nil
 	}
 	return nil, fmt.Errorf("daemon: resolve session tool policy %q: %w", sessionID, err)
 }
@@ -450,7 +457,7 @@ func (r *nativeToolPolicyResolver) applyInstanceToolPolicy(
 	info *session.Info,
 ) error {
 	if info != nil && r.instanceCallers != nil {
-		caller, err := r.instanceCallers.InstanceCaller(ctx, info.ID)
+		caller, err := r.projectionInstanceCaller(ctx, info.ID)
 		if err != nil {
 			return err
 		}

@@ -490,9 +490,11 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		t.Parallel()
 		descriptor := validDescriptor()
 		native, err := NewNativeProvider(descriptor.Source, NativeTool{
-			Descriptor:   descriptor,
-			Call:         func(context.Context, Scope, CallRequest) (ToolResult, error) { return ToolResult{}, nil },
-			Availability: func(context.Context, Scope) Availability { return Available() },
+			Descriptor: descriptor,
+			Call:       func(context.Context, Scope, CallRequest) (ToolResult, error) { return ToolResult{}, nil },
+			Availability: &NativeAvailabilityGroup{
+				Check: func(context.Context, Scope) Availability { return Available() },
+			},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -542,13 +544,13 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
 			Descriptor: descriptor,
 			Call:       func(context.Context, Scope, CallRequest) (ToolResult, error) { return ToolResult{}, nil },
-			Availability: func(context.Context, Scope) Availability {
+			Availability: &NativeAvailabilityGroup{Check: func(context.Context, Scope) Availability {
 				calls++
 				if calls == 1 {
 					return Available()
 				}
 				return Unavailable(ReasonDependencyMissing)
-			},
+			}},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -994,10 +996,10 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		probes := 0
 		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
 			Descriptor: descriptor,
-			Availability: func(context.Context, Scope) Availability {
+			Availability: &NativeAvailabilityGroup{Check: func(context.Context, Scope) Availability {
 				probes++
 				return Unavailable(ReasonBackendUnhealthy)
-			},
+			}},
 			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
 				return ToolResult{}, nil
 			},

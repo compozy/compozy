@@ -3,12 +3,21 @@ package daemon
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
 func (n *daemonNativeTools) loopCoreToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDGoalGet:       {call: n.goalGet, availability: n.goalGetAvailability},
-		toolspkg.ToolIDGoalControl:   {call: n.goalControl, availability: n.goalControlAvailability},
-		toolspkg.ToolIDGoalReport:    {call: n.goalReport, availability: n.goalReportAvailability},
+		toolspkg.ToolIDGoalGet: {
+			call:         n.goalGet,
+			availability: &toolspkg.NativeAvailabilityGroup{Check: n.goalGetAvailability},
+		},
+		toolspkg.ToolIDGoalControl: {
+			call:         n.goalControl,
+			availability: &toolspkg.NativeAvailabilityGroup{Check: n.goalControlAvailability},
+		},
+		toolspkg.ToolIDGoalReport: {
+			call:         n.goalReport,
+			availability: &toolspkg.NativeAvailabilityGroup{Check: n.goalReportAvailability},
+		},
 		toolspkg.ToolIDLoopList:      {call: n.loopList, availability: availability},
 		toolspkg.ToolIDLoopInspect:   {call: n.loopInspect, availability: availability},
 		toolspkg.ToolIDLoopValidate:  {call: n.loopValidate, availability: availability},
@@ -24,7 +33,7 @@ func (n *daemonNativeTools) loopCoreToolBindings(
 }
 
 func (n *daemonNativeTools) loopInteractionToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDLoopApprove:   {call: n.loopApprove, availability: availability},

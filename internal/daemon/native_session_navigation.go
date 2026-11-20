@@ -72,7 +72,7 @@ func (n *daemonNativeTools) sessionOutline(
 }
 
 func (n *daemonNativeTools) sessionNavigationToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDSessionSearch:  {call: n.sessionSearch, availability: availability},

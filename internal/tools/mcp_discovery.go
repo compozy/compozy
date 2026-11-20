@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -80,10 +81,11 @@ func (p *MCPProvider) cachedSourceDescriptors(source SourceRef) []Descriptor {
 }
 
 type mcpDiscoverySnapshot struct {
-	source      SourceRef
-	content     [sha256.Size]byte
-	raw         []MCPToolDescriptor
-	descriptors []Descriptor
+	source              SourceRef
+	content             [sha256.Size]byte
+	raw                 []MCPToolDescriptor
+	descriptors         []Descriptor
+	availabilitySources []SourceRef
 
 	mu           sync.Mutex
 	hasSafeView  bool
@@ -94,7 +96,10 @@ type mcpDiscoverySnapshot struct {
 func (s *mcpDiscoverySnapshot) currentDescriptors() []Descriptor {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	snapshot := redact.RegisteredSecretSnapshot()
+	return s.descriptorsAt(redact.RegisteredSecretSnapshot())
+}
+
+func (s *mcpDiscoverySnapshot) descriptorsAt(snapshot *redact.SecretSnapshot) []Descriptor {
 	revision := snapshot.MaterialFingerprint()
 	if s.hasSafeView && s.safeRevision == revision {
 		return s.safe
@@ -115,7 +120,29 @@ func (s *mcpDiscoverySnapshot) currentDescriptors() []Descriptor {
 		}
 	}
 	if revision != redact.RegisteredSecretSnapshot().MaterialFingerprint() {
-		return nil
+		// Preserve descriptors proven safe against the current material without caching this mixed view.
+		encoded := make([][]byte, len(safe))
+		for i := range safe {
+			if raw, err := json.Marshal(safe[i]); err == nil {
+				encoded[i] = raw
+			}
+		}
+		keep := make([]bool, len(safe))
+		redact.WithCurrentSecretSnapshot(func(current *redact.SecretSnapshot) {
+			for i, raw := range encoded {
+				keep[i] = raw != nil && safeMCPMetadata(current, raw)
+			}
+		})
+		kept := 0
+		for i, ok := range keep {
+			if ok {
+				safe[kept] = safe[i]
+				kept++
+			}
+		}
+		clear(safe[kept:])
+		safe = safe[:kept]
+		return safe
 	}
 	s.safeRevision, s.safe, s.hasSafeView = revision, safe, true
 	return safe
@@ -126,6 +153,10 @@ func safeMCPDescriptor(snapshot *redact.SecretSnapshot, descriptor Descriptor) b
 	if err != nil {
 		return false
 	}
+	return safeMCPMetadata(snapshot, raw)
+}
+
+func safeMCPMetadata(snapshot *redact.SecretSnapshot, raw []byte) bool {
 	unsafe, err := snapshot.NeedsBinaryJSONRedaction(raw)
 	return err == nil && !unsafe
 }
@@ -141,12 +172,20 @@ func (p *MCPProvider) normalizeDiscovery(source SourceRef, discovered []MCPToolD
 	}
 	descriptors := make([]Descriptor, 0, len(discovered))
 	raw := make([]MCPToolDescriptor, len(discovered))
+	var availabilitySources []SourceRef
+	seen := make(map[SourceRef]struct{})
 	for i := range discovered {
 		descriptor, err := mcpRegistryDescriptor(source, discovered[i])
 		if err != nil {
 			return nil, wrapField(err, fmt.Sprintf("mcp_tools[%d]", i))
 		}
 		descriptors = append(descriptors, descriptor)
+		healthSource := descriptor.Source
+		healthSource.RawToolName = ""
+		if _, found := seen[healthSource]; !found {
+			seen[healthSource] = struct{}{}
+			availabilitySources = append(availabilitySources, healthSource)
+		}
 		raw[i] = discovered[i]
 		raw[i].InputSchema = cloneRawMessage(raw[i].InputSchema)
 		raw[i].OutputSchema = cloneRawMessage(raw[i].OutputSchema)
@@ -155,7 +194,11 @@ func (p *MCPProvider) normalizeDiscovery(source SourceRef, discovered []MCPToolD
 	if err != nil {
 		return nil, err
 	}
-	snapshot := &mcpDiscoverySnapshot{source: source, content: content, raw: raw, descriptors: descriptors}
+	slices.SortFunc(availabilitySources, func(a, b SourceRef) int {
+		return strings.Compare(sourceKey(a), sourceKey(b))
+	})
+	snapshot := &mcpDiscoverySnapshot{source: source, content: content, raw: raw, descriptors: descriptors,
+		availabilitySources: availabilitySources}
 	p.discovered.Store(source, snapshot)
 	return cloneDescriptors(snapshot.currentDescriptors()), nil
 }

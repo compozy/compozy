@@ -6843,3 +6843,24 @@ Owner [#1850](https://github.com/compozy/compozy/issues/1850).
   the existing tool-list notification.
 - **Web, docs and official skill.** The MCP controls render the existing state and reason fields.
   The MCP docs and tools-and-skills reference explain discovery, refresh and cooldown.
+
+## Idle MCP projection refresh
+
+Owner: `perf/mcp-poll-churn`.
+
+- **Native tools and CLI/HTTP/UDS.** Session summaries and hosted streams retain their existing
+  refresh intervals, event payloads, and call-time authorization. A hosted bind can reuse its
+  immutable catalog when the observed inputs and projection epoch agree. Instance adoption,
+  ancestry changes, and check-in authority are observed at the existing refresh cadence.
+- **Hooks, config and extensibility.** The same catalog discovery, authored config watcher,
+  approval, and tool-call paths supply the projection inputs. External provider health and native
+  availability retain their bounded rechecks. Native availability dependencies come from the
+  bindings. Check-in authority includes the authored definition, committed approval, and main
+  session ceiling. A check-in summary also honors changes to the workspace configuration fence.
+- **Workspace and profile isolation.** Read batches share external inputs by their declared
+  provider scopes and share tool views by effective visibility. Runtime inventory dependencies
+  identify the exact accepted runtime context and its observed file revision. Instance and
+  approval identities read committed rows under the original profile and workspace rules. Cold
+  builds check that the instance, check-in binding, and approval inputs they consumed match the observation.
+- **Official skill, Web, docs and QA.** The MCP settings, summary events, hosted tool notifications,
+  and existing operator journeys use the same timing and contracts.
