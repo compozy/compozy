@@ -27,9 +27,9 @@ func TestProcessMarkers(t *testing.T) {
 	t.Parallel()
 	t.Run("Should retain exact attribution markers from the process environment", func(t *testing.T) {
 		t.Parallel()
-		env := []byte("COMPOZY_SESSION_ID_EXTRA=unrelated\x00" +
-			"COMPOZY_SESSION_ID=previous\x00" +
+		env := []byte("COMPOZY_SESSION_ID=previous\x00" +
 			"COMPOZY_SESSION_ID=sess-1\x00" +
+			"COMPOZY_SESSION_ID_EXTRA=unrelated\x00" +
 			"COMPOZY_HOME=/path=home\x00" +
 			"COMPOZY_PROFILE_ID=profile-1\x00" +
 			"COMPOZY_SESSION_ID\x00" +
