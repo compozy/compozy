@@ -58,7 +58,10 @@ func WriteSessionMeta(path string, meta *SessionMeta) (err error) {
 	}
 	payload = append(payload, '\n')
 
-	directory, name, err := fileutil.OpenOrCreateParentDirectory(cleanPath, 0o755)
+	directory, name, err := fileutil.OpenParentDirectory(cleanPath)
+	if errors.Is(err, os.ErrNotExist) {
+		directory, name, err = fileutil.OpenOrCreateParentDirectory(cleanPath, 0o755)
+	}
 	if err != nil {
 		return fmt.Errorf("store: open session meta directory for %q: %w", cleanPath, err)
 	}
