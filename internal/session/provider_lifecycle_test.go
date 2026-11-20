@@ -21,6 +21,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolmeta"
 	"github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -986,6 +987,49 @@ func newActivationHarness(t *testing.T) (*harness, *activationHostedLauncher) {
 	launcher.setCatalog()
 	h.manager.hostedMCP = launcher
 	return h, launcher
+}
+
+// The budget follows the effective provider command and applies only to the daemon-issued proxy.
+func TestHostedMCPToolListProviderGate(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		command   string
+		harness   compozyconfig.ProviderHarness
+		threshold int
+		budgeted  bool
+	}{
+		{name: "Should budget the Claude bridge", command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+			threshold: 20, budgeted: true},
+		{name: "Should preserve the Claude default", command: "claude-agent-acp"},
+		{name: "Should preserve the full Codex list", command: "npx -y @agentclientprotocol/codex-acp",
+			threshold: 20},
+		{name: "Should preserve the full list after a hook selects a direct command", command: "claude",
+			threshold: 20},
+		{name: "Should preserve the full Pi list", command: "claude-agent-acp",
+			harness: compozyconfig.ProviderHarnessPiACP, threshold: 20},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			hostedArgs := []string{"tool", "mcp", "--session", "sess-test", toolmeta.HostedBindNonceFlag, "nonce"}
+			servers := []compozyconfig.MCPServer{
+				{Name: toolmeta.HostedServerName, Args: []string{"unrelated"}},
+				{Name: toolmeta.HostedServerName, Args: slices.Clone(hostedArgs)},
+			}
+			manager := Manager{
+				hostedMCP: &activationHostedLauncher{}, hostedMCPToolListThreshold: tc.threshold,
+			}
+			got := manager.hostedMCPBudgetedServers(tc.harness, acp.StartOpts{Command: tc.command, MCPServers: servers})
+			want := slices.Clone(hostedArgs)
+			if tc.budgeted {
+				want = append(want, toolmeta.HostedToolListThresholdFlag, "20")
+			}
+			if !slices.Equal(got[0].Args, []string{"unrelated"}) || !slices.Equal(got[1].Args, want) ||
+				!slices.Equal(servers[1].Args, hostedArgs) {
+				t.Fatalf("launch args = %v, want hosted args %v", got, want)
+			}
+		})
+	}
 }
 
 // Invariant: one admission compares the advertised catalog using its host's refresh capability.

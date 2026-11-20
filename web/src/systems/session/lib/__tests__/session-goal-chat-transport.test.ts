@@ -220,6 +220,39 @@ describe("createGoalAwareFetch", () => {
     expect(onResult).not.toHaveBeenCalled();
   });
 
+  // A `/side` prompt that reaches the prompt route opens a side chat; this session gets nothing.
+  it("Should end a side_opened prompt receipt as an empty turn without a result", async () => {
+    const onResult = vi.fn();
+    const goalFetch = createGoalAwareFetch({
+      fetch: vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              prompt: {
+                idempotency_key: "idempotency-001",
+                message_id: "message-001",
+                queue_position: 0,
+                replayed: false,
+                status: "side_opened",
+                side: { session_id: "sess-side-1", seed: "replay", source_turn_in_progress: true },
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          )
+      ),
+      onResult,
+    });
+
+    const response = await goalFetch("/prompt", {
+      method: "POST",
+      body: requestBody("/side what now?"),
+    });
+
+    expect(response.headers.get("content-type")).toBe("text/event-stream");
+    await expect(response.text()).resolves.toContain('"type":"finish"');
+    expect(onResult).not.toHaveBeenCalled();
+  });
+
   it("Should convert a replayed prompt receipt into an empty stream for its accepted turn", async () => {
     const goalFetch = createGoalAwareFetch({
       fetch: vi.fn(

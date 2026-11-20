@@ -1,0 +1,720 @@
+// Suite: the session window's side chat host (`_uiux.md` S3, `_tests.md` web cases).
+// Invariant: the window's side chat host opens, switches, hides and closes side chats through one
+// drawer store shared with the subagent drawer; `/side` submissions open a side chat through
+// `POST …/sides` with one idempotency key per question; the head toggle and the main status chip
+// read the side list and the main session truthfully.
+// Owning layer: `use-session-window-side-chat` + `session-side-drawer` (the window composition).
+// Boundary OUT: the side chat adapter, the archive and session-detail adapters, and the side
+// thread (its transcript and composer belong to the session thread suite).
+// Canonical suite: this file (no existing suite owns the side chat host).
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { UIProvider } from "@compozy/ui";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  type SessionPayload,
+  type SessionSideItem,
+  sessionWindowDrawerKind,
+  sessionWindowDrawerLogic,
+} from "@/systems/session";
+import {
+  sideChatAnsweringFixture,
+  sideChatClarifyFixture,
+  sideChatIdleFixture,
+  sideChatListFixture,
+  sideChatMainSession,
+  sideChatMainSessionFixture,
+  sideChatPermissionFixture,
+} from "@/systems/session/mocks/side-chat-fixtures";
+
+const mocks = vi.hoisted(() => ({
+  openSessionSide: vi.fn(),
+  fetchSessionSides: vi.fn(),
+  archiveSession: vi.fn(),
+  fetchSession: vi.fn(),
+  toastError: vi.fn(),
+}));
+
+vi.mock("@/systems/session/adapters/session-side-api", () => ({
+  openSessionSide: mocks.openSessionSide,
+  fetchSessionSides: mocks.fetchSessionSides,
+}));
+vi.mock("@/systems/session/adapters/session-archive-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session/adapters/session-archive-api")>()),
+  archiveSession: mocks.archiveSession,
+}));
+vi.mock("@/systems/session/adapters/session-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session/adapters/session-api")>()),
+  fetchSession: mocks.fetchSession,
+}));
+// The side thread is the session thread suite's; here it only names the session it binds.
+vi.mock("../session-side-thread", () => ({
+  SessionSideThread: ({ side }: { side: SessionPayload }) => (
+    <div data-session={side.id} data-testid="side-thread-stub" />
+  ),
+}));
+vi.mock("sonner", () => ({ toast: { error: mocks.toastError, success: vi.fn() } }));
+
+import { SessionSideDrawer } from "../session-side-drawer";
+import {
+  type SessionWindowSideChat,
+  useSessionWindowSideChat,
+} from "../use-session-window-side-chat";
+
+const WORKSPACE_ID = "ws-side";
+/** The window's side chat host as of its latest render; each render refreshes it in place. */
+const chat = {} as SessionWindowSideChat;
+
+function MainPane({ value, permission }: { value: SessionWindowSideChat; permission: boolean }) {
+  Object.assign(chat, value);
+  return (
+    <div>
+      {value.control}
+      <textarea
+        aria-label="Session prompt"
+        data-focus-target="session-composer"
+        data-testid="composer-input"
+      />
+      {permission ? (
+        <button
+          data-focus-target="permission-allow-once"
+          data-testid="permission-allow-once"
+          type="button"
+        >
+          Allow once
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function Window({ session, permission }: { session: SessionPayload; permission: boolean }) {
+  const value = useSessionWindowSideChat({ windowId: "w-1", session, workspaceId: WORKSPACE_ID });
+  return (
+    <SessionSideDrawer chat={value} session={session} workspaceId={WORKSPACE_ID}>
+      <MainPane permission={permission} value={value} />
+    </SessionSideDrawer>
+  );
+}
+
+function renderWindow(
+  {
+    session = sideChatMainSessionFixture,
+    sides = [],
+    list,
+    permission = false,
+  }: {
+    session?: SessionPayload;
+    sides?: SessionSideItem[];
+    /** Answers each `GET …/sides` instead of resolving `sides`. */
+    list?: () => Promise<{ sides: SessionSideItem[] }>;
+    permission?: boolean;
+  } = {},
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+) {
+  if (list) mocks.fetchSessionSides.mockImplementation(list);
+  else mocks.fetchSessionSides.mockResolvedValue({ sides });
+  const tree = (next: SessionPayload) => (
+    <QueryClientProvider client={queryClient}>
+      <UIProvider>
+        <Window permission={permission} session={next} />
+      </UIProvider>
+    </QueryClientProvider>
+  );
+  const view = render(tree(session));
+  return {
+    ...view,
+    queryClient,
+    rerenderSession: (next: SessionPayload) => view.rerender(tree(next)),
+  };
+}
+
+function sidePayload(id: string, overrides: Partial<SessionPayload> = {}): SessionPayload {
+  return {
+    ...sideChatMainSessionFixture,
+    id,
+    name: "Side chat",
+    lineage: { kind: "side", parent_session_id: sideChatMainSessionFixture.id },
+    ...overrides,
+  } as SessionPayload;
+}
+
+function deriveResult(id: string) {
+  return {
+    session: sidePayload(id),
+    derived: { kind: "side", child_session_id: id },
+  };
+}
+
+/** The daemon lists a side chat once it opens, so the next list read includes it. */
+function listsAfterOpen(id: string) {
+  mocks.fetchSessionSides.mockResolvedValue({ sides: [{ ...sideChatIdleFixture, id }] });
+}
+
+async function sidesLoaded() {
+  await waitFor(() => expect(mocks.fetchSessionSides).toHaveBeenCalled());
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  // Wide enough for the inline, non-modal panel beside the main pane.
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("min-width"),
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }));
+  mocks.fetchSession.mockImplementation(async (_workspace: string, id: string) => sidePayload(id));
+  mocks.archiveSession.mockImplementation(async (_workspace: string, id: string) =>
+    sidePayload(id)
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("Side chat opening", () => {
+  it("UT-050: Should open an empty, focused side chat for the bare `/side` chip and write nothing", async () => {
+    renderWindow();
+    await sidesLoaded();
+
+    let handled = false;
+    act(() => {
+      handled = chat.onCommandAction("/side");
+    });
+
+    expect(handled).toBe(true);
+    expect(await screen.findByTestId("side-chat-new-panel")).toBeVisible();
+    await waitFor(() => expect(screen.getByTestId("side-chat-question-input")).toHaveFocus());
+    expect(mocks.openSessionSide).not.toHaveBeenCalled();
+    expect(chat.onCommandAction("/worktree")).toBe(false);
+  });
+
+  it("UT-087: Should open `/side <question>` through POST …/sides and show that side chat", async () => {
+    mocks.openSessionSide.mockResolvedValue(deriveResult("sess-side-new"));
+    renderWindow();
+    await sidesLoaded();
+    listsAfterOpen("sess-side-new");
+
+    let cleared: boolean | undefined;
+    await act(async () => {
+      cleared = await chat.submitInterceptor.submit({
+        text: "/side why does the refactor touch config?",
+        attachmentCount: 0,
+      });
+    });
+
+    expect(cleared).toBe(true);
+    expect(mocks.openSessionSide).toHaveBeenCalledExactlyOnceWith(
+      WORKSPACE_ID,
+      sideChatMainSessionFixture.id,
+      {
+        message: "why does the refactor touch config?",
+        idempotency_key: expect.stringMatching(/^web-side-/),
+      }
+    );
+    expect(await screen.findByTestId("side-thread-stub")).toHaveAttribute(
+      "data-session",
+      "sess-side-new"
+    );
+  });
+
+  it("Should refuse a `/side` question with files and keep it in the composer", async () => {
+    renderWindow();
+    await sidesLoaded();
+
+    let cleared: boolean | undefined;
+    await act(async () => {
+      cleared = await chat.submitInterceptor.submit({ text: "/side look", attachmentCount: 1 });
+    });
+
+    expect(cleared).toBe(false);
+    expect(mocks.openSessionSide).not.toHaveBeenCalled();
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      "Side chat questions can't include files yet. Send the question alone."
+    );
+  });
+
+  it("UT-051: Should show a failed open with Retry, and retry with the original key once", async () => {
+    mocks.openSessionSide
+      .mockRejectedValueOnce(new Error("network down"))
+      .mockResolvedValueOnce(deriveResult("sess-side-retried"));
+    renderWindow();
+    await sidesLoaded();
+    listsAfterOpen("sess-side-retried");
+
+    await act(async () => {
+      await chat.submitInterceptor.submit({ text: "/side what now?", attachmentCount: 0 });
+    });
+    expect(await screen.findByTestId("side-chat-failed")).toHaveTextContent(
+      "Couldn't open the side chat."
+    );
+    expect(screen.getByTestId("side-chat-question")).toHaveTextContent("what now?");
+
+    fireEvent.click(screen.getByTestId("side-chat-retry"));
+
+    expect(await screen.findByTestId("side-thread-stub")).toHaveAttribute(
+      "data-session",
+      "sess-side-retried"
+    );
+    const [first, second] = mocks.openSessionSide.mock.calls;
+    expect(second?.[2]).toEqual(first?.[2]);
+    expect(mocks.openSessionSide).toHaveBeenCalledTimes(2);
+  });
+
+  it("UT-052: Should show only the question while the side chat starts, then bind the side session", async () => {
+    let settle!: (value: unknown) => void;
+    mocks.openSessionSide.mockReturnValue(new Promise(resolve => (settle = resolve)));
+    renderWindow();
+    await sidesLoaded();
+    listsAfterOpen("sess-side-fresh");
+
+    act(() => {
+      void chat.submitInterceptor.submit({ text: "/side what now?", attachmentCount: 0 });
+    });
+    const opening = await screen.findByTestId("side-chat-opening");
+    expect(opening).toHaveTextContent("what now?");
+    expect(screen.queryByTestId("side-thread-stub")).not.toBeInTheDocument();
+
+    await act(async () => settle(deriveResult("sess-side-fresh")));
+
+    const thread = await screen.findByTestId("side-thread-stub");
+    expect(thread).toHaveAttribute("data-session", "sess-side-fresh");
+    expect(thread).not.toHaveAttribute("data-session", sideChatMainSessionFixture.id);
+  });
+
+  it("Should hide the panel and toast the daemon's reason when the open is refused", async () => {
+    const { SessionApiError } = await import("@/systems/session/adapters/session-api-errors");
+    mocks.openSessionSide.mockRejectedValue(
+      new SessionApiError(
+        "Send a message first, then open a side chat.",
+        409,
+        sideChatMainSessionFixture.id,
+        { code: "session_side_source_empty" }
+      )
+    );
+    renderWindow();
+    await sidesLoaded();
+
+    let cleared: boolean | undefined;
+    await act(async () => {
+      cleared = await chat.submitInterceptor.submit({ text: "/side early?", attachmentCount: 0 });
+    });
+
+    expect(cleared).toBe(false);
+    expect(mocks.toastError).toHaveBeenCalledWith("Send a message first, then open a side chat.");
+    expect(screen.queryByTestId("side-chat-opening")).not.toBeInTheDocument();
+  });
+
+  // B-010: a question typed in the panel stays in the panel when the daemon refuses it.
+  it("Should put a question refused in the panel back in its draft, focused", async () => {
+    const { SessionApiError } = await import("@/systems/session/adapters/session-api-errors");
+    mocks.openSessionSide.mockRejectedValue(
+      new SessionApiError(
+        "Send a message first, then open a side chat.",
+        409,
+        sideChatMainSessionFixture.id,
+        { code: "session_side_source_empty" }
+      )
+    );
+    renderWindow();
+    await sidesLoaded();
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    fireEvent.change(await screen.findByTestId("side-chat-question-input"), {
+      target: { value: "is this too early?" },
+    });
+
+    fireEvent.click(screen.getByTestId("side-chat-question-send"));
+
+    await waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith("Send a message first, then open a side chat.")
+    );
+    const restored = await screen.findByTestId("side-chat-question-input");
+    expect(restored).toHaveValue("is this too early?");
+    await waitFor(() => expect(restored).toHaveFocus());
+  });
+
+  // B-015: a typed `/side` follows the same host eligibility as the toggle (`side_ingress.go`).
+  it("Should refuse a typed `/side` in a session an agent spawned and keep its text", async () => {
+    renderWindow({
+      session: {
+        ...sideChatMainSessionFixture,
+        lineage: { kind: "spawn", parent_session_id: "sess-parent" },
+      } as SessionPayload,
+    });
+    expect(screen.queryByTestId("session-side-toggle")).not.toBeInTheDocument();
+
+    let cleared: boolean | undefined;
+    await act(async () => {
+      cleared = await chat.submitInterceptor.submit({ text: "/side", attachmentCount: 0 });
+    });
+
+    expect(cleared).toBe(false);
+    expect(mocks.toastError).toHaveBeenCalledWith("Side chats are available on your own sessions.");
+    expect(screen.queryByTestId("side-chat-new-panel")).not.toBeInTheDocument();
+    expect(mocks.openSessionSide).not.toHaveBeenCalled();
+  });
+});
+
+describe("Side chat head toggle", () => {
+  it("UT-053: Should open a new side chat with none, and the most recent one with some", async () => {
+    const empty = renderWindow();
+    await sidesLoaded();
+    expect(screen.getByTestId("session-side-toggle")).toHaveAccessibleName("Side chats");
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    expect(await screen.findByTestId("side-chat-new-panel")).toBeVisible();
+    empty.unmount();
+
+    renderWindow({ sides: sideChatListFixture });
+    await waitFor(() =>
+      expect(screen.getByTestId("session-side-toggle-count")).toHaveTextContent(
+        String(sideChatListFixture.length)
+      )
+    );
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    expect(await screen.findByTestId("side-thread-stub")).toHaveAttribute(
+      "data-session",
+      sideChatListFixture[0]!.id
+    );
+    expect(screen.getByTestId("session-side-toggle")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("UT-056: Should show the attention dot for a pending permission or answer, and clear it", async () => {
+    const { queryClient } = renderWindow({ sides: [sideChatPermissionFixture] });
+    expect(await screen.findByTestId("session-side-toggle-attention")).toBeInTheDocument();
+
+    mocks.fetchSessionSides.mockResolvedValue({ sides: [sideChatClarifyFixture] });
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+    expect(screen.getByTestId("session-side-toggle-attention")).toBeInTheDocument();
+
+    mocks.fetchSessionSides.mockResolvedValue({ sides: [sideChatIdleFixture] });
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId("session-side-toggle-attention")).not.toBeInTheDocument()
+    );
+  });
+
+  it("Should offer no toggle on a session that can't hold side chats", async () => {
+    renderWindow({ session: { ...sideChatMainSessionFixture, type: "spawned" } });
+    expect(screen.queryByTestId("session-side-toggle")).not.toBeInTheDocument();
+    expect(mocks.fetchSessionSides).not.toHaveBeenCalled();
+  });
+
+  // B-009: an empty placeholder list never picks a new side chat over existing ones.
+  it("Should wait for the first side list, then open its newest side chat", async () => {
+    let listed!: (value: { sides: SessionSideItem[] }) => void;
+    renderWindow({ list: () => new Promise(resolve => (listed = resolve)) });
+    await waitFor(() => expect(mocks.fetchSessionSides).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    expect(screen.queryByTestId("side-chat-new-panel")).not.toBeInTheDocument();
+
+    await act(async () => listed({ sides: sideChatListFixture }));
+
+    expect(await screen.findByTestId("side-thread-stub")).toHaveAttribute(
+      "data-session",
+      sideChatListFixture[0]!.id
+    );
+    expect(screen.queryByTestId("side-chat-new-panel")).not.toBeInTheDocument();
+  });
+
+  it("Should offer Retry when the first side list fails, then open from the list it reads", async () => {
+    let reads = 0;
+    renderWindow({
+      list: async () => {
+        reads += 1;
+        if (reads === 1) throw new Error("daemon unavailable");
+        return { sides: [sideChatIdleFixture] };
+      },
+    });
+    await waitFor(() => expect(mocks.fetchSessionSides).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    expect(await screen.findByText("Couldn't load side chats.")).toBeVisible();
+    expect(screen.queryByTestId("side-chat-new-panel")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByTestId("side-thread-stub")).toHaveAttribute(
+      "data-session",
+      sideChatIdleFixture.id
+    );
+  });
+
+  // B-008 (US-008.EC-1): a side chat closed or deleted in another window leaves this one too.
+  it("Should move off a side chat closed elsewhere, and hide when none is left", async () => {
+    const { queryClient } = renderWindow({
+      sides: [sideChatAnsweringFixture, sideChatIdleFixture],
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("session-side-toggle-count")).toHaveTextContent("2")
+    );
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    expect(await screen.findByTestId("side-thread-stub")).toHaveAttribute(
+      "data-session",
+      sideChatAnsweringFixture.id
+    );
+
+    mocks.fetchSessionSides.mockResolvedValue({ sides: [sideChatIdleFixture] });
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("side-thread-stub")).toHaveAttribute(
+        "data-session",
+        sideChatIdleFixture.id
+      )
+    );
+
+    mocks.fetchSessionSides.mockResolvedValue({ sides: [] });
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+    await waitFor(() => expect(screen.queryByTestId("side-thread-stub")).not.toBeInTheDocument());
+    expect(screen.getByTestId("session-side-toggle")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("UT-060: Should keep the new side chat's draft across hide and reopen", async () => {
+    renderWindow();
+    await sidesLoaded();
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    fireEvent.change(await screen.findByTestId("side-chat-question-input"), {
+      target: { value: "half a question" },
+    });
+
+    fireEvent.click(screen.getByTestId("side-chat-hide"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("side-chat-new-panel")).not.toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+
+    expect(await screen.findByTestId("side-chat-question-input")).toHaveValue("half a question");
+  });
+
+  // N-010: the draft lives beside the view, so switching to a side chat and back keeps it.
+  it("UT-060: Should keep the new side chat's draft across switching to a side chat and back", async () => {
+    renderWindow({ sides: [sideChatIdleFixture] });
+    await waitFor(() =>
+      expect(screen.getByTestId("session-side-toggle-count")).toHaveTextContent("1")
+    );
+    act(() => chat.show({ kind: "new" }));
+    fireEvent.change(await screen.findByTestId("side-chat-question-input"), {
+      target: { value: "half a question" },
+    });
+
+    act(() => chat.show({ kind: "side", id: sideChatIdleFixture.id }));
+    expect(await screen.findByTestId("side-thread-stub")).toHaveAttribute(
+      "data-session",
+      sideChatIdleFixture.id
+    );
+    act(() => chat.show({ kind: "new" }));
+
+    expect(await screen.findByTestId("side-chat-question-input")).toHaveValue("half a question");
+  });
+
+  // N-002: the panel is non-modal, so Escape hides it only while focus is inside it.
+  it("Should hide the panel on Escape only while focus is inside it", async () => {
+    renderWindow();
+    await sidesLoaded();
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    const question = await screen.findByTestId("side-chat-question-input");
+
+    const main = screen.getByTestId("composer-input");
+    act(() => main.focus());
+    fireEvent.keyDown(main, { key: "Escape" });
+    expect(screen.getByTestId("side-chat-new-panel")).toBeVisible();
+
+    act(() => question.focus());
+    fireEvent.keyDown(question, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByTestId("side-chat-new-panel")).not.toBeInTheDocument()
+    );
+  });
+});
+
+describe("Side chat drawer store", () => {
+  it("UT-055: Should show one drawer at a time: the side panel and a subagent replace each other", () => {
+    const store = sessionWindowDrawerLogic.createStore();
+    const subagent = { id: "sub-1", parent_session_id: "sess-parent" } as Parameters<
+      typeof store.trigger.opened
+    >[0]["subagent"];
+
+    store.trigger.sideShown({ view: { kind: "new" } });
+    store.trigger.sideDraftChanged({ draft: "kept" });
+    expect(sessionWindowDrawerKind(store.getSnapshot().context)).toBe("side");
+
+    store.trigger.opened({ subagent, workspaceId: WORKSPACE_ID, trigger: null });
+    expect(sessionWindowDrawerKind(store.getSnapshot().context)).toBe("subagent");
+
+    store.trigger.sideShown({});
+    expect(sessionWindowDrawerKind(store.getSnapshot().context)).toBe("side");
+    expect(store.getSnapshot().context.selected).toBeNull();
+    expect(store.getSnapshot().context.side.view).toEqual({ kind: "new" });
+    expect(store.getSnapshot().context.side.draft).toBe("kept");
+  });
+
+  // N-005: a refusal that lands after a subagent or a hide restores the draft view but leaves
+  // the panel hidden, so the window never shows both drawers.
+  it.each([
+    ["a subagent opened", "subagent"],
+    ["the panel hidden", "none"],
+  ] as const)(
+    "Should restore the draft on a delayed refusal without reopening the panel after %s",
+    (_label, kind) => {
+      const store = sessionWindowDrawerLogic.createStore();
+      const subagent = { id: "sub-1", parent_session_id: "sess-parent" } as Parameters<
+        typeof store.trigger.opened
+      >[0]["subagent"];
+      store.trigger.sideShown({ view: { kind: "new" } });
+      store.trigger.sideDraftChanged({ draft: "a question" });
+      store.trigger.sideRequested({ message: "a question", key: "k-1", fromPanel: true });
+
+      if (kind === "subagent") {
+        store.trigger.opened({ subagent, workspaceId: WORKSPACE_ID, trigger: null });
+      } else store.trigger.sideHidden();
+      store.trigger.sideRefused({ key: "k-1" });
+
+      const context = store.getSnapshot().context;
+      expect(sessionWindowDrawerKind(context)).toBe(kind);
+      expect(context.side).toMatchObject({
+        open: false,
+        view: { kind: "new" },
+        draft: "a question",
+      });
+    }
+  );
+});
+
+describe("Side chat main status", () => {
+  it.each([
+    ["running", "active", "Main working"],
+    ["waiting-for-auth", "active", "Main needs approval"],
+    ["waiting-for-input", "active", "Main needs input"],
+    ["done", "active", "Main finished"],
+    ["failed", "active", "Main failed"],
+    ["stopped", "stopped", "Main stopped"],
+  ] as const)(
+    "UT-057: Should read the main session's %s state as %s",
+    async (badge, state, label) => {
+      renderWindow({ session: sideChatMainSession(badge, state) });
+      await sidesLoaded();
+      fireEvent.click(screen.getByTestId("session-side-toggle"));
+      expect(await screen.findByTestId("side-chat-main-status")).toHaveTextContent(label);
+    }
+  );
+
+  it("UT-057: Should show no status while the main session's state is outside the vocabulary", async () => {
+    renderWindow({ session: sideChatMainSession("hung") });
+    await sidesLoaded();
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    await screen.findByTestId("side-chat-new-panel");
+    expect(screen.getByTestId("side-chat-main-status")).toBeEmptyDOMElement();
+  });
+
+  it("UT-063: Should focus the main permission prompt, or else the main composer, from the status", async () => {
+    const view = renderWindow({
+      session: sideChatMainSession("waiting-for-auth"),
+      permission: true,
+    });
+    await sidesLoaded();
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    fireEvent.click(await screen.findByRole("button", { name: /Main needs approval/ }));
+    expect(screen.getByTestId("permission-allow-once")).toHaveFocus();
+
+    view.rerenderSession(sideChatMainSession("running"));
+    fireEvent.click(await screen.findByRole("button", { name: /Main working/ }));
+    expect(screen.getByTestId("composer-input")).toHaveFocus();
+  });
+});
+
+describe("Side chat close", () => {
+  it("UT-061: Should confirm before closing an answering side chat, then archive it with stop", async () => {
+    renderWindow({ sides: [sideChatAnsweringFixture, sideChatIdleFixture] });
+    await waitFor(() =>
+      expect(screen.getByTestId("session-side-toggle-count")).toHaveTextContent("2")
+    );
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    await screen.findByTestId("side-thread-stub");
+
+    fireEvent.click(screen.getByTestId("side-chat-close"));
+    expect(await screen.findByTestId("side-chat-close-dialog")).toHaveTextContent(
+      "Stop this side chat and close it?"
+    );
+    expect(mocks.archiveSession).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("side-chat-close-confirm"));
+
+    await waitFor(() =>
+      expect(mocks.archiveSession).toHaveBeenCalledWith(
+        WORKSPACE_ID,
+        sideChatAnsweringFixture.id,
+        sideChatMainSessionFixture.profile_name,
+        undefined,
+        true
+      )
+    );
+    // The panel moves on to the next most recent side chat.
+    await waitFor(() =>
+      expect(screen.getByTestId("side-thread-stub")).toHaveAttribute(
+        "data-session",
+        sideChatIdleFixture.id
+      )
+    );
+  });
+
+  // B-017: the confirmation stays bound to the side chat it opened for.
+  it("Should dismiss the close confirmation when its side chat closes elsewhere, archiving nothing", async () => {
+    const { queryClient } = renderWindow({
+      sides: [sideChatAnsweringFixture, sideChatIdleFixture],
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("session-side-toggle-count")).toHaveTextContent("2")
+    );
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    await screen.findByTestId("side-thread-stub");
+    fireEvent.click(screen.getByTestId("side-chat-close"));
+    expect(await screen.findByTestId("side-chat-close-dialog")).toBeVisible();
+
+    mocks.fetchSessionSides.mockResolvedValue({ sides: [sideChatIdleFixture] });
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("side-thread-stub")).toHaveAttribute(
+        "data-session",
+        sideChatIdleFixture.id
+      )
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId("side-chat-close-dialog")).not.toBeInTheDocument()
+    );
+    expect(mocks.archiveSession).not.toHaveBeenCalled();
+  });
+
+  it("Should close an idle side chat without asking", async () => {
+    renderWindow({ sides: [sideChatIdleFixture] });
+    await waitFor(() =>
+      expect(screen.getByTestId("session-side-toggle-count")).toHaveTextContent("1")
+    );
+    fireEvent.click(screen.getByTestId("session-side-toggle"));
+    await screen.findByTestId("side-thread-stub");
+
+    fireEvent.click(screen.getByTestId("side-chat-close"));
+
+    await waitFor(() => expect(mocks.archiveSession).toHaveBeenCalledOnce());
+    expect(screen.queryByTestId("side-chat-close-dialog")).not.toBeInTheDocument();
+  });
+});

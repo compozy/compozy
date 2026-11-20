@@ -2887,7 +2887,7 @@
     "destructive": true,
     "open_world": false,
     "input_schema_digest": "7a8fb691dd32b65d58d2ff9474037c6762d7d65b7ae1a46605f560ab5f5cdfa0",
-    "output_schema_digest": "d9ff002b46f2819fae63f31272bc254d8c3104d74d709611b2bebd8cce012509",
+    "output_schema_digest": "371eefa0458a7ef0753b44a0635ece6ce4d01b17a2d03c4d09797f401aed4e57",
     "result_contract": "single",
     "single_result_reason": "minimal"
   },
@@ -2902,7 +2902,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "acfd42b7914c4d6e4cf8a6558403f7134335cae77a780d2ff2def791afd52d8a",
-    "output_schema_digest": "d9ff002b46f2819fae63f31272bc254d8c3104d74d709611b2bebd8cce012509",
+    "output_schema_digest": "371eefa0458a7ef0753b44a0635ece6ce4d01b17a2d03c4d09797f401aed4e57",
     "result_contract": "single",
     "single_result_reason": "minimal"
   },
@@ -3131,7 +3131,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "0d64aa6c511ba93f4463456399446a4c8595325b1ae6bb541b8ad593fe36f73a",
-    "output_schema_digest": "d9ff002b46f2819fae63f31272bc254d8c3104d74d709611b2bebd8cce012509",
+    "output_schema_digest": "371eefa0458a7ef0753b44a0635ece6ce4d01b17a2d03c4d09797f401aed4e57",
     "result_contract": "single",
     "single_result_reason": "minimal"
   },
@@ -3275,6 +3275,36 @@
     "output_schema_digest": "a263d7114b75e6d189dedea542363ced69e4855210a36c86308dab9b4ad9f63d",
     "result_contract": "single",
     "single_result_reason": "content"
+  },
+  {
+    "tool_id": "compozy__session_side_list",
+    "native_name": "session_side_list",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "27ab2ed8480e055ab17e63fb4b629e76d2d57a901760c137be4bf1b4fa3efd8d",
+    "output_schema_digest": "8c8500c0bc8f29bb7910418190688f2c53ef62f0c2f9c2b1fe900ceef0508b4d",
+    "result_contract": "single",
+    "single_result_reason": "content"
+  },
+  {
+    "tool_id": "compozy__session_side_open",
+    "native_name": "session_side_open",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "da872a7b9602e14bf9c121d7a696ca87bd62778b90f0cec3ad1e6161e06837da",
+    "output_schema_digest": "aaf113b12e63c2f8e5fecf5e121c56b374067e21eec3f7251777f44a72bb94c4",
+    "result_contract": "single",
+    "single_result_reason": "minimal"
   },
   {
     "tool_id": "compozy__session_spawn",

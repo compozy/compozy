@@ -20,6 +20,7 @@ func (l *DefaultResultProcessor) Finalize(
 	if err != nil {
 		return ToolResult{}, err
 	}
+	captureCatalogDiscovery(ctx, d, finalized)
 	maxBytes := l.maxBytes(d)
 	if maxBytes < 0 || finalized.Bytes <= maxBytes {
 		if err := finalized.Validate(maxBytes); err != nil {

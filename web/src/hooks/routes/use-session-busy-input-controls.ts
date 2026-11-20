@@ -181,8 +181,6 @@ export function useSessionBusyInputControls({
 
   const handleQueuePrompt: SessionBusyInputHandler = draft => submitBusyInput("queue", draft);
   const handleSteerPrompt: SessionBusyInputHandler = draft => submitBusyInput("steer", draft);
-  const handleInterruptPrompt: SessionBusyInputHandler = draft =>
-    submitBusyInput("interrupt", draft);
 
   return {
     /** Explicit clear-all; the strip confirms first and reports failure itself. */
@@ -190,7 +188,6 @@ export function useSessionBusyInputControls({
     handleDiscardUnconfirmedSend: (id: string) => {
       store.trigger.unconfirmedSendDiscarded({ id });
     },
-    handleInterruptPrompt,
     handleQueuePrompt,
     handleRemoveQueuedPrompt: (queueEntryId: string) => {
       cancelInput.mutate(queueEntryId, {

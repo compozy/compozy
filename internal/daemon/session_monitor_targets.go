@@ -161,7 +161,7 @@ func forwardMonitorTargetChanges(
 			if !open {
 				return
 			}
-			if !slices.Contains(targets, event.SessionID) {
+			if !slices.Contains(targets, event.SessionID) && !slices.Contains(targets, event.SideSessionID) {
 				continue
 			}
 			select {

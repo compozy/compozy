@@ -81,7 +81,7 @@ func (n *daemonNativeTools) sessionWorktreeBinding(
 	return sessionRecordViews.result(req.View, payload)
 }
 
-func (n *daemonNativeTools) sessionWorktreeBindingAvailability() toolspkg.NativeAvailabilityFunc {
+func (n *daemonNativeTools) sessionWorktreeBindingAvailability() *toolspkg.NativeAvailabilityGroup {
 	return n.dependencyAvailability(func() bool {
 		_, ok := n.deps.Sessions.(core.SessionWorktreeBindingManager)
 		return ok

@@ -66,6 +66,9 @@ func metadataSnapshot(info fs.FileInfo) Snapshot {
 	return snapshot
 }
 
+// Reusable reports whether a snapshot can be compared without forcing a fresh read.
+func (s Snapshot) Reusable() bool { return !s.captured || s.reusable }
+
 // Equal requires matching captured changes or matching metadata for two synthetic snapshots.
 func (s Snapshot) Equal(other Snapshot) bool {
 	if s.Size != other.Size || !s.ModTime.Equal(other.ModTime) {

@@ -2409,6 +2409,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "listSessionSides": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listSessionSides({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListSessionSides(ctx, client.ListSessionSidesParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
         "listSessionSubagents": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listSessionSubagents({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, query: { \"status\": \"status\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListSessionSubagents(ctx, client.ListSessionSubagentsParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2688,6 +2695,13 @@
             "kind": "json",
             "resource": "cmdPalette",
             "app_access": "denied"
+        },
+        "openSessionSide": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.openSessionSide({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.OpenSessionSide(ctx, client.OpenSessionSideParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.OpenSessionSideRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
         },
         "patchLoop": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.patchLoop({ path: { \"workspace_id\": \"workspace_id\", \"name\": \"name\" }, body: { /* request fields */ } });",

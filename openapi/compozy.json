@@ -20436,6 +20436,24 @@
         ],
         "type": "object"
       },
+      "OpenSessionSideRequest": {
+        "properties": {
+          "idempotency_key": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "message"
+        ],
+        "type": "object"
+      },
       "OpenURLEffect": {
         "properties": {
           "url": {
@@ -26147,6 +26165,19 @@
               }
             ]
           },
+          "side": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionSideCommandResult"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "status": {
             "type": "string"
           },
@@ -26629,6 +26660,9 @@
           "kind": {
             "type": "string"
           },
+          "name": {
+            "type": "string"
+          },
           "profile_id": {
             "type": "string"
           },
@@ -26636,6 +26670,9 @@
             "type": "string"
           },
           "session_id": {
+            "type": "string"
+          },
+          "side_session_id": {
             "type": "string"
           },
           "workspace_id": {
@@ -27580,7 +27617,8 @@
               "spawn",
               "continue",
               "fork",
-              "recovery"
+              "recovery",
+              "side"
             ],
             "type": "string"
           },
@@ -29018,7 +29056,8 @@
               "spawn",
               "continue",
               "fork",
-              "recovery"
+              "recovery",
+              "side"
             ],
             "type": "string"
           },
@@ -30812,6 +30851,86 @@
           "last_attempt_at",
           "max_attempts",
           "started_at"
+        ],
+        "type": "object"
+      },
+      "SessionSideCommandResult": {
+        "properties": {
+          "seed": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "source_turn_in_progress": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "seed",
+          "session_id",
+          "source_turn_in_progress"
+        ],
+        "type": "object"
+      },
+      "SessionSideItemPayload": {
+        "properties": {
+          "archived_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pending_clarify_count": {
+            "type": "integer"
+          },
+          "pending_permission_count": {
+            "type": "integer"
+          },
+          "prompting": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "archived_at",
+          "created_at",
+          "id",
+          "name",
+          "pending_clarify_count",
+          "pending_permission_count",
+          "prompting",
+          "state",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "SessionSidesResponse": {
+        "properties": {
+          "sides": {
+            "items": {
+              "$ref": "#/components/schemas/SessionSideItemPayload"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sides"
         ],
         "type": "object"
       },
@@ -106238,6 +106357,16 @@
               }
             }
           },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendPromptResultResponse"
+                }
+              }
+            },
+            "description": "Side chat opened"
+          },
           "202": {
             "content": {
               "application/json": {
@@ -106252,7 +106381,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                 }
               }
             },
@@ -106264,7 +106393,7 @@
                 "schema": {
                   "oneOf": [
                     {
-                      "$ref": "#/components/schemas/ErrorPayload"
+                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                     },
                     {
                       "$ref": "#/components/schemas/SendPromptResultResponse"
@@ -106281,7 +106410,7 @@
                 "schema": {
                   "oneOf": [
                     {
-                      "$ref": "#/components/schemas/ErrorPayload"
+                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                     },
                     {
                       "$ref": "#/components/schemas/SendPromptResultResponse"
@@ -106308,7 +106437,7 @@
                 "schema": {
                   "oneOf": [
                     {
-                      "$ref": "#/components/schemas/ErrorPayload"
+                      "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                     },
                     {
                       "$ref": "#/components/schemas/SendPromptResultResponse"
@@ -106323,7 +106452,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                 }
               }
             },
@@ -106333,7 +106462,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
                 }
               }
             },
@@ -107516,6 +107645,241 @@
           }
         },
         "summary": "Select the default runtime for future prompts",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/sides": {
+      "get": {
+        "operationId": "listSessionSides",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Source session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include closed side chats",
+            "in": "query",
+            "name": "archived",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionSidesResponse"
+                }
+              }
+            },
+            "description": "Complete side chat list"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid archive filter"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Side chats cannot list nested side chats"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "List all side chats attached to a session, newest updated first",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "post": {
+        "operationId": "openSessionSide",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Source session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenSessionSideRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDeriveResponse"
+                }
+              }
+            },
+            "description": "Recorded side chat replayed"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDeriveResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid side chat question or identity"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
+                }
+              }
+            },
+            "description": "Side chat refused"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
+                }
+              }
+            },
+            "description": "Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDeriveErrorPayload"
+                }
+              }
+            },
+            "description": "New-work admission is unavailable while the daemon is draining"
+          }
+        },
+        "summary": "Open a side chat without changing its source session",
         "tags": [
           "sessions"
         ],

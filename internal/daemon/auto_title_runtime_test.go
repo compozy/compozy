@@ -749,3 +749,55 @@ func (r *autoTitleEventRecorder) next(t *testing.T) store.EventSummary {
 		return store.EventSummary{}
 	}
 }
+
+func TestSideAutomaticTitle(t *testing.T) {
+	t.Parallel()
+	t.Run("Should title two sides from their distinct first questions", func(t *testing.T) {
+		t.Parallel()
+		// UT-090: daemon title association, including the two-side outcome from UT-082.
+		questions := map[string]string{"side-safe": "Why is this safe?", "side-slow": "Why does this take time?"}
+		titles := map[string]string{
+			"Why is this safe?":        "Why this is safe",
+			"Why does this take time?": "Why it takes time",
+		}
+		generator := &autoTitleGeneratorStub{generate: func(_ context.Context, req autoTitleRequest) (string, error) {
+			title, ok := titles[req.UserMessage]
+			if !ok {
+				return "", errors.New("title inherited the main question")
+			}
+			return title, nil
+		}}
+		sessions := &autoTitleSessionsStub{events: map[string][]store.SessionEvent{}}
+		for id, question := range questions {
+			sessions.events[id] = []store.SessionEvent{autoTitleUserEvent(t, id, id+"-turn", question)}
+		}
+		runtime := newAutoTitleRuntime(sessions, generator, time.Second, slog.Default())
+		if err := runtime.Start(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := runtime.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		for id := range questions {
+			payload := autoTitleHookPayload(id, id+"-turn", "Side answer")
+			payload.LineageKind = "side"
+			payload.ParentSessionID = "source"
+			if err := runtime.HandleSessionMessagePersisted(t.Context(), payload); err != nil {
+				t.Fatal(err)
+			}
+		}
+		testutil.Eventually(
+			t,
+			"both side titles applied",
+			time.Second,
+			func() bool { return len(sessions.appliedSnapshot()) == 2 },
+		)
+		for _, applied := range sessions.appliedSnapshot() {
+			if applied.title != titles[questions[applied.sessionID]] {
+				t.Fatalf("title associated with wrong side: %+v", applied)
+			}
+		}
+	})
+}

@@ -3294,6 +3294,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		// #1867: side is appended to the existing lineage/derivation vocabulary.
+		if addSideChatLineageKind(baseline) == 0 {
+			t.Fatal("approved side lineage addition: no historical lineage schemas found")
+		}
 		if addMCPReloadErrorFields(baseline) == 0 {
 			t.Fatal("approved MCP reload error fields: no historical error schemas found")
 		}
@@ -7197,4 +7201,37 @@ func addMCPHotActivationSchemas(t *testing.T, baseline, current map[string]any) 
 		}
 		baselineComponents[name] = components[name]
 	}
+}
+
+// addSideChatLineageKind appends only the approved member, retaining historical enum order.
+func addSideChatLineageKind(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSideChatLineageKind(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSideChatLineageKind(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			return count
+		}
+		// Both public lineage and derivation carry a kind and a root/source identity.
+		if properties["root_session_id"] == nil && properties["source_session_id"] == nil {
+			return count
+		}
+		kind, ok := properties["kind"].(map[string]any)
+		if !ok {
+			return count
+		}
+		legacy := []any{"", "provenance", "spawn", "continue", "fork", "recovery"}
+		if reflect.DeepEqual(kind["enum"], legacy) {
+			kind["enum"] = append(legacy, "side")
+			count++
+		}
+	}
+	return count
 }

@@ -92,6 +92,7 @@ export function OsSessionsDialogHost({
           onRetry={lifecycle.deleteDialog.onRetry}
           isDeleting={lifecycle.deleteDialog.isDeleting}
           childSessions={lifecycle.deleteDialog.childSessions}
+          sideChats={lifecycle.deleteDialog.sideChats}
           onConfirm={lifecycle.deleteDialog.onConfirm}
         />
       ) : null}

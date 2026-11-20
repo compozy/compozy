@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// SmallViewportPolicy is a daemon API value.
+type SmallViewportPolicy string
+
+// SnapConfig is a daemon API value.
+type SnapConfig struct {
+	EdgeBand     float64   `json:"edge_band"`
+	CornerReach  float64   `json:"corner_reach"`
+	ExitSlack    float64   `json:"exit_slack"`
+	RepeatRatios []float64 `json:"repeat_ratios"`
+}
+
 // Snapshot is a daemon API value.
 type Snapshot struct {
 	Runtime     string                `json:"runtime"`
@@ -434,10 +445,4 @@ type TaskBlockResponse struct {
 // TaskBlocksResponse is a daemon API value.
 type TaskBlocksResponse struct {
 	Blocks []TaskBlockPayload `json:"blocks"`
-}
-
-// TaskCatalogFacetsPayload is a daemon API value.
-type TaskCatalogFacetsPayload struct {
-	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
-	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
 }

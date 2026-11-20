@@ -374,7 +374,7 @@ func (s *Service) requireNoActiveSession(ctx context.Context, item Worktree) err
 		return fmt.Errorf("worktree: inspect active sessions: %w", err)
 	}
 	if active {
-		return ErrSessionActive
+		return s.sideSessionRemovalRefusal(ctx, item, true, ErrSessionActive)
 	}
 	return nil
 }
@@ -395,7 +395,7 @@ func (s *Service) requireNoBoundSession(ctx context.Context, item Worktree) erro
 		return fmt.Errorf("worktree: inspect bound sessions: %w", err)
 	}
 	if bound {
-		return ErrSessionBound
+		return s.sideSessionRemovalRefusal(ctx, item, false, ErrSessionBound)
 	}
 	return nil
 }

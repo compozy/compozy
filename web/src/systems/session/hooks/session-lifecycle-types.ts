@@ -74,6 +74,8 @@ export interface SessionDeleteConfirmation {
   isDeleting: boolean;
   /** Present when the targets have child sessions to include. */
   childSessions?: SessionChildrenChoice;
+  /** A single target has side chats (open or closed), which are deleted with it. */
+  sideChats?: boolean;
   onOpenChange: (open: boolean) => void;
   /** `processes` answers what happens to running processes; absent when none run. */
   onConfirm: (processes?: SessionProcessPolicy) => void;

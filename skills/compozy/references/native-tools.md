@@ -71,14 +71,22 @@ envelope when available.
 - Toolset `compozy__bootstrap`: `compozy__tool_list`, `compozy__tool_search`, `compozy__tool_info`.
 - Toolset `compozy__catalog`: agent, command, skill, and redacted Vault-reference catalog access plus bootstrap tools.
 
-Bare managed sessions receive the full availability-gated callable catalog through hosted MCP. CompozyOS
-does not add an automatic bootstrap/catalog allowlist over the hosted projection. Explicit agent
-`tools`, `toolsets`, `deny_tools`, session lineage, disabled sources, and approval/risk gates still
-apply.
+Bare managed sessions receive the full availability-gated callable catalog through hosted MCP by
+default. The experimental `tools.hosted_mcp.tool_list_threshold` lets the Claude ACP bridge defer
+large external MCP servers. The search tool description lists up to 16 of those servers with their
+tool counts. Callable matches returned by `compozy__tool_search`, `compozy__tool_list`, and
+`compozy__tool_info` are registered under their real names. They use Claude's normal schema
+loading. If discovery reports that the list is still refreshing, retry discovery after the refresh
+if the name is unavailable. Idle release, crash recovery, and restart create a fresh bind. Rediscover
+deferred tools even if their earlier calls appear in the transcript. Explicit agent `tools`,
+`toolsets`, `deny_tools`, session lineage, disabled sources, and approval/risk gates still apply.
 
 The discovery loop and denial-handling rules live in the preceding tools-and-skills prompt section; this reference supplies the stable tool map.
 
 `compozy__tool_search` defaults to 20 results (maximum 100; zero uses the default).
+Each word must match descriptor text or provenance. Exact canonical IDs rank first. Other results
+sum the best field score for each word, with identity fields weighted above hints and descriptions.
+Ties keep projection order.
 Continue with `offset: next_offset` and the same query. Both views include `count`, `total` and `has_more`; `offset` and `next_offset` are omitted when zero.
 Compact rows summarize descriptors; `result_view: "full"` retains complete descriptors.
 `tool_info` reads one complete descriptor.
@@ -1613,3 +1621,27 @@ Live sessions, delegated executions and admissions with no session are refused; 
 session/Loop/Task stop surface first. CLI: `compozy automation runs cancel <id> -o json`.
 HTTP/UDS: `POST /api/automation/runs/{id}/cancel`, returning the existing `{run: ...}` DTO;
 live or concurrent execution conflicts return 409. No separate finish operation is needed.
+
+### Side-chat tools
+
+`compozy__session_side_open` is mutating and requires `session_id`, `message`, and `idempotency_key`;
+optional inputs are `workspace` and `name`. It creates a side in the source's workspace/profile
+without mutating that source. Output is
+`{side_session_id, source_session_id, seed, source_turn_in_progress, replayed}`. Retrying the same
+key/question returns the same side. A changed question conflicts. Context uses a native fork when
+eligible or bounded replay, including a busy source's open turn.
+
+`compozy__session_side_list` is read-only. Supply `session_id`, optional `workspace`, and optional
+`include_archived` (false by default). Output is `{sides:[...]}`; each item contains `id`, `name`,
+`state`, `prompting`, `pending_permission_count`, `pending_clarify_count`, nullable `archived_at`,
+`created_at`, and `updated_at`. The complete list is ordered by `updated_at` descending, then id
+descending. Sides are intentionally absent from the ordinary session catalog and subagent lists.
+
+Shared side codes are `side_message_required`, `side_attachments_unsupported`,
+`session_side_source_empty`, `session_side_nested`, `session_side_unsupported`,
+`session_side_parent_archived`, `session_side_not_derivable`, `session_side_fixed_parent`,
+`session_side_worktree_fixed`, `session_side_later_unsupported`, `session_side_goal_unsupported`,
+and `session_side_spawn_unsupported`. The first two are request errors (HTTP 400), and the remaining
+side refusals are conflicts (409). Existing derive errors still apply, including
+`session_archived`, `session_not_found`, and `idempotency_conflict`. A failure after commit preserves
+`child_session_id` in the derive error. Set Goals, launch governed work, and change worktrees in main.

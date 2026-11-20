@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -79,7 +80,12 @@ func (r *nativeToolPolicyResolver) resolveWorkspaceConfig(
 		return value.resolved, value.cfg, value.err
 	}
 	resolved, cfg, err := r.loadWorkspaceConfig(ctx, scope)
-	read.workspaces[key] = toolPolicyWorkspace{resolved, cfg, err}
+	if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok && build.durable {
+		build.checkWorkspaceConfig(scope, resolved)
+	}
+	if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		read.workspaces[key] = toolPolicyWorkspace{resolved, cfg, err}
+	}
 	return resolved, cfg, err
 }
 

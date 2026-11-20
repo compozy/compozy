@@ -19,6 +19,13 @@ func (p *MCPProvider) listProjection(ctx context.Context, scope Scope) ([]Descri
 	if err := contextErr(ctx, ""); err != nil {
 		return nil, false, err
 	}
+	if pinned, found := p.pinnedProjectionInputs(ctx, scope); found {
+		var descriptors []Descriptor
+		for _, source := range pinned.sources {
+			descriptors = append(descriptors, source.currentDescriptors()...)
+		}
+		return descriptors, true, nil
+	}
 	sources, err := p.sources.ListMCPSources(ctx)
 	if err != nil {
 		return nil, false, fmt.Errorf("tools: list mcp sources: %w", err)

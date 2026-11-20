@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// PromptRuntimeSelectionPayload is a daemon API value.
+type PromptRuntimeSelectionPayload struct {
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+}
+
 // ProvenancePayload is a daemon API value.
 type ProvenancePayload struct {
 	Slug                   string                    `json:"slug,omitempty"`

@@ -1,3 +1,5 @@
+import { requestSessionSideToggle } from "@/systems/session";
+
 import type { PaletteClientOpHandler } from "./cmd-palette-client-op-context";
 import { CMD_PALETTE_DAEMON_OPS } from "./cmd-palette-daemon-ops";
 import { CMD_PALETTE_WINDOW_OPS } from "./cmd-palette-window-ops";
@@ -46,6 +48,14 @@ const SHELL_OPS: ReadonlyMap<string, PaletteClientOpHandler> = new Map<
   ["session.cycle.previous", context => context.shell.cycleSession("previous")],
   ["session.cycle.next", context => context.shell.cycleSession("next")],
   ["session.focus.attention", context => context.shell.focusAttention()],
+  // Side chats of the focused session window only (UT-054); the window's host owns the panel.
+  [
+    "session.side.toggle",
+    context => {
+      const windowId = context.manager.directionalFocusId();
+      if (windowId) requestSessionSideToggle(windowId);
+    },
+  ],
   ["workspace.picker", context => context.shell.openWorkspaces()],
   ["workspace.cycle.previous", context => context.shell.cycleWorkspace("previous")],
   ["workspace.cycle.next", context => context.shell.cycleWorkspace("next")],

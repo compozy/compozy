@@ -133,10 +133,14 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := m.overlayPinnedAt(ctx, []*Info{info}); err != nil {
+		return nil, err
+	}
 	m.decorateMCPAuthority(m.MCPAuthorityReadContext(ctx), info)
 	return info, nil
 }
 
+// StoredStatus reads session state for internal decisions without display-only pins or MCP authority.
 func (m *Manager) StoredStatus(ctx context.Context, id string) (*Info, error) {
 	if ctx == nil {
 		return nil, errors.New("session: status context is required")
@@ -150,9 +154,6 @@ func (m *Manager) StoredStatus(ctx context.Context, id string) (*Info, error) {
 	if session, ok := m.Get(target); ok {
 		info := normalizeExpiredSessionAttach(m.sessionInfoForRead(session), m.now())
 		if err := m.populateInstanceMetadata(ctx, info); err != nil {
-			return nil, err
-		}
-		if err := m.overlayPinnedAt(ctx, []*Info{info}); err != nil {
 			return nil, err
 		}
 		return info, nil
@@ -175,9 +176,6 @@ func (m *Manager) StoredStatus(ctx context.Context, id string) (*Info, error) {
 		return nil, err
 	}
 	if err := m.populateCatalogMetadata(ctx, info); err != nil {
-		return nil, err
-	}
-	if err := m.overlayPinnedAt(ctx, []*Info{info}); err != nil {
 		return nil, err
 	}
 	return info, nil

@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
+import { USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 import { primarySessionFixture } from "../../mocks/fixtures";
 import { filesKeys } from "@/systems/files";
@@ -423,6 +424,88 @@ describe("useSessionCatalogStreams", () => {
 
     for (const key of own) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(other)?.isInvalidated).toBe(false);
+    unmount();
+  });
+
+  // UT-059 (US-006.EC-2): every window reads a parent's side chats through the same list keys, so
+  // one `session_side_changed` for that parent rereads them all, and the side chat's own detail.
+  it("Should reread a parent's side chat lists and that side chat on session_side_changed", () => {
+    const queryClient = new QueryClient();
+    const parentLists = [
+      sessionKeys.sidesList(WORKSPACE_ID, SESSION_ID, false),
+      sessionKeys.sidesList(WORKSPACE_ID, SESSION_ID, true),
+    ];
+    const otherList = sessionKeys.sidesList(WORKSPACE_ID, "sess-other", false);
+    const sideDetail = sessionKeys.detail(WORKSPACE_ID, "sess-side-1");
+    for (const key of [...parentLists, otherList]) queryClient.setQueryData(key, { sides: [] });
+    queryClient.setQueryData(sideDetail, primarySessionFixture);
+    const sources: FakeCatalogEventSource[] = [];
+    const { unmount } = renderHook(
+      () =>
+        useSessionCatalogStreams({
+          eventSourceFactory: url => {
+            const source = new FakeCatalogEventSource(url);
+            sources.push(source);
+            return source;
+          },
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    act(() => {
+      sources
+        .find(source => !source.closed)
+        ?.emit("session_side_changed", {
+          name: "session_side_changed",
+          kind: "upserted",
+          workspace_id: WORKSPACE_ID,
+          profile_id: "prof-1",
+          session_id: SESSION_ID,
+          side_session_id: "sess-side-1",
+        });
+    });
+
+    for (const key of parentLists) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(sideDetail)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(otherList)?.isInvalidated).toBe(false);
+    unmount();
+  });
+
+  // B-006: a User-scope side carries an empty workspace id; its reads live under the User selector.
+  it("Should reread a User-scope side chat under the User selector on session_side_changed", () => {
+    const queryClient = new QueryClient();
+    const parentList = sessionKeys.sidesList(USER_SCOPE_SELECTOR, SESSION_ID, false);
+    const sideDetail = sessionKeys.detail(USER_SCOPE_SELECTOR, "sess-side-1");
+    queryClient.setQueryData(parentList, { sides: [] });
+    queryClient.setQueryData(sideDetail, primarySessionFixture);
+    const sources: FakeCatalogEventSource[] = [];
+    const { unmount } = renderHook(
+      () =>
+        useSessionCatalogStreams({
+          eventSourceFactory: url => {
+            const source = new FakeCatalogEventSource(url);
+            sources.push(source);
+            return source;
+          },
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    act(() => {
+      sources
+        .find(source => !source.closed)
+        ?.emit("session_side_changed", {
+          name: "session_side_changed",
+          kind: "upserted",
+          workspace_id: "",
+          profile_id: "prof-1",
+          session_id: SESSION_ID,
+          side_session_id: "sess-side-1",
+        });
+    });
+
+    expect(queryClient.getQueryState(parentList)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(sideDetail)?.isInvalidated).toBe(true);
     unmount();
   });
 

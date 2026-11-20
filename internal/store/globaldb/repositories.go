@@ -132,7 +132,10 @@ type WatchEventsRepo struct {
 	openSessionEventMetadata store.SessionEventMetadataOpener
 }
 type DeadEntityRepo struct{ *repoBase }
-type ApprovalGrantRepo struct{ *repoBase }
+type ApprovalGrantRepo struct {
+	*repoBase
+	checkInProjectionLimit int64
+}
 type ApprovalPendingRepo struct{ *repoBase }
 type CmdPaletteRepo struct{ *repoBase }
 type WorktreeRepo struct{ *repoBase }
@@ -187,7 +190,7 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 		openSessionEventMetadata: config.openSessionEventMetadata,
 	}
 	g.DeadEntityRepo = &DeadEntityRepo{repoBase: base}
-	g.ApprovalGrantRepo = &ApprovalGrantRepo{repoBase: base}
+	g.ApprovalGrantRepo = &ApprovalGrantRepo{repoBase: base, checkInProjectionLimit: checkInApprovalProjectionLimit}
 	g.ApprovalPendingRepo = &ApprovalPendingRepo{repoBase: base}
 	g.CmdPaletteRepo = &CmdPaletteRepo{repoBase: base}
 	g.Worktrees = &WorktreeRepo{repoBase: base}

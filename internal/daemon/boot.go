@@ -54,6 +54,7 @@ const (
 )
 
 type bootState struct {
+	approvalProjection  mcpProjectionGrantReader
 	mcpDigestKeys       vault.KeyProvider
 	runtimeMCPInventory *runtimeMCPInventory
 	sessionMCPReadModel *sessionMCPReadModel

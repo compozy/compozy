@@ -15,25 +15,27 @@ type TurnEndPatch struct {
 }
 
 type TurnEndPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	InputClass     string    `json:"input_class,omitempty"`
-	UserMessage    string    `json:"user_message,omitempty"`
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	LineageKind     string    `json:"lineage_kind,omitempty"`
+	ParentSessionID string    `json:"parent_session_id,omitempty"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	SessionName     string    `json:"session_name,omitempty"`
+	SessionType     string    `json:"session_type,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	Workspace       string    `json:"workspace,omitempty"`
+	WorktreeID      string    `json:"worktree_id,omitempty"`
+	ACPSessionID    string    `json:"acp_session_id,omitempty"`
+	State           string    `json:"state,omitempty"`
+	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest      string    `json:"soul_digest,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	TurnID          string    `json:"turn_id,omitempty"`
+	InputClass      string    `json:"input_class,omitempty"`
+	UserMessage     string    `json:"user_message,omitempty"`
 }
 
 type TurnPatch struct {
@@ -43,25 +45,27 @@ type TurnPatch struct {
 }
 
 type TurnPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	InputClass     string    `json:"input_class,omitempty"`
-	UserMessage    string    `json:"user_message,omitempty"`
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	LineageKind     string    `json:"lineage_kind,omitempty"`
+	ParentSessionID string    `json:"parent_session_id,omitempty"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	SessionName     string    `json:"session_name,omitempty"`
+	SessionType     string    `json:"session_type,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	Workspace       string    `json:"workspace,omitempty"`
+	WorktreeID      string    `json:"worktree_id,omitempty"`
+	ACPSessionID    string    `json:"acp_session_id,omitempty"`
+	State           string    `json:"state,omitempty"`
+	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest      string    `json:"soul_digest,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	TurnID          string    `json:"turn_id,omitempty"`
+	InputClass      string    `json:"input_class,omitempty"`
+	UserMessage     string    `json:"user_message,omitempty"`
 }
 
 type TurnStartPatch struct {
@@ -71,25 +75,27 @@ type TurnStartPatch struct {
 }
 
 type TurnStartPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	InputClass     string    `json:"input_class,omitempty"`
-	UserMessage    string    `json:"user_message,omitempty"`
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	LineageKind     string    `json:"lineage_kind,omitempty"`
+	ParentSessionID string    `json:"parent_session_id,omitempty"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	SessionName     string    `json:"session_name,omitempty"`
+	SessionType     string    `json:"session_type,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	Workspace       string    `json:"workspace,omitempty"`
+	WorktreeID      string    `json:"worktree_id,omitempty"`
+	ACPSessionID    string    `json:"acp_session_id,omitempty"`
+	State           string    `json:"state,omitempty"`
+	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest      string    `json:"soul_digest,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	TurnID          string    `json:"turn_id,omitempty"`
+	InputClass      string    `json:"input_class,omitempty"`
+	UserMessage     string    `json:"user_message,omitempty"`
 }
 
 type ValidationIssue struct {

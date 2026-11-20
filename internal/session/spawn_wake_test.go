@@ -423,6 +423,24 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 		}
 	})
 
+	t.Run("Should never wake the source session for a side chat, even when it ended early", func(t *testing.T) {
+		t.Parallel()
+
+		notifier := &recordingSpawnWakeNotifier{}
+		manager := spawnWakeTestManager(notifier, nil)
+		info := spawnWakeTestInfo(true)
+		info.Lineage.Kind = store.LineageKindSide
+		info.EndedEarlyTurnID = "turn-early"
+
+		manager.dispatchSpawnWake(testutil.Context(t), info, BadgeNeedsAttention)
+		manager.dispatchSpawnWake(testutil.Context(t), info, BadgeDone)
+		manager.dispatchSpawnWake(testutil.Context(t), info, BadgeWaitingForInput)
+
+		if _, events := notifier.calls(); len(events) != 0 {
+			t.Fatalf("wake calls = %#v, want none", events)
+		}
+	})
+
 	t.Run("Should deliver one completed wake for a done badge", func(t *testing.T) {
 		t.Parallel()
 

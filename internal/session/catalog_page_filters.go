@@ -239,7 +239,7 @@ func isPublicSessionCatalogInfo(info *Info) bool {
 		return false
 	}
 	lineage := info.Lineage
-	return lineage == nil || !IsInternalSpawnRole(lineage.SpawnRole)
+	return lineage == nil || (!isSideLineage(lineage) && !IsInternalSpawnRole(lineage.SpawnRole))
 }
 
 func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {

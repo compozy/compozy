@@ -366,10 +366,7 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 	}
 	candidate, found := byCommandID[commandID]
 	if !found || candidate.Skill == nil {
-		return nil, nativeCommandNotFoundError(
-			toolspkg.ToolIDSkillView,
-			fmt.Sprintf("skill command %q not found", commandID),
-		)
+		return nil, fmt.Errorf("%w for command %q", core.ErrSkillNotFound, commandID)
 	}
 	return candidate.Skill, nil
 }
@@ -379,6 +376,8 @@ func skillViewCatalogError(ctx context.Context, id toolspkg.ToolID, err error) e
 		return err
 	}
 	switch {
+	case errors.Is(err, core.ErrSkillNotFound):
+		return err
 	case errors.Is(err, skillspkg.ErrAgentNotFound):
 		return toolspkg.NewOperatorToolError(toolspkg.ErrorCodeUnavailable, id,
 			"Skill catalog agent is unavailable in the selected scope.",

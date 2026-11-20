@@ -32,26 +32,6 @@ export function sessionBusyInputDefaultMode(session: SessionWithBusyInput): Sess
   return isBusyInputMode(mode) ? mode : DEFAULT_SESSION_BUSY_INPUT_MODE;
 }
 
-/** Predict delivery from the current capability and daemon-owned fallback state. */
-export function sessionSteerDelivery(session: SessionWithBusyInput): SessionSteerDelivery | null {
-  switch (session.busy_input?.steer_capability?.trim()) {
-    case "steer_ext":
-      return "injected";
-    case "concurrent_prompt":
-      return "pending_injection";
-    case "none":
-      if (
-        session.busy_input?.steer_delivery === "pending_boundary" ||
-        session.busy_input?.steer_delivery === "after_turn"
-      ) {
-        return session.busy_input.steer_delivery;
-      }
-      return "interrupt_fallback";
-    default:
-      return null;
-  }
-}
-
 /** The one-shot opposite the modifier applies for a single send (US-003.AC-3). */
 export function oppositeSessionBusyInputMode(mode: SessionBusyInputMode): SessionBusyInputMode {
   return mode === "steer" ? "queue" : "steer";

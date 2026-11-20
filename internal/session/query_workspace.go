@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -50,10 +49,20 @@ func (m *Manager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(
-		infos,
-		func(info *Info) bool { return info.Type == SessionTypeTriage || info.WorkspaceID != workspaceID },
-	), nil
+	visible := infos[:0]
+	for _, info := range infos {
+		if !isPublicSessionCatalogInfo(info) || info.WorkspaceID != workspaceID {
+			continue
+		}
+		hidden, err := m.sideFamilyMembership(ctx, info.Lineage)
+		if err != nil {
+			return nil, fmt.Errorf("session: list workspace ancestry: %w", err)
+		}
+		if !hidden {
+			visible = append(visible, info)
+		}
+	}
+	return visible, nil
 }
 
 // WorkspaceResolver supplies runtime snapshots and inexpensive persisted registrations.

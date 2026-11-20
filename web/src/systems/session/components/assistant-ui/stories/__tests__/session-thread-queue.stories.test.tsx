@@ -108,15 +108,12 @@ describe("SessionThread queue stories", () => {
   });
   afterAll(() => server.close());
 
-  it("Should render the populated strip with live verbs and the busy controls (VC-01)", async () => {
+  it("Should render the populated strip with live verbs and the Stop control (VC-01)", async () => {
     await mountStory(composed.Populated);
     expect(await screen.findAllByTestId("composer-queued-prompt-row")).toHaveLength(3);
     expect(screen.getByTestId("composer-queue-count")).toHaveTextContent("3");
     expect(screen.getByTestId("composer-queue-clear")).toBeInTheDocument();
     expect(screen.getAllByTestId("composer-queued-edit")).toHaveLength(3);
-    expect(screen.getByTestId("composer-queue-button")).toBeInTheDocument();
-    expect(screen.getByTestId("composer-steer-button")).toBeInTheDocument();
-    expect(screen.getByTestId("composer-interrupt-button")).toBeInTheDocument();
     expect(screen.getByTestId("composer-stop-button")).toBeInTheDocument();
   });
 
@@ -192,8 +189,7 @@ describe("SessionThread queue stories", () => {
     await mountStory(composed.Full);
     expect(await screen.findByTestId("composer-queue-full")).toBeInTheDocument();
     expect(screen.getByTestId("composer-queue-count")).toHaveTextContent("10");
-    expect(screen.queryByTestId("composer-queue-button")).not.toBeInTheDocument();
-    expect(screen.getByTestId("composer-steer-button")).toBeInTheDocument();
+    expect(screen.getByTestId("composer-enter-hint")).toHaveAttribute("data-enter", "steer");
     expect(screen.getByTestId("composer-enter-hint")).not.toHaveTextContent("queue");
   });
 

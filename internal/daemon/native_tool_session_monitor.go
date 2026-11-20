@@ -34,7 +34,7 @@ type nativeMonitorCancelInput struct {
 }
 
 func (n *daemonNativeTools) sessionMonitorToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDMonitorCreate: {call: n.monitorCreate, availability: availability},

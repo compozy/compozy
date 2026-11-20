@@ -23,6 +23,7 @@ const (
 	LineageKindFork LineageKind = "fork"
 	// LineageKindRecovery marks a parented session created to recover the parent.
 	LineageKindRecovery LineageKind = "recovery"
+	LineageKindSide     LineageKind = "side"
 )
 
 // LineageKindValues returns every persisted lineage kind in canonical order.
@@ -34,6 +35,7 @@ func LineageKindValues() []string {
 		string(LineageKindContinue),
 		string(LineageKindFork),
 		string(LineageKindRecovery),
+		string(LineageKindSide),
 	}
 }
 
@@ -41,7 +43,7 @@ func LineageKindValues() []string {
 func (k LineageKind) Valid() bool {
 	switch k {
 	case LineageKindRoot, LineageKindProvenance, LineageKindSpawn,
-		LineageKindContinue, LineageKindFork, LineageKindRecovery:
+		LineageKindContinue, LineageKindFork, LineageKindRecovery, LineageKindSide:
 		return true
 	default:
 		return false
@@ -51,6 +53,10 @@ func (k LineageKind) Valid() bool {
 // Derived reports whether kind is written by the continue/fork derive path.
 func (k LineageKind) Derived() bool {
 	return k == LineageKindContinue || k == LineageKindFork
+}
+
+func (k LineageKind) Derivation() bool {
+	return k.Derived() || k == LineageKindSide
 }
 
 // HierarchyParentSessionID returns the parent a session nests under, or "" for a root
@@ -164,6 +170,9 @@ func ValidateSessionLineageForType(sessionType string, lineage *SessionLineage) 
 		return nil
 	}
 	kind := LineageKind(strings.TrimSpace(string(lineage.Kind)))
+	if kind == LineageKindSide && NormalizeSessionType(sessionType) != "user" {
+		return fmt.Errorf("store: side lineage requires a user session")
+	}
 	if NormalizeSessionType(sessionType) == sessionTypeSpawned && kind != LineageKindSpawn {
 		return fmt.Errorf("store: spawned session lineage kind must be %q, got %q", LineageKindSpawn, kind)
 	}
@@ -184,7 +193,7 @@ func validateSessionLineageKind(lineage *SessionLineage) error {
 		if !hasParent {
 			return fmt.Errorf("store: %s session lineage requires a parent session id", lineage.Kind)
 		}
-	case LineageKindContinue, LineageKindFork:
+	case LineageKindContinue, LineageKindFork, LineageKindSide:
 		if !hasParent {
 			return fmt.Errorf("store: %s session lineage requires a parent session id", lineage.Kind)
 		}
@@ -196,7 +205,7 @@ func validateSessionLineageKind(lineage *SessionLineage) error {
 	if lineage.OriginMessageID != "" && lineage.Kind != LineageKindFork {
 		return fmt.Errorf("store: only fork session lineage may carry an origin message id")
 	}
-	if lineage.OriginAgentName != "" && !lineage.Kind.Derived() {
+	if lineage.OriginAgentName != "" && !lineage.Kind.Derivation() {
 		return fmt.Errorf("store: only continue or fork session lineage may carry an origin agent name")
 	}
 	return nil

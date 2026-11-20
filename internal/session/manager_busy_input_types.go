@@ -119,6 +119,7 @@ type SendPromptResult struct {
 	PreviousTurnID        string
 	NewTurnID             string
 	CanceledQueuedEntries int
+	Side                  *SideCommandResult
 	Goal                  *GoalCommandResult
 	// TargetInLater marks an agent message queued for a session parked in Later.
 	TargetInLater bool

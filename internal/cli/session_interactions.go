@@ -61,7 +61,15 @@ func sessionInteractionsBundle(response SessionInteractionsRecord) outputBundle 
 		response,
 		response.Interactions,
 		"Pending Session Interactions",
-		[]string{"INTERACTION", cliKindHeader, "REQUEST", cliStatusHeader, "TITLE", cliSessionHeader, "EXPIRES AT"},
+		[]string{
+			"INTERACTION",
+			cliKindHeader,
+			"REQUEST",
+			cliStatusHeader,
+			cliTitleHeader,
+			cliSessionHeader,
+			"EXPIRES AT",
+		},
 		"interactions",
 		[]string{
 			"interaction_id",

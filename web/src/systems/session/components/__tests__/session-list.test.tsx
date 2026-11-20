@@ -58,7 +58,8 @@ import type { SessionPayload, WorkspacePlacementPayload } from "../../types";
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { useSubagentRoster } from "../../hooks/use-subagent-roster";
 import { sessionKeys } from "../../lib/query-keys";
-import { SubagentDrawerContext, subagentDrawerLogic } from "../../contexts/subagent-drawer-context";
+import { SubagentDrawerContext } from "../../contexts/subagent-drawer-context";
+import { sessionWindowDrawerLogic } from "../../contexts/session-window-drawer-store";
 import { sessionParentPickerStore } from "../../hooks/use-session-parent-picker";
 import { sessionScopedDetailOptions, sessionTranscriptOptions } from "../../lib/query-options";
 import { preloadSessionEntry } from "../../lib/session-entry-preload";
@@ -1954,7 +1955,7 @@ describe("SessionList subagents", () => {
     async ({ id, workspaceId, closes }) => {
       const user = userEvent.setup();
       let rows = [wireSubagent(1, "running")];
-      const drawerStore = subagentDrawerLogic.createStore();
+      const drawerStore = sessionWindowDrawerLogic.createStore();
       const selectedSubagent = { ...subagentViewFromPayload(rows[0]!), id };
       drawerStore.trigger.opened({ subagent: selectedSubagent, workspaceId, trigger: null });
       const fetcher = vi.fn(async (input: RequestInfo | URL) => {

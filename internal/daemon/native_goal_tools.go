@@ -34,17 +34,11 @@ func (n *daemonNativeTools) goalControl(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	commandRequest := contract.SessionGoalCommandRequest{
-		Operation: contract.SessionGoalOperation(strings.TrimSpace(input.Operation)),
-		Objective: strings.TrimSpace(input.Objective), ExpectedRunID: strings.TrimSpace(input.ExpectedRunID),
-		Runtime: input.Runtime,
+	commandRequest, err := nativeGoalControlRequest(req.ToolID, input)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
 	}
-	if err := commandRequest.Validate(); err != nil {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput, req.ToolID, err.Error(),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err), toolspkg.ReasonSchemaInvalid,
-		)
-	}
+
 	workspaceID, err := n.nativeLoopWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -62,6 +56,10 @@ func (n *daemonNativeTools) goalControl(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if err := n.requireNativeGoalSupported(ctx, targetSessionID); err != nil {
+		return toolspkg.ToolResult{}, nativeDeriveToolError(req.ToolID, err)
+	}
+
 	service := n.loopService()
 	goalService, ok := service.(core.GoalCommandService)
 	if !ok || goalService == nil {
@@ -394,4 +392,35 @@ type nativeLoopTurnsInput struct {
 	ItemIndex   *int   `json:"item,omitzero"`
 	AfterSeq    int64  `json:"after_seq,omitzero"`
 	Limit       int    `json:"limit,omitzero"`
+}
+
+func (n *daemonNativeTools) requireNativeGoalSupported(ctx context.Context, id string) error {
+	target, err := n.deps.Sessions.Status(ctx, id)
+	if errors.Is(err, session.ErrSessionNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if target != nil && target.Lineage != nil && target.Lineage.Kind == "side" {
+		return session.ErrSideGoalUnsupported
+	}
+	return nil
+}
+
+func nativeGoalControlRequest(
+	toolID toolspkg.ToolID,
+	input nativeGoalControlInput,
+) (contract.SessionGoalCommandRequest, error) {
+	request := contract.SessionGoalCommandRequest{
+		Operation:     contract.SessionGoalOperation(strings.TrimSpace(input.Operation)),
+		Objective:     strings.TrimSpace(input.Objective),
+		ExpectedRunID: strings.TrimSpace(input.ExpectedRunID),
+		Runtime:       input.Runtime,
+	}
+	if err := request.Validate(); err != nil {
+		return request, toolspkg.NewToolError(toolspkg.ErrorCodeInvalidInput, toolID, err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err), toolspkg.ReasonSchemaInvalid)
+	}
+	return request, nil
 }

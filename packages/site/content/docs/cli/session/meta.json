@@ -53,6 +53,7 @@
         "mcp",
         "processes",
         "runtime",
+        "side",
         "soul",
         "subagents",
         "worktree"

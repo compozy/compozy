@@ -9,6 +9,63 @@ import (
 	"strings"
 )
 
+// PutLoopConfig Replace Loop config override
+func (c *Client) PutLoopConfig(ctx context.Context, params PutLoopConfigParams, body PutLoopConfigRequest) (*LoopConfigResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/config"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopConfigResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutLoopInputDefaultParams carries the path, query, and header parameters.
+type PutLoopInputDefaultParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	Name        string `url:"name"`
+	Key         string `url:"key"`
+}
+
+// PutLoopInputDefault Set one scoped Loop input default
+func (c *Client) PutLoopInputDefault(ctx context.Context, params PutLoopInputDefaultParams, body PutLoopInputDefaultRequest) (*LoopInputDefaultResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	path = strings.ReplaceAll(path, "{key}", url.PathEscape(params.Key))
+	var out LoopInputDefaultResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutLoopInputDefaultsParams carries the path, query, and header parameters.
+type PutLoopInputDefaultsParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	Name        string `url:"name"`
+}
+
+// PutLoopInputDefaults Replace one scoped Loop input-default table
+func (c *Client) PutLoopInputDefaults(ctx context.Context, params PutLoopInputDefaultsParams, body PutLoopInputDefaultsRequest) (*LoopInputDefaultsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out LoopInputDefaultsResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PutProfileSelection Remember a profile selection
 func (c *Client) PutProfileSelection(ctx context.Context, body ProfileSelection) (*ProfileSelection, error) {
 	path := "/api/profiles/selection"
@@ -369,79 +426,4 @@ type ReadSessionFileContentParams struct {
 	Reveal      *bool   `url:"reveal"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ReadSessionFileContent Read project file content
-func (c *Client) ReadSessionFileContent(ctx context.Context, params ReadSessionFileContentParams) (*FileContentResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	query.Set("path", params.Path)
-	if params.Reveal != nil {
-		query.Set("reveal", strconv.FormatBool(*params.Reveal))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FileContentResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadTaskRunResultParams carries the path, query, and header parameters.
-type ReadTaskRunResultParams struct {
-	ID          string  `url:"id"`
-	Offset      *int    `url:"offset"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ReadTaskRunResult Read one exact byte page from a task-run result
-func (c *Client) ReadTaskRunResult(ctx context.Context, params ReadTaskRunResultParams) (*TaskRunResultPageResponse, error) {
-	path := "/api/task-runs/{id}/result"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Offset != nil {
-		query.Set("offset", strconv.Itoa(*params.Offset))
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResultPageResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadTerminalParams carries the path, query, and header parameters.
-type ReadTerminalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	View        *string `url:"view"`
-	MaxBytes    *int    `url:"max_bytes"`
-	Grep        *string `url:"grep"`
-	SinceSeq    *string `url:"since_seq"`
-	From        *int    `url:"from"`
-	To          *int    `url:"to"`
-	Profile     *string `url:"profile"`
 }

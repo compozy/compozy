@@ -30,10 +30,14 @@ func WithProjectionValidationCacheCapacity(capacity int) RegistryOption {
 // ProjectionListings shares validated provider listings among projection passes attached to it.
 // It never expires entries: its owner bounds freshness by replacing the instance.
 type ProjectionListings struct {
-	mu          sync.Mutex
-	entries     map[projectionListingKey]*projectionListing
-	policies    projectionMemo[projectionPolicyKey, []ToolView]
-	authorities projectionMemo[hostedSessionPolicyKey, SessionToolPolicy]
+	mu                   sync.Mutex
+	entries              map[projectionListingKey]*projectionListing
+	policies             projectionMemo[projectionPolicyKey, []ToolView]
+	authorities          projectionMemo[hostedSessionPolicyKey, SessionToolPolicy]
+	nativeObservations   projectionMemo[*RuntimeRegistry, string]
+	externalObservations projectionMemo[projectionObservationKey, projectionSharedObservation]
+	mcpInputs            projectionMemo[pinnedMCPProviderInputs, mcpProjectionInputs]
+	otherInputs          projectionMemo[projectionListingKey, externalProviderInputs]
 }
 
 type hostedSessionPolicyKey struct {
@@ -49,7 +53,8 @@ func CachedHostedSessionPolicy(
 	materialize func() (SessionToolPolicy, error),
 ) (SessionToolPolicy, error) {
 	listings, ok := ctx.Value(projectionListingsKey{}).(*ProjectionListings)
-	if !ok || !IsHostedCatalogRead(ctx) {
+	if !ok || !IsHostedCatalogRead(ctx) ||
+		ctx.Value(pinnedProjectionInputsKey{}) != nil || ctx.Value(nativeProjectionBuildKey{}) != nil {
 		return materialize()
 	}
 	data, err := json.Marshal(projectionPolicy(inputs))
@@ -211,6 +216,9 @@ func (r *RuntimeRegistry) listProvider(
 		providerScope = scoped.ProjectionScope(scope)
 	}
 	key := projectionListingKey{registry: r, providerIndex: providerIndex, scope: providerScope}
+	if inputs, ok := pinnedProviderInputs(ctx, key); ok {
+		return inputs.descriptors, nil
+	}
 	if !shared || !declared {
 		descriptors, _, err := r.listValidatedProvider(ctx, provider, key, scope)
 		return descriptors, err

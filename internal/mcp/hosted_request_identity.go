@@ -11,7 +11,10 @@ import (
 
 const hostedRequestIDMeta = "compozyHostedRequestId"
 
-type hostedIdentityTransport struct{ sdkmcp.Transport }
+type hostedIdentityTransport struct {
+	sdkmcp.Transport
+	trackLists bool
+}
 
 var _ sdkmcp.Transport = hostedIdentityTransport{}
 
@@ -20,10 +23,13 @@ func (t hostedIdentityTransport) Connect(ctx context.Context) (sdkmcp.Connection
 	if err != nil {
 		return nil, err
 	}
-	return hostedIdentityConnection{Connection: conn}, nil
+	return hostedIdentityConnection{Connection: conn, trackLists: t.trackLists}, nil
 }
 
-type hostedIdentityConnection struct{ sdkmcp.Connection }
+type hostedIdentityConnection struct {
+	sdkmcp.Connection
+	trackLists bool
+}
 
 var _ sdkmcp.Connection = hostedIdentityConnection{}
 
@@ -33,7 +39,13 @@ func (c hostedIdentityConnection) Read(ctx context.Context) (jsonrpc.Message, er
 		return nil, err
 	}
 	request, ok := message.(*jsonrpc.Request)
-	if !ok || request.Method != "tools/call" || !request.ID.IsValid() {
+	if !ok || !request.ID.IsValid() {
+		return message, nil
+	}
+	if c.trackLists && request.Method == mcpToolsListMethod {
+		return hostedListRequestIdentity(request)
+	}
+	if request.Method != "tools/call" {
 		return message, nil
 	}
 	var params map[string]jsontext.Value

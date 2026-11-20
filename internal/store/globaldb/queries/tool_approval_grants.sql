@@ -58,6 +58,31 @@ WHERE profile_id = sqlc.arg(profile_id)
 	AND workspace_id = sqlc.arg(workspace_id)
 ORDER BY created_at DESC, id;
 
+-- name: ReadCheckInApprovalDecisions :many
+SELECT agent_name, tool_id, input_digest, decision, access_scope
+FROM (
+  SELECT agent_name, tool_id, input_digest, decision, access_scope
+  FROM tool_approval_grants
+  WHERE profile_id = sqlc.arg(profile_id)
+    AND workspace_id = sqlc.arg(workspace_id)
+    AND agent_name IN ('', sqlc.arg(agent_name))
+    AND access_scope = ''
+  ORDER BY agent_name, tool_id, input_digest
+  LIMIT sqlc.arg(max_rows)
+)
+ORDER BY agent_name, tool_id, input_digest;
+
+-- name: ReadCheckInApprovalDecision :one
+SELECT decision
+FROM tool_approval_grants
+WHERE profile_id = sqlc.arg(profile_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND tool_id = sqlc.arg(tool_id)
+  AND agent_name IN ('', sqlc.arg(agent_name))
+  AND input_digest IN ('', sqlc.arg(input_digest))
+  AND access_scope = ''
+ORDER BY agent_name DESC, input_digest DESC LIMIT 1;
+
 -- name: RevokeApprovalGrant :execrows
 DELETE FROM tool_approval_grants
 WHERE profile_id = sqlc.arg(profile_id)

@@ -27,6 +27,12 @@ func PromptResponseFromSession(result session.SendPromptResult) (int, any, error
 		result.Status == store.SessionPromptResultStatusInterrupting || result.Replayed) {
 		status = http.StatusAccepted
 	}
+	if result.Side != nil {
+		status = http.StatusCreated
+		if result.Replayed {
+			status = http.StatusOK
+		}
+	}
 	return status, contract.SendPromptResultResponse{Prompt: payload}, nil
 }
 
@@ -65,6 +71,12 @@ func PromptResultPayloadFromSession(result session.SendPromptResult) (contract.S
 		PreviousTurnID:        strings.TrimSpace(result.PreviousTurnID),
 		NewTurnID:             strings.TrimSpace(result.NewTurnID),
 		CanceledQueuedEntries: result.CanceledQueuedEntries,
+	}
+	if result.Side != nil {
+		payload.Side = &contract.SessionSideCommandResult{
+			SessionID: result.Side.SessionID, Seed: result.Side.Seed,
+			SourceTurnInProgress: result.Side.SourceTurnInProgress,
+		}
 	}
 	if result.ReplyWatch != nil {
 		payload.ReplyWatch = &contract.ReplyWatchRefPayload{ID: result.ReplyWatch.ID, State: result.ReplyWatch.State}

@@ -3741,7 +3741,7 @@ func assertExtensionTableColumns(t *testing.T, globalDB *GlobalDB) {
 	})
 }
 
-// Invariant: migration 00206 only adds the tombstone table, and upgrading a 00205 database keeps its extension rows.
+// Invariant: upgrading from 00211 creates the tombstone table and preserves existing extension rows.
 // Owner: global SQLite migration (UT-010). Fresh and reopen columns are asserted by the extension schema test above.
 func TestGlobalDBBuiltinTombstoneMigration(t *testing.T) {
 	t.Parallel()
@@ -3751,7 +3751,7 @@ func TestGlobalDBBuiltinTombstoneMigration(t *testing.T) {
 		ctx := globalMigrationTestContext(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		prior, err := openGlobalMigrationPrefixDatabase(t, path,
-			globalMigrationPrefixBefore(t, "00206_schema.sql"))
+			globalMigrationPrefixBefore(t, "00212_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3788,7 +3788,7 @@ func TestGlobalDBBuiltinTombstoneMigration(t *testing.T) {
 
 		reopened, err := OpenGlobalDB(ctx, path)
 		if err != nil {
-			t.Fatalf("OpenGlobalDB(reopen at 00206) error = %v", err)
+			t.Fatalf("OpenGlobalDB(reopen after tombstone migration) error = %v", err)
 		}
 		t.Cleanup(func() {
 			if err := reopened.Close(testutil.Context(t)); err != nil {

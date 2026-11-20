@@ -790,6 +790,26 @@ func assertDaemonHeartbeatWakeEventResults(
 }
 
 func TestTimerPolicy(t *testing.T) {
+	// Invariant: a resolved policy over the daemon limit retains its cause and gates the timer.
+	// Owner: daemon timer policy; canonical suite: TestTimerPolicy.
+	t.Run("Should report the invalid check-in limit and gate the timer", func(t *testing.T) {
+		t.Parallel()
+		limit := 10000
+		fixture := timerPolicyBoundsFixture{checkIns: heartbeat.CheckInsPolicy{MaxToolCalls: &limit}}
+		_, err := resolveTimerPolicy(t.Context(), fixture, heartbeat.AuthoringTarget{
+			CheckInLimits: &heartbeat.CheckInLimits{MaxToolCalls: 25, MaxWriteCalls: 5},
+		})
+		if !errors.Is(err, heartbeat.ErrInvalid) || !strings.Contains(err.Error(), "max_tool_calls") {
+			t.Errorf("invalid timer policy = %v, want ErrInvalid with max_tool_calls", err)
+		}
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.env.policies = fixture
+		target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+		if err != nil || target.Gate != "heartbeat_invalid" {
+			t.Fatalf("timer gate = %q, %v, want heartbeat_invalid", target.Gate, err)
+		}
+	})
+
 	t.Run("Should default a user-level agent that lives outside the workspace", func(t *testing.T) {
 		t.Parallel()
 		agentDir := t.TempDir()
@@ -868,6 +888,16 @@ func TestTimerPolicy(t *testing.T) {
 			t.Fatalf("policy=%+v", policy)
 		}
 	})
+}
+
+type timerPolicyBoundsFixture struct {
+	checkIns heartbeat.CheckInsPolicy
+}
+
+func (f timerPolicyBoundsFixture) ResolveHeartbeatPolicy(
+	context.Context, heartbeat.AuthoringTarget,
+) (heartbeat.ResolvedPolicy, bool, error) {
+	return heartbeat.ResolvedPolicy{Frontmatter: heartbeat.Frontmatter{CheckIns: f.checkIns}}, true, nil
 }
 
 func TestHeartbeatScriptCollection(t *testing.T) {

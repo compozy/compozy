@@ -4,6 +4,25 @@ package client
 
 import "time"
 
+// SettingsSourceMetadataPayload is a daemon API value.
+type SettingsSourceMetadataPayload struct {
+	EffectiveSource  SettingsSourceRefPayload   `json:"effective_source"`
+	ShadowedSources  []SettingsSourceRefPayload `json:"shadowed_sources,omitempty"`
+	AvailableTargets []SettingsWriteTargetKind  `json:"available_targets"`
+}
+
+// SettingsSourceRefPayload is a daemon API value.
+type SettingsSourceRefPayload struct {
+	Kind        SettingsSourceKind `json:"kind"`
+	Scope       SettingsScopeKind  `json:"scope"`
+	WorkspaceID string             `json:"workspace_id,omitempty"`
+	Profile     string             `json:"profile,omitempty"`
+	AgentName   string             `json:"agent_name,omitempty"`
+}
+
+// SettingsStreamTransport is a daemon API value.
+type SettingsStreamTransport string
+
 // SettingsTerminalPayload is a daemon API value.
 type SettingsTerminalPayload struct {
 	DefaultShell           string `json:"default_shell"`
@@ -426,15 +445,4 @@ type SkillVerificationWarningPayload struct {
 // SkillsResponse is a daemon API value.
 type SkillsResponse struct {
 	Skills []SkillPayload `json:"skills"`
-}
-
-// SmallViewportPolicy is a daemon API value.
-type SmallViewportPolicy string
-
-// SnapConfig is a daemon API value.
-type SnapConfig struct {
-	EdgeBand     float64   `json:"edge_band"`
-	CornerReach  float64   `json:"corner_reach"`
-	ExitSlack    float64   `json:"exit_slack"`
-	RepeatRatios []float64 `json:"repeat_ratios"`
 }

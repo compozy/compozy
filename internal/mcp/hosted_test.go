@@ -1113,6 +1113,149 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 // Owning layer: internal/mcp hosted projection cache.
 // Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
+	// Invariant: a cold build must respect request and bind lifetime even when cache admission fails.
+	// Owner: hosted projection; canonical suite: TestHostedServiceProjectionGenerationCache.
+	for _, scenario := range []struct {
+		name            string
+		unknown, cancel bool
+		want            error
+	}{
+		{name: "Should reject an unstable stream projection when its bind is released", want: ErrHostedBindNotFound},
+		{name: "Should reject an unstable stream projection when its context is canceled", cancel: true, want: context.Canceled},
+		{name: "Should reject a stream projection without an observation when its bind is released", unknown: true, want: ErrHostedBindNotFound},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			var interrupt func()
+			built := false
+			resolver := hostedObservationPolicyResolver{
+				resolve: func(context.Context, tools.Scope) (tools.PolicyInputs, error) {
+					if interrupt != nil {
+						built = true
+						if scenario.unknown {
+							interrupt()
+							interrupt = nil
+						}
+					}
+					return tools.DefaultPolicyInputs(), nil
+				},
+				identity: func(tools.Scope) any {
+					if built {
+						// The response has been built. Make the final observation differ or fail.
+						interrupt()
+					}
+					return built
+				},
+				observationUnavailable: scenario.unknown,
+			}
+			registry, err := tools.NewRegistry(tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			executable := hostedTestExecutable(t, "compozy")
+			service := newHostedTestServiceWithProjectionGeneration(t, executable, registry, nil)
+			service.projectionEpoch = NewProjectionEpoch().Current
+			peer := hostedTestPeer(executable)
+			const sessionID = "sess-interrupted-projection"
+			bind := hostedTestBind(t, service, sessionID, peer)
+			interrupt = func() { service.ReleaseBind(bind.BindID) }
+			if scenario.cancel {
+				interrupt = cancel
+			}
+			result, err := service.StreamProjection(ctx, bind.BindID, peer, "")
+			if !built || !errors.Is(err, scenario.want) || result.Digest != "" {
+				t.Errorf("interrupted projection = %v, %v (built=%v), want %v", result, err, built, scenario.want)
+			}
+			if _, ready := service.InitialToolDigest(sessionID); ready {
+				t.Error("interrupted projection acknowledged the bind")
+			}
+			if !service.projectionCache.unversionedEntry(bind.BindID).builtAt.IsZero() {
+				t.Error("interrupted projection was cached")
+			}
+		})
+	}
+
+	// Invariant: a bounded view of one peer cannot be promoted under another peer's fresh input observation.
+	// Owner: hosted projection cache; canonical suite: TestHostedServiceProjectionGenerationCache.
+	t.Run("Should reject a borrowed response after scoped availability changes within a window", func(t *testing.T) {
+		ctx := t.Context()
+		source := tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo", Scope: "user"}
+		upstream := newTestMCPHTTPServer(newFakeSDKServer(nil))
+		t.Cleanup(upstream.Close)
+		auth := &fakeAuthService{
+			status:                mcpauth.Status{Status: mcpauth.StatusAuthenticated, TokenPresent: true},
+			authorizationToken:    mcpauth.TokenRecord{AccessToken: "fixture-access", TokenType: "Bearer"},
+			hasAuthorizationToken: true,
+		}
+		executor := newTestMCPExecutor(t, authEnabledServer("echo", "http", upstream.URL), withAuthService(auth))
+		provider, err := tools.NewMCPProvider(
+			tools.MCPSourceListerFunc(func(context.Context) ([]tools.SourceRef, error) {
+				return []tools.SourceRef{source}, nil
+			}),
+			executor,
+			executor,
+			tools.WithMCPBackgroundDiscovery(nil, nil),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := provider.List(ctx, tools.Scope{}); err != nil {
+			t.Fatal(err)
+		}
+		inputs := tools.DefaultPolicyInputs()
+		inputs.ExternalDefault = tools.ExternalDefaultEnabled
+		inputs.SystemPermissionMode = tools.PermissionModeApproveAll
+		resolver := hostedObservationPolicyResolver{
+			resolve: func(context.Context, tools.Scope) (tools.PolicyInputs, error) {
+				return inputs, nil
+			},
+		}
+		registry, err := tools.NewRegistry(
+			tools.WithProviders(provider),
+			tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		executable := hostedTestExecutable(t, "compozy")
+		peer := hostedTestPeer(executable)
+		now := time.Now()
+		service, err := NewHostedService(&HostedConfig{
+			Enabled: true, ExpectedBinary: executable, Registry: func() tools.Registry { return registry },
+			ProjectionEpoch: NewProjectionEpoch().Current, Now: func() time.Time { return now },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		launch, err := service.Launch(ctx, HostedLaunchRequest{SessionID: "sess-prime", EagerTools: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := service.ArmLaunch(ctx, "sess-prime"); err != nil {
+			t.Fatal(err)
+		}
+		first, err := service.Bind(ctx, HostedBindRequest{
+			SessionID: "sess-prime", Nonce: hostedLaunchNonce(t, launch.Args),
+		}, peer)
+		if err != nil || len(first.Tools) != 1 {
+			t.Fatalf("initial hosted bind: %d tools, %v", len(first.Tools), err)
+		}
+		auth.mu.Lock()
+		auth.status = mcpauth.Status{Status: mcpauth.StatusNeedsLogin}
+		auth.mu.Unlock()
+
+		cold := hostedTestBind(t, service, "sess-cold", peer)
+		for window := range 2 {
+			result, err := service.StreamSnapshot(ctx, cold.BindID, peer)
+			if err != nil || len(result.Tools) != 0 {
+				t.Errorf("cold bind in window %d advertised %d unauthorized tools, %v", window, len(result.Tools), err)
+			}
+			now = now.Add(service.StreamRefreshInterval())
+		}
+	})
+
 	// Invariant: a cold or slow upstream cannot block a hosted bind; equivalent peers
 	// reuse the warmed catalog and a later registered secret is never streamed.
 	// Owner: hosted service; canonical suite: TestHostedServiceProjectionGenerationCache.
@@ -1223,6 +1366,132 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	})
 
 	t.Parallel()
+	// Invariant: an idle fallback does not resolve policy, and local changes only rebuild their bind.
+	// Owner: hosted projection cache; canonical suite: hosted projection generations.
+	t.Run("Should compare bounded observations before resolving stream policy", func(t *testing.T) {
+		t.Parallel()
+		executable := hostedTestExecutable(t, "compozy")
+		now := time.Now()
+		calls := make(map[string]int)
+		restrictions := make(map[string]bool)
+		available := true
+		failDuringBuild, failNextCheck := false, false
+		const id tools.ToolID = "compozy__observed_tool"
+		native := hostedRuntimeNativeTool(id, tools.RiskRead, true)
+		native.Availability = &tools.NativeAvailabilityGroup{
+			Check: func(_ context.Context, scope tools.Scope) tools.Availability {
+				if scope.SessionID == "affected" {
+					fail := failNextCheck || !available
+					failNextCheck = false
+					if fail {
+						return tools.Unavailable(tools.ReasonDependencyMissing)
+					}
+				}
+				return tools.Available()
+			},
+		}
+		provider, err := tools.NewNativeProvider(tools.BuiltinSource(), native)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver := hostedObservationPolicyResolver{
+			resolve: func(_ context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
+				calls[scope.SessionID]++
+				if failDuringBuild && scope.SessionID == "affected" {
+					failNextCheck = true
+					failDuringBuild = false
+				}
+				inputs := tools.DefaultPolicyInputs()
+				inputs.Session.Enforced = true
+				if !restrictions[scope.SessionID] {
+					inputs.Session.Tools = []tools.ToolID{id}
+				}
+				return inputs, nil
+			},
+			identity: func(scope tools.Scope) any { return restrictions[scope.SessionID] },
+		}
+		registry, err := tools.NewRegistry(tools.WithProviders(provider),
+			tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+		epoch := NewProjectionEpoch()
+		service.projectionEpoch = epoch.Current
+		peer := hostedTestPeer(executable)
+		binds := map[string]string{}
+		digests := map[string]string{}
+		for _, sessionID := range []string{"affected", "sibling"} {
+			launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: sessionID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := service.ArmLaunch(t.Context(), sessionID); err != nil {
+				t.Fatal(err)
+			}
+			bound, err := service.Bind(t.Context(), HostedBindRequest{
+				SessionID: sessionID, Nonce: hostedLaunchNonce(t, launch.Args),
+			}, peer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			binds[sessionID] = bound.BindID
+			initial, err := service.StreamProjection(t.Context(), bound.BindID, peer, "")
+			if err != nil || len(initial.Tools) != 1 {
+				t.Fatalf("initial %s = %v, %v", sessionID, initial, err)
+			}
+			digests[sessionID] = initial.Digest
+		}
+		clear(calls)
+		read := func(sessionID string, count int, changed bool) {
+			t.Helper()
+			result, err := service.StreamProjection(t.Context(), binds[sessionID], peer, digests[sessionID])
+			if err != nil || len(result.Tools) != count || (result.Digest != digests[sessionID]) != changed {
+				t.Fatalf("projection %s = %v, %v", sessionID, result, err)
+			}
+			digests[sessionID] = result.Digest
+		}
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 0, false)
+		read("sibling", 0, false)
+		if len(calls) != 0 {
+			t.Fatalf("idle fallback resolved policies: %v", calls)
+		}
+
+		available = false
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 0, true)
+		read("sibling", 0, false)
+		if calls["affected"] == 0 || calls["sibling"] != 0 {
+			t.Fatalf("availability change resolved policies: %v", calls)
+		}
+
+		available = true
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 1, true)
+		read("sibling", 0, false)
+
+		restrictions["affected"] = true
+		clear(calls)
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 0, true)
+		read("sibling", 0, false)
+		if calls["affected"] == 0 || calls["sibling"] != 0 {
+			t.Fatalf("restriction should rebuild only the affected bind: %v", calls)
+		}
+
+		// Invariant: a transient native failure consumed during a build must not survive as a cached result.
+		restrictions["affected"] = false
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 1, true)
+		epoch.Advance()
+		failDuringBuild = true
+		read("affected", 0, true)
+		// The rejected build leaves this scope cold inside the same listings window.
+		read("affected", 1, true)
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 0, false)
+	})
 	// Invariant: secret changes preserve safe hosted reads without caching a projection built across revisions.
 	// Owner: hosted projection; canonical suite: hosted projection generations.
 	for _, tc := range []struct {
@@ -1286,6 +1555,34 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			}
 		})
 	}
+
+	// Invariant: streamed catalog reads under redaction churn preserve safe tools.
+	// Owner: hosted projection publication; canonical suite: hosted projection generations.
+	t.Run("Should retain safe hosted tools when redaction keeps changing", func(t *testing.T) {
+		t.Parallel()
+		const secret = "hosted-catalog-churn-sensitive-1781"
+		safe := hostedToolView("mcp__echo__safe")
+		safe.Descriptor.Source = tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo"}
+		unsafe := hostedToolView("mcp__echo__unsafe")
+		unsafe.Descriptor.Source = safe.Descriptor.Source
+		unsafe.Descriptor.Description = secret
+		t.Cleanup(redact.RegisterRequiredSecret(secret))
+		registry := hostedRedactionRegistry{&hostedRegistryStub{}}
+		count := 0
+		response, err := catalogProjectionWithRedactionCheck(
+			t.Context(),
+			registry,
+			&hostedBindRecord{},
+			func(context.Context, tools.Registry, *hostedBindRecord) (HostedProjectionResponse, error) {
+				count++
+				t.Cleanup(redact.RegisterRequiredSecret(fmt.Sprintf("hosted-catalog-unrelated-1781-%d", count)))
+				return hostedProjectionResponse([]tools.ToolView{safe, unsafe}, nil), nil
+			},
+		)
+		if err != nil || !slices.Equal(hostedToolIDs(response.Tools), []string{"mcp__echo__safe"}) {
+			t.Fatalf("hosted tools after redaction churn = %v, error = %v", hostedToolIDs(response.Tools), err)
+		}
+	})
 
 	// Invariant: a redaction change renews hosted metadata without rediscovering an unchanged listing.
 	// Owner: hosted projection cache; canonical suite: hosted projection generations.
@@ -1623,11 +1920,13 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		executable := hostedTestExecutable(t, "compozy")
 		alpha := hostedRuntimeNativeTool("compozy__alpha", tools.RiskRead, true)
 		beta := hostedRuntimeNativeTool("compozy__beta", tools.RiskRead, true)
-		beta.Availability = func(_ context.Context, scope tools.Scope) tools.Availability {
-			if scope.SessionID == "sess-unavailable" {
-				return tools.Unavailable(tools.ReasonDependencyMissing)
-			}
-			return tools.Available()
+		beta.Availability = &tools.NativeAvailabilityGroup{
+			Check: func(_ context.Context, scope tools.Scope) tools.Availability {
+				if scope.SessionID == "sess-unavailable" {
+					return tools.Unavailable(tools.ReasonDependencyMissing)
+				}
+				return tools.Available()
+			},
 		}
 		native, err := tools.NewNativeProvider(tools.BuiltinSource(), alpha, beta)
 		if err != nil {
@@ -3470,6 +3769,26 @@ func (p *hostedCountingProvider) List(ctx context.Context, scope tools.Scope) ([
 
 func (p *hostedCountingProvider) ProjectionScope(scope tools.Scope) tools.Scope {
 	return tools.Scope{ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID}
+}
+
+type hostedObservationPolicyResolver struct {
+	resolve                hostedPolicyResolver
+	identity               func(tools.Scope) any
+	observationUnavailable bool
+}
+
+func (r hostedObservationPolicyResolver) Resolve(ctx context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
+	return r.resolve(ctx, scope)
+}
+
+func (r hostedObservationPolicyResolver) ProjectionPolicyIdentity(_ context.Context, scope tools.Scope) (any, bool) {
+	if r.observationUnavailable {
+		return nil, false
+	}
+	if r.identity == nil {
+		return nil, true
+	}
+	return r.identity(scope), true
 }
 
 type hostedPolicyResolver func(context.Context, tools.Scope) (tools.PolicyInputs, error)

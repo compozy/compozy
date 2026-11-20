@@ -16,7 +16,7 @@ type nativeToolArtifactReadInput struct {
 }
 
 func (n *daemonNativeTools) toolArtifactBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDToolArtifactRead: {

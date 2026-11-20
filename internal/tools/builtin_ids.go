@@ -74,7 +74,9 @@ const (
 	// ToolIDSessionContinue continues a user session with another agent, runtime, or route.
 	ToolIDSessionContinue ToolID = "compozy__session_continue"
 	// ToolIDSessionFork forks a user session with the same agent, whole or through one message.
-	ToolIDSessionFork ToolID = "compozy__session_fork"
+	ToolIDSessionFork     ToolID = "compozy__session_fork"
+	ToolIDSessionSideOpen ToolID = "compozy__session_side_open"
+	ToolIDSessionSideList ToolID = "compozy__session_side_list"
 	// ToolIDSessionRuntimeSet selects the default runtime for future prompts.
 	ToolIDSessionRuntimeSet     ToolID = "compozy__session_runtime_set"
 	ToolIDSessionWorktreeBind   ToolID = "compozy__session_worktree_bind"

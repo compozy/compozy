@@ -272,6 +272,18 @@ Linked work is the set of pull requests, branches and worktrees that belong to a
 - `handoff`: reserved for Network; never a label for continue or fork. The API's `next_action: "handoff"` is a wire value — the UI says "Continue this session with another agent or route."
 - Never in this feature's copy: `branch` (git, worktrees, Loops), `chat`, "Handoff from X", a "Badge".
 
+### Side Chat Terms
+
+A side chat is a hidden session that answers a side question about a session while that session keeps working. It is listed only under its source session. The glossary entry **Session** (derived kind `side`) is authoritative. Product term: "side chat"; wire term: `side`.
+
+- Labels: the head toggle "Side chats" (with the count of open side chats and the attention dot when one needs you); switcher row "New side chat"; header actions "Close side chat" and "Hide side chats"; the shortcut row "Toggle side chats" (⌘⌥S, Ctrl+Alt+S off macOS). An untitled side chat reads "Side chat".
+- Opening: typing `/side <question>` in the composer opens a side chat with that question; a bare `/side` opens an empty side chat whose composer reads "Ask a side question. The session keeps working." Nothing is added to the main thread. While it starts: "Opening the side chat…"; a failure reads "Couldn't open the side chat." with "Retry", which sends the same question once.
+- Main status chip, in the side panel header: "Main working" (only while the main session is prompting), "Main needs approval", "Main needs input", "Main finished", "Main failed", "Main stopped". While the main session's state is unknown the chip shows nothing.
+- Close: closing a side chat that is still answering asks "Stop this side chat and close it?", body "It's still answering. Closing stops it and removes it from the side chats.", action "Stop and close". A failed close reads "Couldn't close the side chat." A stopped side chat reads "This side chat stopped. Sending a message resumes it."
+- Delete confirmation: a session with side chats (closed ones included) adds "Also deletes its side chats."
+- Refusals (server-owned, shown where the question was typed): "Send a message first, then open a side chat.", "Unarchive this session first.", "Side chats can't open side chats.", "Side chats are available on your own sessions.", "Side chat questions can't include files yet. Send the question alone."
+- Never in this feature's copy: "fork", "branch", "thread", or "subagent" for a side chat. A side chat is not a fork: it never shows in the session list, and nothing flows back into its source except what the operator copies.
+
 ### Session Compaction Terms
 
 The agent compacts its own context window. CompozyOS observes that compaction when the agent supports it and asks for it only through the command the agent advertises. The surfaces are experimental while the upstream ACP contract is unstable. The glossary entry **Compaction** is authoritative.

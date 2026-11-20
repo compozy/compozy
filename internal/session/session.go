@@ -98,6 +98,7 @@ type Info struct {
 	// Derivation is present only on continued or forked children.
 	Derivation             *store.SessionDerivation
 	State                  State
+	Prompting              bool
 	PendingPermission      bool
 	StopReason             store.StopReason
 	StopCause              StopCause

@@ -246,14 +246,15 @@ func sendSessionPromptOperationSpec() OperationSpec {
 		RequestBody: contract.SendPromptRequest{},
 		Responses: []ResponseSpec{
 			promptStreamResponse(),
+			promptSuccessResponse(201, "Side chat opened"),
 			promptSuccessResponse(202, "Prompt queued, steering accepted, or Goal command started"),
-			{Status: 400, Description: "Invalid prompt request", Body: contract.ErrorPayload{}},
+			promptDeriveErrorResponse(400, "Invalid prompt request"),
 			promptGoalErrorResponse(404, "Session or attachment not found"),
 			promptGoalErrorResponse(409, specSessionPromptConflictDescription),
 			{Status: 413, Description: "Session input queue is full", Body: contract.ErrorPayload{}},
 			promptGoalErrorResponse(422, "Goal command is invalid or cannot transition"),
-			{Status: 503, Description: specNewWorkAdmissionUnavailableDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+			promptDeriveErrorResponse(503, specNewWorkAdmissionUnavailableDescription),
+			promptDeriveErrorResponse(500, specInternalServerErrorDescription),
 		},
 	}
 }

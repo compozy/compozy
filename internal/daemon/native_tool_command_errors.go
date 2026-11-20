@@ -27,16 +27,6 @@ func nativeCommandDependencyError(id toolspkg.ToolID, message string) error {
 	)
 }
 
-func nativeCommandNotFoundError(id toolspkg.ToolID, message string) error {
-	return nativeCommandToolError(
-		toolspkg.ErrorCodeNotFound,
-		id,
-		message,
-		toolspkg.ErrToolNotFound,
-		toolspkg.ReasonToolUnknown,
-	)
-}
-
 func nativeCommandToolError(
 	code toolspkg.ErrorCode,
 	id toolspkg.ToolID,

@@ -13,7 +13,8 @@ import {
 } from "@/systems/session";
 import {
   SubagentDrawerContext,
-  subagentDrawerLogic,
+  sessionWindowDrawerLogic,
+  type SessionWindowDrawerStore,
   type SubagentNavigation,
   type SubagentView,
   SubagentRuntimeMeta,
@@ -240,14 +241,21 @@ function SubagentDrawerSelection({
   );
 }
 
+/**
+ * The subagent half of the window's one drawer. A session window passes the drawer store it shares
+ * with the side chat panel; a drawer mounted alone owns its store.
+ */
 export function SessionSubagentDrawer({
   children,
   openSession,
+  store: sharedStore,
 }: {
   children: ReactNode;
   openSession: SubagentNavigation["openSession"];
+  store?: SessionWindowDrawerStore;
 }) {
-  const store = useStore(subagentDrawerLogic);
+  const ownStore = useStore(sessionWindowDrawerLogic);
+  const store = sharedStore ?? ownStore;
   const state = useSelector(store, snapshot => snapshot.context);
   return (
     <SubagentDrawerContext

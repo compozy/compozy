@@ -26,6 +26,9 @@ func (m *Manager) parsePromptRequestWithMessagePolicy(
 	if target == "" {
 		return promptRequest{}, errors.New("session: session id is required")
 	}
+	if err := m.requireSideParentUnarchived(ctx, target); err != nil {
+		return promptRequest{}, err
+	}
 	message := strings.TrimSpace(opts.Message)
 	if opts.Delivery == PromptDeliveryMaintenance {
 		message = opts.Message

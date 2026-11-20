@@ -115,6 +115,15 @@ func (n *daemonNativeTools) refuseCallerArchive(
 			return nativeSelfTargetError(toolID)
 		}
 	}
+	if !input.Stop {
+		within, err := n.nativeCallerWithinSideArchive(ctx, callerID, input.SessionID)
+		if err != nil {
+			return err
+		}
+		if within {
+			return nativeSelfTargetError(toolID)
+		}
+	}
 	if input.Stop {
 		// As session_stop refuses for self: the caller, or an ancestor whose stop cascades to it.
 		within, err := n.nativeCallerWithinSession(ctx, callerID, input.SessionID)
@@ -251,5 +260,39 @@ func nativeLineageStopsWithParent(lineage *store.SessionLineage) bool {
 	if lineage == nil || lineage.Kind.Derived() {
 		return false
 	}
-	return lineage.SpawnRole == store.SubagentSpawnRole || lineage.AutoStopOnParent
+	return lineage.Kind == store.LineageKindSide ||
+		lineage.SpawnRole == store.SubagentSpawnRole || lineage.AutoStopOnParent
+}
+
+// A plain archive can implicitly stop a side subtree even without an explicit stop.
+func (n *daemonNativeTools) nativeCallerWithinSideArchive(ctx context.Context, callerID, target string) (bool, error) {
+	current := strings.TrimSpace(callerID)
+	target = strings.TrimSpace(target)
+	if current == target {
+		return false, nil
+	}
+	inSide := false
+	visited := map[string]bool{}
+	for current != "" && !visited[current] {
+		visited[current] = true
+		info, err := n.deps.Sessions.Status(ctx, current)
+		if errors.Is(err, session.ErrSessionNotFound) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if info == nil {
+			return false, nil
+		}
+		inSide = inSide || (info.Lineage != nil && info.Lineage.Kind == store.LineageKindSide)
+		if current == target {
+			return inSide, nil
+		}
+		if !nativeLineageStopsWithParent(info.Lineage) {
+			return false, nil
+		}
+		current = strings.TrimSpace(info.Lineage.ParentSessionID)
+	}
+	return false, nil
 }

@@ -4,6 +4,30 @@ package client
 
 import "time"
 
+// SettingsExtensionSourcesPayload is a daemon API value.
+type SettingsExtensionSourcesPayload struct {
+	GitHub SettingsExtensionGitHubSourcePayload `json:"github"`
+	Git    SettingsExtensionGitSourcePayload    `json:"git"`
+}
+
+// SettingsExtensionTrustPayload is a daemon API value.
+type SettingsExtensionTrustPayload struct {
+	AllowUnverified bool `json:"allow_unverified"`
+}
+
+// SettingsExtensionsConfigPayload is a daemon API value.
+type SettingsExtensionsConfigPayload struct {
+	Trust     SettingsExtensionTrustPayload     `json:"trust"`
+	Sources   SettingsExtensionSourcesPayload   `json:"sources"`
+	Dev       SettingsExtensionDevPayload       `json:"dev"`
+	Resources SettingsExtensionResourcesPayload `json:"resources"`
+}
+
+// SettingsGeneralActionsPayload is a daemon API value.
+type SettingsGeneralActionsPayload struct {
+	Restart SettingsActionMetadataPayload `json:"restart"`
+}
+
 // SettingsGeneralConfigPayload is a daemon API value.
 type SettingsGeneralConfigPayload struct {
 	BusyInput        *SettingsBusyInputPayload  `json:"busy_input,omitzero"`
@@ -417,26 +441,4 @@ type SettingsPersonaResponse struct {
 	Profile         string                     `json:"profile,omitempty"`
 	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
 	Config          SettingsDefaultsPayload    `json:"config"`
-}
-
-// SettingsProviderAuthStatusPayload is a daemon API value.
-type SettingsProviderAuthStatusPayload struct {
-	Mode        string                         `json:"mode"`
-	EnvPolicy   string                         `json:"env_policy"`
-	HomePolicy  string                         `json:"home_policy"`
-	State       string                         `json:"state"`
-	Code        string                         `json:"code,omitempty"`
-	Message     string                         `json:"message,omitempty"`
-	StatusCmd   string                         `json:"status_command,omitempty"`
-	Login       ProviderLoginDescriptorPayload `json:"login"`
-	LastProbeAt *time.Time                     `json:"last_probe_at,omitempty"`
-}
-
-// SettingsProviderCredentialSlotPayload is a daemon API value.
-type SettingsProviderCredentialSlotPayload struct {
-	Name      string `json:"name"`
-	TargetEnv string `json:"target_env"`
-	SecretRef string `json:"secret_ref"`
-	Kind      string `json:"kind,omitempty"`
-	Required  bool   `json:"required"`
 }

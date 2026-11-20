@@ -39,7 +39,7 @@ type nativeToolApprovalSetResponse struct {
 }
 
 func (n *daemonNativeTools) toolApprovalBindings(
-	availability toolspkg.NativeAvailabilityFunc,
+	availability *toolspkg.NativeAvailabilityGroup,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDToolApprovalsSet: {

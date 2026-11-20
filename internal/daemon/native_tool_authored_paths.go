@@ -11,6 +11,7 @@ import (
 
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -182,10 +183,7 @@ func (n *daemonNativeTools) resolveSkill(
 	if found {
 		return nil, skillViewDefinitionError(toolspkg.ToolIDSkillView, definitionErr)
 	}
-	return nil, nativeCommandNotFoundError(
-		toolspkg.ToolIDSkillView,
-		fmt.Sprintf("skill %q not found", trimmedName),
-	)
+	return nil, fmt.Errorf("%w: %q", core.ErrSkillNotFound, trimmedName)
 }
 
 func (n *daemonNativeTools) invalidSkillDefinition(

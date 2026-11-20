@@ -7310,6 +7310,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/sides": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List all side chats attached to a session, newest updated first */
+    get: operations["listSessionSides"];
+    put?: never;
+    /** Open a side chat without changing its source session */
+    post: operations["openSessionSide"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh": {
     parameters: {
       query?: never;
@@ -14178,6 +14196,11 @@ export interface components {
     OpenAppEffect: {
       app: string;
     };
+    OpenSessionSideRequest: {
+      idempotency_key: string;
+      message: string;
+      name?: string;
+    };
     OpenURLEffect: {
       url: string;
     };
@@ -15781,6 +15804,7 @@ export interface components {
       queue_position: number;
       replayed: boolean;
       reply_watch?: components["schemas"]["ReplyWatchRefPayload"] | null;
+      side?: components["schemas"]["SessionSideCommandResult"] | null;
       status: string;
       /** @enum {string} */
       steer_delivery?:
@@ -15940,9 +15964,11 @@ export interface components {
     SessionCatalogEventPayload: {
       execution_location_changed?: boolean;
       kind: string;
+      name?: string;
       profile_id: string;
       profile_name: string;
       session_id: string;
+      side_session_id?: string;
       workspace_id: string;
     };
     SessionCatalogFacetsPayload: {
@@ -16191,7 +16217,7 @@ export interface components {
     SessionDerivationPayload: {
       first_prompt: string;
       /** @enum {string} */
-      kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+      kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery" | "side";
       native_fork_error?: string;
       native_state?: string;
       seed: string;
@@ -16567,7 +16593,7 @@ export interface components {
     SessionLineagePayload: {
       auto_stop_on_parent: boolean;
       /** @enum {string} */
-      kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+      kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery" | "side";
       notify_creator: boolean;
       origin_agent_name?: string;
       origin_message_id?: string;
@@ -16989,6 +17015,28 @@ export interface components {
       reason?: "runtime_exit" | "provider_auth";
       /** Format: date-time */
       started_at: string;
+    };
+    SessionSideCommandResult: {
+      seed: string;
+      session_id: string;
+      source_turn_in_progress: boolean;
+    };
+    SessionSideItemPayload: {
+      /** Format: date-time */
+      archived_at: string | null;
+      /** Format: date-time */
+      created_at: string;
+      id: string;
+      name: string;
+      pending_clarify_count: number;
+      pending_permission_count: number;
+      prompting: boolean;
+      state: string;
+      /** Format: date-time */
+      updated_at: string;
+    };
+    SessionSidesResponse: {
+      sides: components["schemas"]["SessionSideItemPayload"][];
     };
     SessionSkillInvocationPayload: {
       command_id: string;
@@ -60040,6 +60088,15 @@ export interface operations {
           "text/event-stream": components["schemas"]["PromptStreamChunk"];
         };
       };
+      /** @description Side chat opened */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SendPromptResultResponse"];
+        };
+      };
       /** @description Prompt queued, steering accepted, or Goal command started */
       202: {
         headers: {
@@ -60055,7 +60112,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
       /** @description Session or attachment not found */
@@ -60065,7 +60122,7 @@ export interface operations {
         };
         content: {
           "application/json":
-            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["SessionDeriveErrorPayload"]
             | components["schemas"]["SendPromptResultResponse"];
         };
       };
@@ -60076,7 +60133,7 @@ export interface operations {
         };
         content: {
           "application/json":
-            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["SessionDeriveErrorPayload"]
             | components["schemas"]["SendPromptResultResponse"];
         };
       };
@@ -60096,7 +60153,7 @@ export interface operations {
         };
         content: {
           "application/json":
-            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["SessionDeriveErrorPayload"]
             | components["schemas"]["SendPromptResultResponse"];
         };
       };
@@ -60106,7 +60163,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
       /** @description New-work admission is unavailable while the daemon is draining */
@@ -60115,7 +60172,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
     };
@@ -60855,6 +60912,168 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listSessionSides: {
+    parameters: {
+      query?: {
+        /** @description Include closed side chats */
+        archived?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Source session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Complete side chat list */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionSidesResponse"];
+        };
+      };
+      /** @description Invalid archive filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Side chats cannot list nested side chats */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  openSessionSide: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Source session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OpenSessionSideRequest"];
+      };
+    };
+    responses: {
+      /** @description Recorded side chat replayed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionDeriveResponse"];
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionDeriveResponse"];
+        };
+      };
+      /** @description Invalid side chat question or identity */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
+        };
+      };
+      /** @description Side chat refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
+        };
+      };
+      /** @description Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
+        };
+      };
+      /** @description New-work admission is unavailable while the daemon is draining */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
     };

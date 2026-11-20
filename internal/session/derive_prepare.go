@@ -45,7 +45,7 @@ func (m *Manager) prepareDerive(
 		return preparedDerive{}, err
 	}
 	var fork forkChildRoute
-	if spec.kind == store.LineageKindFork {
+	if spec.kind == store.LineageKindFork || spec.kind == store.LineageKindSide {
 		if fork, err = m.resolveForkChildRoute(&workspace, agentDef, meta); err != nil {
 			return preparedDerive{}, err
 		}
@@ -63,7 +63,7 @@ func (m *Manager) prepareDerive(
 	now := m.now().UTC()
 	firstPrompt, outcomePrompt := deriveFirstPrompt(spec)
 	seed := deriveSeedOutcome{seed: store.SessionDerivationSeedReplay}
-	if spec.kind == store.LineageKindFork {
+	if spec.kind == store.LineageKindFork || spec.kind == store.LineageKindSide {
 		seed = m.deriveForkSeed(ctx, spec, snapshot, agentName, fork.resolved)
 	}
 	derivation := &store.SessionDerivation{
@@ -96,10 +96,13 @@ func (m *Manager) prepareDerive(
 	}
 	placeDeriveChild(&opts, spec, workspace.Scope)
 	runtime := spec.runtime
-	if spec.kind == store.LineageKindFork {
+	if spec.kind == store.LineageKindFork || spec.kind == store.LineageKindSide {
 		runtime = forkRuntimeFromMeta(meta)
 	}
 	applyDeriveRuntime(&opts, runtime, routeSelection, agentDef.SpeedValue())
+	if spec.kind == store.LineageKindSide {
+		applySideCreate(&opts, meta, spec.name)
+	}
 	return preparedDerive{createOpts: opts, receipt: receipt}, nil
 }
 
@@ -208,6 +211,9 @@ func (m *Manager) buildImportedContext(
 	var aborted *transcript.Message
 	if snapshot.sourceTurnInProgress {
 		note := abortedReplayNote(m.now().UTC())
+		if spec.kind == store.LineageKindSide {
+			note = sideInProgressNote(snapshot.meta.ID, m.now().UTC())
+		}
 		aborted = &note
 		budget.MaxBytes -= replayMessageBytes(note) + 1
 	}

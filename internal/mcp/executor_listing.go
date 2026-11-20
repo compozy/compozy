@@ -91,9 +91,12 @@ func toolListingSafeAtCurrentRevision(discovery *ToolDiscovery, normalizedAt *re
 	if err != nil {
 		return false
 	}
-	unsafe, err := current.NeedsBinaryJSONRedaction(raw)
-	return err == nil && !unsafe &&
-		current.MaterialFingerprint() == redact.RegisteredSecretSnapshot().MaterialFingerprint()
+	var safe bool
+	redact.WithCurrentSecretSnapshot(func(latest *redact.SecretSnapshot) {
+		unsafe, err := latest.NeedsBinaryJSONRedaction(raw)
+		safe = err == nil && !unsafe
+	})
+	return safe
 }
 
 func (e *CallExecutor) normalizeToolListingAt(

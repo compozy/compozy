@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	defaultNativeToolListLimit = 100
-	maxNativeToolListLimit     = 100
+	defaultNativeToolListLimit = toolspkg.CatalogDiscoveryLimit
+	maxNativeToolListLimit     = toolspkg.CatalogDiscoveryLimit
 )
 
 type nativeToolListDescriptor struct {

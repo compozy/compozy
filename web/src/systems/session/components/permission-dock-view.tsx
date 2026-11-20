@@ -20,6 +20,7 @@ import {
 } from "@/systems/terminal/lib/terminal-permission-copy";
 import type { terminalPermissionDetail } from "@/systems/terminal/lib/terminal-permission";
 
+import { SESSION_FOCUS_TARGET } from "../lib/session-focus-target";
 import { getToolIcon, resolveRegisteredToolName, toolAskPhrase } from "../lib/tool-labels";
 import type { PermissionDecision } from "../adapters/session-api";
 import type { PermissionRequest } from "../types";
@@ -232,6 +233,7 @@ function PermissionAllowOnceAction({
       aria-keyshortcuts="1"
       kbd="1"
       data-testid="permission-allow-once"
+      data-focus-target={SESSION_FOCUS_TARGET.permissionAllowOnce}
     >
       Allow once
     </Button>

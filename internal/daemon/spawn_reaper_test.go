@@ -32,6 +32,9 @@ func TestSpawnReaperSweepClassifiesReasonsReleasesLeasesAndStopsChildren(t *test
 				rootReaperInfo("manual", session.StateActive),
 				provenanceReaperInfo("provenance-child", "parent-stopped"),
 				provenanceReaperInfo("provenance-orphan", "missing-parent"),
+				// A stopped parent never makes a side a reaper candidate.
+				{ID: "side", WorkspaceID: "workspace", State: session.StateActive, Type: session.SessionTypeUser,
+					Lineage: &store.SessionLineage{ParentSessionID: "parent-stopped", Kind: store.LineageKindSide}},
 			},
 			stopWithCauseErr: func(id string, _ session.StopCause, _ string) error {
 				sequence = append(sequence, "stop:"+id)

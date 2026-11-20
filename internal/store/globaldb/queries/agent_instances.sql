@@ -63,6 +63,10 @@ WHERE id=sqlc.arg(id) AND main_session_id IS NULL AND archived_at IS NULL;
 SELECT * FROM agent_instances WHERE archived_at IS NULL AND id > sqlc.arg(after_id)
 ORDER BY id LIMIT sqlc.arg(page_limit);
 
+-- name: SessionMayHaveInstanceAncestry :one
+SELECT COALESCE(instance_id, '') <> '' OR COALESCE(parent_session_id, '') <> ''
+FROM sessions WHERE id = sqlc.arg(id);
+
 -- name: GetInstanceCaller :one
 WITH RECURSIVE ancestry(id, parent_session_id, instance_id) AS (
 SELECT id, parent_session_id, instance_id FROM sessions WHERE id=sqlc.arg(session_id)

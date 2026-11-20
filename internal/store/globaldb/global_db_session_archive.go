@@ -76,6 +76,10 @@ func (g *SessionRepo) SetSessionArchived(
 		if e != nil {
 			return e
 		}
+		if e := guardSideUnarchive(ctx, exec, &current, archived); e != nil {
+			return e
+		}
+
 		if current.Lineage != nil && current.Lineage.SpawnRole == store.SubagentSpawnRole {
 			return store.ErrSubagentArchiveFollowsParent
 		}
@@ -92,22 +96,17 @@ func (g *SessionRepo) SetSessionArchived(
 		if e != nil {
 			return e
 		}
-		ids := make([]string, 0, len(family))
-		for _, member := range family {
-			if archived && member.State != globalDBSessionStateStopped {
-				return &store.SessionArchiveLiveMemberError{SessionID: member.ID}
-			}
-			ids = append(ids, member.ID)
+		ids, e := sessionArchiveFamilyIDs(ctx, exec, &current, family, archived)
+		if e != nil {
+			return e
 		}
+
 		encoded, e := subagentIDsJSON(ids)
 		if e != nil {
 			return e
 		}
 		now := store.FormatTimestamp(g.now())
-		at := sql.NullString{}
-		if archived {
-			at = sql.NullString{String: now, Valid: true}
-		}
+		at := sessionArchivedAt(archived, now)
 		if e = q.SetSubagentFamilyArchived(
 			ctx,
 			sqlcgen.SetSubagentFamilyArchivedParams{WorkspaceID: workspaceID, Ids: encoded, ArchivedAt: at, Now: now},
@@ -125,6 +124,14 @@ func (g *SessionRepo) SetSessionArchived(
 		return e
 	})
 	return result, err
+}
+
+// sessionArchivedAt is the archived_at value an archive (now) or restore (NULL) writes.
+func sessionArchivedAt(archived bool, now string) sql.NullString {
+	if !archived {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: now, Valid: true}
 }
 
 func mapSessionArchivedConstraint(sessionID string, err error) error {
@@ -152,4 +159,42 @@ func guardInstanceMainArchive(ctx context.Context, q *sqlcgen.Queries, sessionID
 		return store.ErrSessionIsInstanceMain
 	}
 	return nil
+}
+
+func guardSideUnarchive(ctx context.Context, exec globalSQLExecutor, current *store.SessionInfo, archived bool) error {
+	if archived || current.Lineage == nil || current.Lineage.Kind != store.LineageKindSide {
+		return nil
+	}
+	parent, err := sessionInWorkspace(ctx, exec, current.WorkspaceID, current.Lineage.ParentSessionID)
+	if err != nil {
+		return err
+	}
+	if parent.ArchivedAt != nil {
+		return store.ErrSessionSideParentArchived
+	}
+	return nil
+}
+
+// Restore only side-owned members stamped by this source archive; independently closed sides stay closed.
+func sessionArchiveFamilyIDs(ctx context.Context, exec globalSQLExecutor, current *store.SessionInfo,
+	family []sqlcgen.ListSubagentArchiveFamilyRow, archived bool) ([]string, error) {
+	ids := make([]string, 0, len(family))
+	for _, member := range family {
+		if archived && member.State != globalDBSessionStateStopped {
+			return nil, &store.SessionArchiveLiveMemberError{SessionID: member.ID}
+		}
+		if !archived && member.ID != current.ID {
+			child, err := sessionInWorkspace(ctx, exec, current.WorkspaceID, member.ID)
+			if err != nil {
+				return nil, err
+			}
+			if child.Lineage != nil &&
+				(child.Lineage.Kind == store.LineageKindSide || child.Lineage.SpawnRole == "auto-title") &&
+				(child.ArchivedAt == nil || current.ArchivedAt == nil || !child.ArchivedAt.Equal(*current.ArchivedAt)) {
+				continue
+			}
+		}
+		ids = append(ids, member.ID)
+	}
+	return ids, nil
 }

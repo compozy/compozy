@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-managed-session-intervention
-  mission: "As Théo, open a public daemon-managed session that needs correction, send a prompt when it is stopped, then queue, steer, interrupt, and stop generation while it is active without gaining lifecycle actions."
+  mission: "As Théo, open a public daemon-managed session that needs correction, send a prompt when it is stopped, then queue, steer, and stop generation while it is active without gaining lifecycle actions."
   mode: charter-with-tour
   persona:
     name: Théo
@@ -18,7 +18,7 @@ charter:
     must_try:
       - "Open a visible system, coordinator, or spawned session from normal in-app navigation and confirm its composer is available."
       - "Send a natural follow-up to an eligible stopped managed session, reload its permalink, and confirm the same session ID keeps the earlier and new transcript."
-      - "During a live turn, exercise Queue, Steer, Interrupt, and Stop generation against the visible active turn, then confirm the durable result through a documented structured surface."
+      - "During a live turn, queue and steer from the keyboard (Enter for the follow-up default, the modifier with Enter for the opposite verb) and press Stop generation, the only busy button, against the visible active turn, then confirm the durable result through a documented structured surface. Interrupt is not a Web action; when the walk needs it, send it with `compozy session prompt --interrupt`."
       - "Confirm rename, clear, attach, delete, and whole-session stop actions remain unavailable throughout the walk."
     must_avoid:
       - "Hidden maintenance sessions (auto-title children), which are intentionally read-only or absent from the public catalog."

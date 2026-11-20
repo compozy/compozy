@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// OpenSessionSideRequest is a daemon API value.
+type OpenSessionSideRequest struct {
+	Message        string `json:"message"`
+	Name           string `json:"name,omitempty"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
 // OpenURLEffect is a daemon API value.
 type OpenURLEffect struct {
 	URL string `json:"url"`
@@ -438,13 +445,4 @@ type PromptOriginMeta struct {
 	NotifyOnComplete bool   `json:"notify_on_complete,omitempty"`
 	ReplyWatchID     string `json:"reply_watch_id,omitempty"`
 	InReplyTo        string `json:"in_reply_to,omitempty"`
-}
-
-// PromptRuntimeSelectionPayload is a daemon API value.
-type PromptRuntimeSelectionPayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
 }

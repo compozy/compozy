@@ -5,16 +5,23 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"errors"
+	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-type InstanceRepo struct{ *repoBase }
+type InstanceRepo struct {
+	*repoBase
+	mcpProjectionTimeout time.Duration
+}
 
 func (g *GlobalDB) Instances() *InstanceRepo {
-	return &InstanceRepo{repoBase: newRepoBase(g.db, g.readDB, g.now, &g.closed)}
+	return &InstanceRepo{
+		repoBase:             newRepoBase(g.db, g.readDB, g.now, &g.closed),
+		mcpProjectionTimeout: defaultMCPProjectionTimeout,
+	}
 }
 
 func (r *InstanceRepo) Get(ctx context.Context, id string) (agentinstance.Instance, error) {

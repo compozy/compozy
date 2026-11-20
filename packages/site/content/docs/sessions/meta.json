@@ -8,6 +8,7 @@
         "mentions",
         "control-plane",
         "orchestration",
+        "side-chats",
         "subagents",
         "monitors",
         "processes",

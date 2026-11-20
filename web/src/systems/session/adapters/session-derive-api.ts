@@ -43,7 +43,12 @@ function committedChildSessionId(error: unknown): string {
   return typeof id === "string" ? id.trim() : "";
 }
 
-function throwSessionDeriveError(response: Response, error: unknown, fallback: string): never {
+/** Throws the derive refusal; after a commit it names the child (`SessionDeriveCommittedError`). */
+export function throwSessionDeriveError(
+  response: Response,
+  error: unknown,
+  fallback: string
+): never {
   const childSessionId = committedChildSessionId(error);
   if (!childSessionId) throwSessionRequestError(response, error, fallback);
   // After the commit the daemon's structured diagnostic is the refusal to show; the raw

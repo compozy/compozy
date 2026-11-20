@@ -28,7 +28,7 @@ export const QUEUE_STORY_TURN_ID = "turn-story-queue";
 /**
  * The primary fixture as a public user session mid-turn: `canPromptSession`
  * needs a public `type`, an active state and no archive; the running badge and
- * the active turn make the composer offer queue / steer / interrupt. The same
+ * the active turn make Enter and the modifier queue or steer a follow-up. The same
  * payload is served on the session detail routes so the runtime provider, the
  * page controls and the composer read one coherent session.
  */

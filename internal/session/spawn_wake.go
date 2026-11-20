@@ -174,7 +174,8 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 	}
 	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
 	creatorSessionID := strings.TrimSpace(lineage.ParentSessionID)
-	if creatorSessionID == "" {
+	// A side chat never notifies its source, including the early-stop alarm (Invariant 1).
+	if creatorSessionID == "" || lineage.Kind == store.LineageKindSide {
 		return
 	}
 	event, ready := m.prepareCreatorWake(ctx, info, badge)

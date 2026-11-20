@@ -105,6 +105,9 @@ func (m *Manager) MoveSession(
 	sessionID string,
 	folderID string,
 ) error {
+	if err := m.refuseSideOperation(ctx, sessionID, ErrSideFixedParent); err != nil {
+		return err
+	}
 	layout, err := m.sessionLayoutStore()
 	if err != nil {
 		return err
@@ -123,6 +126,11 @@ func (m *Manager) ReorderSessions(
 	folderID string,
 	sessionIDs []string,
 ) error {
+	for _, id := range sessionIDs {
+		if err := m.refuseSideOperation(ctx, id, ErrSideFixedParent); err != nil {
+			return err
+		}
+	}
 	layout, err := m.sessionLayoutStore()
 	if err != nil {
 		return err
@@ -141,6 +149,11 @@ func (m *Manager) ReorderPinnedSessions(
 	scope store.SessionLayoutScope,
 	sessionIDs []string,
 ) error {
+	for _, id := range sessionIDs {
+		if err := m.refuseSideOperation(ctx, id, ErrSideFixedParent); err != nil {
+			return err
+		}
+	}
 	pinStore, err := m.pinStore()
 	if err != nil {
 		return err

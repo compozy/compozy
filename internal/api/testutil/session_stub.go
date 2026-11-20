@@ -61,6 +61,8 @@ type StubSessionManager struct {
 	ClearFn                 func(context.Context, string) (*session.Session, error)
 	ContinueFn              func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error)
 	ForkFn                  func(context.Context, session.ForkSessionOpts) (session.DeriveResult, error)
+	OpenSideFn              func(context.Context, session.OpenSideOpts) (session.DeriveResult, error)
+	ListSidesFn             func(context.Context, string, string, bool) ([]*session.Info, error)
 	DerivePreviewFn         func(context.Context, string, string, string) (session.DerivePreview, error)
 	RewindFn                func(
 		context.Context,

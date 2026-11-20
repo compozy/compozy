@@ -24,7 +24,13 @@ var (
 // Archive removes a stopped session from the default catalog without deleting
 // its history or attachments, which remain readable after unarchive.
 func (m *Manager) Archive(ctx context.Context, workspaceID string, sessionID string) (*Info, error) {
-	return m.setArchived(ctx, workspaceID, sessionID, true)
+	var info *Info
+	err := m.archiveStoppingSideMembers(ctx, sessionID, func() error {
+		var err error
+		info, err = m.setArchived(ctx, workspaceID, sessionID, true)
+		return err
+	})
+	return info, err
 }
 
 // archiveRequiresStoppedError keeps the public refusal text while naming the
@@ -63,18 +69,23 @@ func (m *Manager) ArchiveWithStop(ctx context.Context, workspaceID string, sessi
 		var archiveErr error
 		info, archiveErr = m.Archive(ctx, workspaceID, sessionID)
 		return archiveErr
-	})
+	}, nil)
 	return info, err
 }
 
 // archiveStoppingLiveMembers repeats archive, stopping the live member each
 // refusal names, until it stops refusing.
-func (m *Manager) archiveStoppingLiveMembers(ctx context.Context, sessionID string, archive func() error) error {
+func (m *Manager) archiveStoppingLiveMembers(
+	ctx context.Context,
+	sessionID string,
+	archive func() error,
+	mayStop func(string) bool,
+) error {
 	stopped := make(map[string]bool)
 	for {
 		err := archive()
 		refusal, ok := errors.AsType[*archiveRequiresStoppedError](err)
-		if !ok {
+		if !ok || (mayStop != nil && !mayStop(refusal.member)) {
 			return err
 		}
 		// Each member is stopped at most once, so a member that stays live after
@@ -133,6 +144,11 @@ func (m *Manager) setArchived(
 	if sessionID == "" {
 		return nil, errors.New("session: archive workspace and session ids are required")
 	}
+	if !archived {
+		if err := m.requireSideParentUnarchived(ctx, sessionID); err != nil {
+			return nil, err
+		}
+	}
 	archiveStore, ok := m.sessionCatalog.(store.SessionArchiveStore)
 	if !ok || archiveStore == nil {
 		return nil, ErrSessionArchiveUnavailable
@@ -154,6 +170,7 @@ func (m *Manager) setArchived(
 	}
 	info := sessionInfoFromCatalog(&stored)
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
+	m.publishSideFamily(ctx, workspaceID, sessionID)
 	return info, nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -147,7 +148,7 @@ func (n *daemonNativeTools) submitRunReviewAvailability(
 	if n == nil || n.deps == nil || n.deps.Tasks == nil {
 		return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
 	}
-	effectiveScope, err := n.nativeEffectiveScope(ctx, scope)
+	effectiveScope, err := n.reviewAvailabilityScope(ctx, scope)
 	if err != nil {
 		return toolspkg.Unavailable(toolspkg.ReasonBackendUnhealthy)
 	}
@@ -162,6 +163,25 @@ func (n *daemonNativeTools) submitRunReviewAvailability(
 		return toolspkg.Unavailable(toolspkg.ReasonBackendUnhealthy)
 	}
 	return toolspkg.Available()
+}
+
+func (n *daemonNativeTools) reviewAvailabilityScope(ctx context.Context, scope toolspkg.Scope) (toolspkg.Scope, error) {
+	if manager, ok := n.deps.Sessions.(*session.Manager); ok {
+		if bound, access, found := manager.MCPProjectionSessionScope(strings.TrimSpace(scope.SessionID)); found {
+			profile, _, workspace, err := nativeSessionProfileIdentity(
+				scope,
+				bound.ProfileID,
+				bound.WorkspaceID,
+				access,
+			)
+			scope.ProfileID = profile
+			if strings.TrimSpace(scope.WorkspaceID) == "" {
+				scope.WorkspaceID = workspace
+			}
+			return scope, err
+		}
+	}
+	return n.nativeEffectiveScope(ctx, scope)
 }
 
 func (n *daemonNativeTools) submitRunReview(

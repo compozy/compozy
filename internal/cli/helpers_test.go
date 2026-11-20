@@ -182,6 +182,8 @@ type stubClient struct {
 	rewindSessionFn                  func(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
 	continueSessionFn                func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error)
 	forkSessionFn                    func(context.Context, SessionDeriveTarget, SessionForkRequest) (SessionDeriveRecord, error)
+	openSessionSideFn                func(context.Context, SessionDeriveTarget, contract.OpenSessionSideRequest) (SessionDeriveRecord, error)
+	listSessionSidesFn               func(context.Context, string, bool) (contract.SessionSidesResponse, error)
 	approveSessionFn                 func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	listSessionClarificationsFn      func(context.Context, string) (ClarificationsRecord, error)
 	listSessionPendingInteractionsFn func(context.Context, string, bool) (SessionInteractionsRecord, error)
@@ -3931,4 +3933,26 @@ func (s *stubClient) RemoveWorktrees(
 		return s.removeWorktreesFn(ctx, workspace, request)
 	}
 	return contract.RemoveWorktreesResponse{}, errors.New("unexpected RemoveWorktrees call")
+}
+
+func (s *stubClient) OpenSessionSide(
+	ctx context.Context,
+	target SessionDeriveTarget,
+	request contract.OpenSessionSideRequest,
+) (SessionDeriveRecord, error) {
+	if s.openSessionSideFn != nil {
+		return s.openSessionSideFn(ctx, target, request)
+	}
+	return SessionDeriveRecord{}, errors.New("unexpected OpenSessionSide call")
+}
+
+func (s *stubClient) ListSessionSides(
+	ctx context.Context,
+	id string,
+	archived bool,
+) (contract.SessionSidesResponse, error) {
+	if s.listSessionSidesFn != nil {
+		return s.listSessionSidesFn(ctx, id, archived)
+	}
+	return contract.SessionSidesResponse{}, errors.New("unexpected ListSessionSides call")
 }

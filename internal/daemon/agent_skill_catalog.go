@@ -244,45 +244,50 @@ func (c *resourceAgentCatalog) ResolveHeartbeatPolicy(
 	if err := ctx.Err(); err != nil {
 		return heartbeat.ResolvedPolicy{}, false, err
 	}
+	material := c.capturePublishedHeartbeat(target.AgentName, agentCatalogLensForIdentity(
+		target.WorkspaceID, target.ProfileID, target.ProfileName,
+	))
+	if !material.owned {
+		return heartbeat.ResolvedPolicy{}, false, nil
+	}
+	policy, err := material.resolve(ctx, target)
+	return policy, true, err
+}
+
+type publishedHeartbeat struct {
+	path, body string
+	owned      bool
+}
+
+func (m publishedHeartbeat) stamp() string {
+	if !m.owned {
+		return ""
+	}
+	return m.path + "\x00" + m.body
+}
+
+func (m publishedHeartbeat) resolve(
+	ctx context.Context, target heartbeat.AuthoringTarget,
+) (heartbeat.ResolvedPolicy, error) {
 	config := target.Config
 	if config.IsZero() {
 		config = compozyconfig.DefaultHeartbeatConfig()
 	}
-	workspace := &workspacepkg.ResolvedWorkspace{
-		ProfileID:   strings.TrimSpace(target.ProfileID),
-		ProfileName: strings.TrimSpace(target.ProfileName),
-		ID:          strings.TrimSpace(target.WorkspaceID),
-		RootDir:     strings.TrimSpace(target.WorkspaceRoot),
-		Config: compozyconfig.Config{
-			Agents: compozyconfig.AgentsConfig{Heartbeat: config},
-		},
+	sourcePath := strings.TrimSpace(m.path)
+	if strings.TrimSpace(m.body) == "" {
+		return heartbeat.Empty(config, sourcePath)
 	}
-	artifacts, err := c.ResolveAgentArtifacts(target.AgentName, workspace)
-	if err != nil {
-		if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
-			return heartbeat.ResolvedPolicy{}, false, nil
-		}
-		return heartbeat.ResolvedPolicy{}, false, err
-	}
-	if !artifacts.PackageOwned {
-		return heartbeat.ResolvedPolicy{}, false, nil
-	}
-	sourcePath := strings.TrimSpace(artifacts.HeartbeatSourcePath)
-	if strings.TrimSpace(artifacts.HeartbeatBody) == "" {
-		policy, emptyErr := heartbeat.Empty(config, sourcePath)
-		return policy, true, emptyErr
-	}
-	policy, parseErr := heartbeat.Parse(ctx, heartbeat.ParseRequest{
+	policy, err := heartbeat.Parse(ctx, heartbeat.ParseRequest{
 		CheckInLimits: target.CheckInLimits,
 		SourcePath:    sourcePath,
 		WorkspaceRoot: strings.TrimSpace(target.WorkspaceRoot),
-		Content:       []byte(artifacts.HeartbeatBody),
+		Content:       []byte(m.body),
 		Config:        config,
 	})
-	if parseErr == nil {
+	if err == nil {
 		heartbeat.WarnUntrustedScripts(&policy)
 	}
-	return policy, true, parseErr
+	return policy, err
 }
 
 func (c *resourceAgentCatalog) lookupSoulForAgent(
@@ -344,4 +349,18 @@ func sidecarRecordMatchesAgent(
 	return strings.TrimSpace(agentResourceID) == strings.TrimSpace(agent.ID) &&
 		scope.Normalize() == agent.Scope.Normalize() &&
 		owner.Normalize() == agent.Owner.Normalize()
+}
+
+// projectionHeartbeat selects the same package-owned artifact as ResolveHeartbeatPolicy.
+func (c *resourceAgentCatalog) projectionHeartbeat(agentName string, lens agentCatalogLens) string {
+	return c.capturePublishedHeartbeat(agentName, lens).stamp()
+}
+
+func (c *resourceAgentCatalog) capturePublishedHeartbeat(agentName string, lens agentCatalogLens) publishedHeartbeat {
+	record, found := c.lookupAgentRecord(agentName, lens)
+	if !found || record.Owner.Kind.Normalize() != extensionResourceOwnerKind {
+		return publishedHeartbeat{}
+	}
+	resource, _ := c.lookupHeartbeatForAgent(record)
+	return publishedHeartbeat{path: resource.SourcePath, body: resource.Body, owned: true}
 }

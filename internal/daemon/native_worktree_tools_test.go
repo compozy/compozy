@@ -763,7 +763,7 @@ func TestNativeWorktreeTools(t *testing.T) {
 					Workspaces: nativeWorktreeWorkspaceService(),
 					Worktrees:  &nativeWorktreeServiceStub{capabilityErr: testCase.err},
 				}}
-				availability := native.worktreeAvailability()(t.Context(), toolspkg.Scope{})
+				availability := native.worktreeAvailability().Check(t.Context(), toolspkg.Scope{})
 				if availability.Available || len(availability.ReasonCodes) != 1 ||
 					availability.ReasonCodes[0] != testCase.reason {
 					t.Fatalf("worktree availability = %#v, want %q", availability, testCase.reason)
