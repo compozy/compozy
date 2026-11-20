@@ -46,6 +46,10 @@ func (r *RuntimeRegistry) projectionAvailabilities(
 		if _, found := availability[entry.descriptor.ID]; found {
 			continue
 		}
+		if value, found := r.pinnedAvailability(ctx, scope, entry); found {
+			availability[entry.descriptor.ID] = value
+			continue
+		}
 		provider, ok := entry.provider.(ProjectionAvailabilityProvider)
 		if !ok || len(entry.conflicts) > 0 {
 			continue
@@ -96,7 +100,8 @@ func (r *RuntimeRegistry) projectionAvailabilities(
 // PolicyProjection projects an already resolved scope without reentering its policy resolver.
 func (r *RuntimeRegistry) PolicyProjection(ctx context.Context, scope Scope, inputs PolicyInputs) ([]ToolView, error) {
 	if listings, ok := ctx.Value(projectionListingsKey{}).(*ProjectionListings); ok &&
-		cachedMCPProjection(ctx) && !scope.Operator && inputs.CheckIn == nil {
+		cachedMCPProjection(ctx) && !scope.Operator && inputs.CheckIn == nil &&
+		ctx.Value(pinnedProjectionInputsKey{}) == nil && ctx.Value(nativeProjectionBuildKey{}) == nil {
 		return listings.loadPolicy(ctx, r, scope, inputs)
 	}
 	return r.policyProjection(ctx, scope, inputs)
@@ -201,6 +206,9 @@ func (r *RuntimeRegistry) viewForAvailability(
 func (r *RuntimeRegistry) availabilityFor(ctx context.Context, scope Scope, entry *registryEntry) Availability {
 	if len(entry.conflicts) > 0 {
 		return r.uncachedAvailabilityFor(ctx, scope, entry)
+	}
+	if value, found := r.pinnedAvailability(ctx, scope, entry); found {
+		return value
 	}
 	cache, cached := ctx.Value(policyResolutionKey{}).(*policyResolutionCache)
 	key := policyResolutionScope{registry: r, scope: scope}

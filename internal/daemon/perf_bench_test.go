@@ -801,11 +801,24 @@ func (p *projectionFixturePolicy) Resolve(ctx context.Context, scope toolspkg.Sc
 
 type projectionFixtureSessions struct {
 	*session.Manager
-	reads map[string]int
+	reads              map[string]int
+	aroundStoredStatus func(context.Context, string) func(*session.Info)
 }
 
 func (s *projectionFixtureSessions) Status(ctx context.Context, id string) (*session.Info, error) {
 	return s.StoredStatus(ctx, id)
+}
+
+func (s *projectionFixtureSessions) StoredStatus(ctx context.Context, id string) (*session.Info, error) {
+	var after func(*session.Info)
+	if s.aroundStoredStatus != nil {
+		after = s.aroundStoredStatus(ctx, id)
+	}
+	info, err := s.Manager.StoredStatus(ctx, id)
+	if after != nil {
+		after(info)
+	}
+	return info, err
 }
 
 func (s *projectionFixtureSessions) MCPReadSnapshot(
@@ -928,15 +941,31 @@ func TestHostedMCPProjectionConvergence(t *testing.T) {
 			fixture.warmProjections(t)
 			fixture.model.state.toolProjectionEpoch.Advance()
 			var write func() error
+			writes := 0
 			if scenario.write {
-				write = fixture.convergenceWriter(t)
+				commit := fixture.convergenceWriter(t)
+				write = func() error {
+					if err := commit(); err != nil {
+						return err
+					}
+					writes++
+					return nil
+				}
 			}
 			const limit = 2
 			var misses []int
 			for range limit + 1 {
 				misses = append(misses, fixture.projectionWave(t, write))
 				if misses[len(misses)-1] == 0 {
-					t.Logf("converged after %d refresh windows (rebuilds %v)", len(misses)-1, misses)
+					if scenario.write && writes == 0 {
+						t.Fatal("convergence did not exercise a commit during a paused rebuild")
+					}
+					t.Logf(
+						"converged after %d refresh windows (rebuilds %v, committed writes %d)",
+						len(misses)-1,
+						misses,
+						writes,
+					)
 					return
 				}
 			}

@@ -44,13 +44,22 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 		if err != nil || strings.Count(projection, key.InputDigest) != 1 {
 			t.Fatalf("check-in projection = %q, %v", projection, err)
 		}
+		narrow := db.WithCheckInApprovalProjectionLimit(1)
+		if _, err := narrow.CheckInApprovalProjection(ctx, scope); err != nil {
+			t.Fatalf("single applicable grant exceeds custom limit: %v", err)
+		}
 		for i := range checkInApprovalProjectionLimit {
 			decision := key
 			decision.InputDigest = approvalGrantDigest(fmt.Sprintf("also-applicable-%d", i))
 			put(decision)
 		}
-		if _, err := db.CheckInApprovalProjection(ctx, scope); err == nil {
-			t.Fatal("incomplete check-in projection was accepted")
+		if _, err := db.CheckInApprovalProjection(ctx, scope); err == nil ||
+			!strings.Contains(err.Error(), "check-in approval observation exceeds 128 rows") {
+			t.Fatalf("overflow observation = %v", err)
+		}
+		if _, err := narrow.CheckInApprovalProjection(ctx, scope); err == nil ||
+			!strings.Contains(err.Error(), "check-in approval observation exceeds 1 rows") {
+			t.Fatalf("custom-limit overflow observation = %v", err)
 		}
 	})
 

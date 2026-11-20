@@ -1113,6 +1113,85 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 // Owning layer: internal/mcp hosted projection cache.
 // Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
+	// Invariant: a bounded view of one peer cannot be promoted under another peer's fresh input observation.
+	// Owner: hosted projection cache; canonical suite: TestHostedServiceProjectionGenerationCache.
+	t.Run("Should reject a borrowed response after scoped availability changes within a window", func(t *testing.T) {
+		ctx := t.Context()
+		source := tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo", Scope: "user"}
+		upstream := newTestMCPHTTPServer(newFakeSDKServer(nil))
+		t.Cleanup(upstream.Close)
+		auth := &fakeAuthService{
+			status:                mcpauth.Status{Status: mcpauth.StatusAuthenticated, TokenPresent: true},
+			authorizationToken:    mcpauth.TokenRecord{AccessToken: "fixture-access", TokenType: "Bearer"},
+			hasAuthorizationToken: true,
+		}
+		executor := newTestMCPExecutor(t, authEnabledServer("echo", "http", upstream.URL), withAuthService(auth))
+		provider, err := tools.NewMCPProvider(
+			tools.MCPSourceListerFunc(func(context.Context) ([]tools.SourceRef, error) {
+				return []tools.SourceRef{source}, nil
+			}),
+			executor,
+			executor,
+			tools.WithMCPBackgroundDiscovery(nil, nil),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := provider.List(ctx, tools.Scope{}); err != nil {
+			t.Fatal(err)
+		}
+		inputs := tools.DefaultPolicyInputs()
+		inputs.ExternalDefault = tools.ExternalDefaultEnabled
+		inputs.SystemPermissionMode = tools.PermissionModeApproveAll
+		resolver := hostedObservationPolicyResolver{
+			resolve: func(context.Context, tools.Scope) (tools.PolicyInputs, error) {
+				return inputs, nil
+			},
+		}
+		registry, err := tools.NewRegistry(
+			tools.WithProviders(provider),
+			tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		executable := hostedTestExecutable(t, "compozy")
+		peer := hostedTestPeer(executable)
+		now := time.Now()
+		service, err := NewHostedService(&HostedConfig{
+			Enabled: true, ExpectedBinary: executable, Registry: func() tools.Registry { return registry },
+			ProjectionEpoch: NewProjectionEpoch().Current, Now: func() time.Time { return now },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		launch, err := service.Launch(ctx, HostedLaunchRequest{SessionID: "sess-prime", EagerTools: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := service.ArmLaunch(ctx, "sess-prime"); err != nil {
+			t.Fatal(err)
+		}
+		first, err := service.Bind(ctx, HostedBindRequest{
+			SessionID: "sess-prime", Nonce: hostedLaunchNonce(t, launch.Args),
+		}, peer)
+		if err != nil || len(first.Tools) != 1 {
+			t.Fatalf("initial hosted bind: %d tools, %v", len(first.Tools), err)
+		}
+		auth.mu.Lock()
+		auth.status = mcpauth.Status{Status: mcpauth.StatusNeedsLogin}
+		auth.mu.Unlock()
+
+		cold := hostedTestBind(t, service, "sess-cold", peer)
+		for window := range 2 {
+			result, err := service.StreamSnapshot(ctx, cold.BindID, peer)
+			if err != nil || len(result.Tools) != 0 {
+				t.Errorf("cold bind in window %d advertised %d unauthorized tools, %v", window, len(result.Tools), err)
+			}
+			now = now.Add(service.StreamRefreshInterval())
+		}
+	})
+
 	// Invariant: a cold or slow upstream cannot block a hosted bind; equivalent peers
 	// reuse the warmed catalog and a later registered secret is never streamed.
 	// Owner: hosted service; canonical suite: TestHostedServiceProjectionGenerationCache.
@@ -1344,8 +1423,10 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		epoch.Advance()
 		failDuringBuild = true
 		read("affected", 0, true)
-		now = now.Add(service.StreamRefreshInterval())
+		// The rejected build leaves this scope cold inside the same listings window.
 		read("affected", 1, true)
+		now = now.Add(service.StreamRefreshInterval())
+		read("affected", 0, false)
 	})
 	// Invariant: secret changes preserve safe hosted reads without caching a projection built across revisions.
 	// Owner: hosted projection; canonical suite: hosted projection generations.

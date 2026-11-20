@@ -2,15 +2,17 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json/v2"
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/agentinstance"
-	"github.com/compozy/compozy/internal/filesnap"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/managedsidecar"
 	"github.com/compozy/compozy/internal/session"
@@ -48,7 +50,8 @@ func (p *sessionProjectionPolicyIdentity) isCheckIn() bool {
 }
 
 type projectionDefinitionIdentity struct {
-	heartbeat                 filesnap.Snapshot
+	heartbeat                 [sha256.Size]byte
+	workspace                 *workspacepkg.ResolvedAgentConfig
 	path, approved, published string
 }
 
@@ -60,7 +63,13 @@ type projectionDefinitionKey struct {
 type projectionDefinition struct {
 	workspace, epoch   uint64
 	catalog, heartbeat int64
-	path, published    string
+	path, profileName  string
+	resolved           *workspacepkg.ResolvedAgentConfig
+}
+
+func (p *projectionDefinition) matches(fence sessionMCPReadFence, heartbeat int64) bool {
+	return p.workspace == fence.workspace && p.epoch == fence.epoch &&
+		p.catalog == fence.catalog && p.heartbeat == heartbeat
 }
 
 type hostedPolicyIdentity struct {
@@ -87,6 +96,8 @@ type projectionPolicyBuild struct {
 	grantScope tools.Scope
 	grants     [][4]string
 	mismatch   atomic.Bool
+	durable    bool
+	runtime    *session.MCPSummaryIdentity
 }
 
 func (r *nativeToolPolicyResolver) BeginProjectionBuild(
@@ -96,13 +107,23 @@ func (r *nativeToolPolicyResolver) BeginProjectionBuild(
 	if !ok {
 		return ctx, func() bool { return false }
 	}
-	return r.beginProjectionPolicyBuild(ctx, scope, &identity.policy)
+	return r.beginProjectionPolicyBuild(ctx, scope, &identity.policy, nil)
 }
 
 func (r *nativeToolPolicyResolver) beginProjectionPolicyBuild(
-	ctx context.Context, scope tools.Scope, observed *sessionProjectionPolicyIdentity,
+	ctx context.Context,
+	scope tools.Scope,
+	observed *sessionProjectionPolicyIdentity,
+	runtime *session.MCPSummaryIdentity,
 ) (context.Context, func() bool) {
-	build := &projectionPolicyBuild{id: scope.SessionID, mainID: observed.instance.MainSessionID, policy: *observed}
+	_, durable := r.instanceCallers.(mcpProjectionInstanceReader)
+	build := &projectionPolicyBuild{
+		id:      scope.SessionID,
+		mainID:  observed.instance.MainSessionID,
+		policy:  *observed,
+		durable: durable,
+		runtime: runtime,
+	}
 	if build.mainID != "" && observed.isCheckIn() {
 		build.grantScope = observed.checkInGrantScope(scope)
 		if observed.grants != "" && json.Unmarshal([]byte(observed.grants), &build.grants) != nil {
@@ -120,15 +141,20 @@ func (r *nativeToolPolicyResolver) beginProjectionPolicyBuild(
 }
 
 func (b *projectionPolicyBuild) checkSession(id string, info *session.Info) {
-	switch id {
-	case b.id:
-		if !b.policy.session.MatchesPolicyInfo(info) {
+	identity, state := b.policy.session, b.policy.instance
+	if id != b.id {
+		if id != b.mainID {
 			b.mismatch.Store(true)
+			return
 		}
-	case b.mainID:
-		if !b.policy.main.MatchesPolicyInfo(info) {
-			b.mismatch.Store(true)
-		}
+		identity, state = b.policy.main, b.policy.mainInstance
+	}
+	var direct *string
+	if b.durable {
+		direct = &state.DirectInstanceID
+	}
+	if !identity.MatchesPolicyInfo(info, direct) {
+		b.mismatch.Store(true)
 	}
 }
 
@@ -155,10 +181,61 @@ func (r *nativeToolPolicyResolver) projectionInstanceCaller(
 	}
 	if read.CallerInstanceID != want.CallerInstanceID || read.CallerInstanceID != "" &&
 		(read.Depth != want.Depth || read.Policy != want.Policy ||
-			read.LineageKind != want.LineageKind || read.SessionType != want.SessionType) {
+			read.LineageKind != want.LineageKind || read.SessionType != want.SessionType || read.Grant != want.Grant ||
+			read.ProfileID != want.ProfileID || read.AgentName != want.AgentName) {
 		build.mismatch.Store(true)
 	}
 	return caller, err
+}
+
+func (b *projectionPolicyBuild) checkRuntimeSnapshot(snapshot *session.MCPRuntimeSnapshot) {
+	if b.runtime == nil {
+		return
+	}
+	var cfg *compozyconfig.Config
+	if workspace := b.policy.definition.workspace; workspace != nil {
+		cfg = &workspace.Config
+	}
+	if !snapshot.MatchesSummaryIdentity(b.runtime, cfg) {
+		b.mismatch.Store(true)
+	}
+}
+
+func (b *projectionPolicyBuild) checkWorkspaceConfig(scope tools.Scope, value *workspacepkg.ResolvedAgentConfig) {
+	owner := projectionAuthorityScope(b.policy.session, b.policy.instance)
+	if scope.ProfileID == owner.ProfileID && scope.WorkspaceID == owner.WorkspaceID {
+		if !sameProjectionWorkspace(b.policy.definition.workspace, value) {
+			b.mismatch.Store(true)
+		}
+		return
+	}
+	owner = projectionAuthorityScope(b.policy.main, b.policy.mainInstance)
+	if b.mainID == "" || scope.ProfileID != owner.ProfileID || scope.WorkspaceID != owner.WorkspaceID ||
+		!sameProjectionWorkspace(b.policy.mainDefinition.workspace, value) {
+		b.mismatch.Store(true)
+	}
+}
+
+func sameProjectionWorkspace(a, b *workspacepkg.ResolvedAgentConfig) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.ProfileName == b.ProfileName && a.RootDir == b.RootDir &&
+		reflect.DeepEqual(&a.Config, &b.Config) && reflect.DeepEqual(a.Agents, b.Agents)
+}
+
+func (b *projectionPolicyBuild) checkAuthorityMaterial(id string, heartbeat [sha256.Size]byte, published string) {
+	definition := b.policy.definition
+	if id != b.id {
+		if id != b.mainID {
+			b.mismatch.Store(true)
+			return
+		}
+		definition = b.policy.mainDefinition
+	}
+	if heartbeat != definition.heartbeat || published != definition.published {
+		b.mismatch.Store(true)
+	}
 }
 
 func (b *projectionPolicyBuild) checkApprovedAuthority(info *session.Info, dir, approved string) {
@@ -334,18 +411,19 @@ func (r *nativeToolPolicyResolver) observeProjectionDefinition(
 	ctx context.Context, scope tools.Scope, fence sessionMCPReadFence, checkIn bool,
 ) (projectionDefinitionIdentity, bool) {
 	definition, known := r.projectionDefinition(ctx, scope, fence, checkIn)
-	id := projectionDefinitionIdentity{published: definition.published}
+	id := projectionDefinitionIdentity{workspace: definition.resolved}
+	if catalog, ok := r.agentResolver.(*resourceAgentCatalog); ok && definition.path != "" {
+		lens := agentCatalogLensForIdentity(scope.WorkspaceID, scope.ProfileID, definition.profileName)
+		id.published = catalog.projectionHeartbeat(scope.AgentName, lens)
+	}
 	if !known || definition.path == "" {
 		return id, known
 	}
-	snapshot, err := filesnap.FromPath(definition.path)
+	body, err := os.ReadFile(definition.path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return projectionDefinitionIdentity{}, false
 	}
-	if !snapshot.Reusable() {
-		return projectionDefinitionIdentity{}, false
-	}
-	id.heartbeat = snapshot
+	id.heartbeat = authorityBodyDigest(body, err)
 	dir, err := filepath.EvalSymlinks(filepath.Dir(definition.path))
 	if errors.Is(err, os.ErrNotExist) {
 		return id, true
@@ -368,9 +446,7 @@ func (r *nativeToolPolicyResolver) projectionDefinition(
 	r.authorityMu.Lock()
 	definition, found := r.projectionDefinitions[key]
 	r.authorityMu.Unlock()
-	if found && definition.workspace == fence.workspace && definition.catalog == fence.catalog &&
-		definition.epoch == fence.epoch &&
-		definition.heartbeat == heartbeatRevision {
+	if found && definition.matches(fence, heartbeatRevision) {
 		return definition, true
 	}
 	definition = projectionDefinition{
@@ -385,24 +461,24 @@ func (r *nativeToolPolicyResolver) projectionDefinition(
 	if ctx.Err() != nil || err != nil && !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
 		return projectionDefinition{}, false
 	}
+	definition.resolved = workspace
 	if err == nil && (checkIn || len(heartbeat.AuthorityOverrides(agent.MCPServers)) != 0) {
 		if path, err := managedsidecar.SidecarPath(agent.SourcePath, heartbeat.FileName); err == nil {
 			definition.path = path
 		}
-		if catalog, ok := r.agentResolver.(*resourceAgentCatalog); ok {
-			var profileName string
-			if workspace != nil {
-				profileName = workspace.ProfileName
-			}
-			lens := agentCatalogLensForIdentity(scope.WorkspaceID, scope.ProfileID, profileName)
-			definition.published = catalog.projectionHeartbeat(scope.AgentName, lens)
+		if workspace != nil {
+			definition.profileName = workspace.ProfileName
 		}
 	}
 	r.authorityMu.Lock()
+	defer r.authorityMu.Unlock()
+	// Concurrent observations for the same fence retain one comparable snapshot identity.
+	if previous, ok := r.projectionDefinitions[key]; ok && previous.matches(fence, heartbeatRevision) {
+		return previous, true
+	}
 	if r.projectionDefinitions == nil || len(r.projectionDefinitions) >= instanceSourceDeclarationCacheLimit {
 		r.projectionDefinitions = make(map[projectionDefinitionKey]projectionDefinition)
 	}
 	r.projectionDefinitions[key] = definition
-	r.authorityMu.Unlock()
 	return definition, true
 }

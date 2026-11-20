@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"iter"
 	"slices"
@@ -18,8 +17,8 @@ type ProjectionObservation struct {
 }
 
 type projectionSharedObservation struct {
-	digest [sha256.Size]byte
-	native string
+	external string
+	native   string
 }
 
 type projectionPolicyObserver interface {
@@ -97,6 +96,11 @@ func sameProjectionAvailability(a, b Availability) bool {
 		slices.Equal(a.ReasonCodes, b.ReasonCodes)
 }
 
+// MatchesExternal reports whether the build pinned the catalog and availability observed for this scope.
+func (o ProjectionObservation) MatchesExternal(fingerprint string) bool {
+	return o.Shared.external == fingerprint
+}
+
 // BeginProjectionBuild captures inputs consumed when populating the cache.
 func (r *RuntimeRegistry) BeginProjectionBuild(
 	ctx context.Context,
@@ -157,12 +161,7 @@ func (r *RuntimeRegistry) ObserveProjection(ctx context.Context, scope Scope) (P
 			return projectionSharedObservation{}, false, err
 		}
 		external, err := r.ExternalProjectionFingerprint(ctx, scope)
-		var stamp strings.Builder
-		appendProjectionGenerationPart(&stamp, global, external)
-		return projectionSharedObservation{
-			digest: sha256.Sum256([]byte(stamp.String())),
-			native: global,
-		}, err == nil, err
+		return projectionSharedObservation{external: external, native: global}, err == nil, err
 	})
 	if err != nil {
 		return ProjectionObservation{}, false

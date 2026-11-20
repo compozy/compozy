@@ -29,15 +29,27 @@ func (r *InstanceRepo) MCPProjectionCaller(
 	}
 	row, err := r.readQueries.GetInstanceCaller(ctx, sessionID)
 	if err != nil {
-		return agentinstance.Caller{}, agentinstance.ProjectionState{}, err
+		return agentinstance.Caller{}, agentinstance.ProjectionState{}, fmt.Errorf(
+			"store: read instance caller %q: %w",
+			sessionID,
+			err,
+		)
 	}
 	state, err := instanceCallerProjectionState(row)
 	if err != nil {
-		return agentinstance.Caller{}, agentinstance.ProjectionState{}, err
+		return agentinstance.Caller{}, agentinstance.ProjectionState{}, fmt.Errorf(
+			"store: decode instance caller %q: %w",
+			sessionID,
+			err,
+		)
 	}
 	var policy store.SessionPermissionPolicy
 	if err := json.Unmarshal([]byte(state.Policy), &policy); err != nil {
-		return agentinstance.Caller{}, agentinstance.ProjectionState{}, err
+		return agentinstance.Caller{}, agentinstance.ProjectionState{}, fmt.Errorf(
+			"store: decode instance caller ceiling for %q: %w",
+			sessionID,
+			err,
+		)
 	}
 	if state.Depth > 0 {
 		policy = store.DecodeInstanceCeilingIntent(policy, int(state.Depth))
@@ -87,6 +99,11 @@ func (r *InstanceRepo) MCPProjectionState(
 	if err != nil {
 		return agentinstance.ProjectionState{}, fmt.Errorf("store: decode MCP caller: %w", err)
 	}
+	direct, err := r.mcpProjectionQueries(ctx).GetSessionInstanceID(ctx, sessionID)
+	if err != nil {
+		return agentinstance.ProjectionState{}, fmt.Errorf("store: read direct MCP instance binding: %w", err)
+	}
+	state.DirectInstanceID = direct.String
 	if sessionType == "" {
 		sessionType = row.SessionType
 		state.WorkspaceID, err = r.mcpProjectionQueries(ctx).GetSessionWorkspaceID(ctx, sessionID)

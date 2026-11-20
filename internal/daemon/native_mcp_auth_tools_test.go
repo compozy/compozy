@@ -707,19 +707,100 @@ func TestRuntimeMCPInventory(t *testing.T) {
 		}
 	})
 
+	// Invariant: an unstable inventory observation stays unusable after a stable read of the same revision.
+	// Owner: daemon runtime inventory; canonical suite: TestRuntimeMCPInventory.
+	t.Run("Should keep unstable inventory observations unknown", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		path := filepath.Join(root, ".claude.json")
+		write := func(name string) {
+			t.Helper()
+			if err := os.WriteFile(
+				path,
+				fmt.Appendf(nil, `{"mcpServers":{%q:{"command":"echo"}}}`, name),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		write("alpha")
+		inventory := newTestRuntimeMCPInventory(t)
+		req := runtimemcp.Request{
+			Runtime: "claude",
+			Context: runtimemcp.ReadContext{Home: root, SystemRoot: root, CWD: root},
+		}
+		if _, err := inventory.List(t.Context(), req); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now().Add(2 * runtimeMCPCacheTTL)
+		inventory.now = func() time.Time {
+			// The first clock read follows the capture of the warm entry's file stamps.
+			write("beta")
+			inventory.now = func() time.Time { return now }
+			return now
+		}
+		var unstable, stable runtimeMCPObservation
+		read := context.WithValue(t.Context(), runtimeMCPObservationKey{}, &unstable)
+		if result, err := inventory.List(read, req); err != nil || !runtimeInventoryHasServer(result, "beta") {
+			t.Fatalf("unstable inventory = %v, %v", result, err)
+		}
+		revision := inventory.Revision()
+		if _, err := inventory.List(
+			context.WithValue(t.Context(), runtimeMCPObservationKey{}, &stable),
+			req,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if inventory.Revision() != revision || !inventory.matches(stable) {
+			t.Fatalf("stable read did not refresh revision %d", revision)
+		}
+		if _, err := inventory.List(read, req); err != nil || inventory.matches(unstable) {
+			t.Fatalf("unstable observation became reusable: %+v, %v", unstable, err)
+		}
+	})
+
 	// Invariant: cancellation cannot publish a complete file observation.
 	// Owner: daemon runtime inventory; canonical suite: runtime MCP inventory.
 	t.Run("Should decline to publish a canceled runtime inventory capture", func(t *testing.T) {
 		t.Parallel()
 		inventory := newTestRuntimeMCPInventory(t)
 		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
+		defer cancel()
+		now := time.Now()
+		inventory.now = func() time.Time {
+			// A cold cache first calls the clock when constructing the publication.
+			cancel()
+			return now
+		}
 		root := t.TempDir()
 		req := runtimemcp.Request{Runtime: "claude", Context: runtimemcp.ReadContext{
 			Home: root, SystemRoot: root, CWD: root,
 		}}
-		if _, err := inventory.List(ctx, req); !errors.Is(err, context.Canceled) || len(inventory.cache) != 0 {
-			t.Fatalf("canceled inventory read = %v, cache has %d entries", err, len(inventory.cache))
+		if _, err := inventory.List(ctx, req); !errors.Is(err, context.Canceled) ||
+			len(inventory.cache) != 0 || inventory.Revision() != 0 {
+			t.Fatalf("canceled inventory publication = %v, cache has %d entries, revision = %d",
+				err, len(inventory.cache), inventory.Revision())
+		}
+	})
+
+	// Invariant: cancellation while resolving a runtime inventory symlink aborts the probe.
+	// Owner: daemon runtime inventory; canonical suite: TestRuntimeMCPInventory.
+	t.Run("Should abort an inventory probe canceled during symlink resolution", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		target := filepath.Join(root, "target.json")
+		if err := os.WriteFile(target, []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		link := filepath.Join(root, "linked.json")
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		probe := &inventoryProbeContext{Context: ctx, cancel: cancel}
+		if _, present, err := captureRuntimeMCPFile(probe, link); present || !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled file probe = present:%t, %v", present, err)
 		}
 	})
 
@@ -1665,6 +1746,9 @@ func TestSessionMCPReadModel(t *testing.T) {
 		if err := fixture.model.refresh(ctx); err != nil {
 			t.Fatal(err)
 		}
+		if published := fixture.model.summaries[triage]; published.Usable != 1 {
+			t.Fatalf("first triage summary did not consume the temporary approval: %+v", published)
+		}
 		if _, cached := fixture.model.snapshots[triage]; cached {
 			t.Fatal("summary cached a build that consumed intermediate approval")
 		}
@@ -1687,6 +1771,104 @@ func TestSessionMCPReadModel(t *testing.T) {
 		next, err := fixture.hosted.StreamSnapshot(ctx, fixture.binds[2], fixture.peer)
 		if err != nil || len(next.Tools) != 0 {
 			t.Fatalf("revoked build retained intermediate approval: %d tools, %v", len(next.Tools), err)
+		}
+	})
+
+	// Invariant: a transient durable binding cannot seed either reusable read model.
+	// Owner: daemon MCP policy projection; canonical suite: TestSessionMCPReadModel.
+	t.Run("Should decline to cache a binding consumed only during the build", func(t *testing.T) {
+		t.Parallel()
+		fixture := newInstanceMCPProjectionFixture(t, 3, 1, 2, true)
+		target := fixture.ids[2]
+		fixture.policy.sessions = fixture.sessions
+		arm := func() func() {
+			consumed := false
+			fixture.sessions.aroundStoredStatus = func(ctx context.Context, id string) func(*session.Info) {
+				if id != target || consumed || ctx.Value(projectionPolicyBuildKey{}) == nil {
+					return nil
+				}
+				update := func(binding any) {
+					t.Helper()
+					if _, err := fixture.db.DB().ExecContext(ctx,
+						"UPDATE sessions SET instance_id = ? WHERE id = ?", binding, id,
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+				update(fixture.instanceIDs[0])
+				return func(info *session.Info) {
+					update(nil)
+					if info == nil || info.InstanceID != fixture.instanceIDs[0] {
+						t.Fatalf("did not consume transient binding: %v", info)
+					}
+					consumed = true
+				}
+			}
+			return func() {
+				t.Helper()
+				if !consumed {
+					t.Fatal("expected a transient binding during the build")
+				}
+				fixture.sessions.aroundStoredStatus = nil
+			}
+		}
+		checkSummary := arm()
+		if _, err := fixture.model.SessionMCPSummary(t.Context(), target); err != nil {
+			t.Fatal(err)
+		}
+		checkSummary()
+		if _, cached := fixture.model.snapshots[target]; cached {
+			t.Error("summary cached a transient binding")
+		}
+		checkStream := arm()
+		fixture.model.state.toolProjectionEpoch.Advance()
+		fixture.now = fixture.now.Add(fixture.hosted.StreamRefreshInterval())
+		if _, err := fixture.hosted.StreamSnapshot(t.Context(), fixture.binds[2], fixture.peer); err != nil {
+			t.Fatal(err)
+		}
+		checkStream()
+		fixture.now = fixture.now.Add(fixture.hosted.StreamRefreshInterval())
+		current, err := fixture.hosted.StreamSnapshot(t.Context(), fixture.binds[2], fixture.peer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDSessionApprove, toolspkg.ToolIDSessionClarifyAnswer} {
+			index := slices.IndexFunc(current.Tools, func(view toolspkg.ToolView) bool {
+				return view.Descriptor.ID == id
+			})
+			if index < 0 || !current.Tools[index].Decision.ApprovalRequired {
+				t.Errorf("stream retained the transient binding for %s", id)
+			}
+		}
+	})
+
+	// Invariant: only a workspace configuration consumed at the observed revision can seed a summary.
+	// Owner: daemon MCP policy projection; canonical suite: TestSessionMCPReadModel.
+	t.Run("Should decline to cache a workspace policy consumed only during the build", func(t *testing.T) {
+		t.Parallel()
+		fixture := newInstanceMCPProjectionFixture(t, 1, 0, 1, false)
+		id := fixture.ids[0]
+		original := fixture.policy.workspaceResolver
+		fixture.policy.workspaceResolver = nativeToolPolicyWorkspaceResolverFunc(func(
+			ctx context.Context, workspace, profile string,
+		) (workspacepkg.ResolvedAgentConfig, error) {
+			value, err := original.ResolveAgentConfig(ctx, workspace, profile)
+			if ctx.Value(projectionPolicyBuildKey{}) != nil {
+				value.Config.Tools.Policy.ExternalDefault = "disabled"
+			}
+			return value, err
+		})
+		summary, err := fixture.model.SessionMCPSummary(t.Context(), id)
+		if err != nil || summary == nil || summary.Usable != 0 {
+			t.Fatalf("did not consume the transient workspace configuration: %v, %v", summary, err)
+		}
+		if _, cached := fixture.model.snapshots[id]; cached {
+			t.Fatal("summary cached a workspace policy that differed from the observation")
+		}
+		fixture.policy.workspaceResolver = original
+		summary, err = fixture.model.SessionMCPSummary(t.Context(), id)
+		if err != nil || summary == nil || summary.Usable != 1 {
+			t.Fatalf("summary after workspace policy restored = %v, %v", summary, err)
 		}
 	})
 
@@ -1884,6 +2066,45 @@ func TestSessionMCPReadModel(t *testing.T) {
 		t.Cleanup(release)
 		publish("redaction revision")
 		assertIdle()
+	})
+
+	// Invariant: authentication expiry invalidates a scope even inside its TTL or batch.
+	// Owner: daemon summary scope cache; canonical suite: TestSessionMCPReadModel.
+	t.Run("Should refresh authenticated scopes when tokens expire inside the TTL", func(t *testing.T) {
+		for _, batch := range []bool{false, true} {
+			fixture := newInstanceMCPProjectionFixture(t, 1, 0, 1, false)
+			now := time.Now()
+			expires := now.Add(fixture.model.summaryIdleTTL() / 2)
+			fixture.settings.servers[0].AuthStatus = &mcpauth.Status{
+				Status:    mcpauth.StatusAuthenticated,
+				ExpiresAt: &expires,
+			}
+			info, err := fixture.sessions.StoredStatus(t.Context(), fixture.ids[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope := toolspkg.Scope{
+				SessionID:   info.ID,
+				ProfileID:   info.ProfileID,
+				WorkspaceID: info.WorkspaceID,
+				AgentName:   info.AgentName,
+			}
+			ctx := t.Context()
+			fence := fixture.model.state.sessionMCPReadFence()
+			if batch {
+				ctx = context.WithValue(ctx, sessionMCPSummaryBatchKey{}, &sessionMCPSummaryBatch{id: 1, fence: fence})
+			}
+			first, err := fixture.model.summaryScopeInputs(ctx, scope, fence, now)
+			if err != nil || first.fingerprint == "" {
+				t.Fatalf("authenticated scope = %v, %v", first.fingerprint, err)
+			}
+			fixture.settings.servers[0].AuthStatus = &mcpauth.Status{Status: mcpauth.StatusExpired}
+			next, err := fixture.model.summaryScopeInputs(ctx, scope, fence, expires)
+			if err != nil || next.fingerprint == first.fingerprint ||
+				next.collection.MCPServers[0].AuthStatus.Status != mcpauth.StatusExpired {
+				t.Fatalf("expired scope in batch=%t = %v, %v", batch, next.collection.MCPServers, err)
+			}
+		}
 	})
 
 	// Invariant: a cold summary cannot reuse views captured under an older batch fence.
@@ -2783,6 +3004,21 @@ func (m *inventorySessionMCPManager) MCPReadSnapshot(
 		result.Inventory = inventory.Runtimes[0]
 	}
 	return result, err
+}
+
+type inventoryProbeContext struct {
+	context.Context
+	cancel context.CancelFunc
+	checks int
+}
+
+func (c *inventoryProbeContext) Err() error {
+	c.checks++
+	// The third check happens after resolving the link and before opening it.
+	if c.checks == 3 {
+		c.cancel()
+	}
+	return c.Context.Err()
 }
 
 func newTestRuntimeMCPInventory(t testing.TB) *runtimeMCPInventory {

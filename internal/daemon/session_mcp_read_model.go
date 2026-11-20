@@ -82,6 +82,9 @@ func (r *sessionMCPReadModel) listSessionMCP(
 	if err != nil {
 		return session.MCP{}, err
 	}
+	if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok {
+		build.checkRuntimeSnapshot(&runtime)
+	}
 	result := composeSessionMCP(
 		id,
 		collection.MCPServers,
@@ -118,7 +121,7 @@ type sessionMCPToolViews struct {
 
 func (r *sessionMCPReadModel) sessionMCPViews(ctx context.Context, scope toolspkg.Scope) (sessionMCPToolViews, error) {
 	batch, share := ctx.Value(sessionMCPSummaryBatchKey{}).(*sessionMCPSummaryBatch)
-	if !share {
+	if !share || ctx.Value(projectionPolicyBuildKey{}) != nil {
 		return r.buildSessionMCPViews(ctx, scope)
 	}
 	class, known := r.registry.ProjectionVisibility(ctx, scope)

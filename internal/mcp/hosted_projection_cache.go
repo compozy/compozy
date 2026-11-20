@@ -141,23 +141,31 @@ func projectionWithRedactionCheck(
 
 // A changing redaction registry can invalidate individual tools without blocking the whole bind.
 func filterUnsafeMCPMetadata(response HostedProjectionResponse, record *hostedBindRecord) HostedProjectionResponse {
-	views := make([]tools.ToolView, 0, len(response.Tools))
-	redact.WithStableSecretSnapshot(func(snapshot *redact.SecretSnapshot) {
-		for i := range response.Tools {
-			view := &response.Tools[i]
-			if view.Descriptor.Source.Kind == tools.SourceMCP {
-				raw, err := json.Marshal(view)
-				if err != nil {
-					continue
-				}
-				unsafe, err := snapshot.NeedsBinaryJSONRedaction(raw)
-				if err != nil || unsafe {
-					continue
-				}
+	encoded := make([][]byte, len(response.Tools))
+	for i := range response.Tools {
+		view := &response.Tools[i]
+		if view.Descriptor.Source.Kind == tools.SourceMCP {
+			if raw, err := json.Marshal(view); err == nil {
+				encoded[i] = raw
 			}
-			views = append(views, *view)
+		}
+	}
+	safe := make([]bool, len(response.Tools))
+	redact.WithStableSecretSnapshot(func(snapshot *redact.SecretSnapshot) {
+		for i, raw := range encoded {
+			if raw != nil {
+				unsafe, err := snapshot.NeedsBinaryJSONRedaction(raw)
+				safe[i] = err == nil && !unsafe
+			}
 		}
 	})
+	views := make([]tools.ToolView, 0, len(response.Tools))
+	for i := range response.Tools {
+		view := &response.Tools[i]
+		if view.Descriptor.Source.Kind != tools.SourceMCP || safe[i] {
+			views = append(views, *view)
+		}
+	}
 	if len(views) == len(response.Tools) {
 		return response
 	}

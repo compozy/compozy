@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -83,7 +84,7 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 	key := hex.EncodeToString(hash[:])
 	cached, err := s.readInventory(ctx, req, key)
 	if err != nil {
-		return runtimemcp.Inventory{}, err
+		return runtimemcp.Inventory{}, fmt.Errorf("daemon: read runtime MCP inventory: %w", err)
 	}
 	result := cloneRuntimeMCPInventory(cached.inventory)
 	result.GeneratedAt = s.now().UTC()
@@ -92,6 +93,9 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 	}
 	if observed, ok := ctx.Value(runtimeMCPObservationKey{}).(*runtimeMCPObservation); ok {
 		switch {
+		case cached.expires.IsZero():
+			observed.unknown = true
+		case observed.unknown:
 		case observed.key == "":
 			*observed = runtimeMCPObservation{key: key, revision: cached.revision}
 		case observed.key != key || observed.revision != cached.revision:
@@ -259,7 +263,11 @@ func runtimeMCPFilesUnchanged(
 			return false, err
 		}
 		if !observed[path] {
-			if snapshot, found := captureRuntimeMCPFile(path); found {
+			snapshot, found, err := captureRuntimeMCPFile(ctx, path)
+			if err != nil {
+				return false, err
+			}
+			if found {
 				files[path] = snapshot
 			}
 			observed[path] = true
@@ -289,50 +297,74 @@ func (s *runtimeMCPInventory) matches(observation runtimeMCPObservation) bool {
 func captureRuntimeMCPFiles(ctx context.Context, paths []string) (map[string]filesnap.Snapshot, error) {
 	result := make(map[string]filesnap.Snapshot, len(paths))
 	for _, path := range paths {
-		if err := ctx.Err(); err != nil {
+		snapshot, present, err := captureRuntimeMCPFile(ctx, path)
+		if err != nil {
 			return nil, err
 		}
-		if snapshot, present := captureRuntimeMCPFile(path); present {
+		if present {
 			result[path] = snapshot
 		}
 	}
 	return result, ctx.Err()
 }
 
-func captureRuntimeMCPFile(path string) (filesnap.Snapshot, bool) {
-	// Most runtime locations are absent. A single lookup can prove absence without
-	// walking each ancestor to canonicalize a path we cannot open.
+func captureRuntimeMCPFile(ctx context.Context, path string) (filesnap.Snapshot, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return filesnap.Snapshot{}, false, err
+	}
+	// Most locations are absent. Avoid resolving any ancestors in that case.
 	if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
-		return filesnap.Snapshot{}, false
+		return filesnap.Snapshot{}, false, ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		return filesnap.Snapshot{}, false, err
 	}
 	resolved, err := filepath.EvalSymlinks(path)
+	if canceled := ctx.Err(); canceled != nil {
+		return filesnap.Snapshot{}, false, canceled
+	}
 	if err != nil {
-		return filesnap.Uncacheable(), !errors.Is(err, os.ErrNotExist)
+		return filesnap.Uncacheable(), !errors.Is(err, os.ErrNotExist), nil
 	}
 	file, err := fileutil.OpenRegularFile(resolved)
 	if errors.Is(err, fileutil.ErrDirectory) {
-		return captureRuntimeMCPDirectory(path, resolved), true
+		snapshot, err := captureRuntimeMCPDirectory(ctx, path, resolved)
+		return snapshot, true, err
 	}
 	if err != nil {
-		return filesnap.Uncacheable(), !errors.Is(err, os.ErrNotExist)
+		return filesnap.Uncacheable(), !errors.Is(err, os.ErrNotExist), ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		_ = file.Close()
+		return filesnap.Snapshot{}, false, err
 	}
 	snapshot, statErr := filesnap.FromFile(file)
 	if closeErr := file.Close(); statErr != nil || closeErr != nil {
-		return filesnap.Uncacheable(), true
+		return filesnap.Uncacheable(), true, ctx.Err()
 	}
-	return snapshot, true
+	return snapshot, true, ctx.Err()
 }
 
-func captureRuntimeMCPDirectory(path, resolved string) filesnap.Snapshot {
+func captureRuntimeMCPDirectory(ctx context.Context, path, resolved string) (filesnap.Snapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return filesnap.Snapshot{}, err
+	}
 	dir, err := fileutil.OpenDirectory(resolved)
 	if err != nil {
-		return filesnap.Uncacheable()
+		return filesnap.Uncacheable(), ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		_ = dir.Close()
+		return filesnap.Snapshot{}, err
 	}
 	info, statErr := dir.Stat()
 	if closeErr := dir.Close(); statErr != nil || closeErr != nil {
-		return filesnap.Uncacheable()
+		return filesnap.Uncacheable(), ctx.Err()
 	}
-	return filesnap.FromInfo(path, info)
+	if err := ctx.Err(); err != nil {
+		return filesnap.Snapshot{}, err
+	}
+	return filesnap.FromInfo(path, info), ctx.Err()
 }
 
 func sameRuntimeMCPStamps(a, b map[string]filesnap.Snapshot) bool {

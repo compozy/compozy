@@ -34,6 +34,7 @@ type sessionMCPScopeSnapshot struct {
 	policy      string
 	collection  settings.CollectionEnvelope
 	expiresAt   time.Time
+	authExpires time.Time
 }
 
 type sessionMCPSummaryBatchKey struct{}
@@ -67,7 +68,7 @@ func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) 
 		}
 		return nil, err
 	}
-	inputs, err := r.summaryScopeInputs(ctx, scope, fence)
+	inputs, err := r.summaryScopeInputs(ctx, scope, fence, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("daemon: read session %q scope for MCP summary: %w", id, err)
 	}
@@ -112,13 +113,7 @@ func (r *sessionMCPReadModel) summaryReadContext(ctx context.Context, fence sess
 func (r *sessionMCPReadModel) buildSessionMCPSummary(
 	ctx context.Context, scope tools.Scope, inputs sessionMCPScopeSnapshot, fence sessionMCPReadFence, local any,
 ) (sessionMCPSummarySnapshot, error) {
-	stable := func() bool { return true }
-	if bound, ok := local.(boundMCPSummaryIdentity); ok {
-		if resolver, native := r.authority.(*nativeToolPolicyResolver); native {
-			ctx, stable = resolver.beginProjectionPolicyBuild(ctx, scope, &bound.policy)
-			ctx = r.registry.FreshReadContext(ctx)
-		}
-	}
+	ctx, stable := r.beginMCPSummaryBuild(ctx, scope, local, inputs.external)
 	info, err := storedSessionStatus(ctx, r.state.sessions, scope.SessionID)
 	if err != nil {
 		return sessionMCPSummarySnapshot{}, err
@@ -128,6 +123,7 @@ func (r *sessionMCPReadModel) buildSessionMCPSummary(
 	}
 	collection := inputs.collection
 	if info.ProfileID != scope.ProfileID || info.WorkspaceID != scope.WorkspaceID {
+		stable = func() bool { return false }
 		// A session moved after the initial observation; use the current collection.
 		collection, err = r.sessionMCPCollection(ctx, info)
 		if err != nil {
@@ -152,9 +148,9 @@ func (r *sessionMCPReadModel) buildSessionMCPSummary(
 	afterFence := r.state.sessionMCPReadFence()
 	currentScope, after, err := r.summaryIdentity(ctx, info.ID, afterFence)
 	afterFence.inventory = 0
-	if err == nil && inputs.fingerprint != "" && local != nil && local == after &&
+	if err == nil && ctx.Err() == nil && inputs.fingerprint != "" && local != nil && local == after &&
 		scope == currentScope && fence == afterFence &&
-		r.state.runtimeMCPInventory.matches(inventory) && stable() {
+		r.state.runtimeMCPInventory.matches(inventory) && inputs.authCurrent(time.Now()) && stable() {
 		r.mu.Lock()
 		if r.snapshots == nil {
 			r.snapshots = make(map[string]sessionMCPSummarySnapshot)
@@ -165,8 +161,34 @@ func (r *sessionMCPReadModel) buildSessionMCPSummary(
 	return cached, nil
 }
 
+func (r *sessionMCPReadModel) beginMCPSummaryBuild(
+	ctx context.Context, scope tools.Scope, local any, expectedExternal string,
+) (context.Context, func() bool) {
+	bound, boundPolicy := local.(boundMCPSummaryIdentity)
+	resolver, native := r.authority.(*nativeToolPolicyResolver)
+	if !boundPolicy || !native {
+		return ctx, func() bool { return true }
+	}
+	observed := ctx
+	var expected *session.MCPSummaryIdentity
+	if identity, ok := bound.runtime.(session.MCPSummaryIdentity); ok {
+		expected = &identity
+	}
+	ctx, stable := resolver.beginProjectionPolicyBuild(ctx, scope, &bound.policy, expected)
+	ctx = r.registry.FreshReadContext(ctx)
+	ctx, complete, err := r.registry.PinProjectionInputs(ctx, observed, scope)
+	if err != nil || !complete {
+		return ctx, func() bool { return false }
+	}
+	external, err := r.registry.ExternalProjectionFingerprint(ctx, scope)
+	if err != nil || external != expectedExternal {
+		return ctx, func() bool { return false }
+	}
+	return ctx, stable
+}
+
 func (r *sessionMCPReadModel) summaryScopeInputs(
-	ctx context.Context, scope tools.Scope, fence sessionMCPReadFence,
+	ctx context.Context, scope tools.Scope, fence sessionMCPReadFence, now time.Time,
 ) (sessionMCPScopeSnapshot, error) {
 	key := r.registry.ExternalProjectionScopeKey(scope)
 	if _, native := r.authority.(*nativeToolPolicyResolver); native {
@@ -177,12 +199,10 @@ func (r *sessionMCPReadModel) summaryScopeInputs(
 		batch = active.id
 	}
 	fence.inventory = 0 // Runtime-owned files are never inputs to the Compozy server collection.
-	now := time.Now()
 	r.mu.Lock()
 	cached, found := r.scopes[key]
 	r.mu.Unlock()
-	if found && cached.fence == fence &&
-		(batch == 0 && now.Before(cached.expiresAt) || batch != 0 && batch == cached.batch) {
+	if found && cached.reusableFor(fence, batch, now) {
 		return cached, nil
 	}
 	external, observationErr := r.registry.ExternalProjectionFingerprint(ctx, scope)
@@ -208,8 +228,14 @@ func (r *sessionMCPReadModel) summaryScopeInputs(
 		if err != nil {
 			return fallback, nil
 		}
-		cached = sessionMCPScopeSnapshot{fence: fence, external: external, policy: policy,
-			fingerprint: hex.EncodeToString(digest[:]) + policy + external, collection: collection}
+		cached = sessionMCPScopeSnapshot{
+			fence:       fence,
+			external:    external,
+			policy:      policy,
+			authExpires: earliestSummaryAuthExpiry(collection),
+			fingerprint: hex.EncodeToString(digest[:]) + policy + external,
+			collection:  collection,
+		}
 	}
 	cached.batch, cached.expiresAt = batch, now.Add(r.summaryIdleTTL())
 	after := r.state.sessionMCPReadFence()
@@ -273,14 +299,28 @@ func (r *sessionMCPReadModel) summaryCollectionVersioned(cached sessionMCPScopeS
 	if r.state.mcpAuthGeneration == nil || r.state.workspaceResolver == nil {
 		return false
 	}
-	for i := range cached.collection.MCPServers {
-		status := cached.collection.MCPServers[i].AuthStatus
+	return cached.authCurrent(now)
+}
+
+func (cached sessionMCPScopeSnapshot) reusableFor(fence sessionMCPReadFence, batch uint64, now time.Time) bool {
+	return cached.fence == fence && cached.authCurrent(now) &&
+		(batch == 0 && now.Before(cached.expiresAt) || batch != 0 && batch == cached.batch)
+}
+
+func (cached sessionMCPScopeSnapshot) authCurrent(now time.Time) bool {
+	return cached.authExpires.IsZero() || now.Before(cached.authExpires)
+}
+
+func earliestSummaryAuthExpiry(collection settings.CollectionEnvelope) time.Time {
+	var earliest time.Time
+	for i := range collection.MCPServers {
+		status := collection.MCPServers[i].AuthStatus
 		if status != nil && status.Status == "authenticated" && status.ExpiresAt != nil &&
-			!now.Before(*status.ExpiresAt) {
-			return false
+			(earliest.IsZero() || status.ExpiresAt.Before(earliest)) {
+			earliest = *status.ExpiresAt
 		}
 	}
-	return true
+	return earliest
 }
 
 func (s *bootState) sessionMCPReadFence() sessionMCPReadFence {
@@ -332,6 +372,9 @@ func (r *sessionMCPReadModel) summaryIdentity(
 	}
 	if info.Type == session.SessionTypeTriage || info.InstanceID != "" {
 		return scope, r.summaryBoundPolicy(ctx, scope, local, fence), nil
+	}
+	if resolver, ok := r.authority.(*nativeToolPolicyResolver); ok && resolver.instanceCallers != nil {
+		return scope, nil, nil
 	}
 	return scope, local, nil
 }

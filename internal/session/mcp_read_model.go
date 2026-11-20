@@ -101,6 +101,20 @@ type MCPRuntimeSnapshot struct {
 	BoundServers   map[string]int
 	PendingServers map[string]bool
 	LastReload     *MCPReloadRecord
+	identity       *MCPSummaryIdentity
+	unobserved     bool
+}
+
+// MatchesSummaryIdentity compares the runtime inputs used by the projection with the poll observation.
+func (s *MCPRuntimeSnapshot) MatchesSummaryIdentity(expected *MCPSummaryIdentity, cfg *compozyconfig.Config) bool {
+	if s.unobserved || s.identity == nil || *s.identity != *expected {
+		return false
+	}
+	if cfg == nil {
+		return true
+	}
+	provider := compozyconfig.CanonicalProviderName(expected.provider)
+	return s.Mode == cfg.Providers[provider].EffectiveRuntimeMCP()
 }
 
 // MCPReadSnapshot reads accepted launch context without preparing or launching a runtime.
@@ -110,22 +124,29 @@ func (m *Manager) MCPReadSnapshot(
 	catalog tools.AdvertisedCatalog,
 ) (MCPRuntimeSnapshot, error) {
 	ctx = tools.WithCachedMCPProjection(ctx)
-	provider := ""
 	state := activationState{}
-	bound, reloadRequired := false, true
+	var meta *store.SessionMeta
+	var identity MCPSummaryIdentity
 	if active, ok := m.Get(id); ok {
-		snapshot := active.runtimeBindingSnapshot()
-		state, bound, reloadRequired = snapshot.activation, snapshot.process != nil, snapshot.hostedMCPRequiresReload
-		provider = snapshot.selection.Provider
+		active.mu.RLock()
+		state = active.activation.clone()
+		identity = active.mcpSummaryIdentityLocked()
+		meta = new(active.metaLocked())
+		active.mu.RUnlock()
 	}
-	mode, request, err := m.readMCPRuntimeContext(ctx, id, provider, state.runtimeRequest)
+	var hasReceipt bool
+	identity.served, hasReceipt = m.servedMCPCatalog(id)
+	mode, request, err := m.readMCPRuntimeContext(ctx, id, identity.provider, state.runtimeRequest, meta)
 	if err != nil {
 		return MCPRuntimeSnapshot{}, err
 	}
 	result := MCPRuntimeSnapshot{
 		Mode:         mode,
-		Bound:        bound,
+		Bound:        identity.process != nil,
 		BoundServers: state.boundServers,
+		identity:     &identity,
+		// Unaccepted runtimes with an inventory path read mutable process environment and worktree state.
+		unobserved: state.runtimeRequest == nil && request.Context.CWD != "",
 	}
 	if state.lastReload == nil {
 		events, err := m.Events(ctx, id, store.EventQuery{Type: EventTypeMCPReloaded, Limit: 1})
@@ -133,6 +154,7 @@ func (m *Manager) MCPReadSnapshot(
 			return result, err
 		}
 		if len(events) > 0 {
+			result.unobserved = true
 			var record MCPReloadRecord
 			if err := json.Unmarshal([]byte(events[0].Content), &record); err != nil {
 				return result, err
@@ -156,8 +178,8 @@ func (m *Manager) MCPReadSnapshot(
 	if result.LastReload != nil && result.LastReload.Outcome == string(BadgeFailed) {
 		result.Pending = true
 	}
-	if bound {
-		m.applyMCPPendingState(ctx, id, &result, state, reloadRequired, catalog)
+	if result.Bound {
+		m.applyMCPPendingState(ctx, &result, state, identity.requiresReload, catalog, hasReceipt)
 	}
 	return result, nil
 }
@@ -167,12 +189,16 @@ func (m *Manager) readMCPRuntimeContext(
 	ctx context.Context,
 	id, provider string,
 	accepted *runtimemcp.Request,
+	meta *store.SessionMeta,
 ) (string, *runtimemcp.Request, error) {
-	meta, err := m.readSessionMetaReadOnly(ctx, id)
-	if err != nil {
-		return "", nil, err
+	if meta == nil {
+		stored, err := m.readSessionMetaReadOnly(ctx, id)
+		if err != nil {
+			return "", nil, err
+		}
+		meta = &stored
 	}
-	workspace, err := m.resolveResumeWorkspace(ctx, &meta)
+	workspace, err := m.resolveResumeWorkspace(ctx, meta)
 	if err != nil {
 		return "", nil, err
 	}
@@ -284,8 +310,8 @@ func (m *Manager) RecordMCPChanged(ctx context.Context, id string, summary MCPSu
 }
 
 func (m *Manager) applyMCPPendingState(
-	ctx context.Context, id string, result *MCPRuntimeSnapshot, state activationState,
-	reloadRequired bool, catalog tools.AdvertisedCatalog,
+	ctx context.Context, result *MCPRuntimeSnapshot, state activationState,
+	reloadRequired bool, catalog tools.AdvertisedCatalog, hasReceipt bool,
 ) {
 	result.Pending = result.Pending || state.runtimeMCP != result.Mode ||
 		m.currentRuntimeMCPDigest(ctx, state, result.Mode) != state.runtimeDigest
@@ -293,10 +319,8 @@ func (m *Manager) applyMCPPendingState(
 		result.Pending = result.Pending ||
 			state.boundDigest != activationFingerprint(catalog.Digest, result.Mode, state.runtimeDigest)
 	}
-	if !reloadRequired {
-		if source, ok := m.hostedMCP.(interface{ ServedCatalogDigest(string) string }); ok {
-			result.Pending = result.Pending || source.ServedCatalogDigest(id) != catalog.Digest
-		}
+	if !reloadRequired && hasReceipt {
+		result.Pending = result.Pending || result.identity.served != catalog.Digest
 	}
 	if result.Pending {
 		result.PendingServers = make(map[string]bool)

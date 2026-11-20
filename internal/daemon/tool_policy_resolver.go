@@ -315,14 +315,11 @@ func (r *nativeToolPolicyResolver) sessionInfo(
 	} else {
 		info, err = r.sessions.Status(ctx, sessionID)
 	}
-	if err == nil {
+	if err == nil || errors.Is(err, session.ErrSessionNotFound) {
 		if build, ok := ctx.Value(projectionPolicyBuildKey{}).(*projectionPolicyBuild); ok {
 			build.checkSession(sessionID, info)
 		}
 		return info, nil
-	}
-	if errors.Is(err, session.ErrSessionNotFound) {
-		return nil, nil
 	}
 	return nil, fmt.Errorf("daemon: resolve session tool policy %q: %w", sessionID, err)
 }

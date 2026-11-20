@@ -58,7 +58,7 @@ func (r *repoBase) mcpProjectionQueries(ctx context.Context) *sqlcgen.Queries {
 func mcpProjectionConnection(ctx context.Context, pool *sql.DB) (*sql.Conn, func(), error) {
 	conn, err := pool.Conn(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("store: acquire MCP observation connection: %w", err)
 	}
 	release := func() {
 		restore, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultMCPProjectionTimeout)
@@ -78,7 +78,7 @@ func mcpProjectionConnection(ctx context.Context, pool *sql.DB) (*sql.Conn, func
 	// fail fast on a database lock and defer to the established uncached path.
 	if _, err := conn.ExecContext(ctx, "PRAGMA busy_timeout = 0"); err != nil {
 		release()
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("store: disable MCP observation lock wait: %w", err)
 	}
 	return conn, release, nil
 }

@@ -100,8 +100,6 @@ func (s *HostedService) StreamProjection(
 	return hostedStreamProjectionAfter(response, lastDigest), err
 }
 
-type hostedProjectionObservationKey struct{}
-
 func (s *HostedService) streamProjection(
 	ctx context.Context,
 	record *hostedBindRecord,
@@ -130,17 +128,11 @@ func (s *HostedService) streamProjection(
 	reused := cached.fence == fence && cached.observation != nil && *cached.observation == observation &&
 		!now.Before(cached.builtAt) && s.projectionFence() == fence
 	if !reused {
-		var err error
-		buildCtx, stable := runtime.BeginProjectionBuild(ctx, record.scope(), observation)
-		buildCtx = runtime.FreshReadContext(context.WithValue(buildCtx, hostedProjectionObservationKey{}, true))
-		response, err = s.projectionForGeneration(buildCtx, record, registry, s.boundedUnversionedProjection)
-		if err != nil {
-			return HostedProjectionResponse{}, err
+		built, stable, err := s.buildObservedStreamProjection(projectionCtx, listingCtx, runtime, record, observation)
+		if err != nil || !stable {
+			return built, err
 		}
-		after, known := runtime.ObserveProjection(listingCtx, record.scope())
-		if !known || after != observation || !stable() {
-			return response, nil
-		}
+		response = built
 	}
 	if err := ctx.Err(); err != nil {
 		return HostedProjectionResponse{}, err
@@ -160,6 +152,31 @@ func (s *HostedService) streamProjection(
 		return s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
 	}
 	return response, nil
+}
+
+func (s *HostedService) buildObservedStreamProjection(
+	ctx, listingCtx context.Context, runtime *tools.RuntimeRegistry, record *hostedBindRecord,
+	observation tools.ProjectionObservation,
+) (HostedProjectionResponse, bool, error) {
+	scope := record.scope()
+	buildCtx, stable := runtime.BeginProjectionBuild(ctx, scope, observation)
+	buildCtx = runtime.FreshReadContext(buildCtx)
+	buildCtx, complete, err := runtime.PinProjectionInputs(buildCtx, listingCtx, scope)
+	if err != nil {
+		response, err := s.streamProjectionWithoutObservation(ctx, ctx, runtime, record)
+		return response, false, err
+	}
+	// A bounded response or flight may have been built without observing these inputs.
+	response, err := catalogProjectionWithRedactionCheck(buildCtx, runtime, record, buildHostedProjection)
+	if err != nil || !complete {
+		return response, false, err
+	}
+	external, err := runtime.ExternalProjectionFingerprint(buildCtx, scope)
+	if err != nil || !observation.MatchesExternal(external) {
+		return response, false, nil
+	}
+	after, known := runtime.ObserveProjection(listingCtx, scope)
+	return response, known && after == observation && stable(), nil
 }
 
 func (s *HostedService) streamProjectionWithoutObservation(
@@ -237,7 +254,7 @@ func (s *HostedService) boundedUnversionedProjection(
 		fence = after
 	}
 	s.mu.Lock()
-	if s.ownsBindRecord(record) && ctx.Value(hostedProjectionObservationKey{}) == nil {
+	if s.ownsBindRecord(record) {
 		s.projectionCache.storeUnversioned(record.bindID, hostedUnversionedProjection{
 			fence: fence, builtAt: builtAt, response: response,
 		})

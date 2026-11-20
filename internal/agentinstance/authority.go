@@ -19,12 +19,12 @@ type Caller struct {
 // ProjectionState identifies the durable inputs a session's tool projection reads.
 // Policy is the stored ceiling, compared in its serialized form without compiling it.
 type ProjectionState struct {
-	CallerInstanceID, InstanceID, OccurrenceID, MainSessionID string
-	Policy, Grant, LineageKind, SessionType                   string
-	ProfileID, WorkspaceID, AgentName                         string
-	State, PauseReason, PermissionCeiling                     string
-	Depth, ChecksEnabled                                      int64
-	Archived                                                  bool
+	CallerInstanceID, DirectInstanceID, InstanceID, OccurrenceID, MainSessionID string
+	Policy, Grant, LineageKind, SessionType                                     string
+	ProfileID, WorkspaceID, AgentName                                           string
+	State, PauseReason, PermissionCeiling                                       string
+	Depth, ChecksEnabled                                                        int64
+	Archived                                                                    bool
 }
 
 type CallerReader interface {

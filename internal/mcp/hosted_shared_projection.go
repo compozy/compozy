@@ -54,7 +54,7 @@ func (s *HostedService) sharedStreamProjection(
 		if s.projectionEpoch != nil {
 			// Class and build share one availability snapshot; the epoch fences all versioned inputs.
 			matchCtx = listingCtx
-			epochBacked = hostedCatalogHasEpoch(ctx, registry) && ctx.Value(hostedProjectionObservationKey{}) == nil
+			epochBacked = hostedCatalogHasEpoch(ctx, registry)
 		}
 		cached, flight, leader := s.sharedProjections.begin(key, s.now(), s.StreamRefreshInterval(), epochBacked)
 		if cached != nil {
@@ -126,8 +126,7 @@ func (s *HostedService) checkedSharedProjection(
 	}
 	s.mu.Lock()
 	owned := s.ownsBindRecord(record)
-	if owned && s.projectionEpoch != nil && s.projectionFence() == fence &&
-		ctx.Value(hostedProjectionObservationKey{}) == nil {
+	if owned && s.projectionEpoch != nil && s.projectionFence() == fence {
 		s.projectionCache.storeUnversioned(record.bindID, hostedUnversionedProjection{
 			fence: fence, builtAt: builtAt, response: response,
 		})

@@ -97,12 +97,15 @@ func (i MCPPolicyIdentity) Scope() tools.Scope {
 }
 
 // MatchesPolicyInfo compares a live observation with the policy inputs a build consumed.
-func (i MCPPolicyIdentity) MatchesPolicyInfo(info *Info) bool {
-	if i.session == nil {
-		// The before and after file observations fence inactive metadata.
-		return true
+func (i MCPPolicyIdentity) MatchesPolicyInfo(info *Info, directInstanceID *string) bool {
+	if i.session == nil || info == nil {
+		return false
 	}
-	return info != nil && i.profile == info.ProfileID && i.workspace == info.WorkspaceID &&
+	instance := i.instance
+	if directInstanceID != nil {
+		instance = *directInstanceID
+	}
+	return instance == info.InstanceID && i.profile == info.ProfileID && i.workspace == info.WorkspaceID &&
 		i.agent == info.AgentName && i.permissions == info.EffectivePermissions &&
 		i.access == info.EffectiveWorkspaceAccess && normalizeSessionType(i.Kind) == info.Type &&
 		reflect.DeepEqual(store.NormalizeSessionLineage(info.ID, i.lineage), info.Lineage)
@@ -176,6 +179,23 @@ type MCPSummaryIdentity struct {
 	reload                                                           *reloadRecord
 }
 
+func (s *Session) mcpSummaryIdentityLocked() MCPSummaryIdentity {
+	return MCPSummaryIdentity{
+		policy: s.mcpPolicyIdentityLocked(), process: s.process, generation: s.RuntimeGeneration,
+		selectionRevision: s.RuntimeSelectionRevision, requiresReload: s.hostedMCPRequiresReload,
+		bound: s.activation.boundDigest, mode: s.activation.runtimeMCP, runtime: s.activation.runtimeDigest,
+		hosted: s.hostedMCPDigest, direct: s.directMCPDigest, provider: s.Provider, worktree: s.WorktreeID,
+		request: s.activation.runtimeRequest, reload: s.activation.lastReload,
+	}
+}
+
+func (m *Manager) servedMCPCatalog(id string) (string, bool) {
+	if reader, ok := m.hostedMCP.(interface{ ServedCatalogDigest(string) string }); ok {
+		return reader.ServedCatalogDigest(id), true
+	}
+	return "", false
+}
+
 // BoundMCPSummaryIdentity avoids cloning the session status and lineage on idle polls.
 func (m *Manager) BoundMCPSummaryIdentity(id string) (tools.Scope, MCPSummaryIdentity, bool) {
 	s, exists := m.Get(id)
@@ -187,18 +207,10 @@ func (m *Manager) BoundMCPSummaryIdentity(id string) (tools.Scope, MCPSummaryIde
 		s.mu.RUnlock()
 		return tools.Scope{}, MCPSummaryIdentity{}, false
 	}
-	policy := s.mcpPolicyIdentityLocked()
-	identity := MCPSummaryIdentity{
-		policy: policy, process: s.process, generation: s.RuntimeGeneration,
-		selectionRevision: s.RuntimeSelectionRevision, requiresReload: s.hostedMCPRequiresReload,
-		bound: s.activation.boundDigest, mode: s.activation.runtimeMCP, runtime: s.activation.runtimeDigest,
-		hosted: s.hostedMCPDigest, direct: s.directMCPDigest, provider: s.Provider, worktree: s.WorktreeID,
-		request: s.activation.runtimeRequest, reload: s.activation.lastReload,
-	}
+	identity := s.mcpSummaryIdentityLocked()
 	s.mu.RUnlock()
-	if reader, ok := m.hostedMCP.(interface{ ServedCatalogDigest(string) string }); ok {
-		identity.served = reader.ServedCatalogDigest(id)
-	}
+	identity.served, _ = m.servedMCPCatalog(id)
+	policy := identity.policy
 	return tools.Scope{
 		SessionID:   id,
 		ProfileID:   policy.profile,

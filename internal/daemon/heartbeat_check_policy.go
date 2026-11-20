@@ -131,11 +131,19 @@ func resolveTimerPolicy(
 			return policy, err
 		}
 	}
+	err = finishTimerPolicy(&policy, target)
+	return policy, err
+}
+
+func finishTimerPolicy(
+	policy *heartbeat.ResolvedPolicy,
+	target heartbeat.AuthoringTarget,
+) error {
 	if target.CheckInLimits != nil {
 		if err := policy.Frontmatter.CheckIns.ValidateBounds(*target.CheckInLimits); err != nil {
-			return policy, heartbeat.ErrInvalid
+			return heartbeat.ErrInvalid
 		}
 	}
 	policy.Enabled = target.Config.Enabled && (!policy.Present || policy.Frontmatter.Enabled)
-	return policy, nil
+	return nil
 }

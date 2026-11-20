@@ -11753,8 +11753,8 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		observation, cancel := context.WithDeadline(tick, time.Time{})
 		defer cancel()
 		scope := toolspkg.Scope{WorkspaceID: "ws-policy"}
-		if _, known := resolver.projectionDefinition(observation, scope, sessionMCPReadFence{}, false); known {
-			t.Fatal("expired observation returned a projection definition")
+		if _, _, err := resolver.resolveWorkspaceConfig(observation, scope); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("expired workspace observation = %v, want deadline exceeded", err)
 		}
 		if _, resolved, err := resolver.resolveWorkspaceConfig(tick, scope); err != nil || resolved == nil {
 			t.Fatalf("same-tick workspace read returned %v", err)
