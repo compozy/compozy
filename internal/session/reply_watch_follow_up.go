@@ -39,13 +39,17 @@ func (s *replyWatchService) reconcileFollowUp(
 		return err
 	}
 	terminal, err := s.latestReplyTerminal(ctx, w)
-	if err != nil || terminal.TurnID == "" {
-		return s.unreadableReply(ctx, w, pass, err)
+	if err != nil {
+		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, replyResultUnreadable, err)
+	}
+	if terminal.TurnID == "" {
+		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeCompleted,
+			"The target settled without a further answer. The interim reply stands.", nil)
 	}
 	turn := terminal.TurnID
 	result, err := s.manager.replyTurnResult(ctx, w.TargetSessionID, turn, pass == replyWatchEvent)
 	if err != nil || result.Outcome == "" {
-		return s.unreadableReply(ctx, w, pass, err)
+		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, replyResultUnreadable, err)
 	}
 	return s.fireTurnReply(ctx, w, turn, result, "")
 }

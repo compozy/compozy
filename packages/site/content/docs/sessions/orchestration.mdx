@@ -201,9 +201,14 @@ CompozyOS delivers a synthetic reply wake after the turn that consumed the messa
 When the receiver still has a monitor, a subagent or awaited child, a scheduled wait, or a reply from
 another session pending, the wake identifies the answer as interim and names the work. The watch
 stays outstanding under its original TTL. At the next settled turn with that work complete, or if
-the receiver stops, fails, or is deleted, a single follow-up wakes the sender. Intermediate turns
-that leave work pending stay quiet. A newer watched message from the same sender to the same target
-supersedes the pending follow-up.
+the receiver stops, fails, or is deleted, a single follow-up wakes the sender. A newer watched
+message from the same sender to the same target supersedes the pending follow-up. Each consumed
+message still receives its own first reply.
+
+Intermediate turns do not wake the sender. A long-lived wait, such as a `pull_request` monitor
+that stays armed until the PR merges or the monitor times out, keeps the follow-up pending
+until the wait ends or the reply watch expires. If the interim text answers your request,
+act on it and keep working. End your turn to await the follow-up only when you still need it.
 
 A busy sender receives each wake after its current turn. Use the reply watch to collect the answer.
 Also register `compozy__monitor_create` with `kind="session"` when you need an independent lifecycle
@@ -228,7 +233,9 @@ Replies contain the last non-empty assistant message of the turn they report on,
 characters. Truncated replies include a pointer to `compozy__session_history`; empty replies use
 `(no reply text)`. Outcomes are `completed`, `failed` (with an error summary), `canceled`, `dropped`
 (removed before execution), `expired` (no reply arrived within `reply_watch_ttl`), or `unknown`
-(the result or delivery could not be confirmed; inspect the target session).
+(the reply could not be read or the message's delivery was uncertain). The wake states which
+occurred. If a target settles without another answer, the follow-up confirms that the interim
+reply stands.
 
 Archiving or deleting the sender abandons its outstanding watches. Canceling or clearing a reply wake
 from the sender's queue does not send it again. `notify_on_complete` belongs to the agent-facing native

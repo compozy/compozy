@@ -452,13 +452,8 @@ func (m *Manager) promptDispatchMessage(
 	ctx, sections := acp.CollectPromptSections(ctx)
 	augmented, err := m.augmentPromptMessage(ctx, session, message)
 	collected := sections()
-	origin := m.replyPromptOrigin(ctx, session.CurrentPromptMeta().Origin)
-	providerMessage := promptOriginMessageAfter(origin, augmented, collected)
-	if header := m.replyContinuationHeader(ctx, session.ID); header != "" {
-		providerMessage += "\n\n" + header
-	}
 	return preparedPromptInput{
-		message:  providerMessage,
+		message:  m.attributeProviderPrompt(ctx, session, augmented, collected),
 		sections: collected,
 	}, err
 }

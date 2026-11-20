@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"log/slog"
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/store"
@@ -71,10 +72,28 @@ func insertReplyWatchTx(
 		row.Hop != int64(w.Hop) {
 		return store.ReplyWatch{}, store.ErrSessionPromptIdempotencyConflict
 	}
-	if err := q.SupersedeReplyWatchFollowUps(ctx, id); err != nil {
+	superseded, err := q.SupersedeReplyWatchFollowUps(ctx, id)
+	if err != nil {
 		return store.ReplyWatch{}, err
 	}
+	for _, older := range superseded {
+		if older.State == store.ReplyWatchAbandoned {
+			recordSupersededReplyWatch(ctx, exec, older.ID)
+		}
+	}
 	return replyWatchFromSQL(row)
+}
+
+func recordSupersededReplyWatch(ctx context.Context, exec store.DBTX, id string) {
+	if transaction, ok := exec.(*outboxSignalExecutor); ok {
+		transaction.supersededReplyWatches = append(transaction.supersededReplyWatches, id)
+		return
+	}
+	logSupersededReplyWatch(ctx, id)
+}
+
+func logSupersededReplyWatch(ctx context.Context, id string) {
+	slog.InfoContext(ctx, "reply_watch.abandoned", "id", id, "reason", "superseded")
 }
 
 // ReplyWatchByMessage reads the watch armed for one message admitted into a target session.
@@ -171,9 +190,12 @@ func (g *SessionRepo) FireReplyWatch(ctx context.Context, id string, f store.Rep
 	err := g.withImmediateTransaction(ctx, "fire reply watch", func(exec globalSQLExecutor) error {
 		q := sqlcgen.New(exec)
 		if f.InterimWait != "" {
-			n, err := q.AbandonFollowUpWithNewerReplyWatch(ctx, id)
-			if err != nil || n > 0 {
+			newer, err := q.HasNewerReplyWatch(ctx, id)
+			if err != nil {
 				return err
+			}
+			if newer {
+				f.FollowUpAfter, f.InterimWait = 0, ""
 			}
 		}
 		n, err := q.FireReplyWatch(ctx, sqlcgen.FireReplyWatchParams{
@@ -215,6 +237,7 @@ func (g *SessionRepo) DeliverReplyWatch(
 	ctx context.Context,
 	id string,
 	entry store.SessionInputQueueInsert,
+	interim bool,
 ) (delivered bool, err error) {
 	entry = entry.Normalize()
 	if err := validateReplyWakeInput(id, entry); err != nil {
@@ -230,7 +253,8 @@ func (g *SessionRepo) DeliverReplyWatch(
 		if err != nil {
 			return err
 		}
-		if w.State != store.ReplyWatchFired || entry.MessageID != watch.WakeMessageID() {
+		if w.State != store.ReplyWatchFired || entry.MessageID != watch.WakeMessageID() ||
+			(watch.InterimWait != "") != interim {
 			return nil
 		}
 		if w.SenderSessionID != entry.SessionID {

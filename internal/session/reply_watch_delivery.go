@@ -73,7 +73,7 @@ func (s *replyWatchService) Deliver(ctx context.Context, id string) error {
 			Delivery: store.SessionInputDeliveryAfterTurn,
 			Metadata: meta,
 		},
-	})
+	}, w.InterimWait != "")
 	if errors.Is(err, store.ErrSessionInputQueueFull) {
 		s.manager.logger.InfoContext(ctx, "reply_watch.delivery_deferred", "id", id, "reason", "queue_full")
 		return nil

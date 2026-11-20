@@ -8,7 +8,10 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-const replyWatchSweepInterval = 30 * time.Second
+const (
+	replyWatchSweepInterval = 30 * time.Second
+	replyResultUnreadable   = "The reply could not be read. Check the target session."
+)
 
 func (s *replyWatchService) sweep(ctx context.Context) {
 	rows, err := s.store.ListReplyWatches(ctx, store.ReplyWatchFilter{})
@@ -51,10 +54,14 @@ func (s *replyWatchService) sweep(ctx context.Context) {
 	})
 }
 
-func (s *replyWatchService) unreadableReply(
-	ctx context.Context, w store.ReplyWatch, pass replyWatchPass, err error,
+func (s *replyWatchService) settleReplyAfterGrace(
+	ctx context.Context, w store.ReplyWatch, pass replyWatchPass, outcome, text string, err error,
 ) error {
-	if pass != replyWatchPeriodic || s.manager.IsPrompting(w.TargetSessionID) {
+	if pass != replyWatchPeriodic {
+		return err
+	}
+	if s.manager.IsPrompting(w.TargetSessionID) {
+		s.settleGrace.Delete(w.ID)
 		return err
 	}
 	now := s.manager.now()
@@ -62,7 +69,7 @@ func (s *replyWatchService) unreadableReply(
 	if observed, ok := since.(time.Time); !ok || now.Sub(observed) < replyWatchSweepInterval {
 		return err
 	}
-	return errors.Join(err, s.fire(ctx, w, store.ReplyOutcomeUnknown, ""))
+	return errors.Join(err, s.fire(ctx, w, outcome, text))
 }
 
 func (s *replyWatchService) logWatchError(ctx context.Context, w store.ReplyWatch, err error) {

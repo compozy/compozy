@@ -102,13 +102,16 @@ Explicit reply and expiry regression (#760)
     Repeat after restarting the daemon while the watch is outstanding. Repeat with B stopped or
     deleted during the wait, and with B's final turn failing.
 16. Repeat with B waiting only for a reply from A. Verify the first reply settles without a
-    follow-up. During a real interim wait, send a newer watched request from A to B and verify the
-    old follow-up is superseded. Repeat with a one-minute TTL and verify the original deadline
-    expires the outstanding follow-up.
+    follow-up. Send two watched requests from A to B and let B consume them in separate turns
+    while a monitor remains active. Verify A receives both answers and only the newer watch sends
+    a follow-up. Repeat with a one-minute TTL and verify the original deadline expires the
+    outstanding follow-up.
 17. Skip the event-driven settle hook in the service harness. With no active turn, queued message,
     or wake-producing work, a periodic pass delivers a readable reply. A settled but unreadable
-    result delivers `unknown` after one grace interval. A persisted MCP reload in the consuming
-    turn must leave the readable answer intact.
+    result delivers `unknown` after one grace interval. It says the reply could not be read if
+    the message was consumed. A persisted MCP reload must leave the readable answer intact.
+18. Cancel B's monitor without starting a new turn. Verify the follow-up says the target settled
+    without a further answer and the interim reply stands.
 
 Service-level coverage lives in `TestReplyWatchPeriodicSettlement` and `TestReplyWatchFollowUp`.
 The live provider and Web walkthroughs for these additions are pending.

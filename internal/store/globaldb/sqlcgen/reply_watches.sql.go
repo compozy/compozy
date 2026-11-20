@@ -10,27 +10,6 @@ import (
 	"database/sql"
 )
 
-const abandonFollowUpWithNewerReplyWatch = `-- name: AbandonFollowUpWithNewerReplyWatch :execrows
-UPDATE session_prompt_reply_watches
-SET state = 'abandoned', abandon_reason = NULL
-WHERE session_prompt_reply_watches.id = ?1 AND session_prompt_reply_watches.state = 'armed' AND session_prompt_reply_watches.follow_up_after = 0
- AND EXISTS (
-  SELECT 1 FROM session_prompt_reply_watches AS newer
-  WHERE newer.rowid > session_prompt_reply_watches.rowid
-   AND newer.sender_session_id = session_prompt_reply_watches.sender_session_id AND newer.target_session_id = session_prompt_reply_watches.target_session_id
-   AND newer.workspace_id = session_prompt_reply_watches.workspace_id AND newer.target_workspace_id = session_prompt_reply_watches.target_workspace_id
-   AND (newer.abandon_reason IS NULL OR newer.abandon_reason != 'send_failed')
- )
-`
-
-func (q *Queries) AbandonFollowUpWithNewerReplyWatch(ctx context.Context, olderID string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, abandonFollowUpWithNewerReplyWatch, olderID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const abandonReplyWatch = `-- name: AbandonReplyWatch :exec
 UPDATE session_prompt_reply_watches SET state = 'abandoned', abandon_reason = ?
 WHERE id = ? AND state IN ('armed', 'fired')
@@ -226,6 +205,25 @@ func (q *Queries) GetReplyWatchByMessage(ctx context.Context, arg GetReplyWatchB
 		&i.InterimWait,
 	)
 	return i, err
+}
+
+const hasNewerReplyWatch = `-- name: HasNewerReplyWatch :one
+SELECT EXISTS (
+ SELECT 1 FROM session_prompt_reply_watches AS older
+ JOIN session_prompt_reply_watches AS newer
+   ON newer.sender_session_id = older.sender_session_id AND newer.target_session_id = older.target_session_id
+  AND newer.workspace_id = older.workspace_id AND newer.target_workspace_id = older.target_workspace_id
+  AND newer.rowid > older.rowid
+ WHERE older.id = ?1
+  AND (newer.abandon_reason IS NULL OR newer.abandon_reason != 'send_failed')
+)
+`
+
+func (q *Queries) HasNewerReplyWatch(ctx context.Context, olderID string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasNewerReplyWatch, olderID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const insertReplyWatch = `-- name: InsertReplyWatch :exec
@@ -601,9 +599,12 @@ func (q *Queries) ReplyWatchSenderExists(ctx context.Context, arg ReplyWatchSend
 	return exists, err
 }
 
-const supersedeReplyWatchFollowUps = `-- name: SupersedeReplyWatchFollowUps :exec
+const supersedeReplyWatchFollowUps = `-- name: SupersedeReplyWatchFollowUps :many
 UPDATE session_prompt_reply_watches
-SET state = 'abandoned', abandon_reason = NULL
+SET state = CASE WHEN interim_wait IS NOT NULL THEN state ELSE 'abandoned' END,
+ abandon_reason = CASE WHEN interim_wait IS NULL THEN 'superseded' ELSE NULL END,
+ follow_up_after = CASE WHEN interim_wait IS NULL THEN follow_up_after ELSE 0 END,
+ interim_wait = NULL
 WHERE session_prompt_reply_watches.state IN ('armed', 'fired') AND session_prompt_reply_watches.follow_up_after > 0
  AND EXISTS (
   SELECT 1 FROM session_prompt_reply_watches AS newer
@@ -611,9 +612,33 @@ WHERE session_prompt_reply_watches.state IN ('armed', 'fired') AND session_promp
    AND newer.sender_session_id = session_prompt_reply_watches.sender_session_id AND newer.target_session_id = session_prompt_reply_watches.target_session_id
    AND newer.workspace_id = session_prompt_reply_watches.workspace_id AND newer.target_workspace_id = session_prompt_reply_watches.target_workspace_id
  )
+RETURNING id, state
 `
 
-func (q *Queries) SupersedeReplyWatchFollowUps(ctx context.Context, newerID string) error {
-	_, err := q.db.ExecContext(ctx, supersedeReplyWatchFollowUps, newerID)
-	return err
+type SupersedeReplyWatchFollowUpsRow struct {
+	ID    string `json:"id"`
+	State string `json:"state"`
+}
+
+func (q *Queries) SupersedeReplyWatchFollowUps(ctx context.Context, newerID string) ([]SupersedeReplyWatchFollowUpsRow, error) {
+	rows, err := q.db.QueryContext(ctx, supersedeReplyWatchFollowUps, newerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SupersedeReplyWatchFollowUpsRow{}
+	for rows.Next() {
+		var i SupersedeReplyWatchFollowUpsRow
+		if err := rows.Scan(&i.ID, &i.State); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

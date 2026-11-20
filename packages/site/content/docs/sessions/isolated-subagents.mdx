@@ -236,7 +236,7 @@ If the reviewer's turn doesn't produce an answer, the reply still comes, with th
 | `failed`    | The turn failed.                                           | The error summary.                                                   |
 | `canceled`  | The turn was canceled or interrupted, including by a stop. | Any answer the turn left.                                            |
 | `dropped`   | The message was removed from the queue before it ran.      | "The message was removed from the queue before it ran."              |
-| `unknown`   | CompozyOS can't tell whether the message was delivered.    | "The message may not have been delivered; check the target session." |
+| `unknown`   | CompozyOS could not read the reply or confirm delivery.    | The reason and a pointer to check the target session. |
 
 Answers longer than 12,000 characters are cut with a note that points to
 `compozy__session_history`. Replies survive a CompozyOS restart and are delivered exactly once; if the

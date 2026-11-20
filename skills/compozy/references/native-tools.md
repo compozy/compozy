@@ -338,7 +338,12 @@ settles. If the receiver still has a monitor, subagent or awaited child, schedul
 from another session pending, the wake says it is interim and names the work. One follow-up wakes
 you when a later turn settles the work or the receiver stops, fails, or disappears. The watch stays
 outstanding across restarts under the original TTL. A newer watched message from you to the same
-target supersedes the pending follow-up.
+target supersedes the pending follow-up. Each consumed message still receives its own first reply.
+
+Intermediate turns do not wake the sender. A long-lived wait, such as a `pull_request` monitor
+that stays armed until the PR merges or the monitor times out, keeps the follow-up pending
+until the wait ends or the reply watch expires. If the interim text answers your request,
+act on it and keep working. End your turn to await the follow-up only when you still need it.
 
 `compozy__session_status` lists outstanding `reply_watches` in state `armed` or `fired`. Use
 `compozy__monitor_create` with `kind="session"` as well when you need an independent lifecycle or

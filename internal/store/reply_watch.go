@@ -103,7 +103,7 @@ type ReplyWatchStore interface {
 	BindReplyWatch(context.Context, string, string, string) error
 	FireReplyWatch(context.Context, string, ReplyWatchFire) (bool, error)
 	AdvanceReplyWatchFollowUp(context.Context, string, int64) error
-	DeliverReplyWatch(context.Context, string, SessionInputQueueInsert) (bool, error)
+	DeliverReplyWatch(context.Context, string, SessionInputQueueInsert, bool) (bool, error)
 	AbandonReplyWatch(context.Context, string, string) error
 	ReplyWatchEvidence(context.Context, ReplyWatch) (SessionPromptAdmission, []SessionInputQueueEntry, error)
 	// ReplyWatchByMessage reads the watch armed for one message admitted into a target session.

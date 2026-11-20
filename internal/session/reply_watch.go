@@ -110,22 +110,33 @@ func (s *replyWatchService) reconcileArmed(ctx context.Context, w store.ReplyWat
 	// sender's watch as an explicit uncertain reply instead of failing daemon boot.
 	target, err := s.manager.StoredStatus(ctx, w.TargetSessionID)
 	if errors.Is(err, ErrSessionNotFound) {
-		return s.fire(ctx, w, store.ReplyOutcomeUnknown, "")
+		return s.replyTargetUnavailable(ctx, w)
 	}
 	if err != nil {
 		return err
-	}
-	if target.ArchivedAt != nil {
-		return s.fire(ctx, w, store.ReplyOutcomeUnknown, "")
 	}
 	if pass == replyWatchPeriodic && (target.State == StateStarting || target.State == StateStopping) {
 		s.settleGrace.Delete(w.ID)
 		return nil
 	}
 	if w.FollowUpAfter > 0 {
+		if target.ArchivedAt != nil {
+			return s.replyTargetUnavailable(ctx, w)
+		}
 		return s.reconcileFollowUp(ctx, w, target, pass)
 	}
 	return s.reconcileInitial(ctx, w, target, pass)
+}
+
+func (s *replyWatchService) replyTargetUnavailable(ctx context.Context, w store.ReplyWatch) error {
+	switch {
+	case w.FollowUpAfter > 0:
+		return s.fire(ctx, w, store.ReplyOutcomeUnknown, "The target session is unavailable. The interim reply stands.")
+	case w.TurnID != "":
+		return s.fire(ctx, w, store.ReplyOutcomeUnknown, replyResultUnreadable)
+	default:
+		return s.fire(ctx, w, store.ReplyOutcomeUnknown, "")
+	}
 }
 
 func (s *replyWatchService) reconcileInitial(
@@ -133,7 +144,10 @@ func (s *replyWatchService) reconcileInitial(
 ) error {
 	admission, inputs, err := s.store.ReplyWatchEvidence(ctx, w)
 	if err != nil {
-		return s.unreadableReply(ctx, w, pass, err)
+		if w.TurnID != "" {
+			return s.reconcileConsumedTurn(ctx, w, target, w.TurnID, w.QueueEntryID, pass)
+		}
+		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, "", err)
 	}
 	queueID := w.QueueEntryID
 	for i := range inputs {
@@ -150,6 +164,9 @@ func (s *replyWatchService) reconcileInitial(
 	if turn != "" {
 		return s.reconcileConsumedTurn(ctx, w, target, turn, queueID, pass)
 	}
+	if target.ArchivedAt != nil {
+		return s.replyTargetUnavailable(ctx, w)
+	}
 	if queueID != w.QueueEntryID {
 		if err := s.store.BindReplyWatch(ctx, w.ID, "", queueID); err != nil {
 			return err
@@ -162,18 +179,22 @@ func (s *replyWatchService) reconcileUnconsumed(
 	ctx context.Context, w store.ReplyWatch, admission store.SessionPromptAdmission,
 	inputs []store.SessionInputQueueEntry, pass replyWatchPass,
 ) error {
+	if replyQueuedForConsumption(inputs) {
+		s.settleGrace.Delete(w.ID)
+		return nil
+	}
 	outcome := replyNonDispatchOutcome(admission, inputs)
+	if outcome == store.ReplyOutcomeUnknown && s.manager.IsPrompting(w.TargetSessionID) {
+		s.settleGrace.Delete(w.ID)
+		return nil
+	}
 	if outcome == "" {
-		if replyQueuedForConsumption(inputs) {
-			s.settleGrace.Delete(w.ID)
-			return nil
-		}
-		return s.unreadableReply(ctx, w, pass, nil)
+		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, "", nil)
 	}
 	if outcome == store.ReplyOutcomeUnknown && pass != replyWatchRecovery {
 		settled, err := s.manager.replyTargetSettledSince(ctx, w.TargetSessionID, replyDispatchTime(admission, inputs))
 		if err != nil || !settled {
-			return s.unreadableReply(ctx, w, pass, err)
+			return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, "", err)
 		}
 	}
 	return s.fire(ctx, w, outcome, "")
@@ -189,25 +210,21 @@ func (s *replyWatchService) reconcileConsumedTurn(
 	if activeErr == nil && active.TurnID == turn {
 		return nil
 	}
-	if (turn != w.TurnID || queueID != w.QueueEntryID) && w.FollowUpAfter == 0 {
+	if turn != w.TurnID || queueID != w.QueueEntryID {
 		if err := s.store.BindReplyWatch(ctx, w.ID, turn, queueID); err != nil {
 			return err
 		}
 	}
 	result, err := s.manager.replyTurnResult(ctx, w.TargetSessionID, turn, pass == replyWatchEvent)
 	if err != nil || result.Outcome == "" {
-		return s.unreadableReply(ctx, w, pass, err)
+		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, replyResultUnreadable, err)
 	}
-	if target.State == StateStopped {
+	if target.State == StateStopped || target.ArchivedAt != nil {
 		return s.fireTurnReply(ctx, w, turn, result, "")
 	}
 	waiting, err := s.replyContinuationWork(ctx, w)
 	if err != nil {
 		return err
-	}
-	if w.FollowUpAfter > 0 && waiting != "" {
-		s.settleGrace.Delete(w.ID)
-		return nil
 	}
 	return s.fireTurnReply(ctx, w, turn, result, waiting)
 }
@@ -241,15 +258,8 @@ func replyQueuedForConsumption(inputs []store.SessionInputQueueEntry) bool {
 func replyNonDispatchOutcome(admission store.SessionPromptAdmission, inputs []store.SessionInputQueueEntry) string {
 	terminal := false
 	for i := range inputs {
-		entry := &inputs[i]
-		if entry.Status == store.SessionInputQueueStatusSent &&
-			entry.SteerDelivery == store.SteerDeliveryPendingInjection {
-			return ""
-		}
-		switch entry.Status {
-		case store.SessionInputQueueStatusQueued, store.SessionInputQueueStatusDispatching:
-			return ""
-		case store.SessionInputQueueStatusCanceled, store.SessionInputQueueStatusFailed:
+		if inputs[i].Status == store.SessionInputQueueStatusCanceled ||
+			inputs[i].Status == store.SessionInputQueueStatusFailed {
 			terminal = true
 		}
 	}
@@ -275,7 +285,9 @@ func (s *replyWatchService) fireResult(ctx context.Context, w store.ReplyWatch, 
 	case store.ReplyOutcomeDropped:
 		result.Text = "The message was removed from the queue before it ran."
 	case store.ReplyOutcomeUnknown:
-		result.Text = "The message may not have been delivered; check the target session."
+		if result.Text == "" {
+			result.Text = "The message may not have been delivered; check the target session."
+		}
 	}
 	if strings.TrimSpace(result.Text) == "" {
 		result.Text = replyNoText
