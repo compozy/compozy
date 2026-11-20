@@ -43,10 +43,27 @@ const (
 )
 
 type parsedMigrationSQL struct {
-	useTx bool
-	up    []string
-	down  []string
+	up   parsedMigrationDirection
+	down parsedMigrationDirection
 }
+
+type migrationTransactionMode uint8
+
+const (
+	migrationTransaction migrationTransactionMode = iota
+	migrationAutocommit
+	migrationForeignKeyRebuild
+)
+
+type parsedMigrationDirection struct {
+	mode       migrationTransactionMode
+	statements []string
+}
+
+const (
+	migrationForeignKeysOff = "PRAGMAFOREIGN_KEYS=OFF"
+	migrationForeignKeysOn  = "PRAGMAFOREIGN_KEYS=ON"
+)
 
 type migrationSQLLineAction uint8
 
@@ -65,29 +82,91 @@ type migrationSQLDirectionParser struct {
 }
 
 func parseMigrationSQL(path string, contents []byte) (parsedMigrationSQL, error) {
-	up, useTx, err := parseMigrationSQLDirection(contents, migrationSQLUp)
+	up, err := parsePreparedMigrationDirection(contents, migrationSQLUp)
 	if err != nil {
 		return parsedMigrationSQL{}, fmt.Errorf("parse %s up migration: %w", path, err)
 	}
-	down, _, err := parseMigrationSQLDirection(contents, migrationSQLDown)
+	down, err := parsePreparedMigrationDirection(contents, migrationSQLDown)
 	if err != nil {
 		return parsedMigrationSQL{}, fmt.Errorf("parse %s down migration: %w", path, err)
 	}
-	if useTx && migrationDisablesForeignKeys(up) {
-		useTx = false
-	}
-	return parsedMigrationSQL{useTx: useTx, up: up, down: down}, nil
+	return parsedMigrationSQL{up: up, down: down}, nil
 }
 
-func migrationDisablesForeignKeys(statements []string) bool {
+func parsePreparedMigrationDirection(
+	contents []byte,
+	direction migrationSQLDirection,
+) (parsedMigrationDirection, error) {
+	statements, useTx, err := parseMigrationSQLDirection(contents, direction)
+	if err != nil {
+		return parsedMigrationDirection{}, err
+	}
+	prepared := parsedMigrationDirection{statements: statements}
+	if !useTx {
+		prepared.mode = migrationAutocommit
+	}
+	disablesForeignKeys := false
 	for _, statement := range statements {
-		normalized := strings.TrimSuffix(strings.TrimSpace(statement), ";")
-		normalized = strings.ToUpper(strings.Join(strings.Fields(normalized), ""))
-		if normalized == "PRAGMAFOREIGN_KEYS=OFF" {
-			return true
+		directive := normalizeMigrationDirective(statement)
+		switch {
+		case directive == migrationForeignKeysOff:
+			disablesForeignKeys = true
+		case directive == migrationForeignKeysOn:
+		default:
+			pragma, isPragma := strings.CutPrefix(directive, "PRAGMA")
+			if isPragma && (strings.HasPrefix(pragma, "FOREIGN_KEYS") || strings.Contains(pragma, ".FOREIGN_KEYS")) {
+				return parsedMigrationDirection{}, fmt.Errorf("unsupported foreign key pragma %q", statement)
+			}
 		}
 	}
-	return false
+	if disablesForeignKeys {
+		prepared.mode = migrationForeignKeyRebuild
+		prepared.statements, err = rebuildMigrationStatements(statements)
+	}
+	return prepared, err
+}
+
+func rebuildMigrationStatements(statements []string) ([]string, error) {
+	body := make([]string, 0, len(statements))
+	for _, statement := range statements {
+		switch normalizeMigrationDirective(statement) {
+		case migrationForeignKeysOff, migrationForeignKeysOn, "PRAGMAFOREIGN_KEY_CHECK":
+			continue
+		}
+		body = append(body, statement)
+	}
+	// Historical rebuilds can wrap their SQL in BEGIN IMMEDIATE and COMMIT.
+	if len(body) >= 2 && normalizeMigrationDirective(body[0]) == "BEGINIMMEDIATE" &&
+		normalizeMigrationDirective(body[len(body)-1]) == "COMMIT" {
+		body = body[1 : len(body)-1]
+	}
+	for _, statement := range body {
+		if directive := normalizeMigrationDirective(
+			statement,
+		); directive != "" &&
+			!strings.HasPrefix(directive, "PRAGMA") {
+			return nil, fmt.Errorf("unsupported transaction control in rebuild: %q", statement)
+		}
+	}
+	return body, nil
+}
+
+func normalizeMigrationDirective(statement string) string {
+	var directive strings.Builder
+	for line := range strings.SplitSeq(statement, "\n") {
+		code, _, _ := strings.Cut(line, "--")
+		for word := range strings.FieldsSeq(code) {
+			if directive.Len() == 0 {
+				switch strings.ToUpper(strings.TrimSuffix(word, ";")) {
+				case "PRAGMA", "BEGIN", "COMMIT", "END", "ROLLBACK", "SAVEPOINT", "RELEASE", "VACUUM":
+				default:
+					return ""
+				}
+			}
+			directive.WriteString(word)
+		}
+	}
+	return strings.TrimSuffix(strings.ToUpper(directive.String()), ";")
 }
 
 func parseMigrationSQLDirection(

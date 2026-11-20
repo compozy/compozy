@@ -14,14 +14,13 @@ import (
 	"sync"
 
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/database"
 )
 
 type preparedMigration struct {
 	path    string
 	version int64
-	useTx   bool
-	up      []string
-	down    []string
+	sql     parsedMigrationSQL
 }
 
 type migrationPlan struct {
@@ -105,9 +104,7 @@ func compileMigrationPlan(directory migrationDirectory) (*migrationPlan, error) 
 		preparedMigrations = append(preparedMigrations, preparedMigration{
 			path:    file.path,
 			version: version,
-			useTx:   parsed.useTx,
-			up:      parsed.up,
-			down:    parsed.down,
+			sql:     parsed,
 		})
 	}
 
@@ -121,40 +118,74 @@ func requiresOriginalGooseParser(contents []byte) bool {
 	return bytes.Contains(bytes.ToUpper(contents), []byte("+GOOSE ENVSUB"))
 }
 
-func (p *migrationPlan) gooseMigrations() []*goose.Migration {
+func (p *migrationPlan) gooseMigrations(versions database.Store) []*goose.Migration {
 	migrations := make([]*goose.Migration, 0, len(p.prepared))
 	for _, prepared := range p.prepared {
-		var migration *goose.Migration
-		if prepared.useTx {
-			migration = goose.NewGoMigration(
-				prepared.version,
-				&goose.GoFunc{RunTx: func(ctx context.Context, tx *sql.Tx) error {
-					return executePreparedMigration(ctx, tx, prepared.path, "up", prepared.up)
-				}},
-				&goose.GoFunc{RunTx: func(ctx context.Context, tx *sql.Tx) error {
-					return executePreparedMigration(ctx, tx, prepared.path, "down", prepared.down)
-				}},
-			)
-		} else {
-			migration = goose.NewGoMigration(
-				prepared.version,
-				&goose.GoFunc{RunDB: func(ctx context.Context, db *sql.DB) error {
-					return executePreparedMigrationWithoutTransaction(ctx, db, prepared.path, "up", prepared.up)
-				}},
-				&goose.GoFunc{RunDB: func(ctx context.Context, db *sql.DB) error {
-					return executePreparedMigrationWithoutTransaction(ctx, db, prepared.path, "down", prepared.down)
-				}},
-			)
-		}
-		migrations = append(migrations, migration)
+		migrations = append(migrations, goose.NewGoMigration(
+			prepared.version,
+			prepared.gooseFunc(migrationSQLUp, versions),
+			prepared.gooseFunc(migrationSQLDown, versions),
+		))
 	}
 	return migrations
 }
 
+func (m preparedMigration) direction(direction migrationSQLDirection) parsedMigrationDirection {
+	if direction == migrationSQLDown {
+		return m.sql.down
+	}
+	return m.sql.up
+}
+
+func (m preparedMigration) gooseFunc(direction migrationSQLDirection, versions database.Store) *goose.GoFunc {
+	prepared := m.direction(direction)
+	switch prepared.mode {
+	case migrationForeignKeyRebuild:
+		return &goose.GoFunc{RunDB: func(ctx context.Context, db *sql.DB) error {
+			return m.executeRebuild(ctx, db, direction, prepared.statements, versions)
+		}}
+	case migrationAutocommit:
+		return &goose.GoFunc{RunDB: func(ctx context.Context, db *sql.DB) error {
+			return executePreparedMigrationWithoutTransaction(ctx, db, m.path, direction, prepared.statements)
+		}}
+	default:
+		return &goose.GoFunc{RunTx: func(ctx context.Context, tx *sql.Tx) error {
+			return executePreparedMigration(ctx, tx, m.path, direction, prepared.statements)
+		}}
+	}
+}
+
 func (p *migrationPlan) requiresIndependentConnection() bool {
 	return slices.ContainsFunc(p.prepared, func(migration preparedMigration) bool {
-		return !migration.useTx
+		return migration.sql.up.mode != migrationTransaction || migration.sql.down.mode != migrationTransaction
 	})
+}
+
+// Rebuilds write their version inside their own transaction, before Goose records other migrations.
+type migrationVersionStore struct {
+	database.Store
+	plan *migrationPlan
+}
+
+func (s migrationVersionStore) Insert(ctx context.Context, db database.DBTxConn, req database.InsertRequest) error {
+	if s.rebuildRecordsVersion(req.Version, migrationSQLUp) {
+		return nil
+	}
+	return s.Store.Insert(ctx, db, req)
+}
+
+func (s migrationVersionStore) Delete(ctx context.Context, db database.DBTxConn, version int64) error {
+	if s.rebuildRecordsVersion(version, migrationSQLDown) {
+		return nil
+	}
+	return s.Store.Delete(ctx, db, version)
+}
+
+func (s migrationVersionStore) rebuildRecordsVersion(version int64, direction migrationSQLDirection) bool {
+	index, found := slices.BinarySearchFunc(s.plan.prepared, version, func(m preparedMigration, version int64) int {
+		return cmp.Compare(m.version, version)
+	})
+	return found && s.plan.prepared[index].direction(direction).mode == migrationForeignKeyRebuild
 }
 
 type migrationStatementExecutor interface {
@@ -165,7 +196,7 @@ func executePreparedMigration(
 	ctx context.Context,
 	executor migrationStatementExecutor,
 	path string,
-	direction string,
+	direction migrationSQLDirection,
 	statements []string,
 ) error {
 	for index, statement := range statements {
@@ -186,7 +217,7 @@ func executePreparedMigrationWithoutTransaction(
 	ctx context.Context,
 	db *sql.DB,
 	path string,
-	direction string,
+	direction migrationSQLDirection,
 	statements []string,
 ) (retErr error) {
 	conn, err := db.Conn(ctx)
@@ -197,6 +228,109 @@ func executePreparedMigrationWithoutTransaction(
 		retErr = finishPreparedMigrationConnection(conn, retErr)
 	}()
 	return executePreparedMigration(ctx, conn, path, direction, statements)
+}
+
+func (m preparedMigration) executeRebuild(
+	ctx context.Context,
+	db *sql.DB,
+	direction migrationSQLDirection,
+	statements []string,
+	versions database.Store,
+) (retErr error) {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire connection for %s migration %s: %w", direction, m.path, err)
+	}
+	defer func() {
+		retErr = finishPreparedMigrationConnection(conn, retErr)
+	}()
+
+	var foreignKeys int
+	if err := conn.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
+		return fmt.Errorf("read foreign key enforcement for migration %s: %w", m.path, err)
+	}
+	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		return fmt.Errorf("disable foreign key enforcement for migration %s: %w", m.path, err)
+	}
+	if err := m.rebuildInTransaction(ctx, conn, direction, statements, versions); err != nil {
+		return err
+	}
+	if foreignKeys != 0 {
+		if _, err := conn.ExecContext(context.WithoutCancel(ctx), "PRAGMA foreign_keys = ON"); err != nil {
+			return fmt.Errorf("restore foreign key enforcement after migration %s: %w", m.path, err)
+		}
+	}
+	return nil
+}
+
+func (m preparedMigration) rebuildInTransaction(
+	ctx context.Context,
+	conn *sql.Conn,
+	direction migrationSQLDirection,
+	statements []string,
+	versions database.Store,
+) error {
+	// Acquire the writer lock before taking the foreign key snapshot; the connection is discarded on failure.
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		return fmt.Errorf("begin %s migration %s: %w", direction, m.path, err)
+	}
+	before, err := migrationForeignKeyViolations(ctx, conn)
+	if err != nil {
+		return fmt.Errorf("read existing foreign key violations for %s migration %s: %w", direction, m.path, err)
+	}
+	if err := executePreparedMigration(ctx, conn, m.path, direction, statements); err != nil {
+		return err
+	}
+	after, err := migrationForeignKeyViolations(ctx, conn)
+	if err != nil {
+		return fmt.Errorf("check foreign keys for %s migration %s: %w", direction, m.path, err)
+	}
+	for violation, count := range after {
+		if count > before[violation] {
+			return fmt.Errorf("%s migration %s introduced a foreign key violation in %q referencing %q (constraint %d)",
+				direction, m.path, violation.table, violation.parent, violation.constraint)
+		}
+	}
+	if direction == migrationSQLUp {
+		err = versions.Insert(ctx, conn, database.InsertRequest{Version: m.version})
+	} else {
+		err = versions.Delete(ctx, conn, m.version)
+	}
+	if err != nil {
+		return fmt.Errorf("record version for %s migration %s: %w", direction, m.path, err)
+	}
+	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
+		return fmt.Errorf("commit %s migration %s: %w", direction, m.path, err)
+	}
+	return nil
+}
+
+type migrationForeignKeyViolation struct {
+	table, parent string
+	rowID         sql.NullInt64
+	constraint    int
+}
+
+func migrationForeignKeyViolations(
+	ctx context.Context,
+	conn *sql.Conn,
+) (_ map[migrationForeignKeyViolation]int, retErr error) {
+	rows, err := conn.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		retErr = errors.Join(retErr, rows.Close())
+	}()
+	violations := make(map[migrationForeignKeyViolation]int)
+	for rows.Next() {
+		var violation migrationForeignKeyViolation
+		if err := rows.Scan(&violation.table, &violation.rowID, &violation.parent, &violation.constraint); err != nil {
+			return nil, err
+		}
+		violations[violation]++
+	}
+	return violations, rows.Err()
 }
 
 func finishPreparedMigrationConnection(conn *sql.Conn, migrationErr error) error {

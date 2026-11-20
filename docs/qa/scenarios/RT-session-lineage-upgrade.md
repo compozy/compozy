@@ -85,3 +85,10 @@ Step 6 follow-up 2026-09-28 (task_08 part B1): BUG-20260928-derive-stopped-sourc
 never count as in progress). Re-walked on part B1's lab: preview of a stopped source → `source_turn_in_progress: false`
 (`docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-src-preview-stopped-fixed.json`), a never-prompted session → `false`, a live running turn still `true`. Lab B (the
 pre-feature root) was torn down before the fix; the same code path serves it.
+
+## Interrupted side-chat upgrade
+
+`TestSideLineageMigration` opens a version 00209 catalog with saved sessions and derivation receipts.
+It kills the upgrade subprocess after migration 00210 drops `sessions` and before it renames the
+replacement. The reopened catalog must still report version 00209 and return the same rows. A
+second upgrade must reach the embedded head and preserve the rows while accepting side lineage.

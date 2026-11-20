@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/database"
 )
 
 // MigrationStepper applies a validated migration stream to explicit version
@@ -42,18 +43,22 @@ func newMigrationStepperFromInspection(
 	}
 	if plan.requiresIndependentConnection() && db.Stats().MaxOpenConnections == 1 {
 		return nil, fmt.Errorf(
-			"%w: stream %q contains a non-transactional migration and requires at least two open connections",
+			"%w: stream %q contains a migration that requires at least two open connections",
 			ErrMigrationConnectionCapacity,
 			stream.Name,
 		)
 	}
+	versions, err := database.NewStore(database.DialectSQLite3, stream.VersionTable)
+	if err != nil {
+		return nil, fmt.Errorf("store: create migration version store for stream %q: %w", stream.Name, err)
+	}
 	provider, err := goose.NewProvider(
-		goose.DialectSQLite3,
+		goose.DialectCustom,
 		db,
 		plan.gooseFS,
-		goose.WithTableName(stream.VersionTable),
+		goose.WithStore(migrationVersionStore{Store: versions, plan: plan}),
 		goose.WithDisableGlobalRegistry(true),
-		goose.WithGoMigrations(plan.gooseMigrations()...),
+		goose.WithGoMigrations(plan.gooseMigrations(versions)...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: create migration provider for stream %q: %w", stream.Name, err)
