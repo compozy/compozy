@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -13,35 +14,42 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-// warnForAcceptedBudgetReceipt runs inside the same immediate write transaction
-// as the new canonical receipt and both overview projections. A replay never
-// reaches this path and can never emit another warning.
+// A warning failure must not undo the usage receipt or reserve a bell that was never delivered.
 func warnForAcceptedBudgetReceipt(
-	ctx context.Context, q *sqlcgen.Queries, sessionID string, at time.Time,
+	ctx context.Context, tx *store.WriteTx, receipt *sqlcgen.InsertTokenUsageReceiptParams, at time.Time,
 ) error {
-	owner, err := q.GetTokenUsageReceiptSessionOwner(ctx, sessionID)
-	if err != nil {
-		return fmt.Errorf("store: resolve budget receipt warning owner: %w", err)
-	}
-	if owner.InstanceID == "" {
+	if receipt.InstanceID == "" {
 		return nil
 	}
-	instance, err := q.GetAgentInstance(ctx, owner.InstanceID)
+	if _, err := tx.ExecContext(ctx, "SAVEPOINT daily_budget_bell"); err != nil {
+		return fmt.Errorf("store: start daily budget bell savepoint: %w", err)
+	}
+	if err := assessAcceptedBudgetReceiptWarning(ctx, sqlcgen.New(tx), receipt, at); err != nil {
+		if store.IsSQLiteBusy(err) {
+			return err
+		}
+		if _, rollbackErr := tx.ExecContext(ctx, "ROLLBACK TO daily_budget_bell"); rollbackErr != nil {
+			return errors.Join(err, fmt.Errorf("store: roll back daily budget bell: %w", rollbackErr))
+		}
+		slog.WarnContext(ctx, "store: daily budget bell could not be recorded",
+			"instance_id", receipt.InstanceID, "session_id", receipt.SessionID, "turn_id", receipt.TurnID, "error", err)
+	}
+	if _, err := tx.ExecContext(ctx, "RELEASE daily_budget_bell"); err != nil {
+		return fmt.Errorf("store: release daily budget bell savepoint: %w", err)
+	}
+	return nil
+}
+
+func assessAcceptedBudgetReceiptWarning(
+	ctx context.Context, q *sqlcgen.Queries, receipt *sqlcgen.InsertTokenUsageReceiptParams, at time.Time,
+) error {
+	instance, err := q.GetAgentInstance(ctx, receipt.InstanceID)
 	if err != nil {
 		return fmt.Errorf("store: resolve budget warning instance: %w", err)
 	}
-	if instance.ProfileID != owner.ProfileID {
+	if instance.ProfileID != receipt.ProfileID {
 		return agentinstance.ErrScopeMismatch
 	}
-	createdAt, err := store.ParseTimestamp(instance.CreatedAt)
-	if err != nil {
-		return err
-	}
-	if at.Before(createdAt) {
-		return nil // pre-adoption standalone usage cannot issue this instance's bell
-	}
-	// An in-flight turn may finish after an instance was archived. Its usage
-	// still belongs in the ledger, but archived instances receive no new bells.
 	if instance.ArchivedAt.Valid {
 		return nil
 	}

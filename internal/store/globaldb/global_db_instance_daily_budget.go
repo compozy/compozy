@@ -66,7 +66,7 @@ func (r *InstanceRepo) SetDailyBudgetLimits(
 			InstanceID: instanceID, TokenCap: tokens, UsdCap: usd,
 			UpdatedAt: store.FormatTimestamp(at),
 		}); err != nil {
-			return err
+			return fmt.Errorf("store: upsert daily budget limits for instance %q: %w", instanceID, err)
 		}
 		// When a cap is enabled mid-day, existing receipts may have already
 		// crossed 80%. Reserve the bell in the same transaction as the new

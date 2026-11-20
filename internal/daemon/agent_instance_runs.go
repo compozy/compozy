@@ -91,8 +91,10 @@ func releaseInstanceInputs(
 	repo *globaldb.InstanceRepo,
 	instance agentinstance.Instance,
 ) error {
+	budgetPaused := instance.PauseReason == "daily_budget" || instance.PauseReason == "daily_budget_recovery"
 	if instance.State != nativeFilterActiveValue &&
-		(instance.State != string(looppkg.StatusPaused) || agentinstance.OperatorOnlyResume(instance.PauseReason)) {
+		(instance.State != string(looppkg.StatusPaused) ||
+			(agentinstance.OperatorOnlyResume(instance.PauseReason) && !budgetPaused)) {
 		return nil
 	}
 	releaser, ok := state.sessions.(interface {

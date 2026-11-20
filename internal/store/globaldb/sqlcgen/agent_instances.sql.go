@@ -191,6 +191,7 @@ WITH RECURSIVE scoped_instances AS (
    OR (owned.budget_hold = 0 AND q.origin_class <> 'human' AND EXISTS (
      SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
      WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
+     AND i.id = owned.instance_id AND i.state = 'paused'
      AND (current.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
    ))
  )
@@ -823,18 +824,24 @@ func (q *Queries) ListAgentInstances(ctx context.Context, arg ListAgentInstances
 }
 
 const listInstanceQueuedSessions = `-- name: ListInstanceQueuedSessions :many
-WITH RECURSIVE active_instance(id, profile_id) AS (
- SELECT id, profile_id FROM agent_instances WHERE id = ?2 AND archived_at IS NULL
- AND (state = 'active' OR (state = 'paused' AND pause_reason IN ('definition_missing', 'definition_not_always_on')))
+WITH RECURSIVE releasable_instance(id, profile_id, budget_held) AS (
+ SELECT id, profile_id,
+   (state = 'paused' AND pause_reason IN ('daily_budget', 'daily_budget_recovery'))
+   OR EXISTS (SELECT 1 FROM agent_instance_daily_budget_recovery guard
+     WHERE guard.instance_id = agent_instances.id AND guard.latched = 1)
+ FROM agent_instances WHERE id = ?2 AND archived_at IS NULL
+ AND (state = 'active' OR (state = 'paused' AND pause_reason IN (
+   'definition_missing', 'definition_not_always_on', 'daily_budget', 'daily_budget_recovery'
+ )))
 ), instance_sessions(id, profile_id) AS (
- SELECT s.id, s.profile_id FROM active_instance i JOIN sessions s ON s.instance_id = i.id AND s.profile_id = i.profile_id
+ SELECT s.id, s.profile_id FROM releasable_instance i JOIN sessions s ON s.instance_id = i.id AND s.profile_id = i.profile_id
  UNION
  SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
  WHERE s.profile_id = parent.profile_id
 ), budget_sessions(id, profile_id) AS (
- SELECT s.id, s.profile_id FROM active_instance i JOIN sessions s ON s.instance_id = i.id AND s.profile_id = i.profile_id
+ SELECT s.id, s.profile_id FROM releasable_instance i JOIN sessions s ON s.instance_id = i.id AND s.profile_id = i.profile_id
  UNION
- SELECT d.id, d.profile_id FROM active_instance i
+ SELECT d.id, d.profile_id FROM releasable_instance i
  JOIN deleted_session_budget_lineage d ON d.instance_id = i.id AND d.profile_id = i.profile_id
  WHERE NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = d.id)
  UNION
@@ -848,20 +855,28 @@ WITH RECURSIVE active_instance(id, profile_id) AS (
  WHERE COALESCE(NULLIF(d.instance_id, ''), ?2) = ?2
  AND d.lineage_kind NOT IN ('continue', 'fork', 'provenance', 'side')
  AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = d.id)
+), held_budget_sessions(id) AS (
+ SELECT id FROM budget_sessions WHERE EXISTS (SELECT 1 FROM releasable_instance WHERE budget_held)
 )
 SELECT s.id FROM sessions s
 WHERE s.id > ?1 AND s.archived_at IS NULL
 AND (s.id IN (SELECT id FROM instance_sessions) OR s.id IN (SELECT id FROM budget_sessions))
-AND NOT EXISTS (
- SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
- WHERE root.id = COALESCE(NULLIF(s.root_session_id, ''), s.id) AND i.state = 'paused'
- AND (s.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
- AND (i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('daily_budget', 'daily_budget_recovery')
-   OR s.id NOT IN (SELECT id FROM budget_sessions))
-)
 AND (s.state <> 'stopped' OR s.id = (SELECT agent_instances.main_session_id FROM agent_instances WHERE agent_instances.id = ?2))
 AND EXISTS (SELECT 1 FROM session_input_queue q WHERE q.session_id = s.id
- AND q.status = 'queued' AND q.session_generation = s.input_generation)
+ AND q.status = 'queued' AND q.session_generation = s.input_generation
+ AND (s.id NOT IN (SELECT id FROM held_budget_sessions) OR (
+   q.human_ingress = 1 AND q.app_ingress = 0 AND q.dispatchable = 1
+   AND (q.owner_kind IS NULL OR q.owner_kind = 'synthetic')
+ ))
+ AND NOT EXISTS (
+   SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
+   WHERE root.id = COALESCE(NULLIF(s.root_session_id, ''), s.id) AND i.state = 'paused'
+   AND (s.instance_id = i.id OR i.archived_at IS NOT NULL
+     OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+   AND (i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('daily_budget', 'daily_budget_recovery')
+     OR s.id NOT IN (SELECT id FROM budget_sessions))
+   AND (i.archived_at IS NOT NULL OR s.id NOT IN (SELECT id FROM held_budget_sessions) OR q.origin_class <> 'human')
+ ))
 ORDER BY s.id LIMIT 100
 `
 

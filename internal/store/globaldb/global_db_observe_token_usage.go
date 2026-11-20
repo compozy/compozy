@@ -68,8 +68,8 @@ func (g *ObserveRepo) BackfillDailyBudgetReceipt(
 	return store.ExecuteWriteOperation(ctx, g.db, "backfill daily budget receipt", func(
 		ctx context.Context, tx *store.WriteTx,
 	) error {
-		inserted, err := g.insertTokenUsageReceipt(ctx, tx, stats, daily)
-		if err != nil || !inserted {
+		receipt, err := g.insertTokenUsageReceipt(ctx, tx, stats, daily)
+		if err != nil || receipt == nil {
 			return err
 		}
 		queries := sqlcgen.New(tx)
@@ -86,7 +86,7 @@ func (g *ObserveRepo) BackfillDailyBudgetReceipt(
 			}
 		}
 		if daily.Day == store.LocalDay(g.now()) {
-			return warnForAcceptedBudgetReceipt(ctx, queries, stats.SessionID, daily.UpdatedAt)
+			return warnForAcceptedBudgetReceipt(ctx, tx, receipt, daily.UpdatedAt)
 		}
 		return nil
 	})
@@ -157,13 +157,12 @@ func (g *ObserveRepo) recordTokenUsage(
 			// ExecuteWriteOperation may retry this closure after a busy commit.
 			// Never leak acceptance from an attempt that was rolled back.
 			accepted = false
+			var receipt *sqlcgen.InsertTokenUsageReceiptParams
 			if withReceipt {
-				accepted, receiptErr := g.insertTokenUsageReceipt(ctx, tx, stats, daily)
-				if receiptErr != nil {
+				var receiptErr error
+				receipt, receiptErr = g.insertTokenUsageReceipt(ctx, tx, stats, daily)
+				if receiptErr != nil || receipt == nil {
 					return receiptErr
-				}
-				if !accepted {
-					return nil
 				}
 			}
 			queries := sqlcgen.New(tx)
@@ -173,14 +172,9 @@ func (g *ObserveRepo) recordTokenUsage(
 			if dailyErr := queries.UpsertTokenUsageDaily(ctx, dailyParams); dailyErr != nil {
 				return fmt.Errorf("store: upsert token usage daily for day %q: %w", daily.Day, dailyErr)
 			}
-			if withReceipt {
-				if warningErr := warnForAcceptedBudgetReceipt(
-					ctx,
-					queries,
-					stats.SessionID,
-					daily.UpdatedAt,
-				); warningErr != nil {
-					return fmt.Errorf("store: assess accepted daily budget receipt warning: %w", warningErr)
+			if receipt != nil {
+				if err := warnForAcceptedBudgetReceipt(ctx, tx, receipt, daily.UpdatedAt); err != nil {
+					return err
 				}
 			}
 			accepted = true
@@ -202,35 +196,35 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 	tx *store.WriteTx,
 	stats store.TokenStatsUpdate,
 	daily store.TokenUsageDailyUpdate,
-) (bool, error) {
+) (*sqlcgen.InsertTokenUsageReceiptParams, error) {
 	queries := sqlcgen.New(tx)
 	receiptOwner, err := queries.GetTokenUsageReceiptProfile(ctx, sqlcgen.GetTokenUsageReceiptProfileParams{
 		SessionID: stats.SessionID, TurnID: stats.TurnID,
 	})
 	if err == nil {
 		if receiptOwner.ProfileID != daily.ProfileID {
-			return false, fmt.Errorf(
+			return nil, fmt.Errorf(
 				"store: replayed token receipt for session %q has a different profile",
 				stats.SessionID,
 			)
 		}
-		return false, nil
+		return nil, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return false, fmt.Errorf("store: check token receipt for session %q: %w", stats.SessionID, err)
+		return nil, fmt.Errorf("store: check token receipt for session %q: %w", stats.SessionID, err)
 	}
 	// A duplicate keeps its original day even if the daemon's local timezone
 	// changed. New receipts must agree with the writer's local-day boundary.
 	if daily.UpdatedAt.IsZero() || daily.Day != store.LocalDay(daily.UpdatedAt) {
-		return false, errors.New("store: canonical token receipt day does not match its timestamp")
+		return nil, errors.New("store: canonical token receipt day does not match its timestamp")
 	}
 	sessionOwner, err := tokenReceiptOwner(ctx, queries, stats.SessionID, daily.ProfileID, daily.UpdatedAt)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	tokens, err := receiptTokenCount(stats)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	var amount sql.NullString
 	if stats.CostAmount != nil && stats.CostCurrency != nil &&
@@ -245,11 +239,11 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 	}
 	rows, err := queries.InsertTokenUsageReceipt(ctx, receipt)
 	if err != nil {
-		return false, fmt.Errorf("store: insert token receipt for session %q: %w", stats.SessionID, err)
+		return nil, fmt.Errorf("store: insert token receipt for session %q: %w", stats.SessionID, err)
 	}
 	if rows == 1 && receipt.OwnershipUnresolved != 0 {
 		if err := markUnresolvedBudgetReceipt(ctx, queries, receipt.SessionID, daily.UpdatedAt); err != nil {
-			return false, fmt.Errorf(
+			return nil, fmt.Errorf(
 				"store: preserve uncertain budget receipt for session %q: %w",
 				stats.SessionID,
 				err,
@@ -258,10 +252,13 @@ func (g *ObserveRepo) insertTokenUsageReceipt(
 	}
 	if rows == 1 && receipt.InstanceID != "" {
 		if err := projectDailyBudgetReceipt(ctx, queries, receipt); err != nil {
-			return false, fmt.Errorf("store: project daily budget receipt for session %q: %w", stats.SessionID, err)
+			return nil, fmt.Errorf("store: project daily budget receipt for session %q: %w", stats.SessionID, err)
 		}
 	}
-	return rows == 1, nil
+	if rows != 1 {
+		return nil, nil
+	}
+	return &receipt, nil
 }
 
 func tokenReceiptOwner(
