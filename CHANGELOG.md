@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.7 - 2026-11-20
+
+### Bug Fixes
+
+- Resolve always-on Loop worker creation identity (#1855)
+- Identify missing skills in native tool responses (#1866)
+- Make table-rebuild migrations crash-safe (#1877)
+- Bring the session barrel back under the source-size limit (#1879)
+- Stop the MCP stdio crash helper from running the daemon test bootstrap (#1884)
+- Refresh daemon provider readiness after CLI login (#1883)
+- Keep session reply watches alive through follow-up work (#1878)
+- Speed up session derivation and expose inherited transcripts (#1892)
+- Make Fork and Continue fast to leave and show what the child inherited (#1888)
+- Complete Antigravity file tool calls as they finish (#1889)
+- Enforce queued daily budgets and repair release checks
+- Preserve session derive and usage contracts
+
+### Features
+
+- Redesign the MCP OAuth callback page (#1860)
+- Carry pinned subtrees and order Pinned manually (#1861)
+- Add an opt-in budget for hosted MCP tool listings (#1870)
+- Add side chats to CompozyOS sessions (#1867)
+- Add permanent removal and restore for built-in extensions (#1862)
+- Focus the composer when a session is opened (#1876)
+- Add daily spend guardrails for always-on instances (#1849)
+
+### Performance Improvements
+
+- Stop rebuilding MCP projections on idle refresh ticks (#1871)
+- Reduce repeated daemon session work (#1875)
+
+### Testing
+
+- Include pin_position in the sessions schema contract (#1863)
+- Age the work-log triage instance after the shared DB clock stamps it
+
 ## 0.7.6 - 2026-11-19
 
 ### Bug Fixes
@@ -1751,6 +1788,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.7.7]: https://github.com/compozy/compozy/compare/v0.7.6...v0.7.7
 [0.7.6]: https://github.com/compozy/compozy/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/compozy/compozy/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/compozy/compozy/compare/v0.7.3...v0.7.4
