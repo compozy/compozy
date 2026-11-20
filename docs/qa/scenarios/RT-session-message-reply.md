@@ -120,7 +120,10 @@ Explicit reply and expiry regression (#760)
 
 Service-level coverage lives in `TestReplyWatchPeriodicSettlement` and `TestReplyWatchFollowUp`.
 Boot ordering is covered by `TestBootRecoversReplyWatchAfterMonitors`.
-The live provider and Web walkthroughs for these additions are pending.
+Live QA with Claude Haiku 5.5 (`claude-haiku-5-5`) on `5c0d250ee7a2e9e4047513c79ed8248d58a416aa`
+verified interim and follow-up delivery, timer recovery across daemon restart, cancellation
+without a new target turn, MCP reload in the consuming turn, supersession, and timer wake
+admission during the consuming turn. `session-messages.test.tsx` covers the Web reply card text.
 
 Release integration verification (2026-10-18): the native busy-sender case keeps the operator input
 ahead of the reply wake, waits for dispatch before claiming delivery, and checks one reply with the
