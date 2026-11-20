@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	atlasmigrate "ariga.io/atlas/sql/migrate"
 )
 
 const (
@@ -111,10 +113,10 @@ func parsePreparedMigrationDirection(
 	disablesForeignKeys := false
 	for _, statement := range statements {
 		directive := normalizeMigrationDirective(statement)
-		switch {
-		case directive == migrationForeignKeysOff:
+		switch directive {
+		case migrationForeignKeysOff:
 			disablesForeignKeys = true
-		case directive == migrationForeignKeysOn:
+		case migrationForeignKeysOn:
 		default:
 			pragma, isPragma := strings.CutPrefix(directive, "PRAGMA")
 			if isPragma && (strings.HasPrefix(pragma, "FOREIGN_KEYS") || strings.Contains(pragma, ".FOREIGN_KEYS")) {
@@ -143,15 +145,28 @@ func rebuildMigrationStatements(statements []string) ([]string, error) {
 		normalizeMigrationDirective(body[len(body)-1]) == "COMMIT" {
 		body = body[1 : len(body)-1]
 	}
-	for _, statement := range body {
-		if directive := normalizeMigrationDirective(
-			statement,
-		); directive != "" &&
-			!strings.HasPrefix(directive, "PRAGMA") {
-			return nil, fmt.Errorf("unsupported transaction control in rebuild: %q", statement)
-		}
+	if err := validateRebuildTransactionControl(body); err != nil {
+		return nil, err
 	}
 	return body, nil
+}
+
+func validateRebuildTransactionControl(statements []string) error {
+	// Goose statement blocks can contain multiple SQL statements, including trigger bodies.
+	scanner := atlasmigrate.Scanner{ScannerOptions: atlasmigrate.ScannerOptions{MatchBegin: true}}
+	for _, statement := range statements {
+		parts, err := scanner.Scan(statement)
+		if err != nil {
+			return fmt.Errorf("scan rebuild statement: %w", err)
+		}
+		for _, part := range parts {
+			directive := normalizeMigrationDirective(part.Text)
+			if directive != "" && !strings.HasPrefix(directive, "PRAGMA") {
+				return fmt.Errorf("unsupported transaction control in rebuild: %q", part.Text)
+			}
+		}
+	}
+	return nil
 }
 
 func normalizeMigrationDirective(statement string) string {

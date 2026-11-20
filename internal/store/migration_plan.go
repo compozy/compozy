@@ -157,7 +157,7 @@ func (m preparedMigration) gooseFunc(direction migrationSQLDirection, versions d
 
 func (p *migrationPlan) requiresIndependentConnection() bool {
 	return slices.ContainsFunc(p.prepared, func(migration preparedMigration) bool {
-		return migration.sql.up.mode != migrationTransaction || migration.sql.down.mode != migrationTransaction
+		return migration.sql.up.mode != migrationTransaction
 	})
 }
 

@@ -184,6 +184,12 @@ CREATE TABLE new_children (id TEXT PRIMARY KEY, parent_id INTEGER REFERENCES par
 INSERT INTO new_children (id, parent_id) SELECT id, parent_id FROM children ORDER BY rowid;
 DROP TABLE children;
 ALTER TABLE new_children RENAME TO children;
+-- +goose StatementBegin
+CREATE TRIGGER keep_existing_orphan BEFORE DELETE ON children WHEN OLD.id = 'orphan'
+BEGIN
+  SELECT RAISE(ABORT, 'cannot delete; COMMIT; protected row');
+END;
+-- +goose StatementEnd
 ` + rebuild.after + "PRAGMA foreign_keys = ON;\n"
 				stream := MigrationStream{
 					Name:         "historical-foreign-key-rebuild",
@@ -224,6 +230,7 @@ FROM children AS child CROSS JOIN children AS orphan WHERE child.id = 'child' AN
 		for _, failure := range []struct {
 			name         string
 			copyID       string
+			afterDrop    string
 			versionGuard string
 			wantErr      string
 		}{
@@ -231,6 +238,12 @@ FROM children AS child CROSS JOIN children AS orphan WHERE child.id = 'child' AN
 				name:    "Should reject an orphan created by the rebuild",
 				copyID:  "id + 1",
 				wantErr: "foreign key violation",
+			},
+			{
+				name:      "Should reject a commit written beside a drop",
+				copyID:    "id",
+				afterDrop: " COMMIT;",
+				wantErr:   "unsupported transaction control in rebuild",
 			},
 			{
 				name:   "Should preserve the original schema if Goose cannot record the version",
@@ -244,41 +257,39 @@ WHEN NEW.version_id = 2 BEGIN SELECT RAISE(ABORT, 'reject migration version'); E
 				t.Parallel()
 				ctx := testutil.Context(t)
 				db := openMigrationRebuildTestDB(t)
-				stream := MigrationStream{
-					Name:         "atomic-rebuild",
-					Dir:          ".",
-					VersionTable: "goose_db_version_global",
-					FS: signedMigrationMapFS(t, map[string][]byte{
-						"00001_seed.sql": []byte(`-- +goose Up
+				files := map[string][]byte{
+					"00001_seed.sql": []byte(`-- +goose Up
 CREATE TABLE parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE children (parent_id INTEGER REFERENCES parents(id) ON DELETE CASCADE);
 INSERT INTO parents (id, value) VALUES (1, 'before');
 INSERT INTO children (parent_id) VALUES (1);
 `),
-						"00002_rebuild.sql": []byte(fmt.Sprintf(`-- +goose Up
+				}
+				stream := MigrationStream{
+					Name:         "atomic-rebuild",
+					Dir:          ".",
+					VersionTable: "goose_db_version_global",
+					FS:           signedMigrationMapFS(t, files),
+				}
+				if err := Apply(ctx, db, stream); err != nil {
+					t.Fatal(err)
+				}
+				files["00002_rebuild.sql"] = []byte(fmt.Sprintf(`-- +goose Up
 PRAGMA foreign_keys = OFF;
 CREATE TABLE new_parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
 INSERT INTO new_parents SELECT %s, 'after' FROM parents;
-DROP TABLE parents;
+DROP TABLE parents;%s
 ALTER TABLE new_parents RENAME TO parents;
 PRAGMA foreign_keys = ON;
-`, failure.copyID)),
-					}),
-				}
-				stepper, err := NewMigrationStepper(ctx, db, stream)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if _, err := stepper.UpTo(ctx, 1); err != nil {
-					t.Fatal(err)
-				}
+`, failure.copyID, failure.afterDrop))
+				stream.FS = signedMigrationMapFS(t, files)
 				if failure.versionGuard != "" {
 					if _, err := db.ExecContext(ctx, failure.versionGuard); err != nil {
 						t.Fatal(err)
 					}
 				}
-				if _, err := stepper.UpTo(ctx, 2); err == nil || !strings.Contains(err.Error(), failure.wantErr) {
-					t.Fatalf("UpTo(2) error = %v, want %q", err, failure.wantErr)
+				if err := Apply(ctx, db, stream); err == nil || !strings.Contains(err.Error(), failure.wantErr) {
+					t.Fatalf("Apply() error = %v, want %q", err, failure.wantErr)
 				}
 				status, err := Status(ctx, db, stream)
 				if err != nil || status.Version != 1 || status.AppliedCount != 1 {
@@ -329,6 +340,38 @@ THIS IS NOT VALID SQL;
 		}
 		if tableExistsForTest(t, db, stream.VersionTable) || tableExistsForTest(t, db, "rebuild_items") {
 			t.Fatal("rebuild changed the database after connection-capacity refusal")
+		}
+	})
+
+	t.Run("Should apply a transactional Up with one connection even when Down rebuilds", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openEngineTestDB(t, "transactional-up.db")
+		db.SetMaxOpenConns(1)
+		stream := MigrationStream{
+			Name:         "transactional-up",
+			Dir:          ".",
+			VersionTable: "goose_db_version_global",
+			FS: signedMigrationMapFS(t, map[string][]byte{
+				"00001_upgrade.sql": []byte(`-- +goose Up
+CREATE TABLE migration_items (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
+INSERT INTO migration_items (value) VALUES ('first');
+-- +goose Down
+PRAGMA foreign_keys = OFF;
+CREATE TABLE new_migration_items (id INTEGER PRIMARY KEY);
+INSERT INTO new_migration_items (id) SELECT id FROM migration_items;
+DROP TABLE migration_items;
+ALTER TABLE new_migration_items RENAME TO migration_items;
+PRAGMA foreign_keys = ON;
+`),
+			}),
+		}
+		if err := Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if got := migrationItemValues(t, db); got != "first" {
+			t.Fatalf("migration item values = %q, want first", got)
 		}
 	})
 
