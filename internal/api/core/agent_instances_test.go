@@ -530,7 +530,7 @@ func TestAgentInstanceDailyBudgetSettings(t *testing.T) {
 			t.Fatalf("paired app budget update status=%d response=%s", response.Code, response.Body.String())
 		}
 	})
-	fixture.Handlers.AgentInstances.WithDailyBudgetUpdate = func(context.Context, string, func(context.Context) error) error {
+	fixture.Handlers.AgentInstances.WithDailyBudgetUpdate = func(context.Context, string, bool, func(context.Context) error) error {
 		return errors.New("ledger requires recovery")
 	}
 	blocked := performRequest(t, fixture.Engine, "PATCH", url,
@@ -542,10 +542,10 @@ func TestAgentInstanceDailyBudgetSettings(t *testing.T) {
 	if err != nil || limits.Tokens != nil || limits.USD != nil {
 		t.Fatalf("failed pre-enable reconciliation altered limits: %+v err=%v", limits, err)
 	}
+	fixture.Handlers.AgentInstances.WithDailyBudgetUpdate = nil
 	t.Run(
 		"Should keep usage errors local while preserving successful mutations and instance reads",
 		func(t *testing.T) {
-			fixture.Handlers.AgentInstances.WithDailyBudgetUpdate = nil
 			now := time.Now()
 			fixture.Handlers.AgentInstances.Clock = func() time.Time { return now }
 			if _, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instance_daily_budget_usage
@@ -592,6 +592,27 @@ func TestAgentInstanceDailyBudgetSettings(t *testing.T) {
 			}
 		},
 	)
+	t.Run("Should return committed caps even when the instance projection cannot reload", func(t *testing.T) {
+		api := fixture.Handlers.AgentInstances
+		api.ReadPayload = func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error) {
+			return contract.AgentInstancePayload{}, errors.New("instance projection unavailable")
+		}
+		t.Cleanup(func() { api.ReadPayload = nil })
+		response := performRequest(t, fixture.Engine, "PATCH", url, []byte(`{"daily_budget":{"tokens":125}}`))
+		var payload contract.AgentInstanceResponse
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		configured := payload.Instance.DailyBudget
+		if response.Code != http.StatusOK || payload.Instance.ID != instance.ID ||
+			configured == nil || configured.Tokens == nil || *configured.Tokens != 125 ||
+			payload.Instance.DailyBudgetUsage != nil || payload.Instance.Sources == nil ||
+			payload.Instance.ResolvedAppearance == nil {
+			t.Fatalf("budget update status=%d body=%s", response.Code, response.Body.String())
+		}
+		persisted, err := db.Instances().DailyBudgetLimits(ctx, instance.ID)
+		if err != nil || persisted.Tokens == nil || *persisted.Tokens != 125 {
+			t.Fatalf("persisted caps=%+v err=%v, want 125 tokens", persisted, err)
+		}
+	})
 }
 
 func TestAgentInstanceAway(t *testing.T) {

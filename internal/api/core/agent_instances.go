@@ -22,7 +22,7 @@ import (
 )
 
 type AgentInstanceAPI struct {
-	WithDailyBudgetUpdate func(context.Context, string, func(context.Context) error) error
+	WithDailyBudgetUpdate func(context.Context, string, bool, func(context.Context) error) error
 	Clock                 func() time.Time
 	AfterSeen             func(context.Context, agentinstance.Instance, []store.SessionAttentionCommit)
 	PickActions           func(context.Context, string) ([]agentinstance.ActionSnapshot, error)

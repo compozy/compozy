@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -97,8 +98,9 @@ func (h *BaseHandlers) UpdateAgentInstance(c *gin.Context) {
 			return budget.SetDailyBudgetLimits(ctx, instance.ID, limits)
 		}
 		var updateErr error
-		if (limits.Tokens != nil || limits.USD != nil) && h.AgentInstances.WithDailyBudgetUpdate != nil {
-			updateErr = h.AgentInstances.WithDailyBudgetUpdate(c.Request.Context(), instance.ID, commit)
+		if h.AgentInstances.WithDailyBudgetUpdate != nil {
+			configured := limits.Tokens != nil || limits.USD != nil
+			updateErr = h.AgentInstances.WithDailyBudgetUpdate(c.Request.Context(), instance.ID, configured, commit)
 		} else {
 			updateErr = commit(c.Request.Context())
 		}
@@ -108,8 +110,14 @@ func (h *BaseHandlers) UpdateAgentInstance(c *gin.Context) {
 		}
 		payload, err := h.AgentInstances.Payload(c.Request.Context(), instance)
 		if err != nil {
-			h.instanceError(c, err)
-			return
+			slog.WarnContext(c.Request.Context(), "api: committed daily budget update without refreshed status",
+				"instance_id", instance.ID, "error", err)
+			payload = AgentInstancePayload(instance)
+			payload.Sources = []heartbeat.HeartbeatSourceStatus{}
+			payload.ResolvedAppearance = map[string]any{}
+			if limits.Tokens != nil || limits.USD != nil {
+				payload.DailyBudget = &contract.AgentInstanceDailyBudgetLimits{Tokens: limits.Tokens, USD: limits.USD}
+			}
 		}
 		c.JSON(http.StatusOK, contract.AgentInstanceResponse{Instance: payload})
 		return

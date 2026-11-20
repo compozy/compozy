@@ -163,7 +163,12 @@ func (input *AgentInstanceDailyBudgetInput) UnmarshalJSON(raw []byte) error {
 	type budgetAlias AgentInstanceDailyBudgetInput
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
-	return decoder.Decode((*budgetAlias)(input))
+	var replacement budgetAlias
+	if err := decoder.Decode(&replacement); err != nil {
+		return err
+	}
+	*input = AgentInstanceDailyBudgetInput(replacement)
+	return nil
 }
 
 func (input AgentInstanceDailyBudgetInput) Limits() agentinstance.DailyBudgetLimits {

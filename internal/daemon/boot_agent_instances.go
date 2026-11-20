@@ -129,14 +129,21 @@ func instanceBudgetResumeCommit(state *bootState, repo interface {
 	}
 }
 
-func instanceBudgetUpdateCommit(state *bootState) func(context.Context, string, func(context.Context) error) error {
-	return func(ctx context.Context, instanceID string, commit func(context.Context) error) error {
-		if guarded, ok := state.observer.(interface {
+func instanceBudgetUpdateCommit(
+	state *bootState,
+) func(context.Context, string, bool, func(context.Context) error) error {
+	return func(ctx context.Context, instanceID string, configured bool, commit func(context.Context) error) error {
+		guarded, ok := state.observer.(interface {
 			WithDailyBudgetUpdate(context.Context, string, func(context.Context) error) error
-		}); ok {
-			return guarded.WithDailyBudgetUpdate(ctx, instanceID, commit)
+			WithDailyBudgetMutation(context.Context, func(context.Context) error) error
+		})
+		if !ok {
+			return errors.New("daemon: instance budget recovery unavailable")
 		}
-		return errors.New("daemon: instance budget recovery unavailable")
+		if !configured {
+			return guarded.WithDailyBudgetMutation(ctx, commit)
+		}
+		return guarded.WithDailyBudgetUpdate(ctx, instanceID, commit)
 	}
 }
 

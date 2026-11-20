@@ -161,14 +161,14 @@ func (g *SessionRepo) CommitSessionPromptDispatch(
 				WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,
 			})
 		if lookupErr != nil && !errors.Is(lookupErr, sql.ErrNoRows) {
-			return lookupErr
+			return fmt.Errorf("store: read prompt admission before dispatch: %w", lookupErr)
 		}
 		// Human-origin input is deliberately outside the autonomous budget. An
 		// already-committed/replayed turn must never be admitted a second time.
 		if lookupErr == nil && admission.State == store.SessionPromptAdmissionReserved &&
 			admission.Operation == store.SessionPromptOperationPrompt && !store.PromptControlOnly(ctx) &&
 			(admission.HumanIngress == 0 || admission.AppIngress != 0) {
-			allowed, trip, admissionErr := admitDailyBudgetTurnTx(ctx, queries, sessionID, now)
+			allowed, trip, admissionErr := admitDailyBudgetTurnTx(ctx, queries, sessionID, g.now())
 			if admissionErr != nil {
 				return admissionErr
 			}

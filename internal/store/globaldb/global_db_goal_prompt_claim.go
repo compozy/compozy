@@ -24,13 +24,12 @@ func (g *GoalRepo) ClaimPreparedWorkPrompt(
 	if err := validateClaimPreparedWorkRequest(req); err != nil {
 		return goal.ClaimedPrompt{}, err
 	}
-	now := g.now().UTC()
 	var claimed goal.ClaimedPrompt
 	var budgetBlocked *store.DailyBudgetTurnBlockedError
 	err := g.withTaskImmediateTransaction(ctx, "claim prepared Goal work prompt", func(exec taskSQLExecutor) error {
 		var err error
 		budgetBlocked = nil
-		claimed, err = g.claimPreparedWorkPromptWithExecutor(ctx, exec, req, now, &budgetBlocked)
+		claimed, err = g.claimPreparedWorkPromptWithExecutor(ctx, exec, req, g.now().UTC(), &budgetBlocked)
 		return err
 	})
 	if err != nil {
@@ -203,13 +202,12 @@ func (g *GoalRepo) ClaimPreparedCompaction(
 	if err := validateClaimPreparedCompactionRequest(req); err != nil {
 		return goal.ClaimedPrompt{}, err
 	}
-	now := g.now().UTC()
 	var claimed goal.ClaimedPrompt
 	var budgetBlocked *store.DailyBudgetTurnBlockedError
 	err := g.withTaskImmediateTransaction(ctx, "claim prepared Goal compaction", func(exec taskSQLExecutor) error {
 		var claimErr error
 		budgetBlocked = nil
-		claimed, claimErr = claimPreparedGoalCompactionWithExecutor(ctx, exec, req, now, &budgetBlocked)
+		claimed, claimErr = claimPreparedGoalCompactionWithExecutor(ctx, exec, req, g.now().UTC(), &budgetBlocked)
 		return claimErr
 	})
 	if err != nil {

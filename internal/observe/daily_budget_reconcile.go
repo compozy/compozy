@@ -188,6 +188,8 @@ func (o *Observer) ReconcileBudgetSessionBeforeDeletion(ctx context.Context, ses
 	if !ok {
 		return nil
 	}
+	o.budgetAdmissionMu.Lock()
+	defer o.budgetAdmissionMu.Unlock()
 	owner, err := recovery.DailyBudgetSessionOwner(ctx, sessionID)
 	if err != nil {
 		return err
@@ -197,10 +199,6 @@ func (o *Observer) ReconcileBudgetSessionBeforeDeletion(ctx context.Context, ses
 	}
 	if owner.InstanceID == "" {
 		return nil
-	}
-	configured, err := recovery.DailyBudgetInstanceHasLimits(ctx, owner.InstanceID)
-	if err != nil {
-		return err
 	}
 	sessions, err := recovery.ListDailyBudgetReconcileSessions(ctx, owner.InstanceID)
 	if err != nil {
@@ -212,6 +210,10 @@ func (o *Observer) ReconcileBudgetSessionBeforeDeletion(ctx context.Context, ses
 			continue
 		}
 		if err := o.reconcileDailyBudgetSession(ctx, recovery, sess); err != nil {
+			configured, readErr := recovery.DailyBudgetInstanceHasLimits(ctx, owner.InstanceID)
+			if readErr != nil {
+				return errors.Join(err, readErr)
+			}
 			if !configured {
 				if !errors.Is(err, errDailyBudgetLedgerUnreadable) {
 					return err // preserve a readable ledger when the global write needs a retry

@@ -16,13 +16,15 @@ func (r resumeBudgetReaderStub) DailyBudgetLimits(context.Context, string) (agen
 	return r.limits, nil
 }
 
+var errResumeBudgetLedgerMissing = errors.New("old session ledger missing")
+
 type resumeBudgetReconcilerStub struct {
 	calls int
 }
 
 func (r *resumeBudgetReconcilerStub) ReconcileDailyBudgetInstance(context.Context, string) error {
 	r.calls++
-	return errors.New("old session ledger missing")
+	return errResumeBudgetLedgerMissing
 }
 
 func TestDailyBudgetResumePreflightLeavesUnconfiguredInstancesUnchanged(t *testing.T) {
@@ -45,8 +47,11 @@ func TestDailyBudgetResumePreflightLeavesUnconfiguredInstancesUnchanged(t *testi
 				resumeBudgetReaderStub{tc.caps},
 				reconciler,
 			)
-			if (err != nil) != (tc.calls == 1) {
-				t.Fatalf("resume preflight error=%v, want error only with configured cap", err)
+			if tc.calls == 1 && !errors.Is(err, errResumeBudgetLedgerMissing) {
+				t.Fatalf("resume preflight error=%v, want reconciliation failure", err)
+			}
+			if tc.calls == 0 && err != nil {
+				t.Fatalf("unconfigured instance preflight returned %v", err)
 			}
 			if reconciler.calls != tc.calls {
 				t.Fatalf("budget ledger scans=%d, want %d", reconciler.calls, tc.calls)

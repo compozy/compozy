@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -331,7 +332,8 @@ func TestObserverDailyBudgetReadinessRetriesOverlappingReceiptFailures(t *testin
 			h.observer.mu.Unlock()
 			err := h.observer.EnsureDailyBudgetReady(testutil.Context(t), "")
 			if tc.always {
-				if err == nil || registry.calls.Load() != 3 {
+				if err == nil || !strings.Contains(err.Error(), "daily budget receipts changed during recovery") ||
+					registry.calls.Load() != 3 {
 					t.Fatalf("unstable recovery err=%v scans=%d, want fail closed after 3", err, registry.calls.Load())
 				}
 			} else if err != nil || registry.calls.Load() != 2 {
@@ -559,6 +561,12 @@ func TestObserverDailyBudgetMissingHistoricalAuthCannotInventEstimatedUSD(t *tes
 		if err != nil || used.Tokens != 95 || !used.HasUnpricedUsage ||
 			used.USD == nil || used.USD.FloatString(6) != "0.010000" {
 			t.Fatalf("historical receipt usage=%+v err=%v; USD must include actual only", used, err)
+		}
+		var recoveredStatus string
+		if err := h.registry.DB().QueryRowContext(ctx, `SELECT cost_status FROM token_usage_receipts
+			WHERE session_id=? AND turn_id='replay-unpriced-historical'`, sess.ID).
+			Scan(&recoveredStatus); err != nil || recoveredStatus != string(modelcatalog.CostStatusUnknown) {
+			t.Fatalf("recovered historical cost status=%q err=%v, want unknown", recoveredStatus, err)
 		}
 		var notices int
 		if err := h.registry.DB().QueryRowContext(ctx,
