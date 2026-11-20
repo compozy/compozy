@@ -115,13 +115,14 @@ func (s *HostedService) streamProjection(
 	}
 	runtime, ok := registry.(*tools.RuntimeRegistry)
 	if !ok || s.projectionEpoch == nil {
-		return s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+		return s.streamProjectionForGeneration(ctx, record, registry)
 	}
 	projectionCtx, _ := runtime.HostedProjectionContext(ctx)
 	listingCtx, builtAt := s.withProjectionListings(projectionCtx, fence.epoch)
 	observation, known := runtime.ObserveProjection(listingCtx, record.scope())
 	if !known {
-		return s.streamProjectionWithoutObservation(ctx, projectionCtx, runtime, record)
+		response, err := s.streamProjectionWithoutObservation(ctx, projectionCtx, runtime, record)
+		return s.checkStreamProjectionResult(ctx, record, response, err)
 	}
 	cached := s.projectionCache.unversionedEntry(record.bindID)
 	response := cached.response
@@ -130,7 +131,7 @@ func (s *HostedService) streamProjection(
 	if !reused {
 		built, stable, err := s.buildObservedStreamProjection(projectionCtx, listingCtx, runtime, record, observation)
 		if err != nil || !stable {
-			return built, err
+			return s.checkStreamProjectionResult(ctx, record, built, err)
 		}
 		response = built
 	}
@@ -149,7 +150,7 @@ func (s *HostedService) streamProjection(
 		if registry == nil {
 			return HostedProjectionResponse{}, ErrHostedRegistryRequired
 		}
-		return s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+		return s.streamProjectionForGeneration(ctx, record, registry)
 	}
 	return response, nil
 }
@@ -190,6 +191,31 @@ func (s *HostedService) streamProjectionWithoutObservation(
 		return catalogProjectionWithRedactionCheck(buildCtx, registry, record, buildHostedProjection)
 	}
 	return projectionWithRedactionCheck(buildCtx, registry, record, buildHostedProjection)
+}
+
+func (s *HostedService) streamProjectionForGeneration(
+	ctx context.Context, record *hostedBindRecord, registry tools.Registry,
+) (HostedProjectionResponse, error) {
+	response, err := s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+	return s.checkStreamProjectionResult(ctx, record, response, err)
+}
+
+func (s *HostedService) checkStreamProjectionResult(
+	ctx context.Context, record *hostedBindRecord, response HostedProjectionResponse, err error,
+) (HostedProjectionResponse, error) {
+	if err != nil {
+		return HostedProjectionResponse{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return HostedProjectionResponse{}, err
+	}
+	s.mu.Lock()
+	owned := s.ownsBindRecord(record)
+	s.mu.Unlock()
+	if !owned {
+		return HostedProjectionResponse{}, ErrHostedBindNotFound
+	}
+	return response, nil
 }
 
 func (s *HostedService) storeObservedProjection(

@@ -107,9 +107,19 @@ func parseCheckIns(value any) (CheckInsPolicy, error) {
 type CheckInLimits struct{ MaxToolCalls, MaxWriteCalls int }
 
 func (p CheckInsPolicy) ValidateBounds(limits CheckInLimits) error {
-	if p.MaxToolCalls != nil && *p.MaxToolCalls > limits.MaxToolCalls ||
-		p.MaxWriteCalls != nil && *p.MaxWriteCalls > limits.MaxWriteCalls {
-		return fmt.Errorf("heartbeat_check_ins_invalid: caps exceed daemon limits")
+	if p.MaxToolCalls != nil && *p.MaxToolCalls > limits.MaxToolCalls {
+		return fmt.Errorf(
+			"heartbeat_check_ins_invalid: max_tool_calls %d exceeds daemon limit %d",
+			*p.MaxToolCalls,
+			limits.MaxToolCalls,
+		)
+	}
+	if p.MaxWriteCalls != nil && *p.MaxWriteCalls > limits.MaxWriteCalls {
+		return fmt.Errorf(
+			"heartbeat_check_ins_invalid: max_write_calls %d exceeds daemon limit %d",
+			*p.MaxWriteCalls,
+			limits.MaxWriteCalls,
+		)
 	}
 	return nil
 }

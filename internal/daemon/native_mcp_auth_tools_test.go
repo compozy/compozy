@@ -1820,26 +1820,34 @@ func TestSessionMCPReadModel(t *testing.T) {
 		if _, cached := fixture.model.snapshots[target]; cached {
 			t.Error("summary cached a transient binding")
 		}
+		assertApproval := func(response mcppkg.HostedProjectionResponse, required bool) {
+			t.Helper()
+			for _, id := range []toolspkg.ToolID{toolspkg.ToolIDSessionApprove, toolspkg.ToolIDSessionClarifyAnswer} {
+				index := slices.IndexFunc(response.Tools, func(view toolspkg.ToolView) bool {
+					return view.Descriptor.ID == id
+				})
+				if index < 0 {
+					t.Errorf("stream did not list %s", id)
+				} else if got := response.Tools[index].Decision.ApprovalRequired; got != required {
+					t.Errorf("stream approval for %s = %v, want %v", id, got, required)
+				}
+			}
+		}
 		checkStream := arm()
 		fixture.model.state.toolProjectionEpoch.Advance()
 		fixture.now = fixture.now.Add(fixture.hosted.StreamRefreshInterval())
-		if _, err := fixture.hosted.StreamSnapshot(t.Context(), fixture.binds[2], fixture.peer); err != nil {
+		first, err := fixture.hosted.StreamSnapshot(t.Context(), fixture.binds[2], fixture.peer)
+		if err != nil {
 			t.Fatal(err)
 		}
 		checkStream()
+		assertApproval(first, false)
 		fixture.now = fixture.now.Add(fixture.hosted.StreamRefreshInterval())
 		current, err := fixture.hosted.StreamSnapshot(t.Context(), fixture.binds[2], fixture.peer)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDSessionApprove, toolspkg.ToolIDSessionClarifyAnswer} {
-			index := slices.IndexFunc(current.Tools, func(view toolspkg.ToolView) bool {
-				return view.Descriptor.ID == id
-			})
-			if index < 0 || !current.Tools[index].Decision.ApprovalRequired {
-				t.Errorf("stream retained the transient binding for %s", id)
-			}
-		}
+		assertApproval(current, true)
 	})
 
 	// Invariant: only a workspace configuration consumed at the observed revision can seed a summary.
@@ -2071,39 +2079,87 @@ func TestSessionMCPReadModel(t *testing.T) {
 	// Invariant: authentication expiry invalidates a scope even inside its TTL or batch.
 	// Owner: daemon summary scope cache; canonical suite: TestSessionMCPReadModel.
 	t.Run("Should refresh authenticated scopes when tokens expire inside the TTL", func(t *testing.T) {
-		for _, batch := range []bool{false, true} {
-			fixture := newInstanceMCPProjectionFixture(t, 1, 0, 1, false)
-			now := time.Now()
-			expires := now.Add(fixture.model.summaryIdleTTL() / 2)
-			fixture.settings.servers[0].AuthStatus = &mcpauth.Status{
-				Status:    mcpauth.StatusAuthenticated,
-				ExpiresAt: &expires,
+		for _, scenario := range []struct {
+			name  string
+			batch bool
+		}{
+			{name: "Should reuse an authenticated collection until token expiry"},
+			{name: "Should reuse an authenticated collection within its batch until token expiry", batch: true},
+		} {
+			t.Run(scenario.name, func(t *testing.T) {
+				fixture := newInstanceMCPProjectionFixture(t, 1, 0, 1, false)
+				now := time.Now()
+				expires := now.Add(fixture.model.summaryIdleTTL() / 2)
+				fixture.settings.servers[0].AuthStatus = &mcpauth.Status{
+					Status:    mcpauth.StatusAuthenticated,
+					ExpiresAt: &expires,
+				}
+				info, err := fixture.sessions.StoredStatus(t.Context(), fixture.ids[0])
+				if err != nil {
+					t.Fatal(err)
+				}
+				scope := toolspkg.Scope{
+					SessionID:   info.ID,
+					ProfileID:   info.ProfileID,
+					WorkspaceID: info.WorkspaceID,
+					AgentName:   info.AgentName,
+				}
+				ctx := t.Context()
+				fence := fixture.model.state.sessionMCPReadFence()
+				if scenario.batch {
+					ctx = context.WithValue(
+						ctx,
+						sessionMCPSummaryBatchKey{},
+						&sessionMCPSummaryBatch{id: 1, fence: fence},
+					)
+				}
+				first, err := fixture.model.summaryScopeInputs(ctx, scope, fence, now)
+				if err != nil || first.fingerprint == "" {
+					t.Fatalf("authenticated scope = %v, %v", first.fingerprint, err)
+				}
+				fixture.settings.servers[0].AuthStatus = &mcpauth.Status{Status: mcpauth.StatusExpired}
+				cached, err := fixture.model.summaryScopeInputs(ctx, scope, fence, expires.Add(-time.Nanosecond))
+				if err != nil || cached.fingerprint != first.fingerprint ||
+					len(cached.collection.MCPServers) != 1 || cached.collection.MCPServers[0].AuthStatus == nil ||
+					cached.collection.MCPServers[0].AuthStatus.Status != mcpauth.StatusAuthenticated {
+					t.Fatalf("scope before expiry = %v, %v", cached.collection.MCPServers, err)
+				}
+				next, err := fixture.model.summaryScopeInputs(ctx, scope, fence, expires)
+				if err != nil || next.fingerprint == first.fingerprint ||
+					len(next.collection.MCPServers) != 1 || next.collection.MCPServers[0].AuthStatus == nil ||
+					next.collection.MCPServers[0].AuthStatus.Status != mcpauth.StatusExpired {
+					t.Fatalf("scope at expiry = %v, %v", next.collection.MCPServers, err)
+				}
+			})
+		}
+	})
+
+	// Invariant: a completed runtime read cannot return a summary after context cancellation.
+	// Owner: daemon summary read model; canonical suite: TestSessionMCPReadModel.
+	t.Run("Should reject a summary canceled during its build", func(t *testing.T) {
+		t.Parallel()
+		model, manager, _, _ := newSessionMCPReadFixture(t)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		manager.onRuntimeRead = cancel
+		if summary, err := model.SessionMCPSummary(ctx, "sess-1"); summary != nil || !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled summary = %v, %v", summary, err)
+		}
+	})
+
+	// Invariant: a completed runtime read cannot return a summary for a session removed during the build.
+	// Owner: daemon summary read model; canonical suite: TestSessionMCPReadModel.
+	t.Run("Should reject a summary whose session disappeared during its build", func(t *testing.T) {
+		t.Parallel()
+		model, manager, _, _ := newSessionMCPReadFixture(t)
+		manager.onRuntimeRead = func() {
+			manager.SessionManager = &apitest.StubSessionManager{
+				StatusFn: func(context.Context, string) (*session.Info, error) { return nil, session.ErrSessionNotFound },
 			}
-			info, err := fixture.sessions.StoredStatus(t.Context(), fixture.ids[0])
-			if err != nil {
-				t.Fatal(err)
-			}
-			scope := toolspkg.Scope{
-				SessionID:   info.ID,
-				ProfileID:   info.ProfileID,
-				WorkspaceID: info.WorkspaceID,
-				AgentName:   info.AgentName,
-			}
-			ctx := t.Context()
-			fence := fixture.model.state.sessionMCPReadFence()
-			if batch {
-				ctx = context.WithValue(ctx, sessionMCPSummaryBatchKey{}, &sessionMCPSummaryBatch{id: 1, fence: fence})
-			}
-			first, err := fixture.model.summaryScopeInputs(ctx, scope, fence, now)
-			if err != nil || first.fingerprint == "" {
-				t.Fatalf("authenticated scope = %v, %v", first.fingerprint, err)
-			}
-			fixture.settings.servers[0].AuthStatus = &mcpauth.Status{Status: mcpauth.StatusExpired}
-			next, err := fixture.model.summaryScopeInputs(ctx, scope, fence, expires)
-			if err != nil || next.fingerprint == first.fingerprint ||
-				next.collection.MCPServers[0].AuthStatus.Status != mcpauth.StatusExpired {
-				t.Fatalf("expired scope in batch=%t = %v, %v", batch, next.collection.MCPServers, err)
-			}
+		}
+		if summary, err := model.SessionMCPSummary(t.Context(), "sess-1"); summary != nil ||
+			!errors.Is(err, session.ErrSessionNotFound) {
+			t.Fatalf("removed session summary = %v, %v", summary, err)
 		}
 	})
 
@@ -2830,6 +2886,7 @@ type sessionMCPManagerStub struct {
 	changes            []session.MCPSummary
 	boundIDs           []string
 	onRecord           func(string)
+	onRuntimeRead      func()
 	reads              int
 	readIDs, changeIDs []string
 }
@@ -2858,6 +2915,9 @@ func (s *sessionMCPManagerStub) MCPReadSnapshot(
 ) (session.MCPRuntimeSnapshot, error) {
 	s.reads++
 	s.readIDs = append(s.readIDs, id)
+	if s.onRuntimeRead != nil {
+		s.onRuntimeRead()
+	}
 	return s.runtime, nil
 }
 func (s *sessionMCPManagerStub) MCPReadIdentity(string) (string, error) {

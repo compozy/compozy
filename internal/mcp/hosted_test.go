@@ -1113,6 +1113,70 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 // Owning layer: internal/mcp hosted projection cache.
 // Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
+	// Invariant: a cold build must respect request and bind lifetime even when cache admission fails.
+	// Owner: hosted projection; canonical suite: TestHostedServiceProjectionGenerationCache.
+	for _, scenario := range []struct {
+		name            string
+		unknown, cancel bool
+		want            error
+	}{
+		{name: "Should reject an unstable stream projection when its bind is released", want: ErrHostedBindNotFound},
+		{name: "Should reject an unstable stream projection when its context is canceled", cancel: true, want: context.Canceled},
+		{name: "Should reject a stream projection without an observation when its bind is released", unknown: true, want: ErrHostedBindNotFound},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			var interrupt func()
+			built := false
+			resolver := hostedObservationPolicyResolver{
+				resolve: func(context.Context, tools.Scope) (tools.PolicyInputs, error) {
+					if interrupt != nil {
+						built = true
+						if scenario.unknown {
+							interrupt()
+							interrupt = nil
+						}
+					}
+					return tools.DefaultPolicyInputs(), nil
+				},
+				identity: func(tools.Scope) any {
+					if built {
+						// The response has been built. Make the final observation differ or fail.
+						interrupt()
+					}
+					return built
+				},
+				observationUnavailable: scenario.unknown,
+			}
+			registry, err := tools.NewRegistry(tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			executable := hostedTestExecutable(t, "compozy")
+			service := newHostedTestServiceWithProjectionGeneration(t, executable, registry, nil)
+			service.projectionEpoch = NewProjectionEpoch().Current
+			peer := hostedTestPeer(executable)
+			const sessionID = "sess-interrupted-projection"
+			bind := hostedTestBind(t, service, sessionID, peer)
+			interrupt = func() { service.ReleaseBind(bind.BindID) }
+			if scenario.cancel {
+				interrupt = cancel
+			}
+			result, err := service.StreamProjection(ctx, bind.BindID, peer, "")
+			if !built || !errors.Is(err, scenario.want) || result.Digest != "" {
+				t.Errorf("interrupted projection = %v, %v (built=%v), want %v", result, err, built, scenario.want)
+			}
+			if _, ready := service.InitialToolDigest(sessionID); ready {
+				t.Error("interrupted projection acknowledged the bind")
+			}
+			if !service.projectionCache.unversionedEntry(bind.BindID).builtAt.IsZero() {
+				t.Error("interrupted projection was cached")
+			}
+		})
+	}
+
 	// Invariant: a bounded view of one peer cannot be promoted under another peer's fresh input observation.
 	// Owner: hosted projection cache; canonical suite: TestHostedServiceProjectionGenerationCache.
 	t.Run("Should reject a borrowed response after scoped availability changes within a window", func(t *testing.T) {
@@ -3708,8 +3772,9 @@ func (p *hostedCountingProvider) ProjectionScope(scope tools.Scope) tools.Scope 
 }
 
 type hostedObservationPolicyResolver struct {
-	resolve  hostedPolicyResolver
-	identity func(tools.Scope) any
+	resolve                hostedPolicyResolver
+	identity               func(tools.Scope) any
+	observationUnavailable bool
 }
 
 func (r hostedObservationPolicyResolver) Resolve(ctx context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
@@ -3717,6 +3782,9 @@ func (r hostedObservationPolicyResolver) Resolve(ctx context.Context, scope tool
 }
 
 func (r hostedObservationPolicyResolver) ProjectionPolicyIdentity(_ context.Context, scope tools.Scope) (any, bool) {
+	if r.observationUnavailable {
+		return nil, false
+	}
 	if r.identity == nil {
 		return nil, true
 	}

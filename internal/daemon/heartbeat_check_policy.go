@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -141,7 +142,7 @@ func finishTimerPolicy(
 ) error {
 	if target.CheckInLimits != nil {
 		if err := policy.Frontmatter.CheckIns.ValidateBounds(*target.CheckInLimits); err != nil {
-			return heartbeat.ErrInvalid
+			return fmt.Errorf("%w: %w", heartbeat.ErrInvalid, err)
 		}
 	}
 	policy.Enabled = target.Config.Enabled && (!policy.Present || policy.Frontmatter.Enabled)

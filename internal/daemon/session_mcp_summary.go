@@ -148,7 +148,13 @@ func (r *sessionMCPReadModel) buildSessionMCPSummary(
 	afterFence := r.state.sessionMCPReadFence()
 	currentScope, after, err := r.summaryIdentity(ctx, info.ID, afterFence)
 	afterFence.inventory = 0
-	if err == nil && ctx.Err() == nil && inputs.fingerprint != "" && local != nil && local == after &&
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return sessionMCPSummarySnapshot{}, ctxErr
+	}
+	if errors.Is(err, session.ErrSessionNotFound) {
+		return sessionMCPSummarySnapshot{}, err
+	}
+	if err == nil && inputs.fingerprint != "" && local != nil && local == after &&
 		scope == currentScope && fence == afterFence &&
 		r.state.runtimeMCPInventory.matches(inventory) && inputs.authCurrent(time.Now()) && stable() {
 		r.mu.Lock()

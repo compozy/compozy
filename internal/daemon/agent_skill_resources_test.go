@@ -661,10 +661,24 @@ func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t
 		info := &session.Info{AgentName: agent.Name, ProfileID: store.DefaultProfileID}
 		workspace := new(workspacepkg.ResolvedAgentConfig)
 		workspace.RootDir = root
+		lens := agentCatalogLensForIdentity(info.WorkspaceID, info.ProfileID, workspace.ProfileName)
+		stamp := catalog.projectionHeartbeat(agent.Name, lens)
+		if stamp == "" {
+			t.Fatal("fixture did not publish heartbeat A")
+		}
 		ctx := &heartbeatLoadContext{Context: t.Context(), onCheck: func() { publish(2, 3) }}
 		first, _, _, err := resolver.cachedAuthorityPolicy(ctx, agent, info, workspace, &cfg)
-		if err != nil || first.Frontmatter.CheckIns.MaxToolCalls == nil {
-			t.Fatalf("first authority: %v, %v", first, err)
+		if got := first.Frontmatter.CheckIns.MaxToolCalls; err != nil || got == nil || *got != 2 {
+			t.Fatalf("first heartbeat A returned %+v, %v", first.Frontmatter.CheckIns, err)
+		}
+		if len(resolver.authorityCache) != 1 {
+			t.Fatalf("expected one cached authority for heartbeat A, got %d", len(resolver.authorityCache))
+		}
+		for key, entry := range resolver.authorityCache {
+			got := entry.policy.Frontmatter.CheckIns.MaxToolCalls
+			if key.published != stamp || entry.err != nil || got == nil || *got != 2 {
+				t.Fatalf("cached authority for heartbeat A = %+v, %v", entry.policy.Frontmatter.CheckIns, entry.err)
+			}
 		}
 		publish(3, 2)
 		last, _, _, err := resolver.cachedAuthorityPolicy(t.Context(), agent, info, workspace, &cfg)
