@@ -399,6 +399,10 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		if err != nil || info.PinnedAt == nil || info.State != StateActive {
 			t.Fatalf("Status(live pinned) = %#v, %v, want active with its pin", info, err)
 		}
+		info, err = h.manager.Status(ctx, stopped.ID)
+		if err != nil || info.PinnedAt == nil || info.State != StateStopped {
+			t.Fatalf("Status(stopped pinned) = %#v, %v, want stopped with its pin", info, err)
+		}
 		pinnedQuery := ListQuery{
 			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: h.workspaceID,
@@ -447,6 +451,10 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		unpinned, err := h.manager.Unpin(ctx, h.workspaceID, live.ID)
 		if err != nil || unpinned.PinnedAt != nil {
 			t.Fatalf("Unpin(live) = %#v, %v, want unpinned", unpinned, err)
+		}
+		info, err = h.manager.Status(ctx, live.ID)
+		if err != nil || info.PinnedAt != nil || info.State != StateActive {
+			t.Fatalf("Status(live unpinned) = %#v, %v, want active without a pin", info, err)
 		}
 		page, err = h.manager.ListPage(ctx, rest)
 		if err != nil || len(page.Sessions) != 2 {

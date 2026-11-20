@@ -15,7 +15,7 @@ import (
 func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), SessionMetaName)
+	path := filepath.Join(t.TempDir(), "sessions", "sess-meta", SessionMetaName)
 	stopReason := StopHookStopped
 	meta := SessionMeta{
 		ID:            "sess-meta",

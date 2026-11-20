@@ -36,10 +36,9 @@ func scanProcesses(ctx context.Context, environment bool) ([]ScannedProcess, boo
 		if err != nil {
 			continue
 		}
-		root := fmt.Sprintf("/proc/%d", pid)
 		if environment {
-			if env, e := os.ReadFile(filepath.Join(root, "environ")); e == nil {
-				processMarkers(&p, strings.Split(string(env), "\x00"))
+			if env, e := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid)); e == nil {
+				processMarkers(&p, env)
 			}
 		}
 
