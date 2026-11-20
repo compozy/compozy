@@ -13,7 +13,6 @@ import (
 	"github.com/compozy/compozy/internal/providerexec"
 )
 
-const acpDiscoveryAgentName = "compozy-model-catalog"
 const providerDefaultOption = "default"
 
 // ACPModelProbe reads model options advertised by a short-lived ACP session.
@@ -40,18 +39,19 @@ func (SessionACPModelProbe) InspectModels(
 	ctx context.Context,
 	req ACPModelProbeRequest,
 ) (acp.SessionModelInspection, error) {
+	providerID := strings.TrimSpace(req.ProviderID)
 	inspection, err := acp.InspectSessionModels(ctx, acp.SessionInspectionRequest{
-		AgentName: acpDiscoveryAgentName,
+		AgentName: providerID,
 		Command:   strings.TrimSpace(req.Command),
 		Cwd:       strings.TrimSpace(req.Cwd),
 		Env:       slices.Clone(req.Env),
 
-		TelemetryProvider: strings.TrimSpace(req.ProviderID),
+		TelemetryProvider: providerID,
 	})
 	if err != nil {
 		return acp.SessionModelInspection{}, fmt.Errorf(
 			"model catalog: inspect %s ACP model options: %w",
-			strings.TrimSpace(req.ProviderID),
+			providerID,
 			err,
 		)
 	}

@@ -1532,10 +1532,10 @@ When a session behaves unexpectedly:
 Do not treat stale UI state or chat messages as runtime authority.
 
 For the `agy` built-in, authentication is protocol-owned: sign in explicitly with
-`compozy provider auth login agy`, verify with `compozy provider auth status agy --remote`,
+`compozy provider auth login agy`, verify with `compozy provider list`,
 and retry the failed session without a daemon restart. `needs_login` means run the explicit
 login; `missing_cli` means install `agy_acp_server` for the OS — never substitute the
-interactive `agy` CLI and never collect a secret. A successful remote probe clears a cached
+interactive `agy` CLI and never collect a secret. A successful daemon probe clears a cached
 startup failure; failed or canceled probes change nothing. Agy models come only from live
 `provider_live:agy` discovery: select an exact currently advertised ID, use `view=all` before
 concluding a new model is absent, and treat a missing-login diagnostic as a prompt to run the explicit operator sign-in, not a

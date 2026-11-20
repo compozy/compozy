@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os/exec"
 	"slices"
 	"strings"
@@ -11,8 +13,10 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/gin-gonic/gin"
 )
 
 func TestProviderAuthStatusCommand(t *testing.T) {
@@ -830,6 +834,94 @@ func TestProviderAuthStatusProbeSource(t *testing.T) {
 func TestProviderAuthLoginCommand(t *testing.T) {
 	t.Parallel()
 
+	for _, tc := range []struct {
+		name          string
+		loginCommand  string
+		statusCommand string
+		acpMethod     string
+	}{
+		{name: "Should publish the daemon verdict after ACP login", acpMethod: "oauth-personal"},
+		{name: "Should publish the daemon verdict after native login", loginCommand: "login-helper login",
+			statusCommand: "login-helper status"},
+		{name: "Should publish the daemon verdict after native login with ACP readiness",
+			loginCommand: "login-helper login", acpMethod: "copilot-login"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			const providerID = "login-target"
+			deps := newTestDeps(t, nil)
+			cfg, err := deps.loadConfig()
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg.Providers[providerID] = compozyconfig.ProviderConfig{
+				Command: "login-helper acp", AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
+				AuthLoginCmd: tc.loginCommand, AuthStatusCmd: tc.statusCommand, AuthACPMethod: tc.acpMethod,
+			}
+			deps.loadConfig = func() (compozyconfig.Config, error) { return cfg, nil }
+			deps.lookPath = func(command string) (string, error) { return "/test/bin/" + command, nil }
+			deps.resolveProviderAuthCommand = func(_ context.Context, command string, _ []string, _ string) (string, error) {
+				return deps.lookPath(command)
+			}
+			ready := false
+			deps.runACPLogin = func(context.Context, acp.AuthenticationRequest) error {
+				ready = true
+				return nil
+			}
+			deps.runProviderAuthLoginCommand = func(
+				context.Context, providerAuthCommandSpec,
+			) (providerAuthCommandResult, error) {
+				ready = true
+				return providerAuthCommandResult{}, nil
+			}
+			deps.runACPProbe = func(context.Context, acp.SessionInspectionRequest) error {
+				if !ready {
+					return errors.New("not authenticated")
+				}
+				return nil
+			}
+			deps.runProviderAuthCommand = func(
+				context.Context, providerAuthCommandSpec,
+			) (providerAuthCommandResult, error) {
+				if !ready {
+					return providerAuthCommandResult{ExitCode: 1, Stderr: "not logged in"}, nil
+				}
+				return providerAuthCommandResult{Stdout: "logged in"}, nil
+			}
+			client := providerLoginHandlerClient(t, deps, &cfg)
+			deps.newClient = func(target ClientTarget) (DaemonClient, error) {
+				if target.kind != clientTargetLocal {
+					t.Fatalf("login probe target kind = %q, want the local socket", target.kind)
+				}
+				return client, nil
+			}
+			before, err := client.ProbeProviderAuth(t.Context(), providerID)
+			if err != nil || before.AuthStatus.State != contract.ProviderAuthStateNeedsLogin {
+				t.Fatalf("pre-login probe = %#v, error = %v, want needs_login", before.AuthStatus, err)
+			}
+			stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "login", providerID, "-o", "json")
+			if err != nil {
+				t.Fatalf("provider auth login error = %v", err)
+			}
+			record := decodeAuthStatus(t, stdout)
+			if record.State != contract.ProviderAuthStateAuthenticated ||
+				record.ProbeSource != providerProbeSourceLocal {
+				t.Fatalf("login result = %#v, want authenticated local verdict", record)
+			}
+			inventory, err := client.ListProviders(t.Context())
+			if err != nil {
+				t.Fatalf("ListProviders() error = %v", err)
+			}
+			i := slices.IndexFunc(inventory.Providers, func(provider contract.ProviderSummaryPayload) bool {
+				return provider.Name == providerID
+			})
+			if i < 0 || inventory.Providers[i].AuthStatus.State != contract.ProviderAuthStateAuthenticated {
+				t.Fatalf("provider inventory = %#v, want %s authenticated", inventory, providerID)
+			}
+		})
+	}
+
 	t.Run("Should run configured native login command locally", func(t *testing.T) {
 		t.Parallel()
 
@@ -1121,6 +1213,32 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 			t.Fatalf("provider auth login openrouter error = %v, want missing auth_login_command", err)
 		}
 	})
+}
+
+func providerLoginHandlerClient(t *testing.T, deps commandDeps, cfg *compozyconfig.Config) *daemonClient {
+	t.Helper()
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatal(err)
+	}
+	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+		Config: *cfg, HomePaths: homePaths,
+		ProviderAuthCommandResolver: deps.resolveProviderAuthCommand,
+		ProviderAuthRunner:          deps.runProviderAuthCommand,
+		ProviderACPProbe:            deps.runACPProbe,
+		ProviderAuthVerdicts:        authproviders.NewAuthVerdicts(),
+	})
+	router := gin.New()
+	router.POST("/api/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+	router.GET("/api/providers", handlers.ListProviders)
+	return &daemonClient{
+		target: LocalClientTarget(homePaths.DaemonSocket),
+		httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			return response.Result(), nil
+		})},
+	}
 }
 
 func mustTestHomePaths(t *testing.T) compozyconfig.HomePaths {

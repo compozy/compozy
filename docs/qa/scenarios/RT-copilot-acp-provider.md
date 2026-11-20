@@ -4,12 +4,12 @@ area: RT
 title: GitHub Copilot CLI sign-in, native tools, permissions, cancel, and resume
 persona: Ada
 journey: J-15
-expected: With the official Copilot CLI on PATH and no [providers.copilot] block, login runs `copilot login`, the remote probe reports readiness, and a session runs a CompozyOS native tool through the loopback MCP bridge, raises Copilot permission requests as CompozyOS interactions, cancels cleanly, and resumes with its context. Models and effort follow what the account advertises; an account without a model option fails explicit model or effort requests before the first prompt. Unrestricted Copilot options require approve-all.
-entry_points: compozy provider auth login copilot; compozy provider auth status copilot --remote; compozy provider models refresh copilot; compozy session new; compozy session prompt; compozy session approve; compozy session prompt-cancel; compozy session stop
+expected: With the official Copilot CLI on PATH and no [providers.copilot] block, login runs `copilot login` and updates the daemon's sign-in verdict. A session runs a CompozyOS native tool through the loopback MCP bridge, raises Copilot permission requests as CompozyOS interactions, cancels cleanly, and resumes with its context. Models and effort follow what the account advertises. An account without a model option fails explicit model or effort requests before the first prompt. Unrestricted Copilot options require approve-all.
+entry_points: compozy provider auth login copilot; compozy provider list; compozy provider auth status copilot --remote; compozy provider models refresh copilot; compozy session new; compozy session prompt; compozy session approve; compozy session prompt-cancel; compozy session stop
 qa_status: pass
-bug_ids:
-fix_status:
-retest_status:
+bug_ids: "#1881"
+fix_status: fixed
+retest_status: pending
 fix_commits:
 evidence: internal/mcpbridge/bridge_test.go;internal/acp/client_start_contract_test.go;internal/modelcatalog/live_sources_test.go;internal/config/provider_test.go;internal/cli/provider_test.go;docs/qa/reports/2026-11-03-copilot-acp-provider.md
 last_report: docs/qa/reports/2026-11-03-copilot-acp-provider.md
@@ -22,8 +22,8 @@ story: As an operator whose team uses only GitHub Copilot, I sign in once, start
 
 1. Install the official CLI (`npm install -g @github/copilot` or `brew install copilot-cli`) and confirm `copilot --version`. Confirm no `[providers.copilot]` block exists.
 2. Run `compozy provider inspect copilot -o json`: `login.source` is `auth_login_command`, `login.executable` is `copilot`, and `presence` is `present`. No command text or token appears.
-3. Run `compozy provider auth login copilot -o json`: it runs `copilot login` (browser or device code). Skip when the account is already signed in.
-4. Run `compozy provider auth status copilot --remote -o json`: `state` is `authenticated` after a promptless ACP session.
+3. In the signed-out lab, run `compozy provider auth status copilot --remote -o json` and confirm `needs_login`. Then run `compozy provider auth login copilot -o json` and complete the browser or device-code flow.
+4. Run `compozy provider list -o json` directly after login and confirm `auth_status.state` is `authenticated` for Copilot.
 5. With Copilot signed out (separate `HOME`, no `gh` login), session start fails with an authentication-required diagnostic whose recovery is the login above.
 
 ## Session with native tools and permissions

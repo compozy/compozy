@@ -112,6 +112,8 @@ type RefreshOptions struct {
 	Force                    bool
 	RequestID                string
 	Now                      time.Time
+	// RetryFailedBefore bypasses backoff for a selected source failure older than this proof.
+	RetryFailedBefore time.Time
 }
 
 // StatusOptions filters source health by provider and execution context.
