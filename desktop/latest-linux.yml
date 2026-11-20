@@ -1,6 +1,6 @@
-version: 0.7.6
-releaseDate: 2026-11-19T09:18:30.464Z
+version: 0.7.7
+releaseDate: 2026-11-20T19:33:34.294Z
 files:
-  - url: https://github.com/compozy/compozy/releases/download/v0.7.6/CompozyOS-0.7.6-linux-x64.AppImage
-    sha512: zkfXjDeObcYgDoRUpJdaVNqL0AtqVtmJb2IhJQOes1vrKbEnjT/GF/fmLoN7ZPRGJ5hxJFgcjbzbhDYBXyZskA==
-    size: 224105445
+  - url: https://github.com/compozy/compozy/releases/download/v0.7.7/CompozyOS-0.7.7-linux-x64.AppImage
+    sha512: HMQObZpsm736izUlRv0T6Ctdw4TCarlfwCo7ejzNr+wptj9/0fL8HqslaKxYk+eAAWcTaulySX5mXUBWd5pruQ==
+    size: 225053250
