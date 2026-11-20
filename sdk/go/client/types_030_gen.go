@@ -7,6 +7,44 @@ import (
 	"time"
 )
 
+// UpdateAgentRequest is a daemon API value.
+type UpdateAgentRequest struct {
+	Workspace      string             `json:"workspace,omitempty"`
+	Agent          CreateAgentPayload `json:"agent"`
+	ExpectedDigest string             `json:"expected_digest"`
+}
+
+// UpdateAppTokenRequest is a daemon API value.
+type UpdateAppTokenRequest struct {
+	Name    *string   `json:"name,omitempty"`
+	Origins *[]string `json:"origins,omitempty"`
+}
+
+// UpdateExtensionRequest is a daemon API value.
+type UpdateExtensionRequest struct {
+	Scope                string           `json:"scope,omitempty"`
+	WorkspaceID          string           `json:"workspace_id,omitempty"`
+	Profile              string           `json:"profile,omitempty"`
+	Inputs               map[string]Value `json:"inputs,omitempty"`
+	Version              string           `json:"version,omitempty"`
+	CheckOnly            bool             `json:"check_only,omitzero"`
+	AllowUnverified      bool             `json:"allow_unverified,omitzero"`
+	ConfirmGatewayDigest string           `json:"confirm_gateway_digest,omitempty"`
+}
+
+// UpdateExtensionsRequest is a daemon API value.
+type UpdateExtensionsRequest struct {
+	Scope           string           `json:"scope,omitempty"`
+	WorkspaceID     string           `json:"workspace_id,omitempty"`
+	Profile         string           `json:"profile,omitempty"`
+	Inputs          map[string]Value `json:"inputs,omitempty"`
+	Names           []string         `json:"names,omitempty"`
+	All             bool             `json:"all,omitzero"`
+	Version         string           `json:"version,omitempty"`
+	CheckOnly       bool             `json:"check_only,omitzero"`
+	AllowUnverified bool             `json:"allow_unverified,omitzero"`
+}
+
 // UpdateJobRequest is a daemon API value.
 type UpdateJobRequest struct {
 	Name       *string          `json:"name,omitempty"`
@@ -405,42 +443,4 @@ type WindowManagerLayoutReplaceRequest struct {
 type WindowManagerLayoutValidationRequest struct {
 	WorkspaceID WindowmanagerWorkspaceID    `json:"workspace_id"`
 	Document    WindowManagerLayoutDocument `json:"document"`
-}
-
-// WindowManagerLayoutValidationResponse is a daemon API value.
-type WindowManagerLayoutValidationResponse struct {
-	Document    *WindowManagerLayoutDocument `json:"document,omitzero"`
-	WorkspaceID WindowmanagerWorkspaceID     `json:"workspace_id"`
-	Valid       bool                         `json:"valid"`
-	Diagnostics []Diagnostic                 `json:"diagnostics,omitempty"`
-}
-
-// WindowManagerMigrationRequest is a daemon API value.
-type WindowManagerMigrationRequest struct {
-	Action  string `json:"action"`
-	Replace bool   `json:"replace,omitempty"`
-}
-
-// WindowManagerPaletteContext is a daemon API value.
-type WindowManagerPaletteContext struct {
-	WindowFocused       bool         `json:"window_focused"`
-	WindowFloating      bool         `json:"window_floating"`
-	WindowInSplit       bool         `json:"window_in_split"`
-	WindowStacked       bool         `json:"window_stacked"`
-	DesktopWindowCount  int          `json:"desktop_window_count"`
-	ScopeGlobal         bool         `json:"scope_global"`
-	ShellDesktop        bool         `json:"shell_desktop"`
-	FocusedSessionState string       `json:"focused_session_state,omitempty"`
-	WorkspaceTrusted    bool         `json:"workspace_trusted"`
-	DestinationIntent   *RouteIntent `json:"destination_intent,omitzero"`
-}
-
-// WindowManagerPreview is a daemon API value.
-type WindowManagerPreview struct {
-	Deprecations []Deprecation            `json:"deprecations"`
-	Snapshot     WindowManagerSnapshot    `json:"snapshot"`
-	Changed      bool                     `json:"changed"`
-	Changes      ChangeSet                `json:"changes"`
-	Diagnostics  []Diagnostic             `json:"diagnostics,omitempty"`
-	Client       *WindowManagerClientView `json:"client,omitzero"`
 }

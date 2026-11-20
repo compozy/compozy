@@ -112,14 +112,12 @@ export function SessionThread({
   canPrompt,
   onCancelPrompt,
   onQueuePrompt,
-  onInterruptPrompt,
   onSteerPrompt,
   isBusyInputPending = false,
   isSessionRunning = false,
   stopPhase = "idle",
   allowBusyInput = true,
   busyInputDefaultMode,
-  busyInputSteerDelivery,
   queuedPrompts = EMPTY_QUEUED_PROMPTS,
   onRemoveQueuedPrompt,
   onReplaceQueuedPrompt,
@@ -147,12 +145,14 @@ export function SessionThread({
   commandCatalogStatus,
   onCommandCatalogOpen,
   onCommandAction,
+  submitInterceptor,
   promptImageCapability = "unknown",
   promptEmbeddedContextCapability = "unknown",
   readOnly = false,
   messageTrail = true,
   subagentNavigation = null,
   subagentOrigin = null,
+  autoFocus = false,
 }: SessionThreadProps) {
   const thread = useSessionThreadState({
     acpSessionId,
@@ -262,7 +262,6 @@ export function SessionThread({
                       canPrompt={thread.lifecycleCanPrompt}
                       onCancelPrompt={thread.handleCancelPrompt}
                       onQueuePrompt={clarificationAnswer.answering(onQueuePrompt)}
-                      onInterruptPrompt={onInterruptPrompt}
                       onSteerPrompt={clarificationAnswer.answering(handleSteerPrompt)}
                       placeholder={clarificationAnswer.placeholder}
                       isBusyInputPending={isBusyInputPending}
@@ -270,7 +269,6 @@ export function SessionThread({
                       stopPhase={stopPhase}
                       allowBusyInput={allowBusyInput}
                       busyInputDefaultMode={busyInputDefaultMode}
-                      busyInputSteerDelivery={busyInputSteerDelivery}
                       queuedPrompts={queuedPrompts}
                       onRemoveQueuedPrompt={onRemoveQueuedPrompt}
                       onReplaceQueuedPrompt={onReplaceQueuedPrompt}
@@ -292,6 +290,8 @@ export function SessionThread({
                       commandCatalogStatus={commandCatalogStatus}
                       onCommandCatalogOpen={onCommandCatalogOpen}
                       onCommandAction={onCommandAction}
+                      submitInterceptor={submitInterceptor}
+                      autoFocus={autoFocus}
                       promptImageCapability={promptImageCapability}
                       promptEmbeddedContextCapability={promptEmbeddedContextCapability}
                     />

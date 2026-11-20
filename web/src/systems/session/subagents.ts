@@ -1,4 +1,11 @@
-export { SubagentDrawerContext, subagentDrawerLogic } from "./contexts/subagent-drawer-context";
+export { SubagentDrawerContext } from "./contexts/subagent-drawer-context";
+export { SessionComposerSubagents } from "./components/session-composer-subagents";
+export {
+  sessionWindowDrawerKind,
+  sessionWindowDrawerLogic,
+  type SessionSideView,
+  type SessionWindowDrawerStore,
+} from "./contexts/session-window-drawer-store";
 export type { SubagentNavigation } from "./contexts/session-subagents-context-value";
 export type { SubagentView } from "./components/subagents/types";
 export { SubagentRuntimeMeta } from "./components/subagents/subagent-runtime-meta";

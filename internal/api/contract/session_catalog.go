@@ -24,12 +24,14 @@ type SessionCatalogPagePayload struct {
 // SessionCatalogEventPayload is a workspace-identified wake signal. Clients must
 // reconcile the authoritative catalog snapshot instead of counting events.
 type SessionCatalogEventPayload struct {
+	Name                     string `json:"name,omitempty"`
 	ExecutionLocationChanged bool   `json:"execution_location_changed,omitempty"`
 	Kind                     string `json:"kind"`
 	ProfileID                string `json:"profile_id"`
 	ProfileName              string `json:"profile_name"`
 	WorkspaceID              string `json:"workspace_id"`
 	SessionID                string `json:"session_id"`
+	SideSessionID            string `json:"side_session_id,omitempty"`
 }
 
 // SessionAttentionEventPayload is the post-commit attention edge carried by the catalog stream.

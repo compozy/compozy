@@ -9,6 +9,81 @@ import (
 	"strings"
 )
 
+// ReadSessionFileContent Read project file content
+func (c *Client) ReadSessionFileContent(ctx context.Context, params ReadSessionFileContentParams) (*FileContentResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	query.Set("path", params.Path)
+	if params.Reveal != nil {
+		query.Set("reveal", strconv.FormatBool(*params.Reveal))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FileContentResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReadTaskRunResultParams carries the path, query, and header parameters.
+type ReadTaskRunResultParams struct {
+	ID          string  `url:"id"`
+	Offset      *int    `url:"offset"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ReadTaskRunResult Read one exact byte page from a task-run result
+func (c *Client) ReadTaskRunResult(ctx context.Context, params ReadTaskRunResultParams) (*TaskRunResultPageResponse, error) {
+	path := "/api/task-runs/{id}/result"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Offset != nil {
+		query.Set("offset", strconv.Itoa(*params.Offset))
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResultPageResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReadTerminalParams carries the path, query, and header parameters.
+type ReadTerminalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	View        *string `url:"view"`
+	MaxBytes    *int    `url:"max_bytes"`
+	Grep        *string `url:"grep"`
+	SinceSeq    *string `url:"since_seq"`
+	From        *int    `url:"from"`
+	To          *int    `url:"to"`
+	Profile     *string `url:"profile"`
+}
+
 // ReadTerminal Read bounded untrusted terminal output
 func (c *Client) ReadTerminal(ctx context.Context, params ReadTerminalParams) (*TerminalReadResponse, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/{id}/read"
@@ -358,81 +433,4 @@ func (c *Client) RegisterWindowManagerClient(ctx context.Context, params Registe
 type RejectAgentSkillReviewParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// RejectAgentSkillReview Decide a skill review as the operator (experimental)
-func (c *Client) RejectAgentSkillReview(ctx context.Context, params RejectAgentSkillReviewParams, body AgentSkillReviewDecisionRequest) (*AgentSkillReviewResponse, error) {
-	path := "/api/agent-skill-reviews/{id}/reject"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSkillReviewResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RejectTaskParams carries the path, query, and header parameters.
-type RejectTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// RejectTask Reject one approval-gated task
-func (c *Client) RejectTask(ctx context.Context, params RejectTaskParams) (*TaskResponse, error) {
-	path := "/api/tasks/{id}/reject"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RejectTerminalInputRequestParams carries the path, query, and header parameters.
-type RejectTerminalInputRequestParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	RequestID   string  `url:"request_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RejectTerminalInputRequest Reject one terminal input request
-func (c *Client) RejectTerminalInputRequest(ctx context.Context, params RejectTerminalInputRequestParams, body TerminalRejectInputRequest) (*TerminalInputRejectResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/input-requests/{request_id}/reject"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	path = strings.ReplaceAll(path, "{request_id}", url.PathEscape(params.RequestID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalInputRejectResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReleaseAgentTaskRunParams carries the path, query, and header parameters.
-type ReleaseAgentTaskRunParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-	RunID             string `url:"run_id"`
 }

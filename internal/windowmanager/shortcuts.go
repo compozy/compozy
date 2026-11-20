@@ -13,6 +13,7 @@ const (
 	shortcutPaletteOpenAction            = "palette.open"
 	shortcutPaletteViewSessionsAction    = "palette.view.sessions"
 	shortcutSessionNewAction             = "session.new"
+	shortcutSessionSideToggleAction      = "session.side.toggle"
 	shortcutScopeGlobalToggleAction      = "scope.global.toggle"
 	shortcutWindowNavBackAction          = "window.nav.back"
 	shortcutSessionCycleNextAction       = "session.cycle.next"

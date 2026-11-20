@@ -79,6 +79,8 @@ interface UseSessionTopbarSlotInput {
   /** The Review panel (Changes); its toggle is absent for a session without a file root. */
   reviewOpen: boolean;
   onReviewToggle: () => void;
+  /** The side chats toggle (`_uiux.md` S3): absent where the session can't hold side chats. */
+  sideChatsControl?: React.ReactNode;
   sidebarOpen: boolean;
   /** Absent for workspace-root sessions: commit/push/create-PR never appear there. */
   pullRequestExit?: SessionTopbarPullRequestExit;
@@ -213,6 +215,7 @@ function sessionActions(
         open={input.reviewOpen}
         onToggle={input.onReviewToggle}
       />
+      {input.sideChatsControl}
       {input.composerContextControl === false ? (
         <SessionPanelToggle
           panel="inspector"

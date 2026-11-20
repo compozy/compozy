@@ -36,6 +36,10 @@ func (h *BaseHandlers) AgentSpawn(c *gin.Context) {
 		return
 	}
 
+	if caller.Session.Lineage != nil && caller.Session.Lineage.Kind == store.LineageKindSide {
+		h.respondError(c, http.StatusConflict, session.ErrSideSpawnUnsupported)
+		return
+	}
 	req := contract.AgentSpawnRequest{AutoStopOnParent: true}
 	if err := decodeStrictAgentSpawnRequest(c, &req); err != nil {
 		h.respondError(

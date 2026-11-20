@@ -67,6 +67,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	// unchanged, so they resolve their source themselves.
 	cmd.AddCommand(newSessionContinueCommand(deps))
 	cmd.AddCommand(newSessionForkCommand(deps))
+	cmd.AddCommand(newSessionSideCommand(deps))
 
 	return cmd
 }

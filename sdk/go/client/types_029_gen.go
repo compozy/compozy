@@ -7,6 +7,52 @@ import (
 	"time"
 )
 
+// ToolApprovalGrantListResponse is a daemon API value.
+type ToolApprovalGrantListResponse struct {
+	Grants []ToolApprovalGrantPayload `json:"grants"`
+	Total  int                        `json:"total"`
+}
+
+// ToolApprovalGrantPayload is a daemon API value.
+type ToolApprovalGrantPayload struct {
+	ID              string                `json:"id"`
+	ProfileID       string                `json:"profile_id"`
+	ProfileName     string                `json:"profile_name"`
+	ProfileColor    string                `json:"profile_color"`
+	ProfileIcon     string                `json:"profile_icon,omitempty"`
+	ProfileEmoji    string                `json:"profile_emoji,omitempty"`
+	ProfileArchived bool                  `json:"profile_archived"`
+	WorkspaceID     string                `json:"workspace_id"`
+	AgentName       string                `json:"agent_name,omitempty"`
+	ToolID          ToolID                `json:"tool_id"`
+	InputDigest     string                `json:"input_digest,omitempty"`
+	AccessScope     string                `json:"access_scope,omitempty"`
+	Decision        ApprovalGrantDecision `json:"decision"`
+	CreatedAt       time.Time             `json:"created_at"`
+	LastUsedAt      time.Time             `json:"last_used_at"`
+}
+
+// ToolApprovalGrantResponse is a daemon API value.
+type ToolApprovalGrantResponse struct {
+	Grant ToolApprovalGrantPayload `json:"grant"`
+}
+
+// ToolApprovalGrantSetRequest is a daemon API value.
+type ToolApprovalGrantSetRequest struct {
+	ToolID    ToolID                       `json:"tool_id"`
+	Decision  ApprovalGrantDecision        `json:"decision"`
+	Scope     ApprovalGrantManagementScope `json:"scope"`
+	AgentName string                       `json:"agent_name,omitempty"`
+}
+
+// ToolApprovalPayload is a daemon API value.
+type ToolApprovalPayload struct {
+	ApprovalToken string    `json:"approval_token"`
+	ExpiresAt     time.Time `json:"expires_at"`
+	ToolID        ToolID    `json:"tool_id"`
+	InputDigest   string    `json:"input_digest"`
+}
+
 // ToolApprovalRequest is a daemon API value.
 type ToolApprovalRequest struct {
 	SessionID   string          `json:"session_id"`
@@ -398,42 +444,4 @@ type UnarchiveProfileRequest struct{}
 type UnarchiveProfileResponse struct {
 	State             string   `json:"state"`
 	PausedAutomations []string `json:"paused_automations"`
-}
-
-// UpdateAgentRequest is a daemon API value.
-type UpdateAgentRequest struct {
-	Workspace      string             `json:"workspace,omitempty"`
-	Agent          CreateAgentPayload `json:"agent"`
-	ExpectedDigest string             `json:"expected_digest"`
-}
-
-// UpdateAppTokenRequest is a daemon API value.
-type UpdateAppTokenRequest struct {
-	Name    *string   `json:"name,omitempty"`
-	Origins *[]string `json:"origins,omitempty"`
-}
-
-// UpdateExtensionRequest is a daemon API value.
-type UpdateExtensionRequest struct {
-	Scope                string           `json:"scope,omitempty"`
-	WorkspaceID          string           `json:"workspace_id,omitempty"`
-	Profile              string           `json:"profile,omitempty"`
-	Inputs               map[string]Value `json:"inputs,omitempty"`
-	Version              string           `json:"version,omitempty"`
-	CheckOnly            bool             `json:"check_only,omitzero"`
-	AllowUnverified      bool             `json:"allow_unverified,omitzero"`
-	ConfirmGatewayDigest string           `json:"confirm_gateway_digest,omitempty"`
-}
-
-// UpdateExtensionsRequest is a daemon API value.
-type UpdateExtensionsRequest struct {
-	Scope           string           `json:"scope,omitempty"`
-	WorkspaceID     string           `json:"workspace_id,omitempty"`
-	Profile         string           `json:"profile,omitempty"`
-	Inputs          map[string]Value `json:"inputs,omitempty"`
-	Names           []string         `json:"names,omitempty"`
-	All             bool             `json:"all,omitzero"`
-	Version         string           `json:"version,omitempty"`
-	CheckOnly       bool             `json:"check_only,omitzero"`
-	AllowUnverified bool             `json:"allow_unverified,omitzero"`
 }

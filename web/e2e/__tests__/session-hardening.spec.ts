@@ -1001,10 +1001,10 @@ test("E2E-012 / E2E-025: composer honors default steering, explicit queue action
     await expect(ui.composerTextarea).toHaveText("");
     await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "steer");
 
-    // Explicit verb always wins for that send (US-003.EC-2).
+    // The modifier is the explicit verb and wins again for the next send (US-003.EC-2).
     await ui.composerTextarea.fill("second follow-up");
     const explicitResponse = promptResponse(appPage, workspace.id, session.id);
-    await ui.composerQueueButton.click();
+    await ui.composerTextarea.press("ControlOrMeta+Enter");
     const explicit = (await (await explicitResponse).json()) as PromptEnvelope;
     expect(explicit.prompt.disposition).toBe("queued");
     expect(explicit.prompt.queue_position).toBe(2);
@@ -1202,9 +1202,6 @@ test("E2E-015: Stop reads Stopping… until the daemon confirms, guards a double
   await expect(ui.composerStopButton).toHaveAttribute("aria-disabled", "true");
   await expect(ui.composerStopButton).toHaveText("Stopping…");
   // The turn is ending: guidance can't be honored, queued work survives (ADR-003).
-  await expect(ui.composerSteerButton).toHaveCount(0);
-  await expect(ui.composerInterruptButton).toHaveCount(0);
-  await expect(ui.composerQueueButton).toBeVisible();
   await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "queue");
   await browserArtifacts.captureScreenshot("e2e-015-composer-stopping", appPage);
   expect((await cancelResponse).ok()).toBe(true);

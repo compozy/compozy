@@ -39,7 +39,7 @@ func hookSessionContextFromInfo(info *Info) hookspkg.SessionContext {
 		return hookspkg.SessionContext{}
 	}
 	ref := workref.NewRoot(info.WorkspaceID, info.Workspace)
-	return hookspkg.SessionContext{
+	value := hookspkg.SessionContext{
 		ProfileID:             strings.TrimSpace(info.ProfileID),
 		SessionID:             strings.TrimSpace(info.ID),
 		SessionName:           strings.TrimSpace(info.Name),
@@ -56,6 +56,11 @@ func hookSessionContextFromInfo(info *Info) hookspkg.SessionContext {
 		CreatedAt: info.CreatedAt,
 		UpdatedAt: info.UpdatedAt,
 	}
+	if info.Lineage != nil {
+		value.LineageKind = string(info.Lineage.Kind)
+		value.ParentSessionID = info.Lineage.ParentSessionID
+	}
+	return value
 }
 
 func hookSessionSoulContext(snapshotID string, digest string) *hookspkg.SessionSoulContext {

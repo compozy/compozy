@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// RemoveWorktreesRequest is a daemon API value.
+type RemoveWorktreesRequest struct {
+	Targets      []WorktreeRemovalTarget `json:"targets"`
+	Force        bool                    `json:"force,omitempty"`
+	DeleteBranch bool                    `json:"delete_branch,omitempty"`
+	DryRun       bool                    `json:"dry_run,omitempty"`
+}
+
+// RemoveWorktreesResponse is a daemon API value.
+type RemoveWorktreesResponse struct {
+	DryRun  bool                    `json:"dry_run"`
+	Results []WorktreeRemovalResult `json:"results"`
+}
+
 // RenameProfilePlan is a daemon API value.
 type RenameProfilePlan struct {
 	Revision          string             `json:"revision"`
@@ -425,24 +439,4 @@ type RosterNode struct {
 	SessionID      string            `json:"session_id,omitempty"`
 	CellTaskID     string            `json:"cell_task_id,omitempty"`
 	Usage          *NodeUsage        `json:"usage,omitzero"`
-}
-
-// RosterPage is a daemon API value.
-type RosterPage struct {
-	RunID         RunID          `json:"run_id"`
-	LoopName      string         `json:"loop_name"`
-	RunStatus     Status         `json:"run_status"`
-	Nodes         []RosterNode   `json:"nodes"`
-	FanoutRollups []FanoutRollup `json:"fanout_rollups"`
-	NextCursor    string         `json:"next_cursor,omitempty"`
-}
-
-// RouteIntent is a daemon API value.
-// RouteIntent preserves its custom JSON wire representation.
-type RouteIntent = json.RawMessage
-
-// RouteSpec is a daemon API value.
-type RouteSpec struct {
-	When string `json:"when"`
-	To   NodeID `json:"to"`
 }

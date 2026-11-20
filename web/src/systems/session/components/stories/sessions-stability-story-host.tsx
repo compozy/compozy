@@ -105,7 +105,6 @@ export function StabilityThreadHost({
             onCancelPrompt={() => undefined}
             onQueuePrompt={() => undefined}
             onSteerPrompt={() => undefined}
-            onInterruptPrompt={() => undefined}
             {...composerProps}
           />
         </div>

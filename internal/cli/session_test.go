@@ -6080,3 +6080,118 @@ func TestSessionChanges(t *testing.T) {
 		}
 	})
 }
+
+func TestSessionSideCommands(t *testing.T) {
+	t.Parallel()
+	// Invariant: automation receives every side record and a recoverable generated retry identity.
+	// Owner: CLI output; canonical suite: TestSessionSideCommands.
+	t.Run("Should render side records and an explicit empty TOON list", func(t *testing.T) {
+		t.Parallel()
+		response := contract.SessionSidesResponse{Sides: []contract.SessionSideItemPayload{
+			{ID: "side-one", Name: "First side", State: "active"},
+			{ID: "side-two", Name: "Second side", State: "stopped"},
+		}}
+		output, err := sessionSidesBundle("source", response, time.Now).toon()
+		if err != nil || !strings.Contains(output, "sides[2]{id,name,state}:") ||
+			!strings.Contains(
+				output,
+				"side-one,First side,active",
+			) || !strings.Contains(output, "side-two,Second side,stopped") {
+			t.Fatalf("side TOON = %q, %v", output, err)
+		}
+		empty, err := sessionSidesBundle("source", contract.SessionSidesResponse{}, time.Now).toon()
+		if err != nil || !strings.Contains(empty, "sides[0]{id,name,state}:") || !strings.Contains(empty, "(empty)") {
+			t.Fatalf("empty side TOON = %q, %v", empty, err)
+		}
+	})
+	t.Run("Should expose the generated retry key after a transport failure", func(t *testing.T) {
+		t.Parallel()
+		transportFailure := errors.New("connection closed before response")
+		key := ""
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionOwnerFn: func(context.Context, string) (contract.SessionOwner, error) {
+				return contract.SessionOwner{WorkspaceID: "ws-test"}, nil
+			},
+			openSessionSideFn: func(_ context.Context, _ SessionDeriveTarget, request contract.OpenSessionSideRequest) (SessionDeriveRecord, error) {
+				key = request.IdempotencyKey
+				return SessionDeriveRecord{}, transportFailure
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "session", "side", "open", "source", "why?")
+		if key == "" || !errors.Is(err, transportFailure) ||
+			!strings.Contains(err.Error(), "retry with --idempotency-key "+key) {
+			t.Fatalf("generated retry key = %q, %v", key, err)
+		}
+	})
+	t.Run("Should print a useful empty side list and an empty JSON array", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				listSessionSidesFn: func(_ context.Context, id string, archived bool) (contract.SessionSidesResponse, error) {
+					if id != "sess-source" || archived {
+						t.Fatalf("side list args=%s/%t", id, archived)
+					}
+					return contract.SessionSidesResponse{Sides: []contract.SessionSideItemPayload{}}, nil
+				},
+			},
+		)
+		// UT-036
+		output, _, err := executeRootCommand(t, deps, "session", "side", "list", "sess-source")
+		if err != nil || !strings.Contains(output, "No side chats on sess-source.") {
+			t.Fatalf("empty side list=%q %v", output, err)
+		}
+		output, _, err = executeRootCommand(t, deps, "session", "side", "list", "sess-source", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload contract.SessionSidesResponse
+		if err := json.Unmarshal(
+			[]byte(output),
+			&payload,
+		); err != nil || payload.Sides == nil ||
+			len(payload.Sides) != 0 {
+			t.Fatalf("empty JSON=%q %v", output, err)
+		}
+	})
+	t.Run("Should generate fresh prompt identities for independent human side submissions", func(t *testing.T) {
+		t.Parallel()
+		requests := []SessionPromptRequest{}
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				sendSessionPromptFn: func(_ context.Context, _ string, req SessionPromptRequest) (SessionPromptRecord, error) {
+					requests = append(requests, req)
+					return SessionPromptRecord{
+						Prompt: SessionPromptResultRecord{
+							Status:   "side_opened",
+							Delivery: contract.PromptDeliveryNone,
+							Side: &contract.SessionSideCommandResult{
+								SessionID: fmt.Sprintf("side-%d", len(requests)),
+								Seed:      "replay",
+							},
+						},
+					}, nil
+				},
+			},
+		)
+		// UT-075
+		for range 2 {
+			if _, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-source", "/side q"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if len(requests) != 2 {
+			t.Fatalf("side requests=%+v", requests)
+		}
+		for _, request := range requests {
+			if request.IdempotencyKey == "" || request.MessageID == "" {
+				t.Fatalf("empty side identity=%+v", request)
+			}
+		}
+		if requests[0].IdempotencyKey == requests[1].IdempotencyKey ||
+			requests[0].MessageID == requests[1].MessageID {
+			t.Fatalf("side identities=%+v", requests)
+		}
+	})
+}

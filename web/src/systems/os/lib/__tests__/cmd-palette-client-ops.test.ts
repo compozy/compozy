@@ -5,6 +5,8 @@
 // Canonical suite: this file (split from the dispatch seam suite).
 import { describe, expect, it, vi } from "vitest";
 
+import { subscribeSessionSideToggle } from "@/systems/session";
+
 import { paletteClientOp } from "../cmd-palette-client-ops";
 import { opContext, tabBarFixture } from "./cmd-palette-dispatch-fixtures";
 
@@ -204,6 +206,23 @@ describe("cmd-palette client-op table — navigation v2", () => {
 
     expect(context.shell.cycleSession).toHaveBeenCalledExactlyOnceWith("next");
     expect(context.shell.focusAttention).toHaveBeenCalledOnce();
+  });
+
+  it("Should toggle side chats in the focused session window only [UT-054]", () => {
+    const focused = vi.fn();
+    const other = vi.fn();
+    const stopFocused = subscribeSessionSideToggle("w-2", focused);
+    const stopOther = subscribeSessionSideToggle("w-3", other);
+    try {
+      void run("session.side.toggle", opContext(tabBarFixture(), "w-2"));
+      void run("session.side.toggle", opContext(null, null));
+
+      expect(focused).toHaveBeenCalledOnce();
+      expect(other).not.toHaveBeenCalled();
+    } finally {
+      stopFocused();
+      stopOther();
+    }
   });
 });
 

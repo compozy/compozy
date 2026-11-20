@@ -63,7 +63,7 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		}
 		// A daemon-owned child (auto-title) is not work the session delegated: it must
 		// not hold the parent waiting, like it stays out of catalogs and metrics.
-		if session.IsInternalSpawnRole(row.Lineage.SpawnRole) {
+		if row.Lineage.Kind == store.LineageKindSide || session.IsInternalSpawnRole(row.Lineage.SpawnRole) {
 			continue
 		}
 		info, err := storedSessionStatus(ctx, s.manager, row.ID)

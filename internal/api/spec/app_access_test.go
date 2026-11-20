@@ -85,6 +85,8 @@ func TestAppAccessPolicy(t *testing.T) {
 			"fanOutTaskRuns",
 			"forkLoopRun",
 			"forkSession",
+			"openSessionSide",
+			"listSessionSides",
 			"getAgent",
 			"getAutomationJob",
 			"getAutomationRun",

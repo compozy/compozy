@@ -39,7 +39,7 @@ func newObserveActivityCommand(deps commandDeps) *cobra.Command {
 					"Daily Permission Decisions",
 					[]string{"DAY", cliAgentHeader, "DECISION", "COUNT"},
 					"rollups",
-					[]string{"day", "agent_name", loopDecisionKey, "count"},
+					[]string{"day", "agent_name", loopDecisionKey, marketplaceCategoryCountKey},
 					row,
 					row,
 				),

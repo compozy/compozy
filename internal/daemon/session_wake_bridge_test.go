@@ -725,6 +725,20 @@ func (stub *monitorTargetManagerStub) SubscribeSessionCatalogEvents(
 func TestMonitorSessionTargets(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: a side-specific catalog edge immediately signals a monitor targeting that side.
+	t.Run("Should forward changes whose side identity matches the monitor target", func(t *testing.T) {
+		t.Parallel()
+		events := make(chan session.CatalogEvent, 2)
+		events <- session.CatalogEvent{SessionID: "other-source", SideSessionID: "other-side"}
+		events <- session.CatalogEvent{Name: session.CatalogEventNameSide, SessionID: "source", SideSessionID: "side"}
+		close(events)
+		changes := make(chan struct{}, 2)
+		forwardMonitorTargetChanges(t.Context(), events, []string{"side"}, changes)
+		if len(changes) != 1 {
+			t.Fatalf("side target signals = %d, want 1", len(changes))
+		}
+	})
+
 	t.Run("Should read each target from its live badge and fold final states", func(t *testing.T) {
 		t.Parallel()
 

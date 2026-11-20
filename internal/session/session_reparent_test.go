@@ -1151,3 +1151,113 @@ func TestStopIfParentStopped(t *testing.T) {
 		}
 	})
 }
+
+func TestSideOperationRefusals(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should refuse derivation relocation and worktree changes through their owning operations",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			source := h.newDeriveSource(t)
+			side := h.openSide(t, source, "structural")
+			// UT-019
+			refusals := []struct {
+				name string
+				want error
+				run  func() error
+			}{
+				{
+					"fork",
+					ErrSideNotDerivable,
+					func() error { _, err := h.manager.ForkSession(t.Context(), h.forkOpts(side, "side-fork")); return err },
+				},
+				{"continue", ErrSideNotDerivable, func() error {
+					_, err := h.manager.ContinueSession(t.Context(), h.continueOpts(side, "side-continue"))
+					return err
+				}},
+				{"worktree fork", ErrSideNotDerivable, func() error {
+					_, err := h.manager.CreateWorktreeForkAccepted(t.Context(), side.ID, new(CreateAcceptedOpts))
+					return err
+				}},
+				{
+					"detach",
+					ErrSideFixedParent,
+					func() error { _, err := h.manager.DetachSession(t.Context(), h.workspaceID, side.ID); return err },
+				},
+				{"profile move", ErrSideFixedParent, func() error {
+					_, err := h.manager.MoveToProfile(
+						t.Context(),
+						MoveToProfileOpts{SessionID: side.ID, TargetProfileID: "target"},
+					)
+					return err
+				}},
+				{
+					"pin",
+					ErrSideFixedParent,
+					func() error { _, err := h.manager.Pin(t.Context(), h.workspaceID, side.ID); return err },
+				},
+				{"folder move", ErrSideFixedParent, func() error {
+					return h.manager.MoveSession(
+						t.Context(),
+						store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID},
+						side.ID,
+						"",
+					)
+				}},
+				{"bind", ErrSideWorktreeFixed, func() error {
+					_, err := h.manager.ChangeWorktreeBinding(t.Context(), side.ID, "another", nil)
+					return err
+				}},
+				{
+					"unbind",
+					ErrSideWorktreeFixed,
+					func() error { _, err := h.manager.ChangeWorktreeBinding(t.Context(), side.ID, "", nil); return err },
+				},
+			}
+			for _, op := range refusals {
+				t.Run("Should refuse "+op.name, func(t *testing.T) {
+					if err := op.run(); !errors.Is(err, op.want) {
+						t.Fatalf("%s=%v want %v", op.name, err, op.want)
+					}
+				})
+			}
+		},
+	)
+	t.Run("Should refuse adoption under a side", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "adoption-refusal")
+		// UT-091
+		other := h.newDeriveSource(t)
+		if _, err := h.manager.AdoptSession(
+			t.Context(),
+			h.workspaceID,
+			other.ID,
+			side.ID,
+		); !errors.Is(
+			err,
+			ErrSideFixedParent,
+		) {
+			t.Fatalf("adopt under side=%v", err)
+		}
+		if other.Info().Lineage.ParentSessionID != "" {
+			t.Fatal("failed adoption changed source lineage")
+		}
+		page, err := h.manager.ListPage(
+			t.Context(),
+			ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed := false
+		for _, info := range page.Sessions {
+			listed = listed || info.ID == other.ID
+		}
+		if !listed {
+			t.Fatal("failed adoption removed the ordinary session from the list")
+		}
+	})
+}

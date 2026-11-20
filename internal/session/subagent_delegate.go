@@ -64,7 +64,7 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 	if err != nil {
 		return Subagent{}, err
 	}
-	snap, err := s.caller(ctx, req.Caller)
+	snap, err := s.delegationCaller(ctx, req.Caller)
 	if err != nil {
 		return Subagent{}, err
 	}
@@ -438,4 +438,15 @@ func (s *subagentService) reserveDelegation(
 		Status: store.SubagentStatusQueued, WorkState: store.SubagentWorkStateWorking,
 		WakePolicy: policyName, Delivery: store.SubagentDeliveryNone, CreatedAt: now, UpdatedAt: now,
 	})
+}
+
+func (s *subagentService) delegationCaller(ctx context.Context, caller SubagentCaller) (subagentSnapshot, error) {
+	parent, err := s.runtime.Snapshot(ctx, caller.SessionID)
+	if err != nil {
+		return subagentSnapshot{}, err
+	}
+	if parent.Info != nil && isSideLineage(parent.Info.Lineage) {
+		return subagentSnapshot{}, ErrSideSpawnUnsupported
+	}
+	return s.caller(ctx, caller)
 }

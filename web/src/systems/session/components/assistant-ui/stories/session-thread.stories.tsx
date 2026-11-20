@@ -316,7 +316,7 @@ export const GoalCommandError: Story = {
 };
 
 /**
- * Busy turn controls — queue, steer, and interrupt share the running composer surface.
+ * Busy turn controls — Stop is the only busy button; Enter and the modifier queue or steer.
  */
 export const BusyInputControls: Story = {
   args: {
@@ -327,7 +327,6 @@ export const BusyInputControls: Story = {
     allowBusyInput: true,
     onCancelPrompt: () => undefined,
     onQueuePrompt: () => undefined,
-    onInterruptPrompt: () => undefined,
     onSteerPrompt: () => undefined,
     isBusyInputPending: true,
   },

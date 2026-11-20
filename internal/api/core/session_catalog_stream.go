@@ -216,16 +216,25 @@ func sessionCatalogSSEMessage(event session.CatalogEvent) (string, any) {
 			Class: event.Attention.Class, At: event.Attention.At,
 		}
 	}
+	if event.Name == session.CatalogEventNameSide {
+		return string(event.Name), sessionCatalogEventPayload(event)
+	}
 	return sessionCatalogChangedEvent, sessionCatalogEventPayload(event)
 }
 
 func sessionCatalogEventPayload(event session.CatalogEvent) contract.SessionCatalogEventPayload {
+	name := ""
+	if event.Name == session.CatalogEventNameSide {
+		name = string(event.Name)
+	}
 	return contract.SessionCatalogEventPayload{
+		Name:                     name,
 		ExecutionLocationChanged: event.ExecutionLocationChanged,
 		Kind:                     string(event.Kind),
 		ProfileID:                event.ProfileID,
 		ProfileName:              event.ProfileName,
 		WorkspaceID:              event.WorkspaceID,
 		SessionID:                event.SessionID,
+		SideSessionID:            event.SideSessionID,
 	}
 }

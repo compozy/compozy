@@ -171,12 +171,8 @@ export function DraftComposer({
                       enterHint: { enter: "send", modifier: null },
                       controls: { kind: "send" },
                     }}
-                    busyInputSteerDelivery={null}
                     environmentControl={environmentControl}
                     mcpControl={mcpControl}
-                    handleInterruptAction={ignore}
-                    handleQueueAction={ignore}
-                    handleSteerAction={ignore}
                     onCancelPrompt={ignore}
                     promptEmbeddedContextCapability="supported"
                     promptImageCapability="supported"

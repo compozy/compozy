@@ -316,13 +316,6 @@ func sessionCatalogPageQuery(
 	return query
 }
 
-func (m *Manager) activeSessionCatalogRows(
-	query ListQuery,
-) (map[string]*Info, []string, []store.SessionInfo) {
-	infos, excludedIDs := m.activeCatalogSnapshots(query)
-	return m.activeSessionCatalogRowsFromInfos(query, infos, excludedIDs)
-}
-
 func (m *Manager) activeSessionCatalogRowsFromInfos(
 	query ListQuery,
 	activeInfos []*Info,

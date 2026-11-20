@@ -172,6 +172,9 @@ func deriveBoundaryCode(err error) string {
 
 // DeriveErrorCode returns the stable public code of a continue/fork failure.
 func DeriveErrorCode(err error) string {
+	if code := sideErrorCode(err); code != "" {
+		return code
+	}
 	switch {
 	case err == nil:
 		return ""

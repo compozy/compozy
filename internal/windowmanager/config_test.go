@@ -799,3 +799,26 @@ func TestRetiredShortcutResolution(t *testing.T) {
 		}
 	})
 }
+
+func TestSideChatKeymap(t *testing.T) {
+	t.Parallel()
+	t.Run("Should toggle side chats with either platform chord without a default conflict", func(t *testing.T) {
+		t.Parallel()
+		// UT-040
+		defaults := DefaultKeymap()
+		want := ShortcutBinding{"meta+alt+KeyS", "control+alt+KeyS"}
+		if !slices.Equal(defaults["session.side.toggle"], want) {
+			t.Fatalf("side chords=%v", defaults["session.side.toggle"])
+		}
+		for action, chords := range defaults {
+			if action == "session.side.toggle" {
+				continue
+			}
+			for _, chord := range chords {
+				if slices.Contains(want, chord) {
+					t.Fatalf("side chord conflicts with %s", action)
+				}
+			}
+		}
+	})
+}

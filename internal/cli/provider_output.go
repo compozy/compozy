@@ -109,7 +109,7 @@ func providerListBundle(record contract.ProviderListResponse) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"providers",
-				[]string{"count"},
+				[]string{marketplaceCategoryCountKey},
 				[]string{fmt.Sprintf("%d", len(record.Providers))},
 			), nil
 		},

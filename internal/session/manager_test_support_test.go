@@ -1602,3 +1602,27 @@ func (r *userLifecycleResolver) ResolveUser(
 func simulateDaemonRestart(manager *Manager) {
 	manager.daemonShutdown.Store(nil)
 }
+
+// Creates the same input-only child the daemon title generator owns, through the real manager.
+func spawnSideTitleHelper(t *testing.T, h *harness, parentID string) *Session {
+	t.Helper()
+	helper, err := h.manager.Spawn(t.Context(), &SpawnOpts{
+		ParentSessionID:  parentID,
+		AgentName:        "coder",
+		SpawnRole:        SpawnRoleAutoTitle,
+		TTL:              time.Minute,
+		AutoStopOnParent: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := h.manager.Prompt(t.Context(), helper.ID, "Generate a concise title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	collectEvents(t, events)
+	if err := h.manager.Stop(t.Context(), helper.ID); err != nil {
+		t.Fatal(err)
+	}
+	return helper
+}

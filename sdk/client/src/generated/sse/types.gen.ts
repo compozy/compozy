@@ -586,9 +586,11 @@ export type SessionAttentionEventPayload = {
 export type SessionCatalogEventPayload = {
   execution_location_changed?: boolean;
   kind: string;
+  name?: string;
   profile_id: string;
   profile_name: string;
   session_id: string;
+  side_session_id?: string;
   workspace_id: string;
 };
 

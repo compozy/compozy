@@ -22,6 +22,26 @@ import (
 // Canonical suite: removal fencing, authoritative safety checks, and boot recovery.
 func TestServiceRemoveAndRecover(t *testing.T) {
 	t.Parallel()
+	// Invariant UT-089: bound-side refusals identify both the side and its source; owner: removal safety.
+	t.Run("Should name a side and its source when refusing worktree removal", func(t *testing.T) {
+		t.Parallel()
+		for _, active := range []bool{false, true} {
+			f := newRemovalTestFixture(t)
+			f.service.sessions = sideRemovalGuard{active: active, bound: true}
+			var err error
+			if active {
+				_, err = f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false)
+			} else {
+				_, err = f.service.RemoveKeepingBranch(t.Context(), f.workspace.ID, f.item.ID)
+			}
+			if err == nil || !strings.Contains(err.Error(), "side-id") || !strings.Contains(err.Error(), "source-id") {
+				t.Fatalf("side refusal=%v", err)
+			}
+			if f.mustItem(t).State != StateReady || f.removeCalls.Load() != 0 {
+				t.Fatal("refusal changed the worktree")
+			}
+		}
+	})
 
 	t.Run("Should stage checkout bytes and release the repository before collection", func(t *testing.T) {
 		t.Parallel()
@@ -1811,4 +1831,10 @@ func (r removalTrashRootsResolver) ListWorktreeTrashRoots(context.Context) ([]st
 		r.onList()
 	}
 	return r.roots, r.err
+}
+
+type sideRemovalGuard struct{ fixedSessionGuard }
+
+func (sideRemovalGuard) SideSessionWorktreeBinding(context.Context, string, string, bool) (string, string, error) {
+	return "side-id", "source-id", nil
 }

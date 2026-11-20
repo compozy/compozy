@@ -1,6 +1,6 @@
 # J-13 — Follow a live run
 
-Watch, steer, and trust a session while it streams (`_qa.md` §3 J-C). The operator follows a live turn — working indicators, grouped tool rows, inline inspection, scroll-follow with a return-to-live pill — and drives the composer (Enter=Queue, Send↔Stop, steer/interrupt) while the agent is busy. The bugs live in the streaming render (O(n²) re-validation, scroll yanks) and the composer queue semantics.
+Watch, steer, and trust a session while it streams (`_qa.md` §3 J-C). The operator follows a live turn — working indicators, grouped tool rows, inline inspection, scroll-follow with a return-to-live pill — and drives the composer (Enter for the follow-up default, the modifier for the opposite verb, Send↔Stop) while the agent is busy. The bugs live in the streaming render (O(n²) re-validation, scroll yanks) and the composer queue semantics.
 
 ```mermaid
 flowchart TD
@@ -14,16 +14,16 @@ flowchart TD
     SCRL --> PILL[Pill click returns to the live edge]
     W -->|prefers-reduced-motion| RM[Static labels, no animation]
     E --> C{Composer while running}
-    C -->|public managed session| MC[Queue, Steer, Interrupt, and Stop generation available; lifecycle actions absent]
+    C -->|public managed session| MC[Enter queues or steers, Stop generation available; lifecycle actions absent]
     MC --> Q
     MC --> SI
     MC --> STP
-    C -->|Enter| Q[Draft queued; screen-reader Enter hint, no visible shortcut badges; queued rows editable]
+    C -->|Enter or modifier+Enter| Q[Draft queued; screen-reader Enter hint, no visible shortcut badges; queued rows editable]
     C -->|Stop| STP[Turn stops; primary flips to Send; badge reflects immediately]
     STP --> READY[Stopped thread keeps its history and composer available]
     READY --> RESTART[Next normal prompt restarts the same logical session]
     RESTART --> SAME[Prior transcript remains; one new turn streams]
-    C -->|Steer / Interrupt| SI[Compozy busy controls preserved]
+    C -->|Enter steers| SI[Compozy busy controls preserved]
     Q --> DQ[Side effect: queued prompts dispatch in order after the turn ends]
     W --> SET[Turn settles]
     SET --> F[Fold: 'Worked for Xs', terminal message visible below the fold]
@@ -53,7 +53,7 @@ journey:
       expected_observable: "Changing focus does not pause either visible session; a hidden session suspends live reads and catches up when visible; expanded rows and scroll anchors remain stable"
     - step: 3
       verb: "Queue a prompt while the agent is busy"
-      expected_observable: "Enter queues the draft (the Enter hint is screen-reader only; no visible shortcut badges) with an editable queued row; user, system, coordinator, and spawned sessions expose Queue, Steer, Interrupt, and Stop generation while managed-session lifecycle actions stay absent"
+      expected_observable: "The queue verb (Enter when the follow-up default is queue, otherwise the modifier with Enter) queues the draft with an editable queued row; the Enter hint is screen-reader only and the busy row shows only Stop generation, with no Queue, Steer or Interrupt buttons; user, system, coordinator, and spawned sessions queue and steer from the keyboard while managed-session lifecycle actions stay absent"
     - step: 4
       verb: "Stop the turn (or let it settle)"
       expected_observable: "Stop flips the primary back to Send and reflects the badge immediately; on natural settle the turn folds behind 'Worked for Xs' with the terminal message below, a changed-files roll-up if files were edited, and a hover copy+timestamp toolbar"

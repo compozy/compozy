@@ -133,6 +133,10 @@ func (m *Manager) MoveToProfile(ctx context.Context, opts MoveToProfileOpts) (Mo
 	if opts.SessionID == "" || opts.TargetProfileID == "" {
 		return MoveToProfileResult{}, fmt.Errorf("%w: session id and target profile are required", ErrValidation)
 	}
+	if err := m.refuseSideOperation(ctx, opts.SessionID, ErrSideFixedParent); err != nil {
+		return MoveToProfileResult{}, err
+	}
+
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return MoveToProfileResult{}, err
 	}
@@ -286,6 +290,10 @@ func (m *Manager) refuseProfileMoveDescendants(ctx context.Context, meta *store.
 	blocking := 0
 	for i := range children {
 		child := &children[i]
+		if isSideLineage(child.Lineage) ||
+			(child.Lineage != nil && IsInternalSpawnRole(child.Lineage.SpawnRole)) {
+			continue
+		}
 		_, live := m.Get(child.ID)
 		if (child.ArchivedAt == nil && !family[child.ID]) || child.State != string(StateStopped) || live ||
 			m.isPending(child.ID) || m.sessionStartRun(child.ID) != nil {
@@ -303,12 +311,14 @@ func (m *Manager) refuseProfileMoveDescendants(ctx context.Context, meta *store.
 	return nil
 }
 
-// profileMoveArchiveFamily follows only subagent links, matching the archive transaction.
+// profileMoveArchiveFamily follows subagents, sides and their internal helpers, matching archive membership.
 func profileMoveArchiveFamily(rootID string, children []store.SessionInfo) map[string]bool {
 	parents := make(map[string]string, len(children))
 	for i := range children {
 		child := &children[i]
-		if child.Lineage != nil && child.Lineage.SpawnRole == store.SubagentSpawnRole {
+		if child.Lineage != nil &&
+			(child.Lineage.SpawnRole == store.SubagentSpawnRole || isSideLineage(child.Lineage) ||
+				IsInternalSpawnRole(child.Lineage.SpawnRole)) {
 			parents[child.ID] = child.Lineage.ParentSessionID
 		}
 	}

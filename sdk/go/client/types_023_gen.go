@@ -4,6 +4,38 @@ package client
 
 import "encoding/json"
 
+// SettingsProviderCredentialSlotPayload is a daemon API value.
+type SettingsProviderCredentialSlotPayload struct {
+	Name      string `json:"name"`
+	TargetEnv string `json:"target_env"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Required  bool   `json:"required"`
+}
+
+// SettingsProviderCredentialStatusPayload is a daemon API value.
+type SettingsProviderCredentialStatusPayload struct {
+	Name      string `json:"name"`
+	TargetEnv string `json:"target_env"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Required  bool   `json:"required"`
+	Present   bool   `json:"present"`
+	Source    string `json:"source,omitempty"`
+}
+
+// SettingsProviderEnabledResponse is a daemon API value.
+type SettingsProviderEnabledResponse struct {
+	Provider SettingsProviderItemPayload `json:"provider"`
+	Apply    SettingsApplyResponse       `json:"apply"`
+}
+
+// SettingsProviderFallbackPayload is a daemon API value.
+type SettingsProviderFallbackPayload struct {
+	Source   SettingsSourceRefPayload        `json:"source"`
+	Settings SettingsProviderSettingsPayload `json:"settings"`
+}
+
 // SettingsProviderItemPayload is a daemon API value.
 type SettingsProviderItemPayload struct {
 	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
@@ -416,32 +448,3 @@ type SettingsSourceRefPayload struct {
 	Profile     string             `json:"profile,omitempty"`
 	AgentName   string             `json:"agent_name,omitempty"`
 }
-
-// SettingsStreamTransport is a daemon API value.
-type SettingsStreamTransport string
-
-// SettingsTerminalPayload is a daemon API value.
-type SettingsTerminalPayload struct {
-	DefaultShell           string `json:"default_shell"`
-	ShellIntegration       bool   `json:"shell_integration"`
-	ScrollbackBytes        int    `json:"scrollback_bytes"`
-	DetachedTTL            string `json:"detached_ttl"`
-	ExitRetention          string `json:"exit_retention"`
-	Recording              bool   `json:"recording"`
-	RecordingRetentionDays int    `json:"recording_retention_days"`
-	MaxPerWorkspace        int    `json:"max_per_workspace"`
-	MaxPerDaemon           int    `json:"max_per_daemon"`
-	MaxSubscribers         int    `json:"max_subscribers"`
-}
-
-// SettingsTransportParityPayload is a daemon API value.
-type SettingsTransportParityPayload struct {
-	Known          bool `json:"known"`
-	SettingsHTTP   bool `json:"settings_http"`
-	SettingsUDS    bool `json:"settings_uds"`
-	ExtensionsHTTP bool `json:"extensions_http"`
-	ExtensionsUDS  bool `json:"extensions_uds"`
-}
-
-// SettingsUpdateActor is a daemon API value.
-type SettingsUpdateActor string

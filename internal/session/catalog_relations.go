@@ -86,7 +86,11 @@ func continuedSourceSessionID(info *Info) string {
 }
 
 func catalogRelationVisible(info *Info, filter ListQuery) bool {
-	return isPublicSessionCatalogInfo(info) && filter.ReadScope.Matches(info.ProfileID) &&
+	return isPublicSessionCatalogInfo(info) && catalogRelationScopeMatches(info, filter)
+}
+
+func catalogRelationScopeMatches(info *Info, filter ListQuery) bool {
+	return info != nil && filter.ReadScope.Matches(info.ProfileID) &&
 		(filter.WorkspaceID == "" || filter.WorkspaceID == info.WorkspaceID ||
 			filter.WorkspaceID == "@user" && info.WorkspaceID == "") &&
 		sessionMatchesWorkspaceIDs(info.WorkspaceID, filter.WorkspaceIDs)

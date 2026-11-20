@@ -31,7 +31,7 @@ func sessionWorkLinkDescriptor(unlink bool) toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{"sessions", "linked work"},
+		[]string{sessionsSessionsKey, "linked work"},
 		[]string{"link branch", "link pull request"},
 	)
 }

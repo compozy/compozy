@@ -4315,10 +4315,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := json.Unmarshal(result.Structured, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(command_list) error = %v", err)
 		}
-		if payload.Revision != catalog.Revision || len(payload.Commands) != 3 ||
-			payload.Commands[1].CanonicalToken != "/worktree" || payload.Commands[1].Available ||
-			payload.Commands[1].UnavailableReason != "Wait for the current turn to finish." ||
-			payload.Commands[2].CanonicalToken != "/review" {
+		if payload.Revision != catalog.Revision || len(payload.Commands) != 4 ||
+			payload.Commands[2].CanonicalToken != "/worktree" || payload.Commands[2].Available ||
+			payload.Commands[2].UnavailableReason != "Wait for the current turn to finish." ||
+			payload.Commands[3].CanonicalToken != "/review" {
 			t.Fatalf("command_list payload = %#v", payload)
 		}
 	})
@@ -17875,6 +17875,53 @@ func TestNativeSessionMissingWorkspace(t *testing.T) {
 
 func TestNativeArchiveRefusals(t *testing.T) {
 	t.Parallel()
+	// B-005: implicit archive stops cannot reach the side executing the native call.
+	t.Run("Should refuse source archive before implicitly stopping its caller side", func(t *testing.T) {
+		t.Parallel()
+		for _, stop := range []bool{false, true} {
+			mutated := false
+			manager := &apitest.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					info := &session.Info{
+						ID:          id,
+						WorkspaceID: "registry-a",
+						ProfileID:   store.DefaultProfileID,
+						State:       session.StateStopped,
+						Type:        session.SessionTypeUser,
+					}
+					if id == "caller-side" {
+						info.State = session.StateActive
+						info.Lineage = &store.SessionLineage{ParentSessionID: "source", Kind: store.LineageKindSide}
+					}
+					return info, nil
+				},
+				ArchiveFn: func(context.Context, string, string) (*session.Info, error) {
+					mutated = true
+					return nil, errors.New("unexpected archive")
+				},
+				ArchiveWithStopFn: func(context.Context, string, string) (*session.Info, error) {
+					mutated = true
+					return nil, errors.New("unexpected stop")
+				},
+			}
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{Sessions: manager, Workspaces: nativeWorktreeWorkspaceService()},
+				nativeApproveAllPolicyInputs(),
+			)
+			input, _ := json.Marshal(map[string]any{"workspace": "ws-a", "session_id": "source", "stop": stop})
+			_, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "caller-side", WorkspaceID: "registry-a", ProfileID: store.DefaultProfileID},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionArchive, Input: input},
+			)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+			if mutated {
+				t.Fatal("archive mutated before refusing its caller")
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name    string
 		cause   error
@@ -19779,6 +19826,119 @@ func TestDaemonHostedMCPAuthoritySharing(t *testing.T) {
 		}
 		if enumerations != 2 {
 			t.Fatalf("authority enumerations = %d, want one per distinct ceiling", enumerations)
+		}
+	})
+}
+
+func TestNativeSessionSideTools(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose side open and complete list results with their source scope", func(t *testing.T) {
+		t.Parallel()
+		manager := &apitest.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID:          id,
+					WorkspaceID: "ws-side",
+					ProfileID:   store.DefaultProfileID,
+					Type:        session.SessionTypeUser,
+				}, nil
+			},
+			OpenSideFn: func(_ context.Context, opts session.OpenSideOpts) (session.DeriveResult, error) {
+				if opts.SourceSessionID != "source" || opts.Message != "what now?" || opts.WorkspaceID != "ws-side" {
+					t.Fatalf("native side opts=%+v", opts)
+				}
+				return session.DeriveResult{
+					Kind:                 store.LineageKindSide,
+					ChildSessionID:       "side",
+					SourceSessionID:      "source",
+					Seed:                 session.DeriveSeedReplay,
+					SourceTurnInProgress: true,
+				}, nil
+			},
+			ListSidesFn: func(_ context.Context, workspaceID, id string, archived bool) ([]*session.Info, error) {
+				if workspaceID != "ws-side" || id != "source" || archived {
+					t.Fatalf("native side list scope=%s/%s/%t", workspaceID, id, archived)
+				}
+				return []*session.Info{
+					{ID: "side", Name: "Current work", State: session.StateActive, PendingClarifyCount: 1},
+				}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{Sessions: manager, Workspaces: nativeTestWorkspaceServiceWithRoot(t, t.TempDir())},
+			nativeApproveAllPolicyInputs(),
+		)
+		// UT-035
+		opened, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-side", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionSideOpen,
+				Input: json.RawMessage(
+					`{"workspace":"ws-side","session_id":"source","message":"what now?","idempotency_key":"side-native"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, opened, []byte(`"side_session_id":"side"`))
+		requireNativeStructuredContains(t, opened, []byte(`"source_turn_in_progress":true`))
+		listed, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-side", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionSideList,
+				Input:  json.RawMessage(`{"workspace":"ws-side","session_id":"source"}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, listed, []byte(`"pending_clarify_count":1`))
+	})
+	t.Run("Should refuse Goal control before invoking its service on a side", func(t *testing.T) {
+		t.Parallel()
+		manager := &apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID:          id,
+				WorkspaceID: "ws-side",
+				ProfileID:   store.DefaultProfileID,
+				Type:        session.SessionTypeUser,
+				Lineage:     &store.SessionLineage{Kind: store.LineageKindSide, ParentSessionID: "source"},
+			}, nil
+		}}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{Sessions: manager}}
+		// UT-072
+		_, err := native.goalControl(
+			t.Context(),
+			toolspkg.Scope{SessionID: "caller", WorkspaceID: "ws-side", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDGoalControl,
+				Input:  json.RawMessage(`{"session_id":"side","operation":"set","objective":"ship it"}`),
+			},
+		)
+		if !errors.Is(err, session.ErrSideGoalUnsupported) {
+			t.Fatalf("side Goal control=%v", err)
+		}
+		payload, marshalErr := json.Marshal(core.ToolErrorResponseForError(err, core.StatusForToolError(err), false))
+		if marshalErr != nil || !bytes.Contains(payload, []byte("session_side_goal_unsupported")) {
+			t.Fatalf("serialized Goal refusal=%s %v", payload, marshalErr)
+		}
+		native.deps.Workspaces = nativeTestWorkspaceServiceWithRoot(t, t.TempDir())
+		_, err = native.sessionSpawn(
+			t.Context(),
+			toolspkg.Scope{SessionID: "side", WorkspaceID: "ws-side", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionSpawn,
+				Input:  json.RawMessage(`{"agent_name":"coder","ttl_seconds":60}`),
+			},
+		)
+		payload, marshalErr = json.Marshal(core.ToolErrorResponseForError(err, core.StatusForToolError(err), false))
+		if !errors.Is(err, session.ErrSideSpawnUnsupported) || marshalErr != nil ||
+			!bytes.Contains(payload, []byte("session_side_spawn_unsupported")) {
+			t.Fatalf("serialized spawn refusal=%s %v / %v", payload, marshalErr, err)
 		}
 	})
 }

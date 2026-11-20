@@ -4,6 +4,46 @@ package client
 
 import "time"
 
+// WorktreeRemovalResult is a daemon API value.
+type WorktreeRemovalResult struct {
+	Target     WorktreeRemovalTarget         `json:"target"`
+	WorktreeID string                        `json:"worktree_id,omitempty"`
+	State      string                        `json:"state"`
+	Risk       *WorktreeRemovalRiskPayload   `json:"risk,omitempty"`
+	Code       string                        `json:"code,omitempty"`
+	Error      string                        `json:"error,omitempty"`
+	Branch     *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
+}
+
+// WorktreeRemovalRiskPayload is a daemon API value.
+type WorktreeRemovalRiskPayload struct {
+	ChangedFiles    int  `json:"changed_files"`
+	Insertions      int  `json:"insertions"`
+	Deletions       int  `json:"deletions"`
+	UnpushedCommits int  `json:"unpushed_commits"`
+	ExistsOnRemote  bool `json:"exists_on_remote"`
+	LeftoverFiles   int  `json:"leftover_files"`
+}
+
+// WorktreeRemovalTarget is a daemon API value.
+type WorktreeRemovalTarget struct {
+	Ref         string `json:"ref,omitempty"`
+	Path        string `json:"path,omitempty"`
+	ExpectStale bool   `json:"expect_stale,omitempty"`
+}
+
+// WorktreeRepoPayload is a daemon API value.
+type WorktreeRepoPayload struct {
+	GitBacked    bool   `json:"git_backed"`
+	GitAvailable bool   `json:"git_available"`
+	Diagnostic   string `json:"diagnostic,omitempty"`
+}
+
+// WorktreeResponse is a daemon API value.
+type WorktreeResponse struct {
+	Worktree WorktreePayload `json:"worktree"`
+}
+
 // WorktreeStatusPayload is a daemon API value.
 type WorktreeStatusPayload struct {
 	Branch      *string    `json:"branch"`

@@ -406,6 +406,13 @@ type OpenAppEffect struct {
 	App string `json:"app"`
 }
 
+// OpenSessionSideRequest is a daemon API value.
+type OpenSessionSideRequest struct {
+	Message        string `json:"message"`
+	Name           string `json:"name,omitempty"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
 // OpenURLEffect is a daemon API value.
 type OpenURLEffect struct {
 	URL string `json:"url"`
@@ -438,12 +445,3 @@ type Origin struct {
 
 // OriginKind is a daemon API value.
 type OriginKind string
-
-// OutlineEntry is a daemon API value.
-type OutlineEntry struct {
-	Sequence     int64     `json:"sequence"`
-	TurnID       string    `json:"turn_id"`
-	Preview      string    `json:"preview"`
-	ReplyPreview string    `json:"reply_preview"`
-	At           time.Time `json:"at"`
-}

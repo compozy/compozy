@@ -4,6 +4,47 @@ package client
 
 import "time"
 
+// SessionSideItemPayload is a daemon API value.
+type SessionSideItemPayload struct {
+	ID                     string     `json:"id"`
+	Name                   string     `json:"name"`
+	State                  string     `json:"state"`
+	Prompting              bool       `json:"prompting"`
+	PendingPermissionCount int        `json:"pending_permission_count"`
+	PendingClarifyCount    int        `json:"pending_clarify_count"`
+	ArchivedAt             *time.Time `json:"archived_at"`
+	CreatedAt              time.Time  `json:"created_at"`
+	UpdatedAt              time.Time  `json:"updated_at"`
+}
+
+// SessionSidesResponse is a daemon API value.
+type SessionSidesResponse struct {
+	Sides []SessionSideItemPayload `json:"sides"`
+}
+
+// SessionSkillInvocationPayload is a daemon API value.
+type SessionSkillInvocationPayload struct {
+	CommandID string               `json:"command_id"`
+	Token     string               `json:"token"`
+	Name      string               `json:"name"`
+	Source    SessionCommandSource `json:"source"`
+	Start     int                  `json:"start"`
+	End       int                  `json:"end"`
+}
+
+// SessionSoulRefreshRequest is a daemon API value.
+type SessionSoulRefreshRequest struct {
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// SessionSpec is a daemon API value.
+type SessionSpec struct {
+	Handle   string `json:"handle,omitempty"`
+	Isolated bool   `json:"isolated,omitzero"`
+	Mode     string `json:"mode,omitempty"`
+}
+
 // SessionStatusResponse is a daemon API value.
 type SessionStatusResponse struct {
 	Diagnostics         []DiagnosticItem                 `json:"diagnostics,omitempty"`
@@ -403,42 +444,4 @@ type SettingsExtensionSourcesPayload struct {
 // SettingsExtensionTrustPayload is a daemon API value.
 type SettingsExtensionTrustPayload struct {
 	AllowUnverified bool `json:"allow_unverified"`
-}
-
-// SettingsExtensionsConfigPayload is a daemon API value.
-type SettingsExtensionsConfigPayload struct {
-	Trust     SettingsExtensionTrustPayload     `json:"trust"`
-	Sources   SettingsExtensionSourcesPayload   `json:"sources"`
-	Dev       SettingsExtensionDevPayload       `json:"dev"`
-	Resources SettingsExtensionResourcesPayload `json:"resources"`
-}
-
-// SettingsGeneralActionsPayload is a daemon API value.
-type SettingsGeneralActionsPayload struct {
-	Restart SettingsActionMetadataPayload `json:"restart"`
-}
-
-// SettingsGeneralConfigPayload is a daemon API value.
-type SettingsGeneralConfigPayload struct {
-	BusyInput        *SettingsBusyInputPayload  `json:"busy_input,omitzero"`
-	Limits           SettingsLimitsPayload      `json:"limits"`
-	Permissions      SettingsPermissionsPayload `json:"permissions"`
-	SessionTimeout   string                     `json:"session_timeout"`
-	IdleReleaseAfter string                     `json:"idle_release_after,omitempty"`
-	HTTP             SettingsHTTPPayload        `json:"http"`
-	Daemon           SettingsDaemonPayload      `json:"daemon"`
-	Redact           SettingsRedactPayload      `json:"redact"`
-	Terminal         SettingsTerminalPayload    `json:"terminal"`
-	Desktop          *SettingsDesktopPayload    `json:"desktop,omitzero"`
-}
-
-// SettingsGeneralResponse is a daemon API value.
-type SettingsGeneralResponse struct {
-	Section         SettingsSectionName           `json:"section"`
-	Scope           SettingsUserScopeKind         `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind       `json:"available_scopes"`
-	ConfigPaths     SettingsConfigPathsPayload    `json:"config_paths"`
-	Config          SettingsGeneralConfigPayload  `json:"config"`
-	Runtime         SettingsDaemonRuntimePayload  `json:"runtime"`
-	Actions         SettingsGeneralActionsPayload `json:"actions"`
 }

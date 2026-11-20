@@ -51,9 +51,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.POST("/:session_id/compact", handlers.CompactSession)
 	workspaceSessions.POST("/:session_id/clear", handlers.ClearSessionConversation)
 	workspaceSessions.POST("/:session_id/rewind", handlers.RewindSessionConversation)
-	workspaceSessions.POST("/:session_id/continue", handlers.ContinueSession)
-	workspaceSessions.POST("/:session_id/fork", handlers.ForkSession)
-	workspaceSessions.GET("/:session_id/derive/preview", handlers.PreviewSessionDerive)
+	registerSessionDeriveRoutes(workspaceSessions, handlers)
 	workspaceSessions.PUT("/:session_id/runtime", handlers.SetSessionRuntime)
 	workspaceSessions.DELETE("/:session_id/runtime", handlers.ClearSessionRuntime)
 	registerSessionPromptRoutes(workspaceSessions, handlers)
@@ -173,4 +171,12 @@ func registerSessionHistoryCleanupRoutes(sessions gin.IRouter, handlers *Handler
 func registerSessionMCPRoutes(sessions gin.IRouter, handlers *Handlers) {
 	sessions.GET("/:session_id/mcp", handlers.GetSessionMCP)
 	sessions.POST("/:session_id/mcp/servers/:name/check", handlers.privilegedMutationGuard(), handlers.CheckSessionMCP)
+}
+
+func registerSessionDeriveRoutes(sessions gin.IRouter, handlers *Handlers) {
+	sessions.POST("/:session_id/continue", handlers.ContinueSession)
+	sessions.POST("/:session_id/fork", handlers.ForkSession)
+	sessions.GET("/:session_id/derive/preview", handlers.PreviewSessionDerive)
+	sessions.POST("/:session_id/sides", handlers.OpenSessionSide)
+	sessions.GET("/:session_id/sides", handlers.ListSessionSides)
 }

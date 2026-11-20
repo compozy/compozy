@@ -2213,3 +2213,67 @@ func TestManagerSpawnReportsTheExhaustedBudget(t *testing.T) {
 		}
 	})
 }
+
+func TestSideSpawnRefusals(t *testing.T) {
+	t.Parallel()
+	t.Run("Should refuse governed spawn and delegation while preserving the helper exemption", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "spawn-parent")
+		// UT-085
+		if _, err := h.manager.Spawn(
+			t.Context(),
+			&SpawnOpts{ParentSessionID: side.ID, AgentName: "coder", TTL: time.Minute},
+		); !errors.Is(
+			err,
+			ErrSideSpawnUnsupported,
+		) {
+			t.Fatalf("side spawn=%v", err)
+		}
+		service := &subagentService{runtime: managerSubagentRuntime{m: h.manager}}
+		_, err := service.Delegate(
+			t.Context(),
+			SubagentRequest{
+				Caller: SubagentCaller{
+					WorkspaceID: h.workspaceID,
+					SessionID:   side.ID,
+					TurnID:      "side-turn",
+					ToolCallID:  "delegate",
+					AgentName:   "coder",
+				},
+				Task:           "Inspect this code",
+				Title:          "Inspect code",
+				Role:           "review",
+				Target:         SubagentTarget{Agent: "coder"},
+				Mode:           SubagentModeAsync,
+				IdempotencyKey: "side-delegate",
+			},
+		)
+		if !errors.Is(err, ErrSideSpawnUnsupported) {
+			t.Fatalf("side delegate=%v", err)
+		}
+		helperHarness := newHostedMCPHarness(t)
+		main := createSpawnParent(t, helperHarness, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{})
+		cleanupSessionStop(t, helperHarness, main.ID)
+		parent := createSpawnParent(t, helperHarness, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{})
+		parent.mu.Lock()
+		parent.Type = SessionTypeUser
+		parent.Lineage = &store.SessionLineage{
+			Kind: store.LineageKindSide, ParentSessionID: main.ID, RootSessionID: main.ID,
+			SpawnDepth: 1, OriginAgentName: main.AgentName,
+		}
+		parent.mu.Unlock()
+		helper, err := helperHarness.manager.Spawn(t.Context(), &SpawnOpts{
+			ParentSessionID: parent.ID, AgentName: "coder", SpawnRole: SpawnRoleAutoTitle, TTL: time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("auto-title from side: %v", err)
+		}
+		cleanupSessionStop(t, helperHarness, helper.ID)
+		cleanupSessionStop(t, helperHarness, parent.ID)
+		if !spawnStartCall(t, helperHarness, helper.ID).InputOnly || !helper.Info().VerdictOnly {
+			t.Fatal("helper did not use input-only runtime")
+		}
+	})
+}

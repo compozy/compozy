@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// ProviderAuthStatusPayload is a daemon API value.
+type ProviderAuthStatusPayload struct {
+	Mode        string                         `json:"mode"`
+	EnvPolicy   string                         `json:"env_policy"`
+	HomePolicy  string                         `json:"home_policy"`
+	State       string                         `json:"state"`
+	Code        string                         `json:"code,omitempty"`
+	Message     string                         `json:"message,omitempty"`
+	StatusCmd   string                         `json:"status_command,omitempty"`
+	Login       ProviderLoginDescriptorPayload `json:"login"`
+	LastProbeAt *time.Time                     `json:"last_probe_at,omitempty"`
+}
+
 // ProviderErrorDiagnostic is a daemon API value.
 type ProviderErrorDiagnostic struct {
 	Code            string                `json:"code"`
@@ -428,18 +441,4 @@ type RemoveDiscoveredWorktreeRequest struct {
 	Path        string `json:"path"`
 	Force       bool   `json:"force,omitempty"`
 	ExpectStale bool   `json:"expect_stale,omitempty"`
-}
-
-// RemoveWorktreesRequest is a daemon API value.
-type RemoveWorktreesRequest struct {
-	Targets      []WorktreeRemovalTarget `json:"targets"`
-	Force        bool                    `json:"force,omitempty"`
-	DeleteBranch bool                    `json:"delete_branch,omitempty"`
-	DryRun       bool                    `json:"dry_run,omitempty"`
-}
-
-// RemoveWorktreesResponse is a daemon API value.
-type RemoveWorktreesResponse struct {
-	DryRun  bool                    `json:"dry_run"`
-	Results []WorktreeRemovalResult `json:"results"`
 }

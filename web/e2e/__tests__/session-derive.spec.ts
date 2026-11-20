@@ -350,3 +350,134 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     expect(afterSessions).toHaveLength(beforeSessions.length);
   });
 });
+
+// side-chat: E2E-001 (`/side` while the main turn runs), E2E-002 (the head toggle, then the
+// shortcut), E2E-003 (an idle `/side` adds nothing to the main thread). The acpmock fixture is the
+// backend slice's `browser_side_chat_fixture.json`: agent `side-web-agent` answers "hello side",
+// holds "keep working until stopped" open until the turn is cancelled, and answers side first
+// prompts containing "what now?", "what is this repo?" and "quick side question".
+const sideFixturePath = path.join(acpmockTestdata, "browser_side_chat_fixture.json");
+const sideAgent = "side-web-agent";
+
+test.describe("side chat", () => {
+  // The side panel is an inline drawer only from 1440px; below that it is a sheet over the main composer.
+  test.use({
+    viewport: { width: 1600, height: 900 },
+    runtimeOptions: {
+      seed: { mockAgents: [{ fixturePath: sideFixturePath, fixtureAgent: sideAgent }] },
+    },
+  });
+
+  async function openSideSource(runtime: BrowserRuntime, page: import("@playwright/test").Page) {
+    const workspace = await prepareWorkspace(runtime, page);
+    const source = await createPromptedSource(runtime, workspace, sideAgent, "hello side");
+    await page.goto(runtime.url(`/agents/${sideAgent}/sessions/${source.id}`), {
+      waitUntil: "domcontentloaded",
+    });
+    const win = sessionWindow(page, source.id);
+    await expect(sessionWindowSelectors(win, page).chatView.first()).toBeVisible();
+    // The side panel mounts its own composer after the main one: the main one is the first.
+    const mainComposer = win.getByRole("textbox", { name: "Session prompt" }).first();
+    const before = await runtime.requestJSON<TranscriptPayload>(
+      sessionAPIPath(workspace.id, source.id, "/transcript")
+    );
+    return { workspace, source, win, mainComposer, before };
+  }
+
+  async function sideChats(runtime: BrowserRuntime, workspaceID: string, sessionID: string) {
+    const { sides } = await runtime.requestJSON<{ sides: Array<{ id: string }> }>(
+      sessionAPIPath(workspaceID, sessionID, "/sides")
+    );
+    return sides;
+  }
+
+  // Invariant: `/side` opens a side chat that answers while the main turn keeps streaming, and the
+  // panel's status chip follows the main session; closing stops and archives the side chat.
+  test("E2E-001: operator asks a side question while the main session works", async ({
+    appPage,
+    browserArtifacts,
+    runtime,
+  }) => {
+    const { workspace, source, win, mainComposer } = await openSideSource(runtime, appPage);
+    await mainComposer.click();
+    // The fixture holds this turn until it is stopped, so no timer races the side chat (N-004).
+    await mainComposer.pressSequentially("keep working until stopped");
+    await mainComposer.press("Enter");
+    // The side panel mounts its own composer after the main one: the main stop control is first.
+    const mainStop = win.getByTestId("composer-stop-button").first();
+    await expect(mainStop).toBeVisible();
+
+    await mainComposer.pressSequentially("/side what now?");
+    await mainComposer.press("Enter");
+
+    const panel = appPage.getByTestId("side-chat-thread");
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText("what now?");
+    await expect(panel).toContainText("side: main is still working");
+    await expect(panel).not.toContainText("hello side");
+    await expect(appPage.getByTestId("side-chat-main-status")).toHaveText("Main working");
+    await browserArtifacts.captureScreenshot("side-chat-while-main-works", appPage);
+
+    // Releasing the held main turn: the chip follows the main session, the side chat stays.
+    await mainStop.click();
+    await expect(appPage.getByTestId("side-chat-main-status")).toHaveText("Main finished");
+    await expect(panel).toContainText("side: main is still working");
+
+    const [side] = await sideChats(runtime, workspace.id, source.id);
+    expect(side).toBeDefined();
+    await appPage.getByTestId("side-chat-close").click();
+    await expect(panel).toBeHidden();
+    await expect
+      .poll(async () => (await sideChats(runtime, workspace.id, source.id)).length)
+      .toBe(0);
+  });
+
+  // Invariant: the head toggle opens an empty side chat whose first question creates it, and the
+  // `session.side.toggle` shortcut brings the same side chat back after Escape in the panel hides it.
+  test("E2E-002: operator opens a side chat from the head toggle and reopens it with the shortcut", async ({
+    appPage,
+    runtime,
+  }) => {
+    const { win } = await openSideSource(runtime, appPage);
+    await win.getByTestId("session-side-toggle").click();
+    const question = appPage.getByTestId("side-chat-question-input");
+    await expect(question).toBeFocused();
+    await question.fill("quick side question");
+    await question.press("Enter");
+
+    const panel = appPage.getByTestId("side-chat-thread");
+    await expect(panel).toContainText("side: quick answer");
+    await expect(win.getByTestId("session-side-toggle-count")).toHaveText("1");
+
+    // The question settles into its thread and focus lands in the side composer, so Escape there
+    // hides the non-modal panel; Escape from the main pane leaves it open.
+    const sideComposer = panel.getByRole("textbox", { name: "Session prompt" });
+    await expect(sideComposer).toBeFocused();
+    await sideComposer.press("Escape");
+    await expect(panel).toBeHidden();
+    await appPage.keyboard.press(
+      process.platform === "darwin" ? "Meta+Alt+KeyS" : "Control+Alt+KeyS"
+    );
+    await expect(panel).toContainText("side: quick answer");
+  });
+
+  // Invariant: an idle `/side <question>` reaches the side chat only; the main transcript is unchanged.
+  test("E2E-003: an idle `/side` question adds nothing to the main session", async ({
+    appPage,
+    runtime,
+  }) => {
+    const { workspace, source, win, mainComposer, before } = await openSideSource(runtime, appPage);
+    await mainComposer.click();
+    await mainComposer.pressSequentially("/side what is this repo?");
+    await mainComposer.press("Enter");
+
+    const panel = appPage.getByTestId("side-chat-thread");
+    await expect(panel).toContainText("side: this repo is compozy");
+    await expect(mainComposer).toHaveText("");
+    const after = await runtime.requestJSON<TranscriptPayload>(
+      sessionAPIPath(workspace.id, source.id, "/transcript")
+    );
+    expect(after.max_sequence).toBe(before.max_sequence);
+    await expect(win.locator(messageRow).filter({ hasText: "what is this repo?" })).toHaveCount(1);
+  });
+});

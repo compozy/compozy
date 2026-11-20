@@ -131,15 +131,15 @@ func TestResponseBodyDescriptors(t *testing.T) {
 		}
 
 		expectedSchemas := openapi3.Schemas{}
-		expectedError, err := schemaRefForValue(contract.ErrorPayload{}, expectedSchemas)
-		if err != nil {
-			t.Fatalf("schemaRefForValue(ErrorPayload) error = %v", err)
-		}
 		expectedPrompt, err := schemaRefForValue(contract.SendPromptResultResponse{}, expectedSchemas)
 		if err != nil {
 			t.Fatalf("schemaRefForValue(SendPromptResultResponse) error = %v", err)
 		}
-		want := []*openapi3.SchemaRef{expectedError, expectedPrompt}
+		expectedDerive, err := schemaRefForValue(contract.SessionDeriveErrorPayload{}, expectedSchemas)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []*openapi3.SchemaRef{expectedDerive, expectedPrompt}
 		gotJSON, err := json.Marshal(actual.Value.OneOf)
 		if err != nil {
 			t.Fatalf("marshal response union = %v", err)

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -85,6 +86,10 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 	)
 	if err != nil {
 		cancelDelivery()
+		if side, ok := errors.AsType[*session.SidePromptError](err); ok {
+			h.respondDeriveError(c, StatusForSessionError(err), DeriveFailure(err, side.Result))
+			return nil, false
+		}
 		h.respondError(c, StatusForSessionError(err), err)
 		return nil, false
 	}

@@ -305,7 +305,7 @@ func SessionDerivePreviewPayload(preview session.DerivePreview) contract.Session
 }
 
 func sessionDerivationPayload(derivation *store.SessionDerivation) *contract.SessionDerivationPayload {
-	if derivation == nil || !derivation.Kind.Derived() {
+	if derivation == nil || !derivation.Kind.Derivation() {
 		return nil
 	}
 	payload := &contract.SessionDerivationPayload{

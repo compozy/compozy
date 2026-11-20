@@ -1619,3 +1619,27 @@ Live sessions, delegated executions and admissions with no session are refused; 
 session/Loop/Task stop surface first. CLI: `compozy automation runs cancel <id> -o json`.
 HTTP/UDS: `POST /api/automation/runs/{id}/cancel`, returning the existing `{run: ...}` DTO;
 live or concurrent execution conflicts return 409. No separate finish operation is needed.
+
+### Side-chat tools
+
+`compozy__session_side_open` is mutating and requires `session_id`, `message`, and `idempotency_key`;
+optional inputs are `workspace` and `name`. It creates a side in the source's workspace/profile
+without mutating that source. Output is
+`{side_session_id, source_session_id, seed, source_turn_in_progress, replayed}`. Retrying the same
+key/question returns the same side. A changed question conflicts. Context uses a native fork when
+eligible or bounded replay, including a busy source's open turn.
+
+`compozy__session_side_list` is read-only. Supply `session_id`, optional `workspace`, and optional
+`include_archived` (false by default). Output is `{sides:[...]}`; each item contains `id`, `name`,
+`state`, `prompting`, `pending_permission_count`, `pending_clarify_count`, nullable `archived_at`,
+`created_at`, and `updated_at`. The complete list is ordered by `updated_at` descending, then id
+descending. Sides are intentionally absent from the ordinary session catalog and subagent lists.
+
+Shared side codes are `side_message_required`, `side_attachments_unsupported`,
+`session_side_source_empty`, `session_side_nested`, `session_side_unsupported`,
+`session_side_parent_archived`, `session_side_not_derivable`, `session_side_fixed_parent`,
+`session_side_worktree_fixed`, `session_side_later_unsupported`, `session_side_goal_unsupported`,
+and `session_side_spawn_unsupported`. The first two are request errors (HTTP 400), and the remaining
+side refusals are conflicts (409). Existing derive errors still apply, including
+`session_archived`, `session_not_found`, and `idempotency_conflict`. A failure after commit preserves
+`child_session_id` in the derive error. Set Goals, launch governed work, and change worktrees in main.

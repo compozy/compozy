@@ -44,14 +44,12 @@ function QueueStoryHost() {
       canPrompt={controls.canPrompt}
       onCancelPrompt={controls.handleCancelPrompt}
       onQueuePrompt={controls.handleQueuePrompt}
-      onInterruptPrompt={controls.handleInterruptPrompt}
       onSteerPrompt={controls.handleSteerPrompt}
       isBusyInputPending={controls.isBusyInputPending}
       isSessionRunning={controls.isSessionRunning}
       stopPhase={controls.stopPhase}
       allowBusyInput={controls.allowBusyInput}
       busyInputDefaultMode={controls.busyInputDefaultMode}
-      busyInputSteerDelivery={controls.busyInputSteerDelivery}
       queuedPrompts={controls.queuedPrompts}
       onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
       onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
@@ -86,6 +84,14 @@ async function typeIntoComposer(canvas: ReturnType<typeof within>, text: string)
 }
 
 /**
+ * Queues the draft the way the operator does while a turn runs: this session's follow-up
+ * default is steer, so the modifier with Enter queues it (US-003.AC-3).
+ */
+async function queueFromComposer() {
+  await userEvent.keyboard("{Control>}{Enter}{/Control}");
+}
+
+/**
  * Queue strip (S2, task_03 VC-01..06) inside the artboard's 860×560 session
  * window body: real `SessionQueueStrip` + composer over an MSW queue that
  * answers every verb. Each story is one contract state, reached either on load
@@ -99,7 +105,7 @@ const meta: Meta<typeof QueueStoryHost> = {
     docs: {
       description: {
         component:
-          "The strip fuses onto the composer top: a header with the count and the only Clear all, one 32px row per entry (mono position, owner attribution for another actor, one-line preview, Steer / edit / remove), a dispatching head row (“Sending…”, verbs absent), the client-local unconfirmed row with Retry, the full header at cap (Queue button and the screen-reader ⌘⏎ queue hint absent), and the inline clear confirmation. Every button runs the production handler against the story's MSW queue.",
+          "The strip fuses onto the composer top: a header with the count and the only Clear all, one 32px row per entry (mono position, owner attribution for another actor, one-line preview, Steer / edit / remove), a dispatching head row (“Sending…”, verbs absent), the client-local unconfirmed row with Retry, the full header at cap (the screen-reader ⌘⏎ queue hint absent), and the inline clear confirmation. Every button runs the production handler against the story's MSW queue.",
       },
     },
   },
@@ -213,7 +219,7 @@ export const Unconfirmed: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await typeIntoComposer(canvas, "Also run the migration equivalence suite");
-    await userEvent.click(await canvas.findByTestId("composer-queue-button"));
+    await queueFromComposer();
     await expect(await canvas.findByTestId("composer-queued-retry")).toBeVisible();
   },
 };
@@ -228,7 +234,7 @@ export const UnconfirmedRetryReplayed: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await typeIntoComposer(canvas, "Also run the migration equivalence suite");
-    await userEvent.click(await canvas.findByTestId("composer-queue-button"));
+    await queueFromComposer();
     await userEvent.click(await canvas.findByTestId("composer-queued-retry"));
     await waitFor(async () => {
       await expect(canvas.getByTestId("composer-feedback-note")).toHaveAttribute(
@@ -239,7 +245,7 @@ export const UnconfirmedRetryReplayed: Story = {
   },
 };
 
-/** VC-05 — ten of ten: the header reads full, the strip scrolls inside its four-row cap, Queue and its hint are absent. */
+/** VC-05 — ten of ten: the header reads full, the strip scrolls inside its four-row cap, the queue hint is absent. */
 export const Full: Story = {
   parameters: scene({ cap: QUEUE_STORY_CAP, entries: QUEUE_STORY_FULL_ENTRIES }),
 };
@@ -255,12 +261,13 @@ export const FullRefusedDraft: Story = {
     const canvas = within(canvasElement);
     const draft = "Also verify the final migration before shipping";
     await typeIntoComposer(canvas, draft);
-    await userEvent.click(await canvas.findByTestId("composer-queue-button"));
+    await queueFromComposer();
     await waitFor(() =>
       expect(canvas.getByTestId("composer-feedback-note")).toHaveTextContent("queue is full")
     );
     await expect(canvas.getByLabelText("Session prompt")).toHaveTextContent(draft);
-    await expect(canvas.getByTestId("composer-steer-button")).toBeVisible();
+    // A full queue still steers: Enter keeps the session's steer default.
+    await expect(canvas.getByTestId("composer-enter-hint")).toHaveAttribute("data-enter", "steer");
   },
 };
 

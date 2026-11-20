@@ -51,7 +51,7 @@ func (g *SessionRepo) ListSessionHistoryCleanupRows(
 		store.StringClause("profile_id", profileID),
 		store.SessionWorkspaceClause(workspaceID),
 	)
-	where = append(where, sessionHistoryCleanupMembership, sessionHistoryCleanupNotInternal)
+	where = append(where, sessionHistoryCleanupMembership, sessionHistoryCleanupNotInternal, sessionSideVisible)
 	sqlQuery := store.AppendWhere(sessionHistoryCleanupSelect, where)
 
 	// dynamic-sql: the workspace scope is either one workspace, the user selector, or none.
