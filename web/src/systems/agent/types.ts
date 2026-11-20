@@ -128,7 +128,12 @@ export interface AgentInstancePayload {
   main_session_id: string;
   checks_enabled: boolean;
   daily_budget?: { tokens?: number; usd?: number };
-  daily_budget_usage?: { day: string; tokens: number; known_usd: string; has_unpriced_usage: boolean };
+  daily_budget_usage?: {
+    day: string;
+    tokens: number;
+    known_usd: string;
+    has_unpriced_usage: boolean;
+  };
   /** Empty until the first check. */
   last_wake_at: string;
   /** Empty when no check is scheduled. */
