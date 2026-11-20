@@ -3,11 +3,13 @@ package store
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -76,6 +78,19 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 		}
 		if !reflect.DeepEqual(upgraded, readBack) {
 			t.Fatalf("metadata upgrade changed retained state: %+v", upgraded)
+		}
+	})
+	t.Run("Should report a path error when a file blocks the parent directory", func(t *testing.T) {
+		t.Parallel()
+
+		parent := filepath.Join(t.TempDir(), "blocked")
+		if err := os.WriteFile(parent, []byte("block"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		err := WriteSessionMeta(filepath.Join(parent, SessionMetaName), &meta)
+		pathErr, ok := errors.AsType[*os.PathError](err)
+		if !ok || pathErr.Path != parent || !errors.Is(err, syscall.ENOTDIR) {
+			t.Fatalf("WriteSessionMeta() error = %v, want a path error for %q with ENOTDIR", err, parent)
 		}
 	})
 }
