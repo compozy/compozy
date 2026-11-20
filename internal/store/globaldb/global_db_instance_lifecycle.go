@@ -175,7 +175,8 @@ func (r *InstanceRepo) Resume(
 	return result, err
 }
 func resumePausedInstance(
-	ctx context.Context, q *sqlcgen.Queries, row sqlcgen.AgentInstance, limit int, latched int64, clock func() time.Time,
+	ctx context.Context, q *sqlcgen.Queries, row sqlcgen.AgentInstance,
+	limit int, latched int64, clock func() time.Time,
 ) (sqlcgen.AgentInstance, error) {
 	if err := checkDailyBudgetResume(ctx, q, row, clock()); err != nil {
 		return sqlcgen.AgentInstance{}, err

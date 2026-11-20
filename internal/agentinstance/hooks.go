@@ -60,9 +60,15 @@ func WithStateEffects(effects func(context.Context, Instance) error) Option {
 
 func (s *Service) AfterPause(ctx context.Context, trip store.InstancePauseTrip) error {
 	return s.ApplyPause(ctx, Instance{
-		ID: trip.InstanceID, ProfileID: trip.ProfileID, WorkspaceID: trip.WorkspaceID,
-		AgentName: trip.AgentName, MainSessionID: trip.MainSessionID, State: instanceStatePaused, PauseReason: trip.Reason,
-		CreatedAt: trip.CreatedAt, UpdatedAt: trip.PausedAt,
+		ID:            trip.InstanceID,
+		ProfileID:     trip.ProfileID,
+		WorkspaceID:   trip.WorkspaceID,
+		AgentName:     trip.AgentName,
+		MainSessionID: trip.MainSessionID,
+		State:         instanceStatePaused,
+		PauseReason:   trip.Reason,
+		CreatedAt:     trip.CreatedAt,
+		UpdatedAt:     trip.PausedAt,
 	})
 }
 

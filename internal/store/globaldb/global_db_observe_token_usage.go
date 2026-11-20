@@ -285,7 +285,9 @@ func tokenReceiptOwner(
 	if sessionOwner.InstanceID != "" {
 		instance, err := queries.GetAgentInstance(ctx, sessionOwner.InstanceID)
 		if err != nil {
-			return sqlcgen.GetTokenUsageReceiptSessionOwnerRow{}, fmt.Errorf("store: read receipt instance creation: %w", err)
+			return sqlcgen.GetTokenUsageReceiptSessionOwnerRow{}, fmt.Errorf(
+				"store: read receipt instance creation: %w", err,
+			)
 		}
 		createdAt, err := store.ParseTimestamp(instance.CreatedAt)
 		if err != nil {

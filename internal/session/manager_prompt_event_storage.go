@@ -159,26 +159,7 @@ func (m *Manager) recordEventWithWriter(
 
 	m.dispatchEventPreRecord(ctx, session, event, payload)
 
-	var persisted store.SessionEvent
-	commit := func(writeCtx context.Context) error {
-		var writeErr error
-		persisted, writeErr = write(writeCtx, recorder, store.SessionEvent{
-			ID:        strings.TrimSpace(event.EventIDValue()),
-			TurnID:    event.TurnID,
-			Type:      event.Type,
-			AgentName: session.Info().AgentName,
-			Content:   payload,
-			Timestamp: event.Timestamp,
-		})
-		return writeErr
-	}
-	if usage, ok := m.notifier.(interface {
-		CommitDurableTurnUsage(context.Context, *Session, acp.AgentEvent, func(context.Context) error) error
-	}); ok && hasUsageEvidence {
-		err = usage.CommitDurableTurnUsage(ctx, session, event, commit)
-	} else {
-		err = commit(ctx)
-	}
+	persisted, err := m.commitRecordedAgentEvent(ctx, session, event, payload, recorder, write, hasUsageEvidence)
 	if errors.Is(err, errIdentifiedEventRecorded) {
 		return nil
 	}
@@ -203,6 +184,39 @@ func (m *Manager) recordEventWithWriter(
 	}
 
 	return m.dispatchObservedCompaction(ctx, session, event, compaction)
+}
+
+func (m *Manager) commitRecordedAgentEvent(
+	ctx context.Context,
+	session *Session,
+	event acp.AgentEvent,
+	payload string,
+	recorder EventRecorder,
+	write func(context.Context, EventRecorder, store.SessionEvent) (store.SessionEvent, error),
+	hasUsageEvidence bool,
+) (store.SessionEvent, error) {
+	var err error
+	var persisted store.SessionEvent
+	commit := func(writeCtx context.Context) error {
+		var writeErr error
+		persisted, writeErr = write(writeCtx, recorder, store.SessionEvent{
+			ID:        strings.TrimSpace(event.EventIDValue()),
+			TurnID:    event.TurnID,
+			Type:      event.Type,
+			AgentName: session.Info().AgentName,
+			Content:   payload,
+			Timestamp: event.Timestamp,
+		})
+		return writeErr
+	}
+	if usage, ok := m.notifier.(interface {
+		CommitDurableTurnUsage(context.Context, *Session, acp.AgentEvent, func(context.Context) error) error
+	}); ok && hasUsageEvidence {
+		err = usage.CommitDurableTurnUsage(ctx, session, event, commit)
+	} else {
+		err = commit(ctx)
+	}
+	return persisted, err
 }
 
 func prepareRecordedBudgetUsage(session *Session, event acp.AgentEvent) (acp.AgentEvent, bool) {
