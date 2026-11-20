@@ -65,9 +65,6 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 			return err
 		}
 	}
-	if err := m.deleteSideSessions(ctx, target); err != nil {
-		return err
-	}
 	if handled, finish, deleteErr := m.deleteMissingSession(ctx, target, archived); handled {
 		finishSubagent = finish
 		return deleteErr
@@ -88,6 +85,11 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 
 	finishSubagent, err = m.prepareSubagentSessionDelete(ctx, target)
 	if err != nil {
+		return err
+	}
+	// Source admission must succeed before any side history is removed.
+	// Side deletes acquire their own lifecycle locks before source staging does.
+	if err := m.deleteSideSessions(ctx, target); err != nil {
 		return err
 	}
 
@@ -172,6 +174,11 @@ func (m *Manager) deleteMissingSession(
 	}
 	finishSubagent, err = m.prepareSubagentSessionDelete(ctx, target)
 	if err != nil {
+		return true, finishSubagent, err
+	}
+	// Missing history still requires a stopped, eligible source before the cascade.
+	// Keep the cascade outside lifecycleMu, as in the live-history path.
+	if err := m.deleteSideSessions(ctx, target); err != nil {
 		return true, finishSubagent, err
 	}
 	if _, err := os.Lstat(store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))); err == nil {

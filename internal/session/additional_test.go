@@ -1376,6 +1376,101 @@ func TestInstanceMainPromptResume(t *testing.T) {
 
 func TestSideLifecycle(t *testing.T) {
 	t.Parallel()
+	// Invariant: a refused source deletion preserves side history and source-owned listing.
+	// Owner: source delete cascade; canonical suite: TestSideLifecycle.
+	t.Run("Should retain listable sides when the source stop refuses deletion", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "refused-source-delete")
+		waitForDeriveConsumption(t, h, side.ID)
+		stopFailure := errors.New("source pre-stop refused")
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPreStopFn: func(_ context.Context, payload hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error) {
+				if payload.SessionID == source.ID {
+					return payload, stopFailure
+				}
+				return payload, nil
+			},
+		}
+		h.manager.hooks = fullHookSet(dispatcher)
+		defer func() { h.manager.hooks = HookSet{} }()
+		if err := h.manager.Delete(t.Context(), source.ID); !errors.Is(err, stopFailure) {
+			t.Fatalf("source delete refusal = %v", err)
+		}
+		sides, err := h.manager.ListSides(t.Context(), h.workspaceID, source.ID, false)
+		if err != nil || len(sides) != 1 || sides[0].ID != side.ID {
+			t.Fatalf("sides after refused source delete = %+v, %v", sides, err)
+		}
+		for _, id := range []string{source.ID, side.ID} {
+			info, err := h.manager.Status(t.Context(), id)
+			if err != nil || info.State != StateActive || info.ArchivedAt != nil {
+				t.Fatalf("session after refused delete = %+v, %v", info, err)
+			}
+		}
+	})
+	// Invariant: absent source history cannot bypass durable stop verification before deleting sides.
+	// Owner: missing-history source delete cascade; canonical suite: TestSideLifecycle.
+	for _, missingDirectory := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf(
+				"Should retain sides of an unverified missing source with directory missing %t",
+				missingDirectory,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newDeriveHarness(t)
+				source := h.newDeriveSource(t)
+				side := h.openSide(t, source, "missing-source-delete")
+				waitForDeriveConsumption(t, h, side.ID)
+				if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+					t.Fatal(err)
+				}
+				if missingDirectory {
+					if err := os.RemoveAll(source.SessionDir()); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.Remove(source.MetaPath()); err != nil {
+					t.Fatal(err)
+				}
+				update := store.SessionStateUpdate{
+					ID:        source.ID,
+					State:     string(StateStopping),
+					UpdatedAt: time.Now().UTC(),
+				}
+				if err := h.db.UpdateSessionState(t.Context(), update); err != nil {
+					t.Fatal(err)
+				}
+				if err := h.manager.Delete(t.Context(), source.ID); !errors.Is(err, ErrStopVerificationFailed) {
+					t.Fatalf("missing source delete refusal = %v", err)
+				}
+				retained, err := h.manager.durableSessionInfoForLifecycleTransition(t.Context(), source.ID)
+				if err != nil || retained.State != StateStopping {
+					t.Fatalf("missing source changed on refusal = %+v, %v", retained, err)
+				}
+				sides, err := h.db.ListSessionSides(t.Context(), h.workspaceID, source.ID, true)
+				if err != nil || len(sides) != 1 || sides[0].ID != side.ID {
+					t.Fatalf("sides after refused missing source delete = %+v, %v", sides, err)
+				}
+				if _, err := h.manager.Status(t.Context(), side.ID); err != nil {
+					t.Fatal(err)
+				}
+				update.State = string(StateStopped)
+				if err := h.db.UpdateSessionState(t.Context(), update); err != nil {
+					t.Fatal(err)
+				}
+				if err := h.manager.Delete(t.Context(), source.ID); err != nil {
+					t.Fatal(err)
+				}
+				for _, id := range []string{side.ID, source.ID} {
+					if _, err := h.manager.Status(t.Context(), id); !errors.Is(err, ErrSessionNotFound) {
+						t.Fatalf("retry left session %s: %v", id, err)
+					}
+				}
+			},
+		)
+	}
+
 	// Invariant B-002: lifecycle deletion includes real internal side descendants; public lists still omit them.
 	t.Run("Should delete a stopped side title helper before its side and source", func(t *testing.T) {
 		t.Parallel()
