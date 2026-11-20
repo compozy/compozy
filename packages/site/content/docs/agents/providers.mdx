@@ -447,8 +447,8 @@ so OAuth URLs and provider prompts remain visible. It then returns the redacted 
 safe login descriptor. Use `--no-tty` for deterministic non-interactive runs and `--timeout` when
 scripts need a bounded login attempt; these are its only flags. When a provider uses
 `home_policy = "isolated"`, CompozyOS runs the native login with its provider home so credentials land
-where CompozyOS will use them, without displaying the environment prefix or resolved command. HTTP and UDS
-run non-interactive auth probes only. Wrapped API-key
+where CompozyOS will use them, without displaying the environment prefix or resolved command.
+HTTP and UDS never execute login commands. They run non-interactive auth probes. Wrapped API-key
 providers use their configured `credential_slots` instead of Pi login. Custom providers should set
 `auth_mode` to match the runtime's real authentication contract.
 
