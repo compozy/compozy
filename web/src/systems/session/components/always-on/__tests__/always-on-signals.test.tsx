@@ -57,7 +57,12 @@ describe("AlwaysOnCollapsedSignal", () => {
 describe("User group", () => {
   it("Should leave Global agents to the Global row instead of repeating them in the User group", async () => {
     mockInstances.mockResolvedValue([
-      agentInstanceFixture({ id: "global", workspace_id: "", label: "Secretary", needs_attention: true }),
+      agentInstanceFixture({
+        id: "global",
+        workspace_id: "",
+        label: "Secretary",
+        needs_attention: true,
+      }),
       agentInstanceFixture({ id: "project", needs_attention: true }),
     ]);
     render(
