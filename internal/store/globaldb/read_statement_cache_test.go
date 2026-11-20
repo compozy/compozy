@@ -150,6 +150,8 @@ func TestSessionListReadStatementReuse(t *testing.T) {
 		}
 		db.SetMaxOpenConns(1)
 		cache := newReadStatementCache(db, 4)
+		// Registered first so it runs last: an early failure still closes the pool and cache.
+		t.Cleanup(func() { _ = closeReadPool(db, cache) })
 		rows, err := cache.query(t.Context(), "SELECT 1")
 		if err != nil {
 			t.Fatalf("prime cached statement: %v", err)
@@ -194,8 +196,8 @@ func TestSessionListReadStatementReuse(t *testing.T) {
 		}
 		select {
 		case err := <-queued:
-			if err == nil {
-				t.Fatal("queued cached read succeeded after the pool closed")
+			if err == nil || !strings.Contains(err.Error(), "sql: database is closed") {
+				t.Fatalf("queued cached read error = %v, want database is closed", err)
 			}
 		case <-time.After(5 * time.Second):
 			t.Fatal("queued cached read did not finish after the pool closed")
