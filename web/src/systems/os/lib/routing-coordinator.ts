@@ -263,6 +263,11 @@ export class RoutingCoordinator {
    */
   async userOpen(target: OsOpenTarget): Promise<string | null> {
     requestActivatedComposer(target.app, target.instanceKey);
+    return this.openWindow(target);
+  }
+
+  /** The open itself; recoveries reuse it without renewing the activation's composer request. */
+  private async openWindow(target: OsOpenTarget): Promise<string | null> {
     const intentToken = ++this.nextUserIntentToken;
     const keyboardSince = this.keyboardFocus.begin();
     const before = this.manager.getState();
@@ -295,8 +300,14 @@ export class RoutingCoordinator {
     target: OsOpenTarget & { instanceKey: string; route: OsWindowRoute }
   ): Promise<string | null> {
     requestActivatedComposer(target.app, target.instanceKey);
+    return this.landCreatedSessionOpen(target);
+  }
+
+  private async landCreatedSessionOpen(
+    target: OsOpenTarget & { instanceKey: string; route: OsWindowRoute }
+  ): Promise<string | null> {
     const host = createdSessionHostWindow(this.manager.getState(), target);
-    if (host === null) return this.userOpen(target);
+    if (host === null) return this.openWindow(target);
     const intentToken = ++this.nextUserIntentToken;
     const keyboardSince = this.keyboardFocus.begin();
     const isCurrent = () => intentToken === this.nextUserIntentToken;
@@ -311,8 +322,8 @@ export class RoutingCoordinator {
     // Unless a newer gesture owns focus: a host another client closed means choose again (a new
     // window when none is left); a surviving host that refused the landing opens it the usual way.
     if (!isCurrent()) return null;
-    if (!this.manager.getState().windows[host.id]) return this.userOpenCreatedSession(target);
-    return this.userOpen(target);
+    if (!this.manager.getState().windows[host.id]) return this.landCreatedSessionOpen(target);
+    return this.openWindow(target);
   }
 
   /**

@@ -1654,6 +1654,31 @@ describe("RoutingCoordinator", () => {
       expect(router.navigate).toHaveBeenCalledExactlyOnceWith(created.route);
     });
 
+    // Invariant (#1868): the fallback open after a refused landing reuses the launcher's one
+    // composer request, so a pointer press meanwhile is never overridden by a renewed one.
+    it("Should not renew a cancelled composer request when a refused landing falls back", async () => {
+      const session = sessionWindow("sess-a");
+      const tasks = windowFixture("tasks", "/tasks");
+      const { coordinator, store } = createCoordinator([session, tasks]);
+      coordinator.completeHydration();
+      let refuse: ((applied: boolean) => void) | undefined;
+      store.retargetWindow.mockImplementationOnce(() => ({
+        accepted: true,
+        completion: new Promise<boolean>(resolve => {
+          refuse = resolve;
+        }),
+      }));
+
+      const landing = coordinator.userOpenCreatedSession(created);
+      expect(sessionComposerFocusStore.getSnapshot().context.request?.sessionId).toBe("sess-new");
+      document.dispatchEvent(new Event("pointerdown"));
+      refuse?.(false);
+      await landing;
+
+      expect(store.spies.openOrFocus).toHaveBeenCalledExactlyOnceWith(created);
+      expect(sessionComposerFocusStore.getSnapshot().context.request).toBeNull();
+    });
+
     it("Should open the session the ordinary way when a surviving host refuses the landing", async () => {
       const session = sessionWindow("sess-a");
       const tasks = windowFixture("tasks", "/tasks");
