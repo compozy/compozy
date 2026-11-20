@@ -248,11 +248,6 @@ export {
   resolveSessionOwner,
   sessionOwnerDialogState,
 } from "./lib/session-owner-resolution";
-export {
-  sessionOwnerKeys,
-  sessionOwnerOptions,
-  type SessionOwnerDialogState,
-} from "./lib/query-options";
 export { fetchSessionOwner } from "./adapters/session-owner-api";
 export {
   SESSION_WORKSPACE_SWITCH_STATES,
@@ -261,6 +256,9 @@ export {
   type SessionWorkspaceSwitchState,
 } from "./lib/session-deeplink-search";
 export {
+  sessionOwnerKeys,
+  sessionOwnerOptions,
+  type SessionOwnerDialogState,
   sessionClarificationsOptions,
   sessionCommandsOptions,
   sessionExpiredInteractionsOptions,
