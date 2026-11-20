@@ -29,22 +29,6 @@ func (q *Queries) AbandonReplyWatch(ctx context.Context, arg AbandonReplyWatchPa
 	return result.RowsAffected()
 }
 
-const advanceReplyWatchFollowUp = `-- name: AdvanceReplyWatchFollowUp :exec
-UPDATE session_prompt_reply_watches SET follow_up_after = ?1
-WHERE id = ?2 AND state = 'armed'
- AND follow_up_after > 0 AND follow_up_after < ?1
-`
-
-type AdvanceReplyWatchFollowUpParams struct {
-	Sequence int64  `json:"sequence"`
-	ID       string `json:"id"`
-}
-
-func (q *Queries) AdvanceReplyWatchFollowUp(ctx context.Context, arg AdvanceReplyWatchFollowUpParams) error {
-	_, err := q.db.ExecContext(ctx, advanceReplyWatchFollowUp, arg.Sequence, arg.ID)
-	return err
-}
-
 const bindReplyWatch = `-- name: BindReplyWatch :exec
 UPDATE session_prompt_reply_watches SET turn_id = ?, queue_entry_id = ?
 WHERE id = ? AND state = 'armed'
@@ -218,8 +202,9 @@ SELECT EXISTS (
    ON newer.sender_session_id = older.sender_session_id AND newer.target_session_id = older.target_session_id
   AND newer.workspace_id = older.workspace_id AND newer.target_workspace_id = older.target_workspace_id
   AND newer.rowid > older.rowid
+ JOIN session_prompt_admissions AS admission ON admission.id = newer.admission_id AND admission.state = 'completed'
  WHERE older.id = ?1
-  AND (newer.abandon_reason IS NULL OR newer.abandon_reason != 'send_failed')
+  AND newer.abandon_reason IS NOT 'send_failed'
 )
 `
 
@@ -613,7 +598,9 @@ WHERE follow_up_after > 0
  AND (state = 'armed' OR (state = 'fired' AND interim_wait IS NOT NULL))
  AND EXISTS (
   SELECT 1 FROM session_prompt_reply_watches AS newer
-  WHERE newer.id = ?1 AND newer.rowid > session_prompt_reply_watches.rowid
+  JOIN session_prompt_admissions AS admission ON admission.id = newer.admission_id AND admission.state = 'completed'
+  WHERE (?1 = '' OR newer.id = ?1)
+   AND newer.abandon_reason IS NOT 'send_failed' AND newer.rowid > session_prompt_reply_watches.rowid
    AND newer.sender_session_id = session_prompt_reply_watches.sender_session_id AND newer.target_session_id = session_prompt_reply_watches.target_session_id
    AND newer.workspace_id = session_prompt_reply_watches.workspace_id AND newer.target_workspace_id = session_prompt_reply_watches.target_workspace_id
  )
@@ -625,7 +612,7 @@ type SupersedeReplyWatchFollowUpsRow struct {
 	State string `json:"state"`
 }
 
-func (q *Queries) SupersedeReplyWatchFollowUps(ctx context.Context, newerID string) ([]SupersedeReplyWatchFollowUpsRow, error) {
+func (q *Queries) SupersedeReplyWatchFollowUps(ctx context.Context, newerID any) ([]SupersedeReplyWatchFollowUpsRow, error) {
 	rows, err := q.db.QueryContext(ctx, supersedeReplyWatchFollowUps, newerID)
 	if err != nil {
 		return nil, err

@@ -72,16 +72,22 @@ func insertReplyWatchTx(
 		row.Hop != int64(w.Hop) {
 		return store.ReplyWatch{}, store.ErrSessionPromptIdempotencyConflict
 	}
-	superseded, err := q.SupersedeReplyWatchFollowUps(ctx, id)
-	if err != nil {
-		return store.ReplyWatch{}, err
-	}
-	for _, older := range superseded {
-		if older.State == store.ReplyWatchAbandoned {
-			recordSupersededReplyWatch(ctx, exec, older.ID)
-		}
-	}
 	return replyWatchFromSQL(row)
+}
+
+func (g *SessionRepo) SupersedeReplyWatchFollowUps(ctx context.Context, id string) error {
+	return g.withImmediateTransaction(ctx, "supersede reply follow-ups", func(exec globalSQLExecutor) error {
+		superseded, err := sqlcgen.New(exec).SupersedeReplyWatchFollowUps(ctx, id)
+		if err != nil {
+			return err
+		}
+		for _, older := range superseded {
+			if older.State == store.ReplyWatchAbandoned {
+				recordSupersededReplyWatch(ctx, exec, older.ID)
+			}
+		}
+		return nil
+	})
 }
 
 func recordSupersededReplyWatch(ctx context.Context, exec store.DBTX, id string) {
@@ -208,16 +214,6 @@ func (g *SessionRepo) FireReplyWatch(ctx context.Context, id string, f store.Rep
 		return err
 	})
 	return fired && err == nil, err
-}
-
-func (g *SessionRepo) AdvanceReplyWatchFollowUp(ctx context.Context, id string, sequence int64) error {
-	return g.executeWriteQuery(
-		ctx,
-		"globaldb.AdvanceReplyWatchFollowUp",
-		func(ctx context.Context, q *sqlcgen.Queries) error {
-			return q.AdvanceReplyWatchFollowUp(ctx, sqlcgen.AdvanceReplyWatchFollowUpParams{ID: id, Sequence: sequence})
-		},
-	)
 }
 
 func (g *SessionRepo) AbandonReplyWatch(ctx context.Context, id, reason string) (bool, error) {

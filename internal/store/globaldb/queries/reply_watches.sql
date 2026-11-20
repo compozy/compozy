@@ -43,11 +43,6 @@ SET state = 'fired', outcome = sqlc.narg(outcome), reply_text = sqlc.narg(reply_
  interim_wait = sqlc.narg(interim_wait)
 WHERE id = sqlc.arg(id) AND state = 'armed' AND follow_up_after = sqlc.arg(expected_after);
 
--- name: AdvanceReplyWatchFollowUp :exec
-UPDATE session_prompt_reply_watches SET follow_up_after = sqlc.arg(sequence)
-WHERE id = sqlc.arg(id) AND state = 'armed'
- AND follow_up_after > 0 AND follow_up_after < sqlc.arg(sequence);
-
 -- name: DeliverReplyWatch :execrows
 UPDATE session_prompt_reply_watches SET state = 'delivered', delivered_input_id = ?, delivered_at = ?
 WHERE id = ? AND state = 'fired';
@@ -67,7 +62,9 @@ WHERE follow_up_after > 0
  AND (state = 'armed' OR (state = 'fired' AND interim_wait IS NOT NULL))
  AND EXISTS (
   SELECT 1 FROM session_prompt_reply_watches AS newer
-  WHERE newer.id = sqlc.arg(newer_id) AND newer.rowid > session_prompt_reply_watches.rowid
+  JOIN session_prompt_admissions AS admission ON admission.id = newer.admission_id AND admission.state = 'completed'
+  WHERE (sqlc.arg(newer_id) = '' OR newer.id = sqlc.arg(newer_id))
+   AND newer.abandon_reason IS NOT 'send_failed' AND newer.rowid > session_prompt_reply_watches.rowid
    AND newer.sender_session_id = session_prompt_reply_watches.sender_session_id AND newer.target_session_id = session_prompt_reply_watches.target_session_id
    AND newer.workspace_id = session_prompt_reply_watches.workspace_id AND newer.target_workspace_id = session_prompt_reply_watches.target_workspace_id
  )
@@ -80,8 +77,9 @@ SELECT EXISTS (
    ON newer.sender_session_id = older.sender_session_id AND newer.target_session_id = older.target_session_id
   AND newer.workspace_id = older.workspace_id AND newer.target_workspace_id = older.target_workspace_id
   AND newer.rowid > older.rowid
+ JOIN session_prompt_admissions AS admission ON admission.id = newer.admission_id AND admission.state = 'completed'
  WHERE older.id = sqlc.arg(older_id)
-  AND (newer.abandon_reason IS NULL OR newer.abandon_reason != 'send_failed')
+  AND newer.abandon_reason IS NOT 'send_failed'
 );
 
 -- name: AbandonReplyWatch :execrows

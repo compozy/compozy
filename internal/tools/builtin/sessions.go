@@ -323,12 +323,13 @@ const sessionPromptInputSchema = `{
 		"expected_turn_id":{"type":"string","minLength":1},
 		"notify_on_complete":{"type":"boolean","default":false,
  "description":"Wake when the consuming turn settles. If the receiver has a monitor, delegation, ` +
-	`scheduled wait, or reply pending from a session other than yours, the wake is interim and the watch sends one ` +
-	`follow-up when the target settles. Intermediate turns do not wake you. A long-lived pull_request monitor, ` +
+	`scheduled wait, or reply pending from a session other than yours, including wakes in the queue or in a turn, ` +
+	`the wake is interim. Once no awaited work is left, the follow-up carries the target's latest top-level answer ` +
+	`after the interim reply. Intermediate turns do not wake you. A long-lived pull_request monitor, ` +
 	`for example one that stays armed until merge or timeout, keeps the follow-up pending until the wait ends ` +
 	`or the reply watch expires. If the interim text answers your request, act on it and keep working. ` +
-	`End your turn to await the follow-up only when you still need it. A newer watched message to the same ` +
-	`session supersedes the follow-up. Pair with compozy__monitor_create kind=session for an independent ` +
+	`End your turn to await the follow-up only when you still need it. An accepted newer watched message to the ` +
+	`same session supersedes the follow-up. Pair with compozy__monitor_create kind=session for an independent ` +
 	`lifecycle or timeout wake. ` +
 	`Requires an agent session."},
 		"in_reply_to":{"type":"string","minLength":1,"maxLength":200,"pattern":"^\\S+$",

@@ -112,8 +112,11 @@ Explicit reply and expiry regression (#760)
     or wake-producing work, a periodic pass delivers a readable reply. A settled but unreadable
     result delivers `unknown` after one grace interval. It says the reply could not be read if
     the message was consumed. A persisted MCP reload must leave the readable answer intact.
-18. Cancel B's monitor without starting a new turn. Verify the follow-up says the target settled
+18. Cancel B's monitor before another turn settles. Verify the follow-up says the target settled
     without a further answer and the interim reply stands.
+19. Have B register a short timer inside the consuming turn and keep that turn active until the
+    timer wake is queued. Verify A receives an interim reply that names the pending monitor wake,
+    then exactly one follow-up with the answer from the timer's turn.
 
 Service-level coverage lives in `TestReplyWatchPeriodicSettlement` and `TestReplyWatchFollowUp`.
 Boot ordering is covered by `TestBootRecoversReplyWatchAfterMonitors`.

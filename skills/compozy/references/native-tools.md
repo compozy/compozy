@@ -335,13 +335,13 @@ For ask-and-wait with an existing agent session, send `compozy__session_prompt` 
 `notify_on_complete: true` and keep the returned `reply_watch.id`. Once every remaining step needs
 that answer, end your turn. The daemon queues a reply wake when the turn that consumed your message
 settles. If the receiver still has a monitor, subagent or awaited child, scheduled wait, or reply
-from a session other than yours pending, the wake says it is interim and names the work. The
-follow-up carries the answer from the first later top-level turn that settles with no awaited work
-left, regardless of who started the turn. If a turn-end notification was missed, recovery uses the
-latest eligible turn in the session history. The receiver stopping, failing, or disappearing also
-triggers a follow-up. The watch stays outstanding across restarts under the original TTL.
-A newer watched message from you to the same
-target supersedes the pending follow-up. Each consumed message still receives its own first reply.
+from a session other than yours pending, the wake says it is interim and names the work. This
+includes queued, dispatching, and running wakes for that work. Once no awaited work is left, the
+follow-up carries the target's latest top-level answer after the interim reply. If no later turn
+settled, the interim reply stands. The receiver stopping, failing, or disappearing also triggers a
+follow-up. The watch stays outstanding across restarts under the original TTL. Once the daemon
+accepts a newer watched message from you to the same target, it supersedes the pending follow-up.
+Each consumed message still receives its own first reply.
 
 Intermediate turns do not wake the sender. A long-lived wait, such as a `pull_request` monitor
 that stays armed until the PR merges or the monitor times out, keeps the follow-up pending

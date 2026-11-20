@@ -347,25 +347,6 @@ func (s *replyWatchService) OnQueueEntryTerminal(ctx context.Context, entry *sto
 func (s *replyWatchService) OnSteerResolved(ctx context.Context, sessionID, messageID string) {
 	s.reconcileTarget(ctx, sessionID, messageID)
 }
-func (s *replyWatchService) OnSendResult(ctx context.Context, id string, sendErr error) {
-	w, err := s.store.GetReplyWatch(ctx, id)
-	if err != nil {
-		w.ID = id
-		s.logWatchError(ctx, w, err)
-	}
-	if sendErr != nil && !errors.Is(sendErr, store.ErrSessionPromptDispatchIndeterminate) {
-		s.logWatchError(ctx, w, s.abandon(ctx, id, "send_failed"))
-		return
-	}
-	if err != nil {
-		return
-	}
-	if sendErr == nil {
-		s.manager.logger.InfoContext(ctx, "reply_watch.registered", "id", id,
-			"turn_id", w.TurnID, "queue_entry_id", w.QueueEntryID)
-	}
-	s.logWatchError(ctx, w, s.Reconcile(ctx, id))
-}
 
 func (s *replyWatchService) reconcileTarget(ctx context.Context, target, message string) {
 	rows, err := s.store.ListPendingReplyWatchesByTarget(ctx, target)
@@ -422,6 +403,9 @@ func (s *replyWatchService) ListForSender(ctx context.Context, workspace, sender
 	return slices.DeleteFunc(rows, func(w store.ReplyWatch) bool { return w.WorkspaceID != "" }), nil
 }
 func (s *replyWatchService) Recover(ctx context.Context) error {
+	if err := s.store.SupersedeReplyWatchFollowUps(ctx, ""); err != nil {
+		return err
+	}
 	rows, err := s.store.ListReplyWatches(ctx, store.ReplyWatchFilter{})
 	if err != nil {
 		return err

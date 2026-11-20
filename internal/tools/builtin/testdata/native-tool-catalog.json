@@ -3130,7 +3130,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "a19a9158469fac7a9dd3cd2599d6496d2c2506da7fdf49de4778c8ffee2d4052",
+    "input_schema_digest": "9cd7872677cab016ea2a9a232e9206e31543ae50a0823e3f94f524101bb89d5f",
     "output_schema_digest": "371eefa0458a7ef0753b44a0635ece6ce4d01b17a2d03c4d09797f401aed4e57",
     "result_contract": "single",
     "single_result_reason": "minimal"

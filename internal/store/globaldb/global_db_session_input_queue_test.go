@@ -3930,6 +3930,16 @@ func admitNewerReplyHandoff(t *testing.T, db *GlobalDB, w store.ReplyWatch, now 
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := db.CommitSessionPromptDispatch(ctx, req.WorkspaceID, req.SessionID, req.IdempotencyKey, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CompleteSessionPromptAdmission(ctx, req.WorkspaceID, req.SessionID, req.IdempotencyKey,
+		store.SessionPromptAdmissionResult{Status: "accepted"}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SupersedeReplyWatchFollowUps(ctx, store.ReplyWatchID(req.SessionID, req.MessageID)); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func replyHandoffFixture(

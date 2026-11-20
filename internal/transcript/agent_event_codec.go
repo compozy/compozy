@@ -3,6 +3,8 @@ package transcript
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -251,8 +253,14 @@ func decodeAgentEventPayload(raw []byte) (canonicalEventPayload, error) {
 		return canonicalEventPayload{}, err
 	}
 	var compatible canonicalEventPayload
-	for key, value := range fields {
-		field, marshalErr := json.Marshal(map[string]json.RawMessage{key: value})
+	for _, key := range slices.Sorted(maps.Keys(fields)) {
+		// The canonical tags are lowercase. Give their exact spelling priority.
+		if lower := strings.ToLower(key); lower != key {
+			if _, exact := fields[lower]; exact {
+				continue
+			}
+		}
+		field, marshalErr := json.Marshal(map[string]json.RawMessage{key: fields[key]})
 		if marshalErr != nil {
 			return canonicalEventPayload{}, marshalErr
 		}

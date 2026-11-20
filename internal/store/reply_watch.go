@@ -102,7 +102,9 @@ type ReplyWatchStore interface {
 	ListPendingReplyWatchesByTarget(context.Context, string) ([]ReplyWatch, error)
 	BindReplyWatch(context.Context, string, string, string) error
 	FireReplyWatch(context.Context, string, ReplyWatchFire) (bool, error)
-	AdvanceReplyWatchFollowUp(context.Context, string, int64) error
+	// SupersedeReplyWatchFollowUps applies the newer watch's completed admission. An empty ID
+	// reapplies all completed admissions during recovery.
+	SupersedeReplyWatchFollowUps(context.Context, string) error
 	DeliverReplyWatch(context.Context, string, SessionInputQueueInsert, bool) (bool, error)
 	AbandonReplyWatch(context.Context, string, string) (bool, error)
 	ReplyWatchEvidence(context.Context, ReplyWatch) (SessionPromptAdmission, []SessionInputQueueEntry, error)

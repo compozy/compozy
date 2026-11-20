@@ -19,43 +19,44 @@ func (s *replyWatchService) reconcileFollowUp(
 	if target.State != StateActive {
 		return nil
 	}
-	_, err := s.manager.ActivePromptRun(ctx, target.ID)
-	if !errors.Is(err, ErrPromptNotActive) {
-		s.settleGrace.Delete(w.ID)
-		return err
-	}
-	// Capture the terminal before checking work. The work source may finish and commit a newer turn.
 	terminal, terminalErr := s.latestReplyTerminal(ctx, w)
-	waiting, err := s.replyContinuationWork(ctx, w)
-	if err != nil {
-		return err
-	}
-	if waiting != "" {
-		s.settleGrace.Delete(w.ID)
-		if terminalErr != nil || terminal.Sequence == 0 {
-			return terminalErr
-		}
-		return s.store.AdvanceReplyWatchFollowUp(ctx, w.ID, terminal.Sequence)
-	}
-	queue, err := s.manager.InputQueueSummary(ctx, target.ID)
-	if err != nil || queue.PendingInputs > 0 {
-		s.settleGrace.Delete(w.ID)
-		return err
-	}
 	if terminalErr != nil {
 		return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{condition: replyTerminalLookupFailed}, terminalErr)
+	}
+	_, err := s.manager.ActivePromptRun(ctx, target.ID)
+	if !errors.Is(err, ErrPromptNotActive) || s.manager.IsPrompting(target.ID) {
+		s.settleGrace.Delete(w.ID)
+		if errors.Is(err, ErrPromptNotActive) {
+			return nil
+		}
+		return err
+	}
+	waiting, err := s.replyContinuationWork(ctx, w)
+	if waiting != "" || err != nil {
+		s.settleGrace.Delete(w.ID)
+		return err
+	}
+	var result TurnResult
+	var resultErr error
+	if terminal.TurnID != "" {
+		result, resultErr = s.manager.replyTurnResult(ctx, w.TargetSessionID, terminal.TurnID, pass == replyWatchEvent)
+	}
+	// Work may have completed while it was inspected or the answer was read.
+	latest, err := s.latestReplyTerminal(ctx, w)
+	if err != nil || latest.ID != terminal.ID || latest.Sequence != terminal.Sequence ||
+		s.manager.IsPrompting(target.ID) {
+		s.settleGrace.Delete(w.ID)
+		return err
 	}
 	if terminal.TurnID == "" {
 		return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{condition: replyNoContinuationTerminal}, nil)
 	}
-	turn := terminal.TurnID
-	result, err := s.manager.replyTurnResult(ctx, w.TargetSessionID, turn, pass == replyWatchEvent)
-	if err != nil || result.Outcome == "" {
+	if resultErr != nil || result.Outcome == "" {
 		return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{
-			condition: replyTerminalUnreadable, turnID: turn, terminalID: terminal.ID,
-		}, err)
+			condition: replyTerminalUnreadable, turnID: terminal.TurnID, terminalID: terminal.ID,
+		}, resultErr)
 	}
-	return s.fireTurnReply(ctx, w, turn, result, "")
+	return s.fireTurnReply(ctx, w, terminal.TurnID, result, "")
 }
 
 func (s *replyWatchService) reconcileStoppedFollowUp(
@@ -106,76 +107,6 @@ func (s *replyWatchService) latestReplyTerminal(
 		return store.SessionEvent{}, nil
 	}
 	return events[0], nil
-}
-
-func (s *replyWatchService) replyContinuationWork(ctx context.Context, w store.ReplyWatch) (string, error) {
-	var waiting []string
-	for _, kind := range []WorkSignalKind{WorkSignalActiveMonitor, WorkSignalActiveChild, WorkSignalScheduledWait} {
-		signals, err := s.manager.workSignals.inspectKind(ctx, w.TargetSessionID, kind, s.manager.now())
-		if err != nil {
-			return "", err
-		}
-		for _, signal := range signals {
-			if kind != WorkSignalActiveChild || s.replyChildWillWake(ctx, signal.Ref) {
-				waiting = append(waiting, replyWaitLabel(kind))
-				break
-			}
-		}
-	}
-	replies, err := s.store.ListPendingReplyWatchesBySender(ctx, w.TargetSessionID)
-	if err != nil {
-		return "", err
-	}
-	now := s.manager.now()
-	for _, reply := range replies {
-		// Waiting on the sender cannot be the reason to hold the sender's answer.
-		if reply.TargetSessionID != w.SenderSessionID && !s.replyWatchExpired(reply, now) {
-			waiting = append(waiting, "replies from other sessions")
-			break
-		}
-	}
-	return strings.Join(waiting, ", "), nil
-}
-
-func (s *replyWatchService) replyChildWillWake(ctx context.Context, id string) bool {
-	child, live := s.manager.Get(id)
-	if !live {
-		// Starting children and the subagent store are owned by the signal source.
-		return true
-	}
-	info := child.Info()
-	if info.Lineage == nil || info.Lineage.SpawnRole == store.SubagentSpawnRole {
-		return true
-	}
-	if !info.Lineage.NotifyCreator {
-		return false
-	}
-	if info.State != StateActive || info.Prompting {
-		return true
-	}
-	if info.Supervision != nil {
-		for _, signal := range info.Supervision.WorkSignals {
-			switch signal.Kind {
-			case WorkSignalActiveMonitor, WorkSignalScheduledWait, WorkSignalAwaitingReply, WorkSignalActiveChild:
-				if !signal.ValidUntil.Before(s.manager.now()) {
-					return true
-				}
-			}
-		}
-	}
-	queue, err := s.manager.InputQueueSummary(ctx, id)
-	return err != nil || queue.PendingInputs > 0
-}
-
-func replyWaitLabel(kind WorkSignalKind) string {
-	switch kind {
-	case WorkSignalActiveMonitor:
-		return "monitors"
-	case WorkSignalActiveChild:
-		return "subagents or child sessions"
-	default:
-		return "scheduled waits"
-	}
 }
 
 func (m *Manager) replyContinuationHeader(ctx context.Context, sessionID string) string {

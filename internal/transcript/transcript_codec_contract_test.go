@@ -848,6 +848,11 @@ func TestUnmarshalAgentEventDaemonPayload(t *testing.T) {
 			payload:  `{"type":"session.example","text":"preserved","usage":"none","timestamp":10,"synthetic":true}`,
 			wantText: "preserved",
 		},
+		{
+			name:     "Should prefer the exact field spelling during fallback",
+			payload:  `{"timestamp":10,"text":"exact","Text":"variant","TEXT":"other"}`,
+			wantText: "exact",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -867,10 +872,13 @@ func TestUnmarshalAgentEventDaemonPayload(t *testing.T) {
 	})
 	t.Run("Should preserve a canonical timestamp error before a case-insensitive schema key", func(t *testing.T) {
 		t.Parallel()
-		_, err := UnmarshalAgentEvent(`{"timestamp":10,"Schema":"compozy.session.event.v1","type":"done"}`)
-		typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err)
-		if !ok || typeErr.Field != "timestamp" {
-			t.Fatalf("decode error = %v; want timestamp type error", err)
+		const payload = `{"timestamp":10,"Schema":"compozy.session.event.v1","type":"done"}`
+		var canonical canonicalEventPayload
+		want := json.Unmarshal([]byte(payload), &canonical)
+		_, err := UnmarshalAgentEvent(payload)
+		if got := errors.Unwrap(err); want == nil || got == nil ||
+			reflect.TypeOf(got) != reflect.TypeOf(want) || got.Error() != want.Error() {
+			t.Fatalf("decode error = %T %v; want canonical decode error %T %v", got, got, want, want)
 		}
 	})
 }
