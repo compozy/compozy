@@ -25,6 +25,8 @@ export interface SessionWindowResolution {
   /** A read is in flight, so `shownSession` may predate what the daemon holds now. */
   isFetching: boolean;
   error: Error | null;
+  /** Reads the session again after a failure that was not a not-found. */
+  retry: () => void;
   /** The scoped read answered "not in this profile" — not yet "nowhere". */
   scopedMiss: boolean;
   foreign: ForeignProfileSessionState;
@@ -72,6 +74,9 @@ export function useSessionWindowResolution({
     isLoading: query.isLoading,
     isFetching: query.isFetching || (foreign.status === "found" && foreign.isFetching),
     error: query.error,
+    retry: () => {
+      void query.refetch();
+    },
     scopedMiss,
     foreign,
     // A project's session on the User desktop crosses too, and vice versa.

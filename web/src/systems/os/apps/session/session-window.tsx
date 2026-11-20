@@ -54,8 +54,10 @@ export function SessionWindowSession({ windowId }: { windowId: string }) {
     error,
     foreign,
     isLoading,
+    isFetching,
     focused,
     liveTailEnabled,
+    retry,
     session,
     sessionId,
     workspaceId,
@@ -119,6 +121,8 @@ export function SessionWindowSession({ windowId }: { windowId: string }) {
         liveTailEnabled={effectiveLiveTailEnabled}
         isLoading={isLoading}
         error={error}
+        onRetry={retry}
+        retrying={isFetching}
       />
     </SessionWindowBody>
   );

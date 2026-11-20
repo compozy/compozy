@@ -55,12 +55,12 @@ No new `@compozy/ui` primitive. `Badge` and `HoverCard` do not exist and are not
 | handoff next step | sentence in the marker body + ghost `Button size="xs"` with `ArrowRightLeft` | provider-error marker |
 | dialog frame | `Dialog` sm (448px) unframed, `EntityDialogHeader` eyebrow `Operate · Session`, icon `ArrowRightLeft` / `GitFork` in the neutral well | both dialogs |
 | context line (ready / truncated) | `text-form-hint text-subtle`, `FileText` glyph `--faint`; truncated keeps the tone and adds the omitted-count sentence | both dialogs |
-| context line (measuring) | same tone, `Measuring…` with `Spinner` | both dialogs |
-| context line (error) | `FieldError` danger text with `CircleAlert` `--danger`; primary disabled | both dialogs |
+| context line (measuring) | same tone, `Measuring…` skeleton; bounded at 15 s | both dialogs |
+| context line (error / slow) | `FieldError` danger text with `CircleAlert` `--danger`, a subtle second line `The conversation still carries over.`, and a secondary `Button size="sm"` **Try again** at the end of the line; primary stays available (Fork posts without fences) | both dialogs |
 | native clone line | `Uses the agent's own session clone.` in the same subtle tone, `Copy` glyph; present only when the preview reports `native_fork_possible` | fork dialog |
-| Open in | `RadioGroup` two items, accent dot when checked; `New window` default | both dialogs |
-| primary | `Button variant="primary"` — the one accent per dialog; disabled while measuring / preview error / no agent / cut turn in progress / after a fence conflict | both dialogs |
-| pending | `Spinner` + `aria-live` sentence `Starting the new session…`; fields disabled; close hidden | both dialogs |
+| Open in | `RadioGroup` two items, accent dot when checked; `New window` default | continue dialog (Fork always lands in this window since #1024) |
+| primary | `Button variant="primary"` — the one accent per dialog; disabled while measuring / no agent / cut turn in progress / after a fence conflict | both dialogs |
+| pending | `Spinner` + `aria-live` sentence `Starting the new session…`; fields disabled; Cancel and close stay available and stop waiting; bounded at 60 s, then the timeout refusal with the primary as Try again (same idempotency key) | both dialogs |
 | refusal | `FieldError` text under the fields (`That turn hasn't settled yet.` · `Transcript changed — reopen to fork from the current state.` · daemon messages verbatim) | fork dialog, continue dialog |
 | origin pill | `Pill` xs neutral: `badge-fill`, `--muted` text, agent/title in `--fg`, glyph `--subtle`; link variant hovers to `btn-hover`; plain variant has no hover | status line |
 | divider | 1px `--line-soft` hairlines, link text `--accent-strong`, glyph `--subtle`; plain `--muted` when the source is gone | child transcript |
@@ -76,8 +76,9 @@ Signal colour marks state only. Nothing in this feature is danger-toned except p
 - Dead-runtime notice: **Restart in a new session** (replaces "Fork into a new session").
 - Provider-error next step: **Continue this session with another agent or route.** + button **Continue with another agent…**
 - Continue dialog: title **Continue with another agent**; description **Start a new session for another agent with this conversation carried over. This session stays unchanged.**; fields **Agent** · **Runtime** · **Route** (Default · `{provider} · {model}`) · **First message** (placeholder **Optional. Sent after the carried context.**) · **Open in** (**New window** default · **This window**); primary **Continue**; pending **Starting the new session…**; foot note **From {source title} · {agent}**.
-- Fork dialog: title **Fork session**; description **Start a second session with the same agent and this conversation. This session stays unchanged.**; **Agent** read-only `{agent_name} · {provider}`; **Fork point**: **Whole session** / **Through "{first 60 chars}"** + **Change**; primary **Fork session**; foot note **From {source title}**.
-- Context line: **Carries over {n} messages · {size}** · **Carries over {k} of {n} messages · {size}** + **{n−k} earlier messages omitted to fit the context budget.** · **Measuring…** · **Couldn't measure this session's context.** · **A turn is still in progress; it will not be carried over.** · **Uses the agent's own session clone.**
+- Fork dialog: title **Fork session**; description **Start a second session with the same agent and this conversation. This session stays unchanged.**; **Agent** read-only `{agent_name} · {provider}`; primary **Fork session**; foot note **From {source title}**. Since #1024 it has no Fork point row, no Open in (the child replaces the source in this window) and, by design, no first message: a fork continues the same agent where it stopped. Confirmed again for #1885.
+- Context line: **Carries over {n} messages · {size}** · **Carries over {k} of {n} messages · {size}** + **{n−k} earlier messages omitted to fit the context budget.** · **Measuring…** · **Couldn't measure this session's context.** / **Measuring this session's context took too long.** + **The conversation still carries over.** + **Try again** · **A turn is still in progress; it will not be carried over.** · **Uses the agent's own session clone.**
+- Submit timeout: **Starting the new session took too long. Try again; if it was created, it opens.**
 - Refusals: **That turn hasn't settled yet.** · **Transcript changed — reopen to fork from the current state.** · daemon messages verbatim for `agent_not_found`, `session_archived`, `route_not_found`, `new_work_admission_unavailable`.
 - Origin: pill **Continued from {origin_agent_name}** / **Forked from {parent title}**; divider **Continued from {parent title}** / **Forked from {parent title}**; ledger **continue · from {agent}** / **fork · through {message_id}** / **fork**; empty child **Nothing said here yet** + **The conversation carried over is sent with your first message.** (continue) / **The conversation up to the fork point is carried into your first message.** (fork).
 - Never in product copy: *branch* (git, worktree, Loops), *chat*, *Handoff from X*, *Continued from chat*, a *Badge*.
@@ -130,3 +131,4 @@ Evidence for each row lands at `.compozy/tasks/session-continue-fork/evidence/vi
 
 - 2026-09-11 · authored after the spec, the task graph and DECISIONS.md D6/D7.
 - 2026-09-11 · peer review round 1 (N-004): VC owners aligned to the task tables (VC-04/05 → task_06); VC-18 viewport stated as 1440×900 with a 640px session window; sessions-stability css path follows its archive location.
+- 2026-11-20 · #1885: measurement and submit are bounded with Try again, a failed measurement no longer blocks the primary, Cancel and close stay available while a submit runs; Fork's placement and missing first message confirmed deliberate (#1024).

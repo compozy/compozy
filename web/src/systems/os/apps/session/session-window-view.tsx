@@ -2,7 +2,7 @@ import { lazy, Suspense, ViewTransition } from "react";
 import { useAgentInstances } from "@/systems/agent";
 import { AlertCircle, History } from "@compozy/ui/icons";
 
-import { Empty, VIEW_TRANSITION_CLASS } from "@compozy/ui";
+import { Button, Empty, Spinner, VIEW_TRANSITION_CLASS } from "@compozy/ui";
 
 import { loadSessionWindowContent } from "./session-window-module-loader";
 import { SessionReadOnlyTranscript } from "./session-read-only-transcript";
@@ -14,6 +14,7 @@ import {
   type SessionPayload,
   SessionPromptRuntimeProvider,
 } from "@/systems/session";
+import { isSessionUnavailable } from "@/systems/session/adapters/session-api-errors";
 import { USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 const SessionWindowContent = lazy(() =>
@@ -30,6 +31,8 @@ export function SessionWindowView({
   liveTailEnabled,
   isLoading,
   error,
+  onRetry,
+  retrying = false,
 }: {
   windowId: string;
   name: string;
@@ -40,18 +43,25 @@ export function SessionWindowView({
   liveTailEnabled: boolean;
   isLoading: boolean;
   error: Error | null;
+  /** Reads the session again; offered when the read failed for a reason other than not-found. */
+  onRetry?: () => void;
+  retrying?: boolean;
 }) {
   const instances = useAgentInstances();
   const instance = instances.find(row => row.id === session?.instance_id);
   const currentSessionId = instance?.main_session_id;
   const superseded = Boolean(currentSessionId && currentSessionId !== session?.id);
   useMarkSeenOnLeave(instance, Boolean(session) && currentSessionId === session?.id);
-  const sessionWorkspaceId = session ? (session.workspace_id?.trim() ?? "") : undefined;
+  const sessionWorkspaceId = session?.workspace_id?.trim() ?? "";
 
-  if (isLoading) return <SessionWindowSkeleton />;
-  if (!session || sessionWorkspaceId !== workspaceId) {
-    return <SessionWindowNotice title="Couldn't find this session" detail={error?.message} />;
-  }
+  const placeholder = sessionWindowPlaceholder({
+    isLoading,
+    shown: session !== undefined && sessionWorkspaceId === workspaceId,
+    error,
+    onRetry,
+    retrying,
+  });
+  if (placeholder || !session) return placeholder;
 
   const resolvedAgentName = session.agent_name || name;
   if (superseded && currentSessionId) {
@@ -127,10 +137,67 @@ export function SessionWindowView({
 }
 
 /**
+ * What the window shows instead of the session: the skeleton while it loads, a
+ * retryable notice when the read failed for any reason but not-found, and
+ * "Couldn't find this session" only for a session that is not there (or not in
+ * this workspace). `null` once the session can be shown.
+ */
+function sessionWindowPlaceholder({
+  isLoading,
+  shown,
+  error,
+  onRetry,
+  retrying,
+}: {
+  isLoading: boolean;
+  shown: boolean;
+  error: Error | null;
+  onRetry?: () => void;
+  retrying: boolean;
+}): React.ReactNode {
+  if (isLoading) return <SessionWindowSkeleton />;
+  if (shown) return null;
+  if (error && !isSessionUnavailable(error)) {
+    return (
+      <SessionWindowNotice
+        title="Couldn't load this session"
+        detail={error.message}
+        action={onRetry ? <SessionWindowRetry onRetry={onRetry} retrying={retrying} /> : undefined}
+      />
+    );
+  }
+  return <SessionWindowNotice title="Couldn't find this session" detail={error?.message} />;
+}
+
+function SessionWindowRetry({ onRetry, retrying }: { onRetry: () => void; retrying: boolean }) {
+  return (
+    <Button
+      data-testid="session-window-retry"
+      disabled={retrying}
+      onClick={onRetry}
+      size="sm"
+      type="button"
+      variant="secondary"
+    >
+      {retrying ? <Spinner aria-hidden="true" className="size-3" /> : null}
+      Try again
+    </Button>
+  );
+}
+
+/**
  * A session the window cannot show. The headline is always plain copy; a raw
  * error message, when there is one, stays behind Empty's "Details" fold.
  */
-export function SessionWindowNotice({ title, detail }: { title: string; detail?: string | null }) {
+export function SessionWindowNotice({
+  title,
+  detail,
+  action,
+}: {
+  title: string;
+  detail?: string | null;
+  action?: React.ReactNode;
+}) {
   return (
     <Empty
       className="min-h-full"
@@ -139,6 +206,7 @@ export function SessionWindowNotice({ title, detail }: { title: string; detail?:
       size="compact"
       title={title}
       cause={detail || undefined}
+      action={action}
     />
   );
 }

@@ -7,7 +7,8 @@ import { formatContextBytes } from "./context-format";
  */
 export type SessionDerivePreviewView =
   | { state: "measuring" }
-  | { state: "error" }
+  /** `timeout`: the daemon did not answer within the dialog's bound. */
+  | { state: "error"; reason: "failed" | "timeout" }
   | {
       state: "ready" | "truncated";
       /**
@@ -28,9 +29,10 @@ function messages(count: number): string {
 
 export function sessionDerivePreviewView(
   preview: SessionDerivePreview | undefined,
-  status: "pending" | "error" | "success"
+  status: "pending" | "error" | "success",
+  timedOut = false
 ): SessionDerivePreviewView {
-  if (status === "error") return { state: "error" };
+  if (status === "error") return { state: "error", reason: timedOut ? "timeout" : "failed" };
   if (status === "pending" || !preview) return { state: "measuring" };
   const carried = Math.max(0, preview.message_count);
   const omitted = preview.truncated ? Math.max(0, preview.omitted_count) : 0;
