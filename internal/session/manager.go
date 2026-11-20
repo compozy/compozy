@@ -26,6 +26,10 @@ var defaultPromptRecoveryDelays = []time.Duration{time.Second, 2 * time.Second, 
 var (
 	// ErrSessionNotFound reports that the requested active session does not exist.
 	ErrSessionNotFound = errors.New("session: session not found")
+	// errSessionMetaIdentityMismatch marks metadata whose stored id differs from its
+	// directory. It travels with ErrSessionNotFound so callers that only need "not
+	// usable" keep working, while ancestry walks can tell it apart from absence.
+	errSessionMetaIdentityMismatch = errors.New("metadata identity mismatch")
 	// ErrSessionNotActive reports that a known session cannot accept live approvals or prompts.
 	ErrSessionNotActive = errors.New("session: session is not active")
 	// ErrPendingPermissionNotFound reports that no waiting permission matched the approval request.

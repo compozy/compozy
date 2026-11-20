@@ -62,7 +62,8 @@ func (m *Manager) readSessionMetaReadOnly(ctx context.Context, id string) (store
 	}
 	if metaID, idErr := normalizeStoredSessionID(meta.ID); idErr != nil || metaID != target {
 		return store.SessionMeta{}, fmt.Errorf(
-			"%w: metadata identity %q does not match directory %q", ErrSessionNotFound, meta.ID, target,
+			"%w: %w: %q does not match directory %q",
+			ErrSessionNotFound, errSessionMetaIdentityMismatch, meta.ID, target,
 		)
 	}
 	if m.isPending(target) {

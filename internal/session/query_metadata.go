@@ -35,8 +35,9 @@ func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.Ses
 	metaID, err := normalizeStoredSessionID(meta.ID)
 	if err != nil || metaID != target {
 		return store.SessionMeta{}, fmt.Errorf(
-			"%w: metadata identity %q does not match directory %q",
+			"%w: %w: %q does not match directory %q",
 			ErrSessionNotFound,
+			errSessionMetaIdentityMismatch,
 			meta.ID,
 			target,
 		)

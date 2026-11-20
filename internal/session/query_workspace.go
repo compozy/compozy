@@ -54,7 +54,7 @@ func (m *Manager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*
 		if !isPublicSessionCatalogInfo(info) || info.WorkspaceID != workspaceID {
 			continue
 		}
-		hidden, err := m.sideFamilyMembership(ctx, info.Lineage)
+		hidden, err := m.sideFamilyMembership(ctx, info.ID, info.Lineage)
 		if err != nil {
 			return nil, fmt.Errorf("session: list workspace ancestry: %w", err)
 		}

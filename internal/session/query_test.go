@@ -6150,6 +6150,76 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 			t.Fatalf("fork workspace after source deletion = %+v, %v", workspace, err)
 		}
 	})
+	// Invariant: a deleted hierarchy parent ends the side ancestry walk instead of failing the workspace.
+	// Owner: catalog visibility; canonical suite: TestSideVisibilityAndNotifications.
+	t.Run("Should keep workspace lists available after deleting a nested session's parent", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "still-hidden")
+		waitForDeriveConsumption(t, h, side.ID)
+		parent, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{ParentSessionID: parent.ID}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Delete(t.Context(), parent.ID); err != nil {
+			t.Fatal(err)
+		}
+		want := []string{child.ID, source.ID}
+		workspace, err := h.manager.ListForWorkspace(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatalf("workspace list with a deleted parent: %v", err)
+		}
+		got := make([]string, 0, len(workspace))
+		for _, info := range workspace {
+			got = append(got, info.ID)
+		}
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Fatalf("workspace list with a deleted parent = %v, want %v", got, want)
+		}
+		page, err := h.manager.ListPage(t.Context(), ListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = got[:0]
+		for _, info := range page.Sessions {
+			got = append(got, info.ID)
+		}
+		slices.Sort(got)
+		if !slices.Equal(got, want) {
+			t.Fatalf("catalog with a deleted parent = %v, want %v", got, want)
+		}
+	})
+	// Invariant: an ancestor whose metadata identity mismatches its directory fails the walk closed.
+	// Owner: catalog visibility; canonical suite: TestSideVisibilityAndNotifications.
+	t.Run("Should fail side ancestry closed when a parent's metadata identity mismatches", func(t *testing.T) {
+		t.Parallel()
+		const corruptParent = "corrupt-parent"
+		h := newDeriveHarness(t, func(*globaldb.GlobalDB) Option {
+			return func(m *Manager) {
+				m.readSessionMeta = func(path string) (store.SessionMeta, error) {
+					if filepath.Base(filepath.Dir(path)) == corruptParent {
+						return store.SessionMeta{ID: "someone-else"}, nil
+					}
+					return store.ReadSessionMeta(path)
+				}
+			}
+		})
+		lineage := &store.SessionLineage{ParentSessionID: corruptParent}
+		hidden, err := h.manager.sideFamilyMembership(t.Context(), "orphan-child", lineage)
+		if !errors.Is(err, errSessionMetaIdentityMismatch) || hidden {
+			t.Fatalf("side ancestry with a mismatched parent = %v, %v; want a mismatch error", hidden, err)
+		}
+	})
 	// Invariant: the root's durable, scoped lineage controls descendant visibility when metadata is unreadable.
 	// Owner: public hierarchy reads; canonical suite: TestSideVisibilityAndNotifications.
 	t.Run("Should classify unreadable descendant roots from the scoped catalog", func(t *testing.T) {

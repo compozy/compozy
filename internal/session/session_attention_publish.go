@@ -130,7 +130,7 @@ func (m *Manager) publishAttentionEdge(ctx context.Context, before *Info, after 
 		At:          at,
 	}
 	m.publishWaitBadgeEdge(after, to)
-	if !isInternalVerificationSession(after) && !m.sideFamilyMember(ctx, after.Lineage) {
+	if !isInternalVerificationSession(after) && !m.sideFamilyMember(ctx, after.ID, after.Lineage) {
 		m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
 	}
 	m.dispatchSessionAttentionChanged(ctx, after, event)
