@@ -41,6 +41,10 @@ func (m *Manager) sideFamilyMembership(
 		}
 		seen[parent] = true
 		meta, err := m.readSessionMetaReadOnly(ctx, parent)
+		// A deleted parent keeps its ordinary children, so a missing ancestor is
+		// expected state: treat the edge as absent, as the visibility SQL filter does.
+		// The child cannot tell whether that parent was a side session; keeping such
+		// orphans hidden needs side deletion to detach them (tracked in #1546).
 		if errors.Is(err, ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotFound) {
 			m.warnMissingAncestor(ctx, child, parent, err)
 			return false, nil
