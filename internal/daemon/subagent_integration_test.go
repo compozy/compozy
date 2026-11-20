@@ -5540,7 +5540,7 @@ func TestWorkLogCollectorIntegration(t *testing.T) {
 			func(t *testing.T) {
 				t.Parallel()
 				var clock atomic.Int64
-				clock.Store(time.Now().Add(time.Hour).UnixNano())
+				clock.Store(time.Now().UnixNano())
 				d, m, ws := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
 					d.now = func() time.Time { return time.Unix(0, clock.Load()).UTC() }
 					agentPath := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
@@ -5620,6 +5620,9 @@ func TestWorkLogCollectorIntegration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				// The global DB shares the daemon clock, so age the instance past one check cadence
+				// after it is stamped; otherwise the first check is skipped as cooldown_active.
+				clock.Store(d.now().Add(time.Hour).UnixNano())
 				database := d.registry.(*globaldb.GlobalDB)
 				if _, err := database.DB().
 					ExecContext(t.Context(), `INSERT INTO automation_runs (id,profile_id,workspace_id,status,ended_at) VALUES ('work-log-resolver-failure',?,?,'failed',?)`, parent.ProfileID, ws, store.FormatTimestamp(d.now())); err != nil {
