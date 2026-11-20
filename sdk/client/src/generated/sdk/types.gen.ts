@@ -40065,11 +40065,11 @@ export type ContinueSessionErrors = {
    */
   404: SessionDeriveErrorPayload;
   /**
-   * Session cannot be continued
+   * Session cannot be continued or the source is busy
    */
   409: SessionDeriveErrorPayload;
   /**
-   * Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it
+   * Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id
    */
   422: SessionDeriveErrorPayload;
   /**
@@ -40136,7 +40136,7 @@ export type PreviewSessionDeriveErrors = {
    */
   404: ErrorPayload;
   /**
-   * Session is archived
+   * Session is archived or the source is busy
    */
   409: ErrorPayload;
   /**
@@ -40764,11 +40764,11 @@ export type ForkSessionErrors = {
    */
   404: SessionDeriveErrorPayload;
   /**
-   * Session cannot be forked
+   * Session cannot be forked or the source is busy
    */
   409: SessionDeriveErrorPayload;
   /**
-   * Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it
+   * Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id
    */
   422: SessionDeriveErrorPayload;
   /**
@@ -43164,7 +43164,7 @@ export type OpenSessionSideErrors = {
    */
   409: SessionDeriveErrorPayload;
   /**
-   * Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it
+   * Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id
    */
   422: SessionDeriveErrorPayload;
   /**

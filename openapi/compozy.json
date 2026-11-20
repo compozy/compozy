@@ -101939,7 +101939,7 @@
                 }
               }
             },
-            "description": "Session cannot be continued"
+            "description": "Session cannot be continued or the source is busy"
           },
           "422": {
             "content": {
@@ -101949,7 +101949,7 @@
                 }
               }
             },
-            "description": "Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it"
+            "description": "Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id"
           },
           "500": {
             "content": {
@@ -102069,7 +102069,7 @@
                 }
               }
             },
-            "description": "Session is archived"
+            "description": "Session is archived or the source is busy"
           },
           "500": {
             "content": {
@@ -103282,7 +103282,7 @@
                 }
               }
             },
-            "description": "Session cannot be forked"
+            "description": "Session cannot be forked or the source is busy"
           },
           "422": {
             "content": {
@@ -103292,7 +103292,7 @@
                 }
               }
             },
-            "description": "Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it"
+            "description": "Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id"
           },
           "500": {
             "content": {
@@ -107982,7 +107982,7 @@
                 }
               }
             },
-            "description": "Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it"
+            "description": "Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id"
           },
           "500": {
             "content": {

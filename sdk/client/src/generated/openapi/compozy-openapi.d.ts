@@ -57302,7 +57302,7 @@ export interface operations {
           "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
-      /** @description Session cannot be continued */
+      /** @description Session cannot be continued or the source is busy */
       409: {
         headers: {
           [name: string]: unknown;
@@ -57311,7 +57311,7 @@ export interface operations {
           "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
-      /** @description Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it */
+      /** @description Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id */
       422: {
         headers: {
           [name: string]: unknown;
@@ -57388,7 +57388,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Session is archived */
+      /** @description Session is archived or the source is busy */
       409: {
         headers: {
           [name: string]: unknown;
@@ -58115,7 +58115,7 @@ export interface operations {
           "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
-      /** @description Session cannot be forked */
+      /** @description Session cannot be forked or the source is busy */
       409: {
         headers: {
           [name: string]: unknown;
@@ -58124,7 +58124,7 @@ export interface operations {
           "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
-      /** @description Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it */
+      /** @description Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id */
       422: {
         headers: {
           [name: string]: unknown;
@@ -61155,7 +61155,7 @@ export interface operations {
           "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
-      /** @description Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it */
+      /** @description Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id */
       422: {
         headers: {
           [name: string]: unknown;

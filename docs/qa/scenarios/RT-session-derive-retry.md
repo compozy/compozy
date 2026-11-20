@@ -33,9 +33,11 @@ Planning 2026-09-28 (session-continue-fork task_03): new behavior.
    same command from A's workspace: the recorded outcome returns with `replayed: true`,
    `child_deleted: true` (HTTP `200`), not `404`. The derive and preview routes never rewrite the
    source's metadata (no repairing read).
-8. Post-commit failure (review round 1 #9): continue with `--message` onto an agent whose runtime
-   cannot authenticate: `422` carries `child_session_id`; the CLI prints the session id and the key to
-   rerun with; the web dialog shows **Open new session** and opens that child.
+8. Continue with `--message` while the child's runtime bind is delayed. Confirm that the committed
+   child is returned before the bind finishes. If the bind fails after admission, inspect
+   `runtime.failure` on that child. Repeating the same request returns `422 derive_first_prompt_failed`
+   with the same `child_session_id` and creates no new session. For a failure before admission, the
+   response can still report a provider diagnosis with the committed child ID.
 9. Round 2 (review round 2 #1–#3): after step 8's refusal, change the agent in the web dialog and
    submit again: the `idempotency_conflict` refusal shows and **Open new session** stays offered and
    opens the first child. A model refusal (`model_unavailable`) prints `model_unavailable: …` in the

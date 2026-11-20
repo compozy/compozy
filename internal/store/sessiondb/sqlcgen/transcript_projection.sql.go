@@ -10,6 +10,20 @@ import (
 	"database/sql"
 )
 
+const countTranscriptEntriesThrough = `-- name: CountTranscriptEntriesThrough :one
+SELECT COUNT(*)
+FROM transcript_entries
+WHERE message_json IS NOT NULL AND start_sequence <= ?1
+  AND updated_sequence <= ?1
+`
+
+func (q *Queries) CountTranscriptEntriesThrough(ctx context.Context, throughSequence int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTranscriptEntriesThrough, throughSequence)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countTranscriptMessageIDConflicts = `-- name: CountTranscriptMessageIDConflicts :one
 SELECT COUNT(*)
 FROM transcript_entries
@@ -460,6 +474,125 @@ func (q *Queries) ListTranscriptEntriesBefore(ctx context.Context, arg ListTrans
 			&i.UpdatedSequence,
 			&i.EventType,
 			&i.MarkerJson,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptEntriesThrough = `-- name: ListTranscriptEntriesThrough :many
+SELECT entry_key, kind, logical_id, turn_id, base_message_id, message_id,
+       message_json, start_sequence, updated_sequence, event_type, marker_json
+FROM transcript_entries
+WHERE message_json IS NOT NULL
+  AND start_sequence <= ?1
+ORDER BY start_sequence DESC
+LIMIT ?2
+`
+
+type ListTranscriptEntriesThroughParams struct {
+	ThroughStart int64 `json:"through_start"`
+	RowLimit     int64 `json:"row_limit"`
+}
+
+type ListTranscriptEntriesThroughRow struct {
+	EntryKey        string         `json:"entry_key"`
+	Kind            string         `json:"kind"`
+	LogicalID       string         `json:"logical_id"`
+	TurnID          string         `json:"turn_id"`
+	BaseMessageID   string         `json:"base_message_id"`
+	MessageID       sql.NullString `json:"message_id"`
+	MessageJson     sql.NullString `json:"message_json"`
+	StartSequence   int64          `json:"start_sequence"`
+	UpdatedSequence int64          `json:"updated_sequence"`
+	EventType       string         `json:"event_type"`
+	MarkerJson      sql.NullString `json:"marker_json"`
+}
+
+func (q *Queries) ListTranscriptEntriesThrough(ctx context.Context, arg ListTranscriptEntriesThroughParams) ([]ListTranscriptEntriesThroughRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscriptEntriesThrough, arg.ThroughStart, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTranscriptEntriesThroughRow{}
+	for rows.Next() {
+		var i ListTranscriptEntriesThroughRow
+		if err := rows.Scan(
+			&i.EntryKey,
+			&i.Kind,
+			&i.LogicalID,
+			&i.TurnID,
+			&i.BaseMessageID,
+			&i.MessageID,
+			&i.MessageJson,
+			&i.StartSequence,
+			&i.UpdatedSequence,
+			&i.EventType,
+			&i.MarkerJson,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptEntryEventsThrough = `-- name: ListTranscriptEntryEventsThrough :many
+SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
+FROM events
+WHERE transcript_entry_key = ?1 AND sequence <= ?2
+ORDER BY sequence ASC
+`
+
+type ListTranscriptEntryEventsThroughParams struct {
+	EntryKey        string `json:"entry_key"`
+	ThroughSequence int64  `json:"through_sequence"`
+}
+
+type ListTranscriptEntryEventsThroughRow struct {
+	ID        string `json:"id"`
+	Sequence  int64  `json:"sequence"`
+	TurnID    string `json:"turn_id"`
+	Type      string `json:"type"`
+	AgentName string `json:"agent_name"`
+	Content   string `json:"content"`
+	Archived  int64  `json:"archived"`
+	Timestamp string `json:"timestamp"`
+}
+
+func (q *Queries) ListTranscriptEntryEventsThrough(ctx context.Context, arg ListTranscriptEntryEventsThroughParams) ([]ListTranscriptEntryEventsThroughRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscriptEntryEventsThrough, arg.EntryKey, arg.ThroughSequence)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTranscriptEntryEventsThroughRow{}
+	for rows.Next() {
+		var i ListTranscriptEntryEventsThroughRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Sequence,
+			&i.TurnID,
+			&i.Type,
+			&i.AgentName,
+			&i.Content,
+			&i.Archived,
+			&i.Timestamp,
 		); err != nil {
 			return nil, err
 		}

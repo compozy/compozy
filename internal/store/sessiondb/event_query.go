@@ -12,6 +12,13 @@ const (
 	sessionEventMetadataColumns = "id, sequence, turn_id, type, agent_name, timestamp"
 )
 
+func sessionEventProjection(query store.EventQuery) string {
+	if query.ReplayShape {
+		return sessionReplayShapeColumns
+	}
+	return sessionEventColumns
+}
+
 // dynamic-sql: selected projection, optional event predicates, cursor bounds, and reverse-limit paging change shape.
 func buildEventQuerySQL(columns string, query store.EventQuery) (string, []any, error) {
 	projection := strings.TrimSpace(columns)

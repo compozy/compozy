@@ -3594,6 +3594,76 @@ func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 	}
 }
 
+type inheritedTranscriptManagerStub struct {
+	*stubSessionManager
+	read func(context.Context, *session.Info, transcript.PageQuery) (transcript.Page, int64, error)
+}
+
+func (s inheritedTranscriptManagerStub) InheritedTranscript(
+	ctx context.Context, child *session.Info, query transcript.PageQuery,
+) (transcript.Page, int64, error) {
+	return s.read(ctx, child, query)
+}
+
+func TestSessionInheritedTranscriptHandler(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should authorize the child and pass the source page or indistinguishable unavailable state",
+		func(t *testing.T) {
+			t.Parallel()
+			manager := inheritedTranscriptManagerStub{
+				stubSessionManager: &stubSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						info := apitestutil.NewSessionInfo(id)
+						if id == "wrong-workspace" {
+							info.WorkspaceID = "foreign"
+						}
+						return info, nil
+					},
+				},
+				read: func(_ context.Context, child *session.Info, query transcript.PageQuery) (transcript.Page, int64, error) {
+					if child.ID == "missing-source" {
+						return transcript.Page{}, 0, session.ErrInheritedTranscriptUnavailable
+					}
+					if child.ID != "child" || query.Limit != 5 || query.BeforeSequence != 9 {
+						t.Fatalf("inherited reader called with %q and %+v", child.ID, query)
+					}
+					return transcript.Page{
+						Generation:         3,
+						MaxSequence:        10,
+						HasOlder:           true,
+						NextBeforeSequence: 5,
+					}, 2, nil
+				},
+			}
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			const base = "/api/workspaces/ws-workspace/sessions/"
+			response := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				base+"child/transcript/inherited?limit=5&before_sequence=9",
+				nil,
+			)
+			var page contract.SessionTranscriptResponse
+			decodeJSONResponse(t, response, &page)
+			if response.Code != http.StatusOK || page.Epoch != 2 || page.Generation != 3 ||
+				page.MaxSequence != 10 || page.NextBeforeSequence != 5 || page.Entries == nil {
+				t.Fatalf("inherited page status %d body %+v", response.Code, page)
+			}
+			for _, id := range []string{"missing-source", "wrong-workspace"} {
+				response := performRequest(t, engine, http.MethodGet, base+id+"/transcript/inherited", nil)
+				var payload contract.ErrorPayload
+				decodeJSONResponse(t, response, &payload)
+				if response.Code != http.StatusNotFound || payload.Error == "" ||
+					(payload.Code == "inherited_transcript_unavailable") != (id == "missing-source") {
+					t.Fatalf("%s status %d body %+v", id, response.Code, payload)
+				}
+			}
+		},
+	)
+}
+
 func TestListAgentsAndHealthHandlers(t *testing.T) {
 	t.Parallel()
 

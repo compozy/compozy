@@ -16,20 +16,21 @@ const sessionDerivedEventWriteTimeout = 5 * time.Second
 
 // sessionDerivedEventPayload is the session.derived ledger payload.
 type sessionDerivedEventPayload struct {
-	Kind               store.LineageKind `json:"kind"`
-	SourceSessionID    string            `json:"source_session_id"`
-	OriginMessageID    string            `json:"origin_message_id,omitempty"`
-	OriginAgentName    string            `json:"origin_agent_name"`
-	ThroughTurnID      string            `json:"through_turn_id"`
-	Seed               string            `json:"seed"`
-	NativeState        string            `json:"native_state,omitempty"`
-	ReplayMessageCount int               `json:"replay_message_count"`
-	ReplayBytes        int               `json:"replay_bytes"`
-	Truncated          bool              `json:"truncated"`
-	OmittedCount       int               `json:"omitted_count"`
-	NativeForkError    string            `json:"native_fork_error,omitempty"`
-	FirstPrompt        string            `json:"first_prompt"`
-	IdempotencyKey     string            `json:"idempotency_key"`
+	Kind                    store.LineageKind `json:"kind"`
+	SourceSessionID         string            `json:"source_session_id"`
+	OriginMessageID         string            `json:"origin_message_id,omitempty"`
+	OriginAgentName         string            `json:"origin_agent_name"`
+	ThroughTurnID           string            `json:"through_turn_id"`
+	Seed                    string            `json:"seed"`
+	NativeState             string            `json:"native_state,omitempty"`
+	ReplayMessageCount      int               `json:"replay_message_count"`
+	ReplayBytes             int               `json:"replay_bytes"`
+	Truncated               bool              `json:"truncated"`
+	OmittedCount            int               `json:"omitted_count"`
+	NativeForkError         string            `json:"native_fork_error,omitempty"`
+	NativeForkRefusalReason string            `json:"native_fork_refusal_reason,omitempty"`
+	FirstPrompt             string            `json:"first_prompt"`
+	IdempotencyKey          string            `json:"idempotency_key"`
 }
 
 func cloneDerivationReceipt(receipt *store.SessionDerivationReceipt) *store.SessionDerivationReceipt {
@@ -110,7 +111,8 @@ func (m *Manager) writeSessionDerivedEvent(
 		ReplayMessageCount: outcome.ReplayMessageCount, ReplayBytes: outcome.ReplayBytes,
 		Truncated: outcome.Truncated, OmittedCount: outcome.OmittedCount,
 		NativeForkError: outcome.NativeForkError, FirstPrompt: outcome.FirstPrompt,
-		IdempotencyKey: derivation.IdempotencyKey,
+		NativeForkRefusalReason: outcome.NativeForkRefusalReason,
+		IdempotencyKey:          derivation.IdempotencyKey,
 	}
 	if lineage != nil {
 		payload.OriginAgentName = lineage.OriginAgentName
@@ -147,6 +149,7 @@ func (m *Manager) writeSessionDerivedEvent(
 		"session.derived",
 		"derive.kind", payload.Kind,
 		"derive.seed", payload.Seed,
+		"native_fork_refusal_reason", payload.NativeForkRefusalReason,
 		"source_session_id", payload.SourceSessionID,
 		"child_session_id", info.ID,
 		"replay_bytes", payload.ReplayBytes,
@@ -194,6 +197,9 @@ func (m *Manager) replayDeriveReceipt(
 	result.Child = child
 	if lineage := store.NormalizeSessionLineage(child.ID, child.Lineage); lineage != nil {
 		result.OriginAgentName = lineage.OriginAgentName
+	}
+	if child.Derivation != nil && child.Derivation.FirstPrompt.Failed {
+		return result, true, ErrDeriveFirstPromptFailed
 	}
 	if receipt.Outcome.FirstAdmissionKey != "" && spec.message != "" &&
 		!m.deriveFirstMessageDispatched(ctx, receipt.ChildSessionID, receipt.Outcome.FirstAdmissionKey) {

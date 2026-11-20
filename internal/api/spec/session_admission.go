@@ -86,7 +86,11 @@ func continueSessionOperationSpec() OperationSpec {
 			{Status: 200, Description: "Recorded outcome replayed", Body: contract.SessionDeriveResponse{}},
 			{Status: 400, Description: "Invalid continue request", Body: contract.SessionDeriveErrorPayload{}},
 			{Status: 404, Description: "Session or agent not found", Body: contract.SessionDeriveErrorPayload{}},
-			{Status: 409, Description: "Session cannot be continued", Body: contract.SessionDeriveErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Session cannot be continued or the source is busy",
+				Body:        contract.SessionDeriveErrorPayload{},
+			},
 			{
 				Status:      422,
 				Description: specDeriveCommittedFailureDescription,
@@ -125,7 +129,11 @@ func forkSessionOperationSpec() OperationSpec {
 			{Status: 200, Description: "Recorded outcome replayed", Body: contract.SessionDeriveResponse{}},
 			{Status: 400, Description: "Invalid fork request", Body: contract.SessionDeriveErrorPayload{}},
 			{Status: 404, Description: "Session or message not found", Body: contract.SessionDeriveErrorPayload{}},
-			{Status: 409, Description: "Session cannot be forked", Body: contract.SessionDeriveErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Session cannot be forked or the source is busy",
+				Body:        contract.SessionDeriveErrorPayload{},
+			},
 			{
 				Status:      422,
 				Description: specDeriveCommittedFailureDescription,
@@ -163,7 +171,7 @@ func previewSessionDeriveOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.SessionDerivePreviewResponse{}},
 			{Status: 400, Description: "Session cannot be continued or forked", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Session or message not found", Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Session is archived", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Session is archived or the source is busy", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
@@ -171,5 +179,5 @@ func previewSessionDeriveOperationSpec() OperationSpec {
 
 // specDeriveCommittedFailureDescription documents the runtime/auth failure that can
 // follow the child's commit (first-message admission); child_session_id names it.
-const specDeriveCommittedFailureDescription = "Runtime or authentication failure; when the new session " +
-	"was already created the error carries child_session_id and a retry with the same idempotency_key returns it"
+const specDeriveCommittedFailureDescription = "Runtime, authentication or previously admitted first-message failure; " +
+	"when the new session was already created the error carries child_session_id"

@@ -84,6 +84,7 @@ func registerSessionReadRoutes(sessions gin.IRouter, handlers *Handlers) {
 	sessions.GET("/:session_id/events", handlers.SessionEvents)
 	sessions.GET("/:session_id/status", handlers.GetSessionStatus)
 	sessions.GET("/:session_id/transcript", handlers.SessionTranscript)
+	sessions.GET("/:session_id/transcript/inherited", handlers.SessionInheritedTranscript)
 	sessions.GET("/:session_id/transcript/search", handlers.SessionTranscriptSearch)
 	sessions.GET("/:session_id/transcript/outline", handlers.SessionTranscriptOutline)
 }

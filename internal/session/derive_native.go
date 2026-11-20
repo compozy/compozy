@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -12,7 +13,7 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-// Reasons a fork does not use the agent's own session clone (internal logs only).
+// Reasons a derive does not use the agent's own session clone.
 const (
 	nativeForkReasonMessageCut   = "message_cut"
 	nativeForkReasonUnbound      = "source_unbound"
@@ -23,6 +24,9 @@ const (
 	nativeForkReasonDriver       = "driver_unsupported"
 	nativeForkReasonQueueUnknown = "queue_unknown"
 	nativeForkReasonSourceMoved  = "source_moved"
+	nativeForkReasonContinue     = "continue"
+	nativeForkReasonFailed       = "clone_failed"
+	nativeForkReasonRouteUnknown = "route_unavailable"
 )
 
 // nativeForkDecision reports whether a fork can use the agent's own session clone now.
@@ -107,9 +111,10 @@ func (m *Manager) forkNativeDecision(
 
 // deriveSeedOutcome is how a derived child is seeded: replay, or a pinned native clone.
 type deriveSeedOutcome struct {
-	seed        string
-	native      *store.SessionNativeBootstrap
-	nativeError string
+	seed          string
+	native        *store.SessionNativeBootstrap
+	nativeError   string
+	refusalReason string
 }
 
 // deriveForkSeed decides the fork's seed. The carried context is built either way, so a
@@ -124,37 +129,42 @@ func (m *Manager) deriveForkSeed(
 	replay := deriveSeedOutcome{seed: store.SessionDerivationSeedReplay}
 	decision := m.forkNativeDecision(ctx, snapshot, spec.messageID, agentName, childRoute)
 	if !decision.Eligible {
-		m.logger.Debug(
-			"session.fork.native_not_eligible", "source_session_id", snapshot.meta.ID, "reason", decision.Reason,
-		)
+		replay.refusalReason = decision.Reason
 		return replay
 	}
 	source, ok := m.Get(snapshot.meta.ID)
 	if !ok {
+		replay.refusalReason = nativeForkReasonUnbound
 		return replay
 	}
-	native, errText := m.attemptNativeFork(ctx, source, snapshot, childRoute)
+	started := time.Now()
+	native, errText, reason := m.attemptNativeFork(ctx, source, snapshot, childRoute)
+	if snapshot.timing != nil {
+		snapshot.timing.nativeClone = time.Since(started)
+	}
 	if native == nil {
 		replay.nativeError = errText
+		replay.refusalReason = reason
 		return replay
 	}
 	return deriveSeedOutcome{seed: store.SessionDerivationSeedNativeFork, native: native}
 }
 
-// previewNativeForkPossible reports whether a whole-session fork of the snapshot's source
-// would use the agent's own clone right now; false when not eligible or unknown.
-func (m *Manager) previewNativeForkPossible(ctx context.Context, snapshot *deriveSnapshot) bool {
+func (m *Manager) previewNativeForkDecision(ctx context.Context, snapshot *deriveSnapshot) nativeForkDecision {
+	if snapshot.sourceTurnInProgress {
+		return nativeForkDecision{Reason: nativeForkReasonBusy}
+	}
 	meta := snapshot.meta
 	agentName := strings.TrimSpace(meta.AgentName)
 	agentDef, workspace, err := m.resolveDeriveTargetAgent(ctx, &meta, agentName)
 	if err != nil {
-		return false
+		return nativeForkDecision{Reason: nativeForkReasonRouteUnknown}
 	}
 	fork, err := m.resolveForkChildRoute(&workspace, agentDef, &meta)
 	if err != nil {
-		return false
+		return nativeForkDecision{Reason: nativeForkReasonRouteUnknown}
 	}
-	return m.forkNativeDecision(ctx, snapshot, "", agentName, fork.resolved).Eligible
+	return m.forkNativeDecision(ctx, snapshot, "", agentName, fork.resolved)
 }
 
 // attemptNativeFork runs session/fork on the source's process while holding its exclusive
@@ -167,31 +177,34 @@ func (m *Manager) attemptNativeFork(
 	source *Session,
 	snapshot *deriveSnapshot,
 	childRoute compozyconfig.ResolvedAgent,
-) (*store.SessionNativeBootstrap, string) {
+) (*store.SessionNativeBootstrap, string, string) {
 	forker, ok := m.driver.(ForkDriver)
-	if !ok || source == nil || snapshot == nil || snapshot.sourceTurnInProgress {
-		return nil, ""
+	if !ok {
+		return nil, "", nativeForkReasonDriver
+	}
+	if snapshot.sourceTurnInProgress {
+		return nil, "", nativeForkReasonBusy
 	}
 	proc, err := source.beginExclusivePromptSetup()
 	if err != nil {
 		m.sessionLogger(source).Info("session.fork.native_skipped", "reason", nativeForkReasonBusy, "error", err)
-		return nil, ""
+		return nil, "", nativeForkReasonBusy
 	}
 	defer source.finishPromptSetup()
 	if proc == nil || isProcessDone(proc) {
-		return nil, ""
+		return nil, "", nativeForkReasonUnbound
 	}
 	if moved, err := m.deriveSourceMoved(ctx, snapshot); err != nil || moved {
 		m.sessionLogger(source).Info(
 			"session.fork.native_skipped", "reason", nativeForkReasonSourceMoved, "error", err,
 		)
-		return nil, ""
+		return nil, "", nativeForkReasonSourceMoved
 	}
 	result, err := forker.ForkSession(ctx, proc, proc.Cwd)
 	if err != nil {
 		text := nativeForkErrorText(err, proc.Command)
 		m.sessionLogger(source).Warn("session.fork.native_failed", "error", text)
-		return nil, text
+		return nil, text, nativeForkReasonFailed
 	}
 	return &store.SessionNativeBootstrap{
 		ACPSessionID:       strings.TrimSpace(string(result.SessionID)),
@@ -200,7 +213,7 @@ func (m *Manager) attemptNativeFork(
 		HomePolicy:         string(childRoute.HomePolicy),
 		CommandFingerprint: childRoute.LaunchFingerprint(),
 		State:              store.SessionNativeStatePending,
-	}, ""
+	}, "", ""
 }
 
 // nativeBootstrapMatchesRoute reports whether a resolved route is the provider identity
