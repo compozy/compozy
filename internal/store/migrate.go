@@ -16,7 +16,7 @@ var (
 	ErrSchemaBehind = errors.New("store: database schema is behind this binary")
 	// ErrSchemaAhead reports a database newer than the running binary.
 	ErrSchemaAhead = errors.New("store: database schema is ahead of this binary")
-	// ErrMigrationConnectionCapacity reports a pool too small for a non-transactional migration.
+	// ErrMigrationConnectionCapacity reports a pool too small for a migration that needs a separate connection.
 	ErrMigrationConnectionCapacity = errors.New("store: migration database connection capacity is insufficient")
 )
 
